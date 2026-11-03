@@ -10,6 +10,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import BetterSqlite3 from 'better-sqlite3';
+import { insertMember } from '../../fixtures/factories';
 
 const DB_PATH_FILE = path.join(process.env.TMPDIR ?? '/tmp', 'footbag-e2e-db-path');
 
@@ -24,4 +25,28 @@ export function openLiveDb(): BetterSqlite3.Database {
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   return db;
+}
+
+/**
+ * Give the stack's database the system member curated media is credited to,
+ * as an integration test does for its own database: the stack is built from
+ * the bare schema, and a curated upload needs the one is_system row. A no-op
+ * when the row already exists.
+ */
+export function ensureSystemMember(): void {
+  const db = openLiveDb();
+  try {
+    const existing = db.prepare('SELECT id FROM members WHERE is_system = 1').get();
+    if (!existing) {
+      insertMember(db, {
+        id: 'member_e2e_system',
+        slug: 'footbag_hacky',
+        display_name: 'Footbag Hacky',
+        real_name: 'Footbag Hacky',
+        is_system: 1,
+      });
+    }
+  } finally {
+    db.close();
+  }
 }

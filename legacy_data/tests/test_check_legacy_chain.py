@@ -130,6 +130,33 @@ def test_a_failing_pre_build_audit_refuses_and_names_the_failed_check(tree):
     assert any("FAIL delivered export size" in e for e in errors)
 
 
+def test_stale_figures_from_the_pre_build_audit_warn_and_never_refuse(tree):
+    # New data awaiting a re-audit must not stop a deploy; the chain asks the
+    # audit to warn on drift, and carries its warning into the report.
+    _, audit = tree
+    audit.write_text(
+        "import sys\n"
+        "if '--figure-drift-warns' not in sys.argv:\n"
+        "    print('FAIL delivered export size: 3 not 2'); sys.exit(1)\n"
+        "print('WARN delivered export size: 3 not 2')\n", encoding="utf-8")
+    errors, warnings = _run(strict=True, require_committed=True)
+    assert errors == []
+    assert any("member-data figures: delivered export size: 3 not 2" in w for w in warnings)
+
+
+def test_stale_figures_refuse_the_final_cutover_load(tree):
+    # The final load ships the export production keeps; figures nobody
+    # re-audited for it mean nobody checked it.
+    _, audit = tree
+    audit.write_text(
+        "import sys\n"
+        "if '--figure-drift-warns' not in sys.argv:\n"
+        "    print('FAIL delivered export size: 3 not 2'); sys.exit(1)\n"
+        "print('WARN delivered export size: 3 not 2')\n", encoding="utf-8")
+    errors = chain.check(True, sys.executable, True, final_load=True)[0]
+    assert any("FAIL delivered export size" in e for e in errors)
+
+
 def test_a_clone_pulled_past_the_refresh_warns_locally_and_refuses_a_deploy(tree, tmp_path,
                                                                            monkeypatch):
     # A newer delivery waiting is fine for a local rebuild, never for a deploy.

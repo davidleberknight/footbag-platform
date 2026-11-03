@@ -60,6 +60,8 @@ import { playerTagForMemberSlug, slugifyForTag } from './slugify';
 const BROWSE_POPULAR_LIMIT = 30;
 /** The longest prefix the tag-suggest lookup will search on. */
 const SUGGEST_PREFIX_MAX_LENGTH = 100;
+// The shortest typed term the event-and-club word search runs for.
+const WORD_MATCH_MIN_LENGTH = 3;
 /** How many event hashtags the recency highlight carries. */
 const BROWSE_HIGHLIGHT_EVENT_LIMIT = 12;
 /** How many popular tags a member's upload and edit forms suggest. */
@@ -96,6 +98,37 @@ export interface TagSuggestion {
   normalized: string;
   display: string;
   usageCount: number;
+  /** Set when the tag is a public event's or club's standard hashtag found by a
+   *  word of its real name: the kind and that name, so the list can say which
+   *  event or club it is. */
+  kind?: 'event' | 'club';
+  name?: string;
+}
+
+interface StandardWordMatchRow {
+  kind: 'event' | 'club';
+  real_name: string;
+  tag_normalized: string;
+  tag_display: string;
+  usage_count: number | null;
+}
+
+// One typed word against public event names and years and open club names and
+// cities. Events and clubs are public, so the public suggest endpoint may carry
+// them; members are never matched here.
+function matchStandardTagsByWord(word: string, limit: number): StandardWordMatchRow[] {
+  const pattern = `%${word.replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
+  return tagStats.matchStandardTagsByWord.all(pattern, word, pattern, pattern, limit) as StandardWordMatchRow[];
+}
+
+function wordMatchToSuggestion(r: StandardWordMatchRow): TagSuggestion {
+  return {
+    normalized: r.tag_normalized,
+    display: r.tag_display,
+    usageCount: r.usage_count ?? 0,
+    kind: r.kind,
+    name: r.real_name,
+  };
 }
 
 export interface MemberTagSuggestions {
@@ -305,12 +338,54 @@ export const hashtagDiscoveryService = {
           usageCount: r.usage_count,
         }));
       }
-      const rows = suggestTagsForTerm(normalized, readLimit);
-      return rows.filter(r => offered(r.tag_normalized)).slice(0, limit).map(r => ({
-        normalized: r.tag_normalized,
-        display: r.tag_display,
-        usageCount: r.usage_count ?? 0,
-      }));
+      // A word of an event's or club's real name leads, labelled with that
+      // name; the tags that start with what was typed follow, each once. A
+      // folded term's underscores stand for the spaces of the name.
+      // Word matches take at most half the list, so the hashtag the member is
+      // spelling out still shows beside the events and clubs a word names.
+      // The word search reads every event and club name, so it waits for a
+      // word of three letters, by which point it narrows to a few rows.
+      const byWord = normalized.length >= WORD_MATCH_MIN_LENGTH
+        ? matchStandardTagsByWord(normalized.replace(/_/g, ' '), Math.ceil(limit / 2)).map(wordMatchToSuggestion)
+        : [];
+      const seen = new Set(byWord.map((s) => s.normalized));
+      const byPrefix = suggestTagsForTerm(normalized, readLimit)
+        .filter((r) => !seen.has(r.tag_normalized))
+        .map((r) => ({ normalized: r.tag_normalized, display: r.tag_display, usageCount: r.usage_count ?? 0 }));
+      return [...byWord, ...byPrefix].filter((s) => offered(s.normalized)).slice(0, limit);
+    });
+  },
+
+  /**
+   * The event or club standard hashtag a typed freeform hashtag most likely
+   * meant: one whose real name, year or city holds every word of it
+   * (`#2026_worlds` finds the 2026 Worlds' `#event_2026_worlds`). Null for a
+   * hashtag that already is a standard one, or that matches none. It only
+   * offers; nothing is ever swapped without the member's click.
+   */
+  didYouMean(typed: string): TagSuggestion | null {
+    const body = slugifyForTag(typed.trim().replace(/^#+/, ''));
+    if (body.length === 0 || body.length > SUGGEST_PREFIX_MAX_LENGTH) return null;
+    if (/^(event|club)_/.test(body)) return null;
+    const words = body.split('_').filter((w) => w.length > 0);
+    // A year narrows the read best, else the longest word; every word must
+    // then hold in the name or the hashtag itself.
+    const anchor = words.find((w) => /^\d{4}$/.test(w)) ?? [...words].sort((a, b) => b.length - a.length)[0];
+    return runSqliteRead('hashtagDiscoveryService.didYouMean', () => {
+      // Enough rows that a year shared by a whole season of events still
+      // reaches the one the other words name.
+      const rows = matchStandardTagsByWord(anchor, 500);
+      const hit = rows.find((r) => {
+        // Whole words only: "#art" must not find "Stuttgart". And one generic
+        // word that merely appears in a name ("#footbag" in "Wellington
+        // Footbag Club") names nothing; a single word offers only the event or
+        // club whose own hashtag is that word ("#wellington", #club_wellington).
+        const ownBody = r.tag_normalized.replace(/^#(event|club)_/, '');
+        const haystack = new Set([...slugifyForTag(r.real_name).split('_'), ...ownBody.split('_')]);
+        if (!words.every((w) => haystack.has(w))) return false;
+        return words.length > 1 || ownBody === words[0];
+      });
+      return hit && hit.tag_normalized !== `#${body}` ? wordMatchToSuggestion(hit) : null;
     });
   },
 

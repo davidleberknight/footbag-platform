@@ -38,7 +38,7 @@ ratifies text you drafted is not primary grounding: trace any new surface (route
 to a user story, a governance document, or an explicit human decision, and never build feature-scale
 work inside a fix or remediation batch.
 
-Bright line: if analysis makes the answer certain, do not ask; act on it or state it settled.
+Bright line: if analysis makes the answer certain, do not ask; act on it or state it settled. Never reverse a design decision without asking.
 The one exception is a disagreement between code, a code comment, a document and the intent:
 it always goes to the human to adjudicate, never settled silently, with one recommended answer
 derived from the intent down: the functional requirements and the solution architecture that

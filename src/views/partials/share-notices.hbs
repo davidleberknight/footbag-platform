@@ -1,0 +1,9 @@
+{{!-- The report of a Share Media submit or a save, on the page it landed on:
+      what happened, what already held, and what was refused, each its own
+      notice in its own tone. Caller passes `notices` ({ success, info,
+      refusal }, each a list of sentences); an empty list draws nothing. --}}
+{{#if notices}}
+  {{> outcome-notice lines=notices.success tone='ok'}}
+  {{> outcome-notice lines=notices.info}}
+  {{> outcome-notice lines=notices.refusal tone='no'}}
+{{/if}}

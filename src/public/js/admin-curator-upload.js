@@ -6,8 +6,8 @@
  *   2. PUT video and poster directly to S3 (XHR to capture progress)
  *   3. POST /admin/curator/upload/finalize  -> redirect to status page
  *
- * Photo and url-reference uploads use the existing multipart form path
- * unchanged. This script intercepts the form submit only when mediaType=video.
+ * Photo and video link uploads use the multipart form path. This script
+ * intercepts the form submit only when mediaType=video (the video-file tab).
  *
  * Loaded via <script src> (CSP allows 'self'); no inline event handlers.
  */
@@ -157,8 +157,10 @@
       event.preventDefault();
 
       var posterInput = form.querySelector('input[name="poster"]');
-      var captionInput = form.querySelector('input[name="caption"]');
-      var tagsInput = form.querySelector('input[name="tags"]');
+      function fieldValue(name) {
+        var el = form.querySelector('[name="' + name + '"]');
+        return el ? el.value : '';
+      }
 
       var videoFile = chosen;
       var posterFile = posterInput && posterInput.files && posterInput.files[0];
@@ -183,8 +185,17 @@
           videoSizeBytes: videoFile.size,
           posterContentType: posterFile.type,
           posterSizeBytes: posterFile.size,
-          caption: captionInput ? captionInput.value : '',
-          tags: tagsInput ? tagsInput.value : '',
+          // The rest of the form travels with the request, so the item keeps its
+          // external URL and a gallery named on the form is made before the
+          // bytes are sent, as on every other tab.
+          caption: fieldValue('fileCaption'),
+          tags: fieldValue('tags'),
+          externalUrl: fieldValue('externalUrl'),
+          galleryName: fieldValue('galleryName'),
+          gallerySlug: fieldValue('gallerySlug'),
+          gallerySort: fieldValue('gallerySort'),
+          galleryExcludeTags: fieldValue('galleryExcludeTags'),
+          galleryPreview: fieldValue('galleryPreview'),
         });
 
         setStatus(statusEl, 'Uploading video (' + readableSize(videoFile.size) + ')…', 'info');

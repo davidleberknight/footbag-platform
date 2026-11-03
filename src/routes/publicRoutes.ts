@@ -230,10 +230,10 @@ publicRouter.get('/members/:memberKey/questions', requireMember, memberQuestionC
 publicRouter.post('/members/:memberKey/questions/:messageId/answer',
   requireMember, memberQuestionController.answer);
 
-// Owner-only named-gallery management. Order matters: literal `new`
-// must precede `:id`; literal `edit`/`delete` sub-paths sit at a deeper
-// level than `:id` so are unambiguous, but registering them explicitly
-// keeps intent clear. Once past the tier gate, a non-owner gets the 404
+// Owner-only named-gallery management: list, edit and delete. A gallery is
+// created on the Share Media form below, by naming a set of hashtags. The
+// literal `edit`/`delete` sub-paths sit at a deeper level than `:id` so are
+// unambiguous. Once past the tier gate, a non-owner gets the 404
 // (anti-enumeration). The tier gate reads only the viewer's own tier, so it
 // answers the same way whoever owns the address and reveals nothing about
 // which members exist.
@@ -242,15 +242,14 @@ publicRouter.post('/members/:memberKey/questions/:messageId/answer',
 // hold. Every form behind it carries the gate, so no member is handed a form
 // that will refuse the submission.
 publicRouter.get('/members/:memberKey/galleries',                requireMember, memberGalleryController.getList);
-publicRouter.get('/members/:memberKey/galleries/new',            requireMember, requireTier1Benefits('media'), memberGalleryController.getNew);
-publicRouter.post('/members/:memberKey/galleries',               requireMember, requireTier1Benefits('media'), memberGalleryController.postCreate);
 publicRouter.get('/members/:memberKey/galleries/:id/edit',       requireMember, requireTier1Benefits('media'), memberGalleryController.getEdit);
 publicRouter.post('/members/:memberKey/galleries/:id/edit',      requireMember, requireTier1Benefits('media'), memberGalleryController.postUpdate);
 publicRouter.post('/members/:memberKey/galleries/:id/delete',    requireMember, requireTier1Benefits('media'), memberGalleryController.postDelete);
 
-// Owner-only member upload. Same anti-enumeration 404 pattern as the
-// gallery routes above. POST is multipart/form-data (busboy in the
-// controller); the service layer auto-applies #by_<slug> as the
+// Owner-only Share Media form: photos or a video link, one set of hashtags,
+// and optionally a gallery named from them. Same anti-enumeration 404 pattern
+// as the gallery routes above. POST is multipart/form-data (read in memory
+// in the controller); the service layer auto-applies #by_<slug> as the
 // uploader tag and materializes the per-member Personal Gallery on
 // first upload. Defense in depth behind the gate:
 // curatorMediaService.assertTier1Benefits enforces the same predicate at

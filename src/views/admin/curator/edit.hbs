@@ -38,13 +38,6 @@
       {{/if}}
     </p>
 
-    {{#if content.playerSearch}}
-      {{!-- Before the edit form, never inside it: the search reloads this page,
-            and each result's credit button submits the edit form by id. --}}
-      <div class="section-heading"><h2>Find a Player</h2></div>
-      {{> member-block-search content.playerSearch creditFormId=content.editFormId searchFormId=content.editFormId intro="Search for a member or historical player, then press Credit as Player to add their player hashtag and save the item."}}
-    {{/if}}
-
     <form id="{{content.editFormId}}" action="{{content.formAction}}" method="POST" class="form-block">
       <div class="form-field">
         <label for="curator-edit-caption">Caption</label>
@@ -55,7 +48,7 @@
       <div class="form-field">
         <label for="curator-edit-tags">Hashtags</label>
         <input type="text" id="curator-edit-tags" name="tags" value="{{content.media.tagsString}}">
-        <small class="form-hint">Separated by spaces; each is converted to the letters a to z, digits and underscores. A clip that names a trick carries exactly one of <code>#tutorial</code>, <code>#demo</code> or <code>#record</code>, which is what says what the clip is for.</small>
+        <small class="form-hint">Start each hashtag with #; words without a # between them are one hashtag. Each is converted to the letters a to z, digits and underscores. A clip that names a trick carries exactly one of <code>#tutorial</code>, <code>#demo</code> or <code>#record</code>, which is what says what the clip is for.</small>
       </div>
 
       <div class="form-field">
@@ -101,5 +94,13 @@
         <a href="{{content.cancelHref}}" class="btn btn-outline">Cancel</a>
       </div>
     </form>
+
+    {{#if content.playerSearch}}
+      {{!-- After the edit form, never inside it: its controls belong to the
+            edit form by id, and coming after Save Changes keeps that the form's
+            first submit button, the one Enter in a field presses. --}}
+      <div class="section-heading"><h2>Find a Player</h2></div>
+      {{> member-block-search content.playerSearch creditFormId=content.editFormId searchFormId=content.editFormId intro="Search for a member or historical player, then press Credit as Player to add their player hashtag and save the item."}}
+    {{/if}}
   {{/if}}
 </div>

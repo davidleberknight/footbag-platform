@@ -82,13 +82,13 @@ export function validateUrlSidecarData(data: UrlSidecarData): void {
   }
 }
 
-// Filename pattern: `<primary-slug>_<sha1(videoUrl)[:8]>.meta.json`. Mirrors
-// the existing 94 sidecars (`around-the-world_037d1575.meta.json`).
+// Filename pattern: `<primary_slug>_<sha1(videoUrl)[:8]>.meta.json`, the
+// prefix a slug by the site's one rule (`around_the_world_037d1575.meta.json`).
 // Same URL → same filename → re-uploads overwrite cleanly (idempotent).
 export function deriveUrlSidecarFilename(primarySlug: string, videoUrl: string): string {
-  if (!primarySlug || !/^[a-z0-9-]+$/.test(primarySlug)) {
+  if (!primarySlug || !/^[a-z0-9]+(?:_[a-z0-9]+)*$/.test(primarySlug)) {
     throw new UrlSidecarValidationError(
-      `primarySlug must be lowercase letters, digits, or hyphens: got ${JSON.stringify(primarySlug)}.`,
+      `Primary slug must be lowercase letters, digits or underscores: got ${JSON.stringify(primarySlug)}.`,
     );
   }
   const hash = createHash('sha1').update(videoUrl).digest('hex').slice(0, 8);

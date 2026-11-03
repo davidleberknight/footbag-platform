@@ -313,8 +313,6 @@ form-field-error
 form-field-warning
 form-fieldset
 form-hint
-form-input-prefix
-form-input-with-prefix
 form-notice
 form-row-2col
 form-sublabel

@@ -10,6 +10,7 @@ import request from 'supertest';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import {
   insertMember,
+  insertEvent,
   insertTag,
   insertMediaItem,
   insertFreestyleTrick,
@@ -73,6 +74,24 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'pigbeater', canonical_name: 'pigbeater', adds: '4', base_trick: 'eggbeater', trick_family: 'legover', category: 'compound' });
   insertFreestyleTrickModifier(db, { slug: 'pixie', modifier_name: 'pixie', add_bonus: 1, add_bonus_rotational: 1, modifier_type: 'set', notes: '' });
   insertFreestyleTrickModifierLink(db, 'pigbeater', 'pixie');
+
+  // A public event found by a word of its name; a draft one that must never be
+  // offered; and a member whose name holds the same word, whom the public
+  // endpoint must never return.
+  insertEvent(db, {
+    id: 'event-suggest-worlds',
+    title: 'World Footbag Championships',
+    start_date: '2026-07-20',
+    end_date: '2026-07-26',
+    hashtag_tag_id: insertTag(db, { id: 'tag-event-worlds', tag_normalized: '#event_2026_worlds', tag_display: '#event_2026_worlds' }),
+  });
+  insertEvent(db, {
+    id: 'event-suggest-draft',
+    title: 'Secret World Draft Meet',
+    status: 'draft',
+    hashtag_tag_id: insertTag(db, { id: 'tag-event-draft', tag_normalized: '#event_2026_secret_draft', tag_display: '#event_2026_secret_draft' }),
+  });
+  insertMember(db, { id: 'member-suggest-world', slug: 'world_wanderer', display_name: 'World Wanderer' });
 
   db.close();
   createApp = await importApp();
@@ -162,5 +181,49 @@ describe('GET /tags/suggest', () => {
     // "free" matches #freestyle by prefix; the ontology branches add nothing.
     expect(normalized).toContain('#freestyle');
     expect(normalized.every((n: string) => n.startsWith('#free'))).toBe(true);
+  });
+});
+
+describe('GET /tags/suggest — words of event and club names', () => {
+  // Defect caught: typing a word of an event's name offers nothing, because
+  // only the start of a hashtag is matched, or the event is not named.
+  it('offers a public event\'s hashtag for a word of its name, with its kind and name', async () => {
+    const res = await request(createApp()).get('/tags/suggest?q=world&entry=1');
+    expect(res.status).toBe(200);
+    const hit = res.body.find((s: { normalized: string }) => s.normalized === '#event_2026_worlds');
+    expect(hit).toMatchObject({ kind: 'event', name: 'World Footbag Championships' });
+  });
+
+  // Defect caught: a draft event, or a member, leaks through the public
+  // endpoint by a word of their name.
+  it('never offers a draft event or a member', async () => {
+    const res = await request(createApp()).get('/tags/suggest?q=world');
+    const normalized = res.body.map((s: { normalized: string }) => s.normalized);
+    expect(normalized).toContain('#event_2026_worlds');
+    expect(normalized).not.toContain('#event_2026_secret_draft');
+    expect(JSON.stringify(res.body)).not.toContain('Wanderer');
+    expect(JSON.stringify(res.body)).not.toContain('world_wanderer');
+  });
+
+  // Defect caught: a freeform hashtag that names an event in other words gets
+  // no offer of the event's standard hashtag.
+  it('offers the standard hashtag a freeform one most likely meant', async () => {
+    const res = await request(createApp()).get('/tags/suggest?didYouMean=%232026_worlds');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([expect.objectContaining({ normalized: '#event_2026_worlds', kind: 'event' })]);
+    const none = await request(createApp()).get('/tags/suggest?didYouMean=%23event_2026_worlds');
+    expect(none.body).toEqual([]);
+    const unrelated = await request(createApp()).get('/tags/suggest?didYouMean=%23sunny_beach');
+    expect(unrelated.body).toEqual([]);
+  });
+
+  // Defect caught: a generic word that only appears in an event's name, or a
+  // piece of a word, is offered that event's hashtag, pushing a member to swap
+  // a correct hashtag for a wrong standard one.
+  it('offers nothing for a single generic word of a name, or for part of a word', async () => {
+    const generic = await request(createApp()).get('/tags/suggest?didYouMean=%23footbag');
+    expect(generic.body).toEqual([]);
+    const partial = await request(createApp()).get('/tags/suggest?didYouMean=%23wor');
+    expect(partial.body).toEqual([]);
   });
 });

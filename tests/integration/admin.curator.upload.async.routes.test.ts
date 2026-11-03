@@ -572,6 +572,40 @@ describe('POST /admin/curator/upload/sign', () => {
     expect(res.body.error).toMatch(/Poster is too large/);
   });
 
+  // Defect caught: a video under a file name the system member already holds
+  // is signed and uploaded, then encoded again on every retry, before its save
+  // fails with a database error the curator cannot act on.
+  it('refuses a file name the system member already holds, by name, before signing', async () => {
+    const db = new BetterSqlite3(dbPath);
+    db.pragma('foreign_keys = ON');
+    insertMember(db, { id: 'member_async_system', slug: 'footbag_hacky_async', display_name: 'Footbag Hacky', real_name: 'Footbag Hacky', is_system: 1 });
+    insertMediaItem(db, { uploader_member_id: 'member_async_system', source_filename: 'held.mp4', caption: null });
+    db.close();
+    try {
+      const res = await request(createApp())
+        .post('/admin/curator/upload/sign')
+        .set('Cookie', adminACookie())
+        .send(validBody({ videoFilename: 'held.mp4' }));
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('"held.mp4"');
+      const r = new BetterSqlite3(dbPath, { readonly: true });
+      const jobs = (r.prepare('SELECT COUNT(*) AS c FROM media_jobs').get() as { c: number }).c;
+      r.close();
+      expect(jobs).toBe(0);
+
+      // A name the system member does not hold still signs.
+      const ok = await request(createApp())
+        .post('/admin/curator/upload/sign')
+        .set('Cookie', adminACookie())
+        .send(validBody({ videoFilename: 'fresh.mp4' }));
+      expect(ok.status).toBe(200);
+    } finally {
+      const c = new BetterSqlite3(dbPath);
+      c.prepare("DELETE FROM media_items WHERE uploader_member_id = 'member_async_system'").run();
+      c.close();
+    }
+  });
+
   it('non-positive size -> 400', async () => {
     const app = createApp();
     const res = await request(app)

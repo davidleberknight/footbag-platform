@@ -158,7 +158,7 @@ describe('Adapter misconfig: avatar upload surfaces 503 truthfully', () => {
 
 describe('Adapter misconfig: a gallery saved with photos surfaces 503 truthfully', () => {
   it('image worker down while a new gallery\'s photo uploads -> 503 + unavailable page, not a 500', async () => {
-    expectLoggedError('member gallery upload: image worker unavailable');
+    expectLoggedError('member share: image worker unavailable');
     const fakeFetch: typeof fetch = async () =>
       new Response(JSON.stringify({ error: 'worker overloaded' }), {
         status: 503,
@@ -172,15 +172,14 @@ describe('Adapter misconfig: a gallery saved with photos surfaces 503 truthfully
       }),
     );
 
+    const svc = await import('../../src/services/curatorMediaService');
+    const preview = svc.previewNewMemberGallery(ownerSlug, 'Worker Down', [], () => false);
     const res = await request(createApp())
-      .post(`/members/${ownerSlug}/galleries`)
+      .post(`/members/${ownerSlug}/media/upload`)
       .set('Cookie', ownerCookie)
-      .field('name', 'Worker Down')
-      .field('description', '')
-      .field('sortOrder', 'upload_desc')
-      .field('criteriaTags', '')
-      .field('excludeTags', '')
-      .field('uploadTags', '')
+      .field('mediaType', 'photo')
+      .field('galleryName', 'Worker Down')
+      .field('galleryPreview', 'refusal' in preview ? '' : svc.newGalleryPreviewToken(preview))
       .attach('photoFiles', await tinyJpeg(), 'down.jpg');
 
     expect(res.status).toBe(503);

@@ -276,6 +276,8 @@ describe('POST /admin/system-parameters', () => {
     const page = await request(createApp()).get('/admin/system-parameters').set('Cookie', admin());
     expect(page.text).toMatch(/name="photo_upload_rate_limit_per_hour"[^>]*value="30"/);
     expect(page.text).toMatch(/name="photo_upload_max_file_mb"[^>]*value="25"/);
+    expect(page.text).toMatch(/name="photo_upload_max_files_per_submit"[^>]*value="4"/);
+    expect(page.text).toMatch(/name="photo_upload_max_submit_mb"[^>]*value="50"/);
 
     const res = await request(createApp())
       .post('/admin/system-parameters')
@@ -332,6 +334,25 @@ describe('POST /admin/system-parameters validation', () => {
     expect(res.status).toBe(422);
     expect(configRows('photo_upload_max_file_mb').length).toBe(before);
     expect(currentValue('photo_upload_max_file_mb')).toBe('25');
+  });
+
+  // The per-submit limits likewise stop at what the code enforces, so the
+  // screen never promises members a count or a total the upload path refuses.
+  it('refuses a photos-per-submit or total-per-submit value above its code maximum, and stores nothing', async () => {
+    for (const [key, over, current] of [
+      ['photo_upload_max_files_per_submit', '21', '4'],
+      ['photo_upload_max_submit_mb', '251', '50'],
+    ] as const) {
+      const before = configRows(key).length;
+      const res = await request(createApp())
+        .post('/admin/system-parameters')
+        .set('Cookie', admin())
+        .type('form')
+        .send(saveBody({ [key]: over }));
+      expect(res.status, key).toBe(422);
+      expect(configRows(key).length, key).toBe(before);
+      expect(currentValue(key), key).toBe(current);
+    }
   });
 
   it('refuses a negative value', async () => {

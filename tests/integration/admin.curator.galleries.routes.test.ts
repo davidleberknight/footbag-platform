@@ -52,6 +52,35 @@ function memberCookie(): string {
   return `__Host-footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID, role: 'member' })}`;
 }
 
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+let svcMod: typeof import('../../src/services/curatorMediaService');
+
+/**
+ * Name a gallery on the curator Share Media form with nothing else in the
+ * submit, sending the preview the page's script would record unless told not
+ * to. `agent` keeps the flash cookie for a following GET.
+ */
+async function nameGallery(
+  o: { name: string; tags?: string; slug?: string; sort?: string; exclude?: string; withPreview?: boolean },
+  agent?: ReturnType<typeof request.agent>,
+  cookie: string = adminCookie(),
+) {
+  const tags = o.tags ?? '';
+  let token = '';
+  if (o.withPreview !== false) {
+    const p = svcMod.previewNewCuratorGallery(o.name, svcMod.parseTagList(tags), o.slug ?? '', () => false);
+    if (!('refusal' in p)) token = svcMod.newGalleryPreviewToken(p);
+  }
+  return (agent ?? request(createApp())).post('/admin/curator/upload').set('Cookie', cookie)
+    .field('mediaType', 'photo')
+    .field('tags', tags)
+    .field('galleryName', o.name)
+    .field('gallerySlug', o.slug ?? '')
+    .field('gallerySort', o.sort ?? '')
+    .field('galleryExcludeTags', o.exclude ?? '')
+    .field('galleryPreview', token);
+}
+
 function seedGalleryRow(
   db: BetterSqlite3.Database,
   galleryId: string,
@@ -118,7 +147,7 @@ beforeAll(async () => {
   createApp = mod.createApp;
 
   CURATED_TMP_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-admin-galleries-routes-'));
-  const svcMod = await import('../../src/services/curatorMediaService');
+  svcMod = await import('../../src/services/curatorMediaService');
   svcMod.setCuratedRootDirForTests(CURATED_TMP_ROOT);
 });
 
@@ -245,7 +274,8 @@ describe('POST /admin/curator/galleries/:id/edit (happy path)', () => {
       });
 
     expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/admin/curator/galleries');
+    // Defect caught: a save lands anywhere but the gallery just changed.
+    expect(res.headers.location).toBe(`/media/${GALLERY_A}`);
 
     // Confirm the persisted state via the list view.
     const list = await request(app)
@@ -275,18 +305,7 @@ describe('POST /admin/curator/galleries/:id/edit (happy path)', () => {
 
   it('writes an media.curated_gallery_updated audit row scoped to the admin actor', async () => {
     const app = createApp();
-    const create = await request(app)
-      .post('/admin/curator/galleries')
-      .set('Cookie', adminCookie())
-      .type('form')
-      .send({
-        idSlug: 'audit_update_target',
-        name: 'Audit Update Target',
-        description: '',
-        sortOrder: 'upload_desc',
-        criteriaTags: '#freestyle',
-        excludeTags: '',
-      });
+    const create = await nameGallery({ name: 'Audit Update Target', tags: '#freestyle' });
     expect(create.status).toBe(303);
     const edit = await request(app)
       .post('/admin/curator/galleries/gallery_audit_update_target/edit')
@@ -437,246 +456,149 @@ describe('POST /admin/curator/galleries/:id/edit (validation)', () => {
   });
 });
 
-describe('GET /admin/curator/galleries/new', () => {
-  it('renders the new-gallery form with the slug prefix and an empty body', async () => {
-    const res = await request(createApp())
-      .get('/admin/curator/galleries/new')
-      .set('Cookie', adminCookie());
+function galleryRow(id: string): { name: string; owner_member_id: string; sort_order: string } | undefined {
+  const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+  try {
+    return db.prepare('SELECT name, owner_member_id, sort_order FROM member_galleries WHERE id = ?').get(id) as
+      { name: string; owner_member_id: string; sort_order: string } | undefined;
+  } finally { db.close(); }
+}
 
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('name="idSlug"');
-    expect(res.text).toContain('gallery_');
-    expect(res.text).toContain('name="name"');
-    expect(res.text).toContain('name="criteriaTags"');
-    expect(res.text).toMatch(/action="\/admin\/curator\/galleries"/);
+function galleryCriteria(id: string, table: 'member_gallery_tags' | 'member_gallery_exclude_tags' = 'member_gallery_tags'): string[] {
+  const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+  try {
+    return (db.prepare(`SELECT t.tag_normalized AS tag FROM ${table} g JOIN tags t ON t.id = g.tag_id WHERE g.gallery_id = ?`)
+      .all(id) as { tag: string }[]).map((r) => r.tag).sort();
+  } finally { db.close(); }
+}
+
+describe('retired curator create-gallery routes', () => {
+  // Defect caught: a second create page lives on beside the Share Media form,
+  // so a curator gallery can be made two ways with two sets of rules.
+  it('answers the old create page and its POST with not found', async () => {
+    const page = await request(createApp()).get('/admin/curator/galleries/new').set('Cookie', adminCookie());
+    expect(page.status).toBe(404);
+    const post = await request(createApp()).post('/admin/curator/galleries').set('Cookie', adminCookie())
+      .type('form').send({ idSlug: 'retired', name: 'Retired', sortOrder: 'upload_desc', criteriaTags: '#x' });
+    expect(post.status).toBe(404);
+    expect(galleryRow('gallery_retired')).toBeUndefined();
   });
 
-  it('redirects unauthenticated requests to login', async () => {
-    const res = await request(createApp()).get('/admin/curator/galleries/new');
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toMatch(/\/login/);
-  });
-
-  it('rejects authed-but-not-admin requests with 403', async () => {
-    const res = await request(createApp())
-      .get('/admin/curator/galleries/new')
-      .set('Cookie', memberCookie());
-    expect(res.status).toBe(403);
+  // Defect caught: the list's create button leads to the retired page.
+  it('links the gallery list\'s create button to the curator Share Media form', async () => {
+    const list = await request(createApp()).get('/admin/curator/galleries').set('Cookie', adminCookie());
+    expect(list.text).toMatch(/href="\/admin\/curator\/upload" class="btn btn-primary"/);
   });
 });
 
-describe('POST /admin/curator/galleries (create)', () => {
-  it('creates an FH-owned gallery, redirects with flash, and writes the JSON sidecar', async () => {
-    const app = createApp();
-    const res = await request(app)
-      .post('/admin/curator/galleries')
-      .set('Cookie', adminCookie())
-      .type('form')
-      .send({
-        idSlug: 'created_via_admin_ui',
-        name: 'Created Via Admin UI',
-        description: 'Smoke test gallery',
-        sortOrder: 'upload_desc',
-        criteriaTags: '#freestyle #created',
-        excludeTags: '',
-      });
-
+describe('POST /admin/curator/upload: naming a Footbag Hacky gallery', () => {
+  // Defect caught: a gallery named on the curator form is not Footbag Hacky's,
+  // misses #curated, lands somewhere other than the form, or writes no sidecar
+  // where sidecar writes are on.
+  it('saves the typed hashtags plus #curated as a Footbag Hacky gallery, writes its sidecar, and reports it on the form', async () => {
+    const agent = request.agent(createApp());
+    const res = await nameGallery({ name: 'Created On Share', tags: '#freestyle #created' }, agent);
     expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/admin/curator/galleries');
+    expect(res.headers.location).toBe('/admin/curator/upload');
+    const row = galleryRow('gallery_created_on_share');
+    expect(row?.owner_member_id).toBe(SYSTEM_ID);
+    expect(row?.sort_order).toBe('upload_desc');
+    expect(galleryCriteria('gallery_created_on_share')).toEqual(['#created', '#curated', '#freestyle']);
+    const sidecarPath = path.join(CURATED_TMP_ROOT, 'galleries', 'created_on_share.json');
+    expect(JSON.parse(fs.readFileSync(sidecarPath, 'utf8'))).toMatchObject({ id: 'gallery_created_on_share' });
+    const landed = await agent.get('/admin/curator/upload').set('Cookie', adminCookie());
+    expect(/class="form-success-banner"[\s\S]*?<\/div>/.exec(landed.text)?.[0] ?? '').toContain('/media/gallery_created_on_share');
+  });
 
-    const list = await request(app)
-      .get('/admin/curator/galleries')
-      .set('Cookie', adminCookie());
-    expect(list.text).toContain('gallery_created_via_admin_ui');
-    expect(list.text).toContain('Created Via Admin UI');
+  // Defect caught: a gallery is saved under an address and hashtags the
+  // curator was never shown.
+  it('shows the address and hashtags first when the submit carries no preview, writing nothing', async () => {
+    const res = await nameGallery({ name: 'Needs A Preview', tags: '#preview_first', withPreview: false });
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('/media/gallery_needs_a_preview');
+    expect(res.text).toMatch(/name="galleryPreview" value="gallery_needs_a_preview #curated #preview_first"/);
+    expect(galleryRow('gallery_needs_a_preview')).toBeUndefined();
+  });
 
-    const sidecarPath = path.join(CURATED_TMP_ROOT, 'galleries', 'created_via_admin_ui.json');
-    expect(fs.existsSync(sidecarPath)).toBe(true);
-    const sidecar = JSON.parse(fs.readFileSync(sidecarPath, 'utf8'));
-    expect(sidecar).toMatchObject({
-      id: 'gallery_created_via_admin_ui',
-      name: 'Created Via Admin UI',
-      description: 'Smoke test gallery',
-      sortOrder: 'upload_desc',
-      // FH-owned galleries are author-defined: the criteria are exactly what
-      // was submitted, with no `#curated` auto-prepend.
-      criteriaTags: ['#freestyle', '#created'],
-      excludeTags: [],
+  // Defect caught: the address given under Advanced is ignored, or kept as
+  // typed instead of folded by the slug rule.
+  it('makes the address from the Advanced slug, folded, with the order and excluded hashtags given there', async () => {
+    const res = await nameGallery({
+      name: 'A Long Display Name For Tricks', tags: '#trick', slug: 'Short-One', sort: 'caption_asc', exclude: '#deprecated',
     });
-  });
-
-  it('rejects empty slug with 422 (suggestedId fails service-side regex)', async () => {
-    const res = await request(createApp())
-      .post('/admin/curator/galleries')
-      .set('Cookie', adminCookie())
-      .type('form')
-      .send({
-        idSlug: '',
-        name: 'Whatever',
-        description: '',
-        sortOrder: 'upload_desc',
-        criteriaTags: '#freestyle',
-        excludeTags: '',
-      });
-    expect(res.status).toBe(422);
-    expect(res.text).toMatch(/suggestedId|gallery_\[a-z0-9_\]\+/);
-  });
-
-  it('rejects empty name with 422', async () => {
-    const res = await request(createApp())
-      .post('/admin/curator/galleries')
-      .set('Cookie', adminCookie())
-      .type('form')
-      .send({
-        idSlug: 'name_check',
-        name: '   ',
-        description: '',
-        sortOrder: 'upload_desc',
-        criteriaTags: '#freestyle',
-        excludeTags: '',
-      });
-    expect(res.status).toBe(422);
-    expect(res.text).toMatch(/name is required/i);
-  });
-
-  it('rejects empty criteria-tag set with 422', async () => {
-    // FH-owned galleries are author-defined: `#curated` is not auto-added, so
-    // an empty criteria set has no tags and is rejected. A curated collection
-    // must list `#curated` itself; a topic gallery lists its topic tag.
-    const res = await request(createApp())
-      .post('/admin/curator/galleries')
-      .set('Cookie', adminCookie())
-      .type('form')
-      .send({
-        idSlug: 'no_tags',
-        name: 'No Tags',
-        description: '',
-        sortOrder: 'upload_desc',
-        criteriaTags: '   ',
-        excludeTags: '',
-      });
-    expect(res.status).toBe(422);
-    expect(res.text).toMatch(/at least one criteria hashtag/i);
-  });
-
-  // The id is the curator's own choice, so its collision must be named as the
-  // id: blaming the name tells a curator who typed a fresh name to change the
-  // wrong field.
-  it('names the id, not the name, when a new gallery reuses a taken id; a taken name still names the name', async () => {
-    const create = (idSlug: string, name: string) => request(createApp())
-      .post('/admin/curator/galleries')
-      .set('Cookie', adminCookie())
-      .type('form')
-      .send({ idSlug, name, description: '', sortOrder: 'upload_desc', criteriaTags: '#freestyle', excludeTags: '' });
-
-    expect((await create('id_taken', 'First Holder Of The Id')).status).toBe(303);
-    const idClash = await create('id_taken', 'A Fresh Name');
-    expect(idClash.status).toBe(422);
-    expect(idClash.text).toContain('A gallery with the id &quot;gallery_id_taken&quot; already exists. Choose a different Gallery ID.');
-    expect(idClash.text).not.toContain('A gallery named');
-
-    expect((await create('name_taken_a', 'Shared Gallery Name')).status).toBe(303);
-    const nameClash = await create('name_taken_b', 'Shared Gallery Name');
-    expect(nameClash.status).toBe(422);
-    expect(nameClash.text).toContain('A gallery named &quot;Shared Gallery Name&quot; already exists for this owner.');
-  });
-
-  it('rejects invalid sortOrder with 422', async () => {
-    const res = await request(createApp())
-      .post('/admin/curator/galleries')
-      .set('Cookie', adminCookie())
-      .type('form')
-      .send({
-        idSlug: 'bad_sort',
-        name: 'Bad Sort',
-        description: '',
-        sortOrder: 'random_garbage',
-        criteriaTags: '#freestyle',
-        excludeTags: '',
-      });
-    expect(res.status).toBe(422);
-    expect(res.text).toMatch(/sort order/i);
-  });
-
-  it('rejects duplicate gallery id with 422 (ConflictError)', async () => {
-    const app = createApp();
-    const res = await request(app)
-      .post('/admin/curator/galleries')
-      .set('Cookie', adminCookie())
-      .type('form')
-      .send({
-        idSlug: 'test_alpha',
-        name: 'Alpha Duplicate Attempt',
-        description: '',
-        sortOrder: 'upload_desc',
-        criteriaTags: '#freestyle',
-        excludeTags: '',
-      });
-    expect(res.status).toBe(422);
-  });
-
-  it('redirects unauthenticated requests to login', async () => {
-    const res = await request(createApp())
-      .post('/admin/curator/galleries')
-      .type('form')
-      .send({ idSlug: 'unauth', name: 'X', sortOrder: 'upload_desc', criteriaTags: '#x' });
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toMatch(/\/login/);
-  });
-
-  it('rejects authed-but-not-admin POSTs with 403', async () => {
-    const res = await request(createApp())
-      .post('/admin/curator/galleries')
-      .set('Cookie', memberCookie())
-      .type('form')
-      .send({ idSlug: 'member_attempt', name: 'X', sortOrder: 'upload_desc', criteriaTags: '#x' });
-    expect(res.status).toBe(403);
-  });
-
-  it('writes a media.curated_gallery_created audit row scoped to the admin actor', async () => {
-    const res = await request(createApp())
-      .post('/admin/curator/galleries')
-      .set('Cookie', adminCookie())
-      .type('form')
-      .send({
-        idSlug: 'audit_create_target',
-        name: 'Audit Create Target',
-        description: '',
-        sortOrder: 'upload_desc',
-        criteriaTags: '#freestyle',
-        excludeTags: '',
-      });
     expect(res.status).toBe(303);
+    expect(galleryRow('gallery_short_one')?.sort_order).toBe('caption_asc');
+    expect(galleryCriteria('gallery_short_one', 'member_gallery_exclude_tags')).toEqual(['#deprecated']);
+  });
+
+  // Defect caught: a curator gallery takes over an address another gallery
+  // holds, or quietly takes a numbered one the curator never saw.
+  it('refuses an address another gallery holds, naming the Advanced field and keeping what was typed', async () => {
+    const res = await nameGallery({ name: 'Wants Alpha', tags: '#freestyle', slug: 'test_alpha' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('/media/gallery_test_alpha');
+    expect(res.text).toMatch(/name="galleryName"[^>]*value="Wants Alpha"/);
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    const named = db.prepare('SELECT COUNT(*) AS n FROM member_galleries WHERE name = ?').get('Wants Alpha') as { n: number };
+    db.close();
+    expect(named.n).toBe(0);
+  });
+
+  // Defect caught: a second gallery under one name, or a repeat of the first
+  // submit refused as a clash.
+  it('refuses a second gallery under one name with other hashtags, and takes a repeat as the first', async () => {
+    expect((await nameGallery({ name: 'Twin Curator Name', tags: '#first_set' })).status).toBe(303);
+    const clash = await nameGallery({ name: 'Twin Curator Name', tags: '#second_set', slug: 'twin_other' });
+    expect(clash.status).toBe(422);
+    expect(galleryRow('gallery_twin_other')).toBeUndefined();
+    const repeat = await nameGallery({ name: 'Twin Curator Name', tags: '#first_set' });
+    expect(repeat.status).toBe(303);
+    expect(galleryCriteria('gallery_twin_curator_name')).toEqual(['#curated', '#first_set']);
+  });
+
+  // Defect caught: a name or address of symbols only, or an order the form
+  // does not offer, reaches the database.
+  it('refuses an address of symbols only and an unknown order, writing nothing', async () => {
+    const symbols = await nameGallery({ name: 'Symbol Slug', tags: '#x_tag', slug: '!!!' });
+    expect(symbols.status).toBe(422);
+    expect(galleryRow('gallery_symbol_slug')).toBeUndefined();
+    const sort = await nameGallery({ name: 'Bad Sort', tags: '#x_tag', sort: 'random_garbage' });
+    expect(sort.status).toBe(422);
+    expect(galleryRow('gallery_bad_sort')).toBeUndefined();
+  });
+
+  // Defect caught: a gallery created on the Share form leaves no
+  // accountability record naming the admin.
+  it('writes a media.curated_gallery_created audit row scoped to the admin actor', async () => {
+    expect((await nameGallery({ name: 'Audit Create Target', tags: '#freestyle' })).status).toBe(303);
     const db = new BetterSqlite3(TEST_DB_PATH);
     const audit = db.prepare(
       `SELECT actor_type, actor_member_id, entity_type FROM audit_entries
        WHERE entity_id = ? AND action_type = 'media.curated_gallery_created'`,
     ).get('gallery_audit_create_target') as Record<string, unknown> | undefined;
     db.close();
-    expect(audit).toBeDefined();
-    expect(audit!.actor_type).toBe('admin');
-    expect(audit!.actor_member_id).toBe(ADMIN_ID);
-    expect(audit!.entity_type).toBe('gallery');
+    expect(audit).toMatchObject({ actor_type: 'admin', actor_member_id: ADMIN_ID, entity_type: 'gallery' });
+  });
+
+  // Defect caught: someone other than an admin makes a Footbag Hacky gallery.
+  it('sends a visitor to log in and refuses a member with 403, writing nothing', async () => {
+    const visitor = await request(createApp()).post('/admin/curator/upload')
+      .field('mediaType', 'photo').field('galleryName', 'Visitor Gallery').field('tags', '#x_tag');
+    expect(visitor.status).toBe(302);
+    expect(visitor.headers.location).toMatch(/\/login/);
+    const member = await nameGallery({ name: 'Member Gallery', tags: '#x_tag' }, undefined, memberCookie());
+    expect(member.status).toBe(403);
+    expect(galleryRow('gallery_member_gallery')).toBeUndefined();
   });
 });
+
 
 describe('POST /admin/curator/galleries/:id/delete', () => {
   it('deletes the gallery + sidecar and redirects with flash', async () => {
     const app = createApp();
 
     // Create a one-shot target so this test is independent of the others.
-    const create = await request(app)
-      .post('/admin/curator/galleries')
-      .set('Cookie', adminCookie())
-      .type('form')
-      .send({
-        idSlug: 'delete_target',
-        name: 'Delete Target',
-        description: '',
-        sortOrder: 'upload_desc',
-        criteriaTags: '#freestyle',
-        excludeTags: '',
-      });
+    const create = await nameGallery({ name: 'Delete Target', tags: '#freestyle' });
     expect(create.status).toBe(303);
 
     const sidecarPath = path.join(CURATED_TMP_ROOT, 'galleries', 'delete_target.json');
@@ -701,18 +623,7 @@ describe('POST /admin/curator/galleries/:id/delete', () => {
   it('a repeated delete by the same admin reports the first delete: 303 to the same list, no 404', async () => {
     // Defect caught: a re-posted delete shows "not found" for a gallery this admin just deleted.
     const app = createApp();
-    await request(app)
-      .post('/admin/curator/galleries')
-      .set('Cookie', adminCookie())
-      .type('form')
-      .send({
-        idSlug: 'repeat_delete_target',
-        name: 'Repeat Delete Target',
-        description: '',
-        sortOrder: 'upload_desc',
-        criteriaTags: '#freestyle',
-        excludeTags: '',
-      });
+    expect((await nameGallery({ name: 'Repeat Delete Target', tags: '#freestyle' })).status).toBe(303);
     const send = () => request(app)
       .post('/admin/curator/galleries/gallery_repeat_delete_target/delete')
       .set('Cookie', adminCookie())
@@ -813,7 +724,7 @@ describe('POST /admin/curator/galleries/:id/delete', () => {
 // Kept last: this block tunes curator_write_rate_limit_per_hour via system_config,
 // a latest-effective value that would otherwise throttle gallery POSTs in any
 // subsequent describe.
-describe('POST /admin/curator/galleries — curator write rate limit', () => {
+describe('naming a gallery on the curator Share Media form — curator write rate limit', () => {
   it('admin exceeding the curator-write limit -> 429 with Retry-After', async () => {
     const rlMod = await import('../../src/services/rateLimitService');
     rlMod.resetRateLimitForTests();
@@ -824,34 +735,11 @@ describe('POST /admin/curator/galleries — curator write rate limit', () => {
     });
     tuneDb.close();
     try {
-      const app = createApp();
       for (let i = 0; i < 2; i++) {
-        const ok = await request(app)
-          .post('/admin/curator/galleries')
-          .set('Cookie', adminCookie())
-          .type('form')
-          .send({
-            idSlug: `rate_limit_pass_${i}`,
-            name: `Rate Limit Pass ${i}`,
-            description: '',
-            sortOrder: 'upload_desc',
-            criteriaTags: '#freestyle',
-            excludeTags: '',
-          });
+        const ok = await nameGallery({ name: `Rate Limit Pass ${i}`, tags: '#freestyle' });
         expect(ok.status).toBe(303);
       }
-      const blocked = await request(app)
-        .post('/admin/curator/galleries')
-        .set('Cookie', adminCookie())
-        .type('form')
-        .send({
-          idSlug: 'rate_limit_blocked',
-          name: 'Rate Limit Blocked',
-          description: '',
-          sortOrder: 'upload_desc',
-          criteriaTags: '#freestyle',
-          excludeTags: '',
-        });
+      const blocked = await nameGallery({ name: 'Rate Limit Blocked', tags: '#freestyle' });
       expect(blocked.status).toBe(429);
       expect(blocked.headers['retry-after']).toBeDefined();
     } finally {

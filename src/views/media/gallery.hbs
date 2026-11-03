@@ -1,6 +1,7 @@
 {{> _set-header header=content.setHeader}}
 
 <div class="wrapper">
+  {{> share-notices notices=content.notices}}
 
   {{#if content.gallery.description}}
     <p class="gallery-description">{{content.gallery.description}}</p>

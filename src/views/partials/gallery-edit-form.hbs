@@ -1,8 +1,10 @@
 {{!--
   Shared named-gallery edit form. Used by:
     - admin curator gallery edit (FH-owned, /admin/curator/galleries/:id/edit)
-    - member-owned gallery create (/members/:memberKey/galleries)
     - member-owned gallery edit   (/members/:memberKey/galleries/:id/edit)
+  A gallery is created on the Share Media form, member's or curator's, by
+  naming hashtags. Nothing is uploaded from this form: what a gallery shows is
+  whatever carries its hashtags, and content is shared with them there.
   Caller passes:
     formAction   POST URL the form submits to
     gallery      { name, description, sortOrder, criteriaTagsString, excludeTagsString }
@@ -15,20 +17,11 @@
     errorMessage optional validation error banner.
     submitLabel  optional ("Save changes" by default).
     cancelHref   URL the cancel link points to.
-    isCreate     true on the create flow; false on edit. Both flows always
-                 submit multipart so an optional photo upload can ride
-                 along. Tags applied to uploaded items are the gallery's
-                 non-`#by_*` criteria tags (auto-stamped at submit time
-                 in the controller) merged with anything the user typed
-                 into the `uploadTags` field below. Auto tags applied
-                 by the service layer remain limited to `#by_<slug>`
-                 (uploader attribution) and `#curated` (FH-owned only).
 
   CSRF protection: per DD §3.3, the platform relies on SameSite=Lax
   session cookies + POST-only state changes; no synchronizer tokens.
 --}}
-<form method="POST" action="{{formAction}}" class="form-block"
-      enctype="multipart/form-data">
+<form method="POST" action="{{formAction}}" class="form-block">
   {{> outcome-notice text=errorMessage tone='no'}}
 
   {{#if moderation}}
@@ -107,11 +100,7 @@
     <div class="form-field">
       <label for="gallery-criteria-tags">Criteria hashtags</label>
       <textarea id="gallery-criteria-tags" name="criteriaTags" rows="2" placeholder="#freestyle #trick" data-tag-chips>{{gallery.criteriaTagsString}}</textarea>
-      {{#if isCreate}}
-        <small class="form-hint">Whitespace- or newline-separated. An item must carry every one of these hashtags to appear. Leave empty to show everything you have uploaded; your <code>#by_</code> uploader marker is added automatically.</small>
-      {{else}}
-        <small class="form-hint">Whitespace- or newline-separated. An item must carry every one of these hashtags to appear. Leave empty to show everything you have uploaded; your <code>#by_</code> uploader marker is preserved automatically. Hashtags starting with <code>#by_</code> or equal to <code>#curated</code> are reserved.</small>
-      {{/if}}
+      <small class="form-hint">Start each hashtag with #; typing # or pressing Enter starts the next, and spaces inside one hashtag become underscores. An item must carry every one of these hashtags to appear. Leave empty to show everything you have uploaded; your <code>#by_</code> uploader marker is preserved automatically. Hashtags starting with <code>#by_</code> or equal to <code>#curated</code> are reserved.</small>
       {{> hashtag-slug-help}}
       {{#if fieldErrors.criteriaTags}}<small class="form-field-error" role="alert">{{fieldErrors.criteriaTags}}</small>{{/if}}
     </div>
@@ -119,7 +108,7 @@
     <div class="form-field">
       <label for="gallery-exclude-tags">Exclude hashtags</label>
       <textarea id="gallery-exclude-tags" name="excludeTags" rows="2" placeholder="#tricks_of_the_trade" data-tag-chips>{{gallery.excludeTagsString}}</textarea>
-      <small class="form-hint">Whitespace- or newline-separated. An item carrying any of these hashtags is filtered out. Optional.</small>
+      <small class="form-hint">Start each hashtag with #; typing # or pressing Enter starts the next. An item carrying any of these hashtags is filtered out. Optional.</small>
       {{#if fieldErrors.excludeTags}}<small class="form-field-error" role="alert">{{fieldErrors.excludeTags}}</small>{{/if}}
     </div>
     {{/unless}}
@@ -161,16 +150,13 @@
     </fieldset>
   {{/if}}
 
-  {{#unless isCreate}}
-    {{#if currentItems.length}}
-      {{> _gallery-current-items currentItems=currentItems currentItemsTruncated=currentItemsTruncated}}
-    {{/if}}
-  {{/unless}}
+  {{#if currentItems.length}}
+    {{> _gallery-current-items currentItems=currentItems currentItemsTruncated=currentItemsTruncated}}
+  {{/if}}
 
   {{#if moderation}}
     {{! Moderating somebody else's gallery means taking off what is wrong, never
-        adding to it under their name, so this door offers no upload control and
-        the service refuses files posted to it anyway. }}
+        adding to it under their name. }}
     <div class="form-field">
       <label for="gallery-moderation-reason">Reason (required)</label>
       <input type="text" id="gallery-moderation-reason" name="reason"
@@ -181,30 +167,6 @@
       </small>
       {{#if fieldErrors.reason}}<small class="form-field-error" role="alert">{{fieldErrors.reason}}</small>{{/if}}
     </div>
-  {{else}}
-  <fieldset class="form-fieldset">
-    <legend>Upload files now (optional)</legend>
-    <div class="form-field">
-      <label for="gallery-upload-files">Photo files</label>
-      <input type="file" id="gallery-upload-files" name="photoFiles" accept="image/jpeg,image/png" multiple>
-      <small class="form-hint">
-        JPEG or PNG, up to 25 MB each, max 3 files.
-      </small>
-    </div>
-    <div class="form-field">
-      <label for="gallery-upload-tags">Extra hashtags for these uploads (optional)</label>
-      <textarea id="gallery-upload-tags" name="uploadTags" rows="2" placeholder="#extra #optional">{{uploadTags}}</textarea>
-      <small class="form-hint">
-        Files uploaded here automatically get this gallery's
-        criteria hashtags{{#unless isFhOwned}} plus your <code>#by_</code> uploader
-        hashtag{{/unless}}, so they appear in this gallery. Use this box only
-        to apply additional hashtags beyond the criteria above.
-        {{#if isFhOwned}}
-          Curated uploads also receive <code>#curated</code> automatically.
-        {{/if}}
-      </small>
-    </div>
-  </fieldset>
   {{/if}}
 
   <div class="form-actions">

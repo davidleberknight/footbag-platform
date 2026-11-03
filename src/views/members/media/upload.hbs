@@ -1,9 +1,7 @@
 {{!--
-  Member-owned upload form. Owner-only view (anti-enumeration 404 elsewhere).
-  2-tab layout: Photo / Video link. No MP4 upload because members link to
-  YouTube or Vimeo rather than hosting video bytes, which avoids storage
-  and transcoding costs for the member tier. Same CSS-only tab pattern as
-  the admin curator form. Works without JavaScript.
+  Share Media: the one form a member shares through, the shared Share Media
+  form (partial share-media-form). Owner-only view (anti-enumeration 404
+  elsewhere).
 --}}
 <div class="hero hero-sm">
   <div>
@@ -12,140 +10,10 @@
 </div>
 
 <div class="wrapper">
-  <p>
-    Upload a photo, or share a YouTube or Vimeo video link. Anything you upload is
-    automatically tagged with your uploader marker, so it appears in your Personal Gallery.
-    Add more hashtags to surface it in event, club, or topic galleries too.
-    Hashtags starting with <code>#by_</code> are reserved for the system uploader marker
-    and cannot be set by hand; <code>#curated</code> is similarly reserved.
-  </p>
+  <p>{{content.intro}}</p>
 
+  {{> outcome-notice text=content.notice}}
   {{> outcome-notice text=content.errorMessage tone='no'}}
 
-  <form action="{{content.formAction}}" method="POST" enctype="multipart/form-data" class="upload-form form-block">
-
-    <div class="upload-tabs">
-      {{!-- Hidden radios act as the tab control. --}}
-      <input type="radio" name="mediaType" value="photo" id="member-tab-photo"
-        {{#if (eq content.formValues.mediaType "video")}}{{else}}checked{{/if}}
-        class="upload-tab-radio">
-      <input type="radio" name="mediaType" value="video" id="member-tab-video"
-        {{#if (eq content.formValues.mediaType "video")}}checked{{/if}}
-        class="upload-tab-radio">
-
-      <div class="upload-tab-bar">
-        <label for="member-tab-photo" class="upload-tab">Photo</label>
-        <label for="member-tab-video" class="upload-tab">Video link</label>
-      </div>
-
-      <div class="upload-tab-panels">
-        <div class="upload-tab-panel upload-tab-panel-photo">
-          <fieldset>
-            <legend>Photo file</legend>
-            <div class="form-field">
-              <label for="photoFile">File (JPEG or PNG, up to 25&nbsp;MB):</label>
-              <input type="file" id="photoFile" name="photoFile" accept="image/jpeg,image/png">
-            </div>
-          </fieldset>
-        </div>
-
-        <div class="upload-tab-panel upload-tab-panel-video">
-          <fieldset>
-            <legend>YouTube / Vimeo link</legend>
-            <div class="form-field">
-              <label for="videoPlatform">Platform:</label>
-              <select id="videoPlatform" name="videoPlatform">
-                <option value="">--</option>
-                <option value="youtube" {{#if (eq content.formValues.videoPlatform "youtube")}}selected{{/if}}>YouTube</option>
-                <option value="vimeo"   {{#if (eq content.formValues.videoPlatform "vimeo")}}selected{{/if}}>Vimeo</option>
-              </select>
-            </div>
-            <div class="form-field">
-              <label for="videoUrl">URL:</label>
-              <input type="url" id="videoUrl" name="videoUrl" value="{{content.formValues.videoUrl}}"
-                     placeholder="https://www.youtube.com/watch?v=...">
-            </div>
-          </fieldset>
-        </div>
-      </div>
-    </div>
-
-    <fieldset class="form-fieldset">
-      <legend>Details</legend>
-      <div class="form-field">
-        <label for="member-upload-caption">Caption (optional, up to 500 characters):</label>
-        <textarea id="member-upload-caption" name="caption" maxlength="500" rows="3">{{content.formValues.caption}}</textarea>
-      </div>
-      <div class="form-field">
-        <label for="member-upload-tags">Hashtags (optional, separated by spaces):</label>
-        <input id="member-upload-tags" type="text" name="tags" value="{{content.formValues.tags}}"
-               placeholder="#freestyle #trick" data-tag-chips data-tag-entry>
-        <small class="form-hint">The leading <code>#</code> is optional. Event and club hashtags follow set patterns: events use <code>#event_&lt;year&gt;_&lt;event_name&gt;</code>, for example <code>#event_2026_worlds_japan</code>; clubs use <code>#club_&lt;location_or_name&gt;</code>, for example <code>#club_tokyo</code>.</small>
-        {{> hashtag-slug-help}}
-      </div>
-      {{#if content.tagSuggestions}}
-      <div class="tag-suggestions">
-        {{#if content.tagSuggestions.playerTags.length}}
-        <div class="tag-suggestions-group">
-          <span class="tag-suggestions-label">You as the player:</span>
-          {{#each content.tagSuggestions.playerTags}}
-          <button type="button" class="tag-chip tag-suggestion" data-tag="{{normalized}}">{{display}}</button>
-          {{/each}}
-        </div>
-        {{/if}}
-        {{#if content.tagSuggestions.clubTags.length}}
-        <div class="tag-suggestions-group">
-          <span class="tag-suggestions-label">Your clubs:</span>
-          {{#each content.tagSuggestions.clubTags}}
-          <button type="button" class="tag-chip tag-suggestion" data-tag="{{normalized}}">{{display}}</button>
-          {{/each}}
-        </div>
-        {{/if}}
-        {{#if content.tagSuggestions.participatedEventTags.length}}
-        <div class="tag-suggestions-group">
-          <span class="tag-suggestions-label">Your events:</span>
-          {{#each content.tagSuggestions.participatedEventTags}}
-          <button type="button" class="tag-chip tag-suggestion" data-tag="{{normalized}}">{{display}}</button>
-          {{/each}}
-        </div>
-        {{/if}}
-        {{#if content.tagSuggestions.popularTags.length}}
-        <div class="tag-suggestions-group">
-          <span class="tag-suggestions-label">Popular:</span>
-          {{#each content.tagSuggestions.popularTags}}
-          <button type="button" class="tag-chip tag-suggestion" data-tag="{{normalized}}">{{display}}</button>
-          {{/each}}
-        </div>
-        {{/if}}
-      </div>
-      {{/if}}
-      {{#if content.hasGalleries}}
-      <div class="form-field">
-        <label for="member-upload-gallery">Add to gallery (optional):</label>
-        <select id="member-upload-gallery" name="galleryId">
-          <option value="">(none)</option>
-          {{#each content.galleries}}
-          <option value="{{id}}" {{#if (eq id ../content.formValues.galleryId)}}selected{{/if}}>{{name}}</option>
-          {{/each}}
-        </select>
-        <small class="form-hint">Gallery criteria hashtags will be added automatically.</small>
-      </div>
-      {{/if}}
-      <div class="form-field">
-        <label for="member-upload-external-url">External URL (optional, link to source page or creator):</label>
-        <input id="member-upload-external-url" type="url" name="externalUrl" value="{{content.formValues.externalUrl}}"
-               placeholder="https://example.com/article">
-      </div>
-    </fieldset>
-
-    <div class="form-actions">
-      <button type="submit" class="btn btn-primary">Upload</button>
-      <a href="{{content.cancelHref}}" class="btn btn-outline">Cancel</a>
-    </div>
-  </form>
+  {{> share-media-form c=content}}
 </div>
-{{> fold-token-script}}
-<script src="{{{asset 'js/tag-chips.js'}}}" defer></script>
-{{#if content.tagSuggestions}}
-<script src="{{{asset 'js/tag-suggestions.js'}}}" defer></script>
-{{/if}}

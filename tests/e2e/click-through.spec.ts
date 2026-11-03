@@ -1,5 +1,5 @@
 /**
- * E2E regression suite. Four deliberately small tests:
+ * E2E regression suite. Five deliberately small tests:
  *
  *   1. Avatar upload happy path against the real image worker. The
  *      May 2026 bug was that imageWorker.ts didn't import dotenv, so
@@ -17,11 +17,16 @@
  *      request end-to-end (the chain that "stubbed-adapter" tests
  *      cannot prove).
  *
- *   4. Named-gallery photo upload — a persona owns an empty named
- *      gallery; the test uploads a photo through the member upload UI
- *      and asserts it appears AND its bytes actually serve. A seeded
- *      media row with no media-store bytes renders a broken image;
- *      only a real upload proves the store path end-to-end.
+ *   4. Share Media — a member shares four real photos with one hashtag
+ *      and names it as a gallery; the test asserts all four appear in
+ *      it AND their bytes actually serve. A media row with no
+ *      media-store bytes renders a broken image; only a real share
+ *      proves the store path end-to-end.
+ *
+ *   5. Curator Share Media — an administrator uploads two real clips on
+ *      the Video file tab, one into a new Footbag Hacky gallery, through
+ *      the site's own video pipeline; the gallery holds the clip carrying
+ *      its hashtags and the poster serves.
  *
  * The adapter-misconfig integration suite covers failure-mode contracts
  * (worker down → 503, worker 503 → 503, generic error → 500) at supertest
@@ -29,12 +34,16 @@
  * processes talking over HTTP.
  */
 import { test, expect } from '@playwright/test';
+import path from 'node:path';
 import sharp from 'sharp';
-import { seedTier1Member } from '../fixtures/personas';
+import { seedAdmin, seedTier1Member } from '../fixtures/personas';
 import { authenticateContext } from './helpers/wizard-auth';
-import { insertPersonaNamedGallery, completeOnboarding } from '../../src/testkit/personaRowBuilders';
+import { completeOnboarding } from '../../src/testkit/personaRowBuilders';
 import { insertFreestyleTrick } from '../fixtures/factories';
-import { openLiveDb } from './helpers/liveDb';
+import { ensureSystemMember, openLiveDb } from './helpers/liveDb';
+
+// The curator journey credits its uploads to the system member.
+test.beforeAll(() => ensureSystemMember());
 
 test('Tier-1 member uploads avatar end-to-end against real image worker', { tag: ['@smoke'] }, async ({ browser, baseURL }) => {
   const db = openLiveDb();
@@ -74,66 +83,89 @@ test('Tier-1 member uploads avatar end-to-end against real image worker', { tag:
   await context.close();
 });
 
-test('Tier-1 member uploads a photo into their named gallery end-to-end', { tag: ['@smoke'] }, async ({ browser, baseURL }) => {
+// The committed test media (src/testkit/assets/): real phone photos and short
+// clips, so a share exercises the image worker and the video pipeline on real
+// files rather than generated ones.
+const ASSETS = path.join(process.cwd(), 'src', 'testkit', 'assets');
+
+test('Tier-1 member shares four real photos and names their hashtags as a gallery', { tag: ['@smoke'] }, async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const slug = `e2e_gallery_${Date.now()}`;
   const persona = seedTier1Member(db, { slug });
   // The /members/*/media/upload page is behind the onboarding gate, so an
-  // un-onboarded member is redirected to the wizard and the upload form never
-  // renders. Complete onboarding so the upload page is reachable.
+  // un-onboarded member is redirected to the wizard and the form never renders.
   completeOnboarding(db, persona.memberId);
-  const galleryId = `gallery_persona_${slug}`;
-  insertPersonaNamedGallery(db, {
-    galleryId,
-    ownerMemberId: persona.memberId,
-    ownerSlug: slug,
-    name: 'Highlights Reel',
-  });
   db.close();
 
   const context = await browser.newContext();
   await authenticateContext(context, baseURL!, persona);
   const page = await context.newPage();
 
-  // A fresh deploy seeds the gallery container only, never the media, so the
-  // named gallery starts empty.
-  await page.goto(`/media/${galleryId}`);
-  await expect(page.locator('text=No photos or videos found.')).toBeVisible();
-
-  // Upload a real photo through the member upload UI, exercising the real image
-  // worker the same way the avatar test does.
+  // Four photos at once, the default photos-per-submit, one hashtag for all,
+  // and a gallery named from it, through the Share Media form a member uses.
   await page.goto(`/members/${slug}/media/upload`);
-  const jpegBytes = await sharp({
-    create: { width: 256, height: 256, channels: 3, background: { r: 0, g: 128, b: 255 } },
-  }).jpeg().toBuffer();
-  await page.locator('input[type=file]#photoFile').setInputFiles({
-    name: 'highlight.jpg',
-    mimeType: 'image/jpeg',
-    buffer: jpegBytes,
-  });
-  const uploadResponse = page.waitForResponse(
+  await page.locator('#share-photo-files').setInputFiles(
+    ['fb_182a.jpg', 'fb_182b.jpg', 'fb_182c.jpg', 'collection.jpg'].map((f) => path.join(ASSETS, f)),
+  );
+  await page.locator('#share-tags').fill('footbags');
+  await page.locator('#share-gallery-name').pressSequentially('Footbags');
+  const galleryId = `gallery_${slug}_footbags`;
+  // The form's own preview, which the server checks, names the gallery's address.
+  await expect(page.locator('[data-share-preview]')).toContainText(`/media/${galleryId}`);
+  const shared = page.waitForResponse(
     (r) => r.url().includes(`/members/${slug}/media/upload`) && r.request().method() === 'POST',
   );
-  await page.locator('form.upload-form button[type=submit]').first().click();
-  const uploadRes = await uploadResponse;
-  expect(uploadRes.status()).toBeGreaterThanOrEqual(200);
-  expect(uploadRes.status()).toBeLessThan(400);
+  await page.locator('form[data-share-form] button[type=submit]').click();
+  expect((await shared).status()).toBe(303);
 
-  // The photo now appears in the previously-empty named gallery and its bytes
-  // actually serve from the media store: a seeded row with no bytes (the original
-  // bug) would render a broken image with naturalWidth 0. The transcode is async,
-  // so poll with reloads until the image is served.
-  await expect
-    .poll(
-      async () => {
-        await page.goto(`/media/${galleryId}`);
-        const img = page.locator('.gallery-grid .gallery-tile img').first();
-        if ((await img.count()) === 0) return 0;
-        return img.evaluate((el) => (el as HTMLImageElement).naturalWidth);
-      },
-      { timeout: 30_000, intervals: [1_000, 2_000, 3_000, 5_000] },
-    )
-    .toBeGreaterThan(0);
+  // All four show in the new gallery and their bytes serve from the media
+  // store: a row with no bytes renders a broken image with naturalWidth 0.
+  await page.goto(`/media/${galleryId}`);
+  const images = page.locator('.gallery-grid .gallery-tile img');
+  await expect(images).toHaveCount(4);
+  for (const img of await images.all()) {
+    await expect.poll(() => img.evaluate((el) => (el as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+  }
+
+  await context.close();
+});
+
+test('the curator uploads two real video clips, one into a new Footbag Hacky gallery', { tag: ['@smoke'] }, async ({ browser, baseURL }) => {
+  const db = openLiveDb();
+  const admin = seedAdmin(db);
+  db.close();
+
+  const context = await browser.newContext();
+  await authenticateContext(context, baseURL!, admin);
+  const page = await context.newPage();
+
+  // Each clip on the Video file tab with its poster, through the curator's
+  // Share Media form and the site's own video pipeline.
+  const upload = async (clip: string, poster: string, tags: string, gallery: string) => {
+    await page.goto('/admin/curator/upload');
+    await page.locator('label[for="share-tab-file"]').click();
+    await page.locator('#share-video-file').setInputFiles(path.join(ASSETS, clip));
+    await page.locator('#share-poster').setInputFiles(path.join(ASSETS, poster));
+    // The stack writes curated files (to a throwaway tree), so each upload
+    // names the category directory it lands in.
+    await page.locator('#share-new-category').fill('e2e_videos');
+    await page.locator('#share-tags').fill(tags);
+    if (gallery) await page.locator('#share-gallery-name').pressSequentially(gallery);
+    const done = page.waitForResponse((r) => r.url().endsWith('/admin/curator/upload') && r.request().method() === 'POST');
+    await page.locator('form[data-share-form] button[type=submit]').click();
+    expect((await done).status()).toBe(303);
+    await expect(page.locator('.form-success-banner')).toBeVisible();
+  };
+  await upload('chinlone_clip.mp4', 'chinlone_poster.jpg', 'chinlone', '');
+  await upload('baganrally_clip.mp4', 'baganrally_poster.jpg', '#chinlone #club_wellington', 'Wellington Chinlone');
+
+  // The new gallery holds the clip carrying both its hashtags, and not the
+  // one carrying only #chinlone; its poster serves.
+  await page.goto('/media/gallery_wellington_chinlone');
+  const tiles = page.locator('.gallery-grid .gallery-tile');
+  await expect(tiles).toHaveCount(1);
+  await expect(tiles.locator('.gallery-tile-video')).toHaveCount(1);
+  await expect.poll(() => tiles.locator('img').first().evaluate((el) => (el as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
 
   await context.close();
 });

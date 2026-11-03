@@ -83,6 +83,12 @@ function ownerPhotoRows(sourceFilename: string): Array<{ id: string }> {
   } finally { db.close(); }
 }
 
+function mediaIdByFilename(sourceFilename: string): string {
+  const rows = ownerPhotoRows(sourceFilename);
+  expect(rows, `one photo stored as ${sourceFilename}`).toHaveLength(1);
+  return rows[0].id;
+}
+
 function ownerVideoRows(videoId: string): Array<{ id: string }> {
   const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
   try {
@@ -231,8 +237,15 @@ describe('GET /members/:memberKey/media/upload', () => {
       .get(`/members/${OWNER_SLUG}/media/upload`)
       .set('Cookie', ownerCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('photoFile');
-    expect(res.text).toContain('videoUrl');
+    // Defect caught: the picker takes one file, so a member cannot share
+    // several photos at once.
+    expect(res.text).toMatch(/<input type="file"[^>]*name="photoFiles"[^>]*multiple/);
+    expect(res.text).toContain('name="videoUrl"');
+    expect(res.text).toContain('name="galleryName"');
+    // Defect caught: a gallery is still a destination picked from a list, or the
+    // platform is a separate choice that can disagree with the link.
+    expect(res.text).not.toContain('name="galleryId"');
+    expect(res.text).not.toContain('name="videoPlatform"');
   });
 
   it("non-owner viewing another's upload page -> 404", async () => {
@@ -253,23 +266,34 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
     const res = await request(app)
       .post(`/members/${OWNER_SLUG}/media/upload`)
       .field('mediaType', 'photo')
-      .attach('photoFile', jpeg, 'test.jpg');
+      .attach('photoFiles', jpeg, 'test.jpg');
     expect(res.status).toBe(302);
     expect(res.headers.location).toContain('/login');
   });
 
-  it('owner valid JPEG -> 303 to /galleries with flash', async () => {
+  it('owner valid JPEG -> 303 to the item in the Personal Gallery, which reports it once', async () => {
     const app = createApp();
     const jpeg = await makeJpeg();
-    const res = await request(app)
+    const agent = request.agent(app);
+    const res = await agent
       .post(`/members/${OWNER_SLUG}/media/upload`)
       .set('Cookie', ownerCookie())
       .field('mediaType', 'photo')
       .field('caption', 'My first upload')
       .field('tags', '#freestyle')
-      .attach('photoFile', jpeg, 'first.jpg');
+      .attach('photoFiles', jpeg, 'first.jpg');
     expect(res.status).toBe(303);
-    expect(res.headers.location).toBe(`/members/${OWNER_SLUG}/galleries`);
+    const mediaId = mediaIdByFilename('first.jpg');
+    // Defect caught: a share lands anywhere but the photo just shared, so the
+    // member cannot see it straight away.
+    expect(res.headers.location).toBe(`/media/gallery_${OWNER_SLUG}_personal_gallery/${mediaId}`);
+    const landed = await agent.get(res.headers.location).set('Cookie', ownerCookie());
+    expect(landed.status).toBe(200);
+    expect(landed.text).toContain('class="form-success-banner"');
+    // The owner is offered the item's edit page from it.
+    expect(landed.text).toContain(`href="/members/${OWNER_SLUG}/media/${mediaId}/edit"`);
+    const again = await agent.get(res.headers.location).set('Cookie', ownerCookie());
+    expect(again.text).not.toContain('class="form-success-banner"');
   });
 
   it('owner valid JPEG -> #by_<slug> auto-applied + Personal Gallery created', async () => {
@@ -281,7 +305,7 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
       .field('mediaType', 'photo')
       .field('caption', 'tag check')
       .field('tags', '#freestyle')
-      .attach('photoFile', jpeg, 't.jpg');
+      .attach('photoFiles', jpeg, 't.jpg');
 
     const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
     try {
@@ -319,7 +343,7 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
         .field('mediaType', 'photo')
         .field('caption', `n${i}`)
         .field('tags', '')
-        .attach('photoFile', jpeg, `${i}.jpg`);
+        .attach('photoFiles', jpeg, `${i}.jpg`);
       expect(res.status).toBe(303);
     }
     const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
@@ -341,7 +365,7 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
       .set('Cookie', ownerCookie())
       .field('mediaType', 'photo')
       .field('tags', `#${OWNER_SLUG} #beach`)
-      .attach('photoFile', jpeg, 't.jpg');
+      .attach('photoFiles', jpeg, 't.jpg');
     expect(res.status).toBe(303);
     const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
     try {
@@ -361,6 +385,38 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
     }
   });
 
+  // The page as a browser without JavaScript sends it: the plain text field
+  // named tags. Each # starts a hashtag; words typed without one stay together.
+  // Defect caught: "footbag chin lone" is saved as three hashtags, or
+  // "#chinlone #club_wellington" as one.
+  it('stores one hashtag per # typed in the plain tags field, and words without one as one', async () => {
+    const app = createApp();
+    const page = await request(app).get(`/members/${OWNER_SLUG}/media/upload`).set('Cookie', ownerCookie());
+    expect(page.text).toMatch(/<input[^>]*name="tags"/);
+    for (const [typed, want, file, shade] of [
+      ['#chinlone #club_wellington', ['#chinlone', '#club_wellington'], 'split.jpg', 10],
+      ['#chinlone#club_wellington', ['#chinlone', '#club_wellington'], 'joined.jpg', 20],
+      ['footbag chin lone', ['#footbag_chin_lone'], 'words.jpg', 30],
+    ] as const) {
+      const jpeg = await makeJpeg({ r: shade, g: 80, b: 80 });
+      const res = await request(app)
+        .post(`/members/${OWNER_SLUG}/media/upload`)
+        .set('Cookie', ownerCookie())
+        .field('mediaType', 'photo')
+        .field('tags', typed)
+        .attach('photoFiles', jpeg, file);
+      expect(res.status, typed).toBe(303);
+      const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+      try {
+        const tags = (db.prepare(
+          `SELECT mt.tag_display FROM media_tags mt WHERE mt.media_id = ? ORDER BY mt.tag_display`,
+        ).all(mediaIdByFilename(file)) as Array<{ tag_display: string }>)
+          .map((r) => r.tag_display).filter((t) => t !== `#by_${OWNER_SLUG}`);
+        expect(tags, typed).toEqual([...want].sort());
+      } finally { db.close(); }
+    }
+  });
+
   it('user supplies #curated -> 422 with rejection message', async () => {
     const app = createApp();
     const jpeg = await makeJpeg();
@@ -369,7 +425,7 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
       .set('Cookie', ownerCookie())
       .field('mediaType', 'photo')
       .field('tags', '#curated')
-      .attach('photoFile', jpeg, 't.jpg');
+      .attach('photoFiles', jpeg, 't.jpg');
     expect(res.status).toBe(422);
     expect(res.text).toContain('#curated');
   });
@@ -382,7 +438,7 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
       .set('Cookie', ownerCookie())
       .field('mediaType', 'photo')
       .field('tags', `#by_${OWNER_SLUG}`)
-      .attach('photoFile', jpeg, 't.jpg');
+      .attach('photoFiles', jpeg, 't.jpg');
     expect(res.status).toBe(422);
     expect(res.text).toContain('#by_');
     const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
@@ -404,7 +460,7 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
       .set('Cookie', ownerCookie())
       .field('mediaType', 'photo')
       .field('tags', `#by_${OTHER_SLUG}`)
-      .attach('photoFile', jpeg, 't.jpg');
+      .attach('photoFiles', jpeg, 't.jpg');
     expect(res.status).toBe(422);
     expect(res.text).toContain('#by_');
   });
@@ -417,7 +473,7 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
       .set('Cookie', ownerCookie())
       .field('mediaType', 'photo')
       .field('tags', `#${OTHER_SLUG}`)
-      .attach('photoFile', jpeg, 't.jpg');
+      .attach('photoFiles', jpeg, 't.jpg');
     expect(res.status).toBe(303);
     const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
     try {
@@ -444,7 +500,7 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
       .set('Cookie', ownerCookie())
       .field('mediaType', 'photo')
       .field('tags', '#stebag_legacy')
-      .attach('photoFile', jpeg, 't.jpg');
+      .attach('photoFiles', jpeg, 't.jpg');
     expect(res.status).toBe(303);
     const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
     try {
@@ -469,7 +525,7 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
       .post(`/members/${OWNER_SLUG}/media/upload`)
       .set('Cookie', ownerCookie())
       .field('mediaType', 'photo')
-      .attach('photoFile', notAnImage, 'fake.txt');
+      .attach('photoFiles', notAnImage, 'fake.txt');
     expect(res.status).toBe(422);
     expect(res.text).toContain('Only JPEG and PNG');
   });
@@ -491,7 +547,7 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
         .post(`/members/${OWNER_SLUG}/media/upload`)
         .set('Cookie', ownerCookie())
         .field('mediaType', 'photo')
-        .attach('photoFile', photo, name);
+        .attach('photoFiles', photo, name);
       expect(res.status, name).toBe(422);
       expect(res.text, name).toContain(message.replace(/'/g, '&#x27;'));
       expect(ownerPhotoRows(name), name).toHaveLength(0);
@@ -507,7 +563,9 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
       .field('mediaType', 'photo')
       .field('caption', 'no file');
     expect(res.status).toBe(422);
-    expect(res.text).toContain('Choose a photo file');
+    // The refusal is shown against the file field, and nothing is stored.
+    expect(res.text).toMatch(/name="photoFiles"[^]*class="form-field-error"/);
+    expect(ownerPhotoRows('')).toHaveLength(0);
   });
 
   it("posting to another member's upload route -> 404", async () => {
@@ -517,7 +575,7 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
       .post(`/members/${OWNER_SLUG}/media/upload`)
       .set('Cookie', otherCookie())
       .field('mediaType', 'photo')
-      .attach('photoFile', jpeg, 't.jpg');
+      .attach('photoFiles', jpeg, 't.jpg');
     expect(res.status).toBe(404);
   });
 
@@ -530,14 +588,14 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
       .post(`/members/${OWNER_SLUG}/media/upload`)
       .set('Cookie', ownerCookie())
       .field('mediaType', 'photo')
-      .attach('photoFile', await makeJpeg(), 'duplicate.jpg');
+      .attach('photoFiles', await makeJpeg(), 'duplicate.jpg');
     expect(first.status).toBe(303);
 
     const second = await request(app)
       .post(`/members/${OWNER_SLUG}/media/upload`)
       .set('Cookie', ownerCookie())
       .field('mediaType', 'photo')
-      .attach('photoFile', await makeJpeg({ r: 10, g: 200, b: 10 }), 'duplicate.jpg');
+      .attach('photoFiles', await makeJpeg({ r: 10, g: 200, b: 10 }), 'duplicate.jpg');
     expect(second.status).toBe(422);
     expect(second.text).toContain('already uploaded');
     expect(second.text).toContain('duplicate.jpg');
@@ -556,7 +614,7 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
       .field('mediaType', 'photo')
       .field('caption', caption)
       .field('tags', tags)
-      .attach('photoFile', jpeg, 'recaptioned.jpg');
+      .attach('photoFiles', jpeg, 'recaptioned.jpg');
 
     expect((await upload('First caption', '#first')).status).toBe(303);
     const rows = ownerPhotoRows('recaptioned.jpg');
@@ -587,14 +645,14 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
         .post(`/members/${OWNER_SLUG}/media/upload`)
         .set('Cookie', ownerCookie())
         .field('mediaType', 'photo')
-        .attach('photoFile', jpeg, `r${i}.jpg`);
+        .attach('photoFiles', jpeg, `r${i}.jpg`);
       expect(ok.status).toBe(303);
     }
     const blocked = await request(app)
       .post(`/members/${OWNER_SLUG}/media/upload`)
       .set('Cookie', ownerCookie())
       .field('mediaType', 'photo')
-      .attach('photoFile', jpeg, 'r31.jpg');
+      .attach('photoFiles', jpeg, 'r31.jpg');
     expect(blocked.status).toBe(429);
     expect(blocked.headers['retry-after']).toBeDefined();
   });
@@ -608,7 +666,7 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
         .post(`/members/${ADMIN_SLUG}/media/upload`)
         .set('Cookie', adminCookie())
         .field('mediaType', 'photo')
-        .attach('photoFile', jpeg, `admin-r${i}.jpg`);
+        .attach('photoFiles', jpeg, `admin-r${i}.jpg`);
       expect(res.status).toBe(303);
     }
   });
@@ -630,14 +688,14 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
           .post(`/members/${OWNER_SLUG}/media/upload`)
           .set('Cookie', ownerCookie())
           .field('mediaType', 'photo')
-          .attach('photoFile', jpeg, `t${i}.jpg`);
+          .attach('photoFiles', jpeg, `t${i}.jpg`);
         expect(ok.status).toBe(303);
       }
       const blocked = await request(app)
         .post(`/members/${OWNER_SLUG}/media/upload`)
         .set('Cookie', ownerCookie())
         .field('mediaType', 'photo')
-        .attach('photoFile', jpeg, 't3.jpg');
+        .attach('photoFiles', jpeg, 't3.jpg');
       expect(blocked.status).toBe(429);
     } finally {
       // Restore the platform-epoch seeded default so later tests see 30/hr.
@@ -680,21 +738,21 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
         .post(`/members/${OWNER_SLUG}/media/upload`)
         .set('Cookie', ownerCookie())
         .field('mediaType', 'photo')
-        .attach('photoFile', await jpegOfExactly(ONE_MB), 'size-at-limit.jpg');
+        .attach('photoFiles', await jpegOfExactly(ONE_MB), 'size-at-limit.jpg');
       expect(res.status).toBe(303);
       expect(ownerPhotoRows('size-at-limit.jpg')).toHaveLength(1);
     });
 
     it('a member photo one byte over the configured size -> 422 naming that size, nothing stored', async () => {
-      const { fileExceededMessage } = await import('../../src/services/curatorMediaService');
+      const { photoTooLargeMessage } = await import('../../src/services/curatorMediaService');
       const filesBefore = storedFileCount();
       const res = await request(createApp())
         .post(`/members/${OWNER_SLUG}/media/upload`)
         .set('Cookie', ownerCookie())
         .field('mediaType', 'photo')
-        .attach('photoFile', await jpegOfExactly(ONE_MB + 1), 'size-over-limit.jpg');
+        .attach('photoFiles', await jpegOfExactly(ONE_MB + 1), 'size-over-limit.jpg');
       expect(res.status).toBe(422);
-      expect(res.text).toContain(fileExceededMessage(ONE_MB));
+      expect(res.text).toContain(photoTooLargeMessage(ONE_MB));
       expect(ownerPhotoRows('size-over-limit.jpg')).toHaveLength(0);
       expect(storedFileCount()).toBe(filesBefore);
     });
@@ -708,7 +766,7 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
           .post(`/members/${OWNER_SLUG}/media/upload`)
           .set('Cookie', ownerCookie())
           .field('mediaType', 'photo')
-          .attach('photoFile', await jpegOfExactly(25 * ONE_MB + 1), 'size-over-code-max.jpg');
+          .attach('photoFiles', await jpegOfExactly(25 * ONE_MB + 1), 'size-over-code-max.jpg');
         expect(res.status).toBe(422);
         expect(ownerPhotoRows('size-over-code-max.jpg')).toHaveLength(0);
       } finally {
@@ -721,7 +779,7 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
         .post(`/members/${ADMIN_SLUG}/media/upload`)
         .set('Cookie', adminCookie())
         .field('mediaType', 'photo')
-        .attach('photoFile', await jpegOfExactly(ONE_MB + 1), 'admin-size-over-member-limit.jpg');
+        .attach('photoFiles', await jpegOfExactly(ONE_MB + 1), 'admin-size-over-member-limit.jpg');
       expect(res.status).toBe(303);
     });
   });
@@ -747,7 +805,7 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
         .post(`/members/${OWNER_SLUG}/media/upload`)
         .set('Cookie', ownerCookie())
         .field('mediaType', 'photo')
-        .attach('photoFile', bytes, name);
+        .attach('photoFiles', bytes, name);
 
       const first = await upload(jpeg, 'twice.jpg');
       expect(first.status).toBe(303);
@@ -756,7 +814,7 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
       const second = await upload(jpeg, 'twice.jpg');
       expect(second.status, 'a repeated upload is not an error').toBe(303);
       expect(second.headers.location).toBe(first.headers.location);
-      expect(flashOf(first)).toContain('media_saved%3Aupload');
+      expect(flashOf(first)).toContain('media_saved%3Ashare');
       expect(flashOf(second)).toBe(flashOf(first));
 
       const rows = ownerPhotoRows('twice.jpg');
@@ -783,12 +841,21 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
 
 // ── POST /members/:memberKey/media/upload — video URL ──────────────────────
 
-describe('POST /members/:memberKey/media/upload (gallery picked on the form)', () => {
-  function galleryIdNamed(ownerId: string, name: string): string {
+describe('POST /members/:memberKey/media/upload (Share Media: several photos, a named gallery)', () => {
+  function galleryRow(ownerId: string, name: string): { id: string } | undefined {
     const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
     try {
-      return (db.prepare('SELECT id FROM member_galleries WHERE owner_member_id = ? AND name = ?')
-        .get(ownerId, name) as { id: string }).id;
+      return db.prepare('SELECT id FROM member_galleries WHERE owner_member_id = ? AND name = ?')
+        .get(ownerId, name) as { id: string } | undefined;
+    } finally { db.close(); }
+  }
+
+  function galleryCriteria(galleryId: string): string[] {
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    try {
+      return (db.prepare(
+        'SELECT t.tag_normalized FROM member_gallery_tags g JOIN tags t ON t.id = g.tag_id WHERE g.gallery_id = ?',
+      ).all(galleryId) as Array<{ tag_normalized: string }>).map((r) => r.tag_normalized).sort();
     } finally { db.close(); }
   }
 
@@ -796,52 +863,543 @@ describe('POST /members/:memberKey/media/upload (gallery picked on the form)', (
     const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
     try {
       return (db.prepare('SELECT tag_display FROM media_tags WHERE media_id = ?').all(mediaId) as Array<{ tag_display: string }>)
-        .map((r) => r.tag_display);
+        .map((r) => r.tag_display.toLowerCase());
     } finally { db.close(); }
   }
 
-  it('a photo uploaded into one of the member\'s own galleries carries that gallery\'s tags, so it shows there', async () => {
-    const app = createApp();
-    const created = await request(app)
-      .post(`/members/${OWNER_SLUG}/galleries`)
-      .set('Cookie', ownerCookie())
-      .type('form')
-      .send({ name: 'Picked Gallery', description: '', sortOrder: 'upload_desc', criteriaTags: '#picked_target', excludeTags: '' });
-    expect(created.status).toBe(303);
+  function captionOf(mediaId: string): string | null {
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    try {
+      return (db.prepare('SELECT caption FROM media_items WHERE id = ?').get(mediaId) as { caption: string | null }).caption;
+    } finally { db.close(); }
+  }
 
-    const res = await request(app)
+  // The token the Share page's script records for a gallery, from the same
+  // helper the page's preview and the save both use.
+  async function previewToken(name: string, tags: string): Promise<string> {
+    const svc = await import('../../src/services/curatorMediaService');
+    const p = svc.previewNewMemberGallery(OWNER_SLUG, name, svc.parseTagList(tags), () => false);
+    if ('refusal' in p) throw new Error(p.refusal);
+    return svc.newGalleryPreviewToken(p);
+  }
+
+  function setConfig(key: string, value: string, createdAt: string): void {
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    try {
+      insertSystemConfig(db, { config_key: key, value_json: value, effective_start_at: createdAt });
+    } finally { db.close(); }
+  }
+
+  // Defect caught: several chosen photos are not each shared, a per-photo
+  // caption lands on the wrong photo, or the shared hashtags miss one of them.
+  it('shares several photos at once, each with its own caption and all with the hashtags', async () => {
+    const res = await request(createApp())
       .post(`/members/${OWNER_SLUG}/media/upload`)
       .set('Cookie', ownerCookie())
       .field('mediaType', 'photo')
-      .field('tags', '#typed_by_member')
-      .field('galleryId', galleryIdNamed(OWNER_ID, 'Picked Gallery'))
-      .attach('photoFile', await makeJpeg({ r: 10, g: 140, b: 30 }), 'picked.jpg');
+      .field('tags', '#beach_day')
+      .field('caption_for:0', 'first caption')
+      .field('caption_for:1', 'second caption')
+      .attach('photoFiles', await makeJpeg({ r: 1, g: 2, b: 3 }), 'multi-a.jpg')
+      .attach('photoFiles', await makeJpeg({ r: 4, g: 5, b: 6 }), 'multi-b.jpg');
     expect(res.status).toBe(303);
-    const rows = ownerPhotoRows('picked.jpg');
-    expect(rows).toHaveLength(1);
-    expect(tagsOf(rows[0].id)).toEqual(expect.arrayContaining(['#typed_by_member', '#picked_target']));
+    const a = mediaIdByFilename('multi-a.jpg');
+    const b = mediaIdByFilename('multi-b.jpg');
+    expect(captionOf(a)).toBe('first caption');
+    expect(captionOf(b)).toBe('second caption');
+    for (const id of [a, b]) expect(tagsOf(id)).toEqual(expect.arrayContaining(['#beach_day', `#by_${OWNER_SLUG}`]));
+    expect(res.headers.location).toBe(`/media/gallery_${OWNER_SLUG}_personal_gallery/${a}`);
   });
 
-  it('naming another member\'s gallery adds none of its tags', async () => {
-    const app = createApp();
-    const created = await request(app)
-      .post(`/members/${OTHER_SLUG}/galleries`)
-      .set('Cookie', otherCookie())
-      .type('form')
-      .send({ name: 'Not Yours', description: '', sortOrder: 'upload_desc', criteriaTags: '#other_members_only', excludeTags: '' });
-    expect(created.status).toBe(303);
+  // Defect caught: a photo the reader drops for its size shifts every later
+  // caption onto the wrong photo, because positions are counted over the
+  // photos kept rather than over every photo chosen.
+  it('keeps each caption on its own photo when an earlier photo is dropped for its size', async () => {
+    // Dated after the size-per-photo block above restores its own setting, so
+    // the latest-effective value is this one.
+    setConfig('photo_upload_max_file_mb', '1', '2026-05-18T00:00:00.000Z');
+    try {
+      const big = Buffer.concat([await makeJpeg({ r: 7, g: 7, b: 7 }), Buffer.alloc(1100 * 1024)]);
+      const res = await request(createApp())
+        .post(`/members/${OWNER_SLUG}/media/upload`)
+        .set('Cookie', ownerCookie())
+        .field('mediaType', 'photo')
+        .field('caption_for:0', 'big caption')
+        .field('caption_for:1', 'small caption')
+        .attach('photoFiles', big, 'shift-big.jpg')
+        .attach('photoFiles', await makeJpeg({ r: 8, g: 8, b: 8 }), 'shift-small.jpg');
+      expect(res.status).toBe(303);
+      expect(captionOf(mediaIdByFilename('shift-small.jpg'))).toBe('small caption');
+      expect(ownerPhotoRows('shift-big.jpg')).toHaveLength(0);
+    } finally {
+      setConfig('photo_upload_max_file_mb', '25', '2026-05-18T00:00:01.000Z');
+    }
+  });
 
-    const res = await request(app)
+  // Defect caught: photos sent under one file name (a phone browser names
+  // every photo image.jpg) all take the last photo's caption, because the
+  // caption was looked up by the file's name.
+  it('keeps the first photo\'s caption when two photos arrive under one file name', async () => {
+    const res = await request(createApp())
       .post(`/members/${OWNER_SLUG}/media/upload`)
       .set('Cookie', ownerCookie())
       .field('mediaType', 'photo')
-      .field('tags', '#typed_by_member')
-      .field('galleryId', galleryIdNamed(OTHER_ID, 'Not Yours'))
-      .attach('photoFile', await makeJpeg({ r: 140, g: 10, b: 30 }), 'not-yours.jpg');
+      .field('caption_for:0', 'caption of the first')
+      .field('caption_for:1', 'caption of the second')
+      .attach('photoFiles', await makeJpeg({ r: 31, g: 2, b: 2 }), 'same-name.jpg')
+      .attach('photoFiles', await makeJpeg({ r: 2, g: 31, b: 2 }), 'same-name.jpg');
     expect(res.status).toBe(303);
-    const rows = ownerPhotoRows('not-yours.jpg');
-    expect(rows).toHaveLength(1);
-    expect(tagsOf(rows[0].id)).not.toContain('#other_members_only');
+    expect(captionOf(mediaIdByFilename('same-name.jpg'))).toBe('caption of the first');
+  });
+
+  // Defect caught: one bad file blocks the good ones, or is dropped without
+  // the member being told which file was not shared.
+  it('shares the good photos and names the bad file in a separate refusal', async () => {
+    const agent = request.agent(createApp());
+    const res = await agent
+      .post(`/members/${OWNER_SLUG}/media/upload`)
+      .set('Cookie', ownerCookie())
+      .field('mediaType', 'photo')
+      .attach('photoFiles', await makeJpeg(), 'good-one.jpg')
+      .attach('photoFiles', Buffer.from('not an image at all'), 'beach.gif');
+    expect(res.status).toBe(303);
+    expect(ownerPhotoRows('good-one.jpg')).toHaveLength(1);
+    expect(ownerPhotoRows('beach.gif')).toHaveLength(0);
+    const landed = await agent.get(res.headers.location).set('Cookie', ownerCookie());
+    expect(landed.text).toContain('class="form-success-banner"');
+    expect(landed.text).toMatch(/class="form-error-banner"[^]*beach\.gif/);
+  });
+
+  // Defect caught: the configured photos-per-submit setting limits nothing,
+  // or a change to it does not reach the next submit.
+  it('refuses more photos than the configured count, writing nothing, and follows a changed setting', async () => {
+    setConfig('photo_upload_max_files_per_submit', '1', '2026-02-01T00:00:00.000Z');
+    const res = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/media/upload`)
+      .set('Cookie', ownerCookie())
+      .field('mediaType', 'photo')
+      .attach('photoFiles', await makeJpeg(), 'count-a.jpg')
+      .attach('photoFiles', await makeJpeg({ r: 9, g: 9, b: 9 }), 'count-b.jpg');
+    expect(res.status).toBe(422);
+    expect(ownerPhotoRows('count-a.jpg')).toHaveLength(0);
+    setConfig('photo_upload_max_files_per_submit', '4', '2026-02-01T00:00:01.000Z');
+    const ok = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/media/upload`)
+      .set('Cookie', ownerCookie())
+      .field('mediaType', 'photo')
+      .attach('photoFiles', await makeJpeg(), 'count-a.jpg')
+      .attach('photoFiles', await makeJpeg({ r: 9, g: 9, b: 9 }), 'count-b.jpg');
+    expect(ok.status).toBe(303);
+  });
+
+  // Defect caught: an administrator's submit skips the photos-per-submit
+  // setting, so one administrator upload can make the web container hold more
+  // than the setting allows and an out-of-memory restart drops every request.
+  it('holds an administrator to the configured photos-per-submit count', async () => {
+    setConfig('photo_upload_max_files_per_submit', '1', '2026-02-01T00:00:02.000Z');
+    try {
+      const res = await request(createApp())
+        .post(`/members/${ADMIN_SLUG}/media/upload`)
+        .set('Cookie', adminCookie())
+        .field('mediaType', 'photo')
+        .attach('photoFiles', await makeJpeg(), 'admin-count-a.jpg')
+        .attach('photoFiles', await makeJpeg({ r: 9, g: 9, b: 9 }), 'admin-count-b.jpg');
+      expect(res.status).toBe(422);
+    } finally {
+      setConfig('photo_upload_max_files_per_submit', '4', '2026-02-01T00:00:03.000Z');
+    }
+  });
+
+  // Defect caught: a submit far over the total is read into memory whole before
+  // the total is checked, so "Total per submit" bounds nothing the web
+  // container holds.
+  it('refuses a submit whose declared size passes the configured total before reading it, writing nothing', async () => {
+    // Dated before the total test below, whose own setting must stay the latest.
+    setConfig('photo_upload_max_submit_mb', '1', '2026-02-01T12:00:00.000Z');
+    try {
+      const big = Buffer.concat([await makeJpeg(), Buffer.alloc(3 * 1024 * 1024)]);
+      const res = await request(createApp())
+        .post(`/members/${OWNER_SLUG}/media/upload`)
+        .set('Cookie', ownerCookie())
+        .field('mediaType', 'photo')
+        .attach('photoFiles', big, 'declared-too-big.jpg');
+      expect(res.status).toBe(422);
+      expect(ownerPhotoRows('declared-too-big.jpg')).toHaveLength(0);
+    } finally {
+      setConfig('photo_upload_max_submit_mb', '50', '2026-02-01T12:00:01.000Z');
+    }
+  });
+
+  // Defect caught: the total-per-submit setting limits nothing, so one
+  // submit can make the web container hold any amount of photos.
+  it('refuses photos that together pass the configured total, writing nothing', async () => {
+    setConfig('photo_upload_max_submit_mb', '1', '2026-02-02T00:00:00.000Z');
+    try {
+      const big = Buffer.concat([await makeJpeg(), Buffer.alloc(600 * 1024)]);
+      const res = await request(createApp())
+        .post(`/members/${OWNER_SLUG}/media/upload`)
+        .set('Cookie', ownerCookie())
+        .field('mediaType', 'photo')
+        .attach('photoFiles', big, 'total-a.jpg')
+        .attach('photoFiles', big, 'total-b.jpg');
+      expect(res.status).toBe(422);
+      expect(ownerPhotoRows('total-a.jpg')).toHaveLength(0);
+      expect(ownerPhotoRows('total-b.jpg')).toHaveLength(0);
+    } finally {
+      setConfig('photo_upload_max_submit_mb', '50', '2026-02-02T00:00:01.000Z');
+    }
+  });
+
+  // Defect caught: naming hashtags as a gallery saves other hashtags than the
+  // ones typed, the shared photo does not carry them, or the member lands
+  // outside the new gallery.
+  it('names the typed hashtags as a gallery that shows the photo shared with them', async () => {
+    const res = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/media/upload`)
+      .set('Cookie', ownerCookie())
+      .field('mediaType', 'photo')
+      .field('tags', '#event_2026_worlds')
+      .field('galleryName', 'Worlds 2026')
+      .field('galleryPreview', await previewToken('Worlds 2026', '#event_2026_worlds'))
+      .attach('photoFiles', await makeJpeg(), 'worlds.jpg');
+    expect(res.status).toBe(303);
+    const gallery = galleryRow(OWNER_ID, 'Worlds 2026')!;
+    expect(gallery.id).toBe(`gallery_${OWNER_SLUG}_worlds_2026`);
+    expect(galleryCriteria(gallery.id)).toEqual([`#by_${OWNER_SLUG}`, '#event_2026_worlds'].sort());
+    const mediaId = mediaIdByFilename('worlds.jpg');
+    expect(tagsOf(mediaId)).toContain('#event_2026_worlds');
+    expect(res.headers.location).toBe(`/media/${gallery.id}/${mediaId}`);
+    expect(auditCountFor('media.member_gallery_created', gallery.id)).toBe(1);
+    expect(auditCountFor('media.member_uploaded', mediaId)).toBe(1);
+  });
+
+  // Defect caught: with no hashtags typed the gallery is saved with only the
+  // owner's tag, so it is a copy of the Personal Gallery, or the photo misses
+  // the hashtag made from the name and does not show in it.
+  it('uses the hashtag made from the name when no hashtag is typed', async () => {
+    const res = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/media/upload`)
+      .set('Cookie', ownerCookie())
+      .field('mediaType', 'photo')
+      .field('galleryName', 'Beach Trip')
+      .field('galleryPreview', await previewToken('Beach Trip', ''))
+      .attach('photoFiles', await makeJpeg(), 'beach-trip.jpg');
+    expect(res.status).toBe(303);
+    const gallery = galleryRow(OWNER_ID, 'Beach Trip')!;
+    expect(galleryCriteria(gallery.id)).toEqual([`#by_${OWNER_SLUG}`, '#beach_trip'].sort());
+    expect(tagsOf(mediaIdByFilename('beach-trip.jpg'))).toContain('#beach_trip');
+  });
+
+  // Defect caught: a gallery is saved before the member has seen its address
+  // and hashtags, or the form shown to confirm cannot be sent back as it is.
+  it('shows a new gallery before saving it when no preview was recorded, and saves it from the form as shown', async () => {
+    const first = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/media/upload`)
+      .set('Cookie', ownerCookie())
+      .field('mediaType', 'photo')
+      .field('tags', '#confirm_me')
+      .field('galleryName', 'Confirm Round');
+    expect(first.status).toBe(200);
+    expect(first.text).toContain('class="form-notice"');
+    expect(first.text).toContain(`/media/gallery_${OWNER_SLUG}_confirm_round`);
+    expect(galleryRow(OWNER_ID, 'Confirm Round')).toBeUndefined();
+    const token = first.text.match(/name="galleryPreview" value="([^"]*)"/)?.[1]?.replace(/&#x23;/g, '#') ?? '';
+    expect(token).not.toBe('');
+
+    const second = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/media/upload`)
+      .set('Cookie', ownerCookie())
+      .field('mediaType', 'photo')
+      .field('tags', '#confirm_me')
+      .field('galleryName', 'Confirm Round')
+      .field('galleryPreview', token);
+    expect(second.status).toBe(303);
+    const gallery = galleryRow(OWNER_ID, 'Confirm Round')!;
+    expect(second.headers.location).toBe(`/media/${gallery.id}`);
+  });
+
+  // Defect caught: a gallery saved with nothing shared drops the note that a
+  // typed hashtag was stored in its folded form, so the member never learns
+  // the gallery carries another spelling than the one they typed.
+  it('names a typed hashtag stored folded when only a gallery is saved', async () => {
+    const agent = request.agent(createApp());
+    const res = await agent
+      .post(`/members/${OWNER_SLUG}/media/upload`)
+      .set('Cookie', ownerCookie())
+      .field('mediaType', 'photo')
+      .field('tags', '#Zürich-Trip')
+      .field('galleryName', 'Folded Only')
+      .field('galleryPreview', await previewToken('Folded Only', '#Zürich-Trip'));
+    expect(res.status).toBe(303);
+    const landed = await agent.get(res.headers.location).set('Cookie', ownerCookie());
+    const banner = /class="form-success-banner"[\s\S]*?<\/div>/.exec(landed.text)?.[0] ?? '';
+    expect(banner).toContain('#Zürich-Trip');
+    expect(banner).toContain('#Zurich_Trip');
+  });
+
+  // Defect caught: naming a gallery the member already has, edited since,
+  // spends a gallery-write slot, so at the hourly limit the whole share is
+  // refused although nothing needed creating.
+  it('shares into a gallery the member already has, edited since, without spending a gallery-write slot', async () => {
+    const share = async (photo: string) => request(createApp())
+      .post(`/members/${OWNER_SLUG}/media/upload`)
+      .set('Cookie', ownerCookie())
+      .field('mediaType', 'photo')
+      .field('tags', '#held_already')
+      .field('galleryName', 'Held Already')
+      .field('galleryPreview', await previewToken('Held Already', '#held_already'))
+      .attach('photoFiles', await makeJpeg({ r: photo.length * 9, g: 3, b: 3 }), photo);
+    expect((await share('held-1.jpg')).status).toBe(303);
+    const held = galleryRow(OWNER_ID, 'Held Already')!;
+    expect((await request(createApp())
+      .post(`/members/${OWNER_SLUG}/galleries/${held.id}/edit`)
+      .set('Cookie', ownerCookie())
+      .type('form')
+      .send({ name: 'Held Already', description: 'edited since', sortOrder: 'upload_desc', criteriaTags: '#held_already', excludeTags: '' })).status).toBe(303);
+    // The create and the edit above spent two slots; at a limit of two, a
+    // share that spent another would be refused.
+    setConfig('gallery_write_rate_limit_per_hour', '2', '2026-02-03T00:00:00.000Z');
+    try {
+      const again = await share('held-two.jpg');
+      expect(again.status).toBe(303);
+      expect(ownerPhotoRows('held-two.jpg')).toHaveLength(1);
+    } finally {
+      setConfig('gallery_write_rate_limit_per_hour', '30', '2026-02-03T00:00:01.000Z');
+    }
+  });
+
+  // Defect caught: sharing a new photo toward a gallery the member already
+  // has, unchanged, reports the gallery as just saved, a success the member
+  // did not cause.
+  it('reports a gallery the member already had as held, not as saved, when a new photo is shared toward it', async () => {
+    const share = async (agent: ReturnType<typeof request.agent>, photo: string, r: number) => agent
+      .post(`/members/${OWNER_SLUG}/media/upload`)
+      .set('Cookie', ownerCookie())
+      .field('mediaType', 'photo')
+      .field('tags', '#held_unchanged')
+      .field('galleryName', 'Held Unchanged')
+      .field('galleryPreview', await previewToken('Held Unchanged', '#held_unchanged'))
+      .attach('photoFiles', await makeJpeg({ r, g: 5, b: 5 }), photo);
+    const agent = request.agent(createApp());
+    const first = await share(agent, 'held-unchanged-1.jpg', 40);
+    expect(first.status).toBe(303);
+    const gallery = galleryRow(OWNER_ID, 'Held Unchanged')!;
+    const firstLanded = await agent.get(first.headers.location).set('Cookie', ownerCookie());
+    expect(firstLanded.text).toMatch(new RegExp(`class="form-success-banner"[^]*?/media/${gallery.id}[^/]`));
+
+    const second = await share(agent, 'held-unchanged-2.jpg', 90);
+    expect(second.status).toBe(303);
+    expect(ownerPhotoRows('held-unchanged-2.jpg')).toHaveLength(1);
+    const landed = await agent.get(second.headers.location).set('Cookie', ownerCookie());
+    const notice = /class="form-notice"[\s\S]*?<\/div>/.exec(landed.text)?.[0] ?? '';
+    expect(notice).toContain('Held Unchanged');
+    const banner = /class="form-success-banner"[\s\S]*?<\/div>/.exec(landed.text)?.[0] ?? '';
+    expect(banner).not.toContain(`/media/${gallery.id}`);
+    expect(auditCountFor('media.member_gallery_created', gallery.id)).toBe(1);
+  });
+
+  // Defect caught: the member's own share sent twice reports the gallery as
+  // merely held, though the first submit is the one that saved it.
+  it('reports the first submit\'s saved gallery when the member\'s own share is sent twice', async () => {
+    const agent = request.agent(createApp());
+    const send = async () => agent
+      .post(`/members/${OWNER_SLUG}/media/upload`)
+      .set('Cookie', ownerCookie())
+      .field('mediaType', 'photo')
+      .field('tags', '#sent_twice')
+      .field('galleryName', 'Sent Twice')
+      .field('galleryPreview', await previewToken('Sent Twice', '#sent_twice'))
+      .attach('photoFiles', await makeJpeg({ r: 66, g: 6, b: 6 }), 'sent-twice.jpg');
+    expect((await send()).status).toBe(303);
+    const again = await send();
+    expect(again.status).toBe(303);
+    const gallery = galleryRow(OWNER_ID, 'Sent Twice')!;
+    const landed = await agent.get(again.headers.location).set('Cookie', ownerCookie());
+    const banner = /class="form-success-banner"[\s\S]*?<\/div>/.exec(landed.text)?.[0] ?? '';
+    expect(banner).toContain(`/media/${gallery.id}`);
+    expect(landed.text).not.toContain('class="form-notice"');
+    expect(ownerPhotoRows('sent-twice.jpg')).toHaveLength(1);
+  });
+
+  // Defect caught: when the hourly photo limit stops the first good photo and
+  // no gallery was named, the refusal drops the photos already refused for
+  // their size and the reminder to choose the photos again.
+  it('names the size refusals and asks for the photos again when the hourly limit stops the first good photo', async () => {
+    const svc = await import('../../src/services/curatorMediaService');
+    setConfig('photo_upload_max_file_mb', '1', '2026-05-19T00:00:00.000Z');
+    // Dated before the later hourly-limit case's own setting, so that one's
+    // value is still the latest when it runs.
+    setConfig('photo_upload_rate_limit_per_hour', '1', '2026-06-02T00:00:00.000Z');
+    try {
+      const spent = await request(createApp())
+        .post(`/members/${OWNER_SLUG}/media/upload`)
+        .set('Cookie', ownerCookie())
+        .field('mediaType', 'photo')
+        .attach('photoFiles', await makeJpeg({ r: 12, g: 13, b: 14 }), 'spends-the-slot.jpg');
+      expect(spent.status).toBe(303);
+      const big = Buffer.concat([await makeJpeg({ r: 15, g: 15, b: 15 }), Buffer.alloc(1100 * 1024)]);
+      const res = await request(createApp())
+        .post(`/members/${OWNER_SLUG}/media/upload`)
+        .set('Cookie', ownerCookie())
+        .field('mediaType', 'photo')
+        .attach('photoFiles', big, 'limit-big.jpg')
+        .attach('photoFiles', await makeJpeg({ r: 16, g: 16, b: 16 }), 'limit-good.jpg');
+      expect(res.status).toBe(429);
+      expect(res.headers['retry-after']).toBeDefined();
+      const banner = /class="form-error-banner"[\s\S]*?<\/div>/.exec(res.text)?.[0] ?? '';
+      expect(banner).toContain(svc.photoTooLargeMessage(1024 * 1024).replace(/\.$/, ''));
+      expect(banner).toContain('limit-good.jpg');
+      expect(banner).toContain(svc.SHARE_CHOOSE_AGAIN);
+      expect(ownerPhotoRows('limit-good.jpg')).toHaveLength(0);
+    } finally {
+      setConfig('photo_upload_rate_limit_per_hour', '30', '2026-06-02T00:00:01.000Z');
+      setConfig('photo_upload_max_file_mb', '25', '2026-05-19T00:00:01.000Z');
+    }
+  });
+
+  // Defect caught: a second gallery under a name the member already uses is
+  // saved, or the first one's hashtags are rewritten.
+  it('refuses a gallery named like one the member has, with different hashtags', async () => {
+    const make = async (tags: string) => request(createApp())
+      .post(`/members/${OWNER_SLUG}/media/upload`)
+      .set('Cookie', ownerCookie())
+      .field('mediaType', 'photo')
+      .field('tags', tags)
+      .field('galleryName', 'Twin Name')
+      .field('galleryPreview', await previewToken('Twin Name', tags));
+    expect((await make('#first_set')).status).toBe(303);
+    const refused = await make('#second_set');
+    expect(refused.status).toBe(422);
+    const gallery = galleryRow(OWNER_ID, 'Twin Name')!;
+    expect(galleryCriteria(gallery.id)).toEqual([`#by_${OWNER_SLUG}`, '#first_set'].sort());
+  });
+
+  // Defect caught: a name with letters that have no a to z form is saved under
+  // a random or shortened address.
+  it('refuses a gallery name whose letters have no a to z form, writing nothing', async () => {
+    const res = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/media/upload`)
+      .set('Cookie', ownerCookie())
+      .field('mediaType', 'photo')
+      .field('tags', '#anything')
+      .field('galleryName', '東京');
+    expect(res.status).toBe(422);
+    expect(galleryRow(OWNER_ID, '東京')).toBeUndefined();
+  });
+
+  // Defect caught: the Share link on one of the member's galleries opens the
+  // form without its hashtags, or another member's gallery fills them in.
+  it('fills the hashtags from the member\'s own gallery named in ?gallery=, and from no one else\'s', async () => {
+    await request(createApp())
+      .post(`/members/${OWNER_SLUG}/media/upload`)
+      .set('Cookie', ownerCookie())
+      .field('mediaType', 'photo')
+      .field('tags', '#prefill_me')
+      .field('galleryName', 'Prefill Source')
+      .field('galleryPreview', await previewToken('Prefill Source', '#prefill_me'));
+    const own = galleryRow(OWNER_ID, 'Prefill Source')!;
+    const page = await request(createApp())
+      .get(`/members/${OWNER_SLUG}/media/upload?gallery=${own.id}`)
+      .set('Cookie', ownerCookie());
+    expect(page.text).toMatch(/name="tags" value="[^"]*prefill_me/);
+    const foreign = await request(createApp())
+      .get(`/members/${OTHER_SLUG}/media/upload?gallery=${own.id}`)
+      .set('Cookie', otherCookie());
+    expect(foreign.text).not.toContain('prefill_me');
+  });
+
+  // Defect caught: the item's edit control is offered to someone who is not
+  // its owner, or withheld from the owner.
+  it('offers Edit This Item to the owner only', async () => {
+    const res = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/media/upload`)
+      .set('Cookie', ownerCookie())
+      .field('mediaType', 'photo')
+      .attach('photoFiles', await makeJpeg(), 'edit-control.jpg');
+    const mediaId = mediaIdByFilename('edit-control.jpg');
+    const editHref = `href="/members/${OWNER_SLUG}/media/${mediaId}/edit"`;
+    const asOwner = await request(createApp()).get(res.headers.location).set('Cookie', ownerCookie());
+    expect(asOwner.text).toContain(editHref);
+    const asOther = await request(createApp()).get(res.headers.location).set('Cookie', otherCookie());
+    expect(asOther.status).toBe(200);
+    expect(asOther.text).not.toContain('/media/' + mediaId + '/edit');
+    const asVisitor = await request(createApp()).get(res.headers.location);
+    expect(asVisitor.status).toBe(200);
+    expect(asVisitor.text).not.toContain('/media/' + mediaId + '/edit');
+  });
+
+  // Defect caught: the "shows in" line lists a gallery the item does not show
+  // in (one that excludes a hashtag it carries), misses one it does, or names
+  // the Personal Gallery, which every share lands in and which "your
+  // galleries" leaves out everywhere else.
+  it('names the owner\'s named galleries the shared photo shows in, leaving out one that excludes it and the Personal Gallery', async () => {
+    const make = async (name: string, tags: string) => request(createApp())
+      .post(`/members/${OWNER_SLUG}/media/upload`)
+      .set('Cookie', ownerCookie())
+      .field('mediaType', 'photo')
+      .field('tags', tags)
+      .field('galleryName', name)
+      .field('galleryPreview', await previewToken(name, tags));
+    expect((await make('Shows Here', '#shows_in')).status).toBe(303);
+    expect((await make('Excludes It Too', '#shows_in_x')).status).toBe(303);
+    const excluder = galleryRow(OWNER_ID, 'Excludes It Too')!;
+    expect((await request(createApp())
+      .post(`/members/${OWNER_SLUG}/galleries/${excluder.id}/edit`)
+      .set('Cookie', ownerCookie())
+      .type('form')
+      .send({ name: 'Excludes It Too', description: '', sortOrder: 'upload_desc', criteriaTags: '', excludeTags: '#shows_in' })).status).toBe(303);
+
+    const agent = request.agent(createApp());
+    const res = await agent
+      .post(`/members/${OWNER_SLUG}/media/upload`)
+      .set('Cookie', ownerCookie())
+      .field('mediaType', 'photo')
+      .field('tags', '#shows_in')
+      .attach('photoFiles', await makeJpeg(), 'shows-in.jpg');
+    const landed = await agent.get(res.headers.location).set('Cookie', ownerCookie());
+    const banner = /class="form-success-banner"[\s\S]*?<\/div>/.exec(landed.text)?.[0] ?? '';
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    const personal = db.prepare('SELECT name FROM member_galleries WHERE owner_member_id = ? AND is_default = 1')
+      .get(OWNER_ID) as { name: string };
+    db.close();
+    expect(banner).toContain('Shows Here');
+    expect(banner).not.toContain(personal.name);
+    expect(banner).not.toContain('Excludes It Too');
+  });
+
+  // Defect caught: a hand-posted gallery id still drops a photo "into" a
+  // gallery, putting another member's hashtags on it.
+  it('ignores a posted gallery id', async () => {
+    const res = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/media/upload`)
+      .set('Cookie', ownerCookie())
+      .field('mediaType', 'photo')
+      .field('galleryId', 'gallery_mu_other_anything')
+      .attach('photoFiles', await makeJpeg(), 'stray-id.jpg');
+    expect(res.status).toBe(303);
+    expect(tagsOf(mediaIdByFilename('stray-id.jpg'))).toEqual([`#by_${OWNER_SLUG}`]);
+  });
+
+  // Defect caught: reaching the hourly limit partway loses the photos already
+  // shared, or the rest are dropped without being named.
+  it('keeps the photos shared before the hourly limit and names the rest', async () => {
+    setConfig('photo_upload_rate_limit_per_hour', '1', '2026-06-03T00:00:00.000Z');
+    try {
+      const agent = request.agent(createApp());
+      const res = await agent
+        .post(`/members/${OWNER_SLUG}/media/upload`)
+        .set('Cookie', ownerCookie())
+        .field('mediaType', 'photo')
+        .attach('photoFiles', await makeJpeg(), 'within-limit.jpg')
+        .attach('photoFiles', await makeJpeg({ r: 7, g: 7, b: 7 }), 'past-limit.jpg');
+      expect(res.status).toBe(303);
+      expect(ownerPhotoRows('within-limit.jpg')).toHaveLength(1);
+      expect(ownerPhotoRows('past-limit.jpg')).toHaveLength(0);
+      const landed = await agent.get(res.headers.location).set('Cookie', ownerCookie());
+      expect(landed.text).toMatch(/class="form-error-banner"[^]*past-limit\.jpg/);
+    } finally {
+      setConfig('photo_upload_rate_limit_per_hour', '30', '2026-06-03T00:00:01.000Z');
+    }
   });
 });
 
@@ -854,10 +1412,10 @@ describe('POST /members/:memberKey/media/upload (video)', () => {
       .field('mediaType', 'video')
       .field('videoPlatform', 'youtube')
       .field('videoUrl', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ')
-      .field('caption', 'classic')
+      .field('videoCaption', 'classic')
       .field('tags', '#tutorial');
     expect(res.status).toBe(303);
-    expect(res.headers.location).toBe(`/members/${OWNER_SLUG}/galleries`);
+    expect(res.headers.location).toMatch(new RegExp(`^/media/gallery_${OWNER_SLUG}_personal_gallery/media_[0-9a-f]+$`));
 
     const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
     try {
@@ -900,7 +1458,7 @@ describe('POST /members/:memberKey/media/upload (video)', () => {
       .field('mediaType', 'video')
       .field('videoPlatform', 'youtube')
       .field('videoUrl', 'https://evil.example/redirect?u=https://www.youtube.com/watch?v=wRaPPeRiD11')
-      .field('caption', 'wrapped')
+      .field('videoCaption', 'wrapped')
       .field('tags', '');
     expect(res.status).toBe(303);
 
@@ -954,15 +1512,34 @@ describe('POST /members/:memberKey/media/upload (video)', () => {
     expect(res.text).toContain('not available');
   });
 
-  it('missing platform -> 422', async () => {
-    const app = createApp();
-    const res = await request(app)
+  // Defect caught: the platform is no longer chosen, so a link it cannot be
+  // read from must be refused rather than stored under a guessed platform.
+  it('a link that is neither YouTube nor Vimeo -> 422, nothing written, verifier not asked', async () => {
+    const before = videoVerifierCalls;
+    const res = await request(createApp())
       .post(`/members/${OWNER_SLUG}/media/upload`)
       .set('Cookie', ownerCookie())
       .field('mediaType', 'video')
-      .field('videoUrl', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+      .field('videoUrl', 'https://example.com/not-a-platform');
     expect(res.status).toBe(422);
-    expect(res.text).toContain('YouTube or Vimeo');
+    expect(videoVerifierCalls).toBe(before);
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    try {
+      const n = db.prepare("SELECT COUNT(*) AS n FROM media_items WHERE uploader_member_id = ? AND media_type = 'video'")
+        .get(OWNER_ID) as { n: number };
+      expect(n.n).toBe(0);
+    } finally { db.close(); }
+  });
+
+  // Defect caught: the platform is taken from anything but the link itself.
+  it('takes the platform from the link: a Vimeo link is stored as Vimeo', async () => {
+    const res = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/media/upload`)
+      .set('Cookie', ownerCookie())
+      .field('mediaType', 'video')
+      .field('videoUrl', 'https://vimeo.com/987654321');
+    expect(res.status).toBe(303);
+    expect(ownerVideoRows('987654321')).toHaveLength(1);
   });
 
   it('6th video submission in the hour -> 429 with Retry-After', async () => {
@@ -1069,7 +1646,7 @@ describe('POST /members/:memberKey/media/upload (video)', () => {
       const second = await submit('twicevidxxx');
       expect(second.status, 'a repeated submission is not an error').toBe(303);
       expect(second.headers.location).toBe(first.headers.location);
-      expect(flashOf(first)).toContain('media_saved%3Aupload');
+      expect(flashOf(first)).toContain('media_saved%3Ashare');
       expect(flashOf(second)).toBe(flashOf(first));
       expect(videoVerifierCalls - callsBefore).toBe(1);
 
@@ -1166,218 +1743,28 @@ describe('a member upload or gallery create submitted twice', () => {
   });
 });
 
-// ── POST /members/:memberKey/galleries — combined create + upload ──────────
+// ── A named gallery cannot carry a forged uploader hashtag ─────────────────
 
-describe('POST /members/:memberKey/galleries (multipart, combined)', () => {
-  it('gallery + 2 files -> gallery row exists, 2 media rows tagged with criteria', async () => {
-    const app = createApp();
-    const jpeg = await makeJpeg();
-
-    const res = await request(app)
-      .post(`/members/${OWNER_SLUG}/galleries`)
+describe('a gallery named on the Share Media form', () => {
+  // Defect caught: a typed `#by_` hashtag reaches the gallery's criteria, so a
+  // member's gallery scopes to another member's uploads.
+  it('refuses a typed #by_ hashtag and creates no gallery', async () => {
+    const res = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/media/upload`)
       .set('Cookie', ownerCookie())
-      .field('name', 'Beach 2025')
-      .field('description', 'sand and bag')
-      .field('sortOrder', 'upload_desc')
-      .field('criteriaTags', '#event_2025_beach')
-      .field('excludeTags', '')
-      .field('uploadTags', '#event_2025_beach')
-      .attach('photoFiles', jpeg, 'a.jpg')
-      .attach('photoFiles', jpeg, 'b.jpg');
-    expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/members/mu_owner/galleries');
-
-    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
-    try {
-      const galleries = db.prepare(`
-        SELECT id, name FROM member_galleries WHERE owner_member_id = ?
-      `).all(OWNER_ID) as Array<{ id: string; name: string }>;
-      const beach = galleries.find((g) => g.name === 'Beach 2025');
-      expect(beach).toBeDefined();
-
-      const media = db.prepare(`
-        SELECT id FROM media_items WHERE uploader_member_id = ?
-      `).all(OWNER_ID) as Array<{ id: string }>;
-      expect(media.length).toBe(2);
-
-      const tagDisplays = db.prepare(`
-        SELECT mt.tag_display
-        FROM media_items mi
-        JOIN media_tags mt ON mt.media_id = mi.id
-        WHERE mi.uploader_member_id = ?
-      `).all(OWNER_ID) as Array<{ tag_display: string }>;
-      const everyMediaHasBeachTag = media.every((m) =>
-        tagDisplays.some((t) => t.tag_display === '#event_2025_beach' && tagDisplays.find(() => true)),
-      );
-      expect(everyMediaHasBeachTag).toBe(true);
-      expect(tagDisplays.some((t) => t.tag_display === `#by_${OWNER_SLUG}`)).toBe(true);
-    } finally {
-      db.close();
-    }
-  });
-
-  it("gallery's criteria auto-includes #by_<slug> so the filter scopes to the owner", async () => {
-    const app = createApp();
-    const jpeg = await makeJpeg();
-
-    const res = await request(app)
-      .post(`/members/${OWNER_SLUG}/galleries`)
-      .set('Cookie', ownerCookie())
-      .field('name', 'Funky Footbags')
-      .field('description', '')
-      .field('sortOrder', 'upload_desc')
-      .field('criteriaTags', '#footbag')
-      .field('excludeTags', '')
-      .attach('photoFiles', jpeg, 'f.jpg');
-    expect(res.status).toBe(303);
-
-    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
-    try {
-      const gallery = db.prepare(`
-        SELECT id FROM member_galleries WHERE owner_member_id = ? AND name = ?
-      `).get(OWNER_ID, 'Funky Footbags') as { id: string } | undefined;
-      expect(gallery).toBeDefined();
-
-      const criteriaTags = db.prepare(`
-        SELECT t.tag_display
-        FROM member_gallery_tags mgt
-        JOIN tags t ON t.id = mgt.tag_id
-        WHERE mgt.gallery_id = ?
-        ORDER BY t.tag_display
-      `).all(gallery!.id) as Array<{ tag_display: string }>;
-      const tags = criteriaTags.map((r) => r.tag_display);
-      expect(tags).toContain(`#by_${OWNER_SLUG}`);
-      expect(tags).toContain('#footbag');
-    } finally {
-      db.close();
-    }
-  });
-
-  it('user supplies #by_* in gallery criteria -> 422; no gallery created', async () => {
-    const app = createApp();
-    const res = await request(app)
-      .post(`/members/${OWNER_SLUG}/galleries`)
-      .set('Cookie', ownerCookie())
-      .field('name', 'Forged Attribution')
-      .field('description', '')
-      .field('sortOrder', 'upload_desc')
-      .field('criteriaTags', `#by_${OTHER_SLUG} #footbag`)
-      .field('excludeTags', '');
+      .field('mediaType', 'photo')
+      .field('tags', `#by_${OTHER_SLUG} #footbag`)
+      .field('galleryName', 'Forged Attribution');
     expect(res.status).toBe(422);
-    expect(res.text).toContain('#by_');
     const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
     try {
       const gallery = db.prepare(
-        `SELECT id FROM member_galleries WHERE owner_member_id = ? AND name = ?`,
+        'SELECT id FROM member_galleries WHERE owner_member_id = ? AND name = ?',
       ).get(OWNER_ID, 'Forged Attribution') as { id: string } | undefined;
       expect(gallery).toBeUndefined();
     } finally {
       db.close();
     }
-  });
-
-  it('no files -> behaves equivalent to form-encoded path (gallery created, no media)', async () => {
-    const app = createApp();
-    const res = await request(app)
-      .post(`/members/${OWNER_SLUG}/galleries`)
-      .set('Cookie', ownerCookie())
-      .field('name', 'Empty Gallery')
-      .field('description', '')
-      .field('sortOrder', 'upload_desc')
-      .field('criteriaTags', '#empty')
-      .field('excludeTags', '');
-    expect(res.status).toBe(303);
-
-    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
-    try {
-      const gallery = db.prepare(`
-        SELECT id FROM member_galleries WHERE owner_member_id = ? AND name = ?
-      `).get(OWNER_ID, 'Empty Gallery') as { id: string } | undefined;
-      expect(gallery).toBeDefined();
-      const media = db.prepare(`
-        SELECT COUNT(*) AS n FROM media_items WHERE uploader_member_id = ?
-      `).get(OWNER_ID) as { n: number };
-      expect(media.n).toBe(0);
-    } finally {
-      db.close();
-    }
-  });
-
-  it('bad file -> 422, no gallery created', async () => {
-    const app = createApp();
-    const notAnImage = Buffer.from('definitely not jpeg');
-    const res = await request(app)
-      .post(`/members/${OWNER_SLUG}/galleries`)
-      .set('Cookie', ownerCookie())
-      .field('name', 'Should Not Exist')
-      .field('description', '')
-      .field('sortOrder', 'upload_desc')
-      .field('criteriaTags', '#bogus')
-      .field('excludeTags', '')
-      .attach('photoFiles', notAnImage, 'fake.txt');
-    expect(res.status).toBe(422);
-    expect(res.text).toContain('Only JPEG and PNG');
-
-    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
-    try {
-      const gallery = db.prepare(`
-        SELECT id FROM member_galleries WHERE owner_member_id = ? AND name = ?
-      `).get(OWNER_ID, 'Should Not Exist') as { id: string } | undefined;
-      expect(gallery).toBeUndefined();
-    } finally {
-      db.close();
-    }
-  });
-
-  it('duplicate gallery name -> 422, no media written', async () => {
-    const app = createApp();
-    const jpeg = await makeJpeg();
-    // Pre-create the gallery so the second submit collides.
-    await request(app)
-      .post(`/members/${OWNER_SLUG}/galleries`)
-      .set('Cookie', ownerCookie())
-      .field('name', 'Duplicate')
-      .field('description', '')
-      .field('sortOrder', 'upload_desc')
-      .field('criteriaTags', '#first')
-      .field('excludeTags', '');
-
-    const res = await request(app)
-      .post(`/members/${OWNER_SLUG}/galleries`)
-      .set('Cookie', ownerCookie())
-      .field('name', 'Duplicate')
-      .field('description', '')
-      .field('sortOrder', 'upload_desc')
-      .field('criteriaTags', '#second')
-      .field('excludeTags', '')
-      .attach('photoFiles', jpeg, 'x.jpg');
-    expect(res.status).toBe(422);
-    expect(res.text).toContain('already exists');
-
-    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
-    try {
-      const media = db.prepare(`
-        SELECT COUNT(*) AS n FROM media_items WHERE uploader_member_id = ?
-      `).get(OWNER_ID) as { n: number };
-      expect(media.n).toBe(0);
-    } finally {
-      db.close();
-    }
-  });
-
-  it("posting to another member's create route -> 404", async () => {
-    const app = createApp();
-    const jpeg = await makeJpeg();
-    const res = await request(app)
-      .post(`/members/${OWNER_SLUG}/galleries`)
-      .set('Cookie', otherCookie())
-      .field('name', 'Forged')
-      .field('description', '')
-      .field('sortOrder', 'upload_desc')
-      .field('criteriaTags', '#x')
-      .field('excludeTags', '')
-      .attach('photoFiles', jpeg, 'x.jpg');
-    expect(res.status).toBe(404);
   });
 });
 
@@ -1408,7 +1795,7 @@ describe('a member upload caption is cleaned before it is stored', () => {
       .set('Cookie', ownerCookie())
       .field('mediaType', 'photo')
       .field('caption', DIRTY_CAPTION)
-      .attach('photoFile', await makeJpeg(), 'clean-caption.jpg');
+      .attach('photoFiles', await makeJpeg(), 'clean-caption.jpg');
     expect(res.status).toBe(303);
     expect(storedCaption('source_filename', 'clean-caption.jpg')).toBe(CLEAN_CAPTION);
   });
@@ -1421,7 +1808,7 @@ describe('a member upload caption is cleaned before it is stored', () => {
       .field('mediaType', 'video')
       .field('videoPlatform', 'youtube')
       .field('videoUrl', 'https://www.youtube.com/watch?v=cleancapvid')
-      .field('caption', DIRTY_CAPTION);
+      .field('videoCaption', DIRTY_CAPTION);
     expect(res.status).toBe(303);
     expect(storedCaption('video_id', 'cleancapvid')).toBe(CLEAN_CAPTION);
   });
@@ -1438,7 +1825,7 @@ describe('a member upload caption is cleaned before it is stored', () => {
       .field('mediaType', 'video')
       .field('videoPlatform', 'youtube')
       .field('videoUrl', 'https://www.youtube.com/watch?v=cleantwicev')
-      .field('caption', DIRTY_CAPTION);
+      .field('videoCaption', DIRTY_CAPTION);
     expect((await submit()).status).toBe(303);
     const callsAfterFirst = videoVerifierCalls;
     const second = await submit();

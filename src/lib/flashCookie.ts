@@ -190,11 +190,75 @@ export function writeMediaSavedFlash(
 }
 
 /**
+ * What a Share Media submit, or a save of one item, reports on the page it
+ * lands on. `mediaId` is the first item shared or the item saved, so the page
+ * shows the report only beside that item; `count` is how many items were
+ * shared (0 for a save); `gallery` is the gallery named in the submit.
+ */
+export interface ShareOutcome {
+  mediaId: string | null;
+  count: number;
+  saved: boolean;
+  gallery: { id: string; name: string; tags: string[]; created: boolean } | null;
+  folded: FoldedTag[];
+  rejected: { filename: string; reason: string }[];
+}
+
+const SHARE_PREFIX = 'share|';
+
+/**
+ * Report a share across its redirect. The pairs a long report carries are cut
+ * from the end, refusals last, so the cookie stays inside the size a browser
+ * keeps; what is cut still leaves the success and the first refusals named.
+ */
+export function writeShareFlash(res: Response, req: Request, outcome: ShareOutcome): void {
+  const encode = (o: ShareOutcome) => encodeURIComponent(JSON.stringify(o));
+  // A file name or reason is cut short so one long or non-Latin name, which
+  // encodes to many times its length, cannot by itself overflow the cookie.
+  const cut = (s: string, n: number) => (s.length > n ? `${s.slice(0, n)}…` : s);
+  const trimmed: ShareOutcome = {
+    ...outcome,
+    folded: [...outcome.folded],
+    rejected: outcome.rejected.map((r) => ({ filename: cut(r.filename, 60), reason: cut(r.reason, 160) })),
+  };
+  while (encode(trimmed).length > MEDIA_SAVED_FOLDED_MAX_CHARS && trimmed.folded.length > 0) trimmed.folded.pop();
+  while (encode(trimmed).length > MEDIA_SAVED_FOLDED_MAX_CHARS && trimmed.rejected.length > 1) trimmed.rejected.pop();
+  if (encode(trimmed).length > MEDIA_SAVED_FOLDED_MAX_CHARS && trimmed.gallery) {
+    trimmed.gallery = { ...trimmed.gallery, tags: [] };
+  }
+  writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, `${SHARE_PREFIX}${encode(trimmed)}`);
+}
+
+/** Consume a share report; any other flash is left for its own page. */
+export function takeShareFlash(req: Request, res: Response): ShareOutcome | null {
+  const flash = readFlash(req);
+  if (flash?.kind !== FLASH_KIND.MEDIA_SAVED || !flash.payload?.startsWith(SHARE_PREFIX)) return null;
+  clearFlash(res, req);
+  try {
+    const parsed = JSON.parse(decodeURIComponent(flash.payload.slice(SHARE_PREFIX.length))) as Partial<ShareOutcome>;
+    return {
+      mediaId: typeof parsed.mediaId === 'string' ? parsed.mediaId : null,
+      count: typeof parsed.count === 'number' ? parsed.count : 0,
+      saved: parsed.saved === true,
+      gallery: parsed.gallery && typeof parsed.gallery.id === 'string' ? parsed.gallery : null,
+      folded: Array.isArray(parsed.folded) ? parsed.folded.filter((f): f is FoldedTag =>
+        typeof f?.typed === 'string' && typeof f?.stored === 'string') : [],
+      rejected: Array.isArray(parsed.rejected) ? parsed.rejected.filter((r): r is { filename: string; reason: string } =>
+        typeof r?.filename === 'string' && typeof r?.reason === 'string') : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Consume a media-saved flash: which save it reports and the tags it folded.
  * Any other flash is left for its own page, and an unrecognised payload reads
  * as none.
  */
 export function takeMediaSaved(req: Request, res: Response): { kind: MediaSavedKind; folded: FoldedTag[] } | null {
+  // A share report belongs to the media page it lands on, never to this reader.
+  if (readFlash(req)?.payload?.startsWith(SHARE_PREFIX)) return null;
   const p = takeFlash(req, res, FLASH_KIND.MEDIA_SAVED);
   if (p === null) return null;
   const [kind, encoded] = p.split('|', 2);

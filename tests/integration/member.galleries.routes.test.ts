@@ -1,8 +1,6 @@
 /**
  * Integration tests for the owner-only member named-gallery routes:
  *   GET    /members/:memberKey/galleries
- *   GET    /members/:memberKey/galleries/new
- *   POST   /members/:memberKey/galleries
  *   GET    /members/:memberKey/galleries/:id/edit
  *   POST   /members/:memberKey/galleries/:id/edit
  *   POST   /members/:memberKey/galleries/:id/delete
@@ -166,18 +164,24 @@ beforeEach(() => {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-function createGalleryViaApi(name: string, criteria = '#tag1'): Promise<TestResponse> {
+// A gallery is created the way a member creates one: by naming a set of
+// hashtags on the Share Media form, with nothing shared, carrying the preview
+// the form's script records (so no confirm round is needed).
+async function createGalleryViaApi(
+  name: string,
+  criteria = '#tag1',
+  as: { slug: string; cookie: string } = { slug: OWNER_SLUG, cookie: ownerCookie() },
+): Promise<TestResponse> {
+  const svc = await import('../../src/services/curatorMediaService');
+  const preview = svc.previewNewMemberGallery(as.slug, name, svc.parseTagList(criteria), () => false);
+  const token = 'refusal' in preview ? '' : svc.newGalleryPreviewToken(preview);
   return request(createApp())
-    .post(`/members/${OWNER_SLUG}/galleries`)
-    .set('Cookie', ownerCookie())
-    .type('form')
-    .send({
-      name,
-      description: 'desc',
-      sortOrder: 'upload_desc',
-      criteriaTags: criteria,
-      excludeTags: '',
-    });
+    .post(`/members/${as.slug}/media/upload`)
+    .set('Cookie', as.cookie)
+    .field('mediaType', 'photo')
+    .field('tags', criteria)
+    .field('galleryName', name)
+    .field('galleryPreview', token);
 }
 
 function findGalleryIdByName(name: string): string | undefined {
@@ -198,7 +202,10 @@ describe('GET /members/:memberKey/galleries', () => {
       .get(`/members/${OWNER_SLUG}/galleries`)
       .set('Cookie', ownerCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Create New Gallery');
+    // Defect caught: the list still offers the retired create-gallery page, a
+    // link to a 404; a gallery is made on the Share Media form instead.
+    expect(res.text).not.toContain(`/members/${OWNER_SLUG}/galleries/new`);
+    expect(res.text).toContain(`href="/members/${OWNER_SLUG}/media/upload"`);
     // A member with no galleries (so no media) sees the teaching empty state:
     // a prompt and the upload CTA, in place of the old bare "no galleries yet"
     // message.
@@ -209,34 +216,6 @@ describe('GET /members/:memberKey/galleries', () => {
     expect(res.text).not.toContain('#club_wellington');
     expect(res.text).not.toContain('#event_2026_worlds_japan');
     expect(res.text).not.toContain('#chinlone');
-  });
-
-  it('renders an Upload media button linked to /members/:slug/media/upload', async () => {
-    const res = await request(createApp())
-      .get(`/members/${OWNER_SLUG}/galleries`)
-      .set('Cookie', ownerCookie());
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Upload Media');
-    expect(res.text).toMatch(new RegExp(`href="/members/${OWNER_SLUG}/media/upload"`));
-  });
-
-  it('renders an "Uploaded." flash banner after a POST upload via the agent round-trip', async () => {
-    const jpeg = await sharp({
-      create: { width: 256, height: 256, channels: 3, background: { r: 50, g: 100, b: 150 } },
-    }).jpeg().toBuffer();
-    const app = createApp();
-    const agent = request.agent(app);
-    const post = await agent
-      .post(`/members/${OWNER_SLUG}/media/upload`)
-      .set('Cookie', ownerCookie())
-      .field('mediaType', 'photo')
-      .attach('photoFile', jpeg, `upload-banner-${Date.now()}.jpg`);
-    expect(post.status).toBe(303);
-    const res = await agent
-      .get(`/members/${OWNER_SLUG}/galleries`)
-      .set('Cookie', ownerCookie());
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Uploaded.');
   });
 
   it('lists the owner\'s galleries with edit + delete actions', async () => {
@@ -304,222 +283,24 @@ describe('GET /members/:memberKey/galleries', () => {
   });
 });
 
-// ── GET /members/:memberKey/galleries/new ──────────────────────────────────
+// ── The retired gallery-create routes ──────────────────────────────────────
 
-describe('GET /members/:memberKey/galleries/new', () => {
-  it('renders an empty new-gallery form for the owner', async () => {
-    const res = await request(createApp())
+describe('the gallery-create routes are retired', () => {
+  // Defect caught: the old create page or its POST still answers, so a member
+  // finds a second way to make a gallery beside the Share Media form, one that
+  // never shows the address and hashtags before saving.
+  it('answers 404 for the new-gallery page and its POST', async () => {
+    const page = await request(createApp())
       .get(`/members/${OWNER_SLUG}/galleries/new`)
       .set('Cookie', ownerCookie());
-    expect(res.status).toBe(200);
-    expect(res.text).toMatch(/<form[^>]*action="\/members\/mg_owner\/galleries"/);
-    // The hashtag criteria, exclusions, and sort sit behind an Advanced
-    // disclosure so the common path (name + upload) stays uncluttered.
-    expect(res.text).toContain('class="gallery-advanced"');
-    expect(res.text).toContain('<summary>Advanced');
-    expect(res.text).toContain('id="gallery-criteria-tags"');
-  });
-
-  it('redirects unauthenticated', async () => {
-    const res = await request(createApp()).get(`/members/${OWNER_SLUG}/galleries/new`);
-    expect(res.status).toBe(302);
-  });
-
-  it('404s when authed as a different member', async () => {
-    const res = await request(createApp())
-      .get(`/members/${OWNER_SLUG}/galleries/new`)
-      .set('Cookie', otherCookie());
-    expect(res.status).toBe(404);
-  });
-});
-
-// ── POST /members/:memberKey/galleries ─────────────────────────────────────
-
-describe('POST /members/:memberKey/galleries', () => {
-  it('creates a member-owned gallery and redirects to the list with a flash', async () => {
-    const res = await createGalleryViaApi('Fresh Gallery', '#summer');
-    expect(res.status).toBe(303);
-    expect(res.headers.location).toBe(`/members/${OWNER_SLUG}/galleries`);
-    const id = findGalleryIdByName('Fresh Gallery');
-    expect(id).toBe('gallery_mg_owner_fresh_gallery');
-  });
-
-  it('writes a media.member_gallery_created audit row scoped to the owner', async () => {
-    const res = await createGalleryViaApi('Audit Create Target', '#auditcreate');
-    expect(res.status).toBe(303);
-    const id = findGalleryIdByName('Audit Create Target')!;
-    const db = new BetterSqlite3(TEST_DB_PATH);
-    try {
-      const audit = db.prepare(
-        `SELECT actor_type, actor_member_id, entity_type FROM audit_entries
-         WHERE entity_id = ? AND action_type = 'media.member_gallery_created'`,
-      ).get(id) as Record<string, unknown> | undefined;
-      expect(audit).toBeDefined();
-      expect(audit!.actor_type).toBe('member');
-      expect(audit!.actor_member_id).toBe(OWNER_ID);
-      expect(audit!.entity_type).toBe('gallery');
-    } finally { db.close(); }
-  });
-
-  it('auto-applies #by_<slug> when criteriaTags is empty (My Photos default)', async () => {
-    const res = await request(createApp())
+    expect(page.status).toBe(404);
+    const post = await request(createApp())
       .post(`/members/${OWNER_SLUG}/galleries`)
       .set('Cookie', ownerCookie())
       .type('form')
-      .send({ name: 'My Photos', description: '', sortOrder: 'upload_desc', criteriaTags: '', excludeTags: '' });
-    expect(res.status).toBe(303);
-    const id = findGalleryIdByName('My Photos')!;
-    expect(id).toBe('gallery_mg_owner_my_photos');
-    const db = new BetterSqlite3(TEST_DB_PATH);
-    try {
-      const tags = db.prepare(
-        `SELECT t.tag_display FROM member_gallery_tags mgt JOIN tags t ON t.id = mgt.tag_id WHERE mgt.gallery_id = ?`,
-      ).all(id) as { tag_display: string }[];
-      expect(tags.map((t) => t.tag_display)).toEqual([`#by_${OWNER_SLUG}`]);
-    } finally { db.close(); }
-  });
-
-  // A gallery's address is made from its name by the one rule every slug follows,
-  // so an accented letter folds to its base letter instead of vanishing, and a
-  // typed criteria hashtag is stored folded.
-  it('folds an accented gallery name into its address and a typed criteria hashtag into its stored form', async () => {
-    const res = await request(createApp())
-      .post(`/members/${OWNER_SLUG}/galleries`)
-      .set('Cookie', ownerCookie())
-      .type('form')
-      .send({ name: 'Zürich Trip', description: '', sortOrder: 'upload_desc', criteriaTags: '#Zürich-Trip', excludeTags: '' });
-    expect(res.status).toBe(303);
-    const id = findGalleryIdByName('Zürich Trip')!;
-    expect(id).toBe(`gallery_${OWNER_SLUG}_zurich_trip`);
-    const db = new BetterSqlite3(TEST_DB_PATH);
-    try {
-      const tags = db.prepare(
-        `SELECT t.tag_normalized FROM member_gallery_tags mgt JOIN tags t ON t.id = mgt.tag_id WHERE mgt.gallery_id = ?`,
-      ).all(id) as { tag_normalized: string }[];
-      expect(tags.map((t) => t.tag_normalized)).toContain('#zurich_trip');
-    } finally { db.close(); }
-  });
-
-  it('rejects a photoFiles part with bytes but no filename (422, not a silent drop)', async () => {
-    const boundary = '----b35nameless';
-    const body = Buffer.from(
-      `--${boundary}\r\n` +
-      `Content-Disposition: form-data; name="name"\r\n\r\n` +
-      `Nameless Upload\r\n` +
-      `--${boundary}\r\n` +
-      `Content-Disposition: form-data; name="description"\r\n\r\n` +
-      `desc\r\n` +
-      `--${boundary}\r\n` +
-      `Content-Disposition: form-data; name="sortOrder"\r\n\r\n` +
-      `upload_desc\r\n` +
-      `--${boundary}\r\n` +
-      `Content-Disposition: form-data; name="criteriaTags"\r\n\r\n` +
-      `#tag1\r\n` +
-      `--${boundary}\r\n` +
-      `Content-Disposition: form-data; name="photoFiles"; filename=""\r\n` +
-      `Content-Type: image/jpeg\r\n\r\n` +
-      `\xff\xd8\xff\x00bytes-without-a-name\r\n` +
-      `--${boundary}--\r\n`,
-      'binary',
-    );
-    const res = await request(createApp())
-      .post(`/members/${OWNER_SLUG}/galleries`)
-      .set('Cookie', ownerCookie())
-      .set('Content-Type', `multipart/form-data; boundary=${boundary}`)
-      .send(body);
-    expect(res.status).toBe(422);
-    expect(res.text).toContain('missing a filename');
-  });
-
-  it('rejects oversize name with 422', async () => {
-    const res = await request(createApp())
-      .post(`/members/${OWNER_SLUG}/galleries`)
-      .set('Cookie', ownerCookie())
-      .type('form')
-      .send({ name: 'x'.repeat(151), description: '', sortOrder: 'upload_desc', criteriaTags: '#a', excludeTags: '' });
-    expect(res.status).toBe(422);
-    expect(res.text).toContain('150 characters');
-  });
-
-  // A different gallery under a name the owner already uses is refused; only
-  // the identical submit is a repeat (covered with the submitted-twice cases).
-  it('refuses a second gallery under the same name with different criteria (422, first kept)', async () => {
-    await createGalleryViaApi('Same Name', '#tag1');
-    const res = await createGalleryViaApi('Same Name', '#tag2');
-    expect(res.status).toBe(422);
-    expect(res.text).toContain('already exists for this owner');
-    const db = new BetterSqlite3(TEST_DB_PATH);
-    try {
-      const n = db.prepare('SELECT COUNT(*) AS n FROM member_galleries WHERE name = ?').get('Same Name') as { n: number };
-      expect(n.n).toBe(1);
-    } finally { db.close(); }
-  });
-
-  // Defect caught: re-sending the create form with the same name and criteria
-  // but a new description is reported as saved while the new description is
-  // silently dropped.
-  it('refuses the same name and criteria with a changed description (422, first kept)', async () => {
-    const post = (description: string) => request(createApp())
-      .post(`/members/${OWNER_SLUG}/galleries`)
-      .set('Cookie', ownerCookie())
-      .type('form')
-      .send({
-        name: 'Described Once', description, sortOrder: 'upload_desc',
-        criteriaTags: '#described', excludeTags: '',
-      });
-    expect((await post('The first description')).status).toBe(303);
-    const changed = await post('A second description');
-    expect(changed.status).toBe(422);
-    expect(changed.text).toContain('already exists for this owner');
-    const db = new BetterSqlite3(TEST_DB_PATH);
-    try {
-      const rows = db.prepare('SELECT description FROM member_galleries WHERE name = ?')
-        .all('Described Once') as Array<{ description: string }>;
-      expect(rows).toEqual([{ description: 'The first description' }]);
-    } finally { db.close(); }
-    // The unchanged form is still the repeat it was.
-    expect((await post('The first description')).status).toBe(303);
-  });
-
-  it('ignores a forged ownerMemberId in the body — owner is taken from the session', async () => {
-    const res = await request(createApp())
-      .post(`/members/${OWNER_SLUG}/galleries`)
-      .set('Cookie', ownerCookie())
-      .type('form')
-      .send({
-        name: 'Forge Attempt',
-        description: '',
-        sortOrder: 'upload_desc',
-        criteriaTags: '#x',
-        excludeTags: '',
-        ownerMemberId: SYSTEM_ID,  // ignored by controller
-      });
-    expect(res.status).toBe(303);
-    const id = findGalleryIdByName('Forge Attempt');
-    expect(id).toBe('gallery_mg_owner_forge_attempt');
-    const db = new BetterSqlite3(TEST_DB_PATH);
-    try {
-      const row = db.prepare('SELECT owner_member_id FROM member_galleries WHERE id = ?').get(id!) as { owner_member_id: string };
-      expect(row.owner_member_id).toBe(OWNER_ID);
-    } finally { db.close(); }
-  });
-
-  it('redirects unauthenticated', async () => {
-    const res = await request(createApp())
-      .post(`/members/${OWNER_SLUG}/galleries`)
-      .type('form')
-      .send({ name: 'X', description: '', sortOrder: 'upload_desc', criteriaTags: '#x', excludeTags: '' });
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toMatch(/\/login/);
-  });
-
-  it('404s when authed as a different member (anti-enumeration on the owner-slug path)', async () => {
-    const res = await request(createApp())
-      .post(`/members/${OWNER_SLUG}/galleries`)
-      .set('Cookie', otherCookie())
-      .type('form')
-      .send({ name: 'X', description: '', sortOrder: 'upload_desc', criteriaTags: '#x', excludeTags: '' });
-    expect(res.status).toBe(404);
+      .send({ name: 'Retired Route', description: '', sortOrder: 'upload_desc', criteriaTags: '#x', excludeTags: '' });
+    expect(post.status).toBe(404);
+    expect(findGalleryIdByName('Retired Route')).toBeUndefined();
   });
 });
 
@@ -535,6 +316,13 @@ describe('GET /members/:memberKey/galleries/:id/edit', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('Editable');
     expect(res.text).toMatch(new RegExp(`<form[^>]*action="/members/mg_owner/galleries/${id}/edit"`));
+    // Defect caught: the edit page still carries an upload box, a second way to
+    // add content that bypasses the Share Media form, or posts multipart.
+    expect(res.text).not.toContain('type="file"');
+    expect(res.text).not.toContain('multipart/form-data');
+    // Defect caught: the share link opens the form without this gallery's
+    // hashtags, so what is shared from it does not show in the gallery.
+    expect(res.text).toContain(`href="/members/${OWNER_SLUG}/media/upload?gallery=${id}"`);
   });
 
   it('returns 404 for an unknown gallery id', async () => {
@@ -570,16 +358,24 @@ describe('GET /members/:memberKey/galleries/:id/edit', () => {
 });
 
 describe('POST /members/:memberKey/galleries/:id/edit', () => {
-  it('applies changes and redirects to the list with a flash', async () => {
+  it('applies changes and lands on the gallery, which reports the save once', async () => {
     await createGalleryViaApi('Before');
     const id = findGalleryIdByName('Before')!;
-    const res = await request(createApp())
+    const agent = request.agent(createApp());
+    const res = await agent
       .post(`/members/${OWNER_SLUG}/galleries/${id}/edit`)
       .set('Cookie', ownerCookie())
       .type('form')
       .send({ name: 'After', description: 'updated', sortOrder: 'caption_asc', criteriaTags: '#new', excludeTags: '' });
     expect(res.status).toBe(303);
-    expect(res.headers.location).toBe(`/members/${OWNER_SLUG}/galleries`);
+    // Defect caught: a save lands back on the list rather than the gallery the
+    // member just changed, or renaming changed the gallery's address.
+    expect(res.headers.location).toBe(`/media/${id}`);
+    const landed = await agent.get(res.headers.location).set('Cookie', ownerCookie());
+    expect(landed.status).toBe(200);
+    expect(landed.text).toContain('class="form-success-banner"');
+    const again = await agent.get(res.headers.location).set('Cookie', ownerCookie());
+    expect(again.text).not.toContain('class="form-success-banner"');
     const db = new BetterSqlite3(TEST_DB_PATH);
     try {
       const row = db.prepare('SELECT name, description, sort_order FROM member_galleries WHERE id = ?').get(id) as Record<string, unknown>;
@@ -845,6 +641,8 @@ describe('POST /members/:memberKey/galleries/:id/edit', () => {
 
   // Moderation removes what is wrong from a member's gallery and never adds to
   // it: a photo an administrator attached would go up under the member's name.
+  // The edit form takes no files at all, so a multipart post carrying one
+  // saves nothing.
   it('refuses an admin who attaches a photo to a member-owned gallery, and stores nothing', async () => {
     await createGalleryViaApi('No Additions');
     const id = findGalleryIdByName('No Additions')!;
@@ -862,7 +660,6 @@ describe('POST /members/:memberKey/galleries/:id/edit', () => {
       .field('reason', 'Adding a missing photo.')
       .attach('photoFiles', jpeg, 'admin-added.jpg');
     expect(res.status).toBe(422);
-    expect(res.text).toContain('never adding to it');
     const db = new BetterSqlite3(TEST_DB_PATH);
     try {
       const stored = db.prepare('SELECT COUNT(*) AS n FROM media_items WHERE source_filename LIKE ?')
@@ -985,6 +782,12 @@ describe('POST /members/:memberKey/galleries/:id/edit', () => {
   it('records both cleared values, before and after, when an admin clears the name and description', async () => {
     await createGalleryViaApi('Cleared Both');
     const id = findGalleryIdByName('Cleared Both')!;
+    // The owner writes the description the administrator then clears.
+    expect((await request(createApp())
+      .post(`/members/${OWNER_SLUG}/galleries/${id}/edit`)
+      .set('Cookie', ownerCookie())
+      .type('form')
+      .send({ name: 'Cleared Both', description: 'desc', sortOrder: 'upload_desc', criteriaTags: '#tag1', excludeTags: '' })).status).toBe(303);
     const reason = 'The name and description insult another member.';
     const res = await request(createApp())
       .post(`/admin/curator/galleries/${id}/edit`)
@@ -1151,48 +954,15 @@ describe('Member profile "My Galleries" link', () => {
   });
 });
 
-// ── No-picker model: current-items display + uploadTags pass-through ──────
+// ── Current-items display ──────────────────────────────────────────────────
 
-describe('gallery edit current-items display + uploadTags', () => {
+describe('gallery edit current-items display', () => {
   beforeEach(() => {
     const db = new BetterSqlite3(TEST_DB_PATH);
     db.pragma('foreign_keys = ON');
     db.prepare('DELETE FROM media_tags').run();
     db.prepare('DELETE FROM media_items').run();
     db.close();
-  });
-
-  // Each upload below uses its own source filename, so the filename identifies
-  // the row outright. Asserting that beats ordering on the upload stamp, which
-  // ties to the millisecond and breaks on a random media id.
-  function mediaByFilename(db: BetterSqlite3.Database, filename: string): { id: string } {
-    return theOnlyRow<{ id: string }>(db, rowPin('media_items', 'source_filename = ?', [filename]));
-  }
-
-  function findMediaTags(mediaId: string): string[] {
-    const db = new BetterSqlite3(TEST_DB_PATH);
-    try {
-      const rows = db.prepare(
-        `SELECT t.tag_display FROM media_tags mt JOIN tags t ON t.id = mt.tag_id WHERE mt.media_id = ? ORDER BY t.tag_display`,
-      ).all(mediaId) as { tag_display: string }[];
-      return rows.map((r) => r.tag_display);
-    } finally { db.close(); }
-  }
-
-  it('GET /galleries/new does not render the picker', async () => {
-    const db = new BetterSqlite3(TEST_DB_PATH);
-    db.pragma('foreign_keys = ON');
-    insertMediaItem(db, { uploader_member_id: OWNER_ID, source_filename: 'mine.jpg', caption: null });
-    db.close();
-
-    const res = await request(createApp())
-      .get(`/members/${OWNER_SLUG}/galleries/new`)
-      .set('Cookie', ownerCookie());
-    expect(res.status).toBe(200);
-    expect(res.text).not.toContain('member-media-picker');
-    expect(res.text).not.toContain('Add items from your existing uploads');
-    // Upload widget is still present.
-    expect(res.text).toContain('name="photoFiles"');
   });
 
   it('GET /galleries/:id/edit shows the current-items thumbnail display when items match', async () => {
@@ -1227,109 +997,37 @@ describe('gallery edit current-items display + uploadTags', () => {
     expect(res.text).not.toContain('member-media-picker');
   });
 
-  it('multipart POST /galleries auto-stamps gallery criteria + merges uploadTags onto uploaded files', async () => {
-    const jpeg = await sharp({
-      create: { width: 256, height: 256, channels: 3, background: { r: 50, g: 100, b: 150 } },
-    }).jpeg().toBuffer();
-
-    const res = await request(createApp())
-      .post(`/members/${OWNER_SLUG}/galleries`)
-      .set('Cookie', ownerCookie())
-      .field('name', 'Tag-Auto-Stamp')
-      .field('description', '')
-      .field('sortOrder', 'upload_desc')
-      .field('criteriaTags', '#footbags')
-      .field('excludeTags', '')
-      .field('uploadTags', '#myuploads')
-      .attach('photoFiles', jpeg, 'pixel.jpg');
-    expect(res.status).toBe(303);
+  // Defect caught: a thumbnail in the strip carries no size, so the browser
+  // reserves no space for it and the edit form jumps as each one loads.
+  it('gives every current-item thumbnail a width and a height', async () => {
+    await createGalleryViaApi('Sized Thumbs', '#sizedthumbs');
+    const id = findGalleryIdByName('Sized Thumbs')!;
 
     const db = new BetterSqlite3(TEST_DB_PATH);
-    try {
-      const row = mediaByFilename(db,'pixel.jpg') as { id: string } | undefined;
-      expect(row).toBeTruthy();
-      const tags = findMediaTags(row!.id);
-      // Auto-stamped from gallery's non-#by_* criteria + merged with
-      // user-supplied uploadTags + service-prepended #by_<slug>.
-      expect(tags).toContain('#footbags');
-      expect(tags).toContain('#myuploads');
-      expect(tags).toContain(`#by_${OWNER_SLUG}`);
-    } finally { db.close(); }
-  });
-
-  it('multipart POST /galleries with empty uploadTags still auto-stamps the gallery criteria onto uploads', async () => {
-    const jpeg = await sharp({
-      create: { width: 256, height: 256, channels: 3, background: { r: 50, g: 100, b: 150 } },
-    }).jpeg().toBuffer();
+    db.pragma('foreign_keys = ON');
+    const findTagId = db.prepare(`SELECT id FROM tags WHERE tag_normalized = ?`);
+    const tagId = (display: string): string =>
+      (findTagId.get(display) as { id: string } | undefined)?.id
+      ?? insertFreeformTag(db, { id: `tag_${display.slice(1)}`, tag_normalized: display, tag_display: display });
+    for (const name of ['first.jpg', 'second.jpg']) {
+      const m = insertMediaItem(db, { uploader_member_id: OWNER_ID, source_filename: name, caption: null });
+      attachMediaTag(db, m, tagId(`#by_${OWNER_SLUG}`));
+      attachMediaTag(db, m, tagId('#sizedthumbs'));
+    }
+    db.close();
 
     const res = await request(createApp())
-      .post(`/members/${OWNER_SLUG}/galleries`)
-      .set('Cookie', ownerCookie())
-      .field('name', 'Bare Uploads')
-      .field('description', '')
-      .field('sortOrder', 'upload_desc')
-      .field('criteriaTags', '#somecat')
-      .field('excludeTags', '')
-      .field('uploadTags', '')
-      .attach('photoFiles', jpeg, 'bare.jpg');
-    expect(res.status).toBe(303);
-
-    const db = new BetterSqlite3(TEST_DB_PATH);
-    try {
-      const row = mediaByFilename(db,'bare.jpg') as { id: string } | undefined;
-      expect(row).toBeTruthy();
-      const tags = findMediaTags(row!.id);
-      // Empty uploadTags + auto-stamped criteria + auto #by_<slug>.
-      expect(tags.sort()).toEqual([`#by_${OWNER_SLUG}`, '#somecat'].sort());
-    } finally { db.close(); }
+      .get(`/members/${OWNER_SLUG}/galleries/${id}/edit`)
+      .set('Cookie', ownerCookie());
+    expect(res.status).toBe(200);
+    const thumbs = [...res.text.matchAll(/<div class="picker-cell">\s*(<img[^>]*>)/g)].map((m) => m[1]);
+    expect(thumbs).toHaveLength(2);
+    for (const img of thumbs) {
+      expect(img, img).toMatch(/\swidth="\d+"/);
+      expect(img, img).toMatch(/\sheight="\d+"/);
+    }
   });
 
-  it('multipart POST /galleries/:id/edit accepts file uploads with uploadTags', async () => {
-    await createGalleryViaApi('Edit-And-Upload', '#edittag');
-    const id = findGalleryIdByName('Edit-And-Upload')!;
-
-    const jpeg = await sharp({
-      create: { width: 256, height: 256, channels: 3, background: { r: 50, g: 100, b: 150 } },
-    }).jpeg().toBuffer();
-
-    const res = await request(createApp())
-      .post(`/members/${OWNER_SLUG}/galleries/${id}/edit`)
-      .set('Cookie', ownerCookie())
-      .field('name', 'Edit-And-Upload')
-      .field('description', 'updated')
-      .field('sortOrder', 'upload_desc')
-      .field('criteriaTags', '#edittag')
-      .field('excludeTags', '')
-      .field('uploadTags', '#edittag')
-      .attach('photoFiles', jpeg, 'mid-edit.jpg');
-    expect(res.status).toBe(303);
-    expect(res.headers.location).toBe(`/members/${OWNER_SLUG}/galleries`);
-
-    const db = new BetterSqlite3(TEST_DB_PATH);
-    try {
-      const row = mediaByFilename(db,'mid-edit.jpg') as { id: string } | undefined;
-      expect(row).toBeTruthy();
-      const tags = findMediaTags(row!.id);
-      expect(tags).toContain('#edittag');
-      expect(tags).toContain(`#by_${OWNER_SLUG}`);
-    } finally { db.close(); }
-  });
-
-  it('multipart submit with empty file input does not error (browser sends empty part)', async () => {
-    const res = await request(createApp())
-      .post(`/members/${OWNER_SLUG}/galleries`)
-      .set('Cookie', ownerCookie())
-      .field('name', 'No File')
-      .field('description', '')
-      .field('sortOrder', 'upload_desc')
-      .field('criteriaTags', '#nofile')
-      .field('excludeTags', '')
-      .field('uploadTags', '')
-      .attach('photoFiles', Buffer.alloc(0), '');
-    expect(res.status).toBe(303);
-    expect(res.text).not.toContain('Only JPEG and PNG');
-    expect(findGalleryIdByName('No File')).toBeTruthy();
-  });
 });
 
 // Gallery create / edit / delete state-changing endpoints
@@ -1459,7 +1157,8 @@ describe('POST /members/:memberKey/galleries — submitted twice', () => {
     const second = await createGalleryViaApi('Twice Created', '#twice');
     expect(second.status, 'a repeated create is not an error').toBe(303);
     expect(second.headers.location).toBe(first.headers.location);
-    expect(flashOf(first)).toContain('media_saved%3Acreate');
+    expect(first.headers.location).toBe(`/media/${id}`);
+    expect(flashOf(first)).toContain('media_saved%3Ashare');
     expect(flashOf(second)).toBe(flashOf(first));
 
     const db = new BetterSqlite3(TEST_DB_PATH);
@@ -1491,11 +1190,13 @@ describe('POST /members/:memberKey/galleries — submitted twice', () => {
     expect(auditCount('media.member_gallery_deleted', id)).toBe(1);
   });
 
-  // A same-name create that turns out to be a different gallery is a real
-  // attempt, so it is counted like any create even though it is refused.
-  it('a same-name create with different criteria spends a slot', async () => {
+  // A same-name gallery with different hashtags is refused by the form's own
+  // check before anything is written, so it spends no slot; the next real
+  // create is the one that fills the bucket.
+  it('a same-name gallery with different hashtags is refused without spending a slot', async () => {
     expect((await createGalleryViaApi('Counted Name', '#one')).status).toBe(303);
     expect((await createGalleryViaApi('Counted Name', '#two')).status).toBe(422);
+    expect((await createGalleryViaApi('Fills The Bucket', '#one')).status).toBe(303);
     expect((await createGalleryViaApi('Refused For Limit', '#one')).status).toBe(429);
   });
 
@@ -1543,11 +1244,7 @@ describe('POST /members/:memberKey/galleries — submitted twice', () => {
   // member page is treated as an administrator acting on someone else's, so
   // their double click is refused as "already exists" instead of answered.
   it("an administrator's repeated create on their own member page answers like the first", async () => {
-    const create = () => request(createApp())
-      .post(`/members/${ADMIN_SLUG}/galleries`)
-      .set('Cookie', adminCookie())
-      .type('form')
-      .send({ name: 'Admin Own Twice', description: 'desc', sortOrder: 'upload_desc', criteriaTags: '#adminown', excludeTags: '' });
+    const create = () => createGalleryViaApi('Admin Own Twice', '#adminown', { slug: ADMIN_SLUG, cookie: adminCookie() });
     const first = await create();
     expect(first.status).toBe(303);
     const second = await create();
@@ -1563,11 +1260,7 @@ describe('POST /members/:memberKey/galleries — submitted twice', () => {
 
   // A delete the member may not make changes nothing, so it spends no slot.
   it("a refused delete of another member's live gallery spends no slot", async () => {
-    const created = await request(createApp())
-      .post(`/members/${OTHER_SLUG}/galleries`)
-      .set('Cookie', otherCookie())
-      .type('form')
-      .send({ name: 'Not Yours', description: '', sortOrder: 'upload_desc', criteriaTags: '#notyours', excludeTags: '' });
+    const created = await createGalleryViaApi('Not Yours', '#notyours', { slug: OTHER_SLUG, cookie: otherCookie() });
     expect(created.status).toBe(303);
     const theirs = findGalleryIdByName('Not Yours')!;
     for (let i = 0; i < 2; i++) {
@@ -1582,11 +1275,7 @@ describe('POST /members/:memberKey/galleries — submitted twice', () => {
   it("a delete of another member's already-deleted gallery is a plain 404", async () => {
     // The other member's own gallery, created and deleted by them; its id is
     // derivable from their slug and the name, so it must not read as known.
-    const created = await request(createApp())
-      .post(`/members/${OTHER_SLUG}/galleries`)
-      .set('Cookie', otherCookie())
-      .type('form')
-      .send({ name: 'Gone Elsewhere', description: '', sortOrder: 'upload_desc', criteriaTags: '#gone', excludeTags: '' });
+    const created = await createGalleryViaApi('Gone Elsewhere', '#gone', { slug: OTHER_SLUG, cookie: otherCookie() });
     expect(created.status).toBe(303);
     const id = findGalleryIdByName('Gone Elsewhere')!;
     expect((await deleteViaApi(OTHER_SLUG, otherCookie(), id)).status).toBe(303);
@@ -1613,7 +1302,7 @@ describe('the member Personal Gallery is protected from rename and deletion', ()
       .post(`/members/${OWNER_SLUG}/media/upload`)
       .set('Cookie', ownerCookie())
       .field('mediaType', 'photo')
-      .attach('photoFile', jpeg, filename);
+      .attach('photoFiles', jpeg, filename);
   }
 
   function readGallery(name: string): { id: string; name: string; description: string } | undefined {

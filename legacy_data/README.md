@@ -503,8 +503,11 @@ sources and asks the maintainer only genuine person or club judgements.
 
 Every `--all-data` build and deploy first runs
 `legacy_data/scripts/check_legacy_chain.py`, read-only, which refuses before any
-database work when the export, the published member CSV, the audited figures and
-the account rulings do not all come from one delivery. A deploy also refuses a
+database work when the export, the published member CSV and the account rulings
+do not all come from one delivery. Audited figures not yet re-audited for the
+export only warn, so new data never stops a build or a deploy; the final cutover
+load refuses them, and the real-data row of `./run_all_tests.sh` fails on them.
+A deploy also refuses a
 legacy clone pulled past the refreshed delivery, and a production deploy refuses
 uncommitted private changes.
 

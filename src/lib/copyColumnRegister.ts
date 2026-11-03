@@ -288,7 +288,7 @@ export const COPY_COLUMN_REGISTER: Readonly<Record<string, TableClassification>>
   media_jobs: {
     keep: ['id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version', 'kind', 'state',
       'admin_member_id', 'source_video_key', 'source_poster_key', 'caption', 'tags',
-      'source_filename', 'media_id', 'retry_count', 'last_error', 'last_attempted_at',
+      'source_filename', 'external_url', 'media_id', 'retry_count', 'last_error', 'last_attempted_at',
       'lease_expires_at', 'expires_at'],
   },
   media_sources: {

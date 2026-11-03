@@ -1305,7 +1305,8 @@ button.tag-suggestion {
 .tag-filter-hint {
   margin: 0;
   font-size: 0.9rem;
-  color: var(--text-muted);
+  /* An instruction, so body colour: grey is for metadata only. */
+  color: var(--text);
 }
 .tag-filter-actions {
   display: flex;
@@ -2657,36 +2658,6 @@ main fieldset > :not(:has(~ :not([type="hidden"]))) { margin-bottom: 0; }
   cursor: pointer;
 }
 
-.form-input-with-prefix {
-  display: inline-flex;
-  align-items: stretch;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  background: var(--bg);
-}
-.form-input-with-prefix > input {
-  border: none;
-  border-radius: 0;
-  padding: var(--space-sm) var(--space-md);
-  flex: 1;
-  min-width: 0;
-}
-.form-input-with-prefix > input:focus {
-  outline: 2px solid var(--primary);
-  outline-offset: -2px;
-}
-.form-input-prefix {
-  display: inline-flex;
-  align-items: center;
-  padding: 0 var(--space-md);
-  background: var(--bg-light);
-  border-right: 1px solid var(--border);
-  color: var(--text-muted);
-  font-family: var(--font-body);
-  font-size: 1rem;
-}
-
 .form-fieldset {
   border: none;
   padding: 0;
@@ -3268,7 +3239,15 @@ main fieldset > :not(:has(~ :not([type="hidden"]))) { margin-bottom: 0; }
   flex-direction: column;
   gap: var(--space-sm);
 }
-.picker-cell img { width: 100%; height: auto; border-radius: var(--radius-2xs); }
+/* A square frame like the gallery tile's, fixed before the picture arrives, so
+   the strip does not jump as thumbnails of different shapes load. */
+.picker-cell img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: var(--radius-2xs);
+}
 .picker-meta { font-size: 0.9rem; color: var(--text-muted); }
 .picker-badge {
   display: inline-block;
@@ -4530,11 +4509,9 @@ a.hashtag--media:hover {
 }
 /* Active tab styling: the radio's :checked state, then sibling-selected
    to the matching label inside .upload-tab-bar. */
-.upload-tabs > input#upload-tab-photo:checked ~ .upload-tab-bar .upload-tab[for="upload-tab-photo"],
-.upload-tabs > input#upload-tab-video:checked ~ .upload-tab-bar .upload-tab[for="upload-tab-video"],
-.upload-tabs > input#upload-tab-url:checked   ~ .upload-tab-bar .upload-tab[for="upload-tab-url"],
-.upload-tabs > input#member-tab-photo:checked ~ .upload-tab-bar .upload-tab[for="member-tab-photo"],
-.upload-tabs > input#member-tab-video:checked ~ .upload-tab-bar .upload-tab[for="member-tab-video"] {
+.upload-tabs > input#share-tab-photo:checked ~ .upload-tab-bar .upload-tab[for="share-tab-photo"],
+.upload-tabs > input#share-tab-link:checked  ~ .upload-tab-bar .upload-tab[for="share-tab-link"],
+.upload-tabs > input#share-tab-file:checked  ~ .upload-tab-bar .upload-tab[for="share-tab-file"] {
   background: var(--white);
   border-bottom: 2px solid var(--white);
   font-weight: 600;
@@ -4545,11 +4522,9 @@ a.hashtag--media:hover {
    single tab the keyboard is on rather than on the whole bar. :focus-visible
    alone because this is the keyboard affordance, and clicking a label focuses
    its radio without wanting a ring drawn. */
-.upload-tabs > input#upload-tab-photo:focus-visible ~ .upload-tab-bar .upload-tab[for="upload-tab-photo"],
-.upload-tabs > input#upload-tab-video:focus-visible ~ .upload-tab-bar .upload-tab[for="upload-tab-video"],
-.upload-tabs > input#upload-tab-url:focus-visible   ~ .upload-tab-bar .upload-tab[for="upload-tab-url"],
-.upload-tabs > input#member-tab-photo:focus-visible ~ .upload-tab-bar .upload-tab[for="member-tab-photo"],
-.upload-tabs > input#member-tab-video:focus-visible ~ .upload-tab-bar .upload-tab[for="member-tab-video"] {
+.upload-tabs > input#share-tab-photo:focus-visible ~ .upload-tab-bar .upload-tab[for="share-tab-photo"],
+.upload-tabs > input#share-tab-link:focus-visible  ~ .upload-tab-bar .upload-tab[for="share-tab-link"],
+.upload-tabs > input#share-tab-file:focus-visible  ~ .upload-tab-bar .upload-tab[for="share-tab-file"] {
   outline: 2px solid var(--secondary);
   outline-offset: 2px;
 }
@@ -4561,11 +4536,9 @@ a.hashtag--media:hover {
   border-top: none;
   background: var(--white);
 }
-.upload-tabs > input#upload-tab-photo:checked ~ .upload-tab-panels .upload-tab-panel-photo,
-.upload-tabs > input#upload-tab-video:checked ~ .upload-tab-panels .upload-tab-panel-video,
-.upload-tabs > input#upload-tab-url:checked   ~ .upload-tab-panels .upload-tab-panel-url,
-.upload-tabs > input#member-tab-photo:checked ~ .upload-tab-panels .upload-tab-panel-photo,
-.upload-tabs > input#member-tab-video:checked ~ .upload-tab-panels .upload-tab-panel-video {
+.upload-tabs > input#share-tab-photo:checked ~ .upload-tab-panels .upload-tab-panel-photo,
+.upload-tabs > input#share-tab-link:checked  ~ .upload-tab-panels .upload-tab-panel-url,
+.upload-tabs > input#share-tab-file:checked  ~ .upload-tab-panels .upload-tab-panel-video {
   display: block;
 }
 /* Active panel's fieldset styling: drop the redundant border since the
@@ -4575,6 +4548,10 @@ a.hashtag--media:hover {
   padding: 0;
   margin: 0;
 }
+/* The panel's own padding is the space under its last field, so that field
+   adds none; with JavaScript the per-photo caption boxes end the panel. */
+.upload-tab-panel > :last-child,
+.upload-tab-panel [data-share-captions] > :last-child { margin-bottom: 0; }
 .upload-tab-panel > fieldset > legend {
   font-weight: 600;
   margin-bottom: var(--space-sm);

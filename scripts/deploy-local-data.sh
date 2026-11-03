@@ -324,6 +324,9 @@ run_all_data() {
   # the deploy entry point, which names the target, before its confirmation.
   local chain_args=()
   [[ "${FOOTBAG_DATA_BUILD_ENTRY:-}" == "deploy" ]] && chain_args+=(--strict)
+  # Figures not re-audited for this export only warn, except on the final
+  # cutover load, which ships the export production keeps.
+  [[ "$FINAL_LOAD" == "yes" ]] && chain_args+=(--final-load)
   echo "==> legacy chain: one delivery throughout"
   if ! "$py" "${REPO_ROOT}/legacy_data/scripts/check_legacy_chain.py" \
       "${chain_args[@]+"${chain_args[@]}"}"; then

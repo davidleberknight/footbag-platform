@@ -130,6 +130,8 @@ export interface CreatePendingUploadJobInput {
   caption: string | null;
   tags: string;
   sourceFilename: string;
+  /** Already validated; set on the media row when the transcode succeeds. */
+  externalUrl?: string | null;
   expiresAtIso: string;
 }
 
@@ -190,6 +192,7 @@ export function createMediaJobService(): MediaJobService {
         input.caption,
         input.tags,
         input.sourceFilename,
+        input.externalUrl ?? null,
         input.expiresAtIso,
       );
       return { id };

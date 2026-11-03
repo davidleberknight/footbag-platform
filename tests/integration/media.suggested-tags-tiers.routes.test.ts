@@ -47,8 +47,11 @@ describe('GET /media/browse — suggested-tag tiers', () => {
   it('ranks the two-member community tag above the curator-published one', async () => {
     const res = await request(createApp()).get('/media/browse');
     expect(res.status).toBe(200);
-    const community = res.text.indexOf('#community_fav');
-    const curator = res.text.indexOf('#passback_records');
+    // The order of the suggestion chips, not of every mention on the page: a
+    // field's example text may name a hashtag too.
+    const chips = [...res.text.matchAll(/class="tag-chip">([^<]+)</g)].map((m) => m[1].trim());
+    const community = chips.indexOf('#community_fav');
+    const curator = chips.indexOf('#passback_records');
     expect(community).toBeGreaterThan(-1);
     expect(curator).toBeGreaterThan(-1);
     expect(community).toBeLessThan(curator);

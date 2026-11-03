@@ -126,11 +126,16 @@ def test_the_loaded_honours_flags_are_judged_after_the_links_and_fail_the_run() 
 
 def test_the_member_data_audits_judge_the_loaded_database_and_fail_the_run() -> None:
     # Run before the links are written, the audits would judge a state the build
-    # does not ship; run as a warning, a failing build reaches the deploy.
+    # does not ship; ignored, an integrity failure reaches the deploy. Only stale
+    # figures are let through as warnings, so new data never stops a deploy, and
+    # never on the final cutover load, which ships the export production keeps.
     i_check = TEXT.index('validate_legacy_honors.py" --flags-from-db')
-    i_audit = TEXT.index('if ! "${PY}" "${MDS}/audit_member_data.py" --db "${DB}"; then')
-    assert i_check < i_audit
-    after = TEXT[i_audit:TEXT.index("fi", i_audit)]
+    i_args = TEXT.index('audit_args=(--db "${DB}")')
+    assert '[[ "${FINAL_LOAD}" -eq 1 ]] || audit_args+=(--figure-drift-warns)' in \
+        TEXT[i_args:i_args + 200]
+    i_audit = TEXT.index('if ! "${PY}" "${MDS}/audit_member_data.py" "${audit_args[@]}"; then')
+    assert i_check < i_args < i_audit
+    after = TEXT[i_audit:TEXT.index("\n  fi\n", i_audit)]
     assert "exit 1" in after
     assert TEXT.count("audit_member_data.py") == 1
 

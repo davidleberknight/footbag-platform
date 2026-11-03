@@ -119,8 +119,7 @@ describe('the gallery list keeps the read and states the benefit in the controls
     expect(res.text).toContain(MEDIA_LEAD);
     expect(res.text).toContain(OTHER_ROUTE);
     expect(res.text).toContain(UPGRADE_BUTTON);
-    expect(res.text).not.toContain('Upload Media');
-    expect(res.text).not.toContain('Create New Gallery');
+    expect(res.text).not.toContain(`href="/members/${T0_SLUG}/media/upload"`);
   });
 
   it('keeps the gallery readable while dropping its edit and delete controls', async () => {
@@ -140,7 +139,7 @@ describe('the gallery list keeps the read and states the benefit in the controls
     expect(res.status).toBe(200);
     expect(res.text).toContain('You have not shared any photos or videos yet.');
     expect(res.text).toContain(MEDIA_LEAD);
-    expect(res.text).not.toContain('Upload Your First Media');
+    expect(res.text).not.toContain(`href="/members/${T0_EMPTY_SLUG}/media/upload"`);
   });
 
   it('gives a member who holds the benefits every control and no notice', async () => {
@@ -148,8 +147,7 @@ describe('the gallery list keeps the read and states the benefit in the controls
       .get(`/members/${T1_SLUG}/galleries`)
       .set('Cookie', cookieFor(T1_ID));
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Upload Media');
-    expect(res.text).toContain('Create New Gallery');
+    expect(res.text).toContain(`href="/members/${T1_SLUG}/media/upload"`);
     expect(res.text).toContain(`/galleries/${t1GalleryId}/edit`);
     expect(res.text).not.toContain(MEDIA_LEAD);
   });
@@ -158,7 +156,6 @@ describe('the gallery list keeps the read and states the benefit in the controls
 describe('every form behind a Tier 1 control is unreachable to a member it would refuse', () => {
   const cases = () => [
     { name: 'the upload form', path: `/members/${T0_SLUG}/media/upload`, lead: MEDIA_LEAD },
-    { name: 'the new-gallery form', path: `/members/${T0_SLUG}/galleries/new`, lead: MEDIA_LEAD },
     { name: "a gallery's edit form", path: `/members/${T0_SLUG}/galleries/${t0GalleryId}/edit`, lead: MEDIA_LEAD },
     { name: "an item's edit form", path: `/members/${T0_SLUG}/media/${t0MediaId}/edit`, lead: MEDIA_LEAD },
     { name: 'the create-club form', path: '/clubs/create', lead: CLUB_LEAD },
@@ -180,7 +177,6 @@ describe('every form behind a Tier 1 control is unreachable to a member it would
   it('serves each one to a member who holds the benefits', async () => {
     const paths = [
       `/members/${T1_SLUG}/media/upload`,
-      `/members/${T1_SLUG}/galleries/new`,
       `/members/${T1_SLUG}/galleries/${t1GalleryId}/edit`,
       `/members/${T1_SLUG}/media/${t1MediaId}/edit`,
       '/clubs/create',
@@ -220,7 +216,7 @@ describe('the profile states the club benefit and withholds the shortcut it cann
       .get(`/members/${T0_SLUG}`)
       .set('Cookie', cookieFor(T0_ID));
     expect(res.text).toContain(MEDIA_LEAD);
-    expect(res.text).not.toContain('Upload Media');
+    expect(res.text).not.toContain(`href="/members/${T0_SLUG}/media/upload"`);
     // A member below the organizer tier has no shortcut list, so no empty
     // Quick Actions heading stands in its place.
     expect(res.text).not.toContain('Quick Actions');
@@ -241,7 +237,7 @@ describe('the profile states the club benefit and withholds the shortcut it cann
       .get(`/members/${T1_SLUG}`)
       .set('Cookie', cookieFor(T1_ID));
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Upload Media');
+    expect(res.text).toContain(`href="/members/${T1_SLUG}/media/upload"`);
     expect(res.text).not.toContain(CLUB_LEAD);
     expect(res.text).not.toContain(MEDIA_LEAD);
   });

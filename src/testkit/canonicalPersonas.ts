@@ -31,7 +31,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier0',
     dimension: 'Tier ladder & admin',
     purpose: 'A finished member with Tier 0 and no Active Player period: the lowest standing a member can have, so every page that needs Tier 1 benefits should turn this persona away.',
-    testingUsage: 'Open /members/t0_fresh/galleries/new: you are refused because creating a gallery needs Tier 1 benefits. Open /ifpa/roster: refused, it needs Tier 2. Open /events and /clubs: both work, because they need no tier.',
+    testingUsage: 'Open /members/t0_fresh/media/upload: you are refused because sharing media needs Tier 1 benefits. Open /ifpa/roster: refused, it needs Tier 2. Open /events and /clubs: both work, because they need no tier.',
     stories: ['M_View_Tier_Status', 'M_Organize_Media_Galleries'],
     coverageNotes: ['Tier 0, onboarding finished', 'no Active Player period, no payments'],
   },
@@ -41,7 +41,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier1',
     dimension: 'Tier ladder & admin',
     purpose: 'A paid Tier 1 member with a deliverable email address: the first paid level, and a reliable sender for any member notification whose mail you want to read.',
-    testingUsage: 'Open /members/t1_paid/galleries/new: the form opens. Open /ifpa/roster: refused, because the roster needs Tier 2. Join a club from its page, then open /dev/outbox and read the confirmation email sent to this persona.',
+    testingUsage: 'Open /members/t1_paid/media/upload: the Share Media form opens. Open /ifpa/roster: refused, because the roster needs Tier 2. Join a club from its page, then open /dev/outbox and read the confirmation email sent to this persona.',
     payments: [{ type: 'membership', status: 'succeeded', purchasedTier: 'tier1' }],
     stories: ['M_View_Tier_Status', 'M_Join_Club', 'M_Contact_IFPA_Admin'],
     coverageNotes: ['Tier 1 from one paid membership', 'deliverable email for reading captured mail'],
@@ -78,7 +78,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     isAdmin: true,
     dimension: 'Tier ladder & admin',
     purpose: 'The everyday administrator: reaches every admin page and works the admin work queue. Use it for any admin page check.',
-    testingUsage: 'Open /admin: the admin home and its links open. Open /admin/work-queue and resolve an item, for example a contact request another persona filed, then read the member email it sends on /dev/outbox. Persona admins cannot save curated content (freestyle, curated media) while curated-file writes are on, which is the default in development.',
+    testingUsage: 'Open /admin: the admin home and its links open. Open /admin/work-queue and resolve an item, for example a contact request another persona filed, then read the member email it sends on /dev/outbox. Persona admins cannot save curated content (freestyle, curated media) while curated-file writes are on, which is the default in development; start the dev stack with ALLOW_CURATED_SIDECAR_WRITES=0 to curate as this persona without writing to /curated/. Then on the Video file tab of /admin/curator/upload upload src/testkit/assets/chinlone_clip.mp4 with chinlone_poster.jpg and the hashtag #chinlone, and baganrally_clip.mp4 with baganrally_poster.jpg and #chinlone #club_wellington, naming the second as a gallery: it shows only the Wellington clip, while Chinlone in Myanmar shows both.',
     payments: [{ type: 'membership', status: 'succeeded', purchasedTier: 'tier2' }],
     stories: ['A_View_Dashboard', 'A_Manage_Work_Queue', 'A_Resolve_Contact_IFPA_Admin_Request'],
     coverageNotes: ['administrator, Tier 2', 'reaches every admin page'],
@@ -892,7 +892,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier0',
     dimension: 'Active Player',
     purpose: 'Tier 0 with an Active Player period a year from ending: gets Tier 1 benefits without paying.',
-    testingUsage: 'Open /members/ap_active/galleries/new: the form opens, as for t1_paid. The profile shows Tier 0 with an Active Player badge and its end date.',
+    testingUsage: 'Open /members/ap_active/media/upload: the Share Media form opens, as for t1_paid. The profile shows Tier 0 with an Active Player badge and its end date.',
     // Well clear of both pre-expiry reminder offsets, so this persona models a
     // settled current grant rather than one part-way through a reminder cycle.
     activePlayer: { expiresInDays: 365 },
@@ -916,7 +916,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier0',
     dimension: 'Active Player',
     purpose: 'An Active Player period ending in 30 days, the first reminder point: the member\'s own profile starts saying it is ending.',
-    testingUsage: 'Open /members/ap_reminder_30: a notice says the Active Player period ends soon and offers an upgrade and the events list. The benefits still work: /members/ap_reminder_30/galleries/new opens.',
+    testingUsage: 'Open /members/ap_reminder_30: a notice says the Active Player period ends soon and offers an upgrade and the events list. The benefits still work: /members/ap_reminder_30/media/upload opens.',
     activePlayer: { expiresInDays: 30 },
     stories: ['M_Active_Player_Expiry', 'M_View_Dashboard'],
     coverageNotes: ['Active Player period ending in 30 days', 'first reminder point'],
@@ -939,7 +939,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier0',
     dimension: 'Active Player',
     purpose: 'An Active Player period that ended a week ago: the Tier 1 benefits are gone, and the dashboard says how to get them back.',
-    testingUsage: 'Open /members/ap_expired: a notice says the Active Player period has ended and offers an upgrade and the events list. /members/ap_expired/galleries/new is refused.',
+    testingUsage: 'Open /members/ap_expired: a notice says the Active Player period has ended and offers an upgrade and the events list. /members/ap_expired/media/upload is refused.',
     // Recent enough to sit inside any plausible just-lapsed window, so the
     // persona keeps meaning what its purpose says however long the catalog
     // stands.
@@ -959,11 +959,11 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     displayName: 'Gale Owner',
     tier: 'tier1',
     dimension: 'Member-owned media',
-    purpose: 'Owns an empty gallery, Gale\'s Shred Reel: upload into it to exercise the real upload path, then edit or delete what you made.',
-    testingUsage: 'Open /members/gallery_owner/galleries: Gale\'s Shred Reel is listed. Upload a photo from /members/gallery_owner/media/upload into it, then edit the gallery\'s name and delete it: each change shows on the list.',
+    purpose: 'Owns an empty gallery, Gale\'s Shred Reel, whose only hashtag is their own #by_ hashtag, so it shows everything they share: share through the real Share Media form, then edit or delete what you made.',
+    testingUsage: 'Open /members/gallery_owner/galleries: Gale\'s Shred Reel is listed. From /members/gallery_owner/media/upload share the four footbag photos in src/testkit/assets (fb_182a.jpg, fb_182b.jpg, fb_182c.jpg, collection.jpg) with the hashtag #footbags, naming it as a gallery called Footbags: both galleries show the four photos. Then edit the gallery\'s name and delete it: each change shows on the list.',
     gallery: { name: 'Gale\'s Shred Reel', description: 'Seeded gallery for the member-owned media checks.' },
     stories: ['M_Organize_Media_Galleries', 'M_Upload_Photo', 'M_Delete_Own_Media'],
-    coverageNotes: ['owns one empty gallery', 'may edit, upload into and delete it'],
+    coverageNotes: ['owns one empty gallery', 'may share into, edit and delete it'],
   },
   {
     slug: 'gallery_owner_b',

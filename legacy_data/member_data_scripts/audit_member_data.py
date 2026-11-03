@@ -17,7 +17,7 @@ why it runs from the member runner after an apply, from the real-data row of the
 test runner and from a production deploy that ships a database, rather than
 from the test suite, which judges committed files only.
 
-Output is counts and PASS/FAIL lines only: no member id, name or address is
+Output is counts and PASS/WARN/FAIL lines only: no member id, name or address is
 ever printed, because the runner withholds and fails any output carrying an
 address. Exit status is 0 when every check passes and 1 otherwise.
 
@@ -27,8 +27,14 @@ name-encoding repair and the account-assertion population. The data build runs
 that before it resets the database, so stale figures refuse before anything is
 destroyed.
 
+A value that no longer matches its audited figure is drift: new data moves it
+legitimately until the figures are re-audited. It fails by default, which is
+how the test runner's real-data row catches it. With --figure-drift-warns, the
+data build and a deploy report it as a warning and carry on, so new data never
+stops a deploy; every integrity finding still fails there.
+
 Usage:
-    audit_member_data.py [--db PATH] [--pre-build]
+    audit_member_data.py [--db PATH] [--pre-build] [--figure-drift-warns]
 """
 from __future__ import annotations
 
@@ -98,6 +104,16 @@ def expect(condition: bool, message: str) -> None:
         raise AuditFailure(message)
 
 
+def drift(ctx: dict, condition: bool, message: str) -> None:
+    """A measured value that no longer matches its audited figure. New data moves
+    these legitimately, so the check records the difference and runs on, and the
+    run decides what it means: a failure by default, a warning for a build that
+    must not be stopped by figures awaiting a re-audit. Every other finding in a
+    check is an integrity failure and stops it either way."""
+    if not condition:
+        ctx.setdefault("drift", []).append(message)
+
+
 def figure(ctx: dict, *keys: str):
     """One audited figure. A missing one fails the check rather than defaulting,
     because a default would pass a delivery nobody audited."""
@@ -136,7 +152,7 @@ def _rows(path: Path) -> list[dict]:
 def check_delivery_size(ctx: dict) -> str:
     n = len(ctx["delivered"])
     audited = figure(ctx, "export_records")
-    expect(n == audited,
+    drift(ctx, n == audited,
            f"the delivered export holds {n} records, not the audited {audited}; "
            "re-audit rather than adjusting the figures")
     return f"{n} records"
@@ -148,7 +164,7 @@ def check_figures_audited_for_this_export(ctx: dict) -> str:
     any build, instead of half way through a load."""
     audited = figure(ctx, "export_sha256")
     actual = hashlib.sha256(DELIVERED_MEMBERS.read_bytes()).hexdigest()
-    expect(audited == actual,
+    drift(ctx, audited == actual,
            f"the figures were audited against export {str(audited)[:12]}, but the delivered "
            f"export is {actual[:12]}; re-audit {FIGURES.name} for this delivery and record "
            "its export_sha256")
@@ -161,7 +177,7 @@ def check_assertion_population(ctx: dict) -> str:
     population = len({r["member_id"].strip() for r in _rows(CANONICAL_PERSONS)
                       if r.get("member_id", "").strip()}) + 1
     audited = figure(ctx, "historical_person_assertions")
-    expect(population == audited,
+    drift(ctx, population == audited,
            f"{population} account assertions in the canonical persons, audited {audited}; "
            "explain the difference and re-audit")
     return f"{population} account assertions"
@@ -186,7 +202,7 @@ def check_uncovered_row_ruling(ctx: dict) -> str:
             f"{len(uncovered)} uncovered rows, {undecided} with no recorded decision, "
             f"{len(holds)} recorded; a recorded decision may also be stale") from None
     audited = figure(ctx, "uncovered_rows")
-    expect(len(uncovered) == audited, f"{len(uncovered)} uncovered rows, audited {audited}")
+    drift(ctx, len(uncovered) == audited, f"{len(uncovered)} uncovered rows, audited {audited}")
     fixture = next((u for u in uncovered if u["legacy_member_id"] == FIXTURE_ID), None)
     expect(fixture is not None, "the system fixture row is not among the uncovered rows")
     expect(FIXTURE_PERSON in fixture["dependent_person_ids"],
@@ -236,7 +252,7 @@ def check_name_encoding_repair(ctx: dict) -> str:
 
     repaired = set().union(*names.values())
     affected = fig("affected_name_members")
-    expect(len(repaired) == affected,
+    drift(ctx, len(repaired) == affected,
            f"{len(repaired)} members' names repaired, audited {affected}")
     for how, key in ((ex.SELECTED_COMPANION, "by_clean_companion"),
                      (ex.SELECTED_REVERSED, "by_reversal"),
@@ -244,21 +260,21 @@ def check_name_encoding_repair(ctx: dict) -> str:
                      (ex.SELECTED_LEFT, "blocked_in_repair_class"),
                      (ex.SELECTED_CURATED, "by_curated_codepage")):
         audited = fig(key)
-        expect(len(names[how]) == audited,
+        drift(ctx, len(names[how]) == audited,
                f"{len(names[how])} members resolved by '{how}', audited {audited}")
     cities = fig("affected_city_members")
-    expect(len(city_members) == cities,
+    drift(ctx, len(city_members) == cities,
            f"{len(city_members)} members' cities need repair, audited {cities}")
 
     problem_ids = {p["legacy_member_id"] for p in problems}
     values, members = fig("residual_problem_values"), fig("residual_problem_members")
-    expect(len(problems) == values and len(problem_ids) == members,
+    drift(ctx, len(problems) == values and len(problem_ids) == members,
            f"{len(problems)} residual values on {len(problem_ids)} members, audited "
            f"{values} on {members}")
     # The residue is the destroyed names, left out of the curated file so an
     # administrator's help request is their route, and still visibly damaged.
-    expect(destroyed_ids <= problem_ids, "a destroyed name is missing from the residue")
-    expect(not destroyed_ids & set(encodings), "a destroyed name was given a codepage")
+    drift(ctx, destroyed_ids <= problem_ids, "a destroyed name is missing from the residue")
+    drift(ctx, not destroyed_ids & set(encodings), "a destroyed name was given a codepage")
     for p in problems:
         expect("?" in p["stored_plain_column"], "a residual value no longer carries its lost character")
         if p["column"] in ("MemberFirstName", "MemberMiddleName", "MemberLastName"):
@@ -268,12 +284,12 @@ def check_name_encoding_repair(ctx: dict) -> str:
 
     mid = partly.get("legacy_member_id")
     listed = [p for p in problems if p["legacy_member_id"] == mid]
-    expect(real_name.get(mid) == partly.get("name") and len(listed) == 1
+    drift(ctx, real_name.get(mid) == partly.get("name") and len(listed) == 1
            and listed[0]["resolution"] == ex.SELECTED_COMPANION
            and listed[0]["stored_unicode_column"] == partly.get("stored_unicode"),
            "the partly repaired name is not both repaired and still listed")
     for rid, expected in recovered_from_companion.items():
-        expect(real_name.get(rid) == expected, "a companion-column recovery did not reach the output")
+        drift(ctx, real_name.get(rid) == expected, "a companion-column recovery did not reach the output")
     expect(still_double == 0, f"{still_double} repaired names still carry a double encoding")
     return (f"{len(repaired)} names repaired, {len(problems)} residual values "
             f"on {len(problem_ids)} members")
@@ -298,12 +314,12 @@ def check_membership_cohort(ctx: dict) -> str:
     proposed_ids = {p["historical_person_id"] for p in proposed} & cohort
     review_ids = {r["historical_person_id"] for r in review} & cohort
 
-    expect(len(cohort) == cohort_size, f"cohort of {len(cohort)}, audited {cohort_size}")
-    expect(len(proposed_ids) == proposals,
+    drift(ctx, len(cohort) == cohort_size, f"cohort of {len(cohort)}, audited {cohort_size}")
+    drift(ctx, len(proposed_ids) == proposals,
            f"{len(proposed_ids)} resolved unambiguously, audited {proposals}")
-    expect(len(review_ids) == review_rows,
+    drift(ctx, len(review_ids) == review_rows,
            f"{len(review_ids)} in the review queue, audited {review_rows}")
-    expect(len(awaiting) == explicit,
+    drift(ctx, len(awaiting) == explicit,
            f"{len(awaiting)} awaiting a ruling, audited {explicit}")
     accounted = proposed_ids | {d["candidate_person_id"] for d in awaiting}
     expect(accounted == cohort, f"{len(cohort - accounted)} cohort people in neither bucket")
@@ -318,14 +334,14 @@ def check_membership_cohort(ctx: dict) -> str:
             capture_output=True, text=True, cwd=str(ROOT), timeout=600)
         expect(r.returncode == 0, f"the disposition proposal tool exited {r.returncode}")
         holds = plh.load_holds(out)
-    expect(len(holds) == explicit,
+    drift(ctx, len(holds) == explicit,
            f"{len(holds)} drafted dispositions, audited {explicit}")
     # A person whose spelling variant already holds the one matching account is
     # drafted as that person's duplicate; every other draft is 'no account'.
     expect(all(h.decision in plh.PERSON_SCOPED_DECISIONS for h in holds),
            "a drafted disposition is not person-scoped")
     drafted_dupes = sum(1 for h in holds if h.decision == plh.DUPLICATE_PERSON)
-    expect(drafted_dupes == duplicates,
+    drift(ctx, drafted_dupes == duplicates,
            f"{drafted_dupes} drafted as a duplicate person, audited {duplicates}")
     flagged = {h.candidate_person_id for h in holds if h.note.startswith("REVIEW BEFORE KEEPING")}
     expect(flagged == review_ids, "the drafts flagged for review differ from the review queue")
@@ -367,7 +383,7 @@ def check_historical_person_assertions(ctx: dict) -> str:
     population = len({r["member_id"].strip() for r in _rows(CANONICAL_PERSONS)
                       if r.get("member_id", "").strip()}) + 1
     audited = figure(ctx, "historical_person_assertions")
-    expect(population == audited,
+    drift(ctx, population == audited,
            f"{population} account assertions in the canonical persons, audited {audited}; "
            "explain the difference and re-audit")
 
@@ -417,9 +433,13 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--db", type=Path, default=ROOT / "database" / "footbag.db")
     ap.add_argument("--pre-build", action="store_true",
                     help="run only the checks that need no built database")
+    ap.add_argument("--figure-drift-warns", action="store_true",
+                    help="report a value that no longer matches its audited figure as a "
+                         "warning, not a failure (the data build and a deploy); integrity "
+                         "findings still fail")
     args = ap.parse_args(argv)
 
-    failed = 0
+    failed = warned = 0
     ctx: dict = {"db": args.db}
     checks = PRE_BUILD_CHECKS if args.pre_build else CHECKS
     try:
@@ -431,19 +451,32 @@ def main(argv: list[str] | None = None) -> int:
     except AuditFailure as err:
         print(f"FAIL member-data audits: {err}")
         return 1
+    stale = f"the audited figures are stale; re-audit {FIGURES.name}"
     for name, check in checks:
+        ctx["drift"] = []
         try:
-            print(f"PASS {name}: {check(ctx)}")
+            summary = check(ctx)
         except AuditFailure as err:
             failed += 1
-            print(f"FAIL {name}: {err}")
+            print(f"FAIL {name}: {'; '.join([str(err), *ctx['drift']])}")
+            continue
         except Exception as err:  # noqa: BLE001
             # Another module's error can quote a member id or name, so only its
             # kind is printed.
             failed += 1
             print(f"FAIL {name}: stopped by {type(err).__name__}; run the check "
                   "by hand on this machine to see the detail")
-    print(f"member-data audits: {len(checks) - failed} passed, {failed} failed")
+            continue
+        if not ctx["drift"]:
+            print(f"PASS {name}: {summary}")
+        elif args.figure_drift_warns:
+            warned += 1
+            print(f"WARN {name}: {'; '.join(ctx['drift'])}; {stale}")
+        else:
+            failed += 1
+            print(f"FAIL {name}: {'; '.join(ctx['drift'])}; {stale}")
+    print(f"member-data audits: {len(checks) - failed - warned} passed, "
+          f"{warned} warned on stale figures, {failed} failed")
     return 1 if failed else 0
 
 

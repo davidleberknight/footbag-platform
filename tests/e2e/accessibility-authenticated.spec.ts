@@ -22,6 +22,7 @@ import { test, expect } from '@playwright/test';
 import { scanWcagAa, formatFindings } from './helpers/axe';
 import { seedAdmin, seedTier1Member, type Persona } from '../fixtures/personas';
 import { openLiveDb, createAuthenticatedContext } from './helpers/wizard-auth';
+import { ensureSystemMember } from './helpers/liveDb';
 import {
   seedTier0Member as seedPendingTier0,
   seedMemberWithEveryCardKind,
@@ -39,6 +40,10 @@ import {
   insertAuditEntry,
   insertOutboxEmail,
 } from '../fixtures/factories';
+
+// The curator upload page lists the galleries of the system member curated
+// media is credited to.
+test.beforeAll(() => ensureSystemMember());
 
 function rand(): string {
   return Math.random().toString(36).slice(2, 10);
@@ -86,7 +91,7 @@ test('member surfaces have no WCAG 2.1 AA axe violations', { tag: ['@a11y'] }, a
       { path: `/members/${member.slug}/edit/password`, name: 'password edit' },
       { path: `/members/${member.slug}/contact-admin`, name: 'contact admin' },
       { path: `/members/${member.slug}/galleries`, name: 'member galleries' },
-      { path: `/members/${member.slug}/galleries/new`, name: 'new gallery' },
+      { path: `/members/${member.slug}/media/upload`, name: 'share media' },
       { path: `/members/${member.slug}/galleries/${galleryId}/edit`, name: 'gallery edit' },
       { path: `/clubs/${clubKey}`, name: 'club detail (member)' },
     ]);

@@ -100,15 +100,15 @@ describe('validateUrlSidecarData', () => {
 describe('deriveUrlSidecarFilename', () => {
   it('produces <slug>_<8hex>.meta.json', () => {
     const filename = deriveUrlSidecarFilename(
-      'around-the-world',
+      'around_the_world',
       'https://www.youtube.com/watch?v=Dmr7zj_c7cY',
     );
-    expect(filename).toMatch(/^around-the-world_[0-9a-f]{8}\.meta\.json$/);
+    expect(filename).toMatch(/^around_the_world_[0-9a-f]{8}\.meta\.json$/);
   });
 
   it('is deterministic for the same URL (idempotent re-uploads)', () => {
-    const a = deriveUrlSidecarFilename('atom-smasher', 'https://vimeo.com/12345678');
-    const b = deriveUrlSidecarFilename('atom-smasher', 'https://vimeo.com/12345678');
+    const a = deriveUrlSidecarFilename('atom_smasher', 'https://vimeo.com/12345678');
+    const b = deriveUrlSidecarFilename('atom_smasher', 'https://vimeo.com/12345678');
     expect(a).toBe(b);
   });
 
@@ -118,8 +118,14 @@ describe('deriveUrlSidecarFilename', () => {
     expect(a).not.toBe(b);
   });
 
-  it('rejects slug with uppercase or invalid chars', () => {
-    expect(() => deriveUrlSidecarFilename('Around-The-World', 'https://x')).toThrow(/lowercase/);
+  // Defect caught: a sidecar is written under a prefix the one slug rule
+  // never makes (a hyphen, a doubled or edge underscore), so the curated tree
+  // holds two spellings of one name.
+  it('rejects slug with uppercase or invalid chars, a hyphen, or a stray underscore', () => {
+    expect(() => deriveUrlSidecarFilename('Around_The_World', 'https://x')).toThrow(/lowercase/);
+    expect(() => deriveUrlSidecarFilename('around-the-world', 'https://x')).toThrow(/underscores/);
+    expect(() => deriveUrlSidecarFilename('around__world', 'https://x')).toThrow();
+    expect(() => deriveUrlSidecarFilename('_around', 'https://x')).toThrow();
     expect(() => deriveUrlSidecarFilename('around the world', 'https://x')).toThrow();
     expect(() => deriveUrlSidecarFilename('', 'https://x')).toThrow();
   });
@@ -189,8 +195,8 @@ describe('writeUrlSidecarFile', () => {
 
   it('writes the file with given filename + content', async () => {
     const json = formatUrlSidecarJson(youtubeBase());
-    const result = await writeUrlSidecarFile(tmpDir, 'around-the-world_aabbccdd.meta.json', json);
-    expect(result.filename).toBe('around-the-world_aabbccdd.meta.json');
+    const result = await writeUrlSidecarFile(tmpDir, 'around_the_world_aabbccdd.meta.json', json);
+    expect(result.filename).toBe('around_the_world_aabbccdd.meta.json');
     expect(result.overwritten).toBe(false);
     const written = await fs.readFile(result.filePath, 'utf-8');
     expect(written).toBe(json);
@@ -198,7 +204,7 @@ describe('writeUrlSidecarFile', () => {
 
   it('reports overwritten=true when target already exists', async () => {
     const json = formatUrlSidecarJson(youtubeBase());
-    const filename = 'overwrite-me_aabbccdd.meta.json';
+    const filename = 'overwrite_me_aabbccdd.meta.json';
     await writeUrlSidecarFile(tmpDir, filename, json);
     const result = await writeUrlSidecarFile(tmpDir, filename, json);
     expect(result.overwritten).toBe(true);
@@ -314,7 +320,7 @@ describe('resolveSidecarForRow', () => {
 
   it('returns the absolute path on (videoPlatform, videoUrl) match', async () => {
     const data = youtubeBase();
-    const filename = deriveUrlSidecarFilename('around-the-world', data.videoUrl);
+    const filename = deriveUrlSidecarFilename('around_the_world', data.videoUrl);
     const filePath = path.join(categoryDir, filename);
     await fs.writeFile(filePath, formatUrlSidecarJson(data), 'utf-8');
 

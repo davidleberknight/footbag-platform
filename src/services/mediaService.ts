@@ -99,7 +99,15 @@
  *     that resolves the `#by_<slug>` display name, so the credit costs no extra
  *     query. The item viewer's own-item and reporting controls read the
  *     viewer's identity only for a member viewer; a registrant still onboarding
- *     is shaped exactly as a signed-out visitor.
+ *     is shaped exactly as a signed-out visitor. The owner holding Tier 1
+ *     benefits is offered Edit This Item (`ownerEditHref`).
+ *   - Share reports: the item pages and the named-gallery page take the share
+ *     outcome the controller consumed from the flash, and show it once
+ *     (`notices`): on an item page only to its owner and only when the report
+ *     is about that item, with the item's hashtags and the owner's galleries it
+ *     shows in, worked out at render from each gallery's include and exclude
+ *     hashtags; on a gallery page when the report names that gallery. The
+ *     outcome arrives as an argument, so the read stays read-only.
  *   - Player credits on the item viewer: each `#player_<slug>` tag that names a
  *     member (by slug, from `members_onboarded`) or exactly one canonical
  *     historical person (by folded name, from `historical_persons`) becomes a
@@ -140,7 +148,8 @@ import { runSqliteRead } from './sqliteRetry';
 import { hasTier1Benefits } from './tierPredicates';
 import { buildTierBenefitNotice } from './tierBenefitNotice';
 import { NotFoundError } from './serviceErrors';
-import { UPLOADER_TAG_PREFIX } from './curatorMediaService';
+import { UPLOADER_TAG_PREFIX, foldedTagsLine, getDefaultCuratorMediaService } from './curatorMediaService';
+import type { ShareOutcome } from '../lib/flashCookie';
 import { PLAYER_TAG_PREFIX, slugifyForTag, typedTag } from './slugify';
 import { personHref } from './personLink';
 import { buildMediaFlagBlock, type MediaFlagBlockViewModel } from './mediaModerationService';
@@ -606,6 +615,8 @@ export interface NamedGalleryContent {
   // The editable tag filter (an on-the-view refinement that never mutates the
   // saved gallery), or null when the gallery is not worth filtering.
   filter: TagFilterView | null;
+  // What the share or save that landed here did, shown once.
+  notices: ShareNotices | null;
 }
 
 // Single-item viewer rendered by both /media/:galleryId/:mediaId (named-gallery
@@ -654,6 +665,91 @@ export interface MediaItemContent {
   // The reporting control, shaped by the moderation service, or null where this
   // viewer has no business being offered one.
   flag: MediaFlagBlockViewModel | null;
+  // The owner's Edit This Item link: the uploader viewing their own item while
+  // holding the Tier 1 benefits the edit form needs; null for anyone else.
+  ownerEditHref: string | null;
+  // What the share or save that landed here did, shown once above the item.
+  notices: ShareNotices | null;
+}
+
+/**
+ * The report of a share or a save on the page it landed on, one tone each:
+ * what happened, what already held, and what was refused. Each is a list of
+ * sentences, empty when that tone has nothing to say.
+ */
+export interface ShareNotices {
+  success: string[];
+  info: string[];
+  refusal: string[];
+}
+
+function joinedList(names: string[]): string {
+  if (names.length <= 1) return names.join('');
+  return `${names.slice(0, -1).join(', ')}, ${names[names.length - 1]}`;
+}
+
+/**
+ * The owner's named galleries an item shows in, worked out from each gallery's
+ * include and exclude hashtags against the item's own, as the gallery itself
+ * decides at request time. The Personal Gallery is left out: every share lands
+ * there, so naming it says nothing, and "your galleries" everywhere else means
+ * the named ones.
+ */
+function galleriesShowingItem(ownerMemberId: string, itemTagsNormalized: Set<string>): string[] {
+  return getDefaultCuratorMediaService().listGalleriesForOwner(ownerMemberId)
+    .filter((g) => !g.isDefault
+      && g.criteriaTags.length > 0
+      && g.criteriaTags.every((t) => itemTagsNormalized.has(t.toLowerCase()))
+      && !g.excludeTags.some((t) => itemTagsNormalized.has(t.toLowerCase())))
+    .map((g) => g.name);
+}
+
+function refusalLines(outcome: ShareOutcome): string[] {
+  return outcome.rejected.map((r) => {
+    const reason = r.reason.replace(/\.$/, '');
+    return r.filename ? `Not shared: ${r.filename}: ${reason}.` : `Not shared: ${reason}.`;
+  });
+}
+
+function itemShareNotices(
+  outcome: ShareOutcome,
+  ownerMemberId: string,
+  itemTags: { display: string; normalized: string }[],
+): ShareNotices {
+  const many = outcome.count > 1;
+  const success: string[] = [];
+  const info: string[] = [];
+  if (outcome.saved) success.push('Saved.');
+  else success.push(many ? `Shared ${outcome.count} photos.` : 'Shared.');
+  success.push(`${many ? 'Their' : 'Its'} hashtags: ${itemTags.map((t) => t.display).join(' ')}.`);
+  const showsIn = galleriesShowingItem(ownerMemberId, new Set(itemTags.map((t) => t.normalized)));
+  if (showsIn.length > 0) {
+    success.push(`${many ? 'They show' : 'It shows'} in your galleries: ${joinedList(showsIn)}.`);
+  }
+  if (outcome.gallery?.created) {
+    success.push(`Gallery ${outcome.gallery.name} saved, at /media/${outcome.gallery.id}.`);
+  } else if (outcome.gallery) {
+    info.push(`You already have a gallery named ${outcome.gallery.name} with these hashtags.`);
+  }
+  const foldLine = foldedTagsLine(outcome.folded);
+  if (foldLine) success.push(foldLine);
+  return { success, info, refusal: refusalLines(outcome) };
+}
+
+function galleryShareNotices(outcome: ShareOutcome): ShareNotices {
+  const success: string[] = [];
+  const info: string[] = [];
+  const g = outcome.gallery!;
+  if (outcome.saved) {
+    success.push('Saved.');
+  } else if (g.created) {
+    success.push(`Gallery ${g.name} saved. It shows everything you share that carries ${g.tags.join(' ')}.`);
+  } else {
+    info.push(`You already have a gallery named ${g.name} with these hashtags.`);
+  }
+  const foldLine = foldedTagsLine(outcome.folded);
+  if (foldLine && success.length > 0) success.push(foldLine);
+  return { success, info, refusal: refusalLines(outcome) };
 }
 
 // Request inputs for the standalone /media/item/:mediaId viewer. `rawTags` /
@@ -746,8 +842,8 @@ export interface SuggestionChip {
 // owns all filtering; the template renders one no-JS GET form whose controls all
 // defer to a single "Apply hashtag filters" submit. The active include/exclude
 // tags (a named gallery's topic criteria plus any visitor refinement) prefill two
-// chip-input fields (`includeText` / `excludeText`, space-separated hash-stripped
-// tokens) that progressively enhance into tokenizers with autocomplete and are
+// chip-input fields (`includeText` / `excludeText`, space-separated hashtags,
+// each with its '#') that progressively enhance into tokenizers with autocomplete and are
 // fully editable/removable; `suggestions` are context-aware co-occurring tags
 // offered as click-to-add chips; `contextChips` / `contextInputs` carry only the
 // locked owner-scoping `#by_*` tag. `addAction` is the form's GET target.
@@ -1082,6 +1178,7 @@ function buildItemPage(
   ctx: GalleryContext,
   mediaId: string,
   viewer: ViewerContext,
+  outcome: ShareOutcome | null = null,
 ): PageViewModel<MediaItemContent> {
   const set = resolveItemSet(ctx, mediaId);
   const n = set.rows.length;
@@ -1143,6 +1240,16 @@ function buildItemPage(
   // are member actions; a viewer who is not a member is shaped as a visitor.
   const viewerMemberId = viewer.authenticated ? (viewer.memberId ?? null) : null;
   const viewerSlug = viewer.authenticated ? (viewer.slug ?? null) : null;
+  // The uploader tag is the item's ownership record on this surface, so the
+  // viewer's own slug settles it without another query.
+  const isOwnItem = uploaderSlug != null && viewerSlug != null && uploaderSlug === viewerSlug;
+  const ownerEditHref = isOwnItem && viewerMemberId && hasTier1Benefits(viewerMemberId)
+    ? `/members/${viewerSlug}/media/${encodeURIComponent(mediaId)}/edit`
+    : null;
+  // A report is shown only beside the item it is about, to its owner.
+  const notices = outcome && isOwnItem && viewerMemberId && outcome.mediaId === mediaId
+    ? itemShareNotices(outcome, viewerMemberId, itemTagRows.map((r) => ({ display: r.tag_display, normalized: r.tag_normalized })))
+    : null;
 
   return {
     seo: { title: itemTitle },
@@ -1165,13 +1272,9 @@ function buildItemPage(
       position: showPager ? { current: set.index + 1, total: n } : null,
       prevHref: showPager ? set.encodeItemHref(set.rows[(set.index - 1 + n) % n].id) : null,
       nextHref: showPager ? set.encodeItemHref(set.rows[(set.index + 1) % n].id) : null,
-      flag: buildMediaFlagBlock({
-        mediaId,
-        viewerMemberId,
-        // The uploader tag is the item's ownership record on this surface, so
-        // the viewer's own slug settles it without another query.
-        isOwnItem: uploaderSlug != null && viewerSlug != null && uploaderSlug === viewerSlug,
-      }),
+      flag: buildMediaFlagBlock({ mediaId, viewerMemberId, isOwnItem }),
+      ownerEditHref,
+      notices,
     },
   };
 }
@@ -1189,7 +1292,7 @@ function shareMediaCard(viewer: ViewerContext): MediaHubCard[] {
       title: 'Share Your Media',
       description: 'Upload photos or add video links, and organize them into your own galleries.',
       href: `/members/${slug}/media/upload`,
-      cta: 'Upload Media',
+      cta: 'Share Media',
     }];
   }
   const notice = buildTierBenefitNotice(slug, 'media');
@@ -1438,6 +1541,7 @@ export const mediaService = {
     galleryId: string,
     refine: { rawTags: string[]; rawExcludes: string[]; curated?: string } = { rawTags: [], rawExcludes: [] },
     viewer: ViewerContext = { authenticated: false },
+    outcome: ShareOutcome | null = null,
   ): PageViewModel<NamedGalleryContent> {
     return runSqliteRead('mediaService.getNamedGalleryPage', () => {
       const gallery = media.getNamedGalleryById.get(galleryId) as
@@ -1609,6 +1713,10 @@ export const mediaService = {
           truncationNotice,
           popularTags: emptyResultSuggestions?.length ? emptyResultSuggestions : undefined,
           filter,
+          // A gallery saved on its own, or its settings saved, reports it here.
+          notices: outcome?.gallery && outcome.gallery.id === gallery.id && outcome.mediaId === null
+            ? galleryShareNotices(outcome)
+            : null,
         },
       };
     });
@@ -1618,9 +1726,10 @@ export const mediaService = {
     galleryId: string,
     mediaId: string,
     viewer: ViewerContext = { authenticated: false },
+    outcome: ShareOutcome | null = null,
   ): PageViewModel<MediaItemContent> {
     return runSqliteRead('mediaService.getNamedGalleryItemPage', () =>
-      buildItemPage({ kind: 'named', galleryId }, mediaId, viewer));
+      buildItemPage({ kind: 'named', galleryId }, mediaId, viewer, outcome));
   },
 
   // Standalone item viewer reached from any tag-query surface. The tag context
@@ -1629,6 +1738,7 @@ export const mediaService = {
   getMediaItemPage(
     args: MediaItemArgs,
     viewer: ViewerContext = { authenticated: false },
+    outcome: ShareOutcome | null = null,
   ): PageViewModel<MediaItemContent> {
     return runSqliteRead('mediaService.getMediaItemPage', () => {
       const include = uniqStrings(args.rawTags.map(normalizeTagToken).filter(notEmpty))
@@ -1643,12 +1753,13 @@ export const mediaService = {
       if (include.length === 0) {
         const back = isSafePath(args.rawBack) ? args.rawBack : '/media/browse';
         const label = isSafePath(args.rawBack) ? 'Back' : 'Browse media';
-        return buildItemPage({ kind: 'single', backHref: back, backLabel: label }, args.mediaId, viewer);
+        return buildItemPage({ kind: 'single', backHref: back, backLabel: label }, args.mediaId, viewer, outcome);
       }
       return buildItemPage(
         { kind: 'query', includeNormalized: include, excludeNormalized: exclude, sort },
         args.mediaId,
         viewer,
+        outcome,
       );
     });
   },
@@ -1672,8 +1783,10 @@ export const mediaService = {
       const excludeNormalized = excludeNormalizedRaw
         .filter((t) => !includeNormalized.includes(t) && !contextNormalized.includes(t));
 
-      const formIncludeText = includeNormalized.map(stripHash).join(' ');
-      const formExcludeText = excludeNormalized.map(stripHash).join(' ');
+      // Each keeps its '#', so the field sent back reads as these hashtags by
+      // the one typed-hashtag rule, which joins words typed without a '#'.
+      const formIncludeText = includeNormalized.join(' ');
+      const formExcludeText = excludeNormalized.join(' ');
 
       const allNormalized = uniqStrings([...contextNormalized, ...includeNormalized, ...excludeNormalized]);
       const tagRows = allNormalized.length === 0 ? [] : queryTagIdsByNormalized(allNormalized);
@@ -2157,8 +2270,8 @@ export function buildTagFilterView(args: {
   return {
     contextChips,
     contextInputs,
-    includeText: includeNormalized.map(stripHash).join(' '),
-    excludeText: excludeNormalized.map(stripHash).join(' '),
+    includeText: includeNormalized.join(' '),
+    excludeText: excludeNormalized.join(' '),
     hasExcludeTags: excludeNormalized.length > 0,
     suggestions,
     addAction: args.basePath,

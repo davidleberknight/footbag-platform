@@ -421,10 +421,16 @@ BLOCKED
   fi
 
   # The member-data audits judge the same loaded state against the figures
-  # audited for this delivery and the recorded rulings. No finding is a warning:
-  # a build that fails one never reaches a deploy.
+  # audited for this delivery and the recorded rulings. An integrity finding
+  # fails the run, so a build that fails one never reaches a deploy. A value that
+  # only differs from its audited figure is new data awaiting a re-audit: it
+  # prints a WARN line and the run carries on, and the test runner's real-data
+  # row is what fails on it. The final cutover load is the exception: it ships
+  # the export production keeps, so a figure nobody re-audited for it fails.
+  audit_args=(--db "${DB}")
+  [[ "${FINAL_LOAD}" -eq 1 ]] || audit_args+=(--figure-drift-warns)
   echo "==> verify: member-data audits on the loaded database"
-  if ! "${PY}" "${MDS}/audit_member_data.py" --db "${DB}"; then
+  if ! "${PY}" "${MDS}/audit_member_data.py" "${audit_args[@]}"; then
     echo "run_legacy_members --load --apply: a member-data audit failed on the loaded database." >&2
     echo "  The rows are written; the rollback SQL below restores the pre-apply state." >&2
     echo "    1. links:   ${OUT_DIR}/apply_links_rollback.sql" >&2

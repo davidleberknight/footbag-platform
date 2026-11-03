@@ -175,10 +175,19 @@ def test_an_account_with_no_import_source_is_not_read_as_imported(world):
     world.refused("1 historical-person links point at an account the export did not import")
 
 
-def test_a_population_that_moved_from_the_audited_figure_refuses(world):
-    # A dropped assertion reads as quiet progress unless the count is held.
+def test_a_population_that_moved_from_the_audited_figure_is_recorded_as_drift(world):
+    # A dropped assertion reads as quiet progress unless the count is held; as
+    # drift it fails the test runner and warns a deploy, and the integrity checks
+    # after it still run.
     world.canonical_ids.append("400")
-    world.refused("4 account assertions in the canonical persons, audited 3")
+    ctx = world.build()
+    aud.check_historical_person_assertions(ctx)
+    assert ctx["drift"] == ["4 account assertions in the canonical persons, audited 3; "
+                            "explain the difference and re-audit"]
+    world.without_schema_guards = True
+    world.links.append(("person_100_again", "100"))
+    with pytest.raises(aud.AuditFailure, match="asserted by more than one person"):
+        aud.check_historical_person_assertions(world.build())
 
 
 def test_one_account_asserted_by_two_people_refuses(world):

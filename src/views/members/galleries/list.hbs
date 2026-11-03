@@ -6,18 +6,13 @@
 </div>
 
 <div class="wrapper">
-  <p>
-    Your media collections. A gallery is a saved view of your photos and videos
-    that match a set of hashtags. Items appear when they carry every required
-    tag, and none of the excluded tags.
-  </p>
+  <p>{{content.intro}}</p>
 
   {{#if content.benefitNotice}}
     {{> _tier-benefit-notice notice=content.benefitNotice}}
   {{else}}
     <p>
-      <a href="{{content.uploadMediaHref}}" class="btn btn-primary">Upload Media</a>
-      <a href="{{content.newGalleryHref}}" class="btn btn-outline">Create New Gallery</a>
+      <a href="{{content.uploadMediaHref}}" class="btn btn-primary">Share Media</a>
     </p>
   {{/if}}
 

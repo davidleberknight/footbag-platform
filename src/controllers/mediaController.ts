@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { mediaService, canonicalFilterPath } from '../services/mediaService';
 import { parseTagList } from '../services/curatorMediaService';
 import { handleControllerError } from '../lib/controllerErrors';
+import { takeShareFlash } from '../lib/flashCookie';
 
 export const mediaController = {
   hub(req: Request, res: Response, next: NextFunction): void {
@@ -39,6 +40,7 @@ export const mediaController = {
           curated: typeof req.query.curated === 'string' ? req.query.curated : undefined,
         },
         { authenticated: req.isMember },
+        takeShareFlash(req, res),
       );
       res.render('media/gallery', vm);
     } catch (err) {
@@ -52,6 +54,7 @@ export const mediaController = {
         req.params.galleryId,
         req.params.mediaId,
         { authenticated: req.isMember, memberId: req.user?.userId ?? null, slug: req.user?.slug ?? null },
+        takeShareFlash(req, res),
       );
       res.render('media/gallery-item', vm);
     } catch (err) {
@@ -70,6 +73,7 @@ export const mediaController = {
           rawBack: req.query.back,
         },
         { authenticated: req.isMember, memberId: req.user?.userId ?? null, slug: req.user?.slug ?? null },
+        takeShareFlash(req, res),
       );
       res.render('media/gallery-item', vm);
     } catch (err) {
@@ -123,8 +127,8 @@ export const mediaController = {
 };
 
 // Express+qs surfaces a repeated `?tag=a&tag=b` as a string[]; a single
-// `?tag=a+b` as one string (which the service may further split on
-// whitespace, since the form posts a single space-separated input).
+// `?tag=` as one string, the filter field as typed, which the one typed-hashtag
+// rule splits at each '#' (`?tag=%23a+%23b` is two hashtags, `?tag=a+b` one).
 // Anything else (objects, missing) → empty array.
 function collectQueryArg(raw: unknown): string[] {
   if (Array.isArray(raw)) {

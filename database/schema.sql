@@ -2987,6 +2987,9 @@ CREATE TABLE media_jobs (
   caption          TEXT,
   tags             TEXT NOT NULL DEFAULT '',
   source_filename  TEXT,
+  -- The external URL the curator gave the item, validated when the upload was
+  -- signed and set on the media_items row when the transcode succeeds.
+  external_url     TEXT,
 
   -- Set when the job reaches 'succeeded', in the same statement that sets the
   -- state. ON DELETE SET NULL preserves the job row if the resulting
@@ -3437,6 +3440,8 @@ VALUES
 --   jwt_expiry_hours                Main site session JWT lifetime (hours)
 --   photo_upload_rate_limit_per_hour Max photos a member may upload per hour, counting each photo
 --   photo_upload_max_file_mb        Max size of one member photo in MB (code maximum 25)
+--   photo_upload_max_files_per_submit Max photos in one Share Media submit, any uploader (code maximum 20)
+--   photo_upload_max_submit_mb      Max total size of one Share Media submit in MB, any uploader (code maximum 250)
 --   video_submission_rate_limit_per_hour Max video submissions per member per hour
 --   media_flag_rate_limit_per_hour  Max media flags per member per hour
 --   profile_edit_rate_limit_per_hour Max profile edits per member per hour
@@ -3858,6 +3863,24 @@ VALUES
    'photo_upload_max_file_mb', '25',
    '2000-01-01T00:00:00.000Z',
    'Max size of one member photo in megabytes, never above the code maximum of 25; administrators are held to the code maximum (default: 25).',
+   NULL
+  ),
+
+  (
+   'seed-photo-upload-max-files-per-submit',
+   '2000-01-01T00:00:00.000Z',
+   'photo_upload_max_files_per_submit', '4',
+   '2000-01-01T00:00:00.000Z',
+   'Max photos in one member Share Media submit, never above the code maximum of 20; administrators are held to the code maximum (default: 4).',
+   NULL
+  ),
+
+  (
+   'seed-photo-upload-max-submit-mb',
+   '2000-01-01T00:00:00.000Z',
+   'photo_upload_max_submit_mb', '50',
+   '2000-01-01T00:00:00.000Z',
+   'Max total size of the photos in one member Share Media submit in megabytes, never above the code maximum of 250; administrators are held to the code maximum (default: 50).',
    NULL
   ),
 

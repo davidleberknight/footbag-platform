@@ -46,6 +46,7 @@ import sharp from 'sharp';
 
 import { insertMember, createTestSessionJwt, insertCuratorUrlReference, insertMediaSource, insertSystemConfig } from '../fixtures/factories';
 import { rowPin, theOnlyRow } from '../fixtures/rowPinning';
+import { defaultSubmitButton } from '../fixtures/defaultSubmitButton';
 
 let resetImageProcessingAdapterForTests: () => void;
 
@@ -131,7 +132,7 @@ async function uploadPhotoViaRoute(caption: string, tags: string[]): Promise<str
     .field('newCategory', 'photos')
     .field('caption', caption)
     .field('tags', tags.join(' '))
-    .attach('mediaFile', jpeg, filename);
+    .attach('photoFiles', jpeg, filename);
   expect(res.status).toBeLessThan(400);
   // Look up the media row by unique caption to retrieve the new id. Callers
   // build the caption to be unique, so it identifies the row on its own; the
@@ -291,6 +292,17 @@ describe('GET /admin/curator/media/:id/edit', () => {
     // The auto-applied #curated tag must not appear in the editable input.
     expect(res.text).not.toMatch(/value="[^"]*#curated/);
   });
+
+  // Defect caught: Enter in a field such as External URL runs the player
+  // search instead of saving, so the curator's edit is not saved.
+  it('makes Save Changes the edit form\'s default button, ahead of the player search', async () => {
+    const mediaId = await uploadPhotoViaRoute(`ENTER_${Math.random().toString(36).slice(2, 8)}`, []);
+    const res = await request(createApp()).get(`/admin/curator/media/${mediaId}/edit`).set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('data-member-search-submit');
+    const formId = /<form id="([^"]+)"[^>]*method="POST"/.exec(res.text)?.[1] ?? '';
+    expect(defaultSubmitButton(res.text, formId)?.overridesForm).toBe(false);
+  });
 });
 
 // ── POST /admin/curator/media/:id/edit ───────────────────────────────────
@@ -345,7 +357,7 @@ describe('POST /admin/curator/media/:id/edit', () => {
       .field('newCategory', 'photos')
       .field('caption', `Café <b>${marker}</b>\u0085 up\r\n\r\nnext`)
       .field('tags', '')
-      .attach('mediaFile', await makeJpeg(), `${marker}.jpg`);
+      .attach('photoFiles', await makeJpeg(), `${marker}.jpg`);
     expect(res.status).toBeLessThan(400);
     const uploadedCaption = `Café ${marker} up\n\nnext`;
     const db = new BetterSqlite3(dbPath);

@@ -265,7 +265,7 @@ describe('Named gallery editable filter', () => {
     expect(res.text).toContain('class="tag-filter-bar"');
     // The topic criterion is an editable, removable include chip (the filter form
     // submits to /media/browse so removing it broadens), NOT a locked context tag.
-    expect(res.text).toContain('name="tag" value="famfilter" data-tag-chips');
+    expect(res.text).toContain('name="tag" value="#famfilter" data-tag-chips');
     expect(res.text).toContain('action="/media/browse"');
     expect(res.text).not.toContain('class="tag-filter-chip tag-filter-chip--locked">#famfilter');
     // Default view is NOT curated: both curated and member items show.
@@ -279,7 +279,7 @@ describe('Named gallery editable filter', () => {
     expect(res.text).toContain('fam-curated-1');
     expect(res.text).not.toContain('fam-member-clip');
     // Both the criterion and the refinement prefill the include chip input.
-    expect(res.text).toContain('name="tag" value="famfilter curated" data-tag-chips');
+    expect(res.text).toContain('name="tag" value="#famfilter #curated" data-tag-chips');
   });
 });
 
@@ -292,7 +292,7 @@ describe('Curated-collection gallery (criteria include #curated)', () => {
     expect(res.text).not.toContain('fam-member-clip');
     // #curated is one of the editable include chips (broaden by removing it), with
     // no special ?curated=off toggle.
-    expect(res.text).toContain('name="tag" value="curated famfilter" data-tag-chips');
+    expect(res.text).toContain('name="tag" value="#curated #famfilter" data-tag-chips');
     expect(res.text).not.toContain('curated&#x3D;off');
   });
 

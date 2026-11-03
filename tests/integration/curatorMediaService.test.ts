@@ -27,6 +27,7 @@ import type { VideoTranscodingAdapter } from '../../src/adapters/videoTranscodin
 import type { TranscodedVideo } from '../../src/lib/videoProcessing';
 import { formatGallerySidecarJson } from '../../src/lib/curatorGallerySidecar';
 import { urlRefMediaId } from '../../src/lib/curatorUrlSidecar';
+import { ValidationError } from '../../src/services/serviceErrors';
 
 const { dbPath } = setTestEnv('3091');
 
@@ -519,6 +520,35 @@ describe('curatorMediaService.uploadVideo', () => {
     await Promise.all([firstP, secondP]);
 
     expect(order).toEqual(['start:first', 'finish:first', 'start:second', 'finish:second']);
+  });
+
+  // Defect caught: a curator video sent under a file name the system member
+  // already holds crashes the request with a server error instead of being
+  // refused by name, the way a repeated photo name is.
+  it('refuses a second video under a file name already held, by name, storing nothing', async () => {
+    const storage = makeStubStorage();
+    const svc = svcModule.createCuratorMediaService({
+      storage, imageProcessor: makeStubImageProcessor(), videoTranscoder: fakeTranscoder(),
+    });
+    const poster = await makeJpegBuffer();
+    const name = nextSourceFilename('mp4');
+    const first = await svc.uploadVideo({
+      adminMemberId: ADMIN_ID, videoBuffer: makeFakeMp4(), posterBuffer: poster, sourceFilename: name, caption: null, tags: [],
+    });
+    const putsAfterFirst = storage.puts.length;
+
+    const second = svc.uploadVideo({
+      adminMemberId: ADMIN_ID, videoBuffer: makeFakeMp4(), posterBuffer: poster, sourceFilename: name, caption: null, tags: [],
+    });
+    await expect(second).rejects.toBeInstanceOf(ValidationError);
+    await expect(second).rejects.toThrow(name);
+
+    const db = openDb();
+    const rows = db.prepare(`SELECT id FROM media_items WHERE uploader_member_id = ? AND source_filename = ?`).all(SYSTEM_ID, name) as { id: string }[];
+    db.close();
+    expect(rows.map((r) => r.id)).toEqual([first.mediaId]);
+    // The refused upload's own objects are removed again.
+    expect(storage.deletes.length).toBeGreaterThanOrEqual(storage.puts.length - putsAfterFirst);
   });
 });
 
@@ -1202,7 +1232,7 @@ describe('curatorMediaService.uploadUrlReference', () => {
       category: 'freestyle_tricks',
       videoUrl: 'https://www.youtube.com/watch?v=Dmr7zj_c7cY',
       videoPlatform: 'youtube',
-      primarySlug: 'around-the-world',
+      primarySlug: 'around_the_world',
       title: 'Around the world tutorial',
       sourceId: 'tt_youtube',
       startSeconds: null,
@@ -1214,7 +1244,7 @@ describe('curatorMediaService.uploadUrlReference', () => {
     expect(result.category).toBe('freestyle_tricks');
     expect(result.mediaId).toBe(urlRefMediaId('youtube', 'https://www.youtube.com/watch?v=Dmr7zj_c7cY'));
     expect(result.sidecarWritten).toBe(true);
-    expect(result.filename).toMatch(/^around-the-world_[0-9a-f]{8}\.meta\.json$/);
+    expect(result.filename).toMatch(/^around_the_world_[0-9a-f]{8}\.meta\.json$/);
     expect(result.overwritten).toBe(false);
     expect(result.filePath).not.toBeNull();
     expect(existsSync(result.filePath!)).toBe(true);
@@ -2430,7 +2460,6 @@ describe('the member gallery list page contract', () => {
     const page = pageFor('member-gal-page-t0', 'gal_page_t0');
 
     expect(page.content.benefitNotice).not.toBeNull();
-    expect(page.content.newGalleryHref).toBeNull();
     expect(page.content.uploadMediaHref).toBeNull();
     // The list itself stays open: the member keeps the read they came for.
     expect(page.content.listHref).toBe('/members/gal_page_t0/galleries');
@@ -2442,7 +2471,6 @@ describe('the member gallery list page contract', () => {
     const page = pageFor('member-gal-page-t1', 'gal_page_t1');
 
     expect(page.content.benefitNotice).toBeNull();
-    expect(page.content.newGalleryHref).toBe('/members/gal_page_t1/galleries/new');
     expect(page.content.uploadMediaHref).toBe('/members/gal_page_t1/media/upload');
   });
 
@@ -2570,7 +2598,6 @@ describe('the member gallery list page contract', () => {
     expect(page.content.errorMessage).toBe('Too many galleries created. Try again later.');
     // Only a member holding the benefits can have attempted the write, so the
     // controls stay whatever the gate would say now.
-    expect(page.content.newGalleryHref).toBe('/members/gal_page_error/galleries/new');
     expect(page.content.uploadMediaHref).toBe('/members/gal_page_error/media/upload');
     expect(page.content.benefitNotice).toBeNull();
     expect(page.content.teaching).toBeNull();
@@ -2591,6 +2618,7 @@ describe('curatorMediaService.finalizeTranscodeForJob', () => {
       caption: 'finalize-test',
       tags: '#demo_freestyle',
       source_filename: 'clip.mp4',
+      external_url: null,
       media_id: null,
       retry_count: 0,
       last_error: null,
@@ -2605,6 +2633,31 @@ describe('curatorMediaService.finalizeTranscodeForJob', () => {
       ...overrides,
     };
   }
+
+  // Defect caught: a video uploaded straight to storage loses the external URL
+  // the curator gave it, because only the job row carries it to the item.
+  it('sets the job\'s external URL on the item it publishes, and leaves it empty when the job has none', async () => {
+    const storage = makeStubStorage();
+    await storage.put('pending/job-finalize/source.mp4', makeFakeMp4());
+    await storage.put('pending/job-finalize/source-poster.jpg', await makeJpegBuffer());
+    const svc = svcModule.createCuratorMediaService({
+      storage,
+      imageProcessor: makeStubImageProcessor(),
+      videoTranscoder: fakeTranscoder(storage),
+    });
+    const withUrl = await svc.finalizeTranscodeForJob(makeJobRow({
+      external_url: 'https://example.com/source-article', source_filename: 'external-url-clip.mp4',
+    }));
+    await storage.put('pending/job-finalize/source.mp4', makeFakeMp4());
+    await storage.put('pending/job-finalize/source-poster.jpg', await makeJpegBuffer());
+    const without = await svc.finalizeTranscodeForJob(makeJobRow({ source_filename: 'no-external-url-clip.mp4' }));
+    const db = openDb();
+    try {
+      const read = (id: string) => (db.prepare('SELECT external_url FROM media_items WHERE id = ?').get(id) as { external_url: string | null }).external_url;
+      expect(read(withUrl.mediaId)).toBe('https://example.com/source-article');
+      expect(read(without.mediaId)).toBeNull();
+    } finally { db.close(); }
+  });
 
   it('happy path: pulls source from storage, runs transcode + photo, inserts media_items, deletes pending', async () => {
     const storage = makeStubStorage();
@@ -2647,6 +2700,26 @@ describe('curatorMediaService.finalizeTranscodeForJob', () => {
       expect(audit.actor_member_id).toBe(ADMIN_ID);
       expect(audit.action_type).toBe('media.curated_uploaded');
     } finally { db.close(); }
+  });
+
+  // Defect caught: when two uploads under one name race past the sign step,
+  // the second job's save fails with a database error the curator cannot act
+  // on, instead of the sentence naming the file.
+  it('names the file when its save meets a name the system member already holds', async () => {
+    const storage = makeStubStorage();
+    const put = async () => {
+      await storage.put('pending/job-finalize/source.mp4', makeFakeMp4());
+      await storage.put('pending/job-finalize/source-poster.jpg', await makeJpegBuffer());
+    };
+    const svc = svcModule.createCuratorMediaService({
+      storage, imageProcessor: makeStubImageProcessor(), videoTranscoder: fakeTranscoder(storage),
+    });
+    await put();
+    await svc.finalizeTranscodeForJob(makeJobRow({ source_filename: 'raced-clip.mp4' }));
+    await put();
+    const second = svc.finalizeTranscodeForJob(makeJobRow({ source_filename: 'raced-clip.mp4' }));
+    await expect(second).rejects.toBeInstanceOf(ValidationError);
+    await expect(second).rejects.toThrow('"raced-clip.mp4"');
   });
 
   it('deletes the objects it wrote when the upload fails before the media row is committed', async () => {

@@ -1,7 +1,8 @@
 /**
- * Integration tests for the requireTier1Benefits gate on the three
- * member-owned gallery POST routes:
- *   POST /members/:memberKey/galleries
+ * Integration tests for the requireTier1Benefits gate on the member-owned
+ * gallery writes: creating one by naming hashtags on the Share Media form,
+ * and the two gallery POST routes:
+ *   POST /members/:memberKey/media/upload
  *   POST /members/:memberKey/galleries/:id/edit
  *   POST /members/:memberKey/galleries/:id/delete
  *
@@ -108,16 +109,26 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('POST /members/:memberKey/galleries — tier gate', () => {
+// A gallery is created by naming a set of hashtags on the Share Media form,
+// sent with the preview the form's script records.
+async function createGalleryOnShareForm(slug: string, memberId: string, name: string, tags: string) {
+  const svc = await import('../../src/services/curatorMediaService');
+  const p = svc.previewNewMemberGallery(slug, name, svc.parseTagList(tags), () => false);
+  return request(createApp())
+    .post(`/members/${slug}/media/upload`)
+    .set('Cookie', cookieFor(memberId))
+    .field('mediaType', 'photo')
+    .field('tags', tags)
+    .field('galleryName', name)
+    .field('galleryPreview', 'refusal' in p ? '' : svc.newGalleryPreviewToken(p));
+}
+
+describe('creating a gallery on the Share Media form — tier gate', () => {
   // Each fixture uses a distinct gallery name to avoid UNIQUE(owner, name)
   // conflicts across the it.each iterations.
   it.each(FIXTURES)('$label → gated: $expectGated', async (f) => {
     const name = `Try-${f.label}`;
-    const res = await request(createApp())
-      .post(`/members/${f.slug}/galleries`)
-      .set('Cookie', cookieFor(f.id))
-      .type('form')
-      .send({ name, description: '', sortOrder: 'upload_desc', criteriaTags: '#x', excludeTags: '' });
+    const res = await createGalleryOnShareForm(f.slug, f.id, name, '#x');
     if (f.expectGated) {
       expect(res.status).toBe(403);
       expect(res.text).toContain('403');
@@ -129,12 +140,10 @@ describe('POST /members/:memberKey/galleries — tier gate', () => {
       db.close();
       expect(row).toBeUndefined();
     } else {
-      // Tighter assertion than the prior `not.toBe(403)`: the create must
-      // actually succeed (303 PRG redirect to the gallery list) and a fresh
-      // `member_galleries` row must exist for this owner. The previous
-      // loose check was passing for both 200/303 and 500.
+      // The create must actually succeed (303 PRG redirect to the new
+      // gallery) and a fresh `member_galleries` row must exist for this owner.
       expect(res.status).toBe(303);
-      expect(res.headers.location).toBe(`/members/${f.slug}/galleries`);
+      expect(res.headers.location).toMatch(new RegExp(`^/media/gallery_${f.slug}_`));
       const db = new BetterSqlite3(dbPath, { readonly: true });
       const row = db
         .prepare(`SELECT id, owner_member_id, name FROM member_galleries WHERE owner_member_id = ? AND name = ?`)
@@ -184,14 +193,14 @@ describe('POST /members/:memberKey/galleries/:id/delete — tier gate', () => {
 
 describe('Owner-check still fires after the gate', () => {
   it('Tier 1 non-owner posting to a different member\'s gallery route → 404 (anti-enumeration), not 403', async () => {
-    // tier1 non-owner sessioned, posting to tier1 owner's create route.
+    // tier1 non-owner sessioned, posting to tier1 owner's Share Media route.
     // The gate passes (predicate true), so the controller's slug-mismatch
     // 404 anti-enumeration branch must fire.
     const res = await request(createApp())
-      .post(`/members/tg_t1/galleries`)
+      .post(`/members/tg_t1/media/upload`)
       .set('Cookie', cookieFor(NON_OWNER.id))
-      .type('form')
-      .send({ name: 'Y', description: '', sortOrder: 'upload_desc', criteriaTags: '#y', excludeTags: '' });
+      .field('mediaType', 'photo')
+      .field('galleryName', 'Y');
     expect(res.status).toBe(404);
   });
 });
@@ -203,22 +212,22 @@ describe('The list stays open and states the benefit; the form behind it does no
       .set('Cookie', cookieFor('mtg-t0-noap'));
     expect(res.status).toBe(200);
     expect(res.text).toContain('Sharing media is a Tier 1 benefit.');
-    expect(res.text).not.toContain('Upload Media');
-    expect(res.text).not.toContain('Create New Gallery');
+    // No share control: the form behind it would refuse this member.
+    expect(res.text).not.toContain('href="/members/tg_t0_noap/media/upload"');
   });
 
-  it('GET /members/:memberKey/galleries/new refuses a tier0 no-AP owner and names the benefit', async () => {
+  it('GET /members/:memberKey/media/upload refuses a tier0 no-AP owner and names the benefit', async () => {
     const res = await request(createApp())
-      .get(`/members/tg_t0_noap/galleries/new`)
+      .get(`/members/tg_t0_noap/media/upload`)
       .set('Cookie', cookieFor('mtg-t0-noap'));
     expect(res.status).toBe(403);
     expect(res.text).toContain('Sharing media is a Tier 1 benefit.');
     expect(res.text).not.toContain('have permission to view this page');
   });
 
-  it('GET /members/:memberKey/galleries/new renders for an owner holding the benefits', async () => {
+  it('GET /members/:memberKey/media/upload renders for an owner holding the benefits', async () => {
     const res = await request(createApp())
-      .get(`/members/tg_t0_ap/galleries/new`)
+      .get(`/members/tg_t0_ap/media/upload`)
       .set('Cookie', cookieFor('mtg-t0-ap'));
     expect(res.status).toBe(200);
   });
@@ -227,9 +236,9 @@ describe('The list stays open and states the benefit; the form behind it does no
 describe('Defensive: requireAuth fires before requireTier1Benefits', () => {
   it('unauthenticated POST → 302 to /login (no 403)', async () => {
     const res = await request(createApp())
-      .post(`/members/tg_t1/galleries`)
-      .type('form')
-      .send({ name: 'Z', description: '', sortOrder: 'upload_desc', criteriaTags: '#z', excludeTags: '' });
+      .post(`/members/tg_t1/media/upload`)
+      .field('mediaType', 'photo')
+      .field('galleryName', 'Z');
     expect(res.status).toBe(302);
     expect(res.headers.location).toMatch(/\/login/);
   });

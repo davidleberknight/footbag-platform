@@ -24,6 +24,7 @@ let createApp: typeof import('../../src/app').createApp;
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
+import { defaultSubmitButton } from '../fixtures/defaultSubmitButton';
 
 import {
   insertMember,
@@ -34,6 +35,8 @@ import {
   insertTag,
   attachMediaTag,
   insertSystemConfig,
+  insertMemberGallery,
+  insertGalleryCriterionTag,
 } from '../fixtures/factories';
 
 const OWNER_ID    = 'member-mme-owner-001';
@@ -123,6 +126,20 @@ describe('member per-item media edit routes', () => {
     expect(res.text).toContain('name="externalUrl"');
   });
 
+  // Defect caught: Enter in a field such as External URL runs the player
+  // search instead of saving, so the member's edit is not saved.
+  it('makes Save the edit form\'s default button, ahead of the player search', async () => {
+    const mediaId = insertOwnerMedia('owner-enter.jpg', null);
+    const res = await request(createApp())
+      .get(`/members/${OWNER_SLUG}/media/${mediaId}/edit`)
+      .set('Cookie', cookieFor(OWNER_ID));
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('data-member-search-submit');
+    const formId = /<form id="([^"]+)"[^>]*method="POST"/.exec(res.text)?.[1] ?? '';
+    const button = defaultSubmitButton(res.text, formId);
+    expect(button?.overridesForm).toBe(false);
+  });
+
   it('GET unauthenticated → 302 /login', async () => {
     const mediaId = insertOwnerMedia('owner-anon.jpg');
     const res = await request(createApp()).get(`/members/${OWNER_SLUG}/media/${mediaId}/edit`);
@@ -179,7 +196,10 @@ describe('member per-item media edit routes', () => {
       .type('form')
       .send({ caption: 'after edit', tags: '#footbags #colorful', externalUrl: 'https://example.com/source' });
     expect(res.status).toBe(303);
-    expect(res.headers.location).toBe(`/members/${OWNER_SLUG}/galleries`);
+    // Defect caught: a save lands on the gallery list rather than the item the
+    // member just changed. This item was stored without the Personal Gallery
+    // a real upload materializes, so it lands on its own page.
+    expect(res.headers.location).toBe(`/media/item/${mediaId}`);
     expect(findMediaCaption(mediaId)).toBe('after edit');
     const tags = findMediaTags(mediaId);
     expect(tags).toContain('#footbags');
@@ -324,10 +344,11 @@ describe('member per-item media edit routes', () => {
       .set('Cookie', [cookieFor(OWNER_ID), flash!].join('; '));
     expect(landed.status).toBe(200);
     const banner = (/class="form-success-banner"[\s\S]*?<\/div>/.exec(landed.text)?.[0] ?? '').toLowerCase();
-    expect(banner).toContain('#zoe_muller');
-    expect(banner).toContain('zoë-müller');
+    // The sentence naming the folded hashtag, among the banner's sentences.
+    const foldSentence = (banner.match(/<p>[^<]*<\/p>/g) ?? []).find((p) => p.includes('zoë-müller')) ?? '';
+    expect(foldSentence).toContain('#zoe_muller');
     // A hashtag typed clean is not reported as changed.
-    expect(banner).not.toContain('#plainfold');
+    expect(foldSentence).not.toContain('#plainfold');
   });
 
   // The documented rules hold on the server whatever the browser sent: at most
@@ -691,5 +712,67 @@ describe('member per-item media delete confirm page', () => {
     const anon = await request(createApp()).get(`/members/${OWNER_SLUG}/media/${mediaId}/delete`);
     expect(anon.status).toBe(302);
     expect(anon.headers.location).toMatch(/\/login/);
+  });
+});
+
+describe('where a saved edit lands', () => {
+  const PG_ID = 'member-mme-pg-001';
+  const PG_SLUG = 'mme_pg';
+  const PERSONAL_ID = `gallery_${PG_SLUG}_personal_gallery`;
+  let oldestId = '';
+  let newestId = '';
+
+  // The Personal Gallery shows the newest items up to its cap, so an item
+  // uploaded before that many newer ones lies outside the set its page renders.
+  beforeAll(async () => {
+    const { GALLERY_ITEMS_QUERY_CAP } = await import('../../src/db/db');
+    const db = new BetterSqlite3(dbPath);
+    db.pragma('foreign_keys = ON');
+    try {
+      insertMember(db, { id: PG_ID, slug: PG_SLUG, display_name: 'MME Personal' });
+      completeOnboarding(db, PG_ID);
+      insertMemberTierGrant(db, { member_id: PG_ID, new_tier_status: 'tier1' });
+      const byTag = `#by_${PG_SLUG}`;
+      oldestId = insertMediaItem(db, {
+        uploader_member_id: PG_ID, source_filename: 'pg-oldest.jpg', caption: 'oldest',
+        uploaded_at: '2020-01-01T00:00:00.000Z', tags: [byTag],
+      });
+      for (let i = 0; i < GALLERY_ITEMS_QUERY_CAP; i += 1) {
+        const at = new Date(Date.UTC(2021, 0, 1) + i * 60_000).toISOString();
+        const id = insertMediaItem(db, {
+          uploader_member_id: PG_ID, source_filename: `pg-newer-${i}.jpg`, caption: null, uploaded_at: at, tags: [byTag],
+        });
+        if (i === GALLERY_ITEMS_QUERY_CAP - 1) newestId = id;
+      }
+      insertMemberGallery(db, {
+        id: PERSONAL_ID, owner_member_id: PG_ID, name: 'Personal Gallery', is_default: 1,
+        sort_order: 'upload_desc', created_by: PG_ID,
+      });
+      const tagId = (db.prepare('SELECT id FROM tags WHERE tag_normalized = ?').get(byTag) as { id: string }).id;
+      insertGalleryCriterionTag(db, PERSONAL_ID, tagId);
+    } finally { db.close(); }
+  });
+
+  async function save(mediaId: string): Promise<string> {
+    const res = await request(createApp())
+      .post(`/members/${PG_SLUG}/media/${mediaId}/edit`)
+      .set('Cookie', cookieFor(PG_ID))
+      .type('form')
+      .send({ caption: 'edited', tags: '', externalUrl: '' });
+    expect(res.status).toBe(303);
+    return res.headers.location as string;
+  }
+
+  // Defect caught: saving an item the Personal Gallery's capped set leaves
+  // out sends the member to that gallery's page for the item, which is not
+  // found, instead of to the item's own page.
+  it('lands on the item\'s own page when the Personal Gallery does not show it, and inside the gallery when it does', async () => {
+    const outside = await save(oldestId);
+    expect(outside).toBe(`/media/item/${oldestId}`);
+    expect((await request(createApp()).get(outside).set('Cookie', cookieFor(PG_ID))).status).toBe(200);
+
+    const inside = await save(newestId);
+    expect(inside).toBe(`/media/${PERSONAL_ID}/${newestId}`);
+    expect((await request(createApp()).get(inside).set('Cookie', cookieFor(PG_ID))).status).toBe(200);
   });
 });

@@ -7781,6 +7781,36 @@ export interface MemberTagRow {
 }
 
 export const tagStats = {
+  // The standard hashtags of public events and open clubs whose real name (or,
+  // for an event, its year, and for a club, its city) holds a typed word, each
+  // with its kind and real name, so typing "worlds" offers the event's
+  // hashtag labelled with the event. Parameters: the word as a LIKE pattern
+  // (`%word%`, `_` and `%` escaped), the word as typed for the year match, the
+  // pattern twice more for club name and city, the row limit. A retired tag is
+  // never offered. Ordered by kind, then name, then the row's own id.
+  get matchStandardTagsByWord() { return db.prepare(`
+    SELECT kind, real_name, tag_normalized, tag_display, usage_count, row_id FROM (
+      SELECT 'event' AS kind, e.title AS real_name, t.tag_normalized, t.tag_display,
+             ts.usage_count, e.id AS row_id
+      FROM events e
+      JOIN tags t ON t.id = e.hashtag_tag_id
+      LEFT JOIN tag_stats ts ON ts.tag_id = t.id
+      WHERE e.status IN (${PUBLIC_EVENT_DETAIL_VISIBLE_STATUS_SQL})
+        AND t.is_standard = 1 AND t.standard_type = 'event' AND t.retired_at IS NULL
+        AND (lower(e.title) LIKE ? ESCAPE '\\' OR substr(e.start_date, 1, 4) = ?)
+      UNION ALL
+      SELECT 'club' AS kind, c.name AS real_name, t.tag_normalized, t.tag_display,
+             ts.usage_count, c.id AS row_id
+      FROM clubs_open c
+      JOIN tags t ON t.id = c.hashtag_tag_id
+      LEFT JOIN tag_stats ts ON ts.tag_id = t.id
+      WHERE t.retired_at IS NULL
+        AND (lower(c.name) LIKE ? ESCAPE '\\' OR lower(c.city) LIKE ? ESCAPE '\\')
+    )
+    ORDER BY kind ASC, real_name ASC, row_id ASC
+    LIMIT ?
+  `); },
+
   get upsertTagStat() { return db.prepare(`
     INSERT INTO tag_stats (tag_id, usage_count, distinct_member_count, last_used_at, created_at, updated_at, computed_at)
     VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -8026,6 +8056,7 @@ export interface MediaJobRow {
   caption: string | null;
   tags: string;
   source_filename: string | null;
+  external_url: string | null;
   media_id: string | null;
   retry_count: number;
   last_error: string | null;
@@ -8045,12 +8076,12 @@ export const mediaJobs = {
       id, created_at, created_by, updated_at, updated_by, version,
       kind, state, admin_member_id,
       source_video_key, source_poster_key,
-      caption, tags, source_filename,
+      caption, tags, source_filename, external_url,
       retry_count, expires_at
     ) VALUES (?, ?, ?, ?, ?, 1,
       ?, 'pending_upload', ?,
       ?, ?,
-      ?, ?, ?,
+      ?, ?, ?, ?,
       0, ?)
   `); },
 

@@ -11,20 +11,9 @@
 </div>
 
 <div class="wrapper">
-  <p>
-    Update this item's caption, tags, or external URL. The auto-applied
-    <code>#by_&lt;your-slug&gt;</code> uploader marker is preserved across saves
-    and is not editable. Hashtags starting with <code>#by_</code> or <code>#curated</code>
-    are system-managed and rejected as input.
-  </p>
+  <p>{{content.intro}}</p>
 
   {{> outcome-notice text=content.errorMessage tone='no'}}
-
-  {{!-- The player search sits before the edit form, never inside it: its
-        own GET form reloads this page with the results, and each result's
-        credit button submits the edit form by id. --}}
-  <div class="section-heading"><h2>Find a Player</h2></div>
-  {{> member-block-search content.playerSearch creditFormId=content.editFormId searchFormId=content.editFormId intro="Search for a member or historical player, then press Credit as Player to add their player hashtag and save the item."}}
 
   <form id="{{content.editFormId}}" action="{{content.formAction}}" method="POST" class="form-block">
     <div class="form-field">
@@ -33,7 +22,7 @@
     </div>
 
     <div class="form-field">
-      <label for="member-media-tags">Hashtags (separated by spaces):</label>
+      <label for="member-media-tags">Hashtags (start each with #; typing # or pressing Enter starts the next):</label>
       <input id="member-media-tags" type="text" name="tags" value="{{content.formValues.tags}}" placeholder="#freestyle #spike" data-tag-chips data-tag-entry>
       {{> hashtag-slug-help}}
     </div>
@@ -63,6 +52,15 @@
         {{/each}}
       </div>
       {{/if}}
+      {{#if content.galleryChips.length}}
+      <div class="tag-suggestions-group">
+        <span class="tag-suggestions-label">Your galleries:</span>
+        {{#each content.galleryChips}}
+        <button type="button" class="tag-chip tag-suggestion" data-tag="{{tagsAttr}}">{{label}}</button>
+        {{/each}}
+      </div>
+      <p class="form-hint">Adding a gallery's hashtags makes what you share show in that gallery.</p>
+      {{/if}}
       {{#if content.tagSuggestions.popularTags.length}}
       <div class="tag-suggestions-group">
         <span class="tag-suggestions-label">Popular:</span>
@@ -84,6 +82,12 @@
       <a href="{{content.cancelHref}}" class="btn btn-outline">Cancel</a>
     </div>
   </form>
+
+  {{!-- The player search sits after the edit form, never inside it: its
+        controls belong to the edit form by id, and coming after Save keeps
+        Save the form's first submit button, the one Enter in a field presses. --}}
+  <div class="section-heading"><h2>Find a Player</h2></div>
+  {{> member-block-search content.playerSearch creditFormId=content.editFormId searchFormId=content.editFormId intro="Search for a member or historical player, then press Credit as Player to add their player hashtag and save the item."}}
 
   {{!-- A link, not a form: deletion is permanent with cascading tag removal,
         so it goes through a confirm page that works without JavaScript. --}}

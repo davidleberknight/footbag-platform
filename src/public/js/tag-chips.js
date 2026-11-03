@@ -18,14 +18,22 @@
 
   // A typed tag's body as it is stored: folded by the site's one rule
   // (fold-token.js), with no leading '#'. Until that rule's letter table is in,
-  // the tag is kept as typed (no spaces) and the server folds it on save, so a
-  // chip never shows a token the server would store differently.
+  // the tag is kept as typed, its spaces made underscores as the rule makes
+  // them, and the server folds the rest on save, so a chip never shows a token
+  // the server would store differently.
   function canFold() {
     return !!(window.footbagFold && window.footbagFold.isLoaded());
   }
   function tagBody(raw) {
     var stripped = String(raw).trim().replace(/^#+/, '');
-    return canFold() ? window.footbagFold.slugify(stripped) : stripped.replace(/\s+/g, '');
+    return canFold() ? window.footbagFold.slugify(stripped) : stripped.replace(/\s+/g, '_');
+  }
+
+  // The hashtags in a text, by the site's one rule (fold-token.js): what was
+  // typed until it is committed is one hashtag, and each '#' starts a new one.
+  // The rule needs no letter table, so it holds before the table arrives.
+  function splitHashtags(text) {
+    return window.footbagFold.splitHashtags(text);
   }
 
   var inputs = document.querySelectorAll('input[data-tag-chips], textarea[data-tag-chips]');
@@ -104,13 +112,15 @@
       commitTag(container, textInput, hidden, e.detail);
     });
 
-    // Keyboard events on the text input
+    // Keyboard events on the text input. Enter and Tab commit what is in the
+    // box; a space is part of the hashtag being typed and commits nothing.
     textInput.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' || e.key === ' ' || e.key === 'Tab') {
-        var val = textInput.value.trim().replace(/^#/, '');
-        if (val.length > 0) {
-          e.preventDefault();
-          commitTag(container, textInput, hidden, val);
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        if (splitHashtags(textInput.value).length > 0) {
+          var left = commitText(container, textInput, hidden, textInput.value);
+          textInput.value = left;
+          // Tab still leaves a box holding a refused hashtag, so it never traps focus.
+          if (e.key === 'Enter' || left === '') e.preventDefault();
         } else if (e.key === 'Enter') {
           // Don't submit form on enter in empty chip input
           e.preventDefault();
@@ -134,6 +144,15 @@
     // Debounced autocomplete fetch
     var timer = null;
     textInput.addEventListener('input', function () {
+      // A '#' typed after other text ends that hashtag: the text before it
+      // becomes a chip at once and the box keeps the '#', ready for the next.
+      // A pasted list becomes chips the same way, its last hashtag left in the box.
+      var typed = textInput.value;
+      var at = typed.lastIndexOf('#');
+      if (at > 0 && typed.slice(0, at).trim().length > 0) {
+        var kept = commitText(container, textInput, hidden, typed.slice(0, at));
+        textInput.value = (kept ? kept + ' ' : '') + typed.slice(at);
+      }
       clearTimeout(timer);
       var q = textInput.value.trim().replace(/^#/, '');
       if (q.length === 0) {
@@ -157,22 +176,31 @@
       }
     });
 
-    // Flush any uncommitted text into a chip when the form submits, so a tag
+    // Flush any uncommitted text into chips when the form submits, so a tag
     // typed but not yet turned into a chip (e.g. typed then "Browse" clicked
     // without pressing Enter) is still included in the submitted value.
     var form = original.closest('form');
     if (form) {
       form.addEventListener('submit', function () {
-        var pending = textInput.value.trim().replace(/^#/, '');
-        if (pending.length > 0) {
-          commitTag(container, textInput, hidden, pending);
-        }
+        textInput.value = commitText(container, textInput, hidden, textInput.value);
       });
     }
   }
 
   function parseTokens(value) {
-    return value.trim().split(/\s+/).filter(function (t) { return t.length > 0; });
+    return splitHashtags(value);
+  }
+
+  // Commits every hashtag in the text as a chip and returns the ones that could
+  // not be added (letters with no a to z form, the chip limit reached), for the
+  // box to keep so the member can change them.
+  function commitText(container, textInput, hidden, text) {
+    var pieces = splitHashtags(text);
+    var left = [];
+    for (var i = 0; i < pieces.length; i++) {
+      if (!commitTag(container, textInput, hidden, pieces[i])) left.push(pieces[i]);
+    }
+    return left.join(' ');
   }
 
   function syncHidden(container, hidden) {
@@ -204,6 +232,7 @@
     note.set('Added #' + token + ' for the #' + asTyped + ' you typed. Hashtags use only the letters a to z, digits and underscores, so accented letters become plain ones and other characters become underscores.');
   }
 
+  // Adds one hashtag as a chip; true when the field now carries it.
   function commitTag(container, textInput, hidden, typed) {
     // A hashtag with letters the rule cannot convert is refused, as the server
     // refuses it: no chip, the text stays for the member to change, and the line
@@ -211,29 +240,69 @@
     var asTyped = String(typed).trim().replace(/^#+/, '');
     if (canFold() && window.footbagFold.hasUnconvertible(asTyped)) {
       if (container.foldNote) container.foldNote.set('#' + asTyped + ' cannot be used: a hashtag needs letters a to z or digits, and these letters have no a to z form.');
-      return;
+      return false;
     }
 
     // Folded by the site's one rule, the form the server stores.
     var token = tagBody(typed);
-    if (token.length === 0) return;
+    if (token.length === 0) return false;
 
     var existing = container.querySelectorAll('.tag-chip-input-chip');
-    if (existing.length >= MAX_CHIPS) {
-      if (container.foldNote) container.foldNote.set('At most ' + MAX_CHIPS + ' hashtags can be added at once.');
-      return;
-    }
     for (var i = 0; i < existing.length; i++) {
       if (existing[i].getAttribute('data-tag') === token) {
         textInput.value = '';
-        return;
+        return true;
       }
     }
+    if (existing.length >= MAX_CHIPS) {
+      if (container.foldNote) container.foldNote.set('At most ' + MAX_CHIPS + ' hashtags can be added at once.');
+      return false;
+    }
 
-    addChip(container, textInput, hidden, token);
+    var chip = addChip(container, textInput, hidden, token);
     showFoldNote(container, typed, token);
     textInput.value = '';
     hideDropdown(container.querySelector('.tag-chip-autocomplete'));
+    if (container.hasAttribute('data-tag-entry')) offerStandardTag(container, textInput, hidden, token, chip);
+    return true;
+  }
+
+  // A freeform hashtag whose words match a public event's or club's name gets
+  // a one-click swap for that event's or club's standard hashtag. It only
+  // offers: the typed hashtag stays unless the member presses Use It.
+  function offerStandardTag(container, textInput, hidden, token, chip) {
+    if (/^(event|club|player|by|set|concept)_/.test(token)) return;
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '/tags/suggest?didYouMean=' + encodeURIComponent(token));
+    xhr.setRequestHeader('Accept', 'application/json');
+    xhr.onload = function () {
+      if (xhr.status !== 200) return;
+      // An answer arriving after its chip was removed offers nothing: the
+      // member no longer has the hashtag it would swap.
+      if (!container.contains(chip)) return;
+      var hit;
+      try { hit = JSON.parse(xhr.responseText)[0]; } catch (e) { return; }
+      if (!hit || !hit.normalized) return;
+      var box = document.createElement('p');
+      box.className = 'form-hint';
+      box.setAttribute('data-did-you-mean', token);
+      box.appendChild(document.createTextNode('Did you mean ' + hit.display + ' (' + hit.name + ')? '));
+      var use = document.createElement('button');
+      use.type = 'button';
+      use.className = 'btn btn-outline btn-sm';
+      use.textContent = 'Use It';
+      use.addEventListener('click', function () {
+        var chips = container.querySelectorAll('.tag-chip-input-chip');
+        for (var i = 0; i < chips.length; i++) {
+          if (chips[i].getAttribute('data-tag') === token) removeChip(container, chips[i], hidden);
+        }
+        commitTag(container, textInput, hidden, hit.normalized);
+        if (box.parentNode) box.parentNode.removeChild(box);
+      });
+      box.appendChild(use);
+      container.parentNode.insertBefore(box, container.nextSibling);
+    };
+    xhr.send();
   }
 
   function addChip(container, textInput, hidden, token) {
@@ -255,9 +324,13 @@
     chip.appendChild(removeBtn);
     container.insertBefore(chip, textInput);
     syncHidden(container, hidden);
+    return chip;
   }
 
   function removeChip(container, chip, hidden) {
+    // An offer to swap this hashtag goes with it.
+    var offer = container.parentNode.querySelector('[data-did-you-mean="' + chip.getAttribute('data-tag') + '"]');
+    if (offer) offer.parentNode.removeChild(offer);
     chip.parentNode.removeChild(chip);
     syncHidden(container, hidden);
     // The line spoke of the last chip added; once chips change it is stale.
@@ -308,7 +381,16 @@
       li.className = 'tag-chip-autocomplete-item';
       li.setAttribute('role', 'option');
       li.setAttribute('data-normalized', results[j].normalized);
-      li.textContent = results[j].display;
+      // An event's or club's hashtag found by a word of its name says which one.
+      if (results[j].kind === 'event' || results[j].kind === 'club') {
+        var kind = document.createElement('span');
+        kind.className = 'tag-chip-autocomplete-count';
+        kind.textContent = (results[j].kind === 'event' ? 'Event: ' : 'Club: ') + results[j].name + ' ';
+        li.appendChild(kind);
+        li.appendChild(document.createTextNode(results[j].display));
+      } else {
+        li.textContent = results[j].display;
+      }
       if (results[j].usageCount > 0) {
         var count = document.createElement('span');
         count.className = 'tag-chip-autocomplete-count';

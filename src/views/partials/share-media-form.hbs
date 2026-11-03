@@ -1,0 +1,287 @@
+{{!--
+  The Share Media form, the one interface the member and the curator share.
+  Photos (several at once), a YouTube or Vimeo link, and for the curator a
+  video file; one set of hashtags for everything in the submit; and an
+  optional step that names those hashtags as a gallery. The tabs are the
+  CSS-only pattern (hidden radios, :checked ~ sibling selectors), and the form
+  works without JavaScript: the share script adds a caption box per chosen
+  photo, checks the limits before sending, and previews a new gallery's
+  address as it is typed.
+
+  Caller passes the page's `content` as `c`. `c.curator` is null on the
+  member's form; on the curator's it adds the video-file tab, the Advanced
+  fields, and the category and primary slug where sidecar writes are on.
+--}}
+<form action="{{c.formAction}}" method="POST" enctype="multipart/form-data" class="upload-form form-block" data-share-form{{#if c.curator.asyncEnabled}} data-async-enabled="true"{{/if}}{{#if c.curator}} data-video-max-bytes="{{c.curator.videoMaxBytes}}"{{/if}}>
+
+  <div class="upload-tabs">
+    {{!-- Hidden radios act as the tab control; each posts its media type. --}}
+    <input type="radio" name="mediaType" value="{{c.tabs.photoValue}}" id="share-tab-photo"{{#if c.tabs.photoChecked}} checked{{/if}} class="upload-tab-radio">
+    <input type="radio" name="mediaType" value="{{c.tabs.linkValue}}" id="share-tab-link"{{#if c.tabs.linkChecked}} checked{{/if}} class="upload-tab-radio">
+    {{#if c.tabs.fileValue}}
+    <input type="radio" name="mediaType" value="{{c.tabs.fileValue}}" id="share-tab-file"{{#if c.tabs.fileChecked}} checked{{/if}} class="upload-tab-radio">
+    {{/if}}
+
+    <div class="upload-tab-bar">
+      <label for="share-tab-photo" class="upload-tab">Photos</label>
+      <label for="share-tab-link" class="upload-tab">Video link</label>
+      {{#if c.tabs.fileValue}}
+      <label for="share-tab-file" class="upload-tab">Video file{{#if c.curator.asyncEnabled}} <span class="upload-tab-hint">(JS)</span>{{/if}}</label>
+      {{/if}}
+    </div>
+
+    <div class="upload-tab-panels">
+      <div class="upload-tab-panel upload-tab-panel-photo">
+        <div class="form-field">
+          <label for="share-photo-files">{{c.photoFieldLabel}}</label>
+          <input type="file" id="share-photo-files" name="photoFiles" accept="image/jpeg,image/png" multiple
+                 data-share-files>
+          {{#if c.fieldErrors.photoFiles}}
+          <p class="form-field-error" role="alert">{{c.fieldErrors.photoFiles}}</p>
+          {{/if}}
+        </div>
+        <div data-share-captions></div>
+        <div class="form-field" data-share-shared-caption>
+          <label for="share-caption">Caption (optional, up to 500 characters):</label>
+          <textarea id="share-caption" name="caption" maxlength="500" rows="3">{{c.formValues.caption}}</textarea>
+          <small class="form-hint">If you choose several photos, this caption goes on each of them.</small>
+        </div>
+      </div>
+
+      <div class="upload-tab-panel upload-tab-panel-url">
+        <div class="form-field">
+          <label for="share-video-url">YouTube or Vimeo link:</label>
+          <input type="url" id="share-video-url" name="videoUrl" value="{{c.formValues.videoUrl}}"
+                 placeholder="https://www.youtube.com/watch?v=...">
+          {{#if c.fieldErrors.videoUrl}}
+          <p class="form-field-error" role="alert">{{c.fieldErrors.videoUrl}}</p>
+          {{/if}}
+        </div>
+        <div class="form-field">
+          <label for="share-video-caption">Caption (optional, up to 500 characters):</label>
+          <textarea id="share-video-caption" name="videoCaption" maxlength="500" rows="3">{{c.formValues.videoCaption}}</textarea>
+        </div>
+        {{#if c.curator}}
+        <details class="gallery-advanced"{{#if (or c.fieldErrors.startSeconds c.fieldErrors.primarySlug)}} open{{/if}}>
+          <summary>Advanced: source and clip</summary>
+          <div class="form-field">
+            <label for="share-source-id">Source id (optional):</label>
+            <input type="text" id="share-source-id" name="sourceId" value="{{c.formValues.sourceId}}">
+            <small class="form-hint">A source already in the media-source registry.</small>
+          </div>
+          <div class="form-field">
+            <label for="share-start-seconds">Clip start, in seconds (optional):</label>
+            <input type="number" id="share-start-seconds" name="startSeconds" min="0" value="{{c.formValues.startSeconds}}">
+            {{#if c.fieldErrors.startSeconds}}
+            <p class="form-field-error" role="alert">{{c.fieldErrors.startSeconds}}</p>
+            {{/if}}
+          </div>
+          <div class="form-field">
+            <label for="share-end-seconds">Clip end, in seconds (optional):</label>
+            <input type="number" id="share-end-seconds" name="endSeconds" min="0" value="{{c.formValues.endSeconds}}">
+          </div>
+          {{#if c.curator.sidecarWritesEnabled}}
+          <div class="form-field">
+            <label for="share-primary-slug">Primary slug:</label>
+            <input type="text" id="share-primary-slug" name="primarySlug" value="{{c.formValues.primarySlug}}" placeholder="around_the_world">
+            <small class="form-hint">Filename prefix: lowercase letters, digits and underscores.</small>
+            {{#if c.fieldErrors.primarySlug}}
+            <p class="form-field-error" role="alert">{{c.fieldErrors.primarySlug}}</p>
+            {{/if}}
+          </div>
+          {{/if}}
+        </details>
+        {{/if}}
+      </div>
+
+      {{#if c.tabs.fileValue}}
+      <div class="upload-tab-panel upload-tab-panel-video">
+        <div class="form-field">
+          <label for="share-video-file">Video file:</label>
+          <input type="file" id="share-video-file" name="mediaFile" accept="video/mp4,video/webm,video/quicktime">
+          <small class="form-hint">MP4, WebM or MOV, up to {{c.curator.videoMaxMb}}&nbsp;MB.</small>
+          {{#if c.fieldErrors.videoFile}}
+          <p class="form-field-error" role="alert">{{c.fieldErrors.videoFile}}</p>
+          {{/if}}
+        </div>
+        <div class="form-field">
+          <label for="share-poster">Poster image:</label>
+          <input type="file" id="share-poster" name="poster" accept="image/jpeg,image/png">
+          <small class="form-hint">JPEG or PNG, up to 25&nbsp;MB.</small>
+          {{#if c.fieldErrors.poster}}
+          <p class="form-field-error" role="alert">{{c.fieldErrors.poster}}</p>
+          {{/if}}
+        </div>
+        <div class="form-field">
+          <label for="share-file-caption">Caption (optional, up to 500 characters):</label>
+          <textarea id="share-file-caption" name="fileCaption" maxlength="500" rows="3">{{c.formValues.fileCaption}}</textarea>
+        </div>
+      </div>
+      {{/if}}
+    </div>
+  </div>
+
+  {{#if c.curator.sidecarWritesEnabled}}
+  <fieldset class="form-fieldset">
+    <legend>Category</legend>
+    <p class="fs-sm">Required for every upload. Determines which subdirectory of <code>/curated/</code> the upload lands in. Tick exactly one existing category, or type a new category name to create a new subdirectory.</p>
+    {{#if c.curator.categories.length}}
+      <div class="form-field">
+        {{#each c.curator.categories}}
+          <label><input type="checkbox" name="category" value="{{value}}"{{#if checked}} checked{{/if}}> {{value}}</label>
+        {{/each}}
+      </div>
+    {{else}}
+      <p class="fs-sm"><em>No existing curated category subdirectories found.</em></p>
+    {{/if}}
+    <div class="form-field">
+      <label for="share-new-category">Or new category name</label>
+      <input type="text" id="share-new-category" name="newCategory" value="{{c.formValues.newCategory}}" placeholder="e.g. demos_2026">
+      <small class="form-hint">Lowercase letters, digits and underscores.</small>
+      {{#if c.fieldErrors.category}}
+      <p class="form-field-error" role="alert">{{c.fieldErrors.category}}</p>
+      {{/if}}
+    </div>
+  </fieldset>
+  {{/if}}
+
+  <fieldset class="form-fieldset">
+    <legend>Details</legend>
+    <div class="form-field">
+      <label for="share-tags">Hashtags for everything in this share (optional):</label>
+      <input id="share-tags" type="text" name="tags" value="{{c.formValues.tags}}"
+             placeholder="#freestyle #trick" data-tag-chips data-tag-entry data-share-tags>
+      {{#if c.fieldErrors.tags}}
+      <p class="form-field-error" role="alert">{{c.fieldErrors.tags}}</p>
+      {{/if}}
+      <p class="form-hint">Added automatically: <span class="hashtag">{{c.automaticTag}}</span></p>
+      <small class="form-hint">Start each hashtag with <code>#</code>. What you type until you press Enter, or type the next <code>#</code>, is one hashtag, so footbag chin lone becomes <code>#footbag_chin_lone</code>. Event and club hashtags follow set patterns: events use <code>#event_&lt;year&gt;_&lt;event_name&gt;</code>, for example <code>#event_2026_worlds_japan</code>; clubs use <code>#club_&lt;location_or_name&gt;</code>, for example <code>#club_tokyo</code>.</small>
+      {{> hashtag-slug-help}}
+    </div>
+    {{#if c.tagSuggestions}}
+    <div class="tag-suggestions">
+      {{#if c.tagSuggestions.playerTags.length}}
+      <div class="tag-suggestions-group">
+        <span class="tag-suggestions-label">You as the player:</span>
+        {{#each c.tagSuggestions.playerTags}}
+        <button type="button" class="tag-chip tag-suggestion" data-tag="{{normalized}}">{{display}}</button>
+        {{/each}}
+      </div>
+      {{/if}}
+      {{#if c.tagSuggestions.clubTags.length}}
+      <div class="tag-suggestions-group">
+        <span class="tag-suggestions-label">Your clubs:</span>
+        {{#each c.tagSuggestions.clubTags}}
+        <button type="button" class="tag-chip tag-suggestion" data-tag="{{normalized}}">{{display}}</button>
+        {{/each}}
+      </div>
+      {{/if}}
+      {{#if c.tagSuggestions.participatedEventTags.length}}
+      <div class="tag-suggestions-group">
+        <span class="tag-suggestions-label">Your events:</span>
+        {{#each c.tagSuggestions.participatedEventTags}}
+        <button type="button" class="tag-chip tag-suggestion" data-tag="{{normalized}}">{{display}}</button>
+        {{/each}}
+      </div>
+      {{/if}}
+      {{#if c.galleryChips.length}}
+      <div class="tag-suggestions-group">
+        <span class="tag-suggestions-label">{{c.galleryChipsLabel}}</span>
+        {{#each c.galleryChips}}
+        <button type="button" class="tag-chip tag-suggestion" data-tag="{{tagsAttr}}">{{label}}</button>
+        {{/each}}
+      </div>
+      <p class="form-hint">Adding a gallery's hashtags makes what you share show in that gallery.</p>
+      {{/if}}
+      {{#if c.tagSuggestions.popularTags.length}}
+      <div class="tag-suggestions-group">
+        <span class="tag-suggestions-label">Popular:</span>
+        {{#each c.tagSuggestions.popularTags}}
+        <button type="button" class="tag-chip tag-suggestion" data-tag="{{normalized}}">{{display}}</button>
+        {{/each}}
+      </div>
+      {{/if}}
+    </div>
+    {{/if}}
+    <div class="form-field">
+      <label for="share-external-url">External URL (optional, link to source page or creator):</label>
+      <input id="share-external-url" type="url" name="externalUrl" value="{{c.formValues.externalUrl}}"
+             placeholder="https://example.com/article">
+    </div>
+  </fieldset>
+
+  <fieldset class="form-fieldset">
+    <legend>Name these hashtags as a gallery (optional)</legend>
+    <p>{{c.galleryStepText}}</p>
+    <div class="form-field">
+      <label for="share-gallery-name">Gallery name:</label>
+      <input type="text" id="share-gallery-name" name="galleryName" maxlength="150"
+             value="{{c.formValues.galleryName}}" data-share-gallery-name>
+      {{#if c.fieldErrors.galleryName}}
+      <p class="form-field-error" role="alert">{{c.fieldErrors.galleryName}}</p>
+      {{/if}}
+      <div data-share-preview aria-live="polite"{{#unless c.preview}} hidden{{/unless}}>
+        {{#if c.preview}}
+        <p class="form-hint">{{c.preview.tagsLine}}{{#if c.preview.madeFromNameNote}} {{c.preview.madeFromNameNote}}{{/if}}</p>
+        <p class="form-hint">{{c.preview.addressLine}}</p>
+        {{/if}}
+      </div>
+      <input type="hidden" name="galleryPreview" value="{{c.preview.token}}" data-share-preview-token>
+    </div>
+    {{#if c.curator}}
+    <details class="gallery-advanced"{{#if (or c.fieldErrors.gallerySlug (or c.fieldErrors.gallerySort c.fieldErrors.galleryExcludeTags))}} open{{/if}}>
+      <summary>Advanced: the gallery's address, order and excluded hashtags</summary>
+      <div class="form-field">
+        <label for="share-gallery-slug">Address (optional; made from the name when left empty):</label>
+        <input type="text" id="share-gallery-slug" name="gallerySlug" value="{{c.formValues.gallerySlug}}" placeholder="freestyle_tricks" data-share-gallery-slug>
+        <small class="form-hint">Becomes <code>/media/gallery_&lt;address&gt;</code>, converted to the letters a to z, digits and underscores.</small>
+        {{#if c.fieldErrors.gallerySlug}}
+        <p class="form-field-error" role="alert">{{c.fieldErrors.gallerySlug}}</p>
+        {{/if}}
+      </div>
+      <div class="form-field">
+        <label for="share-gallery-sort">Sort order</label>
+        <select id="share-gallery-sort" name="gallerySort">
+          {{#each c.curator.sortOptions}}
+          <option value="{{value}}"{{#if selected}} selected{{/if}}>{{label}}</option>
+          {{/each}}
+        </select>
+        {{#if c.fieldErrors.gallerySort}}
+        <p class="form-field-error" role="alert">{{c.fieldErrors.gallerySort}}</p>
+        {{/if}}
+      </div>
+      <div class="form-field">
+        <label for="share-gallery-exclude-tags">Exclude hashtags (optional):</label>
+        <input type="text" id="share-gallery-exclude-tags" name="galleryExcludeTags" value="{{c.formValues.galleryExcludeTags}}" placeholder="#tricks_of_the_trade">
+        <small class="form-hint">An item carrying any of these hashtags is left out of the gallery.</small>
+        {{#if c.fieldErrors.galleryExcludeTags}}
+        <p class="form-field-error" role="alert">{{c.fieldErrors.galleryExcludeTags}}</p>
+        {{/if}}
+      </div>
+    </details>
+    {{/if}}
+  </fieldset>
+
+  {{#if c.curator}}
+  {{!-- The video script's status line, written only by it; it collapses while
+       empty, and sits above the button because it carries the browser-side
+       size refusal. --}}
+  <p data-async-status></p>
+  <progress data-async-progress value="0" max="1" hidden></progress>
+  {{/if}}
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">{{c.submitLabel}}</button>
+    <a href="{{c.cancelHref}}" class="btn btn-outline">Cancel</a>
+  </div>
+</form>
+<script type="application/json" id="share-media-data">{{{c.shareDataJson}}}</script>
+{{> fold-token-script}}
+<script src="{{{asset 'js/tag-chips.js'}}}" defer></script>
+{{#if c.tagSuggestions}}
+<script src="{{{asset 'js/tag-suggestions.js'}}}" defer></script>
+{{/if}}
+<script src="{{{asset 'js/share-media.js'}}}" defer></script>
+{{#if c.curator}}
+<script src="{{{asset 'js/admin-curator-upload.js'}}}" defer></script>
+{{/if}}

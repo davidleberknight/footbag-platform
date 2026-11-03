@@ -5,6 +5,7 @@
 </div>
 
 <div class="wrapper">
+  {{> share-notices notices=content.notices}}
   <article class="gallery-item-detail" data-back-href="{{content.backHref}}"{{#if content.prevHref}} data-prev-href="{{content.prevHref}}"{{/if}}{{#if content.nextHref}} data-next-href="{{content.nextHref}}"{{/if}}>
     <nav class="gallery-item-pager">
       {{#if content.showPager}}
@@ -81,6 +82,10 @@
         {{/if}}
 
         <p class="gallery-tile-date"><time datetime="{{content.item.uploadedAtIso}}">{{content.item.uploadedAtDisplay}}</time></p>
+
+        {{#if content.ownerEditHref}}
+          <p><a href="{{content.ownerEditHref}}" class="btn btn-outline">Edit This Item</a></p>
+        {{/if}}
 
         {{#if content.flag}}
           {{#if content.flag.alreadyFlagged}}

@@ -30,11 +30,13 @@ import {
   getDefaultCuratorMediaService,
   getMemberMediaEditPage,
   memberGalleriesHref,
+  memberGalleryChips,
+  memberItemLandingHref,
   parseTagList,
   type MemberMediaEditFormValues,
 } from '../services/curatorMediaService';
 import { NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
-import { FLASH_KIND, writeFlash, writeMediaSavedFlash } from '../lib/flashCookie';
+import { FLASH_KIND, writeFlash, writeShareFlash } from '../lib/flashCookie';
 import { renderNotFound } from '../lib/controllerErrors';
 import { isAdminCaller, isOwnMemberRoute } from '../lib/routeOwnership';
 import { hashtagDiscoveryService, type MemberTagSuggestions } from '../services/hashtagDiscoveryService';
@@ -53,6 +55,7 @@ function renderForm(
     errorMessage?: string;
     tagSuggestions?: MemberTagSuggestions;
     playerSearch?: { query?: string; actorMemberId: string; ip: string };
+    owner?: { memberId: string; slug: string };
   } = {},
 ): void {
   res.status(opts.status ?? 200).render(
@@ -61,6 +64,8 @@ function renderForm(
       errorMessage: opts.errorMessage,
       tagSuggestions: opts.tagSuggestions,
       playerSearch: opts.playerSearch,
+      galleryChips: opts.owner ? memberGalleryChips(buildSvc(), opts.owner.memberId) : [],
+      memberSlug: opts.owner?.slug,
     }),
   );
 }
@@ -94,6 +99,7 @@ export const memberMediaEditController = {
       renderForm(res, memberKey, mediaId, formValues, {
         tagSuggestions,
         playerSearch: { query, actorMemberId: memberId, ip: req.ip ?? 'unknown' },
+        owner: { memberId, slug: req.user!.slug },
       });
     } catch (err) {
       logger.error('member media edit GET error', { error: err instanceof Error ? err.message : String(err) });
@@ -130,8 +136,10 @@ export const memberMediaEditController = {
         externalUrl,
         addPlayer: typeof req.body?.addPlayer === 'string' ? req.body.addPlayer : undefined,
       });
-      writeMediaSavedFlash(res, req, 'edit', changedTypedTags(req.body?.tags));
-      res.redirect(303, memberGalleriesHref(memberKey));
+      writeShareFlash(res, req, {
+        mediaId, count: 0, saved: true, gallery: null, folded: changedTypedTags(req.body?.tags), rejected: [],
+      });
+      res.redirect(303, memberItemLandingHref(memberId, mediaId));
     } catch (err) {
       if (err instanceof NotFoundError) {
         renderNotFound(res);
@@ -142,7 +150,7 @@ export const memberMediaEditController = {
           caption: captionRaw,
           tags: (req.body?.tags ?? '') as string,
           externalUrl: externalUrlRaw,
-        }, { status: 422, errorMessage: err.message });
+        }, { status: 422, errorMessage: err.message, owner: { memberId, slug } });
         return;
       }
       if (err instanceof RateLimitedError) {
@@ -151,7 +159,7 @@ export const memberMediaEditController = {
           caption: captionRaw,
           tags: (req.body?.tags ?? '') as string,
           externalUrl: externalUrlRaw,
-        }, { status: 429, errorMessage: err.message });
+        }, { status: 429, errorMessage: err.message, owner: { memberId, slug } });
         return;
       }
       logger.error('member media edit POST error', { error: err instanceof Error ? err.message : String(err) });

@@ -13,8 +13,9 @@
                placeholder="Search by name..."
                value="{{query}}"
                class="search-box-input" />
-        <button type="submit" form="{{searchFormId}}" formmethod="get" formaction="{{formAction}}#find-members" formnovalidate class="btn btn-primary">Search</button>
+        <button type="submit" form="{{searchFormId}}" formmethod="get" formaction="{{formAction}}#find-members" formnovalidate class="btn btn-primary" data-member-search-submit>Search</button>
       </div>
+      <script src="{{{asset 'js/member-search-enter.js'}}}" defer></script>
     {{else}}
       <form method="GET" action="{{formAction}}#find-members" class="search-box-form" role="search">
         <input type="text" name="q" minlength="2" maxlength="100"

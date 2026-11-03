@@ -1,15 +1,14 @@
 /**
  * Member-owned named-gallery routes. The owner-only surface for
- * /members/:memberKey/galleries/{,new,:id/edit,:id/delete}. Mirrors
- * the existing admin curator gallery routes' shape but scopes every
- * write to the authenticated member's own galleries.
+ * /members/:memberKey/galleries/{,:id/edit,:id/delete}. A gallery is created
+ * on the Share Media form by naming a set of hashtags, never here; this
+ * surface lists, edits and deletes the member's own galleries.
  *
  * Authz model:
  *   - `requireAuth` middleware redirects unauthenticated requests to /login.
  *   - `requireTier1Benefits` middleware returns 403 for under-tiered
- *     members on every write route and on the two forms that lead to one
- *     (the new-gallery form and a gallery's edit form), so a member the
- *     write would refuse never reaches the form. The list itself stays
+ *     members on every write route and on a gallery's edit form, so a member
+ *     the write would refuse never reaches the form. The list itself stays
  *     open and carries the benefit text where its controls would be.
  *   - This controller asserts `req.user.slug === req.params.memberKey`;
  *     a mismatch returns 404 (anti-enumeration; matches the existing
@@ -22,26 +21,21 @@
  */
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../config/logger';
-import { ImageProcessingError } from '../adapters/imageProcessingAdapter';
 import {
   getDefaultCuratorMediaService,
   memberGalleriesHref,
   parseTagList,
   parseExternalLinkInputs,
-  createMemberGalleryWithUploads,
-  updateMemberGalleryWithUploads,
+  updateMemberGallery,
   buildExternalLinkSlots,
-  getMemberGalleryNewPage,
   getMemberGalleryEditPage,
   getMemberGalleryListPage,
   getMemberGalleryListErrorPage,
-  type CuratorGalleryEditView,
   changedTypedTags,
 } from '../services/curatorMediaService';
 import { NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
-import { parseGalleryMultipart } from './galleryFormHelpers';
-import { FLASH_KIND, writeFlash, takeMediaSaved, writeMediaSavedFlash } from '../lib/flashCookie';
-import { renderImageWorkerUnavailable, renderNotFound } from '../lib/controllerErrors';
+import { FLASH_KIND, writeFlash, takeMediaSaved, writeShareFlash } from '../lib/flashCookie';
+import { renderNotFound } from '../lib/controllerErrors';
 import { isAdminCaller, isOwnMemberRoute } from '../lib/routeOwnership';
 import { mediaService } from '../services/mediaService';
 
@@ -54,9 +48,6 @@ import { mediaService } from '../services/mediaService';
 // caller input, so the prepended tag cannot be forged.
 
 const buildSvc = getDefaultCuratorMediaService;
-
-// A form-encoded save carries no photos.
-const NO_UPLOADS = { files: [], limitExceeded: false, droppedNamelessFile: false } as const;
 
 function renderListWithError(
   req: Request,
@@ -98,75 +89,6 @@ export const memberGalleryController = {
     }
   },
 
-  /** GET /members/:memberKey/galleries/new — render new-gallery form. */
-  getNew(req: Request, res: Response): void {
-    if (!isOwnMemberRoute(req)) {
-      renderNotFound(res);
-      return;
-    }
-    const memberKey = req.params.memberKey;
-    res.render('members/galleries/new', getMemberGalleryNewPage(memberKey));
-  },
-
-  /** POST /members/:memberKey/galleries — create a new gallery (form-encoded
-   * fast path) or create + upload files (multipart path; browser default
-   * via the new-gallery form's enctype). The two paths converge after
-   * field parsing. */
-  async postCreate(req: Request, res: Response, next: NextFunction): Promise<void> {
-    if (!isOwnMemberRoute(req)) {
-      renderNotFound(res);
-      return;
-    }
-    if (req.is('multipart/form-data')) {
-      handleMultipartCreate(req, res, next);
-      return;
-    }
-    try {
-      const memberKey = req.params.memberKey;
-      const actorMemberId = req.user!.userId;
-      const name = String(req.body?.name ?? '');
-      const description = String(req.body?.description ?? '');
-      const sortOrderRaw = String(req.body?.sortOrder ?? '');
-      const criteriaTags = parseTagList(req.body?.criteriaTags);
-      const excludeTags = parseTagList(req.body?.excludeTags);
-      const externalLinks = parseExternalLinkInputs(req.body ?? {});
-
-      // The owner is the session's member whatever the request carried.
-      const result = await createMemberGalleryWithUploads(buildSvc(), {
-        actorMemberId,
-        actorIsAdmin: isAdminCaller(req),
-        slug: req.user!.slug,
-        updates: { name, description, sortOrder: sortOrderRaw, criteriaTags, excludeTags, externalLinks },
-        uploadTags: [],
-        uploads: NO_UPLOADS,
-      });
-      if (result.status !== 'refused') {
-        writeMediaSavedFlash(res, req, 'create', changedTypedTags(req.body?.criteriaTags, req.body?.excludeTags));
-        res.redirect(303, memberGalleriesHref(memberKey));
-        return;
-      }
-      if (result.retryAfterSeconds) res.setHeader('Retry-After', String(result.retryAfterSeconds));
-      res.status(result.httpStatus).render(
-        'members/galleries/new',
-        getMemberGalleryNewPage(memberKey, {
-          errorMessage: result.message,
-          fieldErrors: result.fieldErrors,
-          gallery: {
-            name,
-            description,
-            sortOrder: sortOrderRaw,
-            criteriaTagsString: (req.body?.criteriaTags ?? '') as string,
-            excludeTagsString: (req.body?.excludeTags ?? '') as string,
-          },
-          externalLinks,
-        }),
-      );
-    } catch (err) {
-      logger.error('member gallery create error', { error: err instanceof Error ? err.message : String(err) });
-      next(err);
-    }
-  },
-
   /** GET /members/:memberKey/galleries/:id/edit — render edit form. */
   getEdit(req: Request, res: Response, next: NextFunction): void {
     if (!isOwnMemberRoute(req)) {
@@ -195,9 +117,10 @@ export const memberGalleryController = {
               excludeTagsString: g.excludeTags.join(' '),
               isDefault: g.isDefault,
             },
+            criteriaTags: g.criteriaTags,
+            isDefault: g.isDefault,
             currentItems: g.currentItems,
             currentItemsTruncated: g.currentItemsTruncated,
-            uploadTags: g.criteriaTagsDisplayString,
             externalLinkSlots: buildExternalLinkSlots(null, g.externalLinks),
           }),
         );
@@ -213,21 +136,16 @@ export const memberGalleryController = {
     }
   },
 
-  /** POST /members/:memberKey/galleries/:id/edit — apply edit. */
+  /** POST /members/:memberKey/galleries/:id/edit — apply edit, landing on the gallery. */
   async postUpdate(req: Request, res: Response, next: NextFunction): Promise<void> {
     if (!isOwnMemberRoute(req)) {
       renderNotFound(res);
-      return;
-    }
-    if (req.is('multipart/form-data')) {
-      handleMultipartUpdate(req, res, next);
       return;
     }
     try {
       const memberKey = req.params.memberKey;
       const galleryId = req.params.id;
       const actorMemberId = req.user!.userId;
-      const actorIsAdmin = isAdminCaller(req);
       const name = String(req.body?.name ?? '');
       const description = String(req.body?.description ?? '');
       const sortOrderRaw = String(req.body?.sortOrder ?? '');
@@ -238,18 +156,22 @@ export const memberGalleryController = {
       const svc = buildSvc();
       // A gallery that is not the member's own answers not-found, as the edit
       // page itself does.
-      const result = await updateMemberGalleryWithUploads(svc, {
+      const result = await updateMemberGallery(svc, {
         actorMemberId,
-        actorIsAdmin,
-        slug: req.user!.slug,
+        actorIsAdmin: isAdminCaller(req),
         galleryId,
         updates: { name, description, sortOrder: sortOrderRaw, criteriaTags, excludeTags, externalLinks },
-        uploadTags: [],
-        uploads: NO_UPLOADS,
       });
       if (result.status === 'saved') {
-        writeMediaSavedFlash(res, req, 'edit', changedTypedTags(req.body?.criteriaTags, req.body?.excludeTags));
-        res.redirect(303, memberGalleriesHref(memberKey));
+        writeShareFlash(res, req, {
+          mediaId: null,
+          count: 0,
+          saved: true,
+          gallery: { id: galleryId, name, tags: [], created: false },
+          folded: changedTypedTags(req.body?.criteriaTags, req.body?.excludeTags),
+          rejected: [],
+        });
+        res.redirect(303, result.landingHref);
         return;
       }
       if (result.status === 'not_found') {
@@ -274,10 +196,12 @@ export const memberGalleryController = {
             sortOrder: sortOrderRaw,
             criteriaTagsString: (req.body?.criteriaTags ?? '') as string,
             excludeTagsString: (req.body?.excludeTags ?? '') as string,
+            isDefault: reread.isDefault,
           },
+          criteriaTags: reread.criteriaTags,
+          isDefault: reread.isDefault,
           currentItems: reread.currentItems,
           currentItemsTruncated: reread.currentItemsTruncated,
-          uploadTags: (req.body?.uploadTags ?? '') as string,
           externalLinkSlots: buildExternalLinkSlots(externalLinks, [], result.fieldErrors),
         }),
       );
@@ -331,219 +255,3 @@ export const memberGalleryController = {
     }
   },
 };
-
-// Multipart variant of POST /members/:memberKey/galleries. Browsers reach
-// this branch from the new-gallery form (enctype=multipart/form-data). The
-// service checks every file before writing anything, creates the gallery,
-// then uploads each file into it. No-files submits land here too and
-// behave equivalent to the form-encoded fast path (gallery created, no
-// uploads).
-//
-// Atomicity: gallery creation runs in its own transaction; each file
-// upload runs in its own transaction. If a file upload fails partway
-// through (e.g. storage put error), the gallery and any already-uploaded
-// files persist. The user can retry the missing files via the standalone
-// upload page. The atomicity design's "single transaction" commitment is kept on
-// the read-side (file pre-validation rejects bad input before any DB
-// write) and on the gallery side (no files written if gallery insert
-// fails), but does not extend to forcing all media inserts into one
-// transaction with the gallery insert.
-function handleMultipartCreate(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): void {
-  const memberKey = req.params.memberKey;
-  parseGalleryMultipart(
-    req,
-    (parsed) => {
-      void executeMultipartCreate({
-        req, res, memberKey, ...parsed,
-      }).catch((err: unknown) => {
-        if (err instanceof ImageProcessingError) {
-          renderImageWorkerUnavailable(res, 'member gallery upload: image worker unavailable', err);
-          return;
-        }
-        logger.error('member gallery multipart create error', {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        next(err);
-      });
-    },
-    (err) => {
-      logger.error('busboy parse error', { error: err.message });
-      next(err);
-    },
-  );
-}
-
-function handleMultipartUpdate(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): void {
-  const memberKey = req.params.memberKey;
-  const galleryId = req.params.id;
-  parseGalleryMultipart(
-    req,
-    (parsed) => {
-      void executeMultipartUpdate({
-        req, res, memberKey, galleryId, ...parsed,
-      }).catch((err: unknown) => {
-        if (err instanceof ImageProcessingError) {
-          renderImageWorkerUnavailable(res, 'member gallery upload: image worker unavailable', err);
-          return;
-        }
-        logger.error('member gallery multipart update error', {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        next(err);
-      });
-    },
-    (err) => {
-      logger.error('busboy parse error', { error: err.message });
-      next(err);
-    },
-  );
-}
-
-async function executeMultipartCreate(args: {
-  req: Request;
-  res: Response;
-  memberKey: string;
-  fields: Record<string, string>;
-  photoFiles: Array<{ buffer: Buffer; filename: string }>;
-  limitExceeded: boolean;
-  droppedNamelessFile: boolean;
-}): Promise<void> {
-  const { req, res, memberKey, fields, photoFiles, limitExceeded, droppedNamelessFile } = args;
-  const actorMemberId = req.user!.userId;
-  const actorIsAdmin = isAdminCaller(req);
-  const slug = req.user!.slug;
-
-  const name = String(fields.name ?? '');
-  const description = String(fields.description ?? '');
-  const sortOrderRaw = String(fields.sortOrder ?? '');
-  const criteriaTags = parseTagList(fields.criteriaTags);
-  const excludeTags = parseTagList(fields.excludeTags);
-  const uploadTagsRaw = (fields.uploadTags ?? '') as string;
-  const uploadTags = parseTagList(uploadTagsRaw);
-  const externalLinks = parseExternalLinkInputs(fields);
-
-  const result = await createMemberGalleryWithUploads(buildSvc(), {
-    actorMemberId,
-    actorIsAdmin,
-    slug,
-    updates: { name, description, sortOrder: sortOrderRaw, criteriaTags, excludeTags, externalLinks },
-    uploadTags,
-    uploads: { files: photoFiles, limitExceeded, droppedNamelessFile },
-  });
-  if (result.status !== 'refused') {
-    writeMediaSavedFlash(res, req, 'create', changedTypedTags(fields.criteriaTags, fields.excludeTags, uploadTagsRaw));
-    res.redirect(303, memberGalleriesHref(memberKey));
-    return;
-  }
-  if (result.retryAfterSeconds) res.setHeader('Retry-After', String(result.retryAfterSeconds));
-  res.status(result.httpStatus).render(
-    'members/galleries/new',
-    getMemberGalleryNewPage(memberKey, {
-      errorMessage: result.message,
-      fieldErrors: result.fieldErrors,
-      gallery: {
-        name,
-        description,
-        sortOrder: sortOrderRaw,
-        criteriaTagsString: fields.criteriaTags ?? '',
-        excludeTagsString: fields.excludeTags ?? '',
-      },
-      uploadTags: uploadTagsRaw,
-      externalLinks,
-    }),
-  );
-}
-
-async function executeMultipartUpdate(args: {
-  req: Request;
-  res: Response;
-  memberKey: string;
-  galleryId: string;
-  fields: Record<string, string>;
-  photoFiles: Array<{ buffer: Buffer; filename: string }>;
-  limitExceeded: boolean;
-  droppedNamelessFile: boolean;
-}): Promise<void> {
-  const { req, res, memberKey, galleryId, fields, photoFiles, limitExceeded, droppedNamelessFile } = args;
-  const actorMemberId = req.user!.userId;
-  const actorIsAdmin = isAdminCaller(req);
-  const slug = req.user!.slug;
-
-  const name = String(fields.name ?? '');
-  const description = String(fields.description ?? '');
-  const sortOrderRaw = String(fields.sortOrder ?? '');
-  const criteriaTags = parseTagList(fields.criteriaTags);
-  const excludeTags = parseTagList(fields.excludeTags);
-  const uploadTagsRaw = (fields.uploadTags ?? '') as string;
-  const uploadTags = parseTagList(uploadTagsRaw);
-  const externalLinks = parseExternalLinkInputs(fields);
-
-  const svc = buildSvc();
-
-  function rerenderError(
-    status: number,
-    errorMessage: string,
-    fieldErrors?: Record<string, string>,
-  ): void {
-    let currentItems: CuratorGalleryEditView['currentItems'] = [];
-    let currentItemsTruncated = false;
-    let isDefault = false;
-    try {
-      const reread = svc.getGalleryForEdit(galleryId, actorMemberId, { memberKey });
-      currentItems = reread.currentItems;
-      currentItemsTruncated = reread.currentItemsTruncated;
-      isDefault = reread.isDefault;
-    } catch {
-      /* gallery may have been deleted concurrently; render with empty items */
-    }
-    res.status(status).render(
-      'members/galleries/edit',
-      getMemberGalleryEditPage(memberKey, galleryId, {
-        errorMessage,
-        fieldErrors,
-        gallery: {
-          id: galleryId,
-          name,
-          description,
-          sortOrder: sortOrderRaw,
-          criteriaTagsString: fields.criteriaTags ?? '',
-          excludeTagsString: fields.excludeTags ?? '',
-          isDefault,
-        },
-        currentItems,
-        currentItemsTruncated,
-        uploadTags: uploadTagsRaw,
-        externalLinkSlots: buildExternalLinkSlots(externalLinks, [], fieldErrors),
-      }),
-    );
-  }
-
-  const result = await updateMemberGalleryWithUploads(svc, {
-    actorMemberId,
-    actorIsAdmin,
-    slug,
-    galleryId,
-    updates: { name, description, sortOrder: sortOrderRaw, criteriaTags, excludeTags, externalLinks },
-    uploadTags,
-    uploads: { files: photoFiles, limitExceeded, droppedNamelessFile },
-  });
-  if (result.status === 'not_found') {
-    renderNotFound(res);
-    return;
-  }
-  if (result.status === 'refused') {
-    if (result.retryAfterSeconds) res.setHeader('Retry-After', String(result.retryAfterSeconds));
-    rerenderError(result.httpStatus, result.message, result.fieldErrors);
-    return;
-  }
-  writeMediaSavedFlash(res, req, 'edit', changedTypedTags(fields.criteriaTags, fields.excludeTags, uploadTagsRaw));
-  res.redirect(303, memberGalleriesHref(memberKey));
-}

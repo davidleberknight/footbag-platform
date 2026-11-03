@@ -1021,7 +1021,7 @@ A "named gallery" is a stable URL bookmark, not a content bucket. The `member_ga
 
 #### Curator video transcode jobs (`media_jobs`)
 
-**Table:** `media_jobs`. Lifecycle row backing the asynchronous interactive admin video upload (DD §6.8 "Asynchronous orchestration"). The row records the full state machine of a single admin upload from sign-time through transcode-complete, plus the metadata captured on the form (caption, tags, source filename) so the worker can persist the resulting `media_items` row on success.
+**Table:** `media_jobs`. Lifecycle row backing the asynchronous interactive admin video upload (DD §6.8 "Asynchronous orchestration"). The row records the full state machine of a single admin upload from sign-time through transcode-complete, plus the metadata captured on the form (caption, tags, source filename, external URL) so the worker can persist the resulting `media_items` row on success.
 
 `kind`: discriminator. Only `'curator_video'` exists today; future variants share this table if other media paths move off the synchronous request chain.
 
@@ -1215,7 +1215,10 @@ To change any value: INSERT a new row into `system_config` with the desired `val
 | `verify_resend_rate_limit_max_attempts` | `3` | Max verify-email resend requests per email per window |
 | `verify_resend_rate_limit_window_minutes` | `60` | Fixed window (minutes), opened at the first counted attempt, for counting verify-email resend requests |
 | `jwt_expiry_hours` | `24` | Session JWT lifetime (hours); governs archive access expiry |
-| `photo_upload_rate_limit_per_hour` | `10` | Max photo uploads per member per hour |
+| `photo_upload_rate_limit_per_hour` | `30` | Max photos per member per hour, counting each photo |
+| `photo_upload_max_files_per_submit` | `4` | Max photos in one Share Media submit; code maximum 20 |
+| `photo_upload_max_file_mb` | `25` | Max size of one photo in megabytes; code maximum 25 |
+| `photo_upload_max_submit_mb` | `50` | Max total size of the photos in one submit in megabytes; code maximum 250 |
 | `avatar_upload_rate_limit_per_hour` | `10` | Max avatar uploads per member per hour |
 | `profile_edit_rate_limit_per_hour` | `20` | Max profile edits per member per hour |
 | `purchase_tier_rate_limit_per_hour` | `20` | Max tier-purchase attempts per member per hour |

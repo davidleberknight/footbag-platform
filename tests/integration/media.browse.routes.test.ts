@@ -128,9 +128,9 @@ describe('GET /media/browse — browse mode (no criteria)', () => {
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/No media found for:[\s\S]*#does_not_exist_xyz/);
     expect(res.text).not.toContain('class="gallery-grid"');
-    // Form retains the submitted token (without leading #) so the user
-    // can edit it.
-    expect(res.text).toContain('value="does_not_exist_xyz"');
+    // Form retains the submitted token, with its leading #, so the user
+    // can edit it and send it back as the same hashtag.
+    expect(res.text).toContain('value="#does_not_exist_xyz"');
   });
 
   it('drops empty / bare-# tokens silently, no crash', async () => {
@@ -214,13 +214,22 @@ describe('GET /media/browse — results mode', () => {
     expect(res.text).not.toContain('photo-tut-marker');
   });
 
-  it('accepts whitespace-joined single-string ?tag= form (form-submit shape)', async () => {
-    // form input "butterfly spike" → ?tag=butterfly+spike (single string).
+  it('accepts several hashtags typed in one ?tag= field (form-submit shape)', async () => {
+    // form input "#butterfly #spike" → ?tag=%23butterfly+%23spike (single string).
     const app = createApp();
-    const res = await request(app).get('/media/browse?tag=butterfly+spike');
+    const res = await request(app).get('/media/browse?tag=%23butterfly+%23spike');
     expect(res.status).toBe(200);
     expect(res.text).toContain('photo-both-marker');
     expect(res.text).not.toContain('photo-butonly-marker');
+  });
+
+  // Defect caught: words typed in the field without a # are searched as
+  // several hashtags, while the same words are saved on an item as one.
+  it('reads words typed in one ?tag= field without a # as one hashtag', async () => {
+    const res = await request(createApp()).get('/media/browse?tag=butterfly+spike');
+    expect(res.status).toBe(200);
+    expect(res.text).toMatch(/No media found for:[\s\S]*#butterfly_spike/);
+    expect(res.text).not.toContain('photo-both-marker');
   });
 
   it('honors ?exclude= to filter out items carrying any excluded tag', async () => {
@@ -289,8 +298,10 @@ describe('GET /media/browse — results mode', () => {
     // The raw #by_<slug> token is never echoed as a tag.
     const heroOpen = res.text.search(/class="hero hero-sm[^"]*"/);
     expect(heroOpen).toBeGreaterThan(-1);
-    const heroClose = res.text.indexOf('</div>\n</div>', heroOpen);
-    const heroBlock = res.text.slice(heroOpen, heroClose);
+    const heroClose = res.text.slice(heroOpen).search(/<\/div>\s*<\/div>/);
+    expect(heroClose).toBeGreaterThan(-1);
+    const heroBlock = res.text.slice(heroOpen, heroOpen + heroClose);
+    expect(heroBlock).toContain('<h1>Browse Regular</h1>');
     expect(heroBlock).not.toContain('#by_browse_regular');
   });
 

@@ -1357,8 +1357,8 @@ describe('GET /media/:galleryId — browse-all handoff', () => {
     // field; the gallery's exclude criterion prefills the editable exclude field.
     expect(res.text).not.toContain('Browse all matching media');
     expect(res.text).toContain('action="/media/browse"');
-    expect(res.text).toContain('name="tag" value="handoff_topic handoff_refine" data-tag-chips');
-    expect(res.text).toContain('name="exclude" value="handoff_excl" data-tag-chips');
+    expect(res.text).toContain('name="tag" value="#handoff_topic #handoff_refine" data-tag-chips');
+    expect(res.text).toContain('name="exclude" value="#handoff_excl" data-tag-chips');
   });
 
   it('the handoff target resolves to the same item in the paginated browse surface', async () => {
@@ -1417,6 +1417,6 @@ describe('GET /media/:galleryId — browse-all handoff', () => {
     // /media/browse, paginated), not a separate Browse-all button.
     expect(res.text).not.toContain('Browse all matching media');
     expect(res.text).toContain('action="/media/browse"');
-    expect(res.text).toContain('name="tag" value="handoff_big" data-tag-chips');
+    expect(res.text).toContain('name="tag" value="#handoff_big" data-tag-chips');
   });
 });

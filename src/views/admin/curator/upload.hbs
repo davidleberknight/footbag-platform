@@ -1,15 +1,9 @@
 {{!--
-  Admin curator upload form.
-
-  Layout: CSS-only tabbed type selector. The mediaType radio inputs sit at
-  the top of `.upload-tabs`; CSS `:checked ~` sibling selectors reveal the
-  matching panel. No JavaScript required for the core flow; the
-  admin-curator-upload.js script enhances S3-mode video uploads with async
-  PUT (still falls back to multipart if JS is disabled in local-adapter
-  mode).
-
-  Without CSS the panels all stay visible and the form submits fine —
-  progressive enhancement.
+  The curator's Share Media form: the member's form (partial
+  share-media-form) with the curator's differences, credited to Footbag Hacky.
+  A submit lands back here with its report. Photo and link uploads work
+  without JavaScript; where storage is S3 a video file needs it, and the
+  noscript banner says so.
 --}}
 <div class="hero hero-sm">
   <div>
@@ -20,175 +14,20 @@
 <div class="wrapper">
   {{> admin-instructions}}
 
+  <p>{{content.intro}}</p>
+
+  {{> share-notices notices=content.curator.notices}}
+  {{> outcome-notice text=content.notice}}
   {{> outcome-notice text=content.errorMessage tone='no'}}
 
-  {{#if content.savedFlag}}
-    {{#> outcome-notice tone='ok'}}
-      <p>
-      {{#if content.sidecarWritesEnabled}}
-        Sidecar saved under <code>/curated/</code>. Run the curator seeder
-        (<code>python scripts/seed_fh_curator.py</code>) to update the platform DB.
-      {{else}}
-        Uploaded.
-      {{/if}}
-      </p>
-      {{#if content.savedFoldLine}}<p>{{content.savedFoldLine}}</p>{{/if}}
-    {{/outcome-notice}}
-  {{/if}}
-
-  {{#if content.asyncEnabled}}
+  {{#if content.curator.asyncEnabled}}
     <noscript>
       <div class="notice-card notice-card--warn">
         JavaScript is required to upload videos in this environment.
-        Photo and URL-reference uploads work without it.
+        Photo and video link uploads work without it.
       </div>
     </noscript>
   {{/if}}
 
-  <form action="/admin/curator/upload" method="POST" enctype="multipart/form-data"{{#if content.asyncEnabled}} data-async-enabled="true"{{/if}} data-video-max-bytes="{{content.videoMaxBytes}}" class="upload-form form-block">
-
-    <div class="upload-tabs">
-      {{!-- Hidden radios act as the tab control. The mediaType field is
-           the same form input the server reads; the visual tabs are
-           driven by :checked ~ sibling selectors in CSS. The `checked`
-           attribute mirrors the user's submitted choice on a re-render
-           after a 422, so an error doesn't snap them back to the Photo
-           tab. Photo is the default when no choice has been made yet. --}}
-      <input type="radio" name="mediaType" value="photo"         id="upload-tab-photo"
-        {{#unless (eq content.formValues.mediaType "video")}}{{#unless (eq content.formValues.mediaType "url_reference")}}checked{{/unless}}{{/unless}}
-        class="upload-tab-radio">
-      <input type="radio" name="mediaType" value="video"         id="upload-tab-video"
-        {{#if (eq content.formValues.mediaType "video")}}checked{{/if}}
-        class="upload-tab-radio">
-      <input type="radio" name="mediaType" value="url_reference" id="upload-tab-url"
-        {{#if (eq content.formValues.mediaType "url_reference")}}checked{{/if}}
-        class="upload-tab-radio">
-
-      <div class="upload-tab-bar">
-        <label for="upload-tab-photo" class="upload-tab">Photo</label>
-        <label for="upload-tab-video" class="upload-tab">Video file{{#if content.asyncEnabled}} <span class="upload-tab-hint">(JS)</span>{{/if}}</label>
-        <label for="upload-tab-url"   class="upload-tab">Video link</label>
-      </div>
-
-      <div class="upload-tab-panels">
-        <div class="upload-tab-panel upload-tab-panel-photo">
-          <fieldset>
-            <legend>Photo file</legend>
-            <div class="form-field">
-              <label for="curator-upload-photo">File</label>
-              <input type="file" id="curator-upload-photo" name="mediaFile" accept="image/jpeg,image/png">
-              <small class="form-hint">JPEG or PNG, up to 25&nbsp;MB.</small>
-            </div>
-          </fieldset>
-        </div>
-
-        <div class="upload-tab-panel upload-tab-panel-video">
-          <fieldset>
-            <legend>Video file + poster</legend>
-            <div class="form-field">
-              <label for="curator-upload-video">Video file</label>
-              <input type="file" id="curator-upload-video" name="mediaFile" accept="video/mp4,video/webm,video/quicktime">
-              <small class="form-hint">MP4, WebM or MOV, up to {{content.videoMaxMb}}&nbsp;MB.</small>
-            </div>
-            <div class="form-field">
-              <label for="curator-upload-poster">Poster image</label>
-              <input type="file" id="curator-upload-poster" name="poster" accept="image/jpeg,image/png">
-              <small class="form-hint">JPEG or PNG, up to 25&nbsp;MB.</small>
-            </div>
-          </fieldset>
-        </div>
-
-        <div class="upload-tab-panel upload-tab-panel-url">
-          <fieldset>
-            <legend>YouTube / Vimeo link</legend>
-            <div class="form-field">
-              <label for="curator-upload-platform">Platform</label>
-              <select id="curator-upload-platform" name="videoPlatform">
-                <option value="">--</option>
-                <option value="youtube" {{#if (eq content.formValues.videoPlatform "youtube")}}selected{{/if}}>YouTube</option>
-                <option value="vimeo"   {{#if (eq content.formValues.videoPlatform "vimeo")}}selected{{/if}}>Vimeo</option>
-              </select>
-            </div>
-            <div class="form-field">
-              <label for="curator-upload-video-url">Video URL</label>
-              <input type="url" id="curator-upload-video-url" name="videoUrl" value="{{content.formValues.videoUrl}}" placeholder="https://www.youtube.com/watch?v=...">
-            </div>
-            {{#if content.sidecarWritesEnabled}}
-            <div class="form-field">
-              <label for="curator-upload-primary-slug">Primary slug</label>
-              <input type="text" id="curator-upload-primary-slug" name="primarySlug" value="{{content.formValues.primarySlug}}" placeholder="around-the-world">
-              <small class="form-hint">Filename prefix: lowercase letters, digits and hyphens.</small>
-            </div>
-            {{/if}}
-            <div class="form-field">
-              <label for="curator-upload-title">Title</label>
-              <input type="text" id="curator-upload-title" name="title" maxlength="500" value="{{content.formValues.title}}">
-              <small class="form-hint">Used as the caption in the gallery.</small>
-            </div>
-            <div class="form-field">
-              <label for="curator-upload-source-id">Source id</label>
-              <input type="text" id="curator-upload-source-id" name="sourceId" value="{{content.formValues.sourceId}}">
-              <small class="form-hint">Foreign key into <code>media_sources</code>. Optional.</small>
-            </div>
-          </fieldset>
-        </div>
-      </div>
-    </div>
-
-    {{#if content.sidecarWritesEnabled}}
-    <fieldset class="form-fieldset">
-      <legend>Category</legend>
-      <p class="fs-sm">Required for every upload. Determines which subdirectory of <code>/curated/</code> the upload lands in. Tick exactly one existing category, or type a new category name to create a new subdirectory.</p>
-      {{#if content.hasExistingCategories}}
-        <div class="form-field">
-          {{#each content.existingCategories}}
-            <label><input type="checkbox" name="category" value="{{this}}"{{#if (eq ../content.formValues.category this)}} checked{{/if}}> {{this}}</label>
-          {{/each}}
-        </div>
-      {{else}}
-        <p class="fs-sm"><em>No existing curated category subdirectories found.</em></p>
-      {{/if}}
-      <div class="form-field">
-        <label for="curator-upload-new-category">Or new category name</label>
-        <input type="text" id="curator-upload-new-category" name="newCategory" value="{{content.formValues.newCategory}}" placeholder="e.g. demos_2026">
-        <small class="form-hint">Lowercase letters, digits and underscores.</small>
-      </div>
-    </fieldset>
-    {{/if}}
-
-    <fieldset class="form-fieldset">
-      <legend>Details</legend>
-      <div class="form-field">
-        <label for="curator-upload-caption">Caption</label>
-        <textarea id="curator-upload-caption" name="caption" maxlength="500" rows="3">{{content.formValues.caption}}</textarea>
-        <small class="form-hint">Up to 500 characters. Ignored for a video link, which uses the Title above.</small>
-      </div>
-      <div class="form-field">
-        <label for="curator-upload-tags">Hashtags</label>
-        <input id="curator-upload-tags" type="text" name="tags" value="{{content.formValues.tags}}" placeholder="#freestyle #trick #around_the_world">
-        <small class="form-hint">Separated by spaces; each is converted to the letters a to z, digits and underscores. Do not include <code>#curated</code>; it is applied automatically. A clip that names a trick carries exactly one of <code>#tutorial</code>, <code>#demo</code> or <code>#record</code>, which is what says what the clip is for.</small>
-      </div>
-      <div class="form-field">
-        <label for="curator-upload-external-url">External URL</label>
-        <input id="curator-upload-external-url" type="url" name="externalUrl" value="{{content.formValues.externalUrl}}" placeholder="https://example.com/article">
-        <small class="form-hint">Link to the source page or creator. Optional.</small>
-      </div>
-    </fieldset>
-
-    <p class="text-muted fs-sm">Uploader: Footbag Hacky (system member). Gallery: detached.</p>
-
-    {{!-- Video UX hooks, written only by the upload script; no-JS users see
-         only the noscript banner above. Above the submit button rather than
-         below it, because the status line carries the browser-side size
-         refusal, and a refusal placed after the button is read after the
-         click that it just stopped. Both collapse while they are empty. --}}
-    <p data-async-status></p>
-    <progress data-async-progress value="0" max="1" hidden></progress>
-
-    <div class="form-actions">
-      <button type="submit" class="btn btn-primary">Upload</button>
-    </div>
-  </form>
+  {{> share-media-form c=content}}
 </div>
-
-<script src="{{{asset 'js/admin-curator-upload.js'}}}" defer></script>

@@ -23,16 +23,27 @@
   // apostrophes deleted; any other run outside a to z and 0 to 9 becomes one
   // underscore, trimmed from both ends.
   function slugify(text) {
+    return foldKeepingCase(text).toLowerCase();
+  }
+
+  // The same rule with capitals left as typed: a hashtag is shown as its author
+  // capitalized it and only compared in lowercase.
+  function foldKeepingCase(text) {
     var unaccented = String(text).normalize('NFD').replace(COMBINING_MARK, '').normalize('NFC');
     var ascii = '';
     for (var ch of unaccented) {
       ascii += (map && Object.prototype.hasOwnProperty.call(map, ch)) ? map[ch] : ch;
     }
     return ascii
-      .toLowerCase()
       .replace(/'/g, '')
-      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/[^A-Za-z0-9]+/g, '_')
       .replace(/^_+|_+$/g, '');
+  }
+
+  // A typed hashtag in the form it is saved and shown: folded, capitals kept.
+  function typedTagForDisplay(raw) {
+    var body = foldKeepingCase(String(raw).trim().replace(/^#+/, ''));
+    return body ? '#' + body : '';
   }
 
   // Whether text holds a letter or digit with no a to z form even after the
@@ -52,6 +63,17 @@
   function typedTag(raw) {
     var body = slugify(String(raw).trim().replace(/^#+/, ''));
     return body ? '#' + body : '';
+  }
+
+  // Where one typed hashtag ends and the next begins, the server's rule
+  // (splitTypedHashtags in src/services/slugify.ts): what a person types until
+  // they commit it is one hashtag, and each '#' starts a new one. Each piece is
+  // returned as typed, outer spaces trimmed and its '#' kept; a piece with
+  // nothing after its '#' is dropped. Needs no letter table.
+  function splitHashtags(text) {
+    return (String(text).match(/#+[^#]*|[^#]+/g) || [])
+      .map(function (piece) { return piece.trim(); })
+      .filter(function (piece) { return piece.replace(/^#+/, '').trim().length > 0; });
   }
 
   // True once the letter table is in. Without it a preview could show a token the
@@ -90,7 +112,8 @@
     : Promise.resolve(isLoaded());
 
   window.footbagFold = {
-    ready: ready, isLoaded: isLoaded, slugify: slugify, typedTag: typedTag, hasUnconvertible: hasUnconvertible,
-    useTable: useTable, attachNote: attachNote,
+    ready: ready, isLoaded: isLoaded, slugify: slugify, typedTag: typedTag,
+    typedTagForDisplay: typedTagForDisplay, hasUnconvertible: hasUnconvertible,
+    splitHashtags: splitHashtags, useTable: useTable, attachNote: attachNote,
   };
 })();

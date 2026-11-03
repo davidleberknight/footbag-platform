@@ -103,7 +103,7 @@ async function uploadPhoto(agent: ReturnType<typeof request.agent>): Promise<str
     .field('mediaType', 'photo')
     .field('newCategory', 'photos')
     .field('caption', caption)
-    .attach('mediaFile', jpeg, `${caption}.jpg`);
+    .attach('photoFiles', jpeg, `${caption}.jpg`);
   expect(res.status).toBe(303);
   const db = new BetterSqlite3(dbPath, { readonly: true });
   try {
@@ -140,7 +140,7 @@ describe('admin curator pages on a host where the authoring tree is not writable
       .set('Cookie', adminCookie())
       .field('mediaType', 'photo')
       .field('caption', caption)
-      .attach('mediaFile', jpeg, 'no-category.jpg');
+      .attach('photoFiles', jpeg, 'no-category.jpg');
     expect(res.status).toBe(303);
     const db = new BetterSqlite3(dbPath, { readonly: true });
     try {
@@ -219,9 +219,8 @@ describe('curator forms ask for and describe no sidecar where none is written', 
       .post('/admin/curator/upload')
       .set('Cookie', adminCookie())
       .field('mediaType', 'url_reference')
-      .field('videoPlatform', 'youtube')
       .field('videoUrl', VIDEO_URL)
-      .field('title', title)
+      .field('videoCaption', title)
       .field('tags', '#zz_first');
     expect((await send('first title')).status).toBe(303);
 
@@ -248,15 +247,18 @@ describe('curator forms ask for and describe no sidecar where none is written', 
   });
 
   it('the gallery pages describe no JSON sidecar, in the intros or the delete confirmation', async () => {
-    const newPage = await request(createApp()).get('/admin/curator/galleries/new').set('Cookie', adminCookie());
-    expect(newPage.status).toBe(200);
-    expect(newPage.text).not.toContain('/curated/galleries/');
+    const form = await request(createApp()).get('/admin/curator/upload').set('Cookie', adminCookie());
+    expect(form.status).toBe(200);
+    expect(form.text).not.toContain('/curated/galleries/');
 
     const created = await request(createApp())
-      .post('/admin/curator/galleries')
+      .post('/admin/curator/upload')
       .set('Cookie', adminCookie())
-      .type('form')
-      .send({ idSlug: 'zz_off', name: 'ZZ Off', description: '', sortOrder: 'upload_desc', criteriaTags: '#zz_first', excludeTags: '' });
+      .field('mediaType', 'photo')
+      .field('tags', '#zz_first')
+      .field('galleryName', 'ZZ Off')
+      .field('gallerySlug', 'zz_off')
+      .field('galleryPreview', 'gallery_zz_off #curated #zz_first');
     expect(created.status).toBe(303);
     const list = await request(createApp()).get('/admin/curator/galleries').set('Cookie', adminCookie());
     expect(list.status).toBe(200);

@@ -84,21 +84,35 @@ describe('GET /media/browse — active filter chip inputs', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="tag-filter-bar"');
     // The include field is a chip input (data-tag-chips) prefilled with the tag.
-    expect(res.text).toContain('name="tag" value="butterfly" data-tag-chips');
+    expect(res.text).toContain('name="tag" value="#butterfly" data-tag-chips');
     expect(res.text).toContain('Apply Hashtag Filters');
   });
 
   it('prefills the include chip input with both active tags, space-separated', async () => {
     const res = await page('/media/browse?tag=butterfly&tag=spike');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('name="tag" value="butterfly spike" data-tag-chips');
+    expect(res.text).toContain('name="tag" value="#butterfly #spike" data-tag-chips');
+  });
+
+  // Defect caught: the prefilled field, sent back as it is (Apply with no edit,
+  // or a browser without JavaScript), reads as one merged hashtag, so the
+  // filter the visitor had is lost.
+  it('reads the prefilled fields back as the same filter when sent unchanged', async () => {
+    const first = await page('/media/browse?tag=butterfly&tag=spike&exclude=tutorial');
+    const include = first.text.match(/name="tag" value="([^"]*)" data-tag-chips/)?.[1];
+    const exclude = first.text.match(/name="exclude" value="([^"]*)" data-tag-chips/)?.[1];
+    expect(include).toBe('#butterfly #spike');
+    expect(exclude).toBe('#tutorial');
+    const again = await page(`/media/browse?tag=${encodeURIComponent(include!)}&exclude=${encodeURIComponent(exclude!)}`);
+    expect(again.text.match(/name="tag" value="([^"]*)" data-tag-chips/)?.[1]).toBe(include);
+    expect(again.text.match(/name="exclude" value="([^"]*)" data-tag-chips/)?.[1]).toBe(exclude);
   });
 
   it('prefills a distinct exclude chip input with the active exclude tag', async () => {
     const res = await page('/media/browse?tag=butterfly&exclude=tutorial');
     expect(res.status).toBe(200);
     expect(res.text).toContain('tag-filter-field--exclude');
-    expect(res.text).toContain('name="exclude" value="tutorial" data-tag-chips');
+    expect(res.text).toContain('name="exclude" value="#tutorial" data-tag-chips');
   });
 });
 
@@ -149,7 +163,7 @@ describe('GET /media/browse — context tags: topic editable, owner locked', () 
     const res = await page('/media/browse?context=butterfly&tag=spike');
     expect(res.status).toBe(200);
     // butterfly (a topic context) is editable, merged into the include field.
-    expect(res.text).toContain('name="tag" value="butterfly spike" data-tag-chips');
+    expect(res.text).toContain('name="tag" value="#butterfly #spike" data-tag-chips');
     expect(res.text).not.toContain('tag-filter-chip--locked">#butterfly');
   });
 
@@ -159,7 +173,7 @@ describe('GET /media/browse — context tags: topic editable, owner locked', () 
     // #by_ stays locked; the topic context (butterfly) is editable.
     expect(res.text).toContain('class="tag-filter-chip tag-filter-chip--locked">#by_filter_regular');
     expect(res.text).toContain('name="context" value="by_filter_regular"');
-    expect(res.text).toContain('name="tag" value="butterfly" data-tag-chips');
+    expect(res.text).toContain('name="tag" value="#butterfly" data-tag-chips');
   });
 
   it('an Apply submit preserves the locked #by_ context in the canonical URL', async () => {

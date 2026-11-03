@@ -35,7 +35,19 @@ Affordances under `/dev`:
   without tripping the persona-secret import guard the runner inherits.
 - `devOutboxCaptureClient.ts` — the outbox-capture client behind `/dev/outbox`.
 - `personaSecrets.ts` — the single persona password literal (see below).
-- `assets/` — seed fixtures.
+- `assets/` — real test media (below).
+
+## Test media (`assets/`)
+
+Real phone photos and short clips, camera details stripped and the clips re-encoded with the
+legacy mirror's ffmpeg flags, so a share exercises the image worker and the video pipeline on real
+files. Each carries fixed hashtags wherever it is uploaded:
+
+| Files | Hashtags | Used for |
+|---|---|---|
+| `fb_182a.jpg`, `fb_182b.jpg`, `fb_182c.jpg`, `collection.jpg` | `#footbags` | a member sharing photos and naming a gallery (`gallery_owner`; the click-through browser test) |
+| `chinlone_clip.mp4` with `chinlone_poster.jpg` | `#chinlone` | a curator video-file upload (`admin_t2`; the click-through browser test) |
+| `baganrally_clip.mp4` with `baganrally_poster.jpg` | `#chinlone #club_wellington` | a curator video-file upload into a new gallery (Wellington Hack Crew) |
 
 ## Secret containment
 

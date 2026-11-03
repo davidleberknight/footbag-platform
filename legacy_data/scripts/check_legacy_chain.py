@@ -17,8 +17,10 @@ collects every finding, and refuses with all of them at once:
   (run the refresh), skipped with a note when the clone is not on this machine;
 - the publish stamp is missing, names another delivery, or no longer matches the
   export members CSV or the published member CSV on disk (run the publish);
-- the audited figures were not re-audited for this export, or the checks that need
-  no database fail (audit_member_data.py --pre-build);
+- the checks that need no database find an integrity failure
+  (audit_member_data.py --pre-build); figures not yet re-audited for this export
+  only warn, so new data never stops a build or a deploy, except with
+  --final-load (the final cutover load), where they refuse;
 - the account rulings were last fitted to another export (refit_rulings.py);
 - with --require-committed (a production deploy), the export, the publish, the
   figures or the rulings are not committed in the private checkout, where they are
@@ -31,7 +33,7 @@ warn, because a staging or local build is disposable and is how the changes are
 tested before they are committed.
 
 Usage:
-    check_legacy_chain.py [--strict] [--require-committed]
+    check_legacy_chain.py [--strict] [--require-committed] [--final-load]
 """
 from __future__ import annotations
 
@@ -80,8 +82,8 @@ def git(*args: str, repo: Path) -> subprocess.CompletedProcess:
                           timeout=120)
 
 
-def check(strict: bool, python: str,
-          require_committed: bool = False) -> tuple[list[str], list[str]]:
+def check(strict: bool, python: str, require_committed: bool = False,
+          final_load: bool = False) -> tuple[list[str], list[str]]:
     """(errors, warnings)."""
     errors: list[str] = []
     warnings: list[str] = []
@@ -125,8 +127,17 @@ def check(strict: bool, python: str,
             errors.append("the published member CSV is not the one the publish wrote (edited "
                           f"by hand or a partial publish); run {PUBLISH_CMD}")
 
-    audit = subprocess.run([python, str(AUDIT), "--pre-build"], capture_output=True, text=True,
-                           timeout=1200)
+    # Figures awaiting a re-audit for new data warn here rather than stop the
+    # build; the test runner's real-data row and the delivery runner still fail on
+    # them. An integrity finding still refuses, and so does any stale figure on
+    # the final cutover load, which ships the export production keeps.
+    audit_cmd = [python, str(AUDIT), "--pre-build"]
+    if not final_load:
+        audit_cmd.append("--figure-drift-warns")
+    audit = subprocess.run(audit_cmd, capture_output=True, text=True, timeout=1200)
+    for ln in audit.stdout.splitlines():
+        if ln.startswith("WARN"):
+            warnings.append(f"member-data figures: {ln[len('WARN '):]}")
     if audit.returncode != 0:
         failed = [ln for ln in audit.stdout.splitlines() if ln.startswith("FAIL")]
         errors.append("the member-data checks that need no database fail: "
@@ -155,6 +166,9 @@ def main(argv: list[str] | None = None) -> int:
                     help="refuse a clone pulled past the refresh too (any deploy)")
     ap.add_argument("--require-committed", action="store_true",
                     help="refuse uncommitted private changes (a production deploy)")
+    ap.add_argument("--final-load", action="store_true",
+                    help="refuse figures not re-audited for this export (the final "
+                         "cutover load); otherwise they only warn")
     args = ap.parse_args(argv)
     python = str(REPO_ROOT / "legacy_data" / "footbag_venv" / "bin" / "python")
     if not Path(python).exists():
@@ -162,7 +176,7 @@ def main(argv: list[str] | None = None) -> int:
     if not PRIVATE.is_dir():
         print("legacy chain: the private checkout is not reachable; nothing to check.")
         return 0
-    errors, warnings = check(args.strict, python, args.require_committed)
+    errors, warnings = check(args.strict, python, args.require_committed, args.final_load)
     for w in warnings:
         print(f"WARNING legacy chain: {w}")
     for e in errors:

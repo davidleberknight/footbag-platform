@@ -1,4 +1,6 @@
-{{!-- Member's own gallery edit form. Owner-only view. --}}
+{{!-- Member's own gallery edit form. Owner-only view. Nothing is uploaded
+      here: the share link opens the Share Media form with this gallery's
+      hashtags filled in. --}}
 <div class="hero hero-sm">
   <div>
     <h1>{{page.title}}</h1>
@@ -6,16 +8,9 @@
 </div>
 
 <div class="wrapper">
-  <p>
-    Editing your gallery. Items appear here when they carry every
-    <strong>criteria hashtag</strong> and no <strong>exclude hashtag</strong>.
-    Leave criteria empty to show everything you have uploaded.
-  </p>
+  <p>{{content.intro}}</p>
 
-  <p>
-    Need to add new photos? <a href="{{content.uploadMediaHref}}">Upload more media</a>,
-    then return here to attach them to this gallery.
-  </p>
+  <p><a href="{{{content.shareWithTagsHref}}}" class="action-link">Share Media With These Hashtags</a></p>
 
   {{> gallery-edit-form
       formAction=content.formAction
@@ -25,7 +20,6 @@
       cancelHref=content.cancelHref
       currentItems=content.currentItems
       currentItemsTruncated=content.currentItemsTruncated
-      uploadTags=content.uploadTags
       externalLinkSlots=content.externalLinkSlots
   }}
 </div>

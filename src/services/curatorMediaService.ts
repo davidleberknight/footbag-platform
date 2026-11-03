@@ -138,12 +138,32 @@
  *     ordinary ids and pass. In staging and
  *     production the sidecar write is off, so any admin may curate and the guard
  *     is a no-op. Member-owned writes never call it.
- *   - Photos added from a member's gallery form carry that gallery's criteria
- *     tags merged with the member's typed `uploadTags`, so they land in the
- *     gallery they were added from; an upload from the standalone form does the
- *     same for the gallery the member picks there. Curated gallery-form uploads
- *     carry only the typed tags. Auto-applied tags are exactly `#by_<slug>`
- *     (member) and `#curated` (FH-owned).
+ *   - Nothing is put in a gallery. A member shares through one Share Media form
+ *     (`shareMemberMedia`): photos or one video link carrying one set of typed
+ *     hashtags, and optionally a gallery named from those same hashtags, created
+ *     through `createGallery` before any photo, so it stands even if every photo
+ *     is refused. The gallery's address and hashtags come from
+ *     `previewNewMemberGallery`, which both the form's preview and the save use;
+ *     a submit whose recorded preview is missing or stale is shown it first and
+ *     writes nothing. Each photo is shared on its own (`uploadPhotoForMember`),
+ *     a refused one named while the rest go on. The curator shares through the
+ *     same form (`shareCuratorMedia`, page `getCuratorSharePage`), adding a
+ *     video file: a gallery named there is Footbag Hacky's, previewed by
+ *     `previewNewCuratorGallery` (address from the name or the Advanced slug,
+ *     an address another gallery holds refused) and written through
+ *     `createCuratorGallery`, so its sidecar and audit row are those of any
+ *     curator gallery; on the S3 path the gallery is made at signing
+ *     (`signCuratorVideoUpload`), and the external URL rides the media job to
+ *     the row. Gallery edit forms take no files, and no other create path
+ *     exists. Auto-applied tags are exactly `#by_<slug>` (member) and
+ *     `#curated` (FH-owned).
+ *   - Upload limits: the size per photo, photos per submit and total per submit
+ *     are admin settings read per request (`photoMaxBytes`,
+ *     `photoMaxFilesPerSubmit`, `photoMaxSubmitBytes`), each clamped to a code
+ *     maximum. Photos per submit and total per submit hold every uploader,
+ *     administrators and the curator included, because they bound the web
+ *     container's memory; an administrator is held to the code maximum alone
+ *     for the size per photo, and is exempt from the hourly photo limit.
  *   - An administrator writing to a gallery that belongs to another member is
  *     moderation rather than authoring, and obeys the correction rules: it takes
  *     a mandatory reason, records each changed value before and after, writes no
@@ -184,7 +204,7 @@
  */
 import { createHash, randomUUID } from 'crypto';
 import path from 'path';
-import { GALLERY_ITEMS_QUERY_CAP, countGalleryItemsByCriteria, listGalleryItemsForDisplay, media, mediaTags as mediaTagsDb, queryCuratorMediaTags, tagStats, transaction, type MediaJobRow } from '../db/db';
+import { GALLERY_ITEMS_QUERY_CAP, countGalleryItemsByCriteria, listGalleryItemsForDisplay, media, mediaTags as mediaTagsDb, queryCuratorMediaTags, queryGalleryItemsByCriteriaGrouped, tagStats, transaction, type GallerySortOrder, type MediaJobRow } from '../db/db';
 import { config } from '../config/env';
 import { logger } from '../config/logger';
 import { detectImageType, photoShapeRefusal, RENDITION_IMAGE_MIME } from '../lib/imageProcessing';
@@ -252,10 +272,11 @@ import { buildTierBenefitNotice } from './tierBenefitNotice';
 // Type-only, so the gallery list can name the shape of the community examples
 // it is handed without importing the media service that reads them: that module
 // already imports this one, and a value import would close the loop.
-import type { GalleryItem } from './mediaService';
+import type { GalleryItem, ShareNotices } from './mediaService';
+import type { ShareOutcome } from '../lib/flashCookie';
 import { memberService, type SearchBlockView } from './memberService';
-import { hasUnconvertibleLetters, slugifyForTag, typedTag, typedTagForDisplay } from './slugify';
-import { assertTypedTags } from './typedTokenRules';
+import { foldTypedHashtags, hasUnconvertibleLetters, slugifyForTag, typedTag, typedTagForDisplay } from './slugify';
+import { assertTypedTags, tagRuleRefusal } from './typedTokenRules';
 import type { PageViewModel, TierBenefitNotice } from '../types/page';
 
 // The code maximum for one photo. An administrator's "Size per photo" setting
@@ -278,6 +299,14 @@ export function photoTooLargeMessage(maxBytes: number): string {
   return `Photo is too large. Maximum size is ${megabytes(maxBytes)} MB.`;
 }
 
+// A photo refused because its uploader already holds one under that file
+// name, the uniqueness the media table keeps per uploader. One sentence for a
+// member's photo and the curator's.
+function fileNameTakenMessage(sourceFilename: string | null | undefined): string {
+  return `You have already uploaded a file named "${sourceFilename}". ` +
+    `Rename the file or delete the previous upload first.`;
+}
+
 /**
  * The largest photo this uploader may share, in bytes: the administrator's
  * size-per-photo setting for a member, read per request so a change applies
@@ -288,6 +317,68 @@ export function photoMaxBytes(actorIsAdmin: boolean): number {
   if (actorIsAdmin) return PHOTO_MAX_BYTES;
   const configuredMb = readIntConfig('photo_upload_max_file_mb', megabytes(PHOTO_MAX_BYTES));
   return Math.min(configuredMb * 1024 * 1024, PHOTO_MAX_BYTES);
+}
+
+// The code maximums for one Share Media submit. The "Photos per submit" and
+// "Total per submit" settings can lower what a submit may hold, never raise it
+// past these. They bound what one request makes the web container hold in
+// memory, which is the same whoever uploads, so they hold administrators and
+// the curator too: there is one web container, and an out-of-memory kill drops
+// every request in flight while it restarts.
+export const PHOTO_MAX_FILES_PER_SUBMIT = 20;
+export const PHOTO_MAX_SUBMIT_BYTES = 250 * 1024 * 1024;
+
+/** The most photos any uploader may choose in one submit. */
+export function photoMaxFilesPerSubmit(): number {
+  const configured = readIntConfig('photo_upload_max_files_per_submit', 4);
+  return Math.max(1, Math.min(configured, PHOTO_MAX_FILES_PER_SUBMIT));
+}
+
+/** The most bytes all the photos of one submit may come to together, for any uploader. */
+export function photoMaxSubmitBytes(): number {
+  const configuredMb = readIntConfig('photo_upload_max_submit_mb', 50);
+  return Math.min(Math.max(1, configuredMb) * 1024 * 1024, PHOTO_MAX_SUBMIT_BYTES);
+}
+
+// What a Share Media submit's text fields and multipart framing add to the
+// files themselves: captions, hashtags and boundaries come to far less.
+const SHARE_BODY_OVERHEAD_BYTES = 1024 * 1024;
+
+/**
+ * The refusal for a Share Media submit whose declared size (its Content-Length)
+ * is more than any submit the form allows could be, or null. Checked before the
+ * reader holds anything, because the reader bounds each part and the part
+ * count but not their sum, so "Total per submit" is what bounds the memory one
+ * submit takes only when it is checked here. `allowsVideoFile` is the curator
+ * form where a video file is read through it (the local storage adapter); its
+ * bound is then the video and poster ceilings. A submit sent without a declared
+ * size is held to the service's own total check after reading.
+ */
+export function shareBodyRefusal(declaredBytes: number, opts: { allowsVideoFile: boolean }): string | null {
+  if (!Number.isFinite(declaredBytes) || declaredBytes <= 0) return null;
+  const photoCeiling = photoMaxSubmitBytes() + SHARE_BODY_OVERHEAD_BYTES;
+  if (declaredBytes <= photoCeiling) return null;
+  if (opts.allowsVideoFile && declaredBytes <= VIDEO_MAX_BYTES + POSTER_MAX_BYTES + SHARE_BODY_OVERHEAD_BYTES) {
+    return null;
+  }
+  return opts.allowsVideoFile
+    ? VIDEO_TOO_LARGE_MESSAGE
+    : `Those photos come to more than ${megabytes(photoMaxSubmitBytes())} MB together. Share them in smaller groups.`;
+}
+
+/** The limits a Share Media form names and the browser checks before sending. */
+export interface ShareUploadLimits {
+  maxFiles: number;
+  fileMb: number;
+  totalMb: number;
+}
+
+export function shareUploadLimits(actorIsAdmin: boolean): ShareUploadLimits {
+  return {
+    maxFiles: photoMaxFilesPerSubmit(),
+    fileMb: megabytes(photoMaxBytes(actorIsAdmin)),
+    totalMb: megabytes(photoMaxSubmitBytes()),
+  };
 }
 export const VIDEO_TOO_LARGE_MESSAGE = `Video is too large. Maximum size is ${VIDEO_MAX_MB} MB.`;
 export const POSTER_TOO_LARGE_MESSAGE =
@@ -393,39 +484,22 @@ export function memberGalleriesHref(memberKey: string): string {
   return `/members/${memberKey}/galleries`;
 }
 
-// The one grammar for a typed tag list: tags separated by any whitespace, each
-// folded by the one rule into its stored form (`typedTag`), so "#Zoë-Müller"
-// is stored as "#zoe_muller" with or without the leading '#'; blanks and tags
-// that fold to nothing are dropped. Anything that is not a string reads as no
-// tags, so a malformed submission is refused by tag validation rather than
-// crashing.
+// A typed tag list in its stored forms, split and folded by the one grammar
+// (`foldTypedHashtags`): each '#' starts a hashtag, words typed without one stay
+// one hashtag, so "#Zoë-Müller" and "Zoë Müller" are both stored as
+// "#Zoe_Muller". Anything that is not a string reads as no tags, so a malformed
+// submission is refused by tag validation rather than crashing.
 export function parseTagList(raw: unknown): string[] {
   return foldTypedTagList(raw).map((t) => t.stored);
 }
 
 /**
  * Each typed tag beside the form it is stored in, in typed order. The typed
- * tags whose stored form differs (an accent folded, a hyphen made an
+ * tags whose stored form differs (an accent folded, a space or hyphen made an
  * underscore) are the ones a member is told about after saving.
  */
 export function foldTypedTagList(raw: unknown): { typed: string; stored: string }[] {
-  if (typeof raw !== 'string') return [];
-  // Two typed spellings of one tag ("#Zürich #zurich") fold to one stored tag,
-  // which is kept once, where it was first typed.
-  // A tag with letters the rule cannot convert is passed on as typed, unfolded,
-  // so the tag rules refuse it by name instead of folding part of it away.
-  const seen = new Set<string>();
-  return raw.split(/\s+/)
-    .filter((t) => t.length > 0)
-    .map((typed) => ({
-      typed,
-      // Capitals are kept for display; tags match, and repeat, in lowercase.
-      stored: hasUnconvertibleLetters(typed) ? `#${typed.replace(/^#+/, '')}` : typedTagForDisplay(typed),
-    }))
-    .filter((t) => {
-      const key = t.stored.toLowerCase();
-      return t.stored.length > 0 && !seen.has(key) && (seen.add(key), true);
-    });
+  return typeof raw === 'string' ? foldTypedHashtags(raw) : [];
 }
 
 /**
@@ -449,8 +523,7 @@ export function foldedTagsLine(folded: { typed: string; stored: string }[]): str
  * leading '#' or lowering capitals is not a change worth a line, as before.
  */
 export function changedTypedTags(...raws: unknown[]): { typed: string; stored: string }[] {
-  const raw = raws.filter((r): r is string => typeof r === 'string').join(' ');
-  return foldTypedTagList(raw).filter((t) => {
+  return foldTypedHashtags(...raws.filter((r): r is string => typeof r === 'string')).filter((t) => {
     const asTyped = (t.typed.startsWith('#') ? t.typed : `#${t.typed}`).toLowerCase();
     return asTyped !== t.stored.toLowerCase();
   });
@@ -806,30 +879,39 @@ function newMediaTagId(): string {
 // `attempt` is the disambiguation counter used by createGallery's retry loop
 // when the base id collides with an existing PK; attempt=0 yields the base
 // form, attempt>=1 appends `_<attempt+1>` (e.g. `..._funky_footbags_2`).
+// The owner slug is used as stored: a member slug is already a folded token,
+// so folding it again could only make the id disagree with `#by_<slug>`.
 function buildMemberGalleryId(
   ownerSlug: string,
   galleryName: string,
   attempt: number,
 ): string {
-  const ownerNorm = ownerSlug.toLowerCase().replace(/[^a-z0-9_]+/g, '_');
   const nameSlug = slugifyGalleryName(galleryName);
   const suffix = attempt > 0 ? `_${attempt + 1}` : '';
-  return `gallery_${ownerNorm}_${nameSlug}${suffix}`;
+  return `gallery_${ownerSlug}_${nameSlug}${suffix}`;
 }
 
-// Lowercase alphanumeric, runs of other chars collapse to a single `_`.
-// Truncated so the full id stays comfortably under typical URL limits even
-// after the `gallery_<owner_slug>_` prefix and any collision suffix. Falls
-// back to a short hex token if the input has no usable characters
-// (pure-emoji name, etc.) so the id remains a valid `gallery_…` slug.
-// The name folds by the one rule, so "Zürich Trip" gives zurich_trip rather than
-// losing the letter; the 60-character cap and the random fallback are unchanged.
+// The name folded by the one rule ("Zürich Trip" gives zurich_trip), cut to 60
+// characters so the id stays well under URL limits after its prefix and any
+// collision suffix, with an underscore the cut leaves at the end trimmed, so an
+// id never ends in `_` or holds `__` before a suffix. A name that folds to no
+// address never reaches here: createGallery refuses it (`galleryNameMakesNoAddress`).
 function slugifyGalleryName(name: string): string {
-  const slug = slugifyForTag(name).slice(0, 60);
-  return slug.length > 0
-    ? slug
-    : `g${randomUUID().replace(/-/g, '').slice(0, 8)}`;
+  return slugifyForTag(name).slice(0, 60).replace(/_+$/, '');
 }
+
+/**
+ * Whether a new member gallery's name cannot make its address by the slug rule:
+ * it holds letters with no a to z form, which folding would drop, or it is made
+ * of symbols only, which fold to nothing.
+ */
+export function galleryNameMakesNoAddress(name: string): boolean {
+  return hasUnconvertibleLetters(name) || slugifyGalleryName(name).length === 0;
+}
+
+// Shown when a new member gallery's name cannot make its address.
+export const GALLERY_NAME_NO_ADDRESS_MESSAGE =
+  'A gallery\'s address is made from its name, so the name needs a word in the letters a to z.';
 
 // Returns the caption as it is to be stored. Cleaned before the length check,
 // so the limit counts what is stored rather than markup that is dropped.
@@ -914,7 +996,7 @@ function validateTags(tags: string[]): void {
 // one of each, refused for a reserved tag, and refused by name for any tag rule it
 // breaks (no a to z form, too long, too many).
 function checkedTags(tags: string[]): string[] {
-  const stored = foldTypedTagList(tags.join(' ')).map((t) => t.stored);
+  const stored = foldTypedHashtags(...tags).map((t) => t.stored);
   validateTags(stored);
   assertTypedTags(stored);
   return stored;
@@ -1779,6 +1861,12 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         });
       } catch (err) {
         await compensatingStorageDelete(storage, [thumbKey, displayKey]);
+        // Footbag Hacky already holds a photo under this file name: refused by
+        // name, as a member's photo is, rather than failing the request.
+        const msg = (err as Error).message ?? '';
+        if (msg.includes('UNIQUE') && msg.includes('source_filename')) {
+          throw new ValidationError(fileNameTakenMessage(recordedSourceFilename));
+        }
         throw err;
       }
       hashtagDiscoveryService.incrementTagStats(appliedTagIds);
@@ -1908,6 +1996,12 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           posterDisplayKey,
           posterThumbKey,
         ]);
+        // Footbag Hacky already holds a file under this name: refused by name,
+        // as a repeated photo name is, rather than failing the request.
+        const msg = (err as Error).message ?? '';
+        if (msg.includes('UNIQUE') && msg.includes('source_filename')) {
+          throw new ValidationError(fileNameTakenMessage(recordedSourceFilename));
+        }
         throw err;
       }
       hashtagDiscoveryService.incrementTagStats(appliedTagIds);
@@ -2010,6 +2104,9 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
             shaped.widthPx, shaped.heightPx,
             job.source_filename, videoMime,
           );
+          if (job.external_url) {
+            media.setMediaItemExternalUrl.run(job.external_url, now, mediaId, systemMemberId);
+          }
           appliedTagIds = applyTagsForCurator(mediaId, tags, now);
           appendAuditEntry({
             actionType: 'media.curated_uploaded',
@@ -2026,6 +2123,12 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           storage.delete(posterDisplayKey).catch(() => undefined),
           storage.delete(posterThumbKey).catch(() => undefined),
         ]);
+        // Two uploads under one name raced past the sign step's check: the
+        // later one is named, not reported as a database error.
+        const msg = (err as Error).message ?? '';
+        if (msg.includes('UNIQUE') && msg.includes('source_filename')) {
+          throw new ValidationError(fileNameTakenMessage(job.source_filename));
+        }
         throw err;
       }
       hashtagDiscoveryService.incrementTagStats(appliedTagIds);
@@ -2062,7 +2165,13 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       posterSizeBytes: number;
       caption: string;
       tags: string;
-    }): Promise<
+      /** The item's external URL, checked here and carried on the job to the media row. */
+      externalUrl?: string;
+    },
+    /** Run once every check here has passed and before anything is signed or
+     *  stored; a refusal it returns is the answer, and nothing is signed. */
+    beforeSigning?: () => Promise<string | null>,
+    ): Promise<
       | { status: 'signed'; jobId: string; videoUrl: string; posterUrl: string; expiresAtIso: string }
       | { status: 'invalid'; error: string }
     > {
@@ -2093,6 +2202,24 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       if (cleanedCaption.status === 'invalid_encoding') {
         return { status: 'invalid', error: INVALID_TEXT_ENCODING_MESSAGE };
       }
+      // Checked before any URL is signed, so a bad link is refused while the
+      // curator still has the form, not after the transcode.
+      const externalUrlRaw = (input.externalUrl ?? '').trim();
+      let externalUrl: string | null = null;
+      if (externalUrlRaw) {
+        const checked = await validateExternalUrl(externalUrlRaw);
+        if (!checked.valid) return { status: 'invalid', error: checked.error ?? 'Invalid URL.' };
+        externalUrl = checked.normalizedUrl;
+      }
+      // A file name Footbag Hacky already holds is refused by name here, before
+      // anything is uploaded or encoded, as a repeated photo name is.
+      if (runSqliteRead('getCuratorMediaByFilename', () => media.getCuratorMediaByFilename.get(videoFilename))) {
+        return { status: 'invalid', error: fileNameTakenMessage(videoFilename) };
+      }
+      if (beforeSigning) {
+        const refusal = await beforeSigning();
+        if (refusal) return { status: 'invalid', error: refusal };
+      }
 
       const jobId = `mediajob_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
       const prefix = config.mediaPendingUploadPrefix;
@@ -2116,6 +2243,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         caption: caption.length === 0 ? null : caption,
         tags: input.tags,
         sourceFilename: videoFilename,
+        externalUrl,
         expiresAtIso,
       });
 
@@ -3132,6 +3260,11 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
             'Member-owned gallery requires ownerSlug.',
           );
         }
+        if (galleryNameMakesNoAddress(local.name)) {
+          throw new ValidationError(GALLERY_NAME_NO_ADDRESS_MESSAGE, {
+            fieldErrors: { name: GALLERY_NAME_NO_ADDRESS_MESSAGE },
+          });
+        }
         assertDoesNotClaimPersonalGallery(ownerSlug, local.name);
         galleryId = buildMemberGalleryId(ownerSlug, local.name, 0);
       }
@@ -3179,6 +3312,12 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       if (canRepeat) {
         const sameId = findSameGallery(submitted);
         if (sameId) return { id: sameId, repeat: true };
+      }
+      // A name the owner already holds can never be inserted, so it is refused
+      // before the throttle and spends no slot: a share naming a gallery the
+      // member already has must not be blocked by, or count toward, the limit.
+      if (media.findMemberGalleryByOwnerAndName.get(ownerMemberId, local.name)) {
+        throw new ConflictError(`A gallery named "${local.name}" already exists for this owner.`);
       }
 
       throttleGalleryWrite(actorMemberId, actorIsAdmin);
@@ -3372,7 +3511,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
 
     // Lists every gallery owned by a given member, including item count and the
     // Personal Gallery. Drives the owner's own gallery-management list and the
-    // gallery picker on the upload form, both owner-only surfaces, which is why
+    // gallery chips on the Share Media form, both owner-only surfaces, which is why
     // the Personal Gallery belongs in the result: per-item edit and delete links
     // are reachable only through a gallery's edit form, so hiding it would leave
     // the member no route to manage their own media. The public surfaces take a
@@ -3513,10 +3652,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
             if (!input.actorIsAdmin) refundPerActor('member-photo-upload', input.memberId);
             return twin;
           }
-          throw new ValidationError(
-            `You have already uploaded a file named "${input.sourceFilename}". ` +
-            `Rename the file or delete the previous upload first.`,
-          );
+          throw new ValidationError(fileNameTakenMessage(input.sourceFilename));
         }
         throw err;
       }
@@ -3760,6 +3896,18 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     // the video id, and pulls the Vimeo thumbnail from the oEmbed
     // body (Vimeo thumbnails are not derivable from id; YouTube ids
     // are derived at render time).
+    /**
+     * Whether a member's video link plays at its platform, asked before a
+     * Share Media submit writes anything, so a dead link refuses the whole
+     * submit rather than leaving a gallery behind it. Null when it plays; the
+     * refusal sentence otherwise. The submit itself asks again, because the
+     * answer can change between the two.
+     */
+    async checkMemberVideoLink(videoUrl: string, videoPlatform: VideoPlatform): Promise<string | null> {
+      const verify = await videoUrlVerifier(videoUrl, videoPlatform);
+      return verify.ok ? null : `Video is not available at the platform (oEmbed status ${verify.status}).`;
+    },
+
     async submitVideoForMember(input: MemberVideoInput): Promise<MemberUploadResult> {
       assertTier1Benefits(input.memberId);
       if (input.videoPlatform !== 'youtube' && input.videoPlatform !== 'vimeo') {
@@ -3955,9 +4103,9 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     // #Freestyle and #freestyle are the same criterion.
     // Both sets are folded by the one rule and held to the tag rules first, so a
     // set reaching here by any path is stored the same way as a typed one.
-    const criteriaTags = foldTypedTagList(updates.criteriaTags.join(' ')).map((t) => t.stored);
+    const criteriaTags = foldTypedHashtags(...updates.criteriaTags).map((t) => t.stored);
     assertTypedTags(criteriaTags, { field: 'criteriaTags' });
-    const excludeTags = foldTypedTagList(updates.excludeTags.join(' ')).map((t) => t.stored);
+    const excludeTags = foldTypedHashtags(...updates.excludeTags).map((t) => t.stored);
     assertTypedTags(excludeTags, { field: 'excludeTags' });
     const seenCriteria = new Set<string>();
     for (const tag of criteriaTags) {
@@ -4275,20 +4423,13 @@ function authorizeGalleryActor(
 
 export type CuratorMediaService = ReturnType<typeof createCuratorMediaService>;
 
-/** The photos a gallery form carried, as the multipart reader delivered them. */
-export interface GalleryFormUploads {
-  files: ReadonlyArray<{ buffer: Buffer; filename: string }>;
-  limitExceeded: boolean;
-  droppedNamelessFile: boolean;
-}
-
 /**
- * What a gallery save with attached photos came to. A refusal carries the
- * status it answers with and the sentence the form shows; a partial save, where
- * the gallery landed and a photo did not, is a refusal whose sentence says so.
+ * What a gallery edit form's save came to. A save lands on the gallery's own
+ * page; a refusal carries the status it answers with and the sentence the form
+ * shows.
  */
-export type GalleryWithUploadsResult =
-  | { status: 'saved' }
+export type GallerySaveResult =
+  | { status: 'saved'; landingHref: string }
   | { status: 'not_found' }
   | {
       status: 'refused';
@@ -4302,7 +4443,7 @@ function refused(
   httpStatus: 422 | 429,
   message: string,
   extra: { fieldErrors?: Record<string, string>; retryAfterSeconds?: number } = {},
-): GalleryWithUploadsResult {
+): Extract<GallerySaveResult, { status: 'refused' }> {
   return {
     status: 'refused',
     httpStatus,
@@ -4312,140 +4453,27 @@ function refused(
   };
 }
 
-// A gallery save checks every attached photo before writing anything, so a bad
-// file never leaves behind a gallery row it was meant to land in. Magic-byte
-// detection matches the single-photo upload: no gif, pdf or text.
-// The size check uses the uploader's own limit, the one each photo is held to
-// when it is saved, so a photo that would be refused never passes this check.
-function galleryUploadsRefusal(uploads: GalleryFormUploads, maxPhotoBytes: number): string | null {
-  if (uploads.limitExceeded) return fileExceededMessage(PHOTO_MAX_BYTES);
-  if (uploads.droppedNamelessFile) return 'One of the uploaded files was missing a filename.';
-  for (const f of uploads.files) {
-    if (f.buffer.length > maxPhotoBytes) return photoTooLargeMessage(maxPhotoBytes);
-    if (!detectImageType(f.buffer)) return 'Only JPEG and PNG photos are accepted.';
-  }
-  return null;
-}
-
-// Photos added from a member's gallery form land in that gallery: each carries
-// the gallery's criteria tags, merged case-insensitively with the tags the
-// member typed. The uploader marker is left out of the criteria, since the
-// upload re-adds it.
-function memberGalleryUploadTags(criteriaTags: string[], uploadTags: string[]): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  const stamped = criteriaTags.filter((t) => !t.toLowerCase().startsWith(UPLOADER_TAG_PREFIX));
-  for (const t of [...stamped, ...uploadTags]) {
-    const key = t.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(t);
-  }
-  return out;
-}
-
-// Uploads each photo as the member. A refusal of one reports that the gallery
-// itself was saved, so the member knows to retry only the photo.
-async function uploadMemberGalleryPhotos(
-  svc: CuratorMediaService,
-  input: { actorMemberId: string; actorIsAdmin: boolean; slug: string; files: GalleryFormUploads['files']; tags: string[] },
-  savedPrefix: string,
-): Promise<GalleryWithUploadsResult | null> {
-  for (const f of input.files) {
-    try {
-      await svc.uploadPhotoForMember({
-        memberId: input.actorMemberId,
-        actorIsAdmin: input.actorIsAdmin,
-        slug: input.slug,
-        photoBuffer: f.buffer,
-        sourceFilename: f.filename,
-        caption: null,
-        tags: input.tags,
-      });
-    } catch (err) {
-      const message = `${savedPrefix}, but uploading "${f.filename}" failed: `;
-      if (err instanceof RateLimitedError) {
-        return refused(429, message + err.message, { retryAfterSeconds: err.retryAfterSeconds });
-      }
-      if (err instanceof ValidationError) return refused(422, message + err.message);
-      throw err;
-    }
-  }
-  return null;
-}
-
 /**
- * A member creating one of their own galleries from the new-gallery form, with
- * any photos attached. The member owns it whatever the request carried, and an
- * administrator on their own member page creates as the member they are, so a
- * repeated create is recognised like anyone's.
+ * A member saving one of their own galleries from its edit form. Ownership is
+ * checked before anything else, so a request aimed at another member's gallery
+ * is answered not-found whatever it carries, exactly as the edit page itself
+ * is. A save lands on the gallery's page.
  */
-export async function createMemberGalleryWithUploads(
+export async function updateMemberGallery(
   svc: CuratorMediaService,
   input: {
     actorMemberId: string;
     actorIsAdmin: boolean;
-    slug: string;
-    updates: CuratorGalleryUpdates;
-    uploadTags: string[];
-    uploads: GalleryFormUploads;
-  },
-): Promise<GalleryWithUploadsResult> {
-  const fileRefusal = galleryUploadsRefusal(input.uploads, photoMaxBytes(input.actorIsAdmin));
-  if (fileRefusal) return refused(422, fileRefusal);
-
-  try {
-    await svc.createGallery({
-      actorMemberId: input.actorMemberId,
-      actorIsAdmin: false,
-      ownerMemberId: input.actorMemberId,
-      ownerSlug: input.slug,
-      updates: input.updates,
-    });
-  } catch (err) {
-    if (err instanceof ValidationError) return refused(422, err.message, { fieldErrors: err.fieldErrors });
-    if (err instanceof ConflictError) return refused(422, err.message);
-    if (err instanceof RateLimitedError) return refused(429, err.message, { retryAfterSeconds: err.retryAfterSeconds });
-    throw err;
-  }
-
-  const failed = await uploadMemberGalleryPhotos(svc, {
-    actorMemberId: input.actorMemberId,
-    actorIsAdmin: input.actorIsAdmin,
-    slug: input.slug,
-    files: input.uploads.files,
-    tags: memberGalleryUploadTags(input.updates.criteriaTags, input.uploadTags),
-  }, `Gallery "${input.updates.name}" was created`);
-  return failed ?? { status: 'saved' };
-}
-
-/**
- * A member saving one of their own galleries from its edit form, with any
- * photos attached. Ownership is checked before anything else, so a request
- * aimed at another member's gallery is answered not-found whatever it carries,
- * exactly as the edit page itself is.
- */
-export async function updateMemberGalleryWithUploads(
-  svc: CuratorMediaService,
-  input: {
-    actorMemberId: string;
-    actorIsAdmin: boolean;
-    slug: string;
     galleryId: string;
     updates: CuratorGalleryUpdates;
-    uploadTags: string[];
-    uploads: GalleryFormUploads;
   },
-): Promise<GalleryWithUploadsResult> {
+): Promise<GallerySaveResult> {
   try {
     svc.getGalleryForEdit(input.galleryId, input.actorMemberId);
   } catch (err) {
     if (err instanceof NotFoundError) return { status: 'not_found' };
     throw err;
   }
-
-  const fileRefusal = galleryUploadsRefusal(input.uploads, photoMaxBytes(input.actorIsAdmin));
-  if (fileRefusal) return refused(422, fileRefusal);
 
   try {
     await svc.updateGallery({
@@ -4460,29 +4488,15 @@ export async function updateMemberGalleryWithUploads(
     if (err instanceof RateLimitedError) return refused(429, err.message, { retryAfterSeconds: err.retryAfterSeconds });
     throw err;
   }
-
-  const failed = await uploadMemberGalleryPhotos(svc, {
-    actorMemberId: input.actorMemberId,
-    actorIsAdmin: input.actorIsAdmin,
-    slug: input.slug,
-    files: input.uploads.files,
-    tags: memberGalleryUploadTags(input.updates.criteriaTags, input.uploadTags),
-  }, 'Gallery saved');
-  return failed ?? { status: 'saved' };
+  return { status: 'saved', landingHref: `/media/${input.galleryId}` };
 }
 
 /**
- * An administrator saving a gallery from the curator edit form, with any
- * photos attached. Each photo becomes an FH-owned curated item carrying the
- * typed upload tags after the automatic `#curated`.
- *
- * Adding a file to a gallery that belongs to another member would put new
- * content under their name, which is the one thing moderation never does. The
- * form offers no upload control on that door; this refuses a request that
- * carries files anyway, checked only when files are present so an ordinary
- * curated save pays for no extra read.
+ * An administrator saving a gallery from the curator edit form. Content is
+ * added to a gallery by sharing it with the gallery's hashtags, never from this
+ * form. A save lands on the gallery's page.
  */
-export async function updateCuratorGalleryWithUploads(
+export async function updateCuratorGallery(
   svc: CuratorMediaService,
   input: {
     actorMemberId: string;
@@ -4490,28 +4504,8 @@ export async function updateCuratorGalleryWithUploads(
     updates: CuratorGalleryUpdates;
     reason: string;
     moderation: { clearName: boolean; clearDescription: boolean };
-    uploadTags: string[];
-    uploads: GalleryFormUploads;
   },
-): Promise<GalleryWithUploadsResult> {
-  const fileRefusal = galleryUploadsRefusal(input.uploads, PHOTO_MAX_BYTES);
-  if (fileRefusal) return refused(422, fileRefusal);
-
-  if (input.uploads.files.length > 0) {
-    try {
-      const gallery = svc.getGalleryForEdit(input.galleryId);
-      if (curatorGalleryModerationView(gallery, input.actorMemberId)) {
-        return refused(
-          422,
-          'Files cannot be added to a gallery that belongs to another member. '
-          + 'Moderating a member\'s gallery means removing what is wrong, never adding to it.',
-        );
-      }
-    } catch (err) {
-      if (!(err instanceof NotFoundError)) throw err;
-    }
-  }
-
+): Promise<GallerySaveResult> {
   try {
     await svc.updateGallery({
       actorMemberId: input.actorMemberId,
@@ -4526,41 +4520,8 @@ export async function updateCuratorGalleryWithUploads(
     if (err instanceof ValidationError) return refused(422, err.message, { fieldErrors: err.fieldErrors });
     throw err;
   }
-
-  for (const f of input.uploads.files) {
-    try {
-      await svc.uploadPhoto({
-        adminMemberId: input.actorMemberId,
-        photoBuffer: f.buffer,
-        sourceFilename: f.filename,
-        caption: null,
-        tags: input.uploadTags,
-      });
-    } catch (err) {
-      if (err instanceof ValidationError) {
-        return refused(422, `Gallery saved, but uploading "${f.filename}" failed: ${err.message}`);
-      }
-      throw err;
-    }
-  }
-  return { status: 'saved' };
+  return { status: 'saved', landingHref: `/media/${input.galleryId}` };
 }
-
-/** The curator upload form as submitted: its text fields and its file parts. */
-export interface CuratorUploadSubmission {
-  adminMemberId: string;
-  fields: Record<string, string>;
-  // The chosen media file and the video poster, each absent when not sent.
-  mediaFile: { buffer: Buffer; filename: string } | null;
-  poster: Buffer | null;
-}
-
-export type CuratorUploadFormOutcome =
-  | { status: 'saved' }
-  // 410 is the no-JavaScript video refusal: where storage is the S3 adapter,
-  // video bytes go browser to storage through the async path, never through
-  // this form.
-  | { status: 'refused'; httpStatus: 410 | 422; message: string };
 
 // The form's two category controls, an existing category or a new name, are
 // mutually exclusive; the name must be one the authoring tree accepts.
@@ -4583,200 +4544,908 @@ function resolveCuratorCategory(
 }
 
 /**
- * A curator's submit of the upload form: a photo, a video, or a YouTube or
- * Vimeo reference. Where the authoring tree is written (`allowCuratedSidecarWrites`,
- * development only), every upload names the category directory it lands in;
- * everywhere else the database row is the whole write and no category is asked
- * for or used. A refusal carries its status and the sentence the form shows.
+ * Where a member lands after saving one of their items: the item inside their
+ * Personal Gallery, or its own page when that gallery does not show it.
  */
-export async function uploadCuratorMedia(
-  svc: CuratorMediaService,
-  input: CuratorUploadSubmission,
-): Promise<CuratorUploadFormOutcome> {
-  const { fields, adminMemberId } = input;
-  const refuse = (message: string, httpStatus: 410 | 422 = 422): CuratorUploadFormOutcome =>
-    ({ status: 'refused', httpStatus, message });
+export function memberItemLandingHref(memberId: string, mediaId: string): string {
+  const personal = media.findMemberGalleryByOwnerAndName.get(memberId, PERSONAL_GALLERY_NAME) as
+    | { id: string }
+    | undefined;
+  return shareLandingHref(personal?.id ?? null, mediaId);
+}
 
-  const mediaType = fields.mediaType;
-  const captionRaw = (fields.caption ?? '').trim();
-  const caption = captionRaw.length === 0 ? null : captionRaw;
-  const tags = parseTagList(fields.tags);
-  const externalUrlRaw = (fields.externalUrl ?? '').trim();
-  const externalUrl: string | null = externalUrlRaw.length === 0 ? null : externalUrlRaw;
+/** What a new member gallery will be, shown before it is saved. */
+export interface NewGalleryPreview {
+  galleryId: string;
+  /** Every hashtag the gallery saves, the owner's `#by_` first. */
+  tags: string[];
+  /** True when no hashtag was typed, so the hashtag made from the name is used. */
+  defaultTagUsed: boolean;
+}
 
-  if (mediaType !== 'photo' && mediaType !== 'video' && mediaType !== 'url_reference') {
-    return refuse('Choose a media type (photo, video, or url_reference).');
+export type NewGalleryPreviewResult = NewGalleryPreview | { refusal: string; field: 'galleryName' | 'gallerySlug' };
+
+/**
+ * The hashtags a gallery named on a Share Media form saves besides the
+ * automatic one: those typed, or, with none typed, the hashtag made from its
+ * name by the slug rule (the author's capitals kept), refused when the site
+ * reserves it. One home for the member's and the curator's previews.
+ */
+function galleryTagsFromTypedOrName(
+  name: string,
+  typedTags: string[],
+): { tags: string[]; defaultTagUsed: boolean } | { refusal: string } {
+  if (typedTags.length > 0) return { tags: typedTags, defaultTagUsed: false };
+  const made = typedTagForDisplay(name);
+  const lowered = made.toLowerCase();
+  if (made === '' || lowered === CURATED_TAG || lowered.startsWith(UPLOADER_TAG_PREFIX) || tagRuleRefusal(made)) {
+    return {
+      refusal: `The hashtag made from this name, ${made || `#${name}`}, is reserved for the site. Add your own hashtags above, or choose another name.`,
+    };
   }
-
-  // The no-JavaScript video refusal comes first: the path is unavailable here
-  // whatever else the form carries.
-  if (mediaType === 'video' && config.mediaStorageAdapter !== 'local') {
-    return refuse(
-      'Synchronous video upload via this form is disabled in this environment. Enable JavaScript and reload the page; video uploads run as background transcode jobs.',
-      410,
-    );
-  }
-
-  let category: string | undefined;
-  if (mediaType === 'url_reference') {
-    const videoPlatform = (fields.videoPlatform ?? '').trim();
-    if (videoPlatform !== 'youtube' && videoPlatform !== 'vimeo') return refuse('Choose YouTube or Vimeo.');
-    if ((fields.videoUrl ?? '').trim().length === 0) return refuse('Paste a YouTube or Vimeo URL.');
-    // The slug only names the sidecar file, so it is asked for only where one
-    // is written.
-    if (config.allowCuratedSidecarWrites && (fields.primarySlug ?? '').trim().length === 0) {
-      return refuse('Provide a primary slug for the sidecar filename.');
-    }
-  }
-  if (config.allowCuratedSidecarWrites) {
-    const resolved = resolveCuratorCategory(fields);
-    if ('errorMessage' in resolved) return refuse(resolved.errorMessage);
-    category = resolved.category;
-  }
-
-  try {
-    if (mediaType === 'url_reference') {
-      const titleRaw = (fields.title ?? '').trim();
-      const sourceIdRaw = (fields.sourceId ?? '').trim();
-      await svc.uploadUrlReference({
-        adminMemberId,
-        category: category ?? '',
-        videoUrl: (fields.videoUrl ?? '').trim(),
-        videoPlatform: (fields.videoPlatform ?? '').trim() as 'youtube' | 'vimeo',
-        primarySlug: (fields.primarySlug ?? '').trim().toLowerCase(),
-        title: titleRaw.length === 0 ? null : titleRaw,
-        sourceId: sourceIdRaw.length === 0 ? null : sourceIdRaw,
-        startSeconds: null,
-        endSeconds: null,
-        tags,
-        ...(externalUrl !== null && { externalUrl }),
-      });
-      return { status: 'saved' };
-    }
-
-    const sourceFilename = input.mediaFile?.filename ?? '';
-    const mediaBuffer = input.mediaFile?.buffer;
-
-    if (mediaType === 'photo') {
-      if (!mediaBuffer || mediaBuffer.length === 0) return refuse('Please select a photo to upload.');
-      await svc.uploadPhoto({
-        adminMemberId,
-        photoBuffer: mediaBuffer,
-        sourceFilename,
-        caption,
-        tags,
-        ...(category && { category }),
-        ...(externalUrl !== null && { externalUrl }),
-      });
-      return { status: 'saved' };
-    }
-
-    // Video through the form, on the local adapter: the development authoring
-    // path, where direct multipart of a large file is acceptable because there
-    // is no proxy chain in front of localhost.
-    if (!mediaBuffer || mediaBuffer.length === 0) return refuse('Please select a video to upload.');
-    if (!input.poster || input.poster.length === 0) return refuse('Please select a poster image for the video.');
-    await svc.uploadVideo({
-      adminMemberId,
-      videoBuffer: mediaBuffer,
-      posterBuffer: input.poster,
-      sourceFilename,
-      caption,
-      tags,
-      ...(category && { category }),
-      ...(externalUrl !== null && { externalUrl }),
-    });
-    return { status: 'saved' };
-  } catch (err) {
-    if (err instanceof ValidationError) return refuse(err.message);
-    throw err;
-  }
+  return { tags: [made], defaultTagUsed: true };
 }
 
 /**
- * A member's upload from the standalone upload form: a photo file or a YouTube
- * or Vimeo link. Picking one of their galleries adds that gallery's criteria
- * tags after the ones they typed, so the item lands in the gallery they chose.
- * The gallery's uploader marker is left out, since the upload re-adds it and
- * tag validation refuses it as typed input.
- * Throws ValidationError for anything the member must fix and RateLimitedError
- * past their upload allowance.
+ * The address and hashtags a gallery named on the Share Media form will be
+ * saved with. The Share page's preview data and the save both come from here,
+ * so what the member was shown and what is saved cannot disagree.
+ *
+ * The gallery saves exactly the typed hashtags plus the owner's `#by_`; with
+ * none typed it saves the hashtag made from its name by the slug rule, the
+ * author's capitals kept. Its id takes the next free `_2`, `_3` suffix when
+ * `isTaken` says the plain one is held.
  */
-export async function uploadMemberMedia(
-  svc: CuratorMediaService,
-  input: {
-    memberId: string;
-    actorIsAdmin: boolean;
-    slug: string;
-    mediaType: string | undefined;
-    galleryId: string;
-    caption: string;
-    tags: string;
-    externalUrl: string;
-    photo: { buffer: Buffer; filename: string } | null;
-    limitExceeded: boolean;
-    videoUrl: string;
-    videoPlatform: string;
-  },
-): Promise<void> {
-  const captionRaw = input.caption.trim();
-  const caption = captionRaw.length === 0 ? null : captionRaw;
-  const tags = parseTagList(input.tags);
+export function previewNewMemberGallery(
+  ownerSlug: string,
+  name: string,
+  typedTags: string[],
+  isTaken: (galleryId: string) => boolean,
+): NewGalleryPreviewResult {
+  const trimmed = name.trim();
+  const refuse = (refusal: string): NewGalleryPreviewResult => ({ refusal, field: 'galleryName' });
+  if (trimmed.length > GALLERY_NAME_MAX_LEN) {
+    return refuse(`A gallery name can be at most ${GALLERY_NAME_MAX_LEN} characters.`);
+  }
+  if (galleryNameMakesNoAddress(trimmed)) return refuse(GALLERY_NAME_NO_ADDRESS_MESSAGE);
+  if (buildMemberGalleryId(ownerSlug, trimmed, 0) === buildMemberGalleryId(ownerSlug, PERSONAL_GALLERY_NAME, 0)) {
+    return refuse(
+      `That name is reserved for your ${PERSONAL_GALLERY_NAME}, the one created for you that collects everything you upload. Choose another name.`,
+    );
+  }
 
-  const galleryId = input.galleryId.trim();
+  const chosen = galleryTagsFromTypedOrName(trimmed, typedTags);
+  if ('refusal' in chosen) return refuse(chosen.refusal);
+  const { tags, defaultTagUsed } = chosen;
+
+  let attempt = 0;
+  let galleryId = buildMemberGalleryId(ownerSlug, trimmed, attempt);
+  while (isTaken(galleryId) && attempt < 100) {
+    attempt += 1;
+    galleryId = buildMemberGalleryId(ownerSlug, trimmed, attempt);
+  }
+  return { galleryId, tags: [`${UPLOADER_TAG_PREFIX}${ownerSlug}`, ...tags], defaultTagUsed };
+}
+
+/**
+ * The preview as one string, the form the Share page's script records in the
+ * hidden `galleryPreview` field: the id, then the hashtags, space separated.
+ * A submit whose recorded preview differs from the one computed now is shown
+ * the preview again before anything is saved.
+ */
+export function newGalleryPreviewToken(preview: NewGalleryPreview): string {
+  return [preview.galleryId, ...preview.tags].join(' ');
+}
+
+/** One photo of a Share Media submit, as the multipart reader delivered it. */
+export interface SharedPhotoFile {
+  filename: string;
+  buffer: Buffer;
+  caption: string;
+}
+
+/**
+ * The refusal for photos past the photos-per-submit count or the total per
+ * submit, or null. One home for the member's and the curator's share. The
+ * reader takes one part past the count, so more photos than allowed shows as
+ * one too many here.
+ */
+function sharePhotoLimitRefusal(photos: SharedPhotoFile[]): string | null {
+  const limits = shareUploadLimits(true);
+  if (photos.length > limits.maxFiles) return `Choose at most ${limits.maxFiles} photos at a time.`;
+  const totalBytes = photos.reduce((n, p) => n + p.buffer.length, 0);
+  if (totalBytes > photoMaxSubmitBytes()) {
+    return `Those photos come to more than ${limits.totalMb} MB together. Share them in smaller groups.`;
+  }
+  return null;
+}
+
+/**
+ * A submit's photos split into those within the size per photo and those
+ * refused, each refused one named while the rest go on. The reader drops a
+ * part past the size per photo without its name, which `limitExceeded` says.
+ */
+function splitSharedPhotos(
+  photos: SharedPhotoFile[],
+  limitExceeded: boolean,
+  maxPhotoBytes: number,
+): { goodPhotos: SharedPhotoFile[]; rejected: { filename: string; reason: string }[] } {
+  const rejected: { filename: string; reason: string }[] = [];
+  const goodPhotos: SharedPhotoFile[] = [];
+  if (limitExceeded) rejected.push({ filename: '', reason: photoTooLargeMessage(maxPhotoBytes) });
+  for (const photo of photos) {
+    if (photo.buffer.length > maxPhotoBytes) {
+      rejected.push({ filename: photo.filename, reason: photoTooLargeMessage(maxPhotoBytes) });
+      continue;
+    }
+    goodPhotos.push(photo);
+  }
+  return { goodPhotos, rejected };
+}
+
+export interface ShareMemberMediaInput {
+  memberId: string;
+  actorIsAdmin: boolean;
+  slug: string;
+  mediaType: string | undefined;
+  photos: SharedPhotoFile[];
+  videoUrl: string;
+  videoCaption: string;
+  tags: string;
+  externalUrl: string;
+  galleryName: string;
+  galleryPreview: string;
+  /** Some photo crossed the size per photo and the reader dropped it. */
+  limitExceeded: boolean;
+}
+
+export interface SharedGallery {
+  id: string;
+  name: string;
+  tags: string[];
+  /** False when the member already had this gallery, named with these hashtags. */
+  created: boolean;
+}
+
+export type ShareMemberMediaResult =
+  | {
+      status: 'shared';
+      landingHref: string;
+      mediaIds: string[];
+      rejected: { filename: string; reason: string }[];
+      gallery: SharedGallery | null;
+      folded: FoldedTypedTag[];
+    }
+  | { status: 'gallery_saved'; landingHref: string; gallery: SharedGallery; folded: FoldedTypedTag[] }
+  | { status: 'confirm_gallery'; preview: NewGalleryPreview }
+  | {
+      status: 'refused';
+      httpStatus: 422 | 429;
+      message: string;
+      fieldErrors?: Record<string, string>;
+      retryAfterSeconds?: number;
+    };
+
+type FoldedTypedTag = { typed: string; stored: string };
+
+export const SHARE_CHOOSE_AGAIN = 'Choose your photos again: a browser does not keep them after a refused form.';
+
+function sameTagSet(a: string[], b: string[]): boolean {
+  const x = a.map((t) => t.toLowerCase()).sort();
+  const y = b.map((t) => t.toLowerCase()).sort();
+  return x.length === y.length && x.every((t, i) => t === y[i]);
+}
+
+/**
+ * The page a share or a save lands on: the item inside the gallery it was
+ * shared toward, when that gallery shows it, else the item's own page. A
+ * gallery's item page answers only for an item in the set the gallery renders
+ * (its criteria and excluded hashtags, in its order, up to its cap), so that
+ * same set is read here; an item outside it would land on a page not found.
+ */
+function shareLandingHref(galleryId: string | null, mediaId: string): string {
   if (galleryId) {
-    const selectedGallery = svc.listGalleriesForOwner(input.memberId).find((g) => g.id === galleryId);
-    if (selectedGallery) {
-      const existing = new Set(tags.map((t) => t.toLowerCase()));
-      for (const ct of selectedGallery.criteriaTags) {
-        if (ct.toLowerCase().startsWith(UPLOADER_TAG_PREFIX)) continue;
-        if (!existing.has(ct.toLowerCase())) {
-          tags.push(ct);
-          existing.add(ct.toLowerCase());
+    const gallery = media.getNamedGalleryById.get(galleryId) as { sort_order: GallerySortOrder } | undefined;
+    if (gallery) {
+      const tagIds = (media.listFhNamedGalleryTags.all(galleryId) as Array<{ id: string }>).map((t) => t.id);
+      const excludeTagIds = (media.listFhNamedGalleryExcludeTags.all(galleryId) as Array<{ id: string }>).map((t) => t.id);
+      const shown = queryGalleryItemsByCriteriaGrouped(tagIds, gallery.sort_order, excludeTagIds, GALLERY_ITEMS_QUERY_CAP);
+      if (shown.some((row) => row.id === mediaId)) return `/media/${galleryId}/${mediaId}`;
+    }
+  }
+  return `/media/item/${mediaId}`;
+}
+
+/**
+ * A member's Share Media submit: photos or one video link, carrying one set of
+ * hashtags, and optionally a gallery named from those hashtags.
+ *
+ * Order: every local check first, writing nothing (hashtags, the gallery name,
+ * each photo's size and type, the submit's count and total); a named gallery
+ * whose recorded preview is missing or stale returns the preview to confirm;
+ * a video link is asked of its platform; then the gallery is created through
+ * `createGallery`, so it stands even if every photo is then refused; then each
+ * photo is shared on its own, a refused one named in `rejected` while the rest
+ * go on. Rate limits, repeats and compensation are those of the methods it
+ * calls.
+ */
+export async function shareMemberMedia(
+  svc: CuratorMediaService,
+  input: ShareMemberMediaInput,
+): Promise<ShareMemberMediaResult> {
+  const isPhoto = input.mediaType !== 'video';
+  const refuse = (message: string, field?: string, httpStatus: 422 | 429 = 422): ShareMemberMediaResult => ({
+    status: 'refused',
+    httpStatus,
+    message: isPhoto && input.photos.length > 0 ? `${message} ${SHARE_CHOOSE_AGAIN}` : message,
+    ...(field ? { fieldErrors: { [field]: message } } : {}),
+  });
+
+  // 1. Local checks, writing nothing.
+  let tags: string[];
+  try {
+    tags = checkedTags(parseTagList(input.tags));
+  } catch (err) {
+    if (err instanceof ValidationError) return refuse(err.message, 'tags');
+    throw err;
+  }
+  const folded = changedTypedTags(input.tags);
+  const externalUrlRaw = input.externalUrl.trim();
+  const externalUrl = externalUrlRaw.length === 0 ? null : externalUrlRaw;
+
+  let videoPlatform: VideoPlatform | null = null;
+  const videoUrl = input.videoUrl.trim();
+  if (!isPhoto && videoUrl.length > 0) {
+    videoPlatform = parseYouTubeVideoId(videoUrl) ? 'youtube' : parseVimeoVideoId(videoUrl) ? 'vimeo' : null;
+    if (!videoPlatform || !/^https?:\/\//.test(videoUrl)) return refuse('Paste a YouTube or Vimeo link.', 'videoUrl');
+  }
+
+  const overLimit = isPhoto ? sharePhotoLimitRefusal(input.photos) : null;
+  if (overLimit) return refuse(overLimit, 'photoFiles');
+
+  const galleryName = input.galleryName.trim();
+  const ownGalleries = galleryName ? svc.listGalleriesForOwner(input.memberId) : [];
+  let preview: NewGalleryPreview | null = null;
+  let heldGallery: CuratorGallerySummary | null = null;
+  if (galleryName) {
+    const p = previewNewMemberGallery(input.slug, galleryName, tags, (id) => media.getNamedGalleryById.get(id) !== undefined);
+    if ('refusal' in p) return refuse(p.refusal, p.field);
+    preview = p;
+    const sameName = ownGalleries.find((g) => g.name === galleryName);
+    if (sameName) {
+      if (!sameTagSet(sameName.criteriaTags, preview.tags)) {
+        const theirs = sameName.criteriaTags.join(' ');
+        return refuse(
+          `You already have a gallery named "${galleryName}", with the hashtags ${theirs}. Choose another name, or use that gallery's hashtags.`,
+          'galleryName',
+        );
+      }
+      heldGallery = sameName;
+    }
+  }
+
+  // A photo dropped for its size was still chosen, and is named as refused.
+  const hasMedia = isPhoto
+    ? input.photos.length > 0 || input.limitExceeded
+    : videoUrl.length > 0;
+  if (!hasMedia && !galleryName) {
+    return refuse(isPhoto ? 'Choose at least one photo, or name a gallery.' : 'Paste a YouTube or Vimeo link.', isPhoto ? 'photoFiles' : 'videoUrl');
+  }
+
+  const { rejected, goodPhotos } = isPhoto
+    ? splitSharedPhotos(input.photos, input.limitExceeded, photoMaxBytes(input.actorIsAdmin))
+    : { rejected: [], goodPhotos: [] };
+
+  // 2. A named gallery's address and hashtags are shown before they are saved.
+  if (preview && !heldGallery && input.galleryPreview.trim() !== newGalleryPreviewToken(preview)) {
+    return { status: 'confirm_gallery', preview };
+  }
+
+  // 3. A video link is asked of its platform before anything is written. Only
+  // a named gallery is written before the video, so only then is it asked
+  // here; otherwise the submit asks it itself, after recognising a repeat.
+  if (videoPlatform && preview) {
+    const deadLink = await svc.checkMemberVideoLink(videoUrl, videoPlatform);
+    if (deadLink) return refuse(deadLink, 'videoUrl');
+  }
+
+  // 4. The gallery, through the one create path.
+  // A gallery the member already has under this name and with these hashtags
+  // goes through the same create, which writes nothing for it: unchanged, it
+  // answers as a repeat; changed since (its description, order or links), it
+  // refuses the name. Either way the gallery already held, and is reported
+  // as held, unless the whole submit is the member's own sent twice (every
+  // item it shares a repeat too, or no item at all): that reports the first
+  // submit's result, the gallery saved.
+  let gallery: SharedGallery | null = null;
+  let galleryRepeat = false;
+  let landingGalleryId: string | null = null;
+  if (preview) {
+    try {
+      const made = await svc.createGallery({
+        actorMemberId: input.memberId,
+        actorIsAdmin: false,
+        ownerMemberId: input.memberId,
+        ownerSlug: input.slug,
+        updates: {
+          name: galleryName,
+          description: '',
+          sortOrder: 'upload_desc',
+          criteriaTags: preview.tags.slice(1),
+          excludeTags: [],
+        },
+      });
+      galleryRepeat = made.repeat === true;
+      gallery = { id: made.id, name: galleryName, tags: preview.tags, created: true };
+      landingGalleryId = made.id;
+    } catch (err) {
+      if (err instanceof ConflictError && heldGallery) {
+        gallery = { id: heldGallery.id, name: heldGallery.name, tags: heldGallery.criteriaTags, created: false };
+        landingGalleryId = heldGallery.id;
+      } else if (err instanceof ValidationError) {
+        return refuse(err.message, 'galleryName');
+      } else if (err instanceof ConflictError) {
+        return refuse(err.message, 'galleryName');
+      } else if (err instanceof RateLimitedError) {
+        return { ...(refuse(err.message, undefined, 429) as Extract<ShareMemberMediaResult, { status: 'refused' }>), retryAfterSeconds: err.retryAfterSeconds };
+      } else {
+        throw err;
+      }
+    }
+  }
+  // Shared items carry the typed hashtags, or the one made from the name.
+  const itemTags = preview?.defaultTagUsed ? preview.tags.slice(1) : tags;
+
+  if (!hasMedia) {
+    const g = gallery as SharedGallery;
+    return { status: 'gallery_saved', landingHref: `/media/${g.id}`, gallery: g, folded };
+  }
+
+  // 5 and 6. Each photo on its own, or the one video.
+  const mediaIds: string[] = [];
+  // False once any item is newly shared, so the submit is not a repeat.
+  let everyItemRepeat = true;
+  if (isPhoto) {
+    for (let i = 0; i < goodPhotos.length; i += 1) {
+      const photo = goodPhotos[i];
+      const captionRaw = photo.caption.trim();
+      try {
+        const result = await svc.uploadPhotoForMember({
+          memberId: input.memberId,
+          actorIsAdmin: input.actorIsAdmin,
+          slug: input.slug,
+          photoBuffer: photo.buffer,
+          sourceFilename: photo.filename,
+          caption: captionRaw.length === 0 ? null : captionRaw,
+          tags: itemTags,
+          ...(externalUrl !== null && { externalUrl }),
+        });
+        mediaIds.push(result.mediaId);
+        if (!result.repeat) everyItemRepeat = false;
+      } catch (err) {
+        everyItemRepeat = false;
+        if (err instanceof RateLimitedError) {
+          const perHour = readIntConfig('photo_upload_rate_limit_per_hour', 30);
+          const minutes = Math.max(1, Math.ceil((err.retryAfterSeconds ?? 60) / 60));
+          const reason = `You can share ${perHour} photos an hour. Try again in ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}.`;
+          for (const rest of goodPhotos.slice(i)) rejected.push({ filename: rest.filename, reason });
+          if (mediaIds.length === 0 && !gallery) {
+            // Every photo refused, as the all-refused form below reports it,
+            // with the wait the limit sets.
+            const reasons = rejected.map((r) => (r.filename ? `${r.filename}: ${r.reason}` : r.reason)).join(' ');
+            return {
+              ...(refuse(`Not shared: ${reasons}`, 'photoFiles', 429) as Extract<ShareMemberMediaResult, { status: 'refused' }>),
+              retryAfterSeconds: err.retryAfterSeconds,
+            };
+          }
+          break;
         }
+        if (err instanceof ValidationError) {
+          rejected.push({ filename: photo.filename, reason: err.message });
+          continue;
+        }
+        throw err;
+      }
+    }
+  } else {
+    const captionRaw = input.videoCaption.trim();
+    try {
+      const result = await svc.submitVideoForMember({
+        memberId: input.memberId,
+        actorIsAdmin: input.actorIsAdmin,
+        slug: input.slug,
+        videoUrl,
+        videoPlatform: videoPlatform as VideoPlatform,
+        caption: captionRaw.length === 0 ? null : captionRaw,
+        tags: itemTags,
+        ...(externalUrl !== null && { externalUrl }),
+      });
+      mediaIds.push(result.mediaId);
+      if (!result.repeat) everyItemRepeat = false;
+    } catch (err) {
+      everyItemRepeat = false;
+      if (!gallery && err instanceof ValidationError) return refuse(err.message, 'videoUrl');
+      if (!gallery && err instanceof RateLimitedError) {
+        return { status: 'refused', httpStatus: 429, message: err.message, retryAfterSeconds: err.retryAfterSeconds };
+      }
+      if (err instanceof ValidationError || err instanceof RateLimitedError) {
+        rejected.push({ filename: videoUrl, reason: err.message });
+      } else {
+        throw err;
       }
     }
   }
 
-  const externalUrlRaw = input.externalUrl.trim();
-  const externalUrl: string | null = externalUrlRaw.length === 0 ? null : externalUrlRaw;
-
-  if (input.mediaType !== 'photo' && input.mediaType !== 'video') {
-    throw new ValidationError('Choose a media type (photo or video).');
-  }
-  if (input.limitExceeded) {
-    throw new ValidationError(fileExceededMessage(photoMaxBytes(input.actorIsAdmin)));
+  // A gallery create answered as a repeat stands as saved only when the
+  // submit's every item was a repeat as well.
+  if (gallery && galleryRepeat && !(mediaIds.length > 0 && everyItemRepeat)) {
+    gallery = { ...gallery, created: false };
   }
 
-  if (input.mediaType === 'photo') {
-    if (!input.photo) throw new ValidationError('Choose a photo file (JPEG or PNG).');
-    await svc.uploadPhotoForMember({
-      memberId: input.memberId,
-      actorIsAdmin: input.actorIsAdmin,
-      slug: input.slug,
-      photoBuffer: input.photo.buffer,
-      sourceFilename: input.photo.filename,
-      caption,
-      tags,
-      ...(externalUrl !== null && { externalUrl }),
+  if (mediaIds.length === 0) {
+    if (gallery) {
+      return {
+        status: 'shared',
+        landingHref: `/media/${gallery.id}`,
+        mediaIds,
+        rejected,
+        gallery,
+        folded,
+      };
+    }
+    // Every photo was refused and nothing else was asked for: the form comes
+    // back with each reason, so the member can fix and choose them again.
+    const reasons = rejected.map((r) => (r.filename ? `${r.filename}: ${r.reason}` : r.reason)).join(' ');
+    return refuse(`Not shared: ${reasons}`, 'photoFiles');
+  }
+
+  return {
+    status: 'shared',
+    landingHref: landingGalleryId
+      ? shareLandingHref(landingGalleryId, mediaIds[0])
+      : memberItemLandingHref(input.memberId, mediaIds[0]),
+    mediaIds,
+    rejected,
+    gallery,
+    folded,
+  };
+}
+
+/**
+ * The address and hashtags a Footbag Hacky gallery named on the curator Share
+ * Media form will be saved with, as the page's preview and the save both see
+ * it. Its id is `gallery_<slug>`, the slug made by the slug rule from the
+ * curator's own slug when one is given under Advanced, else from the name. It
+ * saves the typed hashtags plus `#curated` (or, with none typed, the hashtag
+ * made from the name). An address another gallery already holds is refused:
+ * `isTaken` answers for every gallery but the one `heldId` names, which is the
+ * curator's own same-name, same-hashtags gallery the submit may be repeating.
+ */
+export function previewNewCuratorGallery(
+  name: string,
+  typedTags: string[],
+  slugTyped: string,
+  isTaken: (galleryId: string) => boolean,
+): NewGalleryPreviewResult {
+  const trimmed = name.trim();
+  const refuse = (refusal: string, field: 'galleryName' | 'gallerySlug' = 'galleryName'): NewGalleryPreviewResult =>
+    ({ refusal, field });
+  if (trimmed.length > GALLERY_NAME_MAX_LEN) {
+    return refuse(`A gallery name can be at most ${GALLERY_NAME_MAX_LEN} characters.`);
+  }
+  const slugSource = slugTyped.trim();
+  if (slugSource) {
+    if (galleryNameMakesNoAddress(slugSource)) return refuse(GALLERY_SLUG_NO_ADDRESS_MESSAGE, 'gallerySlug');
+  } else if (galleryNameMakesNoAddress(trimmed)) {
+    return refuse(GALLERY_NAME_NO_ADDRESS_MESSAGE);
+  }
+  const galleryId = `gallery_${slugifyGalleryName(slugSource || trimmed)}`;
+  if (isTaken(galleryId)) {
+    return refuse(
+      `Another gallery already has the address /media/${galleryId}. Choose another name, or another address under Advanced.`,
+      slugSource ? 'gallerySlug' : 'galleryName',
+    );
+  }
+  const chosen = galleryTagsFromTypedOrName(trimmed, typedTags);
+  if ('refusal' in chosen) return refuse(chosen.refusal);
+  return { galleryId, tags: [CURATED_TAG, ...chosen.tags], defaultTagUsed: chosen.defaultTagUsed };
+}
+
+// Shown when the address typed under Advanced folds to no address.
+export const GALLERY_SLUG_NO_ADDRESS_MESSAGE =
+  'A gallery\'s address needs a word in the letters a to z.';
+
+/** What the curator Share Media form posts, as the controller read it. */
+export interface ShareCuratorMediaInput {
+  adminMemberId: string;
+  /** `photo`, `url_reference` (a YouTube or Vimeo link) or `video` (a video file). */
+  mediaType: string | undefined;
+  photos: SharedPhotoFile[];
+  videoFile: { filename: string; buffer: Buffer } | null;
+  poster: Buffer | null;
+  videoUrl: string;
+  videoCaption: string;
+  tags: string;
+  externalUrl: string;
+  sourceId: string;
+  startSeconds: string;
+  endSeconds: string;
+  category: string;
+  newCategory: string;
+  primarySlug: string;
+  galleryName: string;
+  gallerySlug: string;
+  gallerySort: string;
+  galleryExcludeTags: string;
+  galleryPreview: string;
+  /** Some file crossed the size the reader holds a part to, and it dropped it. */
+  limitExceeded: boolean;
+}
+
+export type ShareCuratorMediaResult =
+  | {
+      status: 'shared';
+      mediaIds: string[];
+      rejected: { filename: string; reason: string }[];
+      gallery: SharedGallery | null;
+      folded: FoldedTypedTag[];
+    }
+  | { status: 'gallery_saved'; gallery: SharedGallery; folded: FoldedTypedTag[] }
+  | { status: 'confirm_gallery'; preview: NewGalleryPreview }
+  | {
+      status: 'refused';
+      httpStatus: 410 | 422 | 429;
+      message: string;
+      fieldErrors?: Record<string, string>;
+      retryAfterSeconds?: number;
+    };
+
+/** A gallery named on the curator form, checked and previewed but not yet written. */
+export interface PlannedCuratorGallery {
+  preview: NewGalleryPreview;
+  name: string;
+  sortOrder: string;
+  excludeTags: string[];
+  /** Footbag Hacky already has this gallery, under this name with these hashtags. */
+  held: CuratorGallerySummary | null;
+}
+
+/**
+ * The gallery step of a curator share, writing nothing: the name, the
+ * Advanced address, sort and excluded hashtags checked, the preview made, and
+ * a gallery Footbag Hacky already has under the name recognised. A same-name
+ * gallery with other hashtags is refused, so a curator never gets a second
+ * gallery under one name.
+ */
+export function planCuratorGallery(
+  svc: CuratorMediaService,
+  fields: { galleryName: string; gallerySlug: string; gallerySort: string; galleryExcludeTags: string },
+  typedTags: string[],
+): { status: 'none' } | { status: 'planned'; plan: PlannedCuratorGallery } | { status: 'refused'; message: string; field: string } {
+  const name = fields.galleryName.trim();
+  if (!name) return { status: 'none' };
+  let excludeTags: string[];
+  try {
+    excludeTags = checkedTags(parseTagList(fields.galleryExcludeTags));
+  } catch (err) {
+    if (err instanceof ValidationError) return { status: 'refused', message: err.message, field: 'galleryExcludeTags' };
+    throw err;
+  }
+  const sortOrder = fields.gallerySort.trim() || 'upload_desc';
+  if (!(GALLERY_SORT_ORDER_VALUES as readonly string[]).includes(sortOrder)) {
+    return { status: 'refused', message: 'Choose one of the listed orders.', field: 'gallerySort' };
+  }
+  const own = svc.listGalleriesForOwner(svc.getSystemMemberId());
+  const sameName = own.find((g) => g.name === name) ?? null;
+  const p = previewNewCuratorGallery(name, typedTags, fields.gallerySlug, (id) =>
+    id !== sameName?.id && media.getNamedGalleryById.get(id) !== undefined);
+  if ('refusal' in p) return { status: 'refused', message: p.refusal, field: p.field };
+  if (sameName && (sameName.id !== p.galleryId || !sameTagSet(sameName.criteriaTags, p.tags))) {
+    return {
+      status: 'refused',
+      message: `Footbag Hacky already has a gallery named "${name}", with the hashtags ${sameName.criteriaTags.join(' ')}. Choose another name, or use that gallery's hashtags.`,
+      field: 'galleryName',
+    };
+  }
+  return { status: 'planned', plan: { preview: p, name, sortOrder, excludeTags, held: sameName } };
+}
+
+/**
+ * Write a planned curator gallery through the one curator create path, so its
+ * sidecar is written where sidecar writes are on and its audit row lands as
+ * for any curator gallery. A repeat of the curator's own submit answers with
+ * the first result; a gallery Footbag Hacky already held is reported as held.
+ */
+export async function createPlannedCuratorGallery(
+  svc: CuratorMediaService,
+  adminMemberId: string,
+  plan: PlannedCuratorGallery,
+): Promise<{ status: 'ok'; gallery: SharedGallery } | { status: 'refused'; message: string; httpStatus: 422 | 429; retryAfterSeconds?: number }> {
+  try {
+    await createCuratorGallery(svc, {
+      actorMemberId: adminMemberId,
+      idSlug: plan.preview.galleryId.slice('gallery_'.length),
+      updates: {
+        name: plan.name,
+        description: '',
+        sortOrder: plan.sortOrder,
+        criteriaTags: plan.preview.tags,
+        excludeTags: plan.excludeTags,
+      },
     });
-    return;
+    return { status: 'ok', gallery: { id: plan.preview.galleryId, name: plan.name, tags: plan.preview.tags, created: true } };
+  } catch (err) {
+    if (err instanceof ConflictError && plan.held) {
+      return { status: 'ok', gallery: { id: plan.held.id, name: plan.held.name, tags: plan.held.criteriaTags, created: false } };
+    }
+    if (err instanceof ValidationError || err instanceof ConflictError) {
+      return { status: 'refused', message: err.message, httpStatus: 422 };
+    }
+    if (err instanceof RateLimitedError) {
+      return { status: 'refused', message: err.message, httpStatus: 429, retryAfterSeconds: err.retryAfterSeconds };
+    }
+    throw err;
+  }
+}
+
+/** A whole number of seconds typed into a clip field; null when left empty. */
+function clipSeconds(raw: string): number | null | 'invalid' {
+  const t = raw.trim();
+  if (t === '') return null;
+  return /^\d+$/.test(t) ? Number(t) : 'invalid';
+}
+
+/**
+ * The curator's Share Media submit: several photos, one YouTube or Vimeo link,
+ * or one video file, carrying one set of hashtags, and optionally a Footbag
+ * Hacky gallery named from those hashtags. The same order as a member's share:
+ * every local check first, writing nothing; a named gallery whose recorded
+ * preview is missing or stale returns the preview to confirm; the items'
+ * external URL is checked once, writing nothing; then the gallery is created,
+ * so it stands even if every file is then refused; then each photo is
+ * uploaded on its own, a refused one named while the rest go on, and the
+ * curator write limit reached partway names the rest as refused.
+ *
+ * The photos-per-submit and total-per-submit settings hold the curator as they
+ * hold a member; the size per photo is the code maximum. A video file through
+ * this form is the local-adapter path only; elsewhere the page's script sends
+ * it straight to storage (`beginCuratorVideoUpload`).
+ */
+export async function shareCuratorMedia(
+  svc: CuratorMediaService,
+  input: ShareCuratorMediaInput,
+): Promise<ShareCuratorMediaResult> {
+  const mediaType = input.mediaType === 'url_reference' || input.mediaType === 'video' ? input.mediaType : 'photo';
+  const isPhoto = mediaType === 'photo';
+  const refuse = (message: string, field?: string, httpStatus: 410 | 422 | 429 = 422): ShareCuratorMediaResult => ({
+    status: 'refused',
+    httpStatus,
+    message: isPhoto && input.photos.length > 0 ? `${message} ${SHARE_CHOOSE_AGAIN}` : message,
+    ...(field ? { fieldErrors: { [field]: message } } : {}),
+  });
+
+  // 1. Local checks, writing nothing.
+  if (mediaType === 'video' && config.mediaStorageAdapter !== 'local') {
+    return refuse(
+      'Synchronous video upload via this form is disabled in this environment. Enable JavaScript and reload the page; video uploads run as background transcode jobs.',
+      undefined,
+      410,
+    );
+  }
+  let tags: string[];
+  try {
+    tags = checkedTags(parseTagList(input.tags));
+  } catch (err) {
+    if (err instanceof ValidationError) return refuse(err.message, 'tags');
+    throw err;
+  }
+  const folded = changedTypedTags(input.tags);
+  const externalUrlRaw = input.externalUrl.trim();
+
+  const videoUrl = input.videoUrl.trim();
+  let videoPlatform: VideoPlatform | null = null;
+  let startSeconds: number | null = null;
+  let endSeconds: number | null = null;
+  if (mediaType === 'url_reference' && videoUrl.length > 0) {
+    videoPlatform = parseYouTubeVideoId(videoUrl) ? 'youtube' : parseVimeoVideoId(videoUrl) ? 'vimeo' : null;
+    if (!videoPlatform || !/^https?:\/\//.test(videoUrl)) return refuse('Paste a YouTube or Vimeo link.', 'videoUrl');
+    const start = clipSeconds(input.startSeconds);
+    const end = clipSeconds(input.endSeconds);
+    if (start === 'invalid' || end === 'invalid') return refuse('A clip starts and ends at a whole number of seconds.', 'startSeconds');
+    startSeconds = start;
+    endSeconds = end;
+  }
+  const overLimit = isPhoto ? sharePhotoLimitRefusal(input.photos) : null;
+  if (overLimit) return refuse(overLimit, 'photoFiles');
+
+  const planned = planCuratorGallery(svc, input, tags);
+  if (planned.status === 'refused') return refuse(planned.message, planned.field);
+  const plan = planned.status === 'planned' ? planned.plan : null;
+
+  const hasMedia = isPhoto
+    ? input.photos.length > 0 || input.limitExceeded
+    : mediaType === 'url_reference' ? videoUrl.length > 0 : input.videoFile !== null;
+  if (!hasMedia && !plan) {
+    if (isPhoto) return refuse('Choose at least one photo, or name a gallery.', 'photoFiles');
+    if (mediaType === 'url_reference') return refuse('Paste a YouTube or Vimeo link.', 'videoUrl');
+    return refuse('Please select a video to upload.', 'videoFile');
+  }
+  if (mediaType === 'video' && input.videoFile && (!input.poster || input.poster.length === 0)) {
+    return refuse('Please select a poster image for the video.', 'poster');
   }
 
-  const videoPlatform = input.videoPlatform.trim();
-  if (videoPlatform !== 'youtube' && videoPlatform !== 'vimeo') {
-    throw new ValidationError('Choose YouTube or Vimeo for the video platform.');
+  // The sidecar's directory and file name, asked for only where one is written.
+  let category: string | undefined;
+  if (hasMedia && config.allowCuratedSidecarWrites) {
+    const resolved = resolveCuratorCategory({ category: input.category, newCategory: input.newCategory });
+    if ('errorMessage' in resolved) return refuse(resolved.errorMessage, 'category');
+    category = resolved.category;
+    if (mediaType === 'url_reference' && slugifyForTag(input.primarySlug.trim()).length === 0) {
+      return refuse('Provide a primary slug for the sidecar filename.', 'primarySlug');
+    }
   }
-  await svc.submitVideoForMember({
-    memberId: input.memberId,
-    actorIsAdmin: input.actorIsAdmin,
-    slug: input.slug,
-    videoUrl: input.videoUrl.trim(),
-    videoPlatform,
-    caption,
-    tags,
-    ...(externalUrl !== null && { externalUrl }),
-  });
+
+  const { rejected, goodPhotos } = isPhoto
+    ? splitSharedPhotos(input.photos, input.limitExceeded, photoMaxBytes(true))
+    : { rejected: [], goodPhotos: [] };
+
+  // 2. A named gallery's address and hashtags are shown before they are saved.
+  if (plan && !plan.held && input.galleryPreview.trim() !== newGalleryPreviewToken(plan.preview)) {
+    return { status: 'confirm_gallery', preview: plan.preview };
+  }
+
+  // The items' external URL, checked once for the submit before the gallery
+  // is written, so a link every item would be refused for writes nothing.
+  let externalUrl: string | null = null;
+  if (hasMedia && externalUrlRaw.length > 0) {
+    const checked = await validateExternalUrl(externalUrlRaw);
+    if (!checked.valid) return refuse(checked.error ?? 'Invalid URL.', 'externalUrl');
+    externalUrl = checked.normalizedUrl;
+  }
+
+  // 3. The gallery, through the one curator create path.
+  let gallery: SharedGallery | null = null;
+  if (plan) {
+    const made = await createPlannedCuratorGallery(svc, input.adminMemberId, plan);
+    if (made.status === 'refused') {
+      return { ...(refuse(made.message, 'galleryName', made.httpStatus) as Extract<ShareCuratorMediaResult, { status: 'refused' }>), retryAfterSeconds: made.retryAfterSeconds };
+    }
+    gallery = made.gallery;
+  }
+  const itemTags = plan?.preview.defaultTagUsed ? plan.preview.tags.slice(1) : tags;
+  if (!hasMedia) return { status: 'gallery_saved', gallery: gallery as SharedGallery, folded };
+
+  // 4. Each photo on its own, or the one link or video file. The curator
+  // write limit reached partway stops the rest, each named with its reason,
+  // and what was already saved stands.
+  const mediaIds: string[] = [];
+  let limited: RateLimitedError | null = null;
+  const caption = (raw: string) => (raw.trim().length === 0 ? null : raw.trim());
+  const one = async (label: string, upload: () => Promise<{ mediaId: string }>): Promise<void> => {
+    if (limited) {
+      rejected.push({ filename: label, reason: limited.message });
+      return;
+    }
+    try {
+      mediaIds.push((await upload()).mediaId);
+    } catch (err) {
+      if (err instanceof RateLimitedError) {
+        limited = err;
+        rejected.push({ filename: label, reason: err.message });
+        return;
+      }
+      if (err instanceof ValidationError) {
+        rejected.push({ filename: label, reason: err.message });
+        return;
+      }
+      throw err;
+    }
+  };
+  if (isPhoto) {
+    for (const photo of goodPhotos) {
+      await one(photo.filename, () => svc.uploadPhoto({
+        adminMemberId: input.adminMemberId,
+        photoBuffer: photo.buffer,
+        sourceFilename: photo.filename,
+        caption: caption(photo.caption),
+        tags: itemTags,
+        ...(category && { category }),
+        ...(externalUrl !== null && { externalUrl }),
+      }));
+    }
+  } else if (mediaType === 'url_reference') {
+    await one(videoUrl, () => svc.uploadUrlReference({
+      adminMemberId: input.adminMemberId,
+      category: category ?? '',
+      videoUrl,
+      videoPlatform: videoPlatform as 'youtube' | 'vimeo',
+      // Folded by the one slug rule, so "Food-Processor" files as food_processor.
+      primarySlug: slugifyForTag(input.primarySlug.trim()),
+      title: caption(input.videoCaption),
+      sourceId: input.sourceId.trim() || null,
+      startSeconds,
+      endSeconds,
+      tags: itemTags,
+      ...(externalUrl !== null && { externalUrl }),
+    }));
+  } else {
+    const file = input.videoFile as { filename: string; buffer: Buffer };
+    await one(file.filename, () => svc.uploadVideo({
+      adminMemberId: input.adminMemberId,
+      videoBuffer: file.buffer,
+      posterBuffer: input.poster as Buffer,
+      sourceFilename: file.filename,
+      caption: caption(input.videoCaption),
+      tags: itemTags,
+      ...(category && { category }),
+      ...(externalUrl !== null && { externalUrl }),
+    }));
+  }
+
+  if (mediaIds.length === 0 && !gallery) {
+    // Everything was refused and nothing else was asked for: the form comes
+    // back with each reason, so the curator can fix it and choose again.
+    const reasons = rejected.map((r) => (r.filename ? `${r.filename}: ${r.reason}` : r.reason)).join(' ');
+    const field = isPhoto ? 'photoFiles' : mediaType === 'url_reference' ? 'videoUrl' : 'videoFile';
+    const stoppedBy = limited as RateLimitedError | null;
+    if (stoppedBy) {
+      return {
+        ...(refuse(`Not uploaded: ${reasons}`, field, 429) as Extract<ShareCuratorMediaResult, { status: 'refused' }>),
+        retryAfterSeconds: stoppedBy.retryAfterSeconds,
+      };
+    }
+    return refuse(`Not uploaded: ${reasons}`, field);
+  }
+  return { status: 'shared', mediaIds, rejected, gallery, folded };
+}
+
+/**
+ * The video-file tab's first step where storage is S3: the page's script asks
+ * for the upload URLs here, sending the form's other fields with the claimed
+ * files. A gallery named on the form is checked first, made once the claimed
+ * files and link pass their own checks, and made before the URLs are signed,
+ * so a refused video writes no gallery, a refused gallery leaves no job
+ * behind and a made one stands as on any other tab; its preview must be the one
+ * the page showed, which the script records as the name and hashtags are typed.
+ */
+export async function signCuratorVideoUpload(
+  svc: CuratorMediaService,
+  input: Parameters<CuratorMediaService['beginCuratorVideoUpload']>[0] & {
+    galleryName: string;
+    gallerySlug: string;
+    gallerySort: string;
+    galleryExcludeTags: string;
+    galleryPreview: string;
+  },
+): Promise<
+  | { status: 'signed'; jobId: string; videoUrl: string; posterUrl: string; expiresAtIso: string }
+  | { status: 'invalid'; error: string }
+> {
+  let tags: string[];
+  try {
+    tags = checkedTags(parseTagList(input.tags));
+  } catch (err) {
+    if (err instanceof ValidationError) return { status: 'invalid', error: err.message };
+    throw err;
+  }
+  const planned = planCuratorGallery(svc, input, tags);
+  if (planned.status === 'refused') return { status: 'invalid', error: planned.message };
+  const plan = planned.status === 'planned' ? planned.plan : null;
+  if (plan && !plan.held && input.galleryPreview.trim() !== newGalleryPreviewToken(plan.preview)) {
+    return { status: 'invalid', error: 'The new gallery\'s address or hashtags changed. Check them below the gallery name, then upload again.' };
+  }
+  // The video carries what the gallery saves when no hashtag was typed.
+  const itemTags = plan?.preview.defaultTagUsed ? plan.preview.tags.slice(1).join(' ') : input.tags;
+  // The gallery is written once the video's own checks (its type, its size,
+  // its external URL) have passed, so a refused video writes no gallery, and
+  // before any URL is signed, so a refused gallery leaves no job behind; like
+  // a gallery named on any other tab, it stands if the upload never finishes.
+  return svc.beginCuratorVideoUpload({ ...input, tags: itemTags }, plan
+    ? async () => {
+      const made = await createPlannedCuratorGallery(svc, input.adminMemberId, plan);
+      return made.status === 'refused' ? made.message : null;
+    }
+    : undefined);
 }
 
 /**
@@ -4800,48 +5469,6 @@ export function createCuratorGallery(
 
 /** How many curated items one page of the admin media list shows. */
 export const CURATOR_LIST_PAGE_SIZE = 50;
-
-/**
- * The upload form's fields as the browser last submitted them, echoed back so a
- * refused submission re-renders with the curator's own words still in place.
- */
-export interface CuratorUploadFormValues {
-  mediaType?: string;
-  caption?: string;
-  tags?: string;
-  category?: string;
-  newCategory?: string;
-  videoUrl?: string;
-  videoPlatform?: string;
-  primarySlug?: string;
-  title?: string;
-  sourceId?: string;
-  externalUrl?: string;
-}
-
-export interface CuratorUploadContent {
-  errorMessage: string | null;
-  formValues: CuratorUploadFormValues;
-  existingCategories: string[];
-  hasExistingCategories: boolean;
-  savedFlag: boolean;
-  /** Names the typed tags the save stored folded; null when none were. */
-  savedFoldLine: string | null;
-  // True when the configured storage adapter is S3, which is what makes the
-  // browser-side presigned PUT path available for video.
-  asyncEnabled: boolean;
-  // The cap the page states and the cap the server applies are the same number
-  // by construction: the megabyte figure is what the label reads, the byte
-  // figure is what the browser compares a chosen file against so an oversized
-  // file is refused before any of it is sent.
-  videoMaxMb: number;
-  videoMaxBytes: number;
-  // True only where the authoring tree is writable (a developer machine
-  // before go-live), which is the one place the curator seeder applies. It
-  // also decides whether the form asks for a category and a primary slug,
-  // which only name the sidecar's directory and file.
-  sidecarWritesEnabled: boolean;
-}
 
 /** One row of the admin curated-media list, with its delete-confirm state. */
 export interface CuratorMediaListRow extends CuratorMediaListItem {
@@ -4933,16 +5560,6 @@ export interface CuratorGalleryFormFields {
   isDefault?: boolean;
 }
 
-export interface CuratorGalleryNewContent {
-  formAction: string;
-  cancelHref: string;
-  errorMessage: string | null;
-  gallery: CuratorGalleryFormFields;
-  // True only where the authoring tree is writable, the one place a gallery
-  // also gets a JSON sidecar.
-  sidecarWritesEnabled: boolean;
-}
-
 export interface CuratorGalleryEditContent {
   notFound: boolean;
   galleryId: string;
@@ -4953,7 +5570,9 @@ export interface CuratorGalleryEditContent {
   gallery: CuratorGalleryFormFields | null;
   currentItems: CuratorGalleryEditView['currentItems'];
   currentItemsTruncated: boolean;
-  uploadTags: string;
+  /** Opens the curator upload form with this gallery's hashtags filled in;
+   *  null on a member's gallery, which a curator moderates and never adds to. */
+  uploadWithTagsHref: string | null;
   externalLinkSlots: ExternalLinkSlot[];
   isFhOwned: boolean;
   // Non-null only when an administrator is looking at somebody else's gallery,
@@ -5011,47 +5630,6 @@ export function curatorGalleryEditTitle(
   return moderation ? "Moderate a Member's Gallery" : 'Edit Curator Gallery';
 }
 
-export function getCuratorUploadPage(
-  opts: {
-    errorMessage?: string;
-    formValues?: CuratorUploadFormValues;
-    savedFlag?: boolean;
-    /** Typed tags the save stored folded, named in the saved message. */
-    savedFolded?: { typed: string; stored: string }[];
-    existingCategories?: string[];
-  } = {},
-): PageViewModel<CuratorUploadContent> {
-  const asyncEnabled = config.mediaStorageAdapter === 's3';
-  const existingCategories = opts.existingCategories ?? [];
-  return {
-    seo: { title: 'Upload Curated Media' },
-    page: {
-      sectionKey: 'admin', pageKey: 'admin_curator_upload', title: 'Upload Curated Media',
-      instructions: {
-        what: 'Uploads curated photos and videos, or adds a YouTube or Vimeo link, credited to the platform\'s curator account.',
-        why: 'To publish IFPA\'s own media alongside what members share.',
-        how: 'Choose the kind of media, add the file or link, its caption and hashtags, and upload.',
-        headsUp: [
-          'Uploads are credited to the curator account, not to you. Your name is kept in the audit log.',
-          'The #curated hashtag is added automatically.',
-          'A video is converted after upload, which usually takes one to three minutes. Its status page shows the progress.',
-        ],
-      },
-    },
-    content: {
-      errorMessage: opts.errorMessage ?? null,
-      formValues: opts.formValues ?? {},
-      existingCategories,
-      hasExistingCategories: existingCategories.length > 0,
-      savedFlag: opts.savedFlag ?? false,
-      savedFoldLine: opts.savedFlag ? foldedTagsLine(opts.savedFolded ?? []) : null,
-      asyncEnabled,
-      videoMaxMb: VIDEO_MAX_MB,
-      videoMaxBytes: VIDEO_MAX_BYTES,
-      sidecarWritesEnabled: config.allowCuratedSidecarWrites,
-    },
-  };
-}
 
 export function getCuratorMediaListPage(
   svc: CuratorMediaService,
@@ -5296,39 +5874,9 @@ export function getCuratorGalleryListPage(
       savedFlag: input.savedFlag,
       savedFoldLine: input.savedFlag ? foldedTagsLine(input.savedFolded ?? []) : null,
       sidecarWritesEnabled: config.allowCuratedSidecarWrites,
-      newGalleryHref: '/admin/curator/galleries/new',
+      // A gallery is made on the curator Share Media form by naming hashtags.
+      newGalleryHref: '/admin/curator/upload',
       listHref: '/admin/curator/galleries',
-    },
-  };
-}
-
-export function getCuratorGalleryNewPage(
-  opts: { errorMessage?: string; gallery?: CuratorGalleryFormFields } = {},
-): PageViewModel<CuratorGalleryNewContent> {
-  return {
-    seo: { title: 'New Curator Gallery' },
-    page: {
-      sectionKey: 'admin',
-      pageKey: 'admin_curator_galleries_new',
-      title: 'New Curator Gallery',
-      instructions: {
-        what: 'Creates a public gallery owned by the curator account.',
-        how: 'Give it an id, a name and its hashtag rules, then save.',
-      },
-    },
-    content: {
-      formAction: '/admin/curator/galleries',
-      cancelHref: '/admin/curator/galleries',
-      errorMessage: opts.errorMessage ?? null,
-      gallery: opts.gallery ?? {
-        idSlug: '',
-        name: '',
-        description: '',
-        sortOrder: 'upload_desc',
-        criteriaTagsString: '',
-        excludeTagsString: '',
-      },
-      sidecarWritesEnabled: config.allowCuratedSidecarWrites,
     },
   };
 }
@@ -5362,12 +5910,16 @@ export function getCuratorGalleryNotFoundPage(
     gallery: null,
     currentItems: [],
     currentItemsTruncated: false,
-    uploadTags: '',
+    uploadWithTagsHref: null,
     externalLinkSlots: [],
     isFhOwned: true,
     moderation: null,
     reasonRaw: '',
   });
+}
+
+function curatorUploadWithTagsHref(galleryId: string, isFhOwned: boolean): string | null {
+  return isFhOwned ? `/admin/curator/upload?gallery=${encodeURIComponent(galleryId)}` : null;
 }
 
 export function getCuratorGalleryEditPage(
@@ -5396,7 +5948,7 @@ export function getCuratorGalleryEditPage(
     },
     currentItems: g.currentItems,
     currentItemsTruncated: g.currentItemsTruncated,
-    uploadTags: g.criteriaTagsDisplayString,
+    uploadWithTagsHref: curatorUploadWithTagsHref(galleryId, g.isSystemOwned),
     externalLinkSlots: buildExternalLinkSlots(null, g.externalLinks),
     isFhOwned: g.isSystemOwned,
     moderation,
@@ -5421,7 +5973,6 @@ export function getCuratorGalleryEditErrorPage(
     sortOrderRaw: string;
     criteriaTagsRaw: string;
     excludeTagsRaw: string;
-    uploadTagsRaw: string;
     externalLinks: CuratorGalleryExternalLinkInput[];
     fieldErrors?: Record<string, string>;
     reasonRaw?: string;
@@ -5457,7 +6008,7 @@ export function getCuratorGalleryEditErrorPage(
     },
     currentItems,
     currentItemsTruncated,
-    uploadTags: submitted.uploadTagsRaw,
+    uploadWithTagsHref: curatorUploadWithTagsHref(submitted.galleryId, isFhOwned),
     externalLinkSlots: buildExternalLinkSlots(submitted.externalLinks, [], submitted.fieldErrors),
     isFhOwned,
     moderation,
@@ -5535,31 +6086,161 @@ export function getCuratorJobStatusPage(job: {
 // above: what the page offers depends on what the member owns, so the page
 // contract is composed here and the controller renders it.
 
-/** A member's own gallery, offered on the upload form as a destination. */
-export interface MemberGalleryOption {
-  id: string;
-  name: string;
-  criteriaTags: string[];
+/**
+ * One of the owner's galleries as a quick-add suggestion: clicking it adds the
+ * gallery's hashtags, which is what makes what is shared show in it.
+ */
+export interface ShareGalleryChip {
+  /** "<name>: <hashtags>", the chip's text. */
+  label: string;
+  /** The hashtags the chip adds, space separated, the automatic tag left out. */
+  tagsAttr: string;
 }
 
+/**
+ * The owner's own galleries as quick-add chips. The Personal Gallery is never
+ * one, because its only hashtag is the automatic one; the automatic hashtag is
+ * left out of every chip, since it is added anyway and refused as typed input.
+ */
+export function memberGalleryChips(svc: CuratorMediaService, memberId: string): ShareGalleryChip[] {
+  return svc.listGalleriesForOwner(memberId)
+    .filter((g) => !g.isDefault)
+    .map((g) => {
+      const tags = g.criteriaTags.filter((t) => !t.toLowerCase().startsWith(UPLOADER_TAG_PREFIX));
+      return { label: `${g.name}: ${tags.join(' ')}`, tagsAttr: tags.join(' ') };
+    })
+    .filter((c) => c.tagsAttr.length > 0);
+}
+
+/**
+ * A Share Media form's fields as the browser last submitted them, echoed back
+ * so a refused or confirm-round submit keeps the uploader's own words. The
+ * member form posts the first group; the curator form posts all of them.
+ */
 export interface MemberMediaUploadFormValues {
-  mediaType?: 'photo' | 'video';
+  mediaType?: string;
   caption?: string;
+  videoCaption?: string;
   tags?: string;
   videoUrl?: string;
-  videoPlatform?: 'youtube' | 'vimeo' | '';
   externalUrl?: string;
-  galleryId?: string;
+  galleryName?: string;
+  fileCaption?: string;
+  sourceId?: string;
+  startSeconds?: string;
+  endSeconds?: string;
+  category?: string;
+  newCategory?: string;
+  primarySlug?: string;
+  gallerySlug?: string;
+  gallerySort?: string;
+  galleryExcludeTags?: string;
+}
+
+const SHARE_FORM_FIELDS = [
+  'mediaType', 'caption', 'videoCaption', 'fileCaption', 'tags', 'videoUrl', 'externalUrl',
+  'galleryName', 'sourceId', 'startSeconds', 'endSeconds', 'category', 'newCategory',
+  'primarySlug', 'gallerySlug', 'gallerySort', 'galleryExcludeTags',
+] as const;
+
+/** A Share Media submit's fields as the form echoes them back, for either form. */
+export function shareFormValues(fields: Record<string, string>): MemberMediaUploadFormValues {
+  const values: MemberMediaUploadFormValues = {};
+  for (const name of SHARE_FORM_FIELDS) values[name] = fields[name] ?? '';
+  return values;
+}
+
+/** The media-type tabs a Share Media form offers, and which is open. */
+export interface ShareFormTabs {
+  /** The `mediaType` value each tab posts; `fileValue` is null where there is no video-file tab. */
+  photoValue: string;
+  linkValue: string;
+  fileValue: string | null;
+  photoChecked: boolean;
+  linkChecked: boolean;
+  fileChecked: boolean;
+}
+
+function shareFormTabs(mediaType: string | undefined, values: { link: string; file: string | null }): ShareFormTabs {
+  const linkChecked = mediaType === values.link;
+  const fileChecked = values.file !== null && mediaType === values.file;
+  return {
+    photoValue: 'photo',
+    linkValue: values.link,
+    fileValue: values.file,
+    photoChecked: !linkChecked && !fileChecked,
+    linkChecked,
+    fileChecked,
+  };
+}
+
+/** What the curator's Share Media form adds to the member's. */
+export interface CuratorShareExtras {
+  /** True where storage is S3, so the page's script sends a video file straight to storage. */
+  asyncEnabled: boolean;
+  // The cap the page states and the cap the server applies are one number: the
+  // megabyte figure is the label's, the byte figure the browser's check.
+  videoMaxMb: number;
+  videoMaxBytes: number;
+  /** True where the authoring tree is written, the one place a category and a primary slug mean anything. */
+  sidecarWritesEnabled: boolean;
+  categories: Array<{ value: string; checked: boolean }>;
+  sortOptions: Array<{ value: string; label: string; selected: boolean }>;
+  /** The report of the last submit, which lands back on this page. */
+  notices: ShareNotices | null;
+}
+
+/** A new gallery's address and hashtags as the Share form shows them before saving. */
+export interface ShareGalleryPreviewView {
+  tagsLine: string;
+  madeFromNameNote: string | null;
+  addressLine: string;
+  /** The value the hidden preview field carries, so the next submit saves what was shown. */
+  token: string;
 }
 
 export interface MemberMediaUploadContent {
   formAction: string;
   cancelHref: string;
+  intro: string;
   errorMessage: string | null;
+  fieldErrors: Record<string, string>;
+  /** The confirm round's informational notice; null otherwise. */
+  notice: string | null;
   formValues: MemberMediaUploadFormValues;
   tagSuggestions: MemberTagSuggestions | null;
-  galleries: MemberGalleryOption[];
-  hasGalleries: boolean;
+  galleryChips: ShareGalleryChip[];
+  /** Whose galleries the chips are: the member's own, or Footbag Hacky's. */
+  galleryChipsLabel: string;
+  automaticTag: string;
+  photoFieldLabel: string;
+  galleryStepText: string;
+  preview: ShareGalleryPreviewView | null;
+  limits: ShareUploadLimits;
+  tabs: ShareFormTabs;
+  /** The button's label: Share for a member, Upload for the curator. */
+  submitLabel: string;
+  /** Null on the member's form. */
+  curator: CuratorShareExtras | null;
+  /** The JSON data island the Share script reads: what it needs to preview a gallery and check files. */
+  shareDataJson: string;
+}
+
+function sharePreviewView(preview: NewGalleryPreview): ShareGalleryPreviewView {
+  return {
+    tagsLine: `Its hashtags: ${preview.tags.join(' ')}`,
+    madeFromNameNote: preview.defaultTagUsed
+      ? '(made from the name, because no hashtags are given above)'
+      : null,
+    addressLine: `Its address: /media/${preview.galleryId} (it stays the same if you rename the gallery)`,
+    token: newGalleryPreviewToken(preview),
+  };
+}
+
+// Inside a JSON data island, `<` is written as its escape so no value can close
+// the script element it sits in.
+function jsonForDataIsland(value: unknown): string {
+  return JSON.stringify(value).replace(/</g, '\\u003c');
 }
 
 export interface MemberMediaEditFormValues {
@@ -5576,6 +6257,8 @@ export interface MemberMediaDeleteConfirmContent {
 
 export interface MemberMediaEditContent {
   formAction: string;
+  intro: string;
+  galleryChips: ShareGalleryChip[];
   /** The edit form's id, so the player-search picks (rendered outside the
    *  form, after the search form) submit it with their credit. */
   editFormId: string;
@@ -5610,37 +6293,227 @@ export function buildPlayerSearchBlock(
   };
 }
 
+export const SHARE_CONFIRM_NOTICE_WITH_FILES =
+  'Check your new gallery\'s address and hashtags below, then choose your photos again and press Share.';
+export const SHARE_CONFIRM_NOTICE =
+  'Check your new gallery\'s address and hashtags below, then press Share.';
+// The curator's form names its button Upload.
+export const CURATOR_CONFIRM_NOTICE_WITH_FILES =
+  'Check the new gallery\'s address and hashtags below, then choose the files again and press Upload.';
+export const CURATOR_CONFIRM_NOTICE =
+  'Check the new gallery\'s address and hashtags below, then press Upload.';
+
+/**
+ * The Share Media form: photos or a video link, one set of hashtags, and the
+ * optional step that names those hashtags as a gallery.
+ *
+ * The member's own galleries are offered as quick-add chips, never as a
+ * destination: nothing is put in a gallery, it shows what carries its hashtags.
+ * `prefillGalleryId` names one of the member's own galleries (`?gallery=`),
+ * whose hashtags fill the Hashtags field; any other value is ignored.
+ */
 export function getMemberMediaUploadPage(
   svc: CuratorMediaService,
   memberKey: string,
-  memberId: string | null,
+  memberId: string,
+  memberSlug: string,
   opts: {
+    actorIsAdmin?: boolean;
+    prefillGalleryId?: string;
     errorMessage?: string;
+    fieldErrors?: Record<string, string>;
+    notice?: string;
     formValues?: MemberMediaUploadFormValues;
     tagSuggestions?: MemberTagSuggestions;
+    preview?: NewGalleryPreview;
   } = {},
 ): PageViewModel<MemberMediaUploadContent> {
-  // The destinations the form offers are the member's own galleries, which is a
-  // domain read shaped into a control, so it is composed here rather than handed
-  // in already shaped.
-  const galleries: MemberGalleryOption[] = memberId
-    ? svc.listGalleriesForOwner(memberId).map((g) => ({
-        id: g.id,
-        name: g.name,
-        criteriaTags: g.criteriaTags,
-      }))
-    : [];
+  const owned = svc.listGalleriesForOwner(memberId);
+  const automaticTag = `${UPLOADER_TAG_PREFIX}${memberSlug}`;
+  const limits = shareUploadLimits(opts.actorIsAdmin === true);
+
+  let formValues: MemberMediaUploadFormValues = opts.formValues ?? { mediaType: 'photo' };
+  if (!opts.formValues && opts.prefillGalleryId) {
+    const prefill = owned.find((g) => g.id === opts.prefillGalleryId && !g.isDefault);
+    if (prefill) {
+      const tags = prefill.criteriaTags.filter((t) => !t.toLowerCase().startsWith(UPLOADER_TAG_PREFIX));
+      formValues = { ...formValues, tags: tags.join(' ') };
+    }
+  }
+
   return {
-    seo: { title: 'Upload Media' },
-    page: { sectionKey: 'members', pageKey: 'member_media_upload', title: 'Upload Media' },
+    seo: { title: 'Share Media' },
+    page: { sectionKey: 'members', pageKey: 'member_media_upload', title: 'Share Media' },
     content: {
       formAction: `/members/${memberKey}/media/upload`,
       cancelHref: memberGalleriesHref(memberKey),
+      intro: `Hashtags decide where everything on this site shows. A search is an unnamed set of hashtags in the web address; a gallery is the same thing with a name and a permanent address you can bookmark. Everything you share also carries ${automaticTag}, so it is always in your Personal Gallery.`,
       errorMessage: opts.errorMessage ?? null,
-      formValues: opts.formValues ?? { mediaType: 'photo' },
+      fieldErrors: opts.fieldErrors ?? {},
+      notice: opts.notice ?? null,
+      formValues,
       tagSuggestions: opts.tagSuggestions ?? null,
-      galleries,
-      hasGalleries: galleries.length > 0,
+      galleryChips: memberGalleryChips(svc, memberId),
+      galleryChipsLabel: 'Your galleries:',
+      automaticTag,
+      photoFieldLabel: `Photos (JPEG or PNG, up to ${limits.fileMb} MB each, up to ${limits.maxFiles} at a time, together up to ${limits.totalMb} MB):`,
+      galleryStepText: `A gallery is a set of hashtags with a name and a permanent address. Give it a name and it saves the hashtags above, plus your ${automaticTag}. It shows everything you share that carries all of them, now and later, including what you share right now.`,
+      preview: opts.preview ? sharePreviewView(opts.preview) : null,
+      limits,
+      tabs: shareFormTabs(formValues.mediaType, { link: 'video', file: null }),
+      submitLabel: 'Share',
+      curator: null,
+      shareDataJson: jsonForDataIsland({
+        galleryIdPrefix: `gallery_${memberSlug}_`,
+        automaticTag,
+        // A member's address already taken takes the next `_2`, `_3`.
+        takenIds: owned.map((g) => g.id),
+        takenRefused: false,
+        personalGalleryId: buildMemberGalleryId(memberSlug, PERSONAL_GALLERY_NAME, 0),
+        maxFiles: limits.maxFiles,
+        fileBytes: limits.fileMb * 1024 * 1024,
+        totalBytes: limits.totalMb * 1024 * 1024,
+      }),
+    },
+  };
+}
+
+/** Footbag Hacky's galleries as quick-add chips, `#curated` left out since it is added anyway. */
+function curatorGalleryChips(galleries: CuratorGallerySummary[]): ShareGalleryChip[] {
+  return galleries
+    .map((g) => {
+      const tags = g.criteriaTags.filter((t) => t.toLowerCase() !== CURATED_TAG);
+      return { label: `${g.name}: ${tags.join(' ')}`, tagsAttr: tags.join(' ') };
+    })
+    .filter((c) => c.tagsAttr.length > 0);
+}
+
+// The same labels the gallery edit form gives these orders.
+const GALLERY_SORT_LABELS: Record<string, string> = {
+  upload_desc: 'Upload date, newest first (default)',
+  upload_asc: 'Upload date, oldest first',
+  caption_asc: 'Caption alphabetical (use for captioned series)',
+};
+
+/**
+ * The report of a curator Share Media submit, on the upload page it lands back
+ * on: what was uploaded, the gallery named, what was refused, each in its own
+ * tone. Where sidecar writes are on, it also says the seeder carries the new
+ * sidecars into the database.
+ */
+export function curatorShareNotices(outcome: ShareOutcome, sidecarWritesEnabled: boolean): ShareNotices {
+  const success: string[] = [];
+  const info: string[] = [];
+  if (outcome.count > 0) {
+    success.push(outcome.count > 1 ? `Uploaded ${outcome.count} items.` : 'Uploaded.');
+    if (sidecarWritesEnabled) {
+      success.push('Sidecar saved under /curated/. Run the curator seeder (python scripts/seed_fh_curator.py) to update the platform DB.');
+    }
+  }
+  if (outcome.gallery?.created) {
+    success.push(`Gallery ${outcome.gallery.name} saved, at /media/${outcome.gallery.id}.`);
+  } else if (outcome.gallery) {
+    info.push(`Footbag Hacky already has a gallery named ${outcome.gallery.name} with these hashtags.`);
+  }
+  const foldLine = foldedTagsLine(outcome.folded);
+  if (foldLine && success.length > 0) success.push(foldLine);
+  const refusal = outcome.rejected.map((r) => {
+    const reason = r.reason.replace(/\.$/, '');
+    return r.filename ? `Not uploaded: ${r.filename}: ${reason}.` : `Not uploaded: ${reason}.`;
+  });
+  return { success, info, refusal };
+}
+
+/**
+ * The curator's Share Media form: the member's form with the curator's
+ * differences. Photos, a YouTube or Vimeo link (with its source and clip
+ * range under Advanced) and a video file; the locked `#curated` in place of
+ * `#by_`; Footbag Hacky's galleries as quick-add chips; and, where sidecar
+ * writes are on, the category and primary slug that name the sidecar. A
+ * gallery named here is a Footbag Hacky gallery, its address made from the
+ * name or from the slug given under Advanced, where its order and excluded
+ * hashtags are set too. `prefillGalleryId` names a Footbag Hacky gallery
+ * (`?gallery=`) whose hashtags fill the Hashtags field.
+ */
+export function getCuratorSharePage(
+  svc: CuratorMediaService,
+  opts: {
+    prefillGalleryId?: string;
+    errorMessage?: string;
+    fieldErrors?: Record<string, string>;
+    notice?: string;
+    formValues?: MemberMediaUploadFormValues;
+    tagSuggestions?: MemberTagSuggestions;
+    preview?: NewGalleryPreview;
+    existingCategories?: string[];
+    outcome?: ShareOutcome | null;
+  } = {},
+): PageViewModel<MemberMediaUploadContent> {
+  const galleries = svc.listGalleriesForOwner(svc.getSystemMemberId());
+  const limits = shareUploadLimits(true);
+  let formValues: MemberMediaUploadFormValues = opts.formValues ?? { mediaType: 'photo' };
+  if (!opts.formValues && opts.prefillGalleryId) {
+    const prefill = galleries.find((g) => g.id === opts.prefillGalleryId);
+    if (prefill) {
+      formValues = { ...formValues, tags: prefill.criteriaTags.filter((t) => t.toLowerCase() !== CURATED_TAG).join(' ') };
+    }
+  }
+  const sort = formValues.gallerySort || 'upload_desc';
+  return {
+    seo: { title: 'Upload Curated Media' },
+    page: {
+      sectionKey: 'admin', pageKey: 'admin_curator_upload', title: 'Upload Curated Media',
+      instructions: {
+        what: 'Uploads curated photos and videos, or adds a YouTube or Vimeo link, credited to the platform\'s curator account, and can name their hashtags as one of its galleries.',
+        why: 'To publish IFPA\'s own media alongside what members share.',
+        how: 'Choose the kind of media, add the files or link, their captions and hashtags, and upload. To make a gallery, name the hashtags under the last step.',
+        headsUp: [
+          'Uploads are credited to the curator account, not to you. Your name is kept in the audit log.',
+          'The #curated hashtag is added automatically.',
+          'A video is converted after upload, which usually takes one to three minutes. Its status page shows the progress.',
+        ],
+      },
+    },
+    content: {
+      formAction: '/admin/curator/upload',
+      cancelHref: '/admin/curator/media',
+      intro: `Hashtags decide where everything on this site shows. A search is an unnamed set of hashtags in the web address; a gallery is the same thing with a name and a permanent address you can bookmark. Everything uploaded here also carries ${CURATED_TAG}.`,
+      errorMessage: opts.errorMessage ?? null,
+      fieldErrors: opts.fieldErrors ?? {},
+      notice: opts.notice ?? null,
+      formValues,
+      tagSuggestions: opts.tagSuggestions ?? null,
+      galleryChips: curatorGalleryChips(galleries),
+      galleryChipsLabel: 'Footbag Hacky\'s galleries:',
+      automaticTag: CURATED_TAG,
+      photoFieldLabel: `Photos (JPEG or PNG, up to ${limits.fileMb} MB each, up to ${limits.maxFiles} at a time, together up to ${limits.totalMb} MB):`,
+      galleryStepText: `A gallery is a set of hashtags with a name and a permanent address. Give it a name and it saves the hashtags above, plus ${CURATED_TAG}. It shows everything that carries all of them, now and later, including what you upload right now.`,
+      preview: opts.preview ? sharePreviewView(opts.preview) : null,
+      limits,
+      tabs: shareFormTabs(formValues.mediaType, { link: 'url_reference', file: 'video' }),
+      submitLabel: 'Upload',
+      curator: {
+        asyncEnabled: config.mediaStorageAdapter === 's3',
+        videoMaxMb: VIDEO_MAX_MB,
+        videoMaxBytes: VIDEO_MAX_BYTES,
+        sidecarWritesEnabled: config.allowCuratedSidecarWrites,
+        categories: (opts.existingCategories ?? []).map((c) => ({ value: c, checked: formValues.category === c })),
+        sortOptions: GALLERY_SORT_ORDER_VALUES.map((v) => ({
+          value: v, label: GALLERY_SORT_LABELS[v] ?? v, selected: v === sort,
+        })),
+        notices: opts.outcome ? curatorShareNotices(opts.outcome, config.allowCuratedSidecarWrites) : null,
+      },
+      shareDataJson: jsonForDataIsland({
+        galleryIdPrefix: 'gallery_',
+        automaticTag: CURATED_TAG,
+        // A curator gallery's address another gallery holds is refused, never suffixed.
+        takenIds: galleries.map((g) => g.id),
+        takenRefused: true,
+        personalGalleryId: null,
+        maxFiles: limits.maxFiles,
+        fileBytes: limits.fileMb * 1024 * 1024,
+        totalBytes: limits.totalMb * 1024 * 1024,
+      }),
     },
   };
 }
@@ -5653,113 +6526,78 @@ export function getMemberMediaEditPage(
     errorMessage?: string;
     tagSuggestions?: MemberTagSuggestions;
     playerSearch?: { query?: string; actorMemberId: string; ip: string };
+    galleryChips?: ShareGalleryChip[];
+    memberSlug?: string;
   } = {},
 ): PageViewModel<MemberMediaEditContent> {
   const formAction = `/members/${memberKey}/media/${mediaId}/edit`;
+  const automaticTag = `${UPLOADER_TAG_PREFIX}${opts.memberSlug ?? memberKey}`;
   return {
     seo: { title: 'Edit Media' },
     page: { sectionKey: 'members', pageKey: 'member_media_edit', title: 'Edit Media' },
     content: {
       formAction,
+      intro: `Change this item's caption, hashtags or external URL. Its hashtags decide where it shows: add a gallery's hashtags to show it in that gallery, remove one to stop. ${automaticTag} stays on it always.`,
       editFormId: 'member-media-edit-form',
       playerSearch: buildPlayerSearchBlock(formAction, opts.playerSearch),
       deleteConfirmHref: `/members/${memberKey}/media/${mediaId}/delete`,
-      cancelHref: memberGalleriesHref(memberKey),
+      cancelHref: `/media/item/${mediaId}`,
       errorMessage: opts.errorMessage ?? null,
       formValues,
       tagSuggestions: opts.tagSuggestions ?? null,
+      galleryChips: opts.galleryChips ?? [],
     },
   };
-}
-
-export interface MemberGalleryNewContent {
-  formAction: string;
-  cancelHref: string;
-  errorMessage: string | null;
-  fieldErrors: Record<string, string> | undefined;
-  gallery: CuratorGalleryFormFields;
-  uploadTags: string;
-  externalLinkSlots: ExternalLinkSlot[];
 }
 
 export interface MemberGalleryEditContent {
   formAction: string;
   cancelHref: string;
-  uploadMediaHref: string;
+  intro: string;
+  shareWithTagsHref: string | null;
   errorMessage: string | null;
   fieldErrors: Record<string, string> | undefined;
   gallery: CuratorGalleryFormFields;
   currentItems: CuratorGalleryEditView['currentItems'];
   currentItemsTruncated: boolean;
-  uploadTags: string;
   externalLinkSlots: ExternalLinkSlot[];
 }
 
-export function getMemberGalleryNewPage(
-  memberKey: string,
-  opts: {
-    errorMessage?: string;
-    fieldErrors?: Record<string, string>;
-    gallery?: CuratorGalleryFormFields;
-    uploadTags?: string;
-    externalLinks?: CuratorGalleryExternalLinkInput[] | null;
-  } = {},
-): PageViewModel<MemberGalleryNewContent> {
-  const listHref = memberGalleriesHref(memberKey);
-  return {
-    seo: { title: 'Create Gallery' },
-    page: { sectionKey: 'members', pageKey: 'member_galleries_new', title: 'Create Gallery' },
-    content: {
-      formAction: listHref,
-      cancelHref: listHref,
-      errorMessage: opts.errorMessage ?? null,
-      fieldErrors: opts.fieldErrors,
-      gallery: opts.gallery ?? {
-        name: '',
-        description: '',
-        sortOrder: 'upload_desc',
-        criteriaTagsString: '',
-        excludeTagsString: '',
-      },
-      uploadTags: opts.uploadTags ?? '',
-      externalLinkSlots: buildExternalLinkSlots(
-        opts.externalLinks ?? null,
-        [],
-        opts.fieldErrors,
-      ),
-    },
-  };
-}
-
+/**
+ * A member's own gallery edit page. Its intro names what the gallery shows and
+ * its permanent address; its share link opens the Share Media form with the
+ * gallery's hashtags filled in (the Personal Gallery's opens it empty, its only
+ * hashtag being the automatic one).
+ */
 export function getMemberGalleryEditPage(
   memberKey: string,
   galleryId: string,
   input: {
     gallery: CuratorGalleryFormFields;
+    /** The gallery's saved hashtags, the owner's `#by_` among them. */
+    criteriaTags: string[];
+    isDefault: boolean;
     currentItems: CuratorGalleryEditView['currentItems'];
     currentItemsTruncated: boolean;
-    // Pre-fills the upload widget's tag input with the gallery's criteria as a
-    // suggestion. User-editable, and the user-supplied value is what gets
-    // applied to uploads; nothing is auto-stamped from it.
-    uploadTags: string;
     externalLinkSlots: ExternalLinkSlot[];
     errorMessage?: string;
     fieldErrors?: Record<string, string>;
   },
 ): PageViewModel<MemberGalleryEditContent> {
+  const shareHref = `/members/${memberKey}/media/upload`;
   return {
     seo: { title: 'Edit Gallery' },
     page: { sectionKey: 'members', pageKey: 'member_galleries_edit', title: 'Edit Gallery' },
     content: {
       formAction: `/members/${memberKey}/galleries/${galleryId}/edit`,
       cancelHref: memberGalleriesHref(memberKey),
-      uploadMediaHref: `/members/${memberKey}/media/upload`,
+      intro: `This gallery shows everything you have shared that carries ${input.criteriaTags.join(' ')}, and none of its excluded hashtags. Its address is /media/${galleryId}, and it stays the same if you rename the gallery.`,
+      shareWithTagsHref: input.isDefault ? shareHref : `${shareHref}?gallery=${galleryId}`,
       errorMessage: input.errorMessage ?? null,
       fieldErrors: input.fieldErrors,
       gallery: input.gallery,
       currentItems: input.currentItems,
       currentItemsTruncated: input.currentItemsTruncated,
-      uploadTags: input.uploadTags,
       externalLinkSlots: input.externalLinkSlots,
     },
   };
@@ -5786,10 +6624,13 @@ export interface MemberGalleryListTeaching {
   stats: HashtagStatsSummary;
 }
 
+const MEMBER_GALLERY_LIST_INTRO =
+  'Your galleries. A gallery is a set of hashtags with a name and a permanent address you can bookmark: it shows everything you have shared that carries all of its hashtags and none of its excluded ones. To make one, name a set of hashtags on the Share Media form.';
+
 export interface MemberGalleryListContent {
   galleries: MemberGalleryListRow[];
   listHref: string;
-  newGalleryHref: string | null;
+  intro: string;
   uploadMediaHref: string | null;
   benefitNotice: TierBenefitNotice | null;
   teaching: MemberGalleryListTeaching | null;
@@ -5862,7 +6703,7 @@ export function getMemberGalleryListPage(
     content: {
       galleries: memberGalleryRows(summaries, memberKey, input.confirmDeleteId),
       listHref,
-      newGalleryHref: benefitNotice ? null : `${listHref}/new`,
+      intro: MEMBER_GALLERY_LIST_INTRO,
       uploadMediaHref: benefitNotice ? null : `/members/${memberKey}/media/upload`,
       benefitNotice,
       teaching,
@@ -5898,7 +6739,7 @@ export function getMemberGalleryListErrorPage(
     content: {
       galleries: memberGalleryRows(svc.listGalleriesForOwner(input.memberId), memberKey, null),
       listHref,
-      newGalleryHref: `${listHref}/new`,
+      intro: MEMBER_GALLERY_LIST_INTRO,
       uploadMediaHref: `/members/${memberKey}/media/upload`,
       benefitNotice: null,
       teaching: null,

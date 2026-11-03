@@ -182,7 +182,7 @@ describe('GET /admin/curator/upload', () => {
       .field('mediaType', 'photo')
       .field('newCategory', 'photos')
       .field('caption', `banner-flash-${Date.now()}`)
-      .attach('mediaFile', jpeg, `banner-flash-${Date.now()}.jpg`);
+      .attach('photoFiles', jpeg, `banner-flash-${Date.now()}.jpg`);
     expect(postRes.status).toBe(303);
     const res = await agent
       .get('/admin/curator/upload')
@@ -202,7 +202,7 @@ describe('POST /admin/curator/upload — gates', () => {
     const res = await request(app)
       .post('/admin/curator/upload')
       .field('mediaType', 'photo')
-      .attach('mediaFile', jpeg, 'p.jpg');
+      .attach('photoFiles', jpeg, 'p.jpg');
     expect(res.status).toBe(302);
     expect(res.headers.location).toContain('/login');
   });
@@ -214,7 +214,7 @@ describe('POST /admin/curator/upload — gates', () => {
       .post('/admin/curator/upload')
       .set('Cookie', memberCookie())
       .field('mediaType', 'photo')
-      .attach('mediaFile', jpeg, 'p.jpg');
+      .attach('photoFiles', jpeg, 'p.jpg');
     expect(res.status).toBe(403);
   });
 });
@@ -234,7 +234,7 @@ describe('POST /admin/curator/upload — photo', () => {
       .field('newCategory', 'photos')
       .field('caption', uniqueCaption)
       .field('tags', uniqueTag)
-      .attach('mediaFile', jpeg, uniqueFilename);
+      .attach('photoFiles', jpeg, uniqueFilename);
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/admin/curator/upload');
 
@@ -286,7 +286,7 @@ describe('POST /admin/curator/upload — photo', () => {
       .post('/admin/curator/upload')
       .set('Cookie', adminCookie())
       .field('mediaType', 'photo')
-      .attach('mediaFile', jpeg, 'photo-no-cat.jpg');
+      .attach('photoFiles', jpeg, 'photo-no-cat.jpg');
     expect(res.status).toBe(422);
     expect(res.text).toContain('category');
   });
@@ -299,7 +299,7 @@ describe('POST /admin/curator/upload — photo', () => {
       .set('Cookie', adminCookie())
       .field('mediaType', 'photo')
       .field('newCategory', 'Bad-Category')
-      .attach('mediaFile', jpeg, 'photo-bad-cat.jpg');
+      .attach('photoFiles', jpeg, 'photo-bad-cat.jpg');
     expect(res.status).toBe(422);
     expect(res.text).toContain('lowercase letters, digits');
   });
@@ -312,7 +312,7 @@ describe('POST /admin/curator/upload — photo', () => {
       .set('Cookie', adminCookie())
       .field('mediaType', 'photo')
       .field('newCategory', '../../etc')
-      .attach('mediaFile', jpeg, 'traversal.jpg');
+      .attach('photoFiles', jpeg, 'traversal.jpg');
     // isValidCategoryName (regex ^[a-z0-9_]+$) rejects the dot-dot/slash
     // traversal vector; the category dir is never joined or written.
     expect(res.status).toBe(422);
@@ -332,7 +332,7 @@ describe('POST /admin/curator/upload — photo', () => {
       .set('Cookie', adminCookie())
       .field('mediaType', 'photo')
       .field('newCategory', 'photos')
-      .attach('mediaFile', tooBig, 'huge.jpg');
+      .attach('photoFiles', tooBig, 'huge.jpg');
     expect(res.status).toBe(422);
     expect(res.text).toContain('Maximum size is 25 MB');
   });
@@ -344,7 +344,7 @@ describe('POST /admin/curator/upload — photo', () => {
       .set('Cookie', adminCookie())
       .field('mediaType', 'photo')
       .field('newCategory', 'photos')
-      .attach('mediaFile', Buffer.from('not an image'), 'fake.jpg');
+      .attach('photoFiles', Buffer.from('not an image'), 'fake.jpg');
     expect(res.status).toBe(422);
     expect(res.text).toContain('JPEG and PNG');
   });
@@ -363,7 +363,7 @@ describe('POST /admin/curator/upload — photo', () => {
         .field('mediaType', 'photo')
         .field('newCategory', 'shape_refusals')
         .field('caption', caption)
-        .attach('mediaFile', await makeJpeg(width, height), `${caption}.jpg`);
+        .attach('photoFiles', await makeJpeg(width, height), `${caption}.jpg`);
       expect(res.status, caption).toBe(422);
       expect(res.text, caption).toContain(message.replace(/'/g, '&#x27;'));
       const db = openDb();
@@ -374,7 +374,9 @@ describe('POST /admin/curator/upload — photo', () => {
     }
   });
 
-  it('missing file -> 422 with error message', async () => {
+  // Defect caught: a submit with no photo and no gallery saves nothing yet
+  // reports success, or the refusal does not point at the photo field.
+  it('missing file -> 422 with the refusal under the photo field', async () => {
     const app = createApp();
     const res = await request(app)
       .post('/admin/curator/upload')
@@ -382,7 +384,7 @@ describe('POST /admin/curator/upload — photo', () => {
       .field('mediaType', 'photo')
       .field('newCategory', 'photos');
     expect(res.status).toBe(422);
-    expect(res.text).toContain('select a photo');
+    expect(res.text).toMatch(/id="share-photo-files"[\s\S]*?class="form-field-error"/);
   });
 
   it('caption > 500 chars -> 422', async () => {
@@ -394,7 +396,7 @@ describe('POST /admin/curator/upload — photo', () => {
       .field('mediaType', 'photo')
       .field('newCategory', 'photos')
       .field('caption', 'x'.repeat(501))
-      .attach('mediaFile', jpeg, 'photo.jpg');
+      .attach('photoFiles', jpeg, 'photo.jpg');
     expect(res.status).toBe(422);
     expect(res.text).toContain('Caption must be 500');
   });
@@ -410,7 +412,7 @@ describe('POST /admin/curator/upload — photo', () => {
       .field('mediaType', 'photo')
       .field('newCategory', 'photos')
       .field('tags', 'fold-no-hash')
-      .attach('mediaFile', jpeg, 'photo.jpg');
+      .attach('photoFiles', jpeg, 'photo.jpg');
     expect(res.status).toBe(303);
     const db = openDb();
     const stored = db.prepare(`SELECT tag_normalized FROM tags WHERE tag_normalized IN (?, ?)`)
@@ -433,7 +435,7 @@ describe('POST /admin/curator/upload — photo', () => {
       .field('newCategory', 'photos')
       .field('caption', uniqueCaption)
       .field('externalUrl', externalUrl)
-      .attach('mediaFile', jpeg, uniqueFilename);
+      .attach('photoFiles', jpeg, uniqueFilename);
     expect(res.status).toBe(303);
 
     const db = openDb();
@@ -454,7 +456,7 @@ describe('POST /admin/curator/upload — photo', () => {
       .field('mediaType', 'photo')
       .field('newCategory', 'photos')
       .field('externalUrl', 'javascript:alert(1)')
-      .attach('mediaFile', jpeg, 'photo-bad-url.jpg');
+      .attach('photoFiles', jpeg, 'photo-bad-url.jpg');
     expect(res.status).toBe(422);
     expect(res.text).toContain('disallowed protocol');
   });
@@ -478,12 +480,12 @@ describe('POST /admin/curator/upload — photo', () => {
       .field('videoPlatform', '')
       .field('videoUrl', '')
       .field('primarySlug', '')
-      .field('title', '')
+      .field('videoCaption','')
       .field('sourceId', '')
       .field('caption', uniqueCaption)
       .field('tags', uniqueTag)
       .field('externalUrl', 'https://example.com/x')
-      .attach('mediaFile', jpeg, uniqueFilename);
+      .attach('photoFiles', jpeg, uniqueFilename);
     expect(res.status).toBe(303);
 
     const db = openDb();
@@ -516,7 +518,7 @@ describe('POST /admin/curator/upload — video (local-adapter sync path)', () =>
       .set('Cookie', adminCookie())
       .field('mediaType', 'video')
       .field('newCategory', 'videos')
-      .field('caption', uniqueCaption)
+      .field('fileCaption', uniqueCaption)
       .field('tags', uniqueTag)
       .attach('mediaFile', mp4, uniqueFilename)
       .attach('poster', poster, 'poster.jpg');
@@ -557,7 +559,7 @@ describe('POST /admin/curator/upload — video (local-adapter sync path)', () =>
       .set('Cookie', adminCookie())
       .field('mediaType', 'video')
       .field('newCategory', 'videos')
-      .field('caption', caption)
+      .field('fileCaption', caption)
       .attach('mediaFile', makeFakeMp4(), 'vertical-clip.mp4')
       .attach('poster', await makeJpeg(450, 800), 'poster.jpg');
     expect(res.status).toBe(303);
@@ -607,14 +609,10 @@ describe('POST /admin/curator/upload — video (local-adapter sync path)', () =>
     expect(res.text).toContain('video');
   });
 
-  it('regression: poster survives when an empty mediaFile is also posted (mimics browser submitting both photo and video panel inputs)', async () => {
-    // The tabbed upload form has `mediaFile` inputs in BOTH the photo and
-    // video panels (same name, distinct DOM nodes). Browsers submit a
-    // file part for every input, so a video upload arrives as 3 file
-    // parts: empty mediaFile (from the hidden photo input) + real
-    // mediaFile (the video) + poster. busboy `files: 2` silently dropped
-    // the poster; raised to 4. This test simulates the browser by
-    // attaching an empty mediaFile before the real one.
+  it('regression: poster survives when an empty photo part is also posted (mimics browser submitting every panel\'s file input)', async () => {
+    // Browsers submit a file part for every file input, so a video upload
+    // arrives with an empty photo part beside the video and the poster. A
+    // reader capped too low silently drops the poster.
     const app = createApp();
     const mp4 = makeFakeMp4();
     const poster = await makeJpeg(320, 240);
@@ -626,8 +624,8 @@ describe('POST /admin/curator/upload — video (local-adapter sync path)', () =>
       .set('Cookie', adminCookie())
       .field('mediaType', 'video')
       .field('newCategory', 'videos')
-      .field('caption', uniqueCaption)
-      .attach('mediaFile', Buffer.alloc(0), '')
+      .field('fileCaption', uniqueCaption)
+      .attach('photoFiles', Buffer.alloc(0), '')
       .attach('mediaFile', mp4, uniqueFilename)
       .attach('poster', poster, 'poster.jpg');
     expect(res.status).toBe(303);
@@ -673,27 +671,24 @@ describe('Header nav — admin link visibility', () => {
 });
 
 describe('POST /admin/curator/upload — mediaType', () => {
-  it('missing mediaType -> 422', async () => {
-    const app = createApp();
-    const jpeg = await makeJpeg();
-    const res = await request(app)
-      .post('/admin/curator/upload')
-      .set('Cookie', adminCookie())
-      .attach('mediaFile', jpeg, 'photo.jpg');
-    expect(res.status).toBe(422);
-    expect(res.text).toContain('media type');
-  });
-
-  it('mediaType not in [photo,video,url_reference] -> 422', async () => {
-    const app = createApp();
-    const jpeg = await makeJpeg();
-    const res = await request(app)
+  // Defect caught: a hand-posted media type the form never offers is taken
+  // for a video or a link, so the photos sent with it are read as something
+  // else. The form's own tabs post only photo, url_reference and video; any
+  // other value is the photo tab, as on the member form.
+  it('reads a missing or unknown media type as the photo tab', async () => {
+    const caption = `unknown-type-${Date.now()}`;
+    const res = await request(createApp())
       .post('/admin/curator/upload')
       .set('Cookie', adminCookie())
       .field('mediaType', 'sculpture')
-      .attach('mediaFile', jpeg, 'thing.jpg');
-    expect(res.status).toBe(422);
-    expect(res.text).toContain('media type');
+      .field('newCategory', 'photos')
+      .field('caption', caption)
+      .attach('photoFiles', await makeJpeg(), 'thing.jpg');
+    expect(res.status).toBe(303);
+    const db = openDb();
+    const row = db.prepare('SELECT media_type FROM media_items WHERE caption = ?').get(caption) as { media_type: string };
+    db.close();
+    expect(row.media_type).toBe('photo');
   });
 });
 
@@ -756,10 +751,9 @@ describe('/admin/curator/upload — URL reference', () => {
       .set('Cookie', adminCookie())
       .field('mediaType', 'url_reference')
       .field('category', 'freestyle_tricks')
-      .field('videoPlatform', 'youtube')
       .field('videoUrl', 'https://www.youtube.com/watch?v=CLIPPER1234')
       .field('primarySlug', 'clipper')
-      .field('title', 'Clipper tutorial')
+      .field('videoCaption','Clipper tutorial')
       .field('tags', '#freestyle #trick #clipper');
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/admin/curator/upload');
@@ -802,10 +796,9 @@ describe('/admin/curator/upload — URL reference', () => {
       .set('Cookie', adminCookie())
       .field('mediaType', 'url_reference')
       .field('category', 'freestyle_tricks')
-      .field('videoPlatform', 'vimeo')
       .field('videoUrl', 'https://vimeo.com/55667788')
       .field('primarySlug', 'eggbeater')
-      .field('title', 'Eggbeater demo')
+      .field('videoCaption','Eggbeater demo')
       .field('tags', '#freestyle #trick #eggbeater');
     expect(res.status).toBe(303);
     const matching = fs.readdirSync(path.join(curatedRoot, 'freestyle_tricks'))
@@ -816,7 +809,9 @@ describe('/admin/curator/upload — URL reference', () => {
     expect(sidecar.thumbnailUrl).toBe('https://i.vimeocdn.com/video/zzz_640.jpg');
   });
 
-  it('happy path: new category via newCategory text auto-mkdirs the dir and writes the sidecar', async () => {
+  // Also catches: a typed primary slug with a hyphen names the sidecar file
+  // as typed, instead of folded by the one slug rule.
+  it('happy path: new category via newCategory text auto-mkdirs the dir and writes the sidecar under the folded slug', async () => {
     await setVerifierToOk({ title: 'Food processor demo' });
     const app = createApp();
     expect(fs.existsSync(path.join(curatedRoot, 'promos_test'))).toBe(false);
@@ -825,16 +820,15 @@ describe('/admin/curator/upload — URL reference', () => {
       .set('Cookie', adminCookie())
       .field('mediaType', 'url_reference')
       .field('newCategory', 'promos_test')
-      .field('videoPlatform', 'youtube')
       .field('videoUrl', 'https://www.youtube.com/watch?v=NEWCAT00001')
-      .field('primarySlug', 'food-processor')
-      .field('title', 'Food processor demo')
+      .field('primarySlug', 'Food-Processor')
+      .field('videoCaption','Food processor demo')
       .field('tags', '#freestyle #demo #food-processor');
     expect(res.status).toBe(303);
     expect(fs.existsSync(path.join(curatedRoot, 'promos_test'))).toBe(true);
-    const matching = fs.readdirSync(path.join(curatedRoot, 'promos_test'))
-      .find((f) => f.startsWith('food-processor_'));
-    expect(matching).toBeDefined();
+    const files = fs.readdirSync(path.join(curatedRoot, 'promos_test'));
+    expect(files.find((f) => f.startsWith('food_processor_'))).toBeDefined();
+    expect(files.find((f) => f.includes('-'))).toBeUndefined();
   });
 
   it('dead URL (oEmbed 404) -> 422 with status in error, NO sidecar file written', async () => {
@@ -845,10 +839,9 @@ describe('/admin/curator/upload — URL reference', () => {
       .set('Cookie', adminCookie())
       .field('mediaType', 'url_reference')
       .field('category', 'freestyle_tricks')
-      .field('videoPlatform', 'youtube')
       .field('videoUrl', 'https://www.youtube.com/watch?v=Dmr7zj_c7cY')
       .field('primarySlug', 'dimwalk')
-      .field('title', 'Dead URL test')
+      .field('videoCaption','Dead URL test')
       .field('tags', '#freestyle #trick #dimwalk');
     expect(res.status).toBe(422);
     expect(res.text).toContain('oEmbed status 404');
@@ -856,7 +849,9 @@ describe('/admin/curator/upload — URL reference', () => {
     expect(dirContents.some((f) => f.startsWith('dimwalk_'))).toBe(false);
   });
 
-  it('missing platform -> 422', async () => {
+  // Defect caught: a link the platform cannot be read from is stored under a
+  // guessed platform, now that the form no longer asks for one.
+  it('a link that is neither YouTube nor Vimeo -> 422 under the link field, no sidecar', async () => {
     await setVerifierToOk({ title: 'X' });
     const app = createApp();
     const res = await request(app)
@@ -864,12 +859,13 @@ describe('/admin/curator/upload — URL reference', () => {
       .set('Cookie', adminCookie())
       .field('mediaType', 'url_reference')
       .field('category', 'freestyle_tricks')
-      .field('videoUrl', 'https://www.youtube.com/watch?v=AAA12345678')
+      .field('videoUrl', 'https://example.com/watch?v=AAA12345678')
       .field('primarySlug', 'spin')
-      .field('title', 'X')
+      .field('videoCaption','X')
       .field('tags', '#freestyle #trick #spin');
     expect(res.status).toBe(422);
-    expect(res.text).toContain('YouTube or Vimeo');
+    expect(res.text).toMatch(/id="share-video-url"[\s\S]*?class="form-field-error"/);
+    expect(fs.readdirSync(path.join(curatedRoot, 'freestyle_tricks')).some((f) => f.startsWith('spin_'))).toBe(false);
   });
 
   it('missing URL -> 422', async () => {
@@ -880,12 +876,11 @@ describe('/admin/curator/upload — URL reference', () => {
       .set('Cookie', adminCookie())
       .field('mediaType', 'url_reference')
       .field('category', 'freestyle_tricks')
-      .field('videoPlatform', 'youtube')
       .field('primarySlug', 'swirl')
-      .field('title', 'X')
+      .field('videoCaption','X')
       .field('tags', '#freestyle #trick #swirl');
     expect(res.status).toBe(422);
-    expect(res.text).toContain('YouTube or Vimeo URL');
+    expect(res.text).toMatch(/id="share-video-url"[\s\S]*?class="form-field-error"/);
   });
 
   it('missing primarySlug -> 422', async () => {
@@ -896,9 +891,8 @@ describe('/admin/curator/upload — URL reference', () => {
       .set('Cookie', adminCookie())
       .field('mediaType', 'url_reference')
       .field('category', 'freestyle_tricks')
-      .field('videoPlatform', 'youtube')
       .field('videoUrl', 'https://www.youtube.com/watch?v=AAA12345678')
-      .field('title', 'X')
+      .field('videoCaption','X')
       .field('tags', '#freestyle #trick #vortex');
     expect(res.status).toBe(422);
     expect(res.text).toContain('primary slug');
@@ -913,10 +907,9 @@ describe('/admin/curator/upload — URL reference', () => {
       .field('mediaType', 'url_reference')
       .field('category', 'freestyle_tricks')
       .field('newCategory', 'duplicate_intent')
-      .field('videoPlatform', 'youtube')
       .field('videoUrl', 'https://www.youtube.com/watch?v=BBB12345678')
       .field('primarySlug', 'whirl')
-      .field('title', 'X')
+      .field('videoCaption','X')
       .field('tags', '#freestyle #trick #whirl');
     expect(res.status).toBe(422);
     expect(res.text).toContain('not both');
@@ -929,10 +922,9 @@ describe('/admin/curator/upload — URL reference', () => {
       .post('/admin/curator/upload')
       .set('Cookie', adminCookie())
       .field('mediaType', 'url_reference')
-      .field('videoPlatform', 'youtube')
       .field('videoUrl', 'https://www.youtube.com/watch?v=CCC12345678')
       .field('primarySlug', 'tomahawk')
-      .field('title', 'X')
+      .field('videoCaption','X')
       .field('tags', '#freestyle #trick #tomahawk');
     expect(res.status).toBe(422);
     expect(res.text).toContain('Tick a category or type a new');
@@ -946,10 +938,9 @@ describe('/admin/curator/upload — URL reference', () => {
       .set('Cookie', adminCookie())
       .field('mediaType', 'url_reference')
       .field('newCategory', 'Bad Name!')
-      .field('videoPlatform', 'youtube')
       .field('videoUrl', 'https://www.youtube.com/watch?v=DDD12345678')
       .field('primarySlug', 'vortex')
-      .field('title', 'X')
+      .field('videoCaption','X')
       .field('tags', '#freestyle #trick #vortex');
     expect(res.status).toBe(422);
     expect(res.text).toContain('lowercase letters, digits, or underscores');
@@ -962,10 +953,9 @@ describe('/admin/curator/upload — URL reference', () => {
       .post('/admin/curator/upload')
       .field('mediaType', 'url_reference')
       .field('category', 'freestyle_tricks')
-      .field('videoPlatform', 'youtube')
       .field('videoUrl', 'https://www.youtube.com/watch?v=ZZZ12345678')
       .field('primarySlug', 'superfly')
-      .field('title', 'superfly')
+      .field('videoCaption','superfly')
       .field('tags', '#freestyle #trick #superfly');
     expect(res.status).toBe(302);
     expect(res.headers.location).toContain('/login');
@@ -981,10 +971,9 @@ describe('/admin/curator/upload — URL reference', () => {
       .set('Cookie', memberCookie())
       .field('mediaType', 'url_reference')
       .field('category', 'freestyle_tricks')
-      .field('videoPlatform', 'youtube')
       .field('videoUrl', 'https://www.youtube.com/watch?v=YYY12345678')
       .field('primarySlug', 'pendulum')
-      .field('title', 'pendulum')
+      .field('videoCaption','pendulum')
       .field('tags', '#freestyle #trick #pendulum');
     expect(res.status).toBe(403);
     const dirContents = fs.readdirSync(path.join(curatedRoot, 'freestyle_tricks'));

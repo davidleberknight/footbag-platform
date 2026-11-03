@@ -30,6 +30,10 @@
       </p>
     {{/if}}
 
+    {{#if content.uploadWithTagsHref}}
+    <p><a href="{{{content.uploadWithTagsHref}}}" class="action-link">Upload Curated Media With These Hashtags</a></p>
+    {{/if}}
+
     {{> gallery-edit-form
         formAction=content.formAction
         gallery=content.gallery
@@ -38,7 +42,6 @@
         cancelHref=content.cancelHref
         currentItems=content.currentItems
         currentItemsTruncated=content.currentItemsTruncated
-        uploadTags=content.uploadTags
         externalLinkSlots=content.externalLinkSlots
         isFhOwned=content.isFhOwned
         moderation=content.moderation

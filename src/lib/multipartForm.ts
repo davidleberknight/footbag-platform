@@ -16,6 +16,11 @@ export interface MultipartFile {
   // Empty when the browser sent the part without a filename, which is what an
   // untouched file input submits.
   filename: string;
+  // The part's place among every part sent under its field name, counted from
+  // 0 and including a part dropped for its size, so it matches the file's
+  // place in what the browser chose. File names cannot key a file: a phone
+  // browser sends every photo as image.jpg.
+  position: number;
 }
 
 export interface ParsedMultipart {
@@ -49,6 +54,7 @@ export function readMultipart(
 ): void {
   const fields: Record<string, string> = {};
   const files: Record<string, MultipartFile[]> = {};
+  const partsSeen: Record<string, number> = {};
   let limitExceeded = false;
   let droppedNamelessFile = false;
   let stopped = false;
@@ -79,6 +85,8 @@ export function readMultipart(
       stream.resume();
       return;
     }
+    const position = partsSeen[name] ?? 0;
+    partsSeen[name] = position + 1;
     const chunks: Buffer[] = [];
     let truncated = false;
     stream.on('data', (chunk: Buffer) => {
@@ -100,6 +108,7 @@ export function readMultipart(
       (files[name] ??= []).push({
         buffer: Buffer.concat(chunks),
         filename: typeof info?.filename === 'string' ? info.filename : '',
+        position,
       });
     });
   });

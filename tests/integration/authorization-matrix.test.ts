@@ -29,6 +29,7 @@ import path from 'node:path';
 import Database from 'better-sqlite3';
 import request from '../fixtures/supertestWithOrigin';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+import { insertMember } from '../fixtures/factories';
 import { loadRouteTable } from '../fixtures/routeTable';
 import { seedPersona } from '../../src/testkit/personaFactory';
 import { CANONICAL_PERSONAS } from '../../src/testkit/canonicalPersonas';
@@ -117,6 +118,12 @@ beforeAll(async () => {
   for (const persona of CANONICAL_PERSONAS) {
     seedPersona(db, persona);
   }
+  // The system member curated media is credited to: the admin Share Media
+  // page lists its galleries, as every built database carries it.
+  insertMember(db, {
+    id: 'member_authz_system', slug: 'footbag_hacky',
+    display_name: 'Footbag Hacky', real_name: 'Footbag Hacky', is_system: 1,
+  });
 
   // Resolve each club-leader persona's club to its public key (the hashtag tag
   // without the leading '#'); the content-edit route addresses clubs by key.

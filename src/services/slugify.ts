@@ -70,6 +70,41 @@ export function typedTagForDisplay(raw: string): string {
   return body ? `#${body}` : '';
 }
 
+/**
+ * Where one typed hashtag ends and the next begins. What a person types until they
+ * commit it is one hashtag, and each `#` starts a new one, so "footbag chin lone" is
+ * one hashtag and "#chinlone#club_wellington" is two; the chip field's own value,
+ * `#a #b`, reads back as the chips it came from. Each piece comes back as typed, outer
+ * spaces trimmed and its `#` kept; a piece with nothing after its `#` is dropped. The
+ * browser scripts split by the same rule (`splitHashtags` in fold-token.js).
+ */
+export function splitTypedHashtags(text: string): string[] {
+  return (text.match(/#+[^#]*|[^#]+/g) ?? [])
+    .map((piece) => piece.trim())
+    .filter((piece) => piece.replace(/^#+/, '').trim().length > 0);
+}
+
+/**
+ * Typed hashtags beside the form each is stored in, in typed order. Each text is
+ * committed on its own, so a hashtag never runs from one into the next. Two typed
+ * spellings of one hashtag ("#Zürich #zurich") are kept once, where first typed. A
+ * hashtag with letters the rule cannot convert is passed on unfolded, so the tag rules
+ * refuse it by name instead of folding part of it away.
+ */
+export function foldTypedHashtags(...texts: string[]): { typed: string; stored: string }[] {
+  const seen = new Set<string>();
+  return texts.flatMap((text) => splitTypedHashtags(text))
+    .map((typed) => ({
+      typed,
+      // Capitals are kept for display; tags match, and repeat, in lowercase.
+      stored: hasUnconvertibleLetters(typed) ? `#${typed.replace(/^#+/, '').trim()}` : typedTagForDisplay(typed),
+    }))
+    .filter((t) => {
+      const key = t.stored.toLowerCase();
+      return t.stored.length > 0 && !seen.has(key) && (seen.add(key), true);
+    });
+}
+
 // A player hashtag credits the person performing in a media item. A member is
 // credited by their own slug, the same token their uploader tag carries, so one
 // person reads the same whether they uploaded a clip or play in it; a historical

@@ -5,38 +5,43 @@ import {
   getDefaultCuratorMediaService,
   VIDEO_MAX_BYTES,
   fileExceededMessage,
-  updateCuratorGalleryWithUploads,
-  uploadCuratorMedia,
+  updateCuratorGallery,
   parseTagList,
   withPlayerCredits,
-  createCuratorGallery,
-  getCuratorUploadPage,
+  getCuratorSharePage,
+  shareCuratorMedia,
+  signCuratorVideoUpload,
+  photoMaxFilesPerSubmit,
+  shareBodyRefusal,
+  shareFormValues,
+  CURATOR_CONFIRM_NOTICE,
+  CURATOR_CONFIRM_NOTICE_WITH_FILES,
+  type MemberMediaUploadFormValues,
+  type NewGalleryPreview,
   getCuratorMediaListPage,
   getCuratorMediaEditPage,
   getCuratorMediaEditErrorPage,
   getCuratorMediaNotFoundPage,
   getCuratorGalleryListPage,
-  getCuratorGalleryNewPage,
   getCuratorGalleryEditPage,
   getCuratorGalleryEditErrorPage,
   getCuratorGalleryNotFoundPage,
   getCuratorJobStatusPage,
   getCuratorJobNotFoundPage,
   type CuratorMediaEditInput,
-  type CuratorUploadFormValues,
   parseExternalLinkInputs,
-  type CuratorGalleryFormFields,
   changedTypedTags,
 } from '../services/curatorMediaService';
-import { ConflictError, NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
+import { NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { renderImageWorkerUnavailable, renderInvalidRequest, renderNotFound } from '../lib/controllerErrors';
-import { parseGalleryMultipart } from './galleryFormHelpers';
 import { getMediaJobService, jobEventPayload, jobStateSnapshot } from '../services/mediaJobService';
 import { subscribeToJobEvents } from '../services/jobEventBus';
 import { config } from '../config/env';
 import {
-  FLASH_KIND, writeFlash, writeMediaSavedFlash, takeMediaSaved, type FoldedTag,
+  FLASH_KIND, writeFlash, writeMediaSavedFlash, writeShareFlash, takeMediaSaved, takeShareFlash,
+  type FoldedTag, type ShareOutcome,
 } from '../lib/flashCookie';
+import { hashtagDiscoveryService } from '../services/hashtagDiscoveryService';
 
 // A consumed media-saved flash as the list pages take it: which save, and the
 // typed tags it stored folded.
@@ -76,26 +81,40 @@ const PER_FILE_LIMIT = VIDEO_MAX_BYTES;
 // holds.
 const OVERSIZED_FILE_MESSAGE = fileExceededMessage(PER_FILE_LIMIT);
 
-type FormValues = CuratorUploadFormValues;
+// The text fields the curator form posts, plus one caption per chosen photo
+// and one per ticked category box.
+const SHARE_TEXT_FIELDS = 40;
 
-function renderForm(
+async function renderForm(
+  req: Request,
   res: Response,
   opts: {
+    status?: number;
     errorMessage?: string;
-    formValues?: FormValues;
-    existingCategories?: string[];
-    savedFlag?: 'upload' | null;
-    savedFolded?: FoldedTag[];
+    fieldErrors?: Record<string, string>;
+    notice?: string;
+    formValues?: MemberMediaUploadFormValues;
+    preview?: NewGalleryPreview;
+    outcome?: ShareOutcome | null;
   } = {},
-): void {
-  res.render(
+): Promise<void> {
+  const svc = buildSvc();
+  const existingCategories = await svc.listExistingCategories();
+  // Footbag Hacky's popular, club and event hashtags; never the acting
+  // admin's own player hashtag, since the curator account is the uploader.
+  const suggestions = hashtagDiscoveryService.getTagSuggestionsForMember(svc.getSystemMemberId(), '');
+  res.status(opts.status ?? 200).render(
     'admin/curator/upload',
-    getCuratorUploadPage({
+    getCuratorSharePage(svc, {
+      prefillGalleryId: typeof req.query.gallery === 'string' ? req.query.gallery : undefined,
       errorMessage: opts.errorMessage,
+      fieldErrors: opts.fieldErrors,
+      notice: opts.notice,
       formValues: opts.formValues,
-      existingCategories: opts.existingCategories,
-      savedFlag: opts.savedFlag === 'upload',
-      savedFolded: opts.savedFolded,
+      preview: opts.preview,
+      existingCategories,
+      tagSuggestions: { ...suggestions, playerTags: [] },
+      outcome: opts.outcome ?? null,
     }),
   );
 }
@@ -103,162 +122,153 @@ function renderForm(
 export const adminCuratorController = {
   async getUpload(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const svc = buildSvc();
-      const existingCategories = await svc.listExistingCategories();
-      const saved = takeMediaSaved(req, res);
-      const savedFlag = saved?.kind === 'upload' ? 'upload' : null;
-      renderForm(res, { existingCategories, savedFlag, savedFolded: saved?.folded });
+      await renderForm(req, res, { outcome: takeShareFlash(req, res) });
     } catch (err) {
       next(err);
     }
   },
 
   /**
-   * POST /admin/curator/upload — accept multipart upload.
+   * POST /admin/curator/upload — the curator's Share Media submit.
    *
-   * Branches on the `mediaType` text field. Per-file size enforced by Busboy
-   * via `limits.fileSize`; service-layer validates per-type size, magic
-   * bytes, caption length, and tag shape.
+   * Photos arrive as `photoFiles` (several), a video file as `mediaFile` with
+   * its `poster`. The reader holds each part to the video ceiling, the largest
+   * file this form takes; the service holds photos to their own size and to
+   * the per-submit count and total. A submit lands back on this page with its
+   * report.
    */
   postUpload(req: Request, res: Response, next: NextFunction): void {
     const adminMemberId = req.user!.userId;
+    const maxFiles = photoMaxFilesPerSubmit();
 
-    let fields: Record<string, string> = {};
-    const fileBuffers: Record<string, Buffer> = {};
-    const fileFilenames: Record<string, string> = {};
-    let limitExceeded = false;
-
-    // A part that crosses the ceiling is refused the moment busboy raises it.
-    // Waiting for the parser to finish means waiting for the whole body to
-    // arrive, so an upload that was never going to be accepted still costs the
-    // curator the entire transfer: ten minutes of progress bar ending in a
-    // refusal the first megabyte already justified. The reader stops the parse,
-    // and closing the connection once the reply has flushed stops the browser
-    // sending the rest of a file nothing will read.
-    //
-    // Fields the browser sends after the file part have not been parsed yet, so
-    // the re-rendered form carries only what arrived before the overrun. That
-    // is the deliberate trade: a caption to retype costs less than the wait.
-    function refuseOversized(fieldsSoFar: Record<string, string>): void {
-      void (async () => {
-        try {
-          const existingCategories = await buildSvc().listExistingCategories();
-          res.on('finish', () => {
-            req.destroy();
-          });
-          renderForm(res.status(422), {
-            errorMessage: OVERSIZED_FILE_MESSAGE,
-            formValues: {
-              mediaType: fieldsSoFar.mediaType,
-              caption: fieldsSoFar.caption,
-              tags: fieldsSoFar.tags,
-            },
-            existingCategories,
-          });
-        } catch (err) {
-          next(err);
-        }
-      })();
-    }
-
-    function onParsed(parsed: ParsedMultipart): void {
-      fields = parsed.fields;
-      limitExceeded = parsed.limitExceeded;
-      // The photo and video panels share the `mediaFile` name, so the last part
-      // under a name supplies its bytes and the last named part its filename.
-      for (const [name, parts] of Object.entries(parsed.files)) {
-        fileBuffers[name] = parts[parts.length - 1].buffer;
-        const named = parts.filter((p) => p.filename.length > 0);
-        if (named.length > 0) fileFilenames[name] = named[named.length - 1].filename;
-      }
-      void handleFinish().catch((err: unknown) => {
-        if (err instanceof ValidationError) {
-          renderForm(res.status(422), {
-            errorMessage: err.message,
-            formValues: { mediaType: fields.mediaType, caption: fields.caption, tags: fields.tags },
-          });
-          return;
-        }
-        if (err instanceof ImageProcessingError) {
-          renderImageWorkerUnavailable(res, 'admin upload: image worker unavailable', err);
-          return;
-        }
-        if (err instanceof RateLimitedError) {
-          next(err);
-          return;
-        }
-        logger.error('admin upload error', { error: err instanceof Error ? err.message : String(err) });
-        next(err);
-      });
-    }
-
-    async function handleFinish(): Promise<void> {
-      const formValues: FormValues = {
+    async function handle(parsed: ParsedMultipart): Promise<void> {
+      const { fields } = parsed;
+      const formValues = shareFormValues(fields);
+      const named = (name: string) => (parsed.files[name] ?? []).filter((f) => f.filename.length > 0);
+      const photos = named('photoFiles');
+      const videoPart = named('mediaFile')[0] ?? null;
+      const posterPart = named('poster')[0] ?? null;
+      const result = await shareCuratorMedia(buildSvc(), {
+        adminMemberId,
         mediaType: fields.mediaType,
-        caption: fields.caption ?? '',
+        // A caption is keyed by its photo's place in the selection, counted
+        // over every part sent, so photos sharing a file name keep their own
+        // captions and one the reader dropped for its size shifts none.
+        photos: photos.map((f) => ({
+          filename: f.filename,
+          buffer: f.buffer,
+          caption: fields[`caption_for:${f.position}`] ?? fields.caption ?? '',
+        })),
+        videoFile: videoPart ? { filename: videoPart.filename, buffer: videoPart.buffer } : null,
+        poster: posterPart ? posterPart.buffer : null,
+        videoUrl: fields.videoUrl ?? '',
+        videoCaption: (fields.mediaType === 'video' ? fields.fileCaption : fields.videoCaption) ?? '',
         tags: fields.tags ?? '',
+        externalUrl: fields.externalUrl ?? '',
+        sourceId: fields.sourceId ?? '',
+        startSeconds: fields.startSeconds ?? '',
+        endSeconds: fields.endSeconds ?? '',
         category: fields.category ?? '',
         newCategory: fields.newCategory ?? '',
-        videoUrl: fields.videoUrl ?? '',
-        videoPlatform: fields.videoPlatform ?? '',
         primarySlug: fields.primarySlug ?? '',
-        title: fields.title ?? '',
-        sourceId: fields.sourceId ?? '',
-        externalUrl: fields.externalUrl ?? '',
-      };
-
-      const svc = getDefaultCuratorMediaService();
-      const existingCategories = await svc.listExistingCategories();
-
-      // Reached only if the overrun surfaced without the stream raising its
-      // limit event; the early refusal above answers the ordinary case.
-      if (limitExceeded) {
-        renderForm(res.status(422), {
-          errorMessage: OVERSIZED_FILE_MESSAGE,
-          formValues,
-          existingCategories,
-        });
-        return;
-      }
-
-      const result = await uploadCuratorMedia(svc, {
-        adminMemberId,
-        fields,
-        mediaFile: fileBuffers.mediaFile
-          ? { buffer: fileBuffers.mediaFile, filename: fileFilenames.mediaFile ?? '' }
-          : null,
-        poster: fileBuffers.poster ?? null,
+        galleryName: fields.galleryName ?? '',
+        gallerySlug: fields.gallerySlug ?? '',
+        gallerySort: fields.gallerySort ?? '',
+        galleryExcludeTags: fields.galleryExcludeTags ?? '',
+        galleryPreview: fields.galleryPreview ?? '',
+        limitExceeded: parsed.limitExceeded,
       });
-      if (result.status === 'refused') {
-        renderForm(res.status(result.httpStatus), { errorMessage: result.message, formValues, existingCategories });
-        return;
+
+      switch (result.status) {
+        case 'confirm_gallery':
+          await renderForm(req, res, {
+            notice: photos.length > 0 || videoPart ? CURATOR_CONFIRM_NOTICE_WITH_FILES : CURATOR_CONFIRM_NOTICE,
+            formValues,
+            preview: result.preview,
+          });
+          return;
+        case 'refused':
+          if (result.retryAfterSeconds) res.setHeader('Retry-After', String(result.retryAfterSeconds));
+          await renderForm(req, res, {
+            status: result.httpStatus,
+            errorMessage: result.message,
+            fieldErrors: result.fieldErrors,
+            formValues,
+          });
+          return;
+        case 'gallery_saved':
+          writeShareFlash(res, req, {
+            mediaId: null, count: 0, saved: false, gallery: result.gallery, folded: result.folded, rejected: [],
+          });
+          res.redirect(303, '/admin/curator/upload');
+          return;
+        case 'shared':
+          writeShareFlash(res, req, {
+            mediaId: result.mediaIds[0] ?? null,
+            count: result.mediaIds.length,
+            saved: false,
+            gallery: result.gallery,
+            folded: result.folded,
+            rejected: result.rejected,
+          });
+          res.redirect(303, '/admin/curator/upload');
       }
-      writeMediaSavedFlash(res, req, 'upload', changedTypedTags(fields.tags));
-      res.redirect(303, '/admin/curator/upload');
+    }
+
+    // A part that crosses the ceiling is refused the moment the reader raises
+    // it, rather than after the whole body has arrived; closing the connection
+    // once the reply has flushed stops the browser sending the rest. Fields
+    // sent after the file have not been read yet, so the form comes back with
+    // only what arrived before the overrun.
+    function refuseOversized(fieldsSoFar: Record<string, string>): void {
+      res.on('finish', () => {
+        req.destroy();
+      });
+      renderForm(req, res, {
+        status: 422,
+        errorMessage: OVERSIZED_FILE_MESSAGE,
+        formValues: shareFormValues(fieldsSoFar),
+      }).catch(next);
+    }
+
+    // A submit declaring more than the form allows is refused before any of it
+    // is held; closing the connection once the reply is out stops the rest.
+    const tooLarge = shareBodyRefusal(Number(req.headers['content-length']), {
+      allowsVideoFile: config.mediaStorageAdapter === 'local',
+    });
+    if (tooLarge) {
+      res.on('finish', () => req.destroy());
+      renderForm(req, res, { status: 422, errorMessage: tooLarge }).catch(next);
+      return;
     }
 
     readMultipart(
       req,
       {
-        // files: 4 — the tabbed form has `mediaFile` inputs in BOTH the
-        // photo panel and the video panel (same name, distinct DOM nodes).
-        // Browsers submit a file part for every file input, even empty ones;
-        // a video upload thus arrives as three file parts (empty mediaFile
-        // from the photo panel + real mediaFile from the video panel +
-        // poster). Capping at 2 silently dropped the poster. 4 has headroom
-        // for the 3 expected parts without admitting genuinely abusive
-        // multi-file submissions.
-        // fields: 24 — the upload form posts 11 named non-file fields today
-        // (mediaType, category, newCategory, videoPlatform, videoUrl,
-        // primarySlug, title, sourceId, caption, tags, externalUrl), and
-        // each ticked category box posts its own category field. A cap at or
-        // near the current count silently drops the trailing fields on the
-        // wire, because busboy emits no warning when it truncates. 24 leaves
-        // headroom for near-term form additions without re-tuning.
-        limits: { fileSize: PER_FILE_LIMIT, files: 4, fields: 24 },
+        limits: {
+          fileSize: PER_FILE_LIMIT,
+          // One photo part past the count is read so the service can tell the
+          // curator chose too many; the video file and poster are the other two.
+          files: maxFiles + 3,
+          fields: SHARE_TEXT_FIELDS + maxFiles,
+        },
+        fileFields: ['photoFiles', 'mediaFile', 'poster'],
         onLimit: refuseOversized,
       },
-      onParsed,
+      (parsed) => {
+        handle(parsed).catch((err: unknown) => {
+          if (err instanceof ImageProcessingError) {
+            renderImageWorkerUnavailable(res, 'admin upload: image worker unavailable', err);
+            return;
+          }
+          if (err instanceof RateLimitedError) {
+            next(err);
+            return;
+          }
+          logger.error('admin upload error', { error: err instanceof Error ? err.message : String(err) });
+          next(err);
+        });
+      },
       (err) => {
         logger.error('busboy parse error', { error: err.message });
         next(err);
@@ -405,54 +415,6 @@ export const adminCuratorController = {
     }
   },
 
-  /** GET /admin/curator/galleries/new — render new-gallery form. */
-  getGalleryNew(req: Request, res: Response): void {
-    res.render('admin/curator/galleries/new', getCuratorGalleryNewPage());
-  },
-
-  /** POST /admin/curator/galleries — create FH-owned gallery. */
-  async postGalleryCreate(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const actorMemberId = req.user!.userId;
-      const slug = String(req.body?.idSlug ?? '').trim();
-      const name = String(req.body?.name ?? '');
-      const description = String(req.body?.description ?? '');
-      const sortOrderRaw = String(req.body?.sortOrder ?? '');
-      const criteriaTags = parseTagList(req.body?.criteriaTags);
-      const excludeTags = parseTagList(req.body?.excludeTags);
-
-      try {
-        await createCuratorGallery(buildSvc(), {
-          actorMemberId,
-          idSlug: slug,
-          updates: { name, description, sortOrder: sortOrderRaw, criteriaTags, excludeTags },
-        });
-        writeMediaSavedFlash(res, req, 'create', changedTypedTags(req.body?.criteriaTags, req.body?.excludeTags));
-        res.redirect(303, '/admin/curator/galleries');
-        return;
-      } catch (err) {
-        if (err instanceof ValidationError || err instanceof ConflictError) {
-          const gallery: CuratorGalleryFormFields = {
-            idSlug: slug,
-            name,
-            description,
-            sortOrder: sortOrderRaw,
-            criteriaTagsString: (req.body?.criteriaTags ?? '') as string,
-            excludeTagsString: (req.body?.excludeTags ?? '') as string,
-          };
-          res.status(422).render(
-            'admin/curator/galleries/new',
-            getCuratorGalleryNewPage({ errorMessage: err.message, gallery }),
-          );
-          return;
-        }
-        throw err;
-      }
-    } catch (err) {
-      next(err);
-    }
-  },
-
   /** GET /admin/curator/galleries/:id/edit — render the gallery edit form. */
   getGalleryEdit(req: Request, res: Response, next: NextFunction): void {
     try {
@@ -478,15 +440,8 @@ export const adminCuratorController = {
     }
   },
 
-  /** POST /admin/curator/galleries/:id/edit — apply gallery edit. Multipart
-   * supported so the shared form's optional photo-upload widget can ride
-   * along; uploaded files are routed through `uploadPhoto` (FH-owned) and
-   * receive `#curated` automatically plus user-supplied `uploadTags`. */
+  /** POST /admin/curator/galleries/:id/edit — apply gallery edit, landing on the gallery. */
   async postGalleryEdit(req: Request, res: Response, next: NextFunction): Promise<void> {
-    if (req.is('multipart/form-data')) {
-      handleCuratorGalleryEditMultipart(req, res, next);
-      return;
-    }
     try {
       const galleryId = req.params.id;
       const actorMemberId = req.user!.userId;
@@ -498,49 +453,46 @@ export const adminCuratorController = {
       const externalLinks = parseExternalLinkInputs(req.body ?? {});
       const reasonRaw = String(req.body?.reason ?? '');
 
-      const svc = buildSvc();
-      try {
-        // The reason and the clear flags ride along on every submission; the
-        // service ignores them unless this is a member's own gallery, which is
-        // the only door they mean anything on.
-        await svc.updateGallery({
-          actorMemberId,
-          actorIsAdmin: true,
-          galleryId,
-          updates: { name, description, sortOrder: sortOrderRaw, criteriaTags, excludeTags, externalLinks },
-          reason: reasonRaw,
-          moderation: {
-            clearName:        req.body?.clearName === '1',
-            clearDescription: req.body?.clearDescription === '1',
-          },
-        });
-      } catch (err) {
-        if (err instanceof NotFoundError) {
-          res.status(404).render(
-            'admin/curator/galleries/edit',
-            getCuratorGalleryNotFoundPage(galleryId),
-          );
-          return;
-        }
-        if (err instanceof ValidationError) {
-          renderCuratorGalleryEditError(res, 422, err.message, {
-            galleryId,
-            name,
-            description,
-            sortOrderRaw,
-            criteriaTagsRaw: (req.body?.criteriaTags ?? '') as string,
-            excludeTagsRaw: (req.body?.excludeTags ?? '') as string,
-            uploadTagsRaw: '',
-            externalLinks,
-            fieldErrors: err.fieldErrors,
-            reasonRaw,
-          }, actorMemberId);
-          return;
-        }
-        throw err;
+      // The reason and the clear flags ride along on every submission; the
+      // service ignores them unless this is a member's own gallery, which is
+      // the only door they mean anything on.
+      const result = await updateCuratorGallery(buildSvc(), {
+        actorMemberId,
+        galleryId,
+        updates: { name, description, sortOrder: sortOrderRaw, criteriaTags, excludeTags, externalLinks },
+        reason: reasonRaw,
+        moderation: {
+          clearName:        req.body?.clearName === '1',
+          clearDescription: req.body?.clearDescription === '1',
+        },
+      });
+      if (result.status === 'not_found') {
+        res.status(404).render('admin/curator/galleries/edit', getCuratorGalleryNotFoundPage(galleryId));
+        return;
       }
-      writeMediaSavedFlash(res, req, 'edit', changedTypedTags(req.body?.criteriaTags, req.body?.excludeTags));
-      res.redirect(303, '/admin/curator/galleries');
+      if (result.status === 'refused') {
+        renderCuratorGalleryEditError(res, result.httpStatus, result.message, {
+          galleryId,
+          name,
+          description,
+          sortOrderRaw,
+          criteriaTagsRaw: (req.body?.criteriaTags ?? '') as string,
+          excludeTagsRaw: (req.body?.excludeTags ?? '') as string,
+          externalLinks,
+          fieldErrors: result.fieldErrors,
+          reasonRaw,
+        }, actorMemberId);
+        return;
+      }
+      writeShareFlash(res, req, {
+        mediaId: null,
+        count: 0,
+        saved: true,
+        gallery: { id: galleryId, name, tags: [], created: false },
+        folded: changedTypedTags(req.body?.criteriaTags, req.body?.excludeTags),
+        rejected: [],
+      });
+      res.redirect(303, result.landingHref);
     } catch (err) {
       next(err);
     }
@@ -619,15 +571,22 @@ export const adminCuratorController = {
   async postSignUpload(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const body = (req.body ?? {}) as Record<string, unknown>;
-      const result = await getDefaultCuratorMediaService().beginCuratorVideoUpload({
+      const text = (key: string) => String(body[key] ?? '');
+      const result = await signCuratorVideoUpload(getDefaultCuratorMediaService(), {
         adminMemberId: req.user!.userId,
-        videoFilename: String(body.videoFilename ?? ''),
-        videoContentType: String(body.videoContentType ?? ''),
+        videoFilename: text('videoFilename'),
+        videoContentType: text('videoContentType'),
         videoSizeBytes: Number(body.videoSizeBytes),
-        posterContentType: String(body.posterContentType ?? ''),
+        posterContentType: text('posterContentType'),
         posterSizeBytes: Number(body.posterSizeBytes),
         caption: body.caption ? String(body.caption) : '',
-        tags: String(body.tags ?? ''),
+        tags: text('tags'),
+        externalUrl: text('externalUrl'),
+        galleryName: text('galleryName'),
+        gallerySlug: text('gallerySlug'),
+        gallerySort: text('gallerySort'),
+        galleryExcludeTags: text('galleryExcludeTags'),
+        galleryPreview: text('galleryPreview'),
       });
       if (result.status === 'invalid') {
         res.status(400).json({ error: result.error });
@@ -757,11 +716,9 @@ export const adminCuratorController = {
   },
 };
 
-// ── Curator-gallery edit error rerender + multipart handler ─────────────
-// Both helpers serve the FH-owned `/admin/curator/galleries/:id/edit` POST
-// path so the form can submit either text-encoded or multipart/form-data
-// (the latter is required when a file is attached for the optional
-// upload widget).
+// ── Curator-gallery edit error rerender ─────────────────────────────────
+// Serves the `/admin/curator/galleries/:id/edit` POST, which re-renders the
+// form with the administrator's values when a save is refused.
 
 interface CuratorGalleryEditErrorContext {
   galleryId: string;
@@ -770,7 +727,6 @@ interface CuratorGalleryEditErrorContext {
   sortOrderRaw: string;
   criteriaTagsRaw: string;
   excludeTagsRaw: string;
-  uploadTagsRaw: string;
   externalLinks: ReturnType<typeof parseExternalLinkInputs>;
   fieldErrors?: Record<string, string>;
   // The administrator's typed reason, so a refused moderation comes back with
@@ -791,88 +747,3 @@ function renderCuratorGalleryEditError(
   );
 }
 
-function handleCuratorGalleryEditMultipart(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): void {
-  const galleryId = req.params.id;
-  parseGalleryMultipart(
-    req,
-    (parsed) => {
-      void executeCuratorGalleryEditMultipart({
-        req, res, galleryId, ...parsed,
-      }).catch((err: unknown) => {
-        if (err instanceof ImageProcessingError) {
-          renderImageWorkerUnavailable(res, 'curator gallery upload: image worker unavailable', err);
-          return;
-        }
-        logger.error('curator gallery multipart edit error', {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        next(err);
-      });
-    },
-    (err) => {
-      logger.error('busboy parse error', { error: err.message });
-      next(err);
-    },
-  );
-}
-
-async function executeCuratorGalleryEditMultipart(args: {
-  req: Request;
-  res: Response;
-  galleryId: string;
-  fields: Record<string, string>;
-  photoFiles: Array<{ buffer: Buffer; filename: string }>;
-  limitExceeded: boolean;
-  droppedNamelessFile: boolean;
-}): Promise<void> {
-  const { req, res, galleryId, fields, photoFiles, limitExceeded, droppedNamelessFile } = args;
-  const actorMemberId = req.user!.userId;
-
-  const name = String(fields.name ?? '');
-  const description = String(fields.description ?? '');
-  const sortOrderRaw = String(fields.sortOrder ?? '');
-  const criteriaTags = parseTagList(fields.criteriaTags);
-  const excludeTags = parseTagList(fields.excludeTags);
-  const uploadTagsRaw = (fields.uploadTags ?? '') as string;
-  const uploadTags = parseTagList(uploadTagsRaw);
-  const externalLinks = parseExternalLinkInputs(fields);
-  const reasonRaw = String(fields.reason ?? '');
-
-  const result = await updateCuratorGalleryWithUploads(buildSvc(), {
-    actorMemberId,
-    galleryId,
-    updates: { name, description, sortOrder: sortOrderRaw, criteriaTags, excludeTags, externalLinks },
-    reason: reasonRaw,
-    moderation: {
-      clearName:        fields.clearName === '1',
-      clearDescription: fields.clearDescription === '1',
-    },
-    uploadTags,
-    uploads: { files: photoFiles, limitExceeded, droppedNamelessFile },
-  });
-  if (result.status === 'not_found') {
-    res.status(404).render('admin/curator/galleries/edit', getCuratorGalleryNotFoundPage(galleryId));
-    return;
-  }
-  if (result.status === 'refused') {
-    renderCuratorGalleryEditError(res, result.httpStatus, result.message, {
-      galleryId,
-      name,
-      description,
-      sortOrderRaw,
-      criteriaTagsRaw: fields.criteriaTags ?? '',
-      excludeTagsRaw: fields.excludeTags ?? '',
-      uploadTagsRaw,
-      externalLinks,
-      reasonRaw,
-      fieldErrors: result.fieldErrors,
-    }, actorMemberId);
-    return;
-  }
-  writeMediaSavedFlash(res, req, 'edit', changedTypedTags(fields.criteriaTags, fields.excludeTags, uploadTagsRaw));
-  res.redirect(303, '/admin/curator/galleries');
-}
