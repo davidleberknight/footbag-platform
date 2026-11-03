@@ -9,8 +9,8 @@
  * Nothing here edits a committed input, runs a retired loader as authority, writes
  * a trick by hand, invents a provenance, or leaves a trick half-published. The
  * dictionary is built from the committed inputs first, the ten are removed from
- * it, and then the funnel puts them back using the same rulings that are actually
- * in the ledger.
+ * it and their rulings reopened, and then the funnel puts them back using the same
+ * rulings that are actually in the ledger.
  *
  * Two differences from the historical rows are intended rather than tolerated. The
  * funnel creates a trick as `curated`, because publication is a curator's act and
@@ -317,6 +317,15 @@ beforeAll(async () => {
   conn.prepare(`DELETE FROM freestyle_trick_modifier_links WHERE trick_slug IN (${marks})`).run(...slugs);
   conn.prepare(`DELETE FROM freestyle_trick_source_links WHERE trick_slug IN (${marks})`).run(...slugs);
   conn.prepare(`DELETE FROM freestyle_tricks WHERE slug IN (${marks})`).run(...slugs);
+  // The ledger records these ten as already resolved, because their tricks exist.
+  // With the tricks gone, each ruling goes back to the open state a name waiting
+  // for publication holds, so the funnel starts where a curator would.
+  const names = TEN.map((c) => c.name);
+  conn.prepare(
+    `UPDATE freestyle_ev_adjudications
+        SET ev_state = 'parser', hold_kind = 'parser', match_type = '',
+            final_disposition = 'C', matched_existing_object = ''
+      WHERE submitted_name IN (${marks})`).run(...names);
   conn.exec('COMMIT');
 
   const rulingIdFor = conn.prepare(

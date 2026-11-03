@@ -200,10 +200,10 @@ def test_the_notation_required_cohort_is_the_same_thirty_six(ledger_rows, seeded
     assert from_table == from_ledger
 
 
-def test_the_blocked_cohort_is_the_same_two_hundred_and_twenty_one(ledger_rows, seeded_rows):
+def test_the_blocked_cohort_is_the_same_two_hundred_and_twenty(ledger_rows, seeded_rows):
     from_ledger = {r["normalized_name"] for r in ledger_rows if r["ev_state"] in BLOCKED_STATES}
     from_table = {r["normalized_name"] for r in seeded_rows if r["ev_state"] in BLOCKED_STATES}
-    assert len(from_ledger) == 221
+    assert len(from_ledger) == 220
     assert from_table == from_ledger
 
 
@@ -297,6 +297,28 @@ def test_the_live_trick_row_decides_which_linked_names_are_still_candidates(seed
     assert len(candidates) == 7
     assert published == ["inspinning_same_side_illusion", "inspinning_same_side_mirage"]
     assert all(status == "expert_reviewed" for slug, _, status in rows if slug in published)
+
+
+def test_no_live_trick_has_an_open_ruling_for_its_own_name(seeded_db):
+    """Defect caught: the record says a name is still undecided while its trick has
+    been published, so a curator could rule again on a settled name, and nothing
+    says which trick the name became. Names fold the way the ledger folds them."""
+    conn = sqlite3.connect(f"file:{seeded_db}?mode=ro", uri=True)
+    try:
+        open_rulings = conn.execute(
+            """
+            SELECT a.normalized_name
+              FROM freestyle_ev_adjudications a
+              JOIN freestyle_tricks t
+                ON replace(replace(t.slug, '_', ''), '-', '') = a.normalized_name
+             WHERE t.is_active = 1
+               AND a.final_disposition = 'C'
+               AND coalesce(a.matched_existing_object, '') = ''
+            """
+        ).fetchall()
+    finally:
+        conn.close()
+    assert open_rulings == []
 
 
 def test_a_ruling_is_not_dropped_merely_because_its_trick_is_already_canonical(
