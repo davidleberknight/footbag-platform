@@ -5,7 +5,7 @@
  * The outward-link phrasing is uniform across the Concepts page's
  * five card primitives — a single vocabulary per destination type:
  *
- *   - "View full ontology →"      → /freestyle/tricks/{slug} (trick-detail)
+ *   - the family card's trick link → /freestyle/tricks/{slug} (trick-detail)
  *   - "Browse {Name} tricks →"    → /freestyle/tricks?view=modifier#modifier-{slug}
  *   - "Modifier reference →"      → /freestyle/modifier/{slug} or operator page
  *   - "View family →"             → /freestyle/tricks?view=family (preserved
@@ -52,17 +52,9 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /freestyle/concepts — standardized outward-link phrasings', () => {
-  it('"View full ontology →" appears on derivation-atlas panels', async () => {
+  it('family cards link to the anchor trick page', async () => {
     const res = await page('/freestyle/concepts');
     expect(res.status).toBe(200);
-    // The phrase appears at least once per panel × 5 panels — but we
-    // only assert at least one occurrence here; per-panel coverage is
-    // pinned in freestyle.glossary-derivation-atlas.routes.test.ts.
-    expect(res.text).toMatch(/View full ontology/);
-  });
-
-  it('"View full ontology →" appears on family cards', async () => {
-    const res = await page('/freestyle/concepts');
     // Family cards link to /freestyle/tricks/{anchor-slug}. Whirl is
     // the canonical root family-anchor and always renders.
     expect(res.text).toContain('href="/freestyle/tricks/whirl"');
@@ -108,7 +100,7 @@ describe('GET /freestyle/concepts — standardized outward-link phrasings', () =
     const res = await page('/freestyle/concepts');
     // At minimum, the family cards carry the class. The test pins presence;
     // count assertions would be brittle across future curator additions.
-    expect(res.text).toMatch(/<a class="action-link" href="[^"]+">(View full ontology|Read the Full Family Article)<\/a>/);
+    expect(res.text).toMatch(/<p class="glossary-family-card-outward"><a class="action-link" href="[^"]+">/);
   });
 });
 

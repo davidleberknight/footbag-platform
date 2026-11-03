@@ -1323,7 +1323,7 @@ function shapeTrickPathways(args: {
         primaryText: learnPrimaryText,
         secondaryText: null,
         href: '#media',
-        hrefLabel: 'Jump to Reference Media',
+        hrefLabel: 'Jump to Media',
       }
     : {
         available: false,
@@ -1837,7 +1837,7 @@ export interface TrickPathwaySummary {
   primaryText: string;           // pre-shaped main-line text; e.g. "3 tutorials available"
   secondaryText: string | null;  // optional second line; e.g. "Top: Jim Penske (47 kicks)"
   href: string | null;           // jump-link target ('#media', '#passback-records', or family filter)
-  hrefLabel: string | null;      // pre-shaped CTA text; e.g. "Jump to Reference Media"
+  hrefLabel: string | null;      // pre-shaped CTA text; e.g. "Jump to Media"
 }
 
 export interface TrickPathways {
