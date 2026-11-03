@@ -28,6 +28,10 @@ SCRIPT_DIR  = os.path.dirname(os.path.abspath(__file__))
 LEGACY_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..'))
 SOURCE_CSV  = os.path.join(LEGACY_ROOT, 'inputs', 'curated', 'records', 'consecutives_records.csv')
 
+# Fixed, so a base row's id comes out the same on every rebuild and machine.
+BASE_ROW_NAMESPACE = uuid.UUID('6f1c1a54-3b7e-5d4a-9c11-2f6d0e8a7b31')
+
+
 def load_records(db_path: str, source_csv: str = SOURCE_CSV) -> None:
     if not os.path.exists(source_csv):
         print(f"ERROR: source CSV not found: {source_csv}", file=sys.stderr)
@@ -79,7 +83,10 @@ def load_records(db_path: str, source_csv: str = SOURCE_CSV) -> None:
                     strftime('%Y-%m-%dT%H:%M:%fZ','now'),
                     strftime('%Y-%m-%dT%H:%M:%fZ','now'))
         """, (
-            str(uuid.uuid4()),
+            # The same on every rebuild, derived from the row's position in the
+            # source: a curator's saved edit names its row by this id, so an id
+            # minted afresh per run could never find its row again.
+            str(uuid.uuid5(BASE_ROW_NAMESPACE, str(sort_order))),
             sort_order,
             row['section'].strip(),
             row['subsection'].strip(),

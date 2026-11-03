@@ -54,12 +54,22 @@ RECORD_KINDS = (
      ("external_url", "asserted_adds")),
     ("modifier_links", "freestyle_trick_modifier_links", ("trick_slug", "modifier_slug", "apply_order"),
      ()),
+    ("records", "freestyle_records", ("id",),
+     ("record_type", "person_id", "display_name", "trick_name", "sort_name", "adds_count",
+      "value_numeric", "value_text", "achieved_date", "date_precision", "source", "confidence",
+      "video_url", "video_timecode", "notes", "superseded_by")),
+    ("consecutive_records", "consecutive_kicks_records", ("id",),
+     ("sort_order", "section", "subsection", "discipline", "year", "rank", "player_1", "player_2",
+      "score", "note", "event_date", "event_name", "location")),
 )
 # A curator's alias says so, the way the application's own save does. The creation
-# time is this load's, as it is for every alias a loader writes.
+# time is this load's, as it is for every row a loader writes.
 LOADED_AT = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
-FIXED_COLUMNS = {"aliases": {"alias_origin_producer": "curator-application",
-                             "created_at": LOADED_AT}}
+FIXED_COLUMNS = {
+    "aliases": {"alias_origin_producer": "curator-application", "created_at": LOADED_AT},
+    "records": {"created_at": LOADED_AT, "updated_at": LOADED_AT},
+    "consecutive_records": {"created_at": LOADED_AT, "updated_at": LOADED_AT},
+}
 
 
 def apply_trick_saves(conn, saves, overrides):
@@ -81,6 +91,24 @@ def apply_trick_saves(conn, saves, overrides):
         conn.execute(
             f"UPDATE freestyle_tricks SET {assignments} WHERE slug = ?",
             [fields[column] for column in columns] + [slug],
+        )
+
+
+def clear_saved_positions(conn, saves_dir):
+    """Lift every saved consecutive row off its display position before applying.
+
+    The position is unique, so two saved rows that swapped places would collide
+    midway through otherwise. Each is stored at a unique negative position first,
+    and its save then sets the real one.
+    """
+    for path in sorted((saves_dir / "consecutive_records").glob("*.json")):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except ValueError as err:
+            raise ValueError(f"{path} is not valid JSON: {err}") from err
+        conn.execute(
+            "UPDATE consecutive_kicks_records SET sort_order = -rowid - 1 WHERE id = ?",
+            (data.get("id"),),
         )
 
 
@@ -159,6 +187,12 @@ def main() -> int:
     applied = len(saves)
     try:
         with conn:
+            # A saved record may name another saved record as its successor, in any
+            # order, so the foreign keys are checked when the whole set commits.
+            # The setting lasts only for an open transaction.
+            conn.execute("BEGIN")
+            conn.execute("PRAGMA defer_foreign_keys = ON")
+            clear_saved_positions(conn, saves_dir)
             # Sources first, since a trick's saved source and every link may cite one.
             sources = RECORD_KINDS[0]
             for path in sorted((saves_dir / sources[0]).glob("*.json")):

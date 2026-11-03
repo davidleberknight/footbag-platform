@@ -59,7 +59,9 @@ export interface CuratedSaveReceipt {
  * states the record as the curator left it; `removed: true` marks a record taken
  * away, which a rebuild would otherwise bring back from a base input.
  */
-export const SAVE_ITEM_KINDS = ['sources', 'aliases', 'source_links', 'modifier_links'] as const;
+export const SAVE_ITEM_KINDS = [
+  'sources', 'aliases', 'source_links', 'modifier_links', 'records', 'consecutive_records',
+] as const;
 export type SaveItemKind = (typeof SAVE_ITEM_KINDS)[number];
 export type SaveItemBody = Record<string, string | number | boolean | null>;
 

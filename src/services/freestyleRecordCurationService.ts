@@ -48,6 +48,8 @@ import { appendAuditEntry, findOwnLatestAudit } from './auditService';
 import { ForbiddenError, NotFoundError, ValidationError } from './serviceErrors';
 import { PageViewModel } from '../types/page';
 import { config } from '../config/env';
+import { getCuratedAuthoringAdapter, type CuratedSaveReceipt } from '../adapters/curatedAuthoringAdapter';
+import { writeFileThenCommit } from './curatedSaveFlow';
 import { isSeededTestPersonaMemberId } from '../lib/personaGuards';
 import {
   sanitizeUserText,
@@ -471,7 +473,7 @@ export const freestyleRecordCurationService = {
     mark(v.notes !== comparableStored(current.notes, 'multi_line'), 'notes');
     mark(v.supersededBy !== (current.superseded_by ?? null), 'superseded_by');
 
-    transaction(() => {
+    writeFileThenCommit(changedFields.length > 0 ? saveRecordFile(id, v) : null, () => transaction(() => {
       freestyleRecords.updateForCuration.run(
         v.recordType, v.personId, v.displayName, v.trickName, v.sortName, v.addsCount,
         v.valueNumeric, v.valueText, v.achievedDate, v.datePrecision, v.source, v.confidence,
@@ -485,7 +487,7 @@ export const freestyleRecordCurationService = {
         entityId:      id,
         metadata:      { changedFields },
       });
-    });
+    }));
   },
 
   // Add one new record. Validates the same fields as an edit, generates the id,
@@ -501,7 +503,7 @@ export const freestyleRecordCurationService = {
     const ownRecordId = ownIdenticalCreatedRecordId(v, actorMemberId);
     if (ownRecordId !== null) return ownRecordId;
 
-    transaction(() => {
+    writeFileThenCommit(saveRecordFile(id, v), () => transaction(() => {
       freestyleRecords.insertForCuration.run(
         id, v.recordType, v.personId, v.displayName, v.trickName, v.sortName, v.addsCount,
         v.valueNumeric, v.valueText, v.achievedDate, v.datePrecision, v.source, v.confidence,
@@ -515,11 +517,23 @@ export const freestyleRecordCurationService = {
         entityId:      id,
         metadata:      { recordType: v.recordType, trickName: v.trickName, holder: v.personId ?? v.displayName },
       });
-    });
+    }));
 
     return id;
   },
 };
+
+/** A record's save is the whole row, since a rebuild cannot rebuild every column. */
+function saveRecordFile(id: string, v: ValidatedRecord): () => CuratedSaveReceipt {
+  return () => getCuratedAuthoringAdapter().saveItem('records', id, {
+    id, record_type: v.recordType, person_id: v.personId, display_name: v.displayName,
+    trick_name: v.trickName, sort_name: v.sortName, adds_count: v.addsCount,
+    value_numeric: v.valueNumeric, value_text: v.valueText, achieved_date: v.achievedDate,
+    date_precision: v.datePrecision, source: v.source, confidence: v.confidence,
+    video_url: v.videoUrl, video_timecode: v.videoTimecode, notes: v.notes,
+    superseded_by: v.supersededBy,
+  });
+}
 
 /** The id of a record this actor created whose stored values equal every field of
  *  the submitted create, or null. */

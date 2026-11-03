@@ -30,6 +30,8 @@ const ADMIN_ID = 'aaaaaaaa-0000-0000-0000-000000saves1';
 const SAVED_TEXT = 'Saved by a curator through the trick editor.';
 
 const REBUILD: readonly (readonly [string, string[]])[] = [
+  ['10_load_freestyle_records_to_sqlite.py', ['--records-csv', 'freestyle/inputs/curated/records/records_master.csv']],
+  ['11_load_consecutive_records_to_sqlite.py', []],
   ['16_preflight_trick_ownership.py', []],
   ['17_load_trick_dictionary.py', ['--stage', 'tricks']],
   ['19_load_red_additions.py', []],
@@ -130,6 +132,16 @@ let updatedAlias: { alias_slug: string; trick_slug: string };
 let removedAlias: { alias_slug: string; trick_slug: string };
 let baseSourceLink: { trick_slug: string; source_id: string };
 let baseModifierLink: { trick_slug: string; modifier_slug: string; apply_order: number };
+let recordService: typeof import('../../src/services/freestyleRecordCurationService').freestyleRecordCurationService;
+let consecutiveService: typeof import('../../src/services/consecutiveKicksCurationService').consecutiveKicksCurationService;
+let editedRecordId = '';
+let createdRecordId = '';
+let editedRowId = '';
+let swappedRowId = '';
+let deletedRowId = '';
+let createdRowId = '';
+let editedRowOrder = 0;
+let swappedRowOrder = 0;
 
 let service: typeof import('../../src/services/freestyleCurationService').freestyleCurationService;
 let adapterModule: typeof import('../../src/adapters/curatedAuthoringAdapter');
@@ -199,6 +211,54 @@ beforeAll(async () => {
   service.detachModifier(
     baseModifierLink.trick_slug, baseModifierLink.modifier_slug, baseModifierLink.apply_order, ADMIN_ID,
   );
+
+  // Records and consecutive rows, including what the loaders alone cannot express:
+  // a text value, a year-level date, and a row the records loader would skip.
+  const records = await import('../../src/services/freestyleRecordCurationService');
+  const consecutive = await import('../../src/services/consecutiveKicksCurationService');
+  recordService = records.freestyleRecordCurationService;
+  consecutiveService = consecutive.consecutiveKicksCurationService;
+  const data = new BetterSqlite3(dbPath, { readonly: true });
+  editedRecordId = (data.prepare(
+    "SELECT id FROM freestyle_records WHERE confidence = 'probable' AND date_precision = 'day' AND value_numeric IS NOT NULL ORDER BY id LIMIT 1",
+  ).get() as { id: string }).id;
+  const editedRecord = data.prepare('SELECT * FROM freestyle_records WHERE id = ?').get(editedRecordId) as Record<string, string | number | null>;
+  const firstThree = data.prepare(
+    'SELECT * FROM consecutive_kicks_records ORDER BY sort_order LIMIT 3',
+  ).all() as Record<string, string | number | null>[];
+  data.close();
+
+  const recordForm = (row: Record<string, string | number | null>, changes: Record<string, string>) => ({
+    recordType: String(row.record_type), personId: String(row.person_id ?? ''), displayName: String(row.display_name ?? ''),
+    trickName: String(row.trick_name ?? ''), sortName: String(row.sort_name ?? ''), addsCount: String(row.adds_count ?? ''),
+    valueNumeric: String(row.value_numeric ?? ''), valueText: String(row.value_text ?? ''), achievedDate: String(row.achieved_date ?? ''),
+    datePrecision: String(row.date_precision), source: String(row.source), confidence: String(row.confidence),
+    videoUrl: String(row.video_url ?? ''), videoTimecode: String(row.video_timecode ?? ''), notes: String(row.notes ?? ''),
+    supersededBy: String(row.superseded_by ?? ''), ...changes,
+  });
+  recordService.updateRecord(editedRecordId, recordForm(editedRecord, {
+    valueText: 'saved text value', source: 'saved-source-label', achievedDate: '2010-01-01', datePrecision: 'year',
+  }), ADMIN_ID);
+  createdRecordId = recordService.createRecord(recordForm(editedRecord, {
+    displayName: 'Saved Holder', personId: '', trickName: 'Saved Record Trick', sortName: '', valueNumeric: '',
+    valueText: 'no number at all', videoUrl: '', videoTimecode: '', supersededBy: '', notes: '',
+  }), ADMIN_ID);
+
+  const rowForm = (row: Record<string, string | number | null>, changes: Record<string, string>) => ({
+    sortOrder: String(row.sort_order), section: String(row.section), subsection: String(row.subsection),
+    discipline: String(row.discipline), year: String(row.year ?? ''), rank: String(row.rank ?? ''),
+    player1: String(row.player_1 ?? ''), player2: String(row.player_2 ?? ''), score: String(row.score ?? ''),
+    note: String(row.note ?? ''), eventDate: String(row.event_date ?? ''), eventName: String(row.event_name ?? ''),
+    location: String(row.location ?? ''), ...changes,
+  });
+  [editedRowId, swappedRowId, deletedRowId] = firstThree.map((r) => String(r.id)) as [string, string, string];
+  [editedRowOrder, swappedRowOrder] = firstThree.map((r) => Number(r.sort_order)) as [number, number];
+  // Two rows trading places, the one case applying saves in sequence would trip on.
+  consecutiveService.updateRow(editedRowId, rowForm(firstThree[0]!, { sortOrder: '999001', note: 'Saved note.' }), ADMIN_ID);
+  consecutiveService.updateRow(swappedRowId, rowForm(firstThree[1]!, { sortOrder: String(editedRowOrder) }), ADMIN_ID);
+  consecutiveService.updateRow(editedRowId, rowForm(firstThree[0]!, { sortOrder: String(swappedRowOrder), note: 'Saved note.' }), ADMIN_ID);
+  consecutiveService.deleteRow(deletedRowId, ADMIN_ID);
+  createdRowId = consecutiveService.createRow(rowForm(firstThree[0]!, { sortOrder: '999002', player1: 'Saved Player' }), ADMIN_ID);
 }, 180_000);
 
 afterEach(() => adapterModule.resetCuratedAuthoringAdapterForTests());
@@ -373,6 +433,27 @@ describe('a rebuild', () => {
       [editedSlug, baseModifierLink.modifier_slug])).toBe(1);
     expect(rowCount(rebuildPath, 'freestyle_trick_modifier_links', 'trick_slug = ? AND modifier_slug = ? AND apply_order = ?',
       [baseModifierLink.trick_slug, baseModifierLink.modifier_slug, baseModifierLink.apply_order])).toBe(0);
+  });
+
+  it('keeps record values the records loader cannot express', () => {
+    // Defect: the record editor offers values the next rebuild silently drops.
+    expect(rowCount(rebuildPath, 'freestyle_records',
+      "id = ? AND value_text = 'saved text value' AND source = 'saved-source-label' AND date_precision = 'year' AND achieved_date = '2010-01-01'",
+      [editedRecordId])).toBe(1);
+    expect(rowCount(rebuildPath, 'freestyle_records',
+      "id = ? AND display_name = 'Saved Holder' AND value_numeric IS NULL AND value_text = 'no number at all'",
+      [createdRecordId])).toBe(1);
+  });
+
+  it('reapplies consecutive rows by a stable id, including two that swapped places', () => {
+    // Defect: rebuilt rows take fresh ids, so a save can never find its row again,
+    // or swapped positions collide and stop the rebuild.
+    expect(rowCount(rebuildPath, 'consecutive_kicks_records', "id = ? AND sort_order = ? AND note = 'Saved note.'",
+      [editedRowId, swappedRowOrder])).toBe(1);
+    expect(rowCount(rebuildPath, 'consecutive_kicks_records', 'id = ? AND sort_order = ?',
+      [swappedRowId, editedRowOrder])).toBe(1);
+    expect(rowCount(rebuildPath, 'consecutive_kicks_records', 'id = ?', [deletedRowId])).toBe(0);
+    expect(rowCount(rebuildPath, 'consecutive_kicks_records', "id = ? AND player_1 = 'Saved Player'", [createdRowId])).toBe(1);
   });
 
   it('is unchanged by applying the saves a second time', () => {

@@ -34,6 +34,8 @@ import { appendAuditEntry, findOwnLatestAudit } from './auditService';
 import { ForbiddenError, NotFoundError, ValidationError } from './serviceErrors';
 import { PageViewModel } from '../types/page';
 import { config } from '../config/env';
+import { getCuratedAuthoringAdapter, type CuratedSaveReceipt } from '../adapters/curatedAuthoringAdapter';
+import { writeFileThenCommit } from './curatedSaveFlow';
 import { isSeededTestPersonaMemberId } from '../lib/personaGuards';
 import {
   sanitizeUserText,
@@ -388,7 +390,7 @@ export const consecutiveKicksCurationService = {
     mark(v.eventName !== comparableStored(current.event_name, 'single_line'), 'event_name');
     mark(v.location !== comparableStored(current.location, 'single_line'), 'location');
 
-    transaction(() => {
+    writeFileThenCommit(changedFields.length > 0 ? saveRowFile(id, v) : null, () => transaction(() => {
       consecutiveKicksRecords.updateForCuration.run(
         v.sortOrder, v.section, v.subsection, v.discipline, v.year, v.rank,
         v.player1, v.player2, v.score, v.note, v.eventDate, v.eventName, v.location, id,
@@ -401,7 +403,7 @@ export const consecutiveKicksCurationService = {
         entityId:      id,
         metadata:      { changedFields },
       });
-    });
+    }));
   },
 
   // Add one new row. Validates the same fields as an edit, generates the id,
@@ -417,7 +419,7 @@ export const consecutiveKicksCurationService = {
     const v = validateConsecutiveInput(input, id);
 
     try {
-      transaction(() => {
+      writeFileThenCommit(saveRowFile(id, v), () => transaction(() => {
         consecutiveKicksRecords.insertForCuration.run(
           id, v.sortOrder, v.section, v.subsection, v.discipline, v.year, v.rank,
           v.player1, v.player2, v.score, v.note, v.eventDate, v.eventName, v.location,
@@ -430,7 +432,7 @@ export const consecutiveKicksCurationService = {
           entityId:      id,
           metadata:      { sortOrder: v.sortOrder, section: v.section, discipline: v.discipline },
         });
-      });
+      }));
     } catch (err) {
       if (isDuplicateKeyError(err)) {
         throw new ValidationError('Some fields need attention.', {
@@ -452,7 +454,8 @@ export const consecutiveKicksCurationService = {
     const current = consecutiveKicksRecords.getForCurationById.get(id) as ConsecutiveCurationDbRow | undefined;
     if (!current) throw new NotFoundError(`No consecutive-kicks record "${id}"`);
 
-    transaction(() => {
+    const removal = () => getCuratedAuthoringAdapter().saveItem('consecutive_records', id, { id, removed: true });
+    writeFileThenCommit(removal, () => transaction(() => {
       consecutiveKicksRecords.deleteById.run(id);
       appendAuditEntry({
         actionType:    'freestyle.consecutive_record.deleted',
@@ -468,9 +471,19 @@ export const consecutiveKicksCurationService = {
           score:     current.score,
         },
       });
-    });
+    }));
   },
 };
+
+/** A row's save is the whole row, keyed by the id the loader derives for a base row. */
+function saveRowFile(id: string, v: ReturnType<typeof validateConsecutiveInput>): () => CuratedSaveReceipt {
+  return () => getCuratedAuthoringAdapter().saveItem('consecutive_records', id, {
+    id, sort_order: v.sortOrder, section: v.section, subsection: v.subsection,
+    discipline: v.discipline, year: v.year, rank: v.rank, player_1: v.player1,
+    player_2: v.player2, score: v.score, note: v.note, event_date: v.eventDate,
+    event_name: v.eventName, location: v.location,
+  });
+}
 
 /**
  * The id of the row this actor's own create made at the submitted display
