@@ -141,13 +141,7 @@ publicRouter.get('/freestyle/tricks/:slug', freestyleController.trick);
 publicRouter.get('/freestyle',             freestyleController.landing);
 
 
-// IMPORTANT: /net must be registered before all /net/* sub-routes
 publicRouter.get('/net',                  netController.homePage);
-
-publicRouter.get('/net/events', netController.eventsPage);
-
-publicRouter.get('/net/teams',             netController.teamsPage);
-publicRouter.get('/net/teams/:teamId',    netController.teamDetail);
 
 publicRouter.get('/x-square',              xSquareController.landing);
 publicRouter.get('/golf',                  golfController.landing);

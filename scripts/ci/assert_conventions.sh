@@ -2604,8 +2604,6 @@ DECLARED = {
     'legacy_members', 'historical_persons', 'media_sources',
     'name_variants', 'given_name_variants',
     'freestyle_records', 'consecutive_kicks_records',
-    'net_stat_policy', 'net_discipline_group', 'net_team', 'net_team_member',
-    'net_team_appearance',
     'freestyle_tricks', 'freestyle_trick_modifiers', 'freestyle_trick_sources',
     'freestyle_trick_source_links', 'freestyle_trick_aliases',
     'freestyle_trick_modifier_links',

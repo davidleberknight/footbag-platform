@@ -360,25 +360,6 @@ export const COPY_COLUMN_REGISTER: Readonly<Record<string, TableClassification>>
   name_variants: {
     keep: ['canonical_normalized', 'variant_normalized', 'source', 'created_at'],
   },
-  net_discipline_group: {
-    keep: ['discipline_id', 'canonical_group', 'match_method', 'review_needed', 'conflict_flag',
-      'mapped_at', 'mapped_by'],
-  },
-  net_stat_policy: {
-    keep: ['evidence_class', 'display_label', 'may_show_public', 'requires_disclaimer',
-      'disclaimer_text', 'may_use_in_stats', 'created_at'],
-  },
-  net_team: {
-    keep: ['team_id', 'person_id_a', 'person_id_b', 'first_year', 'last_year', 'appearance_count',
-      'created_at', 'updated_at'],
-  },
-  net_team_appearance: {
-    keep: ['id', 'team_id', 'event_id', 'discipline_id', 'result_entry_id', 'placement',
-      'score_text', 'event_year', 'evidence_class', 'extracted_at'],
-  },
-  net_team_member: {
-    keep: ['id', 'team_id', 'person_id', 'position'],
-  },
   news_items: {
     keep: ['id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version', 'published_at',
       'news_type', 'title', 'body', 'entity_type', 'entity_id', 'is_public'],

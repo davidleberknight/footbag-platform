@@ -49,7 +49,6 @@ avatar-edit-thumb
 avatar-preview-frame
 back-link
 badge
-badge-cell
 badge-coming-soon
 badge-historical
 badge-honor
@@ -74,7 +73,6 @@ browse-view-why
 browse-view-why-body
 btn
 btn-inverse
-btn-link
 btn-outline
 btn-primary
 btn-sm
@@ -966,6 +964,5 @@ w-20
 work-queue-item
 wrapper
 year-grid
-year-heading
 year-page-nav
 year-pill

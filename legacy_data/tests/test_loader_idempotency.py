@@ -446,12 +446,8 @@ def test_mvfp_loader_aborts_on_app_row_on_canonical_event(tmp_path: Path) -> Non
 
 
 # ---------------------------------------------------------------------------
-# Loader 08 net_discipline_group child: scoped teardown, ownership guard, FK safety
+# Loader 08 canonical disciplines: ownership guard and FK safety
 # ---------------------------------------------------------------------------
-# net_discipline_group carries a foreign key to event_disciplines and is rebuilt by
-# the net pipeline, not this loader. A re-run against a database that already holds
-# those group rows must clear the ones referencing its canonical disciplines before
-# it deletes the disciplines, or the strict foreign key aborts the whole reseed.
 
 
 def _canonical_discipline_id(db: Path) -> str:
@@ -465,115 +461,11 @@ def _canonical_discipline_id(db: Path) -> str:
         conn.close()
 
 
-def _insert_net_discipline_group(db: Path, discipline_id: str) -> None:
-    """Insert the net-pipeline group row that references a discipline, as script 12
-    would after the net teardown."""
-    ts = "2024-01-01T00:00:00.000Z"
-    conn = sqlite3.connect(db)
-    conn.execute("PRAGMA foreign_keys = ON;")
-    try:
-        conn.execute(
-            "INSERT INTO net_discipline_group (discipline_id, canonical_group, "
-            "match_method, review_needed, conflict_flag, mapped_at, mapped_by) "
-            "VALUES (?, 'open_singles', 'exact', 0, 0, ?, 'net_pipeline')",
-            (discipline_id, ts),
-        )
-        conn.commit()
-    finally:
-        conn.close()
-
-
 def _fk_violations(db: Path) -> list:
     conn = sqlite3.connect(db)
     conn.execute("PRAGMA foreign_keys = ON;")
     try:
         return conn.execute("PRAGMA foreign_key_check").fetchall()
-    finally:
-        conn.close()
-
-
-def test_mvfp_loader_rerun_clears_net_discipline_group_before_disciplines(tmp_path: Path) -> None:
-    """A populated re-run: a net_discipline_group row references a canonical
-    discipline. The loader must clear it before deleting the discipline (no FK
-    failure), and its deletion accounting names the row it removed. The net
-    pipeline rebuilds the group rows downstream, so a scoped clear here is safe."""
-    db = make_db(tmp_path)
-    seed_dir = build_mvfp_seed(tmp_path / "seed")
-    loader = _mvfp_loader_args(db, seed_dir)
-    assert run(loader).returncode == 0
-    disc = _canonical_discipline_id(db)
-    _insert_net_discipline_group(db, disc)
-    assert count(db, "net_discipline_group") == 1
-
-    r2 = run(loader)
-    assert r2.returncode == 0, (
-        f"re-run FK-failed on net_discipline_group.\nstdout: {r2.stdout}\nstderr: {r2.stderr}"
-    )
-    # The scoped delete cleared the canonical group row; the parent disciplines reseeded.
-    assert count(db, "net_discipline_group") == 0
-    assert count(db, "event_disciplines") >= 1
-    assert _fk_violations(db) == [], "foreign-key check must be clean after the reseed"
-    # Honest deletion accounting: the reported count matches the one row removed.
-    assert "net_discipline_group: 1" in r2.stdout, (
-        f"scoped-delete count for net_discipline_group missing/wrong.\nstdout: {r2.stdout}"
-    )
-
-
-def test_mvfp_loader_rerun_is_fk_safe_on_repeated_group_reseed(tmp_path: Path) -> None:
-    """Idempotency under the derived-child clear: inserting the group row before
-    each of two runs, both runs complete with a clean foreign-key check and the
-    canonical disciplines reseeded (no drift, no orphaned group row)."""
-    db = make_db(tmp_path)
-    seed_dir = build_mvfp_seed(tmp_path / "seed")
-    loader = _mvfp_loader_args(db, seed_dir)
-    assert run(loader).returncode == 0
-    for label in ("first", "second"):
-        _insert_net_discipline_group(db, _canonical_discipline_id(db))
-        r = run(loader)
-        assert r.returncode == 0, f"{label} re-run failed.\nstdout: {r.stdout}\nstderr: {r.stderr}"
-        assert _fk_violations(db) == [], f"foreign-key check dirty after {label} re-run"
-        assert count(db, "event_disciplines") >= 1
-        assert count(db, "net_discipline_group") == 0, (
-            f"the scoped clear must remove the canonical group row ({label} run)"
-        )
-
-
-def test_mvfp_loader_rerun_preserves_noncanonical_net_discipline_group(tmp_path: Path) -> None:
-    """Scope isolation: a net_discipline_group row whose discipline belongs to an
-    app-owned event is outside the loader's ownership and survives the reseed."""
-    db = make_db(tmp_path)
-    seed_dir = build_mvfp_seed(tmp_path / "seed")
-    loader = _mvfp_loader_args(db, seed_dir)
-    assert run(loader).returncode == 0
-    ids = _seed_app_data(db)
-    ts = "2024-01-01T00:00:00.000Z"
-    app_disc = "disc_app_0001"
-    conn = sqlite3.connect(db)
-    conn.execute("PRAGMA foreign_keys = ON;")
-    try:
-        conn.execute(
-            "INSERT INTO event_disciplines (id, created_at, created_by, updated_at, "
-            "updated_by, event_id, name, discipline_category) "
-            "VALUES (?, ?, ?, ?, ?, ?, 'App Discipline', 'net')",
-            (app_disc, ts, ids["member_id"], ts, ids["member_id"], ids["event_id"]),
-        )
-        conn.execute(
-            "INSERT INTO net_discipline_group (discipline_id, canonical_group, "
-            "match_method, review_needed, conflict_flag, mapped_at, mapped_by) "
-            "VALUES (?, 'open_singles', 'exact', 0, 0, ?, 'net_pipeline')",
-            (app_disc, ts),
-        )
-        conn.commit()
-    finally:
-        conn.close()
-
-    r2 = run(loader)
-    assert r2.returncode == 0, f"re-run failed.\nstdout: {r2.stdout}\nstderr: {r2.stderr}"
-    conn = sqlite3.connect(db)
-    try:
-        assert conn.execute(
-            "SELECT 1 FROM net_discipline_group WHERE discipline_id = ?", (app_disc,)
-        ).fetchone() is not None, "app-owned net_discipline_group row was wrongly deleted"
     finally:
         conn.close()
 
@@ -618,7 +510,7 @@ def test_mvfp_loader_aborts_on_app_selection_referencing_canonical_discipline(tm
 
 
 # ---------------------------------------------------------------------------
-# Loader 13 (net teams): scoped teardown + honest counters
+# A doubles-net seed, for the loader 08 cases that need two linked participants
 # ---------------------------------------------------------------------------
 
 DBL_PID_A = "aaaaaaaa-1111-1111-1111-111111111111"
@@ -638,11 +530,8 @@ def _person_row(pid: str, name: str) -> dict:
     }
 
 
-def build_doubles_seed(seed_dir: Path, with_qc: bool = False, undated: bool = False) -> Path:
-    """A canonical doubles-net entry (two linked participants -> one team). With
-    with_qc, also a malformed entry (one participant) that loader 13 flags as a
-    wrong_participant_count QC issue without building a team. With undated, the
-    event carries a year but no known day."""
+def build_doubles_seed(seed_dir: Path) -> Path:
+    """A canonical doubles-net entry with two linked participants."""
     seed_dir.mkdir(parents=True, exist_ok=True)
     ek, dk = "2001_dbl_test", "open_doubles_net"
     write_csv(
@@ -652,8 +541,8 @@ def build_doubles_seed(seed_dir: Path, with_qc: bool = False, undated: bool = Fa
          "status", "notes", "source"],
         [{"event_key": ek, "legacy_event_id": ek, "year": "2001",
           "event_name": "Doubles Test Open", "event_slug": "doubles_test_2001",
-          "start_date": "" if undated else "2001-01-01",
-          "end_date": "" if undated else "2001-01-02", "city": "Town",
+          "start_date": "2001-01-01",
+          "end_date": "2001-01-02", "city": "Town",
           "region": "State", "country": "United States", "host_club": "",
           "status": "completed", "notes": "", "source": "mirror"}],
     )
@@ -675,13 +564,6 @@ def build_doubles_seed(seed_dir: Path, with_qc: bool = False, undated: bool = Fa
          "participant_order": "2", "display_name": "Player B",
          "person_id": DBL_PID_B, "notes": ""},
     ]
-    if with_qc:
-        results.append({"event_key": ek, "discipline_key": dk, "placement": "2",
-                        "score_text": "", "notes": "", "source": ""})
-        participants.append(
-            {"event_key": ek, "discipline_key": dk, "placement": "2",
-             "participant_order": "1", "display_name": "Lone Player",
-             "person_id": DBL_PID_A, "notes": ""})
     write_csv(
         seed_dir / "seed_event_results.csv",
         ["event_key", "discipline_key", "placement", "score_text", "notes", "source"],
@@ -701,38 +583,16 @@ def build_doubles_seed(seed_dir: Path, with_qc: bool = False, undated: bool = Fa
     return seed_dir
 
 
-def _load_canonical_doubles(tmp_path: Path, with_qc: bool = False, undated: bool = False) -> Path:
+def _load_canonical_doubles(tmp_path: Path) -> Path:
     """Build the schema, load the doubles seed via loader 08, return the db path."""
     db = make_db(tmp_path)
-    seed_dir = build_doubles_seed(tmp_path / "seed", with_qc=with_qc, undated=undated)
+    seed_dir = build_doubles_seed(tmp_path / "seed")
     r = run([
         "legacy_data/event_results/scripts/08_load_mvfp_seed_full_to_sqlite.py",
         "--db", str(db), "--seed-dir", str(seed_dir), "--no-backup",
     ])
     assert r.returncode == 0, f"loader 08 setup failed.\n{r.stderr}"
     return db
-
-
-def _loader13(db: Path) -> list[str]:
-    # --qc-out keeps the QC findings artifact beside the temp database. Without
-    # it the loader writes into the real legacy_data/out tree, which no test may
-    # touch.
-    return ["legacy_data/event_results/scripts/13_build_net_teams.py",
-            "--db", str(db), "--qc-out", str(db.parent)]
-
-
-def _qc_findings(db: Path) -> str:
-    return (db.parent / "net_team_qc_issues.jsonl").read_text(encoding="utf-8")
-
-
-def test_net_teams_first_load(tmp_path: Path) -> None:
-    """Loader 13 builds one team, two members and one canonical appearance from a
-    doubles-net entry."""
-    db = _load_canonical_doubles(tmp_path)
-    assert run(_loader13(db)).returncode == 0
-    assert count(db, "net_team") == 1
-    assert count(db, "net_team_member") == 2
-    assert count(db, "net_team_appearance") == 1
 
 
 def _query(db: Path, sql: str) -> list[tuple]:
@@ -761,130 +621,60 @@ def test_a_dated_event_keeps_its_dates(tmp_path: Path) -> None:
         ("2001-01-01", "2001-01-02")]
 
 
-def test_a_net_team_appearance_at_an_undated_event_carries_its_year(tmp_path: Path) -> None:
-    """Defect caught: a team page heading an undated event's results with a year
-    thousands of years before the sport existed, because a bare year read as a
-    date is a day count, not a year."""
-    db = _load_canonical_doubles(tmp_path, undated=True)
-    assert run(_loader13(db)).returncode == 0
-    assert _query(db, "SELECT event_year FROM net_team_appearance") == [(2001,)]
-    assert _query(db, "SELECT first_year, last_year FROM net_team") == [(2001, 2001)]
+def _seed_with_first_place_ids(seed_dir: Path, pid_a: str, pid_b: str) -> Path:
+    """The doubles seed, with its one result linked to the two ids given."""
+    build_doubles_seed(seed_dir)
+    write_csv(
+        seed_dir / "seed_event_result_participants.csv",
+        ["event_key", "discipline_key", "placement", "participant_order",
+         "display_name", "person_id", "notes"],
+        [{"event_key": "2001_dbl_test", "discipline_key": "open_doubles_net",
+          "placement": "1", "participant_order": str(order), "display_name": name,
+          "person_id": pid, "notes": ""}
+         for order, name, pid in ((1, "Player A", pid_a), (2, "Player B", pid_b))],
+    )
+    return seed_dir
 
 
-def test_net_teams_rerun_idempotent(tmp_path: Path) -> None:
-    """A re-run leaves the team / member / appearance counts unchanged."""
-    db = _load_canonical_doubles(tmp_path)
-    assert run(_loader13(db)).returncode == 0
-    first = {t: count(db, t) for t in ("net_team", "net_team_member", "net_team_appearance")}
-    assert run(_loader13(db)).returncode == 0
-    second = {t: count(db, t) for t in ("net_team", "net_team_member", "net_team_appearance")}
-    assert first == second, f"counts changed on re-run: {first} -> {second}"
-    assert first["net_team"] == 1
+def _participants_at_test_event(db: Path) -> list[tuple]:
+    return _query(
+        db,
+        "SELECT COUNT(*) FROM event_result_entry_participants p "
+        "JOIN event_result_entries e ON e.id = p.result_entry_id "
+        "WHERE e.event_id = '2001_dbl_test'",
+    )
 
 
-def test_net_teams_rerun_preserves_curated_appearance(tmp_path: Path) -> None:
-    """A curated appearance (and the team/members it references) survives a
-    re-run; the teardown no longer blocks on the foreign key it holds."""
-    db = _load_canonical_doubles(tmp_path)
-    assert run(_loader13(db)).returncode == 0
-    ts = "2024-01-01T00:00:00.000Z"
-    conn = sqlite3.connect(db)
-    conn.execute("PRAGMA foreign_keys = ON;")
-    try:
-        re_id, ev_id, disc_id = conn.execute(
-            "SELECT id, event_id, discipline_id FROM event_result_entries LIMIT 1"
-        ).fetchone()
-        for pid, name in (("cccccccc-3333-3333-3333-333333333333", "Player C"),
-                          ("dddddddd-4444-4444-4444-444444444444", "Player D")):
-            conn.execute(
-                "INSERT INTO historical_persons (person_id, person_name, country, "
-                "source_scope, event_count, placement_count, bap_member, hof_member, "
-                "hof_induction_year) VALUES (?, ?, 'US', 'CANONICAL', 1, 1, 0, 0, NULL)",
-                (pid, name),
-            )
-        t2 = "team_curated_0001"
-        conn.execute(
-            "INSERT INTO net_team (team_id, person_id_a, person_id_b, appearance_count, "
-            "created_at, updated_at) VALUES (?, ?, ?, 1, ?, ?)",
-            (t2, "cccccccc-3333-3333-3333-333333333333",
-             "dddddddd-4444-4444-4444-444444444444", ts, ts),
-        )
-        conn.execute("INSERT INTO net_team_member (id, team_id, person_id, position) "
-                     "VALUES ('m_c_a', ?, 'cccccccc-3333-3333-3333-333333333333', 'a')", (t2,))
-        conn.execute("INSERT INTO net_team_member (id, team_id, person_id, position) "
-                     "VALUES ('m_c_b', ?, 'dddddddd-4444-4444-4444-444444444444', 'b')", (t2,))
-        conn.execute(
-            "INSERT INTO net_team_appearance (id, team_id, event_id, discipline_id, "
-            "result_entry_id, placement, score_text, event_year, evidence_class, "
-            "extracted_at) VALUES ('app_curated_1', ?, ?, ?, ?, 1, '', 2001, "
-            "'curated_enrichment', ?)",
-            (t2, ev_id, disc_id, re_id, ts),
-        )
-        conn.commit()
-    finally:
-        conn.close()
-    r2 = run(_loader13(db))
-    assert r2.returncode == 0, f"re-run blocked on curated data.\n{r2.stderr}"
-    conn = sqlite3.connect(db)
-    try:
-        assert conn.execute(
-            "SELECT 1 FROM net_team_appearance WHERE id = 'app_curated_1'"
-        ).fetchone() is not None, "curated appearance was deleted"
-        assert conn.execute(
-            "SELECT 1 FROM net_team WHERE team_id = 'team_curated_0001'"
-        ).fetchone() is not None, "curated team was deleted"
-        assert conn.execute(
-            "SELECT COUNT(*) FROM net_team_member WHERE team_id = 'team_curated_0001'"
-        ).fetchone()[0] == 2, "curated team members were deleted"
-        # The canonical team was still reseeded.
-        assert conn.execute(
-            "SELECT COUNT(*) FROM net_team_appearance WHERE evidence_class = 'canonical_only'"
-        ).fetchone()[0] == 1
-    finally:
-        conn.close()
+def test_a_person_linked_twice_in_one_result_stops_the_load(tmp_path: Path) -> None:
+    """Defect caught: a result page credits one player twice and loses their partner,
+    as a joined name that resolved onto one of its two people did. The stop names the
+    result so it can be corrected at source, and leaves the database as it was."""
+    db = make_db(tmp_path)
+    seed_dir = _seed_with_first_place_ids(tmp_path / "seed", DBL_PID_A, DBL_PID_A)
+    r = run(_mvfp_loader_args(db, seed_dir))
+    assert r.returncode != 0, f"the repeated person loaded.\n{r.stdout}"
+    assert "2001_dbl_test / open_doubles_net / placement 1" in r.stderr
+    assert DBL_PID_A in r.stderr
+    assert count(db, "event_result_entries") == 0
 
 
-def test_net_teams_qc_findings_reported_to_artifact_not_database(tmp_path: Path) -> None:
-    """A malformed entry is reported as a QC finding in the artifact, and the
-    loader writes no review table to hold it."""
-    import json as _json
-    db = _load_canonical_doubles(tmp_path, with_qc=True)
-    r = run(_loader13(db))
-    assert r.returncode == 0
-    findings = [_json.loads(line) for line in _qc_findings(db).splitlines() if line.strip()]
-    assert any(f["check_id"] == "wrong_participant_count" for f in findings), findings
-    # Every finding carries what a reviewer needs to act without the database.
-    for f in findings:
-        assert f["priority"] and f["severity"] and f["message"]
-    # The review table the findings used to land in is retired, so the schema
-    # this database was built from must not carry it.
-    conn = sqlite3.connect(db)
-    try:
-        assert conn.execute(
-            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'net_review_queue'"
-        ).fetchone() is None
-    finally:
-        conn.close()
+def test_different_people_at_one_placement_still_load(tmp_path: Path) -> None:
+    """Defect caught: a genuine tie or partnership refused by the repeat check."""
+    db = make_db(tmp_path)
+    seed_dir = _seed_with_first_place_ids(tmp_path / "seed", DBL_PID_A, DBL_PID_B)
+    r = run(_mvfp_loader_args(db, seed_dir))
+    assert r.returncode == 0, f"two people at one placement refused.\n{r.stderr}"
+    assert _participants_at_test_event(db) == [(2,)]
 
 
-def test_net_teams_qc_artifact_is_byte_identical_on_rerun(tmp_path: Path) -> None:
-    """Rerunning over unchanged data reproduces the artifact exactly, so a diff
-    means the data moved rather than that the loader ran again."""
-    import json as _json
-    import time as _time
-    db = _load_canonical_doubles(tmp_path, with_qc=True)
-    assert run(_loader13(db)).returncode == 0
-    first = _qc_findings(db)
-    assert first.strip(), "expected at least one finding to compare"
-    # No finding may carry a value taken from the run rather than from the data.
-    # A wall-clock field would make two runs in the same second agree and two
-    # runs either side of a tick disagree, which is a comparison that passes by
-    # luck. Sleeping past a tick is what turns that into a real check.
-    for finding in (_json.loads(line) for line in first.splitlines() if line.strip()):
-        assert not [k for k in finding if k.endswith("_at")], finding
-    _time.sleep(1.1)
-    assert run(_loader13(db)).returncode == 0
-    assert _qc_findings(db) == first
+def test_unresolved_names_at_one_placement_still_load(tmp_path: Path) -> None:
+    """Defect caught: two unresolved players read as one person because their blank
+    ids match, which would stop every build holding an unresolved doubles team."""
+    db = make_db(tmp_path)
+    seed_dir = _seed_with_first_place_ids(tmp_path / "seed", "", "")
+    r = run(_mvfp_loader_args(db, seed_dir))
+    assert r.returncode == 0, f"two blank ids refused.\n{r.stderr}"
+    assert _participants_at_test_event(db) == [(2,)]
 
 
 # ---------------------------------------------------------------------------
@@ -1248,31 +1038,15 @@ def _add_freestyle_record(conn, pid: str, suffix: str) -> None:
     )
 
 
-def _add_net_team(conn, pid_a: str, pid_b: str, suffix: str) -> str:
-    a, b = sorted([pid_a, pid_b])
-    team = f"team_{suffix}"
-    conn.execute(
-        "INSERT INTO net_team (team_id, person_id_a, person_id_b, appearance_count, "
-        "created_at, updated_at) VALUES (?, ?, ?, 1, ?, ?)",
-        (team, a, b, TS08, TS08),
-    )
-    conn.execute("INSERT INTO net_team_member (id, team_id, person_id, position) "
-                 "VALUES (?, ?, ?, 'a')", (f"{team}_ma", team, a))
-    conn.execute("INSERT INTO net_team_member (id, team_id, person_id, position) "
-                 "VALUES (?, ?, ?, 'b')", (f"{team}_mb", team, b))
-    return team
-
-
 def test_mvfp_loader_upsert_preserves_referenced_person(tmp_path: Path) -> None:
-    """A canonical person referenced by a member claim, a club affiliation, a
-    freestyle record and a net team survives a reseed: the loader upserts it in
-    place, its owned columns refresh from the seed, its non-owned columns (aliases,
-    notes, source, is_deceased) are preserved, and every reference stays valid."""
+    """A canonical person referenced by a member claim, a club affiliation and a
+    freestyle record survives a reseed: the loader upserts it in place, its owned
+    columns refresh from the seed, its non-owned columns (aliases, notes, source,
+    is_deceased) are preserved, and every reference stays valid."""
     db = make_db(tmp_path)
     seed_dir = build_doubles_seed(tmp_path / "seed")
     loader = _mvfp_loader_args(db, seed_dir)
     assert run(loader).returncode == 0
-    assert run(_loader13(db)).returncode == 0  # real net_team(A, B)
     conn = sqlite3.connect(db)
     conn.execute("PRAGMA foreign_keys = ON")
     try:
@@ -1292,8 +1066,6 @@ def test_mvfp_loader_upsert_preserves_referenced_person(tmp_path: Path) -> None:
     assert r.returncode == 0, (
         f"reseed failed with a referenced persisting person.\n{r.stdout}\n{r.stderr}"
     )
-    assert count(db, "net_team") == 1
-    assert count(db, "net_team_member") == 2
     conn = sqlite3.connect(db)
     try:
         assert conn.execute(
@@ -1344,28 +1116,28 @@ def test_mvfp_loader_deletes_removed_unreferenced_person(tmp_path: Path) -> None
 
 def test_mvfp_loader_aborts_on_removed_referenced_person(tmp_path: Path) -> None:
     """A canonical person that drops out of the seed but is still referenced by an
-    app claim and a net team makes the loader abort before any mutation, naming
-    both referencers, and leaves every fingerprint unchanged."""
+    app claim and a freestyle record makes the loader abort before any mutation,
+    naming both referencers, and leaves every fingerprint unchanged."""
     db = make_db(tmp_path)
     v1 = build_doubles_seed(tmp_path / "seed_v1")
     assert run(_mvfp_loader_args(db, v1)).returncode == 0
-    assert run(_loader13(db)).returncode == 0  # net_team(A, B): derived-loader ref
     conn = sqlite3.connect(db)
     conn.execute("PRAGMA foreign_keys = ON")
     try:
         _add_member_claim(conn, DBL_PID_A, "mem_removed")  # app-owned ref
+        _add_freestyle_record(conn, DBL_PID_A, "removed")  # derived-loader ref
         conn.commit()
     finally:
         conn.close()
 
-    watched = ("historical_persons", "net_team", "net_team_member", "members")
+    watched = ("historical_persons", "freestyle_records", "members")
     before = {t: count(db, t) for t in watched}
     v2 = build_mvfp_seed(tmp_path / "seed_v2")  # drops A and B
     r = run(_mvfp_loader_args(db, v2))
     assert r.returncode != 0, "loader must abort on a removed-but-referenced person"
     out = r.stdout + r.stderr
     assert "absent from the seed are still referenced" in out, f"missing guard message.\n{out}"
-    assert "net_team" in out and "members" in out, "abort must name derived + app referencers"
+    assert "freestyle_records" in out and "members" in out, "abort must name derived + app referencers"
     after = {t: count(db, t) for t in watched}
     assert before == after, f"aborted reseed mutated state: {before} -> {after}"
     assert _fk_violations(db) == []
@@ -1457,58 +1229,6 @@ def test_mvfp_loader_deletes_removed_person_with_blank_hand_set_columns(tmp_path
     assert r.returncode == 0, f"{r.stdout}\n{r.stderr}"
     remaining = _canonical_person_ids(db)
     assert DBL_PID_A not in remaining and DBL_PID_B not in remaining
-    assert _fk_violations(db) == []
-
-
-def test_mvfp_loader_upsert_preserves_curated_team(tmp_path: Path) -> None:
-    """The essential #200 case: a curated net team whose two members are canonical
-    persons survives a normal reseed while those persons remain in the seed. The
-    curated appearance rides an app-owned result entry the loader never touches."""
-    db = make_db(tmp_path)
-    seed_dir = build_doubles_seed(tmp_path / "seed")
-    loader = _mvfp_loader_args(db, seed_dir)
-    assert run(loader).returncode == 0  # A, B become canonical persons
-    ids = _seed_app_data(db)
-    conn = sqlite3.connect(db)
-    conn.execute("PRAGMA foreign_keys = ON")
-    try:
-        disc, entry = "disc_curated_app", "entry_curated_app"
-        conn.execute(
-            "INSERT INTO event_disciplines (id, created_at, created_by, updated_at, "
-            "updated_by, event_id, name, discipline_category) "
-            "VALUES (?, ?, ?, ?, ?, ?, 'Curated Net', 'net')",
-            (disc, TS08, ids["member_id"], TS08, ids["member_id"], ids["event_id"]),
-        )
-        conn.execute(
-            "INSERT INTO event_result_entries (id, created_at, created_by, updated_at, "
-            "updated_by, event_id, discipline_id, placement) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, 1)",
-            (entry, TS08, ids["member_id"], TS08, ids["member_id"], ids["event_id"], disc),
-        )
-        team = _add_net_team(conn, DBL_PID_A, DBL_PID_B, "curated")
-        conn.execute(
-            "INSERT INTO net_team_appearance (id, team_id, event_id, discipline_id, "
-            "result_entry_id, placement, event_year, evidence_class, extracted_at) "
-            "VALUES (?, ?, ?, ?, ?, 1, 2001, 'curated_enrichment', ?)",
-            (f"app_{team}", team, ids["event_id"], disc, entry, TS08),
-        )
-        conn.commit()
-    finally:
-        conn.close()
-
-    r = run(loader)  # A, B remain in the seed
-    assert r.returncode == 0, f"reseed failed with a curated team present.\n{r.stdout}\n{r.stderr}"
-    conn = sqlite3.connect(db)
-    try:
-        assert conn.execute(
-            "SELECT 1 FROM net_team WHERE team_id='team_curated'"
-        ).fetchone(), "curated team was deleted"
-        assert conn.execute(
-            "SELECT 1 FROM net_team_appearance WHERE evidence_class='curated_enrichment'"
-        ).fetchone(), "curated appearance was deleted"
-    finally:
-        conn.close()
-    assert {DBL_PID_A, DBL_PID_B} <= _canonical_person_ids(db)
     assert _fk_violations(db) == []
 
 
@@ -1648,7 +1368,6 @@ def test_mvfp_loader_upsert_idempotent_with_references(tmp_path: Path) -> None:
     seed_dir = build_doubles_seed(tmp_path / "seed")
     loader = _mvfp_loader_args(db, seed_dir)
     assert run(loader).returncode == 0
-    assert run(_loader13(db)).returncode == 0
     conn = sqlite3.connect(db)
     conn.execute("PRAGMA foreign_keys = ON")
     try:
@@ -1657,7 +1376,7 @@ def test_mvfp_loader_upsert_idempotent_with_references(tmp_path: Path) -> None:
     finally:
         conn.close()
 
-    watched = ("historical_persons", "net_team", "net_team_member", "members")
+    watched = ("historical_persons", "members")
     assert run(loader).returncode == 0
     first = {t: count(db, t) for t in watched}
     assert run(loader).returncode == 0

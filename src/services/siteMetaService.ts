@@ -30,7 +30,7 @@
  *     line is publicly readable and would advertise the very paths it hides.
  */
 import { config } from '../config/env';
-import { publicEvents, clubs, netTeams, freestyleTricks, media, publicPlayers } from '../db/db';
+import { publicEvents, clubs, freestyleTricks, media, publicPlayers } from '../db/db';
 import { freestyleService } from './freestyleService';
 import { listGroupedByCategory } from '../lib/rulesLoader';
 import { getIfpaDocs } from '../lib/ifpaLoader';
@@ -64,8 +64,6 @@ const STATIC_PUBLIC_PATHS = [
   '/media/browse',
   '/media/member-galleries',
   '/net',
-  '/net/events',
-  '/net/teams',
   '/x-square',
   '/golf',
   '/consecutives',
@@ -120,13 +118,6 @@ function collectPublicPaths(): string[] {
   // Clubs: every open (active or inactive) club detail page.
   for (const row of clubs.listOpen.all() as Array<{ tag_normalized: string }>) {
     paths.add(`/clubs/${keyFromTag(row.tag_normalized)}`);
-  }
-
-  // Net: every team with at least one canonical appearance whose two players
-  // are both named; a team with an 'Unknown' player is left out, as the teams
-  // list leaves it out.
-  for (const row of netTeams.listAll.all() as Array<{ team_id: number | string }>) {
-    paths.add(`/net/teams/${row.team_id}`);
   }
 
   // History: the Hall of Fame and Big Add Posse records only. Every canonical

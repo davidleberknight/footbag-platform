@@ -802,55 +802,6 @@ run_phase_v() {
 }
 
 # =============================================================================
-# PHASE NET — Net enrichment layer
-#
-# Reads (read-only against canonical tables — never modifies them):
-#   event_disciplines, event_result_entries, event_result_entry_participants,
-#   events, historical_persons
-#
-# Writes (additive enrichment tables only):
-#   net_discipline_group   — discipline name → canonical group mapping
-#   net_team               — stable doubles team entities
-#   net_team_member        — per-team member rows
-#   net_team_appearance    — per-team × event_discipline placement cache
-#   net_stat_policy        — evidence class policy registry
-#   (QC findings from the net loaders are written to out/net_team_qc_issues.jsonl,
-#    not to a database table)
-#
-# Scripts run in order: 12 → 13 → 14
-# Script 15 is NOT included (net_relative_performance deferred from phase 1).
-#
-# Requires: canonical DB already loaded (run canonical_only or csv_only first).
-# =============================================================================
-run_phase_net() {
-    echo ""
-    echo "╔══════════════════════════════════════════════════════╗"
-    echo "║  PHASE NET: NET ENRICHMENT LAYER                     ║"
-    echo "╚══════════════════════════════════════════════════════╝"
-
-    python event_results/scripts/12_build_net_discipline_groups.py \
-        --db "${REPO_ROOT}/database/footbag.db"
-
-    python event_results/scripts/13_build_net_teams.py \
-        --db "${REPO_ROOT}/database/footbag.db"
-
-    # Retire the placeholder people whose display names have since resolved. The
-    # seed load leaves one standing when the team tables above still point at it,
-    # because deleting it there would break a foreign key mid-run. Loader 13 has
-    # just rebuilt those tables against the current canonical data, so the stale
-    # references are gone and the rows can go. Safe whenever it runs: it only
-    # deletes stub-scoped rows nothing references.
-    python event_results/scripts/14_retire_resolved_stub_persons.py \
-        --db "${REPO_ROOT}/database/footbag.db"
-
-    echo ""
-    echo "╔══════════════════════════════════════════════════════╗"
-    echo "║  PHASE NET DONE                                      ║"
-    echo "╚══════════════════════════════════════════════════════╝"
-    echo ""
-}
-
-# =============================================================================
 # Main
 # =============================================================================
 run_alias_registry_preflight
@@ -862,7 +813,6 @@ case "$MODE" in
         run_v0_backbone
         run_stamp_canonical_provenance
         run_phase_clubs_seed_load
-        run_phase_net
         run_phase_c
         run_phase_d
         run_phase_e
@@ -919,14 +869,8 @@ case "$MODE" in
         echo "╚══════════════════════════════════════════════════════╝"
         ;;
 
-    net_enrichment)
-        # Runs net enrichment layer only (scripts 12→13→14).
-        # Requires the canonical DB to already be loaded.
-        run_phase_net
-        ;;
-
     *)
-        echo "Usage: $0 {full|canonical_only|enrichment_only|csv_only|net_enrichment|venv}" >&2
+        echo "Usage: $0 {full|canonical_only|enrichment_only|csv_only|venv}" >&2
         exit 1
         ;;
 esac

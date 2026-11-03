@@ -207,16 +207,6 @@ echo "  → Loading given_name_variants..."
 "${PYTHON}" legacy_data/scripts/load_given_name_variants_to_sqlite.py \
   --db "${DB_FILE}"
 
-# Net enrichment layer (division groups, teams, appearances, review queue).
-# Reads canonical tables, writes net_* tables. Must run after script 08.
-echo "  → Building net division groups..."
-"${PYTHON}" legacy_data/event_results/scripts/12_build_net_discipline_groups.py \
-  --db "${DB_FILE}"
-
-echo "  → Building net teams..."
-"${PYTHON}" legacy_data/event_results/scripts/13_build_net_teams.py \
-  --db "${DB_FILE}"
-
 # Load club seed data into database (CSV is preflight-required; produced
 # upstream by legacy_data/scripts/extract_clubs.py and committed under
 # legacy_data/seed/clubs.csv).

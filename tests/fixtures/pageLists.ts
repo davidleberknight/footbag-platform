@@ -42,7 +42,6 @@ export const REACH_ROWS = {
   eventId: 'event-rs-open',
   resultDisciplineId: 'disc-rs-open-singles',
   resultEntryId: 'entry-rs-open-1',
-  netTeamId: 'net-team-rs',
   memberGalleryId: 'gallery_rs_member',
   memberMediaId: 'media_rs_member',
   recurringSubscriptionId: 'sub_rs_member',
@@ -111,9 +110,6 @@ const R = REACH_ROWS;
 export const REACH: readonly Reach[] = [
   { template: 'events/detail', viewer: 'anonymous', url: `/events/${R.eventKey}`, why: 'the events landing links only upcoming events' },
   { template: 'events/year', viewer: 'anonymous', url: '/events/year/2026', why: 'year archives are linked only once results exist' },
-  { template: 'net/events', viewer: 'anonymous', url: '/net/events', why: 'the net landing links it only when net results exist' },
-  { template: 'net/teams', viewer: 'anonymous', url: '/net/teams', why: 'the net landing links it only when net results exist' },
-  { template: 'net/team-detail', viewer: 'anonymous', url: `/net/teams/${R.netTeamId}`, why: 'teams are linked only from net results' },
   { template: 'auth/check-email', viewer: 'anonymous', url: '/register/check-email', why: 'reached by redirect after registering' },
   { template: 'auth/password-reset', viewer: 'anonymous', url: '/password/reset/rendered-style-unknown-token', why: 'reached from an emailed link' },
   { template: 'auth/verify-result', viewer: 'anonymous', url: '/verify/rendered-style-unknown-token', why: 'reached from an emailed link; an unknown token is refused and writes nothing' },

@@ -1431,7 +1431,7 @@ Former surnames and old email addresses declared by members to broaden the claim
 
 ### 4.31 Pipeline-produced canonical content (out of this enumeration)
 
-The freestyle trick dictionary (`freestyle_tricks` and related tables), the Net team-appearance tables (`net_team` and related), and the cross-discipline records tables (`freestyle_records`, `consecutive_kicks_records`), and the five symbolic-grammar tables (`symbolic_*`) are populated before go-live by the pre-go-live data-load pipelines and read by `FreestyleService`, `NetService`, `ConsecutivesService`, and `SymbolicGrammarService` for the public `/freestyle/*`, `/net/*` and `/consecutives` surfaces. After cutover the database is their only source: freestyle and records content is changed through the audited admin curation surfaces, the symbolic tables are frozen (a trick page's educational links are decided from the trick's own fields when it renders), and the code-managed registries change through a reviewed database migration. Each table's role is below; column-level detail is in the inline comments in `database/schema.sql`. How the freestyle tables are curated and rendered is in the freestyle maintainer guide, `docs/FREESTYLE.md`, and how the pipeline fills the Net tables is in `legacy_data/README.md`, the net enrichment phase. The freestyle taxonomy is governed as reversible/observational and is intentionally not hardened in this document. `given_name_variants` is a name-matching utility alongside the Name-matching utilities section.
+The freestyle trick dictionary (`freestyle_tricks` and related tables), the cross-discipline records tables (`freestyle_records`, `consecutive_kicks_records`), and the five symbolic-grammar tables (`symbolic_*`) are populated before go-live by the pre-go-live data-load pipelines and read by `FreestyleService`, `ConsecutivesService`, and `SymbolicGrammarService` for the public `/freestyle/*` and `/consecutives` surfaces. After cutover the database is their only source: freestyle and records content is changed through the audited admin curation surfaces, the symbolic tables are frozen (a trick page's educational links are decided from the trick's own fields when it renders), and the code-managed registries change through a reviewed database migration. Each table's role is below; column-level detail is in the inline comments in `database/schema.sql`. How the freestyle tables are curated and rendered is in the freestyle maintainer guide, `docs/FREESTYLE.md`. The freestyle taxonomy is governed as reversible/observational and is intentionally not hardened in this document. `given_name_variants` is a name-matching utility alongside the Name-matching utilities section.
 
 Freestyle, records and symbolic tables (fifteen):
 
@@ -1469,23 +1469,6 @@ Freestyle, records and symbolic tables (fifteen):
   `symbolic_topology_groups`, `symbolic_modifier_groups`, and
   `symbolic_glossary_crosslinks`. The observational symbolic-grammar layer; a
   public research overlay, never the canonical family classification.
-
-Net tables (five):
-
-- **`net_discipline_group`** - maps each Net event discipline to one of thirteen
-  canonical division groups (open, mixed, women's, intermediate, novice, masters
-  and other, doubles and singles, plus uncategorized) with how it matched. A row
-  whose name matched several patterns carries `conflict_flag = 1` and is reviewed
-  before its group is trusted; the table annotates `event_disciplines` and never
-  overrides it.
-- **`net_team`** and **`net_team_member`** - a stable doubles team, keyed by its
-  sorted pair of historical persons, and its two member rows, which index a
-  person's teams. A pair reforming after a long gap is the same team.
-- **`net_team_appearance`** - one row per team per event discipline, carrying the
-  placement and its evidence class. Public routes read it only through
-  `net_team_appearance_canonical`, which keeps the `canonical_only` rows.
-- **`net_stat_policy`** - for each evidence class, its display label, whether it
-  may be shown publicly or counted in statistics, and the disclaimer it needs.
 
 ---
 
@@ -1532,7 +1515,6 @@ These derive state from history or effective-dated tables.
 | `official_ifpa_roster_current` | `members_onboarded` + `member_membership_status_current` | Operational Official IFPA Roster surface. Filters `is_official_roster_member = 1 AND is_deceased = 0`. Not public; Tier 2 and above, gated at the route, and served on screen only. |
 | `club_leaders_current` | `club_leaders` + `members_onboarded` | Leadership a club can rely on: rows whose member is neither soft-deleted nor deceased and has finished onboarding. The table keeps every row, so history stays attributable; this view is what every "who leads it now" read selects from. |
 | `event_organizers_current` | `event_organizers` + `members_onboarded` | Organizers an event can rely on: rows whose member is neither soft-deleted nor deceased and has finished onboarding. The table keeps every row, so history stays attributable; this view is what every "who runs it now" read selects from. |
-| `net_team_appearance_canonical` | `net_team_appearance` | The only public Net team-appearance surface. Filters `evidence_class = 'canonical_only'`; other evidence classes never reach public routes. |
 | `system_config_current` | `system_config` | Returns the row with the latest `effective_start_at <= now` per `config_key`. Authoritative read surface for all runtime config lookups. |
 
 ### Semantic filter views
@@ -1948,6 +1930,6 @@ The schema contains a few patterns that may look inconsistent at first glance bu
 
 - **Append-only ledger/history tables**; Some tables intentionally omit mutable metadata columns (`updated_at`, `updated_by`, `version`) because they are designed to be immutable after insert. The immutability-trigger inventory in the triggers section is the authoritative list: a table belongs to this family when its trigger pair blocks UPDATE and DELETE, and that pair is the test. `system_config` also omits `created_by`, carrying the typed `changed_by_member_id` FK instead, because an administrator or the seed authors every config row.
 
-- **Imported, reference, ingestion, derived, and junction tables**; These carry the metadata columns their writer sets, because their rows record something other than a member or an administrator acting on this platform. The legacy import and the curation scripts populate `legacy_members`, `historical_persons`, `media_sources`, the name-variant tables, the record tables, the net division-grouping and team tables, the freestyle trick catalogue with its modifier, source, alias, relation and tip tables, and the symbolic grouping tables; those rows carry provenance in their own source columns (`source`, `source_scope`, `import_source`, `imported_at`, `provenance_note`, `evidence_class`, `notation_evidence_basis`) and are keyed on natural identifiers. `stripe_events`, `ses_events`, `sns_alarm_events`, and `stripe_webhook_failures` claim an external identifier and are written once by a webhook or feed handler. `tag_stats` is recomputed by a background job. `member_gallery_tags` and `member_gallery_exclude_tags` are link rows the application inserts and deletes. The club cleanup queue's `club_viability_signals`, `club_insight_notes`, `club_cleanup_resolutions`, `candidate_cleanup_resolutions`, and `club_cleanup_claims` hold latest state rather than history: the resolution upserts overwrite `created_at` and `created_by`, so those columns name who resolved the item and when, which is the semantics their own sections describe. `schema_migrations` records the applied migration filenames. The convention gate holds this list mechanically, so a new table either carries the full set or declares itself here and there with its reason.
+- **Imported, reference, ingestion, derived, and junction tables**; These carry the metadata columns their writer sets, because their rows record something other than a member or an administrator acting on this platform. The legacy import and the curation scripts populate `legacy_members`, `historical_persons`, `media_sources`, the name-variant tables, the record tables, the freestyle trick catalogue with its modifier, source, alias, relation and tip tables, and the symbolic grouping tables; those rows carry provenance in their own source columns (`source`, `source_scope`, `import_source`, `imported_at`, `provenance_note`, `evidence_class`, `notation_evidence_basis`) and are keyed on natural identifiers. `stripe_events`, `ses_events`, `sns_alarm_events`, and `stripe_webhook_failures` claim an external identifier and are written once by a webhook or feed handler. `tag_stats` is recomputed by a background job. `member_gallery_tags` and `member_gallery_exclude_tags` are link rows the application inserts and deletes. The club cleanup queue's `club_viability_signals`, `club_insight_notes`, `club_cleanup_resolutions`, `candidate_cleanup_resolutions`, and `club_cleanup_claims` hold latest state rather than history: the resolution upserts overwrite `created_at` and `created_by`, so those columns name who resolved the item and when, which is the semantics their own sections describe. `schema_migrations` records the applied migration filenames. The convention gate holds this list mechanically, so a new table either carries the full set or declares itself here and there with its reason.
 
 When evaluating schema consistency, these exceptions should be treated as design choices tied to domain semantics, compatibility, or operational needs rather than as accidental inconsistencies.

@@ -2,27 +2,18 @@
 
 Loader 08 rebuilds the results-derived person population on every run and deletes
 the rows its incoming seed no longer carries. Two very different things can cause
-a row to stop appearing, and they need opposite outcomes:
+a row to stop appearing:
 
 A canonical person vanishing means a claimed identity disappeared. If anything
 outside loader 08 still points at it, deleting it would strand that reference, so
-the whole load must fail closed. That is the behaviour these tests pin first,
-because the rest of this file exists to narrow that guard and the narrowing must
-not reach it.
+the whole load must fail closed.
 
-An unresolved stub vanishing means the opposite: the pipeline improved. A stub is
-not an assertion that a person exists, it is a placeholder minted from a display
-name nothing could resolve, and its id is a hash of that name. When the name is
-later corrected or matched to a real person the stub should simply retire, and
-the references built on it belong to the loader that built them. Aborting there
-deadlocks every future reseed, because the only loader able to clear those
-references runs after the one refusing to proceed.
-
-So a referenced stub survives loader 08 only when its remaining references belong
-to a stage that runs later in the same orchestrated run and rebuilds them. Once
-those stages have run, the sweep deletes stub-scoped rows nothing references any
-more. Nothing is ever deleted while referenced, so the database is
-foreign-key-valid at every instant.
+An unresolved stub vanishing means the pipeline improved. A stub is not an
+assertion that a person exists, it is a placeholder minted from a display name
+nothing could resolve, and its id is a hash of that name. When the name is later
+corrected or matched to a real person the stub retires in the reseed itself. A
+stub another table still references also stops the load, because a placeholder
+reaching such a surface was treated as a real identity somewhere upstream.
 """
 from __future__ import annotations
 
@@ -36,8 +27,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SCHEMA_PATH = REPO_ROOT / "database" / "schema.sql"
 
 LOADER_08 = "legacy_data/event_results/scripts/08_load_mvfp_seed_full_to_sqlite.py"
-LOADER_13 = "legacy_data/event_results/scripts/13_build_net_teams.py"
-SWEEP = "legacy_data/event_results/scripts/14_retire_resolved_stub_persons.py"
 
 CANONICAL = "CANONICAL"
 STUB = "UNRESOLVED_STUB"
@@ -96,16 +85,6 @@ def run(args: list[str]) -> subprocess.CompletedProcess:
 
 def load_08(db: Path, seed_dir: Path) -> subprocess.CompletedProcess:
     return run([LOADER_08, "--db", str(db), "--seed-dir", str(seed_dir), "--no-backup"])
-
-
-def load_13(db: Path) -> subprocess.CompletedProcess:
-    # --qc-out keeps the findings artifact beside the temp database; without it
-    # loader 13 writes into the real legacy_data/out tree, which no test may touch.
-    return run([LOADER_13, "--db", str(db), "--qc-out", str(db.parent)])
-
-
-def sweep(db: Path) -> subprocess.CompletedProcess:
-    return run([SWEEP, "--db", str(db)])
 
 
 def build_seed(seed_dir: Path, partner_pid: str, partner_name: str,
@@ -168,126 +147,16 @@ def persons(db: Path) -> dict[str, str | None]:
         conn.close()
 
 
-def net_partners(db: Path) -> set[str]:
-    """Every person id loader 13's team tables currently point at."""
-    conn = sqlite3.connect(db)
-    try:
-        ids = set()
-        for a, b in conn.execute("SELECT person_id_a, person_id_b FROM net_team"):
-            ids.update((a, b))
-        ids.update(r[0] for r in conn.execute("SELECT person_id FROM net_team_member"))
-        return ids
-    finally:
-        conn.close()
-
-
 def first_run(tmp_path: Path, scope: str) -> Path:
-    """Load the entry with PID_B as the partner, then build net teams on it, so a
-    net_team reference to PID_B exists before the reseed under test."""
+    """Load the entry with PID_B as the partner."""
     db = make_db(tmp_path)
-    seed = build_seed(tmp_path / "seed1", PID_B, "Partner B", scope)
-    r = load_08(db, seed)
+    r = load_08(db, build_seed(tmp_path / "seed1", PID_B, "Partner B", scope))
     assert r.returncode == 0, f"first load failed\n{r.stdout}\n{r.stderr}"
-    r = load_13(db)
-    assert r.returncode == 0, f"loader 13 failed\n{r.stdout}\n{r.stderr}"
-    assert PID_B in net_partners(db), "setup did not create the net reference"
     return db
 
 
-# ── The guard that must not move ─────────────────────────────────────────────
-
-def test_a_referenced_canonical_person_leaving_the_seed_still_aborts(tmp_path):
-    """The fail-closed case, pinned before anything narrows it. A canonical row is
-    a claimed identity; if it stops appearing while a table loader 08 does not own
-    still references it, the load must refuse rather than strand the reference."""
-    db = first_run(tmp_path, CANONICAL)
-
-    reseed = build_seed(tmp_path / "seed2", PID_C, "Partner C", CANONICAL)
-    r = load_08(db, reseed)
-
-    assert r.returncode != 0, (
-        "loader 08 accepted the disappearance of a referenced canonical person\n"
-        f"{r.stdout}")
-    assert "08 aborted" in r.stderr
-    assert PID_B in persons(db), "the canonical person was deleted despite the abort"
-    assert PID_B in net_partners(db), "its net reference was stranded"
-
-
-def test_a_referenced_canonical_person_aborts_even_with_the_sweep_available(tmp_path):
-    """The sweep is not a way around the canonical guard: it only ever considers
-    stub-scoped rows, so a canonical row it could reach is still refused."""
-    db = first_run(tmp_path, CANONICAL)
-    load_08(db, build_seed(tmp_path / "seed2", PID_C, "Partner C", CANONICAL))
-
-    r = sweep(db)
-    assert r.returncode == 0, f"sweep failed\n{r.stderr}"
-    assert PID_B in persons(db), "the sweep deleted a canonical person"
-
-
-# ── The deadlock this card exists to break ───────────────────────────────────
-
-def test_a_resolved_stub_does_not_block_the_reseed(tmp_path):
-    """The exact deadlock: a stub gains a net_team reference, then resolves onto a
-    real person. Loader 08 must proceed. Before this contract existed it aborted,
-    and because only loader 13 can clear that reference and loader 13 runs later,
-    no ordinary run could ever get past it again."""
-    db = first_run(tmp_path, STUB)
-
-    reseed = build_seed(tmp_path / "seed2", PID_C, "Partner C", CANONICAL)
-    r = load_08(db, reseed)
-
-    assert r.returncode == 0, (
-        "loader 08 still refuses a resolved stub; the reseed deadlock is back\n"
-        f"{r.stdout}\n{r.stderr}")
-    # It survives this run rather than being deleted under a live reference.
-    assert PID_B in persons(db), "the stub was deleted while still referenced"
-    assert PID_C in persons(db), "the resolved person did not load"
-    # Surviving is a decision, not an oversight. The loader must say it recognised
-    # the row as its own and deferred it, or this assertion passes just as well
-    # when the row is ignored entirely and never retires at all.
-    assert "pending retirement" in r.stdout, (
-        "loader 08 did not report deferring the stub, so it is being ignored "
-        f"rather than owned\n{r.stdout}")
-
-
-def test_the_stub_retires_once_its_owning_loader_has_rebuilt(tmp_path):
-    """End to end in the orchestrated order: reseed, then the downstream owner
-    rebuilds its references, then the sweep retires what nothing points at."""
-    db = first_run(tmp_path, STUB)
-    assert load_08(db, build_seed(tmp_path / "seed2", PID_C, "Partner C",
-                                  CANONICAL)).returncode == 0
-
-    r = load_13(db)
-    assert r.returncode == 0, f"loader 13 failed\n{r.stderr}"
-    assert PID_B not in net_partners(db), "loader 13 kept the stale reference"
-    assert PID_C in net_partners(db), "the rebuilt team did not use the real person"
-
-    r = sweep(db)
-    assert r.returncode == 0, f"sweep failed\n{r.stdout}\n{r.stderr}"
-    assert PID_B not in persons(db), "the retired stub was not swept"
-    assert PID_A in persons(db) and PID_C in persons(db), "the sweep took too much"
-
-
-def test_the_sweep_leaves_a_stub_that_is_still_referenced(tmp_path):
-    """Ordering safety. Run the sweep before the downstream rebuild and it must do
-    nothing, so a sweep placed too early degrades to a no-op instead of stranding
-    loader 13's rows."""
-    db = first_run(tmp_path, STUB)
-    assert load_08(db, build_seed(tmp_path / "seed2", PID_C, "Partner C",
-                                  CANONICAL)).returncode == 0
-
-    r = sweep(db)
-    assert r.returncode == 0, f"sweep failed\n{r.stderr}"
-    assert PID_B in persons(db), "the sweep deleted a stub loader 13 still referenced"
-
-
-def test_a_stub_reaching_a_surface_no_later_stage_rebuilds_still_aborts(tmp_path):
-    """Deferral is not blanket permission. It rests entirely on the referencing
-    table being rebuilt later in the same run, so a stub that has reached a
-    surface outliving the pipeline gets the fail-closed treatment: something
-    upstream treated a placeholder as a real identity, and quietly deleting the
-    reference would hide that."""
-    db = first_run(tmp_path, STUB)
+def reference_from_outside_the_loader(db: Path, person_id: str) -> None:
+    """A freestyle record pointing at the person, from a table loader 08 does not own."""
     conn = sqlite3.connect(db)
     conn.execute(
         "INSERT INTO freestyle_records "
@@ -295,49 +164,64 @@ def test_a_stub_reaching_a_surface_no_later_stage_rebuilds_still_aborts(tmp_path
         " updated_at, person_id) "
         "VALUES ('rec-1', 'consecutive', 'day', 'test', 'verified', "
         "        '2001-01-01T00:00:00Z', '2001-01-01T00:00:00Z', ?)",
-        (PID_B,))
+        (person_id,))
     conn.commit()
     conn.close()
+
+
+# ── A reference from outside the loader stops the load ───────────────────────
+
+def test_a_referenced_canonical_person_leaving_the_seed_aborts(tmp_path):
+    """A canonical row is a claimed identity; if it stops appearing while a table
+    loader 08 does not own still references it, the load must refuse rather than
+    strand the reference."""
+    db = first_run(tmp_path, CANONICAL)
+    reference_from_outside_the_loader(db, PID_B)
 
     r = load_08(db, build_seed(tmp_path / "seed2", PID_C, "Partner C", CANONICAL))
 
     assert r.returncode != 0, (
-        "loader 08 deferred a stub referenced by a table nothing rebuilds\n"
+        "loader 08 accepted the disappearance of a referenced canonical person\n"
         f"{r.stdout}")
+    assert "08 aborted" in r.stderr
+    assert PID_B in persons(db), "the canonical person was deleted despite the abort"
+
+
+def test_a_referenced_stub_leaving_the_seed_aborts(tmp_path):
+    """A placeholder that reached a surface outside the loader was treated as a real
+    identity upstream, and quietly deleting the reference would hide that."""
+    db = first_run(tmp_path, STUB)
+    reference_from_outside_the_loader(db, PID_B)
+
+    r = load_08(db, build_seed(tmp_path / "seed2", PID_C, "Partner C", CANONICAL))
+
+    assert r.returncode != 0, (
+        f"loader 08 retired a stub that another table references\n{r.stdout}")
     assert "08 aborted" in r.stderr
     assert PID_B in persons(db), "the stub was deleted despite the abort"
 
 
-def test_the_sweep_is_idempotent(tmp_path):
-    db = first_run(tmp_path, STUB)
-    load_08(db, build_seed(tmp_path / "seed2", PID_C, "Partner C", CANONICAL))
-    load_13(db)
-    assert sweep(db).returncode == 0
-    after_first = persons(db)
-    assert sweep(db).returncode == 0
-    assert persons(db) == after_first
-
+# ── A resolved stub retires in the reseed ────────────────────────────────────
 
 def test_an_unreferenced_stub_is_deleted_by_the_reseed_itself(tmp_path):
-    """No deferral when nothing points at the stub: loader 08 removes it inline,
-    so deferred retirement is the exception rather than the normal path."""
-    db = make_db(tmp_path)
-    seed = build_seed(tmp_path / "seed1", PID_B, "Partner B", STUB)
-    assert load_08(db, seed).returncode == 0
+    """The only reference is loader 08's own participants table, which it clears at
+    the start of the reseed, so a resolved stub simply goes."""
+    db = first_run(tmp_path, STUB)
     assert PID_B in persons(db)
-    # No loader 13 run here, so the only reference is loader 08's own participants
-    # table, which it clears at the start of the reseed.
-    assert load_08(db, build_seed(tmp_path / "seed2", PID_C, "Partner C",
-                                  CANONICAL)).returncode == 0
+
+    r = load_08(db, build_seed(tmp_path / "seed2", PID_C, "Partner C", CANONICAL))
+
+    assert r.returncode == 0, f"reseed failed\n{r.stdout}\n{r.stderr}"
     assert PID_B not in persons(db), "an unreferenced stub survived the reseed"
+    assert PID_C in persons(db), "the resolved person did not load"
 
 
 # ── Provenance may not be guessed ────────────────────────────────────────────
 
 def test_a_scopeless_person_row_is_an_error_rather_than_an_assumed_owner(tmp_path):
-    """The ambiguity this card was filed over. A row whose scope is NULL has no
-    stated owner, and the old code silently claimed it as canonical. Ownership is
-    never inferred: an unexplained scope stops the load and asks."""
+    """A row whose scope is NULL has no stated owner, and claiming it as canonical
+    would be a guess. Ownership is never inferred: an unexplained scope stops the
+    load and asks."""
     db = first_run(tmp_path, STUB)
     conn = sqlite3.connect(db)
     conn.execute("UPDATE historical_persons SET source_scope = NULL WHERE person_id = ?",
@@ -354,7 +238,7 @@ def test_a_scopeless_person_row_is_an_error_rather_than_an_assumed_owner(tmp_pat
 def test_the_seed_builder_stamps_its_stubs_rather_than_leaving_them_blank(tmp_path):
     """Ownership is declared where the row is created. The seed builder mints a
     stub for a display name it cannot resolve, and that row must carry the stub
-    scope: a blank here is what let the reseed claim the row as canonical."""
+    scope: a blank here is what would let the reseed claim the row as canonical."""
     import importlib.util
 
     path = (REPO_ROOT / "legacy_data" / "event_results" / "scripts"
@@ -370,8 +254,8 @@ def test_the_seed_builder_stamps_its_stubs_rather_than_leaving_them_blank(tmp_pa
     assert row["person_id"] == mod.auto_person_id("Someone Unresolvable")
 
 
-def test_the_sweep_never_touches_the_provisional_population(tmp_path):
-    """The other loader's cohort is not the sweep's to retire, referenced or not."""
+def test_the_reseed_never_touches_the_provisional_population(tmp_path):
+    """The other loader's cohort is not loader 08's to retire."""
     db = first_run(tmp_path, STUB)
     conn = sqlite3.connect(db)
     conn.execute(
@@ -381,5 +265,6 @@ def test_the_sweep_never_touches_the_provisional_population(tmp_path):
     conn.commit()
     conn.close()
 
-    assert sweep(db).returncode == 0
+    r = load_08(db, build_seed(tmp_path / "seed2", PID_C, "Partner C", CANONICAL))
+    assert r.returncode == 0, f"reseed failed\n{r.stdout}\n{r.stderr}"
     assert "dddddddd-4444-4444-4444-444444444444" in persons(db)

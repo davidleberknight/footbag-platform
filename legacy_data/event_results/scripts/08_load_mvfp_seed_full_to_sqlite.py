@@ -204,18 +204,8 @@ HISTORICAL_PERSON_REFERENCE_OWNERS = {
     "members": "app / member claim",
     "legacy_person_club_affiliations": "enrichment (loader 09)",
     "freestyle_records": "freestyle records (loader 10)",
-    "net_team": "net teams (loader 13)",
-    "net_team_member": "net teams (loader 13)",
     "event_result_entry_participants": "loader 08 (cleared earlier in this reseed)",
 }
-
-# Tables whose owning stage runs after this loader in the same orchestrated run
-# and rebuilds its rows wholesale from the canonical data this reseed just wrote.
-# A retiring stub referenced only from here is safe to leave standing for the rest
-# of the run: the rebuild drops the stale reference, and script 14 then retires
-# the row. Membership in this set is a statement about stage ordering, so a table
-# only belongs here while its owner genuinely runs later and genuinely rebuilds.
-REBUILT_BY_A_LATER_STAGE = frozenset({"net_team", "net_team_member"})
 
 
 def historical_person_referencers(conn) -> list[tuple[str, str]]:
@@ -313,6 +303,30 @@ def administrator_values_on_removed_persons(
     return hits
 
 
+def people_listed_twice_in_one_result(participants: list[dict[str, str]]) -> list[str]:
+    """Every (event, discipline, placement, person) a seed links more than once.
+
+    One person cannot hold two slots of one result, so a repeat means two listings
+    of a player were kept, or a joined name resolved onto one of its two people.
+    This reads the seed rather than the canonical files because the seed builder
+    resolves the remaining person ids: a repeat can first exist here. Different
+    people at one placement are a tie, and blank ids are unresolved names that say
+    nothing about who the person is, so neither counts.
+    """
+    seen: dict[tuple[str, str, str, str], int] = {}
+    for row in participants:
+        person_id = (row.get("person_id") or "").strip()
+        if not person_id:
+            continue
+        key = (row["event_key"], row["discipline_key"], row["placement"], person_id)
+        seen[key] = seen.get(key, 0) + 1
+    return [
+        f"    {event_key} / {discipline_key} / placement {placement}: {person_id} x{n}"
+        for (event_key, discipline_key, placement, person_id), n in sorted(seen.items())
+        if n > 1
+    ]
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--db", default="database/footbag.db")
@@ -349,25 +363,32 @@ def main() -> None:
     seed_participants = read_csv(seed_dir / "seed_event_result_participants.csv")
     seed_persons = read_csv(seed_dir / "seed_persons.csv")
 
+    listed_twice = people_listed_twice_in_one_result(seed_participants)
+    if listed_twice:
+        raise SystemExit(
+            f"08 aborted: {len(listed_twice)} result(s) link one person twice, so the "
+            "site would credit that player twice and may lose a partner. Nothing was "
+            "changed. Correct each at its source (inputs/team_corrections.csv or "
+            "overrides/person_aliases.csv), then rebuild with run_pipeline.sh "
+            "canonical_only:\n" + "\n".join(listed_twice)
+        )
+
     ts = now_iso()
     system_user = "seed_loader"
 
     conn = sqlite3.connect(db_path)
     # Foreign keys are enforced for the whole reseed. It stays safe because:
     #   1. The event graph is DELETE + INSERT in child-before-parent order
-    #      (net_team_appearance and participants before result entries; those and
-    #      net_discipline_group before disciplines), so no event-side delete
-    #      strands a referencing row.
+    #      (participants before result entries, those before disciplines), so no
+    #      event-side delete strands a referencing row.
     #   2. Canonical historical_persons are reconciled by stable-id UPSERT, never
     #      deleted-and-recreated. person_id is stable across runs, and app claims,
-    #      enrichment affiliations, freestyle records and net teams all hold
-    #      foreign keys to it; deleting a person just to refresh its loader-owned
-    #      columns would strand those references even though the same id returns
-    #      moments later. A canonical person that has dropped out of the seed is
-    #      deleted only when nothing references it and it carries no hand-set
-    #      value; a removed person failing either check aborts the reseed.
-    #      net_team teardown and curated-team preservation stay solely with the
-    #      net-team loader.
+    #      enrichment affiliations and freestyle records all hold foreign keys to
+    #      it; deleting a person just to refresh its loader-owned columns would
+    #      strand those references even though the same id returns moments later.
+    #      A canonical person that has dropped out of the seed is deleted only when
+    #      nothing references it and it carries no hand-set value; a removed person
+    #      failing either check aborts the reseed.
     #   3. The upsert binds legacy_member_id -> legacy_members for rows that carry
     #      a member id. The member seed runs before this loader in every path that
     #      invokes it, so those parent rows exist when the bind happens.
@@ -425,20 +446,13 @@ def main() -> None:
 
         # ------------------------------------------------------------------
         # Clear only this loader's canonical rows, children before parents, and
-        # scoped to seed_loader events. net_team_appearance and
-        # net_discipline_group (net rows the net pipeline reseeds) reference the
-        # canonical result entries and disciplines, so they are cleared before
-        # those parents. registrations, event_organizers and
+        # scoped to seed_loader events. registrations, event_organizers and
         # event_results_uploads are never touched.
         # ------------------------------------------------------------------
         print("Deleting this loader's canonical event/result data (scoped)...")
         canon_events = "(SELECT id FROM events WHERE created_by = ?)"
         canon_entries = (
             "(SELECT id FROM event_result_entries WHERE event_id IN "
-            "(SELECT id FROM events WHERE created_by = ?))"
-        )
-        canon_disciplines = (
-            "(SELECT id FROM event_disciplines WHERE event_id IN "
             "(SELECT id FROM events WHERE created_by = ?))"
         )
         # Capture the canonical events' hashtag tags before the event rows go;
@@ -450,10 +464,6 @@ def main() -> None:
             )
         ]
         deleted: dict[str, int] = {}
-        deleted["net_team_appearance"] = conn.execute(
-            f"DELETE FROM net_team_appearance WHERE result_entry_id IN {canon_entries}",
-            (system_user,),
-        ).rowcount
         deleted["event_result_entry_participants"] = conn.execute(
             "DELETE FROM event_result_entry_participants WHERE result_entry_id IN "
             f"{canon_entries}",
@@ -461,10 +471,6 @@ def main() -> None:
         ).rowcount
         deleted["event_result_entries"] = conn.execute(
             f"DELETE FROM event_result_entries WHERE event_id IN {canon_events}",
-            (system_user,),
-        ).rowcount
-        deleted["net_discipline_group"] = conn.execute(
-            f"DELETE FROM net_discipline_group WHERE discipline_id IN {canon_disciplines}",
             (system_user,),
         ).rowcount
         deleted["event_disciplines"] = conn.execute(
@@ -559,35 +565,25 @@ def main() -> None:
             )
 
         # A stub leaving the seed means its display name finally resolved, which is
-        # the pipeline working rather than data going missing. Retiring it is
-        # correct; the question is only whether it can be retired yet.
+        # the pipeline working rather than data going missing, so it retires here.
+        # A stub another table still references cannot: a placeholder reached a
+        # surface that treats it as a real identity.
         stub_refs = references_to_removed_persons(conn, referencers, removed_stubs)
-        deferred_stubs: set[str] = set()
         stranding = []
         for pid in sorted(stub_refs):
-            foreign = [(t, c, n) for t, c, n in stub_refs[pid]
-                       if t not in REBUILT_BY_A_LATER_STAGE]
-            if foreign:
-                for table, column, n in foreign:
-                    owner = HISTORICAL_PERSON_REFERENCE_OWNERS.get(table, "unknown owner")
-                    stranding.append(f"    {pid}  <- {table}.{column}  x{n:,}  ({owner})")
-            else:
-                deferred_stubs.add(pid)
+            for table, column, n in stub_refs[pid]:
+                owner = HISTORICAL_PERSON_REFERENCE_OWNERS.get(table, "unknown owner")
+                stranding.append(f"    {pid}  <- {table}.{column}  x{n:,}  ({owner})")
         if stranding:
             raise SystemExit(
                 f"08 aborted: {len(stranding)} resolved stub person(s) are referenced by "
-                "a table no later stage rebuilds, so retiring them here would strand "
-                "those rows. A stub reaching a surface that outlives the pipeline means "
-                "a placeholder was treated as a real identity somewhere upstream; fix "
-                "that rather than deleting the reference:\n" + "\n".join(stranding)
+                "tables loader 08 does not own, so retiring them here would strand "
+                "those rows. A stub reaching such a surface means a placeholder was "
+                "treated as a real identity somewhere upstream; fix that rather than "
+                "deleting the reference:\n" + "\n".join(stranding)
             )
-        if deferred_stubs:
-            # Left in place, unreferenced-by-then, and swept after the owning stage
-            # has rebuilt. Deleting now would break the foreign key mid-run.
-            print(f"  stub persons pending retirement: {len(deferred_stubs):,} "
-                  f"(retired by script 14 once their references are rebuilt)")
 
-        removed_ids = removed_canonical | (removed_stubs - deferred_stubs)
+        removed_ids = removed_canonical | removed_stubs
 
         # Guard: refuse to delete a removed canonical person that carries a
         # hand-set value. No seed file holds these columns, so the delete would

@@ -298,8 +298,6 @@ GUARDED_PIPELINE_LOADERS = [
     "legacy_data/clubs/scripts/07a_load_bootstrap_leader_signals.py",
     "legacy_data/event_results/scripts/08_load_mvfp_seed_full_to_sqlite.py",
     "legacy_data/event_results/scripts/09_load_enrichment_to_sqlite.py",
-    "legacy_data/event_results/scripts/12_build_net_discipline_groups.py",
-    "legacy_data/event_results/scripts/13_build_net_teams.py",
     "legacy_data/scripts/load_name_variants_seed.py",
     "legacy_data/scripts/load_given_name_variants_to_sqlite.py",
 ]

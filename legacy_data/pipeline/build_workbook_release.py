@@ -730,7 +730,6 @@ def build_discipline_singles_sheet(wb: Workbook, title: str, data: dict) -> None
     row = _hrow(ws, row, *headers)
 
     # Sort by placement count desc, wins desc, then name alphabetically
-    # (matches DB ordering: appearance_count DESC, win_count DESC, name ASC)
     sorted_data = sorted(
         data.values(),
         key=lambda d: (-d["finals"], -d["wins"], d["player"].lower()),
@@ -872,7 +871,6 @@ def build_partnerships_sheet(wb: Workbook, title: str, data: dict) -> None:
     row = _hrow(ws, row, *headers)
 
     # Sort by appearances desc, wins desc, then names alphabetically
-    # (matches DB ordering: appearance_count DESC, win_count DESC, name ASC)
     sorted_data = sorted(
         data.values(),
         key=lambda d: (-d["appearances"], -d["wins"],

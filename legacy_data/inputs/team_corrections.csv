@@ -135,7 +135,7 @@ event_key,discipline_key,placement,original_display,corrected_player_a,corrected
 1998_winter_windchill_warm,intermediate_doubles_net,3,Sean Doiron,Sean Doiron,Ben West,MISSING_PARTNER,Auto-resolved from mirror (whitespace): Intermediate doubles net,1,auto_mirror,,HIGH
 1998_winter_windchill_warm,open_doubles_net,1,Yves Archambault,Yves Archambault,Andrew Morgan,MISSING_PARTNER,Auto-resolved from mirror (whitespace): Open doubles net,1,auto_mirror,,HIGH
 1998_winter_windchill_warm,open_doubles_net,2,Mario Vaillancourt,Mario Vaillancourt,Steve Smith,MISSING_PARTNER,Auto-resolved from mirror (whitespace): Open doubles net,1,auto_mirror,,HIGH
-1998_winter_windchill_warm,open_doubles_net,3,Martin Côté Martin Graton,Martin Côté Martin Graton,Martin Graton,MISSING_PARTNER,Auto-resolved from mirror (whitespace): Open doubles net,1,auto_mirror,,HIGH
+1998_winter_windchill_warm,open_doubles_net,3,Martin Côté Martin Graton,Martin Côté,Martin Graton,MISSING_PARTNER,Auto-resolved from mirror (whitespace): Open doubles net,1,auto_mirror,,HIGH
 2000_first_arica,doubles_net,1,John Leys,John Leys,Fabian,MISSING_PARTNER,Auto-resolved from mirror (slash): Doubles Net,1,auto_mirror,,HIGH
 2000_first_arica,doubles_net,3,Lito Marley,Lito Marley,Pelao,MISSING_PARTNER,Auto-resolved from mirror (slash): Doubles Net,1,auto_mirror,,HIGH
 2001_turku_finland,doubles_net,3,Janne Uusitalo,Janne Uusitalo,Juha-Matti Rytilahti,MISSING_PARTNER,Auto-resolved from mirror (slash): DOUBLES NET,1,auto_mirror,,HIGH
@@ -192,3 +192,6 @@ event_key,discipline_key,placement,original_display,corrected_player_a,corrected
 2025_footbagjam_lausanne,americano_doubles_net,10,Tim Heun,Tim Heun,Boris Belouin,MISSING_PARTNER,Auto-resolved from mirror (slash+fuzzy_section): Open Doubles Net,1,auto_mirror,,HIGH
 2025_polish_jaworzno,open_double_net,5,Maciej Niczyporuk,Maciej Niczyporuk,Przemyslaw Pietrzycki,MISSING_PARTNER,Auto-resolved from mirror + event-local context: Przemyslaw = Przemyslaw Pietrzycki,1,source_verified,,HIGH
 2025_rnh_contest,doubles_net,5,Khyle Clarence Martin,Khyle Clarence Martin,Jean-Marie Letort,MISSING_PARTNER,Auto-resolved from mirror (slash): Doubles Net,1,auto_mirror,,HIGH
+2003_funtastik_summer,pro_freestyle_single,5,Calab Abraham,Caleb Abraham,,DUPLICATE_PARTICIPANT,Mirror page lists one player at 5th,1,source_verified,,HIGH
+2004_funtastik_summer,pro_freestyle_single,5,Greg Nelson,Greg Nelson,,DUPLICATE_PARTICIPANT,Mirror page lists one player at 5th,1,source_verified,,HIGH
+2012_footbagjam_helsinki,open_singles_net,5,"Tellenbach, Grischa",Grischa Tellenbach,,DUPLICATE_PARTICIPANT,Mirror page lists this contest twice with one player at 5th,1,source_verified,,HIGH

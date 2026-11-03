@@ -7,29 +7,15 @@
     "persons.csv"
   ],
   "produced_by": {
-    "fingerprint": "sha256:1df848fef8ff3a4640ff6660d2d1938463db47b3acc689182389c9402c0babbf",
+    "fingerprint": "sha256:6a4f18c3843752fc2a9d921c790183cdaa9b73dc7687ba82274daccb3ca8c2c2",
     "generators": {
       "pipeline/platform/export_canonical_platform.py": "964b1a0ba8ccc3784d2e6c2573cb626c625076e1a3a9289a98c8843aa2e42103",
       "pipeline/platform/output_set.py": "cd32cc99753c08c3540c53237f9f752ed7c4e76c7c1db9bd14d36530c0cce5c3",
       "pipeline/platform/build_platform_exports.py": "b11cdcc1cb8970793d416bde156392d4634f9e443d24d4c09461484e8c0184ae",
       "pipeline/historical/export_historical_csvs.py": "c25aa7e95708373fe1e78c1c4e5a1b4747fe6b29df4c76cc686205e2bde00c89",
-      "pipeline/05p5_remediate_canonical.py": "cfa32e8640dcc37fc05dc5e6bbeda40582bffa795a0f431fb39712565c1b3008"
+      "pipeline/05p5_remediate_canonical.py": "1d05a966a64d310350f1e31e27d1eccbbd8385f687c0ccf9bf65799ad6f320d1"
     },
-    "regenerated_at": "2026-11-03",
-    "commit": "91fb74ed",
-    "composed_from": [
-      {
-        "regenerated_at": "2026-11-02",
-        "commit": "53aa4245",
-        "artifacts": ["event_disciplines.csv", "event_results.csv", "event_result_participants.csv", "persons.csv"],
-        "generators_changed": ["pipeline/05p5_remediate_canonical.py", "pipeline/platform/export_canonical_platform.py"]
-      },
-      {
-        "regenerated_at": "2026-11-03",
-        "commit": "91fb74ed",
-        "artifacts": ["events.csv"],
-        "generators_changed": ["pipeline/historical/export_historical_csvs.py"]
-      }
-    ]
+    "regenerated_at": "2026-11-02",
+    "commit": "220ac9af"
   }
 }

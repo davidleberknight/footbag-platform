@@ -907,7 +907,8 @@ if TEAM_CORRECTIONS.exists():
         row_b["person_id"] = ""
         row_b["notes"] = ""
 
-        participants.extend([row_a, row_b])
+        # A blank second player corrects a singles result to its one player.
+        participants.extend([row_a, row_b] if pb else [row_a])
         _tc_applied += 1
         print(f"  APPLIED  ({ek}, {dk}, P{pl})  {pa} / {pb}  [{ctype}]")
 

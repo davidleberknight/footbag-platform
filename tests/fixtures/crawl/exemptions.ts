@@ -232,7 +232,6 @@ export const ROUTE_EXEMPTIONS: readonly RouteExemption[] = [
       'POST /admin/media-flags/:mediaId/no-action', 'POST /admin/media-flags/:mediaId/flag',
       'POST /admin/media-flags/:mediaId/retry-removal',
       'GET /archive', 'POST /clubs/make-primary', 'POST /clubs/:key/reactivate',
-      'GET /net/events', 'GET /net/teams', 'GET /net/teams/:teamId',
       'GET /events/year/:year', 'GET /events/:eventKey',
       'GET /history/:personId/claim', 'POST /members/:memberKey/vouch',
       'GET /members/:memberKey/recurring-donations/:stripeSubscriptionId/cancel',

@@ -18,12 +18,11 @@ cd ~/projects/footbag-platform/legacy_data
 ./run_pipeline.sh canonical_only # canonical pipeline only (mirror access required)
 ./run_pipeline.sh enrichment_only# enrichment phases only (canonical outputs must exist)
 ./run_pipeline.sh csv_only       # DB load from existing CSVs + enrichment (no mirror needed)
-./run_pipeline.sh net_enrichment # net enrichment layer only (canonical DB must be loaded)
 ./run_pipeline.sh venv           # build or refresh the Python environment, then stop
 ```
 
 `full` is the current gold-standard rebuild command. It runs the canonical
-backbone, the net enrichment layer, and all enrichment phases in one invocation.
+backbone and all enrichment phases in one invocation.
 Prefer it over ad-hoc mode sequencing unless you specifically need a partial
 rerun.
 
@@ -171,7 +170,6 @@ authoritative for what each input changes.
 | `canonical_only` | Canonical backbone only: mirror + curated → canonical CSVs → QC → workbook → seed → DB | Required | Updating source data, overrides, or identity lock |
 | `enrichment_only` | Membership, clubs, persons enrichment phases only | Not required | Iterating on enrichment logic (requires canonical outputs already present) |
 | `csv_only` | DB load from existing seed CSVs, then enrichment phases | Not required | No mirror access; canonical CSVs and seed must already exist on disk |
-| `net_enrichment` | Net enrichment layer only | Not required | Rebuilding net tables against an already-loaded canonical DB |
 | `venv` | Builds or refreshes the Python environment, then stops; does not touch the DB | Not required | Preparing the environment the legacy-extractor tests and scripts run under |
 
 ### Canonical backbone (`canonical_only` / included in `full`)
@@ -196,14 +194,6 @@ and re-run.
 
 A preflight check runs first; if the required canonical outputs are missing,
 the mode exits early.
-
-### Net enrichment (`net_enrichment` / included in `full`)
-
-Additive layer that reads canonical tables read-only and populates the Net
-enrichment tables, each described in `docs/DATA_MODEL.md` (Pipeline-produced
-canonical content). QC findings from the
-team builder are written to `out/net_team_qc_issues.jsonl`, not to a table.
-Requires the canonical DB to already be loaded.
 
 ### CSV-only rebuild (`csv_only`)
 

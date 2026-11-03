@@ -1524,7 +1524,6 @@ p.badge { display: block; width: fit-content; }
 .badge-tier           { background: var(--info-teal-bg); color: var(--secondary); }
 .badge-warn           { background: var(--warn-tint); color: var(--warn-text); }
 .badge-muted          { background: var(--gray-150); color: var(--gray-700); }
-.badge-cell           { white-space: nowrap; }
 
 /* ── Severity indicators (internal QC pages) ───────────────── */
 .severity-high   { color: var(--severity-high); font-weight: 700; }
@@ -1717,25 +1716,6 @@ p.badge { display: block; width: fit-content; }
   color: var(--primary-ink-dk);
   text-decoration: underline;
   text-underline-offset: 2px;
-}
-
-/* A navigation link drawn as underlined text in a control position. A control
-   that changes state never takes it: an act is a button, because text reads as
-   a link and a link promises a destination. The focus ring is the keyboard's
-   only indicator, since a change of underline is not one. */
-.btn-link {
-  background: none;
-  border: none;
-  padding: 0;
-  font: inherit;
-  cursor: pointer;
-  text-decoration: underline;
-  color: var(--primary-ink);
-}
-.btn-link:hover { color: var(--primary-ink-dk); }
-.btn-link:focus-visible {
-  outline: 2px solid var(--secondary);
-  outline-offset: 2px;
 }
 
 /* ── Archive year nav ───────────────────────────────────────── */
@@ -3065,7 +3045,6 @@ main fieldset > :not(:has(~ :not([type="hidden"]))) { margin-bottom: 0; }
 .records-table-sm th,
 .records-table-sm td { padding: var(--space-sm) var(--space-md); }
 .section-desc { color: var(--text-muted); margin: var(--space-xs) 0 var(--space-lg); }
-.year-heading { margin: var(--space-xl) 0 var(--space-sm); }
 
 .col-date { white-space: nowrap; }
 
@@ -4280,9 +4259,6 @@ a.hashtag--media:hover {
   font-size: 0.9rem;
   min-width: 0;
   max-width: 100%;
-}
-.filter-bar .btn-link {
-  font-size: 0.9rem;
 }
 
 /* ==========================================================================
