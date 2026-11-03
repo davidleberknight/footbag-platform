@@ -279,14 +279,16 @@ jobs:
           node-version-file: '.nvmrc'
           cache: 'npm'
 
-      - name: Install the pinned sqlite3 CLI
-        # scripts/e2e/start-stack.sh applies database/schema.sql via sqlite3.
+      - name: Install the pinned sqlite3 CLI and ffmpeg
+        # scripts/e2e/start-stack.sh applies database/schema.sql via sqlite3,
+        # and the curator upload case transcodes real clips through the
+        # stack's video worker, which spawns ffmpeg.
         run: |
-          bash scripts/ci/install-pinned-tools.sh --bin-dir "$HOME/.local/bin" sqlite3
+          bash scripts/ci/install-pinned-tools.sh --bin-dir "$HOME/.local/bin" sqlite3 ffmpeg
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Check tool versions against the recorded pins
-        run: source scripts/lib/tool-report.sh && tool_report_require sqlite3
+        run: source scripts/lib/tool-report.sh && tool_report_require ffmpeg sqlite3
 
       - name: Install dependencies
         run: npm ci
