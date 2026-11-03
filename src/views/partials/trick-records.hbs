@@ -38,10 +38,7 @@
         </td>
         <td>
           {{#if videoUrl}}
-            <a href="{{videoUrl}}" class="video-link" target="_blank" rel="noopener noreferrer"
-               aria-label="Watch {{holderName}} {{../page.title}} record video">
-              &#9654;{{#if videoTimecode}} {{videoTimecode}}{{/if}}
-            </a>
+            <a href="{{videoUrl}}" class="video-link" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">&#9654;</span><span class="visually-hidden">Watch {{holderName}} {{../page.title}} record video</span></a>
           {{else}}
             &mdash;
           {{/if}}

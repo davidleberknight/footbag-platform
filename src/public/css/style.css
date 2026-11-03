@@ -3997,9 +3997,25 @@ a.hashtag--media:hover {
 .family-badge:hover { background: var(--slate-200); }
 
 /* Video link */
+/* Positioned so its visually hidden text stays inside a table's scroll box
+   rather than widening the page. */
 .video-link {
-  font-size: 0.9rem;
+  position: relative;
+  display: inline-block;
+  padding: var(--space-xs);
+  font-size: 1.25rem;
+  line-height: 1;
+  text-decoration: none;
   white-space: nowrap;
+}
+
+/* Where ADD shows, Trick and ADD fit their content and sit together, and the
+   spare width goes to the columns after them. */
+@media (min-width: 768px) {
+  .records-by-trick .col-trick,
+  .records-by-trick .col-adds { width: 1%; white-space: nowrap; }
+  .records-by-trick .col-adds { text-align: left; }
+  .records-by-trick .record-review-note { white-space: normal; }
 }
 
 /* ── Responsive ─────────────────────────────────────────────────────────── */

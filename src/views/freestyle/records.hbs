@@ -46,10 +46,10 @@
       <h2 class="section-heading">{{label}}</h2>
 
       <div class="records-table-wrap" tabindex="0" role="region" aria-label="{{label}}">
-        <table class="data-table">
+        <table class="data-table records-by-trick">
           <thead>
             <tr>
-              <th>Trick</th>
+              <th class="col-trick">Trick</th>
               <th class="col-adds">ADD (recorded)</th>
               <th class="col-num">Count</th>
               <th>Holder</th>
@@ -60,7 +60,7 @@
           <tbody>
             {{#each records}}
             <tr>
-              <td>
+              <td class="col-trick">
                 {{#if trickHref}}
                   <a href="{{trickHref}}" class="trick-name">{{trickName}}</a>
                 {{else}}
@@ -94,10 +94,7 @@
               </td>
               <td>
                 {{#if videoUrl}}
-                  <a href="{{videoUrl}}" class="video-link" target="_blank" rel="noopener noreferrer"
-                     aria-label="Watch {{holderName}} {{trickName}} record video">
-                    ▶{{#if videoTimecode}} {{videoTimecode}}{{/if}}
-                  </a>
+                  <a href="{{videoUrl}}" class="video-link" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">▶</span><span class="visually-hidden">Watch {{holderName}} {{trickName}} record video</span></a>
                 {{else}}
                   &mdash;
                 {{/if}}

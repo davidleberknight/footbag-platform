@@ -151,6 +151,7 @@ col-date
 col-holder
 col-num
 col-rank
+col-trick
 col-year
 combo-analysis-architecture-list
 combo-analysis-caveats
@@ -682,6 +683,7 @@ radio-label
 record-indicator
 record-review-flag
 record-review-note
+records-by-trick
 records-group
 records-table
 records-table-sm

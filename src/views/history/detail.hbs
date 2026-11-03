@@ -60,10 +60,7 @@
           </td>
           <td>
             {{#if videoUrl}}
-              <a href="{{videoUrl}}" class="video-link" target="_blank" rel="noopener noreferrer"
-                 aria-label="Watch {{trickName}} record video">
-                ▶{{#if videoTimecode}} {{videoTimecode}}{{/if}}
-              </a>
+              <a href="{{videoUrl}}" class="video-link" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">▶</span><span class="visually-hidden">Watch {{trickName}} record video</span></a>
             {{else}}
               &mdash;
             {{/if}}

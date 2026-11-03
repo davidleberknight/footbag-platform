@@ -277,6 +277,18 @@ describe('GET /freestyle', () => {
 // ---------------------------------------------------------------------------
 
 describe('GET /freestyle/records', () => {
+  // Defect caught: a row shows its stored timecode after the play symbol, so some
+  // rows read as a bare number no visitor can interpret, or a screen reader gets
+  // the symbol's name and no idea what the link opens.
+  it('draws every Video cell as the play symbol alone, with a spoken form', async () => {
+    const res = await page('/freestyle/records');
+    const link = res.text.match(/<a href="https:\/\/youtu\.be\/pixie123"[^>]*>(.*?)<\/a>/s);
+    expect(link).not.toBeNull();
+    expect(link![1]).not.toContain('0:42');
+    expect(link![1]).toMatch(/<span aria-hidden="true">▶<\/span>/);
+    expect(link![1]).toMatch(/<span class="visually-hidden">[^<]*Bob Freestyler[^<]*Pixie[^<]*<\/span>/);
+  });
+
   it('shows public probable records', async () => {
     const res = await page('/freestyle/records');
     expect(res.status).toBe(200);
@@ -1074,10 +1086,12 @@ describe('GET /history/:personId — freestyle records section', () => {
     expect(res.text).toContain('55');
   });
 
-  it('shows video link with timecode on player freestyle section', async () => {
+  // Defect caught: the player page shows a timecode the records page dropped, so
+  // one record's video link reads differently depending on the page.
+  it('shows the video link on the player freestyle section without its timecode', async () => {
     const res = await page(`/history/${FREESTYLE_PLAYER_ID}`);
     expect(res.text).toContain('https://youtu.be/pixie123');
-    expect(res.text).toContain('0:42');
+    expect(res.text).not.toContain('0:42');
   });
 
   it('does not show provisional records on player page', async () => {
