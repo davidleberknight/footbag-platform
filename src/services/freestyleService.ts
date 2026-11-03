@@ -6622,16 +6622,11 @@ const RETIRED_SET_NICKNAME_REDIRECTS: ReadonlyMap<string, string> = new Map([
 // hashtag beside its authored content.
 export type ModifierTeachingPageContent = ModifierFamilyPageContent & { hashtag: string };
 
-// Canonical sets held out of the set-page redirects below while a curator ruling
-// on whether they remain trick entries is pending; their trick and modifier
-// routes keep resolving exactly as they would without those redirects.
-const SET_REDIRECT_PENDING_RULING: ReadonlySet<string> = new Set(['blazing', 'pogo', 'shooting']);
-
 // A canonical set with no active trick row: a set that migrated out of, or never
 // entered, the trick corpus, so its set page is its one home. Pixie and fairy are
 // active tricks as well as sets and keep both pages.
 function isSetWithoutActiveTrick(slug: string): boolean {
-  if (!findCanonicalSetBySlug(slug) || SET_REDIRECT_PENDING_RULING.has(slug)) return false;
+  if (!findCanonicalSetBySlug(slug)) return false;
   const row = runSqliteRead('freestyleTricks.categoryBySlug', () =>
     freestyleTricks.categoryBySlug.get(slug) as { category: string | null; is_active: number } | undefined,
   );

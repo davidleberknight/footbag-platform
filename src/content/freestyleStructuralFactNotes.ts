@@ -8,7 +8,7 @@
  * notation jargon ("X-dex", "PS X shorthand", etc.) removed. The entries marked
  * NEEDS-CURATOR below are derived for well-defined operators that lack curator
  * copy; they state only the established, uncontested mechanic and should be
- * confirmed by the curator. Frontier / undefined operators (blazing, terraging,
+ * confirmed by the curator. Frontier / undefined operators (terraging,
  * surfing, floating, splicing, warping, backside, shooting) are intentionally
  * absent: their mechanics are not settled, so no note is shown rather than a
  * guessed one.

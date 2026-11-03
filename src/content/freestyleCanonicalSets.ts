@@ -781,8 +781,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     movementExplanation:
       'A whirling set: an uptime whirl that the following trick is performed off of. ' +
       'The side the set originates from is the reference, and the whirl forming the set ' +
-      'crosses to the opposite side of it; Holden separates blazing from whirling by ' +
-      'exactly that terminal relation, and the two stand as distinct named sets. The ' +
+      'crosses to the opposite side of it. The ' +
       'crossing belongs to the set. A trick performed off it keeps its own side ' +
       'relations, which is why each blazing compound reads as this set followed by its ' +
       'base written as the base is written.',
@@ -837,7 +836,8 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     formula: 'CLIP > (no plant while) OP IN [DEX] >',
     movementExplanation:
       'Whirling performed off the ground (folk name Symposium Whirling): the whirl shape ' +
-      'with no support-foot plant.',
+      'with no support-foot plant. On its own it scores 0 ADD; when used as a set into ' +
+      'another trick, it adds 1 ADD.',
     equivalenceNotes: [
       { reading: 'Symposium Whirling', citation: 'Holden parenthetical' },
     ],

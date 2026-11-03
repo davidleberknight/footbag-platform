@@ -38,12 +38,14 @@ beforeAll(async () => {
   insertFreestyleTrickModifier(db, { slug: 'slapping', modifier_name: 'Slapping', add_bonus: 1, add_bonus_rotational: 1, modifier_type: 'set'  });
   // Operators with no trick row at all (backside, xdex), a ducking set that is
   // registered as a body modifier (zulu), a set-only modifier with no trick row
-  // (railing), and a set held pending a curator ruling (pogo, inactive row).
+  // (railing), and sets whose only page is their set page (inactive rows).
   insertFreestyleTrickModifier(db, { slug: 'backside', modifier_name: 'backside', add_bonus: 1, add_bonus_rotational: 1, modifier_type: 'body' });
   insertFreestyleTrickModifier(db, { slug: 'xdex',     modifier_name: 'xdex',     add_bonus: 1, add_bonus_rotational: 1, modifier_type: 'body' });
   insertFreestyleTrickModifier(db, { slug: 'zulu',     modifier_name: 'zulu',     add_bonus: 1, add_bonus_rotational: 1, modifier_type: 'body' });
   insertFreestyleTrickModifier(db, { slug: 'railing',  modifier_name: 'railing',  add_bonus: 2, add_bonus_rotational: 2, modifier_type: 'set'  });
-  insertFreestyleTrickModifier(db, { slug: 'pogo',     modifier_name: 'pogo',     add_bonus: 0, add_bonus_rotational: 0, modifier_type: 'set'  });
+  insertFreestyleTrickModifier(db, { slug: 'pogo',     modifier_name: 'pogo',     add_bonus: 1, add_bonus_rotational: 1, modifier_type: 'set'  });
+  insertFreestyleTrickModifier(db, { slug: 'blazing',  modifier_name: 'blazing',  add_bonus: 1, add_bonus_rotational: 1, modifier_type: 'set'  });
+  insertFreestyleTrickModifier(db, { slug: 'shooting', modifier_name: 'shooting', add_bonus: 3, add_bonus_rotational: 3, modifier_type: 'set'  });
 
   // freestyle_tricks rows. A modifier-category row (spinning) for the redirect +
   // search exclusion; set-category rows (pixie dual-role, atomic retired from the
@@ -53,6 +55,8 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'pixie',             canonical_name: 'pixie',             category: 'set' });
   insertFreestyleTrick(db, { slug: 'atomic',            canonical_name: 'atomic',            category: 'set', is_active: 0 });
   insertFreestyleTrick(db, { slug: 'pogo',              canonical_name: 'pogo',              category: 'set', is_active: 0 });
+  insertFreestyleTrick(db, { slug: 'blazing',           canonical_name: 'blazing',           category: 'set', is_active: 0 });
+  insertFreestyleTrick(db, { slug: 'shooting',          canonical_name: 'shooting',          category: 'set', is_active: 0 });
   insertFreestyleTrick(db, { slug: 'slapping',          canonical_name: 'slapping',          category: 'set' });
   insertFreestyleTrick(db, { slug: 'spinning-butterfly', canonical_name: 'spinning butterfly', category: 'compound', adds: '4', base_trick: 'butterfly', trick_family: 'butterfly' });
   // A compound carrying a body modifier and a set-only modifier, for the
@@ -164,12 +168,15 @@ describe('GET /freestyle/tricks/:slug — modifier/operator redirect', () => {
     expect(res.headers['location']).toBe('/freestyle/modifier/zulu');
   });
 
-  // Defect caught: a set held pending a curator ruling is redirected anyway.
-  it('leaves a set held pending a curator ruling unredirected', async () => {
-    const trick = await page('/freestyle/tricks/pogo');
-    expect(trick.status).toBe(404);
-    const modifier = await page('/freestyle/modifier/pogo');
-    expect(modifier.status).toBe(200);
+  // Defect caught: blazing, pogo or shooting keeping a trick page or a modifier
+  // stub beside the set page that is its one home.
+  it.each(['blazing', 'pogo', 'shooting'])('sends %s from both old addresses to its set page', async (slug) => {
+    const trick = await page(`/freestyle/tricks/${slug}`);
+    expect(trick.status).toBe(301);
+    expect(trick.headers['location']).toBe(`/freestyle/sets/${slug}`);
+    const modifier = await page(`/freestyle/modifier/${slug}`);
+    expect(modifier.status).toBe(301);
+    expect(modifier.headers['location']).toBe(`/freestyle/sets/${slug}`);
   });
 });
 

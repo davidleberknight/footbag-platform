@@ -39,10 +39,6 @@ KNOWN_INCOMPLETE_NOTATION = {
     "terraging_illusion",
     "terraging_legover",
     "terraging_mirage",
-    # The bare blazing row. Its set identity and +1 are settled and the side rule
-    # now describes how it composes, but a set row carries no ADD of its own here
-    # and its standalone decomposition has never been authored.
-    "blazing",
     # flailing's operator definition is pending an expert confirm/deny, so this
     # compound's notation is held: doctrine-blocked, not curator-ready.
     "bill_ted_s_excellent_adventure",

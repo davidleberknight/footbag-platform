@@ -2029,6 +2029,7 @@ furious,is_active,1,0,"Convert to set: furious is a multi-dex set operator (+2),
 shooting,is_active,1,0,"Convert to set: shooting is a set operator (+3), not a complete trick; no scored-contact/delay terminal. Retained as the shooting-set canonical set and the shooting operator."
 sailing,is_active,1,0,"Convert to set: sailing is a composite set operator (+2), not a complete trick; its notation ends on a dex with no terminal delay. Retained as the sailing-set canonical set and the sailing operator."
 pogo,is_active,1,0,"Convert to set: pogo is a 0-ADD set state (the no-plant suspension set), not a complete trick. Retained as the pogo-set canonical set and the pogo operator."
+blazing,is_active,1,0,"Convert to set: blazing is an uptime whirling set (+1), not a complete trick; its set page is its one home. Retained as the blazing-set canonical set and the blazing operator."
 rooted,is_active,1,0,"Convert to set: rooted is a 0-ADD set state, not a complete trick. Retained as the rooted set operator."
 fairy-gyro-drifter,base_trick,gyro-drifter,vortex,"Repoint base to the active folk-named canonical; gyro-drifter was retired as a structural duplicate of vortex, so the base must reference the published trick rather than the retired slug."
 paradox-symposium-illusion,base_trick,symposium-illusion,flail,"Repoint base to the active folk-named canonical; symposium-illusion was retired as a structural duplicate of flail, so the base must reference the published trick rather than the retired slug."

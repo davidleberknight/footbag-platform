@@ -1,5 +1,5 @@
 alias_slug,action,alias_type,alias_display,note
-atomic_dlo,retype,suppressed,0,points to inactive trick atomic_double_leg_over
+atomic_dlo,retype,structural,0,modifier-stack decomposition rather than a nickname
 atomic_dod,retype,technical,0,abbreviation for fusion
 back,delete,,,junk alias to inactive/notation-phrase (back)
 blurry_dlo,retype,technical,0,abbreviation for fog
