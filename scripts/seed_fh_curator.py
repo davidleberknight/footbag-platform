@@ -49,8 +49,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from PIL import Image
-
 # Trick-slug canonicalization helper: alias resolution lives in one module, so
 # any later importer resolves an alias the same way this seeder does.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -189,9 +187,20 @@ def transcode_video(input_path: Path, output_path: Path) -> None:
         )
 
 
+def _pil_image():
+    """PIL's Image module, imported only when an image is re-encoded.
+
+    Pillow is needed for file-paired photos and posters alone. The URL-reference
+    loader and the module's constants are imported by other scripts that never
+    touch an image, and those must load where Pillow is not installed.
+    """
+    from PIL import Image
+    return Image
+
+
 def process_poster(input_path: Path, output_path: Path, max_width: int) -> tuple[int, int]:
     """Re-encode JPEG through PIL with explicit metadata stripping. Returns (width, height)."""
-    with Image.open(input_path) as img:
+    with _pil_image().open(input_path) as img:
         rgb = img.convert("RGB")
         w, h = rgb.size
         if w > max_width:
@@ -206,7 +215,7 @@ def process_poster(input_path: Path, output_path: Path, max_width: int) -> tuple
 
 def process_avatar_thumb(input_path: Path, output_path: Path, size: int) -> None:
     """Re-encode JPEG to a square avatar thumbnail through PIL."""
-    with Image.open(input_path) as img:
+    with _pil_image().open(input_path) as img:
         rgb = img.convert("RGB")
         # Cover-crop to square then resize, parallel to sharp's `fit: 'cover'`.
         side = min(rgb.size)
@@ -219,6 +228,7 @@ def process_avatar_thumb(input_path: Path, output_path: Path, size: int) -> None
 
 def process_photo_thumb(input_path: Path, output_path: Path, size: int) -> None:
     """Re-encode JPEG to an aspect-preserving photo thumbnail through PIL."""
+    Image = _pil_image()
     with Image.open(input_path) as img:
         rgb = img.convert("RGB")
         # Bound the longest edge and keep the source shape, parallel to sharp's
