@@ -169,7 +169,7 @@ import {
   type CuratedSaveReceipt,
   type SaveItemBody,
 } from '../adapters/curatedAuthoringAdapter';
-import { writeFileThenCommit } from './curatedSaveFlow';
+import { writeAll, writeFileThenCommit } from './curatedSaveFlow';
 import { isSeededTestPersonaMemberId } from '../lib/personaGuards';
 import {
   cleanUserText,
@@ -1100,6 +1100,29 @@ function resolveAdjudicationOnPublication(
   // under, and matching by name would then resolve nothing.
   knownCandidateId?: string,
 ): string | null {
+  const ruling = rulingForPublication(slug, canonicalName, knownCandidateId);
+  if (!ruling) return null;
+  freestyleEvAdjudications.resolveOnPublication.run(slug, slug, actorMemberId, ruling.candidate_id);
+  return ruling.candidate_id;
+}
+
+/** The save-file write for a publication's ruling, the columns the statement above sets. */
+function saveRulingResolution(slug: string, candidateId: string): () => CuratedSaveReceipt {
+  return () => getCuratedAuthoringAdapter().saveRulingFields(candidateId, {
+    ev_state: 'canonical',
+    hold_kind: 'canonical',
+    match_type: 'promoted-canonical',
+    final_disposition: 'A',
+    matched_existing_object: slug,
+    published_trick_slug: slug,
+  });
+}
+
+function rulingForPublication(
+  slug: string,
+  canonicalName: string,
+  knownCandidateId?: string,
+): FreestyleEvAdjudicationRow | null {
   const byId = knownCandidateId
     ? (freestyleEvAdjudications.getForAuthoring.get(knownCandidateId) as
         FreestyleEvAdjudicationRow | undefined)
@@ -1120,8 +1143,7 @@ function resolveAdjudicationOnPublication(
     );
   }
 
-  freestyleEvAdjudications.resolveOnPublication.run(slug, slug, actorMemberId, byName.candidate_id);
-  return byName.candidate_id;
+  return byName;
 }
 
 const SOURCE_ID_MAX = 100;
@@ -1454,7 +1476,14 @@ export const freestyleCurationService = {
       throw new ValidationError('Some fields need attention.', { fieldErrors });
     }
 
-    transaction(() => {
+    const conventionForSave = derivationMethod === CONVENTION_DERIVATION ? conventionId : null;
+    writeFileThenCommit(() => getCuratedAuthoringAdapter().saveRulingFields(candidateId, {
+      authored_notation: notation,
+      notation_evidence_basis: evidenceBasis,
+      notation_derivation_method: derivationMethod,
+      notation_convention_id: conventionForSave,
+      notation_provenance_note: provenanceNote === '' ? null : provenanceNote,
+    }), () => transaction(() => {
       freestyleEvAdjudications.saveAuthoredNotation.run(
         notation,
         evidenceBasis,
@@ -1486,7 +1515,7 @@ export const freestyleCurationService = {
           previousConventionId:     current.notation_convention_id,
         },
       });
-    });
+    }));
   },
 
   // The publication form for one authored draft. Everything the draft already
@@ -1731,7 +1760,34 @@ export const freestyleCurationService = {
 
     const sortOrder = ((freestyleTricks.maxSortOrder.get() as { max_sort: number }).max_sort) + 1;
 
-    transaction(() => {
+    // Refused before any file is written, so a name ruled to be another trick
+    // leaves nothing to take back.
+    const ruling = rulingForPublication(slug, canonicalName, candidateId);
+    const saved: (() => CuratedSaveReceipt)[] = [
+      () => getCuratedAuthoringAdapter().saveItem('published_tricks', slug, {
+        slug, canonical_name: canonicalName, adds, base_trick: baseTrick,
+        trick_family: family === '' ? null : family, category, description,
+        operational_notation: notation, operational_notation_source: publicationCitationLine(draft),
+        notation_evidence_basis: draft.notation_evidence_basis,
+        notation_derivation_method: draft.notation_derivation_method,
+        notation_convention_id: draft.notation_convention_id,
+        sort_order: sortOrder,
+      }),
+      ...aliasRows.map((alias) => saveAlias(alias.slug, slug, {
+        alias_text: alias.text, alias_type: 'common', alias_display: 1,
+        display_reason: null, source_id: null, provenance_note: null,
+      })),
+      ...(sourceId
+        ? [saveSourceLink(slug, sourceId, {
+          external_url: sourceUrl === '' ? null : sourceUrl, asserted_adds: null,
+          asserted_notation: assertedNotation === '' ? null : assertedNotation,
+        })]
+        : []),
+      ...modifierSlugs.map((modifierSlug, i) => saveModifierLink(slug, modifierSlug, i + 1, false)),
+      ...(ruling ? [saveRulingResolution(slug, ruling.candidate_id)] : []),
+    ];
+
+    writeFileThenCommit(writeAll(saved), () => transaction(() => {
       freestyleTricks.insertPublished.run(
         slug, canonicalName, adds, baseTrick, family === '' ? null : family, category, description,
         notation,
@@ -1790,7 +1846,7 @@ export const freestyleCurationService = {
           resolvedAdjudication:     resolved,
         },
       });
-    });
+    }));
 
     return slug;
   },
@@ -2225,9 +2281,16 @@ export const freestyleCurationService = {
     };
     const savedFields = Object.fromEntries(changedFields.map((field) => [field, submitted[field] ?? null]));
 
+    // A save that publishes also resolves the name's ruling, so the file for that
+    // goes with it, and a name ruled to be another trick refuses before any write.
+    const publishedRuling = publishing ? rulingForPublication(slug, canonicalName) : null;
+
     writeFileThenCommit(
       changedFields.length > 0
-        ? () => getCuratedAuthoringAdapter().saveTrickFields(slug, savedFields)
+        ? writeAll([
+          () => getCuratedAuthoringAdapter().saveTrickFields(slug, savedFields),
+          ...(publishedRuling ? [saveRulingResolution(slug, publishedRuling.candidate_id)] : []),
+        ])
         : null,
       () => {
         transaction(() => {
@@ -2538,7 +2601,9 @@ export const freestyleCurationService = {
 
     try {
       writeFileThenCommit(
-        saveSourceLink(trickSlug, sourceId, { external_url: externalUrl, asserted_adds: assertedAdds }),
+        saveSourceLink(trickSlug, sourceId, {
+          external_url: externalUrl, asserted_adds: assertedAdds, asserted_notation: null,
+        }),
         () => transaction(() => {
           freestyleTrickSourceLinks.insert.run(trickSlug, sourceId, externalUrl, assertedAdds);
           appendAuditEntry({

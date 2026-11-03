@@ -42,16 +42,26 @@ from _freestyle_db_freshness import CURATOR_SAVES_DIR, read_trick_saves  # noqa:
 
 REPORT_FIELDS = ["target", "field", "base_value", "saved_value"]
 
+RULING_SAVE_FIELDS = frozenset({
+    "authored_notation", "notation_evidence_basis", "notation_derivation_method",
+    "notation_convention_id", "notation_provenance_note", "ev_state", "hold_kind",
+    "match_type", "final_disposition", "matched_existing_object", "published_trick_slug",
+})
+
 # (folder, table, key columns, value columns). Applied in this order after the
 # tricks, because aliases and links reference sources and tricks by foreign key.
 RECORD_KINDS = (
     ("sources", "freestyle_trick_sources", ("id",),
      ("source_type", "source_label", "source_url", "retrieved_at", "notes")),
+    ("published_tricks", "freestyle_tricks", ("slug",),
+     ("canonical_name", "adds", "base_trick", "trick_family", "category", "description",
+      "operational_notation", "operational_notation_source", "notation_evidence_basis",
+      "notation_derivation_method", "notation_convention_id", "sort_order")),
     ("aliases", "freestyle_trick_aliases", ("alias_slug",),
      ("alias_text", "trick_slug", "alias_type", "alias_display", "display_reason",
       "source_id", "provenance_note")),
     ("source_links", "freestyle_trick_source_links", ("trick_slug", "source_id"),
-     ("external_url", "asserted_adds")),
+     ("external_url", "asserted_adds", "asserted_notation")),
     ("modifier_links", "freestyle_trick_modifier_links", ("trick_slug", "modifier_slug", "apply_order"),
      ()),
     ("records", "freestyle_records", ("id",),
@@ -67,6 +77,8 @@ RECORD_KINDS = (
 LOADED_AT = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
 FIXED_COLUMNS = {
     "aliases": {"alias_origin_producer": "curator-application", "created_at": LOADED_AT},
+    "published_tricks": {"aliases_json": "[]", "review_status": "curated", "is_active": 1, "is_core": 0,
+                         "loaded_at": LOADED_AT, "trick_origin_producer": "curator-publication"},
     "records": {"created_at": LOADED_AT, "updated_at": LOADED_AT},
     "consecutive_records": {"created_at": LOADED_AT, "updated_at": LOADED_AT},
 }
@@ -92,6 +104,54 @@ def apply_trick_saves(conn, saves, overrides):
             f"UPDATE freestyle_tricks SET {assignments} WHERE slug = ?",
             [fields[column] for column in columns] + [slug],
         )
+
+
+def apply_ruling_saves(conn, saves_dir, overrides):
+    """Apply notation authoring and publication to the rulings.
+
+    Only a real change bumps the row's version, which tells the ruling loader the
+    application has written to it, and a repeat of the same save changes nothing.
+    A member's id is not committed, so the author reads as this neutral marker.
+    """
+    applied = 0
+    for path in sorted((saves_dir / "rulings").glob("*.json")):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except ValueError as err:
+            raise ValueError(f"{path} is not valid JSON: {err}") from err
+        candidate = data.get("candidate_id") if isinstance(data, dict) else None
+        fields = data.get("fields") if isinstance(data, dict) else None
+        if candidate != path.stem or not isinstance(fields, dict):
+            raise ValueError(f"{path} must name its own ruling as candidate_id and carry a fields object")
+        unknown = sorted(set(fields) - RULING_SAVE_FIELDS)
+        if unknown:
+            raise ValueError(f"{path} carries fields a save may not set: {', '.join(unknown)}")
+        columns = sorted(fields)
+        base = conn.execute(
+            f"SELECT {', '.join(columns)} FROM freestyle_ev_adjudications WHERE candidate_id = ?",
+            (candidate,),
+        ).fetchone()
+        if base is None:
+            raise ValueError(f"{path} names a ruling the committed ledger no longer holds")
+        changed = [c for c, b in zip(columns, base) if b != fields[c]]
+        if not changed:
+            continue
+        for column, base_value in zip(columns, base):
+            if base_value != fields[column]:
+                overrides.append((f"rulings:{candidate}", column, base_value, fields[column]))
+        assignments = ", ".join(f"{column} = ?" for column in columns)
+        authoring = ", notation_authored_at = ?, notation_authored_by = ?" if "authored_notation" in fields else ""
+        extra = [LOADED_AT, "curator-save"] if authoring else []
+        try:
+            conn.execute(
+                f"UPDATE freestyle_ev_adjudications SET {assignments}{authoring}, "
+                "updated_at = ?, updated_by = ?, version = version + 1 WHERE candidate_id = ?",
+                [fields[c] for c in columns] + extra + [LOADED_AT, "curator-save", candidate],
+            )
+        except sqlite3.IntegrityError as err:
+            raise ValueError(f"{path} could not be applied: {err}") from err
+        applied += 1
+    return applied
 
 
 def clear_saved_positions(conn, saves_dir):
@@ -193,16 +253,18 @@ def main() -> int:
             conn.execute("BEGIN")
             conn.execute("PRAGMA defer_foreign_keys = ON")
             clear_saved_positions(conn, saves_dir)
-            # Sources first, since a trick's saved source and every link may cite one.
-            sources = RECORD_KINDS[0]
-            for path in sorted((saves_dir / sources[0]).glob("*.json")):
-                apply_record(conn, path, sources[0], sources[1], sources[2], sources[3], overrides)
-                applied += 1
-            apply_trick_saves(conn, saves, overrides)
-            for kind, table, keys, values in RECORD_KINDS[1:]:
+            # Sources and published tricks first, since everything after may cite
+            # them, and a later edit to a published trick lands on top of it.
+            for kind, table, keys, values in RECORD_KINDS[:2]:
                 for path in sorted((saves_dir / kind).glob("*.json")):
                     apply_record(conn, path, kind, table, keys, values, overrides)
                     applied += 1
+            apply_trick_saves(conn, saves, overrides)
+            for kind, table, keys, values in RECORD_KINDS[2:]:
+                for path in sorted((saves_dir / kind).glob("*.json")):
+                    apply_record(conn, path, kind, table, keys, values, overrides)
+                    applied += 1
+            applied += apply_ruling_saves(conn, saves_dir, overrides)
     except (ValueError, sqlite3.IntegrityError) as err:
         print(f"ERROR: nothing from the curator saves was applied. {err}", file=sys.stderr)
         return 1

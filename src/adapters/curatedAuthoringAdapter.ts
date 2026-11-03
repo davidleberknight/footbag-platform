@@ -49,6 +49,28 @@ export const TRICK_SAVE_FIELDS = [
 export type TrickSaveField = (typeof TRICK_SAVE_FIELDS)[number];
 export type TrickSaveFields = Partial<Record<TrickSaveField, string | number | null>>;
 
+/**
+ * The freestyle_ev_adjudications columns a curator's save changes. The history on
+ * the row stays with the ledger, and who authored a notation is not among them: a
+ * member's id does not belong in a committed file.
+ */
+export const RULING_SAVE_FIELDS = [
+  'authored_notation',
+  'notation_evidence_basis',
+  'notation_derivation_method',
+  'notation_convention_id',
+  'notation_provenance_note',
+  'ev_state',
+  'hold_kind',
+  'match_type',
+  'final_disposition',
+  'matched_existing_object',
+  'published_trick_slug',
+] as const;
+
+export type RulingSaveField = (typeof RULING_SAVE_FIELDS)[number];
+export type RulingSaveFields = Partial<Record<RulingSaveField, string | null>>;
+
 /** Puts the authoring file back as it was before the save that returned this. */
 export interface CuratedSaveReceipt {
   undo(): void;
@@ -60,7 +82,8 @@ export interface CuratedSaveReceipt {
  * away, which a rebuild would otherwise bring back from a base input.
  */
 export const SAVE_ITEM_KINDS = [
-  'sources', 'aliases', 'source_links', 'modifier_links', 'records', 'consecutive_records',
+  'sources', 'published_tricks', 'aliases', 'source_links', 'modifier_links', 'records',
+  'consecutive_records',
 ] as const;
 export type SaveItemKind = (typeof SAVE_ITEM_KINDS)[number];
 export type SaveItemBody = Record<string, string | number | boolean | null>;
@@ -68,11 +91,24 @@ export type SaveItemBody = Record<string, string | number | boolean | null>;
 export interface CuratedAuthoringAdapter {
   /** Records these fields for this trick, keeping fields saved earlier. */
   saveTrickFields(slug: string, fields: TrickSaveFields): CuratedSaveReceipt;
+  /** Records these fields for this ruling, keeping fields saved earlier. */
+  saveRulingFields(candidateId: string, fields: RulingSaveFields): CuratedSaveReceipt;
   /** Records one whole item, replacing any earlier save of it. */
   saveItem(kind: SaveItemKind, key: string, body: SaveItemBody): CuratedSaveReceipt;
 }
 
 const NOTHING_TO_UNDO: CuratedSaveReceipt = { undo: () => undefined };
+
+function assertRulingShape(candidateId: string, fields: RulingSaveFields): void {
+  if (!/^[a-z0-9_-]+$/.test(candidateId)) {
+    throw new Error(`curated save refused: invalid ruling id ${JSON.stringify(candidateId)}`);
+  }
+  for (const field of Object.keys(fields)) {
+    if (!(RULING_SAVE_FIELDS as readonly string[]).includes(field)) {
+      throw new Error(`curated save refused: ${field} is not a ruling field a save may carry`);
+    }
+  }
+}
 
 // A key names a file, like a slug does, so the same refusal applies on both backends.
 function assertItemShape(kind: SaveItemKind, key: string): void {
@@ -114,17 +150,13 @@ export function createFileCuratedAuthoringAdapter(opts: { rootDir: string }): Cu
   return {
     saveTrickFields(slug, fields) {
       assertSaveShape(slug, fields);
-      const filePath = path.join(opts.rootDir, 'tricks', `${slug}.json`);
-      const before = fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf8') : null;
-      const saved = before === null
-        ? {}
-        : (JSON.parse(before) as { fields: TrickSaveFields }).fields;
-      const merged = { ...saved, ...fields };
-      const ordered = Object.fromEntries(
-        Object.keys(merged).sort().map((key) => [key, merged[key as TrickSaveField]]),
+      return mergeFields(path.join(opts.rootDir, 'tricks', `${slug}.json`), { slug }, fields);
+    },
+    saveRulingFields(candidateId, fields) {
+      assertRulingShape(candidateId, fields);
+      return mergeFields(
+        path.join(opts.rootDir, 'rulings', `${candidateId}.json`), { candidate_id: candidateId }, fields,
       );
-      writeAtomically(filePath, `${JSON.stringify({ slug, fields: ordered }, null, 2)}\n`);
-      return receiptFor(filePath, before);
     },
     saveItem(kind, key, body) {
       assertItemShape(kind, key);
@@ -134,6 +166,19 @@ export function createFileCuratedAuthoringAdapter(opts: { rootDir: string }): Cu
       return receiptFor(filePath, before);
     },
   };
+}
+
+function mergeFields(
+  filePath: string,
+  target: Record<string, string>,
+  fields: Record<string, string | number | null | undefined>,
+): CuratedSaveReceipt {
+  const before = fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf8') : null;
+  const saved = before === null ? {} : (JSON.parse(before) as { fields: typeof fields }).fields;
+  const merged = { ...saved, ...fields };
+  const ordered = Object.fromEntries(Object.keys(merged).sort().map((key) => [key, merged[key]]));
+  writeAtomically(filePath, `${JSON.stringify({ ...target, fields: ordered }, null, 2)}\n`);
+  return receiptFor(filePath, before);
 }
 
 function receiptFor(filePath: string, before: string | null): CuratedSaveReceipt {
@@ -149,6 +194,10 @@ export function createDatabaseOnlyCuratedAuthoringAdapter(): CuratedAuthoringAda
   return {
     saveTrickFields(slug, fields) {
       assertSaveShape(slug, fields);
+      return NOTHING_TO_UNDO;
+    },
+    saveRulingFields(candidateId, fields) {
+      assertRulingShape(candidateId, fields);
       return NOTHING_TO_UNDO;
     },
     saveItem(kind, key) {

@@ -28,6 +28,8 @@ const reportPath = path.join(scratch, 'overrides.csv');
 
 const ADMIN_ID = 'aaaaaaaa-0000-0000-0000-000000saves1';
 const SAVED_TEXT = 'Saved by a curator through the trick editor.';
+// Four scoring brackets, so the published trick asserts 4 ADD.
+const PUBLISHED_NOTATION = 'CLIP > OP IN [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]';
 
 const REBUILD: readonly (readonly [string, string[]])[] = [
   ['10_load_freestyle_records_to_sqlite.py', ['--records-csv', 'freestyle/inputs/curated/records/records_master.csv']],
@@ -41,6 +43,7 @@ const REBUILD: readonly (readonly [string, string[]])[] = [
   ['21a_load_alias_additions.py', []],
   ['21b_apply_alias_overrides.py', []],
   ['21c_retire_stale_tricks.py', []],
+  ['28_load_ev_adjudications.py', []],
 ];
 
 function loader(name: string, args: string[]) {
@@ -88,7 +91,7 @@ function auditCount(slug: string): number {
 }
 
 /** What the edit form submits for this row, with these fields changed. */
-function formFor(row: TrickRow, changes: Record<string, string>) {
+function formFor(row: TrickRow, changes: Record<string, string | boolean>) {
   return {
     canonicalName: row.canonical_name, adds: row.adds ?? '', movementNotation: row.notation ?? '',
     executionNotation: row.operational_notation ?? '', family: row.trick_family ?? '',
@@ -142,6 +145,12 @@ let deletedRowId = '';
 let createdRowId = '';
 let editedRowOrder = 0;
 let swappedRowOrder = 0;
+let editorPublishedSlug = '';
+let editorPublishedCandidate = '';
+let draftCandidateId = '';
+let publishedCandidateId = '';
+let publishedSlug = '';
+let publishedModifier = '';
 
 let service: typeof import('../../src/services/freestyleCurationService').freestyleCurationService;
 let adapterModule: typeof import('../../src/adapters/curatedAuthoringAdapter');
@@ -183,9 +192,18 @@ beforeAll(async () => {
   // One save of every record kind, each against base rows a rebuild would bring
   // back, so the rebuild below proves the save beat the base input.
   const rows = new BetterSqlite3(dbPath, { readonly: true });
-  const baseAliases = rows.prepare(
-    "SELECT alias_slug, trick_slug FROM freestyle_trick_aliases WHERE alias_origin_producer = 'base-dictionary' ORDER BY alias_slug LIMIT 2",
-  ).all() as { alias_slug: string; trick_slug: string }[];
+  // Aliases no committed override targets: an override on an alias a curator now
+  // owns stops a refresh in place and asks for a decision, by design.
+  const overridden = fs.readFileSync('freestyle/inputs/base_dictionary/alias_overrides.csv', 'utf8')
+    .split('\n').map((line) => line.split(',')[0]!);
+  const baseAliases = (rows.prepare(
+    "SELECT alias_slug, trick_slug FROM freestyle_trick_aliases WHERE alias_origin_producer = 'base-dictionary' ORDER BY alias_slug",
+  ).all() as { alias_slug: string; trick_slug: string }[]).filter((a) => !overridden.includes(a.alias_slug)).slice(0, 2);
+  const pendingTrick = rows.prepare(
+    `SELECT t.slug, a.candidate_id FROM freestyle_tricks t
+       JOIN freestyle_ev_adjudications a ON a.published_trick_slug = t.slug
+      WHERE t.is_active = 0 AND t.review_status = 'pending' ORDER BY t.slug LIMIT 1`,
+  ).get() as { slug: string; candidate_id: string };
   baseSourceLink = rows.prepare(
     'SELECT trick_slug, source_id FROM freestyle_trick_source_links ORDER BY trick_slug LIMIT 1',
   ).get() as typeof baseSourceLink;
@@ -195,6 +213,13 @@ beforeAll(async () => {
   ).get() as typeof baseModifierLink;
   rows.close();
   [updatedAlias, removedAlias] = baseAliases as [typeof updatedAlias, typeof removedAlias];
+  // A trick editor save that takes a pending trick live publishes it, and resolves
+  // its ruling too.
+  editorPublishedSlug = pendingTrick.slug;
+  editorPublishedCandidate = pendingTrick.candidate_id;
+  service.updateTrickScalars(editorPublishedSlug, formFor(readTrick(dbPath, editorPublishedSlug), {
+    isActive: true, reviewStatus: 'curated',
+  }), ADMIN_ID);
 
   service.createSource({
     id: 'saved-source', sourceType: 'curated', sourceLabel: 'Saved source',
@@ -259,6 +284,41 @@ beforeAll(async () => {
   consecutiveService.updateRow(editedRowId, rowForm(firstThree[0]!, { sortOrder: String(swappedRowOrder), note: 'Saved note.' }), ADMIN_ID);
   consecutiveService.deleteRow(deletedRowId, ADMIN_ID);
   createdRowId = consecutiveService.createRow(rowForm(firstThree[0]!, { sortOrder: '999002', player1: 'Saved Player' }), ADMIN_ID);
+
+  // Notation authoring and publication, on rulings the committed ledger holds.
+  const ledger = new BetterSqlite3(dbPath, { readonly: true });
+  const free = (ledger.prepare(
+    `SELECT candidate_id, submitted_name FROM freestyle_ev_adjudications a
+      WHERE a.final_disposition = 'C' AND a.object_type = 'complete-trick'
+        AND a.ev_state NOT IN ('doctrine', 'undefined_operator') AND a.blocker_id NOT LIKE 'Q%'
+        AND a.blocker_id <> 'source-recovery' AND a.published_trick_slug IS NULL
+        AND a.authored_notation IS NULL
+      ORDER BY a.candidate_id`,
+  ).all() as { candidate_id: string; submitted_name: string }[]).filter((c) => {
+    const slug = c.submitted_name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+    return !ledger.prepare('SELECT 1 FROM freestyle_tricks WHERE slug = ?').get(slug)
+      && !ledger.prepare('SELECT 1 FROM freestyle_trick_aliases WHERE alias_slug = ?').get(slug);
+  });
+  const baseTrick = ledger.prepare(
+    "SELECT slug FROM freestyle_tricks WHERE is_active = 1 AND category = 'compound' ORDER BY slug LIMIT 1",
+  ).get() as { slug: string };
+  const modifier = ledger.prepare('SELECT slug FROM freestyle_trick_modifiers ORDER BY slug LIMIT 1').get() as { slug: string };
+  ledger.close();
+  draftCandidateId = free[0]!.candidate_id;
+  publishedCandidateId = free[1]!.candidate_id;
+  const authored = {
+    notation: PUBLISHED_NOTATION, evidenceBasis: 'footage', derivationMethod: 'reconstruction',
+    conventionId: '', provenanceNote: 'Read off a record video.',
+  };
+  service.saveAuthoredNotation(draftCandidateId, authored, ADMIN_ID);
+  service.saveAuthoredNotation(publishedCandidateId, authored, ADMIN_ID);
+  publishedSlug = service.publishCanonicalTrick(publishedCandidateId, {
+    canonicalName: free[1]!.submitted_name.toLowerCase(), adds: '4', baseTrick: baseTrick.slug,
+    category: 'compound', familyOverride: '', description: 'Published through the funnel.',
+    aliases: 'published nickname', sourceId: 'saved-source', sourceUrl: 'https://example.com/p',
+    sourceAssertedNotation: PUBLISHED_NOTATION, modifierLinks: modifier.slug,
+  }, ADMIN_ID);
+  publishedModifier = modifier.slug;
 }, 180_000);
 
 afterEach(() => adapterModule.resetCuratedAuthoringAdapterForTests());
@@ -301,6 +361,7 @@ describe('a trick edit on a developer machine', () => {
     const audits = auditCount(failFileSlug);
     adapterModule.setCuratedAuthoringAdapterForTests({
       saveTrickFields() { throw new Error('disk full'); },
+      saveRulingFields() { throw new Error('disk full'); },
       saveItem() { throw new Error('disk full'); },
     });
     expect(() => service.updateTrickScalars(
@@ -456,11 +517,61 @@ describe('a rebuild', () => {
     expect(rowCount(rebuildPath, 'consecutive_kicks_records', "id = ? AND player_1 = 'Saved Player'", [createdRowId])).toBe(1);
   });
 
+  it('keeps an authored draft and a publication whole', () => {
+    // Defect: a published trick, or the ruling that says it is resolved, is gone
+    // after a rebuild, or the trick returns without its alias, source or modifier.
+    expect(rowCount(rebuildPath, 'freestyle_ev_adjudications',
+      "candidate_id = ? AND authored_notation = ? AND notation_evidence_basis = 'footage' AND notation_authored_by = 'curator-save' AND published_trick_slug IS NULL AND version > 1",
+      [draftCandidateId, PUBLISHED_NOTATION])).toBe(1);
+    expect(rowCount(rebuildPath, 'freestyle_tricks',
+      "slug = ? AND is_active = 1 AND review_status = 'curated' AND trick_origin_producer = 'curator-publication' AND operational_notation = ? AND notation_evidence_basis = 'footage'",
+      [publishedSlug, PUBLISHED_NOTATION])).toBe(1);
+    expect(rowCount(rebuildPath, 'freestyle_trick_aliases', "alias_slug = 'published_nickname' AND trick_slug = ?", [publishedSlug])).toBe(1);
+    expect(rowCount(rebuildPath, 'freestyle_trick_source_links',
+      "trick_slug = ? AND source_id = 'saved-source' AND asserted_notation = ?", [publishedSlug, PUBLISHED_NOTATION])).toBe(1);
+    expect(rowCount(rebuildPath, 'freestyle_trick_modifier_links', 'trick_slug = ? AND modifier_slug = ?', [publishedSlug, publishedModifier])).toBe(1);
+    expect(rowCount(rebuildPath, 'freestyle_ev_adjudications',
+      "candidate_id = ? AND ev_state = 'canonical' AND final_disposition = 'A' AND published_trick_slug = ? AND matched_existing_object = ?",
+      [publishedCandidateId, publishedSlug, publishedSlug])).toBe(1);
+  });
+
+  it('keeps a trick the editor published live, with its ruling resolved', () => {
+    // Defect: the trick comes back live while its ruling still reads as open, two
+    // records that disagree about the same name.
+    expect(rowCount(rebuildPath, 'freestyle_tricks', "slug = ? AND is_active = 1 AND review_status = 'curated'",
+      [editorPublishedSlug])).toBe(1);
+    expect(rowCount(rebuildPath, 'freestyle_ev_adjudications',
+      "candidate_id = ? AND ev_state = 'canonical' AND final_disposition = 'A' AND published_trick_slug = ?",
+      [editorPublishedCandidate, editorPublishedSlug])).toBe(1);
+  });
+
+  it('commits no member id in any save file', () => {
+    // Defect: a member's id reaches the public repository through a curator's save.
+    const scan = (dir: string): string[] => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (
+      e.isDirectory() ? scan(path.join(dir, e.name)) : [fs.readFileSync(path.join(dir, e.name), 'utf8')]
+    ));
+    const files = scan(savesDir);
+    expect(files.length).toBeGreaterThan(5);
+    expect(files.filter((text) => text.includes(ADMIN_ID))).toEqual([]);
+  });
+
   it('is unchanged by applying the saves a second time', () => {
     const once = readTrick(rebuildPath, editedSlug);
     expect(applySaves(rebuildPath).status).toBe(0);
     expect(readTrick(rebuildPath, editedSlug)).toEqual(once);
   });
+
+  it('survives a refresh in place over a database already holding the saves', () => {
+    // Defect: a published trick or a saved ruling makes the ordinary refresh refuse,
+    // or the refresh undoes a save and the loader does not put it back.
+    rebuild(rebuildPath);
+    const r = applySaves(rebuildPath);
+    expect(r.status, r.stderr).toBe(0);
+    expect(readTrick(rebuildPath, editedSlug).short_description).toBe(SAVED_TEXT);
+    expect(readTrick(rebuildPath, publishedSlug).is_active).toBe(1);
+    expect(rowCount(rebuildPath, 'freestyle_ev_adjudications', 'candidate_id = ? AND published_trick_slug = ?',
+      [publishedCandidateId, publishedSlug])).toBe(1);
+  }, 120_000);
 });
 
 describe('the save loader refuses a file it cannot apply', () => {
@@ -501,5 +612,22 @@ describe('the field list', () => {
     const block = python.match(/TRICK_SAVE_FIELDS = frozenset\(\{([\s\S]*?)\}\)/)![1]!;
     const loaderFields = [...block.matchAll(/"([a-z_]+)"/g)].map((m) => m[1]!).sort();
     expect(loaderFields).toEqual([...adapterModule.TRICK_SAVE_FIELDS].sort());
+    const loader = fs.readFileSync('freestyle/loaders/29_apply_curator_saves.py', 'utf8');
+    const rulingBlock = loader.match(/RULING_SAVE_FIELDS = frozenset\(\{([\s\S]*?)\}\)/)![1]!;
+    const rulingFields = [...rulingBlock.matchAll(/"([a-z_]+)"/g)].map((m) => m[1]!).sort();
+    expect(rulingFields).toEqual([...adapterModule.RULING_SAVE_FIELDS].sort());
+  });
+
+  it('takes back every file of a publication when a later file cannot be written', async () => {
+    // Defect: a half-written publication stays on disk, and the next rebuild
+    // creates a trick the curator was told did not publish.
+    const dir = path.join(scratch, 'all-or-none');
+    const real = adapterModule.createFileCuratedAuthoringAdapter({ rootDir: dir });
+    const { writeAll } = await import('../../src/services/curatedSaveFlow');
+    expect(() => writeAll([
+      () => real.saveItem('published_tricks', 'half_written', { slug: 'half_written' }),
+      () => { throw new Error('disk full'); },
+    ])()).toThrow('disk full');
+    expect(fs.existsSync(path.join(dir, 'published_tricks', 'half_written.json'))).toBe(false);
   });
 });
