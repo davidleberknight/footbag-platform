@@ -300,6 +300,66 @@ describe('member per-item media edit routes', () => {
     expect(findMediaTags(mediaId)).toEqual([`#by_${OWNER_SLUG}`]);
   });
 
+  // A typed hashtag is stored in its folded form, and the member is told on the
+  // page they land on which hashtag they typed and what it was saved as, so a
+  // changed hashtag never goes unexplained.
+  it('POST stores a typed hashtag folded and names both forms in the saved message', async () => {
+    const mediaId = insertOwnerMedia('owner-fold-tag.jpg');
+    const res = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/media/${mediaId}/edit`)
+      .set('Cookie', cookieFor(OWNER_ID))
+      .type('form')
+      .send({ caption: '', tags: '#Zoë-Müller #plainfold', externalUrl: '' });
+    expect(res.status).toBe(303);
+    // The display form keeps the capitals typed; matching ignores case.
+    const tags = findMediaTags(mediaId).map((t) => t.toLowerCase());
+    expect(tags).toContain('#zoe_muller');
+    expect(tags).toContain('#plainfold');
+    expect(tags.some((t) => /[^\x00-\x7f]|-/.test(t))).toBe(false);
+    const flash = ([] as string[]).concat(res.headers['set-cookie'] ?? [])
+      .find((c) => c.startsWith('footbag_flash='))?.split(';')[0];
+    expect(flash).toBeDefined();
+    const landed = await request(createApp())
+      .get(res.headers.location)
+      .set('Cookie', [cookieFor(OWNER_ID), flash!].join('; '));
+    expect(landed.status).toBe(200);
+    const banner = (/class="form-success-banner"[\s\S]*?<\/div>/.exec(landed.text)?.[0] ?? '').toLowerCase();
+    expect(banner).toContain('#zoe_muller');
+    expect(banner).toContain('zoë-müller');
+    // A hashtag typed clean is not reported as changed.
+    expect(banner).not.toContain('#plainfold');
+  });
+
+  // The documented rules hold on the server whatever the browser sent: at most
+  // 30 hashtags on an item, and no hashtag holding a letter with no a to z form.
+  it('POST refuses a 31st hashtag and a hashtag with no Latin form, saving nothing', async () => {
+    const mediaId = insertOwnerMedia('owner-tag-rules.jpg', 'orig');
+    const thirty = Array.from({ length: 30 }, (_, i) => `#rulecount${i}`);
+    const ok = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/media/${mediaId}/edit`)
+      .set('Cookie', cookieFor(OWNER_ID))
+      .type('form')
+      .send({ caption: 'orig', tags: thirty.join(' '), externalUrl: '' });
+    expect(ok.status).toBe(303);
+    const tooMany = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/media/${mediaId}/edit`)
+      .set('Cookie', cookieFor(OWNER_ID))
+      .type('form')
+      .send({ caption: 'changed', tags: [...thirty, '#rulecount30'].join(' '), externalUrl: '' });
+    expect(tooMany.status).toBe(422);
+    expect(findMediaCaption(mediaId)).toBe('orig');
+    const noLatin = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/media/${mediaId}/edit`)
+      .set('Cookie', cookieFor(OWNER_ID))
+      .type('form')
+      // Partly Latin, so folding alone would quietly keep "#tokyo" and drop the rest.
+      .send({ caption: 'changed', tags: '#tokyo東京', externalUrl: '' });
+    expect(noLatin.status).toBe(422);
+    expect(noLatin.text).toContain('#tokyo東京');
+    expect(findMediaCaption(mediaId)).toBe('orig');
+    expect(findMediaTags(mediaId)).toContain('#rulecount29');
+  });
+
   // Per-item media edit was unlimited per session,
   // allowing Safe Browsing / DNS / HTTP reachability quota exhaustion via
   // repeated externalUrl validation.

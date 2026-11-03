@@ -6,7 +6,6 @@ import {
   LoginContent,
   RegisterContent,
   VerifyResultContent,
-  VerifyLandingContent,
   PasswordForgotContent,
   PasswordForgotSentContent,
   PasswordResetContent,
@@ -132,21 +131,25 @@ async function postRegister(req: Request, res: Response, next: NextFunction): Pr
     email?: string; password?: string; confirmPassword?: string;
   };
 
-  const renderError = (msg: string, status = 422) => {
+  // A refusal carries `error`; a folded profile URL carries `notice` and the
+  // folded URL in place of the one typed.
+  const renderForm = (shown: { error?: string; notice?: string; slug?: string }, status = 422) => {
     res.status(status).render('auth/register', {
       seo: { title: 'Register', noindex: true },
       page: { sectionKey: '', pageKey: 'register', title: 'Register to create an IFPA member account.' },
       content: {
-        error: msg,
+        error: shown.error,
+        notice: shown.notice,
         givenNames: givenNames ?? '',
         familyName: familyName ?? '',
         displayName: displayName ?? '',
-        slug: slug ?? '',
+        slug: shown.slug ?? slug ?? '',
         email: email ?? '',
         turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub',
       },
     } satisfies PageViewModel<RegisterContent>);
   };
+  const renderError = (msg: string, status = 422) => renderForm({ error: msg }, status);
 
   try {
     const captcha = await identityAccessService.verifyHumanChallenge(String(req.body['cf-turnstile-response'] ?? ''), req.ip);
@@ -155,7 +158,7 @@ async function postRegister(req: Request, res: Response, next: NextFunction): Pr
       return;
     }
 
-    await identityAccessService.registerMember(
+    const result = await identityAccessService.registerMember(
       email ?? '',
       password ?? '',
       confirmPassword ?? '',
@@ -165,6 +168,10 @@ async function postRegister(req: Request, res: Response, next: NextFunction): Pr
       req.ip ?? 'unknown',
       slug ?? '',
     );
+    if (result.status === 'slug_folded') {
+      renderForm({ notice: result.notice, slug: result.slug });
+      return;
+    }
     // No session cookie is set; the member must verify via email first.
     // Stub-only: carry the recipient across the redirect so the dev card on
     // /register/check-email scopes to this user's verify token, not everyone's.
@@ -233,24 +240,17 @@ async function getCheckEmail(req: Request, res: Response, next: NextFunction): P
 }
 
 /** GET /verify/:token
- *  The emailed link opens a page with one button and changes nothing. Mail
- *  scanners and link prefetchers open links before the member does, so only the
- *  button's POST may spend the token. The page reveals nothing about whether the
- *  token is valid. */
-function getVerify(req: Request, res: Response): void {
-  // The token is in the URL, so a shared proxy must not cache this render
+ *  Opening the emailed link verifies the address in one click and signs the
+ *  member in. This is the one GET that changes stored state, by the
+ *  maintainer's decision: a link in an email can only make a GET, and one click
+ *  is the experience members expect. The accepted cost is that a mail scanner
+ *  opening the link first spends it, and the member's own click then takes the
+ *  already-verified answer below. */
+async function getVerify(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const token = typeof req.params.token === 'string' ? req.params.token : '';
+  // The token is in the URL, so a shared proxy must not cache any answer
   // against the token-bearing address.
   setNoStore(res);
-  res.render('auth/verify-landing', {
-    seo: { title: 'Verify Your Email', noindex: true },
-    page: { sectionKey: '', pageKey: 'verify_landing', title: 'Verify Your Email' },
-    content: { token: req.params.token ?? '' },
-  } satisfies PageViewModel<VerifyLandingContent>);
-}
-
-/** POST /verify */
-async function postVerify(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const token = typeof req.body.token === 'string' ? req.body.token : '';
   try {
     const result = await identityAccessService.verifyEmailByToken(token);
     if (!result) {
@@ -567,7 +567,6 @@ export const authController = {
   postRegister,
   getCheckEmail,
   getVerify,
-  postVerify,
   postVerifyResend,
   getPasswordForgot,
   postPasswordForgot,

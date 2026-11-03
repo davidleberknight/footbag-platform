@@ -22,6 +22,7 @@ import {
   insertEvent,
   insertMediaItem,
   insertTag,
+  insertOnboardingTask,
   createTestSessionJwt,
 } from '../fixtures/factories';
 import { normalizeAntiEnumerationBody } from '../fixtures/normalizeAntiEnumerationBody';
@@ -33,6 +34,8 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 
 const VIEWER = 'enum-viewer';
 const OTHER = 'enum-other';
+// Still signing up, at the claim step, under a name that reaches no record here.
+const REGISTRANT = 'enum-registrant';
 const UNKNOWN_MEMBER = 'nobody_matches_this_zz';
 
 /** Keys of records that exist but that the viewer named in each probe may not see. */
@@ -47,9 +50,10 @@ const hidden = {
   othersCheckout: '',
   usedVerifyToken: '',
   usedResetToken: '',
+  heldRecord: 'hp-enum-held',
 };
 
-type Viewer = 'anonymous' | 'member';
+type Viewer = 'anonymous' | 'member' | 'registrant';
 
 interface Probe {
   viewer: Viewer;
@@ -64,7 +68,9 @@ type Classification =
   | { exempt: string };
 
 function cookieFor(viewer: Viewer): string | null {
-  return viewer === 'member' ? `__Host-footbag_session=${createTestSessionJwt({ memberId: VIEWER })}` : null;
+  if (viewer === 'anonymous') return null;
+  const memberId = viewer === 'member' ? VIEWER : REGISTRANT;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId })}`;
 }
 
 /**
@@ -178,7 +184,16 @@ const CLASSIFIED: Record<string, Classification> = {
   'GET /ifpa/:docSlug': { exempt: PUBLIC_RECORD },
   'GET /events/year/:year': { exempt: PUBLIC_RECORD },
   'GET /history/:personId': { exempt: PUBLIC_RECORD },
-  'GET /history/:personId/claim': { exempt: `${PUBLIC_RECORD}; the claim step reads the same public historical record` },
+  'GET /history/:personId/claim': {
+    // Which records exist is public, but which are held by a member is not. A
+    // registrant whose own evidence does not reach a record learns nothing from
+    // its claim page: a record another member holds answers as no record at all.
+    probes: () => [{
+      viewer: 'registrant',
+      existing: () => ({ url: `/history/${hidden.heldRecord}/claim`, key: hidden.heldRecord }),
+      unknown: { url: '/history/hp-no-such-record/claim', key: 'hp-no-such-record' },
+    }],
+  },
 };
 
 /** Routes behind the administrator gate decide before any key is read. */
@@ -200,6 +215,15 @@ beforeAll(async () => {
   insertMember(db, {
     id: 'enum-unverified', slug: hidden.unverifiedMember, login_email: 'unverified@example.test',
     email_verified_at: null, onboarding: 'none',
+  });
+  insertMember(db, {
+    id: REGISTRANT, slug: 'enum_registrant', login_email: 'registrant@example.test',
+    real_name: 'Quinn Zzyzx', display_name: 'Quinn Zzyzx', birth_date: '1980-01-01', onboarding: 'none',
+  });
+  insertOnboardingTask(db, REGISTRANT, 'personal_details', 'completed');
+  insertMember(db, {
+    id: 'enum-holder', slug: 'enum_holder', login_email: 'holder@example.test',
+    real_name: 'Robin Holder', display_name: 'Robin Holder', historical_person_id: hidden.heldRecord,
   });
   hidden.draftEvent = 'event_2026_enum_draft';
   hidden.canceledEvent = 'event_2026_enum_canceled';

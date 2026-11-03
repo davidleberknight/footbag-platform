@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { freestyleService, RETIRED_SET_PAGE_REDIRECTS, LEARN_PAGE_REDIRECT, WALKING_FAMILY_REDIRECT } from '../services/freestyleService';
+import { freestyleService } from '../services/freestyleService';
 import { handleControllerError, renderNotFound } from '../lib/controllerErrors';
 
 /**
@@ -220,15 +220,6 @@ export const freestyleController = {
   },
 
   /**
-   * GET /freestyle/sets/reference — retired; Holden's compilation is a
-   * section of /freestyle/sets now. Registered ahead of /freestyle/sets/:slug
-   * so "reference" is never read as a set slug.
-   */
-  moveSetReferenceRedirect(_req: Request, res: Response): void {
-    res.redirect(301, RETIRED_SET_PAGE_REDIRECTS.moveSetReference);
-  },
-
-  /**
    * GET /freestyle/sets — Set Encyclopedia, the one set page: the set list,
    * how sets are built, the uptime ladders, Holden's compilation and sources.
    */
@@ -283,19 +274,6 @@ export const freestyleController = {
     }
   },
 
-  /**
-   * GET /freestyle/families — no standalone hub; the dictionary's By-family
-   * browse is the family index.
-   */
-  familiesHub(_req: Request, res: Response): void {
-    res.redirect(301, '/freestyle/tricks?view=family');
-  },
-
-  /** GET /freestyle/compositional-sets — retired; a section of /freestyle/sets now. */
-  compositionalSetsRedirect(_req: Request, res: Response): void {
-    res.redirect(301, RETIRED_SET_PAGE_REDIRECTS.compositionalSets);
-  },
-
   /** GET /freestyle/glossary — the A–Z term list. */
   glossary(_req: Request, res: Response, next: NextFunction): void {
     try {
@@ -334,16 +312,6 @@ export const freestyleController = {
     } catch (err) {
       handleControllerError(err, res, next, 'freestyle controller');
     }
-  },
-
-  /** GET /freestyle/progression/walking-family — retired; the Butterfly family page owns that progression. */
-  walkingProgressionRedirect(_req: Request, res: Response): void {
-    res.redirect(301, WALKING_FAMILY_REDIRECT);
-  },
-
-  /** GET /freestyle/learn — retired; its six lessons close the getting-started page. */
-  learnRedirect(_req: Request, res: Response): void {
-    res.redirect(301, LEARN_PAGE_REDIRECT);
   },
 
   /** GET /freestyle/modifier/:slug — teaching page when authored, else a

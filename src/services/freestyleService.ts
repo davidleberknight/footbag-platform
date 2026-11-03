@@ -16,16 +16,12 @@
  *     (getObservationalLayerPage).
  *   - Sets: /freestyle/sets (getSetsEncyclopediaPage, with Holden's compilation from
  *     getHoldenCompilation), /freestyle/sets/:slug (getCanonicalSetDetailPage).
- *     /freestyle/compositional-sets and /freestyle/sets/reference redirect permanently
- *     to their sections of /freestyle/sets (RETIRED_SET_PAGE_REDIRECTS).
  *   - Analysis: /freestyle/records (getRecordsPage), /freestyle/leaders (getLeadersPage),
  *     /freestyle/competition, /freestyle/partnerships, /freestyle/add-analysis
  *     (getAddAnalysisPage), /freestyle/combo-analysis (getComboAnalysisPage),
  *     /freestyle/by-the-numbers (getByTheNumbersPage).
  *   - Pedagogy: /freestyle/start (getStartPage, ending with the six next-step lessons),
- *     /freestyle/about, /freestyle/history. /freestyle/learn redirects permanently to
- *     /freestyle/start (LEARN_PAGE_REDIRECT), and /freestyle/progression/walking-family
- *     to the Butterfly family page (WALKING_FAMILY_REDIRECT).
+ *     /freestyle/about, /freestyle/history.
  *
  * Rendering contract:
  *   - Every trick-dictionary browse view renders the same shared two-line trick row; the
@@ -68,6 +64,7 @@ import { runSqliteRead } from './sqliteRetry';
 import { NotFoundError } from './serviceErrors';
 import { PageViewModel } from '../types/page';
 import { personHref } from './personLink';
+import { PLAYER_TAG_PREFIX } from './slugify';
 import { VideoMedia, expandYouTubeVideo, expandVideoFromMediaItem } from './videoMedia';
 import { shapePartnershipPair } from './playerShaping';
 import {
@@ -317,7 +314,7 @@ function labelForType(recordType: string): string {
 // metadata. Goal: pedagogical readability via repeated exposure.
 const MEDIA_TAG_SUPPRESS = new Set(['#trick', '#unavailable_embed']);
 const MEDIA_TAG_KIND_ORDER: MediaTagDisplay['kind'][] = [
-  'trick', 'source', 'creator', 'content-type', 'event', 'sport', 'quality',
+  'trick', 'player', 'source', 'creator', 'content-type', 'event', 'sport', 'quality', 'other',
 ];
 const MEDIA_TAG_KNOWN_SOURCES = new Set([
   '#passback_records', '#tricks_of_the_trade', '#shred_global',
@@ -327,23 +324,37 @@ const MEDIA_TAG_KNOWN_CONTENT_TYPES = new Set(['#tutorial', '#demo', '#record'])
 const MEDIA_TAG_KNOWN_SPORTS = new Set(['#freestyle', '#net', '#chinlone']);
 const MEDIA_TAG_KNOWN_QUALITY = new Set(['#curated']);
 
-function classifyMediaTag(tag: string): MediaTagDisplay['kind'] {
+function classifyMediaTag(tag: string, trickTags: ReadonlySet<string>): MediaTagDisplay['kind'] {
   if (tag.startsWith('#by_'))    return 'creator';
+  // A player tag names a person, never a trick, so it must not sort or read
+  // among the trick tags.
+  if (tag.startsWith(PLAYER_TAG_PREFIX)) return 'player';
   if (tag.startsWith('#event_')) return 'event';
   if (MEDIA_TAG_KNOWN_SOURCES.has(tag))       return 'source';
   if (MEDIA_TAG_KNOWN_CONTENT_TYPES.has(tag)) return 'content-type';
   if (MEDIA_TAG_KNOWN_SPORTS.has(tag))        return 'sport';
   if (MEDIA_TAG_KNOWN_QUALITY.has(tag))       return 'quality';
-  // Anything else with `#`-prefix and a kebab-case body is treated as a
-  // trick-slug tag. This matches the rendered DB inventory (~80 trick slugs).
-  return 'trick';
+  // A trick tag is one the dictionary holds, as a trick name or an alias. Any
+  // other tag (a set, a club, a member's own word) is not a trick and sorts last,
+  // so it never reads among the trick tags.
+  return trickTags.has(tag.toLowerCase()) ? 'trick' : 'other';
+}
+
+// Every hashtag the trick dictionary holds, trick names and aliases, in the
+// lowercase stored form, for telling a trick tag from any other.
+function dictionaryTrickTags(): Set<string> {
+  const tags = new Set<string>();
+  for (const r of freestyleTricks.listAllSlugs.all() as { slug: string }[]) tags.add(`#${r.slug}`);
+  for (const r of freestyleTrickAliases.listAllAliasSlugs.all() as { alias_slug: string }[]) tags.add(`#${r.alias_slug}`);
+  return tags;
 }
 
 export function shapeMediaTagsForBrowse(
   rawTags: readonly string[],
-  opts: { surfaceContext?: 'freestyle-only' | 'cross-sport' } = {},
+  opts: { surfaceContext?: 'freestyle-only' | 'cross-sport'; trickTags?: ReadonlySet<string> } = {},
 ): MediaTagDisplay[] {
   const surfaceContext = opts.surfaceContext ?? 'freestyle-only';
+  const trickTags = opts.trickTags ?? new Set<string>();
   const seen = new Set<string>();
   const out: MediaTagDisplay[] = [];
   for (const raw of rawTags) {
@@ -354,7 +365,7 @@ export function shapeMediaTagsForBrowse(
     if (surfaceContext === 'freestyle-only' && tag === '#freestyle') continue;
     if (seen.has(tag)) continue;
     seen.add(tag);
-    out.push({ display: tag, kind: classifyMediaTag(tag) });
+    out.push({ display: tag, kind: classifyMediaTag(tag, trickTags) });
   }
   out.sort((a, b) => {
     const ai = MEDIA_TAG_KIND_ORDER.indexOf(a.kind);
@@ -567,7 +578,7 @@ export interface FreestyleFeaturedItem {
 // Built by shapeMediaTagsForBrowse from raw `#`-prefixed tag strings.
 export interface MediaTagDisplay {
   display: string;   // verbatim including '#' prefix (e.g., "#torque")
-  kind:    'trick' | 'source' | 'creator' | 'content-type' | 'event' | 'quality' | 'sport';
+  kind:    'trick' | 'player' | 'source' | 'creator' | 'content-type' | 'event' | 'quality' | 'sport' | 'other';
 }
 
 // "Freestyle by the Numbers" landing band: summary cards, each a different
@@ -804,12 +815,11 @@ const OPERATOR_BOARD_PROSE: Record<OperatorBoardSurface, { heading: string; lede
   },
 };
 
-// The retired learning index now lives at the end of the getting-started page.
-export const LEARN_PAGE_REDIRECT = '/freestyle/start#next-steps';
+// The six next-step lessons at the end of the getting-started page.
+const START_NEXT_STEPS_HREF = '/freestyle/start#next-steps';
 
-// The retired walking-family progression page: the Butterfly family page owns
-// that family's progression.
-export const WALKING_FAMILY_REDIRECT = '/freestyle/families/butterfly';
+// The Butterfly family page, which owns the walking tricks' progression.
+const BUTTERFLY_FAMILY_HREF = '/freestyle/families/butterfly';
 
 // Getting-started page content: the frame's copy is in the template; the
 // service supplies the six next-step lessons that close it.
@@ -967,11 +977,6 @@ export const SETS_SECTION_IDS = {
   sources:         'sources',
 } as const;
 
-export const RETIRED_SET_PAGE_REDIRECTS = {
-  compositionalSets: `/freestyle/sets#${SETS_SECTION_IDS.howSetsAreBuilt}`,
-  moveSetReference:  `/freestyle/sets#${SETS_SECTION_IDS.holden}`,
-} as const;
-
 // Underscore slug derivation for /freestyle/sets labels, matching the dictionary
 // trick slug form (one lowercase underscore token equal to the hashtag body and
 // URL segment). Anchor ids on this page derive from this function regardless of
@@ -996,7 +1001,8 @@ function movesAnchorSlug(label: string): string {
 
 function shapeReferenceMedia(
   row: TrickRefMediaRow,
-  rawTags: readonly string[] = [],
+  rawTags: readonly string[],
+  trickTags: ReadonlySet<string>,
 ): TrickReferenceMediaItem {
   const adapter = getMediaStorageAdapter();
   const media = expandVideoFromMediaItem(row, {
@@ -1007,7 +1013,7 @@ function shapeReferenceMedia(
     mediaId: row.id,
     media,
     caption: row.caption ?? null,
-    tags: shapeMediaTagsForBrowse(rawTags, { surfaceContext: 'freestyle-only' }),
+    tags: shapeMediaTagsForBrowse(rawTags, { surfaceContext: 'freestyle-only', trickTags }),
   };
 }
 
@@ -5877,7 +5883,7 @@ function applyDictionaryFamilyFilter<T extends { trick_family: string | null }>(
 // Map of family-slug → optional symbolic cross-link. Conservative: only
 // surfaces that have shipped pedagogy / progression pages get a link.
 const FAMILY_CROSS_LINKS: Record<string, { label: string; href: string } | undefined> = {
-  butterfly: { label: 'Butterfly family: how the walking tricks branch', href: WALKING_FAMILY_REDIRECT },
+  butterfly: { label: 'Butterfly family: how the walking tricks branch', href: BUTTERFLY_FAMILY_HREF },
 };
 
 function sortFamilyEntries(
@@ -7105,11 +7111,12 @@ export const freestyleService = {
         const tutorialMedia: TrickReferenceMediaItem[] = [];
         const demoMedia: TrickReferenceMediaItem[] = [];
         let refMediaCount = 0;
+        const trickTags = allRefMedia.length > 0 ? dictionaryTrickTags() : new Set<string>();
         for (const r of allRefMedia) {
           const clipTags = tagsByMediaId.get(r.id) ?? [];
           refMediaCount++;
           if (clipTags.includes('#record')) continue;
-          const shaped = shapeReferenceMedia(r, clipTags);
+          const shaped = shapeReferenceMedia(r, clipTags, trickTags);
           // A clip is a tutorial only if it says so. Anything else is a
           // demonstration, including a clip carrying no content-type tag: the
           // instructional claim is the one that has to be made rather than
@@ -8689,7 +8696,7 @@ export const freestyleService = {
           // Title Case, and each ends in a full stop except the one that asks
           // a question and keeps its question mark.
           links: [
-            { label: 'Start With the Six Vocabulary Lessons.', href: LEARN_PAGE_REDIRECT },
+            { label: 'Start With the Six Vocabulary Lessons.', href: START_NEXT_STEPS_HREF },
             { label: 'What Is an ADD?', href: '/freestyle/concepts#section-add-accounting' },
             { label: 'How Trick Names Work.', href: '/freestyle/concepts#section-notation' },
             { label: 'Movement Basics.', href: '/freestyle/concepts#section-core-concepts' },
@@ -10070,9 +10077,7 @@ export const freestyleService = {
    * The set list first, each set a name and one line linking to its detail
    * page at /freestyle/sets/:slug; then how sets are built, the uptime
    * reinterpretation ladders, Holden's compilation verbatim, and the sources.
-   * The former /freestyle/compositional-sets and /freestyle/sets/reference
-   * addresses redirect permanently to their sections here. Tricks grouped by
-   * set are the dictionary's By set view, linked once.
+   * Tricks grouped by set are the dictionary's By set view, linked once.
    */
   getSetsEncyclopediaPage(): PageViewModel<FreestyleSetsEncyclopediaView> {
     // Compact movement: first sentence of the explanation. Splits on

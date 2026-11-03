@@ -6,6 +6,7 @@
  * player profile views. Kept free of DB access, Express imports, and any
  * service-specific state so they can be trivially unit-tested and reused.
  */
+import { slugifyForTag } from './slugify';
 
 /**
  * Assemble a member's two recorded name parts into the full name that is
@@ -228,10 +229,14 @@ export function surnameKey(name: string | null | undefined): string {
  *
  * Empty for a name with no Latin form at all, which is the signal that no
  * comparison against a profile URL is possible for it.
+ *
+ * Folded by the one rule that makes the URL itself (`slugifyForTag`), with the
+ * word breaks dropped, so "Sørensen" reads "sorensen" on both sides; a fold of
+ * its own would delete the "ø" and refuse the URL the rule made for that name.
  */
 export function latinFold(name: string | null | undefined): string {
   if (!name) return '';
-  return stripAccents(name).toLowerCase().replace(/[^a-z0-9]/g, '');
+  return slugifyForTag(name).replace(/_/g, '');
 }
 
 // Words nobody may carry as their own name or profile URL, because each one

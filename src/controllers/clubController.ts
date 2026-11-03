@@ -194,6 +194,11 @@ export const clubController = {
         case 'tag_conflict':
           renderForm(422, `The hashtag ${result.tagNormalized} is already taken. Try adding something that sets your club apart, such as a neighbourhood or part of the club name.`);
           return;
+        case 'slug_folded':
+          renderForm(422, `Your club hashtag will be #club_${result.slug}. A club hashtag uses only the letters a to z, digits and underscores, so accented letters became plain ones and other characters became underscores. It is permanent, so check it, then press Create Club again.`, undefined, {
+            club: { ...club, slug: result.slug },
+          }, 'info');
+          return;
       }
     } catch (err) {
       handleControllerError(err, res, next, 'clubs controller');

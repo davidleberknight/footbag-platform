@@ -269,7 +269,7 @@ Belongs:
 - Audit-log emission assertions
 - Rate-limit boundary assertions
 - Adapter parity (boot-time config tests, interface parity tests)
-- Exhaustive route-wiring crawl: every rendered link and form target resolves for the persona it was shown to
+- Exhaustive route-wiring crawl: every rendered link and form target resolves for the persona it was shown to, and no page it opens commits a database write outside the named exceptions to the read-only rule (the email-verification link and the testkit shortcuts)
 - Button-destination integrity: on any one page every clickable control's visible label maps to a single destination, so a label cannot lie about where the click lands. A button labelled "Link My History" that actually runs a search, or two identically-labelled "Apply" buttons that post to different endpoints, fail here. This is distinct from the route-wiring crawl (which proves a target resolves) and from the no-nested-forms gate (which proves a form reaches a handler): it proves the label tells the truth about the outcome
 
 Does not belong:

@@ -50,6 +50,7 @@ import {
   type MemberTagRow,
 } from '../db/db';
 import { runSqliteRead } from './sqliteRetry';
+import { playerTagForMemberSlug, slugifyForTag } from './slugify';
 
 /**
  * The cap on the landing's Popular Tags block. The list is composed, not ranked
@@ -61,6 +62,20 @@ const BROWSE_POPULAR_LIMIT = 30;
 const SUGGEST_PREFIX_MAX_LENGTH = 100;
 /** How many event hashtags the recency highlight carries. */
 const BROWSE_HIGHLIGHT_EVENT_LIMIT = 12;
+/** How many popular tags a member's upload and edit forms suggest. */
+const MEMBER_POPULAR_LIMIT = 5;
+/** The curator marker: applied automatically, never by a member. */
+const CURATED_TAG = '#curated';
+
+/**
+ * Whether a member can apply a tag themselves. `#curated` marks the curator's media
+ * and `#by_` tags mark an uploader; both are applied automatically and refused in a
+ * member's tag input, so a field where a member applies tags never offers them.
+ * They stay offered where a person searches, where they are legitimate filters.
+ */
+function memberCanApply(tagNormalized: string): boolean {
+  return tagNormalized !== CURATED_TAG && !tagNormalized.startsWith('#by_');
+}
 
 export interface TagChipShape {
   display: string;
@@ -84,6 +99,8 @@ export interface TagSuggestion {
 }
 
 export interface MemberTagSuggestions {
+  /** The member's own player hashtag, so crediting themselves is one click. */
+  playerTags: TagChipShape[];
   clubTags: TagChipShape[];
   participatedEventTags: TagChipShape[];
   popularTags: TagChipShape[];
@@ -267,23 +284,29 @@ export const hashtagDiscoveryService = {
     });
   },
 
-  suggestTags(prefix: string, limit: number = 10): TagSuggestion[] {
+  // `entry`: the field is one where a member applies tags, so the tags only the
+  // platform applies are left out; a search field keeps them.
+  suggestTags(prefix: string, limit: number = 10, opts: { entry?: boolean } = {}): TagSuggestion[] {
     const trimmed = prefix.trim();
     // An over-long prefix is answered empty rather than searched, so the public
     // endpoint cannot be handed arbitrarily long strings to match on.
     if (trimmed.length > SUGGEST_PREFIX_MAX_LENGTH) return [];
+    const offered = (tag: string) => !opts.entry || memberCanApply(tag);
+    // One extra row is read for an entry field, so leaving one out still fills the list.
+    const readLimit = opts.entry ? limit + 1 : limit;
     return runSqliteRead('hashtagDiscoveryService.suggestTags', () => {
-      const normalized = trimmed.toLowerCase().replace(/^#/, '');
+      // Folded by the one rule, so "#Zür" finds what was stored as "#zurich".
+      const normalized = slugifyForTag(trimmed.replace(/^#+/, ''));
       if (normalized.length === 0) {
-        const popular = tagStats.listPopularPublicTags.all(limit) as PopularTagRow[];
-        return popular.map(r => ({
+        const popular = tagStats.listPopularPublicTags.all(readLimit) as PopularTagRow[];
+        return popular.filter(r => offered(r.tag_normalized)).slice(0, limit).map(r => ({
           normalized: r.tag_normalized,
           display: r.tag_display,
           usageCount: r.usage_count,
         }));
       }
-      const rows = suggestTagsForTerm(normalized, limit);
-      return rows.map(r => ({
+      const rows = suggestTagsForTerm(normalized, readLimit);
+      return rows.filter(r => offered(r.tag_normalized)).slice(0, limit).map(r => ({
         normalized: r.tag_normalized,
         display: r.tag_display,
         usageCount: r.usage_count ?? 0,
@@ -291,12 +314,18 @@ export const hashtagDiscoveryService = {
     });
   },
 
-  getTagSuggestionsForMember(memberId: string): MemberTagSuggestions {
+  getTagSuggestionsForMember(memberId: string, memberSlug: string): MemberTagSuggestions {
     return runSqliteRead('hashtagDiscoveryService.getTagSuggestionsForMember', () => {
       const clubRows = tagStats.listMemberClubTags.all(memberId) as MemberTagRow[];
       const eventRows = tagStats.listMemberParticipatedEventTags.all(memberId, 10) as MemberTagRow[];
-      const popularRows = tagStats.listPopularPublicTags.all(5) as PopularTagRow[];
+      // One extra row is read so dropping `#curated` still leaves the full set of
+      // suggestions (the query already leaves out `#by_` tags).
+      const popularRows = (tagStats.listPopularPublicTags.all(MEMBER_POPULAR_LIMIT + 1) as PopularTagRow[])
+        .filter((r) => memberCanApply(r.tag_normalized))
+        .slice(0, MEMBER_POPULAR_LIMIT);
+      const ownPlayerTag = playerTagForMemberSlug(memberSlug);
       return {
+        playerTags: [rowToChip({ tag_normalized: ownPlayerTag, tag_display: ownPlayerTag })],
         clubTags: clubRows.map(rowToChip),
         participatedEventTags: eventRows.map(rowToChip),
         popularTags: popularRows.map(rowToChip),

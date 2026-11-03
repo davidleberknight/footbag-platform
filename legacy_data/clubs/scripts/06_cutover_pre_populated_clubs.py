@@ -41,7 +41,6 @@ try:
     import pysqlite3 as sqlite3
 except ImportError:
     import sqlite3
-import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -209,18 +208,13 @@ def stable_id(prefix: str, *parts: str) -> str:
 # script can INSERT a club + tag from scratch on a DB where load_clubs_seed
 # has not yet run. On the normal path (reset-local-db.sh runs load_clubs_seed
 # first), INSERT OR IGNORE no-ops and this logic is unused.
-_PRE_NFKD_MAP = str.maketrans({
-    'Ł': 'L', 'ł': 'l', 'Ø': 'O', 'ø': 'o', 'Đ': 'D', 'đ': 'd',
-})
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from pipeline.fold_token import fold_token  # noqa: E402
 
 
 def slugify(text: str) -> str:
-    text = (text or "").translate(_PRE_NFKD_MAP)
-    text = unicodedata.normalize("NFKD", text)
-    text = "".join(c for c in text if not unicodedata.combining(c))
-    text = text.lower()
-    text = re.sub(r"[^a-z0-9]+", "_", text)
-    return re.sub(r"_+", "_", text).strip("_")
+    """Slugify for hashtag use, by the platform's one folding rule."""
+    return fold_token(text)
 
 
 _REDUNDANT_SUFFIXES = [

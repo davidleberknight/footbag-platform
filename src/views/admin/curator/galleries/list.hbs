@@ -22,7 +22,11 @@
   </p>
 
   {{#if content.savedFlag}}
-    {{> outcome-notice text="Saved." tone='ok'}}
+    {{#if content.savedFoldLine}}
+      {{#> outcome-notice tone='ok'}}<p>Saved.</p><p>{{content.savedFoldLine}}</p>{{/outcome-notice}}
+    {{else}}
+      {{> outcome-notice text="Saved." tone='ok'}}
+    {{/if}}
   {{/if}}
 
   {{#if content.emptyState}}
@@ -40,8 +44,8 @@
             <th>Name</th>
             <th>Description</th>
             <th>Sort order</th>
-            <th>Criteria tags</th>
-            <th>Exclude tags</th>
+            <th>Criteria hashtags</th>
+            <th>Exclude hashtags</th>
             <th>Items</th>
             <th>Actions</th>
           </tr>

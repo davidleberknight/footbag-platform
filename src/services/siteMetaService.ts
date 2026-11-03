@@ -160,8 +160,7 @@ function collectPublicPaths(): string[] {
   }
 
   // Freestyle: every first-class family-detail page (parallels the set and
-  // modifier pages; minor lineages have no page and are excluded). The bare
-  // /freestyle/families redirect is intentionally not listed.
+  // modifier pages; minor lineages have no page and are excluded).
   for (const slug of freestyleService.listSitemapFamilySlugs()) {
     paths.add(`/freestyle/families/${slug}`);
   }

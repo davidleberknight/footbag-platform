@@ -4,7 +4,8 @@
  * Lists the canonical persona catalog, each persona rendered as a card carrying
  * a Switch link to /dev/switch?as=<slug>. This is the human entry point to the
  * persona harness: a tester opens the page, picks a persona, and clicks Switch
- * to act as them.
+ * to act as them. A database holding no seeded persona gets only a line saying
+ * so, with no cards and no controls.
  *
  * Permanent test scaffolding in src/testkit/. Reachability is governed entirely
  * by the env-gated /dev mount in app.ts (development + staging only); this
@@ -198,12 +199,16 @@ export function getDevPersonas(_req: Request, res: Response, next: NextFunction)
     const rows = CANONICAL_PERSONAS.map((spec) =>
       toRow(spec, isPersonaBacked(spec), isPersonaSwitchable(spec)),
     );
+    const seededCount = rows.filter((r) => r.backed).length;
+    // With no persona seeded the page says so and offers nothing else: every
+    // control on it would lead to a persona that does not exist.
     res.render('dev/persona-listing', {
       seo: { title: 'Test personas' },
       page: { sectionKey: '', pageKey: 'dev_personas', title: 'Test personas' },
+      personasLoaded: seededCount > 0,
       groups: groupByDimension(CANONICAL_PERSONAS, rows),
       personaCount: rows.length,
-      seededCount: rows.filter((r) => r.backed).length,
+      seededCount,
     });
   } catch (err) {
     next(err);

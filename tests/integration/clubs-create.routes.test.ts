@@ -315,39 +315,103 @@ describe('POST /clubs/create', () => {
     expect(res.text).toContain('Country is required');
   });
 
-  it('returns 422 when slug has invalid characters', async () => {
-    const app = createApp();
-    const res = await request(app)
-      .post('/clubs/create')
-      .set('Cookie', authCookie(VALID_ERR_ID))
-      .set('Content-Type', 'application/x-www-form-urlencoded')
-      .send(formData({ slug: 'INVALID-SLUG!' }));
-    expect(res.status).toBe(422);
-    expect(res.text).toContain('fix the errors');
-  });
-
-  it('names the disallowed character, not the first and last characters, for a hyphenated hashtag', async () => {
+  // A creator is never asked to confirm a folded hashtag the next submit would
+  // refuse: a fold onto a hashtag already taken is refused at once.
+  it('refuses a typed hashtag whose folded form is taken, without the fold notice', async () => {
+    const db = new BetterSqlite3(dbPath);
+    insertTag(db, { tag_normalized: '#club_zurich_foldtaken', tag_display: '#club_zurich_foldtaken' });
+    db.close();
     const res = await request(createApp())
       .post('/clubs/create')
       .set('Cookie', authCookie(VALID_ERR_ID))
       .set('Content-Type', 'application/x-www-form-urlencoded')
-      .send(formData({ slug: 'san-francisco' }));
+      .send(formData({ slug: 'Zürich-Foldtaken', name: 'Foldtaken Hashtag Kickers' }));
     expect(res.status).toBe(422);
-    // Both ends are letters, so a member told to fix the first and last
-    // characters is sent looking for a problem that is not there.
-    expect(res.text).toContain('may only contain lowercase letters, digits and underscores');
-    expect(res.text).not.toContain('must start and end with a letter or digit');
+    expect(res.text).toContain('form-error-banner');
+    expect(res.text).toContain('#club_zurich_foldtaken');
+    expect(res.text).not.toContain('class="form-notice"');
   });
 
-  it('returns 422 when slug has consecutive underscores', async () => {
-    const app = createApp();
-    const res = await request(app)
+  // A typed hashtag is folded, not refused, and because it is permanent the form
+  // comes back holding the folded hashtag, as a notice rather than an error,
+  // before any club is created.
+  it('shows a typed hashtag that folding changes, filled in, and creates nothing', async () => {
+    const cases: [string, string][] = [
+      ['INVALID-SLUG!', 'invalid_slug'],
+      ['san-francisco', 'san_francisco'],
+      ['bad__slug', 'bad_slug'],
+      ['Zürich Nord', 'zurich_nord'],
+    ];
+    // Each case names a club of its own, since every refusal (an existing name
+    // among them) now comes before the fold notice.
+    for (const [typed, folded] of cases) {
+      const res = await request(createApp())
+        .post('/clubs/create')
+        .set('Cookie', authCookie(VALID_ERR_ID))
+        .set('Content-Type', 'application/x-www-form-urlencoded')
+        .send(formData({ slug: typed, name: `Foldcase ${folded} Kickers` }));
+      expect(res.status, typed).toBe(422);
+      expect(res.text, typed).toContain(`value="${folded}"`);
+      expect(res.text, typed).toContain('class="form-notice"');
+      expect(res.text, typed).not.toContain('form-error-banner');
+    }
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    // A created club reserves its hashtag, so no tag row means no club.
+    const made = db.prepare(`SELECT count(*) AS n FROM tags WHERE tag_normalized IN (${cases.map(() => '?').join(',')})`)
+      .get(...cases.map(([, f]) => `#club_${f}`)) as { n: number };
+    db.close();
+    expect(made.n).toBe(0);
+  });
+
+  // The folded hashtag the form comes back holding is the one the next submit
+  // creates: resubmitting the page as rendered makes the club.
+  it('creates the club when the folded hashtag is resubmitted as rendered', async () => {
+    const name = 'Resubmit Fold Kickers';
+    // A creator of its own, because creating a club makes them its leader and
+    // the shared refusal member must stay free to create.
+    const creator = 'cc-resubmit-fold';
+    const seedDb = new BetterSqlite3(dbPath);
+    seedDb.pragma('foreign_keys = ON');
+    createMemberAtTier(seedDb, { id: creator, slug: 'cc_resubmit_fold', tier: 'tier1' });
+    completeOnboarding(seedDb, creator);
+    seedDb.close();
+    const first = await request(createApp())
+      .post('/clubs/create')
+      .set('Cookie', authCookie(creator))
+      .set('Content-Type', 'application/x-www-form-urlencoded')
+      .send(formData({ slug: 'Zürich-Resubmit', name }));
+    expect(first.status).toBe(422);
+    const offered = /name="slug"[^>]*value="([^"]*)"/.exec(first.text)?.[1]
+      ?? /value="([^"]*)"[^>]*name="slug"/.exec(first.text)?.[1];
+    expect(offered).toBe('zurich_resubmit');
+    const second = await request(createApp())
+      .post('/clubs/create')
+      .set('Cookie', authCookie(creator))
+      .set('Content-Type', 'application/x-www-form-urlencoded')
+      .send(formData({ slug: offered!, name }));
+    expect(second.status).toBe(303);
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const made = db.prepare('SELECT count(*) AS n FROM tags WHERE tag_normalized = ?')
+      .get('#club_zurich_resubmit') as { n: number };
+    db.close();
+    expect(made.n).toBe(1);
+  });
+
+  // A letter with no a to z form is refused, never dropped.
+  it('refuses a typed hashtag holding a letter with no Latin form', async () => {
+    const res = await request(createApp())
       .post('/clubs/create')
       .set('Cookie', authCookie(VALID_ERR_ID))
       .set('Content-Type', 'application/x-www-form-urlencoded')
-      .send(formData({ slug: 'bad__slug' }));
+      .send(formData({ slug: 'tokyo_東京', name: 'Unconvertible Hashtag Kickers' }));
     expect(res.status).toBe(422);
-    expect(res.text).toContain('two underscores in a row');
+    expect(res.text).toContain('form-error-banner');
+    expect(res.text).not.toContain('class="form-notice"');
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const made = db.prepare("SELECT count(*) AS n FROM tags WHERE tag_normalized LIKE '#club_tokyo%'")
+      .get() as { n: number };
+    db.close();
+    expect(made.n).toBe(0);
   });
 
   it('returns 422 when member is already a club leader', async () => {

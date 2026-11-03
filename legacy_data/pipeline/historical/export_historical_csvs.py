@@ -1027,6 +1027,9 @@ import sys as _sys_pc
 if str(ROOT) not in _sys_pc.path:
     _sys_pc.path.insert(0, str(ROOT))
 from pipeline.historical import player_country as _player_country  # noqa: E402
+# The event slug, and so the #event_ hashtag, is folded by the platform's one rule, so an
+# accented name keeps its letters ("Zürich" reads "zurich") exactly as the app folds it.
+from pipeline.fold_token import fold_token as _fold_token  # noqa: E402
 
 # Curated decisions: a country, or a hold that leaves it unknown. A row awaiting
 # review decides nothing, and a status this file does not define stops the run.
@@ -1220,7 +1223,7 @@ for row in sorted_rows:
         "legacy_event_id": eid,
         "year":            year,
         "event_name":      event_name,
-        "event_slug":      slugify(event_name) if event_name else "",
+        "event_slug":      _fold_token(event_name)[:80] if event_name else "",
         "start_date":      start_date,
         "end_date":        end_date,
         "city":            city,

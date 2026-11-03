@@ -48,6 +48,12 @@
  *     never counts against the member. Every claim records the comparison in
  *     its audit metadata, so a disputed link can be reconstructed from the
  *     ledger.
+ *   - The profile URL, typed or made from the display name, folds by the one rule
+ *     (`slugifyForTag`), and the URL checks judge the folded form. A typed URL
+ *     that folding changes creates nothing: `registerMember` answers
+ *     `slug_folded` so the member sees the permanent URL before it is fixed. That
+ *     answer depends only on the typed text, never on whether the email exists.
+ *     The administrator's correction folds the same way before its preview.
  *   - Registration-time conflict detection: a registrant whose surname
  *     matches an already-claimed record gets the prompted event and the
  *     wizard's "is one of these you?" card, which names no holder and offers
@@ -324,7 +330,8 @@ function normalizeEmail(email: string): string {
   return email.toLowerCase().trim();
 }
 
-import { slugify } from './slugify';
+import { slugifyForTag } from './slugify';
+import { checkTypedSlug } from './typedTokenRules';
 import {
   assembleFullName, latinFold, matchReservedNameWord, memberSurnameKey, normalizeNameCase,
   stripAccents, surnameKey, surnameKeyMatchesName,
@@ -336,10 +343,13 @@ import { normalizeImportedLocation } from './memberLocationRules';
 import type { SelectOption } from './memberService';
 
 /**
- * Generate a unique slug. Appends _2, _3, etc. on conflict.
+ * Generate a unique slug. Appends _2, _3, etc. on conflict. The name folds to
+ * the tag alphabet the way every other slug and hashtag on the site does, so a
+ * member's profile URL, uploader tag and player tag read the same as a
+ * historical record's player tag made from the same name.
  */
 function generateUniqueSlug(displayName: string): string {
-  const base = slugify(displayName);
+  const base = slugifyForTag(displayName);
   if (!base) {
     // Backstop only. Registration refuses a blank profile URL when the display
     // name carries no Latin letter, so a member whose name cannot produce a
@@ -375,6 +385,8 @@ export interface LoginContent {
 
 export interface RegisterContent {
   error?: string;
+  /** Informational: the typed profile URL was folded and is shown for checking. */
+  notice?: string;
   givenNames?: string;
   familyName?: string;
   displayName?: string;
@@ -405,12 +417,6 @@ export interface VerifyResultContent {
    *  challenge, which the resend route requires. */
   turnstileSiteKey?: string | null;
   captchaStubbed?: boolean;
-}
-
-/** The page an emailed verify link opens. It carries the token into a form and
- *  changes nothing; only the form's POST spends the token. */
-export interface VerifyLandingContent {
-  token: string;
 }
 
 export interface PasswordForgotContent {
@@ -575,9 +581,12 @@ export interface RegisteredMember {
   passwordVersion: number;
 }
 
-export interface RegisterResult {
-  status: 'registered';
-}
+// `slug_folded`: the typed profile URL folds to a different token, so nothing is
+// created yet; the form is shown again holding the folded URL and saying so,
+// because the URL is permanent and the member sees it before it is fixed.
+export type RegisterResult =
+  | { status: 'registered' }
+  | { status: 'slug_folded'; slug: string; notice: string };
 
 /**
  * Verify member credentials against the database.
@@ -1056,11 +1065,16 @@ async function registerMember(
   const trimmedEmail = email.trim();
   const normalizedEmail = normalizeEmail(trimmedEmail);
 
-  const trimmedSlug = requestedSlug?.trim().toLowerCase() ?? '';
-  const userProvidedSlug = trimmedSlug !== '';
+  // A typed profile URL folds by the one rule, like every slug on the site, and
+  // the URL checks judge the folded form.
+  const typedSlug = requestedSlug?.trim() ?? '';
+  const userProvidedSlug = typedSlug !== '';
+  const slugCheck = userProvidedSlug ? checkTypedSlug(typedSlug, 'profile') : null;
+  if (slugCheck && !slugCheck.ok) throw new ValidationError(slugCheck.message);
+  const trimmedSlug = slugCheck?.ok ? slugCheck.slug : '';
   if (userProvidedSlug) {
     validateSlug(trimmedSlug, registrantSurnameKey);
-  } else if (!/[a-z]/.test(slugify(trimmedDisplayName))) {
+  } else if (!/[a-z]/.test(slugifyForTag(trimmedDisplayName))) {
     // A display name written wholly in a non-Latin script reduces to nothing a
     // profile URL could carry, so there is no address to derive from it and the
     // member supplies their own. Random characters would be unreadable and
@@ -1086,6 +1100,23 @@ async function registerMember(
   }
   if (password !== confirmPassword) {
     throw new ValidationError('Passwords do not match.');
+  }
+
+  // The URL is permanent, so a typed URL that folding changed is shown to the
+  // member before anything is created. Capitals alone are lowered silently, as
+  // they always were. This depends only on what was typed, never on whether the
+  // email is registered, so it reveals nothing about existing accounts.
+  if (userProvidedSlug && trimmedSlug !== typedSlug.toLowerCase()) {
+    // Every refusal comes before the notice, so a member is never asked to
+    // confirm a URL the next submit would refuse.
+    if (registration.checkSlugExists.get(trimmedSlug) !== undefined) {
+      throw new ValidationError('This profile URL is already taken.');
+    }
+    return {
+      status: 'slug_folded',
+      slug: trimmedSlug,
+      notice: `Your profile URL will be ${trimmedSlug}. A profile URL uses only the letters a to z, digits and underscores, so accented letters became plain ones and other characters became underscores. It is permanent, so check it, enter your password again, then press Create Account again.`,
+    };
   }
 
   // Hash before the existence check so the new-account and already-registered
@@ -2522,21 +2553,20 @@ function lookupHistoricalPersonForClaim(
   // not enumerable.
   if (hp.is_deceased) return null;
 
-  // A holder whose record still stands owns this historical record, and that
-  // includes the two permanent holders: a deceased member keeps the link through
-  // the contact scrub, and an honoree keeps it through account erasure. Neither
-  // is open for another member to take over.
-  const existing = legacyClaim.findMemberClaimingHp.get(personId) as { id: string; slug: string } | undefined;
-  if (existing) {
-    return { status: 'conflict' };
-  }
-
   // The confirmation page opens only where the member's own evidence reaches
   // the record and makes it claimable under the claim step's rules: the same
   // decision the card that linked here was drawn from, so the page and the card
   // cannot disagree. Nothing is recorded: this runs on a bare page view, and
   // opening a record is not an attempt at anything. Only an attempted
   // confirmation writes a refusal, after its rollback.
+  //
+  // A record another member holds (the two permanent holders included: a
+  // deceased member keeps the link through the contact scrub, and an honoree
+  // keeps it through account erasure) answers as held only when the member's
+  // own evidence reaches it, because the matcher sees only records that
+  // evidence reaches. A held record their evidence does not reach falls through
+  // to the uniform unavailable response, so public record ids cannot be walked
+  // to learn which records members hold.
   const evidence = legacyMatchingService.readMemberEvidence(requestingMemberId);
   const candidate = evidence
     ? legacyMatchingService.recheckInTx(evidence, { recordId: personId })
@@ -4712,8 +4742,11 @@ function previewMemberSlug(memberId: string, requestedSlug: string): string {
   if (!row) throw new NotFoundError('No member with that id.');
   assertNotErased(row.personal_data_purged_at);
 
-  const slug = requestedSlug.trim().toLowerCase();
-  if (!slug) throw new ValidationError('Enter the new profile URL.');
+  // Folded by the one rule, so the preview shows the URL that will be stored.
+  if (!requestedSlug.trim()) throw new ValidationError('Enter the new profile URL.');
+  const slugCheck = checkTypedSlug(requestedSlug.trim(), 'profile');
+  if (!slugCheck.ok) throw new ValidationError(slugCheck.message);
+  const slug = slugCheck.slug;
   if (slug === row.slug) return slug;
 
   const parts = account.findNamePartsById.get(memberId) as
@@ -4782,8 +4815,11 @@ function correctMemberSlug(
     throw new ValidationError(`The reason must be ${MAX_CORRECTION_REASON} characters or fewer.`);
   }
 
-  const slug = requestedSlug.trim().toLowerCase();
-  if (!slug) throw new ValidationError('Enter the new profile URL.');
+  // Folded the same way as the preview, so a resubmitted preview value is unchanged.
+  if (!requestedSlug.trim()) throw new ValidationError('Enter the new profile URL.');
+  const slugCheck = checkTypedSlug(requestedSlug.trim(), 'profile');
+  if (!slugCheck.ok) throw new ValidationError(slugCheck.message);
+  const slug = slugCheck.slug;
   if (slug === row.slug) return { status: 'unchanged' as const };
 
   const parts = account.findNamePartsById.get(memberId) as
@@ -4815,7 +4851,7 @@ function correctMemberSlug(
       const occupied = account.findUploaderTag.get(renamed) as { id: string } | undefined;
       if (occupied) {
         throw new ConflictError(
-          'An uploader tag for that profile URL already exists, left by an account that has since '
+          'An uploader hashtag for that profile URL already exists, left by an account that has since '
           + 'been erased. Choose a different profile URL.',
         );
       }

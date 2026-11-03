@@ -85,11 +85,7 @@ describe('5xx responses -- no stack-trace or path disclosure', () => {
       throw new ServiceUnavailableError('database busy');
     });
 
-    const res = await request(createApp())
-      .post('/verify')
-      .set('Origin', process.env.PUBLIC_BASE_URL ?? 'http://localhost')
-      .type('form')
-      .send({ token: 'any-token' });
+    const res = await request(createApp()).get('/verify/any-token');
     expect(res.status).toBe(503);
     expect(res.headers['retry-after']).toMatch(/^\d+$/);
     expect(res.text).not.toContain('database busy');

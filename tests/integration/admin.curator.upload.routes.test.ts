@@ -38,6 +38,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import sharp from 'sharp';
+import { PHOTO_TOO_TALL_MESSAGE, PHOTO_TOO_WIDE_MESSAGE } from '../../src/lib/imageProcessing';
 
 import { insertMember, createTestSessionJwt } from '../fixtures/factories';
 
@@ -348,6 +349,31 @@ describe('POST /admin/curator/upload — photo', () => {
     expect(res.text).toContain('JPEG and PNG');
   });
 
+  // The curated photo path is held to the same shape as a member's photo, so a
+  // curated gallery never carries a display copy taller than 800 by 1067.
+  it('a photo wider than 1.91:1 or taller than 3:4 -> 422 naming the side, no row and no curated file written', async () => {
+    const app = createApp();
+    for (const [width, height, message, caption] of [
+      [800, 400, PHOTO_TOO_WIDE_MESSAGE, 'curated-shape-wide'],
+      [450, 800, PHOTO_TOO_TALL_MESSAGE, 'curated-shape-tall'],
+    ] as const) {
+      const res = await request(app)
+        .post('/admin/curator/upload')
+        .set('Cookie', adminCookie())
+        .field('mediaType', 'photo')
+        .field('newCategory', 'shape_refusals')
+        .field('caption', caption)
+        .attach('mediaFile', await makeJpeg(width, height), `${caption}.jpg`);
+      expect(res.status, caption).toBe(422);
+      expect(res.text, caption).toContain(message.replace(/'/g, '&#x27;'));
+      const db = openDb();
+      const rows = db.prepare('SELECT id FROM media_items WHERE caption = ?').all(caption);
+      db.close();
+      expect(rows, caption).toHaveLength(0);
+      expect(fs.existsSync(path.join(TEST_CURATED_DIR, 'shape_refusals', `${caption}.jpg`)), caption).toBe(false);
+    }
+  });
+
   it('missing file -> 422 with error message', async () => {
     const app = createApp();
     const res = await request(app)
@@ -373,7 +399,9 @@ describe('POST /admin/curator/upload — photo', () => {
     expect(res.text).toContain('Caption must be 500');
   });
 
-  it('tag without leading "#" -> 422', async () => {
+  // A tag typed without its '#', or with a hyphen, is folded into the one form
+  // and saved, rather than refusing the whole upload.
+  it('a tag typed without "#" is saved in its folded form', async () => {
     const app = createApp();
     const jpeg = await makeJpeg();
     const res = await request(app)
@@ -381,10 +409,14 @@ describe('POST /admin/curator/upload — photo', () => {
       .set('Cookie', adminCookie())
       .field('mediaType', 'photo')
       .field('newCategory', 'photos')
-      .field('tags', 'no-hash')
+      .field('tags', 'fold-no-hash')
       .attach('mediaFile', jpeg, 'photo.jpg');
-    expect(res.status).toBe(422);
-    expect(res.text).toContain('must start with');
+    expect(res.status).toBe(303);
+    const db = openDb();
+    const stored = db.prepare(`SELECT tag_normalized FROM tags WHERE tag_normalized IN (?, ?)`)
+      .all('#fold_no_hash', '#fold-no-hash') as { tag_normalized: string }[];
+    db.close();
+    expect(stored.map((r) => r.tag_normalized)).toEqual(['#fold_no_hash']);
   });
 
   it('external URL persists on the row + sidecar', async () => {
@@ -513,6 +545,26 @@ describe('POST /admin/curator/upload — video (local-adapter sync path)', () =>
     expect(sidecar.caption).toBe(uniqueCaption);
     expect(sidecar.tags).toEqual([uniqueTag]);
     expect(sidecar.poster).toBe(`${slug}.poster.jpg`);
+  });
+
+  // A poster is a frame of its video, and a phone video is often 9:16, so the
+  // shared-photo shape limit must not refuse it.
+  it('a 9:16 poster is accepted for a vertical video', async () => {
+    const app = createApp();
+    const caption = 'vertical-video-poster';
+    const res = await request(app)
+      .post('/admin/curator/upload')
+      .set('Cookie', adminCookie())
+      .field('mediaType', 'video')
+      .field('newCategory', 'videos')
+      .field('caption', caption)
+      .attach('mediaFile', makeFakeMp4(), 'vertical-clip.mp4')
+      .attach('poster', await makeJpeg(450, 800), 'poster.jpg');
+    expect(res.status).toBe(303);
+    const db = openDb();
+    const rows = db.prepare('SELECT id FROM media_items WHERE caption = ?').all(caption);
+    db.close();
+    expect(rows).toHaveLength(1);
   });
 
   it('missing category in local mode -> 422', async () => {

@@ -24,12 +24,15 @@
 
   {{#if content.savedFlag}}
     {{#> outcome-notice tone='ok'}}
+      <p>
       {{#if content.sidecarWritesEnabled}}
         Sidecar saved under <code>/curated/</code>. Run the curator seeder
         (<code>python scripts/seed_fh_curator.py</code>) to update the platform DB.
       {{else}}
         Uploaded.
       {{/if}}
+      </p>
+      {{#if content.savedFoldLine}}<p>{{content.savedFoldLine}}</p>{{/if}}
     {{/outcome-notice}}
   {{/if}}
 
@@ -161,9 +164,9 @@
         <small class="form-hint">Up to 500 characters. Ignored for a video link, which uses the Title above.</small>
       </div>
       <div class="form-field">
-        <label for="curator-upload-tags">Tags</label>
-        <input id="curator-upload-tags" type="text" name="tags" value="{{content.formValues.tags}}" placeholder="#freestyle #trick #around-the-world">
-        <small class="form-hint">Space-separated, lowercase, each starting with <code>#</code>. Do not include <code>#curated</code>; it is applied automatically. A clip that names a trick carries exactly one of <code>#tutorial</code>, <code>#demo</code> or <code>#record</code>, which is what says what the clip is for.</small>
+        <label for="curator-upload-tags">Hashtags</label>
+        <input id="curator-upload-tags" type="text" name="tags" value="{{content.formValues.tags}}" placeholder="#freestyle #trick #around_the_world">
+        <small class="form-hint">Separated by spaces; each is converted to the letters a to z, digits and underscores. Do not include <code>#curated</code>; it is applied automatically. A clip that names a trick carries exactly one of <code>#tutorial</code>, <code>#demo</code> or <code>#record</code>, which is what says what the clip is for.</small>
       </div>
       <div class="form-field">
         <label for="curator-upload-external-url">External URL</label>

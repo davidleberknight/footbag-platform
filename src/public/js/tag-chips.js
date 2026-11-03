@@ -13,6 +13,20 @@
 
   var DEBOUNCE_MS = 250;
   var MAX_RESULTS = 8;
+  // The server's limit on hashtags per item (TOKEN_RULES.tagsPerItem).
+  var MAX_CHIPS = 30;
+
+  // A typed tag's body as it is stored: folded by the site's one rule
+  // (fold-token.js), with no leading '#'. Until that rule's letter table is in,
+  // the tag is kept as typed (no spaces) and the server folds it on save, so a
+  // chip never shows a token the server would store differently.
+  function canFold() {
+    return !!(window.footbagFold && window.footbagFold.isLoaded());
+  }
+  function tagBody(raw) {
+    var stripped = String(raw).trim().replace(/^#+/, '');
+    return canFold() ? window.footbagFold.slugify(stripped) : stripped.replace(/\s+/g, '');
+  }
 
   var inputs = document.querySelectorAll('input[data-tag-chips], textarea[data-tag-chips]');
   if (!inputs.length) return;
@@ -71,10 +85,24 @@
     original.style.display = 'none';
     original.removeAttribute('name');
 
+    // A field where a member applies tags asks the suggestions to leave out the
+    // tags only the platform applies.
+    if (original.hasAttribute('data-tag-entry')) container.setAttribute('data-tag-entry', '');
+
+    // The line that says what folding did, directly under the field.
+    if (window.footbagFold) container.foldNote = window.footbagFold.attachNote(textInput, container);
+
     var tokens = parseTokens(hidden.value);
     for (var t = 0; t < tokens.length; t++) {
-      addChip(container, textInput, hidden, tokens[t]);
+      var stored = tagBody(tokens[t]);
+      if (stored) addChip(container, textInput, hidden, stored);
     }
+
+    // A suggested tag clicked elsewhere on the form (tag-suggestions.js) becomes a chip.
+    hidden.addEventListener('tag-chips:add', function (e) {
+      e.preventDefault();
+      commitTag(container, textInput, hidden, e.detail);
+    });
 
     // Keyboard events on the text input
     textInput.addEventListener('keydown', function (e) {
@@ -151,19 +179,50 @@
     var chips = container.querySelectorAll('.tag-chip-input-chip');
     var vals = [];
     for (var i = 0; i < chips.length; i++) {
-      vals.push(chips[i].getAttribute('data-tag'));
+      vals.push('#' + chips[i].getAttribute('data-tag'));
     }
     hidden.value = vals.join(' ');
   }
 
-  function commitTag(container, textInput, hidden, token) {
-    // Hyphens are valid in tag slugs (e.g. trick tags like #gyro-flurry), so
-    // preserve them; only non-tag characters collapse to an underscore.
-    token = token.toLowerCase().replace(/[^a-z0-9_-]/g, '_').replace(/^[-_]+|[-_]+$/g, '').replace(/__+/g, '_');
+  // Says what folding did to the tag just added, under the field, so the member
+  // sees the stored tag before saving. It speaks only of a chip actually added;
+  // capitals alone are lowered without a line, and a clean tag clears it.
+  function showFoldNote(container, typed, token) {
+    var note = container.foldNote;
+    if (!note) return;
+    // Without the letter table nothing was folded here; the server folds on save
+    // and its saved message says what changed.
+    if (!canFold()) {
+      note.clear();
+      return;
+    }
+    var asTyped = String(typed).trim().replace(/^#+/, '');
+    if (asTyped.toLowerCase() === token) {
+      note.clear();
+      return;
+    }
+    note.set('Added #' + token + ' for the #' + asTyped + ' you typed. Hashtags use only the letters a to z, digits and underscores, so accented letters become plain ones and other characters become underscores.');
+  }
+
+  function commitTag(container, textInput, hidden, typed) {
+    // A hashtag with letters the rule cannot convert is refused, as the server
+    // refuses it: no chip, the text stays for the member to change, and the line
+    // under the field says why.
+    var asTyped = String(typed).trim().replace(/^#+/, '');
+    if (canFold() && window.footbagFold.hasUnconvertible(asTyped)) {
+      if (container.foldNote) container.foldNote.set('#' + asTyped + ' cannot be used: a hashtag needs letters a to z or digits, and these letters have no a to z form.');
+      return;
+    }
+
+    // Folded by the site's one rule, the form the server stores.
+    var token = tagBody(typed);
     if (token.length === 0) return;
 
     var existing = container.querySelectorAll('.tag-chip-input-chip');
-    if (existing.length >= 30) return;
+    if (existing.length >= MAX_CHIPS) {
+      if (container.foldNote) container.foldNote.set('At most ' + MAX_CHIPS + ' hashtags can be added at once.');
+      return;
+    }
     for (var i = 0; i < existing.length; i++) {
       if (existing[i].getAttribute('data-tag') === token) {
         textInput.value = '';
@@ -172,6 +231,7 @@
     }
 
     addChip(container, textInput, hidden, token);
+    showFoldNote(container, typed, token);
     textInput.value = '';
     hideDropdown(container.querySelector('.tag-chip-autocomplete'));
   }
@@ -200,10 +260,13 @@
   function removeChip(container, chip, hidden) {
     chip.parentNode.removeChild(chip);
     syncHidden(container, hidden);
+    // The line spoke of the last chip added; once chips change it is stale.
+    if (container.foldNote) container.foldNote.clear();
   }
 
   function fetchSuggestions(query, dropdown, container, textInput, hidden) {
-    var url = '/tags/suggest?q=' + encodeURIComponent(query);
+    var url = '/tags/suggest?q=' + encodeURIComponent(query)
+      + (container.hasAttribute('data-tag-entry') ? '&entry=1' : '');
     var xhr = new XMLHttpRequest();
     xhr.open('GET', url);
     xhr.setRequestHeader('Accept', 'application/json');

@@ -24,6 +24,10 @@
       </p>
     {{/if}}
 
+    {{#if content.emailPreview}}
+      {{> simulated-email-card content.emailPreview}}
+    {{/if}}
+
     <form method="POST" action="/verify/resend" class="form-block">
       <div class="form-field">
         <label for="email">Didn't get the email? Enter your address to resend:</label>
@@ -36,10 +40,6 @@
     </form>
 
     <p class="fs-sm">If that mailbox can no longer receive mail, register again using an address you can read, or ask an administrator for help.</p>
-
-    {{#if content.emailPreview}}
-      {{> simulated-email-card content.emailPreview}}
-    {{/if}}
   </section>
 </div>
 {{#if content.turnstileSiteKey}}

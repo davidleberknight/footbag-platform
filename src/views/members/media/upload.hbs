@@ -16,7 +16,7 @@
     Upload a photo, or share a YouTube or Vimeo video link. Anything you upload is
     automatically tagged with your uploader marker, so it appears in your Personal Gallery.
     Add more hashtags to surface it in event, club, or topic galleries too.
-    Tags starting with <code>#by_</code> are reserved for the system uploader marker
+    Hashtags starting with <code>#by_</code> are reserved for the system uploader marker
     and cannot be set by hand; <code>#curated</code> is similarly reserved.
   </p>
 
@@ -77,13 +77,22 @@
         <textarea id="member-upload-caption" name="caption" maxlength="500" rows="3">{{content.formValues.caption}}</textarea>
       </div>
       <div class="form-field">
-        <label for="member-upload-tags">Tags (optional, space-separated <code>#hashtags</code>):</label>
+        <label for="member-upload-tags">Hashtags (optional, separated by spaces):</label>
         <input id="member-upload-tags" type="text" name="tags" value="{{content.formValues.tags}}"
-               placeholder="#freestyle #trick" data-tag-chips>
-        <small class="form-hint">The leading <code>#</code> is optional. Event and club tags follow canonical patterns: events use <code>#event_&lt;year&gt;_&lt;event-slug&gt;</code>, for example <code>#event_2026_worlds_japan</code>; clubs use <code>#club_&lt;location-slug&gt;</code>, for example <code>#club_tokyo</code>.</small>
+               placeholder="#freestyle #trick" data-tag-chips data-tag-entry>
+        <small class="form-hint">The leading <code>#</code> is optional. Event and club hashtags follow set patterns: events use <code>#event_&lt;year&gt;_&lt;event_name&gt;</code>, for example <code>#event_2026_worlds_japan</code>; clubs use <code>#club_&lt;location_or_name&gt;</code>, for example <code>#club_tokyo</code>.</small>
+        {{> hashtag-slug-help}}
       </div>
       {{#if content.tagSuggestions}}
       <div class="tag-suggestions">
+        {{#if content.tagSuggestions.playerTags.length}}
+        <div class="tag-suggestions-group">
+          <span class="tag-suggestions-label">You as the player:</span>
+          {{#each content.tagSuggestions.playerTags}}
+          <button type="button" class="tag-chip tag-suggestion" data-tag="{{normalized}}">{{display}}</button>
+          {{/each}}
+        </div>
+        {{/if}}
         {{#if content.tagSuggestions.clubTags.length}}
         <div class="tag-suggestions-group">
           <span class="tag-suggestions-label">Your clubs:</span>
@@ -119,7 +128,7 @@
           <option value="{{id}}" {{#if (eq id ../content.formValues.galleryId)}}selected{{/if}}>{{name}}</option>
           {{/each}}
         </select>
-        <small class="form-hint">Gallery criteria tags will be added automatically.</small>
+        <small class="form-hint">Gallery criteria hashtags will be added automatically.</small>
       </div>
       {{/if}}
       <div class="form-field">
@@ -135,6 +144,7 @@
     </div>
   </form>
 </div>
+{{> fold-token-script}}
 <script src="{{{asset 'js/tag-chips.js'}}}" defer></script>
 {{#if content.tagSuggestions}}
 <script src="{{{asset 'js/tag-suggestions.js'}}}" defer></script>

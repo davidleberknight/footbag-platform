@@ -19,8 +19,10 @@ const HP_FORM_VM = {
 };
 
 // Uniform render for any failed HP claim attempt, regardless of underlying
-// reason (HP not found, already claimed, surname mismatch, incompatible
-// legacy linkage, ...). Anti-enumeration: a single observable response
+// reason (HP not found, held by a member the requester's evidence does not
+// reach, surname mismatch, incompatible legacy linkage, ...). The one exception
+// is a held record the requester's own evidence reaches, which gets the
+// already-claimed page below. Anti-enumeration: a single observable response
 // shape across every failure mode. The specific reason is logged at info at
 // the caller, which development and staging logs keep and production does
 // not; in production an administrator sees why a record was not offered on

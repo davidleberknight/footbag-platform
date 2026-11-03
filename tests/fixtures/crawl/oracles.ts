@@ -22,6 +22,7 @@ export type OracleName =
   | 'seo'
   | 'privacy'
   | 'unreached-route'
+  | 'get-wrote'
   | 'budget';
 
 export interface Finding {

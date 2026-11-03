@@ -22,6 +22,7 @@ import {
   createTestSessionJwt,
   insertFreeformTag,
   insertMediaItem,
+  insertVideoMediaItem,
   attachMediaTag,
 } from '../fixtures/factories';
 
@@ -52,6 +53,20 @@ const ITEM_A = 'media_item_a';
 const ITEM_B = 'media_item_b';
 const ITEM_C = 'media_item_c';
 const SOLO = 'media_item_solo';
+const MIX_PHOTO = 'media_item_mix_photo';
+const MIX_VIDEO = 'media_item_mix_video';
+
+// The href of the link wrapping the photo, or null when the photo is unlinked.
+function photoLinkHref(html: string): string | null {
+  const m = html.match(/<a href="([^"]*)" rel="next" aria-label="Next" class="gallery-item-next">\s*<img /);
+  return m ? m[1] : null;
+}
+
+// The href of the pager's Next button.
+function nextButtonHref(html: string): string | null {
+  const m = html.match(/<a href="([^"]*)" class="btn btn-outline" rel="next">/);
+  return m ? m[1] : null;
+}
 
 let WRAP_TAG_ID = '';
 let SOLO_TAG_ID = '';
@@ -110,6 +125,23 @@ beforeAll(async () => {
   insertPhoto(db, { id: SOLO, caption: 'solo-item', uploaded_at: '2026-07-04T00:00:00.000Z' });
   attachMediaTag(db, SOLO, SOLO_TAG_ID);
 
+  // A two-item set mixing a video and a photo, so the video has a next item to
+  // link to and still must not be wrapped in one.
+  const mixTag = insertFreeformTag(db, { tag_normalized: '#mixset', tag_display: '#mixset' });
+  insertPhoto(db, { id: MIX_PHOTO, caption: 'mix-photo', uploaded_at: '2026-07-05T00:00:00.000Z' });
+  attachMediaTag(db, MIX_PHOTO, mixTag);
+  insertVideoMediaItem(db, {
+    id: MIX_VIDEO,
+    uploader_member_id: SYSTEM_ID,
+    caption: 'mix-video',
+    uploaded_at: '2026-07-06T00:00:00.000Z',
+    video_platform: 'youtube',
+    video_id: 'dQw4w9WgXcQ',
+    video_url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    thumbnail_url: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
+  });
+  attachMediaTag(db, MIX_VIDEO, mixTag);
+
   db.close();
   createApp = await importApp();
 });
@@ -155,6 +187,44 @@ describe('GET /media/item/:mediaId — tag-query context', () => {
     expect(res.text).toContain('solo-item');
     expect(res.text).not.toContain('rel="prev"');
     expect(res.text).not.toContain('rel="next"');
+  });
+
+  it('links the photo to the same next item as the Next button, following sort and wrap', async () => {
+    // A reader clicking the photo must land where Next lands: the next item in
+    // this set's own order, wrapping from the last back to the first.
+    const cases = [
+      { from: ITEM_C, query: 'tag=wrapset', next: ITEM_B },                      // middle of upload_desc
+      { from: ITEM_A, query: 'tag=wrapset', next: ITEM_C },                      // wraps at the end
+      { from: ITEM_A, query: 'tag=wrapset&sort=upload_asc', next: ITEM_B },      // sort changes the order
+    ];
+    for (const c of cases) {
+      const res = await request(createApp()).get(`/media/item/${c.from}?${c.query}`);
+      expect(res.status).toBe(200);
+      const link = photoLinkHref(res.text);
+      expect(link, `photo link from ${c.from} ?${c.query}`).not.toBeNull();
+      expect(link, `photo link from ${c.from} ?${c.query}`).toBe(nextButtonHref(res.text));
+      expect(link, `photo link from ${c.from} ?${c.query}`).toContain(`/media/item/${c.next}?`);
+    }
+  });
+
+  it('leaves the photo unlinked in a one-item set', async () => {
+    // With no next item, a linked photo would reload the same page.
+    const solo = await request(createApp()).get(`/media/item/${SOLO}?tag=soloset`);
+    expect(solo.status).toBe(200);
+    expect(solo.text).toContain(`${SOLO}-display.jpg`);
+    expect(photoLinkHref(solo.text)).toBeNull();
+  });
+
+  it('never wraps a video in the next link, so clicking it still plays', async () => {
+    // Video first (newest), photo next: the video has a next item, yet clicking
+    // it must start playback rather than navigate away.
+    const res = await request(createApp()).get(`/media/item/${MIX_VIDEO}?tag=mixset`);
+    expect(res.status).toBe(200);
+    expect(nextButtonHref(res.text)).toContain(`/media/item/${MIX_PHOTO}?`);
+    expect(res.text).not.toContain('class="gallery-item-next"');
+    // The photo in the same set is linked, so the absence above is the video's.
+    const photo = await request(createApp()).get(`/media/item/${MIX_PHOTO}?tag=mixset`);
+    expect(photoLinkHref(photo.text)).toContain(`/media/item/${MIX_VIDEO}?`);
   });
 
   it('shows the item title in the hero once (no duplicate heading or caption) and a position indicator', async () => {

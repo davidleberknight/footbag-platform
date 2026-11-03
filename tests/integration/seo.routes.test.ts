@@ -226,13 +226,14 @@ describe('page-head metadata', () => {
 
   // Defect caught: an email-verify or password-reset link's single-use token is
   // written into the landing page's canonical and og:url tags.
-  // The page's own form still carries the token it must post; only the head tags
-  // a crawler or a share preview reads are kept free of it.
+  // An unknown token answers with each route's own page: the verify link's
+  // failure page and the reset form. The status pins that page, so a route that
+  // fell through to the generic error page cannot pass the head checks vacuously.
   it('a page reached by a token link writes no canonical or og:url, so the token stays out of the page head', async () => {
     const token = 'seo-token-should-not-appear';
-    for (const path of [`/verify/${token}`, `/password/reset/${token}`]) {
+    for (const [path, status] of [[`/verify/${token}`, 400], [`/password/reset/${token}`, 200]] as const) {
       const res = await page(path);
-      expect(res.status, path).toBe(200);
+      expect(res.status, path).toBe(status);
       expect(res.text, path).not.toContain('rel="canonical"');
       expect(res.text, path).not.toContain('property="og:url"');
     }

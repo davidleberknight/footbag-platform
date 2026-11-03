@@ -125,6 +125,90 @@ describe('the two parts are recorded as given', () => {
   });
 });
 
+// A profile URL left blank is derived from the display name the way every slug
+// and hashtag on the site is: accents fold to their base letter rather than
+// vanishing. A dropped letter gives a member an address that no longer holds
+// their family name, and a player tag that differs from the one a historical
+// record of the same name carries, so one person would be credited two ways.
+describe('the derived profile URL folds accents', () => {
+  it('folds the accented letters of the name into the derived profile URL', async () => {
+    const email = 'accented@example.com';
+    expect((await register({ givenNames: 'Zoë', familyName: 'Müller', email })).status).toBe(303);
+    expect(readByEmail(email)!.slug).toBe('zoe_muller');
+  });
+
+  // A member is never asked to confirm a folded URL the next submit would refuse:
+  // a fold onto a URL another member holds is refused at once.
+  it('refuses a typed URL whose folded form is taken, without the fold notice', async () => {
+    expect((await register({
+      givenNames: 'Zoe', familyName: 'Takenfold', slug: 'zoe_takenfold', email: 'takenfold-a@example.com',
+    })).status).toBe(303);
+    const email = 'takenfold-b@example.com';
+    const res = await register({ givenNames: 'Zoë', familyName: 'Takenfold', slug: 'Zoë_Takenfold', email });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('form-error-banner');
+    expect(res.text).not.toContain('class="form-notice"');
+    expect(readByEmail(email)).toBeUndefined();
+  });
+
+  // The family-name check folds by the same rule as the URL. A fold of its own
+  // deleted letters such as ø and ß, so the URL the rule made for the name, which
+  // the registration form fills in, was refused as not containing the family name.
+  // A typed URL is folded, not refused. Because it is permanent, the member sees
+  // the folded value before anything is created, and the form as re-rendered,
+  // with the password typed again, creates the account at that address.
+  it('shows a typed URL that folding changes, then creates it when resubmitted as rendered', async () => {
+    const email = 'resubmit-fold@example.com';
+    const first = await register({ givenNames: 'Zoë', familyName: 'Resubmit', slug: 'Zoë-Resubmit', email });
+    expect(first.status).toBe(422);
+    expect(first.text).toContain('class="form-notice"');
+    expect(first.text).not.toContain('form-error-banner');
+    expect(readByEmail(email)).toBeUndefined();
+    const offered = /name="slug"[^>]*value="([^"]*)"/.exec(first.text)?.[1]
+      ?? /value="([^"]*)"[^>]*name="slug"/.exec(first.text)?.[1];
+    expect(offered).toBe('zoe_resubmit');
+    const second = await register({ givenNames: 'Zoë', familyName: 'Resubmit', slug: offered!, email });
+    expect(second.status).toBe(303);
+    expect(readByEmail(email)!.slug).toBe('zoe_resubmit');
+  });
+
+  // A letter with no a to z form is refused, never dropped: dropping it would
+  // give the member an address that is not the one they typed.
+  it('refuses a typed URL holding a letter with no Latin form, and creates nothing', async () => {
+    const email = 'unconvertible-url@example.com';
+    const res = await register({ givenNames: 'Kenji', familyName: 'Nihon', slug: 'kenji_nihon_日本', email });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('form-error-banner');
+    expect(res.text).not.toContain('class="form-notice"');
+    expect(readByEmail(email)).toBeUndefined();
+  });
+
+  // The browser's own pattern check would refuse an accented URL before the
+  // server could fold it, so the field carries none.
+  it('offers a profile URL field the browser does not refuse for accents', async () => {
+    const res = await request(createApp()).get('/register');
+    expect(res.status).toBe(200);
+    const field = /<input[^>]*name="slug"[^>]*>/.exec(res.text)?.[0];
+    expect(field).toBeDefined();
+    expect(field).not.toMatch(/\bpattern=/);
+  });
+
+  it('accepts the folded URL for a family name whose letters the rule spells out', async () => {
+    const cases: [string, string, string][] = [
+      ['Anna', 'Sørensen', 'anna_sorensen'],
+      ['Ida', 'Straße', 'ida_strasse'],
+      ['Lech', 'Wałęsa', 'lech_walesa'],
+      ['Bo', 'Kjærsgaard', 'bo_kjaersgaard'],
+    ];
+    for (const [givenNames, familyName, slug] of cases) {
+      const email = `fold-${slug}@example.com`;
+      const res = await register({ givenNames, familyName, slug, email });
+      expect(res.status, familyName).toBe(303);
+      expect(readByEmail(email)?.slug, familyName).toBe(slug);
+    }
+  });
+});
+
 describe('the family name is the required half', () => {
   // The family name is the anchor every claim path matches on, so it is the
   // part that must be there. A member with a single legal name records it as
@@ -271,19 +355,19 @@ describe('the two rules that key on the surname read the recorded part', () => {
   it('accepts an apostrophe surname spelled across the underscore', async () => {
     const email = 'slug-apostrophe-split@example.com';
     const res = await register({
-      givenNames: 'Sean', familyName: "O'Brien", slug: 'sean_o_brien', email,
+      givenNames: 'Shane', familyName: "O'Brien", slug: 'shane_o_brien', email,
     });
     expect(res.status).toBe(303);
-    expect(readByEmail(email)!.slug).toBe('sean_o_brien');
+    expect(readByEmail(email)!.slug).toBe('shane_o_brien');
   });
 
   it('accepts a chosen profile URL carrying a hyphenated family name', async () => {
     const email = 'slug-hyphen@example.com';
     const res = await register({
-      givenNames: 'Alex', familyName: 'Smith-Jones', slug: 'alex_smith_jones', email,
+      givenNames: 'Alexis', familyName: 'Smith-Jones', slug: 'alexis_smith_jones', email,
     });
     expect(res.status).toBe(303);
-    expect(readByEmail(email)!.slug).toBe('alex_smith_jones');
+    expect(readByEmail(email)!.slug).toBe('alexis_smith_jones');
   });
 
   it('still refuses a profile URL that drops a punctuated family name', async () => {
@@ -439,13 +523,14 @@ describe('a family name with no Latin form', () => {
     expect(readByEmail(email)).toBeUndefined();
   });
 
-  it('still refuses a profile URL that is not a well-formed address', async () => {
+  // Typed characters fold, so only a URL with nothing foldable left is refused.
+  it('still refuses a profile URL that folds to nothing', async () => {
     const email = 'han-bad-slug@example.com';
     const res = await register({
-      givenNames: '世界', familyName: '你好', slug: 'ni hao!', email,
+      givenNames: '世界', familyName: '你好', slug: '!!!', email,
     });
     expect(res.status).toBe(422);
-    expect(res.text).toContain('lowercase letters, numbers, and underscores');
+    expect(res.text).toContain('form-error-banner');
     expect(readByEmail(email)).toBeUndefined();
   });
 });

@@ -44,7 +44,7 @@ describe('GET /media/browse landing — search leads, popular tags follow', () =
   it('renders the real curated tag in the Popular tags section', async () => {
     const res = await page('/media/browse');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Popular tags');
+    expect(res.text).toContain('id="browse-popular-heading"');
     expect(res.text).toContain('#passback_records');
   });
 

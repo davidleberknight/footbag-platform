@@ -50,7 +50,10 @@
             {{#if content.item.media}}
               {{> video-facade media=content.item.media eager=true}}
             {{else}}
-              <img src="{{content.item.displayHref}}" alt="{{content.item.alt}}"{{#if content.item.width}} width="{{content.item.width}}"{{/if}}{{#if content.item.height}} height="{{content.item.height}}"{{/if}} decoding="async" />
+              {{! Clicking the photo goes where Next goes, so a reader can step through
+                  the set without reaching for the pager; a one-item set has no Next
+                  and the photo stays unlinked. }}
+              {{#if content.nextHref}}<a href="{{content.nextHref}}" rel="next" aria-label="Next" class="gallery-item-next">{{/if}}<img src="{{content.item.displayHref}}" alt="{{content.item.alt}}"{{#if content.item.width}} width="{{content.item.width}}"{{/if}}{{#if content.item.height}} height="{{content.item.height}}"{{/if}} decoding="async" />{{#if content.nextHref}}</a>{{/if}}
             {{/if}}
           </div>
         {{/if}}
@@ -60,6 +63,10 @@
         {{#if content.uploadedBy}}
           <p class="gallery-item-uploader">Uploaded by {{#if content.uploadedBy.href}}<a href="{{content.uploadedBy.href}}" class="tag-chip-link">{{content.uploadedBy.display}}</a>{{else}}{{content.uploadedBy.display}}{{/if}}{{#if content.uploadedBy.tierBadge}} <span class="badge badge-tier">{{content.uploadedBy.tierBadge}}</span>{{/if}}{{#if content.uploadedBy.isActivePlayer}} <span class="badge badge-honor">Active Player</span>{{/if}}{{#if content.uploadedBy.isHof}} <span class="badge badge-honor">HoF</span>{{/if}}{{#if content.uploadedBy.isBap}} <span class="badge badge-honor">BAP</span>{{/if}}{{#if content.uploadedBy.isBoard}} <span class="badge badge-honor">Board</span>{{/if}}</p>
         {{/if}}
+
+        {{#each content.players}}
+          <p class="gallery-item-uploader">Player: {{#if href}}<a href="{{href}}" class="tag-chip-link">{{display}}</a>{{else}}{{display}}{{/if}}</p>
+        {{/each}}
 
         {{#if content.curatedHref}}
           <p class="gallery-item-uploader"><a href="{{content.curatedHref}}" class="tag-chip-link">Curated</a></p>

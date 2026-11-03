@@ -176,7 +176,7 @@ Members upload photos and share links to videos into named galleries, and then u
 **Standardized hashtags** (social-platform format)
 
 - Event tags: #event_{year}_{event_slug} (e.g., #event_2025_beaver_open)
-- Club tags: #club_{location_slug} (e.g., #club_san_francisco).
+- Club hashtags: #club_{club_slug}, the slug suggested from the club's location for clarity, or the club's own name as players use it (e.g., #club_san_francisco).
 - These tags are validated at event/club creation to prevent duplicates and become the canonical identifier used for automatic gallery linking.
 - Tag matching is case-insensitive, while preserving original capitalization for display quality.
 

@@ -232,17 +232,14 @@ describe('GET /freestyle/sets — the sections below the list', () => {
 });
 
 describe('Retired set addresses', () => {
-  it.each([
-    ['/freestyle/compositional-sets', '/freestyle/sets#how-sets-are-built'],
-    ['/freestyle/sets/reference',     '/freestyle/sets#historical-move-set-reference'],
-  ])('%s redirects permanently to its section of /freestyle/sets', async (from, to) => {
-    // Defect caught: an old bookmark or outside link dead-ending, or landing
-    // at the top of the page instead of the section it was for.
-    const res = await request(createApp()).get(from).redirects(0);
-    expect(res.status).toBe(301);
-    expect(res.headers['location']).toBe(to);
-    const target = await page('/freestyle/sets');
-    expect(target.text).toContain(`id="${to.split('#')[1]}"`);
+  it('each retired set address answers not-found, with no redirect', async () => {
+    // Defect caught: a retired set page of the unlaunched site still forwarding
+    // to /freestyle/sets, or "reference" being read as a set slug and rendered.
+    for (const from of ['/freestyle/compositional-sets', '/freestyle/sets/reference']) {
+      const res = await request(createApp()).get(from).redirects(0);
+      expect(res.status, from).toBe(404);
+      expect(res.headers['location'], from).toBeUndefined();
+    }
   });
 
   it('no freestyle page links to a retired set address', async () => {

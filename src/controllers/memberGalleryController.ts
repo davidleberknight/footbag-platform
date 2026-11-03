@@ -36,10 +36,11 @@ import {
   getMemberGalleryListPage,
   getMemberGalleryListErrorPage,
   type CuratorGalleryEditView,
+  changedTypedTags,
 } from '../services/curatorMediaService';
 import { NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { parseGalleryMultipart } from './galleryFormHelpers';
-import { FLASH_KIND, writeFlash, takeMediaSavedFlash } from '../lib/flashCookie';
+import { FLASH_KIND, writeFlash, takeMediaSaved, writeMediaSavedFlash } from '../lib/flashCookie';
 import { renderImageWorkerUnavailable, renderNotFound } from '../lib/controllerErrors';
 import { isAdminCaller, isOwnMemberRoute } from '../lib/routeOwnership';
 import { mediaService } from '../services/mediaService';
@@ -78,12 +79,14 @@ export const memberGalleryController = {
       return;
     }
     try {
+      const saved = takeMediaSaved(req, res);
       res.render('members/galleries/list', getMemberGalleryListPage(buildSvc(), {
         memberKey: req.params.memberKey,
         memberId: req.user!.userId,
         memberSlug: req.user!.slug,
         confirmDeleteId: typeof req.query.confirmDelete === 'string' ? req.query.confirmDelete : null,
-        savedFlag: takeMediaSavedFlash(req, res),
+        savedFlag: saved?.kind ?? null,
+        savedFolded: saved?.folded ?? [],
         // The community examples the empty state teaches with are the media
         // service's to read; the builder decides whether the page asks for them.
         readCommunityExamples: (limit, backHref) =>
@@ -138,7 +141,7 @@ export const memberGalleryController = {
         uploads: NO_UPLOADS,
       });
       if (result.status !== 'refused') {
-        writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'create');
+        writeMediaSavedFlash(res, req, 'create', changedTypedTags(req.body?.criteriaTags, req.body?.excludeTags));
         res.redirect(303, memberGalleriesHref(memberKey));
         return;
       }
@@ -245,7 +248,7 @@ export const memberGalleryController = {
         uploads: NO_UPLOADS,
       });
       if (result.status === 'saved') {
-        writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'edit');
+        writeMediaSavedFlash(res, req, 'edit', changedTypedTags(req.body?.criteriaTags, req.body?.excludeTags));
         res.redirect(303, memberGalleriesHref(memberKey));
         return;
       }
@@ -436,7 +439,7 @@ async function executeMultipartCreate(args: {
     uploads: { files: photoFiles, limitExceeded, droppedNamelessFile },
   });
   if (result.status !== 'refused') {
-    writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'create');
+    writeMediaSavedFlash(res, req, 'create', changedTypedTags(fields.criteriaTags, fields.excludeTags, uploadTagsRaw));
     res.redirect(303, memberGalleriesHref(memberKey));
     return;
   }
@@ -541,6 +544,6 @@ async function executeMultipartUpdate(args: {
     rerenderError(result.httpStatus, result.message, result.fieldErrors);
     return;
   }
-  writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'edit');
+  writeMediaSavedFlash(res, req, 'edit', changedTypedTags(fields.criteriaTags, fields.excludeTags, uploadTagsRaw));
   res.redirect(303, memberGalleriesHref(memberKey));
 }

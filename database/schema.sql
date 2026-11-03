@@ -3435,7 +3435,8 @@ VALUES
 --   hp_claim_rate_limit_max_per_ip      Max claim confirmations per source IP per window
 --   hp_claim_rate_limit_window_minutes  Fixed window forclaim-confirmation rate limiting
 --   jwt_expiry_hours                Main site session JWT lifetime (hours)
---   photo_upload_rate_limit_per_hour Max photo uploads per member per hour
+--   photo_upload_rate_limit_per_hour Max photos a member may upload per hour, counting each photo
+--   photo_upload_max_file_mb        Max size of one member photo in MB (code maximum 25)
 --   video_submission_rate_limit_per_hour Max video submissions per member per hour
 --   media_flag_rate_limit_per_hour  Max media flags per member per hour
 --   profile_edit_rate_limit_per_hour Max profile edits per member per hour
@@ -3845,9 +3846,18 @@ VALUES
   (
    'seed-photo-upload-rate-limit-per-hour',
    '2000-01-01T00:00:00.000Z',
-   'photo_upload_rate_limit_per_hour', '10',
+   'photo_upload_rate_limit_per_hour', '30',
    '2000-01-01T00:00:00.000Z',
-   'Max photo uploads per member per hour (default: 10).',
+   'Max photos a member may upload per hour, counting each photo; administrators are not limited (default: 30).',
+   NULL
+  ),
+
+  (
+   'seed-photo-upload-max-file-mb',
+   '2000-01-01T00:00:00.000Z',
+   'photo_upload_max_file_mb', '25',
+   '2000-01-01T00:00:00.000Z',
+   'Max size of one member photo in megabytes, never above the code maximum of 25; administrators are held to the code maximum (default: 25).',
    NULL
   ),
 

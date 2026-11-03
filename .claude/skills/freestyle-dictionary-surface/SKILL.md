@@ -17,7 +17,7 @@ Before any template or CSS edit, read `.claude/rules/view-layer.md` and follow t
 
 Invoke this skill when work touches:
 
-- Public-facing surfaces of the freestyle dictionary (`/freestyle/tricks`, `/freestyle/tricks/:slug`, `/freestyle/tricks/:add`, `/freestyle/families` and `/freestyle/families/:slug`, `/freestyle/sets` and `/freestyle/sets/:slug`, `/freestyle/modifier/:slug`)
+- Public-facing surfaces of the freestyle dictionary (`/freestyle/tricks`, `/freestyle/tricks/:slug`, `/freestyle/tricks/:add`, `/freestyle/families/:slug`, `/freestyle/sets` and `/freestyle/sets/:slug`, `/freestyle/modifier/:slug`)
 - Trick-detail page rendering, including aliases, decomposition, related tricks, records, media
 - Family-page rendering: collective structure, ladder views, family-level media aggregation
 - Per-section disclosure controls (collapsible regions)
@@ -46,7 +46,7 @@ When future sessions encounter requests like "let's add a `family_galleries` tab
 
 ## 2. Status of the surfaces this skill governs
 
-These are **live production surfaces**: the trick index and detail pages (`/freestyle/tricks`, `/freestyle/tricks/:slug`), family pages (`/freestyle/families`, `/freestyle/families/:slug`), sets, the A–Z glossary (`/freestyle/glossary`, alphabetical term lookup), Freestyle Concepts (`/freestyle/concepts`, the chapter-based conceptual reference; the trick index carries the "Reading the Dictionary" disclosure), operators, modifier pages (`/freestyle/modifier/:slug`), and search all ship. This skill's contract rules apply to them now.
+These are **live production surfaces**: the trick index and detail pages (`/freestyle/tricks`, `/freestyle/tricks/:slug`), family pages (`/freestyle/families/:slug`), sets, the A–Z glossary (`/freestyle/glossary`, alphabetical term lookup), Freestyle Concepts (`/freestyle/concepts`, the chapter-based conceptual reference; the trick index carries the "Reading the Dictionary" disclosure), operators, modifier pages (`/freestyle/modifier/:slug`), and search all ship. This skill's contract rules apply to them now.
 
 Not in scope, by design: schema changes such as an `alias_kind` column or a `secondary_family` relation (projection over extension); auth-gated dictionary depth (never — depth is layered, not gated). Implementation status and forward sequencing live in the maintainers' private tracker; this skill carries the durable UX contract only.
 

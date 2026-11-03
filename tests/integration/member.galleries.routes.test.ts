@@ -205,7 +205,7 @@ describe('GET /members/:memberKey/galleries', () => {
     expect(res.text).toContain('You have not shared any photos or videos yet.');
     // No public tag has accrued in this database, so the popular-tag block is
     // absent rather than filled with tags that would lead nowhere.
-    expect(res.text).not.toContain('Popular Tags');
+    expect(res.text).not.toContain('Popular Hashtags');
     expect(res.text).not.toContain('#club_wellington');
     expect(res.text).not.toContain('#event_2026_worlds_japan');
     expect(res.text).not.toContain('#chinlone');
@@ -376,6 +376,27 @@ describe('POST /members/:memberKey/galleries', () => {
         `SELECT t.tag_display FROM member_gallery_tags mgt JOIN tags t ON t.id = mgt.tag_id WHERE mgt.gallery_id = ?`,
       ).all(id) as { tag_display: string }[];
       expect(tags.map((t) => t.tag_display)).toEqual([`#by_${OWNER_SLUG}`]);
+    } finally { db.close(); }
+  });
+
+  // A gallery's address is made from its name by the one rule every slug follows,
+  // so an accented letter folds to its base letter instead of vanishing, and a
+  // typed criteria hashtag is stored folded.
+  it('folds an accented gallery name into its address and a typed criteria hashtag into its stored form', async () => {
+    const res = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/galleries`)
+      .set('Cookie', ownerCookie())
+      .type('form')
+      .send({ name: 'Zürich Trip', description: '', sortOrder: 'upload_desc', criteriaTags: '#Zürich-Trip', excludeTags: '' });
+    expect(res.status).toBe(303);
+    const id = findGalleryIdByName('Zürich Trip')!;
+    expect(id).toBe(`gallery_${OWNER_SLUG}_zurich_trip`);
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    try {
+      const tags = db.prepare(
+        `SELECT t.tag_normalized FROM member_gallery_tags mgt JOIN tags t ON t.id = mgt.tag_id WHERE mgt.gallery_id = ?`,
+      ).all(id) as { tag_normalized: string }[];
+      expect(tags.map((t) => t.tag_normalized)).toContain('#zurich_trip');
     } finally { db.close(); }
   });
 
@@ -622,10 +643,11 @@ describe('POST /members/:memberKey/galleries/:id/edit', () => {
       .post(`/members/${OWNER_SLUG}/galleries/${id}/edit`)
       .set('Cookie', ownerCookie())
       .type('form')
-      .send({ name: 'X', description: '', sortOrder: 'upload_desc', criteriaTags: '#bad!tag', excludeTags: '' });
+      // An uploader tag is refused as a criterion however it is spelled; other
+      // characters are folded rather than refused.
+      .send({ name: 'X', description: '', sortOrder: 'upload_desc', criteriaTags: '#by_someone_else', excludeTags: '' });
     expect(res.status).toBe(422);
     expect(res.text).toContain('form-field-error');
-    expect(res.text).toMatch(/criteria tag must be/i);
     // A criteria error auto-opens the Advanced disclosure so the error shows.
     expect(res.text).toMatch(/<details class="gallery-advanced" open>/);
   });
@@ -1656,7 +1678,7 @@ describe('the member Personal Gallery is protected from rename and deletion', ()
 
     const res = await editPersonalGallery(gallery.id, { criteriaTags: '#freestyle' });
     expect(res.status).toBe(422);
-    expect(res.text).toContain('takes no criteria or exclude tags');
+    expect(res.text).toContain('takes no criteria or exclude hashtags');
     expect(readCriteriaTags(gallery.id)).toEqual(before);
 
     const excluded = await editPersonalGallery(gallery.id, { excludeTags: '#freestyle' });

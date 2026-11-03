@@ -2,7 +2,13 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import sharp from 'sharp';
-import { processAvatar, processPhoto } from '../../src/lib/imageProcessing';
+import {
+  photoShapeRefusal,
+  PHOTO_TOO_TALL_MESSAGE,
+  PHOTO_TOO_WIDE_MESSAGE,
+  processAvatar,
+  processPhoto,
+} from '../../src/lib/imageProcessing';
 
 // A solid-colour PNG compresses to a few bytes regardless of dimensions, so an
 // over-limit test image is cheap to build and the dimension guard rejects it
@@ -54,6 +60,43 @@ describe('image processing decode guard', () => {
 
   it('processAvatar rejects an image whose aspect ratio is too extreme', async () => {
     await expect(processAvatar(await solidPng(200, 1000))).rejects.toThrow(/long and thin/i);
+  });
+});
+
+// A shared photo must lie between 1.91:1 landscape and 3:4 portrait, so its
+// 800-pixel-wide display copy is never taller than 800 by 1067. Each boundary
+// is pinned from both sides: the exact shape is accepted and one pixel past it
+// is refused with the message naming that side.
+describe('shared photo shape', () => {
+  it('accepts the exact landscape limit and refuses one pixel wider as too wide', () => {
+    expect(photoShapeRefusal(1910, 1000)).toBeNull();
+    expect(photoShapeRefusal(1911, 1000)).toBe(PHOTO_TOO_WIDE_MESSAGE);
+  });
+
+  it('accepts the exact portrait limit and refuses one pixel taller as too tall', () => {
+    expect(photoShapeRefusal(3024, 4032)).toBeNull();
+    expect(photoShapeRefusal(3024, 4033)).toBe(PHOTO_TOO_TALL_MESSAGE);
+  });
+
+  it('accepts the common camera and screen shapes inside the range', () => {
+    for (const [w, h] of [[4032, 3024], [1920, 1080], [1000, 1000]]) {
+      expect(photoShapeRefusal(w, h), `${w}x${h}`).toBeNull();
+    }
+  });
+
+  // A phone stores a portrait photo sideways with a rotation tag. Reading the
+  // stored width and height would let a 9:16 portrait pass as 16:9 landscape
+  // and store an 800 by 1422 display copy.
+  it('reports a rotated photo by its upright width and height', async () => {
+    const sideways = await sharp({
+      create: { width: 1600, height: 900, channels: 3, background: { r: 10, g: 10, b: 10 } },
+    })
+      .jpeg()
+      .withMetadata({ orientation: 6 })
+      .toBuffer();
+    const out = await processPhoto(sideways);
+    expect([out.widthPx, out.heightPx]).toEqual([900, 1600]);
+    expect(photoShapeRefusal(out.widthPx, out.heightPx)).toBe(PHOTO_TOO_TALL_MESSAGE);
   });
 });
 

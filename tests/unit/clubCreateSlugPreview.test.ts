@@ -17,11 +17,19 @@ const SCRIPT_SRC = fs.readFileSync(
   path.resolve(__dirname, '../../src/public/js/club-create.js'),
   'utf8',
 );
+// The page loads the shared folding script and its table before club-create.js.
+const FOLD_SRC = fs.readFileSync(path.resolve(__dirname, '../../src/public/js/fold-token.js'), 'utf8');
+const TABLE: { map: Record<string, string> } = JSON.parse(
+  fs.readFileSync(path.resolve(__dirname, '../../src/public/js/latin-ascii.json'), 'utf8'),
+);
 
 function mountForm(slugValue = ''): { city: HTMLInputElement; slug: HTMLInputElement } {
   document.body.innerHTML = `
     <input id="city" type="text" value="">
     <input id="slug" type="text" value="${slugValue}">`;
+  // eslint-disable-next-line no-new-func
+  new Function(FOLD_SRC)();
+  (window as unknown as { footbagFold: { useTable(m: Record<string, string>): void } }).footbagFold.useTable(TABLE.map);
   // eslint-disable-next-line no-new-func
   new Function(SCRIPT_SRC)();
   return {
@@ -53,5 +61,20 @@ describe('club-create.js hashtag suggestion', () => {
     const { city, slug } = mountForm('my_own_tag');
     leaveCity(city, 'Zürich');
     expect(slug.value).toBe('my_own_tag');
+  });
+
+  it('folds a typed hashtag on leaving the field', () => {
+    const { slug } = mountForm();
+    slug.value = 'Zürich-Nord';
+    slug.dispatchEvent(new Event('blur'));
+    expect(slug.value).toBe('zurich_nord');
+  });
+
+  // Folding would drop the letters and fix a club hashtag the creator did not type.
+  it('leaves a typed hashtag with letters that have no a to z form as typed', () => {
+    const { slug } = mountForm();
+    slug.value = 'tokyo_東京';
+    slug.dispatchEvent(new Event('blur'));
+    expect(slug.value).toBe('tokyo_東京');
   });
 });

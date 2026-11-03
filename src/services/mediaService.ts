@@ -7,7 +7,10 @@
  *
  * Owns:
  *   - /media hub page read (collection cards; the Member galleries card links
- *     to the member-galleries list page)
+ *     to the member-galleries list page). A member viewer also gets a Share
+ *     Your Media card third: the upload form for a member holding Tier 1
+ *     benefits, the Tier 1 benefit text and upgrade link otherwise; a visitor
+ *     or a registrant still onboarding never sees it
  *   - /media/member-galleries list page read (member-owned named galleries
  *     with at least one matching item, newest matching upload first, paged
  *     with `?page=` at the shared page size, excluding the auto-default
@@ -97,6 +100,13 @@
  *     query. The item viewer's own-item and reporting controls read the
  *     viewer's identity only for a member viewer; a registrant still onboarding
  *     is shaped exactly as a signed-out visitor.
+ *   - Player credits on the item viewer: each `#player_<slug>` tag that names a
+ *     member (by slug, from `members_onboarded`) or exactly one canonical
+ *     historical person (by folded name, from `historical_persons`) becomes a
+ *     credit naming that person, and the tag stays among the chips. A member
+ *     viewer follows the credit to the person's page; a signed-out visitor
+ *     goes to the public counterpart, a record's history page or a member's
+ *     player gallery, so the link never lands on a member-only profile.
  *
  * Service shape: singleton object (storage adapter used only to construct
  * read URLs).
@@ -115,6 +125,8 @@ import {
   queryGalleryItemsByCriteriaGrouped,
   queryRecentCommunityMedia,
   queryMemberDisplayNamesBySlugs,
+  mediaPlayerCredits,
+  type PlayerCreditPersonRow,
   queryStyleTermTagIds,
   queryTagIdsByNormalized,
   resolveTrickTags,
@@ -125,8 +137,12 @@ import { CANONICAL_SETS, resolveCanonicalSetAlias } from '../content/freestyleCa
 import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { isSafePath } from '../lib/safePath';
 import { runSqliteRead } from './sqliteRetry';
+import { hasTier1Benefits } from './tierPredicates';
+import { buildTierBenefitNotice } from './tierBenefitNotice';
 import { NotFoundError } from './serviceErrors';
 import { UPLOADER_TAG_PREFIX } from './curatorMediaService';
+import { PLAYER_TAG_PREFIX, slugifyForTag, typedTag } from './slugify';
+import { personHref } from './personLink';
 import { buildMediaFlagBlock, type MediaFlagBlockViewModel } from './mediaModerationService';
 import { PageViewModel } from '../types/page';
 import { VideoMedia, expandVideoFromMediaItem } from './videoMedia';
@@ -157,11 +173,12 @@ export interface ViewerContext {
   // registrant still onboarding passes false, because every member enhancement
   // this flag unlocks (profile links, member-visible badges) is closed to them.
   authenticated: boolean;
-  // Who the viewer is, supplied only by the two item-page routes, which are the
-  // only surfaces that offer a control bound to the viewer's own identity. Every
-  // other media surface shapes the same for every signed-in reader and passes
-  // neither. Read only when `authenticated` is true: a registrant still
-  // onboarding carries a session identity but is offered no control bound to it.
+  // Who the viewer is, supplied only by the surfaces that offer a control bound
+  // to the viewer's own identity: the two item-page routes and the hub's Share
+  // Your Media card. Every other media surface shapes the same for every
+  // signed-in reader and passes neither. Read only when `authenticated` is
+  // true: a registrant still onboarding carries a session identity but is
+  // offered no control bound to it.
   memberId?: string | null;
   slug?: string | null;
 }
@@ -230,6 +247,56 @@ function shapeTagChip(
     }
   }
   return { display, href: buildOtherHref ? buildOtherHref() : null };
+}
+
+// The person each `#player_<slug>` tag credits. A member is matched by their
+// own slug first, since that is the token their player tag carries; any slug
+// left over is matched against canonical historical records by folded name, and
+// a slug two records share credits nobody rather than guessing. A member
+// profile is signed-in only, so an anonymous viewer is sent to the public
+// counterpart instead: a record's history page, or a member's player gallery.
+function resolvePlayerCredits(tagDisplays: string[], viewer: ViewerContext): TagChip[] {
+  const playerTags = tagDisplays.filter((t) => t.toLowerCase().startsWith(PLAYER_TAG_PREFIX));
+  if (playerTags.length === 0) return [];
+  const slugOf = (t: string) => t.slice(PLAYER_TAG_PREFIX.length).toLowerCase();
+
+  const members = new Map(
+    queryMemberDisplayNamesBySlugs([...new Set(playerTags.map(slugOf))])
+      .map((r) => [r.slug.toLowerCase(), r.display_name]),
+  );
+  const unmatched = playerTags.map(slugOf).filter((s) => !members.has(s));
+  const persons = new Map<string, PlayerCreditPersonRow[]>();
+  if (unmatched.length > 0) {
+    const wanted = new Set(unmatched);
+    for (const p of mediaPlayerCredits.listCanonicalPersons.all() as PlayerCreditPersonRow[]) {
+      const slug = slugifyForTag(p.person_name);
+      if (!wanted.has(slug)) continue;
+      persons.set(slug, [...(persons.get(slug) ?? []), p]);
+    }
+  }
+
+  const credits: TagChip[] = [];
+  for (const tag of playerTags) {
+    const slug = slugOf(tag);
+    const memberName = members.get(slug);
+    if (memberName) {
+      credits.push({
+        display: memberName,
+        href: viewer.authenticated ? personHref(slug, null) : tagToBrowseHref(tag),
+      });
+      continue;
+    }
+    const matches = persons.get(slug) ?? [];
+    if (matches.length !== 1) continue;
+    const p = matches[0];
+    credits.push({
+      display: p.person_name,
+      href: viewer.authenticated
+        ? personHref(p.linked_member_slug, p.person_id)
+        : personHref(null, p.person_id),
+    });
+  }
+  return credits;
 }
 
 // Splits raw criterion/exclude tag rows into the prose-attribution
@@ -576,6 +643,9 @@ export interface MediaItemContent {
   // to the full curated collection. They are mutually exclusive.
   uploadedBy: UploaderAttribution | null;
   curatedHref: string | null;
+  // One credit per player hashtag that names a member or a canonical
+  // historical person, in tag order. The hashtag itself stays among `tags`.
+  players: TagChip[];
   tags: TagChip[];
   showPager: boolean;
   position: { current: number; total: number } | null;
@@ -1089,6 +1159,7 @@ function buildItemPage(
       item,
       uploadedBy,
       curatedHref,
+      players: resolvePlayerCredits(itemTagRows.map((r) => r.tag_display), viewer),
       tags,
       showPager,
       position: showPager ? { current: set.index + 1, total: n } : null,
@@ -1105,8 +1176,33 @@ function buildItemPage(
   };
 }
 
+// The hub's Share Your Media card, the same route in as the profile's Upload
+// Media control. Upload controls render only for a member holding Tier 1
+// benefits; a member without them sees the benefit text and its upgrade link in
+// the same place, and a visitor or a registrant still onboarding sees no card.
+function shareMediaCard(viewer: ViewerContext): MediaHubCard[] {
+  const memberId = viewer.authenticated ? (viewer.memberId ?? null) : null;
+  const slug = viewer.authenticated ? (viewer.slug ?? null) : null;
+  if (memberId == null || slug == null) return [];
+  if (hasTier1Benefits(memberId)) {
+    return [{
+      title: 'Share Your Media',
+      description: 'Upload photos or add video links, and organize them into your own galleries.',
+      href: `/members/${slug}/media/upload`,
+      cta: 'Upload Media',
+    }];
+  }
+  const notice = buildTierBenefitNotice(slug, 'media');
+  return [{
+    title: 'Share Your Media',
+    description: `${notice.lead} ${notice.explanation}`,
+    href: notice.upgradeHref,
+    cta: notice.upgradeLabel,
+  }];
+}
+
 export const mediaService = {
-  getMediaHubPage(): PageViewModel<MediaHubContent> {
+  getMediaHubPage(viewer: ViewerContext = { authenticated: false }): PageViewModel<MediaHubContent> {
     return runSqliteRead('mediaService.getMediaHubPage', () => {
       const galleries = media.listAllNamedGalleries.all() as NamedGalleryWithOwnerRow[];
 
@@ -1142,6 +1238,7 @@ export const mediaService = {
           href: hasMemberGalleries ? '/media/member-galleries' : null,
           cta: hasMemberGalleries ? 'Browse member galleries' : null,
         },
+        ...shareMediaCard(viewer),
         {
           title: 'Freestyle',
           description: 'Tutorials and demos, records footage, and curated freestyle videos.',
@@ -1823,14 +1920,11 @@ export const mediaService = {
   },
 };
 
-// Lowercase + ensure leading '#' for an incoming tag token. Returns the
-// empty string for inputs that are nothing more than '#' or whitespace.
+// An incoming tag token in its stored form, folded by the one rule, so a search
+// for "#Zürich" finds what was saved as "#zurich". Returns the empty string for
+// inputs that fold to nothing.
 export function normalizeTagToken(raw: string): string {
-  const trimmed = raw.trim().toLowerCase();
-  if (trimmed.length === 0) return '';
-  const withHash = trimmed.startsWith('#') ? trimmed : `#${trimmed}`;
-  if (withHash === '#') return '';
-  return withHash;
+  return typedTag(raw);
 }
 
 function stripHash(t: string): string {

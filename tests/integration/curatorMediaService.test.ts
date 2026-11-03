@@ -125,7 +125,8 @@ function makeStubImageProcessor(): ImageProcessingAdapter & { calls: { method: '
     },
     async processPhoto(data) {
       calls.push({ method: 'photo', bytes: data.length });
-      return { thumb: Buffer.from('thumb'), display: Buffer.from('display'), widthPx: 1000, heightPx: 500 };
+      // A 4:3 photo, inside the shape every shared photo must have.
+      return { thumb: Buffer.from('thumb'), display: Buffer.from('display'), widthPx: 1000, heightPx: 750 };
     },
   };
 }
@@ -230,26 +231,33 @@ describe('curatorMediaService.uploadPhoto', () => {
     })).rejects.toThrow(/Caption must be 500/);
   });
 
-  it('rejects tag without leading "#"', async () => {
+  // A tag reaching the service by any path is folded by the one rule, so a
+  // hyphen or a missing '#' is stored in the one form rather than refused.
+  it('folds a tag given without "#" or with a hyphen into the stored form', async () => {
     const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
     const jpeg = await makeJpegBuffer();
-    await expect(svc.uploadPhoto({
+    await svc.uploadPhoto({
       adminMemberId: ADMIN_ID, photoBuffer: jpeg, sourceFilename: nextSourceFilename('jpg'), caption: null, tags: ['no-hash'],
-    })).rejects.toThrow(/must start with '#'/);
+    });
+    const db = openDb();
+    const rows = db.prepare(`SELECT tag_normalized FROM tags WHERE tag_normalized IN (?, ?)`)
+      .all('#no_hash', '#no-hash') as { tag_normalized: string }[];
+    db.close();
+    expect(rows.map((r) => r.tag_normalized)).toEqual(['#no_hash']);
   });
 
   it('accepts a mixed-case tag, normalizing for match and keeping capitalization for display', async () => {
     const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
     const jpeg = await makeJpegBuffer();
     await svc.uploadPhoto({
-      adminMemberId: ADMIN_ID, photoBuffer: jpeg, sourceFilename: nextSourceFilename('jpg'), caption: null, tags: ['#WorldsJapan'],
+      adminMemberId: ADMIN_ID, photoBuffer: jpeg, sourceFilename: nextSourceFilename('jpg'), caption: null, tags: ['#BeachSession'],
     });
     const db = openDb();
     const row = db.prepare(
       `SELECT tag_normalized, tag_display FROM tags WHERE tag_normalized = ?`,
-    ).get('#worldsjapan') as { tag_normalized: string; tag_display: string };
-    expect(row.tag_normalized).toBe('#worldsjapan');
-    expect(row.tag_display).toBe('#WorldsJapan');
+    ).get('#beachsession') as { tag_normalized: string; tag_display: string };
+    expect(row.tag_normalized).toBe('#beachsession');
+    expect(row.tag_display).toBe('#BeachSession');
     db.close();
   });
 
@@ -1199,7 +1207,7 @@ describe('curatorMediaService.uploadUrlReference', () => {
       sourceId: 'tt_youtube',
       startSeconds: null,
       endSeconds: null,
-      tags: ['#freestyle', '#trick', '#around-the-world', '#tutorial'],
+      tags: ['#freestyle', '#trick', '#around_the_world', '#tutorial'],
     });
 
     expect(verifier.callCount()).toBe(1);
@@ -1223,7 +1231,7 @@ describe('curatorMediaService.uploadUrlReference', () => {
     expect(Object.keys(sidecar)).not.toContain('creator');
     // What the clip is for is one of its tags. The sidecar carries no separate
     // field for it, so a reader cannot find two answers to the same question.
-    expect(sidecar.tags).toEqual(['#around-the-world', '#freestyle', '#trick', '#tutorial']);
+    expect(sidecar.tags).toEqual(['#around_the_world', '#freestyle', '#trick', '#tutorial']);
     expect(Object.keys(sidecar)).not.toContain('tier');
 
     const db = openDb();
@@ -1247,7 +1255,7 @@ describe('curatorMediaService.uploadUrlReference', () => {
       `SELECT t.tag_display FROM media_tags mt JOIN tags t ON t.id = mt.tag_id WHERE mt.media_id = ?`,
     ).all(result.mediaId) as { tag_display: string }[]).map((r) => r.tag_display);
     expect(tagDisplays).toContain('#curated');
-    expect(tagDisplays).toContain('#around-the-world');
+    expect(tagDisplays).toContain('#around_the_world');
     const audit = db.prepare(
       `SELECT * FROM audit_entries WHERE entity_id = ? AND action_type = 'media.curated_url_reference_added'`,
     ).get(result.filename) as Record<string, unknown> | undefined;

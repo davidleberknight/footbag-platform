@@ -150,10 +150,10 @@ event_key,legacy_event_id,year,event_name,event_slug,start_date,end_date,city,re
 2001_southern,988434364,2001,2001 Southern Regional Footbag Championships,2001_southern_regional_footbag_championships,2001-05-19,2001-05-20,Richardson,Texas,United States,Dallas Footbag Club,mixed,completed,,mirror
 2001_new_zealand,973573676,2001,2nd Annual New Zealand Footbag Championships,2nd_annual_new_zealand_footbag_championships,2001-01-06,2001-01-06,Auckland,,New Zealand,The Auckland Freestyle Footbag Club (AFFC),freestyle,completed,,mirror
 2001_turku_finland,990512631,2001,3rd annual Turku International Open Championships 2001 Finland,3rd_annual_turku_international_open_championships_2001_finland,2001-06-09,2001-06-09,Turku,Southwest Finland,Finland,Suomen Footbag Liitto ry. (Finnish Footbag Association),mixed,completed,,mirror
-2001_3_me_de,1001076203,2001,3ème Open de France de Footbag,3_me_open_de_france_de_footbag,2001-11-09,2001-11-11,Montpellier,Occitanie,France,,net,completed,,mirror
+2001_3_me_de,1001076203,2001,3ème Open de France de Footbag,3eme_open_de_france_de_footbag,2001-11-09,2001-11-11,Montpellier,Occitanie,France,,net,completed,,mirror
 2001_finnish,1001076315,2001,5th Annual Finnish Footbag Championships,5th_annual_finnish_footbag_championships,2001-09-28,2001-09-30,Turku,Southwest Finland,Finland,Suomen Footbag Liitto ry. (Finnish Footbag Association),mixed,completed,,mirror
 2001_australian,996293200,2001,Australian Footbag Championships,australian_footbag_championships,2001-12-07,2001-12-09,Sydney,New South Wales,Australia,,freestyle,completed,,mirror
-2001_bootf_gers_shred,1004370976,2001,Bootfägers Shred,bootf_gers_shred,2001-11-10,2001-11-10,Basel,Basel-Stadt,Switzerland,Bootfägers Basel,freestyle,completed,,mirror
+2001_bootf_gers_shred,1004370976,2001,Bootfägers Shred,bootfagers_shred,2001-11-10,2001-11-10,Basel,Basel-Stadt,Switzerland,Bootfägers Basel,freestyle,completed,,mirror
 2001_colorado_shred_symposium,974683678,2001,COLORADO SHRED SYMPOSIUM 2,colorado_shred_symposium_2,2001-02-25,2001-02-25,Boulder,Colorado,United States,,freestyle,completed,,mirror
 2001_chicago_inner_circle,989875090,2001,Chicago Inner Circle Museum of Science and Industry Jam,chicago_inner_circle_museum_of_science_and_industry_jam,2001-07-20,2001-07-21,Chicago,Illinois,United States,Chicago Inner Circle,freestyle,completed,,mirror
 2001_eastregion,981129410,2001,East Coast Footbag Championships,east_coast_footbag_championships,2001-04-28,2001-04-29,College Park,Maryland,United States,,mixed,completed,,mirror
@@ -457,7 +457,7 @@ event_key,legacy_event_id,year,event_name,event_slug,start_date,end_date,city,re
 2010_czech,1286644859,2010,Czech Footbag Championship 2010,czech_footbag_championship_2010,2010-11-06,2010-11-06,Hradec Králové,,Czech Republic,,mixed,completed,,mirror
 2010_fc_footstar_berlin,1254662073,2010,FC Footstar Berlin 12th Birthday Jam,fc_footstar_berlin_12th_birthday_jam,2010-01-16,2010-01-17,Berlin,,Germany,FC Footstar Berlin e.V.,mixed,completed,,mirror
 2010_finnish,1280002674,2010,Finnish Footbag Championships,finnish_footbag_championships,2010-09-17,2010-09-19,Jyväskylä,Central Finland,Finland,"Jyväskylän Footbag-klubi, JFK",mixed,completed,,mirror
-2010_t_chira_copa,1285989828,2010,Footbag Táchira Cup (Copa Tachira),footbag_t_chira_cup_copa_tachira,2010-10-23,2010-10-24,San Cristóbal,Táchira,Venezuela,Footbag Táchira Venezuela,net,completed,,mirror
+2010_t_chira_copa,1285989828,2010,Footbag Táchira Cup (Copa Tachira),footbag_tachira_cup_copa_tachira,2010-10-23,2010-10-24,San Cristóbal,Táchira,Venezuela,Footbag Táchira Venezuela,net,completed,,mirror
 2010_again_in_zara,1267996189,2010,Footbag again in the Zara,footbag_again_in_the_zara,2010-03-13,2010-03-14,Stara Zagora,,Bulgaria,Urban Komba,mixed,completed,,mirror
 2010_footcamp,1267469140,2010,Footcamp 2010,footcamp_2010,2010-04-01,2010-04-03,San Cristóbal,Táchira,Venezuela,Footbag Táchira Venezuela,net,completed,,mirror
 2010_frankfurt_anniversary,1260368810,2010,Frankfurt Footbag 10th Anniversary Jam,frankfurt_footbag_10th_anniversary_jam,2010-03-05,2010-03-07,Frankfurt,Hesse,Germany,SG Frankfurt Footbag e.V.,net,completed,,mirror
@@ -470,14 +470,14 @@ event_key,legacy_event_id,year,event_name,event_slug,start_date,end_date,city,re
 2010_rnh_contest,1270631935,2010,RNH Contest 2010,rnh_contest_2010,2010-06-05,2010-06-06,Paris,Île-de-France,France,Rien N'est Hacky - RNH Footbag,net,completed,,mirror
 2010_texas_state,1270518636,2010,Texas State Footbag Championships 2010,texas_state_footbag_championships_2010,2010-10-16,2010-10-17,Austin,Texas,United States,Austin Style Footbag Club - Texas Footbag League,mixed,completed,,mirror
 2010_akisphere,1272817638,2010,"The AkiSphere 2010, presented by AKIQ",the_akisphere_2010_presented_by_akiq,2010-07-02,2010-07-04,Montréal,Quebec,Canada,Aki Québec,net,completed,,mirror
-2010_king_hill_aki,1269111845,2010,"The King of the Hill 2010, presented by Aki Québec",the_king_of_the_hill_2010_presented_by_aki_qu_bec,2010-05-29,2010-05-30,Montréal,Quebec,Canada,Aki Québec,net,completed,,mirror
+2010_king_hill_aki,1269111845,2010,"The King of the Hill 2010, presented by Aki Québec",the_king_of_the_hill_2010_presented_by_aki_quebec,2010-05-29,2010-05-30,Montréal,Quebec,Canada,Aki Québec,net,completed,,mirror
 2010_todexon_11,1262691385,2010,Todexon 11,todexon_11,2010-03-19,2010-03-21,Prague,,Czech Republic,Czech Footbag Association,freestyle,completed,,mirror
 2010_turku,1271275118,2010,Turku Open 2010,turku_open_2010,2010-07-17,2010-07-18,Turku,Southwest Finland,Finland,Footcraft,net,completed,,mirror
 2010_u_s,1265850138,2010,U. S. Open Freestyle Footbag Championships,u_s_open_freestyle_footbag_championships,2010-07-24,2010-07-25,Vancouver,Washington,United States,Sole Purpose,freestyle,completed,,mirror
 2010_footbagjam_stara_zagora,1262631137,2010,Urban Komba Footbag Open Footbag Jam,urban_komba_footbag_open_footbag_jam,2010-01-30,2010-01-31,Stara Zagora,,Bulgaria,Urban Komba,mixed,completed,,mirror
 2010_wsf_mistrzostwa_pragi,1267199851,2010,WSF Mistrzostwa Pragi w Grze w Zoske,wsf_mistrzostwa_pragi_w_grze_w_zoske,2010-05-01,2010-05-02,Warsaw,Masovian,Poland,WSF Warsaw Footbag Association,mixed,completed,,mirror
 2010_zocha,1288096032,2010,Zocha Jam 2010,zocha_jam_2010,2010-12-04,2010-12-05,Wrocław,Lower Silesian,Poland,PSF Polish Footbag Association,mixed,completed,,mirror
-2011_footbagjam_lausanne,1299019355,2011,10 years Pieds à Gilles - 7th Swiss Footbag Open,10_years_pieds_gilles_7th_swiss_footbag_open,2011-08-26,2011-08-28,Lausanne,Vaud,Switzerland,Les Pieds à Gilles,net,completed,,mirror
+2011_footbagjam_lausanne,1299019355,2011,10 years Pieds à Gilles - 7th Swiss Footbag Open,10_years_pieds_a_gilles_7th_swiss_footbag_open,2011-08-26,2011-08-28,Lausanne,Vaud,Switzerland,Les Pieds à Gilles,net,completed,,mirror
 2011_polish,1297811412,2011,11th Annual Polish Footbag Championships 2011,11th_annual_polish_footbag_championships_2011,2011-08-19,2011-08-21,Płońsk,Masovian,Poland,Footbayerzy Footbag Club Nowe Miasto,mixed,completed,,mirror
 2011_de_france_de,1294262550,2011,12e Open de France de Footbag,12e_open_de_france_de_footbag,2011-02-24,2011-02-27,Paris,Île-de-France,France,Rien N'est Hacky - RNH Footbag,mixed,completed,,mirror
 2011_german,1298627369,2011,13th Annual German Footbag Championships,13th_annual_german_footbag_championships,2011-10-21,2011-10-23,Kiel,Schleswig-Holstein,Germany,Nordlicht Footbag Club e.V.,mixed,completed,,mirror
@@ -491,7 +491,7 @@ event_key,legacy_event_id,year,event_name,event_slug,start_date,end_date,city,re
 2011_copa_ciencias,1297909685,2011,2da Copa Ciencias,2da_copa_ciencias,2011-03-12,2011-03-13,Caracas,Capital District,Venezuela,X-PRO,net,completed,,mirror
 2011_copa_venezuela,1301675662,2011,2da Copa Venezuela,2da_copa_venezuela,2011-06-24,2011-06-26,Caracas,Capital District,Venezuela,X-PRO,net,completed,,mirror
 2011_worlds_helsinki,1293877677,2011,32nd Annual World Footbag Championships,32nd_ifpa_world_footbag_championships,2011-07-31,2011-08-06,Helsinki,Uusimaa,Finland,Suomen Footbag Liitto ry. (Finnish Footbag Association),worlds,completed,,mirror
-2011_copa_t_chira,1314328055,2011,3ra Copa Táchira de Footbag,3ra_copa_t_chira_de_footbag,2011-10-01,2011-10-02,San Cristóbal,Táchira,Venezuela,Footbag Táchira Venezuela,net,completed,,mirror
+2011_copa_t_chira,1314328055,2011,3ra Copa Táchira de Footbag,3ra_copa_tachira_de_footbag,2011-10-01,2011-10-02,San Cristóbal,Táchira,Venezuela,Footbag Táchira Venezuela,net,completed,,mirror
 2011_copa_pro,1311699287,2011,3ra Copa X-PRO,3ra_copa_x_pro,2011-11-05,2011-11-06,Caracas,Miranda,Venezuela,X-PRO,net,completed,,mirror
 2011_windy_city,1299532552,2011,4th Annual Windy City Cup Footbag Net Championships,4th_annual_windy_city_cup_footbag_net_championships,2011-06-17,2011-06-19,Chicago,Illinois,United States,Chicago Lake Coast Kickers,net,completed,,mirror
 2011_campeonato_suramericano_de,1314323534,2011,5to Campeonato Suramericano de Footbag,5to_campeonato_suramericano_de_footbag,2011-12-18,2011-12-21,San Cristóbal,Táchira,Venezuela,Footbag Táchira Venezuela,mixed,completed,,mirror
@@ -510,7 +510,7 @@ event_key,legacy_event_id,year,event_name,event_slug,start_date,end_date,city,re
 2011_rnh_contest,1320232300,2011,RNH Contest 2011,rnh_contest_2011,2011-12-03,2011-12-04,Paris,Île-de-France,France,Rien N'est Hacky - RNH Footbag,net,completed,,mirror
 2011_texas_state,1314229545,2011,Texas State Footbag Championships 2011,texas_state_footbag_championships_2011,2011-10-29,2011-10-30,Austin,Texas,United States,Austin Style Footbag Club - Texas Footbag League,net,completed,,mirror
 2011_akisphere,1301837824,2011,"The AkiSphere 2011, presented by AKIQ",the_akisphere_2011_presented_by_akiq,2011-07-01,2011-07-03,Montréal,Quebec,Canada,Aki Québec,net,completed,,mirror
-2011_king_hill_aki,1301837216,2011,"The King of the Hill 2011, presented by Aki Québec",the_king_of_the_hill_2011_presented_by_aki_qu_bec,2011-08-27,2011-08-28,Montréal,Quebec,Canada,Aki Québec,net,completed,,mirror
+2011_king_hill_aki,1301837216,2011,"The King of the Hill 2011, presented by Aki Québec",the_king_of_the_hill_2011_presented_by_aki_quebec,2011-08-27,2011-08-28,Montréal,Quebec,Canada,Aki Québec,net,completed,,mirror
 2011_todexon_12,1293878155,2011,Todexon 12,todexon_12,2011-04-16,2011-04-16,Prague,,Czech Republic,Czech Footbag Association,freestyle,completed,,mirror
 2011_turku,1302874713,2011,Turku Open,turku_open,2011-07-23,2011-07-24,Turku,Southwest Finland,Finland,Footcraft,net,completed,,mirror
 2011_usopen_portland,1295842442,2011,US OPEN Footbag Net Championships 2011,us_open_footbag_net_championships_2011,2011-06-25,2011-06-26,Portland,Oregon,United States,NPR,net,completed,,mirror
@@ -527,7 +527,7 @@ event_key,legacy_event_id,year,event_name,event_slug,start_date,end_date,city,re
 2012_copa_ciencias_ucv,1330833781,2012,3ra Copa Ciencias-UCV.,3ra_copa_ciencias_ucv,2012-03-24,2012-03-25,Caracas,Capital District,Venezuela,X-PRO,net,completed,,mirror
 2012_copa_venezuela,1339389008,2012,3ra Copa Venezuela,3ra_copa_venezuela,2012-06-30,2012-07-01,Caracas,Capital District,Venezuela,X-PRO,net,completed,,mirror
 2012_biennial_helsinki,1333483324,2012,3rd biennial Helsinki Open Footbag Tournament,3rd_biennial_helsinki_open_footbag_tournament,2012-05-19,2012-05-20,Helsinki,Uusimaa,Finland,Suomen Footbag Liitto ry. (Finnish Footbag Association),net,completed,,mirror
-2012_copa_t_chira,1348929718,2012,4ta Copa Táchira de Footbag,4ta_copa_t_chira_de_footbag,2012-11-03,2012-11-04,San Cristóbal,Táchira,Venezuela,Footbag Táchira Venezuela,net,completed,,mirror
+2012_copa_t_chira,1348929718,2012,4ta Copa Táchira de Footbag,4ta_copa_tachira_de_footbag,2012-11-03,2012-11-04,San Cristóbal,Táchira,Venezuela,Footbag Táchira Venezuela,net,completed,,mirror
 2012_suramericano_de,1346947092,2012,6o Suramericano de Footbag,6o_suramericano_de_footbag,2012-12-17,2012-12-20,Medellín,Antioquia,Colombia,Footbag Medellin,mixed,completed,,mirror
 2012_torneo_footcamp,1335761071,2012,6to Torneo FootCamp,6to_torneo_footcamp,2012-06-02,2012-06-03,San Cristóbal,Táchira,Venezuela,Footbag Táchira Venezuela,net,completed,,mirror
 2012_acapulco_zocha,1344933824,2012,Acapulco Zocha Jam,acapulco_zocha_jam,2012-09-01,2012-09-02,Wrocław,Lower Silesian,Poland,PSF Polish Footbag Association,mixed,completed,,mirror
@@ -566,12 +566,12 @@ event_key,legacy_event_id,year,event_name,event_slug,start_date,end_date,city,re
 2013_copa_ciencias,1366240051,2013,4ta. Copa Ciencias,4ta_copa_ciencias,2013-05-04,2013-05-05,Caracas,Miranda,Venezuela,X-PRO,net,completed,,mirror
 2013_helsinki,1363551565,2013,4th annual Helsinki Open Footbag Tournament,4th_annual_helsinki_open_footbag_tournament,2013-05-25,2013-05-26,Helsinki,Uusimaa,Finland,Suomen Footbag Liitto ry. (Finnish Footbag Association),net,completed,,mirror
 2013_copa_pro,1353380057,2013,5ta Copa X-PRO,5ta_copa_x_pro,2013-02-09,2013-02-10,Caracas,Capital District,Venezuela,X-PRO,net,completed,,mirror
-2013_5_copa_t,1378928859,2013,5º Copa Táchira,5_copa_t_chira,2013-10-05,2013-10-06,San Cristóbal,Táchira,Venezuela,Footbag Táchira Venezuela,net,completed,,mirror
+2013_5_copa_t,1378928859,2013,5º Copa Táchira,5_copa_tachira,2013-10-05,2013-10-06,San Cristóbal,Táchira,Venezuela,Footbag Táchira Venezuela,net,completed,,mirror
 2013_akisphere,1362598500,2013,Akisphere,akisphere,2013-07-19,2013-07-21,Montréal,Quebec,Canada,Aki Québec,net,completed,,mirror
 2013_austrian,1382778441,2013,Austrian Footbag Championships 2013,austrian_footbag_championships_2013,2013-12-20,2013-12-21,Vienna,,Austria,Footbag-Vienna,mixed,completed,,mirror
 2013_footbagjam_burgas,1369141018,2013,Burgas Summer Footbag Jam V,burgas_summer_footbag_jam_v,2013-07-27,2013-07-28,Burgas,,Bulgaria,Urban Komba,net,completed,,mirror
 2013_championnat_de_france,1378821205,2013,Championnat de France de Footbag 2013,championnat_de_france_de_footbag_2013,2013-11-30,2013-12-01,Nantes,Loire-Atlantique,France,Carnabal Footbag,net,completed,,mirror
-2013_copa_san_sebasti,1361239371,2013,Copa San Sebastián,copa_san_sebasti_n,2013-03-16,2013-03-17,San Cristóbal,Táchira,Venezuela,Footbag Táchira Venezuela,net,completed,,mirror
+2013_copa_san_sebasti,1361239371,2013,Copa San Sebastián,copa_san_sebastian,2013-03-16,2013-03-17,San Cristóbal,Táchira,Venezuela,Footbag Táchira Venezuela,net,completed,,mirror
 2013_czech,1379414806,2013,Czech Footbag Championships,czech_footbag_championships,2013-11-22,2013-11-24,Brno,South Moravian,Czech Republic,Czech Footbag Association,freestyle,completed,,mirror
 2013_footbagjam_copenhagen,1378666423,2013,Danish Footbag Open,danish_footbag_open,2013-11-29,2013-11-30,Copenhagen,Capital Region,Denmark,,freestyle,completed,,mirror
 2013_footcamp,1361239920,2013,FOOTCAMP 2013,footcamp_2013,2013-04-20,2013-04-21,San Cristóbal,Táchira,Venezuela,Footbag Táchira Venezuela,net,completed,,mirror
@@ -580,7 +580,7 @@ event_key,legacy_event_id,year,event_name,event_slug,start_date,end_date,city,re
 2013_paris_battle_3,1369864929,2013,Paris Net Battle 3,paris_net_battle_3,2013-06-29,2013-06-30,Paris,Île-de-France,France,Rien N'est Hacky - RNH Footbag,net,completed,,mirror
 2013_sixth_windy_city,1357231609,2013,Sixth Annual Windy City Cup Footbag Net Championships,sixth_annual_windy_city_cup_footbag_net_championships,2013-06-21,2013-06-23,Chicago,Illinois,United States,Chicago Lake Coast Kickers,net,completed,,mirror
 2013_footbagjam_lausanne,1370276202,2013,Swiss Footbag Open & Championships,swiss_footbag_open_championships,2013-10-25,2013-10-27,Lausanne,Vaud,Switzerland,Les Pieds à Gilles,net,completed,,mirror
-2013_swiss_z_rich,1371821574,2013,Swiss Jam Zürich,swiss_jam_z_rich,2013-09-14,2013-09-15,Zurich,,Switzerland,Sole Rebels Zürich,freestyle,completed,,mirror
+2013_swiss_z_rich,1371821574,2013,Swiss Jam Zürich,swiss_jam_zurich,2013-09-14,2013-09-15,Zurich,,Switzerland,Sole Rebels Zürich,freestyle,completed,,mirror
 2013_todexon_14,1357206898,2013,Todexon 14,todexon_14,2013-04-12,2013-04-14,Prague,,Czech Republic,Czech Footbag Association,freestyle,completed,,mirror
 2013_turku_tuanament,1362915311,2013,Turku Open Tuanament,turku_open_tuanament,2013-07-13,2013-07-14,Turku,Southwest Finland,Finland,Footcraft,net,completed,,mirror
 2013_usopen_portland,1357101984,2013,U.S. OPEN Footbag Net Championships 2013,u_s_open_footbag_net_championships_2013,2013-06-29,2013-06-30,Portland,Oregon,United States,NPR,net,completed,,mirror
@@ -605,7 +605,7 @@ event_key,legacy_event_id,year,event_name,event_slug,start_date,end_date,city,re
 2014_seventh_windy_city,1394742347,2014,Seventh Annual Windy City Cup Footbag Net Championships,seventh_annual_windy_city_cup_footbag_net_championships,2014-06-21,2014-06-22,Chicago,Illinois,United States,Chicago Lake Coast Kickers,net,completed,,mirror
 2014_sweet_six_teen,1383076667,2014,Sweet Six-Teen - Footstar B-Day 2014,sweet_six_teen_footstar_b_day_2014,2014-02-01,2014-02-02,Berlin,,Germany,FC Footstar Berlin e.V.,net,completed,,mirror
 2014_footbagjam_lausanne,1407335213,2014,Swiss Footbag Open,swiss_footbag_open,2014-10-17,2014-10-19,Lausanne,Vaud,Switzerland,Les Pieds à Gilles,mixed,completed,,mirror
-2014_swiss_z_rich,1389613723,2014,Swiss Jam Zürich,swiss_jam_z_rich,2014-03-15,2014-03-16,Zurich,,Switzerland,Sole Rebels Zürich,freestyle,completed,,mirror
+2014_swiss_z_rich,1389613723,2014,Swiss Jam Zürich,swiss_jam_zurich,2014-03-15,2014-03-16,Zurich,,Switzerland,Sole Rebels Zürich,freestyle,completed,,mirror
 2014_todexon_15,1389730147,2014,Todexon 15,todexon_15,2014-04-04,2014-04-06,Prague,,Czech Republic,Czech Footbag Association,mixed,completed,,mirror
 2014_u_s,1386623061,2014,U. S. Open Footbag Championships 2014,u_s_open_footbag_championships_2014,2014-06-28,2014-06-29,West Linn,Oregon,United States,Sole Purpose,mixed,completed,,mirror
 2014_footbagjam_stara_zagora,1393451254,2014,bulgarian open footbag jam part 24,bulgarian_open_footbag_jam_part_24,2014-05-02,2014-05-04,Stara Zagora,,Bulgaria,Urban Komba,mixed,completed,,mirror
@@ -648,7 +648,7 @@ event_key,legacy_event_id,year,event_name,event_slug,start_date,end_date,city,re
 2016_championnat_de_france,1459426362,2016,Championnat de France de Footbag 2016,championnat_de_france_de_footbag_2016,2016-05-14,2016-05-15,Nantes,Pays de la Loire,France,Carnabal Footbag,net,completed,,mirror
 2016_fc_footstars_anniversary,1446571794,2016,FC Footstar's 18th Anniversary,fc_footstars_18th_anniversary,2016-01-29,2016-01-31,Berlin,,Germany,FC Footstar Berlin e.V.,net,completed,,mirror
 2016_lakeerie,1447494731,2016,Lake Erie Footbag Tournament,lake_erie_footbag_tournament,2016-05-14,2016-05-15,Erie,Pennsylvania,United States,FOOTBAG ERIE,net,completed,,mirror
-2016_malopolska_mistrzostwa_ma,1473853257,2016,Malopolska Footbag Championships 2016 // Mistrzostwa Ma³opolski w Zo¶kê 2016,malopolska_footbag_championships_2016_mistrzostwa_ma_opolski_w_zo_k_2016,2016-10-08,2016-10-09,Kraków,Lesser Poland,Poland,Maniac Footbag Team,mixed,completed,,mirror
+2016_malopolska_mistrzostwa_ma,1473853257,2016,Malopolska Footbag Championships 2016 // Mistrzostwa Ma³opolski w Zo¶kê 2016,malopolska_footbag_championships_2016_mistrzostwa_ma_opolski_w_zo_ke_2016,2016-10-08,2016-10-09,Kraków,Lesser Poland,Poland,Maniac Footbag Team,mixed,completed,,mirror
 2016_rnh_contest,1458170459,2016,RNH Contest 2016,rnh_contest_2016,2016-04-23,2016-04-24,Paris,Île-de-France,France,Rien N'est Hacky - RNH Footbag,net,completed,,mirror
 2016_footbagjam_lausanne,1466891959,2016,Swiss Footbag Open 2016,swiss_footbag_open_2016,2016-10-28,2016-10-30,Lausanne,Vaud,Switzerland,Les Pieds à Gilles,net,completed,,mirror
 2016_usopen_west_linn,1458772302,2016,U.S. Open Footbag Net Championships 2016,u_s_open_footbag_net_championships_2016,2016-06-25,2016-06-26,West Linn,Oregon,United States,Sole Purpose,net,completed,,mirror

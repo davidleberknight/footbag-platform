@@ -222,75 +222,86 @@ esac
 export CLAUDE_PROJECT_DIR="$saved_project_dir"
 rm -rf "$cp_dir"
 
-# guard-ui-wording.sh: a change to text a site visitor reads passes silently only when
-# a message the human typed approved that text; otherwise it asks, naming the change.
+# guard-ui-wording.sh: a change that adds text a site visitor reads passes silently only
+# when a message the human typed approved that text, or pre-approved technical wording;
+# otherwise it asks once, saying a human must approve the UI copy and naming it.
 # A scratch project stands in for the real files; each case gets its own transcript.
 H=guard-ui-wording.sh
 uw_dir="$(mktemp -d)"
-mkdir -p "$uw_dir/src/views/clubs" "$uw_dir/src/services" "$uw_dir/curated/email_templates"
-printf '<h1 class="title">Club details</h1>\n<p>{{club.name}} meets weekly.</p>\n<img alt="Club logo" src="x">\n' > "$uw_dir/src/views/clubs/detail.hbs"
+mkdir -p "$uw_dir/src/views/clubs" "$uw_dir/src/services" "$uw_dir/src/public/js" "$uw_dir/curated/email_templates"
+printf '<h1 class="title">Club details</h1>\n<p>{{club.name}} meets weekly.</p>\n<img alt="Club logo" src="x">\n{{#if open}}<button>Search</button>{{else}}<p>Closed now</p>{{/if}}\n<p>This club is not accepting new members at the moment.</p>\n' > "$uw_dir/src/views/clubs/detail.hbs"
 printf "export function f(n: number) {\n  logger.warn('club lookup failed for id');\n  return { heading: 'Join this club', count: n };\n}\n" > "$uw_dir/src/services/clubService.ts"
+printf "function g() {\n  el.textContent = 'Saved.';\n}\n" > "$uw_dir/src/public/js/club.js"
 printf '{\n  "templateKey": "club_join",\n  "bodyTemplate": "Hi {name},\\n\\nYou joined."\n}\n' > "$uw_dir/curated/email_templates/club_join.json"
 saved_project_dir="$CLAUDE_PROJECT_DIR"
 export CLAUDE_PROJECT_DIR="$uw_dir"
 uw_human() { jq -cn --arg t "$1" '{type:"user",origin:{kind:"human"},message:{content:$t}}'; }
+uw_queued() { jq -cn --arg t "$1" '{type:"attachment",attachment:{type:"queued_command",prompt:$t,origin:{kind:"human"}}}'; }
 uw_claude() { jq -cn --arg t "$1" '{type:"assistant",message:{content:[{type:"text",text:$t}]}}'; }
 uw_edit() { jq -cn --arg p "$uw_dir/$1" --arg o "$2" --arg n "$3" '{file_path:$p,old_string:$o,new_string:$n}'; }
 # expect_wording <tool-input-json> <transcript-lines> <ask|defer>
-# An unapproved change ("ask") is first denied, so Claude writes the reason and the text
-# into its message, and the same change retried then asks; each case gets its own marks.
+# An unapproved change asks at once: one approval for one change, never a prior deny.
 expect_wording() {
-  local tf out decision gate_dir
+  local tf out decision
   tf="$(mktemp)"; printf '%s\n' "$2" > "$tf"
-  gate_dir="$(mktemp -d)"
-  out="$(jq -cn --argjson i "$1" --arg t "$tf" '{tool_input:$i,transcript_path:$t,session_id:"s1"}' | TMPDIR="$gate_dir" ".claude/hooks/$H")"
+  out="$(jq -cn --argjson i "$1" --arg t "$tf" '{tool_input:$i,transcript_path:$t,session_id:"s1"}' | ".claude/hooks/$H")"
+  rm -f "$tf"
   decision="$(printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecision // "defer"')"
   [ -n "$out" ] || decision=defer
-  if [ "$3" = ask ]; then
-    if [ "$decision" != deny ]; then
-      echo "[hooks] FAIL ($H): an unexplained wording change must first deny, got $decision: $1" >&2; fail=1
-    fi
-    case "$(printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecisionReason')" in
-      "WORDING PROMPT NOT YET EXPLAINED: "*"Do you approve of the UI wording change as shown?"*) : ;;
-      *) echo "[hooks] FAIL ($H): the first deny does not tell Claude to explain the prompt" >&2; fail=1 ;;
-    esac
-    out="$(jq -cn --argjson i "$1" --arg t "$tf" '{tool_input:$i,transcript_path:$t,session_id:"s1"}' | TMPDIR="$gate_dir" ".claude/hooks/$H")"
-    decision="$(printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecision // "defer"')"
-  fi
-  rm -rf "$tf" "$gate_dir"
   if [ "$decision" != "$3" ]; then
     echo "[hooks] FAIL ($H): want $3, got $decision: $1 / $2" >&2; fail=1
   fi
   if [ "$3" = ask ]; then
     case "$(printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecisionReason')" in
-      "APPROVE SITE WORDING: visitors will read new text on "*) : ;;
-      *) echo "[hooks] FAIL ($H): reason does not lead with APPROVE SITE WORDING" >&2; fail=1 ;;
+      "HUMAN APPROVAL OF UI COPY: Claude is changing text site visitors read in "*"New text: "*) : ;;
+      *) echo "[hooks] FAIL ($H): reason does not say a human must approve the UI copy and name it" >&2; fail=1 ;;
     esac
   fi
 }
 V=src/views/clubs/detail.hbs
-# Markup, Handlebars expressions, identifiers and log lines are not wording.
+# Markup, Handlebars expressions, identifiers, log lines and directives are not wording.
 expect_wording "$(uw_edit "$V" 'class="title"' 'class="title big"')" "" defer
 expect_wording "$(uw_edit "$V" '{{club.name}}' '{{club.displayName}}')" "" defer
 expect_wording "$(uw_edit src/services/clubService.ts 'count: n' 'total: n')" "" defer
 expect_wording "$(uw_edit src/services/clubService.ts 'failed for id' 'failed')" "" defer
 expect_wording "$(uw_edit curated/email_templates/club_join.json '"club_join"' '"club_join_v2"')" "" defer
-# Visible text, a visible attribute, a prose string and an email body ask unapproved.
+expect_wording "$(uw_edit src/public/js/club.js 'function g() {' "'use strict';
+function g() {")" "" defer
+# Text deleted, moved, or repeated from elsewhere in the same file is not new wording.
+expect_wording "$(uw_edit "$V" '<p>This club is not accepting new members at the moment.</p>' '')" "" defer
+expect_wording "$(uw_edit "$V" '<h1 class="title">Club details</h1>' '<h1 class="title">Club details</h1>
+<p>This club is not accepting new members at the moment.</p>')" "" defer
+expect_wording "$(uw_edit "$V" '<p>Closed now</p>' '<button>Search</button>')" "" defer
+# Visible text, a visible attribute, a prose string and an email body ask unapproved, and
+# so does a deletion that leaves different words behind.
 expect_wording "$(uw_edit "$V" 'Club details' 'About this club')" "$(uw_human 'fix the club page')" ask
 expect_wording "$(uw_edit "$V" 'alt="Club logo"' 'alt="Logo of the club"')" "" ask
 expect_wording "$(uw_edit src/services/clubService.ts "'Join this club'" "'Become a member'")" "" ask
 expect_wording "$(uw_edit curated/email_templates/club_join.json 'You joined.' 'You are now a member.')" "" ask
 expect_wording "$(jq -cn --arg p "$uw_dir/src/views/new.hbs" '{file_path:$p,content:"<h2>Fresh words here</h2>"}')" "" ask
-# Approval: the human dictates the text, or says yes to Claude text that showed it.
+expect_wording "$(uw_edit "$V" 'is not accepting' 'is accepting')" "" ask
+# Approval: the human dictates the text, or says yes to Claude text that showed it, at
+# the prompt or while Claude was working; a long text needs no shortened copy.
 expect_wording "$(uw_edit "$V" 'Club details' 'About this club')" "$(uw_human 'change the heading to "About this club"')" defer
 expect_wording "$(uw_edit "$V" 'Club details' 'About this club')" "$(uw_claude 'AFTER: <h1>About this club</h1> Apply?')"$'\n'"$(uw_human 'yes')" defer
+expect_wording "$(uw_edit "$V" 'Club details' 'About this club')" "$(uw_claude 'AFTER: <h1>About this club</h1> Apply?')"$'\n'"$(uw_queued 'y')" defer
+uw_long='Your profile URL will be shown here. A profile URL uses only the letters a to z, digits and underscores, so accented letters became plain ones and other characters became underscores. It is permanent, so check it, then press Create Account again.'
+expect_wording "$(uw_edit src/services/clubService.ts "'Join this club'" "'$uw_long'")" "$(uw_claude "New text: \"$uw_long\" Apply?")"$'\n'"$(uw_human 'y')" defer
 # Not approval: a no, Claude's own text, a tool result, a task notification.
 expect_wording "$(uw_edit "$V" 'Club details' 'About this club')" "$(uw_claude 'AFTER: About this club. Apply?')"$'\n'"$(uw_human 'no, keep it')" ask
 expect_wording "$(uw_edit "$V" 'Club details' 'About this club')" "$(uw_claude 'I will change it to About this club.')" ask
 expect_wording "$(uw_edit "$V" 'Club details' 'About this club')" "$(jq -cn '{type:"user",message:{content:[{type:"tool_result",content:"About this club"}]}}')" ask
 expect_wording "$(uw_edit "$V" 'Club details' 'About this club')" "$(jq -cn '{type:"user",origin:{kind:"task-notification"},message:{content:"About this club"}}')" ask
-# A short change needs its context, so a common word in a message cannot approve it.
-expect_wording "$(uw_edit "$V" 'meets weekly' 'meets often')" "$(uw_human 'often')" ask
+# A short change needs the file named too, so a common word in a message cannot approve it.
+expect_wording "$(uw_edit "$V" 'meets weekly' 'meets often')" "$(uw_human 'meets often')" ask
+expect_wording "$(uw_edit "$V" 'meets weekly' 'meets often')" "$(uw_human 'in detail.hbs say meets often')" defer
+# Pre-approval of technical wording, typed or sent mid-turn, passes short technical text
+# and still asks for email text and long prose; a later withdrawal ends it.
+expect_wording "$(uw_edit "$V" 'Club details' 'About this club')" "$(uw_queued 'approve all ui wording, technical not editorial copy')" defer
+expect_wording "$(uw_edit "$V" 'Club details' 'About this club')" "$(uw_human 'ui wording changes are technical not editor copy, go ahead')" defer
+expect_wording "$(uw_edit curated/email_templates/club_join.json 'You joined.' 'You are now a member.')" "$(uw_human 'approve all technical UI wording')" ask
+expect_wording "$(uw_edit src/services/clubService.ts "'Join this club'" "'$uw_long $uw_long'")" "$(uw_human 'approve all technical UI wording')" ask
+expect_wording "$(uw_edit "$V" 'Club details' 'About this club')" "$(uw_human 'approve all technical UI wording')"$'\n'"$(uw_human 'stop approving UI wording')" ask
 # A subagent's transcript path resolves to its session file.
 mkdir -p "$uw_dir/sess/subagents"; uw_human 'heading: About this club' > "$uw_dir/sess.jsonl"
 uw_out="$(jq -cn --arg p "$uw_dir/$V" --arg t "$uw_dir/sess/subagents/agent-x.jsonl" '{tool_input:{file_path:$p,old_string:"Club details",new_string:"About this club"},transcript_path:$t}' | ".claude/hooks/$H")"

@@ -7,7 +7,14 @@
  * here so future taxonomy edits go through explicit review.
  */
 import { describe, it, expect } from 'vitest';
-import { shapeMediaTagsForBrowse } from '../../src/services/freestyleService';
+import { shapeMediaTagsForBrowse as shapeWithoutDictionary } from '../../src/services/freestyleService';
+
+// The trick dictionary the page passes in: these names are tricks, nothing else is.
+const TRICKS: ReadonlySet<string> = new Set(['#whirl', '#zoo', '#alpha', '#mango']);
+const shapeMediaTagsForBrowse = (
+  tags: readonly string[],
+  opts: { surfaceContext?: 'freestyle-only' | 'cross-sport' } = {},
+) => shapeWithoutDictionary(tags, { ...opts, trickTags: TRICKS });
 
 describe('shapeMediaTagsForBrowse — suppression policy', () => {
   it('drops universally-noisy tags (#trick, #unavailable_embed)', () => {
@@ -50,6 +57,12 @@ describe('shapeMediaTagsForBrowse — kind classification', () => {
     expect(tag.kind).toBe('creator');
   });
 
+  it('classifies `#player_*` as a person, never a trick, so it sorts after the trick tags', () => {
+    const out = shapeMediaTagsForBrowse(['#player_kenny_shults', '#whirl']);
+    expect(out.find((t) => t.display === '#player_kenny_shults')?.kind).toBe('player');
+    expect(out.map((t) => t.display)).toEqual(['#whirl', '#player_kenny_shults']);
+  });
+
   it('classifies each of the three content types, so none renders among the trick tags', () => {
     for (const tag of ['#tutorial', '#demo', '#record']) {
       expect(shapeMediaTagsForBrowse([tag])[0].kind).toBe('content-type');
@@ -74,9 +87,17 @@ describe('shapeMediaTagsForBrowse — kind classification', () => {
     expect(out[0].kind).toBe('sport');
   });
 
-  it('defaults unknown `#*` tags to trick (catch-all)', () => {
+  // A set, club or member's own hashtag read as a trick would sort among the
+  // trick hashtags and tell the visitor it names a trick.
+  it('classifies as a trick only a hashtag the dictionary holds; any other sorts last', () => {
     expect(shapeMediaTagsForBrowse(['#whirl'])[0].kind).toBe('trick');
-    expect(shapeMediaTagsForBrowse(['#some-unseen-tag'])[0].kind).toBe('trick');
+    expect(shapeMediaTagsForBrowse(['#Whirl'])[0].kind).toBe('trick');
+    for (const tag of ['#set_pixie', '#club_zurich', '#concept_learning', '#beach_session']) {
+      expect(shapeMediaTagsForBrowse([tag])[0].kind, tag).toBe('other');
+    }
+    const out = shapeMediaTagsForBrowse(['#set_pixie', '#curated', '#whirl']);
+    expect(out.map((t) => t.display)).toEqual(['#whirl', '#curated', '#set_pixie']);
+    expect(shapeWithoutDictionary(['#whirl'])[0].kind).toBe('other');
   });
 });
 

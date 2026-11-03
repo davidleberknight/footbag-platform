@@ -1,8 +1,8 @@
 /**
  * GET /freestyle/progression/walking-family — retired.
  *
- * The Butterfly family page owns that family's progression, so the old address
- * redirects permanently there, and no page links to the retired address.
+ * The Butterfly family page owns that family's progression. The old address
+ * has no page before go-live, so it answers not-found, and no page links to it.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { cachedGet } from '../fixtures/cachedGet';
@@ -32,10 +32,12 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /freestyle/progression/walking-family — retired', () => {
-  it('redirects permanently to the Butterfly family page', async () => {
+  it('answers not-found, with no redirect', async () => {
+    // Defect caught: a retired address of an unlaunched site still forwarding
+    // somewhere, a compatibility redirect the site does not keep.
     const res = await page('/freestyle/progression/walking-family');
-    expect(res.status).toBe(301);
-    expect(res.headers.location).toBe('/freestyle/families/butterfly');
+    expect(res.status).toBe(404);
+    expect(res.headers.location).toBeUndefined();
   });
 
   it('is linked from no page that used to point at it', async () => {

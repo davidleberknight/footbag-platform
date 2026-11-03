@@ -588,9 +588,10 @@ describe('admin curator media routes — sidecar-backed (URL reference)', () => 
       .post(`/admin/curator/media/${mediaId}/edit`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ caption: 'typed caption', tags: 'noprefix', sourceId: 'src_route', startSeconds: '12', endSeconds: '', externalUrl: '' });
+      // #curated is applied automatically and refused as input, which is what
+      // makes this edit refused; any typed spelling of a tag is otherwise folded.
+      .send({ caption: 'typed caption', tags: '#curated', sourceId: 'src_route', startSeconds: '12', endSeconds: '', externalUrl: '' });
     expect(res.status).toBe(422);
-    expect(res.text).toContain('Tag must start with');
     expect(res.text).toContain('Type: <strong>video</strong>');
     expect(res.text).toContain('URL reference fields');
     expect(res.text).toContain('value="typed caption"');
@@ -684,7 +685,7 @@ describe('admin curator media routes — sidecar-backed (URL reference)', () => 
     // The message carries a code span, so it goes through the notice's block
     // form: the success treatment wraps the markup rather than escaping it.
     expect(res.text).toMatch(
-      /<div class="form-success-banner" role="status">\s*Saved\.[^]*?<code>python scripts\/seed_fh_curator\.py<\/code>[^]*?<\/div>/,
+      /<div class="form-success-banner" role="status">\s*<p>\s*Saved\.[^]*?<code>python scripts\/seed_fh_curator\.py<\/code>[^]*?<\/div>/,
     );
   });
 

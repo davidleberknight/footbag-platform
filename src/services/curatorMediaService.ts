@@ -11,6 +11,9 @@
  *   - ffmpeg curator transcode pipeline
  *   - Storage key construction matching the curator-seed layout
  *   - Auto-application of the `#curated` uploader marker
+ *   - Player credits on edit: a person picked from the edit pages' player
+ *     search, which reuses member search (`memberService.searchMembers`)
+ *     rather than a search of its own
  *   - Admin and member named-gallery editing (FH-owned and member-owned
  *     `member_galleries` rows)
  *   - The page contracts for the admin curator surface and for the member's own
@@ -39,6 +42,13 @@
  *   - Storage keys follow `{systemMemberId}/detached/{mediaId}-...` so offline seed
  *     and admin upload produce identical row shape.
  *   - Auto-applies `#curated`; `#curated` rejected from input.
+ *   - Every typed tag (media tags, gallery tags and criteria, the curator list
+ *     filter) is folded by the one rule (`typedTag` in `slugify.ts`) before it is
+ *     validated or stored, so a tag typed with accents, hyphens or no '#' is stored
+ *     in the site's one form; two typed spellings of one tag are kept once. The
+ *     save's success message names each typed tag that folding changed
+ *     (`changedTypedTags`, `foldedTagsLine`), on every page a media save lands on.
+ *   - Member gallery ids fold the gallery name by the same rule.
  *   - URL-reference uploads insert the `media_items` row directly (parallel to
  *     photo/video, minus S3 since url-refs host no bytes), keyed on the
  *     deterministic `(video_platform, video_url)` id (`urlRefMediaId`, matching
@@ -54,6 +64,13 @@
  *   - Photo upload uses Sharp (aspect-preserving thumb, 800px-wide display, EXIF/ICC
  *     stripped); video upload uses ffmpeg curator transcode.
  *   - Magic-byte rejection for unsupported formats.
+ *   - A shared photo, member or curated, is refused outside 1.91:1 landscape to
+ *     3:4 portrait, judged on its upright dimensions and before anything is
+ *     stored; avatars and video posters keep the wider 4:1 limit.
+ *   - A member photo is held to the administrator's size-per-photo and
+ *     photos-per-hour settings (`system_config_current`), the size clamped to
+ *     the 25 MB code maximum; an administrator uploading is held only to the
+ *     code maximum and is not rate-limited.
  *   - All DB writes for one upload (`media_items` + `media_tags` + `audit_entries`)
  *     land in one transaction; storage `put` calls happen BEFORE the transaction
  *     opens; if any put fails, the transaction never runs.
@@ -170,7 +187,7 @@ import path from 'path';
 import { GALLERY_ITEMS_QUERY_CAP, countGalleryItemsByCriteria, listGalleryItemsForDisplay, media, mediaTags as mediaTagsDb, queryCuratorMediaTags, tagStats, transaction, type MediaJobRow } from '../db/db';
 import { config } from '../config/env';
 import { logger } from '../config/logger';
-import { detectImageType, RENDITION_IMAGE_MIME } from '../lib/imageProcessing';
+import { detectImageType, photoShapeRefusal, RENDITION_IMAGE_MIME } from '../lib/imageProcessing';
 import { detectVideoFormat, type TranscodedVideo } from '../lib/videoProcessing';
 import { Semaphore } from '../lib/semaphore';
 import { MediaStorageAdapter, getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
@@ -236,8 +253,15 @@ import { buildTierBenefitNotice } from './tierBenefitNotice';
 // it is handed without importing the media service that reads them: that module
 // already imports this one, and a value import would close the loop.
 import type { GalleryItem } from './mediaService';
+import { memberService, type SearchBlockView } from './memberService';
+import { hasUnconvertibleLetters, slugifyForTag, typedTag, typedTagForDisplay } from './slugify';
+import { assertTypedTags } from './typedTokenRules';
 import type { PageViewModel, TierBenefitNotice } from '../types/page';
 
+// The code maximum for one photo. An administrator's "Size per photo" setting
+// can lower the limit a member is held to, never raise it past this, and an
+// administrator uploading is held to this alone. It is also the multipart
+// parser's back-stop, so no request body carries a larger photo part.
 export const PHOTO_MAX_BYTES = 25 * 1024 * 1024;
 export const VIDEO_MAX_BYTES = config.videoMaxBytes;
 /** The limit as the reader sees it, so message and check can never disagree. */
@@ -250,8 +274,21 @@ export const CAPTION_MAX_LEN = 500;
 function megabytes(bytes: number): number {
   return Math.floor(bytes / (1024 * 1024));
 }
-export const PHOTO_TOO_LARGE_MESSAGE =
-  `Photo is too large. Maximum size is ${megabytes(PHOTO_MAX_BYTES)} MB.`;
+export function photoTooLargeMessage(maxBytes: number): string {
+  return `Photo is too large. Maximum size is ${megabytes(maxBytes)} MB.`;
+}
+
+/**
+ * The largest photo this uploader may share, in bytes: the administrator's
+ * size-per-photo setting for a member, read per request so a change applies
+ * to the next upload, clamped to the code maximum; the code maximum itself for
+ * an administrator, who is exempt from the member upload limits.
+ */
+export function photoMaxBytes(actorIsAdmin: boolean): number {
+  if (actorIsAdmin) return PHOTO_MAX_BYTES;
+  const configuredMb = readIntConfig('photo_upload_max_file_mb', megabytes(PHOTO_MAX_BYTES));
+  return Math.min(configuredMb * 1024 * 1024, PHOTO_MAX_BYTES);
+}
 export const VIDEO_TOO_LARGE_MESSAGE = `Video is too large. Maximum size is ${VIDEO_MAX_MB} MB.`;
 export const POSTER_TOO_LARGE_MESSAGE =
   `Poster is too large. Maximum size is ${megabytes(POSTER_MAX_BYTES)} MB.`;
@@ -356,12 +393,79 @@ export function memberGalleriesHref(memberKey: string): string {
   return `/members/${memberKey}/galleries`;
 }
 
-// The one grammar for a typed tag list: tags separated by any whitespace,
-// blanks dropped. Anything that is not a string reads as no tags, so a
-// malformed submission is refused by tag validation rather than crashing.
+// The one grammar for a typed tag list: tags separated by any whitespace, each
+// folded by the one rule into its stored form (`typedTag`), so "#Zoë-Müller"
+// is stored as "#zoe_muller" with or without the leading '#'; blanks and tags
+// that fold to nothing are dropped. Anything that is not a string reads as no
+// tags, so a malformed submission is refused by tag validation rather than
+// crashing.
 export function parseTagList(raw: unknown): string[] {
+  return foldTypedTagList(raw).map((t) => t.stored);
+}
+
+/**
+ * Each typed tag beside the form it is stored in, in typed order. The typed
+ * tags whose stored form differs (an accent folded, a hyphen made an
+ * underscore) are the ones a member is told about after saving.
+ */
+export function foldTypedTagList(raw: unknown): { typed: string; stored: string }[] {
   if (typeof raw !== 'string') return [];
-  return raw.split(/\s+/).filter((t) => t.length > 0);
+  // Two typed spellings of one tag ("#Zürich #zurich") fold to one stored tag,
+  // which is kept once, where it was first typed.
+  // A tag with letters the rule cannot convert is passed on as typed, unfolded,
+  // so the tag rules refuse it by name instead of folding part of it away.
+  const seen = new Set<string>();
+  return raw.split(/\s+/)
+    .filter((t) => t.length > 0)
+    .map((typed) => ({
+      typed,
+      // Capitals are kept for display; tags match, and repeat, in lowercase.
+      stored: hasUnconvertibleLetters(typed) ? `#${typed.replace(/^#+/, '')}` : typedTagForDisplay(typed),
+    }))
+    .filter((t) => {
+      const key = t.stored.toLowerCase();
+      return t.stored.length > 0 && !seen.has(key) && (seen.add(key), true);
+    });
+}
+
+/**
+ * The line a saved message carries when the save stored typed tags in a folded
+ * form, naming each change; null when nothing was folded. Shared by every page a
+ * media save lands on, so they all say it the same way.
+ */
+export function foldedTagsLine(folded: { typed: string; stored: string }[]): string | null {
+  if (folded.length === 0) return null;
+  const asTyped = (t: string) => (t.startsWith('#') ? t : `#${t}`);
+  const [first, ...rest] = folded;
+  const pairs = [`${asTyped(first.typed)} was saved as ${first.stored}`,
+    ...rest.map((f) => `${asTyped(f.typed)} as ${f.stored}`)];
+  const listed = pairs.length === 1 ? pairs[0]
+    : `${pairs.slice(0, -1).join(', ')}, and ${pairs[pairs.length - 1]}`;
+  return `${listed}. Hashtags use only the letters a to z, digits and underscores, so accented letters become plain ones and other characters become underscores.`;
+}
+
+/**
+ * The typed tags a save changed, for the line that tells the member. Adding the
+ * leading '#' or lowering capitals is not a change worth a line, as before.
+ */
+export function changedTypedTags(...raws: unknown[]): { typed: string; stored: string }[] {
+  const raw = raws.filter((r): r is string => typeof r === 'string').join(' ');
+  return foldTypedTagList(raw).filter((t) => {
+    const asTyped = (t.typed.startsWith('#') ? t.typed : `#${t.typed}`).toLowerCase();
+    return asTyped !== t.stored.toLowerCase();
+  });
+}
+
+/**
+ * The typed tags plus the player credit a member-search pick names, unless
+ * the tags already carry it. The pick is an ordinary tag from here on, so tag
+ * validation judges it like any typed one.
+ */
+export function withPlayerCredits(tags: string[], addPlayer: string | undefined): string[] {
+  const picked = addPlayer?.trim();
+  if (!picked) return tags;
+  const have = new Set(tags.map((t) => t.toLowerCase()));
+  return have.has(picked.toLowerCase()) ? tags : [...tags, picked];
 }
 
 // Sanitizes an upload's source filename into a kebab-case slug suitable
@@ -575,6 +679,9 @@ export interface MemberMediaEditInput {
   caption?: string | null;
   tags?: string[];
   externalUrl?: string | null;
+  // A player credit picked from member search, added on top of `tags`
+  // (ignored when `tags` is undefined).
+  addPlayer?: string;
 }
 
 export interface MemberMediaEditResult {
@@ -715,12 +822,10 @@ function buildMemberGalleryId(
 // after the `gallery_<owner_slug>_` prefix and any collision suffix. Falls
 // back to a short hex token if the input has no usable characters
 // (pure-emoji name, etc.) so the id remains a valid `gallery_…` slug.
+// The name folds by the one rule, so "Zürich Trip" gives zurich_trip rather than
+// losing the letter; the 60-character cap and the random fallback are unchanged.
 function slugifyGalleryName(name: string): string {
-  const slug = name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .slice(0, 60);
+  const slug = slugifyForTag(name).slice(0, 60);
   return slug.length > 0
     ? slug
     : `g${randomUUID().replace(/-/g, '').slice(0, 8)}`;
@@ -784,7 +889,7 @@ const GALLERY_FIELD_PHRASE: Record<string, string> = {
 function validateTags(tags: string[]): void {
   for (const tag of tags) {
     if (!tag.startsWith('#')) {
-      throw new ValidationError(`Tag must start with '#': got "${tag}"`);
+      throw new ValidationError(`A hashtag must start with '#': got "${tag}"`);
     }
     // Mixed case is accepted: the original capitalization is preserved for
     // display and matching is case-insensitive. The reserved-namespace guards
@@ -793,15 +898,26 @@ function validateTags(tags: string[]): void {
     const normalized = tag.toLowerCase();
     if (normalized === CURATED_TAG) {
       throw new ValidationError(
-        `The ${CURATED_TAG} tag is auto-applied by the curator pipeline and must not appear in input.`,
+        `The ${CURATED_TAG} hashtag is auto-applied by the curator pipeline and must not appear in input.`,
       );
     }
     if (normalized.startsWith(UPLOADER_TAG_PREFIX)) {
       throw new ValidationError(
-        `Tags starting with "${UPLOADER_TAG_PREFIX}" are auto-applied as uploader attribution and must not appear in input: got "${tag}"`,
+        `Hashtags starting with "${UPLOADER_TAG_PREFIX}" are auto-applied as uploader attribution and must not appear in input: got "${tag}"`,
       );
     }
   }
+}
+
+// A typed media tag list in its stored form, held to every tag rule: folded by the
+// one rule (so a list reaching the service by any path is stored the same way),
+// one of each, refused for a reserved tag, and refused by name for any tag rule it
+// breaks (no a to z form, too long, too many).
+function checkedTags(tags: string[]): string[] {
+  const stored = foldTypedTagList(tags.join(' ')).map((t) => t.stored);
+  validateTags(stored);
+  assertTypedTags(stored);
+  return stored;
 }
 
 // Service-boundary URL validation per DD §3.17. Returns the normalized
@@ -1020,7 +1136,7 @@ function assertPersonalGalleryIsIntact(
   }
   if (submitted.criteriaTags.length > 0 || submitted.excludeTags.length > 0) {
     throw new ValidationError(
-      `Your ${PERSONAL_GALLERY_NAME} always shows everything you have uploaded, so it takes no criteria or exclude tags. Create a named gallery to collect a subset.`,
+      `Your ${PERSONAL_GALLERY_NAME} always shows everything you have uploaded, so it takes no criteria or exclude hashtags. Create a named gallery to collect a subset.`,
       {
         fieldErrors: {
           ...(submitted.criteriaTags.length > 0 && { criteriaTags: 'Leave this empty for this gallery.' }),
@@ -1575,11 +1691,11 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       assertCuratorActorMayWriteCurated(input.adminMemberId);
       throttleCuratorWrite(input.adminMemberId);
       input = { ...input, caption: validateCaption(input.caption) };
-      validateTags(input.tags);
+      input = { ...input, tags: checkedTags(input.tags) };
       const normalizedExternalUrl = await normalizeExternalUrlOrThrow(input.externalUrl);
 
       if (input.photoBuffer.length > PHOTO_MAX_BYTES) {
-        throw new ValidationError(PHOTO_TOO_LARGE_MESSAGE);
+        throw new ValidationError(photoTooLargeMessage(PHOTO_MAX_BYTES));
       }
       const detectedImage = detectImageType(input.photoBuffer);
       if (!detectedImage) {
@@ -1588,6 +1704,8 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
 
       const systemMemberId = resolveSystemMemberIdOrThrow();
       const processed = await rejectImageAsValidation(imageProcessor.processPhoto(input.photoBuffer));
+      const shapeRefusal = photoShapeRefusal(processed.widthPx, processed.heightPx);
+      if (shapeRefusal) throw new ValidationError(shapeRefusal);
 
       const mediaId = newMediaId();
       const thumbKey = `${systemMemberId}/detached/${mediaId}-thumb.jpg`;
@@ -1672,7 +1790,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       assertCuratorActorMayWriteCurated(input.adminMemberId);
       throttleCuratorWrite(input.adminMemberId);
       input = { ...input, caption: validateCaption(input.caption) };
-      validateTags(input.tags);
+      input = { ...input, tags: checkedTags(input.tags) };
       const normalizedExternalUrl = await normalizeExternalUrlOrThrow(input.externalUrl);
 
       if (input.videoBuffer.length > VIDEO_MAX_BYTES) {
@@ -1826,9 +1944,8 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       // tree is the source of truth (dev). No-op in staging/production.
       assertCuratorActorMayWriteCurated(job.admin_member_id);
 
-      const tags = parseTagList(job.tags);
+      const tags = checkedTags(parseTagList(job.tags));
       const caption = validateCaption(job.caption);
-      validateTags(tags);
 
       // Poster is small (cap 25 MB) and the worker container can hold it
       // inline. Video bytes, whose cap is far larger, are NOT pulled in here — they go
@@ -2079,7 +2196,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     ): Promise<CuratorUrlReferenceResult> {
       assertCuratorActorMayWriteCurated(input.adminMemberId);
       input = { ...input, title: validateCaption(input.title) };
-      validateTags(input.tags);
+      input = { ...input, tags: checkedTags(input.tags) };
       const normalizedExternalUrl = await normalizeExternalUrlOrThrow(input.externalUrl);
       assertKnownSourceId(input.sourceId);
 
@@ -2259,7 +2376,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         input = { ...input, caption: validateCaption(input.caption) };
       }
       if (input.tags !== undefined) {
-        validateTags(input.tags);
+        input = { ...input, tags: checkedTags(input.tags) };
       }
       // Three-way switch on external URL: undefined = no change, null =
       // clear, string = validate+normalize. The validator rejects bad
@@ -2848,7 +2965,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
 
       if (validated.criteriaTags.length === 0) {
         throw new ValidationError(
-          'A gallery must declare at least one criteria tag (otherwise it would render empty).',
+          'A gallery must declare at least one criteria hashtag (otherwise it would render empty).',
         );
       }
 
@@ -3022,7 +3139,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
 
       if (submitted.criteriaTags.length === 0) {
         throw new ValidationError(
-          'A gallery must declare at least one criteria tag (otherwise it would render empty).',
+          'A gallery must declare at least one criteria hashtag (otherwise it would render empty).',
         );
       }
 
@@ -3330,22 +3447,25 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       if (!input.actorIsAdmin) {
         throttlePerActor(
           'member-photo-upload', input.memberId,
-          'photo_upload_rate_limit_per_hour', 10,
+          'photo_upload_rate_limit_per_hour', 30,
           'Upload rate limit reached.',
         );
       }
       input = { ...input, caption: validateCaption(input.caption) };
-      validateTags(input.tags);
+      input = { ...input, tags: checkedTags(input.tags) };
       const normalizedExternalUrl = await normalizeExternalUrlOrThrow(input.externalUrl);
 
-      if (input.photoBuffer.length > PHOTO_MAX_BYTES) {
-        throw new ValidationError(PHOTO_TOO_LARGE_MESSAGE);
+      const maxPhotoBytes = photoMaxBytes(input.actorIsAdmin === true);
+      if (input.photoBuffer.length > maxPhotoBytes) {
+        throw new ValidationError(photoTooLargeMessage(maxPhotoBytes));
       }
       if (!detectImageType(input.photoBuffer)) {
         throw new ValidationError('Only JPEG and PNG photos are accepted.');
       }
 
       const processed = await rejectImageAsValidation(imageProcessor.processPhoto(input.photoBuffer));
+      const shapeRefusal = photoShapeRefusal(processed.widthPx, processed.heightPx);
+      if (shapeRefusal) throw new ValidationError(shapeRefusal);
 
       const mediaId = newMediaId();
       const thumbKey = `${input.memberId}/detached/${mediaId}-thumb.jpg`;
@@ -3493,7 +3613,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         input = { ...input, caption: validateCaption(input.caption) };
       }
       if (input.tags !== undefined) {
-        validateTags(input.tags);
+        input = { ...input, tags: checkedTags(withPlayerCredits(input.tags, input.addPlayer)) };
       }
       let normalizedExternalUrlEdit: string | null | undefined;
       if (input.externalUrl !== undefined) {
@@ -3688,7 +3808,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         );
       }
       input = { ...input, caption: validateCaption(input.caption) };
-      validateTags(input.tags);
+      input = { ...input, tags: checkedTags(input.tags) };
       const normalizedExternalUrl = await normalizeExternalUrlOrThrow(input.externalUrl);
 
       const verify = await videoUrlVerifier(input.videoUrl, input.videoPlatform);
@@ -3833,8 +3953,14 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     // galleries (the auto-prepend always supplies at least one).
     // Dedup keys on the lowercased form: tags match case-insensitively, so
     // #Freestyle and #freestyle are the same criterion.
+    // Both sets are folded by the one rule and held to the tag rules first, so a
+    // set reaching here by any path is stored the same way as a typed one.
+    const criteriaTags = foldTypedTagList(updates.criteriaTags.join(' ')).map((t) => t.stored);
+    assertTypedTags(criteriaTags, { field: 'criteriaTags' });
+    const excludeTags = foldTypedTagList(updates.excludeTags.join(' ')).map((t) => t.stored);
+    assertTypedTags(excludeTags, { field: 'excludeTags' });
     const seenCriteria = new Set<string>();
-    for (const tag of updates.criteriaTags) {
+    for (const tag of criteriaTags) {
       try {
         validateGalleryTag(tag, 'criteria');
       } catch (err) {
@@ -3843,13 +3969,13 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       }
       const norm = tag.toLowerCase();
       if (seenCriteria.has(norm)) {
-        const m = `Duplicate criteria tag: ${tag}`;
+        const m = `Duplicate criteria hashtag: ${tag}`;
         throw new ValidationError(m, { fieldErrors: { criteriaTags: m } });
       }
       seenCriteria.add(norm);
     }
     const seenExclude = new Set<string>();
-    for (const tag of updates.excludeTags) {
+    for (const tag of excludeTags) {
       try {
         validateGalleryTag(tag, 'exclude');
       } catch (err) {
@@ -3858,11 +3984,11 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       }
       const norm = tag.toLowerCase();
       if (seenExclude.has(norm)) {
-        const m = `Duplicate exclude tag: ${tag}`;
+        const m = `Duplicate exclude hashtag: ${tag}`;
         throw new ValidationError(m, { fieldErrors: { excludeTags: m } });
       }
       if (seenCriteria.has(norm)) {
-        const m = `Tag "${tag}" cannot be both a criteria tag and an exclude tag.`;
+        const m = `Hashtag "${tag}" cannot be both a criteria hashtag and an exclude hashtag.`;
         throw new ValidationError(m, { fieldErrors: { excludeTags: m } });
       }
       seenExclude.add(norm);
@@ -3918,8 +4044,8 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       name,
       description,
       sortOrder,
-      criteriaTags: updates.criteriaTags,
-      excludeTags: updates.excludeTags,
+      criteriaTags,
+      excludeTags,
       externalLinks: validatedLinks,
     };
   }
@@ -4189,11 +4315,13 @@ function refused(
 // A gallery save checks every attached photo before writing anything, so a bad
 // file never leaves behind a gallery row it was meant to land in. Magic-byte
 // detection matches the single-photo upload: no gif, pdf or text.
-function galleryUploadsRefusal(uploads: GalleryFormUploads): string | null {
+// The size check uses the uploader's own limit, the one each photo is held to
+// when it is saved, so a photo that would be refused never passes this check.
+function galleryUploadsRefusal(uploads: GalleryFormUploads, maxPhotoBytes: number): string | null {
   if (uploads.limitExceeded) return fileExceededMessage(PHOTO_MAX_BYTES);
   if (uploads.droppedNamelessFile) return 'One of the uploaded files was missing a filename.';
   for (const f of uploads.files) {
-    if (f.buffer.length > PHOTO_MAX_BYTES) return PHOTO_TOO_LARGE_MESSAGE;
+    if (f.buffer.length > maxPhotoBytes) return photoTooLargeMessage(maxPhotoBytes);
     if (!detectImageType(f.buffer)) return 'Only JPEG and PNG photos are accepted.';
   }
   return null;
@@ -4263,7 +4391,7 @@ export async function createMemberGalleryWithUploads(
     uploads: GalleryFormUploads;
   },
 ): Promise<GalleryWithUploadsResult> {
-  const fileRefusal = galleryUploadsRefusal(input.uploads);
+  const fileRefusal = galleryUploadsRefusal(input.uploads, photoMaxBytes(input.actorIsAdmin));
   if (fileRefusal) return refused(422, fileRefusal);
 
   try {
@@ -4316,7 +4444,7 @@ export async function updateMemberGalleryWithUploads(
     throw err;
   }
 
-  const fileRefusal = galleryUploadsRefusal(input.uploads);
+  const fileRefusal = galleryUploadsRefusal(input.uploads, photoMaxBytes(input.actorIsAdmin));
   if (fileRefusal) return refused(422, fileRefusal);
 
   try {
@@ -4366,7 +4494,7 @@ export async function updateCuratorGalleryWithUploads(
     uploads: GalleryFormUploads;
   },
 ): Promise<GalleryWithUploadsResult> {
-  const fileRefusal = galleryUploadsRefusal(input.uploads);
+  const fileRefusal = galleryUploadsRefusal(input.uploads, PHOTO_MAX_BYTES);
   if (fileRefusal) return refused(422, fileRefusal);
 
   if (input.uploads.files.length > 0) {
@@ -4617,7 +4745,7 @@ export async function uploadMemberMedia(
     throw new ValidationError('Choose a media type (photo or video).');
   }
   if (input.limitExceeded) {
-    throw new ValidationError(fileExceededMessage(PHOTO_MAX_BYTES));
+    throw new ValidationError(fileExceededMessage(photoMaxBytes(input.actorIsAdmin)));
   }
 
   if (input.mediaType === 'photo') {
@@ -4697,6 +4825,8 @@ export interface CuratorUploadContent {
   existingCategories: string[];
   hasExistingCategories: boolean;
   savedFlag: boolean;
+  /** Names the typed tags the save stored folded; null when none were. */
+  savedFoldLine: string | null;
   // True when the configured storage adapter is S3, which is what makes the
   // browser-side presigned PUT path available for video.
   asyncEnabled: boolean;
@@ -4733,6 +4863,8 @@ export interface CuratorMediaListContent {
   emptyState: boolean;
   savedWasEdit: boolean;
   savedWasDelete: boolean;
+  /** Names the typed tags an edit stored folded; null when none were. */
+  savedFoldLine: string | null;
   sidecarWritesEnabled: boolean;
   uploadHref: string;
   listHref: string;
@@ -4762,6 +4894,10 @@ export interface CuratorMediaEditContent {
   // True only where the authoring tree is writable, the one place a
   // URL-reference edit writes through to its sidecar.
   sidecarWritesEnabled: boolean;
+  // The player-search block and the edit form id its picks submit; null on
+  // the not-found and refused-edit renders, which offer no search.
+  editFormId: string;
+  playerSearch: SearchBlockView | null;
 }
 
 export interface CuratorGalleryListRow extends CuratorGallerySummary {
@@ -4776,6 +4912,8 @@ export interface CuratorGalleryListContent {
   items: CuratorGalleryListRow[];
   emptyState: boolean;
   savedFlag: boolean;
+  /** Names the typed tags the save stored folded; null when none were. */
+  savedFoldLine: string | null;
   sidecarWritesEnabled: boolean;
   newGalleryHref: string;
   listHref: string;
@@ -4878,6 +5016,8 @@ export function getCuratorUploadPage(
     errorMessage?: string;
     formValues?: CuratorUploadFormValues;
     savedFlag?: boolean;
+    /** Typed tags the save stored folded, named in the saved message. */
+    savedFolded?: { typed: string; stored: string }[];
     existingCategories?: string[];
   } = {},
 ): PageViewModel<CuratorUploadContent> {
@@ -4904,6 +5044,7 @@ export function getCuratorUploadPage(
       existingCategories,
       hasExistingCategories: existingCategories.length > 0,
       savedFlag: opts.savedFlag ?? false,
+      savedFoldLine: opts.savedFlag ? foldedTagsLine(opts.savedFolded ?? []) : null,
       asyncEnabled,
       videoMaxMb: VIDEO_MAX_MB,
       videoMaxBytes: VIDEO_MAX_BYTES,
@@ -4922,10 +5063,14 @@ export function getCuratorMediaListPage(
     confirmDeleteId: string | null;
     // The save the redirect reported; only an edit or a delete banners here.
     savedFlag: string | null;
+    /** Typed tags the edit stored folded, named in the saved message. */
+    savedFolded?: { typed: string; stored: string }[];
   },
 ): PageViewModel<CuratorMediaListContent> {
   const listHref = '/admin/curator/media';
-  const tagFilter = input.tagFilter?.trim() || null;
+  // Folded by the one rule, like every tag a person types, so "Zürich" with or
+  // without its '#' filters on the stored "#zurich".
+  const tagFilter = input.tagFilter?.trim() ? (typedTag(input.tagFilter) || null) : null;
   const sort = toCuratorListSort(input.sort);
   const savedFlag = input.savedFlag === 'edit' || input.savedFlag === 'delete' ? input.savedFlag : null;
   const result = svc.listMedia({
@@ -4990,6 +5135,7 @@ export function getCuratorMediaListPage(
       nextPageHref: result.page < totalPages ? listHref + queryTail(result.page + 1) : null,
       emptyState: result.items.length === 0,
       savedWasEdit: savedFlag === 'edit',
+      savedFoldLine: savedFlag === 'edit' ? foldedTagsLine(input.savedFolded ?? []) : null,
       savedWasDelete: savedFlag === 'delete',
       sidecarWritesEnabled: config.allowCuratedSidecarWrites,
       uploadHref: '/admin/curator/upload',
@@ -5029,8 +5175,12 @@ export function getCuratorMediaNotFoundPage(
     cancelHref: '/admin/curator/media',
     formAction: `/admin/curator/media/${encodeURIComponent(mediaId)}/edit`,
     sidecarWritesEnabled: config.allowCuratedSidecarWrites,
+    editFormId: CURATOR_EDIT_FORM_ID,
+    playerSearch: null,
   });
 }
+
+const CURATOR_EDIT_FORM_ID = 'curator-media-edit-form';
 
 type CuratorMediaEditFields = NonNullable<CuratorMediaEditContent['media']>;
 
@@ -5058,17 +5208,26 @@ function curatorMediaEditFields(item: CuratorMediaListItem): CuratorMediaEditFie
 export async function getCuratorMediaEditPage(
   svc: CuratorMediaService,
   mediaId: string,
+  playerSearch?: { query?: string; actorMemberId: string; ip: string },
+  // What the curator had typed when the player search reloaded the page, laid
+  // over the stored fields so a search never erases an unsaved edit.
+  typed: Partial<Pick<CuratorMediaEditFields,
+    'caption' | 'tagsString' | 'sourceId' | 'startSeconds' | 'endSeconds' | 'externalUrl'>> = {},
 ): Promise<PageViewModel<CuratorMediaEditContent> | null> {
   const item = await svc.getMediaItem(mediaId);
   if (!item) return null;
+  const formAction = `/admin/curator/media/${encodeURIComponent(item.mediaId)}/edit`;
+  const kept = Object.fromEntries(Object.entries(typed).filter(([, v]) => v !== undefined)) as typeof typed;
   return curatorMediaEditEnvelope('Edit Curated Media', {
     notFound: false,
     mediaId: item.mediaId,
     errorMessage: null,
-    media: curatorMediaEditFields(item),
+    media: { ...curatorMediaEditFields(item), ...kept },
     cancelHref: '/admin/curator/media',
-    formAction: `/admin/curator/media/${encodeURIComponent(item.mediaId)}/edit`,
+    formAction,
     sidecarWritesEnabled: config.allowCuratedSidecarWrites,
+    editFormId: CURATOR_EDIT_FORM_ID,
+    playerSearch: buildPlayerSearchBlock(formAction, playerSearch),
   });
 }
 
@@ -5098,12 +5257,14 @@ export async function getCuratorMediaEditErrorPage(
     cancelHref: '/admin/curator/media',
     formAction: `/admin/curator/media/${encodeURIComponent(mediaId)}/edit`,
     sidecarWritesEnabled: config.allowCuratedSidecarWrites,
+    editFormId: CURATOR_EDIT_FORM_ID,
+    playerSearch: null,
   });
 }
 
 export function getCuratorGalleryListPage(
   svc: CuratorMediaService,
-  input: { confirmDeleteId: string | null; savedFlag: boolean },
+  input: { confirmDeleteId: string | null; savedFlag: boolean; savedFolded?: { typed: string; stored: string }[] },
 ): PageViewModel<CuratorGalleryListContent> {
   const items = svc.listOwnedGalleries();
   return {
@@ -5133,6 +5294,7 @@ export function getCuratorGalleryListPage(
       })),
       emptyState: items.length === 0,
       savedFlag: input.savedFlag,
+      savedFoldLine: input.savedFlag ? foldedTagsLine(input.savedFolded ?? []) : null,
       sidecarWritesEnabled: config.allowCuratedSidecarWrites,
       newGalleryHref: '/admin/curator/galleries/new',
       listHref: '/admin/curator/galleries',
@@ -5414,11 +5576,38 @@ export interface MemberMediaDeleteConfirmContent {
 
 export interface MemberMediaEditContent {
   formAction: string;
+  /** The edit form's id, so the player-search picks (rendered outside the
+   *  form, after the search form) submit it with their credit. */
+  editFormId: string;
   deleteConfirmHref: string;
   cancelHref: string;
   errorMessage: string | null;
   formValues: MemberMediaEditFormValues;
   tagSuggestions: MemberTagSuggestions | null;
+  playerSearch: SearchBlockView;
+}
+
+/**
+ * The player-search block on a media edit page: the one member search, run
+ * against this page's own address, so finding a player reloads the edit form.
+ */
+export function buildPlayerSearchBlock(
+  formAction: string,
+  search: { query?: string; actorMemberId: string; ip: string } | undefined,
+): SearchBlockView {
+  const query = search?.query?.trim() ?? '';
+  const result = search && query !== ''
+    ? memberService.searchMembers(query, { actorMemberId: search.actorMemberId, ip: search.ip })
+    : null;
+  return {
+    formAction,
+    query: result?.query ?? '',
+    results: result?.results ?? [],
+    hasMore: result?.hasMore ?? false,
+    tooShort: result?.tooShort ?? false,
+    rateLimited: result?.rateLimited ?? false,
+    hasQuery: query !== '',
+  };
 }
 
 export function getMemberMediaUploadPage(
@@ -5460,13 +5649,20 @@ export function getMemberMediaEditPage(
   memberKey: string,
   mediaId: string,
   formValues: MemberMediaEditFormValues,
-  opts: { errorMessage?: string; tagSuggestions?: MemberTagSuggestions } = {},
+  opts: {
+    errorMessage?: string;
+    tagSuggestions?: MemberTagSuggestions;
+    playerSearch?: { query?: string; actorMemberId: string; ip: string };
+  } = {},
 ): PageViewModel<MemberMediaEditContent> {
+  const formAction = `/members/${memberKey}/media/${mediaId}/edit`;
   return {
     seo: { title: 'Edit Media' },
     page: { sectionKey: 'members', pageKey: 'member_media_edit', title: 'Edit Media' },
     content: {
-      formAction: `/members/${memberKey}/media/${mediaId}/edit`,
+      formAction,
+      editFormId: 'member-media-edit-form',
+      playerSearch: buildPlayerSearchBlock(formAction, opts.playerSearch),
       deleteConfirmHref: `/members/${memberKey}/media/${mediaId}/delete`,
       cancelHref: memberGalleriesHref(memberKey),
       errorMessage: opts.errorMessage ?? null,
@@ -5598,6 +5794,8 @@ export interface MemberGalleryListContent {
   benefitNotice: TierBenefitNotice | null;
   teaching: MemberGalleryListTeaching | null;
   savedMessage: string | null;
+  /** Names the typed tags the save stored folded; null when none were. */
+  savedFoldLine: string | null;
   errorMessage: string | null;
 }
 
@@ -5641,6 +5839,8 @@ export function getMemberGalleryListPage(
     memberSlug: string;
     confirmDeleteId: string | null;
     savedFlag: 'create' | 'edit' | 'delete' | 'upload' | null;
+    /** Typed tags the save stored folded, named in the saved message. */
+    savedFolded?: { typed: string; stored: string }[];
     readCommunityExamples: (limit: number, backHref: string) => GalleryItem[];
   },
 ): PageViewModel<MemberGalleryListContent> {
@@ -5668,6 +5868,7 @@ export function getMemberGalleryListPage(
       teaching,
       // Pre-shaped so the template never branches on the raw flash code.
       savedMessage: input.savedFlag === 'upload' ? 'Uploaded.' : input.savedFlag ? 'Saved.' : null,
+      savedFoldLine: input.savedFlag ? foldedTagsLine(input.savedFolded ?? []) : null,
       errorMessage: null,
     },
   };
@@ -5702,6 +5903,7 @@ export function getMemberGalleryListErrorPage(
       benefitNotice: null,
       teaching: null,
       savedMessage: null,
+      savedFoldLine: null,
       errorMessage: input.errorMessage,
     },
   };

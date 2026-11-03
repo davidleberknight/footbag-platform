@@ -666,7 +666,9 @@ describe('POST /register', () => {
     expect(member!.slug).toBe('auto_slugger');
   });
 
-  it('slug with invalid format → 422', async () => {
+  // A typed URL that folding changes is not refused: the form comes back holding
+  // the folded URL, as a notice, and no account exists until it is resubmitted.
+  it('shows a typed URL that folding changes, filled in, and creates nothing', async () => {
     const app = createApp();
     const res = await request(app)
       .post('/register')
@@ -676,10 +678,12 @@ describe('POST /register', () => {
         email: 'badformat@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
-        slug: '_leading_underscore',
+        slug: '_bad-format_',
       });
     expect(res.status).toBe(422);
-    expect(res.text).toContain('lowercase letters, numbers, and underscores');
+    expect(res.text).toContain('value="bad_format"');
+    expect(res.text).toContain('class="form-notice"');
+    expect(res.text).not.toContain('form-error-banner');
   });
 
   it('slug too short → 422', async () => {

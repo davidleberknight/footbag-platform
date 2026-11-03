@@ -15,7 +15,7 @@
  *     no page of their own but their tricks render on the down page
  *   - Branch parents (barfly) present as branches of Down with a link
  *   - Route ordering: the family template renders, not the trick shell
- *   - /freestyle/families (bare) redirects to the By-family browse
+ *   - /freestyle/families (bare) has no page and answers not-found
  *   - The sitemap lists every first-class family page and no minor lineage
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -503,11 +503,13 @@ describe('GET /freestyle/families/:slug — route ordering', () => {
   });
 });
 
-describe('GET /freestyle/families — bare path redirects to the By-family browse', () => {
-  it('redirects to /freestyle/tricks?view=family', async () => {
+describe('GET /freestyle/families — bare path has no page', () => {
+  it('answers not-found, with no redirect', async () => {
+    // Defect caught: the bare parent path forwarding to the dictionary, a
+    // second address for the family index the site does not keep.
     const res = await request(await createApp()).get('/freestyle/families').redirects(0);
-    expect(res.status).toBe(301);
-    expect(res.headers['location']).toBe('/freestyle/tricks?view=family');
+    expect(res.status).toBe(404);
+    expect(res.headers['location']).toBeUndefined();
   });
 });
 

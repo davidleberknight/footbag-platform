@@ -22,6 +22,7 @@
     {{#if content.error}}
       {{> outcome-notice text=content.error tone='no'}}
     {{/if}}
+    {{> outcome-notice text=content.notice tone='info'}}
 
     <form method="POST" action="/register" class="login-form register-form">
       <div class="form-row-2col">
@@ -117,7 +118,7 @@
 
         <div class="card">
           <p class="card-title">Profile URL</p>
-          <p class="fs-sm mb-4">Your permanent address on the site. If you leave this blank, it is generated from your display name (e.g. "jane_doe"). This also becomes your personal media hashtag: #your_slug.</p>
+          <p class="fs-sm mb-4">Your permanent address on the site. If you leave this blank, it is generated from your display name (e.g. "jane_doe"). It also becomes your uploader hashtag, #by_your_slug, added to everything you upload, and anyone can name you as the player in a media item with #player_your_slug.</p>
           <div class="form-field">
             <label for="slug">Profile URL</label>
             <input
@@ -130,6 +131,7 @@
               autocomplete="off"
             />
             <small class="form-hint">footbag.org/members/<strong>your_slug</strong></small>
+            {{> hashtag-slug-help}}
           </div>
           <ul class="fs-sm mt-2 mb-0">
             <li>Lowercase letters, numbers, and underscores only</li>
@@ -149,6 +151,7 @@
   </section>
 
 </div>
+{{> fold-token-script}}
 <script src="{{{asset 'js/register-defaults.js'}}}" defer></script>
 {{#if content.turnstileSiteKey}}
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" defer></script>

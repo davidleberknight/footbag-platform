@@ -69,12 +69,12 @@ afterAll(() => cleanupTestDb(dbPath));
 describe('email-verify token temporal contract', () => {
   it('an expired verify link leaves the account unverified', async () => {
     expect(isVerified(), 'starts unverified').toBe(false);
-    await request(createApp()).post('/verify').type('form').send({ token: expiredToken });
+    await request(createApp()).get(`/verify/${expiredToken}`);
     expect(isVerified(), 'still unverified after expired link').toBe(false);
   });
 
   it('a valid verify link verifies the account', async () => {
-    await request(createApp()).post('/verify').type('form').send({ token: validToken });
+    await request(createApp()).get(`/verify/${validToken}`);
     expect(isVerified(), 'verified after valid link').toBe(true);
   });
 });

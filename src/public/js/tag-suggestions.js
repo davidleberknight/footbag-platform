@@ -13,14 +13,19 @@
     var tag = btn.getAttribute('data-tag');
     if (!tag) return;
 
-    // Strip leading '#' for the space-separated input format
-    var token = tag.charAt(0) === '#' ? tag.slice(1) : tag;
+    // Tags keep their leading '#', the form the server stores.
+    var token = tag.charAt(0) === '#' ? tag : '#' + tag;
 
     // Find the closest tag input: walk up to the form, then find the tags input
     var form = btn.closest('form');
     if (!form) return;
     var input = form.querySelector('input[name="tags"]');
     if (!input) return;
+
+    // A chip field (tag-chips.js) adds the tag as a chip and cancels the event;
+    // a plain text field takes the tag appended to its text.
+    var handled = !input.dispatchEvent(new CustomEvent('tag-chips:add', { detail: token, cancelable: true }));
+    if (handled) return;
 
     var current = input.value.trim();
     var tokens = current.length > 0 ? current.split(/\s+/) : [];

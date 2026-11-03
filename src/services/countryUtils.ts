@@ -12,6 +12,7 @@
  * its own language). `canonicalCountryName` folds any alias, any alpha-2 code,
  * or the canonical name itself to that one name.
  */
+import { slugifyForTag } from './slugify';
 
 const COUNTRY_NAME_BY_CODE: Record<string, string> = {
   AD: 'Andorra',
@@ -401,12 +402,7 @@ const COUNTRY_TOKEN_BY_CODE: Record<string, string> = {
 };
 
 function slugifyCountryText(text: string): string {
-  return text
-    .normalize('NFKD')
-    .replace(/\p{M}/gu, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '');
+  return slugifyForTag(text);
 }
 
 /**

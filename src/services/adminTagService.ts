@@ -49,6 +49,7 @@ import { NotFoundError, ValidationError } from './serviceErrors';
 import type { PageViewModel } from '../types/page';
 import type { OutcomeTone } from '../lib/outcomeNotice';
 import { cleanUserText } from '../lib/textSanitizer';
+import { typedTag } from './slugify';
 
 const MAX_REASON = 500;
 const MIN_LOOKUP_QUERY = 2;
@@ -130,9 +131,9 @@ export interface AdminTagConfirmContent {
  * how it reaches them: pasted from a page with its '#', or typed as the bare
  * word out of a report.
  */
+// Folded by the one rule, so a lookup for "#Zürich" finds the stored "#zurich".
 function normalizeTagQuery(raw: string): string {
-  const trimmed = raw.trim().toLowerCase();
-  return trimmed.startsWith('#') ? trimmed : `#${trimmed}`;
+  return typedTag(raw) || '#';
 }
 
 function lookupHref(query: string): string {
@@ -259,7 +260,7 @@ export const adminTagService = {
           headsUp: [
             'Retiring is permanent.',
             'It takes the hashtag off every photo, video and gallery, and stops anyone using it again. The media itself stays.',
-            'Club and event hashtags are corrected on their own pages, not here. #curated and uploader tags cannot be retired.',
+            'Club and event hashtags are corrected on their own pages, not here. #curated and uploader hashtags cannot be retired.',
             'Nobody is emailed.',
           ],
         },

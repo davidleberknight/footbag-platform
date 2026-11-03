@@ -26,7 +26,7 @@
     {{else}}
       <p>
         Editing <code>{{content.gallery.id}}</code>. Membership rule: an item appears in this gallery iff
-        it carries every <strong>criteria tag</strong> AND no <strong>exclude tag</strong>.
+        it carries every <strong>criteria hashtag</strong> AND no <strong>exclude hashtag</strong>.
       </p>
     {{/if}}
 
@@ -46,4 +46,5 @@
     }}
   {{/if}}
 </div>
+{{> fold-token-script}}
 <script src="{{{asset 'js/tag-chips.js'}}}" defer></script>

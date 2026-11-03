@@ -137,6 +137,30 @@ const SECTIONS: SectionSpec[] = [
     ],
   },
   {
+    title: 'Media Uploads',
+    intro: 'How much a member may share. Administrators are not held to these limits. Each one has a fixed maximum the code enforces, so a value above it is refused.',
+    parameters: [
+      {
+        key: 'photo_upload_rate_limit_per_hour',
+        label: 'Photos per hour',
+        unit: 'photos per hour',
+        min: 1,
+        max: 200,
+        defaultValue: 30,
+        helpText: 'How many photos one member may share in an hour, counting each photo. A member who reaches it is told how long to wait before sharing more.',
+      },
+      {
+        key: 'photo_upload_max_file_mb',
+        label: 'Size per photo',
+        unit: 'MB',
+        min: 1,
+        max: 25,
+        defaultValue: 25,
+        helpText: 'The largest single photo a member may share. Every photo is stored as a smaller copy whatever its original size, so this bounds the upload rather than what is kept.',
+      },
+    ],
+  },
+  {
     title: 'Data Retention and Cleanup',
     intro: 'Retention means three different things on this screen, so each window says which. Anonymize keeps the record and clears the personal details in it. Delete removes the row outright, and is used only where the row is the personal data. Hold states how long an archive must keep something, and never deletes anything.',
     parameters: [

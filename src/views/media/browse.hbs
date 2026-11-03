@@ -36,7 +36,7 @@
       </div>
 
       <div role="region" aria-labelledby="browse-popular-heading">
-        <h2 id="browse-popular-heading" class="browse-section-heading">Popular Tags</h2>
+        <h2 id="browse-popular-heading" class="browse-section-heading">Popular Hashtags</h2>
         {{#if content.hashtagIndex.hasPopularTags}}
           <ul class="tag-chip-row">
             {{#each content.hashtagIndex.popularTags}}
@@ -44,7 +44,7 @@
             {{/each}}
           </ul>
         {{else}}
-          <p>No tags carry media yet.</p>
+          <p>No hashtags carry media yet.</p>
         {{/if}}
       </div>
 
@@ -60,7 +60,7 @@
       {{/if}}
 
       <div role="region" aria-labelledby="browse-all-heading">
-        <h2 id="browse-all-heading" class="browse-section-heading">All Tags</h2>
+        <h2 id="browse-all-heading" class="browse-section-heading">All Hashtags</h2>
         {{#if content.hashtagIndex.hasCommunityTags}}
           <ul class="tag-chip-row">
             {{#each content.hashtagIndex.communityTags}}
@@ -74,7 +74,8 @@
 
       <div class="browse-tags-help" role="region" aria-labelledby="browse-tags-help-heading">
         <h2 id="browse-tags-help-heading">About Hashtags</h2>
-        <p>Popular tags are the most-used tags across the whole site. All tags lists the ones the community shares, in alphabetical order. Event and club tags follow fixed patterns (<code>#event_&lt;year&gt;_&lt;event-slug&gt;</code>, <code>#club_&lt;location-slug&gt;</code>). A tag only one member uses stays private to that member's gallery.</p>
+        <p>Popular hashtags are the most-used hashtags across the whole site. All hashtags lists the ones the community shares, in alphabetical order. Event and club hashtags follow fixed patterns (<code>#event_&lt;year&gt;_&lt;event_name&gt;</code>, <code>#club_&lt;location_or_name&gt;</code>). A hashtag only one member uses stays private to that member's gallery.</p>
+        {{> hashtag-slug-help}}
       </div>
     </section>
   {{/unless}}
@@ -112,4 +113,5 @@
   {{/if}}
 
 </div>
+{{> fold-token-script}}
 <script src="{{{asset 'js/tag-chips.js'}}}" defer></script>

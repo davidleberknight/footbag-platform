@@ -23,9 +23,10 @@ import { Request, Response, NextFunction } from 'express';
 import { logger } from '../config/logger';
 import { ImageProcessingError } from '../adapters/imageProcessingAdapter';
 import {
+  changedTypedTags,
   getDefaultCuratorMediaService,
   memberGalleriesHref,
-  PHOTO_MAX_BYTES,
+  photoMaxBytes,
   uploadMemberMedia,
   getMemberMediaUploadPage,
   type MemberMediaUploadFormValues,
@@ -34,7 +35,7 @@ import { RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { renderImageWorkerUnavailable, renderNotFound } from '../lib/controllerErrors';
 import { isAdminCaller, isOwnMemberRoute } from '../lib/routeOwnership';
 import { readMultipart, type ParsedMultipart } from '../lib/multipartForm';
-import { FLASH_KIND, writeFlash } from '../lib/flashCookie';
+import { writeMediaSavedFlash } from '../lib/flashCookie';
 import { hashtagDiscoveryService, type MemberTagSuggestions } from '../services/hashtagDiscoveryService';
 
 type FormValues = MemberMediaUploadFormValues;
@@ -70,7 +71,7 @@ export const memberMediaUploadController = {
     }
     const memberId = req.user?.userId ?? null;
     const tagSuggestions = memberId
-      ? hashtagDiscoveryService.getTagSuggestionsForMember(memberId)
+      ? hashtagDiscoveryService.getTagSuggestionsForMember(memberId, req.user!.slug)
       : undefined;
     renderForm(res, req.params.memberKey, memberId, { tagSuggestions });
   },
@@ -138,13 +139,13 @@ export const memberMediaUploadController = {
         videoUrl: fields.videoUrl ?? '',
         videoPlatform: fields.videoPlatform ?? '',
       });
-      writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'upload');
+      writeMediaSavedFlash(res, req, 'upload', changedTypedTags(fields.tags));
       res.redirect(303, memberGalleriesHref(memberKey));
     }
 
     readMultipart(
       req,
-      { limits: { fileSize: PHOTO_MAX_BYTES, files: 1, fields: 10 }, fileFields: ['photoFile'] },
+      { limits: { fileSize: photoMaxBytes(isAdminCaller(req)), files: 1, fields: 10 }, fileFields: ['photoFile'] },
       onParsed,
       (err) => {
         logger.error('busboy parse error', { error: err.message });

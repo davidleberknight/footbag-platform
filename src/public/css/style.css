@@ -1010,6 +1010,11 @@ section { margin-top: var(--space-2xl); }
   object-fit: contain;
   border-radius: var(--radius-md);
 }
+/* The photo's link to the next item wraps the image block-level, so linking it
+   changes nothing about the photo's size or placement. */
+.gallery-item-next {
+  display: block;
+}
 .gallery-item-media > .video-facade,
 .gallery-item-media > .video-facade-iframe,
 .gallery-item-media > .video-facade-video {
@@ -2877,6 +2882,11 @@ main fieldset > :not(:has(~ :not([type="hidden"]))) { margin-bottom: 0; }
   font-size: 0.9rem;
   margin-top: var(--space-xs);
 }
+/* A line a script fills in later (what folding did to a typed value) is in the
+   page from the start so a screen reader announces it; empty, it takes no room. */
+/* An empty announcer line takes no room, not even a flex gap, until it speaks;
+   it stays in the accessibility tree so the change is announced. */
+.form-hint:empty { margin-top: 0; position: absolute; }
 
 /* ── Profile edit: identity block ──────────────────────────── */
 .profile-identity-block {

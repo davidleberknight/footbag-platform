@@ -120,7 +120,7 @@ const OUTCOME_NOTICE: Record<CorrectionOutcome, [OutcomeTone, string]> = {
   account_delete_storage_failed:
     ['no', "The account was not deleted, because some of the member's media could not be removed from storage. Try again. A recurring donation, if they had one, has already been cancelled."],
   slug_corrected:
-    ['ok', 'The profile URL has been corrected and the uploader tag moved with it, so the member\'s media and galleries still resolve. The old URL no longer works.'],
+    ['ok', 'The profile URL has been corrected and the uploader hashtag moved with it, so the member\'s media and galleries still resolve. The old URL no longer works.'],
   slug_unchanged: ['info', 'That is the profile URL the record already held, so nothing changed.'],
   avatar_removed:
     ['ok', 'The profile picture has been removed, its stored files are deleted, and the member has been told. They can upload another.'],
@@ -1131,7 +1131,7 @@ export const adminMemberService = {
       memberId:    row.id,
       displayName: row.display_name,
       slugLabel:   displayOrDash(row.slug),
-      summary: "The member's uploader tag moves with them, so their uploaded media and the galleries "
+      summary: "The member's uploader hashtag moves with them, so their uploaded media and the galleries "
         + 'built on that tag keep resolving. Galleries keep the spelling in their own identifiers, '
         + 'which were fixed when each was created. The old profile URL stops working and nothing '
         + 'redirects from it, so a link the member has already shared will lead nowhere.',

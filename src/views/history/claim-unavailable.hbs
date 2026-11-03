@@ -1,13 +1,15 @@
 {{! Uniform "claim unavailable" page.
 
     Rendered when a claim against a historical-person record cannot proceed
-    for any reason: the record does not exist, has already been claimed, is
-    already linked to a legacy account, the surname on the record does not
-    match the requesting account, the requesting account is linked to an
-    incompatible legacy record, or any other validation failure. The page
-    intentionally does NOT distinguish between these cases: all failure
-    reasons map to the same response so the page cannot confirm which
-    person IDs exist (anti-enumeration). The specific cause is logged at info
+    for any reason: the record does not exist, the requester's evidence does
+    not reach it, another member holds it and the requester's evidence does not
+    reach it, the surname on the record does not match the requesting account,
+    the requesting account is linked to an incompatible legacy record, or any
+    other validation failure. The page intentionally does NOT distinguish
+    between these cases: all failure reasons map to the same response so the
+    page cannot confirm which person IDs exist or which are held
+    (anti-enumeration). The one exception is a held record the requester's own
+    evidence reaches, which the sibling already-claimed page answers. The specific cause is logged at info
     when the page renders, which development and staging logs keep and
     production does not; in production an administrator sees why a record
     was not offered on the member's link-help card.

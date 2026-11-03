@@ -363,10 +363,12 @@ describe('POST /admin/curator/galleries/:id/edit (validation)', () => {
         excludeTags: '',
       });
     expect(res.status).toBe(422);
-    expect(res.text).toMatch(/at least one criteria tag/i);
+    expect(res.text).toMatch(/at least one criteria hashtag/i);
   });
 
-  it('rejects invalid tag pattern with 422', async () => {
+  // A hyphen is not a tag character: the typed criterion is folded into the one
+  // form and saved, rather than refused, so it matches the media tagged with it.
+  it('saves a hyphenated criteria tag in its folded form', async () => {
     const res = await request(createApp())
       .post(`/admin/curator/galleries/${GALLERY_B}/edit`)
       .set('Cookie', adminCookie())
@@ -375,11 +377,17 @@ describe('POST /admin/curator/galleries/:id/edit (validation)', () => {
         name: 'Beta Gallery',
         description: '',
         sortOrder: 'upload_desc',
-        criteriaTags: '#bad-tag-with-hyphens',
+        criteriaTags: '#fold-me-criterion',
         excludeTags: '',
       });
-    expect(res.status).toBe(422);
-    expect(res.text).toMatch(/criteria tag/i);
+    expect(res.status).toBe(303);
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    const criteria = (db.prepare(
+      `SELECT t.tag_normalized FROM member_gallery_tags g JOIN tags t ON t.id = g.tag_id WHERE g.gallery_id = ?`,
+    ).all(GALLERY_B) as { tag_normalized: string }[]).map((r) => r.tag_normalized);
+    db.close();
+    expect(criteria).toContain('#fold_me_criterion');
+    expect(criteria).not.toContain('#fold-me-criterion');
   });
 
   it('rejects criteria/exclude overlap with 422', async () => {
@@ -548,7 +556,7 @@ describe('POST /admin/curator/galleries (create)', () => {
         excludeTags: '',
       });
     expect(res.status).toBe(422);
-    expect(res.text).toMatch(/at least one criteria tag/i);
+    expect(res.text).toMatch(/at least one criteria hashtag/i);
   });
 
   // The id is the curator's own choice, so its collision must be named as the

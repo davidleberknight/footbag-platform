@@ -24,7 +24,11 @@
   {{! A write this page refused states why here. Without it the list simply
       re-appears and the member is left to guess what happened. }}
   {{> outcome-notice text=content.errorMessage tone='no'}}
-  {{> outcome-notice text=content.savedMessage tone='ok'}}
+  {{#if content.savedFoldLine}}
+    {{#> outcome-notice tone='ok'}}<p>{{content.savedMessage}}</p><p>{{content.savedFoldLine}}</p>{{/outcome-notice}}
+  {{else}}
+    {{> outcome-notice text=content.savedMessage tone='ok'}}
+  {{/if}}
 
   {{#if content.galleries.length}}
     {{! Seven columns including two tag lists and the row actions. Scrolls
@@ -37,8 +41,8 @@
           <th>Name</th>
           <th>Description</th>
           <th>Sort order</th>
-          <th>Criteria tags</th>
-          <th>Exclude tags</th>
+          <th>Criteria hashtags</th>
+          <th>Exclude hashtags</th>
           <th>Items</th>
           <th>Actions</th>
         </tr>

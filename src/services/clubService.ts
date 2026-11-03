@@ -40,6 +40,9 @@
  *     creation; permanent (not HD). A standardized hashtag is reserved for
  *     good: an administrator's move gives the club a new tag row and leaves the
  *     old one in place, so no later club can take the old hashtag.
+ *   - The slug, typed or made from the city, folds by the one rule (`slugifyForTag`).
+ *     A typed slug that folding changes creates nothing: `createClub` answers
+ *     `slug_folded` so the creator sees the permanent hashtag before it is fixed.
  *   - Every path that writes a club row's location applies `resolveClubRegion`,
  *     creation and co-leader edit alike: a country with an official state or
  *     province set must name one, stored as the FULL NAME, with a submitted
@@ -194,6 +197,7 @@ import { PageViewModel } from '../types/page';
 import { canonicalCountryName, countryCode, countrySlug, subdivisionsForCountry } from './countryUtils';
 import { COUNTRY_CHOICE_MESSAGE, capitalizeLowercaseCity } from './memberLocationRules';
 import { slugifyForTag } from './slugify';
+import { checkTypedSlug } from './typedTokenRules';
 import { deriveClubTag, stableClubId } from './clubTag';
 import { randomUUID } from 'crypto';
 
@@ -435,7 +439,12 @@ type CreateClubResult =
   /** A legacy candidate holds the exact name; it has no page to link to. */
   | { branch: 'exact_candidate_exists'; existingClubName: string }
   | { branch: 'near_matches_found'; nearMatches: ClubNearMatch[] }
-  | { branch: 'tag_conflict'; tagNormalized: string };
+  | { branch: 'tag_conflict'; tagNormalized: string }
+  /**
+   * The typed hashtag folds to a different token. Nothing is created: the
+   * hashtag is permanent, so the creator sees the folded form before it is fixed.
+   */
+  | { branch: 'slug_folded'; slug: string };
 
 // A join's writes: the affiliation, or the refusal that left nothing written.
 type JoinWriteResult = {
@@ -2544,11 +2553,19 @@ export class ClubService {
     }
     const storedRegion = regionResolution.status === 'ok' ? regionResolution.region : null;
 
-    let slug = input.slug.trim().toLowerCase();
-    if (!slug) {
-      slug = slugifyForTag(city);
-    }
-    if (!slug) {
+    // A typed hashtag folds by the one rule, like the default made from the city,
+    // and every check below judges the folded form.
+    const typedSlug = input.slug.trim();
+    // A typed hashtag is judged by the shared slug rules (letters with no a to z
+    // form are refused, then the length bounds); one made from the city by the
+    // checks below.
+    const typedCheck = typedSlug ? checkTypedSlug(typedSlug, 'club') : null;
+    const slug = typedCheck ? (typedCheck.ok ? typedCheck.slug : '') : slugifyForTag(city);
+    if (typedCheck && !typedCheck.ok) {
+      fieldErrors.slug = typedCheck.message;
+    } else if (!slug && typedSlug) {
+      fieldErrors.slug = 'The hashtag may only contain lowercase letters, digits and underscores.';
+    } else if (!slug) {
       fieldErrors.slug = 'We could not make a hashtag from the city name. Please enter one.';
     } else if (slug.length < 2) {
       fieldErrors.slug = 'The hashtag needs at least 2 characters after #club_.';
@@ -2635,6 +2652,13 @@ export class ClubService {
     const existingTag = mediaTags.findTagByNormalized.get(tagNormalized) as { id: string } | undefined;
     if (existingTag) {
       return { branch: 'tag_conflict', tagNormalized };
+    }
+
+    // Last before creating: every refusal and the near-match prompt have had
+    // their say, so the creator is never asked to confirm a hashtag the next
+    // submit would refuse. Capitals alone are lowered silently, as they always were.
+    if (typedSlug && slug !== typedSlug.toLowerCase()) {
+      return { branch: 'slug_folded', slug };
     }
 
     const now = new Date().toISOString();

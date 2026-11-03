@@ -26,6 +26,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../config/logger';
 import {
+  changedTypedTags,
   getDefaultCuratorMediaService,
   getMemberMediaEditPage,
   memberGalleriesHref,
@@ -33,7 +34,7 @@ import {
   type MemberMediaEditFormValues,
 } from '../services/curatorMediaService';
 import { NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
-import { FLASH_KIND, writeFlash } from '../lib/flashCookie';
+import { FLASH_KIND, writeFlash, writeMediaSavedFlash } from '../lib/flashCookie';
 import { renderNotFound } from '../lib/controllerErrors';
 import { isAdminCaller, isOwnMemberRoute } from '../lib/routeOwnership';
 import { hashtagDiscoveryService, type MemberTagSuggestions } from '../services/hashtagDiscoveryService';
@@ -47,13 +48,19 @@ function renderForm(
   memberKey: string,
   mediaId: string,
   values: FormValues,
-  opts: { status?: number; errorMessage?: string; tagSuggestions?: MemberTagSuggestions } = {},
+  opts: {
+    status?: number;
+    errorMessage?: string;
+    tagSuggestions?: MemberTagSuggestions;
+    playerSearch?: { query?: string; actorMemberId: string; ip: string };
+  } = {},
 ): void {
   res.status(opts.status ?? 200).render(
     'members/media/edit',
     getMemberMediaEditPage(memberKey, mediaId, values, {
       errorMessage: opts.errorMessage,
       tagSuggestions: opts.tagSuggestions,
+      playerSearch: opts.playerSearch,
     }),
   );
 }
@@ -69,13 +76,25 @@ export const memberMediaEditController = {
       const memberId = req.user!.userId;
       const memberKey = req.params.memberKey;
       const mediaId = req.params.mediaId;
-      const formValues = buildSvc().getMemberMediaEditFormValues(mediaId, memberId, req.user!.slug);
-      if (!formValues) {
+      const stored = buildSvc().getMemberMediaEditFormValues(mediaId, memberId, req.user!.slug);
+      if (!stored) {
         renderNotFound(res);
         return;
       }
-      const tagSuggestions = hashtagDiscoveryService.getTagSuggestionsForMember(memberId);
-      renderForm(res, memberKey, mediaId, formValues, { tagSuggestions });
+      // The player search submits the edit form by GET, so what the member had
+      // typed arrives in the query and is shown again rather than lost.
+      const typedField = (name: string) => (typeof req.query[name] === 'string' ? String(req.query[name]) : undefined);
+      const formValues = {
+        caption: typedField('caption') ?? stored.caption,
+        tags: typedField('tags') ?? stored.tags,
+        externalUrl: typedField('externalUrl') ?? stored.externalUrl,
+      };
+      const tagSuggestions = hashtagDiscoveryService.getTagSuggestionsForMember(memberId, req.user!.slug);
+      const query = typeof req.query.q === 'string' ? req.query.q : undefined;
+      renderForm(res, memberKey, mediaId, formValues, {
+        tagSuggestions,
+        playerSearch: { query, actorMemberId: memberId, ip: req.ip ?? 'unknown' },
+      });
     } catch (err) {
       logger.error('member media edit GET error', { error: err instanceof Error ? err.message : String(err) });
       next(err);
@@ -109,8 +128,9 @@ export const memberMediaEditController = {
         caption,
         tags,
         externalUrl,
+        addPlayer: typeof req.body?.addPlayer === 'string' ? req.body.addPlayer : undefined,
       });
-      writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'edit');
+      writeMediaSavedFlash(res, req, 'edit', changedTypedTags(req.body?.tags));
       res.redirect(303, memberGalleriesHref(memberKey));
     } catch (err) {
       if (err instanceof NotFoundError) {

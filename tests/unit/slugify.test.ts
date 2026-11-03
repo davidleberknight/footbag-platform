@@ -1,101 +1,74 @@
+/**
+ * The one folding rule that makes every slug and hashtag body, on the server and in the
+ * browser. Both read the same committed table and must give the token the shared probe
+ * list names for every input, so a preview never shows something other than what is
+ * stored, and the pipeline's own test holds its copy to the same list.
+ */
 import { describe, it, expect } from 'vitest';
-import { slugify, slugifyForTag } from '../../src/services/slugify';
+import { readFileSync } from 'fs';
+import path from 'path';
+import vm from 'vm';
+import { slugifyForTag, typedTag } from '../../src/services/slugify';
 
-describe('slugify', () => {
-  it('lowercases and replaces spaces with underscores', () => {
-    expect(slugify('John Doe')).toBe('john_doe');
+interface Probe { input: string; token: string }
+
+const probes: Probe[] = JSON.parse(
+  readFileSync(path.join(__dirname, '../fixtures/foldTokenProbes.json'), 'utf8'),
+);
+const table: { map: Record<string, string> } = JSON.parse(
+  readFileSync(path.join(__dirname, '../../src/public/js/latin-ascii.json'), 'utf8'),
+);
+
+interface BrowserFold { slugify(text: string): string; typedTag(raw: string): string; useTable(map: Record<string, string>): void }
+
+function loadBrowserFold(): BrowserFold {
+  const code = readFileSync(path.join(__dirname, '../../src/public/js/fold-token.js'), 'utf8');
+  const sandbox: { window: { footbagFold?: BrowserFold }; Promise: PromiseConstructor } = { window: {}, Promise };
+  vm.runInNewContext(code, sandbox);
+  const fold = sandbox.window.footbagFold!;
+  fold.useTable(table.map);
+  return fold;
+}
+
+describe('the one folding rule', () => {
+  it('gives every probe its expected token on the server', () => {
+    const wrong = probes.filter((p) => slugifyForTag(p.input) !== p.token)
+      .map((p) => `${p.input} -> ${slugifyForTag(p.input)} (expected ${p.token})`);
+    expect(wrong).toEqual([]);
   });
 
-  it('collapses multiple spaces', () => {
-    expect(slugify('John  Doe')).toBe('john_doe');
+  it('gives every probe the same token in the browser script as on the server', () => {
+    const fold = loadBrowserFold();
+    const wrong = probes.filter((p) => fold.slugify(p.input) !== p.token)
+      .map((p) => `${p.input} -> ${fold.slugify(p.input)} (expected ${p.token})`);
+    expect(wrong).toEqual([]);
   });
 
-  it('strips non-alphanumeric characters', () => {
-    expect(slugify("O'Brien Jr.")).toBe('obrien_jr');
-  });
-
-  it('strips accented characters (non-ASCII)', () => {
-    expect(slugify('Jean-Pierre Müller')).toBe('jeanpierre_mller');
-  });
-
-  it('trims leading and trailing underscores', () => {
-    expect(slugify(' _test_ ')).toBe('test');
-  });
-
-  it('returns empty string for all non-ASCII input', () => {
-    expect(slugify('日本語')).toBe('');
-  });
-
-  it('preserves numbers', () => {
-    expect(slugify('Player 99')).toBe('player_99');
-  });
-
-  it('passes through an already-clean slug', () => {
-    expect(slugify('alice_smith')).toBe('alice_smith');
-  });
-
-  it('returns empty string for empty input', () => {
-    expect(slugify('')).toBe('');
-  });
-
-  it('collapses consecutive underscores from mixed special characters', () => {
-    expect(slugify('a---b___c')).toBe('ab_c');
-  });
-
-  it('handles single character', () => {
-    expect(slugify('A')).toBe('a');
-  });
-
-  it('handles whitespace-only input', () => {
-    expect(slugify('   ')).toBe('');
+  // Every letter-producing entry of the standard table is applied, not only the
+  // handful the probe list names: a dropped table read would pass the probes that
+  // decompose but fail here.
+  it('applies every letter mapping of the standard table', () => {
+    const wrong = Object.entries(table.map)
+      .filter(([, out]) => /[A-Za-z0-9]/.test(out))
+      .filter(([ch, out]) => slugifyForTag(`a${ch}b`) !== slugifyForTag(`a${out}b`))
+      .map(([ch]) => ch);
+    expect(wrong).toEqual([]);
   });
 });
 
-describe('slugifyForTag', () => {
-  it('lowercases and replaces spaces with underscores', () => {
-    expect(slugifyForTag('Denver')).toBe('denver');
+describe('a typed hashtag', () => {
+  it('keeps one leading #, folds the body, and is empty when nothing folds', () => {
+    expect(typedTag('#Zoë-Müller')).toBe('#zoe_muller');
+    expect(typedTag('Zoë-Müller')).toBe('#zoe_muller');
+    expect(typedTag('##freestyle')).toBe('#freestyle');
+    expect(typedTag('#日本語')).toBe('');
+    expect(typedTag('#')).toBe('');
   });
 
-  it('handles multi-word city names', () => {
-    expect(slugifyForTag('San Francisco')).toBe('san_francisco');
-  });
-
-  it('strips diacritics via NFD normalization', () => {
-    expect(slugifyForTag('München')).toBe('munchen');
-    expect(slugifyForTag('São Paulo')).toBe('sao_paulo');
-    expect(slugifyForTag('Łódź')).toBe('lodz');
-  });
-
-  it('handles L-stroke, O-stroke, D-stroke via pre-NFD map', () => {
-    expect(slugifyForTag('Ørsted')).toBe('orsted');
-    expect(slugifyForTag('Đakovo')).toBe('dakovo');
-  });
-
-  it('replaces non-alphanumeric with underscores', () => {
-    expect(slugifyForTag('New York - USA')).toBe('new_york_usa');
-  });
-
-  it('collapses consecutive underscores', () => {
-    expect(slugifyForTag('a---b___c')).toBe('a_b_c');
-  });
-
-  it('strips leading and trailing underscores', () => {
-    expect(slugifyForTag('  _test_  ')).toBe('test');
-  });
-
-  it('returns empty string for empty input', () => {
-    expect(slugifyForTag('')).toBe('');
-  });
-
-  it('preserves digits', () => {
-    expect(slugifyForTag('Club 42')).toBe('club_42');
-  });
-
-  it('handles already-clean input', () => {
-    expect(slugifyForTag('portland')).toBe('portland');
-  });
-
-  it('handles all-special-character input', () => {
-    expect(slugifyForTag('!!!')).toBe('');
+  it('is the same in the browser script', () => {
+    const fold = loadBrowserFold();
+    for (const raw of ['#Zoë-Müller', 'Zoë-Müller', '##freestyle', '#日本語', '#']) {
+      expect(fold.typedTag(raw), raw).toBe(typedTag(raw));
+    }
   });
 });

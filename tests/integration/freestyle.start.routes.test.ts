@@ -14,7 +14,7 @@
  *     dexterities.
  *   - The page hands off to the dictionary, the glossary, and Freestyle Concepts,
  *     and ends with the six next-step lessons in reading order.
- *   - The retired /freestyle/learn redirects permanently to those lessons.
+ *   - The retired /freestyle/learn has no page and answers not-found.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { cachedGet } from '../fixtures/cachedGet';
@@ -145,10 +145,12 @@ describe('GET /freestyle/start — ends with the six next-step lessons', () => {
   });
 });
 
-describe('GET /freestyle/learn — retired, redirects to the lessons', () => {
-  it('redirects permanently to the next-steps section of the getting-started page', async () => {
+describe('GET /freestyle/learn — retired', () => {
+  it('answers not-found, with no redirect', async () => {
+    // Defect caught: the retired learning index still forwarding to Start, a
+    // compatibility redirect the unlaunched site does not keep.
     const res = await getPage('/freestyle/learn');
-    expect(res.status).toBe(301);
-    expect(res.headers.location).toBe('/freestyle/start#next-steps');
+    expect(res.status).toBe(404);
+    expect(res.headers.location).toBeUndefined();
   });
 });

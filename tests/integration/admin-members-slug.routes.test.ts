@@ -173,8 +173,7 @@ describe('correcting a profile URL', () => {
 
   it('holds the corrected URL to the rules registration applies', async () => {
     const refusals: Array<[string, string]> = [
-      ['capitals and spaces',   'Percy Plain'],
-      ['punctuation',           'percy-plain!'],
+      ['a letter with no Latin form', 'percy_plain_東'],
       ['a reserved site word',  'ifpa_plain'],
       ['not carrying the name', 'someone_else'],
       ['too short',             'p'],
@@ -199,7 +198,7 @@ describe('correcting a profile URL', () => {
   it('still holds that member to every other rule', async () => {
     for (const [label, slug] of [
       ['a reserved site word', 'ifpa_wei'],
-      ['punctuation',          'wang-wei!'],
+      ['a letter with no Latin form', 'wang_wei_東'],
       ['too short',            'w'],
     ] as Array<[string, string]>) {
       expect((await correctSlug(NO_LATIN_ID, slug)).status, label).toBe(422);
@@ -231,6 +230,21 @@ describe('correcting a profile URL', () => {
        WHERE action_type = 'member.slug_corrected' AND entity_id = ?`,
     ).get(PLAIN_ID)) as { c: number };
     expect(after.c).toBe(before.c);
+  });
+
+  // An administrator types a URL the way registration takes one: folded by the
+  // one rule, so the confirmation shows, and the correction stores, the folded form.
+  it('folds a typed URL before previewing and storing it', async () => {
+    const preview = await request(createApp())
+      .post(`/admin/members/${HOLDER_ID}/slug`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ slug: 'Hättie-Holder 2', reason: 'member asked' });
+    expect(preview.status).toBe(200);
+    expect(preview.text).toContain('hattie_holder_2');
+    const res = await correctSlug(HOLDER_ID, 'Hättie-Holder 2');
+    expect(res.status).toBe(303);
+    expect(slugOf(HOLDER_ID)).toBe('hattie_holder_2');
   });
 
   it('warns on the confirmation that the old address stops working', async () => {

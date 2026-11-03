@@ -1,14 +1,17 @@
 <div class="hero hero-sm">
   <div>
     <h1>{{page.title}}</h1>
+    {{#if personasLoaded}}
     <p class="hero-subtitle">
       Permanent persona harness, development and staging only. Pick a persona and
       click Switch to act as them.
     </p>
+    {{/if}}
   </div>
 </div>
 
 <div class="wrapper">
+  {{#if personasLoaded}}
   <p class="fs-sm mb-4">
     Each persona below is a member you can act as, grouped by what it tests. Its Verify line
     names the page to open, what to do and what you should see. A persona marked blocked waits
@@ -83,8 +86,7 @@
       </div>
     </section>
   {{/each}}
-
-  {{#unless groups}}
-    <div class="empty-state">No personas loaded.</div>
-  {{/unless}}
+  {{else}}
+    <div class="empty-state">No test personas are loaded in this database.</div>
+  {{/if}}
 </div>

@@ -24,6 +24,7 @@ import {
   completeOnboarding,
 } from '../fixtures/factories';
 import { rowPin, theOnlyRow } from '../fixtures/rowPinning';
+import { normalizeAntiEnumerationBody } from '../fixtures/normalizeAntiEnumerationBody';
 
 const { dbPath } = setTestEnv('4195');
 
@@ -299,10 +300,22 @@ describe('GET /history/:personId/claim', () => {
     // page, so an administrator route would be a member capability that bounces
     // them. A held record is sometimes a same-name coincidence, so the remedies
     // are still worth naming: a sharper match may find a record of their own.
+    // The claimant's own name reaches this held record, which is the one case the
+    // already-claimed page answers; a held record their evidence does not reach
+    // answers as no record at all.
     const app = createApp();
-    const res = await request(app).get(`/history/${HP_TAKEN}/claim`).set('Cookie', otherCookie());
+    const res = await request(app).get(`/history/${HP_TAKEN}/claim`).set('Cookie', claimerCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Another member has already claimed this record');
+    const unknown = await request(app).get('/history/does-not-exist/claim').set('Cookie', claimerCookie());
+    const masked = (text: string, key: string) => normalizeAntiEnumerationBody(text.split(key).join('KEY'));
+    expect(masked(res.text, HP_TAKEN), 'a held record the claimant reaches shows the already-claimed page')
+      .not.toBe(masked(unknown.text, 'does-not-exist'));
+    // A held record offered as claimable would hand another member's record over;
+    // an unclaimed record the claimant reaches does carry the confirm form.
+    expect(res.text, 'no claim form for a record another member holds')
+      .not.toContain(`action="/history/${HP_TAKEN}/claim/confirm"`);
+    const open = await request(app).get(`/history/${HP_NO_LEGACY}/claim`).set('Cookie', claimerCookie());
+    expect(open.text).toContain(`action="/history/${HP_NO_LEGACY}/claim/confirm"`);
     expect(res.text).toContain('/register/wizard/legacy_claim');
     expect(res.text).not.toContain('contact-admin');
     expect(res.text).not.toContain('Contact Admin');

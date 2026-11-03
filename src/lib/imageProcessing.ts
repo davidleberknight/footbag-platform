@@ -40,6 +40,38 @@ const SHARP_OPTS = { limitInputPixels: MAX_INPUT_PIXELS } as const;
 const MIN_INPUT_EDGE = 200;
 const MAX_ASPECT_RATIO = 4;
 
+// A shared photo is held to a narrower shape than the 4:1 above, because the
+// display copy is bounded only by its 800-pixel width: a 1:4 portrait would
+// store an 800 by 3200 display copy. The range follows the shapes Instagram
+// accepts, 1.91:1 landscape to portrait, with the portrait end at 3:4 rather
+// than 4:5 because 3:4 is a phone's own portrait photo; at 3:4 the tallest
+// display copy is 800 by 1067. Photos outside the range are refused, never
+// cropped. Avatars are cropped square and video posters are frames of their
+// video, so both keep the 4:1 limit instead.
+// Kept as whole-number ratios so the exact 1.91:1 and 3:4 shapes compare
+// exactly, with no floating-point rounding at the boundary.
+const PHOTO_MAX_LANDSCAPE_RATIO = { wide: 191, high: 100 } as const;
+const PHOTO_MAX_PORTRAIT_RATIO = { wide: 3, high: 4 } as const;
+
+/**
+ * The refusal for a shared photo whose shape falls outside 1.91:1 landscape to
+ * 3:4 portrait, or null when the shape is accepted.
+ */
+export function photoShapeRefusal(width: number, height: number): string | null {
+  if (width * PHOTO_MAX_LANDSCAPE_RATIO.high > height * PHOTO_MAX_LANDSCAPE_RATIO.wide) {
+    return PHOTO_TOO_WIDE_MESSAGE;
+  }
+  if (height * PHOTO_MAX_PORTRAIT_RATIO.wide > width * PHOTO_MAX_PORTRAIT_RATIO.high) {
+    return PHOTO_TOO_TALL_MESSAGE;
+  }
+  return null;
+}
+
+export const PHOTO_TOO_WIDE_MESSAGE =
+  'This photo is too wide. Photos can be at most 1.91 times as wide as they are tall. Crop it and try again.';
+export const PHOTO_TOO_TALL_MESSAGE =
+  "This photo is too tall. Photos can be at most 4 high for every 3 wide, the shape of a phone's portrait photo. Crop it and try again.";
+
 // Thrown when an upload is rejected for a client-fixable reason (too small,
 // too large, or an extreme aspect ratio). The image worker maps this to an
 // HTTP 400 so the upload services surface it as a clear inline form error
@@ -160,8 +192,12 @@ export async function processAvatar(data: Buffer): Promise<ProcessedImage> {
  */
 export async function processPhoto(data: Buffer): Promise<ProcessedImage> {
   const metadata = await readImageMetadata(data);
-  const width = metadata.width ?? 0;
-  const height = metadata.height ?? 0;
+  // The photo as it is shown: a phone stores a portrait photo sideways with a
+  // rotation tag, and both variants below are turned upright, so the reported
+  // width and height (which the photo-shape check reads) are taken after that
+  // turn. The checks below are the same either way round.
+  const width = metadata.autoOrient?.width ?? metadata.width ?? 0;
+  const height = metadata.autoOrient?.height ?? metadata.height ?? 0;
   if (width === 0 || height === 0) {
     throw new Error('Unable to read image dimensions');
   }

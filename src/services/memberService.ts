@@ -161,6 +161,7 @@ import { hit as rateLimitHit } from './rateLimitService';
 import { readIntConfig } from './configReader';
 import { appendAuditEntry, isMember } from './auditService';
 import { runSqliteRead } from './sqliteRetry';
+import { playerTagForMemberSlug, playerTagForName } from './slugify';
 import { buildAvatarUrl } from './avatarService';
 import { emailService } from './emailService';
 import { PageViewModel, TierBenefitNotice } from '../types/page';
@@ -228,6 +229,9 @@ export interface MemberSearchEntry {
   isHistorical: boolean;
   /** 'Male' / 'Female' when the member opted gender into public visibility, else null. */
   genderLabel: string | null;
+  /** The hashtag that credits this person as the player in a media item: a
+   *  member's (or claimed record's) own slug, else the record's folded name. */
+  playerTag: string;
 }
 
 export interface MemberSearchResult {
@@ -2130,6 +2134,7 @@ export const memberService = {
         isHistorical: false,
         // Member search is authenticated-only, so the opted-in label is visible here.
         genderLabel: genderPublicLabel(r.gender, r.show_gender, true),
+        playerTag: playerTagForMemberSlug(r.slug),
       });
     }
 
@@ -2152,6 +2157,9 @@ export const memberService = {
         isBoard: false,
         isHistorical: !isClaimed,
         genderLabel: null,
+        playerTag: r.linked_member_slug
+          ? playerTagForMemberSlug(r.linked_member_slug)
+          : playerTagForName(r.person_name),
       });
     }
 

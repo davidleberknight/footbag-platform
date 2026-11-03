@@ -50,7 +50,10 @@
 
         {{> member-block-membership content.membership}}
 
-        {{> member-block-search content.search}}
+        <div class="profile-section">
+          <h2 class="profile-section-heading">Find Members</h2>
+          {{> member-block-search content.search}}
+        </div>
 
         {{! Only an organizer-tier member has a shortcut left here, so the block
             is absent for everyone else rather than standing empty. It sits with

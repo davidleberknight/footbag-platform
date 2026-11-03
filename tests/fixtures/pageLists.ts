@@ -28,6 +28,9 @@ export const VIEWERS: readonly Viewer[] = [
   { name: 'registrant', persona: 'onb_unstarted', seeds: ['/register/wizard/personal_details'] },
   { name: 'registrant-claim', persona: 'onb_partial', seeds: ['/register/wizard/legacy_claim'] },
   { name: 'registrant-club', persona: 'onb_club_unanswered', seeds: ['/register/wizard/club_affiliations'] },
+  // A registrant whose own name reaches a record another member holds: the one
+  // reader the already-claimed page answers. Its pages are reached by REACH only.
+  { name: 'registrant-conflict', persona: 'claim_conflict_prompt', seeds: [] },
 ];
 
 /**
@@ -113,7 +116,7 @@ export const REACH: readonly Reach[] = [
   { template: 'net/team-detail', viewer: 'anonymous', url: `/net/teams/${R.netTeamId}`, why: 'teams are linked only from net results' },
   { template: 'auth/check-email', viewer: 'anonymous', url: '/register/check-email', why: 'reached by redirect after registering' },
   { template: 'auth/password-reset', viewer: 'anonymous', url: '/password/reset/rendered-style-unknown-token', why: 'reached from an emailed link' },
-  { template: 'auth/verify-landing', viewer: 'anonymous', url: '/verify/rendered-style-unknown-token', why: 'reached from an emailed link' },
+  { template: 'auth/verify-result', viewer: 'anonymous', url: '/verify/rendered-style-unknown-token', why: 'reached from an emailed link; an unknown token is refused and writes nothing' },
   { template: 'email/unsubscribe', viewer: 'anonymous', url: '/email/unsubscribe?t=rendered-style-unknown-token', why: 'reached from a link in a bulk message' },
   { template: 'dev/persona-listing', viewer: 'anonymous', url: '/dev/personas', why: 'the tester harness is linked from no page' },
   { template: 'dev/outbox', viewer: 'anonymous', url: '/dev/outbox', why: 'the tester harness is linked from no page' },
@@ -140,7 +143,7 @@ export const REACH: readonly Reach[] = [
   { template: 'admin/payments/detail', viewer: 'admin', url: `/admin/payments/${R.paymentId}`, why: 'the payments list opens on month to date, so a payment from an earlier month is linked only after a date search' },
   { template: 'admin/freestyle-notation-author', viewer: 'admin', url: `/admin/freestyle/notation-backlog/${R.backlogCandidateId}/author`, why: 'linked from the notation backlog per candidate' },
   { template: 'admin/freestyle-trick-publish', viewer: 'admin', url: `/admin/freestyle/notation-backlog/${R.backlogCandidateId}/publish`, why: 'linked from the notation backlog per candidate' },
-  { template: 'history/claim-hp-conflict', viewer: 'registrant-claim', url: `/history/${R.heldPersonId}/claim`, why: 'shown for a claim link whose record another member holds' },
+  { template: 'history/claim-hp-conflict', viewer: 'registrant-conflict', url: `/history/${R.heldPersonId}/claim`, why: 'shown for a claim link whose record another member holds and the registrant\'s own name reaches' },
   { template: 'history/claim-hp-confirm', viewer: 'registrant-claim', url: '/history/person_persona_claim_record_only_rec/claim', why: 'reached from a claim card on the wizard\'s claim step', signInPerWidth: ['claim_record_only', 'claim_record_only'] },
 
   // The answers to a form. Every administrator action posts to a preview that
@@ -163,7 +166,6 @@ export const REACH: readonly Reach[] = [
   { template: 'clubs/step-down-confirm', viewer: 'club-leader', url: `/members/${R.leaderSlug}`, why: 'answers the step-down form', submit: { action: `/clubs/${R.leaderClubKey}/step-down` }, signInPerWidth: [R.leaderSlug, R.leaderSlug] },
   // An unknown address writes nothing and gets the same page a known one does.
   { template: 'auth/password-forgot-sent', viewer: 'anonymous', url: '/password/forgot', why: 'answers the reset request form', submit: { action: '/password/forgot', fields: { email: 'rendered-style-nobody@example.com' } } },
-  { template: 'auth/verify-result', viewer: 'anonymous', url: '/verify/rendered-style-unknown-token', why: 'answers the verify form; an unknown token is refused', submit: { action: '/verify' } },
   // A stub checkout session lives only in the running server, so only the real donate post makes one.
   { template: 'payments/checkout', viewer: 'member', url: '/donate', why: 'the donate form redirects to it', submit: { action: '/donate', fields: { amountChoice: 'custom', customAmount: '25.00' } } },
   { template: 'members/delete-account-done', viewer: 'member', url: `/members/${MEMBER}/delete`, why: 'answers the delete form, which ends the account', submit: { action: `/members/${MEMBER}/delete` }, signInPerWidth: [R.deletePhoneSlug, R.deleteDesktopSlug] },

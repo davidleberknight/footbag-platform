@@ -8,6 +8,7 @@ import {
   updateCuratorGalleryWithUploads,
   uploadCuratorMedia,
   parseTagList,
+  withPlayerCredits,
   createCuratorGallery,
   getCuratorUploadPage,
   getCuratorMediaListPage,
@@ -25,6 +26,7 @@ import {
   type CuratorUploadFormValues,
   parseExternalLinkInputs,
   type CuratorGalleryFormFields,
+  changedTypedTags,
 } from '../services/curatorMediaService';
 import { ConflictError, NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { renderImageWorkerUnavailable, renderInvalidRequest, renderNotFound } from '../lib/controllerErrors';
@@ -32,7 +34,17 @@ import { parseGalleryMultipart } from './galleryFormHelpers';
 import { getMediaJobService, jobEventPayload, jobStateSnapshot } from '../services/mediaJobService';
 import { subscribeToJobEvents } from '../services/jobEventBus';
 import { config } from '../config/env';
-import { FLASH_KIND, writeFlash, takeMediaSavedFlash } from '../lib/flashCookie';
+import {
+  FLASH_KIND, writeFlash, writeMediaSavedFlash, takeMediaSaved, type FoldedTag,
+} from '../lib/flashCookie';
+
+// A consumed media-saved flash as the list pages take it: which save, and the
+// typed tags it stored folded.
+function savedFlagAndFolds(saved: ReturnType<typeof takeMediaSaved>): {
+  savedFlag: string | null; savedFolded: FoldedTag[];
+} {
+  return { savedFlag: saved?.kind ?? null, savedFolded: saved?.folded ?? [] };
+}
 import { readMultipart, type ParsedMultipart } from '../lib/multipartForm';
 
 // The HTTP answer to each way a finalize can be refused. A job another admin
@@ -73,6 +85,7 @@ function renderForm(
     formValues?: FormValues;
     existingCategories?: string[];
     savedFlag?: 'upload' | null;
+    savedFolded?: FoldedTag[];
   } = {},
 ): void {
   res.render(
@@ -82,6 +95,7 @@ function renderForm(
       formValues: opts.formValues,
       existingCategories: opts.existingCategories,
       savedFlag: opts.savedFlag === 'upload',
+      savedFolded: opts.savedFolded,
     }),
   );
 }
@@ -91,8 +105,9 @@ export const adminCuratorController = {
     try {
       const svc = buildSvc();
       const existingCategories = await svc.listExistingCategories();
-      const savedFlag = takeMediaSavedFlash(req, res) === 'upload' ? 'upload' : null;
-      renderForm(res, { existingCategories, savedFlag });
+      const saved = takeMediaSaved(req, res);
+      const savedFlag = saved?.kind === 'upload' ? 'upload' : null;
+      renderForm(res, { existingCategories, savedFlag, savedFolded: saved?.folded });
     } catch (err) {
       next(err);
     }
@@ -218,7 +233,7 @@ export const adminCuratorController = {
         renderForm(res.status(result.httpStatus), { errorMessage: result.message, formValues, existingCategories });
         return;
       }
-      writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'upload');
+      writeMediaSavedFlash(res, req, 'upload', changedTypedTags(fields.tags));
       res.redirect(303, '/admin/curator/upload');
     }
 
@@ -262,7 +277,7 @@ export const adminCuratorController = {
           tagFilter: typeof req.query.tag === 'string' ? req.query.tag : null,
           sort: typeof req.query.sort === 'string' ? req.query.sort : null,
           confirmDeleteId: typeof req.query.confirmDelete === 'string' ? req.query.confirmDelete : null,
-          savedFlag: takeMediaSavedFlash(req, res),
+          ...savedFlagAndFolds(takeMediaSaved(req, res)),
         }),
       );
     } catch (err) {
@@ -281,7 +296,21 @@ export const adminCuratorController = {
   async getEdit(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const mediaId = req.params.id;
-      const vm = await getCuratorMediaEditPage(buildSvc(), mediaId);
+      // The player search submits the edit form by GET, so the fields the curator
+      // had typed arrive in the query and are shown again rather than lost.
+      const typedField = (name: string) => (typeof req.query[name] === 'string' ? String(req.query[name]) : undefined);
+      const vm = await getCuratorMediaEditPage(buildSvc(), mediaId, {
+        query: typeof req.query.q === 'string' ? req.query.q : undefined,
+        actorMemberId: req.user!.userId,
+        ip: req.ip ?? 'unknown',
+      }, {
+        caption: typedField('caption'),
+        tagsString: typedField('tags'),
+        sourceId: typedField('sourceId'),
+        startSeconds: typedField('startSeconds'),
+        endSeconds: typedField('endSeconds'),
+        externalUrl: typedField('externalUrl'),
+      });
       if (!vm) {
         res.status(404).render('admin/curator/edit', getCuratorMediaNotFoundPage(mediaId));
         return;
@@ -298,7 +327,10 @@ export const adminCuratorController = {
       const adminMemberId = req.user!.userId;
       const captionRaw = (req.body?.caption ?? '').trim();
       const caption = captionRaw.length === 0 ? null : captionRaw;
-      const tags = parseTagList(req.body?.tags);
+      const tags = withPlayerCredits(
+        parseTagList(req.body?.tags),
+        typeof req.body?.addPlayer === 'string' ? req.body.addPlayer : undefined,
+      );
 
       // URL-ref sidecar fields. Sent as form inputs from the edit page;
       // empty string is treated as null (clears the sidecar field).
@@ -349,7 +381,7 @@ export const adminCuratorController = {
         }
         throw err;
       }
-      writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'edit');
+      writeMediaSavedFlash(res, req, 'edit', changedTypedTags(req.body?.tags));
       res.redirect(303, '/admin/curator/media');
     } catch (err) {
       next(err);
@@ -359,12 +391,14 @@ export const adminCuratorController = {
   /** GET /admin/curator/galleries — list FH-owned named galleries. */
   getGalleryList(req: Request, res: Response, next: NextFunction): void {
     try {
-      const savedFlag = takeMediaSavedFlash(req, res);
+      const saved = takeMediaSaved(req, res);
+      const savedFlag = saved?.kind ?? null;
+      const savedFolded = saved?.folded ?? [];
       const svc = buildSvc();
       const confirmDeleteId = typeof req.query.confirmDelete === 'string' ? req.query.confirmDelete : null;
       res.render(
         'admin/curator/galleries/list',
-        getCuratorGalleryListPage(svc, { confirmDeleteId, savedFlag: savedFlag !== null }),
+        getCuratorGalleryListPage(svc, { confirmDeleteId, savedFlag: savedFlag !== null, savedFolded }),
       );
     } catch (err) {
       next(err);
@@ -393,7 +427,7 @@ export const adminCuratorController = {
           idSlug: slug,
           updates: { name, description, sortOrder: sortOrderRaw, criteriaTags, excludeTags },
         });
-        writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'create');
+        writeMediaSavedFlash(res, req, 'create', changedTypedTags(req.body?.criteriaTags, req.body?.excludeTags));
         res.redirect(303, '/admin/curator/galleries');
         return;
       } catch (err) {
@@ -505,7 +539,7 @@ export const adminCuratorController = {
         }
         throw err;
       }
-      writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'edit');
+      writeMediaSavedFlash(res, req, 'edit', changedTypedTags(req.body?.criteriaTags, req.body?.excludeTags));
       res.redirect(303, '/admin/curator/galleries');
     } catch (err) {
       next(err);
@@ -839,6 +873,6 @@ async function executeCuratorGalleryEditMultipart(args: {
     }, actorMemberId);
     return;
   }
-  writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'edit');
+  writeMediaSavedFlash(res, req, 'edit', changedTypedTags(fields.criteriaTags, fields.excludeTags, uploadTagsRaw));
   res.redirect(303, '/admin/curator/galleries');
 }

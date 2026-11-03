@@ -7415,6 +7415,30 @@ export function queryMemberDisplayNamesBySlugs(slugs: string[]): MemberByTagRow[
   `).all(...slugs) as MemberByTagRow[];
 }
 
+export interface PlayerCreditPersonRow {
+  person_id: string;
+  person_name: string;
+  linked_member_slug: string | null;
+}
+
+export const mediaPlayerCredits = {
+  // Every canonical historical person with the slug of the member who claimed
+  // the record, if any. A player hashtag is matched against the record's name
+  // folded to the tag alphabet, which SQL cannot compute, so the service folds
+  // the names itself. Unpaginated: the caller needs the whole set.
+  get listCanonicalPersons() { return db.prepare(`
+    SELECT hp.person_id, hp.person_name,
+           (SELECT m.slug
+            FROM members_onboarded AS m
+            WHERE m.historical_person_id = hp.person_id
+              AND m.personal_data_purged_at IS NULL
+            LIMIT 1
+           ) AS linked_member_slug
+    FROM historical_persons AS hp
+    WHERE hp.source_scope = 'CANONICAL'
+  `); },
+};
+
 export const mediaTags = {
   // Carries retired_at because this is the resolve-or-create lookup every tag
   // application runs through, and a retired tag's row deliberately survives:
@@ -7821,7 +7845,7 @@ export const tagStats = {
            ts.usage_count, ts.distinct_member_count
     FROM tag_stats ts
     JOIN tags t ON t.id = ts.tag_id
-    WHERE t.tag_normalized NOT LIKE '#by_%'
+    WHERE t.tag_normalized NOT LIKE '#by\\_%' ESCAPE '\\'
       AND t.tag_normalized <> '#unavailable_embed'
       AND (
             ts.distinct_member_count >= 2
@@ -7847,7 +7871,7 @@ export const tagStats = {
            ts.usage_count, ts.distinct_member_count
     FROM tag_stats ts
     JOIN tags t ON t.id = ts.tag_id
-    WHERE t.tag_normalized NOT LIKE '#by_%'
+    WHERE t.tag_normalized NOT LIKE '#by\\_%' ESCAPE '\\'
       AND t.tag_normalized <> '#unavailable_embed'
       AND ts.distinct_member_count >= 2
     ORDER BY ts.usage_count DESC, ts.distinct_member_count DESC
@@ -7862,7 +7886,7 @@ export const tagStats = {
            ts.usage_count, ts.distinct_member_count
     FROM tag_stats ts
     JOIN tags t ON t.id = ts.tag_id
-    WHERE t.tag_normalized NOT LIKE '#by_%'
+    WHERE t.tag_normalized NOT LIKE '#by\\_%' ESCAPE '\\'
       AND t.tag_normalized <> '#unavailable_embed'
       AND ts.distinct_member_count < 2
       AND EXISTS (
@@ -7887,7 +7911,7 @@ export const tagStats = {
            ts.usage_count, ts.distinct_member_count
     FROM tag_stats ts
     JOIN tags t ON t.id = ts.tag_id
-    WHERE t.tag_normalized NOT LIKE '#by_%'
+    WHERE t.tag_normalized NOT LIKE '#by\\_%' ESCAPE '\\'
       AND t.tag_normalized <> '#unavailable_embed'
       AND ts.distinct_member_count >= 2
     ORDER BY t.tag_normalized ASC
@@ -7976,7 +8000,7 @@ export function suggestTagsForTerm(term: string, limit: number): TagSuggestRow[]
           WHERE ml.modifier_slug = ?
         )
       )
-      AND t.tag_normalized NOT LIKE '#by_%'
+      AND t.tag_normalized NOT LIKE '#by\\_%' ESCAPE '\\'
       AND t.tag_normalized <> '#unavailable_embed'
       AND t.retired_at IS NULL
       AND NOT (t.is_standard = 1 AND t.standard_type = 'club'

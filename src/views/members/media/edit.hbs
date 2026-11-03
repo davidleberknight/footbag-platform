@@ -14,24 +14,39 @@
   <p>
     Update this item's caption, tags, or external URL. The auto-applied
     <code>#by_&lt;your-slug&gt;</code> uploader marker is preserved across saves
-    and is not editable. Tags starting with <code>#by_</code> or <code>#curated</code>
+    and is not editable. Hashtags starting with <code>#by_</code> or <code>#curated</code>
     are system-managed and rejected as input.
   </p>
 
   {{> outcome-notice text=content.errorMessage tone='no'}}
 
-  <form action="{{content.formAction}}" method="POST" class="form-block">
+  {{!-- The player search sits before the edit form, never inside it: its
+        own GET form reloads this page with the results, and each result's
+        credit button submits the edit form by id. --}}
+  <div class="section-heading"><h2>Find a Player</h2></div>
+  {{> member-block-search content.playerSearch creditFormId=content.editFormId searchFormId=content.editFormId intro="Search for a member or historical player, then press Credit as Player to add their player hashtag and save the item."}}
+
+  <form id="{{content.editFormId}}" action="{{content.formAction}}" method="POST" class="form-block">
     <div class="form-field">
       <label for="member-media-caption">Caption (optional, up to 500 characters):</label>
       <textarea id="member-media-caption" name="caption" maxlength="500" rows="3">{{content.formValues.caption}}</textarea>
     </div>
 
     <div class="form-field">
-      <label for="member-media-tags">Tags (space-separated <code>#hashtags</code>):</label>
-      <input id="member-media-tags" type="text" name="tags" value="{{content.formValues.tags}}" placeholder="#freestyle #spike" data-tag-chips>
+      <label for="member-media-tags">Hashtags (separated by spaces):</label>
+      <input id="member-media-tags" type="text" name="tags" value="{{content.formValues.tags}}" placeholder="#freestyle #spike" data-tag-chips data-tag-entry>
+      {{> hashtag-slug-help}}
     </div>
     {{#if content.tagSuggestions}}
     <div class="tag-suggestions">
+      {{#if content.tagSuggestions.playerTags.length}}
+      <div class="tag-suggestions-group">
+        <span class="tag-suggestions-label">You as the player:</span>
+        {{#each content.tagSuggestions.playerTags}}
+        <button type="button" class="tag-chip tag-suggestion" data-tag="{{normalized}}">{{display}}</button>
+        {{/each}}
+      </div>
+      {{/if}}
       {{#if content.tagSuggestions.clubTags.length}}
       <div class="tag-suggestions-group">
         <span class="tag-suggestions-label">Your clubs:</span>
@@ -74,6 +89,7 @@
         so it goes through a confirm page that works without JavaScript. --}}
   <a href="{{content.deleteConfirmHref}}" class="btn btn-outline btn-sm">Delete This Item</a>
 </div>
+{{> fold-token-script}}
 <script src="{{{asset 'js/tag-chips.js'}}}" defer></script>
 {{#if content.tagSuggestions}}
 <script src="{{{asset 'js/tag-suggestions.js'}}}" defer></script>

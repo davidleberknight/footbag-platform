@@ -78,8 +78,8 @@ Tag-shape rules (enforced by `scripts/_trick_tag_invariant.py:validate_media_tag
 - All tags must start with `#` and be lowercase.
 - Trick-shaped tags (underscore-form alphanumeric, not in `UTILITY_EXACT`, not a recognized domain prefix) MUST resolve to an active or pending `freestyle_tricks.slug`. Alias-only matches fail.
 - Items with zero semantic tags (only utility tags, no trick or domain-prefix tag) fail.
-- Recognized domain prefixes (snake_case): `event_`, `demo_`, `fh_`, `player_`, `club_`, `set_`. Anything else needs to be in `UTILITY_EXACT`.
-- `#player_<slug>` is the one credit convention: the person performing in the clip, named by an existing historical-person record, never a new identity. `#by_<slug>` is the system-applied uploader tag and is never written into a curated sidecar. Media has no credit field (see the user stories' hashtag rules).
+- Recognized domain prefixes (snake_case): `event_`, `demo_`, `fh_`, `player_`, `club_`, `set_`, `operator_`, `family_`, `concept_`, `discipline_`. Anything else needs to be in `UTILITY_EXACT`.
+- `#player_<slug>` is the one credit convention: the person performing in the clip, named by the historical-person record's folded name (`slugifyForTag`), or by the member's slug for a member; it never creates an identity. `#by_<slug>` is the system-applied uploader tag and is never written into a curated sidecar. Media has no credit field (see the user stories' hashtag rules).
 
 ## 4. PassBack-specific lessons (worked examples: do not re-litigate)
 

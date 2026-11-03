@@ -1,10 +1,10 @@
 /**
  * Integration tests for email verification at registration.
  *
- * Exercises the full verify flow: registration enqueues a verify email, the
- * emailed GET /verify/:token opens a page that changes nothing, its button's
- * POST /verify consumes the token and logs the member in, a repeat of that POST
- * reports the first outcome without a session, resend is
+ * Exercises the full verify flow: registration enqueues a verify email, opening
+ * the emailed GET /verify/:token link consumes the token and logs the member in
+ * in one click, opening it again reports the first outcome without a session,
+ * resend is
  * rate-limited, and unverified members cannot log in and do not appear in
  * authenticated member search.
  */
@@ -52,9 +52,9 @@ function tokenFromOutbox(email: string): string {
   return match[1];
 }
 
-/** The landing page's one button: the POST that spends the token. */
-function pressVerify(app: ReturnType<typeof createApp>, token: string) {
-  return request(app).post('/verify').type('form').send({ token });
+/** Opening the emailed link: the one click that spends the token. */
+function openVerifyLink(app: ReturnType<typeof createApp>, token: string) {
+  return request(app).get(`/verify/${token}`);
 }
 
 afterEach(() => {
@@ -169,7 +169,7 @@ describe('POST /register → check-email + outbox enqueue', () => {
       password: 'verifypass!1',
       confirmPassword: 'verifypass!1',
     });
-    await pressVerify(app, tokenFromOutbox('verify-dup-verified@example.com'));
+    await openVerifyLink(app, tokenFromOutbox('verify-dup-verified@example.com'));
 
     await request(app).post('/register').type('form').send({
       givenNames: 'Dup', familyName: 'Verified',
@@ -187,48 +187,7 @@ describe('POST /register → check-email + outbox enqueue', () => {
   });
 });
 
-describe('GET /verify/:token — the emailed link opens a page that changes nothing', () => {
-  it('renders the one-button page carrying the token, spends nothing, and is not cacheable', async () => {
-    const app = createApp();
-    await request(app).post('/register').type('form').send({
-      givenNames: 'Verify', familyName: 'Landing',
-      email: 'verify-landing@example.com',
-      password: 'verifypass!1',
-      confirmPassword: 'verifypass!1',
-    });
-    const token = tokenFromOutbox('verify-landing@example.com');
-
-    // Opened twice, as a mail scanner and then the member would.
-    await request(app).get(`/verify/${token}`);
-    const res = await request(app).get(`/verify/${token}`);
-
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Press the button below to confirm your email address.');
-    expect(res.text).toContain('action="/verify"');
-    expect(res.text).toContain(`value="${token}"`);
-    expect(res.text).toContain('Verify My Email');
-    expect(res.headers['cache-control']).toContain('no-store');
-    expect(res.get('Set-Cookie')?.some((c) => c.startsWith('__Host-footbag_session=')) ?? false).toBe(false);
-
-    const db = new BetterSqlite3(dbPath, { readonly: true });
-    const m = db.prepare(
-      `SELECT email_verified_at FROM members WHERE login_email_normalized = ?`,
-    ).get('verify-landing@example.com') as { email_verified_at: string | null };
-    db.close();
-    expect(m.email_verified_at).toBeNull();
-
-    // The token is still unspent, so the button works afterwards.
-    expect((await pressVerify(app, token)).status).toBe(303);
-  });
-
-  it('an unknown token opens the same page: the link reveals nothing about the token', async () => {
-    const res = await request(createApp()).get('/verify/bogus-token-landing');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Verify My Email');
-  });
-});
-
-describe('POST /verify', () => {
+describe('GET /verify/:token — opening the emailed link verifies in one click', () => {
   it('consumes valid token → sets email_verified_at, issues session cookie, redirects to the wizard', async () => {
     const app = createApp();
     await request(app).post('/register').type('form').send({
@@ -238,7 +197,7 @@ describe('POST /verify', () => {
       confirmPassword: 'verifypass!1',
     });
     const token = tokenFromOutbox('verify-good@example.com');
-    const res = await pressVerify(app, token);
+    const res = await openVerifyLink(app, token);
     expect(res.status).toBe(303);
     // Post-verify landing is the first outstanding onboarding task.
     expect(res.headers.location).toBe('/register/wizard/personal_details');
@@ -281,7 +240,7 @@ describe('POST /verify', () => {
     ).run(new Date().toISOString(), 'verify-already@example.com');
     seed.close();
 
-    const res = await pressVerify(app, token);
+    const res = await openVerifyLink(app, token);
 
     // The link still signs the registrant in. They are not a member, so the
     // audit log records nothing about them either way.
@@ -301,7 +260,7 @@ describe('POST /verify', () => {
     expect(rows).toEqual([]);
   });
 
-  it('a second press of the same link reports the first outcome: verified, sign in, no session, nothing written', async () => {
+  it('opening the same link a second time reports the first outcome: verified, sign in, no session, nothing written', async () => {
     const app = createApp();
     await request(app).post('/register').type('form').send({
       givenNames: 'Verify', familyName: 'Twice',
@@ -310,7 +269,7 @@ describe('POST /verify', () => {
       confirmPassword: 'verifypass!1',
     });
     const token = tokenFromOutbox('verify-twice@example.com');
-    const first = await pressVerify(app, token);
+    const first = await openVerifyLink(app, token);
     expect(first.status).toBe(303);
 
     const counts = () => {
@@ -322,7 +281,7 @@ describe('POST /verify', () => {
     };
     const before = counts();
 
-    const second = await pressVerify(app, token);
+    const second = await openVerifyLink(app, token);
     expect(second.status).toBe(200);
     expect(second.text).toContain('Your email is verified. Log in to continue.');
     expect(second.text).toContain('href="/login"');
@@ -333,21 +292,15 @@ describe('POST /verify', () => {
   });
 
   it('unknown token → 400 with the generic error', async () => {
-    const res = await pressVerify(createApp(), 'bogus-token-xxx');
+    const res = await openVerifyLink(createApp(), 'bogus-token-xxx');
     expect(res.status).toBe(400);
     expect(res.text).toContain('invalid, expired, or already used');
     expect(res.headers['cache-control']).toContain('no-store');
   });
-
-  it('a missing token → 400 with the generic error', async () => {
-    const res = await request(createApp()).post('/verify').type('form').send({});
-    expect(res.status).toBe(400);
-    expect(res.text).toContain('invalid, expired, or already used');
-  });
 });
 
-describe('POST /verify — the token never reaches a log line', () => {
-  it('an unhandled service error logs the URL, which carries no token', async () => {
+describe('GET /verify/:token — the token never reaches a log line', () => {
+  it('an unhandled service error logs the URL with the token redacted', async () => {
     const identityAccessMod = await import('../../src/services/identityAccessService');
     const logMod = await import('../../src/config/logger');
 
@@ -363,7 +316,7 @@ describe('POST /verify — the token never reaches a log line', () => {
 
     try {
       const app = createApp();
-      const res = await pressVerify(app, 'SECRET_RAW_TOKEN_xyz123');
+      const res = await openVerifyLink(app, 'SECRET_RAW_TOKEN_xyz123');
 
       expect(res.status).toBe(500);
 
@@ -376,7 +329,7 @@ describe('POST /verify — the token never reaches a log line', () => {
   });
 });
 
-describe('POST /verify — session reissue failure', () => {
+describe('GET /verify/:token — session reissue failure', () => {
   // eslint-disable-next-line @typescript-eslint/consistent-type-imports
   let adapterMod: typeof import('../../src/adapters/jwtSigningAdapter');
   let realAdapter: import('../../src/adapters/jwtSigningAdapter').JwtSigningAdapter;
@@ -411,7 +364,7 @@ describe('POST /verify — session reissue failure', () => {
       verifyJwt: (t) => realAdapter.verifyJwt(t),
     });
 
-    const res = await pressVerify(app, token);
+    const res = await openVerifyLink(app, token);
 
     expect(res.status).toBe(503);
     expect(res.headers['retry-after']).toBe('30');
@@ -446,7 +399,7 @@ describe('POST /verify — session reissue failure', () => {
     expect(tasks).toBe(3);
 
     // A replay of the consumed token reports the first outcome: verified, sign in.
-    const replay = await pressVerify(app, token);
+    const replay = await openVerifyLink(app, token);
     expect(replay.status).toBe(200);
     expect(replay.text).toContain('Your email is verified. Log in to continue.');
 

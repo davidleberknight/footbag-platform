@@ -269,6 +269,27 @@ describe('POST /admin/system-parameters', () => {
     expect(auditRowsFor('outbox_poll_interval_seconds').length).toBe(auditBefore);
   });
 
+  // The media upload limits are set on this screen like every other value:
+  // the field is offered at its seeded default, and a change is stored and
+  // audited with the old and new values.
+  it('offers the media upload limits and stores an audited change to them', async () => {
+    const page = await request(createApp()).get('/admin/system-parameters').set('Cookie', admin());
+    expect(page.text).toMatch(/name="photo_upload_rate_limit_per_hour"[^>]*value="30"/);
+    expect(page.text).toMatch(/name="photo_upload_max_file_mb"[^>]*value="25"/);
+
+    const res = await request(createApp())
+      .post('/admin/system-parameters')
+      .set('Cookie', admin())
+      .type('form')
+      .send(saveBody({ photo_upload_rate_limit_per_hour: '40', reason: 'Event weekend, more photos coming in.' }));
+
+    expect(res.status).toBe(303);
+    expect(currentValue('photo_upload_rate_limit_per_hour')).toBe('40');
+    const audit = auditRowsFor('photo_upload_rate_limit_per_hour');
+    expect(audit.length).toBe(1);
+    expect(JSON.parse(audit[0]!.metadata_json)).toMatchObject({ previousValue: 30, newValue: 40 });
+  });
+
   it('ignores a posted field naming a switch the application does not own', async () => {
     const before = configRows('payments_paused').length;
     const res = await request(createApp())
@@ -295,6 +316,22 @@ describe('POST /admin/system-parameters validation', () => {
     expect(res.status).toBe(422);
     expect(res.text).toContain('1 is the lowest value allowed');
     expect(configRows('outbox_max_retry_attempts').length).toBe(before);
+  });
+
+  // The size per photo can be lowered but never raised past the 25 MB the code
+  // enforces; a value above it stored here would promise members a limit the
+  // upload path does not honour.
+  it('refuses a size per photo above its code maximum, and stores nothing', async () => {
+    const before = configRows('photo_upload_max_file_mb').length;
+    const res = await request(createApp())
+      .post('/admin/system-parameters')
+      .set('Cookie', admin())
+      .type('form')
+      .send(saveBody({ photo_upload_max_file_mb: '26' }));
+
+    expect(res.status).toBe(422);
+    expect(configRows('photo_upload_max_file_mb').length).toBe(before);
+    expect(currentValue('photo_upload_max_file_mb')).toBe('25');
   });
 
   it('refuses a negative value', async () => {

@@ -63,14 +63,11 @@ describe('GET /register — production hides development-only copy', () => {
   });
 });
 
-describe('POST /verify with a dead link — production', () => {
+describe('GET /verify/:token with a dead link — production', () => {
   // The resend route requires a live challenge token here, so a resend form
   // without the widget and its script fails its first submit and sends nothing.
   it('the resend form carries the live challenge widget, and the page loads its script', async () => {
-    const res = await requestWithOrigin(createApp())
-      .post('/verify')
-      .type('form')
-      .send({ token: 'no-such-verify-token' });
+    const res = await requestWithOrigin(createApp()).get('/verify/no-such-verify-token');
 
     expect(res.status).toBe(400);
     const form = res.text.match(/<form method="POST" action="\/verify\/resend"[\s\S]*?<\/form>/)?.[0];

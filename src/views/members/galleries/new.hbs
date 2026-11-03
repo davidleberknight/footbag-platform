@@ -8,9 +8,9 @@
 <div class="wrapper">
   <p>
     Create a new named gallery. Pick a name and an optional description.
-    Add <strong>criteria tags</strong> to filter what appears here, or leave
+    Add <strong>criteria hashtags</strong> to filter what appears here, or leave
     them empty to show everything you have uploaded. Optionally add
-    <strong>exclude tags</strong> to filter out a subset.
+    <strong>exclude hashtags</strong> to filter out a subset.
   </p>
 
   {{> gallery-edit-form
@@ -25,4 +25,5 @@
       externalLinkSlots=content.externalLinkSlots
   }}
 </div>
+{{> fold-token-script}}
 <script src="{{{asset 'js/tag-chips.js'}}}" defer></script>

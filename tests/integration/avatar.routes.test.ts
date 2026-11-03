@@ -219,6 +219,21 @@ describe('POST /members/:memberKey/avatar -- file upload', () => {
     expect(res.text).toContain('Image is too small');
   });
 
+  // An avatar is cropped square, so it keeps the 4:1 limit rather than the
+  // narrower shape a shared photo is held to.
+  it('a 3:1 avatar image, too wide for a shared photo, is accepted', async () => {
+    const app = createApp();
+    const wide = await sharp({
+      create: { width: 900, height: 300, channels: 3, background: { r: 0, g: 90, b: 0 } },
+    }).jpeg().toBuffer();
+
+    const res = await request(app)
+      .post(`/members/${OWN_SLUG}/avatar`)
+      .set('Cookie', ownCookie())
+      .attach('avatar', wide, 'three-to-one.jpg');
+    expect(res.status).toBe(303);
+  });
+
   it('extreme-aspect avatar image -> 422 form re-render with a clear inline error', async () => {
     const app = createApp();
     const wide = await sharp({

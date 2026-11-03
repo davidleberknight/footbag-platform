@@ -39,7 +39,8 @@ const VIEWER_ID = 'mm-viewer-1';
 const CURATOR_ID = 'mm-curator-1';
 const FUNKY_GALLERY_ID = 'mm-gallery-highlights';
 const PERSONAL_GALLERY_ID = 'mm-gallery-personal';
-const TRICK_SLUG = 'around-the-world';
+// A trick slug is one underscore token, the shape every stored trick and tag has.
+const TRICK_SLUG = 'around_the_world';
 
 // Item ids so the route tests can address specific gallery/standalone items.
 const P1 = 'mm-photo-1';

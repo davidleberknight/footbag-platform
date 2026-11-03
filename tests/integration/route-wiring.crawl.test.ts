@@ -13,7 +13,9 @@
  *   - template artifacts, invalid markup, a missing or doubled title or h1;
  *   - a public page without its canonical link and description, an error page
  *     claiming a canonical address, a signed-in page not kept out of indexes;
- *   - a seeded private value shown to a viewer outside its audience.
+ *   - a seeded private value shown to a viewer outside its audience;
+ *   - a GET that commits a database write, other than the paths that write by
+ *     design (the email-verification link and the testkit shortcuts).
  * Across the crawls it also proves every served route was reached or carries a
  * reasoned exemption, every sitemap entry is live and indexable, distinct
  * pages carry distinct titles, and every private value does render for its own
@@ -26,6 +28,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import BetterSqlite3 from 'better-sqlite3';
 import request from '../fixtures/supertestWithOrigin';
 import { cleanupTestDb, importApp } from '../fixtures/testDb';
 import { createTestSessionJwt } from '../fixtures/factories';
@@ -57,6 +60,7 @@ import {
   applyFindingExemptions,
   CANARY_CONTROL_EXEMPTIONS,
   CRAWL_FINDING_EXEMPTIONS,
+  getWritesByDesign,
   ROUTE_EXEMPTIONS,
   SITEMAP_FINDING_EXEMPTIONS,
   TITLE_FINDING_EXEMPTIONS,
@@ -78,6 +82,7 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 let canaries: Canary[] = [];
 let canaryOwnerId = '';
 let served: ServedRoute[] = [];
+let watcher: BetterSqlite3.Database | null = null;
 
 // Hard bound per persona so a link explosion fails fast instead of hanging the
 // suite. The widest run (the administrator, who sees every member record) sits
@@ -104,6 +109,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  watcher?.close();
   await teardownCrawlFixture(env);
   cleanupTestDb(env.dbPath);
 });
@@ -160,9 +166,15 @@ function crawls(): Promise<CrawlSet> {
   crawlSet ??= (async () => {
     const fetcher = supertestFetcher(createApp());
     const loggedErrorCount = await loggedErrorCounter();
+    // A second connection on the crawl's database: its commit counter moves
+    // when the app commits a write, and not when a rehearsal rolls back.
+    watcher = new BetterSqlite3(env.dbPath, { readonly: true });
+    const ro = watcher;
+    const committedWrites = () => ro.pragma('data_version', { simple: true }) as number;
     const common = {
       fetcher, selfOrigin: SELF_ORIGIN, loggedErrorCount, replayOpenRedirects: true,
       pageOracles: pageChecks({ canaries }), errorPageOracles: errorPageChecks,
+      committedWrites, getMayWrite: getWritesByDesign,
     };
     // The member walks last. It owns the crawl's gallery and media item and
     // submits their delete forms, so a walk after it would find them gone and

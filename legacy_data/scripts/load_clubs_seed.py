@@ -92,20 +92,13 @@ def stable_id(prefix: str, *parts: str) -> str:
     return f"{prefix}_{digest}"
 
 
-_PRE_NFKD_MAP = str.maketrans({
-    'Ł': 'L', 'ł': 'l', 'Ø': 'O', 'ø': 'o', 'Đ': 'D', 'đ': 'd',
-})
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from pipeline.fold_token import fold_token  # noqa: E402
 
 
 def slugify(text: str) -> str:
-    """Slugify for hashtag use: unicode → ASCII, lowercase, underscores only."""
-    text = (text or "").translate(_PRE_NFKD_MAP)
-    text = unicodedata.normalize("NFKD", text)
-    text = "".join(c for c in text if not unicodedata.combining(c))
-    text = text.lower()
-    text = re.sub(r"[^a-z0-9]+", "_", text)
-    text = re.sub(r"_+", "_", text).strip("_")
-    return text
+    """Slugify for hashtag use, by the platform's one folding rule."""
+    return fold_token(text)
 
 
 # Redundant trailing words stripped from name slugs.

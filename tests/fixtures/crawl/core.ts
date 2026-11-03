@@ -78,6 +78,14 @@ export interface CrawlOptions {
   errorPageOracles?: (visit: PageVisit) => Finding[];
   /** Monotonic count of operator-alert errors logged so far, for attribution. */
   loggedErrorCount?: () => number;
+  /**
+   * The database's commit counter, read from a connection other than the
+   * app's, so it moves only when a write commits and a rolled-back rehearsal
+   * leaves it alone. A GET that moves it changed stored state.
+   */
+  committedWrites?: () => number;
+  /** GET paths that write by design and are named as such where this is set. */
+  getMayWrite?: (url: string) => boolean;
   /** The site's own origin; a Location elsewhere is an open-redirect candidate. */
   selfOrigin: string;
   /** Off-site origins a redirect may legitimately target. */
@@ -268,11 +276,16 @@ export async function crawl(opts: CrawlOptions): Promise<CrawlResult> {
     verb: 'GET' | 'POST', url: string, via: string,
   ): Promise<CrawlResponse> => {
     const before = opts.loggedErrorCount?.() ?? 0;
+    const writesBefore = opts.committedWrites?.();
     const res = verb === 'GET'
       ? await fetcher.get(url, persona.cookie)
       : await fetcher.post(url, persona.cookie);
     const after = opts.loggedErrorCount?.() ?? 0;
     if (after > before) add('logged-error', url, via, `${verb} logged ${after - before} operator-alert error(s)`);
+    if (verb === 'GET' && writesBefore !== undefined && !opts.getMayWrite?.(url)
+      && opts.committedWrites!() !== writesBefore) {
+      add('get-wrote', url, via, 'opening the page committed a database write');
+    }
     return res;
   };
 

@@ -49,7 +49,7 @@ import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
 import { appendAuditEntry, findStandingOwnAct } from './auditService';
 import { canonicalCountryOrThrow, parseFirstCompetitionYearOrThrow } from './memberLocationRules';
 import { locationPickers, type SelectOption } from './memberService';
-import { slugifyForTag } from './slugify';
+import { playerTagForName as playerTag } from './slugify';
 import { cleanUserText } from '../lib/textSanitizer';
 import type { PageViewModel } from '../types/page';
 import type { OutcomeNoticeView } from '../lib/outcomeNotice';
@@ -253,10 +253,6 @@ function changedFields(row: CorrectableRow, facts: CorrectedFacts): FactField[] 
 
 function shown(value: string | number | null): string {
   return value === null ? '(none)' : String(value);
-}
-
-function playerTag(name: string): string {
-  return `#player_${slugifyForTag(name)}`;
 }
 
 /**

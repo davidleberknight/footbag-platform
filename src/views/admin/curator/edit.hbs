@@ -38,7 +38,14 @@
       {{/if}}
     </p>
 
-    <form action="{{content.formAction}}" method="POST" class="form-block">
+    {{#if content.playerSearch}}
+      {{!-- Before the edit form, never inside it: the search reloads this page,
+            and each result's credit button submits the edit form by id. --}}
+      <div class="section-heading"><h2>Find a Player</h2></div>
+      {{> member-block-search content.playerSearch creditFormId=content.editFormId searchFormId=content.editFormId intro="Search for a member or historical player, then press Credit as Player to add their player hashtag and save the item."}}
+    {{/if}}
+
+    <form id="{{content.editFormId}}" action="{{content.formAction}}" method="POST" class="form-block">
       <div class="form-field">
         <label for="curator-edit-caption">Caption</label>
         <input type="text" id="curator-edit-caption" name="caption" maxlength="500" value="{{content.media.caption}}">
@@ -46,9 +53,9 @@
       </div>
 
       <div class="form-field">
-        <label for="curator-edit-tags">Tags</label>
+        <label for="curator-edit-tags">Hashtags</label>
         <input type="text" id="curator-edit-tags" name="tags" value="{{content.media.tagsString}}">
-        <small class="form-hint">Space-separated, lowercase, each starting with <code>#</code>. A clip that names a trick carries exactly one of <code>#tutorial</code>, <code>#demo</code> or <code>#record</code>, which is what says what the clip is for.</small>
+        <small class="form-hint">Separated by spaces; each is converted to the letters a to z, digits and underscores. A clip that names a trick carries exactly one of <code>#tutorial</code>, <code>#demo</code> or <code>#record</code>, which is what says what the clip is for.</small>
       </div>
 
       <div class="form-field">

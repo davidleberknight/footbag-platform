@@ -26,7 +26,7 @@ describe('real-claim builder registration', () => {
     // ':memory:' default and reading an empty database.
     const { insertLegacyMember } = await import('../fixtures/factories');
     const { identityAccessService } = await import('../../src/services/identityAccessService');
-    const { slugify } = await import('../../src/services/slugify');
+    const { slugifyForTag } = await import('../../src/services/slugify');
     const { db } = await import('../../src/db/db');
 
     const realName = 'Regression Claimant';
@@ -48,7 +48,7 @@ describe('real-claim builder registration', () => {
     const row = db
       .prepare('SELECT slug FROM members WHERE display_name = ?')
       .get(realName) as { slug: string } | undefined;
-    expect(row?.slug).toBe(slugify(realName));
+    expect(row?.slug).toBe(slugifyForTag(realName));
     // validateSlug requires the slug to contain the surname; a numeric-id slug did not.
     expect(row?.slug).toContain('claimant');
   });
@@ -60,7 +60,7 @@ describe('real-claim builder registration', () => {
     // claimable on a dataset built without the member export.
     const { insertLegacyMember, insertHistoricalPerson } = await import('../fixtures/factories');
     const { buildRealClaimJourney } = await import('../../src/testkit/realClaimJourney');
-    const { slugify } = await import('../../src/services/slugify');
+    const { slugifyForTag } = await import('../../src/services/slugify');
     const { db } = await import('../../src/db/db');
 
     const personName = 'Rostered Honoree';
@@ -76,12 +76,12 @@ describe('real-claim builder registration', () => {
 
     const built = await buildRealClaimJourney('900002');
     expect(built.claimedLegacy).toBe(true);
-    expect(built.slug).toBe(slugify(personName));
+    expect(built.slug).toBe(slugifyForTag(personName));
 
     const row = db
       .prepare('SELECT display_name, slug FROM members WHERE login_email = ?')
       .get('real_claim_900002@personas.test') as { display_name: string; slug: string } | undefined;
     expect(row?.display_name).toBe(personName);
-    expect(row?.slug).toBe(slugify(personName));
+    expect(row?.slug).toBe(slugifyForTag(personName));
   });
 });

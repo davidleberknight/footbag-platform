@@ -115,9 +115,11 @@ test.beforeAll(() => {
   insertMemberClubAffiliation(db, REACH_ROWS.leaderMemberId, REACH_ROWS.leaderClubId, { is_current: 1, is_primary: 1 });
   insertClubLeader(db, { club_id: REACH_ROWS.leaderClubId, member_id: REACH_ROWS.leaderMemberId });
 
-  // A record another member already holds, for the claim conflict page.
-  insertHistoricalPerson(db, { person_id: REACH_ROWS.heldPersonId, person_name: 'Rendered Style Held Record' });
-  insertMember(db, { real_name: 'Rendered Style Record Holder', historical_person_id: REACH_ROWS.heldPersonId });
+  // A record another member already holds, for the claim conflict page. It
+  // carries the conflict viewer's own name, because a held record answers as
+  // held only to a registrant whose evidence reaches it.
+  insertHistoricalPerson(db, { person_id: REACH_ROWS.heldPersonId, person_name: 'Sue Claimed' });
+  insertMember(db, { real_name: 'Sue Claimed', historical_person_id: REACH_ROWS.heldPersonId });
   for (const slug of [REACH_ROWS.deletePhoneSlug, REACH_ROWS.deleteDesktopSlug]) insertMember(db, { slug, real_name: 'Rendered Style Departing' });
   db.close();
 });

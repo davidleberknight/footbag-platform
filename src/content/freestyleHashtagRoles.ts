@@ -4,8 +4,8 @@
  *
  * Curator-maintained registry of which freestyle concepts carry MORE than one
  * hashtag role. Declarative data only: no DB access, no service wiring, no
- * behavior. No consumers are wired yet; this is the source of truth a future
- * hashtag-form shaper and the media-tag bare-token guard will read.
+ * behavior. The freestyle record shaping and the trick and modifier pages read
+ * it to choose which hashtag form a concept shows on each surface.
  *
  * Doctrine (why this layer exists): a concept's hashtag form is decided by the
  * ROLE it is playing, not by its `freestyle_tricks.type`. Roles and their tag

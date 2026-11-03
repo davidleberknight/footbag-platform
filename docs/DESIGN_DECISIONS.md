@@ -1233,7 +1233,9 @@ Hashtag-driven coupling extends to freestyle tricks, sets, operators, families, 
 
 A freestyle concept's hashtag form is decided by the *role* it plays, not by its row type. A trick takes the bare token: its slug, its hashtag body (the text after `#`), and its detail-page URL segment are one identical lowercase underscore token. A non-trick concept (a set, an operator or modifier, a trick family) takes a fixed role prefix over that same body, so the bare-token namespace is reserved for trick-role media. A concept that is genuinely both a performed trick and a set carries both forms, and membership in that dual-role set is a curator decision, never derived from a row's stored type. The concrete forms are specified in `V_View_Trick_Reference_Videos`, and the redirect of a modifier or operator to its own page in `V_View_Trick_Detail`.
 
-A person is credited by a player hashtag, `#player_{person_slug}`, which names an existing historical-person record and never creates one; the uploader hashtag `#by_{member_slug}` is system-applied and names who uploaded. Records have no separate hashtag namespace; record-attributed media is reachable through its parent trick's gallery. No foreign key exists from `media_items` to domain tables; domain coupling is purely tag-based. `tags.standard_type` remains scoped to events and clubs.
+A person is credited by a player hashtag, `#player_{person_slug}`, whose slug is a member's own slug or a historical-person record's folded name; it is freely creatable, never creates an identity, and one matching neither is an ordinary hashtag; the uploader hashtag `#by_{member_slug}` is system-applied and names who uploaded. Records have no separate hashtag namespace; record-attributed media is reachable through its parent trick's gallery. No foreign key exists from `media_items` to domain tables; domain coupling is purely tag-based. `tags.standard_type` remains scoped to events and clubs.
+
+Every other slug and hashtag body the site or the historical pipeline makes from text comes from one folding rule, held as one committed copy of the Unicode CLDR Latin-ASCII transliteration table that the server, the browser scripts and the pipeline all read: transliterate, lowercase, drop apostrophes, and turn any other run of characters into one underscore. Text holding a letter or digit with no a to z form is refused rather than shortened. Every server-side check on a typed hashtag or slug goes through one module, and a person is shown a folded value before it becomes permanent. Trick slugs are curated by the freestyle dictionary and keep their own form; mailing-list names are email-style and outside the rule.
 
 Alias hashtags for tricks canonicalize to the parent trick's slug at write time on every curator path (admin UI, seeder, migration script); `tags` and `media_tags` therefore carry canonical slugs only, and `freestyle_trick_aliases` is the single source of truth for the alias-to-canonical mapping.
 
@@ -1247,6 +1249,8 @@ Rationale:
 
 - A hashtag token ends at the first non-word character, so a hyphen would split `#double-leg-over` into `#double`; the underscore keeps a multi-word trick one searchable token. Members find media by typing the hashtag, so the slug, the stored media tag, and the hashtag must be the identical underscore token for that search to be uniform.
 
+- One folding rule makes one name yield one token everywhere: a member's player hashtag matches a historical record's, an event hashtag the pipeline makes matches what a person types, and a preview shows exactly what is stored. The CLDR table is the recognised transliteration standard, so letters such as ß and Æ are spelled out rather than lost.
+
 - A non-trick concept's role marker is a *prefix* (`#set_pixie`), never a suffix (`#pixie_set`). Under the underscore convention a suffix is shape-indistinguishable from a compound-trick token — `#pixie_set` reads the same as a hypothetical trick `#pixie_mirage` — so only a prefix, a fixed closed-vocabulary marker resolved before any slug match, keeps role tags from colliding with trick tags. This reuses the standardized-prefix pattern already used for `#event_*` and `#club_*`.
 
 Trade-offs:
@@ -1256,6 +1260,8 @@ Trade-offs:
 - Auto-linking query on every page load adds latency.
 
 - Mis-tagged media won't appear in correct galleries (user education required).
+
+- Text in a non-Latin script cannot be a hashtag or slug; a display name may still use any script.
 
 - Underscore URL segments are not the SEO-standard word separator (search engines read a hyphen as a word break and an underscore as a joiner); accepted so the URL segment, the slug, and the searchable hashtag remain one identical token.
 
@@ -1970,7 +1976,7 @@ Semantics:
 
 - Password reset token TTL: one hour.
 
-- Tokens are single-use: on successful consumption, the token record is marked consumed (timestamp) and cannot be reused. Only a POST consumes a token; an emailed link opens a page whose button posts it (Every GET Is Read-only).
+- Tokens are single-use: on successful consumption, the token record is marked consumed (timestamp) and cannot be reused. A POST consumes a token, with one exception: opening the email-verification link consumes its token (Every GET Is Read-only). A password-reset link opens the form, and the form's POST consumes the token.
 
 - Multiple outstanding tokens are allowed, but consumption invalidates only the consumed token; rate limiting prevents spam.
 
@@ -2197,7 +2203,7 @@ Requirements:
 - Every controller route validates body, query parameters, and route parameters against a schema before invoking the service layer.
 - A route's guard is required whether or not the interface offers a path that reaches it. Reachability is a property of today's templates and routes, so a missing server-side check is a defect on an authenticated surface as much as an anonymous one, and is never closed on the grounds that no form submits the malformed value today.
 - Schemas live alongside the route handler so the contract and the consumer stay in sync.
-- HTML form re-renders preserve the user's submitted values on validation failure so a single typo does not erase a long form.
+- HTML form re-renders preserve the user's submitted values on validation failure so a single typo does not erase a long form, and so does any other reload of a page holding an unsaved form, such as a search on an edit page, which carries the form's typed values with it.
 - The post-login redirect-path validator (`isSafePath` and equivalents) rejects any path containing a backslash or a control character in addition to its existing scheme and prefix rules, closing the Windows-style path-confusion class that pure forward-slash checks miss and the class where a browser strips a tab or line break from a rendered link, so that `/<TAB>/evil.com` opens `//evil.com`.
 - Every `sharp(...)` constructor passes `limitInputPixels` bounded to a documented maximum (default 4096 x 4096) so a maliciously dimensioned image cannot allocate a multi-gigabyte pixel buffer before downstream validation runs.
 - nginx `client_max_body_size` (160 MB) sits just above the largest application-layer upload limit (the configured video limit, 120 MB by default), so the perimeter refuses only a body far beyond what the application accepts, and the application answers an oversized upload with its own message.
@@ -3268,7 +3274,7 @@ Impact:
 
 - Outbox body scrub (APP-019): security-sensitive emails (account verification, password reset, voting receipt tokens) carry single-use tokens in the body text. After successful send, the worker MUST set `outbox_emails.body_text = NULL` so the raw token does not persist in the live DB or in DB backups beyond the moment of delivery. The schema column is nullable specifically to support this scrub. Subject lines never contain tokens by design, so they are preserved.
 
-- Link policy (anti-phishing): notification emails carry no clickable links in their body. They name the action and give precise log-in-and-navigate instructions, so members are never trained to click links arriving in mail. A body link appears only in an email-verification flow, where the link itself is the proof of mailbox control (account verification and password reset); the link opens a page whose button performs the action (Every GET Is Read-only). The one-click unsubscribe URL is not a body link: it lives in the `List-Unsubscribe` headers, which the mail client renders as its own control, so the reader is never taught to click a link in the message. Relationship and nudge emails such as co-leader invitations and the admin contact-members prompt route the recipient to the standing on-site affordance by instruction, never by embedded link.
+- Link policy (anti-phishing): notification emails carry no clickable links in their body. They name the action and give precise log-in-and-navigate instructions, so members are never trained to click links arriving in mail. A body link appears only in an email-verification flow, where the link itself is the proof of mailbox control (account verification and password reset); the verification link verifies when opened, and the password-reset link opens the form whose button performs the reset (Every GET Is Read-only). The one-click unsubscribe URL is not a body link: it lives in the `List-Unsubscribe` headers, which the mail client renders as its own control, so the reader is never taught to click a link in the message. Relationship and nudge emails such as co-leader invitations and the admin contact-members prompt route the recipient to the standing on-site affordance by instruction, never by embedded link.
 
 ## 5.5 Canonical Email Addresses
 
@@ -3623,29 +3629,30 @@ Requirements:
 
 Decision:
 
-A GET or HEAD request changes no stored state. It inserts, updates or deletes no row, spends no single-use token, enqueues no email, calls no provider to change anything, and starts no session. Reading a page records nothing about the read. Work that would otherwise run when a page is read runs in the state-changing request that causes it, or behind an explicit button that posts. An email link that must spend a token opens a page whose single button posts the token, and only that POST spends it.
+A GET or HEAD request changes no stored state. It inserts, updates or deletes no row, spends no single-use token, enqueues no email, calls no provider to change anything, and starts no session. Reading a page records nothing about the read. Work that would otherwise run when a page is read runs in the state-changing request that causes it, or behind an explicit button that posts. The exceptions, listed with their reasons under Requirements, are the email-verification link, which verifies the address and starts the session when it is opened, and the development and staging testkit shortcuts, which never run in production.
 
 Rationale:
 
 - Requests the member never made arrive as GETs. Mail link scanners, common in corporate and Microsoft mailboxes, open every link in a message before the member does; browsers prefetch links; crawlers follow them; a reopened tab or a history entry replays them. A GET that writes lets any of these change data or spend a link meant for the member.
 - HTTP defines GET as a safe method: the client neither requests nor is responsible for any change. The CSRF defence (CSRF Protection via SameSite Cookies and Origin Pinning) rests on the same discipline, because a cross-site image or link can trigger only a GET, and the Origin pin guards only state-changing methods.
 - Reads are not recorded. A record of who viewed the audit log, the Official IFPA Roster or a member-search result serves no reader, alarm or report, and the IFPA governing documents ask for none, while keeping one would put a write on the most-read pages. Member search is protected by its rate limit, and a rate-limit hit is an application-log warning.
-- A near-absolute rule is mechanically checkable: a test can assert that the database is unchanged around every GET, with one exemption, the testkit routes, which never run in production.
+- A near-absolute rule is mechanically checkable: a test can assert that the database is unchanged around every GET, apart from the named exceptions under Requirements.
 
 Requirements:
 
 - No GET handler, and no service method it calls, writes to the database, spends a token, enqueues an outbox row, or calls a provider to change state. Renewing the visitor's own session cookie near expiry, clearing the one-shot flash cookie, and in-memory rate-limit counters change no stored state and are allowed.
 - No GET writes an audit row; `audit_entries` records changes only.
-- The email-verification link, which also clears a bounce, opens a landing page whose single button posts the token. The landing page changes nothing and reveals nothing about the token. Password reset has the same shape: the link opens the form, and the form's POST spends the token.
+- Exceptions. These are the only GETs that change stored state, each for the reason given:
+  - The email-verification link (`GET /verify/:token`) spends its token, verifies the address, clears a bounce and starts the session when opened. Reason: a link in an email can only make a GET, and verification is one click, the experience members expect from every site. Opening a link that already verified the account reports the first outcome and starts no session; an unknown or expired token changes nothing. Password reset keeps the read-only shape: the link opens the form, and the form's POST spends the token.
+  - The development and staging testkit routes that issue a session or build an account (`/dev/switch`, `/dev/login`, `/dev/build-claim`) take `?as=` and write a session and an audit row. Reason: the persona listing and every test client reach them as plain links. They are never mounted in production and are stripped from its image.
 - State that depends on time or on other rows is derived when read, never written by the read. A pending upload job past its `expires_at` reads as abandoned. The onboarding checklist rows are created in the email-verification transaction, and each task row completes in the transaction that saves its answer, while the effects beyond the member's own account are written in the one transaction that answers the last task. The payment cancel page only reads; the next purchase POST reuses or releases the member's open checkout.
 - Work an administrator triggers is a button: the club-cleanup rules are applied by an "Apply the rules" POST on the cleanup queue, recorded with that administrator as the actor.
 - The personal data export is an owner-only `GET /members/:memberKey/download` that builds the export and returns it in the same response, with no token, link or email.
-- Exemption: the development and staging testkit routes that issue a session or build an account (`/dev/switch`, `/dev/login`, `/dev/build-claim`) are GETs taking `?as=`, so the persona listing and every test client reach them as plain links. They are never mounted in production and are stripped from its image.
-- An in-process crawl reads SQLite's change counter on the application's connection around every GET it issues and fails on any change. A route-table check fails for any GET route the crawl does not reach and that has no no-write test of its own.
+- An in-process crawl reads SQLite's commit counter from a second connection around every GET it issues, and fails on any committed write outside the exceptions above. A write a rehearsal rolls back commits nothing and does not count. A route-table check fails for any GET route the crawl does not reach and that has no no-write test of its own.
 
 Trade-offs:
 
-- An emailed verification link costs one extra click on the landing page's button. Accepted: the click is what makes the link safe from scanners.
+- A mail link scanner that opens a verification link before the member does spends it, and the member's own click then shows the already-verified answer and asks them to log in. Accepted: one-click verification is the experience members expect, and the scanner can only verify an address it was delivered to.
 - Nobody can later say which organizer viewed the roster or which administrator read the audit log. Accepted: no one reviews such records, and the IFPA governing documents ask for none.
 - Club-cleanup demotions take effect when an administrator applies them, not when the queue is opened, so an unapplied queue shows demotions still pending.
 - On staging, which serves the testkit on the public internet, a link scanner or a cross-site link can mint a persona session or build an account through the exempt routes. Accepted: they never reach production.

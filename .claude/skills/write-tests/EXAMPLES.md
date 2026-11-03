@@ -8,11 +8,11 @@ No database. Import the function and assert.
 
 ```typescript
 import { describe, it, expect } from 'vitest';
-import { slugify } from '../../src/services/slugify';
+import { slugifyForTag } from '../../src/services/slugify';
 
-describe('slugify', () => {
+describe('slugifyForTag', () => {
   it('lowercases and replaces spaces with underscores', () => {
-    expect(slugify('John Doe')).toBe('john_doe');
+    expect(slugifyForTag('John Doe')).toBe('john_doe');
   });
 });
 ```

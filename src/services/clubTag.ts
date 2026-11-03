@@ -5,13 +5,14 @@
 // sibling clubs stay consistent: a city-first cascade with country and
 // club-name fallbacks, then a numeric suffix. The pipeline de-collides
 // against a batch-level set; here the caller supplies a live taken-check
-// against the tags table instead. The slug rules (pre-NFKD letter map,
-// accent folding, redundant-suffix stripping, primary-city extraction)
-// must stay byte-compatible with the pipeline implementation; parity unit
-// tests pin them against pipeline-derived fixtures.
+// against the tags table instead. Text folds by the platform's one rule
+// (`slugifyForTag`), which the pipeline shares; the redundant-suffix stripping
+// and primary-city extraction must stay byte-compatible with the pipeline
+// implementation; parity unit tests pin them against pipeline-derived fixtures.
 
 import { createHash } from 'crypto';
 import { countrySlug } from './countryUtils';
+import { slugifyForTag } from './slugify';
 
 /**
  * Deterministic club id for a promoted candidate. Must produce the same id
@@ -24,18 +25,8 @@ export function stableClubId(legacyClubKey: string): string {
   return 'club_' + createHash('sha1').update(legacyClubKey, 'utf8').digest('hex').slice(0, 24);
 }
 
-const PRE_NFKD_MAP: Record<string, string> = {
-  'Ł': 'L', 'ł': 'l', 'Ø': 'O', 'ø': 'o', 'Đ': 'D', 'đ': 'd',
-};
-
-// Letters whose NFKD decomposition does not reach ASCII get mapped first,
-// then accents fold via NFKD + combining-mark removal.
 export function slugifyClubText(text: string): string {
-  let t = (text ?? '').replace(/[ŁłØøĐđ]/g, (c) => PRE_NFKD_MAP[c]);
-  t = t.normalize('NFKD').replace(/\p{M}/gu, '');
-  t = t.toLowerCase();
-  t = t.replace(/[^a-z0-9]+/g, '_');
-  return t.replace(/_+/g, '_').replace(/^_+|_+$/g, '');
+  return slugifyForTag(text ?? '');
 }
 
 // Suffixes that restate "footbag club" add no identity to a club hashtag;

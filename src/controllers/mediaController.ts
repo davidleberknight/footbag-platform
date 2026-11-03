@@ -4,9 +4,11 @@ import { parseTagList } from '../services/curatorMediaService';
 import { handleControllerError } from '../lib/controllerErrors';
 
 export const mediaController = {
-  hub(_req: Request, res: Response, next: NextFunction): void {
+  hub(req: Request, res: Response, next: NextFunction): void {
     try {
-      const vm = mediaService.getMediaHubPage();
+      const vm = mediaService.getMediaHubPage(
+        { authenticated: req.isMember, memberId: req.user?.userId ?? null, slug: req.user?.slug ?? null },
+      );
       res.render('media/index', vm);
     } catch (err) {
       handleControllerError(err, res, next, 'media controller (hub)');

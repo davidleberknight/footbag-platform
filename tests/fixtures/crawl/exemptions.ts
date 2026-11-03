@@ -44,6 +44,25 @@ export function applyFindingExemptions(
   return { open, stale: exemptions.filter((e) => !used.has(e)) };
 }
 
+/**
+ * The GET paths that write by design, each the platform's named exception to
+ * the rule that opening a page changes nothing. The testkit shortcuts sign a
+ * tester in as a persona, or build an account for a real record, from a plain
+ * link, and never run in production. The email-verification link verifies and
+ * signs the member in on one click, because a link in an email can only make a
+ * GET.
+ */
+const GET_WRITES_BY_DESIGN = [
+  /^\/dev\/switch(?:\?|$)/,
+  /^\/dev\/login(?:\?|$)/,
+  /^\/dev\/build-claim(?:\?|$)/,
+  /^\/verify\/[^/?#]+$/,
+];
+
+export function getWritesByDesign(url: string): boolean {
+  return GET_WRITES_BY_DESIGN.some((re) => re.test(url));
+}
+
 // The public pages that render no meta description today, each an exact path
 // (with any query), so a new page without one is still caught.
 const NO_DESCRIPTION_PAGES = [
@@ -142,14 +161,9 @@ export const ROUTE_EXEMPTIONS: readonly RouteExemption[] = [
     'Re-seeds every persona, so the walk skips it and a dedicated case in this suite probes it.', [
       'POST /dev/personas/refresh',
     ]),
-  ...group('compatibility-redirect', 'A permanent redirect from a retired address; nothing current links to it.', [
-    'GET /freestyle/families',
-    'GET /freestyle/compositional-sets', 'GET /freestyle/sets/reference', 'GET /freestyle/learn',
-    'GET /freestyle/progression/walking-family',
-  ]),
   ...group('mailed-token',
     'Reached only from a link mailed to the member carrying a one-time token; no crawl seeds a captured message.', [
-      'GET /verify/:token', 'POST /verify', 'POST /verify/resend', 'GET /email/unsubscribe', 'GET /password/reset/:token', 'POST /password/reset/:token',
+      'GET /verify/:token', 'POST /verify/resend', 'GET /email/unsubscribe', 'GET /password/reset/:token', 'POST /password/reset/:token',
     ]),
   ...group('harness-by-design',
     'The captured-mail viewer is test scaffolding the persona catalog names in its instructions '

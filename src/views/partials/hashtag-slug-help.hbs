@@ -1,0 +1,14 @@
+{{!-- The one explanation of how hashtags and profile URLs are made, shown
+      closed under every field that takes one, so a person meets the rules
+      where they type and can open them without leaving the form. The numbers
+      are the server's rules (TOKEN_RULES in typedTokenRules.ts); a unit test
+      holds them equal. --}}
+<details class="browse-view-why" data-hashtag-slug-help>
+  <summary>How hashtags and profile URLs are made</summary>
+  <div class="browse-view-why-body">
+    <p>A hashtag or a profile URL uses only the letters a to z, digits and underscores. Anything else you type is converted for you: accented letters become plain ones (Zoë becomes zoe, Straße becomes strasse), apostrophes are dropped (O'Brien becomes obrien), and spaces, hyphens and other marks become underscores (Swiss Jam becomes swiss_jam). You see the result before anything permanent is saved.</p>
+    <p>Letters with no a to z form, such as Chinese or Cyrillic, cannot be converted, so a hashtag or profile URL written in them is refused. Your display name can still be written in any script.</p>
+    <p>A hashtag is at most 100 characters, and an item can carry at most 30 hashtags. A profile URL is 2 to 70 characters, and a club hashtag needs at least 2 characters after #club_.</p>
+    <p>Some hashtags follow a pattern. Your profile URL also makes your uploader hashtag, #by_ followed by your URL, and anyone can name you as the player in a clip with #player_ followed by your URL. A club's hashtag is #club_ followed by its location, suggested for clarity, or the club's own name as players use it, and an event's is #event_, its year and its name, for example #event_2013_swiss_jam_zurich.</p>
+  </div>
+</details>

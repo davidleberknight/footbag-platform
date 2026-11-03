@@ -163,14 +163,60 @@ export function takeFlash(req: Request, res: Response, kind: FlashKind): string 
 
 export type MediaSavedKind = 'create' | 'edit' | 'delete' | 'upload';
 
+/** A typed tag the save stored in its folded form. */
+export interface FoldedTag { typed: string; stored: string }
+
+// The encoded size of the folded pairs one media-saved flash may carry.
+const MEDIA_SAVED_FOLDED_MAX_CHARS = 1500;
+
 /**
- * Consume a media-saved flash and return which save it reports. Any other
- * flash is left for its own page, and an unrecognised payload reads as none.
+ * Report a media save, carrying the typed tags it stored in a folded form so the
+ * next page can say so. Payload: `<kind>` or `<kind>|<URI-encoded JSON pairs>`.
  */
-export function takeMediaSavedFlash(req: Request, res: Response): MediaSavedKind | null {
+export function writeMediaSavedFlash(
+  res: Response, req: Request, kind: MediaSavedKind, folded: FoldedTag[] = [],
+): void {
+  // A browser drops a cookie over 4 KB, and with it the whole saved message, so
+  // only as many pairs as fit well inside that are carried (the cookie layer
+  // encodes the value again and signs it). A save that folded more names the
+  // first of them.
+  const carried: FoldedTag[] = [];
+  for (const pair of folded) {
+    if (encodeURIComponent(JSON.stringify([...carried, pair])).length > MEDIA_SAVED_FOLDED_MAX_CHARS) break;
+    carried.push(pair);
+  }
+  const payload = carried.length ? `${kind}|${encodeURIComponent(JSON.stringify(carried))}` : kind;
+  writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, payload);
+}
+
+/**
+ * Consume a media-saved flash: which save it reports and the tags it folded.
+ * Any other flash is left for its own page, and an unrecognised payload reads
+ * as none.
+ */
+export function takeMediaSaved(req: Request, res: Response): { kind: MediaSavedKind; folded: FoldedTag[] } | null {
   const p = takeFlash(req, res, FLASH_KIND.MEDIA_SAVED);
-  if (p === 'create' || p === 'edit' || p === 'delete' || p === 'upload') return p;
-  return null;
+  if (p === null) return null;
+  const [kind, encoded] = p.split('|', 2);
+  if (kind !== 'create' && kind !== 'edit' && kind !== 'delete' && kind !== 'upload') return null;
+  let folded: FoldedTag[] = [];
+  if (encoded) {
+    try {
+      const parsed: unknown = JSON.parse(decodeURIComponent(encoded));
+      if (Array.isArray(parsed)) {
+        folded = parsed.filter((f): f is FoldedTag =>
+          typeof f?.typed === 'string' && typeof f?.stored === 'string');
+      }
+    } catch {
+      folded = [];
+    }
+  }
+  return { kind, folded };
+}
+
+/** Consume a media-saved flash and return which save it reports. */
+export function takeMediaSavedFlash(req: Request, res: Response): MediaSavedKind | null {
+  return takeMediaSaved(req, res)?.kind ?? null;
 }
 
 export function clearFlash(res: Response, req: Request): void {

@@ -339,6 +339,7 @@ gallery-grid
 gallery-item-detail
 gallery-item-media
 gallery-item-media--masked
+gallery-item-next
 gallery-item-pager
 gallery-item-position
 gallery-item-tags

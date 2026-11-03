@@ -196,7 +196,7 @@ describe('a bounced member resuming mail to the same address', () => {
     expect(listSendReaches('newsletter', m.email)).toBe(false);
 
     await recover(m);
-    const res = await request(createApp()).post('/verify').type('form').send({ token: verifyTokenFor(m.email) });
+    const res = await request(createApp()).get(`/verify/${verifyTokenFor(m.email)}`);
 
     expect(res.status).toBe(303);
     expect(emailStatusOf(m.id)).toBe('ok');
@@ -270,7 +270,7 @@ describe('a bounced member resuming mail to the same address', () => {
 
     for (const m of [complained, suppressed]) {
       const { rawToken } = accountTokenService.issueToken({ memberId: m.id, tokenType: 'email_verify', ttlHours: 24 });
-      const res = await request(createApp()).post('/verify').type('form').send({ token: rawToken });
+      const res = await request(createApp()).get(`/verify/${rawToken}`);
       expect(res.status, `opening a link for ${m.slug}`).toBe(303);
     }
 
@@ -292,7 +292,7 @@ describe('a bounced member resuming mail to the same address', () => {
     const { accountTokenService } = await import('../../src/services/accountTokenService');
     const { rawToken } = accountTokenService.issueToken({ memberId: registrant.id, tokenType: 'email_verify', ttlHours: 24 });
 
-    const res = await request(createApp()).post('/verify').type('form').send({ token: rawToken });
+    const res = await request(createApp()).get(`/verify/${rawToken}`);
 
     expect(res.status).toBe(303);
     expect(emailStatusOf(registrant.id)).toBe('ok');

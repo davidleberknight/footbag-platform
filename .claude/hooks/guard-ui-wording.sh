@@ -1,19 +1,29 @@
 #!/usr/bin/env bash
 # Wording gate, defense-in-depth behind the root CLAUDE.md rule that public UI wording
-# changes only on explicit human instruction. An Edit, Write or MultiEdit that changes
-# text a site visitor reads (template copy and visible attributes, prose string literals
-# in server and client code, email subjects and bodies) passes silently only when the
-# human already approved that wording in this conversation; otherwise it asks, and the
-# prompt names the file and the visible text before and after.
+# changes only on explicit human instruction. An Edit, Write or MultiEdit that adds text
+# a site visitor reads (template copy and visible attributes, prose string literals in
+# server and client code, email subjects and bodies) asks the human once, the prompt
+# saying that a human must approve this change to visible UI copy and naming the file
+# and the new text. It passes silently when the human already approved that text.
+#
+# Wording is judged in whole units: a text node or visible attribute in a template, a
+# prose string literal in code. Only a unit the file did not already hold is new
+# wording, so text that is deleted, moved or repeated from elsewhere in the same file
+# passes, and so do code directives such as 'use strict'.
 #
 # Approval is read from the session transcript. Only a message the human typed counts
-# (origin.kind "human"; never a tool result, hook feedback, task notification, compaction
-# summary or Claude's own text). It approves a change when it contains the new wording,
-# or when it opens with a yes (yes, go, ok, approved, apply ...) and the Claude text it
-# answers contains the new wording, as a literal BEFORE/AFTER shows it. Text is compared
-# as lowercase words, so markup, Handlebars, quoting and punctuation do not matter; a
-# change of under three words is matched with three words of context on each side, so a
-# common word in some message cannot approve it.
+# (origin.kind "human", including one sent while Claude was working; never a tool
+# result, hook feedback, task notification, compaction summary or Claude's own text).
+# It approves a unit when it contains the unit's words, or when it opens with a yes and
+# the Claude text it answers contains them, as a literal BEFORE/AFTER shows it. A unit
+# of under three words also needs the file's name in that text, so a common word in
+# some message cannot approve it.
+#
+# Pre-approval: a human message such as "approve all technical UI wording" lets
+# technical wording through for the rest of the session without a prompt, each unit
+# still announced to the human. A later message such as "stop approving UI wording"
+# ends it. Editorial copy is never covered: email template text, and any unit of over
+# forty words, still asks.
 #
 # Fails to "ask": any internal error (bad input, missing node, unreadable transcript)
 # prompts the human. It never denies and never lets a wording change through unseen.
@@ -21,7 +31,7 @@
 set -uo pipefail
 
 ask_static() {
-  printf '%s\n' '{"systemMessage":"Do you approve of the UI wording change in this edit? The wording guard could not check it, so look at the diff before approving.","hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"APPROVE SITE WORDING (check failed): the wording guard could not read this edit or the conversation, so it cannot tell whether the visible site text was approved. Approve only if you have seen and want the exact wording this edit writes."}}'
+  printf '%s\n' '{"systemMessage":"A human must approve a change to visible UI copy, and the wording guard could not check this edit: look at the diff before approving.","hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"HUMAN APPROVAL OF UI COPY (check failed): this edit may change text site visitors read, and the wording guard could not read the edit or the conversation to tell whether you approved it. Approve only if you have seen and want the exact wording this edit writes."}}'
   exit 0
 }
 
@@ -40,63 +50,62 @@ if (/^src\/(db|testkit|types|dev-bootstrap)\//.test(rel)) kind = null;
 else if (/^src\/views\/.*\.hbs$/.test(rel)) kind = 'hbs';
 else if (/^src\/.*\.ts$|^src\/public\/js\/.*\.js$|^curated\/email_templates\/[^/]*\.json$/.test(rel)) kind = 'code';
 if (!kind) process.exit(0);
+const editorialFile = /^curated\/email_templates\//.test(rel);
 
-// Prose string literals: a space and a word, not SQL, outside comments and log lines.
-function codeText(s) {
+// Prose string literals: a space and a word, not SQL or a directive, outside comments and log lines.
+function codeUnits(s) {
   s = s.replace(/\/\*[\s\S]*?\*\//g, ' ')
     .split('\n').filter((l) => !/^\s*(\/\/|\*)|logger\.|console\./.test(l)).join('\n');
   const lits = s.match(/"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`(?:[^`\\]|\\.)*`/g) || [];
-  return lits.map((l) => l.slice(1, -1).replace(/\$\{[^}]*\}/g, '').replace(/\\n/g, ' ').replace(/\\(.)/g, '$1'))
-    .filter((l) => /[A-Za-z]{2,}\s+[A-Za-z]/.test(l) && !/^\s*(SELECT|INSERT|UPDATE|DELETE|WITH|CREATE)\b/i.test(l))
-    .join(' ');
+  return lits.map((l) => l.slice(1, -1).replace(/\$\{[^}]*\}/g, ' ').replace(/\\n/g, ' ').replace(/\\(.)/g, '$1'))
+    .filter((l) => /[A-Za-z]{2,}\s+[A-Za-z]/.test(l) && !/^\s*(SELECT|INSERT|UPDATE|DELETE|WITH|CREATE)\b/i.test(l)
+      && !/^\s*use (strict|client|server)\s*$/.test(l));
 }
-// Template copy: text between tags, visible attributes, quoted prose in Handlebars.
-function hbsText(s) {
-  const quoted = (re) => (m) => ' ' + [...m.matchAll(re)].map((x) => x[1]).join(' ') + ' ';
-  return s.replace(/\{\{!--[\s\S]*?--\}\}|\{\{![\s\S]*?\}\}|<!--[\s\S]*?-->/g, ' ')
-    .replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, ' ')
-    .replace(/\{\{[^}]*\}\}/g, quoted(/"([^"]*\s[^"]*)"/g))
-    .replace(/<[^>]*>/g, quoted(/(?:alt|title|placeholder|aria-label)="([^"]*)"/g))
+// Template copy: each text node, visible attribute and quoted prose in Handlebars, split
+// where a Handlebars expression or a tag interrupts it.
+function hbsUnits(s) {
+  const units = [];
+  const keep = (re) => (m) => { for (const x of m.matchAll(re)) units.push(x[1]); return '\u0000'; };
+  s = s.replace(/\{\{!--[\s\S]*?--\}\}|\{\{![\s\S]*?\}\}|<!--[\s\S]*?-->/g, '\u0000')
+    .replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, '\u0000')
+    .replace(/\{\{[^}]*\}\}/g, keep(/"([^"]*\s[^"]*)"/g))
+    .replace(/<[^>]*>/g, keep(/(?:alt|title|placeholder|aria-label)="([^"]*)"/g))
     .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&');
+  return units.concat(s.split('\u0000'));
 }
-const visible = (s) => (kind === 'hbs' ? hbsText(s) : codeText(s)).split(/\s+/).filter(Boolean);
 const norm = (s) => ' ' + (s.toLowerCase().replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, ' ')
-  .match(/[a-z0-9]+/g) || []).join(' ') + ' ';
+  .replace(/\$\{[^}]*\}|\{\{[^}]*\}\}/g, ' ').match(/[a-z0-9]+/g) || []).join(' ') + ' ';
+// Units keyed by their normalised words; the value is the text as written, for display.
+function units(s) {
+  const out = new Map();
+  for (const u of (kind === 'hbs' ? hbsUnits(s) : codeUnits(s)).flatMap((x) => x.split('\u0000'))) {
+    const k = norm(u);
+    if (/[a-z]/.test(k) && !out.has(k)) out.set(k, u.replace(/\s+/g, ' ').trim());
+  }
+  return out;
+}
 
-// Each edit as whole-file text before and after, so a fragment that starts inside a tag
-// is judged in context; an edit whose old text is not in the file is judged on its own.
-let doc = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
-const pairs = [];
-if (typeof t.content === 'string') pairs.push([doc, t.content]);
+// The file before and after every edit; an edit whose old text is not in the file is
+// judged on its own fragments.
+const orig = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+let doc = orig;
+const beforeParts = [orig], afterParts = [];
 for (const e of [...(t.edits || []), ...(typeof t.old_string === 'string' ? [t] : [])]) {
   const i = doc ? doc.indexOf(e.old_string) : -1;
-  if (i < 0) { pairs.push([e.old_string, e.new_string]); continue; }
-  const next = e.replace_all ? doc.split(e.old_string).join(e.new_string)
+  if (i < 0) { beforeParts.push(e.old_string); afterParts.push(e.new_string); continue; }
+  doc = e.replace_all ? doc.split(e.old_string).join(e.new_string)
     : doc.slice(0, i) + e.new_string + doc.slice(i + e.old_string.length);
-  pairs.push([doc, next]);
-  doc = next;
 }
+afterParts.push(typeof t.content === 'string' ? t.content : doc);
+const had = new Map(beforeParts.flatMap((p) => [...units(p)]));
+const now = new Map(afterParts.flatMap((p) => [...units(p)]));
+const fresh = [...now].filter(([k]) => !had.has(k)).map(([k, raw]) => ({ k, raw, words: k.trim().split(' ').length }));
+if (!fresh.length) process.exit(0);
+const gone = [...had].filter(([k]) => !now.has(k)).map(([, raw]) => raw);
 
-// The changed span between two word lists, common prefix and suffix removed, and the
-// same span with three words of context on each side.
-const changes = [];
-for (const [o, n] of pairs) {
-  const a = visible(o), b = visible(n);
-  let p = 0; while (p < a.length && p < b.length && a[p] === b[p]) p++;
-  let s = 0; while (s < a.length - p && s < b.length - p && a[a.length - 1 - s] === b[b.length - 1 - s]) s++;
-  const before = a.slice(p, a.length - s).join(' '), after = b.slice(p, b.length - s).join(' ');
-  if (before === after) continue;
-  const p3 = Math.max(p - 3, 0);
-  const c = { before, after,
-    beforeCtx: a.slice(p3, Math.min(a.length - s + 3, a.length)).join(' '),
-    afterCtx: b.slice(p3, Math.min(b.length - s + 3, b.length)).join(' ') };
-  c.key = norm(after).trim().split(' ').length >= 3 ? norm(after) : norm(c.afterCtx);
-  changes.push(c);
-}
-if (!changes.length) process.exit(0);
-
-// Each human message, normalised, with the Claude text it answers when it opens with a yes.
-// A subagent's own transcript holds no human message; its session's file does.
+// Each human message, typed at the prompt or sent while Claude was working, with the
+// Claude text it answers when it opens with a yes. A subagent's transcript holds no
+// human message; its session's file does.
 let tp = ev.transcript_path || '';
 if (tp.includes('/subagents/')) tp = tp.slice(0, tp.indexOf('/subagents/')) + '.jsonl';
 const affirm = /^\s*(y|yes|yep|yeah|yup|ok|okay|go|go ahead|approved?|lgtm|do it|apply|ship it|sounds good|agreed|confirmed?)\b/i;
@@ -105,54 +114,58 @@ let prev = '';
 for (const line of (tp && fs.existsSync(tp) ? fs.readFileSync(tp, 'utf8') : '').split('\n')) {
   if (!line.includes('"assistant"') && !line.includes('"human"')) continue;
   let e; try { e = JSON.parse(line); } catch { continue; }
-  const c = e.message && e.message.content;
-  const text = typeof c === 'string' ? c
-    : Array.isArray(c) ? c.filter((b) => b && b.type === 'text').map((b) => b.text).join(' ') : '';
-  if (e.type === 'assistant') prev += ' ' + text;
-  else if (e.type === 'user' && e.origin && e.origin.kind === 'human' && !e.isMeta) {
-    msgs.push({ h: norm(text), prev: affirm.test(text) ? norm(prev) : '' });
-    prev = '';
+  let text = null;
+  if (e.type === 'assistant') {
+    const c = e.message && e.message.content;
+    prev += ' ' + (typeof c === 'string' ? c : Array.isArray(c) ? c.filter((b) => b && b.type === 'text').map((b) => b.text).join(' ') : '');
+    continue;
   }
+  if (e.type === 'user' && e.origin && e.origin.kind === 'human' && !e.isMeta) {
+    const c = e.message && e.message.content;
+    text = typeof c === 'string' ? c : Array.isArray(c) ? c.filter((b) => b && b.type === 'text').map((b) => b.text).join(' ') : '';
+  } else if (e.type === 'attachment' && e.attachment && e.attachment.type === 'queued_command'
+    && e.attachment.origin && e.attachment.origin.kind === 'human' && typeof e.attachment.prompt === 'string') {
+    text = e.attachment.prompt;
+  }
+  if (text === null) continue;
+  msgs.push({ raw: text, h: norm(text), prev: affirm.test(text) ? norm(prev) : '' });
+  prev = '';
 }
-const unapproved = changes.filter((c) => !msgs.some((m) => m.h.includes(c.key) || m.prev.includes(c.key)));
-if (!unapproved.length) process.exit(0);
+const fileWords = norm(path.basename(rel).replace(/\.[a-z]+$/, '')).trim();
+const approved = (u) => msgs.some((m) => [m.h, m.prev].some((x) => x.includes(u.k) && (u.words >= 3 || x.includes(' ' + fileWords + ' '))));
+let todo = fresh.filter((u) => !approved(u));
+if (!todo.length) process.exit(0);
 
-const short = (s) => (s.length > 200 ? s.slice(0, 197) + '...' : s);
-const reason = 'APPROVE SITE WORDING: visitors will read new text on ' + rel + '. No approval of this text was found earlier in the conversation.\n'
-  + unapproved.map((c) => 'Before: "' + (c.before ? short(c.beforeCtx) : '(none)') + '"\nAfter:  "'
-    + (c.after ? short(c.afterCtx) : '(removed)') + '"').join('\n')
-  + '\nApprove only if this is the exact wording you want.';
-// An Edit prompt shows the human the diff but not this reason, so a prompt here would ask
-// without saying why. The first time an unapproved change is attempted in a session it is
-// denied instead, telling Claude to write the reason and the exact text into its message;
-// the same change retried then prompts, directly under that explanation. Modelled on
-// guard-maintainer-gate.sh. A mark that cannot be written falls through to the prompt.
-const shownChanges = unapproved.map((c) => 'Before: "' + (c.before ? short(c.beforeCtx) : '(none)') + '"\nAfter:  "'
-  + (c.after ? short(c.afterCtx) : '(removed)') + '"').join('\n');
-let explained = true;
-try {
-  const crypto = require('crypto');
-  const os = require('os');
-  const session = String(ev.session_id || 'nosession').replace(/[^A-Za-z0-9_-]/g, '');
-  const markDir = path.join(process.env.TMPDIR || os.tmpdir(), 'claude-wording-gate', session);
-  const mark = path.join(markDir, crypto.createHash('sha1')
-    .update(rel + '\0' + unapproved.map((c) => c.key).join('\0')).digest('hex').slice(0, 16));
-  if (!fs.existsSync(mark)) {
-    fs.mkdirSync(markDir, { recursive: true });
-    fs.writeFileSync(mark, '');
-    explained = false;
-  }
-} catch { explained = true; }
-if (!explained) {
-  const why = 'WORDING PROMPT NOT YET EXPLAINED: the edit prompt will show the human only the diff, never a reason. '
-    + 'End your message with: "Next: an edit prompt for ' + rel + '. Visible wording changes:" followed by each '
-    + 'Before and After below, then "Do you approve of the UI wording change as shown?". Then retry the same edit '
-    + 'on its own; it will prompt.\n' + shownChanges;
-  process.stdout.write(JSON.stringify({ hookSpecificOutput: {
-    hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: why } }) + '\n');
-  process.exit(0);
+// The latest pre-approval or withdrawal of one decides; editorial copy is never covered.
+const UI = '\\bui\\s+(copy|text|words?|wording)\\b';
+const grant = new RegExp('\\b(all|technical)\\b[^\\n.]{0,40}' + UI + '|' + UI + '[^\\n]{0,60}\\btechnical\\b', 'i');
+const withdraw = new RegExp('\\b(stop|revoke|withdraw|cancel)\\b[^\\n]{0,40}' + UI
+  + '|\\b(no|not|don\'?t|do not|never)\\s+(to\\s+)?(approve|all)\\b[^\\n]{0,40}' + UI, 'i');
+let preApproved = false;
+for (const m of msgs) {
+  if (withdraw.test(m.raw)) preApproved = false;
+  else if (grant.test(m.raw)) preApproved = true;
 }
-process.stdout.write(JSON.stringify({ systemMessage: 'Do you approve of the UI wording change as shown? ' + reason,
+const editorial = (u) => editorialFile || u.words > 40;
+const quote = (s) => '"' + s + '"';
+if (preApproved) {
+  const passed = todo.filter((u) => !editorial(u));
+  todo = todo.filter(editorial);
+  if (!todo.length) {
+    process.stdout.write(JSON.stringify({ systemMessage: 'UI copy changed in ' + rel
+      + ' under your pre-approval of technical UI wording. New text: '
+      + passed.map((u) => quote(u.raw)).join('; ') }) + '\n');
+    process.exit(0);
+  }
+}
+
+const reason = 'HUMAN APPROVAL OF UI COPY: Claude is changing text site visitors read in ' + rel
+  + ', and public UI wording changes only with a human\'s approval, so approve or reject this exact text.\n'
+  + (gone.length ? 'Text it replaces or removes: ' + gone.map(quote).join('; ') + '\n' : '')
+  + 'New text: ' + todo.map((u) => quote(u.raw)).join('; ') + '\n'
+  + (preApproved ? 'Your pre-approval of technical UI wording does not cover this: it is email text or prose of over forty words.'
+    : 'To let technical wording (labels, hints, validation and error messages) through for the rest of this session, say "approve all technical UI wording".');
+process.stdout.write(JSON.stringify({ systemMessage: reason,
   hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'ask', permissionDecisionReason: reason } }) + '\n');
 JS
 )"

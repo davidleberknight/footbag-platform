@@ -12,7 +12,8 @@
  *   - Personal Gallery materialized on first upload (idempotent), keyed on #by_<slug>
  *   - #curated and any #by_* tag rejected from user input
  *   - Freeform #<slug> stays an ordinary tag any user may apply (mentions, pre-tagging)
- *   - Rate limit 10/hr photos, 5/hr video submissions
+ *   - Rate limit 30/hr photos by default, 5/hr video submissions
+ *   - Size per photo set by an administrator, never above the code maximum
  */
 import fs from 'fs';
 import path from 'path';
@@ -32,6 +33,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import sharp from 'sharp';
+import { PHOTO_TOO_TALL_MESSAGE, PHOTO_TOO_WIDE_MESSAGE } from '../../src/lib/imageProcessing';
 
 import {
   insertMember,
@@ -472,6 +474,31 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
     expect(res.text).toContain('Only JPEG and PNG');
   });
 
+  // A photo outside 1.91:1 landscape to 3:4 portrait would store a display copy
+  // taller than the gallery is laid out for, so it is refused before anything
+  // is stored or recorded.
+  it('a photo wider than 1.91:1 or taller than 3:4 -> 422 naming the side, nothing stored or recorded', async () => {
+    const app = createApp();
+    for (const [width, height, message, name] of [
+      [800, 400, PHOTO_TOO_WIDE_MESSAGE, 'shape-wide.jpg'],
+      [450, 800, PHOTO_TOO_TALL_MESSAGE, 'shape-tall.jpg'],
+    ] as const) {
+      const photo = await sharp({
+        create: { width, height, channels: 3, background: { r: 20, g: 90, b: 40 } },
+      }).jpeg().toBuffer();
+      const filesBefore = storedFileCount();
+      const res = await request(app)
+        .post(`/members/${OWNER_SLUG}/media/upload`)
+        .set('Cookie', ownerCookie())
+        .field('mediaType', 'photo')
+        .attach('photoFile', photo, name);
+      expect(res.status, name).toBe(422);
+      expect(res.text, name).toContain(message.replace(/'/g, '&#x27;'));
+      expect(ownerPhotoRows(name), name).toHaveLength(0);
+      expect(storedFileCount(), name).toBe(filesBefore);
+    }
+  });
+
   it('no file submitted -> 422', async () => {
     const app = createApp();
     const res = await request(app)
@@ -552,10 +579,10 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
     expect((await upload('First caption', '#first')).status).toBe(303);
   });
 
-  it('11th photo upload in the hour -> 429 with Retry-After', async () => {
+  it('a photo past the default 30 in the hour -> 429 with Retry-After', async () => {
     const app = createApp();
     const jpeg = await makeJpeg();
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 30; i++) {
       const ok = await request(app)
         .post(`/members/${OWNER_SLUG}/media/upload`)
         .set('Cookie', ownerCookie())
@@ -567,7 +594,7 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
       .post(`/members/${OWNER_SLUG}/media/upload`)
       .set('Cookie', ownerCookie())
       .field('mediaType', 'photo')
-      .attach('photoFile', jpeg, 'r11.jpg');
+      .attach('photoFile', jpeg, 'r31.jpg');
     expect(blocked.status).toBe(429);
     expect(blocked.headers['retry-after']).toBeDefined();
   });
@@ -576,7 +603,7 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
     // M3: admins bypass the per-DD rate limit at the controller seam.
     const app = createApp();
     const jpeg = await makeJpeg();
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 32; i++) {
       const res = await request(app)
         .post(`/members/${ADMIN_SLUG}/media/upload`)
         .set('Cookie', adminCookie())
@@ -613,16 +640,90 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
         .attach('photoFile', jpeg, 't3.jpg');
       expect(blocked.status).toBe(429);
     } finally {
-      // Restore the platform-epoch seeded default so later tests see 10/hr.
+      // Restore the platform-epoch seeded default so later tests see 30/hr.
       const restoreDb = new BetterSqlite3(TEST_DB_PATH);
       insertSystemConfig(restoreDb, {
         config_key: 'photo_upload_rate_limit_per_hour',
-        value_json: '10',
+        value_json: '30',
         created_at: '2026-05-16T00:00:01.000Z',
         reason_text: 'Test restore',
       });
       restoreDb.close();
     }
+  });
+
+  // An administrator lowers the size per photo below the 25 MB code maximum.
+  // The member is then held to that number exactly: a photo of the limit's
+  // size is shared, one byte more is refused naming the configured size, and
+  // nothing is stored. An administrator is held only to the code maximum.
+  describe('size per photo set by an administrator', () => {
+    const ONE_MB = 1024 * 1024;
+
+    // A real photo padded after its end-of-image marker, which a JPEG decoder
+    // never reads, so the file is exactly the size a case needs.
+    async function jpegOfExactly(bytes: number): Promise<Buffer> {
+      const jpeg = await makeJpeg({ r: 30, g: 60, b: 90 });
+      return Buffer.concat([jpeg, Buffer.alloc(bytes - jpeg.length)]);
+    }
+
+    function setPhotoMaxMb(value: string, createdAt: string): void {
+      const db = new BetterSqlite3(TEST_DB_PATH);
+      insertSystemConfig(db, { config_key: 'photo_upload_max_file_mb', value_json: value, created_at: createdAt });
+      db.close();
+    }
+
+    beforeAll(() => setPhotoMaxMb('1', '2026-05-17T00:00:00.000Z'));
+    afterAll(() => setPhotoMaxMb('25', '2026-05-17T00:00:01.000Z'));
+
+    it('a member photo of exactly the configured size is shared', async () => {
+      const res = await request(createApp())
+        .post(`/members/${OWNER_SLUG}/media/upload`)
+        .set('Cookie', ownerCookie())
+        .field('mediaType', 'photo')
+        .attach('photoFile', await jpegOfExactly(ONE_MB), 'size-at-limit.jpg');
+      expect(res.status).toBe(303);
+      expect(ownerPhotoRows('size-at-limit.jpg')).toHaveLength(1);
+    });
+
+    it('a member photo one byte over the configured size -> 422 naming that size, nothing stored', async () => {
+      const { fileExceededMessage } = await import('../../src/services/curatorMediaService');
+      const filesBefore = storedFileCount();
+      const res = await request(createApp())
+        .post(`/members/${OWNER_SLUG}/media/upload`)
+        .set('Cookie', ownerCookie())
+        .field('mediaType', 'photo')
+        .attach('photoFile', await jpegOfExactly(ONE_MB + 1), 'size-over-limit.jpg');
+      expect(res.status).toBe(422);
+      expect(res.text).toContain(fileExceededMessage(ONE_MB));
+      expect(ownerPhotoRows('size-over-limit.jpg')).toHaveLength(0);
+      expect(storedFileCount()).toBe(filesBefore);
+    });
+
+    // The settings page refuses a value above 25, but a value stored some other
+    // way must still never let a member past the code maximum.
+    it('a stored size above the code maximum still refuses a member photo one byte over 25 MB', async () => {
+      setPhotoMaxMb('100', '2026-05-17T00:00:00.500Z');
+      try {
+        const res = await request(createApp())
+          .post(`/members/${OWNER_SLUG}/media/upload`)
+          .set('Cookie', ownerCookie())
+          .field('mediaType', 'photo')
+          .attach('photoFile', await jpegOfExactly(25 * ONE_MB + 1), 'size-over-code-max.jpg');
+        expect(res.status).toBe(422);
+        expect(ownerPhotoRows('size-over-code-max.jpg')).toHaveLength(0);
+      } finally {
+        setPhotoMaxMb('1', '2026-05-17T00:00:00.750Z');
+      }
+    });
+
+    it('an administrator is not held to the configured size', async () => {
+      const res = await request(createApp())
+        .post(`/members/${ADMIN_SLUG}/media/upload`)
+        .set('Cookie', adminCookie())
+        .field('mediaType', 'photo')
+        .attach('photoFile', await jpegOfExactly(ONE_MB + 1), 'admin-size-over-member-limit.jpg');
+      expect(res.status).toBe(303);
+    });
   });
 
   // A double click or back-button re-post sends the same file under the same

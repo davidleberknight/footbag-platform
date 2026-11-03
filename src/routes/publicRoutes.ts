@@ -109,14 +109,9 @@ publicRouter.get('/freestyle/add-analysis', freestyleController.addAnalysis);
 publicRouter.get('/freestyle/combo-analysis', freestyleController.comboAnalysis);
 // /freestyle/sets is the one set page: the set list, how sets are built, the
 // uptime ladders and Holden's compilation. Per-set detail pages live at
-// /freestyle/sets/:slug. The retired /freestyle/sets/reference and
-// /freestyle/compositional-sets redirect permanently to their sections.
-// Literal sub-routes (reference) MUST register before the :slug param
-// route.
-publicRouter.get('/freestyle/sets/reference', freestyleController.moveSetReferenceRedirect);
+// /freestyle/sets/:slug.
 publicRouter.get('/freestyle/sets/:slug',     freestyleController.setDetail);
 publicRouter.get('/freestyle/sets',           freestyleController.setsEncyclopedia);
-publicRouter.get('/freestyle/compositional-sets', freestyleController.compositionalSetsRedirect);
 // Three distinct reference resources: /freestyle/tricks finds tricks,
 // /freestyle/glossary looks up
 // terminology (the A–Z list), /freestyle/concepts explains concepts in depth
@@ -129,19 +124,13 @@ publicRouter.get('/freestyle/observational', freestyleController.observational);
 publicRouter.get('/freestyle/tricks',      freestyleController.tricksIndex);
 publicRouter.get('/freestyle/by-the-numbers', freestyleController.byTheNumbers);
 // Novice entry page: the landing "Start here" CTA destination, ending with the
-// six next-step lessons. The retired /freestyle/learn redirects permanently to them.
-publicRouter.get('/freestyle/learn',       freestyleController.learnRedirect);
+// six next-step lessons.
 publicRouter.get('/freestyle/start',       freestyleController.start);
-// The retired walking-family progression redirects permanently to the Butterfly
-// family page, which owns that family's progression.
-publicRouter.get('/freestyle/progression/walking-family', freestyleController.walkingProgressionRedirect);
 publicRouter.get('/freestyle/modifier/:slug', freestyleController.modifierFamily);
 // Family detail pages: first-class Family Parents only (anything else 404s
-// in the service). The bare /freestyle/families path redirects to the
-// dictionary's By-family browse; no standalone hub. Registered before the
-// /freestyle/tricks/:slug and /freestyle catch-alls.
+// in the service). The dictionary's By-family browse is the family index; the
+// bare /freestyle/families path has no page.
 publicRouter.get('/freestyle/families/:slug', freestyleController.familyDetail);
-publicRouter.get('/freestyle/families',       freestyleController.familiesHub);
 // Canonical per-ADD-tier dictionary view: /freestyle/tricks/5 is the 5-ADD
 // browse view. The all-digits segment cannot collide with a trick slug
 // (slugs are lowercase word tokens; the digit-led ones like 2_bag_juggling
@@ -291,7 +280,6 @@ publicRouter.get('/register',               authController.getRegister);
 publicRouter.post('/register',              authController.postRegister);
 publicRouter.get('/register/check-email',   authController.getCheckEmail);
 publicRouter.get('/verify/:token',          authController.getVerify);
-publicRouter.post('/verify',                authController.postVerify);
 publicRouter.post('/verify/resend',         authController.postVerifyResend);
 
 
