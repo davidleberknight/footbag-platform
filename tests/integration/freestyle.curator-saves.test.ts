@@ -99,6 +99,15 @@ function formFor(row: TrickRow, changes: Record<string, string>) {
   };
 }
 
+function rowCount(db: string, table: string, where: string, params: unknown[]): number {
+  const conn = new BetterSqlite3(db, { readonly: true });
+  try {
+    return (conn.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE ${where}`).get(...params) as { n: number }).n;
+  } finally {
+    conn.close();
+  }
+}
+
 function saveFile(slug: string): string {
   return path.join(savesDir, 'tricks', `${slug}.json`);
 }
@@ -117,6 +126,10 @@ let failDbSlug = '';
 let noopSlug = '';
 let databaseOnlySlug = '';
 let baseDescription = '';
+let updatedAlias: { alias_slug: string; trick_slug: string };
+let removedAlias: { alias_slug: string; trick_slug: string };
+let baseSourceLink: { trick_slug: string; source_id: string };
+let baseModifierLink: { trick_slug: string; modifier_slug: string; apply_order: number };
 
 let service: typeof import('../../src/services/freestyleCurationService').freestyleCurationService;
 let adapterModule: typeof import('../../src/adapters/curatedAuthoringAdapter');
@@ -154,6 +167,38 @@ beforeAll(async () => {
   service.updateTrickScalars(editedSlug, formFor(row, { shortDescription: SAVED_TEXT }), ADMIN_ID);
   const saved = readTrick(dbPath, editedSlug);
   service.updateTrickScalars(editedSlug, formFor(saved, { description: '' }), ADMIN_ID);
+
+  // One save of every record kind, each against base rows a rebuild would bring
+  // back, so the rebuild below proves the save beat the base input.
+  const rows = new BetterSqlite3(dbPath, { readonly: true });
+  const baseAliases = rows.prepare(
+    "SELECT alias_slug, trick_slug FROM freestyle_trick_aliases WHERE alias_origin_producer = 'base-dictionary' ORDER BY alias_slug LIMIT 2",
+  ).all() as { alias_slug: string; trick_slug: string }[];
+  baseSourceLink = rows.prepare(
+    'SELECT trick_slug, source_id FROM freestyle_trick_source_links ORDER BY trick_slug LIMIT 1',
+  ).get() as typeof baseSourceLink;
+  baseModifierLink = rows.prepare(
+    `SELECT trick_slug, modifier_slug, apply_order FROM freestyle_trick_modifier_links
+      ORDER BY trick_slug LIMIT 1`,
+  ).get() as typeof baseModifierLink;
+  rows.close();
+  [updatedAlias, removedAlias] = baseAliases as [typeof updatedAlias, typeof removedAlias];
+
+  service.createSource({
+    id: 'saved-source', sourceType: 'curated', sourceLabel: 'Saved source',
+    retrievedAt: '2026-11-03T00:00:00.000Z', sourceUrl: '', notes: '',
+  }, ADMIN_ID);
+  service.addAlias(editedSlug, { aliasText: 'saved alias', aliasType: 'common', sourceId: 'saved-source' }, ADMIN_ID);
+  service.updateAlias(updatedAlias.trick_slug, updatedAlias.alias_slug, {
+    aliasType: 'common', aliasDisplay: 'on', provenanceNote: 'Saved provenance.',
+  }, ADMIN_ID);
+  service.removeAlias(removedAlias.trick_slug, removedAlias.alias_slug, ADMIN_ID);
+  service.attachSource(editedSlug, { sourceId: 'saved-source', externalUrl: 'https://example.com/saved', assertedAdds: '3' }, ADMIN_ID);
+  service.detachSource(baseSourceLink.trick_slug, baseSourceLink.source_id, ADMIN_ID);
+  service.attachModifier(editedSlug, { modifierSlug: baseModifierLink.modifier_slug, applyOrder: '9' }, ADMIN_ID);
+  service.detachModifier(
+    baseModifierLink.trick_slug, baseModifierLink.modifier_slug, baseModifierLink.apply_order, ADMIN_ID,
+  );
 }, 180_000);
 
 afterEach(() => adapterModule.resetCuratedAuthoringAdapterForTests());
@@ -196,12 +241,37 @@ describe('a trick edit on a developer machine', () => {
     const audits = auditCount(failFileSlug);
     adapterModule.setCuratedAuthoringAdapterForTests({
       saveTrickFields() { throw new Error('disk full'); },
+      saveItem() { throw new Error('disk full'); },
     });
     expect(() => service.updateTrickScalars(
       failFileSlug, formFor(before, { shortDescription: SAVED_TEXT }), ADMIN_ID,
     )).toThrow(errors.ServiceUnavailableError);
     expect(readTrick(dbPath, failFileSlug)).toEqual(before);
     expect(auditCount(failFileSlug)).toBe(audits);
+    // The same refusal on a record save: no row and no file.
+    expect(() => service.addAlias(
+      failFileSlug, { aliasText: 'refused alias', aliasType: 'common' }, ADMIN_ID,
+    )).toThrow(errors.ServiceUnavailableError);
+    expect(rowCount(dbPath, 'freestyle_trick_aliases', 'alias_slug = ?', ['refused_alias'])).toBe(0);
+  });
+
+  it('puts an alias file back when the database refuses the alias', () => {
+    // Defect: the file outlives the refused save, and a rebuild adds an alias the
+    // curator was told did not save.
+    const conn = new BetterSqlite3(dbPath);
+    conn.exec(`CREATE TRIGGER refuse_alias BEFORE INSERT ON freestyle_trick_aliases
+               WHEN NEW.alias_slug = 'refused_by_database' BEGIN SELECT RAISE(ABORT, 'refused'); END`);
+    conn.close();
+    try {
+      expect(() => service.addAlias(
+        failDbSlug, { aliasText: 'refused by database', aliasType: 'common' }, ADMIN_ID,
+      )).toThrow(/refused/);
+    } finally {
+      const drop = new BetterSqlite3(dbPath);
+      drop.exec('DROP TRIGGER refuse_alias');
+      drop.close();
+    }
+    expect(fs.existsSync(path.join(savesDir, 'aliases', 'refused_by_database.json'))).toBe(false);
   });
 
   it('puts the file back when the database refuses the save', () => {
@@ -255,12 +325,17 @@ describe('a rebuild', () => {
     rebuild(rebuildPath);
   }, 120_000);
 
-  it('a fresh database holds the base value until the saves are applied', () => {
+  it('a fresh database holds the base values until the saves are applied', () => {
     // The control: without it, the cases below could pass on a base input that
-    // already held the saved value.
+    // already held the saved value, or a removed row the rebuild never made.
     const base = readTrick(rebuildPath, editedSlug);
     expect(base.description).toBe(baseDescription);
     expect(base.short_description).toBeNull();
+    expect(rowCount(rebuildPath, 'freestyle_trick_aliases', 'alias_slug = ?', [removedAlias.alias_slug])).toBe(1);
+    expect(rowCount(rebuildPath, 'freestyle_trick_source_links', 'trick_slug = ? AND source_id = ?',
+      [baseSourceLink.trick_slug, baseSourceLink.source_id])).toBe(1);
+    expect(rowCount(rebuildPath, 'freestyle_trick_modifier_links', 'trick_slug = ? AND modifier_slug = ? AND apply_order = ?',
+      [baseModifierLink.trick_slug, baseModifierLink.modifier_slug, baseModifierLink.apply_order])).toBe(1);
   });
 
   it('reloads a saved value and a cleared field, and reports what it overrode', () => {
@@ -276,6 +351,28 @@ describe('a rebuild', () => {
     expect(report).toContain(`${editedSlug},description,`);
     expect(report).toContain(baseDescription.split(',')[0]);
     expect(r.stdout).toContain(`${editedSlug}.description`);
+  });
+
+  it('brings back every saved source, alias and link, and keeps removed ones gone', () => {
+    // Defect: a curator's work on any of these is lost at the next rebuild, or a
+    // removed base alias or link comes back from the input that produced it.
+    const source = rowCount(rebuildPath, 'freestyle_trick_sources', 'id = ?', ['saved-source']);
+    expect(source).toBe(1);
+    expect(rowCount(rebuildPath, 'freestyle_trick_aliases', 'alias_slug = ? AND trick_slug = ? AND source_id = ?',
+      ['saved_alias', editedSlug, 'saved-source'])).toBe(1);
+    expect(rowCount(rebuildPath, 'freestyle_trick_aliases',
+      "alias_slug = ? AND alias_type = 'common' AND alias_display = 1 AND provenance_note = 'Saved provenance.'",
+      [updatedAlias.alias_slug])).toBe(1);
+    expect(rowCount(rebuildPath, 'freestyle_trick_aliases', 'alias_slug = ?', [removedAlias.alias_slug])).toBe(0);
+    expect(rowCount(rebuildPath, 'freestyle_trick_source_links',
+      "trick_slug = ? AND source_id = 'saved-source' AND external_url = 'https://example.com/saved' AND asserted_adds = 3",
+      [editedSlug])).toBe(1);
+    expect(rowCount(rebuildPath, 'freestyle_trick_source_links', 'trick_slug = ? AND source_id = ?',
+      [baseSourceLink.trick_slug, baseSourceLink.source_id])).toBe(0);
+    expect(rowCount(rebuildPath, 'freestyle_trick_modifier_links', 'trick_slug = ? AND modifier_slug = ? AND apply_order = 9',
+      [editedSlug, baseModifierLink.modifier_slug])).toBe(1);
+    expect(rowCount(rebuildPath, 'freestyle_trick_modifier_links', 'trick_slug = ? AND modifier_slug = ? AND apply_order = ?',
+      [baseModifierLink.trick_slug, baseModifierLink.modifier_slug, baseModifierLink.apply_order])).toBe(0);
   });
 
   it('is unchanged by applying the saves a second time', () => {

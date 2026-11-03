@@ -8,10 +8,11 @@
  * The backend is chosen once at startup from config, and a service never asks
  * which one it has.
  *
- * A freestyle save file holds one trick: its slug, and only the fields a curator
- * has overridden. A null field is a deliberate clear. The final freestyle loader
- * applies these files after every other input, so they win over the base inputs,
- * and it reports each value it overrides.
+ * A trick's save file holds its slug and only the fields a curator has overridden,
+ * with a null field marking a deliberate clear. Sources, aliases and links are saved
+ * as whole records, one file each. The final freestyle loader applies these files
+ * after every other input, so they win over the base inputs, and it reports each
+ * value it overrides.
  *
  * A write is atomic, so a failure leaves the previous file whole. The write comes
  * before the service's database transaction and refuses the save when it fails:
@@ -53,12 +54,33 @@ export interface CuratedSaveReceipt {
   undo(): void;
 }
 
+/**
+ * The saved items that are whole records rather than field overrides. Each file
+ * states the record as the curator left it; `removed: true` marks a record taken
+ * away, which a rebuild would otherwise bring back from a base input.
+ */
+export const SAVE_ITEM_KINDS = ['sources', 'aliases', 'source_links', 'modifier_links'] as const;
+export type SaveItemKind = (typeof SAVE_ITEM_KINDS)[number];
+export type SaveItemBody = Record<string, string | number | boolean | null>;
+
 export interface CuratedAuthoringAdapter {
   /** Records these fields for this trick, keeping fields saved earlier. */
   saveTrickFields(slug: string, fields: TrickSaveFields): CuratedSaveReceipt;
+  /** Records one whole item, replacing any earlier save of it. */
+  saveItem(kind: SaveItemKind, key: string, body: SaveItemBody): CuratedSaveReceipt;
 }
 
 const NOTHING_TO_UNDO: CuratedSaveReceipt = { undo: () => undefined };
+
+// A key names a file, like a slug does, so the same refusal applies on both backends.
+function assertItemShape(kind: SaveItemKind, key: string): void {
+  if (!(SAVE_ITEM_KINDS as readonly string[]).includes(kind)) {
+    throw new Error(`curated save refused: unknown item kind ${JSON.stringify(kind)}`);
+  }
+  if (!/^[a-z0-9_-]+$/.test(key)) {
+    throw new Error(`curated save refused: invalid item key ${JSON.stringify(key)}`);
+  }
+}
 
 // A slug names a file, so a value that could leave the folder is refused. Both
 // backends refuse it, so a defect here shows on every machine, not only on the one
@@ -100,12 +122,23 @@ export function createFileCuratedAuthoringAdapter(opts: { rootDir: string }): Cu
         Object.keys(merged).sort().map((key) => [key, merged[key as TrickSaveField]]),
       );
       writeAtomically(filePath, `${JSON.stringify({ slug, fields: ordered }, null, 2)}\n`);
-      return {
-        undo() {
-          if (before === null) fs.rmSync(filePath, { force: true });
-          else writeAtomically(filePath, before);
-        },
-      };
+      return receiptFor(filePath, before);
+    },
+    saveItem(kind, key, body) {
+      assertItemShape(kind, key);
+      const filePath = path.join(opts.rootDir, kind, `${key}.json`);
+      const before = fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf8') : null;
+      writeAtomically(filePath, `${JSON.stringify(body, null, 2)}\n`);
+      return receiptFor(filePath, before);
+    },
+  };
+}
+
+function receiptFor(filePath: string, before: string | null): CuratedSaveReceipt {
+  return {
+    undo() {
+      if (before === null) fs.rmSync(filePath, { force: true });
+      else writeAtomically(filePath, before);
     },
   };
 }
@@ -114,6 +147,10 @@ export function createDatabaseOnlyCuratedAuthoringAdapter(): CuratedAuthoringAda
   return {
     saveTrickFields(slug, fields) {
       assertSaveShape(slug, fields);
+      return NOTHING_TO_UNDO;
+    },
+    saveItem(kind, key) {
+      assertItemShape(kind, key);
       return NOTHING_TO_UNDO;
     },
   };

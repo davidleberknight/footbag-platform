@@ -165,7 +165,11 @@ import {
 import { countScoringBrackets } from '../lib/freestyleNotation';
 import { config } from '../config/env';
 import { logger } from '../config/logger';
-import { getCuratedAuthoringAdapter, type CuratedSaveReceipt } from '../adapters/curatedAuthoringAdapter';
+import {
+  getCuratedAuthoringAdapter,
+  type CuratedSaveReceipt,
+  type SaveItemBody,
+} from '../adapters/curatedAuthoringAdapter';
 import { isSeededTestPersonaMemberId } from '../lib/personaGuards';
 import {
   cleanUserText,
@@ -665,6 +669,48 @@ function ownAliasRemovalStands(trickSlug: string, aliasSlug: string, actorMember
   );
   if (!own) return false;
   return (JSON.parse(own.metadata_json) as { trickSlug?: string }).trickSlug === trickSlug;
+}
+
+// The authoring file is written first. A save that reached only the database would
+// look done and be lost at the next rebuild, so a file that cannot be written
+// refuses the save; and a database that then refuses it puts the file back, so a
+// refused save leaves nothing for the next rebuild to apply.
+function writeFileThenCommit(write: (() => CuratedSaveReceipt) | null, commit: () => void): void {
+  let receipt: CuratedSaveReceipt | null = null;
+  if (write) {
+    try {
+      receipt = write();
+    } catch (err) {
+      logger.warn('freestyle save refused: the authoring file could not be written', {
+        errorClass: (err as Error).constructor.name,
+      });
+      throw new ServiceUnavailableError('The authoring file could not be written, so nothing was saved.');
+    }
+  }
+  try {
+    commit();
+  } catch (err) {
+    receipt?.undo();
+    throw err;
+  }
+}
+
+function saveAlias(aliasSlug: string, trickSlug: string, record: SaveItemBody | null): () => CuratedSaveReceipt {
+  return () => getCuratedAuthoringAdapter().saveItem('aliases', aliasSlug, {
+    alias_slug: aliasSlug, trick_slug: trickSlug, ...(record ?? { removed: true }),
+  });
+}
+
+function saveSourceLink(trickSlug: string, sourceId: string, record: SaveItemBody | null): () => CuratedSaveReceipt {
+  return () => getCuratedAuthoringAdapter().saveItem('source_links', `${trickSlug}__${sourceId}`, {
+    trick_slug: trickSlug, source_id: sourceId, ...(record ?? { removed: true }),
+  });
+}
+
+function saveModifierLink(trickSlug: string, modifierSlug: string, applyOrder: number, removed: boolean): () => CuratedSaveReceipt {
+  return () => getCuratedAuthoringAdapter().saveItem('modifier_links', `${trickSlug}__${modifierSlug}__${applyOrder}`, {
+    trick_slug: trickSlug, modifier_slug: modifierSlug, apply_order: applyOrder, ...(removed ? { removed: true } : {}),
+  });
 }
 
 function assertActorMayCurateFreestyle(actorMemberId: string): void {
@@ -2202,53 +2248,43 @@ export const freestyleCurationService = {
       operational_notation_source: operationalNotationSource,
     };
     const savedFields = Object.fromEntries(changedFields.map((field) => [field, submitted[field] ?? null]));
-    let receipt: CuratedSaveReceipt | null = null;
-    if (changedFields.length > 0) {
-      try {
-        receipt = getCuratedAuthoringAdapter().saveTrickFields(slug, savedFields);
-      } catch (err) {
-        logger.warn('freestyle trick save refused: the authoring file could not be written', {
-          slug, errorClass: (err as Error).constructor.name,
-        });
-        throw new ServiceUnavailableError('The authoring file could not be written, so nothing was saved.');
-      }
-    }
 
-    try {
-      transaction(() => {
-        freestyleTricks.updateScalars.run(
-          canonicalName, adds, movementNotation, executionNotation,
-          family, baseTrick, category, isActive, sortOrder, reviewStatus,
-          description, shortDescription, executionSummary, learningNotes,
-          prerequisiteNotes, pronunciation, operationalNotationSource, slug,
-        );
-        if (parseInputsChanged) {
-          freestyleTricks.clearDerivedParse.run(slug);
-        }
-        const resolvedAdjudication = publishing
-          ? resolveAdjudicationOnPublication(slug, canonicalName, actorMemberId)
-          : null;
-        appendAuditEntry({
-          actionType:    'freestyle.trick.updated',
-          actorType:     'admin',
-          actorMemberId,
-          entityType:    'freestyle_trick',
-          entityId:      slug,
-          metadata:      {
-            changedFields,
-            derivedParseCleared: parseInputsChanged,
-            published: publishing,
-            // Present only when a ruling was resolved, so the trail says which
-            // record moved rather than only that a publication happened.
-            ...(resolvedAdjudication ? { resolvedAdjudication } : {}),
-          },
+    writeFileThenCommit(
+      changedFields.length > 0
+        ? () => getCuratedAuthoringAdapter().saveTrickFields(slug, savedFields)
+        : null,
+      () => {
+        transaction(() => {
+          freestyleTricks.updateScalars.run(
+            canonicalName, adds, movementNotation, executionNotation,
+            family, baseTrick, category, isActive, sortOrder, reviewStatus,
+            description, shortDescription, executionSummary, learningNotes,
+            prerequisiteNotes, pronunciation, operationalNotationSource, slug,
+          );
+          if (parseInputsChanged) {
+            freestyleTricks.clearDerivedParse.run(slug);
+          }
+          const resolvedAdjudication = publishing
+            ? resolveAdjudicationOnPublication(slug, canonicalName, actorMemberId)
+            : null;
+          appendAuditEntry({
+            actionType:    'freestyle.trick.updated',
+            actorType:     'admin',
+            actorMemberId,
+            entityType:    'freestyle_trick',
+            entityId:      slug,
+            metadata:      {
+              changedFields,
+              derivedParseCleared: parseInputsChanged,
+              published: publishing,
+              // Present only when a ruling was resolved, so the trail says which
+              // record moved rather than only that a publication happened.
+              ...(resolvedAdjudication ? { resolvedAdjudication } : {}),
+            },
+          });
         });
-      });
-    } catch (err) {
-      // A refused save leaves nothing for the next rebuild to apply.
-      receipt?.undo();
-      throw err;
-    }
+      },
+    );
   },
 
   // Add one alias to a trick. The alias slug is derived from the submitted display
@@ -2319,19 +2355,25 @@ export const freestyleCurationService = {
     }
 
     try {
-      transaction(() => {
-        freestyleTrickAliases.insert.run(
-          aliasSlug, aliasText, trickSlug, aliasType, aliasDisplay,
-          sourceId, provenanceNote);
-        appendAuditEntry({
-          actionType:    'freestyle.trick_alias.created',
-          actorType:     'admin',
-          actorMemberId,
-          entityType:    'freestyle_trick_alias',
-          entityId:      aliasSlug,
-          metadata:      { trickSlug, aliasSlug, aliasText, aliasType, aliasDisplay },
-        });
-      });
+      writeFileThenCommit(
+        saveAlias(aliasSlug, trickSlug, {
+          alias_text: aliasText, alias_type: aliasType, alias_display: aliasDisplay,
+          display_reason: null, source_id: sourceId, provenance_note: provenanceNote,
+        }),
+        () => transaction(() => {
+          freestyleTrickAliases.insert.run(
+            aliasSlug, aliasText, trickSlug, aliasType, aliasDisplay,
+            sourceId, provenanceNote);
+          appendAuditEntry({
+            actionType:    'freestyle.trick_alias.created',
+            actorType:     'admin',
+            actorMemberId,
+            entityType:    'freestyle_trick_alias',
+            entityId:      aliasSlug,
+            metadata:      { trickSlug, aliasSlug, aliasText, aliasType, aliasDisplay },
+          });
+        }),
+      );
     } catch (err) {
       if (isDuplicateKeyError(err)) {
         throw new ValidationError(`"${aliasSlug}" is already an alias.`);
@@ -2413,7 +2455,10 @@ export const freestyleCurationService = {
         `The provenance note must be ${ALIAS_PROVENANCE_NOTE_MAX} characters or fewer.`);
     }
 
-    transaction(() => {
+    writeFileThenCommit(saveAlias(aliasSlug, trickSlug, {
+      alias_text: existing.alias_text, alias_type: aliasType, alias_display: aliasDisplay,
+      display_reason: displayReason, source_id: sourceId, provenance_note: provenanceNote,
+    }), () => transaction(() => {
       freestyleTrickAliases.updateClassForTrick.run(
         aliasType, aliasDisplay, displayReason, sourceId, provenanceNote,
         aliasSlug, trickSlug);
@@ -2446,7 +2491,7 @@ export const freestyleCurationService = {
           owner:                  'curator-application',
         },
       });
-    });
+    }));
   },
 
   // Remove one alias from a trick. Scoped to the trick both in the ownership check
@@ -2464,7 +2509,7 @@ export const freestyleCurationService = {
       throw new NotFoundError(`No alias "${aliasSlug}" on trick "${trickSlug}"`);
     }
 
-    transaction(() => {
+    writeFileThenCommit(saveAlias(aliasSlug, trickSlug, null), () => transaction(() => {
       freestyleTrickAliases.deleteForTrick.run(aliasSlug, trickSlug);
       appendAuditEntry({
         actionType:    'freestyle.trick_alias.deleted',
@@ -2479,7 +2524,7 @@ export const freestyleCurationService = {
           aliasType: existing.alias_type,
         },
       });
-    });
+    }));
   },
 
   // Attach one existing registry source to a trick. Rejected (ValidationError,
@@ -2516,17 +2561,20 @@ export const freestyleCurationService = {
     const assertedAdds = assertedRaw === '' ? null : parseInt(assertedRaw, 10);
 
     try {
-      transaction(() => {
-        freestyleTrickSourceLinks.insert.run(trickSlug, sourceId, externalUrl, assertedAdds);
-        appendAuditEntry({
-          actionType:    'freestyle.trick_source_link.created',
-          actorType:     'admin',
-          actorMemberId,
-          entityType:    'freestyle_trick_source_link',
-          entityId:      `${trickSlug}:${sourceId}`,
-          metadata:      { trickSlug, sourceId, externalUrl, assertedAdds },
-        });
-      });
+      writeFileThenCommit(
+        saveSourceLink(trickSlug, sourceId, { external_url: externalUrl, asserted_adds: assertedAdds }),
+        () => transaction(() => {
+          freestyleTrickSourceLinks.insert.run(trickSlug, sourceId, externalUrl, assertedAdds);
+          appendAuditEntry({
+            actionType:    'freestyle.trick_source_link.created',
+            actorType:     'admin',
+            actorMemberId,
+            entityType:    'freestyle_trick_source_link',
+            entityId:      `${trickSlug}:${sourceId}`,
+            metadata:      { trickSlug, sourceId, externalUrl, assertedAdds },
+          });
+        }),
+      );
     } catch (err) {
       if (isDuplicateKeyError(err)) {
         throw new ValidationError(`This trick is already linked to "${source.source_label}".`);
@@ -2555,7 +2603,7 @@ export const freestyleCurationService = {
       throw new NotFoundError(`No source link "${sourceId}" on trick "${trickSlug}"`);
     }
 
-    transaction(() => {
+    writeFileThenCommit(saveSourceLink(trickSlug, sourceId, null), () => transaction(() => {
       freestyleTrickSourceLinks.deleteForTrick.run(trickSlug, sourceId);
       appendAuditEntry({
         actionType:    'freestyle.trick_source_link.deleted',
@@ -2570,7 +2618,7 @@ export const freestyleCurationService = {
           assertedAdds: link.asserted_adds,
         },
       });
-    });
+    }));
   },
 
   // Attach one registry modifier to a trick at an apply order. The apply order
@@ -2611,7 +2659,7 @@ export const freestyleCurationService = {
     }
 
     try {
-      transaction(() => {
+      writeFileThenCommit(saveModifierLink(trickSlug, modifierSlug, applyOrder, false), () => transaction(() => {
         freestyleTrickModifierLinks.insert.run(trickSlug, modifierSlug, applyOrder);
         appendAuditEntry({
           actionType:    'freestyle.trick_modifier_link.created',
@@ -2621,7 +2669,7 @@ export const freestyleCurationService = {
           entityId:      `${trickSlug}:${modifierSlug}:${applyOrder}`,
           metadata:      { trickSlug, modifierSlug, applyOrder, modifierName: modifier.modifier_name },
         });
-      });
+      }));
     } catch (err) {
       if (isDuplicateKeyError(err)) {
         throw new ValidationError(`"${modifier.modifier_name}" is already linked at apply order ${applyOrder}.`);
@@ -2642,7 +2690,7 @@ export const freestyleCurationService = {
       throw new NotFoundError(`No modifier link "${modifierSlug}" at apply order ${applyOrder} on trick "${trickSlug}"`);
     }
 
-    transaction(() => {
+    writeFileThenCommit(saveModifierLink(trickSlug, modifierSlug, applyOrder, true), () => transaction(() => {
       freestyleTrickModifierLinks.deleteForTrick.run(trickSlug, modifierSlug, applyOrder);
       appendAuditEntry({
         actionType:    'freestyle.trick_modifier_link.deleted',
@@ -2652,7 +2700,7 @@ export const freestyleCurationService = {
         entityId:      `${trickSlug}:${modifierSlug}:${applyOrder}`,
         metadata:      { trickSlug, modifierSlug, applyOrder },
       });
-    });
+    }));
   },
 
   // The dictionary provenance-source registry: the existing registry rows plus the
@@ -2758,17 +2806,23 @@ export const freestyleCurationService = {
     }
 
     try {
-      transaction(() => {
-        freestyleTrickSources.insert.run(id, sourceType, sourceLabel, sourceUrl || null, retrievedAt, notes || null);
-        appendAuditEntry({
-          actionType:    'freestyle.trick_source.created',
-          actorType:     'admin',
-          actorMemberId,
-          entityType:    'freestyle_trick_source',
-          entityId:      id,
-          metadata:      { id, sourceType, sourceLabel },
-        });
-      });
+      writeFileThenCommit(
+        () => getCuratedAuthoringAdapter().saveItem('sources', id, {
+          id, source_type: sourceType, source_label: sourceLabel, source_url: sourceUrl || null,
+          retrieved_at: retrievedAt, notes: notes || null,
+        }),
+        () => transaction(() => {
+          freestyleTrickSources.insert.run(id, sourceType, sourceLabel, sourceUrl || null, retrievedAt, notes || null);
+          appendAuditEntry({
+            actionType:    'freestyle.trick_source.created',
+            actorType:     'admin',
+            actorMemberId,
+            entityType:    'freestyle_trick_source',
+            entityId:      id,
+            metadata:      { id, sourceType, sourceLabel },
+          });
+        }),
+      );
     } catch (err) {
       if (isDuplicateKeyError(err)) {
         throw new ValidationError(`Source ID "${id}" already exists.`);

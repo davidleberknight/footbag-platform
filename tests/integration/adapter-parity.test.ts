@@ -88,6 +88,7 @@ import {
   createDatabaseOnlyCuratedAuthoringAdapter,
   createFileCuratedAuthoringAdapter,
   type CuratedAuthoringAdapter,
+  type SaveItemKind,
   type TrickSaveFields,
 } from '../../src/adapters/curatedAuthoringAdapter';
 import {
@@ -1144,6 +1145,16 @@ describe('adapter-parity: CuratedAuthoringAdapter contract', () => {
       expect(() => adapter.saveTrickFields('parity_trick', unknownField), name).toThrow(/not a trick field/);
     }
     expect(fs.existsSync(path.join(tmpDir, 'tricks'))).toBe(false);
+  });
+
+  it('both backends refuse a bad record key and an unknown record kind', () => {
+    const unknownKind = 'tips' as unknown as SaveItemKind;
+    for (const [name, adapter] of backends) {
+      expect(() => adapter.saveItem('aliases', '../escape', { removed: true }), name).toThrow(/invalid item key/);
+      expect(() => adapter.saveItem(unknownKind, 'parity', { removed: true }), name).toThrow(/unknown item kind/);
+      expect(() => adapter.saveItem('aliases', 'parity', { removed: true }).undo(), name).not.toThrow();
+    }
+    expect(fs.existsSync(path.join(tmpDir, 'aliases', 'parity.json'))).toBe(false);
   });
 
   it('the file backend undoes a first save by removing the file and a later save by restoring it', () => {
