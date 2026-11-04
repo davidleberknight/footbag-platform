@@ -20,7 +20,7 @@ DB="${1:?usage: print-reset-notice.sh <db-path>}"
 if [[ ! -f "${DB}" ]]; then
   # The fresh-clone and continuous-integration path. The launcher runs the reset
   # when no database is there, and that is the first command a new developer
-  # types; telling them their curator work is being destroyed would be false on
+  # types; telling them a database is being destroyed would be false on
   # the one run where they have none, which is how a reader learns to skip the
   # warning that matters.
   {
@@ -46,13 +46,8 @@ fi
   echo "That file is a development database; the reset refuses to run against a"
   echo "staging or production environment, or against the production install path."
   echo ""
-  echo "Local database-native curator work is discarded and no committed file can"
-  echo "restore it: authored adjudication drafts, publication and resolution state,"
-  echo "curator-created canonical tricks, and the aliases, source links and modifier"
-  echo "links attached to them."
-  echo ""
-  echo "freestyle/run_freestyle.sh is the command that keeps that work: it pulls"
-  echo "committed freestyle input changes into the database you already have,"
-  echo "reconciles in place, and never deletes the database file."
+  echo "Curator work saved through the admin screens on this machine is in files"
+  echo "under curated/ and freestyle/inputs/curator_saves/, so this rebuild"
+  echo "reproduces it. Anything else held only in this database is gone."
   echo ""
 } >&2

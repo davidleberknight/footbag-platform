@@ -271,7 +271,7 @@ Expected result:
 - `database/footbag.db` is built
 - the app has the committed real event archive for local browsing
 
-Re-run `bash scripts/reset-local-db.sh` when you want a clean rebuild, and only then. It is a reset, not a refresh: it deletes `database/footbag.db` and rebuilds it from committed inputs, discarding database-native curator work that no committed file can restore — authored adjudication drafts, publication and resolution state, curator-created canonical tricks, and application-only aliases, source links and modifier links.
+Re-run `bash scripts/reset-local-db.sh` when you want a clean rebuild, and only then. It deletes `database/footbag.db` and rebuilds it from committed inputs. Curator work saved through the admin screens on this machine is in files under `curated/` and `freestyle/inputs/curator_saves/`, so the rebuild reproduces it; anything else held only in the database is gone.
 
 To pull committed freestyle input changes into the database you already have, run `freestyle/run_freestyle.sh` instead. It reconciles in place, preserves database-native curator authority, never deletes the database file, and is safe to re-run: a second run straight after the first changes nothing. Run it on its own only when you are keeping the database you have; every rebuild path runs it as one of its own stages, so a rebuild is never followed by a separate refresh.
 
@@ -482,8 +482,10 @@ The hello-world clone runs on the committed real event data (`canonical_input`) 
 Request whichever you need from the maintainer, then load:
 
 ```bash
-# All three DESTROY the local database and discard curator work. For an ordinary
-# freestyle refresh, run freestyle/run_freestyle.sh instead. Each of these runs
+# All three DESTROY the local database and rebuild it from committed files, which
+# hold curator work saved through the admin screens; anything held only in the
+# database is gone. For an ordinary freestyle refresh, run
+# freestyle/run_freestyle.sh instead. Each of these runs
 # the freestyle build as one of its own stages, so never follow one with a
 # separate refresh.
 ./run_dev.sh --from-csv      # full enrichment rebuild + media + personas; no mirror, no dev-admin allowlist; needs the member roster

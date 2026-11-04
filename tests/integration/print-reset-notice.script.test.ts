@@ -59,16 +59,15 @@ function runWithoutDatabase() {
 }
 
 describe('scripts/internal/print-reset-notice.sh — a database is about to be destroyed', () => {
-  it('names every kind of curator work the rebuild cannot restore', () => {
-    // "Local data is lost" does not let a reader recognise their own work. These
-    // four are the ones that exist only in the database, by the ruling that made
-    // freestyle adjudication authority database-native.
+  it('names where saved curator work lives, so a reader can see it survives', () => {
+    // A reader deciding whether to reset needs to know their saves are safe, and
+    // where to look for them. The saves folder appears with the first save, so for
+    // it this checks only that its parent, freestyle/inputs, exists.
     const said = flat(runWithDatabase().stderr);
-    expect(said).toContain('authored adjudication drafts');
-    expect(said).toContain('publication and resolution state');
-    expect(said).toContain('curator-created canonical tricks');
-    expect(said).toContain('aliases, source links and modifier links attached to them');
-    expect(said).toContain('no committed file can restore it');
+    for (const folder of ['curated', 'freestyle/inputs/curator_saves']) {
+      expect(said).toContain(folder);
+      expect(fs.existsSync(path.join(REPO_ROOT, folder.split('/').slice(0, 2).join('/')))).toBe(true);
+    }
   });
 
   it('names the file it is about, and which database that is', () => {
@@ -83,14 +82,11 @@ describe('scripts/internal/print-reset-notice.sh — a database is about to be d
     );
   });
 
-  it('names the refresh that keeps that work, without telling anyone to stop', () => {
-    // A warning with nowhere to send the reader teaches them to read past it. But
-    // "stop now" is wrong advice to two real callers: a deploy needs the rebuild
-    // it is running, and someone who has just agreed to reapply a drifted schema
-    // cannot get that from an in-place refresh.
-    const r = runWithDatabase();
-    expect(r.stderr).toContain('freestyle/run_freestyle.sh');
-    expect(r.stderr).not.toMatch(/stop now/i);
+  it('does not tell anyone to stop', () => {
+    // "Stop now" is wrong advice to two real callers: a deploy needs the rebuild it
+    // is running, and someone who has just agreed to reapply a drifted schema
+    // cannot get that any other way.
+    expect(runWithDatabase().stderr).not.toMatch(/stop now/i);
   });
 
   it('opens with the marker this tree uses for a notice it prints', () => {
@@ -100,22 +96,12 @@ describe('scripts/internal/print-reset-notice.sh — a database is about to be d
     expect(r.stderr).toMatch(/^\s*WARNING: this deletes /m);
   });
 
-  it('describes the lost work in the same words the launcher does', () => {
-    // Two printed copies of one sentence: run_dev.sh lists it in its help, this
-    // prints it at the moment of loss. A reader who meets both must meet one
-    // statement rather than two descriptions of one thing, and nothing else keeps
-    // the two in step.
+  it('names the same folders the launcher does', () => {
+    // run_dev.sh says this in its help and this prints it at the moment of reset. A
+    // reader who meets both must not be sent to two different places.
     const launcher = flat(fs.readFileSync(path.join(REPO_ROOT, 'run_dev.sh'), 'utf8'));
-    const said = flat(runWithDatabase().stderr);
-    for (const phrase of [
-      'authored adjudication drafts',
-      'publication and resolution state',
-      'curator-created canonical tricks',
-      'aliases, source links and modifier links attached to them',
-    ]) {
-      expect(said).toContain(phrase);
-      expect(launcher).toContain(phrase);
-    }
+    expect(flat(runWithDatabase().stderr)).toContain('freestyle/inputs/curator_saves/');
+    expect(launcher).toContain('freestyle/inputs/curator_saves/');
   });
 
   it('goes to stderr, so a caller capturing stdout into a log still shows it', () => {
@@ -134,8 +120,8 @@ describe('scripts/internal/print-reset-notice.sh — there is no database yet', 
     const r = runWithoutDatabase();
     expect(r.stderr).toContain('nothing');
     expect(r.stderr).not.toMatch(/WARNING/);
-    expect(r.stderr).not.toContain('authored adjudication drafts');
-    expect(r.stderr).not.toContain('discarded');
+    expect(r.stderr).not.toContain('curator_saves');
+    expect(r.stderr).not.toContain('gone');
   });
 
   it('still names the file it is about', () => {

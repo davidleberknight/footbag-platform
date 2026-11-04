@@ -10,10 +10,6 @@
 #   ./run_dev.sh --reset          # DESTRUCTIVE: deletes the DB, rebuilds from committed seeds
 #   ./run_dev.sh --from-csv       # DESTRUCTIVE: deletes the DB, full enrichment rebuild (no mirror, but needs the gitignored operator roster — not committed-data-only) + persona seed; --no-personas to opt out
 #   ./run_dev.sh --soup-to-nuts   # DESTRUCTIVE: deletes the DB, everything on: mirror rebuild + media + personas (--no-* to opt out)
-#
-# Before go-live, to refresh freestyle from committed inputs WITHOUT losing
-# local curator work, run freestyle/run_freestyle.sh instead. It reconciles in place and deletes
-# nothing.
 
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -113,20 +109,12 @@ Local dev launcher.
 Default (no flags): just run the dev stack — code only. No DB rebuild, no
 reseed. If database/footbag.db is missing, bootstrap with --reset first.
 
-Refreshing freestyle without losing local work (before go-live):
-  Every mode below DESTROYS the local database. For the ordinary case — pulling
-  committed freestyle input changes into the database you already have — run
-  freestyle/run_freestyle.sh instead. It reconciles in place, keeps everything a
-  curator wrote, never deletes the database file, and is safe to re-run.
-
 DB rebuild modes (mutually exclusive; opt-in only). DESTRUCTIVE: each deletes
-database/footbag.db and rebuilds it, discarding local database-native curator
-work that no committed file can restore — authored adjudication drafts,
-publication and resolution state, curator-created canonical tricks, and the
-aliases, source links and modifier links attached to them:
+database/footbag.db and rebuilds it from committed files. Curator work saved
+through the admin screens on this machine is in those files, under curated/ and
+freestyle/inputs/curator_saves/, so a rebuild reproduces it:
   --reset          DESTRUCTIVE. Deletes the database and rebuilds it from
-                   committed seeds. Quick, but it is a reset and not a refresh:
-                   local curator work is gone. Calls scripts/reset-local-db.sh.
+                   committed seeds. Calls scripts/reset-local-db.sh.
   --from-csv       DESTRUCTIVE. Full enrichment rebuild (drops the DB file,
                    reapplies schema, runs all enrichment phases). Needs no mirror, but
                    requires the gitignored operator membership roster — it is
