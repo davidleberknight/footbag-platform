@@ -11,7 +11,7 @@
 <div class="profile-section">
   <h2 class="profile-section-heading">Media</h2>
   {{#if galleries.length}}
-    <div class="gallery-grid">
+    <div class="card-grid card-grid-compact">
       {{#each galleries}}
         <div class="card">
           {{#if coverThumbUrl}}<img src="{{coverThumbUrl}}" alt="{{name}}" class="card-cover" loading="lazy">{{/if}}

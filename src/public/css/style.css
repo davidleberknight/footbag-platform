@@ -840,6 +840,10 @@ section { margin-top: var(--space-2xl); }
   gap: var(--space-lg);
 }
 .card-grid-2col { grid-template-columns: repeat(2, 1fr); }
+/* Small cards headed by a picture, such as gallery cards: several to a row,
+   so each picture stays a preview. The doubled class outranks the narrow-screen
+   one-column rule, since these cards already fit a phone at their minimum. */
+.card-grid.card-grid-compact { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
 
 .card {
   background: var(--bg);
@@ -902,7 +906,7 @@ section { margin-top: var(--space-2xl); }
 
 /* A gallery card's cover photo across the top of the card, cropped to a fixed
    shape declared before the picture arrives, so the grid does not jump as
-   covers of different shapes load. Gallery cards sit in the media tile grid,
+   covers of different shapes load. Gallery cards sit in the compact card grid,
    so the cover stays a small preview rather than the bulk of the page. */
 .card-cover {
   display: block;

@@ -99,6 +99,7 @@ card-cover
 card-description
 card-grid
 card-grid-2col
+card-grid-compact
 card-inline
 card-meta
 card-static

@@ -7,7 +7,7 @@
 
 <div class="wrapper">
   {{#if content.hasGalleries}}
-    <div class="gallery-grid">
+    <div class="card-grid card-grid-compact">
       {{#each content.galleries}}
       <div class="card">
         {{#if coverThumbUrl}}<img src="{{coverThumbUrl}}" alt="{{name}}" class="card-cover" loading="lazy">{{/if}}
