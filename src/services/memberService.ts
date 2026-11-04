@@ -2440,10 +2440,10 @@ interface PlayerMediaView {
 
 function buildPlayerMediaView(slug: string, displayName: string): PlayerMediaView {
   const tag = playerTagForMemberSlug(slug);
-  const preview = mediaService.getEntityMediaPreview(tag, { authenticated: true });
+  const galleryHref = mediaService.getEntityGalleryHref(tag);
   return {
-    hashtag: { display: tag, galleryHref: preview ? preview.galleryHref : null },
-    media: preview ? { ...preview, buttonLabel: 'View Player Gallery' } : null,
+    hashtag: { display: tag, galleryHref },
+    media: galleryHref ? { galleryHref, buttonLabel: 'View Player Gallery' } : null,
     heading: `Media Featuring ${displayName}`,
   };
 }

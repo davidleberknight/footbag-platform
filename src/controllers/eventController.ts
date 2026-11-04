@@ -56,7 +56,7 @@ export const eventController = {
   event(req: Request, res: Response, next: NextFunction): void {
     try {
       const eventKey = req.params.eventKey;
-      const vm = eventService.getPublicEventPage(eventKey, { authenticated: req.isMember });
+      const vm = eventService.getPublicEventPage(eventKey);
       res.render('events/detail', vm);
     } catch (err) {
       handleControllerError(err, res, next, 'events controller');

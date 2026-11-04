@@ -140,7 +140,6 @@ export const ADAPTER_SITES: AdapterSite[] = [
   { file: 'src/services/mediaService.ts', getter: 'getMediaStorageAdapter', operation: 'getNamedGalleryPage', status: { noWriteAfter: ADDRESS_ONLY } },
   { file: 'src/services/mediaService.ts', getter: 'getMediaStorageAdapter', operation: 'getMediaBrowsePage', status: { noWriteAfter: ADDRESS_ONLY } },
   { file: 'src/services/mediaService.ts', getter: 'getMediaStorageAdapter', operation: 'listRecentCommunityMedia', status: { noWriteAfter: ADDRESS_ONLY } },
-  { file: 'src/services/mediaService.ts', getter: 'getMediaStorageAdapter', operation: 'getEntityMediaPreview', status: { noWriteAfter: ADDRESS_ONLY } },
   { file: 'src/services/mediaService.ts', getter: 'getMediaStorageAdapter', operation: 'galleryCoverThumbUrls', status: { noWriteAfter: ADDRESS_ONLY } },
   { file: 'src/services/freestyleService.ts', getter: 'getMediaStorageAdapter', operation: 'shapeReferenceMedia', status: { noWriteAfter: ADDRESS_ONLY } },
   { file: 'src/services/siteMediaService.ts', getter: 'getMediaStorageAdapter', operation: 'shapeVideo', status: { noWriteAfter: ADDRESS_ONLY } },

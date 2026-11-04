@@ -1,9 +1,10 @@
 /**
  * Event detail page: the event's media block and its linked hashtag.
  *
- * When media carries an event's hashtag, the event page shows the newest few
- * items, a button to the event's whole gallery, and the hashtag under the title
- * linked to that gallery. With no such media the page shows no block and the
+ * When media carries an event's hashtag, the event page shows a button to the
+ * event's gallery and the hashtag under the title linked to that gallery, and
+ * no individual items: the gallery holds them. With no such media the page
+ * shows no block and the
  * hashtag as a plain token, so a visitor still sees what to tag their media with.
  * Media marked #unavailable_embed counts as none.
  */
@@ -26,15 +27,14 @@ let page: (path: string) => ReturnType<ReturnType<typeof cachedGet>>;
 const mediaIds: string[] = [];
 let unavailableMediaId = '';
 
+// The block runs from its id to the end of its section's own wrapper, so an
+// item tile rendered anywhere inside it falls within the slice.
 function mediaBlock(html: string): string {
   const start = html.indexOf('id="event-media"');
-  return start === -1 ? '' : html.slice(start, html.indexOf('</div>', html.indexOf('</ul>', start)));
+  return start === -1 ? '' : html.slice(start, html.indexOf('</div>', start));
 }
 
 beforeAll(async () => {
-  // Imported only after the test database path is set, since the service
-  // module opens the database when it loads.
-  const { ENTITY_MEDIA_PREVIEW_LIMIT } = await import('../../src/services/mediaService');
   const db = createTestDb(dbPath);
   const uploaderId = insertMember(db, {
     id: 'uploader-event-gallery-link',
@@ -43,13 +43,12 @@ beforeAll(async () => {
     display_name: 'Event Gallery Uploader',
   });
 
-  // One more item than the block shows, uploaded a minute apart, so the block
-  // must keep the newest and drop the oldest.
+  // Several items, so a page that listed any of them would show it.
   const withMedia = insertTag(db, {
     tag_normalized: '#event_2025_testopen', tag_display: '#event_2025_testopen', standard_type: 'event',
   });
   insertEvent(db, { id: 'event-with-media', title: 'Test Open 2025', hashtag_tag_id: withMedia, status: 'completed' });
-  for (let i = 0; i <= ENTITY_MEDIA_PREVIEW_LIMIT; i++) {
+  for (let i = 0; i < 3; i++) {
     const id = insertMediaItem(db, {
       uploader_member_id: uploaderId,
       caption: `Test Open clip ${i}`,
@@ -83,15 +82,15 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /events/:eventKey -- media block', () => {
-  it('shows the newest items, the gallery button and a linked hashtag when media carries the hashtag', async () => {
-    // Defect caught: an event with media shows none of it, shows the oldest
-    // instead of the newest, or shows an unbounded list on a public page.
+  it('shows only the gallery button and a linked hashtag when media carries the hashtag', async () => {
+    // Defect caught: an event with media gives no way into its gallery, or
+    // fills the event page with individual items that belong in the gallery.
     const res = await page('/events/event_2025_testopen');
     expect(res.status).toBe(200);
     const block = mediaBlock(res.text);
-    const shown = mediaIds.filter((id) => block.includes(`/media/item/${id}?`));
-    expect(shown).toEqual(mediaIds.slice(1));
     expect(block).toContain('href="/media/browse?context&#x3D;event_2025_testopen"');
+    expect(mediaIds.filter((id) => res.text.includes(id))).toEqual([]);
+    expect(block).not.toContain('gallery-tile');
     expect(res.text).toMatch(
       /<p class="hero-hashtag"><a href="\/media\/browse\?context&#x3D;event_2025_testopen">#event_2025_testopen<\/a><\/p>/);
   });

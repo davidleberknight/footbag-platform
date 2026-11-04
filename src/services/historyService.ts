@@ -145,13 +145,11 @@ export const historyService = {
     // A name with no a to z form has no player hashtag, so nothing shows.
     const playerTag = playerTagForName(player.personName);
     const hasTag = playerTag.length > PLAYER_TAG_PREFIX.length;
-    const preview = hasTag
-      ? mediaService.getEntityMediaPreview(playerTag, { authenticated: isMember }) : null;
-    const media = preview ? { ...preview, buttonLabel: 'View Player Gallery' } : null;
+    const galleryHref = hasTag ? mediaService.getEntityGalleryHref(playerTag) : null;
+    const media = galleryHref ? { galleryHref, buttonLabel: 'View Player Gallery' } : null;
 
     const heroData: PlayerHeroData = {
-      hashtag: hasTag
-        ? { display: playerTag, galleryHref: preview ? preview.galleryHref : null } : undefined,
+      hashtag: hasTag ? { display: playerTag, galleryHref } : undefined,
       displayName:       player.personName,
       honorificNickname: player.bapNickname ?? undefined,
       isHof:             player.hofMember,

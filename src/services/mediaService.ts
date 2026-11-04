@@ -24,11 +24,11 @@
  *     gallery's chosen cover while it is still one of its photos, otherwise its
  *     newest photo, none when it shows no photo. Read in one statement for the
  *     galleries a page shows (`listGalleryCovers`), never per gallery
- *   - The media block on an event, club or player page (getEntityMediaPreview,
+ *   - The gallery link on an event, club or player page (getEntityGalleryHref,
  *     consumed by eventService, clubService, historyService and memberService):
- *     the newest `ENTITY_MEDIA_PREVIEW_LIMIT` items carrying that page's one
- *     hashtag, a bounded read with no total, plus the gallery link that locks
- *     the hashtag as the gallery's context; null when nothing carries it
+ *     the link to the ad-hoc gallery of that page's one hashtag, locking the
+ *     hashtag as the gallery's context, decided by a one-row existence read
+ *     with no total and no items shown on the page; null when nothing carries it
  *   - /media/:galleryId named-gallery page read (tag-AND membership). Its editable
  *     filter prefills the gallery's topic criteria as removable include chips and
  *     submits to /media/browse, so refining or broadening the initial set (and
@@ -484,20 +484,12 @@ export interface GalleryItem {
   captionMask?: boolean;
 }
 
-// How many of the newest items the media block on an event, club or player page
-// shows before the visitor opens the full gallery.
-export const ENTITY_MEDIA_PREVIEW_LIMIT = 6;
-
-// The media block on an event, club or player page: the newest items carrying
-// that page's hashtag, and the gallery holding all of them.
-export interface EntityMediaPreview {
-  items: GalleryItem[];
+// The media block on an event, club or player page: one button to the gallery
+// of the media carrying that page's hashtag. The page shows no items itself;
+// the gallery holds them. The owning service names the button for the kind of
+// gallery it opens.
+export interface EntityMediaBlock {
   galleryHref: string;
-}
-
-// The block as its page shows it: the owning service names the button for the
-// kind of gallery it opens.
-export interface EntityMediaBlock extends EntityMediaPreview {
   buttonLabel: string;
 }
 
@@ -2061,45 +2053,18 @@ export const mediaService = {
     });
   },
 
-  // The newest few items carrying one hashtag, for the media block on the page
-  // of the event, club or player that hashtag names. Null when nothing carries
-  // it, so the page shows no block and no gallery button. A bounded read rather
-  // than a count, so the page never computes a total. Each tile opens the viewer
-  // inside that hashtag's set, and the gallery link locks the hashtag as the
-  // gallery's context so a visitor stays inside it while refining.
-  getEntityMediaPreview(tagNormalized: string, viewer: ViewerContext): EntityMediaPreview | null {
-    return runSqliteRead('mediaService.getEntityMediaPreview', () => {
+  // The gallery of the media carrying one hashtag, for the page of the event,
+  // club or player that hashtag names. Null when nothing carries it, so the page
+  // shows no media block and its hashtag stays a plain token. A one-row
+  // existence read rather than a count, so the page never computes a total. The
+  // link locks the hashtag as the gallery's context so a visitor stays inside
+  // it while refining.
+  getEntityGalleryHref(tagNormalized: string): string | null {
+    return runSqliteRead('mediaService.getEntityGalleryHref', () => {
       const tagRow = queryTagIdsByNormalized([tagNormalized])[0];
       if (!tagRow) return null;
-      const rows = queryGalleryItemsByCriteria([tagRow.id], ENTITY_MEDIA_PREVIEW_LIMIT, 0);
-      if (rows.length === 0) return null;
-      const itemTagRows = queryCuratorMediaTags(rows.map((r) => r.id));
-      const { names: memberNamesBySlug } = collectMemberInfoForByTags(
-        itemTagRows.map((r) => r.tag_display));
-      const tagsByMediaId = new Map<string, TagChip[]>();
-      for (const tr of itemTagRows) {
-        const chip = shapeTagChip(
-          tr.tag_display,
-          viewer,
-          memberNamesBySlug,
-          () => tagToBrowseHref(tr.tag_normalized),
-        );
-        const list = tagsByMediaId.get(tr.media_id);
-        if (list) list.push(chip);
-        else tagsByMediaId.set(tr.media_id, [chip]);
-      }
-      const adapter = getMediaStorageAdapter();
-      const itemContextQuery = buildItemContextQueryString([tagRow.tag_normalized], [], 'upload_desc');
-      const items = rows.map((row) => {
-        const item = shapeItem(row, tagsByMediaId.get(row.id) ?? [], (k) => adapter.constructURL(k));
-        item.itemHref = `/media/item/${encodeURIComponent(item.mediaId)}?${itemContextQuery}`;
-        return item;
-      });
-      attachDestinations(items);
-      return {
-        items,
-        galleryHref: `/media/browse?context=${encodeURIComponent(stripHash(tagRow.tag_normalized))}`,
-      };
+      if (queryGalleryItemsByCriteria([tagRow.id], 1, 0).length === 0) return null;
+      return `/media/browse?context=${encodeURIComponent(stripHash(tagRow.tag_normalized))}`;
     });
   },
 

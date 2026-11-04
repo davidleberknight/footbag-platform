@@ -900,14 +900,14 @@ section { margin-top: var(--space-2xl); }
    and leave a wider gap at its foot than at its head. */
 .card > .card-meta:last-child { margin-bottom: 0; }
 
-/* A gallery card's cover photo: a short banner across the top of the card,
-   cropped to a fixed frame set before the picture arrives, so the grid does
-   not jump as covers of different shapes load and the cover stays a preview
-   rather than the bulk of the card. */
+/* A gallery card's cover photo across the top of the card, cropped to a fixed
+   shape declared before the picture arrives, so the grid does not jump as
+   covers of different shapes load. Gallery cards sit in the media tile grid,
+   so the cover stays a small preview rather than the bulk of the page. */
 .card-cover {
   display: block;
   width: 100%;
-  height: 160px;
+  aspect-ratio: 4 / 3;
   object-fit: cover;
   border-radius: var(--radius-sm);
   margin-bottom: var(--space-md);

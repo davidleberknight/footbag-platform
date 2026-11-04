@@ -1,9 +1,9 @@
 /**
  * Club detail page: the club's media block and its linked hashtag.
  *
- * When media carries a club's hashtag, the club page shows the newest items
- * and a button to the club's gallery, and the hashtag under the title links to
- * it. With no such media there is no block and the hashtag is a plain token.
+ * When media carries a club's hashtag, the club page shows a button to the
+ * club's gallery and no individual items, and the hashtag under the title links
+ * to it. With no such media there is no block and the hashtag is a plain token.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -68,16 +68,18 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /clubs/:key -- gallery link', () => {
-  it('shows the media block and a linked hashtag when media carries the club hashtag', async () => {
-    // Defect caught: a club with media shows none of it, or its hashtag does
-    // not lead to the club's gallery.
+  it('shows only the gallery button and a linked hashtag when media carries the club hashtag', async () => {
+    // Defect caught: a club with media gives no way into its gallery, its
+    // hashtag does not lead there, or the club page lists the items themselves.
     const app = createApp();
     const res = await request(app).get('/clubs/club_portland');
     expect(res.status).toBe(200);
-    const block = res.text.slice(res.text.indexOf('id="club-media"'));
-    expect(res.text).toContain('id="club-media"');
-    expect(block).toContain(`/media/item/${portlandMediaId}?`);
+    const start = res.text.indexOf('id="club-media"');
+    expect(start).toBeGreaterThan(-1);
+    const block = res.text.slice(start, res.text.indexOf('</section>', start));
     expect(block).toContain('href="/media/browse?context&#x3D;club_portland"');
+    expect(block).not.toContain('gallery-tile');
+    expect(res.text).not.toContain(portlandMediaId);
     expect(res.text).toMatch(
       /<p class="hero-hashtag"><a href="\/media\/browse\?context&#x3D;club_portland">#club_portland<\/a><\/p>/);
   });

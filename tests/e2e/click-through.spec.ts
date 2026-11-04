@@ -210,21 +210,25 @@ test('Tier-1 member shares four real photos and names their hashtags as a galler
   await expectImagesDecoded(images);
   const sharedIds = await tileItemIds(page.locator('.gallery-grid .gallery-tile'));
 
-  // The event's page shows the shared photos in its media block, links its
-  // whole gallery, and links its hashtag under the title to that gallery.
+  // The event's page links its gallery from its media block and from its
+  // hashtag under the title, and shows no items itself; the gallery the
+  // button opens holds the shared photos.
   const worldsGalleryHref = `/media/browse?context=${WORLDS_TAG.slice(1)}`;
   await page.goto(`/events/${WORLDS_TAG.slice(1)}`);
-  const eventTiles = page.locator('#event-media .gallery-tile');
-  // Catches: media carrying the event's hashtag missing from the event's page.
-  expect((await tileItemIds(eventTiles)).sort()).toEqual([...sharedIds].sort());
-  // Catches: event tiles whose thumbnails do not serve from the media store.
-  await expectImagesDecoded(eventTiles.locator('img'));
-  // Catches: the event's gallery button missing or leading somewhere other
-  // than the gallery locked to the event's hashtag.
-  await expect(page.locator(`#event-media a[href="${worldsGalleryHref}"]`)).toHaveCount(1);
   // Catches: the event's hashtag under its title not leading to its gallery
   // once media carries it.
   await expect(page.locator(`.hero .hero-hashtag a[href="${worldsGalleryHref}"]`)).toHaveCount(1);
+  // Catches: the event page listing individual items that belong in the gallery.
+  await expect(page.locator('#event-media .gallery-tile')).toHaveCount(0);
+  // Catches: the event's gallery button missing or leading somewhere other
+  // than the gallery locked to the event's hashtag.
+  await page.locator(`#event-media a[href="${worldsGalleryHref}"]`).click();
+  await expect(page).toHaveURL(new RegExp(`${worldsGalleryHref.replace('?', '\\?')}$`));
+  const eventTiles = page.locator('.gallery-grid .gallery-tile');
+  // Catches: media carrying the event's hashtag missing from the event's gallery.
+  expect((await tileItemIds(eventTiles)).sort()).toEqual([...sharedIds].sort());
+  // Catches: gallery tiles whose thumbnails do not serve from the media store.
+  await expectImagesDecoded(eventTiles.locator('img'));
 
   // The gallery card image before any choice is the newest photo's thumbnail.
   await page.goto(`/members/${slug}/galleries`);
@@ -340,22 +344,26 @@ test('the curator uploads two real video clips, one into a new Footbag Hacky gal
   await expect.poll(() => tiles.locator('img').first().evaluate((el) => (el as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
   const wellingtonIds = await tileItemIds(tiles);
 
-  // The club the clip is tagged with shows it on its page, links its whole
-  // gallery, and links its hashtag under the title to that gallery.
+  // The club the clip is tagged with links its gallery from its media block
+  // and its hashtag under the title, and shows no items itself; the gallery
+  // the button opens holds the clip.
   const clubGalleryHref = `/media/browse?context=${WELLINGTON_TAG.slice(1)}`;
   await page.goto(`/clubs/${WELLINGTON_TAG.slice(1)}`);
-  const clubTiles = page.locator('#club-media .gallery-tile');
-  // Catches: media carrying the club's hashtag missing from the club's page,
-  // or the clip without that hashtag shown there.
+  // Catches: the club's hashtag under its title not leading to its gallery.
+  await expect(page.locator(`.hero .hero-hashtag a[href="${clubGalleryHref}"]`)).toHaveCount(1);
+  // Catches: the club page listing individual items that belong in the gallery.
+  await expect(page.locator('#club-media .gallery-tile')).toHaveCount(0);
+  // Catches: the club's gallery button missing or leading elsewhere.
+  await page.locator(`#club-media a[href="${clubGalleryHref}"]`).click();
+  await expect(page).toHaveURL(new RegExp(`${clubGalleryHref.replace('?', '\\?')}$`));
+  const clubTiles = page.locator('.gallery-grid .gallery-tile');
+  // Catches: media carrying the club's hashtag missing from the club's
+  // gallery, or the clip without that hashtag shown there.
   expect(await tileItemIds(clubTiles)).toEqual(wellingtonIds);
   // Catches: the clip's tile not marked as a video to play.
   await expect(clubTiles.locator('.gallery-tile-video')).toHaveCount(1);
-  // Catches: a club tile whose poster does not serve from the media store.
+  // Catches: a gallery tile whose poster does not serve from the media store.
   await expectImagesDecoded(clubTiles.locator('img'));
-  // Catches: the club's gallery button missing or leading elsewhere.
-  await expect(page.locator(`#club-media a[href="${clubGalleryHref}"]`)).toHaveCount(1);
-  // Catches: the club's hashtag under its title not leading to its gallery.
-  await expect(page.locator(`.hero .hero-hashtag a[href="${clubGalleryHref}"]`)).toHaveCount(1);
 
   await context.close();
 });

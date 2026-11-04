@@ -2,10 +2,11 @@
  * Media featuring a player, kept apart from media they uploaded.
  *
  * A player hashtag says who appears in an item; the uploader hashtag says who
- * shared it. A person's page shows the newest media crediting them as a player
- * in its own block, with their player hashtag under their name linked to all of
- * it: a historical person by their record's folded name, a member by their own
- * slug. Media a member only uploaded never appears in that block. On another
+ * shared it. A person's page shows a button to the gallery of media crediting
+ * them as a player in its own block, with no individual items, and their player
+ * hashtag under their name linked to the same gallery: a historical person by
+ * their record's folded name, a member by their own slug. That gallery is the
+ * player hashtag's, never the member's uploader hashtag's. On another
  * member's profile the block is member-visible, like the member's uploads: an
  * anonymous visitor to an honoree's profile sees the honor record only.
  */
@@ -38,9 +39,11 @@ function cookieFor(memberId: string): string {
   return `__Host-footbag_session=${createTestSessionJwt({ memberId, role: 'member' })}`;
 }
 
+// The block runs from its id to the close of the gallery button's paragraph,
+// the last thing in it.
 function playerBlock(html: string): string {
   const start = html.indexOf('id="player-media"');
-  return start === -1 ? '' : html.slice(start, html.indexOf('</ul>', start));
+  return start === -1 ? '' : html.slice(start, html.indexOf('</p>', start));
 }
 
 beforeAll(async () => {
@@ -82,10 +85,12 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('historical player page', () => {
   it('shows media crediting the person and links their player hashtag to it', async () => {
-    // Defect caught: a credited player's page shows none of the media they appear in.
+    // Defect caught: a credited player's page gives no way into the media they
+    // appear in, or lists the items themselves instead of linking the gallery.
     const res = await request(createApp()).get(`/history/${HISTORICAL_ID}`);
     expect(res.status).toBe(200);
-    expect(playerBlock(res.text)).toContain(`/media/item/${creditedHistoricalMedia}?`);
+    expect(playerBlock(res.text)).toContain('href="/media/browse?context&#x3D;player_tuan_vu"');
+    expect(res.text).not.toContain(creditedHistoricalMedia);
     expect(res.text).toMatch(
       /<p class="hero-hashtag"><a href="\/media\/browse\?context&#x3D;player_tuan_vu">#player_tuan_vu<\/a><\/p>/);
   });
@@ -101,22 +106,23 @@ describe('historical player page', () => {
 
 describe('member profiles', () => {
   it('shows media crediting the member, never media they only uploaded, on their own profile', async () => {
-    // Defect caught: "featuring" and "uploaded by" merged, so a member's own
-    // uploads are presented as media they appear in, or credits are lost.
+    // Defect caught: "featuring" and "uploaded by" merged, so the block opens
+    // the member's uploads instead of the media they appear in, or lists items.
     const res = await request(createApp()).get(`/members/${MEMBER_SLUG}`)
       .set('Cookie', cookieFor('member-kim-lee'));
     expect(res.status).toBe(200);
     const block = playerBlock(res.text);
-    expect(block).toContain(`/media/item/${creditedMemberMedia}?`);
+    expect(block).toContain('href="/media/browse?context&#x3D;player_kim_lee"');
+    expect(block).not.toContain(`by_${MEMBER_SLUG}`);
+    expect(block).not.toContain(creditedMemberMedia);
     expect(block).not.toContain(uploadedOnlyMedia);
-    expect(res.text).toContain('href="/media/browse?context&#x3D;player_kim_lee"');
   });
 
   it('shows the block to another signed-in member', async () => {
     const res = await request(createApp()).get(`/members/${MEMBER_SLUG}`)
       .set('Cookie', cookieFor(VIEWER_ID));
     expect(res.status).toBe(200);
-    expect(playerBlock(res.text)).toContain(`/media/item/${creditedMemberMedia}?`);
+    expect(playerBlock(res.text)).toContain('href="/media/browse?context&#x3D;player_kim_lee"');
   });
 
   it('shows neither the block nor the player hashtag to an anonymous visitor of an honoree', async () => {

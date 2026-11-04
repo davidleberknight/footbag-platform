@@ -62,7 +62,6 @@ import {
   mediaService,
   type EntityHashtag,
   type EntityMediaBlock,
-  type ViewerContext,
 } from './mediaService';
 import { NotFoundError, ValidationError } from './serviceErrors';
 import { personHref } from './personLink';
@@ -533,7 +532,7 @@ export class EventService {
     });
   }
 
-  getPublicEventDetail(eventKey: string, viewer: ViewerContext): PublicEventPage {
+  getPublicEventDetail(eventKey: string): PublicEventPage {
     const normalizedStoredTag = normalizePublicEventKeyToStoredTag(eventKey);
     const rows = runSqliteRead('getPublicEventDetail', () => {
       const eventRow = publicEvents.getByStandardTag.get(normalizedStoredTag) as PublicEventDetailRow | undefined;
@@ -551,8 +550,8 @@ export class EventService {
     });
 
     // The media block shows only when media carries the event's hashtag.
-    const preview = mediaService.getEntityMediaPreview(normalizedStoredTag, viewer);
-    const media = preview ? { ...preview, buttonLabel: 'View Event Gallery' } : null;
+    const galleryHref = mediaService.getEntityGalleryHref(normalizedStoredTag);
+    const media = galleryHref ? { galleryHref, buttonLabel: 'View Event Gallery' } : null;
     return toPublicEventPage(rows.eventRow, rows.disciplineRows, rows.resultRows, media);
   }
 
@@ -633,8 +632,8 @@ export class EventService {
     };
   }
 
-  getPublicEventPage(eventKey: string, viewer: ViewerContext): PageViewModel<EventDetailContent> {
-    const detail = this.getPublicEventDetail(eventKey, viewer);
+  getPublicEventPage(eventKey: string): PageViewModel<EventDetailContent> {
+    const detail = this.getPublicEventDetail(eventKey);
     const year = detail.event.startDate.slice(0, 4);
     return {
       seo: { title: detail.event.standardTagDisplay },

@@ -1740,11 +1740,10 @@ export class ClubService {
 
       // The media block and the linked hashtag show only when media carries
       // the club's hashtag.
-      const preview = mediaService.getEntityMediaPreview(
-        row.tag_normalized, { authenticated: isAuthenticated });
-      if (preview) {
-        club.media = { ...preview, buttonLabel: 'View Club Gallery' };
-        club.hashtag = { display: club.hashtag.display, galleryHref: preview.galleryHref };
+      const galleryHref = mediaService.getEntityGalleryHref(row.tag_normalized);
+      if (galleryHref) {
+        club.media = { galleryHref, buttonLabel: 'View Club Gallery' };
+        club.hashtag = { display: club.hashtag.display, galleryHref };
       }
 
       if (viewerMemberId) {
