@@ -45,6 +45,7 @@ const WEBHOOK_SWEEP = 'tests/integration/paymentWebhook.fault-injection.sweep.te
 
 const ADDRESS_ONLY = 'builds a public address from a storage key; no call leaves the process';
 const CONSTRUCTS_SERVICE = 'hands the adapter to a service factory; the calls it makes are the factory\'s own sites below it';
+const CURATED_SAVE = 'writes the authoring file and then the database row; a database refusal puts the file back through the shared save flow, and a retry after that refusal is not yet injected';
 
 export const ADAPTER_SITES: AdapterSite[] = [
   // ── Payments ──────────────────────────────────────────────────────────────
@@ -163,6 +164,19 @@ export const ADAPTER_SITES: AdapterSite[] = [
     file: 'src/services/jwtService.ts', getter: 'getJwtSigningAdapter', operation: 'createSessionJwt',
     status: { noWriteAfter: 'signs a session token; the caller writes nothing that depends on the signature' },
   },
+
+  // ── Freestyle curation saves ──────────────────────────────────────────────
+  { file: 'src/services/freestyleCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'saveAlias', status: { pending: CURATED_SAVE } },
+  { file: 'src/services/freestyleCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'saveSourceLink', status: { pending: CURATED_SAVE } },
+  { file: 'src/services/freestyleCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'saveModifierLink', status: { pending: CURATED_SAVE } },
+  { file: 'src/services/freestyleCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'saveRulingResolution', status: { pending: CURATED_SAVE } },
+  { file: 'src/services/freestyleCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'saveAuthoredNotation', status: { pending: CURATED_SAVE } },
+  { file: 'src/services/freestyleCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'publishCanonicalTrick', status: { pending: CURATED_SAVE } },
+  { file: 'src/services/freestyleCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'updateTrickScalars', status: { pending: CURATED_SAVE } },
+  { file: 'src/services/freestyleCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'createSource', status: { pending: CURATED_SAVE } },
+  { file: 'src/services/freestyleRecordCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'saveRecordFile', status: { pending: CURATED_SAVE } },
+  { file: 'src/services/consecutiveKicksCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'deleteRow', status: { pending: CURATED_SAVE } },
+  { file: 'src/services/consecutiveKicksCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'saveRowFile', status: { pending: CURATED_SAVE } },
 ];
 
 /** Network calls a service makes without an adapter, each named here. */

@@ -154,7 +154,7 @@ export interface AppConfig {
   allowCuratedSidecarWrites: boolean;
   // Absolute path overriding the folder a freestyle curator save is written to,
   // so a test or the e2e stack never writes the committed inputs. Null when unset;
-  // a developer machine falls through to <repo-root>/freestyle/inputs/curator_saves.
+  // a developer machine falls through to the curator saves folder in the repository.
   curatorSavesDirOverride: string | null;
   // Absolute path overriding the curated-media root directory. Lets a
   // non-test process (the e2e stack) redirect curated reads and writes to
