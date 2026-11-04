@@ -373,6 +373,21 @@ def main() -> None:
             "canonical_only:\n" + "\n".join(listed_twice)
         )
 
+    # The persons load is an upsert, so a person_id the seed lists twice would let
+    # the second row overwrite the first without a word.
+    person_counts: dict[str, int] = defaultdict(int)
+    for row in seed_persons:
+        person_counts[row["person_id"]] += 1
+    persons_twice = sorted(pid for pid, n in person_counts.items() if n > 1)
+    if persons_twice:
+        raise SystemExit(
+            f"08 aborted: {len(persons_twice)} person_id(s) appear more than once in "
+            "seed_persons.csv, so one row would silently replace the other. Nothing was "
+            "changed. Rebuild the seed with run_pipeline.sh canonical_only, and if the "
+            "repeat survives, correct the person at its source "
+            "(overrides/person_aliases.csv):\n" + "\n".join(persons_twice)
+        )
+
     ts = now_iso()
     system_user = "seed_loader"
 

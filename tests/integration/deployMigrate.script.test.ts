@@ -35,10 +35,10 @@ const OPERATOR_SCRIPT = join(process.cwd(), 'scripts/deploy-migrate.sh');
 // Sent ahead of the remote half on the deploy's stream; the half reports through it.
 const REMOTE_REPORT_LIB = join(process.cwd(), 'scripts/lib/closing-report-remote.sh');
 
-/** The closing-report library the script sources, copied into a throwaway checkout. */
+/** The closing-report library and the deploy verdict the script sources, copied into a throwaway checkout. */
 function copyReportLibs(root: string): void {
   mkdirSync(join(root, 'scripts', 'lib'), { recursive: true });
-  for (const lib of ['closing-report.sh', 'closing-report-remote.sh', 'verdict-banner.sh']) {
+  for (const lib of ['closing-report.sh', 'closing-report-remote.sh', 'verdict-banner.sh', 'deploy-verdict.sh']) {
     copyFileSync(join(process.cwd(), 'scripts/lib', lib), join(root, 'scripts/lib', lib));
   }
 }

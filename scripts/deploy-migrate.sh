@@ -86,6 +86,11 @@ set -euo pipefail
 
 # shellcheck source=lib/closing-report.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/closing-report.sh"
+# The migration travels inside the code deploy's host half, so the verdict is the
+# deploy's own: whether the release, and the migration with it, is now live.
+# shellcheck source=lib/deploy-verdict.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/deploy-verdict.sh"
+cr_verdict_with deploy_verdict
 
 usage() {
   cat <<'USAGE'

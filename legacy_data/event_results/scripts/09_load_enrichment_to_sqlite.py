@@ -678,9 +678,6 @@ def main() -> None:
         ).fetchone()[0]
         print(f"  historical_persons (PROVISIONAL only): {provisional_count:,}")
 
-    print("\nNote: club_bootstrap_leaders not loaded.")
-    print("      Requires live clubs rows (FK NOT NULL). Next step: create clubs from")
-    print("      bootstrap-eligible candidates, then load bootstrap leaders.")
     print("\nDone.")
 
 

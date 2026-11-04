@@ -53,6 +53,11 @@ done
 # shellcheck source=scripts/lib/closing-report.sh
 source "${SCRIPT_DIR}/scripts/lib/closing-report.sh"
 
+# The verdict says in one word whether the site now runs this release.
+# shellcheck source=scripts/lib/deploy-verdict.sh
+source "${SCRIPT_DIR}/scripts/lib/deploy-verdict.sh"
+cr_verdict_with deploy_verdict
+
 # -----------------------------------------------------------------------------
 # Which environment. --target names it, as on every operator command, and is
 # staging when omitted: that is the deploy run every day, a forgotten flag lands

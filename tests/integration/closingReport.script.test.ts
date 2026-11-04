@@ -521,6 +521,54 @@ describe('closing report: a script that runs another script', () => {
   });
 });
 
+describe('closing report: facts and an outermost verdict', () => {
+  function child(name: string, lines: string[]): string {
+    const path = join(scratch, name);
+    writeFileSync(path, ['#!/usr/bin/env bash', 'set -euo pipefail', `source '${LIB}'`, ...lines, ''].join('\n'));
+    return path;
+  }
+  const VERDICT_FN = [
+    'pick() {',
+    '  if cr_has_fact went-live; then echo "LIVE errors=$1 status=$2"; else echo "NOT LIVE default=$3"; fi',
+    '}',
+    'cr_verdict_with pick',
+  ];
+
+  it('passes a grandchild\'s fact up to the outermost verdict', () => {
+    // Defect caught: a deploy whose leaf put the release live, two scripts down,
+    // ending on a verdict that says nothing was deployed.
+    const grand = child('grand.sh', ['cr_fact went-live', 'cr_finish']);
+    const middle = child('middle.sh', [`bash '${grand}'`, 'cr_finish']);
+    const res = run([...VERDICT_FN, `bash '${middle}'`, 'cr_finish']);
+    expect(res.exitCode).toBe(0);
+    expect(report(res.stderr)).toMatch(/VERDICT: LIVE errors=0 status=0 {3}\(exit 0\)/);
+    // A fact is read by the verdict, never listed as a problem or a proof.
+    expect(report(res.stderr)).not.toContain('went-live\n');
+  });
+
+  it('hands the verdict the error count and the status, and keeps the exit status', () => {
+    // Defect caught: a chosen verdict word masking a failed run's exit status, so
+    // a caller or CI step reads a failed deploy as a success.
+    const res = run([...VERDICT_FN, 'cr_fact went-live', 'cr_error "smoke failed"', 'cr_finish']);
+    expect(res.exitCode).toBe(1);
+    expect(report(res.stderr)).toMatch(/VERDICT: LIVE errors=1 status=1/);
+    expect(report(res.stderr)).toContain('smoke failed');
+  });
+
+  it('gives the verdict the word the library would have printed', () => {
+    // Defect caught: a verdict function that cannot fall back to the library's
+    // own reading when its facts are absent.
+    const res = run([...VERDICT_FN, 'cr_warn "slow"', 'cr_finish']);
+    expect(report(res.stderr)).toMatch(/VERDICT: NOT LIVE default=DONE WITH WARNINGS/);
+  });
+
+  it('leaves the word alone in a run that names no verdict function', () => {
+    // Defect caught: every other operator script losing its DONE or FAILED.
+    const res = run(['cr_fact went-live', 'cr_finish']);
+    expect(report(res.stderr)).toMatch(/VERDICT: DONE {3}\(exit 0\)/);
+  });
+});
+
 describe('closing report: a deliberate non-zero end', () => {
   it('ends on the chosen status and verdict, listing no error, when nothing went wrong', () => {
     // Defect caught: a "pending" exit a caller branches on reading as FAILED

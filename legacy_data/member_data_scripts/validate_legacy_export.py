@@ -97,12 +97,12 @@ def validate(csv_path: Path, db_path: Path | None,
                "export genuinely lacks the account)" if missing else "")))
         if ruled:
             results.append((
-                "G5 note: linked ids absent from the export, ruled keep in the member-row dispositions",
+                "G5 accepted: linked ids not in the export, ruled keep in the member-row dispositions",
                 True,
                 f"{len(ruled)}: {ruled[:5]}"))
         if stubs:
             results.append((
-                "G5 note: non-integer linked ids in historical_persons (stubs, never real accounts)",
+                "G5 accepted: non-integer linked ids in historical_persons (stubs, never real accounts)",
                 True,
                 f"{len(stubs)}: {stubs[:5]}"))
     else:

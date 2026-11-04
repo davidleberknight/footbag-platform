@@ -631,51 +631,40 @@ check_canonical_freshness() {
   local ci_dir="${REPO_ROOT}/legacy_data/event_results/canonical_input"
   [[ -d "$ci_dir" ]] || return 0
 
-  local ci_oldest
-  # SIGPIPE-safe "first line" idiom: do NOT replace `awk 'NR==1'` with
-  # `head -1`.
-  #
-  # `head -N` closes its stdin after reading N lines. If the upstream
-  # producer (`sort` here) is still writing (which can happen on slow
-  # filesystems, under heavy parallel load, or non-deterministically at
-  # large fan-in) the producer's next write receives SIGPIPE. With
-  # `set -o pipefail` active, the pipeline's exit code becomes the
-  # SIGPIPE exit (128 + 13 = 141), `set -e` aborts the script, and the
-  # `[[ -n "$ci_oldest" ]]` empty-check below never runs.
-  #
-  # `awk 'NR==1'` reads stdin to EOF (printing only the first line as a
-  # side effect), so the upstream never SIGPIPEs. Output is identical;
-  # the only cost is reading the rest of the (small) input. Do NOT swap
-  # in `awk 'NR==1 {print; exit}'`: `exit` reintroduces the same
-  # early-close race. If you need the LAST line instead, GNU `tail -N`
-  # is safe because it buffers and reads stdin to EOF before emitting.
-  ci_oldest=$(find "$ci_dir" -maxdepth 1 -name '*.csv' -printf '%T@\n' 2>/dev/null | sort -n | awk 'NR==1')
-  [[ -n "$ci_oldest" ]] || return 0
+  # The pipeline inputs and code the canonical CSVs are generated from. A change
+  # to any of them that the CSVs were not regenerated after is what this warns of.
+  # It is judged from git, not from file times: a checkout, a stash or a branch
+  # switch rewrites the times of files whose content did not change, which made
+  # a time comparison warn on a tree that was in step.
+  local inputs=(
+    legacy_data/pipeline
+    legacy_data/overrides
+    legacy_data/inputs/curated
+    legacy_data/inputs/identity_lock
+    legacy_data/inputs/canonical_discipline_fixes.csv
+  )
+  local ci_rel="legacy_data/event_results/canonical_input"
+  local dirty inputs_ts ci_ts git_err
+  git_err="$(mktemp "$(_cr_tmp)/freshness.XXXXXX")"
 
-  local inputs_latest
-  # See sibling pipeline above for the awk-vs-head rationale.
-  inputs_latest=$({
-    find "${REPO_ROOT}/legacy_data/pipeline" -name '*.py' -type f -printf '%T@\n' 2>/dev/null
-    find "${REPO_ROOT}/legacy_data/overrides" -type f -printf '%T@\n' 2>/dev/null
-    find "${REPO_ROOT}/legacy_data/inputs/curated" -type f -printf '%T@\n' 2>/dev/null
-    find "${REPO_ROOT}/legacy_data/inputs/identity_lock" -type f -printf '%T@\n' 2>/dev/null
-    stat -c '%Y' "${REPO_ROOT}/legacy_data/inputs/canonical_discipline_fixes.csv" 2>/dev/null
-  } | sort -rn | awk 'NR==1')
-  [[ -n "$inputs_latest" ]] || return 0
+  if ! dirty="$(git -C "$REPO_ROOT" status --porcelain -- "${inputs[@]}" 2>"$git_err")" \
+    || ! inputs_ts="$(git -C "$REPO_ROOT" log -1 --format=%ct -- "${inputs[@]}" 2>"$git_err")" \
+    || ! ci_ts="$(git -C "$REPO_ROOT" log -1 --format=%ct -- "$ci_rel" 2>"$git_err")"; then
+    cr_warn "could not tell whether the canonical CSVs are in step with the pipeline inputs: $(tail -n 1 "$git_err")"
+    return 0
+  fi
 
-  if awk -v a="$inputs_latest" -v b="$ci_oldest" 'BEGIN{exit !(a > b)}'; then
-    echo "" >&2
-    echo "------------------------------------------------------------------------" >&2
-    cr_warn "canonical CSVs are older than pipeline inputs or code; the deploy uses the committed canonical_input CSVs."
-    echo "" >&2
-    echo "  Oldest canonical_input csv:    $(date -d @${ci_oldest%.*} '+%Y-%m-%d %H:%M:%S')" >&2
-    echo "  Newest pipeline input or code: $(date -d @${inputs_latest%.*} '+%Y-%m-%d %H:%M:%S')" >&2
-    echo "" >&2
-    echo "  The deploy will proceed with the committed canonical_input CSVs." >&2
-    echo "  Recommendation: refresh the CSVs upstream (legacy_data owner)" >&2
+  if [[ -n "$dirty" ]]; then
+    cr_warn "pipeline inputs or code have uncommitted changes the committed canonical_input CSVs do not reflect; the deploy uses the committed CSVs."
+    echo "$dirty" | sed 's/^/    /' >&2
+    echo "  Recommendation: regenerate the CSVs upstream (legacy_data owner), or" >&2
+    echo "  set the changes aside, before deploying if they matter." >&2
+  elif [[ -n "$inputs_ts" && -n "$ci_ts" ]] && (( inputs_ts > ci_ts )); then
+    cr_warn "pipeline inputs or code were committed after the canonical_input CSVs were last regenerated; the deploy uses the committed CSVs."
+    echo "  Last canonical_input commit:          $(date -d "@${ci_ts}" '+%Y-%m-%d %H:%M:%S')" >&2
+    echo "  Last pipeline input or code commit:   $(date -d "@${inputs_ts}" '+%Y-%m-%d %H:%M:%S')" >&2
+    echo "  Recommendation: regenerate the CSVs upstream (legacy_data owner)" >&2
     echo "  before deploying if the gap matters." >&2
-    echo "------------------------------------------------------------------------" >&2
-    echo "" >&2
   fi
 }
 

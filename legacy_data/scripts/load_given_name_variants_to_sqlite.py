@@ -40,12 +40,12 @@ def db_normalize(s):
     return ' '.join(s.split())
 
 
-def load(db_path):
-    if not os.path.exists(SOURCE_CSV):
-        print(f"ERROR: source CSV not found: {SOURCE_CSV}", file=sys.stderr)
+def load(db_path, source_csv=SOURCE_CSV):
+    if not os.path.exists(source_csv):
+        print(f"ERROR: source CSV not found: {source_csv}", file=sys.stderr)
         sys.exit(1)
 
-    with open(SOURCE_CSV, newline='', encoding='utf-8') as f:
+    with open(source_csv, newline='', encoding='utf-8') as f:
         rows = list(csv.DictReader(f))
 
     print(f"Source rows read: {len(rows)}")
@@ -57,6 +57,9 @@ def load(db_path):
 
     inserted = 0
     skipped = 0
+    # A pair the file repeats is already loaded, so the database is right, but
+    # it is counted under its own name rather than as an insert.
+    repeated = 0
     for row in rows:
         short = db_normalize(row.get('short_form', ''))
         long = db_normalize(row.get('long_form', ''))
@@ -64,12 +67,15 @@ def load(db_path):
             print(f"  SKIP: invalid pair ({row})", file=sys.stderr)
             skipped += 1
             continue
-        con.execute(
+        cur = con.execute(
             "INSERT OR IGNORE INTO given_name_variants "
             "(short_form_normalized, long_form_normalized) VALUES (?, ?)",
             (short, long),
         )
-        inserted += 1
+        if cur.rowcount:
+            inserted += 1
+        else:
+            repeated += 1
 
     con.commit()
     con.close()
@@ -77,6 +83,8 @@ def load(db_path):
     print(f"Rows inserted: {inserted}")
     if skipped:
         print(f"Rows skipped:  {skipped}")
+    if repeated:
+        print(f"Repeated pairs (already loaded): {repeated}")
     print(f"Database: {db_path}")
 
 
@@ -84,6 +92,8 @@ def main():
     parser = argparse.ArgumentParser(
         description='Load given_name_variants into SQLite.')
     parser.add_argument('--db', required=True, help='Path to footbag.db')
+    parser.add_argument('--csv', default=SOURCE_CSV,
+                        help='Path to the curated pairs (default: the committed file)')
     args = parser.parse_args()
 
     db_path = os.path.expanduser(args.db)
@@ -92,7 +102,7 @@ def main():
         print(f"ERROR: database not found: {db_path}", file=sys.stderr)
         sys.exit(1)
 
-    load(db_path)
+    load(db_path, args.csv)
 
 
 if __name__ == '__main__':

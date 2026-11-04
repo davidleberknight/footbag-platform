@@ -43,6 +43,17 @@
 #   cr_proved <what>, cr_unproved <what>
 #                                   the closing lines: what was checked and what
 #                                   was not, so no outcome is claimed unchecked
+#   cr_fact <name>, cr_has_fact <name>
+#                                   a named fact about how far the run got (a
+#                                   release went live, say), passed up from a
+#                                   nested run like its lists and never printed;
+#                                   the verdict reads it
+#   cr_verdict_with <function>      the outermost run's own verdict word: at the
+#                                   end the function is called with the error
+#                                   count, the exit status and the word the
+#                                   library would print, and prints the word to
+#                                   use. The lists and the exit status are
+#                                   unchanged; a nested run ignores it
 #   cr_cleanup <cmd...>             registered cleanup, run once at exit, newest
 #                                   first; a failing cleanup is a warning
 #   cr_finish                       ends the run with the report
@@ -88,6 +99,8 @@ CR_WARNINGS=()
 CR_PROVED=()
 CR_UNPROVED=()
 CR_CLEANUPS=()
+CR_FACTS=()
+_CR_VERDICT_FN=""
 _CR_FINISHING=0
 # Made once, here in the script's own shell: a directory first made inside a
 # command substitution would be known only to that subshell and never removed.
@@ -142,6 +155,7 @@ _cr_fold() {
       WARN) CR_WARNINGS+=("$line") ;;
       PROVED) CR_PROVED+=("$line") ;;
       UNPROVED) CR_UNPROVED+=("$line") ;;
+      FACT) CR_FACTS+=("$line") ;;
     esac
   done < "$file"
 }
@@ -153,6 +167,18 @@ cr_die() {
 
 cr_proved() { CR_PROVED+=("$*"); }
 cr_unproved() { CR_UNPROVED+=("$*"); }
+
+cr_fact() { CR_FACTS+=("$1"); }
+
+cr_has_fact() {
+  local fact
+  for fact in "${CR_FACTS[@]+"${CR_FACTS[@]}"}"; do
+    [[ "$fact" == "$1" ]] && return 0
+  done
+  return 1
+}
+
+cr_verdict_with() { _CR_VERDICT_FN="$1"; }
 
 cr_cleanup() {
   local cmd
@@ -370,6 +396,8 @@ _cr_report_to_caller() {
     for item in "${CR_WARNINGS[@]+"${CR_WARNINGS[@]}"}"; do printf 'WARN\t%s: %s\n' "$name" "$item"; done
     for item in "${CR_PROVED[@]+"${CR_PROVED[@]}"}"; do printf 'PROVED\t%s: %s\n' "$name" "$item"; done
     for item in "${CR_UNPROVED[@]+"${CR_UNPROVED[@]}"}"; do printf 'UNPROVED\t%s: %s\n' "$name" "$item"; done
+    # A fact is a name the outermost run tests for, so it travels unprefixed.
+    for item in "${CR_FACTS[@]+"${CR_FACTS[@]}"}"; do printf 'FACT\t%s\n' "$item"; done
   } >> "$FOOTBAG_CR_REPORT_TO"
   printf '==== %s: %d error(s), %d warning(s), exit %s; listed in the closing report of the run that started it ====\n' \
     "$name" "${#CR_ERRORS[@]}" "${#CR_WARNINGS[@]}" "$final" >&2
@@ -430,6 +458,9 @@ _cr_on_exit() {
     word="DONE WITH WARNINGS"
   else
     word=DONE
+  fi
+  if [[ -n "$_CR_VERDICT_FN" ]]; then
+    word="$("$_CR_VERDICT_FN" "${#CR_ERRORS[@]}" "$final" "$word")"
   fi
   verdict_banner "$word" "$final" \
     "${#CR_ERRORS[@]} error(s), ${#CR_WARNINGS[@]} warning(s)" >&2

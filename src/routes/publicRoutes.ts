@@ -51,6 +51,7 @@ publicRouter.get('/',      homeController.home);
 // Login-gated hop to the archive landing page, for deployments where the
 // archive edge cannot share the platform session cookie.
 publicRouter.get('/archive', requireMember, homeController.archiveRedirect);
+publicRouter.get('/forum',   homeController.forumRedirect);
 publicRouter.get('/clubs',                  clubController.index);
 publicRouter.post('/clubs/make-primary',    requireMember, clubController.postMakePrimary);
 publicRouter.get('/clubs/create',           requireMember, requireMayCreateClub(), clubController.getCreate);

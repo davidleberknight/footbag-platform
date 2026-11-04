@@ -18,6 +18,7 @@ export const ROUTE_STORIES: Readonly<Record<string, RouteStory>> = {
   // Public site
   'GET /': { stories: ['V_Browse_Static_Content'] },
   'GET /archive': { stories: ['M_Browse_Legacy_Archive'] },
+  'GET /forum': { none: 'needs-ruling', why: 'Short link that redirects to the off-site community forum, which no user story names or gives success criteria.' },
   'GET /clubs': { stories: ['V_Browse_Clubs'] },
   'POST /clubs/make-primary': { stories: ['M_Leave_Club'] },
   'GET /clubs/create': { stories: ['M_Create_Club'] },

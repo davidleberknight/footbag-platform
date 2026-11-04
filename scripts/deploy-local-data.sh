@@ -297,7 +297,10 @@ run_from_csv() {
 
 run_db_only() {
   echo "==> deploy-local-data: --db-only"
-  cr_warn "--db-only skips phase C/D/E/F/G enrichment; use --from-csv if you need those tables populated."
+  # The skip is what --db-only asks for, so it is listed among what the run did
+  # not build rather than as a warning, which would make every such build read
+  # as having met a problem.
+  cr_unproved "the phase C/D/E/F/G enrichment tables: --db-only does not build them; use --from-csv if you need them populated"
   # reset-local-db.sh is mirror-free as of the deploy-script cleanup; it
   # reads committed seed CSVs (legacy_data/seed/clubs.csv,
   # legacy_data/seed/club_members.csv) instead of re-extracting from mirror.

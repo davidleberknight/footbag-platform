@@ -75,6 +75,21 @@ def test_a_participant_the_seed_loader_cannot_store_stops_the_load(tmp_path: Pat
     assert _count(db, "events") == 0  # nothing committed
 
 
+def test_a_person_the_seed_lists_twice_stops_the_load(tmp_path: Path) -> None:
+    # Defect caught: two seed rows for one person_id, the second silently replacing
+    # the first through the persons upsert, with the load reported done.
+    db = _db(tmp_path)
+    seed = fixtures.build_mvfp_seed(tmp_path / "seed")
+    persons = seed / "seed_persons.csv"
+    rows = list(csv.DictReader(persons.open(encoding="utf-8")))
+    fields = list(rows[0].keys())
+    _write(persons, rows + [dict(rows[0])], fields)
+    r = _run([str(SEED_LOADER), "--db", str(db), "--seed-dir", str(seed), "--no-backup"])
+    assert r.returncode != 0
+    assert rows[0]["person_id"] in (r.stdout + r.stderr), "the refusal must name the person"
+    assert _count(db, "events") == 0  # nothing committed
+
+
 def test_a_complete_seed_still_loads(tmp_path: Path) -> None:
     db = _db(tmp_path)
     seed = fixtures.build_mvfp_seed(tmp_path / "seed")

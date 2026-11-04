@@ -31,6 +31,14 @@ import {
   shownButRefusedFinding,
 } from './oracles';
 
+/**
+ * Off-site origins the site itself redirects to on purpose, from a fixed
+ * target no request input can change: the community forum behind /forum.
+ * Every crawl allows them; the replay of path-carrying query parameters still
+ * catches a redirect that reflects request input to any other origin.
+ */
+const SITE_OFFSITE_REDIRECT_ORIGINS: readonly string[] = ['https://modified.in'];
+
 export interface CrawlResponse {
   status: number;
   /** Lower-cased header names; multi-valued headers joined by ', '. */
@@ -291,7 +299,8 @@ export async function crawl(opts: CrawlOptions): Promise<CrawlResult> {
 
   const checkLocation = (res: CrawlResponse, url: string, via: string): string | null => {
     const location = res.headers.location ?? '';
-    const offsite = openRedirectFinding(location, opts.selfOrigin, opts.allowedRedirectOrigins ?? []);
+    const offsite = openRedirectFinding(location, opts.selfOrigin,
+      [...SITE_OFFSITE_REDIRECT_ORIGINS, ...(opts.allowedRedirectOrigins ?? [])]);
     if (offsite) add('open-redirect', url, via, offsite);
     return normalize(location);
   };

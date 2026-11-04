@@ -22,7 +22,10 @@ and can recreate, so it needs no apply flag, audit CSV or rollback SQL. It still
 - writes each table set in one transaction, committed once, so a failure leaves no half-loaded table;
 - replaces a pipeline-regenerated table with DELETE + INSERT inside that transaction, scoping the
   DELETE where owners share a table (the loader contract in `legacy_data/CLAUDE.md`);
-- refuses on a missing input or unmet precondition rather than skipping rows.
+- refuses on a missing input or unmet precondition rather than skipping rows;
+- refuses, before writing, an input in which two rows share a key the table holds once: under
+  `INSERT OR IGNORE` or an upsert the second row is otherwise silently dropped or overwrites the
+  first.
 
 ## In-place patches
 

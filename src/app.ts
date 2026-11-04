@@ -43,6 +43,9 @@ const NAV_SECTIONS: ReadonlyArray<{ href: string; section: string; label: string
   { href: '/hof',       section: 'hof',       label: 'HoF' },
   { href: '/bap',       section: 'bap',       label: 'BAP' },
   { href: '/media',     section: 'media',     label: 'Media' },
+  // /forum redirects off-site and never renders a page here, so it has no
+  // branch in the active-section mapping below and is never marked active.
+  { href: '/forum',     section: 'forum',     label: 'Forum' },
 ];
 
 /**

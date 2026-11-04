@@ -3,6 +3,8 @@ import { homeService } from '../services/homeService';
 import { handleControllerError } from '../lib/controllerErrors';
 import { config } from '../config/env';
 
+const FORUM_URL = 'https://modified.in/';
+
 export const homeController = {
   home(_req: Request, res: Response, next: NextFunction): void {
     try {
@@ -24,5 +26,11 @@ export const homeController = {
       return;
     }
     res.redirect(303, config.archiveUrl);
+  },
+
+  // The community forum is hosted off-site; /forum is the stable short link
+  // to it. The target is a fixed constant, never derived from request input.
+  forumRedirect(_req: Request, res: Response): void {
+    res.redirect(303, FORUM_URL);
   },
 };

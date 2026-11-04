@@ -19,7 +19,7 @@
  */
 import { describe, it, expect, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
@@ -233,10 +233,11 @@ describe.each(['scripts/deploy-code.sh', 'scripts/deploy-rebuild.sh'])('%s lists
 });
 
 describe('scripts/deploy-rebuild.sh ends on its report', () => {
-  // Defect caught: the warning that the live database was replaced printed after
-  // the completion message, where the closing report would push it off the
-  // screen, and missing from the report the operator reads.
-  it('lists the replaced database in the closing report, with nothing printed after it', () => {
+  // Defect caught: the replaced live database printed after the completion
+  // message, where the closing report would push it off the screen, missing from
+  // the report the operator reads, or counted as a warning on a deploy that did
+  // what was asked, so a clean rebuild never reads clean.
+  it('lists the replaced database in the closing report as done, with nothing printed after it', () => {
     const dir = world();
     const r = runScript(dir, [
       'set -euo pipefail',
@@ -248,7 +249,220 @@ describe('scripts/deploy-rebuild.sh ends on its report', () => {
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).not.toContain('AFTER-THE-REPORT');
     expect(r.stdout).not.toMatch(/WARNING/);
-    expect(report(r.stderr)).toMatch(/Warnings \(1\):\n {2}- the live database on footbag-staging was replaced from scratch/);
+    expect(report(r.stderr)).toMatch(/No errors or warnings\./);
+    expect(report(r.stderr)).toMatch(/Proven:\n {2}- the live database on footbag-staging was replaced from scratch/);
+  });
+});
+
+const DEPLOY_VERDICT_LIB = join(REPO_ROOT, 'scripts/lib/deploy-verdict.sh');
+/** The shared deploy verdict, registered as the entry points register it. */
+const VERDICT_SETUP = [`source ${JSON.stringify(DEPLOY_VERDICT_LIB)}`, 'cr_verdict_with deploy_verdict'];
+
+describe('every entry point that deploys a release ends on the deploy verdict', () => {
+  // Defect caught: an entry point that puts a release live (a migration deploy,
+  // say) ending on DONE, so its operator cannot tell whether the release and the
+  // migration with it are live.
+  it.each([
+    ['deploy_to_aws.sh', 'scripts/lib/deploy-verdict.sh'],
+    ['scripts/deploy-migrate.sh', 'lib/deploy-verdict.sh'],
+  ])('%s sources the shared verdict and registers it', (rel, sourced) => {
+    const text = read(rel);
+    expect(text).toContain(`${sourced}"`);
+    expect(text).toMatch(/^cr_verdict_with deploy_verdict$/m);
+  });
+});
+
+describe('deploy_to_aws.sh ends on whether the release was deployed', () => {
+  const HANDOFF_FROM = '_orchestrator_rc=0';
+
+  /** Runs the shipped verdict and hand-off over an orchestrator that records `facts`, optionally errs, and exits `code`. */
+  function drive(facts: string[], opts: { error?: boolean; code?: number; noHandoff?: boolean } = {}) {
+    const dir = world();
+    const orchestrator = join(dir, 'deploy-to-aws.sh');
+    writeFileSync(orchestrator, [
+      `source ${JSON.stringify(REPORT_LIB)}`,
+      ...facts.map((f) => `cr_fact ${f}`),
+      opts.error ? 'cr_error "post-deploy smoke check failed"' : ':',
+      opts.code ? `exit ${opts.code}` : 'cr_finish',
+    ].join('\n') + '\n');
+    const credential = join(dir, 'credential');
+    writeFileSync(credential, 'file-password\n');
+    const lines = read('deploy_to_aws.sh').split('\n');
+    const start = lines.indexOf(HANDOFF_FROM);
+    expect(start, 'the hand-off was not found in the wrapper').toBeGreaterThan(-1);
+    return runScript(dir, [
+      'set -euo pipefail',
+      `source ${JSON.stringify(REPORT_LIB)}`,
+      ...VERDICT_SETUP,
+      ...(opts.noHandoff
+        ? ['cr_error "--target must be staging or production"', 'exit 2']
+        : [
+          `ORCHESTRATOR=${JSON.stringify(orchestrator)}`,
+          'PROD_PASSWORD_TYPED=0',
+          `OPERATOR_CREDENTIAL_FILE=${JSON.stringify(credential)}`,
+          'PROD_MEDIA_ARGS=()',
+          ...lines.slice(start),
+        ]),
+    ]);
+  }
+
+  // Defect caught: a deploy whose release went live ending on anything but
+  // DEPLOYED, so the operator cannot tell from the last line that it worked.
+  it('reads DEPLOYED when the release went live and nothing failed', () => {
+    const r = drive(['host-half-started', 'release-live']);
+    expect(r.status, r.stderr).toBe(0);
+    expect(report(r.stderr)).toMatch(/## VERDICT: DEPLOYED {3}\(exit 0\)/);
+  });
+
+  // Defect caught: a live release whose smoke check then failed reported as not
+  // deployed, so the operator believes the old release is still serving.
+  it('reads DEPLOYED, BUT A CHECK FAILED when a check failed after the release went live', () => {
+    const r = drive(['host-half-started', 'release-live'], { error: true, code: 1 });
+    expect(r.status).toBe(1);
+    expect(report(r.stderr)).toMatch(/## VERDICT: DEPLOYED, BUT A CHECK FAILED {3}\(exit 1\)/);
+  });
+
+  // Defect caught: a host half that stopped part-way, with no release to roll
+  // back to, reported as cleanly not deployed when the host may already be changed.
+  it('reads DEPLOY FAILED PART-WAY when the host half started and did not finish', () => {
+    const r = drive(['host-half-started'], { code: 1 });
+    expect(r.status).toBe(1);
+    expect(report(r.stderr)).toMatch(/## VERDICT: DEPLOY FAILED PART-WAY: CHECK THE SITE {3}\(exit 1\)/);
+  });
+
+  // Defect caught: a first install, which serves nothing until the restore,
+  // reported as deployed.
+  it('reads INSTALLED, NOT YET SERVING on a first install', () => {
+    const r = drive(['host-half-started', 'release-installed']);
+    expect(r.status, r.stderr).toBe(0);
+    expect(report(r.stderr)).toMatch(/## VERDICT: INSTALLED, NOT YET SERVING {3}\(exit 0\)/);
+  });
+
+  // Defect caught: a first install that then failed read as installed cleanly.
+  it('does not read INSTALLED when a first install also met an error', () => {
+    const r = drive(['host-half-started', 'release-installed'], { error: true, code: 1 });
+    expect(report(r.stderr)).toMatch(/## VERDICT: DEPLOY FAILED PART-WAY: CHECK THE SITE {3}\(exit 1\)/);
+  });
+
+  // Defect caught: a dry run, or a refusal before anything reached the host,
+  // reading as done, so an operator walks away from a deploy that never happened.
+  it.each([
+    ['a dry run that finishes clean', { code: 0 }],
+    ['a failure before the host was touched', { code: 3 }],
+    ['a refusal in the wrapper before the hand-off', { noHandoff: true }],
+  ])('reads NOT DEPLOYED for %s', (_why, opts) => {
+    const r = drive([], opts);
+    expect(report(r.stderr)).toMatch(/## VERDICT: NOT DEPLOYED {3}\(exit \d+\)/);
+  });
+});
+
+describe('the deploy leaves record how far the host half got', () => {
+  /** The shipped stretch around a leaf's host half, its verdict read by the wrapper's own function. */
+  function leaf(rel: string, half: 'ok' | 'fail', firstInstall = 0) {
+    const dir = world();
+    return runScript(dir, [
+      'set -euo pipefail',
+      `source ${JSON.stringify(REPORT_LIB)}`,
+      ...VERDICT_SETUP,
+      'REMOTE=footbag-staging; FOOTBAG_ENV=staging; REMOTE_HALF_ERRORS=ERROR; REMOTE_HALF_WARNINGS=WARNING',
+      `FIRST_INSTALL=${firstInstall}`,
+      half === 'ok' ? 'send_remote_half() { :; }' : 'send_remote_half() { return 4; }',
+      stretch(rel, 'cr_fact host-half-started', 'cr_fact release-live'),
+      'cr_finish',
+    ]);
+  }
+
+  // Defect caught: the live fact recorded before the host half ran, so a
+  // failed host half reads DEPLOYED, or never recorded, so a good one does not.
+  it.each(['scripts/deploy-code.sh', 'scripts/deploy-rebuild.sh'])('%s: live only once its host half succeeds', (rel) => {
+    expect(report(leaf(rel, 'ok').stderr)).toMatch(/## VERDICT: DEPLOYED {3}\(exit 0\)/);
+    expect(report(leaf(rel, 'fail').stderr)).toMatch(/## VERDICT: DEPLOY FAILED PART-WAY: CHECK THE SITE/);
+  });
+
+  // Defect caught: a first install, which leaves nothing serving, recorded as live.
+  it('scripts/deploy-code.sh: a first install is installed, not live', () => {
+    expect(report(leaf('scripts/deploy-code.sh', 'ok', 1).stderr)).toMatch(/## VERDICT: INSTALLED, NOT YET SERVING/);
+  });
+});
+
+describe('scripts/deploy-to-aws.sh judges the canonical CSVs from git', () => {
+  const INPUT = 'legacy_data/pipeline/stage.py';
+  const CANONICAL = 'legacy_data/event_results/canonical_input/events.csv';
+
+  /** A throwaway repository holding one pipeline input and one canonical CSV, committed together. */
+  function repo(): { dir: string; git: (args: string[], env?: NodeJS.ProcessEnv) => void } {
+    const dir = world();
+    const git = (args: string[], env: NodeJS.ProcessEnv = {}) => {
+      const res = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.invalid',
+        '-c', 'commit.gpgsign=false', ...args], {
+        cwd: dir, encoding: 'utf8', env: { ...process.env, ...env }, ...SPAWN_GUARD,
+      });
+      expect(res.status, res.stderr).toBe(0);
+    };
+    git(['init', '-q']);
+    for (const rel of [INPUT, CANONICAL]) {
+      mkdirSync(join(dir, rel, '..'), { recursive: true });
+      writeFileSync(join(dir, rel), 'v1\n');
+    }
+    const at = { GIT_AUTHOR_DATE: '2026-01-01T00:00:00Z', GIT_COMMITTER_DATE: '2026-01-01T00:00:00Z' };
+    git(['add', '-A'], at);
+    git(['commit', '-q', '-m', 'together'], at);
+    return { dir, git };
+  }
+
+  function check(dir: string) {
+    return runScript(dir, [
+      'set -euo pipefail',
+      `source ${JSON.stringify(REPORT_LIB)}`,
+      `REPO_ROOT=${JSON.stringify(dir)}`,
+      stretch('scripts/deploy-to-aws.sh', 'check_canonical_freshness() {', '}'),
+      'check_canonical_freshness',
+      'cr_finish',
+    ]);
+  }
+
+  // Defect caught: the false alarm this replaced, where a checkout that rewrote
+  // file times warned on a tree whose inputs and CSVs were committed in step.
+  it('stays quiet when the inputs and the CSVs were committed together, whatever the file times', () => {
+    const { dir } = repo();
+    const future = new Date('2030-01-01T00:00:00Z');
+    utimesSync(join(dir, INPUT), future, future);
+    const r = check(dir);
+    expect(r.status, r.stderr).toBe(0);
+    expect(report(r.stderr)).toMatch(/No errors or warnings\./);
+  });
+
+  // Defect caught: an uncommitted pipeline change the shipped CSVs do not reflect
+  // going unmentioned.
+  it('warns when a pipeline input has uncommitted changes', () => {
+    const { dir } = repo();
+    writeFileSync(join(dir, INPUT), 'v2\n');
+    const r = check(dir);
+    expect(r.status, r.stderr).toBe(0);
+    expect(report(r.stderr)).toMatch(/Warnings \(1\):\n {2}- pipeline inputs or code have uncommitted changes/);
+    expect(r.stderr).toContain(INPUT);
+  });
+
+  // Defect caught: a pipeline change committed without regenerating the CSVs
+  // going unmentioned.
+  it('warns when a pipeline input was committed after the CSVs', () => {
+    const { dir, git } = repo();
+    writeFileSync(join(dir, INPUT), 'v2\n');
+    const later = { GIT_AUTHOR_DATE: '2026-02-01T00:00:00Z', GIT_COMMITTER_DATE: '2026-02-01T00:00:00Z' };
+    git(['commit', '-q', '-am', 'later'], later);
+    const r = check(dir);
+    expect(r.status, r.stderr).toBe(0);
+    expect(report(r.stderr)).toMatch(/Warnings \(1\):\n {2}- pipeline inputs or code were committed after the canonical_input CSVs/);
+  });
+
+  // Defect caught: a git failure read as "in step", so the check passes silently
+  // where it could not look.
+  it('warns with git\'s own words when it cannot read the repository', () => {
+    const dir = world();
+    mkdirSync(join(dir, 'legacy_data/event_results/canonical_input'), { recursive: true });
+    const r = check(dir);
+    expect(r.status, r.stderr).toBe(0);
+    expect(report(r.stderr)).toMatch(/could not tell whether the canonical CSVs are in step[^\n]*not a git repository/);
   });
 });
 

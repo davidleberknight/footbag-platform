@@ -33,6 +33,8 @@ from __future__ import annotations
 
 import argparse
 import csv
+import sys
+from collections import Counter
 try:
     import pysqlite3 as sqlite3
 except ImportError:
@@ -195,6 +197,19 @@ def main() -> None:
 
     rows = read_csv(records_csv)
     print(f"Records CSV rows: {len(rows)}")
+
+    # A record_id names one record. Two rows sharing one would load only the first,
+    # and the second would be counted as an edit and dropped, so the CSV is refused
+    # before anything is written.
+    id_counts = Counter(r["record_id"].strip() for r in rows if r["record_id"].strip())
+    shared_ids = sorted(rid for rid, n in id_counts.items() if n > 1)
+    if shared_ids:
+        print(
+            f"ERROR: {len(shared_ids)} record_id(s) are shared by more than one row of "
+            f"{records_csv}; give each record its own id: {', '.join(shared_ids)}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     ts           = now_iso()
     system_user  = "system:freestyle_records_seed"
@@ -383,10 +398,8 @@ def main() -> None:
         print(bar)
 
     if unknown_unit:
-        from collections import Counter
         print(f"\nUnknown unit values: {dict(Counter(unknown_unit))}")
     if unknown_conf:
-        from collections import Counter
         print(f"Unknown confidence values: {dict(Counter(unknown_conf))}")
 
     print("\nPublic filter (service layer contract):")

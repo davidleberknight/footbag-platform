@@ -685,8 +685,12 @@ send_remote_half() {
   cat "$REMOTE_REPORT_LIB" "$CUTOVER_GUARD" "$PROD_LIVE_GUARD" "$HOST_TOOL_VERSIONS_LIB" "$HOST_VALUES_LIB" "$REMOTE_HALF"
 } | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
 }
+# From here the host can be changed, so the verdict can no longer say that
+# nothing was deployed if the run stops.
+cr_fact host-half-started
 cr_run_marked --errors "$REMOTE_HALF_ERRORS" --warnings "$REMOTE_HALF_WARNINGS" \
   "host half on $REMOTE" -- send_remote_half || exit 1
+cr_fact release-live
 
 # Smoke runs against the address the host records it serves (its
 # PUBLIC_BASE_URL), asked of the host again now, after the deploy synced it from
@@ -834,7 +838,8 @@ echo "Origin: http://$HOST_IP" >&2
 echo "Next: the read-only browser check, npm run test:deployed -- --target ${FOOTBAG_ENV}"
 # The one outcome of this deploy an operator must not miss is listed in the
 # closing report, the last thing the run prints, rather than as a line after the
-# completion message that the report would push off the screen.
-cr_warn "the live database on $REMOTE was replaced from scratch"
+# completion message that the report would push off the screen. It is what the
+# operator asked for, so it is listed as done, not as a warning.
+cr_proved "the live database on $REMOTE was replaced from scratch with this run's build"
 cr_unproved "pages in a real browser: npm run test:deployed -- --target ${FOOTBAG_ENV}"
 cr_finish

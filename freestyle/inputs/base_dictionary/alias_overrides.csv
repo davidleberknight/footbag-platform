@@ -11,7 +11,6 @@ dlo,retype,technical,0,abbreviation for double_leg_over
 dod,retype,technical,0,abbreviation for double_over_down
 dso,retype,technical,0,abbreviation for double_switch_over
 foot_processor,retype,typo,0,misspelling of food_processor
-front,delete,,,junk alias to inactive/notation-phrase (front)
 gyro_dlo,retype,technical,0,abbreviation for gyro_double_leg_over
 m_bius,retype,typo,0,misspelling of mobius
 moebius,retype,typo,0,misspelling of mobius

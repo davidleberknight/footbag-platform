@@ -180,6 +180,57 @@ def test_freestyle_records_loader_warns_on_edited_but_skipped_row(tmp_path: Path
     assert count(db, "freestyle_records") == 1, "an edited re-run must not add a row"
 
 
+def test_freestyle_records_loader_refuses_rows_sharing_a_record_id(tmp_path: Path) -> None:
+    """Two different records sharing one record_id would load only the first, and the
+    second would vanish from the records history while the run reported only an edit.
+    The loader refuses such a CSV, names the shared id, and writes nothing; the same
+    rows with their own ids load."""
+    db = make_db(tmp_path)
+    fields = ["record_id", "unit", "confidence", "player", "record_value",
+              "trick_name", "sort_name", "adds", "date_normalized", "approx_date", "video"]
+    first = {
+        "record_id": "shared-rec-1", "unit": "consecutive_completions",
+        "confidence": "medium", "player": "First Player", "record_value": "84",
+        "trick_name": "spinning osis", "sort_name": "spinning osis", "adds": "4",
+        "date_normalized": "2014-07-20", "approx_date": "no", "video": "",
+    }
+    second = dict(first, player="Second Player", record_value="35",
+                  date_normalized="2014-01-12")
+    loader = ["freestyle/loaders/10_load_freestyle_records_to_sqlite.py", "--db", str(db)]
+
+    shared = write_csv(tmp_path / "shared.csv", fields, [first, second])
+    r = run(loader + ["--records-csv", str(shared)])
+    assert r.returncode == 1, f"a shared record_id must be refused.\nstdout: {r.stdout}"
+    assert "shared-rec-1" in r.stderr, f"the refusal must name the shared id.\nstderr: {r.stderr}"
+    assert count(db, "freestyle_records") == 0, "a refused CSV must write no record"
+
+    distinct = write_csv(tmp_path / "distinct.csv", fields,
+                         [first, dict(second, record_id="shared-rec-2")])
+    r = run(loader + ["--records-csv", str(distinct)])
+    assert r.returncode == 0, f"distinct ids must load.\nstderr: {r.stderr}"
+    assert count(db, "freestyle_records") == 2, "both records must load"
+
+
+def test_given_name_variants_loader_counts_a_repeated_pair_apart_from_inserts(tmp_path: Path) -> None:
+    """A pair the curated file lists twice is stored once. The loader reports it as a
+    repeated pair rather than counting the ignored row as inserted, so its counters
+    match the table and a curator can see the repeat."""
+    db = make_db(tmp_path)
+    pairs = write_csv(tmp_path / "pairs.csv", ["short_form", "long_form"], [
+        {"short_form": "Tom", "long_form": "Thomas"},
+        {"short_form": "tom", "long_form": "THOMAS"},
+        {"short_form": "Jindra", "long_form": "Jindřich"},
+    ])
+    r = run(["legacy_data/scripts/load_given_name_variants_to_sqlite.py",
+             "--db", str(db), "--csv", str(pairs)])
+    assert r.returncode == 0, f"the load failed.\nstderr: {r.stderr}"
+    assert count(db, "given_name_variants") == 2, "the repeated pair must be stored once"
+    assert "Rows inserted: 2" in r.stdout, f"inserts must count stored rows only.\nstdout: {r.stdout}"
+    assert "Repeated pairs (already loaded): 1" in r.stdout, (
+        f"the repeat must be reported under its own name.\nstdout: {r.stdout}"
+    )
+
+
 def test_name_variants_loader_idempotent(tmp_path: Path) -> None:
     db = make_db(tmp_path)
     inp = write_csv(

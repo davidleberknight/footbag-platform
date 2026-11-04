@@ -88,9 +88,9 @@ const HAS_DOCKER = requireToolInCI('docker', '--version');
 // Copying the single file is enough: each of those assertions lands at the
 // production gate or the credential check, and both sit above anything else the
 // wrapper reads from the tree.
-// The closing-report library the deploy scripts source, copied beside a staged
-// script so it runs as it does in the checkout.
-const REPORT_LIBS = ['closing-report.sh', 'closing-report-remote.sh', 'verdict-banner.sh'];
+// The closing-report library and the deploy verdict the deploy scripts source,
+// copied beside a staged script so it runs as it does in the checkout.
+const REPORT_LIBS = ['closing-report.sh', 'closing-report-remote.sh', 'verdict-banner.sh', 'deploy-verdict.sh'];
 function copyReportLibs(root: string): void {
   fs.mkdirSync(path.join(root, 'scripts', 'lib'), { recursive: true });
   for (const lib of REPORT_LIBS) {
@@ -905,15 +905,17 @@ describe('scripts/deploy-local-data.sh member-intake dispatch', () => {
     return at < 0 ? '' : s.slice(at);
   }
 
-  // Defect caught: the --db-only warning that enrichment was skipped scrolled
-  // past above a successful finish, with no report to carry it.
-  it('--db-only lists the skipped enrichment as a warning and still succeeds', () => {
+  // Defect caught: the skipped enrichment scrolling past above a successful
+  // finish with no report to carry it, or counted as a warning when --db-only
+  // asked for exactly that, so a clean build never reads clean.
+  it('--db-only lists the skipped enrichment as not built, not as a warning, and succeeds', () => {
     const tmpRoot = scaffoldAllDataRoot();
     try {
       const r = run('bash', ['scripts/deploy-local-data.sh', '--db-only'], { cwd: tmpRoot, env: ENTRY });
       expect(r.status, r.stderr ?? '').toBe(0);
       expect(fs.existsSync(path.join(tmpRoot, 'SLATE_RAN'))).toBe(true);
-      expect(closingReport(r.stderr)).toMatch(/Warnings \(1\):\n {2}- --db-only skips phase C\/D\/E\/F\/G enrichment/);
+      expect(closingReport(r.stderr)).toMatch(/No errors or warnings\./);
+      expect(closingReport(r.stderr)).toMatch(/Not proven:\n(?: {2}- .*\n)* {2}- the phase C\/D\/E\/F\/G enrichment tables: --db-only does not build them/);
     } finally {
       fs.rmSync(tmpRoot, { recursive: true, force: true });
     }

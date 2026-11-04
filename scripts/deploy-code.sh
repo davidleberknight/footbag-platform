@@ -665,6 +665,9 @@ send_remote_half() {
   cat "$REMOTE_REPORT_LIB" "$PRUNE_LIB" "$HOST_TOOL_VERSIONS_LIB" "$HOST_VALUES_LIB" "$REMOTE_HALF"
 } | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
 }
+# From here the host can be changed, so the verdict can no longer say that
+# nothing was deployed if the run stops.
+cr_fact host-half-started
 cr_run_marked --errors "$REMOTE_HALF_ERRORS" --warnings "$REMOTE_HALF_WARNINGS" \
   "host half on $REMOTE" -- send_remote_half || exit 1
 
@@ -679,8 +682,10 @@ if (( FIRST_INSTALL )); then
   echo "then run the code deploy, which verifies the site."
   cr_proved "the release and its images were installed on $REMOTE (the host half's checks)"
   cr_unproved "the site: nothing is serving until the restore starts it and the code deploy smoke-checks it"
+  cr_fact release-installed
   cr_finish
 fi
+cr_fact release-live
 
 # ── Step 5: Smoke check ───────────────────────────────────────────────────────
 # Smoke runs against the public CloudFront URL, not the direct Lightsail

@@ -23,6 +23,19 @@ success is a failed check.
   with `|| true`, `2>/dev/null` or an "expected" echo.
 - The closing line names what was proven and what was not; it never claims an outcome nothing
   checked.
+- A warning is something the operator must act on, so a clean run of a healthy tree reports
+  none. An outcome the operator asked for (a rebuild replacing the database, a mode that skips a
+  stage) is `cr_proved` or `cr_unproved`, never `cr_warn`. A no-op that recurs on every clean run
+  is removed where it starts (a dead override row, a stale print), not reported. Nothing a passing
+  or informational step prints under `cr_run` matches `FOOTBAG_NOTICE_GRAMMAR`
+  (`scripts/lib/verdict-banner.sh`).
+- A freshness check compares git history (the last commit to touch each side, and uncommitted
+  changes), never file modification times, which a checkout rewrites
+  (`check_canonical_freshness` in `scripts/deploy-to-aws.sh`).
+- The verdict answers the question the operator reads it for. Where DONE or DONE WITH WARNINGS
+  does not, as for a deploy (is the release live?), steps record how far the run got with
+  `cr_fact` and the script sets its verdict with `cr_verdict_with`
+  (`scripts/lib/deploy-verdict.sh`).
 - A remote half reports its problems to its caller, which lists them in its own report. The
   caller sends `scripts/lib/closing-report-remote.sh` on the stream after the password line and
   the `%q` values, ahead of the half; the half reports with `crr_error` and `crr_warn` and ends

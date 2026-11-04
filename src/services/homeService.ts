@@ -119,6 +119,11 @@ export const homeService = {
           href: '/media',
           description: 'Browse by hashtag or visit named galleries.',
         },
+        {
+          label: 'Forum',
+          href: '/forum',
+          description: 'Talk footbag with players around the world on the community forum.',
+        },
         // The legacy archive is a separate members-only static site; the card
         // appears only where a deployment provides its URL, and the card
         // itself stays public. Its target is member-gated one of two ways:
