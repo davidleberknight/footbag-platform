@@ -16,6 +16,13 @@
   </div>
   {{/unless}}{{/unless}}
 
+  {{#if content.media}}
+  <section id="player-media">
+    <div class="section-heading"><h2>{{content.mediaHeading}}</h2></div>
+    {{> entity-media content.media}}
+  </section>
+  {{/if}}
+
   {{#if content.hasCompetitionResults}}
   <section>
     {{#if content.eventGroups.length}}

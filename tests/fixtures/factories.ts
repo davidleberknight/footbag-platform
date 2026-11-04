@@ -1564,6 +1564,8 @@ export interface MemberGalleryOverrides {
   description?: string;
   is_default?: number;
   sort_order?: string;
+  /** The chosen cover photo; NULL (the default) means the newest photo stands in. */
+  cover_media_id?: string | null;
   created_at?: string;
   /** The actor on the row. Defaults to the system actor; pass the owner's id for
    *  a gallery the member created themselves. */
@@ -1584,8 +1586,8 @@ export function insertMemberGallery(db: BetterSqlite3.Database, o: MemberGallery
   db.prepare(`
     INSERT INTO member_galleries
       (id, created_at, created_by, updated_at, updated_by, version,
-       owner_member_id, name, description, is_default, sort_order)
-    VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
+       owner_member_id, name, description, is_default, sort_order, cover_media_id)
+    VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)
   `).run(
     id, o.created_at ?? nowIso(), actor, o.created_at ?? nowIso(), o.updated_by ?? actor,
     o.owner_member_id ?? `mem_${uid()}`,
@@ -1593,6 +1595,7 @@ export function insertMemberGallery(db: BetterSqlite3.Database, o: MemberGallery
     o.description ?? '',
     o.is_default ?? 0,
     o.sort_order ?? 'upload_desc',
+    o.cover_media_id ?? null,
   );
   return id;
 }

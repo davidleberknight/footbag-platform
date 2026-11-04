@@ -900,6 +900,28 @@ section { margin-top: var(--space-2xl); }
    and leave a wider gap at its foot than at its head. */
 .card > .card-meta:last-child { margin-bottom: 0; }
 
+/* A gallery card's cover photo: a short banner across the top of the card,
+   cropped to a fixed frame set before the picture arrives, so the grid does
+   not jump as covers of different shapes load and the cover stays a preview
+   rather than the bulk of the card. */
+.card-cover {
+  display: block;
+  width: 100%;
+  height: 160px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-md);
+}
+/* The cover in My Galleries' name cell: a small square ahead of the name. */
+.gallery-list-cover {
+  display: block;
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: var(--radius-2xs);
+  margin-bottom: var(--space-xs);
+}
+
 .card-description {
   font-size: 0.9rem;
   display: -webkit-box;
@@ -2126,7 +2148,6 @@ p.badge { display: block; width: fit-content; }
   line-height: 1.7;
   color: var(--text);
 }
-.club-gallery-link { margin-top: var(--space-xl); }
 .club-leader-email { font-size: 0.9rem; margin-left: var(--space-sm); }
 .club-leader-whatsapp { font-size: 0.9rem; margin-left: var(--space-sm); }
 .club-members { margin-top: var(--space-2xl); }
@@ -3240,6 +3261,14 @@ main fieldset > :not(:has(~ :not([type="hidden"]))) { margin-bottom: 0; }
   padding: 1px var(--space-sm);
 }
 .picker-edit-link { font-size: 0.9rem; }
+/* The cover radio: on each photo, and once above the grid for the newest
+   photo. The control and its word sit on one line. */
+.picker-cover {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: 0.9rem;
+}
 .picker-tags {
   display: flex;
   flex-wrap: wrap;

@@ -92,6 +92,14 @@ beforeAll(async () => {
     hashtag_tag_id: insertTag(db, { id: 'tag-event-draft', tag_normalized: '#event_2026_secret_draft', tag_display: '#event_2026_secret_draft' }),
   });
   insertMember(db, { id: 'member-suggest-world', slug: 'world_wanderer', display_name: 'World Wanderer' });
+  // An event whose short hashtag holds a word its name does not.
+  insertEvent(db, {
+    id: 'event-suggest-japan',
+    title: '45th Annual World Footbag Championships',
+    start_date: '2025-08-10',
+    end_date: '2025-08-15',
+    hashtag_tag_id: insertTag(db, { id: 'tag-event-japan', tag_normalized: '#event_2025_worlds_japan', tag_display: '#event_2025_worlds_japan' }),
+  });
 
   db.close();
   createApp = await importApp();
@@ -203,6 +211,24 @@ describe('GET /tags/suggest — words of event and club names', () => {
     expect(normalized).not.toContain('#event_2026_secret_draft');
     expect(JSON.stringify(res.body)).not.toContain('Wanderer');
     expect(JSON.stringify(res.body)).not.toContain('world_wanderer');
+  });
+
+  // Defect caught: a word of an event's short hashtag that its name lacks
+  // ("japan" in #event_2025_worlds_japan) offers nothing.
+  it('offers a public event\'s hashtag for a word of the hashtag itself', async () => {
+    const res = await request(createApp()).get('/tags/suggest?q=japan&entry=1');
+    expect(res.status).toBe(200);
+    const hit = res.body.find((s: { normalized: string }) => s.normalized === '#event_2025_worlds_japan');
+    expect(hit).toMatchObject({ kind: 'event', name: '45th Annual World Footbag Championships' });
+  });
+
+  // Defect caught: a draft event's hashtag leaks through the start-of-hashtag
+  // match, which reads every stored hashtag.
+  it('never offers a draft event by the start of its hashtag', async () => {
+    const res = await request(createApp()).get('/tags/suggest?q=event_2026_');
+    const normalized = res.body.map((s: { normalized: string }) => s.normalized);
+    expect(normalized).toContain('#event_2026_worlds');
+    expect(normalized).not.toContain('#event_2026_secret_draft');
   });
 
   // Defect caught: a freeform hashtag that names an event in other words gets

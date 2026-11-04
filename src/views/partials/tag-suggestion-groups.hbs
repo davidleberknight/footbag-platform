@@ -1,0 +1,46 @@
+{{!-- A member's hashtag suggestions beside a hashtag field: their own player
+      hashtag, clubs and events, recent events and popular hashtags. Receives a
+      MemberTagSuggestions as `suggestions` and the name of the field the chips
+      fill as `target`; tag-suggestions.js adds a clicked chip to that field. --}}
+<div class="tag-suggestions" data-tag-target="{{target}}">
+  {{#if suggestions.playerTags.length}}
+  <div class="tag-suggestions-group">
+    <span class="tag-suggestions-label">You as the player:</span>
+    {{#each suggestions.playerTags}}
+    <button type="button" class="tag-chip tag-suggestion" data-tag="{{normalized}}">{{display}}</button>
+    {{/each}}
+  </div>
+  {{/if}}
+  {{#if suggestions.clubTags.length}}
+  <div class="tag-suggestions-group">
+    <span class="tag-suggestions-label">Your clubs:</span>
+    {{#each suggestions.clubTags}}
+    <button type="button" class="tag-chip tag-suggestion" data-tag="{{normalized}}">{{display}}</button>
+    {{/each}}
+  </div>
+  {{/if}}
+  {{#if suggestions.participatedEventTags.length}}
+  <div class="tag-suggestions-group">
+    <span class="tag-suggestions-label">Your events:</span>
+    {{#each suggestions.participatedEventTags}}
+    <button type="button" class="tag-chip tag-suggestion" data-tag="{{normalized}}">{{display}}</button>
+    {{/each}}
+  </div>
+  {{/if}}
+  {{#if suggestions.recentEventTags.length}}
+  <div class="tag-suggestions-group">
+    <span class="tag-suggestions-label">Recent events:</span>
+    {{#each suggestions.recentEventTags}}
+    <button type="button" class="tag-chip tag-suggestion" data-tag="{{normalized}}">{{display}}</button>
+    {{/each}}
+  </div>
+  {{/if}}
+  {{#if suggestions.popularTags.length}}
+  <div class="tag-suggestions-group">
+    <span class="tag-suggestions-label">Popular:</span>
+    {{#each suggestions.popularTags}}
+    <button type="button" class="tag-chip tag-suggestion" data-tag="{{normalized}}">{{display}}</button>
+    {{/each}}
+  </div>
+  {{/if}}
+</div>

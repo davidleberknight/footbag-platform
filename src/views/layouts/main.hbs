@@ -12,7 +12,7 @@
   <meta property="og:title" content="{{#if seo.fullTitle}}{{seo.fullTitle}}{{else}}Footbag{{#if seo.title}} {{seo.title}}{{else}} Worldwide{{/if}}{{/if}}" />
   {{#if seo.description}}<meta property="og:description" content="{{seo.description}}" />{{/if}}
   {{#if canonicalUrl}}<meta property="og:url" content="{{canonicalUrl}}" />{{/if}}
-  <meta property="og:image" content="{{ogImageUrl}}" />
+  <meta property="og:image" content="{{#if seo.imageUrl}}{{seo.imageUrl}}{{else}}{{ogImageUrl}}{{/if}}" />
   <meta name="twitter:card" content="summary" />
   <link rel="icon" href="{{{asset 'img/ifpa-logo.png'}}}" />
   {{! The three Inter weights the header and body draw on every page, fetched

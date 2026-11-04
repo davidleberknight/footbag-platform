@@ -45,7 +45,10 @@
       <tbody>
         {{#each content.galleries}}
           <tr>
-            <td>{{name}}</td>
+            <td>
+              {{#if coverThumbUrl}}<img src="{{coverThumbUrl}}" alt="{{name}}" class="gallery-list-cover" width="64" height="64" loading="lazy">{{/if}}
+              {{name}}
+            </td>
             <td>{{description}}</td>
             <td><code>{{sortOrder}}</code></td>
             <td>

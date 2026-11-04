@@ -538,6 +538,10 @@ def main() -> None:
     # ------------------------------------------------------------------
     # Select final output columns
     # ------------------------------------------------------------------
+    # The loader gives a World Championships its short hashtag, so it needs each
+    # event's type; a canonical set without the column marks no event a Worlds.
+    if "event_type" not in events.columns:
+        events["event_type"] = ""
     seed_events = events[
         [
             "event_key",
@@ -551,6 +555,7 @@ def main() -> None:
             "region",
             "country",
             "host_club",
+            "event_type",
             "status",
             "notes",
             "source",

@@ -54,7 +54,14 @@ export interface GallerySidecarData {
   // (`scripts/seed_fh_curator.py::_load_named_gallery_sidecars`) reads
   // this field by the same name and shape.
   externalLinks: GalleryExternalLink[];
+  // The chosen cover photo, named by its source filename because a curated
+  // item's media id changes whenever its file's bytes change. Absent means the
+  // newest photo stands in. The seeder resolves it to the curator's photo of
+  // that filename and stores no cover, with a warning, when none matches.
+  coverPhoto?: string;
 }
+
+export const GALLERY_COVER_PHOTO_MAX_LEN = 255;
 
 export const GALLERY_LINK_LABEL_MAX_LEN = 80;
 export const GALLERY_LINK_URL_MAX_LEN = 2048;
@@ -172,6 +179,23 @@ export function validateGallerySidecarData(data: GallerySidecarData): void {
       );
     }
   }
+  if (data.coverPhoto !== undefined) {
+    if (typeof data.coverPhoto !== 'string' || data.coverPhoto.trim().length === 0) {
+      throw new GallerySidecarValidationError(
+        'coverPhoto, when present, must be a non-empty source filename',
+      );
+    }
+    if (data.coverPhoto.length > GALLERY_COVER_PHOTO_MAX_LEN) {
+      throw new GallerySidecarValidationError(
+        `coverPhoto must be ${GALLERY_COVER_PHOTO_MAX_LEN} characters or fewer`,
+      );
+    }
+    if (data.coverPhoto.includes('/') || data.coverPhoto.includes('\\')) {
+      throw new GallerySidecarValidationError(
+        'coverPhoto must be a bare filename, not a path',
+      );
+    }
+  }
 }
 
 // Filename rule: <slug>.json where <slug> = id with the 'gallery_' prefix
@@ -189,9 +213,9 @@ export function deriveGallerySidecarPath(curatedRoot: string, id: string): strin
 }
 
 // Two-space JSON with trailing newline. Field order is fixed (id, name,
-// description, sortOrder, criteriaTags, excludeTags, externalLinks) so
-// files written by the admin UI diff cleanly against the existing
-// sidecars in /curated/galleries/.
+// description, sortOrder, criteriaTags, excludeTags, externalLinks, then
+// coverPhoto only when one is chosen) so files written by the admin UI diff
+// cleanly against the existing sidecars in /curated/galleries/.
 export function formatGallerySidecarJson(data: GallerySidecarData): string {
   const ordered: Record<string, unknown> = {
     id: data.id,
@@ -202,6 +226,7 @@ export function formatGallerySidecarJson(data: GallerySidecarData): string {
     excludeTags: data.excludeTags,
     externalLinks: data.externalLinks,
   };
+  if (data.coverPhoto !== undefined) ordered.coverPhoto = data.coverPhoto;
   return JSON.stringify(ordered, null, 2) + '\n';
 }
 

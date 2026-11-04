@@ -1,9 +1,9 @@
 /**
- * Club detail page: "View gallery" link.
+ * Club detail page: the club's media block and its linked hashtag.
  *
- * When a club's standard tag has at least one active, non-avatar media item
- * tagged with it, the detail page renders a "View gallery" link pointing to
- * /media/browse?context=<club_key>. When no media exists, the link is absent.
+ * When media carries a club's hashtag, the club page shows the newest items
+ * and a button to the club's gallery, and the hashtag under the title links to
+ * it. With no such media there is no block and the hashtag is a plain token.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -16,6 +16,7 @@ const { dbPath } = setTestEnv('3071');
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 const TS = '2025-01-01T00:00:00.000Z';
+let portlandMediaId = '';
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -40,11 +41,11 @@ beforeAll(async () => {
     country: 'USA',
     hashtag_tag_id: tagIdWithMedia,
   });
-  const mediaId = insertMediaItem(db, {
+  portlandMediaId = insertMediaItem(db, {
     uploader_member_id: uploaderId,
     caption: 'Portland jam session',
   });
-  attachMediaTag(db, mediaId, tagIdWithMedia);
+  attachMediaTag(db, portlandMediaId, tagIdWithMedia);
 
   // Club WITHOUT media
   const tagIdNoMedia = insertTag(db, {
@@ -67,20 +68,28 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /clubs/:key -- gallery link', () => {
-  it('renders "View gallery" when club tag has media', async () => {
+  it('shows the media block and a linked hashtag when media carries the club hashtag', async () => {
+    // Defect caught: a club with media shows none of it, or its hashtag does
+    // not lead to the club's gallery.
     const app = createApp();
     const res = await request(app).get('/clubs/club_portland');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('View Gallery');
-    expect(res.text).toContain('/media/browse?context');
-    expect(res.text).toContain('club_portland');
+    const block = res.text.slice(res.text.indexOf('id="club-media"'));
+    expect(res.text).toContain('id="club-media"');
+    expect(block).toContain(`/media/item/${portlandMediaId}?`);
+    expect(block).toContain('href="/media/browse?context&#x3D;club_portland"');
+    expect(res.text).toMatch(
+      /<p class="hero-hashtag"><a href="\/media\/browse\?context&#x3D;club_portland">#club_portland<\/a><\/p>/);
   });
 
-  it('does not render "View gallery" when club tag has no media', async () => {
+  it('shows no block and a plain hashtag when no media carries the club hashtag', async () => {
+    // Defect caught: a gallery button leading to an empty gallery.
     const app = createApp();
     const res = await request(app).get('/clubs/club_seattle');
     expect(res.status).toBe(200);
-    expect(res.text).not.toContain('View gallery');
+    expect(res.text).not.toContain('id="club-media"');
+    expect(res.text).not.toContain('/media/browse?context&#x3D;club_seattle');
+    expect(res.text).toContain('<p class="hero-hashtag">#club_seattle</p>');
   });
 
   it('renders the hero hashtag with only the hero class, not the inline chip', async () => {

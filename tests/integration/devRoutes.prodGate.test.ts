@@ -32,8 +32,10 @@ const PRIOR_FOOTBAG_ENV = process.env.FOOTBAG_ENV;
 const PRIOR_NODE_ENV = process.env.NODE_ENV;
 process.env.NODE_ENV                  = 'production';
 process.env.FOOTBAG_ENV               = 'production';
+// A deployed environment refuses curator save-file writes, which the shared
+// test setup turns on, so a production boot turns them back off.
 process.env.ALLOW_CURATED_SIDECAR_WRITES = '0';
-process.env.SESSION_SECRET           = 'a'.repeat(48); // prod rejects the short test default
+process.env.SESSION_SECRET            = 'a'.repeat(48); // prod rejects the short test default
 process.env.JWT_SIGNER                = 'kms';
 process.env.JWT_KMS_KEY_ID            = 'arn:aws:kms:us-east-1:000000000000:key/abcd-efgh';
 process.env.SES_ADAPTER               = 'live';

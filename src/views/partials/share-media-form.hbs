@@ -184,6 +184,14 @@
         {{/each}}
       </div>
       {{/if}}
+      {{#if c.tagSuggestions.recentEventTags.length}}
+      <div class="tag-suggestions-group">
+        <span class="tag-suggestions-label">Recent events:</span>
+        {{#each c.tagSuggestions.recentEventTags}}
+        <button type="button" class="tag-chip tag-suggestion" data-tag="{{normalized}}">{{display}}</button>
+        {{/each}}
+      </div>
+      {{/if}}
       {{#if c.galleryChips.length}}
       <div class="tag-suggestions-group">
         <span class="tag-suggestions-label">{{c.galleryChipsLabel}}</span>

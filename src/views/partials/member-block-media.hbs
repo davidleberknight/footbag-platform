@@ -1,5 +1,6 @@
-{{!-- Member's media: links to the member's named galleries (cards) plus a
-      "view all media" link. No inline thumbnails.
+{{!-- Member's media: links to the member's named galleries (cards, each
+      headed by its cover photo) plus a "view all media" link. No inline
+      thumbnail grid of the media itself.
 
       On a member's own profile this is where sharing media is found, so it
       renders whether or not they have any: the caller passes an
@@ -13,6 +14,7 @@
     <div class="card-grid card-grid-2col">
       {{#each galleries}}
         <div class="card">
+          {{#if coverThumbUrl}}<img src="{{coverThumbUrl}}" alt="{{name}}" class="card-cover" loading="lazy">{{/if}}
           <a href="{{href}}" class="card-title">{{name}}</a>
           {{#if description}}<p class="card-description">{{description}}</p>{{/if}}
           <p class="card-meta">{{itemCount}} {{itemCountNoun}}</p>

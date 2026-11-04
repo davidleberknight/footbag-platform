@@ -9,7 +9,11 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
-import { insertMember, insertTag, insertMediaItem, attachMediaTag } from '../fixtures/factories';
+import { insertEvent, insertMember, insertTag, insertMediaItem, attachMediaTag } from '../fixtures/factories';
+
+// The instant the recent-events window is measured from, passed in so the
+// window never moves with the wall clock.
+const NOW = new Date('2026-11-04T00:00:00.000Z');
 
 const { dbPath } = setTestEnv('4687');
 
@@ -44,6 +48,17 @@ beforeAll(async () => {
   for (const caption of ['C1', 'C2', 'C3']) {
     attachMediaTag(db, insertMediaItem(db, { uploader_member_id: system, caption }), curatedTag);
   }
+
+  // Events around NOW: two public ones inside the year either side, one public
+  // one just outside it, and a draft inside it. None carries media.
+  const event = (id: string, tag: string, start: string, status: 'reg_open' | 'completed' | 'draft') => insertEvent(db, {
+    id, title: id, start_date: start, end_date: start, status,
+    hashtag_tag_id: insertTag(db, { tag_normalized: tag, tag_display: tag, standard_type: 'event' }),
+  });
+  event('mts-worlds', '#event_2026_worlds_japan', '2026-08-10', 'completed');
+  event('mts-upcoming', '#event_2027_spring_jam', '2027-03-01', 'reg_open');
+  event('mts-old', '#event_2025_old_open', '2025-10-01', 'completed');
+  event('mts-draft', '#event_2026_secret_meet', '2026-09-01', 'draft');
   db.close();
 
   hashtagDiscoveryService = (await import('../../src/services/hashtagDiscoveryService')).hashtagDiscoveryService;
@@ -82,5 +97,18 @@ describe('popular tags suggested to a member', () => {
   it('leaves #curated in the shared type-ahead ranking the browse filters use', () => {
     const shared = hashtagDiscoveryService.suggestTags('', 10).map((t) => t.normalized);
     expect(shared).toContain('#curated');
+  });
+});
+
+describe('recent events suggested to a member', () => {
+  // Defect caught: a member sharing from an event nobody has tagged yet cannot
+  // pick its hashtag, because suggestions only offer hashtags media already
+  // carries; or a draft's hashtag, or a long-past event's, is offered.
+  it('offers public events within a year either side, media or not, newest first, never a draft', () => {
+    const offered = hashtagDiscoveryService
+      .getTagSuggestionsForMember('mts-a', 'mts_a', NOW)
+      .recentEventTags.map((t) => t.normalized);
+    // ordering-is-the-contract: newest start date first.
+    expect(offered).toEqual(['#event_2027_spring_jam', '#event_2026_worlds_japan']);
   });
 });

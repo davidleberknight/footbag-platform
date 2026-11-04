@@ -134,8 +134,8 @@ For pipeline-regenerated tables:
   `DELETE WHERE source_scope='PROVISIONAL'`). `historical_persons` is the live case: its canonical
   and provisional cohorts have different owning loaders and each deletes only its own scope, so
   widening either delete destroys the other's rows.
-- Report honest counters: increment only when `rowcount` shows an insert, never a raw `+= 1` after
-  `INSERT OR IGNORE`. Every skipped row needs a named category: dedup, FK miss, PK collision, bad row.
+- Report honest counters, as the database write safety rule sets out
+  (`.claude/rules/db-write-safety.md`).
 - The club loaders are the exception to uniformity: the bootstrap-leader loaders reseed with
   DELETE + INSERT, while the clubs seed and cutover loaders are additive.
 - Ambiguous identity resolution never auto-selects; nothing links a member to an old record but the

@@ -2835,6 +2835,14 @@ CREATE TABLE member_galleries (
   sort_order      TEXT NOT NULL DEFAULT 'upload_desc'
                   CHECK (sort_order IN ('upload_desc','upload_asc','caption_asc')),
 
+  -- The photo chosen to stand for the gallery on gallery cards and as its
+  -- share image. A pointer only: a gallery holds no media, so the choice is
+  -- honoured on read only while it is an active, non-avatar photo that still
+  -- carries the gallery's hashtags; otherwise the newest such photo stands in.
+  -- NULL means use the newest photo. ON DELETE SET NULL so deleting the photo
+  -- never blocks on, or deletes, the gallery that pointed at it.
+  cover_media_id  TEXT REFERENCES media_items(id) ON DELETE SET NULL,
+
   -- Hard-delete frees the name immediately, so no partial UNIQUE needed.
   UNIQUE(owner_member_id, name)
 );

@@ -1,15 +1,15 @@
 /**
- * Event detail page: "View gallery" link.
+ * Event detail page: the event's media block and its linked hashtag.
  *
- * When an event's standard tag has at least one active, non-avatar media item
- * tagged with it, the detail page renders a "View gallery" link pointing to
- * /media/browse?context=<event_key> (mirrors the club gallery link). When no media
- * exists, the link is absent. This delivers the M_Upload_Photo criterion that a
- * photo tagged with an event hashtag is reachable from that event.
+ * When media carries an event's hashtag, the event page shows the newest few
+ * items, a button to the event's whole gallery, and the hashtag under the title
+ * linked to that gallery. With no such media the page shows no block and the
+ * hashtag as a plain token, so a visitor still sees what to tag their media with.
+ * Media marked #unavailable_embed counts as none.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
 
+import { cachedGet } from '../fixtures/cachedGet';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import {
   insertMember,
@@ -22,11 +22,20 @@ import {
 
 const { dbPath } = setTestEnv('3073');
 
-let createApp: Awaited<ReturnType<typeof importApp>>;
+let page: (path: string) => ReturnType<ReturnType<typeof cachedGet>>;
+const mediaIds: string[] = [];
+let unavailableMediaId = '';
+
+function mediaBlock(html: string): string {
+  const start = html.indexOf('id="event-media"');
+  return start === -1 ? '' : html.slice(start, html.indexOf('</div>', html.indexOf('</ul>', start)));
+}
 
 beforeAll(async () => {
+  // Imported only after the test database path is set, since the service
+  // module opens the database when it loads.
+  const { ENTITY_MEDIA_PREVIEW_LIMIT } = await import('../../src/services/mediaService');
   const db = createTestDb(dbPath);
-
   const uploaderId = insertMember(db, {
     id: 'uploader-event-gallery-link',
     slug: 'uploader_event_gallery_link',
@@ -34,87 +43,74 @@ beforeAll(async () => {
     display_name: 'Event Gallery Uploader',
   });
 
-  // Event WITH media tagged.
-  const tagIdWithMedia = insertTag(db, {
-    tag_normalized: '#event_2025_testopen',
-    tag_display: '#event_2025_testopen',
-    standard_type: 'event',
+  // One more item than the block shows, uploaded a minute apart, so the block
+  // must keep the newest and drop the oldest.
+  const withMedia = insertTag(db, {
+    tag_normalized: '#event_2025_testopen', tag_display: '#event_2025_testopen', standard_type: 'event',
   });
-  insertEvent(db, {
-    id: 'event-with-media',
-    title: 'Test Open 2025',
-    hashtag_tag_id: tagIdWithMedia,
-    status: 'completed',
-  });
-  const mediaId = insertMediaItem(db, {
-    uploader_member_id: uploaderId,
-    caption: 'Test Open jam',
-  });
-  attachMediaTag(db, mediaId, tagIdWithMedia);
+  insertEvent(db, { id: 'event-with-media', title: 'Test Open 2025', hashtag_tag_id: withMedia, status: 'completed' });
+  for (let i = 0; i <= ENTITY_MEDIA_PREVIEW_LIMIT; i++) {
+    const id = insertMediaItem(db, {
+      uploader_member_id: uploaderId,
+      caption: `Test Open clip ${i}`,
+      uploaded_at: `2025-06-01T10:${String(i).padStart(2, '0')}:00.000Z`,
+    });
+    attachMediaTag(db, id, withMedia);
+    mediaIds.push(id);
+  }
 
-  // Event WITHOUT media.
-  const tagIdNoMedia = insertTag(db, {
-    tag_normalized: '#event_2025_nomedia',
-    tag_display: '#event_2025_nomedia',
-    standard_type: 'event',
+  const noMedia = insertTag(db, {
+    tag_normalized: '#event_2025_nomedia', tag_display: '#event_2025_nomedia', standard_type: 'event',
   });
-  insertEvent(db, {
-    id: 'event-no-media',
-    title: 'No Media Open 2025',
-    hashtag_tag_id: tagIdNoMedia,
-    status: 'completed',
-  });
+  insertEvent(db, { id: 'event-no-media', title: 'No Media Open 2025', hashtag_tag_id: noMedia, status: 'completed' });
 
-  // Event whose ONLY tagged media is #unavailable_embed (a private/deleted
-  // video the curator marked). The count gate must treat it as zero so the
-  // "View gallery" link does not lead to an empty browse page.
-  const tagIdUnavail = insertTag(db, {
-    tag_normalized: '#event_2025_unavail',
-    tag_display: '#event_2025_unavail',
-    standard_type: 'event',
+  const unavailable = insertTag(db, {
+    tag_normalized: '#event_2025_unavail', tag_display: '#event_2025_unavail', standard_type: 'event',
   });
-  insertEvent(db, {
-    id: 'event-unavail-media',
-    title: 'Unavailable Media Open 2025',
-    hashtag_tag_id: tagIdUnavail,
-    status: 'completed',
+  insertEvent(db, { id: 'event-unavail-media', title: 'Unavailable Open 2025', hashtag_tag_id: unavailable, status: 'completed' });
+  const unavailableEmbed = insertFreeformTag(db, {
+    id: 'tag-unavail-embed', tag_normalized: '#unavailable_embed', tag_display: '#unavailable_embed',
   });
-  const tagIdUnavailEmbed = insertFreeformTag(db, {
-    id: 'tag-unavail-embed',
-    tag_normalized: '#unavailable_embed',
-    tag_display: '#unavailable_embed',
-  });
-  const unavailMediaId = insertMediaItem(db, {
-    uploader_member_id: uploaderId,
-    caption: 'Unavailable clip',
-  });
-  attachMediaTag(db, unavailMediaId, tagIdUnavail);
-  attachMediaTag(db, unavailMediaId, tagIdUnavailEmbed);
+  unavailableMediaId = insertMediaItem(db, { uploader_member_id: uploaderId, caption: 'Unavailable clip' });
+  attachMediaTag(db, unavailableMediaId, unavailable);
+  attachMediaTag(db, unavailableMediaId, unavailableEmbed);
 
   db.close();
-  createApp = await importApp();
+  const createApp = await importApp();
+  page = cachedGet(() => createApp());
 });
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('GET /events/:eventKey -- gallery link', () => {
-  it('renders "View gallery" when the event tag has media', async () => {
-    const res = await request(createApp()).get('/events/event_2025_testopen');
+describe('GET /events/:eventKey -- media block', () => {
+  it('shows the newest items, the gallery button and a linked hashtag when media carries the hashtag', async () => {
+    // Defect caught: an event with media shows none of it, shows the oldest
+    // instead of the newest, or shows an unbounded list on a public page.
+    const res = await page('/events/event_2025_testopen');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('View Gallery');
-    expect(res.text).toContain('/media/browse?context');
-    expect(res.text).toContain('event_2025_testopen');
+    const block = mediaBlock(res.text);
+    const shown = mediaIds.filter((id) => block.includes(`/media/item/${id}?`));
+    expect(shown).toEqual(mediaIds.slice(1));
+    expect(block).toContain('href="/media/browse?context&#x3D;event_2025_testopen"');
+    expect(res.text).toMatch(
+      /<p class="hero-hashtag"><a href="\/media\/browse\?context&#x3D;event_2025_testopen">#event_2025_testopen<\/a><\/p>/);
   });
 
-  it('does not render "View gallery" when the event tag has no media', async () => {
-    const res = await request(createApp()).get('/events/event_2025_nomedia');
+  it('shows no block and a plain hashtag when no media carries it', async () => {
+    // Defect caught: a gallery button leading to an empty gallery, or the
+    // hashtag a visitor should tag with missing from the page.
+    const res = await page('/events/event_2025_nomedia');
     expect(res.status).toBe(200);
-    expect(res.text).not.toContain('View gallery');
+    expect(res.text).not.toContain('id="event-media"');
+    expect(res.text).not.toContain('/media/browse?context&#x3D;event_2025_nomedia');
+    expect(res.text).toContain('<p class="hero-hashtag">#event_2025_nomedia</p>');
   });
 
-  it('does not render "View gallery" when the only tagged media is #unavailable_embed', async () => {
-    const res = await request(createApp()).get('/events/event_2025_unavail');
+  it('treats media marked #unavailable_embed as none', async () => {
+    // Defect caught: a dead video makes the page offer a gallery with nothing to watch.
+    const res = await page('/events/event_2025_unavail');
     expect(res.status).toBe(200);
-    expect(res.text).not.toContain('View gallery');
+    expect(res.text).not.toContain('id="event-media"');
+    expect(res.text).not.toContain(unavailableMediaId);
   });
 });

@@ -107,6 +107,18 @@
  *     touches the filesystem.
  *   - Gallery edit never mutates item tags; current-items display rows derive from
  *     criteria/exclude tags via `listGalleryItemsForDisplay`.
+ *   - A gallery's cover (`member_galleries.cover_media_id`) is chosen on the
+ *     edit form from the gallery's own photos, never uploaded there. A newly
+ *     chosen cover must be an active, non-avatar photo, not
+ *     `#unavailable_embed`, matching the gallery's saved hashtags
+ *     (`isGalleryCoverCandidate`); a stored cover carried through unchanged
+ *     is not re-checked, because the read honours it only while it still
+ *     matches (`listGalleryCovers`) and the newest photo stands in otherwise.
+ *     The cover counts in the submitted-twice comparison, so a cover-only
+ *     change saves and its repeat does not. An administrator moderating a
+ *     member's gallery cannot change it. A curated gallery's save file names
+ *     the cover by its `source_filename` (`coverPhoto`), never its media id,
+ *     which changes with the file's bytes.
  *   - `createGallery` and `updateGallery` accept `externalLinks`; each URL passes
  *     `validateExternalUrl` (DD §3.17) behind the throttle, before the write.
  *     Per-gallery cap `config.galleryMaxExternalLinks`.
@@ -204,7 +216,7 @@
  */
 import { createHash, randomUUID } from 'crypto';
 import path from 'path';
-import { GALLERY_ITEMS_QUERY_CAP, countGalleryItemsByCriteria, listGalleryItemsForDisplay, media, mediaTags as mediaTagsDb, queryCuratorMediaTags, queryGalleryItemsByCriteriaGrouped, tagStats, transaction, type GallerySortOrder, type MediaJobRow } from '../db/db';
+import { GALLERY_ITEMS_QUERY_CAP, countGalleryItemsByCriteria, isGalleryCoverCandidate, listGalleryCovers, listGalleryItemsForDisplay, media, mediaTags as mediaTagsDb, queryCuratorMediaTags, queryGalleryItemsByCriteriaGrouped, tagStats, transaction, type GallerySortOrder, type MediaJobRow } from '../db/db';
 import { config } from '../config/env';
 import { logger } from '../config/logger';
 import { detectImageType, photoShapeRefusal, RENDITION_IMAGE_MIME } from '../lib/imageProcessing';
@@ -966,6 +978,7 @@ const GALLERY_FIELD_PHRASE: Record<string, string> = {
   criteriaTags:  'which hashtags decide what the gallery shows',
   excludeTags:   'which hashtags it leaves out',
   externalLinks: 'the links beside it',
+  coverMediaId:  'its cover photo',
 };
 
 function validateTags(tags: string[]): void {
@@ -1428,10 +1441,15 @@ export interface CuratorGalleryEditView {
     // filtered out), so the owner can see how each item is tagged while
     // managing the gallery.
     tags: string[];
+    // Whether this item is offered as the gallery's cover (a photo the public
+    // gallery shows), and whether it is the one the form has chosen.
+    canBeCover: boolean;
+    isCover: boolean;
   }>;
   // True when the matching set exceeds the single-page render cap and
   // currentItems holds only the first page-worth; the form shows a notice.
   currentItemsTruncated: boolean;
+  coverChoice: GalleryCoverChoice;
   // External URLs already attached to the gallery; pre-fills the edit
   // form's external-link fieldset. Empty when none have been set.
   // `quarantineReason` is non-null when the URL failed verification (a Safe
@@ -1442,6 +1460,21 @@ export interface CuratorGalleryEditView {
     url: string;
     quarantineReason: string | null;
   }>;
+}
+
+/**
+ * The edit form's cover choice. `offered` is false where no photo can be
+ * chosen (a gallery with none, or an administrator moderating a member's
+ * gallery, whose cover is the owner's), and then the form renders no cover
+ * control and its save keeps the stored choice. `useNewest` checks the
+ * "Use the newest photo" choice. `outsideList` is the chosen cover when it is
+ * still in the gallery but past the items the form lists, so it is shown and
+ * submitted rather than silently dropped.
+ */
+export interface GalleryCoverChoice {
+  offered: boolean;
+  useNewest: boolean;
+  outsideList: CuratorGalleryEditView['currentItems'][number] | null;
 }
 
 export interface CuratorGallerySummary {
@@ -1546,6 +1579,11 @@ export interface CuratorGalleryUpdates {
   // boundary. Cap is `config.galleryMaxExternalLinks`. May be empty
   // (caller passes []) or omitted (treated as []) for back-compat.
   externalLinks?: CuratorGalleryExternalLinkInput[];
+  // The photo chosen to stand for the gallery, as the edit form's Cover radio
+  // submits it: a media id, or '' / null for "use the newest photo". Omitted
+  // (undefined) keeps the stored choice, which is what a form offering no
+  // photo to choose from submits. Only an edit sets it; a create has none.
+  coverMediaId?: string | null;
 }
 
 export interface CuratorGalleryUpdateInput {
@@ -2905,10 +2943,13 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     // matches the existing owner-check/renderNotFound convention).
     // Without the restriction, returns any gallery (admin moderation +
     // public read paths use this).
+    // `selectedCoverMediaId`, on a re-render after a refusal, is the cover the
+    // refused form submitted ('' for the newest photo), so the form comes back
+    // as it was sent; otherwise the stored choice is shown.
     getGalleryForEdit(
       galleryId: string,
       restrictToOwnerId?: string,
-      opts: { memberKey?: string } = {},
+      opts: { memberKey?: string; selectedCoverMediaId?: string | null } = {},
     ): CuratorGalleryEditView {
       return runSqliteRead('getGalleryForEdit', () => {
         const g = media.getNamedGalleryById.get(galleryId) as
@@ -2916,6 +2957,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
             id: string; name: string; description: string;
             sort_order: GallerySortOrderValue; owner_member_id: string;
             is_default: number; is_system: number; owner_display_name: string;
+            cover_media_id: string | null;
           }
           | undefined;
         if (!g) {
@@ -2957,20 +2999,60 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           if (list) list.push(tr.tag_display);
           else tagsByMediaId.set(tr.media_id, [tr.tag_display]);
         }
-        const currentItems = itemRows.map((r) => ({
-          mediaId: r.id,
-          mediaType: r.media_type,
-          thumbnailUrl: deriveListThumbnail(r),
-          caption: r.caption,
-          sourceFilename: r.source_filename,
-          // Member-owned galleries edit items under the member's media
-          // routes; the admin curator surface has its own.
-          editHref: opts.memberKey
-            ? `/members/${opts.memberKey}/media/${r.id}/edit`
-            : `/admin/curator/media/${r.id}/edit`,
-          isUnavailableEmbed: r.is_unavailable_embed === 1,
-          tags: tagsByMediaId.get(r.id) ?? [],
-        }));
+        const selectedCover = opts.selectedCoverMediaId === undefined
+          ? g.cover_media_id
+          : (opts.selectedCoverMediaId || null);
+        // Member-owned galleries edit items under the member's media
+        // routes; the admin curator surface has its own.
+        const itemEditHref = (mediaId: string): string => (opts.memberKey
+          ? `/members/${opts.memberKey}/media/${mediaId}/edit`
+          : `/admin/curator/media/${mediaId}/edit`);
+        const currentItems = itemRows.map((r) => {
+          // Only a photo the public gallery shows can stand for it.
+          const canBeCover = r.media_type === 'photo' && r.is_unavailable_embed !== 1;
+          return {
+            mediaId: r.id,
+            mediaType: r.media_type,
+            thumbnailUrl: deriveListThumbnail(r),
+            caption: r.caption,
+            sourceFilename: r.source_filename,
+            editHref: itemEditHref(r.id),
+            isUnavailableEmbed: r.is_unavailable_embed === 1,
+            tags: tagsByMediaId.get(r.id) ?? [],
+            canBeCover,
+            isCover: canBeCover && r.id === selectedCover,
+          };
+        });
+        // A chosen cover past the listed items is still the gallery's cover;
+        // it is read on its own so the form shows it and submits it back.
+        let outsideList: GalleryCoverChoice['outsideList'] = null;
+        if (currentItemsTruncated && selectedCover !== null
+          && selectedCover === g.cover_media_id
+          && !currentItems.some((i) => i.mediaId === selectedCover)) {
+          const cover = listGalleryCovers([galleryId])[0];
+          if (cover && cover.is_chosen === 1) {
+            outsideList = {
+              mediaId: cover.media_id,
+              mediaType: 'photo',
+              thumbnailUrl: storage.constructURL(cover.s3_key_thumb),
+              caption: cover.caption,
+              sourceFilename: cover.source_filename,
+              editHref: itemEditHref(cover.media_id),
+              isUnavailableEmbed: false,
+              tags: [],
+              canBeCover: true,
+              isCover: true,
+            };
+          }
+        }
+        const coverShown = outsideList !== null || currentItems.some((i) => i.isCover);
+        const coverChoice: GalleryCoverChoice = {
+          offered: outsideList !== null || currentItems.some((i) => i.canBeCover),
+          // A stored cover that has left the gallery is not what the gallery
+          // shows, so the form says so by checking the newest photo.
+          useNewest: !coverShown,
+          outsideList,
+        };
         const linkRows = media.listGalleryExternalLinks.all(galleryId) as Array<{
           id: string;
           label: string;
@@ -3001,6 +3083,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           excludeTags: excludeTagRows.map((t) => t.tag_display),
           currentItems,
           currentItemsTruncated,
+          coverChoice,
           externalLinks,
         };
       });
@@ -3033,6 +3116,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           id: string; owner_member_id: string; is_system: number; is_default: number;
           owner_slug: string; name: string; description: string;
           sort_order: GallerySortOrderValue; owner_display_name: string;
+          cover_media_id: string | null;
         }
         | undefined;
       if (!existing) {
@@ -3097,6 +3181,32 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         );
       }
 
+      // The cover. Choosing it is the owner's own act, like the words: an
+      // administrator moderating a member's gallery leaves it as the owner set
+      // it. A newly chosen cover must be one of the photos the gallery will
+      // show once saved. A stored choice carried through unchanged is not
+      // re-checked: a cover that has since left the gallery is simply not
+      // honoured on read, and refusing the save for it would block every other
+      // edit until the member noticed.
+      const coverMediaId = validated.coverMediaId === undefined
+        ? existing.cover_media_id
+        : validated.coverMediaId;
+      if (coverMediaId !== existing.cover_media_id) {
+        if (isModeration) {
+          const m = "A member's gallery keeps the cover its owner chose.";
+          throw new ValidationError(m, { fieldErrors: { coverMediaId: m } });
+        }
+        if (coverMediaId !== null && !isGalleryCoverCandidate(
+          coverMediaId,
+          validated.criteriaTags.map((t) => t.toLowerCase()),
+          validated.excludeTags.map((t) => t.toLowerCase()),
+        )) {
+          const m = "Choose a cover from this gallery's own photos.";
+          throw new ValidationError(m, { fieldErrors: { coverMediaId: m } });
+        }
+      }
+      validated.coverMediaId = coverMediaId;
+
       // A save that changes nothing (the same edit submitted twice, or a form
       // saved untouched) is the outcome already holding: it reports success
       // and writes, records and counts nothing. Links are compared in order,
@@ -3129,6 +3239,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           validated.name,
           validated.description,
           validated.sortOrder,
+          coverMediaId,
           now,
           actorMemberId,
           galleryId,
@@ -3179,6 +3290,12 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       });
 
       if (existing.is_system === 1) {
+        // The save file names the cover by its source filename, the curated
+        // item's stable key; its media id changes whenever its bytes do.
+        const coverPhoto = coverMediaId === null
+          ? undefined
+          : (media.getMediaSourceFilename.get(coverMediaId) as { source_filename: string | null } | undefined)
+            ?.source_filename ?? undefined;
         await writeFhGallerySidecar({
           id: galleryId,
           name: validated.name,
@@ -3191,6 +3308,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
             url: lk.url,
             sortOrder: i,
           })),
+          ...(coverPhoto ? { coverPhoto } : {}),
         });
       }
     },
@@ -3549,6 +3667,16 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           };
         });
       });
+    },
+
+    // The thumbnail address of the photo that stands for each gallery: its
+    // chosen cover while that is still one of its photos, otherwise its newest
+    // photo. One statement for the whole list; a gallery with no photo is
+    // absent from the map.
+    listGalleryCoverThumbs(galleryIds: string[]): Map<string, string> {
+      return runSqliteRead('listGalleryCoverThumbs', () => new Map(
+        listGalleryCovers(galleryIds).map((c) => [c.gallery_id, storage.constructURL(c.s3_key_thumb)]),
+      ));
     },
 
     // Member-attributed photo upload. Mirrors uploadPhoto but writes
@@ -4070,6 +4198,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     criteriaTags: string[];
     excludeTags: string[];
     externalLinks: Array<{ label: string; url: string }>;
+    coverMediaId: string | null | undefined;
   }> {
     const name = cleanUserText(updates.name, 'single_line', 'name');
     if (!name) {
@@ -4188,6 +4317,15 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       validatedLinks.push({ label, url: result.normalizedUrl });
     }
 
+    // The cover's shape only: whether it is one of this gallery's photos
+    // depends on the gallery's final hashtags, so updateGallery checks that
+    // once the owner's uploader tag has been added. An empty choice is "use the
+    // newest photo"; an absent one keeps what is stored.
+    const rawCover = updates.coverMediaId;
+    const coverMediaId = rawCover === undefined
+      ? undefined
+      : (String(rawCover ?? '').trim() || null);
+
     return {
       name,
       description,
@@ -4195,6 +4333,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       criteriaTags,
       excludeTags,
       externalLinks: validatedLinks,
+      coverMediaId,
     };
   }
 
@@ -4247,11 +4386,15 @@ interface GalleryFieldChange {
  */
 function galleryChangesFor(
   galleryId: string,
-  existing: { name: string; description: string; sort_order: GallerySortOrderValue },
+  existing: {
+    name: string; description: string; sort_order: GallerySortOrderValue;
+    cover_media_id: string | null;
+  },
   validated: {
     name: string; description: string; sortOrder: GallerySortOrderValue;
     criteriaTags: string[]; excludeTags: string[];
     externalLinks: Array<{ label: string; url: string }>;
+    coverMediaId?: string | null;
   },
 ): GalleryFieldChange[] {
   const priorCriteria = (media.listFhNamedGalleryTags.all(galleryId) as Array<{ tag_display: string }>)
@@ -4286,6 +4429,9 @@ function galleryChangesFor(
   note('excludeTags', sorted(priorExcludes), sorted(validated.excludeTags));
   note('externalLinks', sorted(linkText(priorLinkRows)), sorted(linkText(validated.externalLinks)),
     JSON.stringify(comparableLinks(priorLinkRows)) === JSON.stringify(comparableLinks(validated.externalLinks)));
+  // An absent cover is the stored one carried through, never a change.
+  note('coverMediaId', existing.cover_media_id,
+    validated.coverMediaId === undefined ? existing.cover_media_id : validated.coverMediaId);
   return changed;
 }
 
@@ -5570,6 +5716,7 @@ export interface CuratorGalleryEditContent {
   gallery: CuratorGalleryFormFields | null;
   currentItems: CuratorGalleryEditView['currentItems'];
   currentItemsTruncated: boolean;
+  coverChoice: GalleryCoverChoice;
   /** Opens the curator upload form with this gallery's hashtags filled in;
    *  null on a member's gallery, which a curator moderates and never adds to. */
   uploadWithTagsHref: string | null;
@@ -5881,6 +6028,24 @@ export function getCuratorGalleryListPage(
   };
 }
 
+const NO_COVER_CHOICE: GalleryCoverChoice = { offered: false, useNewest: false, outsideList: null };
+
+/**
+ * The listed items and the cover choice as this actor's form offers them. A
+ * member's cover is their own choice, so an administrator moderating their
+ * gallery is offered none, and the save then keeps the stored cover.
+ */
+function coverChoiceFor(
+  g: Pick<CuratorGalleryEditView, 'currentItems' | 'coverChoice'>,
+  moderation: { ownerDisplayName: string } | null,
+): Pick<CuratorGalleryEditContent, 'currentItems' | 'coverChoice'> {
+  if (!moderation) return { currentItems: g.currentItems, coverChoice: g.coverChoice };
+  return {
+    currentItems: g.currentItems.map((i) => ({ ...i, canBeCover: false, isCover: false })),
+    coverChoice: NO_COVER_CHOICE,
+  };
+}
+
 function curatorGalleryEditEnvelope(
   title: string,
   content: CuratorGalleryEditContent,
@@ -5910,6 +6075,7 @@ export function getCuratorGalleryNotFoundPage(
     gallery: null,
     currentItems: [],
     currentItemsTruncated: false,
+    coverChoice: NO_COVER_CHOICE,
     uploadWithTagsHref: null,
     externalLinkSlots: [],
     isFhOwned: true,
@@ -5946,7 +6112,7 @@ export function getCuratorGalleryEditPage(
       criteriaTagsString: g.criteriaTagsDisplayString,
       excludeTagsString: g.excludeTags.join(' '),
     },
-    currentItems: g.currentItems,
+    ...coverChoiceFor(g, moderation),
     currentItemsTruncated: g.currentItemsTruncated,
     uploadWithTagsHref: curatorUploadWithTagsHref(galleryId, g.isSystemOwned),
     externalLinkSlots: buildExternalLinkSlots(null, g.externalLinks),
@@ -5976,18 +6142,23 @@ export function getCuratorGalleryEditErrorPage(
     externalLinks: CuratorGalleryExternalLinkInput[];
     fieldErrors?: Record<string, string>;
     reasonRaw?: string;
+    /** The cover the refused form submitted; undefined when it offered none. */
+    coverMediaId?: string;
   },
 ): PageViewModel<CuratorGalleryEditContent> {
   let currentItems: CuratorGalleryEditView['currentItems'] = [];
+  let coverChoice = NO_COVER_CHOICE;
   let currentItemsTruncated = false;
   let isFhOwned = true;
   let moderation: { ownerDisplayName: string } | null = null;
   try {
-    const reread = svc.getGalleryForEdit(submitted.galleryId);
-    currentItems = reread.currentItems;
+    const reread = svc.getGalleryForEdit(submitted.galleryId, undefined, {
+      selectedCoverMediaId: submitted.coverMediaId,
+    });
+    moderation = curatorGalleryModerationView(reread, actorMemberId);
+    ({ currentItems, coverChoice } = coverChoiceFor(reread, moderation));
     currentItemsTruncated = reread.currentItemsTruncated;
     isFhOwned = reread.isSystemOwned;
-    moderation = curatorGalleryModerationView(reread, actorMemberId);
   } catch {
     /* gallery may have been deleted concurrently; render with empty items */
   }
@@ -6008,6 +6179,7 @@ export function getCuratorGalleryEditErrorPage(
     },
     currentItems,
     currentItemsTruncated,
+    coverChoice,
     uploadWithTagsHref: curatorUploadWithTagsHref(submitted.galleryId, isFhOwned),
     externalLinkSlots: buildExternalLinkSlots(submitted.externalLinks, [], submitted.fieldErrors),
     isFhOwned,
@@ -6560,7 +6732,12 @@ export interface MemberGalleryEditContent {
   gallery: CuratorGalleryFormFields;
   currentItems: CuratorGalleryEditView['currentItems'];
   currentItemsTruncated: boolean;
+  coverChoice: GalleryCoverChoice;
   externalLinkSlots: ExternalLinkSlot[];
+  // The same hashtag suggestions the Share Media form offers (the member's own
+  // player hashtag, clubs and events, recent events and popular hashtags), so a
+  // gallery can be built on an event's hashtag with one click.
+  tagSuggestions: MemberTagSuggestions;
 }
 
 /**
@@ -6573,12 +6750,15 @@ export function getMemberGalleryEditPage(
   memberKey: string,
   galleryId: string,
   input: {
+    /** The owner, whose clubs and events the hashtag suggestions offer. */
+    memberId: string;
     gallery: CuratorGalleryFormFields;
     /** The gallery's saved hashtags, the owner's `#by_` among them. */
     criteriaTags: string[];
     isDefault: boolean;
     currentItems: CuratorGalleryEditView['currentItems'];
     currentItemsTruncated: boolean;
+    coverChoice: GalleryCoverChoice;
     externalLinkSlots: ExternalLinkSlot[];
     errorMessage?: string;
     fieldErrors?: Record<string, string>;
@@ -6598,7 +6778,9 @@ export function getMemberGalleryEditPage(
       gallery: input.gallery,
       currentItems: input.currentItems,
       currentItemsTruncated: input.currentItemsTruncated,
+      coverChoice: input.coverChoice,
       externalLinkSlots: input.externalLinkSlots,
+      tagSuggestions: hashtagDiscoveryService.getTagSuggestionsForMember(input.memberId, memberKey),
     },
   };
 }
@@ -6612,6 +6794,8 @@ export interface MemberGalleryListRow extends CuratorGallerySummary {
   editHref: string;
   deleteHref: string;
   isConfirmDelete: boolean;
+  /** The cover photo's thumbnail; null when the gallery shows no photo. */
+  coverThumbUrl: string | null;
 }
 
 /**
@@ -6641,11 +6825,14 @@ export interface MemberGalleryListContent {
 }
 
 function memberGalleryRows(
+  svc: CuratorMediaService,
   summaries: CuratorGallerySummary[],
   memberKey: string,
   confirmDeleteId: string | null,
 ): MemberGalleryListRow[] {
+  const covers = svc.listGalleryCoverThumbs(summaries.map((g) => g.id));
   return summaries.map((g) => ({
+    coverThumbUrl: covers.get(g.id) ?? null,
     ...g,
     editHref: `/members/${memberKey}/galleries/${g.id}/edit`,
     deleteHref: `/members/${memberKey}/galleries/${g.id}/delete`,
@@ -6701,7 +6888,7 @@ export function getMemberGalleryListPage(
     seo: { title: 'My Galleries' },
     page: { sectionKey: 'members', pageKey: 'member_galleries_list', title: 'My Galleries' },
     content: {
-      galleries: memberGalleryRows(summaries, memberKey, input.confirmDeleteId),
+      galleries: memberGalleryRows(svc, summaries, memberKey, input.confirmDeleteId),
       listHref,
       intro: MEMBER_GALLERY_LIST_INTRO,
       uploadMediaHref: benefitNotice ? null : `/members/${memberKey}/media/upload`,
@@ -6737,7 +6924,7 @@ export function getMemberGalleryListErrorPage(
     seo: { title: 'My Galleries' },
     page: { sectionKey: 'members', pageKey: 'member_galleries_list', title: 'My Galleries' },
     content: {
-      galleries: memberGalleryRows(svc.listGalleriesForOwner(input.memberId), memberKey, null),
+      galleries: memberGalleryRows(svc, svc.listGalleriesForOwner(input.memberId), memberKey, null),
       listHref,
       intro: MEMBER_GALLERY_LIST_INTRO,
       uploadMediaHref: `/members/${memberKey}/media/upload`,

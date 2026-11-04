@@ -37,6 +37,8 @@ import { groupPlayerResults, resultsHaveDetail } from './playerShaping';
 import type { PlayerEventGroup, PlayerHeroData } from '../types/playerProfile';
 import { FreestyleRecordViewModel, shapeFreestyleRecord } from './freestyleRecordShaping';
 import { buildActiveTrickSlugResolver } from './freestyleResolvableSlugs';
+import { mediaService, type EntityMediaBlock } from './mediaService';
+import { PLAYER_TAG_PREFIX, playerTagForName } from './slugify';
 
 interface HistoricalPlayer {
   personId: string;
@@ -63,6 +65,10 @@ export interface HistoryDetailContent {
   eventGroups: PlayerEventGroup[];
   resultsHaveDetail: boolean;
   freestyleRecords: FreestyleRecordViewModel[];
+  // The newest media crediting this person as a player, and the button to all
+  // of it; null when none does, which hides the block.
+  media: EntityMediaBlock | null;
+  mediaHeading: string;
 }
 
 export type HistoryDetailResult =
@@ -134,7 +140,18 @@ export const historyService = {
       return { action: 'requireAuth' };
     }
 
+    // A historical person is credited by the record's name folded by the one
+    // rule; a member is credited by their own slug, on their profile.
+    // A name with no a to z form has no player hashtag, so nothing shows.
+    const playerTag = playerTagForName(player.personName);
+    const hasTag = playerTag.length > PLAYER_TAG_PREFIX.length;
+    const preview = hasTag
+      ? mediaService.getEntityMediaPreview(playerTag, { authenticated: isMember }) : null;
+    const media = preview ? { ...preview, buttonLabel: 'View Player Gallery' } : null;
+
     const heroData: PlayerHeroData = {
+      hashtag: hasTag
+        ? { display: playerTag, galleryHref: preview ? preview.galleryHref : null } : undefined,
       displayName:       player.personName,
       honorificNickname: player.bapNickname ?? undefined,
       isHof:             player.hofMember,
@@ -168,6 +185,8 @@ export const historyService = {
           eventGroups:           player.eventGroups,
           resultsHaveDetail:     resultsHaveDetail(player.eventGroups),
           freestyleRecords:      freestyleRows.map(r => shapeFreestyleRecord(r, resolveActiveSlug)),
+          media,
+          mediaHeading:          `Media Featuring ${player.personName}`,
         },
       },
     };

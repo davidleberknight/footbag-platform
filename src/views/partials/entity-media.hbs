@@ -1,0 +1,11 @@
+{{!-- The media block on an event, club or player page. Receives an
+      EntityMediaBlock: the newest items carrying the page's hashtag, through the
+      shared gallery tile, then the button to the whole gallery. The caller
+      renders it only when media exists and supplies the heading in its own
+      section system. --}}
+<ul class="gallery-grid">
+  {{#each items}}
+    {{> _gallery-tile this}}
+  {{/each}}
+</ul>
+<p class="mt-4"><a href="{{galleryHref}}" class="btn btn-outline">{{buttonLabel}}</a></p>

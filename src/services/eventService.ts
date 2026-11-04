@@ -51,15 +51,19 @@
  * Service shape: singleton object (no external adapters).
  */
 import {
-  countGalleryItemsByCriteria,
   PublicCompletedEventSummaryRow,
   PublicEventDetailRow,
   PublicEventDisciplineRow,
   PublicEventResultRow,
   PublicEventSummaryRow,
   publicEvents,
-  queryTagIdsByNormalized,
 } from '../db/db';
+import {
+  mediaService,
+  type EntityHashtag,
+  type EntityMediaBlock,
+  type ViewerContext,
+} from './mediaService';
 import { NotFoundError, ValidationError } from './serviceErrors';
 import { personHref } from './personLink';
 import { runSqliteRead } from './sqliteRetry';
@@ -148,9 +152,12 @@ export interface PublicEventPage {
   isSparse: boolean;
   primarySection: 'details' | 'results';
   resultSections: PublicResultSection[];
-  // Link to the event's media gallery, set only when media carries the event's
-  // hashtag (mirrors the club gallery link); null hides the affordance.
-  viewGalleryHref: string | null;
+  // The event's hashtag under its title, linked to its gallery when media
+  // carries it, so a visitor sees exactly what to tag their own media with.
+  hashtag: EntityHashtag;
+  // The newest media carrying the event's hashtag and the button to its whole
+  // gallery; null when none does, which hides the block.
+  media: EntityMediaBlock | null;
 }
 
 export interface FeaturedPromoCard {
@@ -186,9 +193,8 @@ export interface EventDetailContent {
   isSparse: boolean;
   primarySection: 'details' | 'results';
   resultSections: PublicResultSection[];
-  // Link to the event's media gallery, set only when media carries the event's
-  // hashtag (mirrors the club gallery link); null hides the affordance.
-  viewGalleryHref: string | null;
+  hashtag: EntityHashtag;
+  media: EntityMediaBlock | null;
 }
 
 function assertArchiveYear(year: number): void {
@@ -474,7 +480,7 @@ function toPublicEventPage(
   eventRow: PublicEventDetailRow,
   disciplineRows: PublicEventDisciplineRow[],
   resultRows: PublicEventResultRow[],
-  viewGalleryHref: string | null,
+  media: EntityMediaBlock | null,
 ): PublicEventPage {
   const resultSections = groupPublicResultRows(resultRows);
   const hasResults = resultSections.length > 0;
@@ -495,7 +501,11 @@ function toPublicEventPage(
     isSparse,
     primarySection: hasResults ? 'results' : 'details',
     resultSections,
-    viewGalleryHref,
+    hashtag: {
+      display: eventRow.tag_display,
+      galleryHref: media ? media.galleryHref : null,
+    },
+    media,
   };
 }
 
@@ -523,10 +533,9 @@ export class EventService {
     });
   }
 
-  getPublicEventDetail(eventKey: string): PublicEventPage {
+  getPublicEventDetail(eventKey: string, viewer: ViewerContext): PublicEventPage {
     const normalizedStoredTag = normalizePublicEventKeyToStoredTag(eventKey);
-
-    return runSqliteRead('getPublicEventDetail', () => {
+    const rows = runSqliteRead('getPublicEventDetail', () => {
       const eventRow = publicEvents.getByStandardTag.get(normalizedStoredTag) as PublicEventDetailRow | undefined;
 
       if (!eventRow) {
@@ -538,20 +547,13 @@ export class EventService {
 
       const disciplineRows = publicEvents.listDisciplinesByEventId.all(eventRow.event_id) as PublicEventDisciplineRow[];
       const resultRows = publicEvents.listPublicResultRowsByEventId.all(eventRow.event_id) as PublicEventResultRow[];
-
-      // Offer the media-gallery link only when media carries the event's
-      // hashtag, mirroring the club gallery link.
-      const galleryToken = normalizedStoredTag.slice(1); // drop leading '#'
-      const tagRows = queryTagIdsByNormalized([normalizedStoredTag]);
-      const viewGalleryHref =
-        tagRows.length > 0 && countGalleryItemsByCriteria([tagRows[0].id]) > 0
-          // `context=` locks the event hashtag as the gallery's context so a
-          // visitor stays inside the event's media while refining within it.
-          ? `/media/browse?context=${encodeURIComponent(galleryToken)}`
-          : null;
-
-      return toPublicEventPage(eventRow, disciplineRows, resultRows, viewGalleryHref);
+      return { eventRow, disciplineRows, resultRows };
     });
+
+    // The media block shows only when media carries the event's hashtag.
+    const preview = mediaService.getEntityMediaPreview(normalizedStoredTag, viewer);
+    const media = preview ? { ...preview, buttonLabel: 'View Event Gallery' } : null;
+    return toPublicEventPage(rows.eventRow, rows.disciplineRows, rows.resultRows, media);
   }
 
   /** The hand-authored featured card, or null once its event has finished.
@@ -631,8 +633,8 @@ export class EventService {
     };
   }
 
-  getPublicEventPage(eventKey: string): PageViewModel<EventDetailContent> {
-    const detail = this.getPublicEventDetail(eventKey);
+  getPublicEventPage(eventKey: string, viewer: ViewerContext): PageViewModel<EventDetailContent> {
+    const detail = this.getPublicEventDetail(eventKey, viewer);
     const year = detail.event.startDate.slice(0, 4);
     return {
       seo: { title: detail.event.standardTagDisplay },

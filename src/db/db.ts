@@ -6013,11 +6013,19 @@ export const media = {
   // edited by that member or cleared by an administrator moderating. Ownership
   // is decided in the service, which is why this statement keys on the gallery
   // alone. Caller wraps it in a transaction with the matching tag-set rewrites.
+  // The cover is written with the rest; NULL means the newest photo stands in.
   get updateMemberGalleryMetadata() { return db.prepare(`
     UPDATE member_galleries
-    SET name = ?, description = ?, sort_order = ?,
+    SET name = ?, description = ?, sort_order = ?, cover_media_id = ?,
         updated_at = ?, updated_by = ?, version = version + 1
     WHERE id = ?
+  `); },
+
+  // A media item's source filename, the key a curated gallery's save file names
+  // its cover by: a curated item's id changes when its file's bytes change, its
+  // filename does not.
+  get getMediaSourceFilename() { return db.prepare(`
+    SELECT source_filename FROM media_items WHERE id = ?
   `); },
 
   // Admin gallery edit: replace a gallery's criteria-tag set.
@@ -6052,6 +6060,7 @@ export const media = {
   // layer refuses to change and whose row it refuses to delete.
   get getNamedGalleryById() { return db.prepare(`
     SELECT g.id, g.name, g.description, g.sort_order, g.is_default,
+           g.cover_media_id,
            g.owner_member_id, m.is_system,
            m.display_name AS owner_display_name,
            m.slug         AS owner_slug
@@ -6669,6 +6678,125 @@ export function summarizeGalleryItemsByCriteria(
   `).get(...tagIds, ...excludeTagIds, tagIds.length) as { n: number; latest: string | null };
 }
 
+/**
+ * The photo that stands for each of a page of galleries, in one statement
+ * however many galleries the page holds. A gallery's chosen cover is honoured
+ * only while it is one of the gallery's photos: active, not an avatar, carrying
+ * every criteria tag and no exclude tag, and never `#unavailable_embed`, the
+ * same match the public gallery page renders. Otherwise the newest such photo
+ * stands in. A gallery with no matching photo has no row. `is_chosen` is 1
+ * when the row is the gallery's own chosen cover.
+ */
+export interface GalleryCoverRow {
+  gallery_id: string;
+  media_id: string;
+  is_chosen: number;
+  caption: string | null;
+  source_filename: string;
+  s3_key_thumb: string;
+  s3_key_display: string;
+}
+export function listGalleryCovers(galleryIds: string[]): GalleryCoverRow[] {
+  if (galleryIds.length === 0) return [];
+  const ph = galleryIds.map(() => '?').join(',');
+  return db.prepare(`
+    WITH g AS (
+      SELECT id, cover_media_id FROM member_galleries WHERE id IN (${ph})
+    ),
+    criteria AS (
+      SELECT gallery_id, COUNT(*) AS n
+      FROM member_gallery_tags
+      WHERE gallery_id IN (${ph})
+      GROUP BY gallery_id
+    ),
+    matching AS (
+      SELECT mgt.gallery_id, mi.id, mi.uploaded_at
+      FROM member_gallery_tags mgt
+      JOIN media_tags mt ON mt.tag_id = mgt.tag_id
+      JOIN media_items mi ON mi.id = mt.media_id
+      WHERE mgt.gallery_id IN (${ph})
+        AND mi.media_type = 'photo'
+        AND mi.moderation_status = 'active'
+        AND mi.is_avatar = 0
+        AND NOT EXISTS (
+          SELECT 1 FROM member_gallery_exclude_tags mget
+          JOIN media_tags mtex ON mtex.tag_id = mget.tag_id
+          WHERE mget.gallery_id = mgt.gallery_id AND mtex.media_id = mi.id
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM media_tags mtu
+          JOIN tags tu ON tu.id = mtu.tag_id
+          WHERE mtu.media_id = mi.id AND tu.tag_normalized = '#unavailable_embed'
+        )
+      GROUP BY mgt.gallery_id, mi.id
+      HAVING COUNT(DISTINCT mgt.tag_id) =
+             (SELECT c.n FROM criteria c WHERE c.gallery_id = mgt.gallery_id)
+    ),
+    ranked AS (
+      SELECT m.gallery_id, m.id AS media_id,
+             COALESCE(m.id = g.cover_media_id, 0) AS is_chosen,
+             ROW_NUMBER() OVER (
+               PARTITION BY m.gallery_id
+               ORDER BY COALESCE(m.id = g.cover_media_id, 0) DESC, m.uploaded_at DESC, m.id DESC
+             ) AS rn
+      FROM matching m
+      JOIN g ON g.id = m.gallery_id
+    )
+    SELECT r.gallery_id, r.media_id, r.is_chosen,
+           mi.caption, mi.source_filename, mi.s3_key_thumb, mi.s3_key_display
+    FROM ranked r
+    JOIN media_items mi ON mi.id = r.media_id
+    WHERE r.rn = 1
+  `).all(...galleryIds, ...galleryIds, ...galleryIds) as GalleryCoverRow[];
+}
+
+/**
+ * Whether one media item may be chosen as a gallery's cover: an active,
+ * non-avatar photo, never `#unavailable_embed`, carrying every criteria tag and
+ * none of the exclude tags. Tags are given in their stored lowercase form, as a
+ * save holds them before its tag rows are written. Empty criteria match
+ * nothing, as an empty gallery shows nothing.
+ */
+export function isGalleryCoverCandidate(
+  mediaId: string,
+  criteriaNormalized: string[],
+  excludeNormalized: string[],
+): boolean {
+  if (criteriaNormalized.length === 0) return false;
+  const criteriaPh = criteriaNormalized.map(() => '?').join(',');
+  const excludeClause = excludeNormalized.length === 0
+    ? ''
+    : `AND NOT EXISTS (
+         SELECT 1 FROM media_tags mtex
+         JOIN tags tex ON tex.id = mtex.tag_id
+         WHERE mtex.media_id = mi.id
+           AND tex.tag_normalized IN (${excludeNormalized.map(() => '?').join(',')})
+       )`;
+  const row = db.prepare(`
+    SELECT 1 AS ok
+    FROM media_items mi
+    WHERE mi.id = ?
+      AND mi.media_type = 'photo'
+      AND mi.moderation_status = 'active'
+      AND mi.is_avatar = 0
+      AND (
+        SELECT COUNT(DISTINCT t.id)
+        FROM media_tags mt
+        JOIN tags t ON t.id = mt.tag_id
+        WHERE mt.media_id = mi.id AND t.tag_normalized IN (${criteriaPh})
+      ) = ?
+      ${excludeClause}
+      AND NOT EXISTS (
+        SELECT 1 FROM media_tags mtu
+        JOIN tags tu ON tu.id = mtu.tag_id
+        WHERE mtu.media_id = mi.id AND tu.tag_normalized = '#unavailable_embed'
+      )
+  `).get(mediaId, ...criteriaNormalized, criteriaNormalized.length, ...excludeNormalized) as
+    | { ok: number }
+    | undefined;
+  return row !== undefined;
+}
+
 // Tags that co-occur on the items matching the current criteria/exclude set,
 // ranked by how many matching items carry them. Feeds the editable filter's
 // suggestion row so a viewer narrows by tags that actually appear in the
@@ -7122,10 +7250,14 @@ export const tagStats = {
   // The standard hashtags of public events and open clubs whose real name (or,
   // for an event, its year, and for a club, its city) holds a typed word, each
   // with its kind and real name, so typing "worlds" offers the event's
-  // hashtag labelled with the event. Parameters: the word as a LIKE pattern
-  // (`%word%`, `_` and `%` escaped), the word as typed for the year match, the
-  // pattern twice more for club name and city, the row limit. A retired tag is
-  // never offered. Ordered by kind, then name, then the row's own id.
+  // hashtag labelled with the event. The words of the hashtag itself match too,
+  // so a short hashtag whose words are not in the name ("worlds" in
+  // #event_2026_worlds_japan) is still found. Parameters: the word as a LIKE
+  // pattern (`%word%`, `_` and `%` escaped), the word as typed for the year
+  // match, the hashtag pattern (the words joined by an escaped underscore), the
+  // name pattern twice more for club name and city, the hashtag pattern again,
+  // the row limit. A retired tag is never offered. Ordered by kind, then name,
+  // then the row's own id.
   get matchStandardTagsByWord() { return db.prepare(`
     SELECT kind, real_name, tag_normalized, tag_display, usage_count, row_id FROM (
       SELECT 'event' AS kind, e.title AS real_name, t.tag_normalized, t.tag_display,
@@ -7135,7 +7267,8 @@ export const tagStats = {
       LEFT JOIN tag_stats ts ON ts.tag_id = t.id
       WHERE e.status IN (${PUBLIC_EVENT_DETAIL_VISIBLE_STATUS_SQL})
         AND t.is_standard = 1 AND t.standard_type = 'event' AND t.retired_at IS NULL
-        AND (lower(e.title) LIKE ? ESCAPE '\\' OR substr(e.start_date, 1, 4) = ?)
+        AND (lower(e.title) LIKE ? ESCAPE '\\' OR substr(e.start_date, 1, 4) = ?
+             OR t.tag_normalized LIKE ? ESCAPE '\\')
       UNION ALL
       SELECT 'club' AS kind, c.name AS real_name, t.tag_normalized, t.tag_display,
              ts.usage_count, c.id AS row_id
@@ -7143,7 +7276,8 @@ export const tagStats = {
       JOIN tags t ON t.id = c.hashtag_tag_id
       LEFT JOIN tag_stats ts ON ts.tag_id = t.id
       WHERE t.retired_at IS NULL
-        AND (lower(c.name) LIKE ? ESCAPE '\\' OR lower(c.city) LIKE ? ESCAPE '\\')
+        AND (lower(c.name) LIKE ? ESCAPE '\\' OR lower(c.city) LIKE ? ESCAPE '\\'
+             OR t.tag_normalized LIKE ? ESCAPE '\\')
     )
     ORDER BY kind ASC, real_name ASC, row_id ASC
     LIMIT ?
@@ -7340,6 +7474,22 @@ export const tagStats = {
     ORDER BY e.start_date DESC
     LIMIT ?
   `); },
+
+  // The hashtags of public events starting inside a window (from, to), newest
+  // first, whether or not any media carries them yet, so a member can tag an
+  // event before anyone else has. Only the statuses a public event page shows.
+  get listRecentPublicEventTags() { return db.prepare(`
+    SELECT t.tag_normalized, t.tag_display
+    FROM events e
+    JOIN tags t ON t.id = e.hashtag_tag_id
+    WHERE e.status IN (${PUBLIC_EVENT_DETAIL_VISIBLE_STATUS_SQL})
+      AND t.is_standard = 1
+      AND t.standard_type = 'event'
+      AND e.start_date >= ?
+      AND e.start_date <= ?
+    ORDER BY e.start_date DESC, e.id DESC
+    LIMIT ?
+  `); },
 };
 
 // Tag autocomplete for /tags/suggest. Matches the bare term as a `#<term>%`
@@ -7373,8 +7523,13 @@ export function suggestTagsForTerm(term: string, limit: number): TagSuggestRow[]
       AND t.retired_at IS NULL
       AND NOT (t.is_standard = 1 AND t.standard_type = 'club'
                AND NOT EXISTS (SELECT 1 FROM clubs_all c WHERE c.hashtag_tag_id = t.id))
+      -- The hashtag of an event whose page is not public (a draft, a pending
+      -- or a canceled event) is never offered.
+      AND NOT EXISTS (SELECT 1 FROM events e WHERE e.hashtag_tag_id = t.id
+                        AND e.status NOT IN (${PUBLIC_EVENT_DETAIL_VISIBLE_STATUS_SQL}))
     ORDER BY COALESCE(ts.distinct_member_count, 0) DESC,
-             COALESCE(ts.usage_count, 0) DESC
+             COALESCE(ts.usage_count, 0) DESC,
+             t.id DESC
     LIMIT ?
   `).all(pattern, term, term, term, limit) as TagSuggestRow[];
 }

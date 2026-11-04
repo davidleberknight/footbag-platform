@@ -1,0 +1,4 @@
+{{!-- A page's own hashtag under its title (event, club, player). Receives an
+      EntityHashtag: the hashtag links to its gallery when media carries it and
+      renders as a plain token otherwise, as a trick page's hashtag does. --}}
+<p class="hero-hashtag">{{#if galleryHref}}<a href="{{galleryHref}}">{{display}}</a>{{else}}{{display}}{{/if}}</p>

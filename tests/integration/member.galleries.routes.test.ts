@@ -57,8 +57,11 @@ import {
   insertFreeformTag,
   attachMediaTag,
   insertMemberGallery,
+  insertEvent,
+  insertTag,
 } from '../fixtures/factories';
 import { rowPin, theOnlyRow } from '../fixtures/rowPinning';
+import { isoDaysAgo } from '../fixtures/clock';
 
 const OWNER_ID    = 'member-mg-owner-001';
 const OWNER_SLUG  = 'mg_owner';
@@ -102,6 +105,16 @@ beforeAll(async () => {
   // (admin moderation test exercises updateGallery via the admin curator
   // route, which routes through the same service method).
   insertMemberTierGrant(db, { member_id: ADMIN_ID, new_tier_status: 'tier2', reason_code: 'purchase.tier2' });
+
+  // A public event a month ago whose hashtag no media carries yet.
+  const recentStart = isoDaysAgo(30).slice(0, 10);
+  insertEvent(db, {
+    id: 'mg-recent-event', title: 'Recent Gallery Event', start_date: recentStart, end_date: recentStart,
+    status: 'completed',
+    hashtag_tag_id: insertTag(db, {
+      tag_normalized: '#event_2026_mg_recent', tag_display: '#event_2026_mg_recent', standard_type: 'event',
+    }),
+  });
 
   db.close();
 
@@ -323,6 +336,23 @@ describe('GET /members/:memberKey/galleries/:id/edit', () => {
     // Defect caught: the share link opens the form without this gallery's
     // hashtags, so what is shared from it does not show in the gallery.
     expect(res.text).toContain(`href="/members/${OWNER_SLUG}/media/upload?gallery=${id}"`);
+  });
+
+  it('offers a recent event\'s hashtag as a chip that fills the criteria field', async () => {
+    // Defect caught: a member building a gallery on an event nobody has tagged
+    // yet must guess its hashtag; or the chip fills no field; or the type-ahead
+    // offers hashtags the field then refuses.
+    await createGalleryViaApi('Event Gallery');
+    const id = findGalleryIdByName('Event Gallery')!;
+    const res = await request(createApp())
+      .get(`/members/${OWNER_SLUG}/galleries/${id}/edit`)
+      .set('Cookie', ownerCookie());
+    expect(res.status).toBe(200);
+    const block = res.text.slice(res.text.indexOf('data-tag-target="criteriaTags"'));
+    expect(res.text).toContain('data-tag-target="criteriaTags"');
+    expect(block).toContain('data-tag="#event_2026_mg_recent"');
+    expect(res.text).toMatch(/<textarea id="gallery-criteria-tags" name="criteriaTags"[^>]*data-tag-entry/);
+    expect(res.text).toContain('js/tag-suggestions.js');
   });
 
   it('returns 404 for an unknown gallery id', async () => {

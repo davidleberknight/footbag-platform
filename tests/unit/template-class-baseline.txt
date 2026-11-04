@@ -95,6 +95,7 @@ caption-mask-frame
 caption-mask-fullscreen
 card
 card-actions
+card-cover
 card-description
 card-grid
 card-grid-2col
@@ -126,7 +127,6 @@ club-detail-description
 club-detail-meta
 club-entry
 club-external-link
-club-gallery-link
 club-hashtag
 club-leader-email
 club-leader-name
@@ -342,6 +342,7 @@ gallery-item-position
 gallery-item-tags
 gallery-item-title
 gallery-item-uploader
+gallery-list-cover
 gallery-pagination
 gallery-pagination-status
 gallery-references
@@ -657,6 +658,7 @@ passback-add-no-note
 payment-checkout-actions
 picker-badge
 picker-cell
+picker-cover
 picker-edit-link
 picker-grid
 picker-meta

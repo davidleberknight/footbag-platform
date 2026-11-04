@@ -19,6 +19,16 @@
  *   - Profile Media section view-model (getMemberProfileMedia, consumed by
  *     memberService): the member's named galleries as link cards plus a view-all
  *     link, not an inline thumbnail grid
+ *   - Gallery covers on those two lists' cards and as the named-gallery page's
+ *     share image (`seo.imageUrl`, absolute from `config.publicBaseUrl`): the
+ *     gallery's chosen cover while it is still one of its photos, otherwise its
+ *     newest photo, none when it shows no photo. Read in one statement for the
+ *     galleries a page shows (`listGalleryCovers`), never per gallery
+ *   - The media block on an event, club or player page (getEntityMediaPreview,
+ *     consumed by eventService, clubService, historyService and memberService):
+ *     the newest `ENTITY_MEDIA_PREVIEW_LIMIT` items carrying that page's one
+ *     hashtag, a bounded read with no total, plus the gallery link that locks
+ *     the hashtag as the gallery's context; null when nothing carries it
  *   - /media/:galleryId named-gallery page read (tag-AND membership). Its editable
  *     filter prefills the gallery's topic criteria as removable include chips and
  *     submits to /media/browse, so refining or broadening the initial set (and
@@ -126,9 +136,11 @@ import {
   GallerySortOrder,
   countGalleryItemsByCriteria,
   countGalleryItemsByTagGroups,
+  listGalleryCovers,
   media,
   queryCooccurringTags,
   queryCuratorMediaTags,
+  queryGalleryItemsByCriteria,
   queryGalleryItemsByTagGroups,
   queryGalleryItemsByCriteriaGrouped,
   queryRecentCommunityMedia,
@@ -143,6 +155,7 @@ import {
 import { tierBadgeShort } from './membershipTieringService';
 import { CANONICAL_SETS, resolveCanonicalSetAlias } from '../content/freestyleCanonicalSets';
 import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
+import { config } from '../config/env';
 import { isSafePath } from '../lib/safePath';
 import { runSqliteRead } from './sqliteRetry';
 import { hasTier1Benefits } from './tierPredicates';
@@ -471,6 +484,31 @@ export interface GalleryItem {
   captionMask?: boolean;
 }
 
+// How many of the newest items the media block on an event, club or player page
+// shows before the visitor opens the full gallery.
+export const ENTITY_MEDIA_PREVIEW_LIMIT = 6;
+
+// The media block on an event, club or player page: the newest items carrying
+// that page's hashtag, and the gallery holding all of them.
+export interface EntityMediaPreview {
+  items: GalleryItem[];
+  galleryHref: string;
+}
+
+// The block as its page shows it: the owning service names the button for the
+// kind of gallery it opens.
+export interface EntityMediaBlock extends EntityMediaPreview {
+  buttonLabel: string;
+}
+
+// A page's own hashtag under its title. It links to the hashtag's gallery when
+// media carries it and is a plain token otherwise, so presence of media shows
+// the same way on every event, club, player and trick page.
+export interface EntityHashtag {
+  display: string;
+  galleryHref: string | null;
+}
+
 export interface GalleryPagination {
   page: number;
   pageSize: number;
@@ -517,6 +555,8 @@ export interface MediaHubContent {
 export interface ProfileGalleryCard {
   name: string;
   description: string;
+  /** The cover photo's thumbnail; null when the gallery shows no photo. */
+  coverThumbUrl: string | null;
   itemCount: number;
   itemCountNoun: string;
   href: string;
@@ -536,6 +576,8 @@ export interface MemberGalleryListItem {
   id: string;
   name: string;
   description: string;
+  /** The cover photo's thumbnail; null when the gallery shows no photo. */
+  coverThumbUrl: string | null;
   itemCount: number;
   itemCountNoun: string;
   href: string;
@@ -1002,6 +1044,18 @@ function shapeOwner(row: NamedGalleryWithOwnerRow): GalleryOwner {
   };
 }
 
+// The thumbnail address of the photo that stands for each listed gallery: its
+// chosen cover while that is still one of its photos, otherwise its newest.
+// Read in one statement for the whole list, never per gallery; a gallery
+// showing no photo is absent from the map.
+function galleryCoverThumbUrls(galleryIds: string[]): Map<string, string> {
+  if (galleryIds.length === 0) return new Map();
+  const adapter = getMediaStorageAdapter();
+  return new Map(
+    listGalleryCovers(galleryIds).map((c) => [c.gallery_id, adapter.constructURL(c.s3_key_thumb)]),
+  );
+}
+
 // How many items a stored named gallery shows, and when its newest one was
 // uploaded, by the same tag-AND match its page renders. Membership is computed
 // at request time, so a gallery can be empty at creation and again later when
@@ -1434,12 +1488,16 @@ export const mediaService = {
       };
 
       const offset = (page - 1) * PAGE_SIZE;
-      const galleries: MemberGalleryListItem[] = listed.slice(offset, offset + PAGE_SIZE).map(({ g, summary }) => {
+      const pageRows = listed.slice(offset, offset + PAGE_SIZE);
+      // Covers only for the galleries this page shows.
+      const covers = galleryCoverThumbUrls(pageRows.map(({ g }) => g.id));
+      const galleries: MemberGalleryListItem[] = pageRows.map(({ g, summary }) => {
         const itemCount = summary.n;
         return {
           id: g.id,
           name: g.name,
           description: g.description,
+          coverThumbUrl: covers.get(g.id) ?? null,
           itemCount,
           itemCountNoun: itemCount === 1 ? 'item' : 'items',
           href: `/media/${g.id}`,
@@ -1474,6 +1532,7 @@ export const mediaService = {
       const galleryRows = media.listMemberNamedGalleriesByOwner.all(memberId) as Array<{
         id: string; name: string; description: string;
       }>;
+      const covers = galleryCoverThumbUrls(galleryRows.map((g) => g.id));
       const galleries: ProfileGalleryCard[] = galleryRows.map((g) => {
         const tagIds = (media.listFhNamedGalleryTags.all(g.id) as FhNamedGalleryTagRow[]).map((t) => t.id);
         const excludeTagIds = (media.listFhNamedGalleryExcludeTags.all(g.id) as FhNamedGalleryTagRow[])
@@ -1482,6 +1541,7 @@ export const mediaService = {
         return {
           name: g.name,
           description: g.description,
+          coverThumbUrl: covers.get(g.id) ?? null,
           itemCount,
           itemCountNoun: itemCount === 1 ? 'item' : 'items',
           href: `/media/${encodeURIComponent(g.id)}`,
@@ -1684,8 +1744,15 @@ export const mediaService = {
         viewer,
       });
 
+      // The gallery's share image is its cover's display rendition, absolute
+      // because a social preview is fetched from outside the site.
+      const cover = listGalleryCovers([galleryId])[0];
+      const imageUrl = cover
+        ? config.publicBaseUrl.replace(/\/+$/, '') + adapter.constructURL(cover.s3_key_display)
+        : undefined;
+
       return {
-        seo: { title: `Gallery ${gallery.name}` },
+        seo: { title: `Gallery ${gallery.name}`, ...(imageUrl ? { imageUrl } : {}) },
         page: {
           sectionKey: 'media',
           pageKey: 'media_named_gallery',
@@ -1994,6 +2061,47 @@ export const mediaService = {
     });
   },
 
+  // The newest few items carrying one hashtag, for the media block on the page
+  // of the event, club or player that hashtag names. Null when nothing carries
+  // it, so the page shows no block and no gallery button. A bounded read rather
+  // than a count, so the page never computes a total. Each tile opens the viewer
+  // inside that hashtag's set, and the gallery link locks the hashtag as the
+  // gallery's context so a visitor stays inside it while refining.
+  getEntityMediaPreview(tagNormalized: string, viewer: ViewerContext): EntityMediaPreview | null {
+    return runSqliteRead('mediaService.getEntityMediaPreview', () => {
+      const tagRow = queryTagIdsByNormalized([tagNormalized])[0];
+      if (!tagRow) return null;
+      const rows = queryGalleryItemsByCriteria([tagRow.id], ENTITY_MEDIA_PREVIEW_LIMIT, 0);
+      if (rows.length === 0) return null;
+      const itemTagRows = queryCuratorMediaTags(rows.map((r) => r.id));
+      const { names: memberNamesBySlug } = collectMemberInfoForByTags(
+        itemTagRows.map((r) => r.tag_display));
+      const tagsByMediaId = new Map<string, TagChip[]>();
+      for (const tr of itemTagRows) {
+        const chip = shapeTagChip(
+          tr.tag_display,
+          viewer,
+          memberNamesBySlug,
+          () => tagToBrowseHref(tr.tag_normalized),
+        );
+        const list = tagsByMediaId.get(tr.media_id);
+        if (list) list.push(chip);
+        else tagsByMediaId.set(tr.media_id, [chip]);
+      }
+      const adapter = getMediaStorageAdapter();
+      const itemContextQuery = buildItemContextQueryString([tagRow.tag_normalized], [], 'upload_desc');
+      const items = rows.map((row) => {
+        const item = shapeItem(row, tagsByMediaId.get(row.id) ?? [], (k) => adapter.constructURL(k));
+        item.itemHref = `/media/item/${encodeURIComponent(item.mediaId)}?${itemContextQuery}`;
+        return item;
+      });
+      attachDestinations(items);
+      return {
+        items,
+        galleryHref: `/media/browse?context=${encodeURIComponent(stripHash(tagRow.tag_normalized))}`,
+      };
+    });
+  },
 
   // Recent member-authored community media for the teaching empty state shown
   // to a member who has not uploaded anything yet. Topical chips only; the

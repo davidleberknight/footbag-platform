@@ -5,6 +5,9 @@ export interface SeoMeta {
   // Marks a public page do-not-index (login, register, password, and other thin
   // auth/onboarding pages). The layout emits a robots noindex meta when set.
   noindex?: boolean;
+  // An absolute image address for the page's social preview (`og:image`). The
+  // layout prefers it over the site logo, which stands in when it is absent.
+  imageUrl?: string;
 }
 
 import type { OutcomeTone } from '../lib/outcomeNotice';

@@ -32,6 +32,7 @@ from pipeline.identity.person_scopes import (  # noqa: E402
     KNOWN_SCOPES,
     UNRESOLVED_STUB,
 )
+from pipeline.fold_token import fold_token  # noqa: E402
 
 
 def now_iso() -> str:
@@ -129,6 +130,56 @@ def base_event_hashtag(row: dict[str, str]) -> str:
     return f"#event_{year}_{slug}" if year else f"#{slug}"
 
 
+def _is_worlds(row: dict[str, str]) -> bool:
+    return (row.get("event_type") or "").strip().lower() == "worlds"
+
+
+def _worlds_place(row: dict[str, str]) -> str:
+    """The host country, folded; an online Worlds takes "online" for its place."""
+    city = fold_token(row.get("city") or "")
+    return "online" if city == "online" else fold_token(row.get("country") or "")
+
+
+def worlds_hashtags(seed_events: list[dict[str, str]]) -> dict[str, str]:
+    """The short hashtag of every World Footbag Championships, by event key.
+
+    A Worlds is known by its event type alone, never by its key or name, so a
+    warm-up with "worlds" in its key keeps the ordinary form. The form is
+    #event_{year}_worlds_{host_country}, so members can type the hashtag they
+    already use for the championships. In a year with more than one Worlds in the
+    same country the host city replaces the country, and where two share the city
+    too, the sanctioning body that ends the event key follows it."""
+    worlds = [r for r in seed_events if _is_worlds(r)]
+    by_place: dict[tuple[str, str], int] = defaultdict(int)
+    by_city: dict[tuple[str, str], int] = defaultdict(int)
+    for r in worlds:
+        year = (r.get("year") or "").strip()
+        by_place[(year, _worlds_place(r))] += 1
+        by_city[(year, fold_token(r.get("city") or ""))] += 1
+    out: dict[str, str] = {}
+    for r in worlds:
+        key = r["event_key"].strip()
+        year = (r.get("year") or "").strip()
+        place = _worlds_place(r)
+        if not year or not place:
+            raise SystemExit(f"08 aborted: World Championships {key} has no year or host place "
+                             "to make its hashtag from; nothing was committed.")
+        if by_place[(year, place)] > 1:
+            city = fold_token(r.get("city") or "")
+            place = city
+            if by_city[(year, city)] > 1:
+                prefix = f"{year}_worlds_{city}_"
+                body = key[len(prefix):] if key.startswith(prefix) else ""
+                if not body:
+                    raise SystemExit(
+                        f"08 aborted: World Championships {key} shares {year} and {city} with "
+                        f"another Worlds, and its key does not end in a sanctioning body after "
+                        f"{prefix!r} to tell them apart; nothing was committed.")
+                place = f"{city}_{body}"
+        out[key] = f"#event_{year}_worlds_{place}"
+    return out
+
+
 def event_hashtags(seed_events: list[dict[str, str]], taken: set[str]) -> dict[str, str]:
     """Each event's displayed hashtag, unique case-insensitively among the events
     and against the tags already stored in `taken`.
@@ -138,9 +189,10 @@ def event_hashtags(seed_events: list[dict[str, str]], taken: set[str]) -> dict[s
     takes the next free "_2", "_3". Numbering depends on the event keys alone, so
     a rebuild gives every event the same hashtag."""
     used = {t.lower() for t in taken}
+    worlds = worlds_hashtags(seed_events)
     out: dict[str, str] = {}
     for row in sorted(seed_events, key=lambda r: r["event_key"].strip()):
-        base = base_event_hashtag(row)
+        base = worlds.get(row["event_key"].strip()) or base_event_hashtag(row)
         candidate, n = base, 1
         while candidate.lower() in used:
             n += 1
@@ -495,16 +547,33 @@ def main() -> None:
         deleted["events"] = conn.execute(
             "DELETE FROM events WHERE created_by = ?", (system_user,)
         ).rowcount
+        # An event hashtag that media or a gallery already carries survives the
+        # rebuild as a plain hashtag, so that content keeps it; the event that
+        # still owns the name adopts the row again below. Only unused rows go.
+        deleted["tags"] = 0
+        kept_in_use = 0
         if canon_tag_ids:
             placeholders = ",".join("?" * len(canon_tag_ids))
-            deleted["tags"] = conn.execute(
-                f"DELETE FROM tags WHERE id IN ({placeholders})", canon_tag_ids
+            conn.execute(
+                f"DELETE FROM tag_stats WHERE tag_id IN ({placeholders})", canon_tag_ids
+            )
+            in_use = (
+                "id IN (SELECT tag_id FROM media_tags UNION SELECT tag_id FROM member_gallery_tags "
+                "UNION SELECT tag_id FROM member_gallery_exclude_tags)"
+            )
+            kept_in_use = conn.execute(
+                f"UPDATE tags SET is_standard = 0, standard_type = NULL "
+                f"WHERE id IN ({placeholders}) AND {in_use}",
+                canon_tag_ids,
             ).rowcount
-        else:
-            deleted["tags"] = 0
+            deleted["tags"] = conn.execute(
+                f"DELETE FROM tags WHERE id IN ({placeholders}) AND NOT {in_use}",
+                canon_tag_ids,
+            ).rowcount
         print("  scoped delete row counts:")
         for table_name, n in deleted.items():
             print(f"    {table_name}: {n:,}")
+        print(f"  event hashtags kept because content carries them: {kept_in_use:,}")
 
         # ------------------------------------------------------------------
         # Reconcile canonical historical_persons by stable-id upsert plus a
@@ -728,8 +797,15 @@ def main() -> None:
         # ------------------------------------------------------------------
         print("Loading events...")
         event_id_map: dict[str, str] = {}
-        taken = {t for (t,) in conn.execute("SELECT tag_normalized FROM tags")}
+        # Another entity's hashtag, or a retired one, is never reused. A plain
+        # hashtag of the same name (curated media tagged before the event loaded,
+        # or this loader's own row kept above) is adopted as the event's.
+        taken = {t for (t,) in conn.execute(
+            "SELECT tag_normalized FROM tags WHERE is_standard = 1 OR retired_at IS NOT NULL")}
+        adoptable = dict(conn.execute(
+            "SELECT tag_normalized, id FROM tags WHERE is_standard = 0 AND retired_at IS NULL"))
         hashtags = event_hashtags(seed_events, taken)
+        adopted = 0
 
         for row in seed_events:
             event_key = row["event_key"].strip()
@@ -750,15 +826,27 @@ def main() -> None:
                 end_date,
             )
 
-            conn.execute(
-                """
-                INSERT INTO tags (
-                  id, created_at, created_by, updated_at, updated_by, version,
-                  tag_normalized, tag_display, is_standard, standard_type
-                ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, 1, 'event')
-                """,
-                (tag_id, ts, system_user, ts, system_user, tag_normalized, hashtag),
-            )
+            if tag_normalized in adoptable:
+                tag_id = adoptable[tag_normalized]
+                conn.execute(
+                    """
+                    UPDATE tags SET is_standard = 1, standard_type = 'event', tag_display = ?,
+                      updated_at = ?, updated_by = ?, version = version + 1
+                    WHERE id = ?
+                    """,
+                    (hashtag, ts, system_user, tag_id),
+                )
+                adopted += 1
+            else:
+                conn.execute(
+                    """
+                    INSERT INTO tags (
+                      id, created_at, created_by, updated_at, updated_by, version,
+                      tag_normalized, tag_display, is_standard, standard_type
+                    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, 1, 'event')
+                    """,
+                    (tag_id, ts, system_user, ts, system_user, tag_normalized, hashtag),
+                )
 
             conn.execute(
                 """
@@ -797,6 +885,7 @@ def main() -> None:
                     tag_id,
                 ),
             )
+        print(f"  event hashtags adopted from existing plain hashtags: {adopted:,}")
 
         # ------------------------------------------------------------------
         # Insert disciplines

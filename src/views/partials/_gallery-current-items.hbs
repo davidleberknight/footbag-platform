@@ -2,15 +2,47 @@
   Read-only display of items currently in the gallery being edited.
   Each thumbnail links to the item's own edit page (separation of
   concerns: removing an item from a gallery happens by editing the
-  item's tags, not by mutating the gallery).
+  item's tags, not by mutating the gallery). The one thing chosen here
+  is the cover: a radio on each photo, and an empty choice for the
+  newest photo. The radios belong to the surrounding gallery form.
 
   Caller passes:
     currentItems[] — each:
       { mediaId, mediaType, thumbnailUrl, caption, sourceFilename, editHref,
-        isUnavailableEmbed, tags }
+        isUnavailableEmbed, tags, canBeCover, isCover }
     currentItemsTruncated — true when the matching set exceeds the render
       cap and only the first page-worth is shown.
+    coverChoice — { offered, useNewest, outsideList }: whether a cover can be
+      chosen at all, whether the newest photo is the current choice, and the
+      chosen cover when it sits past the listed items.
 --}}
+{{#*inline "galleryItemCell"}}
+  <div class="picker-cell">
+    <img src="{{thumbnailUrl}}"
+         alt="{{#if caption}}{{caption}}{{else}}{{sourceFilename}}{{/if}}"
+         width="140" height="140"
+         loading="lazy">
+    <span class="picker-meta">
+      {{#if caption}}{{caption}}{{else}}<code>{{sourceFilename}}</code>{{/if}}
+      {{#if (eq mediaType "video")}} <span class="picker-badge">video</span>{{/if}}
+      {{#if isUnavailableEmbed}} <span class="picker-badge">hidden from public gallery</span>{{/if}}
+    </span>
+    {{#if canBeCover}}
+      <label class="picker-cover">
+        <input type="radio" name="coverMediaId" value="{{mediaId}}"{{#if isCover}} checked{{/if}}>
+        Cover
+      </label>
+    {{/if}}
+    {{#if tags.length}}
+      <ul class="picker-tags">
+        {{#each tags}}<li class="tag-chip">{{this}}</li>{{/each}}
+      </ul>
+    {{/if}}
+    {{#if editHref}}
+      <a href="{{editHref}}" class="picker-edit-link">Edit item</a>
+    {{/if}}
+  </div>
+{{/inline}}
 <fieldset class="form-fieldset">
   <legend>Items currently in this gallery ({{currentItems.length}})</legend>
   <p class="form-hint">
@@ -20,27 +52,14 @@
   {{#if currentItemsTruncated}}
     <div class="notice-card notice-card--info">More items match than are shown here; narrow the criteria hashtags to see a specific subset.</div>
   {{/if}}
+  {{#if coverChoice.offered}}
+    <label class="picker-cover">
+      <input type="radio" name="coverMediaId" value=""{{#if coverChoice.useNewest}} checked{{/if}}>
+      Use the newest photo
+    </label>
+  {{/if}}
   <div class="picker-grid">
-    {{#each currentItems}}
-      <div class="picker-cell">
-        <img src="{{thumbnailUrl}}"
-             alt="{{#if caption}}{{caption}}{{else}}{{sourceFilename}}{{/if}}"
-             width="140" height="140"
-             loading="lazy">
-        <span class="picker-meta">
-          {{#if caption}}{{caption}}{{else}}<code>{{sourceFilename}}</code>{{/if}}
-          {{#if (eq mediaType "video")}} <span class="picker-badge">video</span>{{/if}}
-          {{#if isUnavailableEmbed}} <span class="picker-badge">hidden from public gallery</span>{{/if}}
-        </span>
-        {{#if tags.length}}
-          <ul class="picker-tags">
-            {{#each tags}}<li class="tag-chip">{{this}}</li>{{/each}}
-          </ul>
-        {{/if}}
-        {{#if editHref}}
-          <a href="{{editHref}}" class="picker-edit-link">Edit item</a>
-        {{/if}}
-      </div>
-    {{/each}}
+    {{#with coverChoice.outsideList}}{{> galleryItemCell}}{{/with}}
+    {{#each currentItems}}{{> galleryItemCell}}{{/each}}
   </div>
 </fieldset>

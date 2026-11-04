@@ -35,10 +35,13 @@
     var tags = (btn.getAttribute('data-tag') || '').split(/\s+/).filter(function (t) { return t.length > 0; });
     if (tags.length === 0) return;
 
-    // Find the closest tag input: walk up to the form, then find the tags input
+    // Find the field the chip fills: walk up to the form, then take the field
+    // the suggestion block names (data-tag-target), or the form's tags field.
     var form = btn.closest('form');
     if (!form) return;
-    var input = form.querySelector('input[name="tags"]');
+    var block = btn.closest('[data-tag-target]');
+    var name = block ? block.getAttribute('data-tag-target') : 'tags';
+    var input = form.querySelector('input[name="' + name + '"]');
     if (!input) return;
 
     tags.forEach(function (tag) { addTag(input, tag); });

@@ -173,7 +173,7 @@ import { memberActionService, type MemberActions } from './memberActionService';
 import { mayCreateClub, isTier2Plus, hasTier1Benefits } from './tierPredicates';
 import { buildTierBenefitNotice } from './tierBenefitNotice';
 import { paymentService } from './paymentService';
-import { mediaService, type ProfileMediaView } from './mediaService';
+import { mediaService, type EntityMediaBlock, type ProfileMediaView } from './mediaService';
 import { formatDateDisplay } from './dateFormat';
 import type { OutcomeNoticeView } from '../lib/outcomeNotice';
 import {
@@ -375,6 +375,9 @@ export interface MemberLinkView {
 }
 
 export interface OwnProfileContent {
+  /** The newest media crediting the member as a player; absent or null when none does. */
+  playerMedia?: EntityMediaBlock | null;
+  playerMediaHeading?: string;
   displayName: string;
   bio: string;
   city: string | null;
@@ -657,6 +660,9 @@ function vouchOutcomeNotice(
 // results. Every other field below empties or nulls for that viewer, including
 // the hero's city and region.
 export interface PublicProfileContent {
+  /** Member-visible: media crediting the member as a player; null otherwise. */
+  playerMedia: EntityMediaBlock | null;
+  playerMediaHeading: string;
   displayName: string;
   /** Member-visible; null for the anonymous HoF/BAP render. */
   city: string | null;
@@ -1298,7 +1304,8 @@ export const memberService = {
   ): PageViewModel<OwnProfileContent> {
     const row = fetchMemberBySlug(slug);
     const eventGroups = fetchEventGroups(row);
-    const heroData = buildMemberHeroData(row);
+    const playerMedia = buildPlayerMediaView(slug, row.display_name);
+    const heroData = { ...buildMemberHeroData(row), hashtag: playerMedia.hashtag };
     const query = opts?.query;
     // The authenticated owner is the search actor; the per-member quota and the
     // audit row key on their id.
@@ -1341,6 +1348,8 @@ export const memberService = {
         search,
         myClubs:      buildMyClubsView(row.id, slug),
         media:        buildOwnProfileMediaView(row.id, slug),
+        playerMedia:  playerMedia.media,
+        playerMediaHeading: playerMedia.heading,
         memberSlug:   slug,
         links:        buildMemberLinksView(row.id),
         ...(opts?.clubActionNotice ? { clubActionNotice: opts.clubActionNotice } : {}),
@@ -1394,8 +1403,11 @@ export const memberService = {
     // member-only: the honor exception publishes the honor record, whose
     // location is the country and nothing finer.
     const fullHero = buildMemberHeroData(row);
-    const heroData = viewer.authenticated
-      ? fullHero
+    // Media crediting the member is member-visible like their uploads: the
+    // honor exception publishes the honor record and nothing more.
+    const playerMedia = viewer.authenticated ? buildPlayerMediaView(slug, row.display_name) : null;
+    const heroData = playerMedia
+      ? { ...fullHero, hashtag: playerMedia.hashtag }
       : { ...fullHero, city: null, region: null };
 
     const contactEmail =
@@ -1471,6 +1483,8 @@ export const memberService = {
         media:          viewer.authenticated
           ? buildMemberMediaView(row.id, slug)
           : { galleries: [], allMediaHref: null, hasContent: false },
+        playerMedia:    playerMedia ? playerMedia.media : null,
+        playerMediaHeading: playerMedia ? playerMedia.heading : '',
         vouch,
         vouchNotice: opts?.vouchOutcome
           ? vouchOutcomeNotice(opts.vouchOutcome, row.display_name, row.id)
@@ -2412,6 +2426,25 @@ function buildOwnProfileMediaView(memberId: string, slug: string): OwnProfileMed
     galleriesHref: `/members/${slug}/galleries`,
     uploadMediaHref: holdsBenefits ? `/members/${slug}/media/upload` : null,
     benefitNotice: holdsBenefits ? null : buildTierBenefitNotice(slug, 'media'),
+  };
+}
+
+// Media crediting the member as a player, apart from the media they uploaded:
+// a member is credited by their own slug, the same token their uploader hashtag
+// carries. The hashtag shows under the name, linked when media carries it.
+interface PlayerMediaView {
+  hashtag: { display: string; galleryHref: string | null };
+  media: EntityMediaBlock | null;
+  heading: string;
+}
+
+function buildPlayerMediaView(slug: string, displayName: string): PlayerMediaView {
+  const tag = playerTagForMemberSlug(slug);
+  const preview = mediaService.getEntityMediaPreview(tag, { authenticated: true });
+  return {
+    hashtag: { display: tag, galleryHref: preview ? preview.galleryHref : null },
+    media: preview ? { ...preview, buttonLabel: 'View Player Gallery' } : null,
+    heading: `Media Featuring ${displayName}`,
   };
 }
 

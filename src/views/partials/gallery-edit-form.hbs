@@ -13,7 +13,10 @@
                  sourceFilename, mediaType, editHref } that already match
                  the gallery's criteria/exclude. Read-only display; no
                  picker semantics — adding/removing membership happens via
-                 the item's own edit page (separation of concerns).
+                 the item's own edit page (separation of concerns). The
+                 one choice made here is the cover photo.
+    coverChoice  on edit only: { offered, useNewest, outsideList }, the cover
+                 radios' state (see _gallery-current-items).
     errorMessage optional validation error banner.
     submitLabel  optional ("Save changes" by default).
     cancelHref   URL the cancel link points to.
@@ -99,10 +102,11 @@
     {{#unless gallery.isDefault}}
     <div class="form-field">
       <label for="gallery-criteria-tags">Criteria hashtags</label>
-      <textarea id="gallery-criteria-tags" name="criteriaTags" rows="2" placeholder="#freestyle #trick" data-tag-chips>{{gallery.criteriaTagsString}}</textarea>
+      <textarea id="gallery-criteria-tags" name="criteriaTags" rows="2" placeholder="#freestyle #trick" data-tag-chips{{#if tagSuggestions}} data-tag-entry{{/if}}>{{gallery.criteriaTagsString}}</textarea>
       <small class="form-hint">Start each hashtag with #; typing # or pressing Enter starts the next, and spaces inside one hashtag become underscores. An item must carry every one of these hashtags to appear. Leave empty to show everything you have uploaded; your <code>#by_</code> uploader marker is preserved automatically. Hashtags starting with <code>#by_</code> or equal to <code>#curated</code> are reserved.</small>
       {{> hashtag-slug-help}}
       {{#if fieldErrors.criteriaTags}}<small class="form-field-error" role="alert">{{fieldErrors.criteriaTags}}</small>{{/if}}
+      {{#if tagSuggestions}}{{> tag-suggestion-groups suggestions=tagSuggestions target="criteriaTags"}}{{/if}}
     </div>
 
     <div class="form-field">
@@ -151,7 +155,7 @@
   {{/if}}
 
   {{#if currentItems.length}}
-    {{> _gallery-current-items currentItems=currentItems currentItemsTruncated=currentItemsTruncated}}
+    {{> _gallery-current-items currentItems=currentItems currentItemsTruncated=currentItemsTruncated coverChoice=coverChoice}}
   {{/if}}
 
   {{#if moderation}}

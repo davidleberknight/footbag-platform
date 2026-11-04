@@ -108,6 +108,7 @@ export const memberGalleryController = {
         res.render(
           'members/galleries/edit',
           getMemberGalleryEditPage(memberKey, galleryId, {
+            memberId,
             gallery: {
               id: g.id,
               name: g.name,
@@ -121,6 +122,7 @@ export const memberGalleryController = {
             isDefault: g.isDefault,
             currentItems: g.currentItems,
             currentItemsTruncated: g.currentItemsTruncated,
+            coverChoice: g.coverChoice,
             externalLinkSlots: buildExternalLinkSlots(null, g.externalLinks),
           }),
         );
@@ -152,6 +154,8 @@ export const memberGalleryController = {
       const criteriaTags = parseTagList(req.body?.criteriaTags);
       const excludeTags = parseTagList(req.body?.excludeTags);
       const externalLinks = parseExternalLinkInputs(req.body ?? {});
+      // Absent when the form offered no cover choice, which keeps the stored one.
+      const coverMediaId = typeof req.body?.coverMediaId === 'string' ? req.body.coverMediaId : undefined;
 
       const svc = buildSvc();
       // A gallery that is not the member's own answers not-found, as the edit
@@ -160,7 +164,9 @@ export const memberGalleryController = {
         actorMemberId,
         actorIsAdmin: isAdminCaller(req),
         galleryId,
-        updates: { name, description, sortOrder: sortOrderRaw, criteriaTags, excludeTags, externalLinks },
+        updates: {
+          name, description, sortOrder: sortOrderRaw, criteriaTags, excludeTags, externalLinks, coverMediaId,
+        },
       });
       if (result.status === 'saved') {
         writeShareFlash(res, req, {
@@ -183,10 +189,13 @@ export const memberGalleryController = {
         renderListWithError(req, res, 429, result.message);
         return;
       }
-      const reread = svc.getGalleryForEdit(galleryId, actorMemberId, { memberKey });
+      const reread = svc.getGalleryForEdit(galleryId, actorMemberId, {
+        memberKey, selectedCoverMediaId: coverMediaId,
+      });
       res.status(422).render(
         'members/galleries/edit',
         getMemberGalleryEditPage(memberKey, galleryId, {
+          memberId: actorMemberId,
           errorMessage: result.message,
           fieldErrors: result.fieldErrors,
           gallery: {
@@ -202,6 +211,7 @@ export const memberGalleryController = {
           isDefault: reread.isDefault,
           currentItems: reread.currentItems,
           currentItemsTruncated: reread.currentItemsTruncated,
+          coverChoice: reread.coverChoice,
           externalLinkSlots: buildExternalLinkSlots(externalLinks, [], result.fieldErrors),
         }),
       );

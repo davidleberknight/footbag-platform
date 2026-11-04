@@ -452,6 +452,8 @@ export const adminCuratorController = {
       const excludeTags = parseTagList(req.body?.excludeTags);
       const externalLinks = parseExternalLinkInputs(req.body ?? {});
       const reasonRaw = String(req.body?.reason ?? '');
+      // Absent when the form offered no cover choice, which keeps the stored one.
+      const coverMediaId = typeof req.body?.coverMediaId === 'string' ? req.body.coverMediaId : undefined;
 
       // The reason and the clear flags ride along on every submission; the
       // service ignores them unless this is a member's own gallery, which is
@@ -459,7 +461,9 @@ export const adminCuratorController = {
       const result = await updateCuratorGallery(buildSvc(), {
         actorMemberId,
         galleryId,
-        updates: { name, description, sortOrder: sortOrderRaw, criteriaTags, excludeTags, externalLinks },
+        updates: {
+          name, description, sortOrder: sortOrderRaw, criteriaTags, excludeTags, externalLinks, coverMediaId,
+        },
         reason: reasonRaw,
         moderation: {
           clearName:        req.body?.clearName === '1',
@@ -481,6 +485,7 @@ export const adminCuratorController = {
           externalLinks,
           fieldErrors: result.fieldErrors,
           reasonRaw,
+          coverMediaId,
         }, actorMemberId);
         return;
       }
@@ -732,6 +737,8 @@ interface CuratorGalleryEditErrorContext {
   // The administrator's typed reason, so a refused moderation comes back with
   // it still in the box rather than asking them to write it out again.
   reasonRaw?: string;
+  // The cover the refused form submitted, so it comes back still chosen.
+  coverMediaId?: string;
 }
 
 function renderCuratorGalleryEditError(

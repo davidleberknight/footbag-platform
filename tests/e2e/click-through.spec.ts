@@ -17,16 +17,20 @@
  *      request end-to-end (the chain that "stubbed-adapter" tests
  *      cannot prove).
  *
- *   4. Share Media — a member shares four real photos with one hashtag
- *      and names it as a gallery; the test asserts all four appear in
- *      it AND their bytes actually serve. A media row with no
+ *   4. Share Media — a member shares four real photos, tagged with an
+ *      event's hashtag picked from the form's Recent events chips, and
+ *      names their hashtags as a gallery; the test asserts all four appear
+ *      in it AND their bytes actually serve, that the event's page shows
+ *      them, and that a cover chosen on the gallery edit form heads the
+ *      gallery's cards and becomes its share image. A media row with no
  *      media-store bytes renders a broken image; only a real share
  *      proves the store path end-to-end.
  *
  *   5. Curator Share Media — an administrator uploads two real clips on
  *      the Video file tab, one into a new Footbag Hacky gallery, through
  *      the site's own video pipeline; the gallery holds the clip carrying
- *      its hashtags and the poster serves.
+ *      its hashtags and the poster serves, and the club the clip is tagged
+ *      with shows it on its page.
  *
  * The adapter-misconfig integration suite covers failure-mode contracts
  * (worker down → 503, worker 503 → 503, generic error → 500) at supertest
@@ -39,11 +43,77 @@ import sharp from 'sharp';
 import { seedAdmin, seedTier1Member } from '../fixtures/personas';
 import { authenticateContext } from './helpers/wizard-auth';
 import { completeOnboarding } from '../../src/testkit/personaRowBuilders';
-import { insertFreestyleTrick } from '../fixtures/factories';
+import {
+  insertClub, insertEvent, insertFreestyleTrick, insertPersonaNamedGallery, insertTag,
+} from '../fixtures/factories';
+import { isoDaysAgo } from '../fixtures/clock';
 import { ensureSystemMember, openLiveDb } from './helpers/liveDb';
 
+// The event and the club the shared media is tagged with. Their hashtags are
+// fixed; their rows are seeded once per stack, whichever spec gets there first.
+const WORLDS_TAG = '#event_2026_worlds_japan';
+const WELLINGTON_TAG = '#club_wellington';
+
+/**
+ * The 2026 World Championships in Japan, as a public event that started two
+ * months ago so its hashtag is offered among the Share Media form's Recent
+ * events, and the club Wellington Hack Crew. Seeded before any upload names
+ * either hashtag, so the upload attaches the standard tag rather than minting
+ * a free-form one.
+ */
+function ensureWorldsAndWellington(): void {
+  const db = openLiveDb();
+  try {
+    const tagExists = (tag: string): boolean =>
+      db.prepare('SELECT 1 FROM tags WHERE tag_normalized = ?').get(tag) !== undefined;
+    if (!tagExists(WORLDS_TAG)) {
+      const tagId = insertTag(db, { tag_normalized: WORLDS_TAG, standard_type: 'event' });
+      insertEvent(db, {
+        title: 'World Footbag Championships 2026',
+        city: 'Ibaraki',
+        country: 'Japan',
+        status: 'completed',
+        start_date: isoDaysAgo(60).slice(0, 10),
+        end_date: isoDaysAgo(54).slice(0, 10),
+        hashtag_tag_id: tagId,
+      });
+    }
+    if (!tagExists(WELLINGTON_TAG)) {
+      const tagId = insertTag(db, { tag_normalized: WELLINGTON_TAG, standard_type: 'club' });
+      insertClub(db, {
+        name: 'Wellington Hack Crew',
+        city: 'Wellington',
+        country: 'New Zealand',
+        hashtag_tag_id: tagId,
+      });
+    }
+  } finally {
+    db.close();
+  }
+}
+
 // The curator journey credits its uploads to the system member.
-test.beforeAll(() => ensureSystemMember());
+test.beforeAll(() => {
+  ensureSystemMember();
+  ensureWorldsAndWellington();
+});
+
+// The media item ids the tiles under a locator open, read from their links: the
+// last path segment, whether the tile opens /media/item/<id> or the item inside
+// its gallery (/media/<galleryId>/<id>).
+async function tileItemIds(tiles: import('@playwright/test').Locator): Promise<string[]> {
+  const hrefs = await tiles.locator('a.gallery-tile-media').evaluateAll(
+    (links) => links.map((a) => a.getAttribute('href') ?? ''));
+  return hrefs.map((h) => h.split('?')[0].split('/').pop() ?? h);
+}
+
+// Every image under a locator decoded real bytes: a missing or broken
+// rendition leaves naturalWidth at 0.
+async function expectImagesDecoded(images: import('@playwright/test').Locator): Promise<void> {
+  for (const img of await images.all()) {
+    await expect.poll(() => img.evaluate((el) => (el as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+  }
+}
 
 test('Tier-1 member uploads avatar end-to-end against real image worker', { tag: ['@smoke'] }, async ({ browser, baseURL }) => {
   const db = openLiveDb();
@@ -95,6 +165,11 @@ test('Tier-1 member shares four real photos and names their hashtags as a galler
   // The /members/*/media/upload page is behind the onboarding gate, so an
   // un-onboarded member is redirected to the wizard and the form never renders.
   completeOnboarding(db, persona.memberId);
+  // A second gallery holding everything the member shares, as the gallery_owner
+  // persona's Shred Reel does, so a cover chosen for one gallery is seen not to move
+  // another's.
+  const reelId = `gallery_${slug}_reel`;
+  insertPersonaNamedGallery(db, { galleryId: reelId, ownerMemberId: persona.memberId, ownerSlug: slug, name: 'Shred Reel' });
   db.close();
 
   const context = await browser.newContext();
@@ -107,6 +182,15 @@ test('Tier-1 member shares four real photos and names their hashtags as a galler
   await page.locator('#share-photo-files').setInputFiles(
     ['fb_182a.jpg', 'fb_182b.jpg', 'fb_182c.jpg', 'collection.jpg'].map((f) => path.join(ASSETS, f)),
   );
+  // The event's hashtag is picked from the Recent events chips, through the
+  // page's own script, as a member at the event would.
+  const worldsChip = page.locator(`.tag-suggestions button.tag-suggestion[data-tag="${WORLDS_TAG}"]`);
+  // Catches: a public event under way this year missing from the chips, so the
+  // member invents a near-miss hashtag and the event page never shows the media.
+  await expect(worldsChip).toHaveCount(1);
+  await worldsChip.click();
+  // Catches: a chip click that leaves the posted hashtag field empty.
+  await expect(page.locator('form[data-share-form] input[name="tags"]')).toHaveValue(new RegExp(WORLDS_TAG));
   await page.locator('#share-tags').fill('footbags');
   await page.locator('#share-gallery-name').pressSequentially('Footbags');
   const galleryId = `gallery_${slug}_footbags`;
@@ -123,9 +207,94 @@ test('Tier-1 member shares four real photos and names their hashtags as a galler
   await page.goto(`/media/${galleryId}`);
   const images = page.locator('.gallery-grid .gallery-tile img');
   await expect(images).toHaveCount(4);
-  for (const img of await images.all()) {
-    await expect.poll(() => img.evaluate((el) => (el as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+  await expectImagesDecoded(images);
+  const sharedIds = await tileItemIds(page.locator('.gallery-grid .gallery-tile'));
+
+  // The event's page shows the shared photos in its media block, links its
+  // whole gallery, and links its hashtag under the title to that gallery.
+  const worldsGalleryHref = `/media/browse?context=${WORLDS_TAG.slice(1)}`;
+  await page.goto(`/events/${WORLDS_TAG.slice(1)}`);
+  const eventTiles = page.locator('#event-media .gallery-tile');
+  // Catches: media carrying the event's hashtag missing from the event's page.
+  expect((await tileItemIds(eventTiles)).sort()).toEqual([...sharedIds].sort());
+  // Catches: event tiles whose thumbnails do not serve from the media store.
+  await expectImagesDecoded(eventTiles.locator('img'));
+  // Catches: the event's gallery button missing or leading somewhere other
+  // than the gallery locked to the event's hashtag.
+  await expect(page.locator(`#event-media a[href="${worldsGalleryHref}"]`)).toHaveCount(1);
+  // Catches: the event's hashtag under its title not leading to its gallery
+  // once media carries it.
+  await expect(page.locator(`.hero .hero-hashtag a[href="${worldsGalleryHref}"]`)).toHaveCount(1);
+
+  // The gallery card image before any choice is the newest photo's thumbnail.
+  await page.goto(`/members/${slug}/galleries`);
+  const listCover = page.locator(`tr:has(a[href="/media/${galleryId}"]) img.gallery-list-cover`);
+  const newestThumb = await listCover.getAttribute('src');
+
+  // On the edit form every photo offers itself as the cover, and the newest
+  // photo is the choice until another is saved.
+  await page.goto(`/members/${slug}/galleries/${galleryId}/edit`);
+  const coverForm = page.locator('form:has(input[name="coverMediaId"])');
+  // Catches: a gallery whose cover starts as some arbitrary photo rather than
+  // following the newest.
+  await expect(coverForm.locator('input[name="coverMediaId"][value=""]')).toBeChecked();
+  const cells = coverForm.locator('.picker-cell:has(input[name="coverMediaId"])');
+  // Catches: a photo of the gallery that cannot be chosen as its cover.
+  await expect(cells).toHaveCount(4);
+  let chosenId = '';
+  let chosenThumb = '';
+  for (const cell of await cells.all()) {
+    const thumb = (await cell.locator('img').getAttribute('src')) ?? '';
+    if (thumb !== newestThumb) {
+      chosenThumb = thumb;
+      chosenId = (await cell.locator('input[name="coverMediaId"]').getAttribute('value')) ?? '';
+      await cell.locator('input[name="coverMediaId"]').check();
+      break;
+    }
   }
+  expect(chosenId, 'a photo other than the newest to choose').not.toBe('');
+  const saved = page.waitForResponse(
+    (r) => r.url().endsWith(`/galleries/${galleryId}/edit`) && r.request().method() === 'POST',
+  );
+  await coverForm.locator('.form-actions button[type=submit]').click();
+  // Catches: the real form's save refused or failing.
+  expect((await saved).status()).toBeLessThan(400);
+
+  // The chosen photo now heads the gallery's card on the public list, in My
+  // Galleries and on the owner's profile, and its bytes serve on each.
+  const coverSurfaces: Array<[string, string]> = [
+    ['/media/member-galleries', `.card:has(a.card-title[href="/media/${galleryId}"]) img.card-cover`],
+    [`/members/${slug}/galleries`, `tr:has(a[href="/media/${galleryId}"]) img.gallery-list-cover`],
+    [`/members/${slug}`, `.card:has(a.card-title[href="/media/${galleryId}"]) img.card-cover`],
+  ];
+  for (const [surface, selector] of coverSurfaces) {
+    await page.goto(surface);
+    const cover = page.locator(selector);
+    // Catches: a saved cover ignored, the card still showing the newest photo.
+    await expect(cover, `${surface} cover`).toHaveAttribute('src', chosenThumb);
+    await expectImagesDecoded(cover);
+  }
+  // Catches: one gallery's chosen cover heading another gallery's card, which
+  // still follows its own newest photo.
+  await expect(page.locator(`.card:has(a.card-title[href="/media/${reelId}"]) img.card-cover`))
+    .toHaveAttribute('src', newestThumb ?? '');
+
+  // The gallery page's share image is the cover's display rendition, as an
+  // absolute address a social preview can fetch.
+  const liveDb = openLiveDb();
+  const { s3_key_display: displayKey } = liveDb
+    .prepare('SELECT s3_key_display FROM media_items WHERE id = ?')
+    .get(chosenId) as { s3_key_display: string };
+  liveDb.close();
+  await page.goto(`/media/${galleryId}`);
+  const ogImage = (await page.locator('meta[property="og:image"]').getAttribute('content')) ?? '';
+  // Catches: a share image that is not the chosen cover's display rendition,
+  // or a relative address a social preview cannot fetch.
+  expect(ogImage.startsWith(`${baseURL}/`) && ogImage.endsWith(displayKey), ogImage).toBe(true);
+  // Catches: a share image address that does not serve an image.
+  const ogRes = await page.request.get(ogImage);
+  expect(ogRes.status()).toBe(200);
+  expect(ogRes.headers()['content-type']).toMatch(/^image\//);
 
   await context.close();
 });
@@ -152,7 +321,10 @@ test('the curator uploads two real video clips, one into a new Footbag Hacky gal
     await page.locator('#share-tags').fill(tags);
     if (gallery) await page.locator('#share-gallery-name').pressSequentially(gallery);
     const done = page.waitForResponse((r) => r.url().endsWith('/admin/curator/upload') && r.request().method() === 'POST');
-    await page.locator('form[data-share-form] button[type=submit]').click();
+    // The server transcodes the clip before it answers, which on a loaded
+    // machine outlasts a click's own budget for the navigation it starts; the
+    // response wait below, under the test's budget, is what waits for it.
+    await page.locator('form[data-share-form] button[type=submit]').click({ noWaitAfter: true });
     expect((await done).status()).toBe(303);
     await expect(page.locator('.form-success-banner')).toBeVisible();
   };
@@ -166,6 +338,24 @@ test('the curator uploads two real video clips, one into a new Footbag Hacky gal
   await expect(tiles).toHaveCount(1);
   await expect(tiles.locator('.gallery-tile-video')).toHaveCount(1);
   await expect.poll(() => tiles.locator('img').first().evaluate((el) => (el as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+  const wellingtonIds = await tileItemIds(tiles);
+
+  // The club the clip is tagged with shows it on its page, links its whole
+  // gallery, and links its hashtag under the title to that gallery.
+  const clubGalleryHref = `/media/browse?context=${WELLINGTON_TAG.slice(1)}`;
+  await page.goto(`/clubs/${WELLINGTON_TAG.slice(1)}`);
+  const clubTiles = page.locator('#club-media .gallery-tile');
+  // Catches: media carrying the club's hashtag missing from the club's page,
+  // or the clip without that hashtag shown there.
+  expect(await tileItemIds(clubTiles)).toEqual(wellingtonIds);
+  // Catches: the clip's tile not marked as a video to play.
+  await expect(clubTiles.locator('.gallery-tile-video')).toHaveCount(1);
+  // Catches: a club tile whose poster does not serve from the media store.
+  await expectImagesDecoded(clubTiles.locator('img'));
+  // Catches: the club's gallery button missing or leading elsewhere.
+  await expect(page.locator(`#club-media a[href="${clubGalleryHref}"]`)).toHaveCount(1);
+  // Catches: the club's hashtag under its title not leading to its gallery.
+  await expect(page.locator(`.hero .hero-hashtag a[href="${clubGalleryHref}"]`)).toHaveCount(1);
 
   await context.close();
 });

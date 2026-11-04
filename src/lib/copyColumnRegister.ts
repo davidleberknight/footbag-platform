@@ -308,7 +308,7 @@ export const COPY_COLUMN_REGISTER: Readonly<Record<string, TableClassification>>
   },
   member_galleries: {
     keep: ['id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version',
-      'owner_member_id', 'name', 'description', 'is_default', 'sort_order'],
+      'owner_member_id', 'name', 'description', 'is_default', 'sort_order', 'cover_media_id'],
   },
   member_gallery_exclude_tags: {
     keep: ['gallery_id', 'tag_id', 'created_at', 'created_by'],

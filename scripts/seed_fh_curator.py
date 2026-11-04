@@ -93,6 +93,13 @@ VIMEO_HOSTS   = {"vimeo.com", "www.vimeo.com", "player.vimeo.com"}
 #                 empty. Cross-language parity with the TypeScript
 #                 GallerySidecarData interface in
 #                 src/lib/curatorGallerySidecar.ts.
+#   coverPhoto    optional source filename of the curator photo chosen to
+#                 stand for the gallery (a bare filename, 1..255 chars).
+#                 Named by filename because a curated item's media id
+#                 changes when its bytes do. Resolved after media is
+#                 seeded; when no active curator photo has that filename
+#                 the gallery stores no cover, with a warning, and the
+#                 newest photo stands in.
 #
 # Filename rule: <slug>.json where <slug> = id with the 'gallery_'
 # prefix stripped. So id 'gallery_curated_freestyle_tricks' lives in
@@ -103,6 +110,7 @@ GALLERY_NAME_MAX = 150
 GALLERY_DESCRIPTION_MAX = 1000
 GALLERY_LINK_LABEL_MAX = 80
 GALLERY_LINK_URL_MAX = 2048
+GALLERY_COVER_PHOTO_MAX = 255
 
 # All FH curator items are file-paired sidecars under
 # /curated/{category}/<stem>.meta.json (read by seed_file_paired_sidecars).
@@ -1010,6 +1018,23 @@ def _load_named_gallery_sidecars(source_dir: Path) -> list[dict]:
                 "sort_order": sort_order_link,
             })
 
+        cover_photo = data.get("coverPhoto")
+        if cover_photo is not None:
+            if not isinstance(cover_photo, str) or not cover_photo.strip():
+                sys.exit(
+                    f"ERROR: {path}: coverPhoto, when present, must be a "
+                    "non-empty source filename"
+                )
+            if len(cover_photo) > GALLERY_COVER_PHOTO_MAX:
+                sys.exit(
+                    f"ERROR: {path}: coverPhoto must be "
+                    f"{GALLERY_COVER_PHOTO_MAX} characters or fewer"
+                )
+            if "/" in cover_photo or "\\" in cover_photo:
+                sys.exit(
+                    f"ERROR: {path}: coverPhoto must be a bare filename, not a path"
+                )
+
         # FH-owned named galleries are topic-defined: their criteria are exactly
         # what the sidecar declares. `#curated` is NOT auto-added (mirrors
         # curatorMediaService, which also stopped auto-prepending). A curated
@@ -1028,6 +1053,7 @@ def _load_named_gallery_sidecars(source_dir: Path) -> list[dict]:
                 (lk["label"], lk["url"], lk["sort_order"]) for lk in validated_links
             ),
             "link_verdicts": verdicts.get(gallery_id, {}),
+            "cover_photo": cover_photo,
         })
 
     return loaded
@@ -1046,6 +1072,7 @@ def ensure_named_gallery(
     exclude_tags: tuple = (),
     external_links: tuple = (),
     link_verdicts: dict | None = None,
+    cover_photo: str | None = None,
 ) -> None:
     """Ensure an FH-owned named gallery row exists in member_galleries with
     the given metadata, AND its criteria-tag and exclude-tag sets match
@@ -1057,15 +1084,42 @@ def ensure_named_gallery(
     INSERT OR REPLACE on the parent so re-runs pick up metadata tweaks;
     DELETE-then-INSERT on the tag and link rows so set changes in this
     file propagate cleanly without leaving orphan rows.
+
+    `cover_photo` names the cover by source filename; it resolves to the
+    curator's active photo of that filename, which the media steps seeded
+    before this runs. No match stores no cover, with a warning, so the
+    newest photo stands in rather than the seed failing on one stale name.
     """
+    cover_media_id = None
+    if cover_photo is not None:
+        row = con.execute(
+            """
+            SELECT id FROM media_items
+            WHERE uploader_member_id = ? AND source_filename = ?
+              AND media_type = 'photo' AND moderation_status = 'active'
+              AND is_avatar = 0
+            """,
+            (fh_id, cover_photo),
+        ).fetchone()
+        if row is None:
+            print(
+                f"  WARNING: gallery {gallery_id}: coverPhoto {cover_photo!r} "
+                "matches no active curator photo; no cover stored, the newest "
+                "photo stands in",
+                file=sys.stderr,
+            )
+        else:
+            cover_media_id = row[0]
+
     con.execute(
         """
         INSERT OR REPLACE INTO member_galleries (
             id, owner_member_id, name, description, is_default, sort_order,
+            cover_media_id,
             created_at, created_by, updated_at, updated_by, version
-        ) VALUES (?, ?, ?, ?, 0, ?, ?, 'seed', ?, 'seed', 1)
+        ) VALUES (?, ?, ?, ?, 0, ?, ?, ?, 'seed', ?, 'seed', 1)
         """,
-        (gallery_id, fh_id, name, description, sort_order, ts, ts),
+        (gallery_id, fh_id, name, description, sort_order, cover_media_id, ts, ts),
     )
 
     con.execute(
@@ -1146,6 +1200,7 @@ def ensure_fh_named_galleries(
             exclude_tags=g["exclude_tags"],
             external_links=g.get("external_links", ()),
             link_verdicts=g.get("link_verdicts", {}),
+            cover_photo=g.get("cover_photo"),
         )
 
     kept_ids = [g["id"] for g in galleries]

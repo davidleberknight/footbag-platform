@@ -76,6 +76,13 @@
       {{> member-block-media content.media}}
     {{/if}}
 
+    {{#if content.playerMedia}}
+    <div class="profile-section" id="player-media">
+      <h2 class="profile-section-heading">{{content.playerMediaHeading}}</h2>
+      {{> entity-media content.playerMedia}}
+    </div>
+    {{/if}}
+
     {{#if content.showCompetitiveResults}}
     <div class="profile-section">
       {{#if content.eventGroups.length}}

@@ -216,7 +216,7 @@ All rules in §6. Key items:
 Tags are globally unique normalized strings prefixed with `#`. The `UNIQUE INDEX ux_tags_normalized` enforces uniqueness for all existing rows with no `WHERE` clause.
 
 Standard tags (`is_standard = 1`) follow platform patterns:
-- Events: `#event_{year}_{event_slug}`
+- Events: `#event_{year}_{event_slug}`; a World Footbag Championships takes the short form `#event_{year}_worlds_{host_country}`, set out in the user stories' "Hashtags and Slugs" section
 - Clubs: `#club_{club_slug}`, the slug suggested from the club's location for clarity, or the club's own name as players use it
 
 Freeform tags follow the same slug rule as every hashtag, set out in the user stories' "Hashtags and Slugs" section: folded to the letters a to z, digits and underscores, at most 100 characters, with text that has no a to z form refused. An administrator can retire an abusive one: `retired_at` and `retired_by_member_id` record the act, the tag is detached from every media item and gallery criterion that named it, and it can never be applied again.
@@ -967,6 +967,7 @@ Both `media_items` and `member_galleries` use **hard-delete only** (no `deleted_
 #### Referential cleanup (declarative FK actions)
 When a media item is deleted:
 - `members.avatar_media_id` → `SET NULL` (avatar detached, member row intact)
+- `member_galleries.cover_media_id` → `SET NULL` (the gallery falls back to its newest photo)
 - `media_flags` / `media_tags` → `CASCADE` delete (flags and tags removed with the media)
 
 When a gallery is deleted:
@@ -1007,7 +1008,7 @@ Entity association is hashtag-driven via `media_tags`. An asset tagged `#curated
 
 #### Named-gallery URL bookmarks (`member_gallery_tags`, `member_gallery_exclude_tags`)
 
-A "named gallery" is a stable URL bookmark, not a content bucket. The `member_galleries` row provides the slug, name, description, owner, and item ordering (`sort_order`); the row itself does not carry a list of member IDs. Content membership is computed at request time by tag-AND match against `member_gallery_tags`, minus any item that carries a tag in `member_gallery_exclude_tags`.
+A "named gallery" is a stable URL bookmark, not a content bucket. The `member_galleries` row provides the slug, name, description, owner, item ordering (`sort_order`), and cover photo (`cover_media_id`, honoured only while that photo is active and still matches the gallery, so membership is never stored); the row itself does not carry a list of member IDs. Content membership is computed at request time by tag-AND match against `member_gallery_tags`, minus any item that carries a tag in `member_gallery_exclude_tags`.
 
 **`member_galleries.sort_order`:** controls how items render on `/media/{gallery_id}`. Allowed values: `upload_desc` (default; newest upload first), `upload_asc` (oldest first), `caption_asc` (alphabetical by caption, used for ordered series whose captions encode the position with a zero-padded prefix). DB-enforced via `CHECK (sort_order IN (...))`.
 

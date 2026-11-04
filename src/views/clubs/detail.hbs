@@ -8,7 +8,7 @@
     </nav>
     {{/if}}
     <h1>{{page.title}}</h1>
-    <p class="hero-hashtag">{{content.club.standardTagDisplay}}</p>
+    {{> entity-hashtag content.club.hashtag}}
   </div>
 </div>
 
@@ -42,6 +42,13 @@
     <div class="club-detail-description">
       <p>This club has an imported historical description that names individual people. It is shown to logged-in members only.</p>
     </div>
+    {{/if}}
+
+    {{#if content.club.media}}
+    <section class="mt-4" id="club-media">
+      <div class="section-heading"><h2>Media</h2></div>
+      {{> entity-media content.club.media}}
+    </section>
     {{/if}}
 
     {{#if content.club.contentEditHref}}
@@ -95,12 +102,6 @@
         <button type="submit" class="btn btn-primary btn-sm">Save Changes</button>
       </form>
     </section>
-    {{/if}}
-
-    {{#if content.club.viewGalleryHref}}
-    <div class="club-gallery-link">
-      <a href="{{content.club.viewGalleryHref}}" class="btn btn-outline">View Gallery</a>
-    </div>
     {{/if}}
 
     {{#if content.club.leaders.length}}

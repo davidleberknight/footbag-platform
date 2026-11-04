@@ -66,6 +66,11 @@ const WORD_MATCH_MIN_LENGTH = 3;
 const BROWSE_HIGHLIGHT_EVENT_LIMIT = 12;
 /** How many popular tags a member's upload and edit forms suggest. */
 const MEMBER_POPULAR_LIMIT = 5;
+// Recent events offered beside a hashtag field: up to six public events that
+// started within the last year or start within the next.
+const RECENT_EVENT_LIMIT = 6;
+const RECENT_EVENT_WINDOW_DAYS = 365;
+const DAY_MS = 24 * 60 * 60 * 1000;
 /** The curator marker: applied automatically, never by a member. */
 const CURATED_TAG = '#curated';
 
@@ -75,6 +80,12 @@ const CURATED_TAG = '#curated';
  * member's tag input, so a field where a member applies tags never offers them.
  * They stay offered where a person searches, where they are legitimate filters.
  */
+function recentEventTagRows(now: Date): MemberTagRow[] {
+  const from = new Date(now.getTime() - RECENT_EVENT_WINDOW_DAYS * DAY_MS).toISOString().slice(0, 10);
+  const to = new Date(now.getTime() + RECENT_EVENT_WINDOW_DAYS * DAY_MS).toISOString().slice(0, 10);
+  return tagStats.listRecentPublicEventTags.all(from, to, RECENT_EVENT_LIMIT) as MemberTagRow[];
+}
+
 function memberCanApply(tagNormalized: string): boolean {
   return tagNormalized !== CURATED_TAG && !tagNormalized.startsWith('#by_');
 }
@@ -117,8 +128,11 @@ interface StandardWordMatchRow {
 // cities. Events and clubs are public, so the public suggest endpoint may carry
 // them; members are never matched here.
 function matchStandardTagsByWord(word: string, limit: number): StandardWordMatchRow[] {
-  const pattern = `%${word.replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
-  return tagStats.matchStandardTagsByWord.all(pattern, word, pattern, pattern, limit) as StandardWordMatchRow[];
+  const escape = (s: string) => s.replace(/[%_\\]/g, (c) => `\\${c}`);
+  const pattern = `%${escape(word)}%`;
+  const tagPattern = `%${word.split(' ').filter((w) => w.length > 0).map(escape).join('\\_')}%`;
+  return tagStats.matchStandardTagsByWord.all(
+    pattern, word, tagPattern, pattern, pattern, tagPattern, limit) as StandardWordMatchRow[];
 }
 
 function wordMatchToSuggestion(r: StandardWordMatchRow): TagSuggestion {
@@ -136,6 +150,8 @@ export interface MemberTagSuggestions {
   playerTags: TagChipShape[];
   clubTags: TagChipShape[];
   participatedEventTags: TagChipShape[];
+  /** Recent and upcoming public events, other than the member's own, media or not. */
+  recentEventTags: TagChipShape[];
   popularTags: TagChipShape[];
 }
 
@@ -389,22 +405,37 @@ export const hashtagDiscoveryService = {
     });
   },
 
-  getTagSuggestionsForMember(memberId: string, memberSlug: string): MemberTagSuggestions {
+  getTagSuggestionsForMember(
+    memberId: string, memberSlug: string, now: Date = new Date(),
+  ): MemberTagSuggestions {
     return runSqliteRead('hashtagDiscoveryService.getTagSuggestionsForMember', () => {
       const clubRows = tagStats.listMemberClubTags.all(memberId) as MemberTagRow[];
       const eventRows = tagStats.listMemberParticipatedEventTags.all(memberId, 10) as MemberTagRow[];
-      // One extra row is read so dropping `#curated` still leaves the full set of
-      // suggestions (the query already leaves out `#by_` tags).
-      const popularRows = (tagStats.listPopularPublicTags.all(MEMBER_POPULAR_LIMIT + 1) as PopularTagRow[])
-        .filter((r) => memberCanApply(r.tag_normalized))
+      const ownEvents = new Set(eventRows.map((r) => r.tag_normalized));
+      const recentRows = recentEventTagRows(now).filter((r) => !ownEvents.has(r.tag_normalized));
+      // The same two tiers the browse page offers: community usage first, then
+      // curator-published hashtags. One extra is read so dropping `#curated`
+      // still leaves a full list.
+      const popular = hashtagDiscoveryService.getPopularTagsCommunityFirst(MEMBER_POPULAR_LIMIT + 1)
+        .filter((c) => memberCanApply(c.normalized))
         .slice(0, MEMBER_POPULAR_LIMIT);
       const ownPlayerTag = playerTagForMemberSlug(memberSlug);
       return {
         playerTags: [rowToChip({ tag_normalized: ownPlayerTag, tag_display: ownPlayerTag })],
         clubTags: clubRows.map(rowToChip),
         participatedEventTags: eventRows.map(rowToChip),
-        popularTags: popularRows.map(rowToChip),
+        recentEventTags: recentRows.map(rowToChip),
+        popularTags: popular,
       };
     });
+  },
+
+  // Public events that started within the last year or start within the next,
+  // newest first, whether or not media carries their hashtags yet: an event's
+  // hashtag is offered before anyone has used it, so the first member to share
+  // from an event finds it rather than inventing a near-miss.
+  listRecentEventTags(now: Date = new Date()): TagChipShape[] {
+    return runSqliteRead('hashtagDiscoveryService.listRecentEventTags', () =>
+      recentEventTagRows(now).map(rowToChip));
   },
 };

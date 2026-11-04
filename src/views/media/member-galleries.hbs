@@ -10,6 +10,7 @@
     <div class="card-grid card-grid-2col">
       {{#each content.galleries}}
       <div class="card">
+        {{#if coverThumbUrl}}<img src="{{coverThumbUrl}}" alt="{{name}}" class="card-cover" loading="lazy">{{/if}}
         <a href="{{href}}" class="card-title">{{name}}</a>
         {{#if description}}<p class="card-description">{{description}}</p>{{/if}}
         <p class="card-meta">{{itemCount}} {{itemCountNoun}} by {{#if ownerHref}}<a href="{{ownerHref}}">{{ownerDisplayName}}</a>{{else}}{{ownerDisplayName}}{{/if}}</p>

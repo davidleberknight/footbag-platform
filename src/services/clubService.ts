@@ -172,7 +172,6 @@ import {
   legacyClubCandidates,
   legacyPersonClubAffiliations,
   mediaTags,
-  countGalleryItemsByCriteria,
   memberClubAffiliations,
   clubContent,
   savepoint,
@@ -183,6 +182,7 @@ import {
 } from '../db/db';
 import { emailService } from './emailService';
 import { whatsappDigits } from './memberService';
+import { mediaService, type EntityHashtag, type EntityMediaBlock } from './mediaService';
 import { logger } from '../config/logger';
 import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
@@ -791,7 +791,11 @@ export interface PublicClubDetail extends PublicClubSummary {
   // "I left that field alone" indistinguishable from "clear the URL".
   editForm: ClubEditForm | null;
   joinHref: string | null;
-  viewGalleryHref: string | null;
+  // The club's hashtag under its title, linked to its gallery when media
+  // carries it, and the newest such media with the button to the whole
+  // gallery (null when none does, which hides the block).
+  hashtag: EntityHashtag;
+  media: EntityMediaBlock | null;
   // An inactive club is hidden from the directory but still reachable by direct
   // link; the detail page shows a warning so it does not look like an active one.
   isInactive: boolean;
@@ -1047,7 +1051,8 @@ function toPublicClubDetail(
     contentEditHref: null,
     editForm: null,
     joinHref: null,
-    viewGalleryHref: null,
+    hashtag: { display: row.tag_display, galleryHref: null },
+    media: null,
     isInactive: row.status === 'inactive',
   };
   return detail;
@@ -1733,14 +1738,13 @@ export class ClubService {
       // not count here.
       club.isLeaderless = liveLeaders.length === 0;
 
-      const tagRow = mediaTags.findTagByNormalized.get(row.tag_normalized) as { id: string } | undefined;
-      if (tagRow) {
-        const mediaCount = countGalleryItemsByCriteria([tagRow.id]);
-        if (mediaCount > 0) {
-          // `context=` locks the club hashtag as the gallery's context so a
-          // visitor stays inside the club's media while refining within it.
-          club.viewGalleryHref = `/media/browse?context=${encodeURIComponent(club.clubKey)}`;
-        }
+      // The media block and the linked hashtag show only when media carries
+      // the club's hashtag.
+      const preview = mediaService.getEntityMediaPreview(
+        row.tag_normalized, { authenticated: isAuthenticated });
+      if (preview) {
+        club.media = { ...preview, buttonLabel: 'View Club Gallery' };
+        club.hashtag = { display: club.hashtag.display, galleryHref: preview.galleryHref };
       }
 
       if (viewerMemberId) {

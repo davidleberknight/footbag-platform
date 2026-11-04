@@ -260,6 +260,72 @@ describe('externalLinks (sidecar contract extension)', () => {
   });
 });
 
+describe('coverPhoto (a curated gallery names its cover by source filename)', () => {
+  it('accepts a bare source filename and leaves a sidecar without one valid', () => {
+    const d = valid();
+    d.coverPhoto = 'kick_photo_01.jpg';
+    expect(() => validateGallerySidecarData(d)).not.toThrow();
+    expect(() => validateGallerySidecarData(valid())).not.toThrow();
+  });
+
+  it.each([
+    ['an empty string', ''],
+    ['a blank string', '   '],
+    ['a path, which no source filename is', 'freestyle/kick.jpg'],
+    ['a value one past the length limit', `${'a'.repeat(252)}.jpg`],
+  ])('rejects %s', (_label, value) => {
+    const d = valid();
+    d.coverPhoto = value;
+    expect(() => validateGallerySidecarData(d)).toThrow(/coverPhoto/);
+  });
+
+  it('accepts a filename exactly at the length limit', () => {
+    const d = valid();
+    d.coverPhoto = `${'a'.repeat(251)}.jpg`;
+    expect(() => validateGallerySidecarData(d)).not.toThrow();
+  });
+
+  it('rejects a non-string coverPhoto, as a hand-edited file might carry', () => {
+    const d = valid() as unknown as { coverPhoto: unknown };
+    d.coverPhoto = 42;
+    expect(() => validateGallerySidecarData(d as GallerySidecarData)).toThrow(/coverPhoto/);
+  });
+
+  it('formats coverPhoto last, and writes no key at all when none is chosen', () => {
+    const d = valid();
+    d.coverPhoto = 'kick_photo_01.jpg';
+    expect(Object.keys(JSON.parse(formatGallerySidecarJson(d)))).toEqual([
+      'id', 'name', 'description', 'sortOrder',
+      'criteriaTags', 'excludeTags', 'externalLinks', 'coverPhoto',
+    ]);
+    expect(Object.keys(JSON.parse(formatGallerySidecarJson(valid())))).not.toContain('coverPhoto');
+  });
+
+  it('round-trips through a written file', async () => {
+    const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'footbag-test-gallery-sidecar-cover-'));
+    try {
+      const d = valid();
+      d.coverPhoto = 'kick_photo_01.jpg';
+      const { filePath } = await writeGallerySidecarFile(tmpRoot, d);
+      const back = await readGallerySidecarFile(filePath);
+      expect(back.coverPhoto).toBe('kick_photo_01.jpg');
+      expect(formatGallerySidecarJson(back)).toBe(await fs.readFile(filePath, 'utf-8'));
+    } finally {
+      await fs.rm(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('every committed gallery sidecar still validates', async () => {
+    const galleriesDir = path.join(process.cwd(), 'curated', 'galleries');
+    const files = gallerySidecarFiles();
+    expect(files.length, 'no gallery sidecars found').toBeGreaterThan(0);
+    for (const f of files) {
+      const data = JSON.parse(await fs.readFile(path.join(galleriesDir, f), 'utf-8')) as GallerySidecarData;
+      expect(() => validateGallerySidecarData(data), f).not.toThrow();
+    }
+  });
+});
+
 describe('catch-all gallery does not double-list its sibling source galleries', () => {
   // The "Curated Freestyle Tricks" gallery is a residual catch-all: it shows
   // every #curated #freestyle #trick video EXCEPT the ones owned by a specific

@@ -25,7 +25,10 @@ and can recreate, so it needs no apply flag, audit CSV or rollback SQL. It still
 - refuses on a missing input or unmet precondition rather than skipping rows;
 - refuses, before writing, an input in which two rows share a key the table holds once: under
   `INSERT OR IGNORE` or an upsert the second row is otherwise silently dropped or overwrites the
-  first.
+  first;
+- reports honest counters: it counts an insert only when `rowcount` shows one, never a raw `+= 1`
+  after `INSERT OR IGNORE`, and names every skipped row's category: dedup, FK miss, PK collision,
+  bad row.
 
 ## In-place patches
 

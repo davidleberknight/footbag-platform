@@ -68,6 +68,13 @@
             is found, so a member with none needs it most. }}
         {{> member-block-media content.media}}
 
+        {{#if content.playerMedia}}
+        <div class="profile-section" id="player-media">
+          <h2 class="profile-section-heading">{{content.playerMediaHeading}}</h2>
+          {{> entity-media content.playerMedia}}
+        </div>
+        {{/if}}
+
         <div class="profile-section">
           {{#if content.eventGroups.length}}
             <h2 class="profile-section-heading">Competitive Results <span class="section-count">{{content.eventGroups.length}} events</span></h2>

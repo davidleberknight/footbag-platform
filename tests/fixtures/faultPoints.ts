@@ -44,6 +44,8 @@ const SWEEP = 'tests/integration/fault-points.sweep.test.ts';
 const WEBHOOK_SWEEP = 'tests/integration/paymentWebhook.fault-injection.sweep.test.ts';
 
 const ADDRESS_ONLY = 'builds a public address from a storage key; no call leaves the process';
+const CURATOR_SAVES = 'tests/integration/freestyle.curator-saves.test.ts';
+const SAVE_THEN_COMMIT = 'writes a curated save file and then commits the row through the same put-back helper the swept saves use; a commit failure on this operation is not yet injected';
 const CONSTRUCTS_SERVICE = 'hands the adapter to a service factory; the calls it makes are the factory\'s own sites below it';
 const CURATED_SAVE = 'writes the authoring file and then the database row; a database refusal puts the file back through the shared save flow, and a retry after that refusal is not yet injected';
 
@@ -138,10 +140,27 @@ export const ADAPTER_SITES: AdapterSite[] = [
   { file: 'src/services/mediaService.ts', getter: 'getMediaStorageAdapter', operation: 'getNamedGalleryPage', status: { noWriteAfter: ADDRESS_ONLY } },
   { file: 'src/services/mediaService.ts', getter: 'getMediaStorageAdapter', operation: 'getMediaBrowsePage', status: { noWriteAfter: ADDRESS_ONLY } },
   { file: 'src/services/mediaService.ts', getter: 'getMediaStorageAdapter', operation: 'listRecentCommunityMedia', status: { noWriteAfter: ADDRESS_ONLY } },
+  { file: 'src/services/mediaService.ts', getter: 'getMediaStorageAdapter', operation: 'getEntityMediaPreview', status: { noWriteAfter: ADDRESS_ONLY } },
+  { file: 'src/services/mediaService.ts', getter: 'getMediaStorageAdapter', operation: 'galleryCoverThumbUrls', status: { noWriteAfter: ADDRESS_ONLY } },
   { file: 'src/services/freestyleService.ts', getter: 'getMediaStorageAdapter', operation: 'shapeReferenceMedia', status: { noWriteAfter: ADDRESS_ONLY } },
   { file: 'src/services/siteMediaService.ts', getter: 'getMediaStorageAdapter', operation: 'shapeVideo', status: { noWriteAfter: ADDRESS_ONLY } },
   { file: 'src/services/siteMediaService.ts', getter: 'getMediaStorageAdapter', operation: 'shapePhotoUrl', status: { noWriteAfter: ADDRESS_ONLY } },
   { file: 'src/services/siteMediaService.ts', getter: 'getMediaStorageAdapter', operation: 'loadSiteVideoMedia', status: { noWriteAfter: ADDRESS_ONLY } },
+
+  // ── Curated authoring save files ──────────────────────────────────────────
+  // Each writes a curated save file and then commits the database row through
+  // writeFileThenCommit, which puts the file back when the commit fails.
+  { file: 'src/services/freestyleCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'updateTrickScalars', status: { swept: CURATOR_SAVES } },
+  { file: 'src/services/freestyleCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'saveAlias', status: { swept: CURATOR_SAVES } },
+  { file: 'src/services/freestyleCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'saveSourceLink', status: { pending: SAVE_THEN_COMMIT } },
+  { file: 'src/services/freestyleCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'saveModifierLink', status: { pending: SAVE_THEN_COMMIT } },
+  { file: 'src/services/freestyleCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'saveRulingResolution', status: { pending: SAVE_THEN_COMMIT } },
+  { file: 'src/services/freestyleCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'saveAuthoredNotation', status: { pending: SAVE_THEN_COMMIT } },
+  { file: 'src/services/freestyleCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'publishCanonicalTrick', status: { pending: SAVE_THEN_COMMIT } },
+  { file: 'src/services/freestyleCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'createSource', status: { pending: SAVE_THEN_COMMIT } },
+  { file: 'src/services/freestyleRecordCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'saveRecordFile', status: { pending: SAVE_THEN_COMMIT } },
+  { file: 'src/services/consecutiveKicksCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'deleteRow', status: { pending: SAVE_THEN_COMMIT } },
+  { file: 'src/services/consecutiveKicksCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'saveRowFile', status: { pending: SAVE_THEN_COMMIT } },
 
   // ── Secrets, signing and verification ─────────────────────────────────────
   {

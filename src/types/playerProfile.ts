@@ -40,4 +40,7 @@ export interface PlayerHeroData {
   country?: string | null;
   firstCompetitionYear?: number | null;
   showFirstCompetitionYear?: boolean;
+  // The person's player hashtag, linked to the media featuring them when any
+  // carries it, so a visitor sees what to credit them with.
+  hashtag?: { display: string; galleryHref: string | null };
 }
