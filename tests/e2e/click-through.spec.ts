@@ -17,12 +17,11 @@
  *      request end-to-end (the chain that "stubbed-adapter" tests
  *      cannot prove).
  *
- *   4. Share Media — a member shares four real photos, tagged with an
- *      event's hashtag picked from the form's Recent events chips, and
- *      names their hashtags as a gallery; the test asserts all four appear
- *      in it AND their bytes actually serve, that the event's page shows
- *      them, and that a cover chosen on the gallery edit form heads the
- *      gallery's cards and becomes its share image. A media row with no
+ *   4. Share Media — a member shares four real photos with one hashtag
+ *      and names it as a gallery; the test asserts all four appear in it
+ *      AND their bytes actually serve, and that a cover chosen on the
+ *      gallery edit form heads the gallery's cards and becomes its share
+ *      image. A media row with no
  *      media-store bytes renders a broken image; only a real share
  *      proves the store path end-to-end.
  *
@@ -44,40 +43,23 @@ import { seedAdmin, seedTier1Member } from '../fixtures/personas';
 import { authenticateContext } from './helpers/wizard-auth';
 import { completeOnboarding } from '../../src/testkit/personaRowBuilders';
 import {
-  insertClub, insertEvent, insertFreestyleTrick, insertPersonaNamedGallery, insertTag,
+  insertClub, insertFreestyleTrick, insertPersonaNamedGallery, insertTag,
 } from '../fixtures/factories';
-import { isoDaysAgo } from '../fixtures/clock';
 import { ensureSystemMember, openLiveDb } from './helpers/liveDb';
 
-// The event and the club the shared media is tagged with. Their hashtags are
-// fixed; their rows are seeded once per stack, whichever spec gets there first.
-const WORLDS_TAG = '#event_2026_worlds_japan';
+// The club the shared clip is tagged with. Its hashtag is fixed; its row is
+// seeded once per stack, whichever spec gets there first.
 const WELLINGTON_TAG = '#club_wellington';
 
 /**
- * The 2026 World Championships in Japan, as a public event that started two
- * months ago so its hashtag is offered among the Share Media form's Recent
- * events, and the club Wellington Hack Crew. Seeded before any upload names
- * either hashtag, so the upload attaches the standard tag rather than minting
- * a free-form one.
+ * The club Wellington Hack Crew, seeded before any upload names its hashtag,
+ * so the upload attaches the standard tag rather than minting a free-form one.
  */
-function ensureWorldsAndWellington(): void {
+function ensureWellington(): void {
   const db = openLiveDb();
   try {
     const tagExists = (tag: string): boolean =>
       db.prepare('SELECT 1 FROM tags WHERE tag_normalized = ?').get(tag) !== undefined;
-    if (!tagExists(WORLDS_TAG)) {
-      const tagId = insertTag(db, { tag_normalized: WORLDS_TAG, standard_type: 'event' });
-      insertEvent(db, {
-        title: 'World Footbag Championships 2026',
-        city: 'Ibaraki',
-        country: 'Japan',
-        status: 'completed',
-        start_date: isoDaysAgo(60).slice(0, 10),
-        end_date: isoDaysAgo(54).slice(0, 10),
-        hashtag_tag_id: tagId,
-      });
-    }
     if (!tagExists(WELLINGTON_TAG)) {
       const tagId = insertTag(db, { tag_normalized: WELLINGTON_TAG, standard_type: 'club' });
       insertClub(db, {
@@ -95,7 +77,7 @@ function ensureWorldsAndWellington(): void {
 // The curator journey credits its uploads to the system member.
 test.beforeAll(() => {
   ensureSystemMember();
-  ensureWorldsAndWellington();
+  ensureWellington();
 });
 
 // The media item ids the tiles under a locator open, read from their links: the
@@ -182,15 +164,6 @@ test('Tier-1 member shares four real photos and names their hashtags as a galler
   await page.locator('#share-photo-files').setInputFiles(
     ['fb_182a.jpg', 'fb_182b.jpg', 'fb_182c.jpg', 'collection.jpg'].map((f) => path.join(ASSETS, f)),
   );
-  // The event's hashtag is picked from the Recent events chips, through the
-  // page's own script, as a member at the event would.
-  const worldsChip = page.locator(`.tag-suggestions button.tag-suggestion[data-tag="${WORLDS_TAG}"]`);
-  // Catches: a public event under way this year missing from the chips, so the
-  // member invents a near-miss hashtag and the event page never shows the media.
-  await expect(worldsChip).toHaveCount(1);
-  await worldsChip.click();
-  // Catches: a chip click that leaves the posted hashtag field empty.
-  await expect(page.locator('form[data-share-form] input[name="tags"]')).toHaveValue(new RegExp(WORLDS_TAG));
   await page.locator('#share-tags').fill('footbags');
   await page.locator('#share-gallery-name').pressSequentially('Footbags');
   const galleryId = `gallery_${slug}_footbags`;
@@ -208,27 +181,6 @@ test('Tier-1 member shares four real photos and names their hashtags as a galler
   const images = page.locator('.gallery-grid .gallery-tile img');
   await expect(images).toHaveCount(4);
   await expectImagesDecoded(images);
-  const sharedIds = await tileItemIds(page.locator('.gallery-grid .gallery-tile'));
-
-  // The event's page links its gallery from its media block and from its
-  // hashtag under the title, and shows no items itself; the gallery the
-  // button opens holds the shared photos.
-  const worldsGalleryHref = `/media/browse?context=${WORLDS_TAG.slice(1)}`;
-  await page.goto(`/events/${WORLDS_TAG.slice(1)}`);
-  // Catches: the event's hashtag under its title not leading to its gallery
-  // once media carries it.
-  await expect(page.locator(`.hero .hero-hashtag a[href="${worldsGalleryHref}"]`)).toHaveCount(1);
-  // Catches: the event page listing individual items that belong in the gallery.
-  await expect(page.locator('#event-media .gallery-tile')).toHaveCount(0);
-  // Catches: the event's gallery button missing or leading somewhere other
-  // than the gallery locked to the event's hashtag.
-  await page.locator(`#event-media a[href="${worldsGalleryHref}"]`).click();
-  await expect(page).toHaveURL(new RegExp(`${worldsGalleryHref.replace('?', '\\?')}$`));
-  const eventTiles = page.locator('.gallery-grid .gallery-tile');
-  // Catches: media carrying the event's hashtag missing from the event's gallery.
-  expect((await tileItemIds(eventTiles)).sort()).toEqual([...sharedIds].sort());
-  // Catches: gallery tiles whose thumbnails do not serve from the media store.
-  await expectImagesDecoded(eventTiles.locator('img'));
 
   // The gallery card image before any choice is the newest photo's thumbnail.
   await page.goto(`/members/${slug}/galleries`);

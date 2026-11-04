@@ -2,13 +2,11 @@
 """Script 25: QC the media-tag invariant. READ-ONLY hard fail.
 
 Invariant (per scripts/_trick_tag_invariant.py):
-  1. Every media_items row must carry ≥1 semantic tag.
-  2. Semantic domains: TRICK (underscore slug, active or pending),
+  1. Tag domains: TRICK (underscore slug, active or pending),
      EVENT (event_*), SYSTEM (demo_*, fh_*), FUTURE (player_*, club_*, set_*).
-  3. Trick-shaped tags must resolve; alias-only or unknown bodies fail.
-  4. Utility tags (freestyle, trick, curated, tricks_of_the_trade) pass
-     through but do NOT count toward the semantic-tag requirement.
-  5. Items with zero semantic tags fail.
+  2. Trick-shaped tags must resolve; alias-only or unknown bodies fail.
+  3. Utility tags (freestyle, trick, curated, tricks_of_the_trade) pass
+     through. An item with no tags passes: uploads never block on tags.
 
 Tripwire for any ingestion path (curator seeder, sidecar promotion, member
 uploads). Run after a fresh DB reset.

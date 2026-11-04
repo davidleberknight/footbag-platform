@@ -89,7 +89,9 @@ describe('historical player page', () => {
     // appear in, or lists the items themselves instead of linking the gallery.
     const res = await request(createApp()).get(`/history/${HISTORICAL_ID}`);
     expect(res.status).toBe(200);
-    expect(playerBlock(res.text)).toContain('href="/media/browse?context&#x3D;player_tuan_vu"');
+    const block = playerBlock(res.text);
+    expect(block).toContain('href="/media/browse?context&#x3D;player_tuan_vu"');
+    expect(block).not.toContain('gallery-tile');
     expect(res.text).not.toContain(creditedHistoricalMedia);
     expect(res.text).toMatch(
       /<p class="hero-hashtag"><a href="\/media\/browse\?context&#x3D;player_tuan_vu">#player_tuan_vu<\/a><\/p>/);
@@ -114,6 +116,7 @@ describe('member profiles', () => {
     const block = playerBlock(res.text);
     expect(block).toContain('href="/media/browse?context&#x3D;player_kim_lee"');
     expect(block).not.toContain(`by_${MEMBER_SLUG}`);
+    expect(block).not.toContain('gallery-tile');
     expect(block).not.toContain(creditedMemberMedia);
     expect(block).not.toContain(uploadedOnlyMedia);
   });

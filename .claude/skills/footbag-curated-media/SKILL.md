@@ -77,7 +77,6 @@ Tag-shape rules (enforced by `scripts/_trick_tag_invariant.py:validate_media_tag
 
 - All tags must start with `#` and be lowercase.
 - Trick-shaped tags (underscore-form alphanumeric, not in `UTILITY_EXACT`, not a recognized domain prefix) MUST resolve to an active or pending `freestyle_tricks.slug`. Alias-only matches fail.
-- Items with zero semantic tags (only utility tags, no trick or domain-prefix tag) fail.
 - Recognized domain prefixes (snake_case): `event_`, `demo_`, `fh_`, `player_`, `club_`, `set_`, `operator_`, `family_`, `concept_`, `discipline_`. Anything else needs to be in `UTILITY_EXACT`.
 - `#player_<slug>` is the one credit convention: the person performing in the clip, named by the historical-person record's folded name (`slugifyForTag`), or by the member's slug for a member; it never creates an identity. `#by_<slug>` is the system-applied uploader tag and is never written into a curated sidecar. Media has no credit field (see the user stories' hashtag rules).
 
@@ -133,8 +132,7 @@ python3 scripts/promote_snippet_candidates.py
 python3 scripts/_trick_tag_invariant.py
 
 # Post-load QC: validates every active media_items row's tag shape against
-# the dictionary; hard-fails on misroute, alias-only resolution, missing
-# semantic tag, etc.
+# the dictionary; hard-fails on misroute, alias-only resolution, etc.
 python3 freestyle/loaders/25_qc_media_tag_invariant.py
 
 # Coverage dashboard: per-trick primary-strength + priority bucketing

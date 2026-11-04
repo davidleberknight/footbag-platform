@@ -12,7 +12,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
-import { insertMember, insertMediaItem } from '../fixtures/factories';
+import { insertMember, insertMediaItem, insertFreeformTag, attachMediaTag } from '../fixtures/factories';
 import { scratchPath } from '../fixtures/scratchDir';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 
@@ -51,13 +51,33 @@ describe('media-tag invariant on an empty media table', () => {
 });
 
 describe('media-tag invariant with items present', () => {
+  // Defect caught: the reset refuses a clip that carries only a freeform tag, or
+  // no tag at all, and the deploy stops; uploads never block on tags.
+  it('passes an untagged item and an item carrying only a freeform tag', () => {
+    const withItems = scratchPath('media-invariant-freeform', '.db');
+    const db = createTestDb(withItems);
+    const uploader = insertMember(db, { slug: 'media_invariant_freeform' });
+    insertMediaItem(db, { uploader_member_id: uploader, caption: 'untagged clip' });
+    const freeformOnly = insertMediaItem(db, { uploader_member_id: uploader, caption: 'chinlone clip' });
+    attachMediaTag(db, freeformOnly, insertFreeformTag(db, { tag_normalized: '#chinlone' }));
+    db.close();
+    try {
+      const res = spawnSync('python3', [SCRIPT, '--db', withItems, '--require-items'], { encoding: 'utf8', ...SPAWN_GUARD });
+      expect(res.status, res.stdout + res.stderr).toBe(0);
+      expect(res.stdout).toContain('PASS: all 2 items');
+    } finally {
+      cleanupTestDb(withItems);
+    }
+  });
+
   // Defect caught: with --require-items the check stops at counting rows and no
-  // longer examines them, so an untagged curated item passes.
-  it('still examines every item, and fails one that carries no tag', () => {
+  // longer examines them, so a malformed tag on a curated item passes.
+  it('still examines every item, and fails one whose tag does not start with #', () => {
     const withItem = scratchPath('media-invariant', '.db');
     const db = createTestDb(withItem);
     const uploader = insertMember(db, { slug: 'media_invariant_uploader' });
-    insertMediaItem(db, { uploader_member_id: uploader, caption: 'untagged clip' });
+    const item = insertMediaItem(db, { uploader_member_id: uploader, caption: 'malformed tag clip' });
+    attachMediaTag(db, item, insertFreeformTag(db, { tag_normalized: '#footbags', tag_display: 'footbags' }));
     db.close();
     try {
       const res = spawnSync('python3', [SCRIPT, '--db', withItem, '--require-items'], { encoding: 'utf8', ...SPAWN_GUARD });

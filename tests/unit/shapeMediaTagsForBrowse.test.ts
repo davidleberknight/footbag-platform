@@ -17,8 +17,8 @@ const shapeMediaTagsForBrowse = (
 ) => shapeWithoutDictionary(tags, { ...opts, trickTags: TRICKS });
 
 describe('shapeMediaTagsForBrowse — suppression policy', () => {
-  it('drops universally-noisy tags (#trick, #unavailable_embed)', () => {
-    const out = shapeMediaTagsForBrowse(['#whirl', '#trick', '#unavailable_embed']);
+  it('drops the universally-noisy #trick tag', () => {
+    const out = shapeMediaTagsForBrowse(['#whirl', '#trick']);
     expect(out.map(t => t.display)).toEqual(['#whirl']);
   });
 

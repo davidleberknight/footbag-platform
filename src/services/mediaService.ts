@@ -77,7 +77,7 @@
  *     GET form whose controls all defer to a single "Apply Hashtag Filters"
  *     submit. Active include and exclude tags prefill two space-separated text
  *     fields that progressively enhance into chip tokenizers with autocomplete;
- *     co-occurring tags (minus active / `#by_*` / `#unavailable_embed`) are
+ *     co-occurring tags (minus active / `#by_*`) are
  *     quick-add submit chips; a locked context tag is read-only with a hidden
  *     input. Common controls lead and the rarer exclude field sits in a
  *     collapsed disclosure, which `hasExcludeTags` renders open whenever an

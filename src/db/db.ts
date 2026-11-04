@@ -3210,8 +3210,7 @@ export const freestyleMediaLinks = {
   // on an empty gallery; the caller picks a tag from here that resolves.
   // is_tutorial answers what the clip is for, which the clip's own tags say and
   // the source id does not. It is an EXISTS over the clip's tags rather than a
-  // second join, the shape the gallery queries already use for #unavailable_embed,
-  // because a join would multiply each coverage row by its tag count.
+  // second join, because a join would multiply each coverage row by its tag count.
   get listCoveredTrickSlugsWithSource() { return db.prepare(`
     SELECT DISTINCT
       ft.slug          AS slug,
@@ -5803,7 +5802,7 @@ export const media = {
 
   // Single public media item by id for the standalone item viewer
   // (/media/item/:mediaId). Applies the same public-visibility filter as the
-  // gallery queries (active, non-avatar, never #unavailable_embed) and returns
+  // gallery queries (active, non-avatar) and returns
   // the CuratorGalleryRow shape so the media service reuses its tile shaping.
   // Any visible item resolves regardless of uploader, so a deep link or a
   // browse tile past the gallery render cap still opens its own page.
@@ -5816,11 +5815,6 @@ export const media = {
     WHERE mi.id = ?
       AND mi.moderation_status = 'active'
       AND mi.is_avatar = 0
-      AND NOT EXISTS (
-        SELECT 1 FROM media_tags mtu
-        JOIN tags tu ON tu.id = mtu.tag_id
-        WHERE mtu.media_id = mi.id AND tu.tag_normalized = '#unavailable_embed'
-      )
   `); },
 
   // Member's own uploaded media, newest first, for the profile media grid.
@@ -6359,11 +6353,6 @@ export function queryGalleryItemsByCriteria(
          WHERE mtex.media_id = mi.id
            AND mtex.tag_id IN (${excludeTagIds.map(() => '?').join(',')})
        )`;
-  // Always-on exclusion: items tagged `#unavailable_embed` (curator-applied
-  // when an upstream YouTube video is private/deleted/blocked) never appear
-  // in public galleries. Curators remain able to find them via direct tag
-  // search; admin tooling shows them in their own status. See
-  // `tests/integration/freestyle.curated-media-availability.routes.test.ts`.
   return db.prepare(`
     SELECT mi.id, mi.media_type, mi.caption, mi.uploaded_at,
            mi.s3_key_thumb, mi.s3_key_display,
@@ -6375,11 +6364,6 @@ export function queryGalleryItemsByCriteria(
       AND mi.is_avatar = 0
       AND mt.tag_id IN (${placeholders})
       ${excludeClause}
-      AND NOT EXISTS (
-        SELECT 1 FROM media_tags mtu
-        JOIN tags tu ON tu.id = mtu.tag_id
-        WHERE mtu.media_id = mi.id AND tu.tag_normalized = '#unavailable_embed'
-      )
     GROUP BY mi.id
     HAVING COUNT(DISTINCT mt.tag_id) = ?
     ORDER BY mi.uploaded_at DESC, mi.id DESC
@@ -6417,11 +6401,6 @@ export function queryGalleryItemsByTagGroups(
       AND mi.is_avatar = 0
       ${groupClauses}
       ${excludeClause}
-      AND NOT EXISTS (
-        SELECT 1 FROM media_tags mtu
-        JOIN tags tu ON tu.id = mtu.tag_id
-        WHERE mtu.media_id = mi.id AND tu.tag_normalized = '#unavailable_embed'
-      )
     ORDER BY mi.uploaded_at DESC, mi.id DESC
     LIMIT ? OFFSET ?
   `).all(...groups.flat(), ...excludeTagIds, limit, offset) as CuratorGalleryRow[];
@@ -6447,19 +6426,14 @@ export function countGalleryItemsByTagGroups(
       AND mi.is_avatar = 0
       ${groupClauses}
       ${excludeClause}
-      AND NOT EXISTS (
-        SELECT 1 FROM media_tags mtu
-        JOIN tags tu ON tu.id = mtu.tag_id
-        WHERE mtu.media_id = mi.id AND tu.tag_normalized = '#unavailable_embed'
-      )
   `).get(...groups.flat(), ...excludeTagIds) as { n: number };
   return row.n;
 }
 
 // Recent member-authored community media, with no tag criterion, for the
 // teaching empty state on a member's gallery page. Mirrors the public
-// visibility filter of queryGalleryItemsByCriteria (active, non-avatar, never
-// #unavailable_embed) but selects across the whole community and excludes
+// visibility filter of queryGalleryItemsByCriteria (active, non-avatar)
+// but selects across the whole community and excludes
 // system/curator uploads, so the examples are genuinely member-shared rather
 // than seeded curator content. Empty mediaTypes → empty result.
 export function queryRecentCommunityMedia(
@@ -6478,11 +6452,6 @@ export function queryRecentCommunityMedia(
       AND mi.is_avatar = 0
       AND mi.media_type IN (${typePlaceholders})
       AND mi.uploader_member_id NOT IN (SELECT id FROM members WHERE is_system = 1)
-      AND NOT EXISTS (
-        SELECT 1 FROM media_tags mtu
-        JOIN tags tu ON tu.id = mtu.tag_id
-        WHERE mtu.media_id = mi.id AND tu.tag_normalized = '#unavailable_embed'
-      )
     ORDER BY mi.uploaded_at DESC, mi.id DESC
     LIMIT ?
   `).all(...mediaTypes, limit) as CuratorGalleryRow[];
@@ -6527,8 +6496,6 @@ export function queryGalleryItemsByCriteriaGrouped(
          WHERE mtex.media_id = mi.id
            AND mtex.tag_id IN (${excludeTagIds.map(() => '?').join(',')})
        )`;
-  // Always-on exclusion: items tagged `#unavailable_embed` never appear in
-  // public galleries. Same enforcement as `queryGalleryItemsByCriteria`.
   return db.prepare(`
     SELECT mi.id, mi.media_type, mi.caption, mi.uploaded_at,
            mi.s3_key_thumb, mi.s3_key_display,
@@ -6541,11 +6508,6 @@ export function queryGalleryItemsByCriteriaGrouped(
       AND mi.is_avatar = 0
       AND mt.tag_id IN (${placeholders})
       ${excludeClause}
-      AND NOT EXISTS (
-        SELECT 1 FROM media_tags mtu
-        JOIN tags tu ON tu.id = mtu.tag_id
-        WHERE mtu.media_id = mi.id AND tu.tag_normalized = '#unavailable_embed'
-      )
     GROUP BY mi.id
     HAVING COUNT(DISTINCT mt.tag_id) = ?
     ORDER BY ${orderBy}
@@ -6567,10 +6529,6 @@ export interface GalleryItemDisplayRow {
   video_platform: string | null;
   video_id: string | null;
   thumbnail_url: string | null;
-  // 1 when the item carries the #unavailable_embed tag, which public
-  // gallery queries exclude; the owner/admin edit grid badges these so an
-  // item visible here but missing publicly is explained.
-  is_unavailable_embed: number;
 }
 export function listGalleryItemsForDisplay(
   tagIds: string[],
@@ -6588,12 +6546,7 @@ export function listGalleryItemsForDisplay(
        )`;
   return db.prepare(`
     SELECT mi.id, mi.media_type, mi.caption, mi.source_filename,
-           mi.s3_key_thumb, mi.video_platform, mi.video_id, mi.thumbnail_url,
-           EXISTS (
-             SELECT 1 FROM media_tags mtu
-             JOIN tags tu ON tu.id = mtu.tag_id
-             WHERE mtu.media_id = mi.id AND tu.tag_normalized = '#unavailable_embed'
-           ) AS is_unavailable_embed
+           mi.s3_key_thumb, mi.video_platform, mi.video_id, mi.thumbnail_url
     FROM media_items mi
     JOIN media_tags mt ON mt.media_id = mi.id
     WHERE mi.moderation_status = 'active'
@@ -6629,11 +6582,6 @@ export function countGalleryItemsByCriteria(
         AND mi.is_avatar = 0
         AND mt.tag_id IN (${placeholders})
         ${excludeClause}
-        AND NOT EXISTS (
-          SELECT 1 FROM media_tags mtu
-          JOIN tags tu ON tu.id = mtu.tag_id
-          WHERE mtu.media_id = mi.id AND tu.tag_normalized = '#unavailable_embed'
-        )
       GROUP BY mi.id
       HAVING COUNT(DISTINCT mt.tag_id) = ?
     )
@@ -6667,11 +6615,6 @@ export function summarizeGalleryItemsByCriteria(
         AND mi.is_avatar = 0
         AND mt.tag_id IN (${placeholders})
         ${excludeClause}
-        AND NOT EXISTS (
-          SELECT 1 FROM media_tags mtu
-          JOIN tags tu ON tu.id = mtu.tag_id
-          WHERE mtu.media_id = mi.id AND tu.tag_normalized = '#unavailable_embed'
-        )
       GROUP BY mi.id
       HAVING COUNT(DISTINCT mt.tag_id) = ?
     )
@@ -6682,7 +6625,7 @@ export function summarizeGalleryItemsByCriteria(
  * The photo that stands for each of a page of galleries, in one statement
  * however many galleries the page holds. A gallery's chosen cover is honoured
  * only while it is one of the gallery's photos: active, not an avatar, carrying
- * every criteria tag and no exclude tag, and never `#unavailable_embed`, the
+ * every criteria tag and no exclude tag, the
  * same match the public gallery page renders. Otherwise the newest such photo
  * stands in. A gallery with no matching photo has no row. `is_chosen` is 1
  * when the row is the gallery's own chosen cover.
@@ -6723,11 +6666,6 @@ export function listGalleryCovers(galleryIds: string[]): GalleryCoverRow[] {
           JOIN media_tags mtex ON mtex.tag_id = mget.tag_id
           WHERE mget.gallery_id = mgt.gallery_id AND mtex.media_id = mi.id
         )
-        AND NOT EXISTS (
-          SELECT 1 FROM media_tags mtu
-          JOIN tags tu ON tu.id = mtu.tag_id
-          WHERE mtu.media_id = mi.id AND tu.tag_normalized = '#unavailable_embed'
-        )
       GROUP BY mgt.gallery_id, mi.id
       HAVING COUNT(DISTINCT mgt.tag_id) =
              (SELECT c.n FROM criteria c WHERE c.gallery_id = mgt.gallery_id)
@@ -6752,7 +6690,7 @@ export function listGalleryCovers(galleryIds: string[]): GalleryCoverRow[] {
 
 /**
  * Whether one media item may be chosen as a gallery's cover: an active,
- * non-avatar photo, never `#unavailable_embed`, carrying every criteria tag and
+ * non-avatar photo, carrying every criteria tag and
  * none of the exclude tags. Tags are given in their stored lowercase form, as a
  * save holds them before its tag rows are written. Empty criteria match
  * nothing, as an empty gallery shows nothing.
@@ -6786,11 +6724,6 @@ export function isGalleryCoverCandidate(
         WHERE mt.media_id = mi.id AND t.tag_normalized IN (${criteriaPh})
       ) = ?
       ${excludeClause}
-      AND NOT EXISTS (
-        SELECT 1 FROM media_tags mtu
-        JOIN tags tu ON tu.id = mtu.tag_id
-        WHERE mtu.media_id = mi.id AND tu.tag_normalized = '#unavailable_embed'
-      )
   `).get(mediaId, ...criteriaNormalized, criteriaNormalized.length, ...excludeNormalized) as
     | { ok: number }
     | undefined;
@@ -6801,8 +6734,8 @@ export function isGalleryCoverCandidate(
 // ranked by how many matching items carry them. Feeds the editable filter's
 // suggestion row so a viewer narrows by tags that actually appear in the
 // current result set rather than a static popular list. Drops tags already
-// active (criteria or exclude), uploader markers (#by_*), and the always-hidden
-// #unavailable_embed. Empty criteria → empty (the suggestion row only renders in
+// active (criteria or exclude) and uploader markers (#by_*). Empty criteria →
+// empty (the suggestion row only renders in
 // results mode, which has at least one criterion).
 export function queryCooccurringTags(
   tagIds: string[],
@@ -6829,11 +6762,6 @@ export function queryCooccurringTags(
         AND mi.is_avatar = 0
         AND mt.tag_id IN (${placeholders})
         ${excludeClause}
-        AND NOT EXISTS (
-          SELECT 1 FROM media_tags mtu
-          JOIN tags tu ON tu.id = mtu.tag_id
-          WHERE mtu.media_id = mi.id AND tu.tag_normalized = '#unavailable_embed'
-        )
       GROUP BY mi.id
       HAVING COUNT(DISTINCT mt.tag_id) = ?
     )
@@ -6845,7 +6773,6 @@ export function queryCooccurringTags(
     JOIN tags t ON t.id = mt.tag_id
     WHERE t.id NOT IN (${activePlaceholders})
       AND substr(t.tag_normalized, 1, 4) <> '#by_'
-      AND t.tag_normalized <> '#unavailable_embed'
     GROUP BY t.id
     -- Only tags that split the set are useful filters: drop any tag carried by
     -- every matching item (it would change nothing).
@@ -7348,7 +7275,6 @@ export const tagStats = {
     FROM tag_stats ts
     JOIN tags t ON t.id = ts.tag_id
     WHERE t.tag_normalized NOT LIKE '#by\\_%' ESCAPE '\\'
-      AND t.tag_normalized <> '#unavailable_embed'
       AND (
             ts.distinct_member_count >= 2
             OR EXISTS (
@@ -7374,7 +7300,6 @@ export const tagStats = {
     FROM tag_stats ts
     JOIN tags t ON t.id = ts.tag_id
     WHERE t.tag_normalized NOT LIKE '#by\\_%' ESCAPE '\\'
-      AND t.tag_normalized <> '#unavailable_embed'
       AND ts.distinct_member_count >= 2
     ORDER BY ts.usage_count DESC, ts.distinct_member_count DESC
     LIMIT ?
@@ -7389,7 +7314,6 @@ export const tagStats = {
     FROM tag_stats ts
     JOIN tags t ON t.id = ts.tag_id
     WHERE t.tag_normalized NOT LIKE '#by\\_%' ESCAPE '\\'
-      AND t.tag_normalized <> '#unavailable_embed'
       AND ts.distinct_member_count < 2
       AND EXISTS (
             SELECT 1 FROM media_tags mt
@@ -7414,7 +7338,6 @@ export const tagStats = {
     FROM tag_stats ts
     JOIN tags t ON t.id = ts.tag_id
     WHERE t.tag_normalized NOT LIKE '#by\\_%' ESCAPE '\\'
-      AND t.tag_normalized <> '#unavailable_embed'
       AND ts.distinct_member_count >= 2
     ORDER BY t.tag_normalized ASC
   `); },
@@ -7519,7 +7442,6 @@ export function suggestTagsForTerm(term: string, limit: number): TagSuggestRow[]
         )
       )
       AND t.tag_normalized NOT LIKE '#by\\_%' ESCAPE '\\'
-      AND t.tag_normalized <> '#unavailable_embed'
       AND t.retired_at IS NULL
       AND NOT (t.is_standard = 1 AND t.standard_type = 'club'
                AND NOT EXISTS (SELECT 1 FROM clubs_all c WHERE c.hashtag_tag_id = t.id))

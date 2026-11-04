@@ -45,9 +45,9 @@ files. Each carries fixed hashtags wherever it is uploaded:
 
 | Files | Hashtags | Used for |
 |---|---|---|
-| `fb_182a.jpg`, `fb_182b.jpg`, `fb_182c.jpg`, `collection.jpg` | `#event_2026_worlds_japan #footbags` | a member sharing photos, naming a gallery and choosing its cover (`gallery_owner`; the click-through browser test) |
+| `fb_182a.jpg`, `fb_182b.jpg`, `fb_182c.jpg`, `collection.jpg` | `#footbags` | a member sharing photos, naming a gallery and choosing its cover (`gallery_owner`; the click-through browser test) |
 | `chinlone_clip.mp4` with `chinlone_poster.jpg` | `#chinlone` | a curator video-file upload (`admin_t2`; the click-through browser test) |
-| `baganrally_clip.mp4` with `baganrally_poster.jpg` | `#chinlone #club_wellington` | a curator video-file upload into a new gallery (Wellington Hack Crew) |
+| `baganrally_clip.mp4` with `baganrally_poster.jpg` | `#chinlone #club_wellington` | a curator video-file upload into a new gallery, Wellington Chinlone; `#club_wellington` links it to the Wellington Hack Crew club |
 
 ## Secret containment
 

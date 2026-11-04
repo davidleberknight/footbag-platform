@@ -209,7 +209,9 @@ Minimum publication requirements:
    trick never exists as an isolated canonical row.
 4. **Alias and equivalence governance.** Known aliases, folk names,
    outside-source names, and equivalent readings are mapped, classified,
-   rejected, or explicitly deferred; never silently ignored.
+   rejected, or explicitly deferred; never silently ignored. A trick alias
+   typed as a media hashtag is stored as its canonical trick's hashtag, so one
+   trick has one gallery and one page.
 5. **Honest incompleteness.** Missing decomposition data is a curation gap, not
    proof of atomicity. Pending states render honestly.
 6. **No fabricated structure.** Never infer deep decomposition from names,

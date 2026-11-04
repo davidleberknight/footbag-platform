@@ -2,8 +2,7 @@
 """Media-tag invariant validator for curator media.
 
 Rules:
-  1. Every media item MUST carry at least one semantic tag.
-  2. Semantic tag domains:
+  1. Tag domains:
      - TRICK  — underscore body matching a trick freestyle_tricks.slug (active or
                 pending). A set/operator/modifier slug must use its role prefix;
                 bare tags are reserved for trick-role media (pixie/fairy are
@@ -11,12 +10,11 @@ Rules:
      - EVENT  — body starting with 'event_'
      - SYSTEM — body starting with 'demo_' or 'fh_'
      - LINKAGE — body starting with 'set_', 'operator_', 'family_', 'player_', or 'club_'
-  3. Trick-shaped tags (underscore, non-utility, non-domain-prefix) MUST
+  2. Trick-shaped tags (underscore, non-utility, non-domain-prefix) MUST
      resolve to an active or pending slug; alias-only or unknown bodies fail.
-  4. Utility tags (freestyle, trick, curated, tricks_of_the_trade) pass
-     through but do NOT count toward the semantic-tag requirement.
-  5. Items with zero semantic tags fail.
-  6. Hard fail (raises MediaTagInvariantError); no auto-fix; no warnings.
+  3. Utility tags (freestyle, trick, curated, tricks_of_the_trade) pass
+     through.
+  4. Hard fail (raises MediaTagInvariantError); no auto-fix; no warnings.
 
 Used by:
   - scripts/promote_snippet_candidates.py (pre-write sidecar validation)
@@ -54,9 +52,6 @@ UTILITY_EXACT: frozenset[str] = frozenset({
     # Induction-era buckets for the individual-shred collection's era browse,
     # mirroring the Big Add Posse roster's own year organization.
     "bap_originators", "bap_golden_age", "bap_expansion", "bap_modern", "bap_current",
-    # Curator-applied status marker, NOT a source: db.ts filters items tagged
-    # #unavailable_embed out of all media surfaces (always-on exclusion).
-    "unavailable_embed",
     # The content type of a curated trick clip, and the only categorisation a
     # member sees. Exactly one of the three sits on every trick-media clip: what
     # the clip is for, rather than where it came from, which the source tags
@@ -119,7 +114,8 @@ def validate_media_tags(
     nontrick_slugs: frozenset[str] | set[str] = frozenset(),
 ) -> None:
     """Validate a media item's tag list. Raise MediaTagInvariantError on the
-    first per-tag violation, or after the loop if no semantic tag is found.
+    first per-tag violation. An empty tag list passes: uploads never block on
+    tags.
 
     label:          human-readable identifier surfaced in the error message.
     tags:           iterable of tag strings; each MUST start with '#'.
@@ -130,7 +126,6 @@ def validate_media_tags(
                     a bare hashtag for one of these is rejected unless the slug is
                     a dual-role trick (DUAL_ROLE_TRICK_SLUGS).
     """
-    has_semantic = False
     for raw_tag in tags:
         if not isinstance(raw_tag, str):
             raise MediaTagInvariantError(
@@ -152,7 +147,6 @@ def validate_media_tags(
         if body in UTILITY_EXACT:
             continue
         if body.startswith(SEMANTIC_PREFIXES):
-            has_semantic = True
             continue
         if not _SLUG_SHAPE_RE.match(body):
             raise MediaTagInvariantError(
@@ -168,7 +162,6 @@ def validate_media_tags(
                     f"trick-role media — use its role-prefixed tag "
                     f"(e.g. #set_{body} or #operator_{body})"
                 )
-            has_semantic = True
             continue
         if body in alias_slugs:
             raise MediaTagInvariantError(
@@ -178,12 +171,6 @@ def validate_media_tags(
         raise MediaTagInvariantError(
             f"{label}: tag {raw_tag!r} does not resolve to any active or "
             f"pending freestyle_tricks.slug"
-        )
-    if not has_semantic:
-        raise MediaTagInvariantError(
-            f"{label}: no semantic tag — every media item must carry at "
-            f"least one trick or domain-prefix tag "
-            f"({', '.join(SEMANTIC_PREFIXES)})"
         )
 
 

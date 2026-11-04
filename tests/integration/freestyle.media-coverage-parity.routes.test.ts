@@ -11,8 +11,6 @@
  * What "watchable" means, pinned here:
  *   - a member-uploaded clip counts exactly as a curator-published one does;
  *     carrying no media source is not a reason to hide it;
- *   - a clip whose embed has been taken down (tagged '#unavailable_embed')
- *     counts on neither surface, so no control advertises an empty gallery;
  *   - a clip from the competition-records source counts on both, because it
  *     sits in the trick's gallery like any other tagged clip, even though the
  *     detail page keeps it out of the reference-media buckets to avoid
@@ -44,7 +42,6 @@ const page = cachedGet(() => createApp());
 // Single-token slugs: the browse row scoping below matches on the slug, and a
 // slug that is a prefix of another would make those matches ambiguous.
 const MEMBER_ONLY   = 'memberclipstrick';
-const UNAVAILABLE   = 'deadembedtrick';
 const CURATED       = 'curatedmediatrick';
 const RECORD_SOURCE = 'recordsourcetrick';
 const RECORD_ONLY   = 'recordonlytrick';
@@ -93,7 +90,6 @@ beforeAll(async () => {
   const uploader = insertMember(db, { id: 'm-mcp1', slug: 'mcp1_uploader' });
 
   insertFreestyleTrick(db, trick(MEMBER_ONLY));
-  insertFreestyleTrick(db, trick(UNAVAILABLE));
   insertFreestyleTrick(db, trick(CURATED));
   insertFreestyleTrick(db, trick(RECORD_SOURCE));
   insertFreestyleTrick(db, trick(RECORD_ONLY));
@@ -126,15 +122,6 @@ beforeAll(async () => {
     uploader_member_id: uploader,
     videoId: 'membervid1',
     tags: [`#${MEMBER_ONLY}`, '#freestyle', '#trick'],
-  });
-
-  // Tutorial-tier source, but the embed has been taken down.
-  insertTtLesson(db, {
-    uploader_member_id: uploader,
-    ttNumber: 2,
-    trickSlug: UNAVAILABLE,
-    videoId: 'deadvid1',
-    extraTags: ['#unavailable_embed'],
   });
 
   // Ordinary curated tutorial clip. The clip says it teaches: content type is
@@ -183,19 +170,6 @@ describe('trick media coverage agrees between the dictionary browse rows and the
     expect(detail.status).toBe(200);
     expect(detail.text).toContain(galleryHref(MEMBER_ONLY));
     expect(detail.text).toContain('See All Videos for');
-  });
-
-  it('renders a plain token when the only clip has an unavailable embed, on both surfaces', async () => {
-    const browse = await page('/freestyle/tricks?view=add');
-    const row = browseRow(browse.text, UNAVAILABLE);
-    expect(row).not.toContain('hashtag--media');
-    expect(row).not.toContain(galleryHref(UNAVAILABLE));
-    expect(row).toContain('<span class="hashtag"');
-
-    const detail = await page(`/freestyle/tricks/${UNAVAILABLE}`);
-    expect(detail.status).toBe(200);
-    expect(detail.text).not.toContain(galleryHref(UNAVAILABLE));
-    expect(detail.text).not.toContain('See All Videos for');
   });
 
   it('links a trick whose clip comes from the competition-records source, on both surfaces', async () => {

@@ -6,7 +6,6 @@
  * no individual items: the gallery holds them. With no such media the page
  * shows no block and the
  * hashtag as a plain token, so a visitor still sees what to tag their media with.
- * Media marked #unavailable_embed counts as none.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 
@@ -15,7 +14,6 @@ import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/
 import {
   insertMember,
   insertTag,
-  insertFreeformTag,
   insertEvent,
   insertMediaItem,
   attachMediaTag,
@@ -25,7 +23,6 @@ const { dbPath } = setTestEnv('3073');
 
 let page: (path: string) => ReturnType<ReturnType<typeof cachedGet>>;
 const mediaIds: string[] = [];
-let unavailableMediaId = '';
 
 // The block runs from its id to the end of its section's own wrapper, so an
 // item tile rendered anywhere inside it falls within the slice.
@@ -63,17 +60,6 @@ beforeAll(async () => {
   });
   insertEvent(db, { id: 'event-no-media', title: 'No Media Open 2025', hashtag_tag_id: noMedia, status: 'completed' });
 
-  const unavailable = insertTag(db, {
-    tag_normalized: '#event_2025_unavail', tag_display: '#event_2025_unavail', standard_type: 'event',
-  });
-  insertEvent(db, { id: 'event-unavail-media', title: 'Unavailable Open 2025', hashtag_tag_id: unavailable, status: 'completed' });
-  const unavailableEmbed = insertFreeformTag(db, {
-    id: 'tag-unavail-embed', tag_normalized: '#unavailable_embed', tag_display: '#unavailable_embed',
-  });
-  unavailableMediaId = insertMediaItem(db, { uploader_member_id: uploaderId, caption: 'Unavailable clip' });
-  attachMediaTag(db, unavailableMediaId, unavailable);
-  attachMediaTag(db, unavailableMediaId, unavailableEmbed);
-
   db.close();
   const createApp = await importApp();
   page = cachedGet(() => createApp());
@@ -103,13 +89,5 @@ describe('GET /events/:eventKey -- media block', () => {
     expect(res.text).not.toContain('id="event-media"');
     expect(res.text).not.toContain('/media/browse?context&#x3D;event_2025_nomedia');
     expect(res.text).toContain('<p class="hero-hashtag">#event_2025_nomedia</p>');
-  });
-
-  it('treats media marked #unavailable_embed as none', async () => {
-    // Defect caught: a dead video makes the page offer a gallery with nothing to watch.
-    const res = await page('/events/event_2025_unavail');
-    expect(res.status).toBe(200);
-    expect(res.text).not.toContain('id="event-media"');
-    expect(res.text).not.toContain(unavailableMediaId);
   });
 });

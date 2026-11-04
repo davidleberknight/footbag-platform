@@ -11,7 +11,7 @@
  * S3 (production/staging) and the local store (dev) identically, with no
  * filesystem or `/curated` assumptions, and respects the dev curated read-lane.
  * YouTube/Vimeo videos are skipped — they have no stored bytes (the embed lives
- * on the platform; availability is the `#unavailable_embed` mechanism).
+ * on the platform).
  *
  * It additionally asserts that every fixed site-content slot in the typed
  * registry (`src/content/siteMedia.ts`) resolves to a seeded FH media row of the

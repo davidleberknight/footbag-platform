@@ -109,8 +109,8 @@
  *     criteria/exclude tags via `listGalleryItemsForDisplay`.
  *   - A gallery's cover (`member_galleries.cover_media_id`) is chosen on the
  *     edit form from the gallery's own photos, never uploaded there. A newly
- *     chosen cover must be an active, non-avatar photo, not
- *     `#unavailable_embed`, matching the gallery's saved hashtags
+ *     chosen cover must be an active, non-avatar photo matching the gallery's
+ *     saved hashtags
  *     (`isGalleryCoverCandidate`); a stored cover carried through unchanged
  *     is not re-checked, because the read honours it only while it still
  *     matches (`listGalleryCovers`) and the newest photo stands in otherwise.
@@ -1427,8 +1427,6 @@ export interface CuratorGalleryEditView {
   // mutations) happen on the item's own edit page; the gallery edit
   // page never modifies item tags. editHref points at the item's edit page
   // for the requesting surface (member-owned vs admin curator).
-  // isUnavailableEmbed marks items the public gallery hides via the
-  // #unavailable_embed tag, so their presence here is explained.
   currentItems: Array<{
     mediaId: string;
     mediaType: 'photo' | 'video';
@@ -1436,7 +1434,6 @@ export interface CuratorGalleryEditView {
     caption: string | null;
     sourceFilename: string;
     editHref: string;
-    isUnavailableEmbed: boolean;
     // Topical hashtags on the item (the uploader marker and #curated are
     // filtered out), so the owner can see how each item is tagged while
     // managing the gallery.
@@ -3008,8 +3005,8 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           ? `/members/${opts.memberKey}/media/${mediaId}/edit`
           : `/admin/curator/media/${mediaId}/edit`);
         const currentItems = itemRows.map((r) => {
-          // Only a photo the public gallery shows can stand for it.
-          const canBeCover = r.media_type === 'photo' && r.is_unavailable_embed !== 1;
+          // Only a photo can stand for the gallery.
+          const canBeCover = r.media_type === 'photo';
           return {
             mediaId: r.id,
             mediaType: r.media_type,
@@ -3017,7 +3014,6 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
             caption: r.caption,
             sourceFilename: r.source_filename,
             editHref: itemEditHref(r.id),
-            isUnavailableEmbed: r.is_unavailable_embed === 1,
             tags: tagsByMediaId.get(r.id) ?? [],
             canBeCover,
             isCover: canBeCover && r.id === selectedCover,
@@ -3038,7 +3034,6 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
               caption: cover.caption,
               sourceFilename: cover.source_filename,
               editHref: itemEditHref(cover.media_id),
-              isUnavailableEmbed: false,
               tags: [],
               canBeCover: true,
               isCover: true,

@@ -312,13 +312,12 @@ function labelForType(recordType: string): string {
 // Raw tags come from media_tags.tag_display (e.g., "#torque", "#curated",
 // "#trick"). The browse-surface render filters out noise (`#trick` is
 // universally redundant on freestyle media; `#freestyle` is redundant on
-// freestyle-only surfaces; `#unavailable_embed` is implementation state)
-// and sorts the remainder by pedagogical priority so trick-slug tags lead.
+// freestyle-only surfaces) and sorts the remainder by pedagogical priority so trick-slug tags lead.
 //
 // Restraint-first: maintainer-named hard requirement. Hashtag
 // layer is part of the visible symbolic/navigation language, not hidden
 // metadata. Goal: pedagogical readability via repeated exposure.
-const MEDIA_TAG_SUPPRESS = new Set(['#trick', '#unavailable_embed']);
+const MEDIA_TAG_SUPPRESS = new Set(['#trick']);
 const MEDIA_TAG_KIND_ORDER: MediaTagDisplay['kind'][] = [
   'trick', 'player', 'source', 'creator', 'content-type', 'event', 'sport', 'quality', 'other',
 ];
@@ -1857,7 +1856,7 @@ export interface TrickReferenceMediaItem {
   media: VideoMedia | null;
   caption: string | null;
   // Hashtag chips for the visible symbolic-navigation layer (F7). Shaped via
-  // shapeMediaTagsForBrowse: noise (`#trick`, `#unavailable_embed`, `#freestyle`
+  // shapeMediaTagsForBrowse: noise (`#trick`, `#freestyle`
   // on freestyle-only surfaces) suppressed; remainder sorted by kind precedence.
   // Empty array when the media row has no surfacing-eligible tags.
   tags: MediaTagDisplay[];

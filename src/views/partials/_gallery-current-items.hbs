@@ -9,7 +9,7 @@
   Caller passes:
     currentItems[] — each:
       { mediaId, mediaType, thumbnailUrl, caption, sourceFilename, editHref,
-        isUnavailableEmbed, tags, canBeCover, isCover }
+        tags, canBeCover, isCover }
     currentItemsTruncated — true when the matching set exceeds the render
       cap and only the first page-worth is shown.
     coverChoice — { offered, useNewest, outsideList }: whether a cover can be
@@ -24,9 +24,7 @@
          loading="lazy">
     <span class="picker-meta">
       {{#if caption}}{{caption}}{{else}}<code>{{sourceFilename}}</code>{{/if}}
-      {{#if (eq mediaType "video")}} <span class="picker-badge">video</span>{{/if}}
-      {{#if isUnavailableEmbed}} <span class="picker-badge">hidden from public gallery</span>{{/if}}
-    </span>
+      {{#if (eq mediaType "video")}} <span class="picker-badge">video</span>{{/if}}    </span>
     {{#if canBeCover}}
       <label class="picker-cover">
         <input type="radio" name="coverMediaId" value="{{mediaId}}"{{#if isCover}} checked{{/if}}>
