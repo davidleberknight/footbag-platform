@@ -132,6 +132,10 @@ source "${SCRIPT_DIR}/lib/dev-tester-ssh-key.sh"
 source "${SCRIPT_DIR}/lib/operator-credential.sh"
 # shellcheck source=lib/vendor-secret.sh
 source "${SCRIPT_DIR}/lib/vendor-secret.sh"
+# One closing report listing every error and warning the run met. The library
+# owns the exit and signal traps; the cleanup below is registered with it.
+# shellcheck source=lib/closing-report.sh
+source "${SCRIPT_DIR}/lib/closing-report.sh"
 
 AWS_BIN="${ACCEPT_AWS_BIN:-aws}"
 AWS_IDENTITY_BIN="$AWS_BIN"
@@ -188,7 +192,7 @@ unset _host_ok _o
 # accepts and then cannot deploy or test has an onboarding nobody can use.
 delivery_require_tools "age=${AGE_BIN}" "ssh=${SSH_BIN}" ssh-keygen=ssh-keygen \
   openssl=openssl "aws=${AWS_BIN}" terraform=terraform docker=docker jq=jq \
-  rsync=rsync sqlite3=sqlite3 || exit 1
+  rsync=rsync sqlite3=sqlite3 || cr_die "a tool the staging work needs is missing; nothing was changed"
 # Present is not enough for two of them. The AWS CLI and Terraform are pinned,
 # and each pin is read from the one place that sets it rather than copied here.
 # shellcheck source=lib/tool-report.sh
@@ -196,7 +200,7 @@ source "${SCRIPT_DIR}/lib/tool-report.sh"
 # shellcheck source=lib/tool-versions.sh
 source "${SCRIPT_DIR}/lib/tool-versions.sh"
 WRONG_VERSIONS=()
-tool_pin AWS_CLI_VERSION || exit 1
+tool_pin AWS_CLI_VERSION || cr_die "the AWS CLI pin could not be read; nothing was changed"
 AWS_PIN="$TOOL_PIN_VALUE"
 if [[ "$("$AWS_BIN" --version 2>&1)" != "aws-cli/${AWS_PIN} "* ]]; then
   WRONG_VERSIONS+=("the AWS CLI is not ${AWS_PIN}, the version the scripts are written for")
@@ -204,7 +208,7 @@ fi
 TF_PROBLEM="$(_tool_report_check terraform "$REPO_ROOT")"
 [[ -z "$TF_PROBLEM" ]] || WRONG_VERSIONS+=("${TF_PROBLEM%% Install*}")
 if (( ${#WRONG_VERSIONS[@]} )); then
-  echo "ERROR: the right tools are here, at the wrong versions:" >&2
+  cr_error "the right tools are here, at the wrong versions: $(IFS=';'; printf '%s' "${WRONG_VERSIONS[*]}")"
   printf '  - %s\n' "${WRONG_VERSIONS[@]}" >&2
   echo "Nothing was changed on this machine. Install the pinned versions with:" >&2
   echo "  bash scripts/setup-dev-workstation.sh --aws --account ${ACCOUNT}" >&2
@@ -217,7 +221,7 @@ fi
 [[ "$SSH_BIN" != "ssh" ]] && echo "SYNTHETIC: ssh='${SSH_BIN}' -- no host is reached." >&2
 
 if ! terminal_present --with-stdin; then
-  echo "ERROR: run this from an interactive terminal. Every step is confirmed by" >&2
+  cr_error "run this from an interactive terminal. Every step is confirmed by"
   echo "       a typed word, and your new password is typed. Nothing done." >&2
   exit 1
 fi
@@ -234,10 +238,9 @@ accept_cleanup() {
   FETCH_DIR=""
   return 0
 }
-trap accept_cleanup EXIT
-# An interrupt ends the run. Cleaning up and carrying on would reach the next
-# step with the secrets blanked, and report the delivery as used when it is not.
-trap 'accept_cleanup; exit 130' INT TERM
+# Run once, at exit and on an interrupt, by the closing-report library, which
+# ends the run on an interrupt rather than carrying on with the secrets blanked.
+cr_cleanup accept_cleanup
 
 step() { printf '\n==> %s\n' "$1"; }
 
@@ -263,7 +266,7 @@ sudo_accepts() {
   local rc=0
   printf '%s\n' "$1" | ssh_to_host 'sudo -k -S -p "" -v' >/dev/null 2>&1 || rc=$?
   if (( rc == 255 )); then
-    echo "ERROR: could not reach ${HOST} on port ${DELIVERY_SSH_PORT} as" >&2
+    cr_error "could not reach ${HOST} on port ${DELIVERY_SSH_PORT} as"
     echo "       ${ACCOUNT}. Nothing about your password was decided. Check your" >&2
     echo "       connection, and that your address is on the host's allow-list," >&2
     echo "       then run this again." >&2
@@ -297,13 +300,13 @@ else
   done
 fi
 if (( ${#FETCH_IDS[@]} == 0 )); then
-  echo "ERROR: no key pair in ~/.ssh to log in with. Nothing was changed." >&2
+  cr_error "no key pair in ~/.ssh to log in with. Nothing was changed."
   echo "       The onboarding was sealed to the public key you posted; its private" >&2
   echo "       half must be on this machine." >&2
   exit 1
 fi
 if (( ${#FETCH_IDS[@]} > 5 )); then
-  echo "ERROR: ${#FETCH_IDS[@]} key pairs in ~/.ssh, more than the host lets one login try." >&2
+  cr_error "${#FETCH_IDS[@]} key pairs in ~/.ssh, more than the host lets one login try."
   echo "       Copy the pair whose public key you posted to" >&2
   echo "         ${NAMED_KEY} and ${NAMED_KEY}.pub" >&2
   echo "       and run this again. Nothing was changed." >&2
@@ -332,7 +335,7 @@ set -e
 FETCH_SIZE="$(wc -c < "$SEALED")"
 
 if (( FETCH_SIZE > DELIVERY_MAX_BYTES )); then
-  echo "ERROR: what ${HOST} returned is larger than any delivery. It is not one," >&2
+  cr_error "what ${HOST} returned is larger than any delivery. It is not one,"
   echo "       and nothing was changed. Tell the holder who onboarded you." >&2
   exit 1
 fi
@@ -343,7 +346,8 @@ case "${FETCH_RCS[0]}" in
     # the copy as its last step, or there was never a delivery. Told apart by
     # proving the outcome: the password this machine filed for the account,
     # accepted by sudo over the pinned connection.
-    operator_credential_file_for "$ACCOUNT" "$TARGET" || exit 1
+    operator_credential_file_for "$ACCOUNT" "$TARGET" \
+      || cr_die "could not resolve ${ACCOUNT}'s credential file on this machine"
     FILED=""
     if [[ -f "$OPERATOR_CREDENTIAL_FILE" ]] && operator_credential_mode_ok "$OPERATOR_CREDENTIAL_FILE" 2>/dev/null; then
       IFS= read -r FILED < "$OPERATOR_CREDENTIAL_FILE" || true
@@ -359,17 +363,19 @@ case "${FETCH_RCS[0]}" in
       echo "    bash scripts/as-dev-tester.sh --account ${ACCOUNT} \\"
       echo "      bash scripts/setup-operator-workstation.sh --target ${TARGET}"
       echo "    (and the same with --check)"
-      exit 0
+      cr_proved "already accepted: nothing to fetch on ${HOST}, and sudo there accepts the password filed for ${ACCOUNT}"
+      cr_unproved "the workstation setup and its check: not run by this run"
+      cr_finish
     fi
     FILED=""
-    echo "ERROR: there is no delivery waiting for you on ${HOST}, and this machine" >&2
+    cr_error "there is no delivery waiting for you on ${HOST}, and this machine"
     echo "       holds no password your account there accepts. Nothing was changed." >&2
     echo "       Ask the holder who onboards you to run the onboarding, with" >&2
     echo "       --reissue if they already have, then run this again." >&2
     exit 1
     ;;
   255)
-    echo "ERROR: could not log in to ${HOST} on port ${DELIVERY_SSH_PORT} as ${ACCOUNT}." >&2
+    cr_error "could not log in to ${HOST} on port ${DELIVERY_SSH_PORT} as ${ACCOUNT}."
     echo "       Nothing was changed. Check that --host is the address the" >&2
     echo "       onboarding printed. If it is, and the holder has said you are" >&2
     echo "       onboarded, your own address has probably changed: send your" >&2
@@ -378,12 +384,12 @@ case "${FETCH_RCS[0]}" in
     exit 1
     ;;
   *)
-    echo "ERROR: the fetch from ${HOST} failed (exit ${FETCH_RCS[0]}). Nothing was changed." >&2
+    cr_error "the fetch from ${HOST} failed (exit ${FETCH_RCS[0]}). Nothing was changed."
     exit 1
     ;;
 esac
 if (( FETCH_SIZE == 0 )); then
-  echo "ERROR: the delivery on ${HOST} is empty. Nothing was changed. Ask the holder" >&2
+  cr_error "the delivery on ${HOST} is empty. Nothing was changed. Ask the holder"
   echo "       to re-run the onboarding with --reissue." >&2
   exit 1
 fi
@@ -392,7 +398,7 @@ fi
 FETCHED_HOST_KEY="$(ssh-keygen -F "[${HOST}]:${DELIVERY_SSH_PORT}" -f "$FETCH_KH" 2>/dev/null \
   | grep -v '^#' | awk 'NF >= 3 {print $2" "$3}' | sort -u)"
 if [[ -z "$FETCHED_HOST_KEY" || "$(grep -c . <<<"$FETCHED_HOST_KEY")" != "1" ]]; then
-  echo "ERROR: the host's key was not recorded by the fetch, so it cannot be checked" >&2
+  cr_error "the host's key was not recorded by the fetch, so it cannot be checked"
   echo "       against the delivery. Nothing was changed." >&2
   exit 1
 fi
@@ -403,7 +409,7 @@ echo "  fetched ${FETCH_SIZE} bytes; the host presented ${FETCHED_HOST_KEY%% *},
 step "Your key pair"
 SEALED_TAGS="$(delivery_age_header_tags "$SEALED")"
 if [[ -z "$SEALED_TAGS" || "$(grep -c . <<<"$SEALED_TAGS")" != "1" ]]; then
-  echo "ERROR: the delivery is not sealed to exactly one SSH key. Ask the holder" >&2
+  cr_error "the delivery is not sealed to exactly one SSH key. Ask the holder"
   echo "       who onboards you to run the onboarding again." >&2
   exit 1
 fi
@@ -420,14 +426,14 @@ pub_tag() { delivery_age_recipient_tag "$(grep -m1 . "$1" 2>/dev/null)" 2>/dev/n
 require_pair() {
   local derived
   if ! derived="$(ssh-keygen -y -f "$1")" || [[ -z "$derived" ]]; then
-    echo "ERROR: ssh-keygen could not read the private key ${1}." >&2
+    cr_error "ssh-keygen could not read the private key ${1}."
     echo "       A wrong passphrase, a file that is not a private key, or one that" >&2
     echo "       other users can read (ssh-keygen refuses those) all end here." >&2
     echo "       Nothing was copied or opened." >&2
     exit 1
   fi
   if [[ "$(cut -d' ' -f2 <<<"$derived")" != "$(grep -m1 . "$2" | cut -d' ' -f2)" ]]; then
-    echo "ERROR: ${1} is not the private half of ${2}." >&2
+    cr_error "${1} is not the private half of ${2}."
     echo "       Nothing was copied or opened. Move the wrong file aside and re-run." >&2
     exit 1
   fi
@@ -437,7 +443,7 @@ require_pair() {
 # copy below would skip the half that is there and bring in the other, leaving
 # two halves that do not belong together.
 if [[ -e "$NAMED_KEY" && ! -e "${NAMED_KEY}.pub" ]] || [[ ! -e "$NAMED_KEY" && -e "${NAMED_KEY}.pub" ]]; then
-  echo "ERROR: only one half of the key pair is at the path the tooling uses:" >&2
+  cr_error "only one half of the key pair is at the path the tooling uses:"
   echo "         ${NAMED_KEY}      $([[ -e "$NAMED_KEY" ]] && echo present || echo missing)" >&2
   echo "         ${NAMED_KEY}.pub  $([[ -e "${NAMED_KEY}.pub" ]] && echo present || echo missing)" >&2
   echo "       Nothing was copied or opened. Move the one that is there aside, or" >&2
@@ -454,7 +460,7 @@ echo "  fingerprint stay the same):"
 echo "    ssh-keygen -p -f ${NAMED_KEY} -N ''"
 if [[ -f "${NAMED_KEY}.pub" ]]; then
   if [[ "$(pub_tag "${NAMED_KEY}.pub")" != "$SEALED_TAGS" ]]; then
-    echo "ERROR: ${NAMED_KEY} is not the key this delivery was sealed to. Nothing" >&2
+    cr_error "${NAMED_KEY} is not the key this delivery was sealed to. Nothing"
     echo "       was moved or opened. Send the holder the public key you meant." >&2
     exit 1
   fi
@@ -467,7 +473,7 @@ else
     [[ "$(pub_tag "$candidate")" == "$SEALED_TAGS" ]] && FOUND+=("${candidate%.pub}")
   done
   if (( ${#FOUND[@]} != 1 )); then
-    echo "ERROR: ${#FOUND[@]} key pairs in ~/.ssh match the key this delivery was sealed" >&2
+    cr_error "${#FOUND[@]} key pairs in ~/.ssh match the key this delivery was sealed"
     echo "       to; exactly one must. Nothing was moved or opened." >&2
     exit 1
   fi
@@ -481,13 +487,13 @@ else
   echo "    ${FOUND[0]}      -> ${NAMED_KEY}"
   echo "    ${FOUND[0]}.pub  -> ${NAMED_KEY}.pub"
   if ! confirm_from_tty "Type 'APPLY' to copy the pair: " "APPLY"; then
-    echo "Not confirmed; nothing copied." >&2
+    cr_error "Not confirmed; nothing copied."
     exit 1
   fi
   cp -n -p -- "${FOUND[0]}" "$NAMED_KEY"
   cp -n -p -- "${FOUND[0]}.pub" "${NAMED_KEY}.pub"
   chmod 600 -- "$NAMED_KEY"
-  [[ -f "$NAMED_KEY" && -f "${NAMED_KEY}.pub" ]] || { echo "ERROR: the copy did not land." >&2; exit 1; }
+  [[ -f "$NAMED_KEY" && -f "${NAMED_KEY}.pub" ]] || cr_die "the copy did not land."
   require_pair "$NAMED_KEY" "${NAMED_KEY}.pub"
   echo "  copied"
 fi
@@ -506,7 +512,8 @@ if [[ -n "${SSH_AUTH_SOCK:-}" ]] && command -v "$SSH_ADD_BIN" >/dev/null 2>&1; t
     echo "  once, rather than on each of the dozens of connections a staging deploy"
     echo "  makes. If your key has no passphrase, either answer is fine."
     if confirm_from_tty "Type 'APPLY' to add it to the agent for eight hours: " "APPLY"; then
-      "$SSH_ADD_BIN" -t 8h "$NAMED_KEY" || echo "  not added; every connection will ask instead"
+      "$SSH_ADD_BIN" -t 8h "$NAMED_KEY" \
+        || cr_warn "ssh-add could not add ${NAMED_KEY} to the agent; every connection will ask for its passphrase instead"
     else
       echo "  not added; every connection will ask for the passphrase instead"
     fi
@@ -520,16 +527,16 @@ BUNDLE="$(umask 077 && mktemp)"
 secret_file_register "$BUNDLE"
 # age asks for the key's passphrase itself, on the terminal, if it has one.
 if ! "$AGE_BIN" -d -i "$NAMED_KEY" -o "$BUNDLE" "$SEALED"; then
-  echo "ERROR: age could not open the delivery with ${NAMED_KEY}." >&2
+  cr_error "age could not open the delivery with ${NAMED_KEY}."
   exit 1
 fi
 if ! delivery_bundle_parse "$BUNDLE"; then
-  echo "ERROR: the delivery is not in the expected format: ${DELIVERY_ERROR}." >&2
+  cr_error "the delivery is not in the expected format: ${DELIVERY_ERROR}."
   exit 1
 fi
 secret_file_destroy "$BUNDLE" "$SEALED"
 if [[ "$DELIVERY_ACCOUNT" != "$ACCOUNT" || "$DELIVERY_TARGET" != "$TARGET" ]]; then
-  echo "ERROR: this delivery is for ${DELIVERY_ACCOUNT} on ${DELIVERY_TARGET}, not ${ACCOUNT} on" >&2
+  cr_error "this delivery is for ${DELIVERY_ACCOUNT} on ${DELIVERY_TARGET}, not ${ACCOUNT} on"
   echo "       ${TARGET}. Nothing was changed." >&2
   exit 1
 fi
@@ -540,7 +547,7 @@ if ! aws_cred_key_id_looks_valid "$DELIVERY_AWS_ACCESS_KEY_ID" \
    || [[ "$DELIVERY_STAGING_RUNTIME_ROLE_ARN" != "arn:aws:iam::${DELIVERY_AWS_ACCOUNT_ID}:role/"* ]] \
    || [[ ! "$DELIVERY_HOST_ADDRESS" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] \
    || [[ ! "$DELIVERY_HOST_PORT" =~ ^[0-9]{1,5}$ ]]; then
-  echo "ERROR: a value in the delivery is not the shape it must be. Nothing was" >&2
+  cr_error "a value in the delivery is not the shape it must be. Nothing was"
   echo "       changed; ask the holder to run the onboarding again." >&2
   exit 1
 fi
@@ -550,14 +557,14 @@ fi
 if [[ "$DELIVERY_AWS_ACCOUNT_ID" != "$FOOTBAG_AWS_ACCOUNT_ID" \
       || "$DELIVERY_DEV_TESTER_ROLE_ARN" != "arn:aws:iam::${FOOTBAG_AWS_ACCOUNT_ID}:role/${DEV_TESTER_PROFILE}" \
       || "$DELIVERY_STAGING_RUNTIME_ROLE_ARN" != "arn:aws:iam::${FOOTBAG_AWS_ACCOUNT_ID}:role/footbag-${TARGET}-app-runtime" ]]; then
-  echo "REFUSING: this delivery names AWS account ${DELIVERY_AWS_ACCOUNT_ID}, not this project's" >&2
+  cr_error "REFUSING: this delivery names AWS account ${DELIVERY_AWS_ACCOUNT_ID}, not this project's"
   echo "          ${FOOTBAG_AWS_ACCOUNT_ID}. It was not made by the project's onboarding, and" >&2
   echo "          nothing in it is trusted. Nothing was changed and nothing was sent." >&2
   echo "          Tell the holder who onboards you." >&2
   exit 1
 fi
 if [[ "$DELIVERY_HOST_ADDRESS" != "$HOST" || "$DELIVERY_HOST_PORT" != "$DELIVERY_SSH_PORT" ]]; then
-  echo "REFUSING: this delivery names host ${DELIVERY_HOST_ADDRESS} port ${DELIVERY_HOST_PORT}, but it" >&2
+  cr_error "REFUSING: this delivery names host ${DELIVERY_HOST_ADDRESS} port ${DELIVERY_HOST_PORT}, but it"
   echo "          was fetched from ${HOST} port ${DELIVERY_SSH_PORT}. Nothing was changed. Run the" >&2
   echo "          command exactly as the onboarding printed it." >&2
   exit 1
@@ -565,7 +572,7 @@ fi
 for _pin in "${DELIVERY_PINS[@]}"; do
   case "$_pin" in
     "${DELIVERY_HOST_ADDRESS} "*|"[${DELIVERY_HOST_ADDRESS}]:${DELIVERY_HOST_PORT} "*) ;;
-    *) echo "ERROR: a pin line in the delivery names another host. Nothing changed." >&2; exit 1 ;;
+    *) cr_die "a pin line in the delivery names another host. Nothing changed." ;;
   esac
 done
 echo "  opened: ${ACCOUNT} on ${TARGET}, host ${DELIVERY_HOST_ADDRESS}, key ${DELIVERY_AWS_ACCESS_KEY_ID}"
@@ -618,7 +625,7 @@ for (( try = 0; try <= POLL_TRIES; try++ )); do
   FRESH_ARN=""
 done
 if [[ -n "$USER_ARN" && "$USER_ARN" != "$WANT_USER_ARN" ]]; then
-  echo "REFUSING: the key in this delivery authenticates as ${USER_ARN}," >&2
+  cr_error "REFUSING: the key in this delivery authenticates as ${USER_ARN},"
   echo "          not ${WANT_USER_ARN}." >&2
   echo "          The delivery was not made by this project's onboarding, and nothing" >&2
   echo "          in it is trusted. Nothing was changed and nothing was sent. Tell" >&2
@@ -627,10 +634,10 @@ if [[ -n "$USER_ARN" && "$USER_ARN" != "$WANT_USER_ARN" ]]; then
 fi
 if [[ -z "$USER_ARN" || "$FRESH_ARN" != "$FRESH_WANT" ]]; then
   if [[ -z "$USER_ARN" ]]; then
-    echo "ERROR: the key in this delivery is not honoured by AWS. AWS said:" >&2
+    cr_error "the key in this delivery is not honoured by AWS. AWS said:"
     with_delivered_key "${USER_CALL[@]}" 2>&1 >/dev/null | sed 's/^/         /' >&2 || true
   else
-    echo "ERROR: a fresh session of ${DEV_TESTER_PROFILE}, signed with your new key, was not" >&2
+    cr_error "a fresh session of ${DEV_TESTER_PROFILE}, signed with your new key, was not"
     echo "       issued as ${FRESH_WANT}." >&2
     if [[ -n "$FRESH_ARN" ]]; then
       echo "       It came back as ${FRESH_ARN}." >&2
@@ -663,7 +670,7 @@ for _pin in "${DELIVERY_PINS[@]}"; do
 done
 unset _pin
 if (( ! HOST_KEY_PINNED )); then
-  echo "REFUSING: the host that answered at ${HOST} port ${DELIVERY_SSH_PORT} presented a key that is" >&2
+  cr_error "REFUSING: the host that answered at ${HOST} port ${DELIVERY_SSH_PORT} presented a key that is"
   echo "          not among the staging host's keys this proven delivery carries." >&2
   echo "          Something between you and staging may be intercepting the" >&2
   echo "          connection. Nothing was written and nothing was sent. Tell the" >&2
@@ -680,7 +687,7 @@ CONFIG_FILE="${AWS_CONFIG_FILE:-${HOME}/.aws/config}"
 CURRENT_KEY="$(aws_cred_current_key_id "$CRED_FILE" "$ACCOUNT")"
 DT_SOURCE="$(aws_config_profile_source "$CONFIG_FILE" "$DEV_TESTER_PROFILE" || true)"
 if [[ -n "$DT_SOURCE" && "$DT_SOURCE" != "$ACCOUNT" ]]; then
-  echo "ERROR: [profile ${DEV_TESTER_PROFILE}] in ${CONFIG_FILE} already chains from" >&2
+  cr_error "[profile ${DEV_TESTER_PROFILE}] in ${CONFIG_FILE} already chains from"
   echo "       [${DT_SOURCE}], so this machine's job-role profile is somebody else's." >&2
   echo "       It is left alone. Nothing was changed." >&2
   exit 1
@@ -703,7 +710,7 @@ if aws_cred_has_section "$CRED_FILE" footbag-operator \
    || aws_config_has_profile "$CONFIG_FILE" footbag-operator; then
   OPERATOR_PROFILE_HERE=1
 elif ! LISTED_PROFILES="$("$AWS_BIN" configure list-profiles 2>/dev/null)"; then
-  echo "ERROR: the AWS CLI could not list this machine's profiles, so whether it" >&2
+  cr_error "the AWS CLI could not list this machine's profiles, so whether it"
   echo "       carries the footbag-operator profile cannot be told. No profile was" >&2
   echo "       written. Check ${CONFIG_FILE} and ${CRED_FILE} parse, then run this again." >&2
   exit 1
@@ -724,7 +731,7 @@ if (( OPERATOR_PROFILE_HERE )); then
     _pin_key="$(cut -d' ' -f2,3 <<<"$_pin")"
     _pinned="$(ssh-keygen -F "$_pin_host" -f "$_admin_pins" 2>/dev/null | grep -v '^#' || true)"
     if [[ -n "$_pinned" ]] && ! grep -qF -- "$_pin_key" <<<"$_pinned"; then
-      echo "ERROR: ${_admin_pins} already pins ${_pin_host} with a different key than" >&2
+      cr_error "${_admin_pins} already pins ${_pin_host} with a different key than"
       echo "       this delivery carries. On a machine holding the footbag-operator" >&2
       echo "       profile those pins are the administrators', and this run does not" >&2
       echo "       replace them. No profile or pin was written. If the host was rebuilt," >&2
@@ -792,23 +799,23 @@ else
     echo "    region            = us-east-1"
   fi
   if ! confirm_from_tty "Type 'APPLY' to write them: " "APPLY"; then
-    echo "Not confirmed; nothing written." >&2
+    cr_error "Not confirmed; nothing written."
     exit 1
   fi
   if [[ "$CURRENT_KEY" != "$DELIVERY_AWS_ACCESS_KEY_ID" ]]; then
-    aws_cred_put "$CRED_FILE" "$ACCOUNT" "$DELIVERY_AWS_ACCESS_KEY_ID" "$DELIVERY_AWS_SECRET_ACCESS_KEY" || {
-      echo "ERROR: could not write the credential: ${AWS_CRED_ERROR}" >&2; exit 1; }
+    aws_cred_put "$CRED_FILE" "$ACCOUNT" "$DELIVERY_AWS_ACCESS_KEY_ID" "$DELIVERY_AWS_SECRET_ACCESS_KEY" \
+      || cr_die "could not write the credential: ${AWS_CRED_ERROR}"
     clear_cached_sessions
   fi
   if [[ -z "$DT_SOURCE" ]]; then
     aws_config_add_role_profile "$CONFIG_FILE" "$DEV_TESTER_PROFILE" \
-      "$DELIVERY_DEV_TESTER_ROLE_ARN" "$ACCOUNT" us-east-1 "$ACCOUNT" || {
-      echo "ERROR: could not write [profile ${DEV_TESTER_PROFILE}]: ${AWS_CRED_ERROR}" >&2; exit 1; }
+      "$DELIVERY_DEV_TESTER_ROLE_ARN" "$ACCOUNT" us-east-1 "$ACCOUNT" \
+      || cr_die "could not write [profile ${DEV_TESTER_PROFILE}]: ${AWS_CRED_ERROR}"
   fi
   if (( WRITE_RT )); then
     aws_config_add_role_profile "$CONFIG_FILE" "$STAGING_RUNTIME_PROFILE" \
-      "$DELIVERY_STAGING_RUNTIME_ROLE_ARN" "$DEV_TESTER_PROFILE" us-east-1 || {
-      echo "ERROR: could not write [profile ${STAGING_RUNTIME_PROFILE}]: ${AWS_CRED_ERROR}" >&2; exit 1; }
+      "$DELIVERY_STAGING_RUNTIME_ROLE_ARN" "$DEV_TESTER_PROFILE" us-east-1 \
+      || cr_die "could not write [profile ${STAGING_RUNTIME_PROFILE}]: ${AWS_CRED_ERROR}"
   fi
   echo "  written"
 fi
@@ -820,15 +827,17 @@ DELIVERY_AWS_SECRET_ACCESS_KEY=""
 # the tooling reads it, with every ARN anchored to this project's account.
 
 step "Proving your profiles"
-aws_identity_require_arn "$ACCOUNT" "$WANT_USER_ARN" || exit 1
-aws_identity_resolve "$DEV_TESTER_PROFILE" || exit 1
-aws_identity_require_assumed_role "$DEV_TESTER_PROFILE" || exit 1
+aws_identity_require_arn "$ACCOUNT" "$WANT_USER_ARN" \
+  || cr_die "[${ACCOUNT}] in the AWS files does not resolve to ${WANT_USER_ARN}"
+aws_identity_resolve "$DEV_TESTER_PROFILE" || cr_die "[profile ${DEV_TESTER_PROFILE}] did not resolve"
+aws_identity_require_assumed_role "$DEV_TESTER_PROFILE" \
+  || cr_die "[profile ${DEV_TESTER_PROFILE}] did not resolve to a ${DEV_TESTER_PROFILE} session"
 if [[ "$AWS_IDENTITY_SESSION_NAME" != "$ACCOUNT" ]]; then
-  echo "ERROR: the ${DEV_TESTER_PROFILE} session is named '${AWS_IDENTITY_SESSION_NAME}', not ${ACCOUNT}." >&2
+  cr_error "the ${DEV_TESTER_PROFILE} session is named '${AWS_IDENTITY_SESSION_NAME}', not ${ACCOUNT}."
   exit 1
 fi
 if [[ "$AWS_IDENTITY_ARN" != "$FRESH_WANT" ]]; then
-  echo "ERROR: [profile ${DEV_TESTER_PROFILE}] resolves to ${AWS_IDENTITY_ARN}, not ${FRESH_WANT}." >&2
+  cr_error "[profile ${DEV_TESTER_PROFILE}] resolves to ${AWS_IDENTITY_ARN}, not ${FRESH_WANT}."
   exit 1
 fi
 echo "  [profile ${DEV_TESTER_PROFILE}] assumes ${DEV_TESTER_PROFILE} as ${ACCOUNT}"
@@ -840,8 +849,9 @@ echo "  [profile ${DEV_TESTER_PROFILE}] assumes ${DEV_TESTER_PROFILE} as ${ACCOU
 RT_ROLE="${DELIVERY_STAGING_RUNTIME_ROLE_ARN##*/}"
 RT_SOURCE="$(aws_config_profile_source "$CONFIG_FILE" "$STAGING_RUNTIME_PROFILE" || true)"
 if [[ "$RT_SOURCE" == "$DEV_TESTER_PROFILE" ]]; then
-  aws_identity_resolve "$STAGING_RUNTIME_PROFILE" || exit 1
-  aws_identity_require_assumed_role "$RT_ROLE" || exit 1
+  aws_identity_resolve "$STAGING_RUNTIME_PROFILE" || cr_die "[profile ${STAGING_RUNTIME_PROFILE}] did not resolve"
+  aws_identity_require_assumed_role "$RT_ROLE" \
+    || cr_die "[profile ${STAGING_RUNTIME_PROFILE}] did not resolve to a ${RT_ROLE} session"
   echo "  [profile ${STAGING_RUNTIME_PROFILE}] chains through ${DEV_TESTER_PROFILE} to ${RT_ROLE}"
 else
   echo "  [profile ${STAGING_RUNTIME_PROFILE}] chains from [${RT_SOURCE:-nothing}] on this machine,"
@@ -875,7 +885,7 @@ else
   echo "  Into ${PIN}, replacing any older lines for ${DELIVERY_HOST_ADDRESS} and keeping every other host's:"
   printf '    %s\n' "${DELIVERY_PINS[@]}"
   if ! confirm_from_tty "Type 'APPLY' to pin them: " "APPLY"; then
-    echo "Not confirmed; nothing written." >&2
+    cr_error "Not confirmed; nothing written."
     exit 1
   fi
   PIN_DIR="$(dirname -- "$PIN")"
@@ -905,12 +915,12 @@ else
 fi
 if ! grep -q '^[^#]' <<< "$(ssh-keygen -F "$DELIVERY_HOST_ADDRESS" -f "$PIN" 2>/dev/null)" \
    || ! grep -q '^[^#]' <<< "$(ssh-keygen -F "[${DELIVERY_HOST_ADDRESS}]:${DELIVERY_HOST_PORT}" -f "$PIN" 2>/dev/null)"; then
-  echo "ERROR: ${PIN} does not verify for ${DELIVERY_HOST_ADDRESS} on both ports." >&2
+  cr_error "${PIN} does not verify for ${DELIVERY_HOST_ADDRESS} on both ports."
   exit 1
 fi
 echo "  verified on port 22 and port ${DELIVERY_HOST_PORT}"
 FOOTBAG_KNOWN_HOSTS="$PIN"
-require_pinned_known_hosts || exit 1
+require_pinned_known_hosts || cr_die "${PIN} is not a usable pin file"
 
 # ── 9. The SSH alias ─────────────────────────────────────────────────────────
 
@@ -927,14 +937,16 @@ case "$_rc" in
     echo "  account by default, which yours cannot log in to; your own account is"
     echo "  reached through the block added below it, only through the wrapper:"
     echo ""
-    if [[ -f "$SSH_CONFIG" ]]; then
-      diff -u "$SSH_CONFIG" "$STANZA_TMP" || true
-    else
-      diff -u /dev/null "$STANZA_TMP" || true
-    fi
+    # diff exits 1 for files that differ, which these do; anything else means
+    # the change could not be shown, which is said rather than swallowed.
+    _shown_from="$SSH_CONFIG"
+    [[ -f "$SSH_CONFIG" ]] || _shown_from=/dev/null
+    diff -u "$_shown_from" "$STANZA_TMP" || (( $? == 1 )) \
+      || cr_warn "the change to ${SSH_CONFIG} could not be shown before it was asked for"
+    unset _shown_from
     echo ""
     if ! confirm_from_tty "Type 'APPLY' to add it: " "APPLY"; then
-      echo "Not confirmed; nothing written." >&2
+      cr_error "Not confirmed; nothing written."
       exit 1
     fi
     mkdir -p -m 700 -- "$(dirname -- "$SSH_CONFIG")"
@@ -944,18 +956,19 @@ case "$_rc" in
   2)
     _host="$("$DTSK_SSH_BIN" -G "$ALIAS" </dev/null 2>/dev/null | awk '/^hostname /{print $2}' | tail -1)"
     if [[ "$_host" != "$DELIVERY_HOST_ADDRESS" ]]; then
-      echo "ERROR: your ${ALIAS} stanza points at '${_host}', not ${DELIVERY_HOST_ADDRESS}." >&2
+      cr_error "your ${ALIAS} stanza points at '${_host}', not ${DELIVERY_HOST_ADDRESS}."
       echo "       It is yours and is not edited here. Correct its Hostname and re-run." >&2
       exit 1
     fi
     echo "  already present, pointing at ${DELIVERY_HOST_ADDRESS}; left as it is"
     ;;
   *)
-    echo "ERROR: could not read ${SSH_CONFIG}, or the result would not parse." >&2
+    cr_error "could not read ${SSH_CONFIG}, or the result would not parse."
     exit 1
     ;;
 esac
-dtsk_ensure_match_block "$SSH_CONFIG" "$ALIAS" "$ACCOUNT" "$DEV_TESTER_PROFILE" || exit 1
+dtsk_ensure_match_block "$SSH_CONFIG" "$ALIAS" "$ACCOUNT" "$DEV_TESTER_PROFILE" \
+  || cr_die "${ACCOUNT}'s Match block for ${ALIAS} is not in place"
 
 # ── 10. Your own sudo password ───────────────────────────────────────────────
 #
@@ -966,10 +979,18 @@ dtsk_ensure_match_block "$SSH_CONFIG" "$ALIAS" "$ACCOUNT" "$DEV_TESTER_PROFILE" 
 # rule, never built here.
 
 step "Your sudo password on the ${TARGET} host"
-operator_credential_file_for "$ACCOUNT" "$TARGET" || exit 1
+operator_credential_file_for "$ACCOUNT" "$TARGET" \
+  || cr_die "could not resolve ${ACCOUNT}'s credential file on this machine"
 FILED=""
-if [[ -f "$OPERATOR_CREDENTIAL_FILE" ]] && operator_credential_mode_ok "$OPERATOR_CREDENTIAL_FILE" 2>/dev/null; then
-  IFS= read -r FILED < "$OPERATOR_CREDENTIAL_FILE" || true
+# A filed password whose file others could read is not read, and a new one is
+# chosen below; that is said, with the reason, rather than passed over.
+CRED_MODE_ERR="$(mktemp "$(_cr_tmp)/credmode.XXXXXX")"
+if [[ -f "$OPERATOR_CREDENTIAL_FILE" ]]; then
+  if operator_credential_mode_ok "$OPERATOR_CREDENTIAL_FILE" 2>"$CRED_MODE_ERR"; then
+    IFS= read -r FILED < "$OPERATOR_CREDENTIAL_FILE" || true
+  else
+    cr_warn "${OPERATOR_CREDENTIAL_DISPLAY} was not read: $(grep -v '^[[:space:]]*$' "$CRED_MODE_ERR" | head -n 1)"
+  fi
 fi
 if [[ -n "$FILED" ]] && sudo_accepts "$FILED"; then
   FILED=""
@@ -977,7 +998,7 @@ if [[ -n "$FILED" ]] && sudo_accepts "$FILED"; then
 else
   FILED=""
   if ! sudo_accepts "$DELIVERY_HOST_PASSWORD"; then
-    echo "ERROR: the host refuses the one-time password in your delivery, and there is" >&2
+    cr_error "the host refuses the one-time password in your delivery, and there is"
     echo "       no working password filed here. It has been used or replaced. Ask" >&2
     echo "       the holder to re-run the onboarding with --reissue, then run this" >&2
     echo "       again." >&2
@@ -999,11 +1020,11 @@ else
   echo "      ever sees it."
   [[ -e "$OPERATOR_CREDENTIAL_FILE" ]] && echo "    - That file holds an older password the host no longer accepts; it is replaced."
   if ! confirm_from_tty "Type 'APPLY' to choose it: " "APPLY"; then
-    echo "Not confirmed; the one-time password still stands." >&2
+    cr_error "Not confirmed; the one-time password still stands."
     exit 1
   fi
   if ! vendor_secret_read "New password for ${ACCOUNT} on the ${TARGET} host (sudo): "; then
-    echo "ERROR: ${VENDOR_SECRET_ERROR}" >&2
+    cr_error "${VENDOR_SECRET_ERROR}"
     exit 1
   fi
   NEW_PASS="$VENDOR_SECRET_VALUE"
@@ -1016,11 +1037,11 @@ else
     printf 'CHPW_NEW=%q\n' "$NEW_PASS"
     cat "$REMOTE_HALF"
   } | ssh_to_host 'sudo -k -S -p "" bash' || {
-    echo "ERROR: the host did not change the password. Re-run the same command." >&2
+    cr_error "the host did not change the password. Re-run the same command."
     exit 1
   }
   if ! sudo_accepts "$NEW_PASS"; then
-    echo "ERROR: the host does not accept the new password. Re-run the same command." >&2
+    cr_error "the host does not accept the new password. Re-run the same command."
     exit 1
   fi
   NEW_PASS=""
@@ -1052,7 +1073,7 @@ fi
 
 step "Your delivery on the ${TARGET} host"
 if ! ssh_to_host "rm -f -- \"\$HOME/${DELIVERY_NAME}\" && [ ! -e \"\$HOME/${DELIVERY_NAME}\" ]" </dev/null; then
-  echo "ERROR: could not remove ~${ACCOUNT}/${DELIVERY_NAME} on ${HOST}. Everything" >&2
+  cr_error "could not remove ~${ACCOUNT}/${DELIVERY_NAME} on ${HOST}. Everything"
   echo "       else is in place. Run the same command again to finish." >&2
   exit 1
 fi
@@ -1078,8 +1099,17 @@ echo "  The full workstation setup, then its check, both as ${ACCOUNT}:"
 echo "    bash scripts/as-dev-tester.sh --account ${ACCOUNT} \\"
 echo "      bash scripts/setup-operator-workstation.sh --target ${TARGET}"
 echo "    (and the same with --check)"
+# Run directly, not through the report library's pipe: both ask for a typed
+# APPLY on this terminal. The setup failing is a warning, not the verdict: the
+# check after it re-proves every outcome the setup exists to produce, and its
+# failure is the error that fails this run.
+SETUP_RAN=0
 if confirm_from_tty "Type 'APPLY' to run them: " "APPLY"; then
-  "${SETUP_WRAP[@]}" --target "$TARGET" || true
+  SETUP_RAN=1
+  SETUP_SET_RC=0
+  "${SETUP_WRAP[@]}" --target "$TARGET" || SETUP_SET_RC=$?
+  (( SETUP_SET_RC == 0 )) \
+    || cr_warn "the workstation setup exited ${SETUP_SET_RC}; its check, run next, decides whether anything is left to do"
   "${SETUP_WRAP[@]}" --target "$TARGET" --check || SETUP_RC=$?
 else
   echo "  not run. Run them yourself when you are ready; they repeat nothing done."
@@ -1101,6 +1131,13 @@ echo ""
 echo "Tell the holder who onboarded you that this finished, with the block above."
 if (( SETUP_RC != 0 )); then
   echo ""
-  echo "The workstation check above still lists something to do; it says what." >&2
+  cr_error "The workstation check above still lists something to do; it says what."
   exit "$SETUP_RC"
 fi
+cr_proved "the delivery came from this project's account to ${ACCOUNT}, its pins verify ${HOST}, the profiles resolve as ${ACCOUNT}, sudo accepts the filed password, and the copy on the host is gone"
+if (( SETUP_RAN )); then
+  cr_proved "the workstation check passed as ${ACCOUNT}"
+else
+  cr_unproved "the workstation setup and its check: not run"
+fi
+cr_finish

@@ -21,7 +21,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync, copyFileSync, chmodSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, copyFileSync, chmodSync, cpSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -66,14 +66,16 @@ function layOut(dir: string) {
   mkdirSync(join(dir, 'scripts'), { recursive: true });
   mkdirSync(join(dir, '.githooks'), { recursive: true });
   copyFileSync(SCRIPT, join(dir, 'scripts', 'install-git-hooks.sh'));
+  // The closing-report library it sources, and the libraries that one sources.
+  cpSync(join(process.cwd(), 'scripts', 'lib'), join(dir, 'scripts', 'lib'), { recursive: true });
   writeFileSync(join(dir, '.githooks', 'pre-commit'), '#!/usr/bin/env bash\nexit 0\n');
   chmodSync(join(dir, '.githooks', 'pre-commit'), 0o755);
 }
 
-function install(dir: string) {
+function install(dir: string, path?: string) {
   const res = spawnSync('bash', [join(dir, 'scripts', 'install-git-hooks.sh')], {
     encoding: 'utf-8',
-    env: env(),
+    env: path === undefined ? env() : { ...env(), PATH: path },
     ...SPAWN_GUARD,
   });
   return { status: res.status, stdout: res.stdout ?? '', stderr: res.stderr ?? '' };
@@ -117,6 +119,51 @@ describe('install-git-hooks.sh — a main checkout', () => {
     const r = install(repo);
     expect(r.status, r.stderr).toBe(0);
     expect(hooksPath(repo)).toBe('.githooks');
+  });
+});
+
+describe('install-git-hooks.sh — the commit-time secret scan', () => {
+  /**
+   * A PATH holding only the tools the installer and its report need, so whether
+   * a secret scanner is present is the case's choice rather than the machine's.
+   */
+  function bareBin(withScanner: boolean): string {
+    const bin = join(root, 'bin');
+    mkdirSync(bin, { recursive: true });
+    for (const tool of ['bash', 'git', 'dirname', 'mktemp', 'rm', 'grep', 'tail', 'basename', 'chmod', 'cat', 'sed', 'awk', 'tee']) {
+      const found = (spawnSync('bash', ['-c', `command -v ${tool}`], { encoding: 'utf-8', ...SPAWN_GUARD }).stdout ?? '').trim();
+      expect(found, `${tool} is on the test machine`).not.toBe('');
+      symlinkSync(found, join(bin, tool));
+    }
+    if (withScanner) {
+      writeFileSync(join(bin, 'gitleaks'), '#!/usr/bin/env bash\nexit 0\n');
+      chmodSync(join(bin, 'gitleaks'), 0o755);
+    }
+    return bin;
+  }
+
+  // Defect caught: a machine with no scanner was told so mid-stream and the run
+  // ended on a plain success, so commits went unscanned with nothing in the
+  // closing report to say it.
+  it('lists a missing scanner as a warning in the closing report, and still activates', () => {
+    const repo = join(root, 'repo');
+    layOut(repo);
+    git(repo, ['init', '-q']);
+    const r = install(repo, bareBin(false));
+    expect(r.status, r.stderr).toBe(0);
+    expect(hooksPath(repo)).toBe('.githooks');
+    const report = r.stderr.slice(r.stderr.indexOf('==== Closing report'));
+    expect(report).toMatch(/Warnings \(1\):\n {2}- no secret scanner on this machine/);
+  });
+
+  it('lists no warning when a scanner is on PATH', () => {
+    const repo = join(root, 'repo');
+    layOut(repo);
+    git(repo, ['init', '-q']);
+    const r = install(repo, bareBin(true));
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stderr).toContain('==== Closing report');
+    expect(r.stderr).not.toMatch(/Warnings \(/);
   });
 });
 

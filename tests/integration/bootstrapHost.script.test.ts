@@ -38,6 +38,7 @@ import { NO_AWS_CREDENTIALS } from '../fixtures/awsIsolation';
 
 const SCRIPT = join(process.cwd(), 'scripts/bootstrap-host.sh');
 const STATUS_HALF = join(process.cwd(), 'scripts/internal/bootstrap-host-status-remote.sh');
+const REMOTE_REPORT_LIB = join(process.cwd(), 'scripts/lib/closing-report-remote.sh');
 
 const IP = '203.0.113.10';
 // Key ids copied from the shapes the secret scan already allowlists.
@@ -180,6 +181,9 @@ beforeEach(() => {
     '  *footbag-bootstrap-status*)',
     '    [[ -e "$STATE/unreachable" ]] && exit 255',
     '    if [[ -e "$STATE/sudo-refused" ]]; then echo "sudo: 1 incorrect password attempt" >&2; exit 1; fi',
+    // A case can have the status body mark a problem on its standard error, as
+    // the real body does for a read that failed.
+    '    [[ -e "$STATE/status-warn" ]] && echo "---FOOTBAG-PROBLEM--- WARN stand-in status warning" >&2',
     '    echo "---FOOTBAG-BOOTSTRAP-STATUS---"; cat "$STATE/host.status"; echo "---FOOTBAG-END---" ;;',
     '  *footbag-host-identity*)',
     '    printf -- "---FOOTBAG-HOST-ENV---\\n%s\\n---FOOTBAG-HOST-URL---\\nhttps://example.test\\n---FOOTBAG-END---\\n" "$(fact FOOTBAG_ENV)" ;;',
@@ -695,6 +699,23 @@ describe('bootstrap-host.sh: the bootstrap', () => {
     expect(labels.some((a) => /footbag-bootstrap-(account|provision)|footbag-reboot/.test(a))).toBe(false);
     expect(r.out).toMatch(/Stopped before the milestone-gated steps/);
     expect(r.out).toMatch(/The host is bootstrapped/);
+  });
+
+  it('lists a problem the status body marked in the closing report, once however often the host is read', () => {
+    // Defects caught: the status body's marked problems are thrown away with its
+    // standard error, so a failed read on the host reads as a host in another
+    // state with nothing said; or the run, which re-reads the host after every
+    // step, lists the same problem once per read.
+    writeFileSync(join(state, 'status-warn'), '');
+    const r = runTty(['--target', 'staging']);
+    expect(r.status, r.out).toBe(0);
+    const statusSessions = sessions().filter((s) => s.args.includes('footbag-bootstrap-status'));
+    expect(statusSessions.length).toBeGreaterThan(1);
+    for (const s of statusSessions) {
+      expect(s.stream).toBe(`stub-sudo-pass\n${readFileSync(REMOTE_REPORT_LIB, 'utf-8')}${readFileSync(STATUS_HALF, 'utf-8')}`);
+    }
+    const report = closingReport(r.out);
+    expect(report.match(/status of footbag-staging: stand-in status warning/g) ?? []).toHaveLength(1);
   });
 
   it('sends only the password line to the host and to every sibling that reads one', () => {
@@ -1286,6 +1307,12 @@ describe('bootstrap-host.sh: stepping the release on a host that is serving', ()
     expect(r.status, r.out).toBe(0);
     expect(provisionModes()).toEqual(['preview', 'packages']);
     expect(r.out).toMatch(/APPLY[^\n]*\b37\b/);
+    // Defect caught: the preview arrives without the listing parser it counts
+    // with, and every preview on a real host fails.
+    const preview = sessions().find((s) => /^MODE=preview$/m.test(s.stream));
+    const parser = readFileSync(join(process.cwd(), 'scripts/internal/dnf-check-update-remote.sh'), 'utf-8');
+    const half = readFileSync(join(process.cwd(), 'scripts/internal/bootstrap-host-provision-remote.sh'), 'utf-8');
+    expect(preview!.stream).toContain(`${parser}${half}`);
   });
 
   it('steps nothing without the typed APPLY', () => {
@@ -1386,6 +1413,22 @@ describe('bootstrap-host.sh: the reasons a check gives are kept', () => {
     expect(row).not.toContain('FOOTBAG_ENV matches');
   });
 
+  it('keeps a check on the closing-report library out of its own report, and still shows the check\'s reason', () => {
+    // Defect caught: a probed check that reports through the shared library
+    // folding its failure into this run's report on every probe, so a run fails
+    // over a state its own step fixes, or the row loses the reason because the
+    // check printed no FAIL line.
+    setExit('verify-host-env.sh', 1);
+    hook('verify-host-env.sh', [
+      `source '${join(process.cwd(), 'scripts/lib/closing-report.sh')}'`,
+      'cr_error "STAND_IN_VALUE could not be read on the host"',
+      'cr_finish',
+    ]);
+    const r = run(['--target', 'staging', '--status']);
+    expect(rowFor(r.stdout, 'Host environment record').line).toContain('STAND_IN_VALUE could not be read on the host');
+    expect(closingReport(r.stdout + r.stderr)).not.toContain('STAND_IN_VALUE could not be read on the host');
+  });
+
   it('shows the metrics check\'s reason in the agent row', () => {
     setExit('verify-cwagent-metrics.sh', 1);
     hook('verify-cwagent-metrics.sh', ['echo "  FAIL  stand_in_metric        footbag-staging          no datapoints"']);
@@ -1431,11 +1474,14 @@ describe('bootstrap-host remote halves, against stand-in host tools', () => {
   function tool(name: string, lines: string[]): void {
     sh(join(tools, name), [`LOG=${JSON.stringify(log)}`, 'printf "%s %s\\n" "$(basename "$0")" "$*" >> "$LOG"', ...lines]);
   }
-  // Every half is sent behind the remote reporting library, as the caller sends it.
+  // Every half is sent behind the remote reporting library, and the provision
+  // half behind the dnf listing parser too, as the callers send them.
   const REMOTE_LIB = join(process.cwd(), 'scripts/lib/closing-report-remote.sh');
+  const DNF_PARSER = join(process.cwd(), 'scripts/internal/dnf-check-update-remote.sh');
   function runHalf(half: string, input: string, extra: NodeJS.ProcessEnv = {}) {
+    const parser = half === PROVISION_HALF ? readFileSync(DNF_PARSER, 'utf-8') : '';
     const r = spawnSync('bash', ['-s'], {
-      input: input + readFileSync(REMOTE_LIB, 'utf-8') + readFileSync(half, 'utf-8'),
+      input: input + readFileSync(REMOTE_LIB, 'utf-8') + parser + readFileSync(half, 'utf-8'),
       encoding: 'utf-8',
       env: { ...process.env, PATH: `${tools}:${process.env.PATH ?? ''}`, ...extra },
       ...SPAWN_GUARD,
@@ -1797,6 +1843,68 @@ describe('bootstrap-host remote halves, against stand-in host tools', () => {
         if (c.said) expect(said, JSON.stringify(c)).toMatch(c.said);
         else expect(said, JSON.stringify(c)).toBe('');
       }
+    });
+
+    it('marks a read that failed as a warning, beside the facts, and still answers', () => {
+      // Defect caught: sshd unable to print its configuration, or docker unable
+      // to inspect the containers it lists as running, reads as an sshd on no
+      // port or containers shipping no logs, with the tool's reason thrown away.
+      for (const t of ['systemctl', 'aws', 'swapon', 'dnf']) tool(t, ['exit 1']);
+      tool('sshd', ['echo "/etc/ssh/sshd_config line 9: stand-in bad option" >&2', 'exit 255']);
+      tool('ss', ['exit 0']);
+      tool('docker', [
+        '[[ "$1" == ps && "$2" == -q ]] && { echo abc123; exit 0; }',
+        '[[ "$1" == inspect ]] && { echo "Error response from daemon: stand-in inspect refusal" >&2; exit 1; }',
+        'exit 1',
+      ]);
+      const r = runHalf(STATUS_HALF, '');
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toMatch(/^---FOOTBAG-END---$/m);
+      expect(r.out).toMatch(/^---FOOTBAG-PROBLEM--- WARN sshd -T .*stand-in bad option$/m);
+      expect(r.out).toMatch(/^---FOOTBAG-PROBLEM--- WARN docker inspect .*stand-in inspect refusal$/m);
+      expect(r.out).toMatch(/^LOG_DRIVERS=$/m);
+
+      // The passing control: the same reads succeeding mark nothing.
+      tool('sshd', ['printf "port 22\\nport 2222\\n"']);
+      tool('docker', [
+        '[[ "$1" == ps && "$2" == -q ]] && { echo abc123; exit 0; }',
+        '[[ "$1" == inspect ]] && { echo "/footbag-web-1:awslogs"; exit 0; }',
+        'exit 1',
+      ]);
+      const ok = runHalf(STATUS_HALF, '');
+      expect(ok.out).not.toMatch(/---FOOTBAG-PROBLEM---/);
+      expect(ok.out).toMatch(/^LOG_DRIVERS=footbag-web-1:awslogs$/m);
+    });
+  });
+
+  describe('the key-id body', () => {
+    const KEYID_HALF = join(process.cwd(), 'scripts/internal/bootstrap-host-keyid-remote.sh');
+    function ask(file: string): string {
+      return `CRED_FILE=${file}\nCRED_PROFILE=footbag-staging-source-profile\n`;
+    }
+
+    it('answers the key id the profile holds, and an empty one for a file that is not there', () => {
+      const creds = join(work, 'credentials');
+      writeFileSync(creds, `[footbag-staging-source-profile]\naws_access_key_id = ${HOST_KEY}\naws_secret_access_key = stub\n`);
+      const r = runHalf(KEYID_HALF, ask(creds));
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toMatch(new RegExp(`^---FOOTBAG-KEY-ID---\\n${HOST_KEY}\\n---FOOTBAG-END---$`, 'm'));
+      const none = runHalf(KEYID_HALF, ask(join(work, 'absent')));
+      expect(none.status, none.out).toBe(0);
+      expect(none.out).toMatch(/^---FOOTBAG-KEY-ID---\n\n---FOOTBAG-END---$/m);
+    });
+
+    it('marks an error, and gives no key id, when the file is there and cannot be read', () => {
+      // Defect caught: an unreadable credentials file answers "no key", and the
+      // installer tells the operator the host was rebuilt and its key must be
+      // rotated, on a host whose key is in service.
+      const creds = join(work, 'credentials');
+      writeFileSync(creds, '[footbag-staging-source-profile]\n');
+      tool('awk', ['echo "awk: stand-in: cannot open file" >&2', 'exit 2']);
+      const r = runHalf(KEYID_HALF, ask(creds));
+      expect(r.status).toBe(1);
+      expect(r.out).not.toMatch(/---FOOTBAG-KEY-ID---/);
+      expect(r.out).toMatch(/^---FOOTBAG-PROBLEM--- ERROR could not read the key id in .*: awk: stand-in: cannot open file$/m);
     });
   });
 });

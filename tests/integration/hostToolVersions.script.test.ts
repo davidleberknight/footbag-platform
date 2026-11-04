@@ -149,12 +149,12 @@ const DEPLOYS = [
   {
     sender: 'scripts/deploy-code.sh', remote: 'scripts/internal/deploy-code-remote.sh',
     steps: ['SRV_AVAIL_KB=', '\nseed_committed_host_config apply', '\nsystemctl ', 'rsync '],
-    ships: /cat "\$PRUNE_LIB" "\$HOST_TOOL_VERSIONS_LIB" "\$HOST_VALUES_LIB" "\$REMOTE_HALF"/,
+    ships: /cat "\$REMOTE_REPORT_LIB" "\$PRUNE_LIB" "\$HOST_TOOL_VERSIONS_LIB" "\$HOST_VALUES_LIB" "\$REMOTE_HALF"/,
   },
   {
     sender: 'scripts/deploy-rebuild.sh', remote: 'scripts/internal/deploy-rebuild-remote.sh',
     steps: ['SRV_AVAIL_KB=', '\nseed_committed_host_config apply', 'rsync '],
-    ships: /cat "\$CUTOVER_GUARD" "\$PROD_LIVE_GUARD" "\$HOST_TOOL_VERSIONS_LIB" "\$HOST_VALUES_LIB" "\$REMOTE_HALF"/,
+    ships: /cat "\$REMOTE_REPORT_LIB" "\$CUTOVER_GUARD" "\$PROD_LIVE_GUARD" "\$HOST_TOOL_VERSIONS_LIB" "\$HOST_VALUES_LIB" "\$REMOTE_HALF"/,
   },
 ];
 

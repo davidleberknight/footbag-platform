@@ -32,6 +32,10 @@ import { hostIdentityAnswer } from '../fixtures/hostIdentityStub';
 const REMOTE_HALF = join(process.cwd(), 'scripts/internal/restore-db-remote.sh');
 const OPERATOR_SCRIPT = join(process.cwd(), 'scripts/restore-db.sh');
 const PRUNE_LIB = join(process.cwd(), 'scripts/internal/prune-db-copies.sh');
+const REPORT_LIB = join(process.cwd(), 'scripts/lib/closing-report-remote.sh');
+/** How the remote half marks a problem for the workstation half's closing report. */
+const MARKED_ERROR = '---FOOTBAG-PROBLEM--- ERROR ';
+const MARKED_WARN = '---FOOTBAG-PROBLEM--- WARN ';
 
 /** The remote half's exit status when it leaves an erasure replay pending. */
 const PENDING_EXIT = 3;
@@ -117,6 +121,14 @@ beforeEach(() => {
     // release's first install leaves it. SYSTEMCTL_NO_UNIT: no unit installed.
     'if [[ "$1" == "is-active" && "$*" == *" footbag" && -n "${SYSTEMCTL_SERVICE_INACTIVE:-}" ]]; then exit 3; fi',
     'if [[ "$1" == "cat" && -n "${SYSTEMCTL_NO_UNIT:-}" ]]; then exit 1; fi',
+    // SYSTEMCTL_START_FAILS: the service will not start; SYSTEMCTL_TIMER_START_FAILS:
+    // the backup timer will not start. Each answers as systemd does.
+    'if [[ "$1" == "start" && "$2" == "footbag" && -n "${SYSTEMCTL_START_FAILS:-}" ]]; then',
+    '  echo "Job for footbag.service failed because the control process exited with error code." >&2; exit 1',
+    'fi',
+    'if [[ "$1" == "start" && "$2" == "footbag-backup.timer" && -n "${SYSTEMCTL_TIMER_START_FAILS:-}" ]]; then',
+    '  echo "Failed to start footbag-backup.timer: Unit footbag-backup.timer is masked." >&2; exit 1',
+    'fi',
     'exit 0',
   ].join('\n'));
   // The erasure replay runs in a throwaway container. Stubbed so the call is
@@ -172,12 +184,18 @@ function publishSnapshot(
   return key;
 }
 
+/**
+ * Runs the remote half behind the report library, as the wire always sends it:
+ * the half reports through the functions that library defines.
+ */
 function runRemote(
   snapshotKey: string,
   bucket?: string,
   extraEnv?: NodeJS.ProcessEnv,
 ): { status: number; stdout: string; stderr: string } {
-  const res = spawnSync('bash', [REMOTE_HALF], {
+  const wire = join(workDir, 'wire-bare.sh');
+  writeFileSync(wire, `${readFileSync(REPORT_LIB, 'utf8')}\n${readFileSync(REMOTE_HALF, 'utf8')}`);
+  const res = spawnSync('bash', [wire], {
     env: {
       ...process.env,
       PATH: `${binDir}:${process.env.PATH ?? ''}`,
@@ -193,8 +211,9 @@ function runRemote(
 }
 
 /**
- * Runs the remote half the way the wire delivers it: a prelude (the real
- * pruning helper, or a stand-in for it) ahead of the body on one stream.
+ * Runs the remote half the way the wire delivers it: the report library, then a
+ * prelude (the real pruning helper, or a stand-in for it), then the body, on
+ * one stream.
  */
 function runRemoteShipped(
   snapshotKey: string,
@@ -202,7 +221,7 @@ function runRemoteShipped(
   extraEnv?: NodeJS.ProcessEnv,
 ): { status: number; stdout: string; stderr: string } {
   const wire = join(workDir, 'wire.sh');
-  writeFileSync(wire, `${prelude}\n${readFileSync(REMOTE_HALF, 'utf8')}`);
+  writeFileSync(wire, `${readFileSync(REPORT_LIB, 'utf8')}\n${prelude}\n${readFileSync(REMOTE_HALF, 'utf8')}`);
   const res = spawnSync('bash', [wire], {
     env: {
       ...process.env,
@@ -276,6 +295,11 @@ describe('restoring a snapshot onto a host', () => {
     expect(res.stdout).not.toContain('DATABASE RESTORED');
     expect(res.stderr).toContain('erasure replay did not complete');
     expect(res.stderr).toContain('bash scripts/restore-db.sh --target test --resume-erasure-replay');
+    // Defect caught: the replay failure reaching the workstation only as an
+    // exit status, so its closing report lists no reason; or the marked error
+    // overriding the pending status the workstation branches on.
+    expect(res.stderr.split('\n').some((l) => l.startsWith(MARKED_ERROR) && l.includes('erasure replay did not complete')))
+      .toBe(true);
   });
 
   it('leaves the site stopped when the replay exits cleanly without reporting that it re-applied the erasures', () => {
@@ -312,6 +336,39 @@ describe('restoring a snapshot onto a host', () => {
     expect(res.status).toBe(1);
     expect(res.stderr).toContain('could not measure the database');
     expect(calls()).toContain('systemctl start footbag');
+  });
+
+  it('marks a restart that fails after a refusal as an error, with systemd\'s words', () => {
+    // Defect caught: the service the refusal stopped will not start again, the
+    // failure is swallowed, and the operator is told only that nothing was
+    // replaced while the site is down.
+    const failingDu = join(workDir, 'no-du-start');
+    mkdirSync(failingDu, { recursive: true });
+    writeFileSync(join(failingDu, 'du'), ['#!/usr/bin/env bash', 'exit 1'].join('\n'));
+    chmodSync(join(failingDu, 'du'), 0o755);
+
+    const key = publishSnapshot(['snapshot-1']);
+    const res = runRemote(key, undefined, {
+      PATH: `${failingDu}:${binDir}:${process.env.PATH ?? ''}`,
+      SYSTEMCTL_START_FAILS: '1',
+    });
+
+    expect(res.status).toBe(1);
+    const marked = res.stderr.split('\n').filter((l) => l.startsWith(MARKED_ERROR));
+    expect(marked.some((l) => l.includes('footbag.service') && l.includes('control process exited')), res.stderr)
+      .toBe(true);
+  });
+
+  it('fails a restore that otherwise succeeded when the backup timer will not start again', () => {
+    // Defect caught: backups left stopped behind a run that exits 0 and prints
+    // its success banner, so the stale-backup alarm is the first anyone hears.
+    const key = publishSnapshot(['snapshot-1']);
+    const res = runRemote(key, undefined, { SYSTEMCTL_TIMER_START_FAILS: '1' });
+
+    expect(res.status).toBe(1);
+    expect(memberIds(dbPath)).toEqual(['snapshot-1']);
+    const marked = res.stderr.split('\n').filter((l) => l.startsWith(MARKED_ERROR));
+    expect(marked.some((l) => l.includes('footbag-backup.timer') && l.includes('masked')), res.stderr).toBe(true);
   });
 
   it('copies the database it replaces aside, and says where', () => {
@@ -788,7 +845,7 @@ describe('pruning old database copies after a restore', () => {
     const res = runRemoteShipped(publishSnapshot(['snapshot-1']), 'prune_db_copies() { return 1; }');
 
     expect(res.status, res.stderr).toBe(0);
-    expect(res.stderr).toContain('WARNING: pruning old database copies did not complete');
+    expect(res.stderr).toContain(`${MARKED_WARN}pruning old database copies did not complete`);
     expect(res.stdout).toContain('DATABASE RESTORED');
   });
 });
@@ -1174,6 +1231,119 @@ describe('the operator-facing restore script', () => {
     expect(sent.indexOf('prune_db_copies() {')).toBeGreaterThan(-1);
     expect(sent.indexOf('prune_db_copies() {'))
       .toBeLessThan(sent.indexOf('Root-side body of scripts/restore-db.sh'));
+    // Defect caught: the half sent without the report library ahead of it, so
+    // its first problem is a "command not found" and nothing it meets is listed.
+    expect(sent.indexOf('crr_error() {')).toBeGreaterThan(-1);
+    expect(sent.indexOf('crr_error() {'))
+      .toBeLessThan(sent.indexOf('Root-side body of scripts/restore-db.sh'));
+  });
+
+  it('fails, and lists the host\'s problem, when the host half marks an error and still exits 0', () => {
+    // Defect caught: a problem the host printed mid-stream followed by "restore
+    // drill passed", because the workstation judged the session by its exit alone.
+    const stubDir = join(workDir, 'marked-host-bin');
+    mkdirSync(stubDir, { recursive: true });
+    writeFileSync(join(stubDir, 'ssh'), [
+      '#!/usr/bin/env bash',
+      hostIdentityAnswer(),
+      'for a in "$@"; do',
+      '  if [[ "$a" == "-G" ]]; then printf "hostname 203.0.113.21\\nuser footbag\\n"; exit 0; fi',
+      'done',
+      'cat > /dev/null',
+      'echo "---FOOTBAG-PROBLEM--- ERROR stand-in host problem 7f3a" >&2',
+      'exit 0',
+    ].join('\n'));
+    chmodSync(join(stubDir, 'ssh'), 0o755);
+    writeFileSync(join(stubDir, 'aws'), '#!/usr/bin/env bash\nexit 0\n');
+    chmodSync(join(stubDir, 'aws'), 0o755);
+    const pin = join(workDir, 'marked-pin');
+    writeFileSync(pin, '[203.0.113.21]:22 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFAKE\n');
+
+    const res = spawnSync('setsid', [
+      'bash', OPERATOR_SCRIPT, '--target', 'production', '--drill',
+      '--snapshot', 'hourly/2026/10/05/footbag-20261005T120000Z.db.gz',
+    ], {
+      encoding: 'utf8',
+      input: 'fixture-sudo-password\n',
+      env: {
+        ...process.env,
+        ...awsIdentityStubEnv(workDir),
+        PATH: `${stubDir}:${process.env.PATH ?? ''}`,
+        FOOTBAG_KNOWN_HOSTS: pin,
+      },
+      ...SPAWN_GUARD,
+    });
+
+    expect(res.status).toBe(1);
+    expect(res.stdout).not.toContain('restore drill passed');
+    expect(res.stderr).toMatch(/Errors \(\d+\):[\s\S]*stand-in host problem 7f3a/);
+  });
+
+  /**
+   * A stand-in AWS CLI for the snapshot search, through the script's own seam:
+   * `aws s3 ls` answers with LS_OUTPUT on stdout, LS_ERROR on stderr and exits
+   * LS_EXIT, the way the CLI answers an empty prefix (exit 1, nothing said) or a
+   * refused one (non-zero, with the service's message).
+   */
+  function searchStub(): string {
+    const stub = join(workDir, 'search-aws');
+    writeFileSync(stub, [
+      '#!/usr/bin/env bash',
+      'if [[ "$1" == "s3" && "$2" == "ls" ]]; then',
+      '  [[ -n "${LS_OUTPUT:-}" ]] && printf "%s\\n" "$LS_OUTPUT"',
+      '  [[ -n "${LS_ERROR:-}" ]] && printf "%s\\n" "$LS_ERROR" >&2',
+      '  exit "${LS_EXIT:-0}"',
+      'fi',
+      'exit 0',
+    ].join('\n'));
+    chmodSync(stub, 0o755);
+    return stub;
+  }
+
+  it('refuses with its own reason, in the closing report, when the rollback artifact\'s prefix is empty', () => {
+    // Defect caught: an empty pre-flip listing made the search pipeline fail
+    // under errexit, so the run died silently before the refusal that names
+    // the DR bucket, and the operator was left with no reason at the moment of
+    // the cutover rollback.
+    const res = runOperator(['--to-local', join(workDir, 'rollback.db'), '--source', 'staging', '--pre-flip'], {
+      ...process.env, RESTORE_DB_AWS_BIN: searchStub(), LS_EXIT: '1',
+    });
+    expect(res.status).toBe(1);
+    // Defect caught: a stubbed search passing itself off as one against the estate.
+    expect(res.stderr).toContain('SYNTHETIC: RESTORE_DB_AWS_BIN');
+    expect(res.stderr).toMatch(/Errors \(\d+\):[\s\S]*no pre-cutover snapshot under pre-flip\//);
+    expect(existsSync(join(workDir, 'rollback.db'))).toBe(false);
+  });
+
+  it('reports a listing the bucket refused with the CLI\'s own words, not as an empty bucket', () => {
+    // Defect caught: an access-denied listing, its message thrown away,
+    // reported as "no snapshots", so the operator chases a missing backup
+    // instead of a credential.
+    const res = runOperator(['--to-local', join(workDir, 'denied.db'), '--source', 'staging', '--pre-flip'], {
+      ...process.env,
+      RESTORE_DB_AWS_BIN: searchStub(),
+      LS_EXIT: '1',
+      LS_ERROR: 'An error occurred (AccessDenied) when calling the ListObjectsV2 operation: Access Denied',
+    });
+    expect(res.status).toBe(1);
+    expect(res.stderr).toMatch(/Errors \(\d+\):[\s\S]*AccessDenied/);
+    expect(res.stderr).not.toContain('no pre-cutover snapshot');
+  });
+
+  it('finds the rollback artifact through the same seam when the prefix holds one', () => {
+    // The positive control for the two refusals above: the search reads a real
+    // listing, skips the manifest beside the artifact, and names the newest one
+    // it found, not the first one listed.
+    const res = runOperator(['--to-local', join(workDir, 'found.db'), '--source', 'staging', '--pre-flip'], {
+      ...process.env, RESTORE_DB_AWS_BIN: searchStub(),
+      LS_OUTPUT: [
+        '2026-09-01 00:00:00 100 pre-flip/footbag-20260901T000000Z.db.gz',
+        '2026-09-04 00:00:00 100 pre-flip/footbag-20260904T000000Z.db.gz',
+        '2026-09-04 00:00:01 100 pre-flip/footbag-20260904T000000Z.manifest.json',
+      ].join('\n'),
+    });
+    expect(res.stdout).toContain('snapshot: s3://footbag-staging-snapshots/pre-flip/footbag-20260904T000000Z.db.gz');
+    expect(res.stderr).not.toContain('no pre-cutover snapshot');
   });
 
   /**

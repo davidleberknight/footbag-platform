@@ -166,8 +166,15 @@ function writeAwsStub(): void {
     '  stop-instance)',
     '    n="$(arg --instance-name "$@")"',
     '    if has --force "$@"; then flip "$S/instances" stopping stopped; flip "$S/instances" running stopped; else flip "$S/instances" running stopping; fi ;;',
+    // A named instance snapshot answers from its own file, one row per
+    // snapshot: name, state, the instance it was taken of, when.
+    '  get-instance-snapshot)',
+    '    n="$(arg --instance-snapshot-name "$@")"',
+    '    r="$(grep "^$n"$\'\\t\' "$S/instance-snapshots" 2>/dev/null)" || { echo "An error occurred (NotFoundException) when calling the GetInstanceSnapshot operation: The instance snapshot does not exist" >&2; exit 254; }',
+    '    cut -f2- <<< "$r" ;;',
     '  create-instances-from-snapshot)',
     '    name="$(arg --instance-names "$@")"; src="$(arg --source-instance-name "$@")"',
+    '    [[ -n "$src" ]] || src="$(grep "^$(arg --instance-snapshot-name "$@")"$\'\\t\' "$S/instance-snapshots" | cut -f3)"',
     '    printf "%s\\tpending\\t%s\\t%s\\t%s\\t%s\\t%s\\n" "$name" "$(arg --availability-zone "$@")" "${CREATED_BUNDLE:-$(arg --bundle-id "$@")}" "$(arg --key-pair-name "$@")" "$(arg --ip-address-type "$@")" "14:00" >> "$S/instances"',
     '    cp "$S/blueprint-$src" "$S/blueprint-$name"',
     '    printf "ssh-ed25519\\tAAAAC3-%s\\necdsa-sha2-nistp256\\tAAAAE2-%s\\n" "$name" "$name" > "$S/hostkeys-$name"',
@@ -599,6 +606,9 @@ describe.skipIf(!HAS_SCRIPT)('restore-host.sh, a full restore at a terminal', ()
     const first = runAtTerminal(['--target', 'staging'], 'APPLY\n', { LAST_BACKUP_KEY: 'None' });
     expect(first.status).toBe(1);
     expect(first.out).toContain('--db-snapshot');
+    // Defect caught: the empty bucket printed mid-stream and missing from the
+    // closing report the operator reads to decide what to do next.
+    expect(first.out).toMatch(/Warnings \(\d+\):[\s\S]*no database backup from the last two days/);
     expect(calls()).not.toContain('restore-db --target');
     expect(openPorts(ports(NEW))).not.toContain(80);
     const second = runAtTerminal(['--target', 'staging', '--db-snapshot', chosen], 'APPLY\n', { LAST_BACKUP_KEY: 'None' });
@@ -689,6 +699,27 @@ describe.skipIf(!HAS_SCRIPT)('restore-host.sh, a full restore at a terminal', ()
     expect(recordRow()?.[3]).toBe('open');
   });
 
+  it('names the restored database among what was proven only when the restore recorded one', () => {
+    // Defect caught: a closing line claiming the database "checked by hand"
+    // when nothing checked it, so a host serving the snapshot's day-old data
+    // reads as fully restored.
+    const first = runAtTerminal(['--target', 'staging']);
+    expect(first.status, first.out).toBe(0);
+    const proven = (out: string) => out.slice(out.lastIndexOf('Proven:'), out.lastIndexOf('Not proven:') > out.lastIndexOf('Proven:') ? out.lastIndexOf('Not proven:') : undefined);
+    expect(proven(first.out)).toContain(LAST_BACKUP);
+    // The same finished restore with no database restore on its record.
+    writeFileSync(p('snapshots'), read(p('snapshots')).split('\n').map((l) => {
+      const f = l.split('\t');
+      if (f[0] === RECORD) f[8] = 'None';
+      return f.join('\t');
+    }).join('\n'));
+    const again = runAtTerminal(['--target', 'staging']);
+    expect(again.status, again.out).toBe(0);
+    expect(proven(again.out)).not.toContain(LAST_BACKUP);
+    expect(again.out).toMatch(new RegExp(`Not proven:[\\s\\S]*${NEW}[^\\n]*records no database`));
+    expect(again.out).toMatch(/Warnings \(\d+\):[\s\S]*records no database restore onto it/);
+  });
+
   // Each row stops the run at a different step's mutating call. The second run
   // must finish the restore without repeating any step the first completed: one
   // record, one new instance, the address on it, the origin port open. Defect
@@ -747,6 +778,88 @@ describe.skipIf(!HAS_SCRIPT)('restore-host.sh, a full restore at a terminal', ()
     expect(forced.status, forced.out).toBe(0);
     expect(callLines().filter((l) => l.includes('stop-instance') && l.includes('--force'))).toHaveLength(1);
     expect(instanceState(OLD)).toBe('stopped');
+  });
+});
+
+describe.skipIf(!HAS_SCRIPT)('restore-host.sh --instance-snapshot', () => {
+  const STEP_SNAP = `${OLD}-pre-step-20261026T060000Z`;
+  /** One instance snapshot as Lightsail lists it: name, state, the instance it was taken of, when. */
+  const snapshotRow = (name: string, state: string, from: string) =>
+    `${name}\t${state}\t${from}\t${new Date((NOW - 2 * 3600) * 1000).toISOString()}\n`;
+  const createCall = () => callLines().find((l) => l.includes('create-instances-from-snapshot'));
+
+  it('restores from the named step snapshot, and records it as the source', () => {
+    // Defect caught: the flag ignored and the newest automatic snapshot used,
+    // bringing back the very change the step snapshot exists to undo.
+    writeFileSync(p('instance-snapshots'), snapshotRow(STEP_SNAP, 'available', OLD));
+    const r = runAtTerminal(['--target', 'staging', '--instance-snapshot', STEP_SNAP]);
+    expect(r.status, r.out).toBe(0);
+    expect(createCall()).toContain(`--instance-snapshot-name ${STEP_SNAP}`);
+    expect(createCall()).not.toContain('--restore-date');
+    expect(recordRow()?.[5]).toBe(STEP_SNAP);
+    expect(staticIpOn()).toBe(NEW);
+    expect(read(p('tfname'))).toBe(NEW);
+  });
+
+  it('accepts a replacement\'s snapshot of an earlier restored instance of this environment', () => {
+    // Defect caught: a snapshot of this environment's host refused because a
+    // restore had since renamed the instance it was taken of.
+    const earlier = `${OLD}-r202610010000`;
+    const name = `${earlier}-pre-replace-20261001T000500Z`;
+    writeFileSync(p(`blueprint-${earlier}`), 'ubuntu_24_04');
+    writeFileSync(p('instance-snapshots'), snapshotRow(name, 'available', earlier));
+    const r = runAtTerminal(['--target', 'staging', '--instance-snapshot', name]);
+    expect(r.status, r.out).toBe(0);
+    expect(createCall()).toContain(`--instance-snapshot-name ${name}`);
+  });
+
+  it.each([
+    ['Lightsail does not hold', () => '', 'NotFoundException'],
+    ['is still being taken', () => snapshotRow(STEP_SNAP, 'pending', OLD), 'pending'],
+    ['was taken of the other environment\'s host', () => snapshotRow(STEP_SNAP.replace('staging', 'production'), 'available', 'footbag-production-web'), 'footbag-production-web'],
+    ['carries a name no step or replacement gives', () => snapshotRow(`${OLD}-manual-1`, 'available', OLD), `${OLD}-manual-1`],
+  ])('refuses a snapshot that %s, before anything changes', (_label, rows, named) => {
+    // Defect caught: the live host stopped and an instance built from a
+    // snapshot that does not exist, is incomplete, belongs to another
+    // environment, or is not one of the snapshots taken as a way back.
+    const content = rows();
+    writeFileSync(p('instance-snapshots'), content);
+    const name = content ? content.split('\t')[0] : STEP_SNAP;
+    const r = runAtTerminal(['--target', 'staging', '--instance-snapshot', name]);
+    expect(r.status).toBe(1);
+    expect(r.out).toContain(named);
+    expect(mutatingCalls()).toEqual([]);
+    expect(instanceState(OLD)).toBe('running');
+  });
+
+  it('refuses --instance-snapshot beside --restore-date, which names another source', () => {
+    // Defect caught: one of two sources silently winning.
+    writeFileSync(p('instance-snapshots'), snapshotRow(STEP_SNAP, 'available', OLD));
+    const r = runAtTerminal(['--target', 'staging', '--instance-snapshot', STEP_SNAP, '--restore-date', '2026-10-25']);
+    expect(r.status).toBe(1);
+    expect(mutatingCalls()).toEqual([]);
+  });
+
+  it('resumes from the recorded instance snapshot, not from the newest automatic one', () => {
+    // Defect caught: a run stopped before the create and started again without
+    // the flag building the new host from today's automatic snapshot instead.
+    writeFileSync(p('instance-snapshots'), snapshotRow(STEP_SNAP, 'available', OLD));
+    const first = runAtTerminal(['--target', 'staging', '--instance-snapshot', STEP_SNAP], 'APPLY\n', {
+      FAIL_ON: 'create-instances-from-snapshot',
+    });
+    expect(first.status).toBe(1);
+    // A resume asked for another snapshot refuses rather than switching source.
+    const other = `${OLD}-pre-step-20261025T060000Z`;
+    writeFileSync(p('instance-snapshots'), snapshotRow(STEP_SNAP, 'available', OLD) + snapshotRow(other, 'available', OLD));
+    const switched = runAtTerminal(['--target', 'staging', '--instance-snapshot', other]);
+    expect(switched.status).toBe(1);
+    expect(callLines().filter((l) => l.includes('create-instances-from-snapshot'))).toHaveLength(1);
+    const second = runAtTerminal(['--target', 'staging']);
+    expect(second.status, second.out).toBe(0);
+    expect(second.out).toContain('Resuming the open restore');
+    const creates = callLines().filter((l) => l.includes('create-instances-from-snapshot'));
+    expect(creates[creates.length - 1]).toContain(`--instance-snapshot-name ${STEP_SNAP}`);
+    expect(countCalls('get-auto-snapshots')).toBe(0);
   });
 });
 
@@ -886,16 +999,37 @@ describe.skipIf(!HAS_SCRIPT)('restore-host.sh, an interrupt undoes only what not
     // Defect caught: an abandoned host running a day-old database, uploading
     // backups and costing money, with nothing pointing at it.
     const r = runAtTerminal(['--target', 'staging'], 'APPLY\n', { TERM_AFTER: 'create-instances-from-snapshot' });
-    expect(r.status).toBe(130);
+    expect(r.status).toBe(143);
     expect(instanceState(NEW)).toBeUndefined();
     expect(staticIpOn()).toBe(OLD);
     expect(instanceState(OLD)).toBe('stopped');
   });
 
+  it('lists a refused delete of the new instance as an error, with Lightsail\'s words', () => {
+    // Defect caught: an abandoned host running a day-old database, its delete
+    // refused on the way out and the refusal printed above a closing report
+    // that never mentions it.
+    const r = runAtTerminal(['--target', 'staging'], 'APPLY\n', {
+      TERM_AFTER: 'create-instances-from-snapshot', FAIL_ON: 'delete-instance',
+    });
+    expect(r.status).toBe(143);
+    expect(instanceState(NEW)).toBeDefined();
+    expect(r.out).toMatch(new RegExp(`Errors \\(\\d+\\):[\\s\\S]*${NEW}[^\\n]*refused by the stand-in`));
+  });
+
+  it('deletes nothing when the run fails rather than being interrupted', () => {
+    // Defect caught: the interrupt-only undo running on an ordinary failure,
+    // deleting a new instance a re-run would have picked up.
+    const r = runAtTerminal(['--target', 'staging'], 'APPLY\n', { FAIL_ON: 'put-instance-public-ports' });
+    expect(r.status).toBe(1);
+    expect(instanceState(NEW)).toBeDefined();
+    expect(countCalls('delete-instance')).toBe(0);
+  });
+
   it('leaves everything in place when interrupted once the static IP is on the new instance', () => {
     // Defect caught: the trap deleting the host CloudFront now reaches.
     const r = runAtTerminal(['--target', 'staging'], 'APPLY\n', { TERM_AFTER: 'attach-static-ip' });
-    expect(r.status).toBe(130);
+    expect(r.status).toBe(143);
     expect(staticIpOn()).toBe(NEW);
     expect(instanceState(NEW)).toBeDefined();
     expect(countCalls('delete-instance')).toBe(0);
@@ -909,7 +1043,7 @@ describe.skipIf(!HAS_SCRIPT)('restore-host.sh leaves no temporary file behind', 
   it.each([
     ['a successful run', {}, 0],
     ['a run refused at the plan', { PLAN_EXTRA: '{"address":"aws_s3_bucket.media","change":{"actions":["delete"],"after":null}}' }, 1],
-    ['a run interrupted during the apply', { TERM_AFTER: 'terraform-apply' }, 130],
+    ['a run interrupted during the apply', { TERM_AFTER: 'terraform-apply' }, 143],
   ])('after %s', (_label, extra, status) => {
     const r = runAtTerminal(['--target', 'staging'], 'APPLY\n', extra);
     expect(r.status, r.out).toBe(status);

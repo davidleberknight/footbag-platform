@@ -17,7 +17,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync, chmodSync, readFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, chmodSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -393,5 +393,106 @@ describe('install-host-credentials.sh --retire, against a stand-in host and IAM'
     // retiring it without proof would leave the identity with none.
     const r = runRetire('', 'AKIAEXAMPLEEXAMPLE02', 'AKIAEXAMPLEEXAMPLE02');
     expect(r.proofRan).toBe(true);
+  });
+});
+
+describe('install-host-credentials.sh — the host half\'s problems reach the closing report', () => {
+  /**
+   * The keys-file install, run end to end: a stand-in ssh client confirms the
+   * host is staging, then consumes the password line and runs the rest of the
+   * stream (the remote report helper and the root-side body) with bash, against
+   * stand-in system tools and a stand-in aws on the host. This workstation's
+   * own identity and account reads go to a separate stand-in aws.
+   */
+  function runInstall(marker: 'false' | 'denied') {
+    const localBin = join(workDir, 'local-bin');
+    const hostBin = join(workDir, 'host-bin');
+    const passSeen = join(workDir, 'pass-seen');
+    for (const d of [localBin, hostBin]) mkdirSync(d, { recursive: true });
+    const exec = (file: string, lines: string[]) => {
+      writeFileSync(file, ['#!/usr/bin/env bash', ...lines].join('\n') + '\n');
+      chmodSync(file, 0o755);
+    };
+    exec(join(localBin, 'aws'), [
+      'case "$*" in',
+      '  *"--query Account"*) echo 123456789012 ;;',
+      '  *) echo arn:aws:iam::123456789012:user/footbag-operator ;;',
+      'esac',
+    ]);
+    exec(join(hostBin, 'install'), ['exit 0']);
+    exec(join(hostBin, 'getent'), ['echo "awscreds:x:1500:"']);
+    exec(join(hostBin, 'aws'), [
+      'case "$1 $2" in',
+      '  "sts get-caller-identity") echo "arn:aws:sts::123456789012:assumed-role/footbag-staging-app-runtime/x" ;;',
+      marker === 'false'
+        ? '  "ssm get-parameter") echo false ;;'
+        : '  "ssm get-parameter") echo "An error occurred (AccessDeniedException) when calling the GetParameter operation: stub" >&2; exit 254 ;;',
+      'esac',
+    ]);
+    const ssh = join(workDir, 'ssh-host.sh');
+    exec(ssh, [
+      'case "$*" in',
+      '  *footbag-host-identity*) cat >/dev/null; printf -- "---FOOTBAG-HOST-ENV---\\nstaging\\n---FOOTBAG-HOST-URL---\\n\\n---FOOTBAG-END---\\n"; exit 0 ;;',
+      '  *"SSH OK"*) echo "    SSH OK"; exit 0 ;;',
+      'esac',
+      'IFS= read -r pass',
+      `printf '%s\\n' "$pass" > ${JSON.stringify(passSeen)}`,
+      `PATH=${JSON.stringify(hostBin)}:$PATH exec bash`,
+    ]);
+    const pin = join(workDir, 'known_hosts');
+    writeFileSync(pin, 'footbag-staging ssh-ed25519 AAAAstub\n', { mode: 0o600 });
+    const keys = keysFile(
+      0o600,
+      JSON.stringify({ AccessKey: { AccessKeyId: 'AKIAEXAMPLEEXAMPLE05', SecretAccessKey: 'secret-value-not-real' } }),
+    );
+    const sshEnv = connectingAs(SHARED_ACCOUNT, workDir);
+    const r = spawnSync('bash', [SCRIPT, '--target', 'staging', keys], {
+      cwd: process.cwd(),
+      encoding: 'utf-8',
+      input: 'fixture-sudo-password\n',
+      env: {
+        ...process.env,
+        ...NO_AWS_CREDENTIALS,
+        ...sshEnv,
+        PATH: `${localBin}:${sshEnv.PATH}`,
+        AWS_IDENTITY_BIN: join(localBin, 'aws'),
+        FOOTBAG_HOST_SSH_BIN: ssh,
+        FOOTBAG_KNOWN_HOSTS: pin,
+        FOOTBAG_CR_REPORT_TO: '',
+      },
+      ...SPAWN_GUARD,
+    });
+    const stderr = r.stderr ?? '';
+    let seen = '';
+    try { seen = readFileSync(passSeen, 'utf-8'); } catch { seen = ''; }
+    return {
+      status: r.status,
+      stdout: r.stdout ?? '',
+      stderr,
+      report: stderr.slice(stderr.indexOf('==== Closing report')),
+      passSeen: seen,
+      keysLeft: (() => { try { readFileSync(keys); return true; } catch { return false; } })(),
+    };
+  }
+
+  it('fails the install when the host cannot read its go-live marker, naming the reason', () => {
+    // Defect caught: the host's denied marker read was printed as "absent;
+    // expected" and the run said the chain was installed, so the next deploy
+    // refused at its go-live guard with nothing pointing back here.
+    const r = runInstall('denied');
+    expect(r.status, r.stderr).toBe(1);
+    expect(r.report).toContain('AccessDeniedException');
+    expect(r.stdout).not.toMatch(/Credential chain installed/);
+    // The keys file stays for a retry: the credential was not shown working.
+    expect(r.keysLeft).toBe(true);
+    expect(r.passSeen).toBe('fixture-sudo-password\n');
+  });
+
+  it('passes an install whose host proves its chain, with nothing to list', () => {
+    const r = runInstall('false');
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.report).toMatch(/No errors or warnings/);
+    expect(r.stdout).toMatch(/Credential chain installed/);
+    expect(r.keysLeft).toBe(false);
   });
 });

@@ -101,10 +101,40 @@ function driverStub(exitCode: number): string {
   ]);
 }
 
+/** terraform, failing the distribution-id read with its own reason on stderr. */
+function failingTerraformStub(): string {
+  return stub('terraform', ['echo "terraform-stub: no outputs found" >&2', 'exit 1']);
+}
+
+/** terraform, succeeding on the distribution-id read but printing nothing. */
+function emptyTerraformStub(): string {
+  return stub('terraform', ['exit 0']);
+}
+
+/**
+ * aws, answering get-metric-statistics. With `latencyDatapoints` false the
+ * OriginLatency read comes back with an empty Datapoints list, the envelope
+ * CloudWatch returns for a window it has not published (the script reads only
+ * the Datapoints field, so the other envelope fields are left out).
+ */
+function awsStub(latencyDatapoints: boolean): string {
+  const latency = latencyDatapoints
+    ? '{"Label":"OriginLatency","Datapoints":[{"Timestamp":"2026-01-01T00:00:00Z","ExtendedStatistics":{"p90":410.2,"p95":1234.7,"p99":1900.1}}]}'
+    : '{"Label":"OriginLatency","Datapoints":[]}';
+  return stub('aws', [
+    `case "$*" in`,
+    `  *OriginLatency*) echo '${latency}' ;;`,
+    `  *Requests*) echo '{"Label":"Requests","Datapoints":[{"Sum":42}]}' ;;`,
+    `  *) echo '{"Label":"5xxErrorRate","Datapoints":[{"Average":0}]}' ;;`,
+    'esac',
+  ]);
+}
+
 interface RunOptions {
-  terraform?: boolean;
+  terraform?: boolean | 'failing' | 'empty';
   curl?: boolean;
   driverExit?: number;
+  aws?: 'datapoints' | 'no-datapoints';
 }
 
 /**
@@ -138,6 +168,9 @@ function run(args: string[], options: RunOptions = {}) {
     FOOTBAG_KNOWN_HOSTS: join(stubDir, 'pin'),
   };
   if (options.terraform === true) env.FOOTBAG_LOADCHECK_TERRAFORM_BIN = terraformStub();
+  if (options.terraform === 'failing') env.FOOTBAG_LOADCHECK_TERRAFORM_BIN = failingTerraformStub();
+  if (options.terraform === 'empty') env.FOOTBAG_LOADCHECK_TERRAFORM_BIN = emptyTerraformStub();
+  if (options.aws !== undefined) env.FOOTBAG_LOADCHECK_AWS_BIN = awsStub(options.aws === 'datapoints');
   if (options.curl === true) env.FOOTBAG_LOADCHECK_CURL_BIN = curlStub();
   if (options.driverExit !== undefined) env.FOOTBAG_LOADCHECK_DRIVER = driverStub(options.driverExit);
 
@@ -268,6 +301,51 @@ describe('load-check.sh — preflight', () => {
     const overridden = run(['--target', 'staging', '--base-url', 'https://production.example.invalid']);
     expect(overridden.status).toBe(2);
     expect(overridden.stderr).toMatch(/unknown argument '--base-url'/);
+  });
+});
+
+describe('load-check.sh — reading the alarm\'s own metric', () => {
+  const WINDOW = ['--window-start', '2026-01-01T00:00:00Z', '--window-end', '2026-01-01T00:10:00Z'];
+
+  // Defect caught: a Terraform read that failed was discarded, so the run read
+  // no metric at all and still exited 0, reporting a calibration it never made.
+  it('fails, with Terraform\'s reason, when the distribution id cannot be read', () => {
+    const result = run(['--target', 'staging', '--read-back-only', ...WINDOW], { terraform: 'failing' });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('terraform-stub: no outputs found');
+    expect(result.stderr).toMatch(/could not read cloudfront_distribution_id/);
+  });
+
+  // Defect caught: an empty distribution id was a warning followed by exit 0,
+  // though it means the check the run exists for could not run.
+  it('fails when Terraform answers with no distribution id', () => {
+    const result = run(['--target', 'staging', '--read-back-only', ...WINDOW], { terraform: 'empty' });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/no distribution id available/);
+  });
+  // The valid read beside these refusals is every --preflight-only case above,
+  // which passes the same Terraform read with a stub that answers it.
+
+  // Defect caught: a window CloudWatch had published nothing for printed
+  // "none" among the readings and ended like a measured run, so the operator
+  // could take an unmeasured window as one well under the alarm threshold.
+  it('lists a warning in its closing output when the latency metric has no datapoints', () => {
+    const result = run(['--target', 'staging', '--read-back-only', ...WINDOW], {
+      terraform: true, aws: 'no-datapoints',
+    });
+    expect(result.status, result.stderr).toBe(0);
+    const closing = result.stdout.slice(result.stdout.indexOf('Warnings:'));
+    expect(result.stdout).toContain('Warnings:');
+    expect(closing).toMatch(/WARNING: .*OriginLatency.*no datapoints/);
+  });
+
+  it('lists no warning when the latency metric has datapoints, and reports the worst p95', () => {
+    const result = run(['--target', 'staging', '--read-back-only', ...WINDOW], {
+      terraform: true, aws: 'datapoints',
+    });
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toContain('1234 ms');
+    expect(result.stdout).not.toContain('Warnings:');
   });
 });
 

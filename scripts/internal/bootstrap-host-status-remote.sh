@@ -5,8 +5,16 @@
 #
 # Invoked via the wire pattern:
 #   { printf '%s\n' "$SUDO_PASS";
+#     cat scripts/lib/closing-report-remote.sh;
 #     cat scripts/internal/bootstrap-host-status-remote.sh;
 #   } | ssh REMOTE 'sudo -k -S -p "" bash -s footbag-bootstrap-status'
+#
+# The KEY=VALUE lines go to standard output. A read that failed for a reason
+# other than the thing being absent (sshd unable to print its configuration,
+# ss unable to list sockets, docker unable to inspect containers it lists as
+# running) would otherwise read as a host in some other state, so each is also a
+# marked warning on standard error, which the caller lists in its closing
+# report; the body ends with crr_finish.
 #
 # Each line between the sentinels is KEY=VALUE, one fact per line, read from the
 # thing itself rather than from a marker a step left: the daemon's effective
@@ -65,7 +73,12 @@ emit ACCOUNT_WHEEL "$([[ " ${groups_of_footbag} " == *" wheel "* ]] && echo yes 
 emit ACCOUNT_KEYS "$(grep -cE '^(ssh-|ecdsa-)' "$(getent passwd footbag | cut -d: -f6)/.ssh/authorized_keys" 2>/dev/null || echo 0)"
 
 # sshd, as the daemon would run it.
-sshd_eff="$(sshd -T 2>/dev/null || true)"
+sshd_eff=""
+if ! sshd_out="$(sshd -T 2>&1)"; then
+  crr_warn "sshd -T could not print sshd's configuration, so the sshd rows read nothing: $(grep -v '^[[:space:]]*$' <<< "$sshd_out" | tail -n 1)"
+else
+  sshd_eff="$sshd_out"
+fi
 emit SSHD_PORTS "$(grep -E '^port ' <<< "$sshd_eff" | cut -d' ' -f2 | sort -un | tr '\n' ' ')"
 emit SSHD_ROOT "$(grep -E '^permitrootlogin ' <<< "$sshd_eff" | cut -d' ' -f2)"
 emit SSHD_PASSWORD "$(grep -E '^passwordauthentication ' <<< "$sshd_eff" | cut -d' ' -f2)"
@@ -74,7 +87,13 @@ emit SSHD_REVERT_PENDING "$(yes_if systemctl is-active --quiet footbag-sshd-reve
 # sshd, as the running daemon holds it: the ports its listening sockets are bound
 # to. sshd -T above reads the configuration a fresh daemon would start with, so a
 # drop-in written and never reloaded reads as listening when nothing is.
-emit SSHD_LISTEN "$(ss -Hltnp 2>/dev/null | grep '"sshd"' | tr -s ' ' | cut -d' ' -f4 | grep -oE '[0-9]+$' | sort -un | tr '\n' ' ')"
+sockets=""
+if ! ss_out="$(ss -Hltnp 2>&1)"; then
+  crr_warn "ss could not list the listening sockets, so SSHD_LISTEN reads nothing: $(grep -v '^[[:space:]]*$' <<< "$ss_out" | tail -n 1)"
+else
+  sockets="$ss_out"
+fi
+emit SSHD_LISTEN "$(grep '"sshd"' <<< "$sockets" | tr -s ' ' | cut -d' ' -f4 | grep -oE '[0-9]+$' | sort -un | tr '\n' ' ')"
 
 # Tools.
 emit ARCH "$(uname -m)"
@@ -139,7 +158,11 @@ running_ids="$(docker ps -q 2>/dev/null || true)"
 log_drivers=""
 if [[ -n "$running_ids" ]]; then
   # shellcheck disable=SC2086  # one id per word is the intent
-  log_drivers="$(docker inspect --format '{{.Name}}:{{.HostConfig.LogConfig.Type}}' $running_ids 2>/dev/null | sed 's#^/##' || true)"
+  if ! inspected="$(docker inspect --format '{{.Name}}:{{.HostConfig.LogConfig.Type}}' $running_ids 2>&1)"; then
+    crr_warn "docker inspect could not read the log drivers of the running containers, so LOG_DRIVERS reads nothing: $(grep -v '^[[:space:]]*$' <<< "$inspected" | tail -n 1)"
+  else
+    log_drivers="$(sed 's#^/##' <<< "$inspected")"
+  fi
 fi
 emit LOG_DRIVERS "$log_drivers"
 
@@ -180,3 +203,4 @@ emit REBOOT_NEEDED "$reboot_needed"
 emit REBOOT_NEEDED_SAID "$reboot_said"
 
 echo "---FOOTBAG-END---"
+crr_finish

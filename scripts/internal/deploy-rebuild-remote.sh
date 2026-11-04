@@ -9,6 +9,12 @@
 # DESTRUCTIVE: replaces the live SQLite database with the rsync'd copy in
 # $RELEASE_DIR. Caller is responsible for ensuring the rebuilt local DB is
 # what should land on the host.
+#
+# scripts/lib/closing-report-remote.sh travels ahead of the guards and this body
+# on the same stream and defines crr_error and crr_warn, through which this body
+# reports what the operator must see in the caller's closing report; the caller
+# also reads every line printed in the ERROR: or WARNING: form. The body ends
+# with crr_finish, whose status says whether any of those was an error.
 
 set -euo pipefail
 
@@ -312,8 +318,16 @@ command -v rsync >/dev/null   || { echo "rsync missing on host"   >&2; exit 1; }
 # Disk-space preflight: rsync of release dir + DB replace + docker layer churn
 # can land 200-400 MB at peak. Refuse to start if /srv/footbag has under 500 MB
 # free; the partial-write failure mode is silent corruption of footbag.db.
-SRV_AVAIL_KB=$(df -k --output=avail /srv/footbag 2>/dev/null | tail -1 | tr -d ' ')
-if [[ -n "$SRV_AVAIL_KB" ]] && (( SRV_AVAIL_KB < 512000 )); then
+# A df that fails, or answers with something other than a number, is an error
+# rather than an empty value: an empty value used to skip the check and replace
+# the database on a disk nobody had measured.
+SRV_DF_OUT=$(df -k --output=avail /srv/footbag 2>&1) || SRV_DF_OUT="exit $?: ${SRV_DF_OUT}"
+SRV_AVAIL_KB=$(printf '%s\n' "$SRV_DF_OUT" | tail -1 | tr -d ' ')
+if [[ ! "$SRV_AVAIL_KB" =~ ^[0-9]+$ ]]; then
+  crr_error "could not measure the free space on /srv/footbag, so nothing was replaced: df said: $(printf '%s\n' "${SRV_DF_OUT:-nothing}" | tail -n 1)"
+  exit 1
+fi
+if (( SRV_AVAIL_KB < 512000 )); then
   echo "ERROR: /srv/footbag has only ${SRV_AVAIL_KB}K free; need >=500 MB." >&2
   # Scoped the same way the automatic reclaim above is scoped, and for the same
   # reason. An age filter does not make `system prune -a` safe: with `-a` it still
@@ -1006,15 +1020,31 @@ fi
 # normal rather than an error: an environment with no archive stack simply has
 # no archive, and the variable is then cleared so the application hides its
 # Legacy Archive card instead of rendering a dead link.
+#
+# Missing means ParameterNotFound and nothing else. Any other failure (a
+# credential the host cannot use, a throttle, a network fault) says nothing about
+# whether the parameter exists, and read as absent it clears the variable on a
+# host whose archive is real: an error with the tool's own message instead.
+ssm_read_optional() {  # $1 = parameter name; prints its value, or nothing when it does not exist
+  local err out rc=0
+  err="$(mktemp)"
+  out="$(AWS_PROFILE="$AWS_PROFILE_VAL" aws ssm get-parameter \
+    --region "$AWS_REGION_VAL" \
+    --name "$1" \
+    --query 'Parameter.Value' \
+    --output text 2>"$err")" || rc=$?
+  if (( rc != 0 )) && ! grep -q 'ParameterNotFound' "$err"; then
+    crr_error "could not read $1 from Parameter Store (exit ${rc}): $(tail -n 1 "$err")"
+    rm -f "$err"
+    return 1
+  fi
+  rm -f "$err"
+  (( rc == 0 )) && printf '%s' "$out"
+  return 0
+}
 ssm_archive_url_param="/footbag/${FOOTBAG_ENV_VAL}/app/archive_url"
 echo "    Syncing ARCHIVE_URL from $ssm_archive_url_param ..."
-ARCHIVE_URL_VAL=$(
-  AWS_PROFILE="$AWS_PROFILE_VAL" aws ssm get-parameter \
-    --region "$AWS_REGION_VAL" \
-    --name "$ssm_archive_url_param" \
-    --query 'Parameter.Value' \
-    --output text 2>/dev/null
-) || ARCHIVE_URL_VAL=""
+ARCHIVE_URL_VAL="$(ssm_read_optional "$ssm_archive_url_param")" || exit 1
 if [[ -n "$ARCHIVE_URL_VAL" && ! "$ARCHIVE_URL_VAL" =~ ^https:// ]]; then
   echo "ERROR: SSM $ssm_archive_url_param is '$ARCHIVE_URL_VAL'; expected an https:// base URL." >&2
   exit 1
@@ -1041,13 +1071,7 @@ chown root:root "$ENV_PATH"
 # the direct-link default.
 ssm_archive_redirect_param="/footbag/${FOOTBAG_ENV_VAL}/app/archive_login_redirect"
 echo "    Syncing ARCHIVE_LOGIN_REDIRECT from $ssm_archive_redirect_param ..."
-ARCHIVE_LOGIN_REDIRECT_VAL=$(
-  AWS_PROFILE="$AWS_PROFILE_VAL" aws ssm get-parameter \
-    --region "$AWS_REGION_VAL" \
-    --name "$ssm_archive_redirect_param" \
-    --query 'Parameter.Value' \
-    --output text 2>/dev/null
-) || ARCHIVE_LOGIN_REDIRECT_VAL=""
+ARCHIVE_LOGIN_REDIRECT_VAL="$(ssm_read_optional "$ssm_archive_redirect_param")" || exit 1
 if [[ -n "$ARCHIVE_LOGIN_REDIRECT_VAL" && ! "$ARCHIVE_LOGIN_REDIRECT_VAL" =~ ^(0|1|true|false)$ ]]; then
   echo "ERROR: SSM $ssm_archive_redirect_param is '$ARCHIVE_LOGIN_REDIRECT_VAL'; expected 0, 1, true, or false." >&2
   exit 1
@@ -1125,13 +1149,34 @@ if [[ -z "$DB_PATH" || "$DB_PATH" == "/" ]]; then
 fi
 
 echo "    Runtime DB path from env: $DB_PATH"
-echo "    WARNING: replacing host DB at $DB_PATH"
+echo "    Replacing host DB at $DB_PATH"
 
+# The database is replaced only under a stopped service: a running application
+# writing to the file while it is swapped is how the replace becomes a corrupt
+# database. A stop that fails is therefore decided by what it left behind. A
+# service still running refuses the replace with systemd's own message; one that
+# is not running (a fresh host, where the unit is installed further down) lets
+# the replace go ahead and lists the failed stop as a warning.
 echo "    Stopping service..."
-systemctl stop footbag || true
+if ! stop_out="$(systemctl stop footbag 2>&1)"; then
+  stop_msg="$(printf '%s\n' "${stop_out:-systemctl stop footbag exited non-zero}" | tail -n 1)"
+  if systemctl is-active --quiet footbag; then
+    crr_error "footbag.service did not stop, so the database was not replaced under a running service: ${stop_msg}"
+    exit 1
+  fi
+  crr_warn "systemctl stop footbag failed, but the service is not running, so the replace goes ahead: ${stop_msg}"
+fi
 
 echo "    Ensuring compose stack is fully down..."
-compose_cmd down --remove-orphans || true
+if ! down_out="$(compose_cmd down --remove-orphans 2>&1)"; then
+  down_msg="$(printf '%s\n' "${down_out:-docker compose down exited non-zero}" | tail -n 1)"
+  if [[ -n "$(compose_cmd ps -q 2>/dev/null)" ]]; then
+    crr_error "the compose stack did not come down, so the database was not replaced under running containers: ${down_msg}"
+    exit 1
+  fi
+  crr_warn "docker compose down failed, but no container of the stack is running, so the replace goes ahead: ${down_msg}"
+fi
+printf '%s\n' "${down_out:-}"
 
 # S3 media sync is gated on the SYNC_MEDIA env, threaded from the workstation's
 # orchestrator (deploy-to-aws.sh sets it yes only with the -m/--sync-media
@@ -1399,7 +1444,9 @@ if ! cmp -s "$awslogs_dropin_tmp" /etc/systemd/system/docker.service.d/awslogs.c
   install -m 0644 -o root -g root "$awslogs_dropin_tmp" /etc/systemd/system/docker.service.d/awslogs.conf
   systemctl daemon-reload
   systemctl restart docker
-  echo "    Installed dockerd awslogs drop-in; restarted docker."
+  # A change this deploy made to the host's container runtime, so it is listed
+  # in the closing report rather than left as one line among hundreds.
+  crr_warn "installed the dockerd awslogs drop-in and restarted docker on this host."
 fi
 rm -f "$awslogs_dropin_tmp"
 
@@ -1510,3 +1557,5 @@ if [[ -n "${DEPLOY_PROVENANCE:-}" ]]; then
   mv "$provenance_tmp" /srv/footbag/deployed-from
   echo "==> Recorded deploy provenance in /srv/footbag/deployed-from"
 fi
+
+crr_finish

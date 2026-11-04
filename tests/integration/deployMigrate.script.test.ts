@@ -32,6 +32,16 @@ import {
 } from '../fixtures/factories';
 
 const OPERATOR_SCRIPT = join(process.cwd(), 'scripts/deploy-migrate.sh');
+// Sent ahead of the remote half on the deploy's stream; the half reports through it.
+const REMOTE_REPORT_LIB = join(process.cwd(), 'scripts/lib/closing-report-remote.sh');
+
+/** The closing-report library the script sources, copied into a throwaway checkout. */
+function copyReportLibs(root: string): void {
+  mkdirSync(join(root, 'scripts', 'lib'), { recursive: true });
+  for (const lib of ['closing-report.sh', 'closing-report-remote.sh', 'verdict-banner.sh']) {
+    copyFileSync(join(process.cwd(), 'scripts/lib', lib), join(root, 'scripts/lib', lib));
+  }
+}
 
 let workDir: string;
 let dbPath: string;
@@ -97,6 +107,8 @@ function applyMigration(
   const harness = join(workDir, 'harness.sh');
   writeFileSync(harness, [
     'set -euo pipefail',
+    // Sent ahead of the remote half on the stream; the half reports through it.
+    `source ${JSON.stringify(REMOTE_REPORT_LIB)}`,
     // systemd is not present in a test; the migration must not depend on the
     // service actually stopping for its data handling to be correct.
     opts.systemctl ?? 'systemctl() { :; }',
@@ -393,12 +405,18 @@ describe('the record of which migrations have been applied', () => {
 
 describe('the off-host snapshot and the service around a migration', () => {
   /** A systemctl that logs each call and fails the backup service when told to. */
-  const recordingSystemctl = (log: string, opts: { noBackupUnit?: boolean; backupFails?: boolean } = {}) => [
+  const recordingSystemctl = (
+    log: string,
+    opts: { noBackupUnit?: boolean; backupFails?: boolean; startFails?: boolean } = {},
+  ) => [
     'systemctl() {',
     `  echo "systemctl $*" >> ${JSON.stringify(log)}`,
     `  case "$*" in`,
     `    "cat footbag-backup.service") return ${opts.noBackupUnit ? 1 : 0} ;;`,
     `    "start footbag-backup.service") return ${opts.backupFails ? 1 : 0} ;;`,
+    ...(opts.startFails
+      ? ['    "start footbag") echo "Job for footbag.service failed because the control process exited with error code." >&2; return 1 ;;']
+      : []),
     '  esac',
     '  return 0',
     '}',
@@ -428,6 +446,42 @@ describe('the off-host snapshot and the service around a migration', () => {
       .not.toContainEqual(expect.objectContaining({ name: 's' }));
   });
 
+  // Defect caught: a refused migration whose restart of the service fails,
+  // reported only as "nothing was migrated" while the site stays down, because
+  // the restart's failure was swallowed.
+  it('reports a failed restart after a refusal as an error carrying systemd\'s message', () => {
+    const log = join(workDir, 'systemctl.log');
+    const res = applyMigration('ALTER TABLE payments ADD COLUMN s TEXT;', undefined, {
+      systemctl: recordingSystemctl(log, { backupFails: true, startFails: true }),
+    });
+    expect(res.status).toBe(1);
+    expect(readFileSync(log, 'utf8')).toContain('systemctl start footbag\n');
+    expect(res.stderr).toMatch(
+      /^---FOOTBAG-PROBLEM--- ERROR the migration was refused and footbag\.service did not start again.*Job for footbag\.service failed/m,
+    );
+  });
+
+  // The same, on the restore path a migration that fails part-way takes: the
+  // database comes back, and the restart that follows is not assumed to work.
+  it('reports a failed restart after restoring the pre-migration database', () => {
+    const log = join(workDir, 'systemctl.log');
+    const res = applyMigration('ALTER TABLE no_such_table ADD COLUMN s TEXT;', undefined, {
+      systemctl: recordingSystemctl(log, { startFails: true }),
+    });
+    expect(res.status).toBe(1);
+    expect(res.stderr).toMatch(/^---FOOTBAG-PROBLEM--- ERROR the migration was refused and footbag\.service did not start again/m);
+  });
+
+  // The positive control for both: a restart that works records no such error.
+  it('records no restart error when the service starts again after a refusal', () => {
+    const log = join(workDir, 'systemctl.log');
+    const res = applyMigration('ALTER TABLE payments ADD COLUMN s TEXT;', undefined, {
+      systemctl: recordingSystemctl(log, { backupFails: true }),
+    });
+    expect(res.status).toBe(1);
+    expect(res.stderr).not.toMatch(/did not start again/);
+  });
+
   // Defect caught: production migrates with no off-host snapshot at all, or a
   // staging host without the backup service cannot rehearse a migration.
   it('refuses on a production host with no backup service, and only warns on staging', () => {
@@ -453,6 +507,7 @@ describe('the off-host snapshot and the service around a migration', () => {
     const harness = join(workDir, 'abnormal.sh');
     writeFileSync(harness, [
       'set -euo pipefail',
+      `source ${JSON.stringify(REMOTE_REPORT_LIB)}`,
       recordingSystemctl(log),
       'backup_timer_paused=0; service_stopped_for_migration=0',
       cleanup,
@@ -520,6 +575,66 @@ describe('the operator-facing script', () => {
     const res = runOperator([]);
     expect(res.status).toBe(1);
     expect(res.stderr).toContain('--migration is required');
+  });
+
+  /**
+   * A throwaway checkout holding this script, the report library and a stand-in
+   * code deploy on that library, which warns, records what reached its stdin, and
+   * exits with `deployExit`.
+   */
+  function stagedHandoff(deployExit: number): { root: string; script: string; stdinLog: string } {
+    const root = mkdtempSync(join(tmpdir(), 'footbag-test-migrate-handoff-'));
+    mkdirSync(join(root, 'scripts'), { recursive: true });
+    mkdirSync(join(root, 'database', 'migrations'), { recursive: true });
+    const script = join(root, 'scripts', 'deploy-migrate.sh');
+    copyFileSync(OPERATOR_SCRIPT, script);
+    copyReportLibs(root);
+    const stdinLog = join(root, 'deploy-stdin.log');
+    writeFileSync(join(root, 'scripts', 'deploy-code.sh'), [
+      'source "$(dirname "${BASH_SOURCE[0]}")/lib/closing-report.sh"',
+      `IFS= read -r line; printf '%s\\n' "$line" > ${JSON.stringify(stdinLog)}`,
+      'cr_warn "stand-in code deploy warning"',
+      deployExit === 0 ? 'cr_finish' : `exit ${deployExit}`,
+    ].join('\n') + '\n');
+    writeFileSync(join(root, 'database', 'migrations', 'ordinary.sql'), 'ALTER TABLE payments ADD COLUMN x TEXT;\n');
+    return { root, script, stdinLog };
+  }
+
+  // Defect caught: the hand-off to the code deploy made with exec, which ends
+  // this script without its exit handling, so the code deploy's problems never
+  // reach the closing report of the command the operator ran.
+  it('runs the code deploy as a child and lists its problems in its own closing report', () => {
+    const { root, script, stdinLog } = stagedHandoff(0);
+    const res = spawnSync('setsid', ['bash', script, '--target', 'staging', '--migration', 'ordinary.sql', '--yes'], {
+      env: (() => { const e = { ...process.env }; delete e.DEPLOY_TARGET; return e; })(),
+      encoding: 'utf8',
+      input: 'fixture-password\n',
+      ...SPAWN_GUARD,
+    });
+    const passed = existsSync(stdinLog) ? readFileSync(stdinLog, 'utf8') : '';
+    rmSync(root, { recursive: true, force: true });
+    expect(res.status, res.stderr).toBe(0);
+    // The password still reaches the code deploy on its stdin.
+    expect(passed).toBe('fixture-password\n');
+    const reports = res.stderr.match(/==== Closing report: /g) ?? [];
+    expect(reports).toHaveLength(1);
+    expect(res.stderr).toContain('==== Closing report: deploy-migrate.sh ====');
+    expect(res.stderr).toMatch(/Warnings \(1\):\n  - deploy-code\.sh: stand-in code deploy warning/);
+  });
+
+  // Defect caught: a failed code deploy reported as a migration that succeeded,
+  // or its exit status lost on the way out.
+  it('fails with the code deploy\'s exit status when the code deploy fails', () => {
+    const { root, script } = stagedHandoff(7);
+    const res = spawnSync('setsid', ['bash', script, '--target', 'staging', '--migration', 'ordinary.sql', '--yes'], {
+      env: (() => { const e = { ...process.env }; delete e.DEPLOY_TARGET; return e; })(),
+      encoding: 'utf8',
+      input: 'fixture-password\n',
+      ...SPAWN_GUARD,
+    });
+    rmSync(root, { recursive: true, force: true });
+    expect(res.status).toBe(7);
+    expect(res.stderr).toMatch(/Errors \(\d+\):[\s\S]*the code deploy carrying ordinary\.sql exited 7/);
   });
 
   it('refuses a migration file that is not there', () => {
@@ -609,6 +724,7 @@ describe('the operator-facing script', () => {
     mkdirSync(join(root, 'database', 'migrations'), { recursive: true });
     const script = join(root, 'scripts', 'deploy-migrate.sh');
     copyFileSync(OPERATOR_SCRIPT, script);
+    copyReportLibs(root);
     writeFileSync(join(root, 'database', 'migrations', 'add-x.sql'), 'ALTER TABLE payments ADD COLUMN x TEXT;\n');
     const unnumbered = runOperator(['--target', 'production', '--migration', 'add-x.sql'], {}, script);
     rmSync(root, { recursive: true, force: true });
@@ -639,6 +755,7 @@ describe('the operator-facing script', () => {
     mkdirSync(join(root, 'database', 'migrations'), { recursive: true });
     const script = join(root, 'scripts', 'deploy-migrate.sh');
     copyFileSync(OPERATOR_SCRIPT, script);
+    copyReportLibs(root);
     writeFileSync(join(root, 'database', 'migrations', 'ordinary.sql'),
       'ALTER TABLE payments ADD COLUMN x TEXT;\n');
 
@@ -1076,6 +1193,7 @@ describe('pruning set-aside database copies after a code deploy', () => {
     const harness = join(workDir, 'tail-harness.sh');
     writeFileSync(harness, [
       'set -euo pipefail',
+      `source ${JSON.stringify(REMOTE_REPORT_LIB)}`,
       prelude,
       `LOG=${JSON.stringify(log)}`,
       'systemctl() { echo "systemctl $*" >> "$LOG"; }',
@@ -1157,7 +1275,9 @@ describe('pruning set-aside database copies after a code deploy', () => {
 
     expect(res.status, res.stderr).toBe(0);
     expect(res.stdout).toContain('TAIL_DONE');
-    expect(res.stderr).toContain('WARNING: pruning old database copies did not complete');
+    // Marked, so the caller lists it in the deploy's closing report rather than
+    // leaving it as one line in the middle of the host half's output.
+    expect(res.stderr).toMatch(/^---FOOTBAG-PROBLEM--- WARN pruning old database copies did not complete/m);
   });
 
   // The remote half calls a function only the helper defines, so the sender
@@ -1165,6 +1285,9 @@ describe('pruning set-aside database copies after a code deploy', () => {
   it('is shipped ahead of the remote half by the code deploy', () => {
     const sender = readFileSync(join(process.cwd(), 'scripts/deploy-code.sh'), 'utf8');
     expect(sender).toContain('PRUNE_LIB="${SCRIPT_DIR}/internal/prune-db-copies.sh"');
-    expect(sender).toMatch(/cat "\$PRUNE_LIB" (?:"\$[A-Z_]+" )*"\$REMOTE_HALF"/);
+    expect(sender).toMatch(/cat (?:"\$[A-Z_]+" )*"\$PRUNE_LIB" (?:"\$[A-Z_]+" )*"\$REMOTE_HALF"/);
+    // And the report library the half and the helper report through goes first.
+    expect(sender).toMatch(/cat "\$REMOTE_REPORT_LIB" (?:"\$[A-Z_]+" )*"\$REMOTE_HALF"/);
+    expect(sender).toContain('REMOTE_REPORT_LIB="${SCRIPT_DIR}/lib/closing-report-remote.sh"');
   });
 });

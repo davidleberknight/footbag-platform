@@ -114,6 +114,11 @@ if [[ "${NO_SNAPSHOT}" -eq 1 && -z "${TARGET}" ]]; then
   exit 2
 fi
 
+# Every gate line any step printed that failed or skipped is listed once in the
+# closing report at the end, and the exit status follows from it.
+# shellcheck source=lib/closing-report.sh
+source scripts/lib/closing-report.sh
+
 # A run that names a target reaches the host and AWS, so the identity it will
 # use is settled and proved here rather than discovered
 # in the middle of a gate, where a credential failure reads as a failed gate. A
@@ -122,7 +127,7 @@ fi
 if [[ -n "${TARGET}" && "${MOCK_AWS}" -eq 0 ]]; then
   # shellcheck source=lib/aws-profile.sh
   source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/aws-profile.sh"
-  aws_profile_ensure || exit 1
+  aws_profile_ensure || cr_die "could not settle the AWS identity this run reads as"
 fi
 
 results=()
@@ -145,41 +150,54 @@ cleanup_run_artifacts() {
   # length of this run and is shredded on every exit path, including a failed
   # gate, rather than left in a temp directory for whatever comes next.
   if [[ -n "${PAYMENTS_ENV_DIR}" && -d "${PAYMENTS_ENV_DIR}" ]]; then
-    find "${PAYMENTS_ENV_DIR}" -type f -exec shred -u {} + 2>/dev/null || true
+    if ! find "${PAYMENTS_ENV_DIR}" -type f -exec shred -u {} +; then
+      cr_warn "the fetched host env file under ${PAYMENTS_ENV_DIR} could not be shredded, only removed"
+    fi
     rm -rf "${PAYMENTS_ENV_DIR}"
   fi
   return 0
 }
-trap cleanup_run_artifacts EXIT
-# A signal ends the run through the EXIT trap, never through bash's own
-# fatal-signal handling, where a second signal can cut the cleanup short.
-trap "trap '' HUP INT TERM; exit 129" HUP
-trap "trap '' HUP INT TERM; exit 130" INT
-trap "trap '' HUP INT TERM; exit 143" TERM
+# Runs on every exit path, an interrupt included.
+cr_cleanup cleanup_run_artifacts
 
 run_step() {
   local label="$1"; shift
   local out rc
   out=$("$@" 2>&1) || rc=$? && rc=${rc:-0}
-  # Extract the last GATE: line for the summary if present; otherwise
-  # synthesize one from the exit code so every step contributes a row. A step
-  # that exited non-zero is a failure whatever its last line says: a skipped
-  # gate (prerequisite not loaded) blocks the cutover, and its row must say so.
-  local summary
-  summary=$(printf '%s\n' "${out}" | grep -E '^GATE:' | tail -1 || true)
-  if [[ "${rc}" -ne 0 && -n "${summary}" && "${summary}" != *" FAIL: "* ]]; then
-    summary="GATE: ${label} FAIL: exit ${rc}; last line: ${summary#GATE: }"
-  elif [[ -z "${summary}" ]]; then
+  # Every GATE: line the step printed goes to the summary, so a failure printed
+  # ahead of a later passing line is never dropped; a step with none gets one
+  # synthesized from its exit code. A step that exited non-zero is a failure
+  # whatever its lines say: a skipped gate (prerequisite not loaded) blocks the
+  # cutover, so in such a step a SKIP line is reported as a FAIL, and a step
+  # whose lines name no failure gets a FAIL row of its own.
+  local -a gates=()
+  local gate had_fail=0
+  mapfile -t gates < <(printf '%s\n' "${out}" | grep -E '^GATE:')
+  if (( ${#gates[@]} == 0 )); then
     if [[ "${rc}" -eq 0 ]]; then
-      summary="GATE: ${label} PASS: ok"
+      results+=("GATE: ${label} PASS: ok")
     else
-      summary="GATE: ${label} FAIL: exit ${rc}"
+      results+=("GATE: ${label} FAIL: exit ${rc}")
+    fi
+  else
+    for gate in "${gates[@]}"; do
+      if [[ "${rc}" -ne 0 && "${gate}" =~ ^GATE:\ [^\ ]+\ SKIP(PED)?: ]]; then
+        gate="GATE: ${label} FAIL: exit ${rc}; ${gate#GATE: }"
+      fi
+      [[ "${gate}" == *" FAIL: "* ]] && had_fail=1
+      results+=("${gate}")
+    done
+    if [[ "${rc}" -ne 0 && "${had_fail}" -eq 0 ]]; then
+      results+=("GATE: ${label} FAIL: exit ${rc}; last line: ${gates[-1]#GATE: }")
     fi
   fi
-  results+=("${summary}")
   # Stream the full step output so operators see context inline.
   printf -- '--- %s (exit %d) ---\n%s\n' "${label}" "${rc}" "${out}"
-  [[ "${rc}" -ne 0 ]] && fail=$((fail + 1))
+  # A FAIL line counts even from a step that exited 0, so the verdict below can
+  # never read READY over a failure the summary lists.
+  if [[ "${rc}" -ne 0 || "${had_fail}" -eq 1 ]]; then
+    fail=$((fail + 1))
+  fi
   return 0
 }
 
@@ -194,11 +212,11 @@ else
   # shellcheck source=scripts/lib/host-env-remote.sh
   source scripts/lib/host-env-remote.sh
   require_operator_stdin "scripts/pre-cutover-checklist.sh --target ${TARGET}" \
-    "${SSH_ALIAS}" "${TARGET}" || exit 1
-  require_ssh_alias "${SSH_ALIAS}" || exit 1
-  require_host_ssh_opts || exit 1
-  require_host_is "${SSH_ALIAS}" "${TARGET}" || exit 1
-  [[ -r "${REMOTE_HALF}" ]] || { echo "missing remote half: ${REMOTE_HALF}" >&2; exit 1; }
+    "${SSH_ALIAS}" "${TARGET}" || cr_die "no operator credential on standard input (the reason is printed above)"
+  require_ssh_alias "${SSH_ALIAS}" || cr_die "the ssh alias ${SSH_ALIAS} does not resolve (the reason is printed above)"
+  require_host_ssh_opts || cr_die "the host ssh options could not be settled (the reason is printed above)"
+  require_host_is "${SSH_ALIAS}" "${TARGET}" || cr_die "${SSH_ALIAS} is not recorded as ${TARGET} (the reason is printed above)"
+  [[ -r "${REMOTE_HALF}" ]] || cr_die "missing remote half: ${REMOTE_HALF}"
 
   # Derived from the target and from nothing else, so the snapshot lands in the
   # disaster-recovery bucket of the environment the host just confirmed it is.
@@ -503,13 +521,24 @@ for line in "${results[@]}"; do
   case "${line}" in *" SKIPPED:"*|*" SKIP:"*) skipped=$((skipped + 1)) ;; esac
 done
 
+# The closing report lists every failed gate as an error and every gate that
+# did no work as a warning, each by its own line, so none is left to be found
+# in the stream above.
+for line in "${results[@]}"; do
+  case "${line}" in
+    *" FAIL: "*) cr_error "${line#GATE: }" ;;
+    *" SKIPPED:"*|*" SKIP:"*|*" NOTICE:"*) cr_warn "${line#GATE: }" ;;
+  esac
+done
+
 if [[ "${fail}" -eq 0 && "${skipped}" -eq 0 ]]; then
   echo "READY: all gates PASS"
-  exit 0
+  cr_proved "every gate ran and passed"
 elif [[ "${fail}" -eq 0 ]]; then
   echo "READY WITH GAPS: gates PASS, but ${skipped} did no work (see SKIP lines above)"
-  exit 0
+  cr_unproved "${skipped} gate(s) did no work"
 else
   echo "BLOCKED: ${fail} gate(s) FAIL" >&2
-  exit 1
+  cr_error "BLOCKED: ${fail} gate(s) FAIL"
 fi
+cr_finish

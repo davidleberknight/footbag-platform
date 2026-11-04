@@ -36,21 +36,42 @@ cd "$(dirname "$0")"
 # and does not override an existing variable either way.
 export FOOTBAG_ENV="${FOOTBAG_ENV:-development}"
 
+# The preparation runs in a subshell on the closing-report library, and the
+# stack is launched only after it. The report has to be printed before the
+# hand-off, because exec replaces this process and no exit trap would ever run;
+# the subshell ends with its own report, and its exit status decides whether
+# there is a launch at all: an error stops it, warnings are listed and it goes
+# ahead. Errexit holds inside the subshell because it is run as a plain
+# statement, never as one side of || or &&.
+(
+# shellcheck source=scripts/lib/closing-report.sh
+source scripts/lib/closing-report.sh
 
-# Free any port already held by a leaked prior dev process.
+# The PIDs listening on a port, or nothing. lsof and fuser both exit non-zero
+# when nothing holds the port, which is the ordinary answer.
+port_pids() {
+  local port=$1
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -ti:"${port}" 2>/dev/null || true
+  elif command -v fuser >/dev/null 2>&1; then
+    { fuser "${port}/tcp" 2>/dev/null || true; } | tr -d ' '
+  fi
+}
+
+# Free any port already held by a leaked prior dev process. A process that is
+# gone between the probe and the signal makes kill fail harmlessly, so the
+# outcome is judged by probing the port again rather than by kill's status.
 kill_port() {
   local port=$1
-  local pids=""
-  if command -v lsof >/dev/null 2>&1; then
-    pids=$(lsof -ti:"${port}" 2>/dev/null || true)
-  elif command -v fuser >/dev/null 2>&1; then
-    pids=$(fuser "${port}/tcp" 2>/dev/null | tr -d ' ' || true)
-  fi
+  local pids
+  pids="$(port_pids "$port")"
   if [[ -n "$pids" ]]; then
     echo "→ Reclaiming port ${port} from PIDs: ${pids}"
     kill -TERM ${pids} 2>/dev/null || true
     sleep 1
     kill -KILL ${pids} 2>/dev/null || true
+    pids="$(port_pids "$port")"
+    [[ -z "$pids" ]] || cr_die "port ${port} is still held by PIDs ${pids}; the stack cannot listen on it."
   fi
 }
 kill_port 3000
@@ -171,14 +192,13 @@ and legacy_data/seed/. Review with 'git status' before pushing.
 USAGE
       exit 0
       ;;
-    *) echo "unknown arg: $arg"; exit 1 ;;
+    *) cr_die "unknown arg: $arg" ;;
   esac
 done
 
 # Mutex: at most one rebuild mode.
 if (( RESET + FROM_CSV + SOUP_TO_NUTS + ALL_DATA > 1 )); then
-  echo "ERROR: --reset, --from-csv, --soup-to-nuts, and --all-data are mutually exclusive." >&2
-  exit 1
+  cr_die "--reset, --from-csv, --soup-to-nuts, and --all-data are mutually exclusive."
 fi
 
 # The --no-* opt-outs only make sense in a mode that turns the axis on by
@@ -189,13 +209,11 @@ fi
 if (( SOUP_TO_NUTS == 0 )); then
   for _pair in "--no-media:$NO_MEDIA"; do
     if (( ${_pair#*:} == 1 )); then
-      echo "ERROR: ${_pair%%:*} is only meaningful with --soup-to-nuts (these axes are off by default otherwise)." >&2
-      exit 1
+      cr_die "${_pair%%:*} is only meaningful with --soup-to-nuts (these axes are off by default otherwise)."
     fi
   done
   if (( NO_PERSONAS == 1 && FROM_CSV == 0 && ALL_DATA == 0 )); then
-    echo "ERROR: --no-personas is only meaningful with --from-csv, --all-data, or --soup-to-nuts (personas are off by default otherwise)." >&2
-    exit 1
+    cr_die "--no-personas is only meaningful with --from-csv, --all-data, or --soup-to-nuts (personas are off by default otherwise)."
   fi
 fi
 
@@ -205,8 +223,7 @@ fi
 # aside with a note, because a default must never fail a launch.
 refresh_off() {  # $1 = reason shown either way
   if (( REFRESH_ASKED_EXPLICITLY == 1 )); then
-    echo "ERROR: --refresh-personas $1" >&2
-    exit 1
+    cr_die "--refresh-personas $1"
   fi
   if (( REFRESH_PERSONAS == 1 )); then
     echo "NOTE: persona refresh skipped: $1" >&2
@@ -215,8 +232,7 @@ refresh_off() {  # $1 = reason shown either way
 }
 
 if (( REFRESH_ASKED_EXPLICITLY == 1 && NO_REFRESH_PERSONAS == 1 )); then
-  echo "ERROR: --refresh-personas and --no-refresh-personas are contradictory." >&2
-  exit 1
+  cr_die "--refresh-personas and --no-refresh-personas are contradictory."
 fi
 if (( NO_REFRESH_PERSONAS == 1 )); then
   REFRESH_PERSONAS=0
@@ -276,22 +292,21 @@ bash scripts/install-git-hooks.sh
 # set is the test runner's to report.
 # shellcheck source=scripts/lib/tool-report.sh
 source scripts/lib/tool-report.sh
-tool_report node python3 sqlite3 ffmpeg || exit 1
+tool_report node python3 sqlite3 ffmpeg || cr_die "a tool the dev loop needs is missing or at the wrong version (listed above)."
 
 # 2. Python venv + requirements
 # Built or repaired, installed and proved by the shared seeder-environment step.
 # shellcheck source=scripts/lib/seeder-env.sh
 source scripts/lib/seeder-env.sh
-seeder_env_ensure "$PWD" || exit 1
+seeder_env_ensure "$PWD" || cr_die "the seeder Python environment could not be built or proved (reason above)."
 
 # The legacy pipeline's own environment, which the test suite runs the legacy
 # extractors under. Only the pipeline builds it, so it is reached through there.
-# A failure warns rather than stopping the dev server, which does not need it.
-if ! bash legacy_data/run_pipeline.sh venv >/dev/null; then
-  echo "WARNING: the legacy pipeline's Python environment could not be built, so npm test" >&2
-  echo "         will fail on the suites that run the legacy extractors." >&2
-  echo "         It needs the Python in .python-version; bash scripts/setup-dev-workstation.sh installs it." >&2
-fi
+# A failure warns rather than stopping the dev server, which does not need it; the
+# warning carries the pipeline's own last line, and anything the pipeline lists
+# as an error is listed here as a warning.
+cr_tolerate "the legacy pipeline's Python environment (npm test fails on the legacy-extractor suites without it; bash scripts/setup-dev-workstation.sh installs the Python it needs)" \
+  -- bash legacy_data/run_pipeline.sh venv
 
 # 3. DB seed.
 # Default (no flag): no DB work. Bootstrap with --reset only if the DB file
@@ -331,7 +346,7 @@ else
   if [[ "${FOOTBAG_SKIP_SCHEMA_DRIFT_CHECK:-}" == "1" ]]; then
     : # operator opted out explicitly; honor it without noise
   elif ! command -v sqlite3 >/dev/null 2>&1; then
-    echo "WARNING: sqlite3 CLI not found; skipping the schema-drift check." >&2
+    cr_warn "sqlite3 CLI not found; skipping the schema-drift check."
     echo "         A stale local DB can crash app code on a missing table/column." >&2
     echo "         Install sqlite3, or rebuild with ./run_dev.sh --reset." >&2
   else
@@ -347,10 +362,10 @@ else
     rm -f "${_exp_db}" "${_exp_db}-wal" "${_exp_db}-shm"
     _actual_fp=$(sqlite3 database/footbag.db "${_schema_fp_query}" 2>/dev/null || true)
     if [[ -z "$_expected_fp" || -z "$_actual_fp" ]]; then
-      echo "WARNING: could not read a schema fingerprint from schema.sql or database/footbag.db; skipping the schema-drift check." >&2
+      cr_warn "could not read a schema fingerprint from schema.sql or database/footbag.db; skipping the schema-drift check."
     elif [[ "$_expected_fp" != "$_actual_fp" ]]; then
       echo "" >&2
-      echo "WARNING: database/schema.sql differs from your local database/footbag.db schema." >&2
+      cr_warn "database/schema.sql differs from your local database/footbag.db schema."
       echo "         Running code-only against a stale DB may crash on a missing table/column." >&2
       echo "         There is no in-place migration; a reset reapplies the schema." >&2
       if [[ "${FOOTBAG_KEEP_DB_ACK_SCHEMA_DRIFT:-}" == "1" ]]; then
@@ -385,7 +400,7 @@ fi
 # (manage-test-personas.sh enforces); allowed on development and staging.
 if (( SEED_TEST_PERSONAS == 1 )); then
   echo "→ Seeding test-data personas..."
-  bash scripts/manage-test-personas.sh --seed-test-personas
+  cr_run "persona seed" -- bash scripts/manage-test-personas.sh --seed-test-personas
 fi
 
 # Default persona refresh. Runs after DB bootstrap for the same
@@ -395,8 +410,18 @@ fi
 # scaffolding. Skips silently on a database that holds no personas.
 if (( REFRESH_PERSONAS == 1 )); then
   echo "→ Rebuilding test-data personas from their current specs..."
-  bash scripts/manage-test-personas.sh --refresh-test-personas --apply
+  cr_run "persona refresh" -- bash scripts/manage-test-personas.sh --refresh-test-personas --apply
 fi
+
+cr_finish
+)
+
+# --help printed the usage inside the preparation and launches nothing.
+for arg in "$@"; do
+  case "$arg" in
+    -h|--help) exit 0 ;;
+  esac
+done
 
 # 5. Launch web + image worker + outbox/jobs worker together; trap-based
 #    cleanup is in scripts/dev.sh.

@@ -160,6 +160,11 @@ source "${SCRIPT_DIR}/lib/secret-file.sh"
 source "${SCRIPT_DIR}/lib/terminal.sh"
 # shellcheck source=lib/dev-tester-delivery.sh
 source "${SCRIPT_DIR}/lib/dev-tester-delivery.sh"
+# One closing report listing every error and warning the run met. The host step
+# and the allow-list step run as children, directly, and list their own problems
+# in it. The library owns the exit and signal traps; the cleanup is registered.
+# shellcheck source=lib/closing-report.sh
+source "${SCRIPT_DIR}/lib/closing-report.sh"
 
 AWS_BIN="${ONBOARD_DEV_TESTER_AWS_BIN:-aws}"
 IAM_KEY_AWS_BIN="$AWS_BIN"
@@ -345,12 +350,23 @@ fi  # the key itself, skipped when verifying by fingerprint alone
 if (( ! VERIFY )); then
   # Your own address, read the way setup-dev-workstation.sh reads it, when you
   # are onboarding yourself from the machine you will connect from.
+  _checkip_said=""
   if (( ${#ADDRESSES[@]} == 0 )) && (( SELF )); then
+    # curl's own message is kept, so a read that fails is refused below with
+    # the reason rather than as an empty address. curl -sS prints nothing on
+    # stderr when it succeeds, so the merged output is then the address alone.
+    # Its stdin is closed: the run's stdin carries the sudo password.
+    _checkip_rc=0
     if [[ -n "$FETCH_CMD" ]]; then
       echo "SYNTHETIC: checkip='${FETCH_CMD}' -- this machine's address is a stand-in." >&2
-      _here="$("$FETCH_CMD" 2>/dev/null || true)"
+      _here="$("$FETCH_CMD" </dev/null 2>&1)" || _checkip_rc=$?
     else
-      _here="$(curl -fsS --max-time 10 https://checkip.amazonaws.com 2>/dev/null || true)"
+      _here="$(curl -fsS --max-time 10 https://checkip.amazonaws.com </dev/null 2>&1)" || _checkip_rc=$?
+    fi
+    if (( _checkip_rc != 0 )); then
+      _checkip_said="$(tail -n 1 <<<"$_here")"
+      _checkip_said="the checkip read of this machine's address failed (exit ${_checkip_rc}): ${_checkip_said:-no message}"
+      _here=""
     fi
     _here="${_here//[[:space:]]/}"
     [[ -n "$_here" ]] && echo "==> This machine connects from ${_here} (checkip)." >&2
@@ -369,6 +385,7 @@ if (( ! VERIFY )); then
       _octets_ok=0
     fi
     if (( ! _octets_ok )); then
+      [[ -z "$_checkip_said" ]] || cr_error "$_checkip_said"
       echo "ERROR: --address must be the IPv4 address they connect from, such as" >&2
       echo "       203.0.113.7/32, one host each, not '${_a}'. Without one on the" >&2
       echo "       allow-list nothing else this run makes reaches them. They can" >&2
@@ -391,9 +408,10 @@ fi
 # ── Tools and terminal, before anything is minted ────────────────────────────
 
 if (( VERIFY )); then
-  delivery_require_tools ssh-keygen=ssh-keygen jq=jq || exit 1
+  delivery_require_tools ssh-keygen=ssh-keygen jq=jq || cr_die "a tool this run needs is missing"
 else
-  delivery_require_tools "age=${AGE_BIN}" openssl=openssl ssh-keygen=ssh-keygen || exit 1
+  delivery_require_tools "age=${AGE_BIN}" openssl=openssl ssh-keygen=ssh-keygen \
+    || cr_die "a tool this run needs is missing; nothing has been created"
 fi
 [[ "$AGE_BIN" != "age" ]] && (( ! VERIFY )) && echo "SYNTHETIC: age='${AGE_BIN}' -- nothing is really sealed." >&2
 [[ "$AWS_BIN" != "aws" ]] && echo "SYNTHETIC: aws='${AWS_BIN}' -- this run proves nothing about the account." >&2
@@ -401,13 +419,13 @@ fi
 [[ -n "${ONBOARD_DEV_TESTER_ADDRESS_CMD:-}" ]] && echo "SYNTHETIC: allow-list step='${ADDRESS_CMD}' -- no firewall is being changed." >&2
 
 if [[ -t 0 ]]; then
-  echo "ERROR: stdin is a terminal. The host step reads the sudo password of the" >&2
+  cr_error "stdin is a terminal. The host step reads the sudo password of the"
   echo "       account your alias connects as from stdin, so redirect its file:" >&2
   echo "         < ~/AWS/AWS_OPERATOR.txt bash scripts/onboard-dev-tester.sh ..." >&2
   exit 1
 fi
 if (( ! VERIFY )) && ! terminal_present; then
-  echo "ERROR: no terminal to confirm on. Every step that creates something is" >&2
+  cr_error "no terminal to confirm on. Every step that creates something is"
   echo "       confirmed by a typed word. Re-run from an interactive shell." >&2
   echo "       Nothing has been created." >&2
   exit 1
@@ -420,7 +438,7 @@ fi
 SUDO_PASS=""
 IFS= read -r SUDO_PASS || true
 if [[ -z "$SUDO_PASS" ]]; then
-  echo "ERROR: nothing arrived on stdin. Redirect the sudo password file of the" >&2
+  cr_error "nothing arrived on stdin. Redirect the sudo password file of the"
   echo "       account your alias connects as:" >&2
   echo "         < ~/AWS/AWS_OPERATOR.txt bash scripts/onboard-dev-tester.sh ..." >&2
   exit 1
@@ -435,26 +453,35 @@ host_step() {
 
 aws_profile_use "$FOOTBAG_OPERATOR_PROFILE" \
   "Onboarding a dev-and-tester is refused to every role, including the job role, by the role's own policy." \
-  || exit 1
-aws_identity_require_direct_user "$FOOTBAG_OPERATOR_USER" || exit 1
+  || cr_die "the ${FOOTBAG_OPERATOR_PROFILE} profile could not be used; nothing done"
+aws_identity_require_direct_user "$FOOTBAG_OPERATOR_USER" \
+  || cr_die "this run is not the directly authenticated ${FOOTBAG_OPERATOR_USER}; nothing done"
 
 ACCOUNT_ID="$(printf '%s' "$AWS_IDENTITY_ARN" | cut -d: -f5)"
 if [[ ! "$ACCOUNT_ID" =~ ^[0-9]{12}$ ]]; then
-  echo "ERROR: could not read an account id out of ${AWS_IDENTITY_ARN}." >&2
+  cr_error "could not read an account id out of ${AWS_IDENTITY_ARN}."
   exit 1
 fi
 # The acceptance trusts a delivery only when it was issued in this account, so
 # one sealed from anywhere else would be refused at the other end after a key
 # and a host password had been minted for it.
 if [[ "$ACCOUNT_ID" != "$FOOTBAG_AWS_ACCOUNT_ID" ]]; then
-  echo "ERROR: ${AWS_IDENTITY_ARN} is in account ${ACCOUNT_ID}, not this project's" >&2
+  cr_error "${AWS_IDENTITY_ARN} is in account ${ACCOUNT_ID}, not this project's"
   echo "       ${FOOTBAG_AWS_ACCOUNT_ID}. Nothing done." >&2
   exit 1
 fi
 DEV_TESTER_ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/${FOOTBAG_DEV_TESTER_ROLE}"
 STAGING_ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/footbag-staging-app-runtime"
-if ! "$AWS_BIN" iam get-role --role-name "$FOOTBAG_DEV_TESTER_ROLE" >/dev/null 2>&1; then
-  echo "ERROR: there is no ${FOOTBAG_DEV_TESTER_ROLE} role in account ${ACCOUNT_ID}, so there" >&2
+# Absent only when IAM says so by name; any other failure is a read that failed,
+# reported with what AWS said rather than as a tree that was never applied.
+ROLE_READ_ERR=""
+if ! ROLE_READ_ERR="$("$AWS_BIN" iam get-role --role-name "$FOOTBAG_DEV_TESTER_ROLE" 2>&1 >/dev/null)" \
+   && [[ "$ROLE_READ_ERR" != *NoSuchEntity* ]]; then
+  cr_error "could not read the ${FOOTBAG_DEV_TESTER_ROLE} role in account ${ACCOUNT_ID}: ${ROLE_READ_ERR:-no error text}. Nothing done."
+  exit 1
+fi
+if [[ "$ROLE_READ_ERR" == *NoSuchEntity* ]]; then
+  cr_error "there is no ${FOOTBAG_DEV_TESTER_ROLE} role in account ${ACCOUNT_ID}, so there"
   echo "       is nothing to onboard anybody into. Apply the identity tree first:" >&2
   echo "         bash scripts/terraform-apply.sh --target identity" >&2
   exit 1
@@ -463,9 +490,9 @@ fi
 # A user IAM could not be read is neither absent nor ours. Read as absent, a
 # finished onboarding would skip the check below and go on to re-issue a live
 # host password before the create failed.
-iam_dev_tester_state "$ACCOUNT" || exit 1
+iam_dev_tester_state "$ACCOUNT" || cr_die "the IAM user ${ACCOUNT} could not be read; nothing done"
 case "$IAM_DEV_TESTER_STATE" in
-  foreign) iam_dev_tester_refuse_foreign "$ACCOUNT"; exit 1 ;;
+  foreign) iam_dev_tester_refuse_foreign "$ACCOUNT"; cr_die "an IAM user named ${ACCOUNT} exists and is not one of ours" ;;
   ours) IAM_USER_EXISTS=1 ;;
   *) IAM_USER_EXISTS=0 ;;
 esac
@@ -493,7 +520,7 @@ onboard_evidence() {
 # reported as pending rather than as a failure, with the command to re-run.
 if (( VERIFY )); then
   VERIFY_FAIL=0
-  vfail() { echo "  FAIL  $1" >&2; VERIFY_FAIL=1; }
+  vfail() { cr_error "FAIL  $1"; VERIFY_FAIL=1; }
   vpass() { echo "  ok    $1"; }
 
   echo "Verifying ${ACCOUNT} on ${TARGET}, key ${KEY_SHA}"
@@ -505,13 +532,13 @@ if (( VERIFY )); then
     vfail "IAM user ${ACCOUNT} reads as ${IAM_DEV_TESTER_STATE}, not one of ours"
   else
     vpass "IAM user ours, at ${IAM_DEV_TESTER_FOUND_PATH}, all three ownership tags"
-    V_POLICY="$(iam_dev_tester_policy_state "$ACCOUNT")" || { echo "ERROR: IAM could not be read." >&2; exit 1; }
+    V_POLICY="$(iam_dev_tester_policy_state "$ACCOUNT")" || cr_die "IAM could not be read."
     if [[ "$V_POLICY" == "present" ]]; then
       vpass "grant ${IAM_DEV_TESTER_POLICY_NAME}"
     else
       vfail "no ${IAM_DEV_TESTER_POLICY_NAME} grant, so the user reaches nothing"
     fi
-    V_KEYS="$(iam_dev_tester_keys "$ACCOUNT")" || { echo "ERROR: IAM could not be read." >&2; exit 1; }
+    V_KEYS="$(iam_dev_tester_keys "$ACCOUNT")" || cr_die "IAM could not be read."
     V_ACTIVE="$(printf '%s\n' "$V_KEYS" | awk -F'\t' '$2=="Active"')"
     V_COUNT="$(grep -c . <<<"$V_ACTIVE" || true)"
     if [[ "$V_COUNT" == "1" ]]; then
@@ -549,12 +576,18 @@ if (( VERIFY )); then
     fi
   fi
 
-  # The address: their own parameter, which the staging firewall admits.
+  # The address: their own parameter, which the staging firewall admits. Absent
+  # only when SSM says so by name; a read that failed is reported as unread,
+  # with what AWS said.
   VERIFY_ADDRESS=""
+  V_SSM_ERR="$(mktemp "$(_cr_tmp)/ssm.XXXXXX")"
   if VERIFY_ADDRESS="$("$AWS_BIN" ssm get-parameter --region us-east-1 \
-        --name "${DEV_TESTER_PATH}/${ACCOUNT}" --query Parameter.Value --output text 2>/dev/null)" \
+        --name "${DEV_TESTER_PATH}/${ACCOUNT}" --query Parameter.Value --output text 2>"$V_SSM_ERR")" \
      && [[ -n "$VERIFY_ADDRESS" ]]; then
     vpass "address ${VERIFY_ADDRESS}"
+  elif [[ -s "$V_SSM_ERR" ]] && ! grep -q 'ParameterNotFound' "$V_SSM_ERR"; then
+    VERIFY_ADDRESS=""
+    vfail "${ACCOUNT}'s staging address parameter could not be read: $(grep -v '^[[:space:]]*$' "$V_SSM_ERR" | tail -n 1)"
   else
     VERIFY_ADDRESS=""
     vfail "no staging address parameter for ${ACCOUNT}"
@@ -571,13 +604,21 @@ if (( VERIFY )); then
   # Accepting is the only thing that does that, so seeing it in the trail is
   # seeing the acceptance. CloudTrail delivers events some minutes late, so the
   # read is repeated rather than judged once.
+  # A lookup that fails is not a trail that has not caught up: read as "not yet
+  # seen", a denied or broken read would report pending for ever. It ends the
+  # run as an error, with what AWS said.
   VERIFY_ARN=""
   V_TRY=0
+  V_TRAIL_ERR="$(mktemp "$(_cr_tmp)/trail.XXXXXX")"
   while (( V_TRY < POLL_TRIES )); do
     V_TRY=$(( V_TRY + 1 ))
-    V_EVENTS="$("$AWS_BIN" cloudtrail lookup-events --region us-east-1 \
-      --lookup-attributes "AttributeKey=AccessKeyId,AttributeValue=${VERIFY_AKID}" \
-      --start-time "$VERIFY_CREATED" --output json 2>/dev/null || true)"
+    if ! V_EVENTS="$("$AWS_BIN" cloudtrail lookup-events --region us-east-1 \
+        --lookup-attributes "AttributeKey=AccessKeyId,AttributeValue=${VERIFY_AKID}" \
+        --start-time "$VERIFY_CREATED" --output json 2>"$V_TRAIL_ERR")"; then
+      onboard_evidence "$VERIFY_AKID" "$VERIFY_ADDRESS" "not checked: CloudTrail could not be read"
+      cr_error "CloudTrail could not be read, so whether ${ACCOUNT} has accepted is unknown: $(grep -v '^[[:space:]]*$' "$V_TRAIL_ERR" | tail -n 1)"
+      exit 1
+    fi
     [[ -n "$V_EVENTS" ]] || V_EVENTS='{}'
     VERIFY_ARN="$(jq -r --arg created "$VERIFY_CREATED" '
         [ .Events[]?
@@ -598,13 +639,16 @@ if (( VERIFY )); then
     echo "trail has not caught up. Re-run in a few minutes:"
     echo "  < ~/AWS/AWS_OPERATOR.txt bash scripts/onboard-dev-tester.sh --verify \\"
     echo "    --target ${TARGET} --account ${ACCOUNT} --expect-fingerprint ${KEY_SHA}"
-    exit 3
+    cr_warn "PENDING: CloudTrail does not yet show ${VERIFY_AKID} assuming the role; re-run --verify in a few minutes"
+    cr_unproved "that ${ACCOUNT} has accepted the onboarding"
+    cr_finish_with 3 PENDING
   fi
   vpass "accepted: ${VERIFY_AKID} assumed the role as ${VERIFY_ARN}"
   onboard_evidence "$VERIFY_AKID" "$VERIFY_ADDRESS" "$VERIFY_ARN"
   echo ""
   echo "VERIFIED: ${ACCOUNT} is onboarded and has accepted. Nothing was changed."
-  exit 0
+  cr_proved "${ACCOUNT}'s IAM user, grant, one active key, host account and address read back in place, and ${VERIFY_AKID} assumed the role as ${VERIFY_ARN}"
+  cr_finish
 fi
 
 # ── The two steps every run ends with ────────────────────────────────────────
@@ -626,7 +670,7 @@ onboard_address() {
   for one in "${ADDRESSES[@]}"; do address_args+=(--address "$one"); done
   if ! bash "$ADDRESS_CMD" --target "$TARGET" --dev-tester "$ACCOUNT" "${address_args[@]}" \
       --for "${ACCOUNT}; ${LOCATION}" </dev/null; then
-    echo "ERROR: ${ADDRESS} is not proved on the ${TARGET} allow-list. Everything else is" >&2
+    cr_error "${ADDRESS} is not proved on the ${TARGET} allow-list. Everything else is"
     echo "       in place; re-run this same command to finish it." >&2
     exit 1
   fi
@@ -672,7 +716,7 @@ onboard_readback() {
 }
 
 onboard_readback_failed() {
-  echo "ERROR: ${ACCOUNT} does not read back from IAM as onboarded: ${1}" >&2
+  cr_error "${ACCOUNT} does not read back from IAM as onboarded: ${1}"
   echo "       Do not tell them to accept on the strength of this run. Re-running" >&2
   echo "       the same command reads IAM again, and completes whatever it finds" >&2
   echo "       missing." >&2
@@ -689,19 +733,19 @@ onboard_host_finished() {
   echo ""
   echo "==> Reading ${ACCOUNT} on the ${TARGET} host"
   if ! out="$(host_step --target "$TARGET" --account "$ACCOUNT" --inspect)"; then
-    echo "ERROR: IAM shows ${ACCOUNT} onboarded, but their host account could not be" >&2
+    cr_error "IAM shows ${ACCOUNT} onboarded, but their host account could not be"
     echo "       read, so the onboarding is not proved finished. Nothing was changed." >&2
     echo "       Re-run once the host is reachable." >&2
     exit 1
   fi
   if ! grep -qx 'ACCOUNT present' <<<"$out"; then
-    echo "REFUSING: IAM shows ${ACCOUNT} onboarded, but there is no ${ACCOUNT} account on" >&2
+    cr_error "REFUSING: IAM shows ${ACCOUNT} onboarded, but there is no ${ACCOUNT} account on"
     echo "          the ${TARGET} host. Nothing was changed. Re-run with --reissue, which" >&2
     echo "          creates it and seals a fresh file." >&2
     exit 1
   fi
   if ! grep -qx 'LOCKED no' <<<"$out"; then
-    echo "REFUSING: IAM shows ${ACCOUNT} onboarded, but their host account is locked," >&2
+    cr_error "REFUSING: IAM shows ${ACCOUNT} onboarded, but their host account is locked,"
     echo "          which is what an offboard that stopped part way leaves. Nothing was" >&2
     echo "          changed. Finish the offboarding, then onboard them again:" >&2
     echo "            bash scripts/offboard-dev-tester.sh --target ${TARGET} --account ${ACCOUNT} \\" >&2
@@ -711,7 +755,7 @@ onboard_host_finished() {
   given="$KEY_SHA"
   held="$(sed -n 's/^KEY //p' <<<"$out" | awk '{print $2}' | sed '/^$/d' | sort -u)"
   if [[ "$held" != "$given" ]]; then
-    echo "REFUSING: IAM shows ${ACCOUNT} onboarded, but their host account does not hold" >&2
+    cr_error "REFUSING: IAM shows ${ACCOUNT} onboarded, but their host account does not hold"
     echo "          exactly the key given to this run. It holds:" >&2
     printf '%s\n' "${held:-none}" | sed 's/^/            /' >&2
     echo "          Nothing was changed. A lost or replaced key is offboarded, then" >&2
@@ -727,8 +771,8 @@ onboard_host_finished() {
 # replace the key and the password its owner may already be using.
 ACTIVE_KEYS=""
 if (( IAM_USER_EXISTS )); then
-  POLICY_NOW="$(iam_dev_tester_policy_state "$ACCOUNT")" || exit 1
-  KEYS_NOW="$(iam_dev_tester_keys "$ACCOUNT")" || exit 1
+  POLICY_NOW="$(iam_dev_tester_policy_state "$ACCOUNT")" || cr_die "IAM could not be read; nothing done"
+  KEYS_NOW="$(iam_dev_tester_keys "$ACCOUNT")" || cr_die "IAM could not be read; nothing done"
   ACTIVE_KEYS="$(printf '%s\n' "$KEYS_NOW" | awk -F'\t' '$2=="Active"{print $1}' | tr '\n' ' ')"
   if [[ "$POLICY_NOW" == "present" && -n "${ACTIVE_KEYS// /}" ]] && (( ! REISSUE )); then
     onboard_host_finished
@@ -741,7 +785,8 @@ if (( IAM_USER_EXISTS )); then
     echo "--reissue, which replaces both."
     onboard_address
     onboard_readback
-    exit 0
+    cr_proved "${ACCOUNT} already onboarded: the grant and an active key read back from IAM, and the host account is live holding exactly the key given; nothing was re-issued"
+    cr_finish
   fi
 fi
 
@@ -752,13 +797,13 @@ fi
 # re-onboarding takes a pair made fresh for it. A key the shared account holds is
 # refused here too, for the reason the host half refuses it.
 if ! PRE_HOST="$(host_step --target "$TARGET" --account "$ACCOUNT" --inspect)"; then
-  echo "ERROR: the ${TARGET} host could not be read, so the key cannot be checked" >&2
+  cr_error "the ${TARGET} host could not be read, so the key cannot be checked"
   echo "       against what the account was retired with. Nothing has been created." >&2
   exit 1
 fi
 PRE_RETIRED="$(sed -n 's/^RETIRED //p' <<<"$PRE_HOST" | awk '{print $2}')"
 if grep -qxF -- "$KEY_SHA" <<<"$PRE_RETIRED"; then
-  echo "REFUSING: ${KEY_SHA} is a key ${ACCOUNT} was retired with. Reinstating it would" >&2
+  cr_error "REFUSING: ${KEY_SHA} is a key ${ACCOUNT} was retired with. Reinstating it would"
   echo "          let back in whoever still holds its private half. Make a fresh pair:" >&2
   echo "            bash scripts/setup-dev-workstation.sh --aws --account ${ACCOUNT} \\" >&2
   echo "              --replace-key retired --profile ${ACCOUNT}" >&2
@@ -769,14 +814,15 @@ if grep -qxF -- "$KEY_SHA" <<<"$PRE_RETIRED"; then
 fi
 PRE_SHARED="$(sed -n 's/^SHARED //p' <<<"$PRE_HOST")"
 if grep -qxF -- "$KEY_SHA" <<<"$PRE_SHARED"; then
-  echo "REFUSING: ${KEY_SHA} is also on the shared ${SHARED_HOST_ACCOUNT} account. A named key" >&2
+  cr_error "REFUSING: ${KEY_SHA} is also on the shared ${SHARED_HOST_ACCOUNT} account. A named key"
   echo "          must be a pair of its own. Nothing has been created." >&2
   exit 1
 fi
 
 # Read before anything changes, so a Terraform or Lightsail problem costs
 # nothing but the run.
-known_hosts_pin_lines "$TARGET" "$AWS_BIN" || exit 1
+known_hosts_pin_lines "$TARGET" "$AWS_BIN" \
+  || cr_die "the ${TARGET} host's pin lines could not be read; nothing has been created"
 
 HOST_FILE="$(delivery_file_name "$ACCOUNT" "$TARGET")"
 
@@ -806,7 +852,7 @@ echo ""
 echo "No IAM change names ${FOOTBAG_OPERATOR_USER}, no administrator allow-list entry is"
 echo "touched, and no AWS file on this machine is written."
 if ! confirm_from_tty "Type 'APPLY' to onboard ${ACCOUNT}: " "APPLY"; then
-  echo "Not confirmed; nothing was created." >&2
+  cr_error "Not confirmed; nothing was created."
   exit 1
 fi
 
@@ -827,11 +873,12 @@ onboard_cleanup() {
     echo "The host account ${ACCOUNT} is left in place and is NOT being removed." >&2
     echo "Its one-time password was never shown and is now destroyed, so nobody" >&2
     echo "holds it. Re-run the same command: it issues a fresh one." >&2
+    cr_warn "the host account ${ACCOUNT} is left in place with a password nobody holds; re-run the same command to finish"
   fi
   HOST_DONE=0
   return 0
 }
-trap onboard_cleanup EXIT INT TERM
+cr_cleanup onboard_cleanup
 
 # ── The host account ─────────────────────────────────────────────────────────
 #
@@ -842,7 +889,7 @@ PASS_FILE="$(umask 077 && mktemp)"
 secret_file_register "$PASS_FILE"
 printf '%s\n' "$SUDO_PASS" | DTACC_SEALED_OUT="$PASS_FILE" bash "$PROVISION_CMD" --target "$TARGET" \
   --account "$ACCOUNT" --full-name "$FULL_NAME" --key-line "$KEY_LINE" --sealed || {
-  echo "ERROR: the host step did not finish; nothing else was started." >&2
+  cr_error "the host step did not finish; nothing else was started."
   exit 1
 }
 HOST_DONE=1
@@ -850,16 +897,17 @@ DELIVERY_HOST_PASSWORD=""
 IFS= read -r DELIVERY_HOST_PASSWORD < "$PASS_FILE" || true
 secret_file_destroy "$PASS_FILE"
 if [[ -z "$DELIVERY_HOST_PASSWORD" ]]; then
-  echo "ERROR: the host step reported success and handed back no password." >&2
+  cr_error "the host step reported success and handed back no password."
   exit 1
 fi
 
 # ── The IAM identity ─────────────────────────────────────────────────────────
 
-iam_dev_tester_ensure "$ACCOUNT" "$IAM_USER_EXISTS" "$DEV_TESTER_ROLE_ARN" || exit 1
+iam_dev_tester_ensure "$ACCOUNT" "$IAM_USER_EXISTS" "$DEV_TESTER_ROLE_ARN" \
+  || cr_die "the IAM user ${ACCOUNT} could not be made ready"
 IAM_KEY_DELIVERY="install"
 IAM_KEY_AWS_ARGS=()
-iam_key_provision "$ACCOUNT" "" 1 || exit 1
+iam_key_provision "$ACCOUNT" "" 1 || cr_die "a key for ${ACCOUNT} could not be minted"
 
 # ── Seal ─────────────────────────────────────────────────────────────────────
 
@@ -880,14 +928,14 @@ done <<< "$KNOWN_HOSTS_PIN_LINES"
 
 BUNDLE="$(umask 077 && mktemp)"
 secret_file_register "$BUNDLE"
-delivery_bundle_emit > "$BUNDLE" || exit 1
+delivery_bundle_emit > "$BUNDLE" || cr_die "the delivery could not be assembled"
 DELIVERY_HOST_PASSWORD=""
 DELIVERY_AWS_SECRET_ACCESS_KEY=""
 
 SEAL_TMP="$(umask 077 && mktemp)"
 secret_file_register "$SEAL_TMP"
 "$AGE_BIN" -r "$KEY_LINE" -o "$SEAL_TMP" "$BUNDLE" || {
-  echo "ERROR: age could not seal the delivery." >&2
+  cr_error "age could not seal the delivery."
   exit 1
 }
 secret_file_destroy "$BUNDLE"
@@ -896,7 +944,7 @@ secret_file_destroy "$BUNDLE"
 # the key given to this run.
 HEADER_TAGS="$(delivery_age_header_tags "$SEAL_TMP")"
 if [[ "$HEADER_TAGS" != "$RECIPIENT_TAG" ]]; then
-  echo "ERROR: the sealed file is not addressed to exactly the key given" >&2
+  cr_error "the sealed file is not addressed to exactly the key given"
   echo "       (expected ${RECIPIENT_TAG}, found '${HEADER_TAGS//$'\n'/ }')." >&2
   exit 1
 fi
@@ -910,7 +958,7 @@ fi
 echo ""
 echo "==> Placing the sealed file in ${ACCOUNT}'s home on the ${TARGET} host"
 if ! host_step --target "$TARGET" --account "$ACCOUNT" --place-delivery "$SEAL_TMP"; then
-  echo "ERROR: the sealed file is not proved in place on the ${TARGET} host. The key" >&2
+  cr_error "the sealed file is not proved in place on the ${TARGET} host. The key"
   echo "       inside it is withdrawn; re-run the same command." >&2
   exit 1
 fi
@@ -959,3 +1007,6 @@ echo "4. When they report success, prove it from here, read-only:"
 echo ""
 echo "     < ~/AWS/AWS_OPERATOR.txt bash scripts/onboard-dev-tester.sh --verify \\"
 echo "       --target ${TARGET} --account ${ACCOUNT} --expect-fingerprint ${KEY_SHA}"
+cr_proved "the delivery for ${ACCOUNT}, sealed to ${KEY_SHA} alone, read back in place on the ${TARGET} host, and IAM holds the grant and the key ${IAM_KEY_AKID} it carries"
+cr_unproved "that ${ACCOUNT} has accepted: prove it with --verify once they report success"
+cr_finish

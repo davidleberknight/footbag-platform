@@ -1,0 +1,5 @@
+# Captured from the staging host (Amazon Linux 2023) on 2026-11-03: the line
+# `dnf updateinfo --releasever=latest --list`, run without -q on a warm metadata
+# cache, prints before its first advisory. The same command with -q printed the
+# advisories alone.
+Last metadata expiration check: 0:09:44 ago on Tue Nov  3 18:20:39 2026.

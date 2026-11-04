@@ -25,14 +25,18 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 GUARD = REPO_ROOT / "scripts" / "internal" / "deploy-rebuild-cutover-guard.sh"
+REMOTE_REPORT_LIB = REPO_ROOT / "scripts" / "lib" / "closing-report-remote.sh"
 DEPLOY = REPO_ROOT / "scripts" / "deploy-rebuild.sh"
 
 
 def run_guard(env_path):
+    # On the host the report library travels ahead of the guard on the same
+    # stream, so the guard is run here the same way: the library first.
     env = dict(os.environ)
     env["ENV_PATH"] = str(env_path)
     return subprocess.run(
-        ["bash", str(GUARD)],
+        ["bash", "-c", 'source "$1"; source "$2"', "_",
+         str(REMOTE_REPORT_LIB), str(GUARD)],
         env=env,
         capture_output=True,
         text=True,
@@ -85,10 +89,12 @@ def test_deploy_script_wires_the_guards_ahead_of_the_remote_half():
     executable = "\n".join(
         line for line in deploy.splitlines() if not line.lstrip().startswith("#")
     )
-    # Libraries the remote half needs may sit between the guards and it; the
-    # guards must still run first, in this order, ahead of the remote half.
+    # The report library the guards print through travels first; libraries the
+    # remote half needs may sit between the guards and it. The guards must
+    # still run in this order, ahead of the remote half.
     assert re.search(
-        r'cat "\$CUTOVER_GUARD" "\$PROD_LIVE_GUARD"( "\$[A-Z_]+")* "\$REMOTE_HALF"',
+        r'cat "\$REMOTE_REPORT_LIB" "\$CUTOVER_GUARD" "\$PROD_LIVE_GUARD"'
+        r'( "\$[A-Z_]+")* "\$REMOTE_HALF"',
         executable,
     ), (
         "deploy-rebuild.sh must prepend the cutover and production-live guards "

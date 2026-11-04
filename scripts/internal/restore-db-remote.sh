@@ -6,7 +6,8 @@
 # Invoked via:
 #   { printf '%s\n' "$SUDO_PASS";
 #     printf 'SNAPSHOT_KEY=%q\n' "$key";
-#     cat scripts/internal/restore-db-remote.sh;
+#     cat scripts/lib/closing-report-remote.sh scripts/internal/prune-db-copies.sh \
+#         scripts/internal/restore-db-remote.sh;
 #   } | ssh REMOTE 'sudo -k -S -p "" bash'
 #
 # The snapshot is pulled by the HOST, not pushed through the operator's pipe.
@@ -61,13 +62,20 @@
 # Ships with scripts/internal/prune-db-copies.sh ahead of it on the same stream,
 # which defines prune_db_copies; after a restore whose service reports ready,
 # that deletes set-aside database copies more than seven days old.
+#
+# Ships behind scripts/lib/closing-report-remote.sh too, which defines
+# crr_error, crr_warn and crr_finish: every problem this half meets is a marked
+# line the workstation half lists in its own closing report. The exit status
+# stays this half's own: 3 whenever the erasure replay is left pending, whether
+# or not an error was marked on the way there, otherwise non-zero exactly when
+# an error was marked.
 set -euo pipefail
 
 # Overridable so this body also runs standalone for its tests, which point it at
 # a fixture env file, the same seam the deploy guards use. On a host nothing sets
 # it and the default is the only path in play.
 ENV_PATH="${ENV_PATH:-/srv/footbag/env}"
-[[ -r "$ENV_PATH" ]] || { echo "ERROR: $ENV_PATH not readable." >&2; exit 1; }
+[[ -r "$ENV_PATH" ]] || { crr_error "$ENV_PATH not readable."; exit 1; }
 
 # The bucket, region, profile and database directory are the host's own, read
 # from the file the runtime uses, so a restore can never reach a bucket the
@@ -96,10 +104,13 @@ work=""
 backup_timer_paused=0
 erasure_replay_pending=0
 cleanup() {
+  local rc=$?
   # Shredded before removal: the scratch directory holds a full copy of the
   # member database, and a deleted file's blocks otherwise stay readable.
   if [[ -n "$work" ]]; then
-    find "$work" -type f -exec shred -u {} + 2>/dev/null || true
+    local shred_out=""
+    shred_out="$(find "$work" -type f -exec shred -u {} + 2>&1)" \
+      || crr_warn "the scratch copy of the database in ${work} was not shredded before removal: ${shred_out##*$'\n'}"
     rm -rf "$work"
   fi
   # Inside the pending window the backup timer stays stopped, whatever ended
@@ -121,9 +132,15 @@ cleanup() {
   # including an interrupt part-way through the restore. A timer left stopped is
   # a silent loss of the five-minute recovery point, and nothing would surface
   # it until the stale-backup alarm breached fifteen minutes later.
+  # A timer that will not start again is an error, not a footnote: a run that
+  # would otherwise have ended well ends failed, so backups are not left
+  # stopped behind a successful report.
   if [[ "$backup_timer_paused" == "1" ]]; then
-    systemctl start footbag-backup.timer || \
-      echo "WARNING: could not restart footbag-backup.timer. Backups are STOPPED; start it by hand." >&2
+    local out=""
+    if ! out="$(systemctl start footbag-backup.timer 2>&1)"; then
+      crr_error "could not restart footbag-backup.timer, so backups are STOPPED: ${out##*$'\n'}"
+      (( rc == 0 )) && exit 1
+    fi
   fi
 }
 # EXIT alone runs the cleanup once, and an interrupt or a termination becomes
@@ -191,16 +208,27 @@ wait_until_ready() {
   return 1
 }
 
+# Starts footbag.service, and marks the failure with systemd's own last line
+# when it will not start, so a restart that did not happen is never reported
+# only as the exit status of a half that went on to say nothing.
+start_service() {
+  local out=""
+  if ! out="$(systemctl start footbag 2>&1)"; then
+    crr_error "footbag.service did not start: ${out##*$'\n'}"
+    return 1
+  fi
+  [[ -n "$out" ]] && printf '%s\n' "$out"
+  return 0
+}
+
 # ── Resume: finish a restore whose erasure replay did not complete ───────────
 if [[ "${RESUME_ERASURE_REPLAY:-0}" == "1" ]]; then
   if [[ ! -e "$MARKER" ]]; then
-    echo "ERROR: no erasure replay is pending on $(hostname) (no ${MARKER})." >&2
-    echo "       Nothing to resume; nothing was changed." >&2
+    crr_error "no erasure replay is pending on $(hostname) (no ${MARKER}). Nothing to resume; nothing was changed."
     exit 1
   fi
   [[ -f "$DB_FILE" ]] || {
-    echo "ERROR: no database at ${DB_FILE}. Put the database back before resuming;" >&2
-    echo "       the marker stays, so backups stay paused and the site stays down." >&2
+    crr_error "no database at ${DB_FILE}. Put the database back before resuming; the marker stays, so backups stay paused and the site stays down."
     exit 1
   }
   # Raised before anything runs, so a failure from here on keeps the timer
@@ -213,16 +241,14 @@ if [[ "${RESUME_ERASURE_REPLAY:-0}" == "1" ]]; then
   grep -qx 'backup_timer_paused=0' "$MARKER" || backup_timer_paused=1
   if ! run_erasure_replay; then
     echo "" >&2
-    echo "ERROR: the erasure replay did not complete again; nothing was started." >&2
+    crr_error "the erasure replay did not complete again; nothing was started."
     exit 1
   fi
   clear_replay_pending
   echo "==> Starting the service"
-  systemctl start footbag
+  start_service || exit 1
   if ! wait_until_ready; then
-    echo "ERROR: the service did not report ready within ~20s. The erasures are" >&2
-    echo "       re-applied and backups resume; inspect it with" >&2
-    echo "       scripts/host-diagnostics.sh." >&2
+    crr_error "the service did not report ready within ~20s. The erasures are re-applied and backups resume; inspect it with scripts/host-diagnostics.sh."
     systemctl status footbag --no-pager -l >&2 || true
     exit 1
   fi
@@ -231,19 +257,19 @@ if [[ "${RESUME_ERASURE_REPLAY:-0}" == "1" ]]; then
   echo "  ERASURE REPLAY COMPLETED on $(hostname)"
   echo "  The site is serving and backups resume."
   echo "======================================================================"
-  exit 0
+  crr_finish
 fi
 
 : "${SNAPSHOT_KEY:?remote half requires SNAPSHOT_KEY}"
 
-command -v sqlite3 >/dev/null 2>&1 || { echo "ERROR: sqlite3 CLI not installed on this host." >&2; exit 1; }
-command -v aws     >/dev/null 2>&1 || { echo "ERROR: aws CLI not installed on this host." >&2; exit 1; }
+command -v sqlite3 >/dev/null 2>&1 || { crr_error "sqlite3 CLI not installed on this host."; exit 1; }
+command -v aws     >/dev/null 2>&1 || { crr_error "aws CLI not installed on this host."; exit 1; }
 # The caller's --bucket wins; the host's own BACKUP_S3_BUCKET is the fallback.
 # The cutover rollback artifact lives in the DR bucket, which is not what the
 # host is configured with, so without this the flag that exists to reach it was
 # accepted, printed, and then dropped before the wire.
 BUCKET="${BUCKET:-${BACKUP_S3_BUCKET:-}}"
-[[ -n "$BUCKET" ]] || { echo "ERROR: no bucket: pass --bucket, or set BACKUP_S3_BUCKET in $ENV_PATH." >&2; exit 1; }
+[[ -n "$BUCKET" ]] || { crr_error "no bucket: pass --bucket, or set BACKUP_S3_BUCKET in $ENV_PATH."; exit 1; }
 # A host with no database is restored onto only when the operator said so, and a
 # host with one never takes that path: --onto-empty must not be able to stand in
 # for the ordinary restore and skip the copy-aside of a real database. The
@@ -259,8 +285,7 @@ if [[ -n "${RESTORE_CONTAINER_OWNER:-}" ]]; then
 fi
 if [[ "$ONTO_EMPTY" == "1" ]]; then
   if [[ -e "$DB_FILE" ]]; then
-    echo "ERROR: ${DB_FILE} exists, so this host is not empty. Nothing was changed." >&2
-    echo "       Restore over it with the ordinary restore, without --onto-empty." >&2
+    crr_error "${DB_FILE} exists, so this host is not empty. Nothing was changed. Restore over it with the ordinary restore, without --onto-empty."
     exit 1
   fi
   # The erasure replay below runs in a container of the release, and the service
@@ -273,9 +298,7 @@ if [[ "$ONTO_EMPTY" == "1" ]]; then
   systemctl cat footbag.service >/dev/null 2>&1 || onto_empty_missing+="footbag.service; "
   docker image inspect docker-web >/dev/null 2>&1 || onto_empty_missing+="the web image; "
   if [[ -n "$onto_empty_missing" ]]; then
-    echo "ERROR: this host does not carry the release the restore runs in: missing ${onto_empty_missing%; }." >&2
-    echo "       Install it first without starting it, which scripts/bootstrap-host.sh" >&2
-    echo "       does with: scripts/deploy-code.sh --first-install. Nothing was changed." >&2
+    crr_error "this host does not carry the release the restore runs in: missing ${onto_empty_missing%; }. Install it first without starting it, which scripts/bootstrap-host.sh does with: scripts/deploy-code.sh --first-install. Nothing was changed."
     exit 1
   fi
   install -d -m 750 "$(dirname "$DB_FILE")"
@@ -283,7 +306,7 @@ if [[ "$ONTO_EMPTY" == "1" ]]; then
   chown "$CONTAINER_OWNER" "$(dirname "$DB_FILE")" "$DB_FILE"
   echo "    No database on this host: created an empty placeholder owned by the container account."
 fi
-[[ -f "$DB_FILE" ]] || { echo "ERROR: no database at ${DB_FILE}; nothing to restore over. On a host built from nothing, pass --onto-empty." >&2; exit 1; }
+[[ -f "$DB_FILE" ]] || { crr_error "no database at ${DB_FILE}; nothing to restore over. On a host built from nothing, pass --onto-empty."; exit 1; }
 
 DRILL="${DRILL:-0}"
 # The drill's elapsed time is measured from here, the start of the download, to
@@ -296,14 +319,14 @@ work="$(mktemp -d)"
 
 echo "==> Fetching s3://${BUCKET}/${SNAPSHOT_KEY}"
 aws s3 cp "s3://${BUCKET}/${SNAPSHOT_KEY}" "${work}/snapshot.fetched" >/dev/null \
-  || { echo "ERROR: could not download the snapshot; nothing was changed." >&2; exit 1; }
+  || { crr_error "could not download the snapshot; nothing was changed."; exit 1; }
 
 # Detect compression rather than assume it, matching the local half. This is the
 # in-place restore, so an assumption that fails here fails after the member
 # database has already been replaced.
 if [[ "$(head -c2 "${work}/snapshot.fetched" | od -An -tx1 | tr -d ' \n')" == "1f8b" ]]; then
   gunzip -c "${work}/snapshot.fetched" > "${work}/snapshot.db" \
-    || { echo "ERROR: the snapshot did not decompress; nothing was changed." >&2; exit 1; }
+    || { crr_error "the snapshot did not decompress; nothing was changed."; exit 1; }
 else
   mv "${work}/snapshot.fetched" "${work}/snapshot.db"
 fi
@@ -312,8 +335,7 @@ fi
 # the part of this script that stops anything.
 integrity="$(sqlite3 "${work}/snapshot.db" 'PRAGMA integrity_check;' 2>/dev/null || echo 'unreadable')"
 if [[ "$integrity" != "ok" ]]; then
-  echo "ERROR: the snapshot failed its integrity check (${integrity})." >&2
-  echo "       Nothing was stopped and nothing was changed." >&2
+  crr_error "the snapshot failed its integrity check (${integrity}). Nothing was stopped and nothing was changed."
   exit 1
 fi
 
@@ -351,9 +373,7 @@ if [[ "$DRILL" == "1" ]]; then
         || COALESCE((SELECT MAX(occurred_at) FROM audit_entries), 'none');
   " 2>/dev/null)" || drill_row=""
   if [[ ! "$drill_row" =~ ^[0-9]+\|[0-9]+\|.+$ ]]; then
-    echo "ERROR: restore drill FAILED: the restored database did not answer the member," >&2
-    echo "       payment and audit queries. It passed its integrity check, but a" >&2
-    echo "       restore nobody can query is not a restore." >&2
+    crr_error "restore drill FAILED: the restored database did not answer the member, payment and audit queries. It passed its integrity check, but a restore nobody can query is not a restore."
     exit 1
   fi
   IFS='|' read -r drill_members drill_payments drill_newest <<<"$drill_row"
@@ -369,7 +389,7 @@ if [[ "$DRILL" == "1" ]]; then
   echo "  The live database and the service were not touched; the scratch copy"
   echo "  is shredded as this exits."
   echo "======================================================================"
-  exit 0
+  crr_finish
 fi
 
 # An earlier restore whose replay never completed left its marker, and the
@@ -396,8 +416,7 @@ fi
 if systemctl is-active --quiet footbag-backup.timer 2>/dev/null; then
   backup_timer_paused=1
   systemctl stop footbag-backup.timer || {
-    echo "ERROR: could not stop footbag-backup.timer. Refusing to restore while a" >&2
-    echo "       backup may fire into the middle of it; nothing was changed." >&2
+    crr_error "could not stop footbag-backup.timer. Refusing to restore while a backup may fire into the middle of it; nothing was changed."
     backup_timer_paused=0
     exit 1
   }
@@ -413,7 +432,10 @@ service_was_active=0
 systemctl is-active --quiet footbag 2>/dev/null && service_was_active=1
 restart_if_was_active() {
   if (( service_was_active )); then
-    systemctl start footbag || true
+    # The failure is already marked with systemd's words; this says what it means.
+    if ! start_service; then
+      echo "       footbag.service was running before this restore and is now STOPPED: the site is down until it starts." >&2
+    fi
   else
     echo "       footbag.service was not running before this restore, and is left stopped." >&2
   fi
@@ -436,11 +458,7 @@ systemctl stop footbag
 # is two lines and the checkpoint result is the second.
 checkpoint_row="$(sqlite3 "$DB_FILE" 'PRAGMA busy_timeout=5000; PRAGMA wal_checkpoint(TRUNCATE);' 2>/dev/null | tail -1)" || checkpoint_row=""
 if [[ -z "$checkpoint_row" || "${checkpoint_row%%|*}" != "0" ]]; then
-  echo "ERROR: could not checkpoint the write-ahead log before setting the current" >&2
-  echo "       database aside (wal_checkpoint returned '${checkpoint_row:-no result}';" >&2
-  echo "       a leading 1 means it was busy and did not complete). Refusing to" >&2
-  echo "       restore over a database whose copy would be incomplete." >&2
-  echo "       Restarting the service; nothing was replaced." >&2
+  crr_error "could not checkpoint the write-ahead log before setting the current database aside (wal_checkpoint returned '${checkpoint_row:-no result}'; a leading 1 means it was busy and did not complete). Refusing to restore over a database whose copy would be incomplete. Restarting the service; nothing was replaced."
   restart_if_was_active
   exit 1
 fi
@@ -458,17 +476,12 @@ fi
 db_kb="$(du -k "$DB_FILE" | cut -f1)" || db_kb=""
 avail_kb="$(df -Pk "$(dirname "$DB_FILE")" | tail -1 | tr -s ' ' | cut -d' ' -f4)" || avail_kb=""
 if [[ ! "$db_kb" =~ ^[0-9]+$ || ! "$avail_kb" =~ ^[0-9]+$ ]]; then
-  echo "ERROR: could not measure the database or the free space beside it." >&2
-  echo "       Refusing the restore rather than copying blind: a cp that runs out" >&2
-  echo "       of disk leaves a truncated file, and this copy is the only way back." >&2
-  echo "       Nothing was replaced; restarting the service." >&2
+  crr_error "could not measure the database or the free space beside it. Refusing the restore rather than copying blind: a cp that runs out of disk leaves a truncated file, and this copy is the only way back. Nothing was replaced; restarting the service."
   restart_if_was_active
   exit 1
 fi
 if (( avail_kb < db_kb * 2 )); then
-  echo "ERROR: not enough free space to copy the database aside." >&2
-  echo "       database ${db_kb} KB, free ${avail_kb} KB, need at least $(( db_kb * 2 )) KB." >&2
-  echo "       Nothing was replaced; restarting the service." >&2
+  crr_error "not enough free space to copy the database aside: database ${db_kb} KB, free ${avail_kb} KB, need at least $(( db_kb * 2 )) KB. Nothing was replaced; restarting the service."
   restart_if_was_active
   exit 1
 fi
@@ -478,8 +491,7 @@ superseded="${DB_FILE}.pre-restore.$(date -u +%Y%m%dT%H%M%SZ)"
 # the restored snapshot turns out to be the wrong one, so a silent failure would
 # remove the fallback at the exact moment the next line destroys the original.
 if ! cp -a "$DB_FILE" "$superseded"; then
-  echo "ERROR: could not copy the database aside; nothing was replaced." >&2
-  echo "       Restarting the service." >&2
+  crr_error "could not copy the database aside; nothing was replaced. Restarting the service."
   restart_if_was_active
   exit 1
 fi
@@ -489,9 +501,7 @@ echo "    database in place copied to ${superseded}"
 # line until the replay succeeds, what sits at the database path may hold
 # personal data members asked to have erased.
 if ! mark_replay_pending; then
-  echo "ERROR: could not write ${MARKER}; refusing to replace the database without" >&2
-  echo "       it, since nothing would then hold backups and the site off if the" >&2
-  echo "       erasure replay failed. Nothing was replaced; restarting the service." >&2
+  crr_error "could not write ${MARKER}; refusing to replace the database without it, since nothing would then hold backups and the site off if the erasure replay failed. Nothing was replaced; restarting the service."
   restart_if_was_active
   exit 1
 fi
@@ -510,12 +520,10 @@ previous_database_back() {
 # different database is how a restore turns into corruption.
 rm -f "$DB_FILE" "${DB_FILE}-wal" "${DB_FILE}-shm"
 if ! cp -a "${work}/snapshot.db" "$DB_FILE"; then
-  echo "ERROR: could not put the snapshot in place. The database that was here is" >&2
-  echo "       intact at ${superseded}; putting it back and restarting." >&2
+  crr_error "could not put the snapshot in place. The database that was here is intact at ${superseded}; putting it back and restarting."
   rm -f "$DB_FILE" "${DB_FILE}-wal" "${DB_FILE}-shm"
   if ! cp -a "$superseded" "$DB_FILE"; then
-    echo "ERROR: restoring the previous database ALSO failed. It is intact at" >&2
-    echo "       ${superseded} and must be put back by hand before the site is used." >&2
+    crr_error "restoring the previous database ALSO failed. It is intact at ${superseded} and must be put back by hand before the site is used."
     exit 1
   fi
   previous_database_back
@@ -530,12 +538,10 @@ chmod 600 "$DB_FILE"
 
 restored_integrity="$(sqlite3 "$DB_FILE" 'PRAGMA integrity_check;' 2>/dev/null || echo 'unreadable')"
 if [[ "$restored_integrity" != "ok" ]]; then
-  echo "ERROR: the restored database failed its integrity check in place (${restored_integrity})." >&2
-  echo "       Putting the previous database back and restarting." >&2
+  crr_error "the restored database failed its integrity check in place (${restored_integrity}). Putting the previous database back and restarting."
   rm -f "$DB_FILE" "${DB_FILE}-wal" "${DB_FILE}-shm"
   if ! cp -a "$superseded" "$DB_FILE"; then
-    echo "ERROR: putting the previous database back ALSO failed. It is intact at" >&2
-    echo "       ${superseded} and must be restored by hand before the service is used." >&2
+    crr_error "putting the previous database back ALSO failed. It is intact at ${superseded} and must be restored by hand before the service is used."
     exit 1
   fi
   chown "$db_owner" "$DB_FILE"
@@ -560,25 +566,19 @@ fi
 echo "==> Re-applying erasures recorded in the restored snapshot"
 if ! run_erasure_replay; then
   echo "" >&2
-  echo "ERROR: the erasure replay did not complete, so the site has been left" >&2
-  echo "       STOPPED. The restored database is in place and may carry personal" >&2
-  echo "       data a member asked to have erased. The database it replaced is at" >&2
-  echo "       ${superseded}." >&2
+  crr_error "the erasure replay did not complete, so the site has been left STOPPED. The restored database is in place and may carry personal data a member asked to have erased. The database it replaced is at ${superseded}."
   exit 1
 fi
 clear_replay_pending
 
 echo "==> Restarting the service"
-systemctl start footbag
+start_service || exit 1
 
 # Old copies are pruned only once the restored database is being served: a
 # restore that has not come up is one whose operator may still need every copy
 # on the host, including the ones a week old.
 if ! wait_until_ready; then
-  echo "ERROR: the service did not report ready within ~20s. The restored database" >&2
-  echo "       is in place with its erasures re-applied, and backups resume. The" >&2
-  echo "       database it replaced is at ${superseded}. Inspect the service with" >&2
-  echo "       scripts/host-diagnostics.sh; no old copies were pruned." >&2
+  crr_error "the service did not report ready within ~20s. The restored database is in place with its erasures re-applied, and backups resume. The database it replaced is at ${superseded}. Inspect the service with scripts/host-diagnostics.sh; no old copies were pruned."
   systemctl status footbag --no-pager -l >&2 || true
   exit 1
 fi
@@ -588,9 +588,9 @@ fi
 if declare -F prune_db_copies >/dev/null; then
   echo "==> Pruning database copies older than seven days"
   prune_db_copies "$DB_DIR" \
-    || echo "WARNING: pruning old database copies did not complete; some may remain in ${DB_DIR}. The restore itself succeeded." >&2
+    || crr_warn "pruning old database copies did not complete; some may remain in ${DB_DIR}. The restore itself succeeded."
 else
-  echo "WARNING: the copy-pruning helper did not arrive with this body; old database copies in ${DB_DIR} were left alone." >&2
+  crr_warn "the copy-pruning helper did not arrive with this body; old database copies in ${DB_DIR} were left alone."
 fi
 
 echo ""
@@ -603,3 +603,4 @@ echo "  It is the way back for seven days, after which the first deploy or"
 echo "  restore deletes it."
 echo "======================================================================"
 echo ""
+crr_finish

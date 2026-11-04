@@ -108,6 +108,8 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
+# shellcheck source=lib/closing-report.sh
+source "${REPO_ROOT}/scripts/lib/closing-report.sh"
 
 usage() {
   sed -n '2,/^set -eu/{/^set -eu/d;p;}' "$0" | sed 's/^# \{0,1\}//'
@@ -132,12 +134,12 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --check) CHECK_ONLY=1; shift ;;
     --aws) WITH_AWS=1; shift ;;
-    --account) ACCOUNT="${2:-}"; shift 2 || { echo "ERROR: --account requires an argument" >&2; exit 2; } ;;
-    --replace-key) REPLACE_KEY="${2:-}"; shift 2 || { echo "ERROR: --replace-key requires an argument" >&2; exit 2; } ;;
-    --profile) DEAD_PROFILE="${2:-}"; shift 2 || { echo "ERROR: --profile requires an argument" >&2; exit 2; } ;;
+    --account) ACCOUNT="${2:-}"; shift 2 || { cr_error "--account requires an argument"; exit 2; } ;;
+    --replace-key) REPLACE_KEY="${2:-}"; shift 2 || { cr_error "--replace-key requires an argument"; exit 2; } ;;
+    --profile) DEAD_PROFILE="${2:-}"; shift 2 || { cr_error "--profile requires an argument"; exit 2; } ;;
     --yes) ASSUME_YES="yes"; shift ;;
     -h|--help) usage 0 ;;
-    *) echo "ERROR: unknown argument '$1'" >&2; usage 2 >&2 ;;
+    *) cr_error "unknown argument '$1'"; usage 2 >&2 ;;
   esac
 done
 
@@ -146,33 +148,33 @@ done
 # spelling is one the acceptance never finds.
 if [[ -n "$ACCOUNT" ]]; then
   if (( ! WITH_AWS )); then
-    echo "ERROR: --account goes with --aws: a named key pair is for a" >&2
+    cr_error "--account goes with --aws: a named key pair is for a"
     echo "       dev-and-tester, who also needs the AWS CLI." >&2
     exit 2
   fi
   if [[ ! "$ACCOUNT" =~ ^[a-z][a-z0-9]*(_[a-z0-9]+)+$ || ${#ACCOUNT} -gt 32 ]]; then
-    echo "ERROR: '${ACCOUNT}' is not a usable account name: firstname_lastname in" >&2
+    cr_error "'${ACCOUNT}' is not a usable account name: firstname_lastname in"
     echo "       lower-case ASCII, at most 32 characters, as you will be onboarded." >&2
     exit 2
   fi
 fi
 if [[ -n "$REPLACE_KEY" ]]; then
   if [[ -z "$ACCOUNT" ]]; then
-    echo "ERROR: --replace-key goes with --account, which names the pair it replaces." >&2
+    cr_error "--replace-key goes with --account, which names the pair it replaces."
     exit 2
   fi
   if [[ "$REPLACE_KEY" != "retired" && ! "$REPLACE_KEY" =~ ^SHA256:[A-Za-z0-9+/]{43}$ ]]; then
-    echo "ERROR: --replace-key takes the SHA256 fingerprint of the pair to retire," >&2
+    cr_error "--replace-key takes the SHA256 fingerprint of the pair to retire,"
     echo "       as ssh-keygen -l prints it, or the word retired." >&2
     exit 2
   fi
 fi
 if [[ -n "$DEAD_PROFILE" && "$REPLACE_KEY" != "retired" ]]; then
-  echo "ERROR: --profile goes with --replace-key retired." >&2
+  cr_error "--profile goes with --replace-key retired."
   exit 2
 fi
 if [[ -n "$DEAD_PROFILE" && "$DEAD_PROFILE" != "$ACCOUNT" ]]; then
-  echo "ERROR: --profile names the account's own profile, ${ACCOUNT}. A different" >&2
+  cr_error "--profile names the account's own profile, ${ACCOUNT}. A different"
   echo "       profile proves nothing about whether this pair's identity is retired." >&2
   exit 2
 fi
@@ -190,7 +192,7 @@ PINNED_DOWNLOADS=(PYTHON_VERSION PYTHON_URL PYTHON_SHA256 NVM_VERSION NVM_URL NV
   GITLEAKS_VERSION GITLEAKS_URL GITLEAKS_SHA256 TERRAFORM_VERSION TERRAFORM_URL TERRAFORM_SHA256
   AWS_CLI_VERSION AWS_CLI_URL AWS_CLI_SHA256 JQ_VERSION JQ_URL JQ_SHA256
   AGE_VERSION AGE_URL AGE_SHA256 SQLITE_VERSION FFMPEG_VERSION)
-tool_pins_ok "${PINNED_DOWNLOADS[@]}" || exit 1
+tool_pins_ok "${PINNED_DOWNLOADS[@]}" || cr_die "the tool-version list is not usable (reason above); nothing was installed."
 for pin_key in "${PINNED_DOWNLOADS[@]}"; do
   tool_pin "$pin_key"
   printf -v "$pin_key" '%s' "$TOOL_PIN_VALUE"
@@ -218,7 +220,10 @@ GITHUB_GIT="${SETUP_DEV_GIT:-git}"
 NVM_DIR="${NVM_DIR:-${HOME}/.nvm}"
 for seam in SETUP_DEV_BIN_DIR SETUP_DEV_PYTHON_ROOT SETUP_DEV_APT SETUP_DEV_DPKG_QUERY SETUP_DEV_FETCH \
   SETUP_DEV_ALTERNATIVES SETUP_DEV_SYSTEM_PYTHON3 SETUP_DEV_DIST_PACKAGES SETUP_DEV_GIT; do
-  [[ -n "${!seam:-}" ]] && echo "SYNTHETIC: ${seam} is set -- this run proves nothing about this machine." >&2
+  if [[ -n "${!seam:-}" ]]; then
+    echo "SYNTHETIC: ${seam} is set -- this run proves nothing about this machine." >&2
+    cr_unproved "what this machine holds: ${seam} stood in for it"
+  fi
 done
 
 # ── The pins must agree with what the push gate reads ────────────────────────
@@ -227,10 +232,10 @@ want_python="$(tr -d '[:space:]' 2>/dev/null < .python-version || true)"
 want_node="$(tr -d '[:space:]v' 2>/dev/null < .nvmrc || true)"
 want_gitleaks="$(_tool_report_pin GITLEAKS_VERSION .github/workflows/ci.yml)"
 want_terraform="$(_tool_report_pin terraform_version .github/workflows/ci.yml)"
-[[ "$want_python" == "$PYTHON_VERSION" ]] || { echo "ERROR: .python-version says ${want_python:-nothing}; this script installs ${PYTHON_VERSION}." >&2; pin_mismatch=1; }
-[[ -n "$want_node" ]] || { echo "ERROR: .nvmrc is missing or empty." >&2; pin_mismatch=1; }
-[[ "$want_gitleaks" == "$GITLEAKS_VERSION" ]] || { echo "ERROR: the workflow pins gitleaks ${want_gitleaks}; this script installs ${GITLEAKS_VERSION}." >&2; pin_mismatch=1; }
-[[ "$want_terraform" == "$TERRAFORM_VERSION" ]] || { echo "ERROR: the workflow pins Terraform ${want_terraform}; this script installs ${TERRAFORM_VERSION}." >&2; pin_mismatch=1; }
+[[ "$want_python" == "$PYTHON_VERSION" ]] || { cr_error ".python-version says ${want_python:-nothing}; this script installs ${PYTHON_VERSION}."; pin_mismatch=1; }
+[[ -n "$want_node" ]] || { cr_error ".nvmrc is missing or empty."; pin_mismatch=1; }
+[[ "$want_gitleaks" == "$GITLEAKS_VERSION" ]] || { cr_error "the workflow pins gitleaks ${want_gitleaks}; this script installs ${GITLEAKS_VERSION}."; pin_mismatch=1; }
+[[ "$want_terraform" == "$TERRAFORM_VERSION" ]] || { cr_error "the workflow pins Terraform ${want_terraform}; this script installs ${TERRAFORM_VERSION}."; pin_mismatch=1; }
 if (( pin_mismatch )); then
   echo "       Update the pinned lines in ops/tool-versions.env to match. Nothing changed." >&2
   exit 1
@@ -298,14 +303,14 @@ KEY_ACTION=""
 KEY_NOTE=""
 if [[ -n "$ACCOUNT" ]]; then
   if [[ -e "$NAMED_KEY" && ! -e "${NAMED_KEY}.pub" ]] || [[ ! -e "$NAMED_KEY" && -e "${NAMED_KEY}.pub" ]]; then
-    echo "ERROR: only one half of a key pair is at ${NAMED_KEY_TILDE}. Move it aside," >&2
+    cr_error "only one half of a key pair is at ${NAMED_KEY_TILDE}. Move it aside,"
     echo "       or put its other half beside it, and re-run. Nothing changed." >&2
     exit 1
   fi
   if [[ -e "$NAMED_KEY" ]]; then
     current_sha="$(named_key_sha)" || current_sha=""
     if [[ -z "$current_sha" ]]; then
-      echo "ERROR: ssh-keygen cannot read ${NAMED_KEY_TILDE}.pub. Nothing changed." >&2
+      cr_error "ssh-keygen cannot read ${NAMED_KEY_TILDE}.pub. Nothing changed."
       exit 1
     fi
     if [[ "$REPLACE_KEY" == "retired" ]]; then
@@ -323,7 +328,7 @@ if [[ -n "$ACCOUNT" ]]; then
           KEY_NOTE="The pair at ${NAMED_KEY_TILDE} is ${current_sha}, not the one accepted (${marker}): it is kept."
         fi
       elif [[ -z "$DEAD_PROFILE" ]]; then
-        echo "ERROR: ${NAMED_KEY_TILDE} carries no acceptance marker, so nothing here says" >&2
+        cr_error "${NAMED_KEY_TILDE} carries no acceptance marker, so nothing here says"
         echo "       it was the pair an onboarding used. Name the account's profile so its" >&2
         echo "       identity can be proved retired first:" >&2
         echo "         --replace-key retired --profile ${ACCOUNT}" >&2
@@ -339,12 +344,12 @@ if [[ -n "$ACCOUNT" ]]; then
             echo "==> AWS refuses the ${DEAD_PROFILE} key as invalid: that identity is retired."
             ;;
           *"arn:aws:"*)
-            echo "ERROR: the ${DEAD_PROFILE} identity still works, so the pair at ${NAMED_KEY_TILDE}" >&2
+            cr_error "the ${DEAD_PROFILE} identity still works, so the pair at ${NAMED_KEY_TILDE}"
             echo "       is not retired. Offboard first; nothing changed." >&2
             exit 1
             ;;
           *)
-            echo "ERROR: could not prove the ${DEAD_PROFILE} identity retired:" >&2
+            cr_error "could not prove the ${DEAD_PROFILE} identity retired:"
             printf '         %s\n' "$dead_out" >&2
             echo "       Only AWS refusing the key as invalid counts. Nothing changed." >&2
             exit 1
@@ -376,7 +381,7 @@ DEVTESTER_URL=""
 if [[ -L "$DEVTESTER_LINK" && -d "$DEVTESTER_LINK" ]]; then
   :
 elif [[ -e "$DEVTESTER_LINK" && ! -L "$DEVTESTER_LINK" ]]; then
-  echo "ERROR: ${DEVTESTER_LINK} exists and is not a link. Move it aside and re-run." >&2
+  cr_error "${DEVTESTER_LINK} exists and is not a link. Move it aside and re-run."
   echo "       Nothing changed." >&2
   exit 1
 elif [[ -d "${DEVTESTER_DIR}/.git" ]]; then
@@ -434,29 +439,35 @@ else
   printf '  %s\n' "${PLAN[@]}"
 fi
 [[ -n "$KEY_NOTE" ]] && echo "  ${KEY_NOTE}"
-[[ -n "$DEVTESTER_NOTE" ]] && echo "  ${DEVTESTER_NOTE}"
-tool_ok docker || echo "  Docker is not ready and is not installed by this script: see the container runtime section of the developer onboarding guide."
+if [[ -n "$DEVTESTER_NOTE" ]]; then
+  echo "  ${DEVTESTER_NOTE}"
+  cr_warn "$DEVTESTER_NOTE"
+fi
+if ! tool_ok docker; then
+  echo "  Docker is not ready and is not installed by this script: see the container runtime section of the developer onboarding guide."
+  cr_warn "Docker is not ready and is not installed by this script; the pinned sqlite3 and ffmpeg builds need it."
+fi
 
 if (( CHECK_ONLY )); then
-  (( ${#PLAN[@]} == 0 )) && exit 0
-  exit 1
+  (( ${#PLAN[@]} == 0 )) && cr_finish
+  cr_die "${#PLAN[@]} item(s) above still to install; --check changes nothing."
 fi
 if (( ${#PLAN[@]} > 0 )); then
   if ! confirm_from_tty "Type 'APPLY' to install the above: " "APPLY"; then
-    echo "Not confirmed; nothing has been changed." >&2
+    cr_error "Not confirmed; nothing has been changed."
     exit 1
   fi
 fi
 
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/footbag-setup.XXXXXX")"
-trap 'rm -rf "$WORK"' EXIT INT TERM
+cr_cleanup rm -rf "$WORK"
 
 # Downloads a pinned file and refuses it unless its checksum matches.
 fetch_verified() {
   local url="$1" sha="$2" out="$3"
   $FETCH "$out" "$url"
   if [[ "$(sha256sum "$out" | cut -d' ' -f1)" != "$sha" ]]; then
-    echo "ERROR: ${url} does not match its pinned checksum. Nothing from it was installed." >&2
+    cr_error "${url} does not match its pinned checksum. Nothing from it was installed."
     exit 1
   fi
 }
@@ -468,7 +479,7 @@ if ! system_python_ok; then
   distro_py="$(dirname "$SYSTEM_PYTHON3")/$(distro_python)"
   echo "==> system python3 -> ${distro_py}"
   if [[ ! -x "$distro_py" ]]; then
-    echo "ERROR: apt's module is built for ${distro_py}, which is not installed. Reinstall Ubuntu's python3 package, then re-run. Nothing changed." >&2
+    cr_error "apt's module is built for ${distro_py}, which is not installed. Reinstall Ubuntu's python3 package, then re-run. Nothing changed."
     exit 1
   fi
   # --set only chooses among registered alternatives; a python3 repointed by
@@ -478,7 +489,7 @@ if ! system_python_ok; then
   fi
   $ALTERNATIVES --set python3 "$distro_py"
   if ! system_python_ok; then
-    echo "ERROR: the system python3 still cannot load apt's module after pointing it at ${distro_py}." >&2
+    cr_error "the system python3 still cannot load apt's module after pointing it at ${distro_py}."
     exit 1
   fi
 fi
@@ -490,7 +501,7 @@ if (( ${#MISSING_APT[@]} )); then
   # repository with a stale signing key, or a post-update hook that crashes.
   # It is not the verdict; the install below and the final check are.
   if ! $APT update; then
-    echo "WARNING: apt update reported errors (above); installing from the package lists apt has." >&2
+    cr_warn "apt update reported errors (above); installing from the package lists apt has."
   fi
   $APT install -y "${MISSING_APT[@]}"
 fi
@@ -592,7 +603,7 @@ if [[ "$KEY_ACTION" == "replace" ]]; then
   # The acceptance marker describes the pair it sits beside, so it goes with it.
   [[ -e "${NAMED_KEY}.onboarded" ]] && mv -n -- "${NAMED_KEY}.onboarded" "${retired}.onboarded"
   if [[ -e "$NAMED_KEY" || -e "${NAMED_KEY}.pub" ]]; then
-    echo "ERROR: could not move ${NAMED_KEY_TILDE} aside. Nothing was created." >&2
+    cr_error "could not move ${NAMED_KEY_TILDE} aside. Nothing was created."
     exit 1
   fi
   echo "==> ${REPLACE_KEY} set aside as ${retired}"
@@ -618,29 +629,30 @@ fi
 # ── Verify the outcome ───────────────────────────────────────────────────────
 echo ""
 remaining=0
-system_python_ok || { echo "  still broken: the system python3 cannot load apt's module" >&2; remaining=1; }
-legacy_env_ok || { echo "  still broken: the legacy pipeline Python environment" >&2; remaining=1; }
-seeder_env_ok || { echo "  still broken: the seeder Python environment (scripts/.venv)" >&2; remaining=1; }
-python_ok || { echo "  still missing: CPython ${PYTHON_VERSION}" >&2; remaining=1; }
-node_ok || { echo "  still missing: Node ${want_node} (open a new shell so nvm is on PATH, then re-run)" >&2; remaining=1; }
-npm_deps_current "$REPO_ROOT" || { echo "  still missing: npm dependencies at the lockfile's versions" >&2; remaining=1; }
-chromium_ok || { echo "  still missing: Playwright's Chromium" >&2; remaining=1; }
+system_python_ok || { cr_error "still broken: the system python3 cannot load apt's module"; remaining=1; }
+legacy_env_ok || { cr_error "still broken: the legacy pipeline Python environment"; remaining=1; }
+seeder_env_ok || { cr_error "still broken: the seeder Python environment (scripts/.venv)"; remaining=1; }
+python_ok || { cr_error "still missing: CPython ${PYTHON_VERSION}"; remaining=1; }
+node_ok || { cr_error "still missing: Node ${want_node} (open a new shell so nvm is on PATH, then re-run)"; remaining=1; }
+npm_deps_current "$REPO_ROOT" || { cr_error "still missing: npm dependencies at the lockfile's versions"; remaining=1; }
+chromium_ok || { cr_error "still missing: Playwright's Chromium"; remaining=1; }
 if (( WITH_AWS )) && ! aws_ok; then
-  echo "  still missing: AWS CLI ${AWS_CLI_VERSION} (an older one earlier on PATH shadows ${BIN_DIR}/aws)" >&2
+  cr_error "still missing: AWS CLI ${AWS_CLI_VERSION} (an older one earlier on PATH shadows ${BIN_DIR}/aws)"
   remaining=1
 fi
 if [[ -n "$DEVTESTER_ACTION" ]] && ! git -C "$DEVTESTER_LINK" rev-parse --git-dir >/dev/null 2>&1; then
-  echo "  still missing: ${DEVTESTER_LINK}, the link to the dev-tester clone" >&2
+  cr_error "still missing: ${DEVTESTER_LINK}, the link to the dev-tester clone"
   remaining=1
 fi
-# The report names what is left; the loop below is what decides the verdict.
+# The report names what is left; the loop below is what decides the verdict, and
+# lists each pinned tool still missing in the closing report.
 tool_report node python3 sqlite3 ffmpeg ffprobe jq age docker gitleaks terraform || true
 for tool in sqlite3 ffmpeg ffprobe jq age gitleaks terraform; do
-  tool_ok "$tool" || remaining=1
+  tool_ok "$tool" || { cr_error "still missing: ${tool} at its pinned version"; remaining=1; }
 done
 case ":${PATH#"${BIN_DIR}:"}:" in
   *":${BIN_DIR}:"*) ;;
-  *) echo "  note: ${BIN_DIR} is not on your login PATH; Ubuntu adds it at the next login once it exists." ;;
+  *) cr_warn "${BIN_DIR} is not on your login PATH; Ubuntu adds it at the next login once it exists." ;;
 esac
 
 # What the holder who onboards them needs, read from the pair itself and from
@@ -650,10 +662,10 @@ if [[ -n "$ACCOUNT" ]]; then
   # would end the run there without the message below saying what is missing.
   key_sha="$(named_key_sha)" || key_sha=""
   if [[ ! -f "$NAMED_KEY" || -z "$key_sha" ]]; then
-    echo "  still missing: the key pair ${NAMED_KEY_TILDE}" >&2
+    cr_error "still missing: the key pair ${NAMED_KEY_TILDE}"
     remaining=1
   elif [[ -n "$REPLACE_KEY" && "$key_sha" == "$REPLACE_KEY" ]]; then
-    echo "  still in place: the retired pair ${REPLACE_KEY} at ${NAMED_KEY_TILDE}" >&2
+    cr_error "still in place: the retired pair ${REPLACE_KEY} at ${NAMED_KEY_TILDE}"
     remaining=1
   else
     address=""
@@ -661,7 +673,7 @@ if [[ -n "$ACCOUNT" ]]; then
       address="$(tr -d '[:space:]' < "$WORK/address")"
     fi
     if [[ ! "$address" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]]; then
-      echo "  could not read the address this machine connects from; re-run when online" >&2
+      cr_error "could not read the address this machine connects from; re-run when online"
       remaining=1
       address="unknown"
     else
@@ -672,6 +684,7 @@ if [[ -n "$ACCOUNT" ]]; then
     # it; said here, where it can still be removed before anything uses it.
     if ! ssh-keygen -y -P '' -f "$NAMED_KEY" >/dev/null 2>&1; then
       echo ""
+      cr_warn "your existing key ${NAMED_KEY_TILDE} has a passphrase, which every onboarding step and deploy will ask for; remove it with: ssh-keygen -p -f ${NAMED_KEY_TILDE} -N ''"
       echo "NOTE: your existing key ${NAMED_KEY_TILDE} has a passphrase. The staging"
       echo "key is meant to have none, and with one you will be asked for it again and"
       echo "again during onboarding and every deploy. Remove it now; the key and its"
@@ -702,3 +715,5 @@ if (( remaining )); then
   exit 1
 fi
 echo "Setup complete. Re-run any time; it installs only what is missing."
+cr_proved "every pinned tool and both Python environments answer at their pins"
+cr_finish

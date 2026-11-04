@@ -526,8 +526,15 @@ else
       cat "$REMOTE_HALF"
     } | "$HOST_SSH_BIN" "${HOST_SSH_OPTS[@]}" "$ALIAS" 'sudo -k -S -p "" bash'
   }
-  _host_read() { _host_send > "$HOST_LOG"; local rc="${PIPESTATUS[0]}"; grep -v -e '^---FOOTBAG-INSTALLED--- ' -- "$HOST_LOG" || true; return "$rc"; }
-  if cr_run --sentinels-only "host ${ALIAS}" -- _host_read >&2 && grep -qx -- '---FOOTBAG-LISTED---' "$HOST_LOG"; then
+  # Only the half's marked lines (the installed packages, the advisories, the
+  # completion marker) are written to $HOST_LOG; the session's other lines are
+  # shown and never written down. The installed-package lines are not shown.
+  : > "$HOST_LOG"
+  _host_read() {
+    _host_send | cr_keep_marked "$HOST_LOG" | { grep -v -e '^---FOOTBAG-INSTALLED--- ' || [[ $? == 1 ]]; }
+    return "${PIPESTATUS[0]}"
+  }
+  if cr_run_marked "host ${ALIAS}" -- _host_read >&2 && grep -qx -- '---FOOTBAG-LISTED---' "$HOST_LOG"; then
     # The listing's shape, from Amazon's own example: an advisory id, its
     # severity and type, and the package build that fixes it, one per line.
     sed -n 's/^---FOOTBAG-INSTALLED--- //p' "$HOST_LOG" \

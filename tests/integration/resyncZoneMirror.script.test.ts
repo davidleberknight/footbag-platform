@@ -152,6 +152,15 @@ function run(
 }
 
 const read = (path: string) => (existsSync(path) ? readFileSync(path, 'utf-8') : '');
+
+/** The closing report's list of errors or warnings, so a case asserts what it lists. */
+function reportList(stderr: string, heading: 'Errors' | 'Warnings'): string {
+  const at = stderr.search(new RegExp(`^${heading} \\(\\d+\\):$`, 'm'));
+  if (at === -1) return '';
+  const rest = stderr.slice(at);
+  const end = rest.slice(1).search(/^(Errors|Warnings|Proven:|Not proven:|No errors)/m);
+  return end === -1 ? rest : rest.slice(0, end + 1);
+}
 const reports = () => readdirSync(evidence).filter((f) => f.startsWith('mirror-comparison.'));
 const VALID = () => ['--target', 'production', '--capture', capture];
 
@@ -221,6 +230,11 @@ describe('resync-zone-mirror.sh: the apply gates the check', () => {
     expect(read(tfLog)).not.toMatch(/ apply \//);
     expect(read(digLog)).toBe('');
     expect(reports()).toEqual([]);
+    // Defect caught: the apply ends with a closing report of its own, so this
+    // run's report is not the last word and leaves the apply's refusal out.
+    expect(r.stderr.match(/^==== Closing report: /gm)).toHaveLength(1);
+    expect(r.stderr).toMatch(/^==== Closing report: resync-zone-mirror\.sh ====$/m);
+    expect(reportList(r.stderr, 'Errors')).toMatch(/terraform-apply\.sh: /);
   });
 });
 
@@ -244,6 +258,10 @@ describe('resync-zone-mirror.sh: the check is the verdict', () => {
     expect(r.stderr).toMatch(/does not answer what the capture holds/);
     expect(r.stdout).not.toMatch(/PASS/);
     expect(reports()).toHaveLength(1);
+    // Defect caught: the check's own findings stream past and the closing
+    // report names only the exit status, so the operator is not told which
+    // finding failed the run.
+    expect(reportList(r.stderr, 'Errors')).toMatch(/verify-zone-mirror: FAIL: 1 name\(s\) answer differently/);
   });
 
   it('never overwrites an earlier report from the same day', () => {

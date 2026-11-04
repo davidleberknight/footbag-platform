@@ -18,6 +18,8 @@
 # unpacked from an archive.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# shellcheck source=lib/closing-report.sh
+source scripts/lib/closing-report.sh
 
 if ! command -v git >/dev/null 2>&1 || ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   echo "→ Not a git checkout; no hooks to activate."
@@ -36,13 +38,18 @@ fi
 HOOKS_DIR=".githooks"
 
 if [ ! -d "$HOOKS_DIR" ]; then
-  echo "ERROR: $HOOKS_DIR does not exist; run this from a full checkout." >&2
-  exit 1
+  cr_die "$HOOKS_DIR does not exist; run this from a full checkout."
 fi
 
 echo "→ Activating repository git hooks"
 
-current="$(git config --get core.hooksPath || true)"
+# Exit 1 is git's answer for an unset key; any other failure is a configuration
+# git could not read, which setting the key over would only hide.
+current="$(git config --get core.hooksPath)" || {
+  rc=$?
+  (( rc == 1 )) || cr_die "git could not read core.hooksPath (exit ${rc}; its reason is above)."
+  current=""
+}
 if [ "$current" = "$HOOKS_DIR" ]; then
   echo "  hooks path already points at $HOOKS_DIR"
 else
@@ -64,9 +71,9 @@ done
 # Verify rather than assume.
 verified="$(git config --get core.hooksPath || true)"
 if [ "$verified" != "$HOOKS_DIR" ]; then
-  echo "ERROR: hooks path is '$verified' after configuring it; activation failed." >&2
-  exit 1
+  cr_die "hooks path is '$verified' after configuring it; activation failed."
 fi
+cr_proved "core.hooksPath reads back as ${HOOKS_DIR}"
 
 echo
 echo "  Active hooks:"
@@ -85,10 +92,9 @@ if command -v gitleaks >/dev/null 2>&1; then
 elif command -v docker >/dev/null 2>&1; then
   echo "  Secret scanner: docker. Commits will be scanned and refused on a finding."
 else
-  echo "  Secret scanner: NOT AVAILABLE on this machine."
-  echo "  The commit hook will warn and allow rather than block. Install gitleaks,"
-  echo "  or start docker, for the commit-time scan to actually protect you."
+  cr_warn "no secret scanner on this machine (neither gitleaks nor docker): the commit hook will warn and allow rather than block. Install gitleaks, or start docker, for the commit-time scan to protect you."
 fi
 
 echo
 echo "  Done. To undo: git config --unset core.hooksPath"
+cr_finish

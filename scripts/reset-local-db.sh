@@ -8,6 +8,17 @@
 #   FOOTBAG_DB_PATH=./custom.db ./scripts/reset-local-db.sh
 
 set -euo pipefail
+# shellcheck source=lib/closing-report.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/closing-report.sh"
+
+# Every Python loader runs with its output shown and then read, so an error
+# line, a warning line or a skipped row it printed is listed in the closing
+# report; a non-zero exit fails the reset there. The loaders mark a row they
+# could not take with a bare SKIP, which the shared notice grammar does not match.
+LOADER_WARNINGS="${FOOTBAG_NOTICE_GRAMMAR}|(^|[[:space:]])SKIP[: ]"
+load() {
+  cr_run --warnings "$LOADER_WARNINGS" "$(basename "$1")" -- "${PYTHON}" "$@"
+}
 
 # Refuse to run against any environment that smells like staging or production.
 # Positive guards only -- no --force or CI=true escape hatch by design. If you
@@ -20,32 +31,30 @@ if [[ "${NODE_ENV:-}" == "production" ]] \
   || [[ -z "${_GUARD_DB_PATH}" ]] \
   || [[ "${_GUARD_DB_PATH}" == "/" ]] \
   || [[ "${_GUARD_DB_PATH}" == /srv/footbag/* ]]; then
-  echo "refusing to reset DB: this script is dev-only." >&2
-  echo "  NODE_ENV=${NODE_ENV:-} FOOTBAG_ENV=${FOOTBAG_ENV:-} FOOTBAG_DB_PATH=${_GUARD_DB_PATH}" >&2
+  cr_error "refusing to reset DB: this script is dev-only (NODE_ENV=${NODE_ENV:-} FOOTBAG_ENV=${FOOTBAG_ENV:-} FOOTBAG_DB_PATH=${_GUARD_DB_PATH})"
   exit 2
 fi
 unset _GUARD_DB_PATH
 
 if ! command -v sqlite3 &>/dev/null; then
-  echo "Error: sqlite3 CLI not found. Install it first:"
+  cr_error "sqlite3 CLI not found. Install it first:"
   echo "  Ubuntu/Debian: bash scripts/setup-dev-workstation.sh"
   echo "  macOS:         brew install sqlite3"
   exit 1
 fi
 
 if ! command -v python3 &>/dev/null; then
-  echo "Error: python3 not found. Install it first: bash scripts/setup-dev-workstation.sh"
-  exit 1
+  cr_die "python3 not found. Install it first: bash scripts/setup-dev-workstation.sh"
 fi
 
 # A dev-looking path can still hold a copy of the live database (a restored
 # snapshot). The in-database post-cutover marker travels with such copies; the
 # shared guard refuses them before the slate step deletes anything. SEC-DB01's
 # env/path checks above stay as defense in depth.
-"$(dirname "${BASH_SOURCE[0]}")/internal/assert-db-pre-cutover.sh" "${FOOTBAG_DB_PATH:-./database/footbag.db}"
+cr_run "pre-cutover guard" -- "$(dirname "${BASH_SOURCE[0]}")/internal/assert-db-pre-cutover.sh" "${FOOTBAG_DB_PATH:-./database/footbag.db}"
 
 if [[ "${CURATOR_SEED:-yes}" != "no" ]] && ! command -v ffmpeg &>/dev/null; then
-  echo "Error: ffmpeg not found, but the curator seed needs it to transcode the demo videos."
+  cr_error "ffmpeg not found, but the curator seed needs it to transcode the demo videos."
   echo "  Ubuntu/Debian: bash scripts/setup-dev-workstation.sh"
   echo "  macOS:         brew install ffmpeg"
   echo "  Or skip the curator seed: CURATOR_SEED=no bash scripts/reset-local-db.sh"
@@ -78,7 +87,7 @@ for _f in "${CANONICAL_INPUT_DIR}/events.csv" \
   [[ -f "${_f}" ]] || _missing+=("${_f}")
 done
 if [[ ${#_missing[@]} -gt 0 ]]; then
-  echo "ERROR: required local file(s) not present:" >&2
+  cr_error "required local file(s) not present: ${_missing[*]}"
   for _f in "${_missing[@]}"; do echo "  MISSING: ${_f}" >&2; done
   echo "" >&2
   echo "Recommendation:" >&2
@@ -90,7 +99,7 @@ fi
 # Built or repaired, installed and proved by the shared seeder-environment step.
 # shellcheck source=lib/seeder-env.sh
 source scripts/lib/seeder-env.sh
-seeder_env_ensure "$PWD" || exit 1
+seeder_env_ensure "$PWD" || cr_die "the seeder Python environment could not be built or proved (reason above)."
 
 PYTHON="${VENV}/bin/python3"
 
@@ -166,7 +175,7 @@ fi
 # 'legacy_site_data'. A fixture it leaves behind is an uncovered row, and a
 # production database ships only once each one carries a recorded decision.
 echo "  → Seeding legacy_members fixtures from the club rosters and canonical persons..."
-"${PYTHON}" legacy_data/scripts/load_legacy_members_seed.py --db "${DB_FILE}"
+load legacy_data/scripts/load_legacy_members_seed.py --db "${DB_FILE}"
 }
 
 phase_canonical_seed() {
@@ -174,7 +183,7 @@ phase_canonical_seed() {
 # on persons, which the /history Players query requires. This replaces the prior
 # cp-based shortcut, which dropped source_scope and broke the /history listing.
 echo "  → Building seed CSVs from canonical input..."
-"${PYTHON}" legacy_data/event_results/scripts/07_build_mvfp_seed_full.py \
+load legacy_data/event_results/scripts/07_build_mvfp_seed_full.py \
   --input-dir "${CANONICAL_INPUT_DIR}" \
   --output-dir "${SEED_DIR}"
 
@@ -182,7 +191,7 @@ echo "  → Building seed CSVs from canonical input..."
 # Footbag Hacky historical person, which load unconditionally in every
 # environment so the system account's identity link resolves.
 echo "  → Loading seed data into database..."
-"${PYTHON}" legacy_data/event_results/scripts/08_load_mvfp_seed_full_to_sqlite.py \
+load legacy_data/event_results/scripts/08_load_mvfp_seed_full_to_sqlite.py \
   --db "${DB_FILE}" \
   --seed-dir "${SEED_DIR}"
 }
@@ -199,25 +208,25 @@ PYTHON="${PYTHON}" bash freestyle/run_freestyle.sh "${DB_FILE}"
 # Seed name_variants (HIGH-confidence only; MEDIUM rows are deferred to a
 # review artifact). Required for verify-time auto-link tier1/tier2 matching.
 echo "  → Loading name_variants seed..."
-"${PYTHON}" legacy_data/scripts/load_name_variants_seed.py \
+load legacy_data/scripts/load_name_variants_seed.py \
   --db "${DB_FILE}" \
   --apply
 
 echo "  → Loading given_name_variants..."
-"${PYTHON}" legacy_data/scripts/load_given_name_variants_to_sqlite.py \
+load legacy_data/scripts/load_given_name_variants_to_sqlite.py \
   --db "${DB_FILE}"
 
 # Load club seed data into database (CSV is preflight-required; produced
 # upstream by legacy_data/scripts/extract_clubs.py and committed under
 # legacy_data/seed/clubs.csv).
 echo "  → Loading club seed data into database..."
-"${PYTHON}" legacy_data/scripts/load_clubs_seed.py --db "${DB_FILE}"
+load legacy_data/scripts/load_clubs_seed.py --db "${DB_FILE}"
 
 # Load club member data into database (CSV is preflight-required; produced
 # upstream by legacy_data/scripts/extract_club_members.py and committed under
 # legacy_data/seed/club_members.csv).
 echo "  → Loading club member data into database..."
-"${PYTHON}" legacy_data/scripts/load_club_members_seed.py --db "${DB_FILE}"
+load legacy_data/scripts/load_club_members_seed.py --db "${DB_FILE}"
 
 # Club enrichment load. Reads classifier output CSVs from
 # legacy_data/clubs/out/ + legacy_data/persons/out/ and DELETE+INSERTs the
@@ -228,7 +237,7 @@ if [[ -f legacy_data/clubs/out/legacy_club_candidates.csv \
    && -f legacy_data/clubs/out/legacy_person_club_affiliations.csv \
    && -f legacy_data/persons/out/persons_master.csv ]]; then
   echo "  → Loading club enrichment..."
-  "${PYTHON}" legacy_data/event_results/scripts/09_load_enrichment_to_sqlite.py \
+  load legacy_data/event_results/scripts/09_load_enrichment_to_sqlite.py \
     --db "${DB_FILE}" \
     --persons-csv      legacy_data/persons/out/persons_master.csv \
     --candidates-csv   legacy_data/clubs/out/legacy_club_candidates.csv \
@@ -246,7 +255,7 @@ if [[ -f legacy_data/seed/clubs.csv ]]; then
   # --apply because the loader defaults to a dry run: it plans, writes its audit
   # and rollback artifacts, and stops. Opting in is the orchestrator's job, and a
   # rebuild that omitted the flag would report success having stamped nothing.
-  "${PYTHON}" legacy_data/clubs/scripts/06_cutover_pre_populated_clubs.py \
+  load legacy_data/clubs/scripts/06_cutover_pre_populated_clubs.py \
     --db "${DB_FILE}" \
     --apply \
     --audit-out legacy_data/clubs/out/club_cutover_audit.csv \
@@ -262,7 +271,7 @@ fi
 # the CSV is owned by the James-track classifier and is not regenerated here.
 if [[ -f legacy_data/clubs/out/club_bootstrap_leaders.csv ]]; then
   echo "  → Loading club bootstrap leaders..."
-  "${PYTHON}" legacy_data/clubs/scripts/07_load_bootstrap_leaders.py \
+  load legacy_data/clubs/scripts/07_load_bootstrap_leaders.py \
     --db "${DB_FILE}" \
     --apply \
     --audit-out legacy_data/clubs/out/bootstrap_leaders_audit.csv \
@@ -279,7 +288,7 @@ fi
 # owned by the James-track classifier and is not regenerated here.
 if [[ -f legacy_data/clubs/out/club_bootstrap_leader_signals.csv ]]; then
   echo "  → Loading club bootstrap leader signals..."
-  "${PYTHON}" legacy_data/clubs/scripts/07a_load_bootstrap_leader_signals.py \
+  load legacy_data/clubs/scripts/07a_load_bootstrap_leader_signals.py \
     --db "${DB_FILE}" \
     --apply \
     --audit-out legacy_data/clubs/out/bootstrap_leader_signals_audit.csv \
@@ -300,13 +309,13 @@ fi
 # curator rows change).
 if [[ "${CURATOR_SEED:-yes}" != "no" ]]; then
   echo "  → Seeding FH (Footbag Hacky) and curator content..."
-  "${PYTHON}" scripts/seed_fh_curator.py --db "${DB_FILE}"
+  load scripts/seed_fh_curator.py --db "${DB_FILE}"
   # The media-tag invariant runs inside the freestyle refresh above, before any
   # media exists, so on a reset it sees an empty table. Run it again here, after
   # the only step that writes media rows, and require that there are rows: a
   # violation in what the curator seed produced fails the reset.
   echo "  → Checking the media-tag invariant over the seeded curator media..."
-  "${PYTHON}" freestyle/loaders/25_qc_media_tag_invariant.py --db "${DB_FILE}" --require-items
+  load freestyle/loaders/25_qc_media_tag_invariant.py --db "${DB_FILE}" --require-items
   # Rows and bytes are written by the same seed but read by different things: the
   # page by row, the browser by file. A row whose file is missing renders a
   # broken card and fails nothing else, so prove every stored-bytes reference and
@@ -317,16 +326,17 @@ if [[ "${CURATOR_SEED:-yes}" != "no" ]]; then
   MEDIA_CHECK_CMD="${RESET_MEDIA_CHECK_CMD:-scripts/check-media-integrity.sh}"
   if [[ -n "${RESET_MEDIA_CHECK_CMD:-}" ]]; then
     echo "SYNTHETIC: media integrity check replaced by RESET_MEDIA_CHECK_CMD=${RESET_MEDIA_CHECK_CMD}" >&2
+    cr_unproved "whether the seeded media resolves: RESET_MEDIA_CHECK_CMD stood in for the checker"
   fi
   MEDIA_CHECK_STATUS=0
   FOOTBAG_DB_PATH="${DB_FILE}" bash "${MEDIA_CHECK_CMD}" || MEDIA_CHECK_STATUS=$?
   if (( MEDIA_CHECK_STATUS == 1 )); then
-    echo "ERROR: seeded media rows name files the local media store does not hold." >&2
+    cr_error "seeded media rows name files the local media store does not hold."
     echo "       Those images, posters or videos will not load. The missing keys are" >&2
     echo "       listed above; re-run this reset once the curator seed can write them." >&2
     exit 1
   elif (( MEDIA_CHECK_STATUS != 0 )); then
-    echo "ERROR: the media integrity check could not run (exit ${MEDIA_CHECK_STATUS})." >&2
+    cr_error "the media integrity check could not run (exit ${MEDIA_CHECK_STATUS})."
     echo "       Whether the seeded media resolves is unknown; the reason is above." >&2
     exit 1
   fi
@@ -338,13 +348,13 @@ fi
 # service renders every outbound message from these rows, so a database
 # without them cannot send mail. Reconciles the table to the sidecar set.
 echo "  → Seeding email templates..."
-"${PYTHON}" scripts/seed_email_templates.py --db "${DB_FILE}"
+load scripts/seed_email_templates.py --db "${DB_FILE}"
 
 # Rebuild tag_stats (denormalized tag discovery cache) after all seeders.
 # Uses inline Python + SQLite (matching every other seeder step) to avoid
 # pulling in the full app env.ts config chain that npx tsx would require.
 echo "  → Rebuilding tag stats..."
-"${PYTHON}" - "${DB_FILE}" <<'PYEOF'
+cr_run --warnings "$LOADER_WARNINGS" "tag stats" -- "${PYTHON}" - "${DB_FILE}" <<'PYEOF'
 import sys, sqlite3, datetime
 db_path = sys.argv[1]
 con = sqlite3.connect(db_path)
@@ -401,7 +411,8 @@ case "${1:-all}" in
   --post-canonical) phase_post_canonical ;;
   all|"")           phase_slate; phase_canonical_seed; phase_post_canonical ;;
   *)
-    echo "usage: $(basename "$0") [--slate|--post-canonical]" >&2
+    cr_error "unknown argument '${1}'; usage: $(basename "$0") [--slate|--post-canonical]"
     exit 1
     ;;
 esac
+cr_finish

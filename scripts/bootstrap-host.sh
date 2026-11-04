@@ -573,6 +573,7 @@ sqlite3_assignment() {
 }
 
 PROVISION_HALF="${SCRIPT_DIR}/internal/bootstrap-host-provision-remote.sh"
+DNF_PARSER="${SCRIPT_DIR}/internal/dnf-check-update-remote.sh"
 ACCOUNT_HALF="${SCRIPT_DIR}/internal/bootstrap-host-account-remote.sh"
 REBOOT_HALF="${SCRIPT_DIR}/internal/bootstrap-host-reboot-remote.sh"
 
@@ -585,6 +586,7 @@ provision_send() {
     if [[ "$mode" == "packages" || "$mode" == "preview" ]]; then printf '%s\n' "$PIN_ASSIGNMENTS"; fi
     if [[ "$mode" == "packages" ]]; then printf '%s\n' "$SQLITE_LINE"; fi
     cat "$REMOTE_REPORT_LIB"
+    cat "$DNF_PARSER"
     cat "$PROVISION_HALF"
   } | "$HOST_SSH_BIN" "${HOST_SSH_OPTS[@]}" "$ALIAS" 'sudo -k -S -p "" bash -s footbag-bootstrap-provision'
 }
@@ -600,7 +602,7 @@ provision() {
     fi
     SQLITE_LINE="$(sqlite3_assignment)" || cr_die "the pinned sqlite3 could not be built; nothing was sent to the host."
   fi
-  cr_run --sentinels-only "provision ${mode}" -- provision_send "$mode"
+  cr_run_marked "provision ${mode}" -- provision_send "$mode"
 }
 
 # A host step that changes something is preceded by this. Before the record

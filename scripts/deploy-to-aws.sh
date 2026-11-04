@@ -24,6 +24,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
+# One closing report for the run. The leaves it runs are on the same library, so
+# their errors and warnings are listed here, or in the report of the entry point
+# that started this, rather than in a report of their own.
+# shellcheck source=lib/closing-report.sh
+source "${SCRIPT_DIR}/lib/closing-report.sh"
+
 usage() {
   cat <<'USAGE'
 Usage: bash deploy_to_aws.sh [flags]                       (recommended)
@@ -257,7 +263,7 @@ done
 
 set_mode() {
   if [[ -n "$MODE" ]]; then
-    echo "ERROR: $1 conflicts with prior mode flag" >&2
+    cr_error "$1 conflicts with prior mode flag"
     exit 1
   fi
   MODE="$2"
@@ -283,7 +289,7 @@ for arg in "${EXPANDED_ARGS[@]+"${EXPANDED_ARGS[@]}"}"; do
     --no-media)            NO_MEDIA_FLAG="yes" ;;
     --no-personas)         NO_PERSONAS_FLAG="yes" ;;
     *)
-      echo "ERROR: unknown flag '$arg'" >&2
+      cr_error "unknown flag '$arg'"
       echo "" >&2
       usage >&2
       exit 1
@@ -298,7 +304,7 @@ _rebuild_modes=0
 [[ "$ALL_DATA" == "yes" ]]     && _rebuild_modes=$((_rebuild_modes + 1))
 [[ "$PUBLIC_DATA" == "yes" ]]  && _rebuild_modes=$((_rebuild_modes + 1))
 if (( _rebuild_modes > 1 )); then
-  echo "ERROR: --from-csv, --soup-to-nuts, --all-data, and --public-data are mutually exclusive." >&2
+  cr_error "--from-csv, --soup-to-nuts, --all-data, and --public-data are mutually exclusive."
   exit 1
 fi
 # Any database rebuild, whichever source it builds from.
@@ -306,11 +312,11 @@ ANY_REBUILD="no"
 (( _rebuild_modes == 1 )) && ANY_REBUILD="yes"
 if [[ "$ANY_REBUILD" == "yes" ]]; then
   if [[ "$MODE" == "reuse" ]]; then
-    echo "ERROR: --from-csv / --soup-to-nuts / --all-data / --public-data conflict with -r/--reuse-local-db (cannot rebuild and reuse simultaneously)." >&2
+    cr_error "--from-csv / --soup-to-nuts / --all-data / --public-data conflict with -r/--reuse-local-db (cannot rebuild and reuse simultaneously)."
     exit 1
   fi
   if [[ "$MODE" == "keep" ]]; then
-    echo "ERROR: --from-csv / --soup-to-nuts / --all-data / --public-data conflict with -k/--keep-staging-db (rebuild has no effect when staging DB is untouched). Use ./run_dev.sh --all-data to rebuild locally without deploying." >&2
+    cr_error "--from-csv / --soup-to-nuts / --all-data / --public-data conflict with -k/--keep-staging-db (rebuild has no effect when staging DB is untouched). Use ./run_dev.sh --all-data to rebuild locally without deploying."
     exit 1
   fi
 fi
@@ -319,7 +325,7 @@ fi
 # built once, from everything, at the cutover; a public-only build there would
 # replace the real members with placeholders.
 if [[ "$PUBLIC_DATA" == "yes" &&"${DEPLOY_TARGET:-footbag-staging}" != "footbag-staging" ]]; then
-  echo "ERROR: --public-data is staging only. Production's database is built from the full" >&2
+  cr_error "--public-data is staging only. Production's database is built from the full"
   echo "       sources, never from the public inputs alone." >&2
   exit 1
 fi
@@ -329,7 +335,7 @@ fi
 # rather than reading as a cutover that asserted something.
 if [[ "$FINAL_MEMBER_LOAD" == "yes" ]] && \
    [[ "${DEPLOY_TARGET:-footbag-staging}" != "footbag-production" || "$ALL_DATA" != "yes" ]]; then
-  echo "ERROR: --final-member-load is only meaningful on a production --all-data deploy." >&2
+  cr_error "--final-member-load is only meaningful on a production --all-data deploy."
   exit 1
 fi
 
@@ -339,23 +345,23 @@ fi
 # deploy_to_aws.sh, so a direct invocation of this orchestrator cannot reach one.
 if [[ "${DEPLOY_TARGET:-footbag-staging}" == "footbag-production" ]]; then
   if [[ "$SOUP_TO_NUTS" == "yes" ]]; then
-    echo "ERROR: --soup-to-nuts is not a production mode: it rebuilds from the legacy mirror, and" >&2
+    cr_error "--soup-to-nuts is not a production mode: it rebuilds from the legacy mirror, and"
     echo "       production's database is built from committed inputs only. Use --all-data." >&2
     exit 1
   fi
   if [[ "$FROM_CSV" == "yes" ]]; then
-    echo "ERROR: --from-csv alone is not a production mode: production's database is all the" >&2
+    cr_error "--from-csv alone is not a production mode: production's database is all the"
     echo "       data, member intake included. Use --all-data." >&2
     exit 1
   fi
   if [[ "$MODE" == "reuse" ]]; then
-    echo "ERROR: -r/--reuse-local-db is not a production mode: production never ships an existing" >&2
+    cr_error "-r/--reuse-local-db is not a production mode: production never ships an existing"
     echo "       local database, which may carry test personas or development settings. Its" >&2
     echo "       database is built in the run, by --all-data." >&2
     exit 1
   fi
   if [[ "$SEED_TEST_PERSONAS" == "yes" || "$REFRESH_ASKED_EXPLICITLY" == "yes" ]]; then
-    echo "ERROR: the test personas never reach production. Remove --seed-test-personas and" >&2
+    cr_error "the test personas never reach production. Remove --seed-test-personas and"
     echo "       --refresh-test-personas." >&2
     exit 1
   fi
@@ -363,15 +369,15 @@ fi
 
 # Opt-out / opt-in conflicts.
 if [[ "$SYNC_MEDIA_FLAG" == "yes" && "$NO_MEDIA_FLAG" == "yes" ]]; then
-  echo "ERROR: -m/--sync-media and --no-media are contradictory." >&2
+  cr_error "-m/--sync-media and --no-media are contradictory."
   exit 1
 fi
 if [[ "$SEED_TEST_PERSONAS" == "yes" && "$NO_PERSONAS_FLAG" == "yes" ]]; then
-  echo "ERROR: --seed-test-personas and --no-personas are contradictory." >&2
+  cr_error "--seed-test-personas and --no-personas are contradictory."
   exit 1
 fi
 if [[ "$REFRESH_ASKED_EXPLICITLY" == "yes" && "$NO_REFRESH_FLAG" == "yes" ]]; then
-  echo "ERROR: --refresh-test-personas and --no-refresh-personas are contradictory." >&2
+  cr_error "--refresh-test-personas and --no-refresh-personas are contradictory."
   exit 1
 fi
 
@@ -382,7 +388,7 @@ fi
 # is a reason the refresh would do nothing useful or something unwanted.
 refresh_off() {  # $1 = reason shown either way
   if [[ "$REFRESH_ASKED_EXPLICITLY" == "yes" ]]; then
-    echo "ERROR: --refresh-test-personas $1" >&2
+    cr_error "--refresh-test-personas $1"
     exit 1
   fi
   if [[ "$REFRESH_TEST_PERSONAS" == "yes" ]]; then
@@ -427,11 +433,11 @@ fi
 # anywhere else is almost certainly an operator mistake: fail loud.
 if [[ "$SOUP_TO_NUTS" != "yes" ]]; then
   if [[ "$NO_MEDIA_FLAG" == "yes" && "$ANY_REBUILD" != "yes" ]]; then
-    echo "ERROR: --no-media is only meaningful with --from-csv, --all-data, --public-data, or --soup-to-nuts (the media sync is off by default otherwise)." >&2
+    cr_error "--no-media is only meaningful with --from-csv, --all-data, --public-data, or --soup-to-nuts (the media sync is off by default otherwise)."
     exit 1
   fi
   if [[ "$NO_PERSONAS_FLAG" == "yes" && "$ANY_REBUILD" != "yes" ]]; then
-    echo "ERROR: --no-personas is only meaningful with --from-csv, --all-data, --public-data, or --soup-to-nuts (personas are off by default otherwise)." >&2
+    cr_error "--no-personas is only meaningful with --from-csv, --all-data, --public-data, or --soup-to-nuts (personas are off by default otherwise)."
     exit 1
   fi
 fi
@@ -458,7 +464,7 @@ fi
 # Operator credential file must be on stdin (deploy_to_aws.sh wrapper supplies
 # it). Reject interactive stdin so we never hang waiting for a password.
 if [[ -t 0 ]]; then
-  echo "ERROR: must receive sudo password on stdin." >&2
+  cr_error "must receive sudo password on stdin."
   echo "       Run via: bash deploy_to_aws.sh ..." >&2
   echo "" >&2
   usage >&2
@@ -598,17 +604,27 @@ exec_step() {
     if [[ -n "${KEEP_MEDIA:-}" ]]; then
       echo "             with KEEP_MEDIA=$KEEP_MEDIA"
     fi
-    exit 0
+    cr_unproved "anything about the target: a dry run deploys nothing"
+    cr_finish
   fi
   # Inherit this orchestrator's stdin (the password line) and pass it through
   # to the leaf, which forwards via ssh to remote sudo -S. The password
   # remains in unnamed kernel pipes only; never lands in argv or a shell var.
+  # The leaf is on the report library too, so its problems are listed in this
+  # run's closing report.
   local rc=0
   "$@" || rc=$?
-  if (( rc == 0 )) && [[ "$PUBLIC_DATA" == "yes" ]]; then
-    public_data_warning now
+  if (( rc != 0 )); then
+    exit "$rc"
   fi
-  exit "$rc"
+  if [[ "$PUBLIC_DATA" == "yes" ]]; then
+    public_data_warning now
+    # Also listed in the closing report, which is what the operator reads last:
+    # the build succeeds and the site works, so nothing else would say why every
+    # real member has gone from staging.
+    cr_warn "staging now runs a database built from the committed public inputs only; the real legacy members, the roster enrichment, the account rulings and the board flags stay gone until a maintainer's --all-data rebuild"
+  fi
+  cr_finish
 }
 
 check_canonical_freshness() {
@@ -650,7 +666,7 @@ check_canonical_freshness() {
   if awk -v a="$inputs_latest" -v b="$ci_oldest" 'BEGIN{exit !(a > b)}'; then
     echo "" >&2
     echo "------------------------------------------------------------------------" >&2
-    echo "WARNING: canonical CSVs are older than pipeline inputs or code." >&2
+    cr_warn "canonical CSVs are older than pipeline inputs or code; the deploy uses the committed canonical_input CSVs."
     echo "" >&2
     echo "  Oldest canonical_input csv:    $(date -d @${ci_oldest%.*} '+%Y-%m-%d %H:%M:%S')" >&2
     echo "  Newest pipeline input or code: $(date -d @${inputs_latest%.*} '+%Y-%m-%d %H:%M:%S')" >&2

@@ -83,10 +83,16 @@ UPLOAD_MAX_ATTEMPTS=3
 fail() { echo "backup-db: $*" >&2; exit 1; }
 
 put_metric() {
-  # Best-effort: a metric-publish failure must not mask the backup outcome.
-  aws cloudwatch put-metric-data \
+  # Best-effort: a metric-publish failure must not mask the backup outcome. It
+  # is still logged with the CLI's own reason, because an alarm fed by a metric
+  # that silently stopped arriving reads as healthy or as missing data, and the
+  # journal is the only place that says why.
+  local err
+  if ! err="$(aws cloudwatch put-metric-data \
     --namespace "Footbag/${FOOTBAG_ENV}" \
-    --metric-name "$1" --value "$2" --unit None >/dev/null 2>&1 || true
+    --metric-name "$1" --value "$2" --unit None 2>&1 >/dev/null)"; then
+    echo "backup-db: metric $1 was not published: $(tail -n 1 <<<"${err:-no output from the aws CLI}")" >&2
+  fi
 }
 
 record_failure() {
@@ -160,7 +166,12 @@ done
 [[ "${uploaded}" -eq 1 ]] || record_failure "S3 upload failed after ${UPLOAD_MAX_ATTEMPTS} attempts"
 
 # 3. Success: clear the failure counter and refresh the health timestamp.
-echo "0" > "${FAIL_FILE}" 2>/dev/null || true
+# A counter left standing makes the next single failure count on top of it and
+# raise the failing-backup alarm early, so a failed reset is logged with the
+# shell's reason. It does not fail the run: the snapshot is already uploaded.
+if ! reset_err="$( { echo "0" > "${FAIL_FILE}"; } 2>&1 )"; then
+  echo "backup-db: consecutive-failure counter ${FAIL_FILE} was not reset: $(tail -n 1 <<<"${reset_err:-no message from the shell}")" >&2
+fi
 put_metric BackupConsecutiveFailures 0
 
 NOW_EPOCH=$(date -u +%s)

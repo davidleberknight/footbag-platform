@@ -327,6 +327,25 @@ describe.runIf(TOOLS_PRESENT)('pre-cutover checklist orchestrator', () => {
     expect(r.status).not.toBe(0);
     expect(r.stdout).toMatch(/GATE: G1 FAIL/);
     expect(r.stderr).toMatch(/BLOCKED: \d+ gate\(s\) FAIL/);
+    // Defect caught: the step prints its gates G1 to G6 in turn, and only the
+    // last line reached the summary, so the G1 failure printed ahead of a later
+    // passing gate was missing from the summary and from the closing report.
+    const summary = r.stdout.slice(r.stdout.indexOf('=== pre-cutover summary ==='));
+    expect(summary).toMatch(/^GATE: G1 FAIL/m);
+    const errors = r.stderr.slice(r.stderr.search(/^Errors \(\d+\):$/m));
+    expect(errors).toMatch(/^ {2}- G1 FAIL/m);
+  });
+
+  // Defect caught: gates that did no work are named only in the stream, and the
+  // closing report reads as a complete check.
+  it('lists every gate that did no work as a warning in the closing report', () => {
+    buildFixtureDb(dbPath);
+    const r = runChecklist(dbPath, snapshotDir);
+    expect(r.status, r.stderr).toBe(0);
+    const warnings = r.stderr.slice(r.stderr.search(/^Warnings \(\d+\):$/m));
+    for (const gate of ['DNS-TTL SKIPPED', 'QC-ABSENCE SKIPPED', 'CLAIM-SAFETY SKIP', 'G10-OUTBOX SKIP']) {
+      expect(warnings, gate).toContain(`- ${gate}`);
+    }
   });
 
   // Defect caught: a database the footbag.org export never reached goes into
@@ -422,9 +441,12 @@ describe.runIf(TOOLS_PRESENT)('a targeted run points each leg at the environment
   it('shreds the fetched env file on every exit path', () => {
     // It holds the host's entire secret set, so it is shredded on the trap that
     // already removes the pulled database rather than left for whatever runs next.
-    expect(SOURCE).toMatch(/trap cleanup_run_artifacts EXIT/);
+    // The shared closing-report library owns the traps and runs a registered
+    // cleanup on every exit path, an interrupt included.
+    expect(SOURCE).toMatch(/^source scripts\/lib\/closing-report\.sh$/m);
+    expect(SOURCE).toMatch(/^cr_cleanup cleanup_run_artifacts$/m);
     const cleanup = SOURCE.slice(SOURCE.indexOf('cleanup_run_artifacts() {'),
-                                 SOURCE.indexOf('trap cleanup_run_artifacts EXIT'));
+                                 SOURCE.indexOf('cr_cleanup cleanup_run_artifacts'));
     expect(cleanup).toMatch(/shred -u/);
     expect(cleanup).toContain('PAYMENTS_ENV_DIR');
   });

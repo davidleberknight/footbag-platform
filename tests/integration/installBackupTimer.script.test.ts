@@ -7,18 +7,21 @@
  * things are pinned instead. The --dry-run mode prints the command plan without
  * connecting, and the root-side body is a standalone file whose text can be
  * asserted directly, so a regression in the install sequence (unit paths,
- * reload, enable, first run) is caught without a host.
+ * reload, enable, first run) is caught without a host. And the send itself is
+ * run end to end against a stand-in ssh client and stand-in system tools,
+ * because what the run reports depends on what the host half marks.
  *
  * The wrapper must also refuse an interactive stdin rather than hanging: the
  * sudo password arrives as line one of the pipe, and a script that waits for a
  * password nobody is going to type is a script that parks a terminal.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { connectingAs, SHARED_ACCOUNT, NAMED_ACCOUNT } from '../fixtures/sshConfigStub';
-import { readFileSync } from 'node:fs';
+import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 const SCRIPT = join(process.cwd(), 'scripts/install-backup-timer.sh');
@@ -75,7 +78,10 @@ describe('install-backup-timer.sh — dry-run command plan', () => {
     // host-side artifact the script does not create.
     expect(result.stdout).not.toMatch(/\bscp\b/);
     expect(result.stdout).toMatch(/Nothing is staged on the host/);
-    expect(result.stdout).toMatch(/enable_backup_alarm = true in terraform\/staging\/terraform\.tfvars/);
+    // The follow-up is the script that makes the change, never a hand edit of
+    // the values file.
+    expect(result.stdout).toMatch(/set-terraform-gate\.sh --target staging --gate enable_backup_alarm --state on/);
+    expect(result.stdout).not.toMatch(/terraform\.tfvars/);
   });
 
   it('reaches the target\'s own alias, and takes no other', () => {
@@ -84,7 +90,7 @@ describe('install-backup-timer.sh — dry-run command plan', () => {
     const prod = runScript(['--target', 'production', '--dry-run']);
     expect(prod.exitCode).toBe(0);
     expect(prod.stdout).toMatch(/ssh alias: footbag-production/);
-    expect(prod.stdout).toMatch(/terraform\/production\/terraform\.tfvars/);
+    expect(prod.stdout).toMatch(/set-terraform-gate\.sh --target production --gate enable_backup_alarm/);
 
     const overridden = runScript(['--target', 'staging', '--ssh-alias', 'footbag-production', '--dry-run']);
     expect(overridden.exitCode).toBe(2);
@@ -157,5 +163,112 @@ describe('install-backup-timer.sh — credential handling', () => {
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatch(/~\/AWS\/DEV_TESTER_HOST\.txt/);
     expect(result.stderr).not.toMatch(/~\/AWS\/AWS_OPERATOR\.txt/);
+  });
+});
+
+describe('install-backup-timer.sh — the host half\'s problems reach the closing report', () => {
+  /**
+   * The whole send, run: a stand-in ssh client confirms the host is staging,
+   * then consumes the password line and runs the rest of the stream (the
+   * remote report helper and the root-side body) with bash. The system tools
+   * the body calls are stand-ins on PATH; the journal holds the backup's own
+   * lines, which are strings backup-db.sh prints.
+   */
+  let work: string;
+  beforeEach(() => {
+    work = createScratchDir('backup-timer');
+  });
+  afterEach(() => removeScratch(work));
+
+  function runInstall(opts: { startFails: boolean; journal: string[] }) {
+    const bin = join(work, 'bin');
+    mkdirSync(bin);
+    const passSeen = join(work, 'pass-seen');
+    const journal = join(work, 'journal');
+    writeFileSync(journal, opts.journal.join('\n') + '\n');
+    const exec = (name: string, lines: string[]) =>
+      writeFileSync(join(bin, name), ['#!/usr/bin/env bash', ...lines].join('\n') + '\n', { mode: 0o755 });
+    exec('install', ['exit 0']);
+    exec('systemctl', [
+      'case "$1" in',
+      opts.startFails
+        ? '  start) echo "Job for footbag-backup.service failed because the control process exited with error code." >&2; exit 1 ;;'
+        : '  start) exit 0 ;;',
+      '  *) exit 0 ;;',
+      'esac',
+    ]);
+    exec('journalctl', [`cat ${JSON.stringify(journal)}`]);
+    const ssh = join(work, 'ssh-host.sh');
+    writeFileSync(ssh, [
+      '#!/usr/bin/env bash',
+      'case "$*" in',
+      '  *footbag-host-identity*) cat >/dev/null; printf -- "---FOOTBAG-HOST-ENV---\\nstaging\\n---FOOTBAG-HOST-URL---\\n\\n---FOOTBAG-END---\\n"; exit 0 ;;',
+      'esac',
+      'IFS= read -r pass',
+      `printf '%s\\n' "$pass" > ${JSON.stringify(passSeen)}`,
+      `PATH=${JSON.stringify(bin)}:$PATH exec bash`,
+    ].join('\n'), { mode: 0o755 });
+    const pin = join(work, 'known_hosts');
+    writeFileSync(pin, 'footbag-staging ssh-ed25519 AAAAstub\n', { mode: 0o600 });
+    const r = spawnSync('bash', [SCRIPT, '--target', 'staging'], {
+      cwd: process.cwd(),
+      encoding: 'utf-8',
+      input: 'stub-sudo-pass\n',
+      env: {
+        ...process.env,
+        ...connectingAs(SHARED_ACCOUNT, work),
+        FOOTBAG_HOST_SSH_BIN: ssh,
+        FOOTBAG_KNOWN_HOSTS: pin,
+        FOOTBAG_CR_REPORT_TO: '',
+      },
+      ...SPAWN_GUARD,
+    });
+    const stderr = r.stderr ?? '';
+    return {
+      status: r.status,
+      stdout: r.stdout ?? '',
+      stderr,
+      report: stderr.slice(stderr.indexOf('==== Closing report')),
+      passSeen: existsSync(passSeen) ? readFileSync(passSeen, 'utf-8') : '',
+    };
+  }
+
+  it('fails the run on a first backup that refused, naming the backup\'s own reason', () => {
+    // Defect caught: the backup's refusal was only in a journal tail printed
+    // above the last line, so the operator read a failed install without its
+    // cause, and had to ssh in to find it.
+    const reason = 'backup-db: FAILURE (1 consecutive): BACKUP_S3_BUCKET is not set';
+    // systemd closes a failed run with its own line, so the reason is never
+    // the last thing the host printed.
+    const r = runInstall({
+      startFails: true,
+      journal: [
+        `Nov 04 07:00:01 host bash[123]: ${reason}`,
+        "Nov 04 07:00:01 host systemd[1]: footbag-backup.service: Main process exited, code=exited, status=1/FAILURE",
+      ],
+    });
+    expect(r.status, r.stderr).toBe(1);
+    expect(r.report).toContain(reason);
+    expect(r.stdout).not.toMatch(/installed and active/);
+    // The password went to sudo's line and nowhere else.
+    expect(r.passSeen).toBe('stub-sudo-pass\n');
+  });
+
+  it('passes a first backup that recovered on a retry, listing the retry as a warning', () => {
+    // Defect caught: a run whose upload only succeeded on a retry ended with no
+    // sign of it, so a host with a flaky path to the bucket read as healthy.
+    const retry = 'backup-db: upload attempt 1/3 failed';
+    const r = runInstall({
+      startFails: false,
+      journal: [
+        `Nov 04 07:00:01 host bash[123]: ${retry}`,
+        'Nov 04 07:00:05 host bash[123]: backup-db: uploaded s3://bucket/key (age since previous: 5m)',
+      ],
+    });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.report).toMatch(/Warnings \(1\):/);
+    expect(r.report).toContain(retry);
+    expect(r.report).not.toMatch(/Errors \(/);
+    expect(r.stdout).toMatch(/installed and active/);
   });
 });

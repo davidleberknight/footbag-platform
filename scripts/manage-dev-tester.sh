@@ -92,6 +92,10 @@ source "${SCRIPT_DIR}/lib/iam-dev-tester-user.sh"
 # exported value in the operator's shell standing in for the typed word.
 # shellcheck source=lib/host-env-remote.sh
 source "${SCRIPT_DIR}/lib/host-env-remote.sh"
+# One closing report listing every error and warning the run met. Run by
+# offboard-dev-tester.sh, it lists them in that run's report instead.
+# shellcheck source=lib/closing-report.sh
+source "${SCRIPT_DIR}/lib/closing-report.sh"
 
 AWS_BIN="${MANAGE_DEV_TESTER_AWS_BIN:-aws}"
 IAM_KEY_AWS_BIN="$AWS_BIN"
@@ -139,22 +143,22 @@ while [[ $# -gt 0 ]]; do
     --offboard)
       ACTION="offboard"
       DEV_TESTER="${2:-}"
-      shift 2 || { echo "ERROR: --offboard requires the dev-tester name" >&2; exit 2; }
+      shift 2 || { cr_error "--offboard requires the dev-tester name"; exit 2; }
       ;;
     --verify)
       ACTION="verify"
       DEV_TESTER="${2:-}"
-      shift 2 || { echo "ERROR: --verify requires the dev-tester name" >&2; exit 2; }
+      shift 2 || { cr_error "--verify requires the dev-tester name"; exit 2; }
       ;;
     --yes) ASSUME_YES="yes"; shift ;;
     --driven-by-offboard) DRIVEN_BY_OFFBOARD=1; shift ;;
     -h|--help) usage 0 ;;
-    *) echo "ERROR: unknown argument '$1'" >&2; usage 2 >&2 ;;
+    *) cr_error "unknown argument '$1'"; usage 2 >&2 ;;
   esac
 done
 
 if [[ -z "$ACTION" ]]; then
-  echo "ERROR: one of --offboard or --verify is required." >&2
+  cr_error "one of --offboard or --verify is required."
   echo "       There is no default: retiring an identity and reading one back are" >&2
   echo "       different acts, and neither is the safer guess. An identity is" >&2
   echo "       created by scripts/onboard-dev-tester.sh." >&2
@@ -162,7 +166,7 @@ if [[ -z "$ACTION" ]]; then
 fi
 
 if [[ -z "$DEV_TESTER" ]]; then
-  echo "ERROR: --${ACTION} requires the dev-tester name." >&2
+  cr_error "--${ACTION} requires the dev-tester name."
   exit 2
 fi
 
@@ -174,7 +178,7 @@ fi
 # the directly authenticated IAM user, it is spelled to a different
 # convention than the names this script creates, and nothing here touches it.
 if [[ "$DEV_TESTER" == "$FOOTBAG_OPERATOR_USER" ]]; then
-  echo "ERROR: ${FOOTBAG_OPERATOR_USER} is not managed here, under any flag." >&2
+  cr_error "${FOOTBAG_OPERATOR_USER} is not managed here, under any flag."
   echo "       It is the directly authenticated identity that administers the" >&2
   echo "       others and the principal both runtime trust policies name. This" >&2
   echo "       script's whole subject is the named dev-testers it creates." >&2
@@ -183,7 +187,7 @@ if [[ "$DEV_TESTER" == "$FOOTBAG_OPERATOR_USER" ]]; then
 fi
 
 if [[ ! "$DEV_TESTER" =~ ^[a-z][a-z0-9]*(_[a-z0-9]+)+$ || ${#DEV_TESTER} -gt 64 ]]; then
-  echo "ERROR: '${DEV_TESTER}' is not a usable dev-tester name." >&2
+  cr_error "'${DEV_TESTER}' is not a usable dev-tester name."
   echo "       The house convention is firstname_lastname in lower-case ASCII," >&2
   echo "       and this name becomes three things that have to agree: the IAM" >&2
   echo "       user, the role session name the trust policy forces into every" >&2
@@ -259,21 +263,30 @@ role_assume_decision() {
 # a check.
 aws_profile_use "$FOOTBAG_OPERATOR_PROFILE" \
   "Retiring or reading back a dev-and-tester is refused to every role, including the job role, by the role's own policy." \
-  || exit 1
-aws_identity_require_direct_user "$FOOTBAG_OPERATOR_USER" || exit 1
+  || cr_die "the ${FOOTBAG_OPERATOR_PROFILE} profile could not be used; nothing done"
+aws_identity_require_direct_user "$FOOTBAG_OPERATOR_USER" \
+  || cr_die "this run is not the directly authenticated ${FOOTBAG_OPERATOR_USER}; nothing done"
 
 # Taken from the proved ARN rather than read back separately, so the account the
 # role ARN names is definitionally the account this run authenticated against.
 ACCOUNT_ID="$(printf '%s' "$AWS_IDENTITY_ARN" | cut -d: -f5)"
 if [[ ! "$ACCOUNT_ID" =~ ^[0-9]{12}$ ]]; then
-  echo "ERROR: could not read an account id out of ${AWS_IDENTITY_ARN}." >&2
+  cr_error "could not read an account id out of ${AWS_IDENTITY_ARN}."
   exit 1
 fi
 
 DEV_TESTER_ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/${DEV_TESTER_ROLE_NAME}"
 
-if ! "$AWS_BIN" iam get-role --role-name "$DEV_TESTER_ROLE_NAME" >/dev/null 2>&1; then
-  echo "ERROR: there is no ${DEV_TESTER_ROLE_NAME} role in account ${ACCOUNT_ID}." >&2
+# Absent only when IAM says so by name; any other failure is a read that failed,
+# reported with what AWS said rather than as a tree that was never applied.
+ROLE_READ_ERR=""
+if ! ROLE_READ_ERR="$("$AWS_BIN" iam get-role --role-name "$DEV_TESTER_ROLE_NAME" 2>&1 >/dev/null)" \
+   && [[ "$ROLE_READ_ERR" != *NoSuchEntity* ]]; then
+  cr_error "could not read the ${DEV_TESTER_ROLE_NAME} role in account ${ACCOUNT_ID}: ${ROLE_READ_ERR:-no error text}. Nothing done."
+  exit 1
+fi
+if [[ "$ROLE_READ_ERR" == *NoSuchEntity* ]]; then
+  cr_error "there is no ${DEV_TESTER_ROLE_NAME} role in account ${ACCOUNT_ID}."
   echo "       It is the whole of what a named dev-tester is granted, so there is" >&2
   echo "       no named identity to act on. Apply the account-level identity" >&2
   echo "       tree first:" >&2
@@ -306,6 +319,7 @@ if [[ "$ACTION" == "verify" ]]; then
     echo "    path:      ${FOUND_PATH} -- NOT ${DEV_TESTER_PATH}, so the job role's"
     echo "               trust policy does not match this user and it cannot"
     echo "               assume the role whatever its own grants say."
+    cr_error "${DEV_TESTER} sits at ${FOUND_PATH}, not ${DEV_TESTER_PATH}, so the job role's trust does not match it"
     FINDINGS=$(( FINDINGS + 1 ))
   fi
 
@@ -318,6 +332,7 @@ if [[ "$ACTION" == "verify" ]]; then
       echo "    tag:       ${_key}=${_got}"
     else
       echo "    tag:       ${_key}=${_got:-<unset>} -- expected ${_want}"
+      cr_error "${DEV_TESTER}'s ${_key} tag is ${_got:-<unset>}, expected ${_want}"
       FINDINGS=$(( FINDINGS + 1 ))
     fi
   done
@@ -357,10 +372,11 @@ if [[ "$ACTION" == "verify" ]]; then
   # CloudTrail shows an event some minutes after the call, so one made moments
   # ago may not be listed yet.
   _since="$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ)"
+  _trail_err="$(mktemp "$(_cr_tmp)/trail.XXXXXX")"
   if _trail="$("$AWS_BIN" cloudtrail lookup-events \
       --lookup-attributes "AttributeKey=Username,AttributeValue=${DEV_TESTER}" \
       --start-time "$_since" --max-items 1000 \
-      --query 'Events[].[EventTime,EventName,EventSource]' --output text 2>/dev/null)"; then
+      --query 'Events[].[EventTime,EventName,EventSource]' --output text 2>"$_trail_err")"; then
     # Event rows only, newest first, whatever order the pages arrived in; a
     # pagination line the CLI may add is not an event.
     _trail="$(grep -E $'^[0-9]{4}-[0-9]{2}-[0-9]{2}T[^\t]*\t' <<<"$_trail" | sort -r || true)"
@@ -376,9 +392,10 @@ if [[ "$ACTION" == "verify" ]]; then
   else
     echo "    trail:     CloudTrail could not be read, so what was done as"
     echo "               ${DEV_TESTER} is unknown"
+    cr_error "CloudTrail could not be read for ${DEV_TESTER}: $(grep -v '^[[:space:]]*$' "$_trail_err" | tail -n 1)"
     FINDINGS=$(( FINDINGS + 1 ))
   fi
-  unset _since _trail _when _name _source _assumed
+  unset _since _trail _when _name _source _assumed _trail_err
 
   # The local half. A section's presence is a fact about this workstation's
   # config file and says nothing about whose machine this is, so it is reported
@@ -387,12 +404,18 @@ if [[ "$ACTION" == "verify" ]]; then
   # to end in `|| true`, in the one mode whose whole job is to report, so the
   # chain proof could fail and the run still said nothing and exited 0.
   if aws_profile_exists "$DEV_TESTER"; then
-    aws_identity_require_user "$DEV_TESTER" "$DEV_TESTER" || FINDINGS=$(( FINDINGS + 1 ))
+    if ! aws_identity_require_user "$DEV_TESTER" "$DEV_TESTER"; then
+      cr_error "the [${DEV_TESTER}] section here does not resolve to the IAM user ${DEV_TESTER}"
+      FINDINGS=$(( FINDINGS + 1 ))
+    fi
   else
     echo "    section:   no [${DEV_TESTER}] section in this workstation's AWS config"
   fi
   if aws_profile_exists "$DEV_TESTER_PROFILE"; then
-    aws_identity_require_chain "$DEV_TESTER_PROFILE" || FINDINGS=$(( FINDINGS + 1 ))
+    if ! aws_identity_require_chain "$DEV_TESTER_PROFILE"; then
+      cr_error "[profile ${DEV_TESTER_PROFILE}] here does not resolve to a ${DEV_TESTER_ROLE_NAME} session"
+      FINDINGS=$(( FINDINGS + 1 ))
+    fi
   else
     echo "    profile:   no [profile ${DEV_TESTER_PROFILE}] here, so this workstation"
     echo "               has no configured route to the ${DEV_TESTER_ROLE_NAME} role"
@@ -404,14 +427,15 @@ if [[ "$ACTION" == "verify" ]]; then
     echo "a report nobody acts on." >&2
     exit 1
   fi
-  exit 0
+  cr_proved "${DEV_TESTER}'s IAM user, its tags, its keys, its grant and its trail read back with no finding"
+  cr_finish
 fi
 
 # ── offboard ─────────────────────────────────────────────────────────────────
 
 FOUND_PATH="$(user_path "$DEV_TESTER")" || exit 1
 if [[ -z "$FOUND_PATH" ]]; then
-  echo "ERROR: there is no IAM user named ${DEV_TESTER}." >&2
+  cr_error "there is no IAM user named ${DEV_TESTER}."
   echo "       Nothing done." >&2
   exit 1
 fi
@@ -421,7 +445,7 @@ fi
 # as unreadable.
 FOUND_MANAGED_BY="$(user_tag "$DEV_TESTER" ManagedBy)" || exit 1
 if [[ "$FOUND_PATH" != "$DEV_TESTER_PATH" || "$FOUND_MANAGED_BY" != "$TAG_MANAGED_BY" ]]; then
-  echo "REFUSING: ${DEV_TESTER} sits at ${FOUND_PATH} and is not a user this script" >&2
+  cr_error "REFUSING: ${DEV_TESTER} sits at ${FOUND_PATH} and is not a user this script"
   echo "          manages. Retiring somebody else's identity is not something to" >&2
   echo "          do by analogy with the name. Nothing done." >&2
   exit 1
@@ -446,7 +470,7 @@ _policy="$(user_policy_state "$DEV_TESTER")" || exit 1
 if [[ "$_policy" == "present" ]]; then
   "$AWS_BIN" iam delete-user-policy --user-name "$DEV_TESTER" \
     --policy-name "$USER_POLICY_NAME" || {
-    echo "ERROR: could not remove ${USER_POLICY_NAME} from ${DEV_TESTER}." >&2
+    cr_error "could not remove ${USER_POLICY_NAME} from ${DEV_TESTER}."
     echo "       Nothing further was attempted: the keys are still live and" >&2
     echo "       deleting them while the grant stands would leave the identity" >&2
     echo "       able to act the moment anybody issues it another one." >&2
@@ -484,22 +508,23 @@ REMAINING="$(user_keys "$DEV_TESTER")" || exit 1
 # a substring count would report a retired key as a live one.
 ACTIVE_LEFT="$(printf '%s\n' "$REMAINING" | cut -f2 | grep -cx 'Active' || true)"
 if [[ "$ACTIVE_LEFT" != "0" ]]; then
-  echo "ERROR: ${DEV_TESTER} still holds ${ACTIVE_LEFT} active key(s)." >&2
+  cr_error "${DEV_TESTER} still holds ${ACTIVE_LEFT} active key(s)."
   exit 1
 fi
 echo "    active keys: none"
 
 _policy="$(user_policy_state "$DEV_TESTER")" || exit 1
 if [[ "$_policy" != "absent" ]]; then
-  echo "ERROR: ${USER_POLICY_NAME} is still attached to ${DEV_TESTER}." >&2
+  cr_error "${USER_POLICY_NAME} is still attached to ${DEV_TESTER}."
   exit 1
 fi
 unset _policy
 echo "    ${USER_POLICY_NAME}: gone"
 
-_decision="$(role_assume_decision "$DEV_TESTER")" || exit 1
+_decision="$(role_assume_decision "$DEV_TESTER")" \
+  || cr_die "the policy simulator could not say whether ${DEV_TESTER} may still assume ${DEV_TESTER_ROLE_NAME}"
 if [[ "$_decision" == "allowed" ]]; then
-  echo "ERROR: ${DEV_TESTER} would still be allowed to assume ${DEV_TESTER_ROLE_NAME}." >&2
+  cr_error "${DEV_TESTER} would still be allowed to assume ${DEV_TESTER_ROLE_NAME}."
   echo "       Something else grants it — a group, a managed policy, a boundary —" >&2
   echo "       and this script did not put it there. Find it before calling this" >&2
   echo "       identity retired." >&2
@@ -567,7 +592,7 @@ else
       --role-arn "$DEV_TESTER_ROLE_ARN" --role-session-name "$DEV_TESTER" \
       --query AssumedRoleUser.Arn --output text --region us-east-1 2>&1)"; do
     if (( retire_try >= RETIRE_TRIES )); then
-      echo "ERROR: ${DEV_TESTER}'s own credentials still reached ${DEV_TESTER_ROLE_NAME}." >&2
+      cr_error "${DEV_TESTER}'s own credentials still reached ${DEV_TESTER_ROLE_NAME}."
       echo "       The attempt resolved to:" >&2
       printf '%s\n' "$REAL_ASSUME" | sed 's/^/         /' >&2
       echo "" >&2
@@ -595,7 +620,7 @@ fi
 # one behind would report a retired identity that can still sign in.
 _login="$(iam_dev_tester_login_profile_state "$DEV_TESTER")" || exit 1
 if [[ "$_login" != "absent" ]]; then
-  echo "ERROR: ${DEV_TESTER} still has a console login profile." >&2
+  cr_error "${DEV_TESTER} still has a console login profile."
   echo "       The grant and the keys are gone, but this is a console sign-in" >&2
   echo "       that survives both, and nothing here created it. Remove it" >&2
   echo "       before calling this identity retired." >&2
@@ -613,38 +638,46 @@ echo "    login profile: none"
 # denies nobody and exposes nothing, so this may run ahead of the write, and a
 # failure here is reported and stops nothing.
 echo "==> Clearing earlier revocations that can no longer refuse any session"
+# What AWS said when a read here failed, kept for the warning: the failure stops
+# nothing, but it is listed at the end with its reason rather than read past.
+PRUNE_ERR="$(mktemp "$(_cr_tmp)/prune.XXXXXX")"
+prune_said() { grep -v '^[[:space:]]*$' "$PRUNE_ERR" | tail -n 1 || true; }
 PRUNE_MAX="$("$AWS_BIN" iam get-role --role-name "$DEV_TESTER_ROLE_NAME" \
-  --query 'Role.MaxSessionDuration' --output text 2>/dev/null || true)"
+  --query 'Role.MaxSessionDuration' --output text 2>"$PRUNE_ERR")" || PRUNE_MAX=""
 PRUNE_LIST="$("$AWS_BIN" iam list-role-policies --role-name "$DEV_TESTER_ROLE_NAME" \
-  --query 'PolicyNames' --output text 2>/dev/null)" || PRUNE_LIST="unreadable"
+  --query 'PolicyNames' --output text 2>>"$PRUNE_ERR")" || PRUNE_LIST="unreadable"
 if [[ ! "$PRUNE_MAX" =~ ^[0-9]+$ || "$PRUNE_LIST" == "unreadable" ]]; then
-  echo "    WARNING: could not read ${DEV_TESTER_ROLE_NAME}'s session length or its"
+  echo "    could not read ${DEV_TESTER_ROLE_NAME}'s session length or its"
   echo "      policies, so no earlier revocation was cleared. Nothing is exposed by"
   echo "      that; the next offboard tries again."
+  cr_warn "no earlier revocation was cleared: ${DEV_TESTER_ROLE_NAME}'s session length or policies could not be read ($(prune_said)); the next offboard tries again"
 else
   PRUNE_NOW="$(date -u +%s)"
   PRUNED=0
   for _pname in $PRUNE_LIST; do
     # This person's own earlier revocation is rewritten below, not cleared.
     [[ "$_pname" == revoke-sessions-* && "$_pname" != "revoke-sessions-${DEV_TESTER}" ]] || continue
+    : > "$PRUNE_ERR"
     _cutoff="$("$AWS_BIN" iam get-role-policy --role-name "$DEV_TESTER_ROLE_NAME" \
       --policy-name "$_pname" \
       --query 'PolicyDocument.Statement[0].[Effect,Condition.DateLessThan."aws:TokenIssueTime",Condition.StringLike."aws:userid"]' \
-      --output text 2>/dev/null | cut -f2 || true)"
+      --output text 2>"$PRUNE_ERR" | cut -f2)" || _cutoff=""
     # Parsed only in the exact shape this script writes: date(1) turns an empty
     # or odd string into a plausible time, which would clear a live revocation.
     if [[ ! "$_cutoff" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] \
        || ! _cutoff_epoch="$(date -u -d "$_cutoff" +%s 2>/dev/null)"; then
       echo "    ${_pname}: cutoff unreadable, left in place"
+      cr_warn "${_pname}: its cutoff could not be read ($(prune_said)), so it was left in place"
       continue
     fi
     if (( _cutoff_epoch + PRUNE_MAX + 3600 < PRUNE_NOW )); then
+      : > "$PRUNE_ERR"
       if "$AWS_BIN" iam delete-role-policy --role-name "$DEV_TESTER_ROLE_NAME" \
-          --policy-name "$_pname" >/dev/null 2>&1; then
+          --policy-name "$_pname" >/dev/null 2>"$PRUNE_ERR"; then
         echo "    ${_pname}: cut off at ${_cutoff}, refuses nothing now, removed"
         PRUNED=$(( PRUNED + 1 ))
       else
-        echo "    WARNING: ${_pname} could not be removed; the next offboard tries again."
+        cr_warn "${_pname} could not be removed ($(prune_said)); the next offboard tries again."
       fi
     fi
   done
@@ -679,7 +712,7 @@ printf -v REVOKE_DOC '%s' \
 echo "==> Ending the sessions ${DEV_TESTER} already holds"
 if ! "$AWS_BIN" iam put-role-policy --role-name "$DEV_TESTER_ROLE_NAME" \
     --policy-name "$REVOKE_POLICY_NAME" --policy-document "$REVOKE_DOC" >/dev/null; then
-  echo "ERROR: could not write ${REVOKE_POLICY_NAME} onto ${DEV_TESTER_ROLE_NAME}." >&2
+  cr_error "could not write ${REVOKE_POLICY_NAME} onto ${DEV_TESTER_ROLE_NAME}."
   echo "       The grant and the keys are gone, so no new session can be minted," >&2
   echo "       but one issued before now still works until it expires. Re-run" >&2
   echo "       this offboard: every step before this one finds its work done." >&2
@@ -689,13 +722,14 @@ if ! "$AWS_BIN" iam put-role-policy --role-name "$DEV_TESTER_ROLE_NAME" \
   echo "       and apply the identity tree if anything else is there." >&2
   exit 1
 fi
+: > "$PRUNE_ERR"
 REVOKE_READ="$("$AWS_BIN" iam get-role-policy --role-name "$DEV_TESTER_ROLE_NAME" \
   --policy-name "$REVOKE_POLICY_NAME" \
   --query 'PolicyDocument.Statement[0].[Effect,Condition.DateLessThan."aws:TokenIssueTime",Condition.StringLike."aws:userid"]' \
-  --output text 2>/dev/null || true)"
+  --output text 2>"$PRUNE_ERR")" || REVOKE_READ=""
 if [[ "$REVOKE_READ" != "Deny"$'\t'"${REVOKE_BEFORE}"$'\t'"${REVOKE_USERID}" ]]; then
-  echo "ERROR: ${REVOKE_POLICY_NAME} on ${DEV_TESTER_ROLE_NAME} does not read back as" >&2
-  echo "       written. It reads:" >&2
+  cr_error "${REVOKE_POLICY_NAME} on ${DEV_TESTER_ROLE_NAME} does not read back as written${REVOKE_READ:+ (it reads: ${REVOKE_READ//$'\t'/ })}$( [[ -s "$PRUNE_ERR" ]] && printf ' (AWS said: %s)' "$(prune_said)")."
+  echo "       It reads:" >&2
   printf '%s\n' "${REVOKE_READ:-<nothing>}" | sed 's/^/         /' >&2
   echo "       Until it does, a session issued before now still works. Re-run this" >&2
   echo "       offboard." >&2
@@ -724,4 +758,7 @@ if (( ! DRIVEN_BY_OFFBOARD )); then
   echo "onboarded onto:"
   echo "  < ~/AWS/AWS_OPERATOR.txt \\"
   echo "    bash scripts/offboard-dev-tester.sh --target staging --account ${DEV_TESTER}"
+  cr_unproved "the host account and the allow-list address: this run retires the AWS identity only"
 fi
+cr_proved "${DEV_TESTER} holds no grant, no key and no console sign-in, a fresh role session is refused, and sessions issued before ${REVOKE_BEFORE} are revoked"
+cr_finish

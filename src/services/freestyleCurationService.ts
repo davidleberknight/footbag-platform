@@ -141,6 +141,10 @@ import {
   DISPLAY_NAME_ROW_EXCEPTIONS,
   GENUINE_HYPHEN_TOKENS,
 } from '../content/freestyleDisplayNameExceptions';
+// Current: decision-group titles come from the generated Emerging Vocabulary module, frozen at
+// go-live as a temporarily accepted deviation (schedule risk to go-live; a large, low-priority
+// refactor). Target: they are read from the decision-group database table and the module is
+// deleted, in the post-go-live cleanup of the maintainers' private plan.
 import { EMERGING_DECISION_GROUPS } from '../content/freestyleObservationalUniverse';
 import {
   NOTATION_EVIDENCE_BASES,

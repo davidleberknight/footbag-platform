@@ -20,6 +20,8 @@
 BH_STEPS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BH_REPO_ROOT="$(cd "${BH_STEPS_DIR}/../.." && pwd)"
 BH_STATUS_HALF="${BH_STEPS_DIR}/bootstrap-host-status-remote.sh"
+# Sent ahead of the status half, which cannot source it.
+BH_REPORT_LIB="${BH_REPO_ROOT}/scripts/lib/closing-report-remote.sh"
 # The backup probe reads the bucket's name from Terraform, and the bucket's
 # newest backup through the shared snapshot library, which the replacement in
 # scripts/bootstrap-host.sh uses too, so the two read one backup the same way.
@@ -95,6 +97,31 @@ bh_parse_status() {
 # P[HOST_PROBE] carries the state and P[HOST_PROBE_SAID] the client's own last
 # line, so the operator reads what ssh said rather than a guess at it.
 BH_LOGIN_SENTINEL="---FOOTBAG-LOGIN-OK---"
+
+# bh_report_probe_problems <alias> <stderr-file>
+# Lists the status half's marked problems in the caller's closing report, each
+# once however many times the host is probed in one run, since a run re-reads the
+# host after every step. A caller not on scripts/lib/closing-report.sh gets them
+# on its standard error instead.
+BH_PROBE_SEEN=""
+bh_report_probe_problems() {
+  local alias="$1" err="$2" line fresh
+  [[ -s "$err" ]] || return 0
+  fresh="${err}.fresh"
+  : > "$fresh"
+  while IFS= read -r line; do
+    [[ "$line" == ---FOOTBAG-PROBLEM---\ * ]] || continue
+    grep -qxF -- "$line" <<< "$BH_PROBE_SEEN" && continue
+    BH_PROBE_SEEN+="${line}"$'\n'
+    printf '%s\n' "$line" >> "$fresh"
+  done < "$err"
+  if declare -F cr_harvest >/dev/null; then
+    cr_harvest --sentinels-only "status of ${alias}" "$fresh"
+  fi
+  cat "$fresh" >&2
+  rm -f "$fresh"
+}
+
 bh_probe_host() {
   local alias="$1" stream="" login="" rc=0
   P[HOST_REACHED]=no
@@ -115,12 +142,26 @@ bh_probe_host() {
     fi
     return 0
   fi
+  # The facts come from standard output only; the half's marked problems come on
+  # standard error, so none can be read as a fact.
+  local err
+  if declare -F _cr_tmp >/dev/null; then
+    err="$(mktemp "$(_cr_tmp)/probe.XXXXXX")"
+  else
+    err="$(mktemp)"
+  fi
+  # The verdict on the session is read from the stream, below: a host that did
+  # not answer carries no status section. A failed session keeps the client's
+  # or sudo's last word.
   stream="$(
     {
       printf '%s\n' "$SUDO_PASS"
+      cat "$BH_REPORT_LIB"
       cat "$BH_STATUS_HALF"
-    } | "$HOST_SSH_BIN" "${HOST_SSH_OPTS[@]}" "$alias" 'sudo -k -S -p "" bash -s footbag-bootstrap-status' 2>/dev/null
-  )" || true
+    } | "$HOST_SSH_BIN" "${HOST_SSH_OPTS[@]}" "$alias" 'sudo -k -S -p "" bash -s footbag-bootstrap-status' 2>"$err"
+  )" || P[HOST_PROBE_SAID]="$(grep -v -e '^---FOOTBAG-PROBLEM--- ' -e '^[[:space:]]*$' -- "$err" | tail -n 1 || [[ $? == 1 ]])"
+  bh_report_probe_problems "$alias" "$err"
+  rm -f "$err"
   if bh_parse_status "$stream"; then
     P[HOST_REACHED]=yes
     P[HOST_PROBE]=ok
@@ -138,14 +179,16 @@ bh_probe_host() {
 bh_probe_host_env() {
   local rc=0 out
   [[ "${P[HOST_REACHED]:-}" == "yes" ]] || return 0
-  out="$(printf '%s\n' "$SUDO_PASS" | bash "${BH_SCRIPTS}/verify-host-env.sh" --target "$1" 2>&1)" || rc=$?
+  bh_probe_report
+  out="$(printf '%s\n' "$SUDO_PASS" | FOOTBAG_CR_REPORT_TO="$BH_PROBE_REPORT" bash "${BH_SCRIPTS}/verify-host-env.sh" --target "$1" 2>&1)" || rc=$?
   P[HOST_ENV_VERIFY_SAID]=""
   if (( rc == 0 )); then
     P[HOST_ENV_VERIFY]=ok
   else
     P[HOST_ENV_VERIFY]=fail
-    P[HOST_ENV_VERIFY_SAID]="$(bh_reason "$out")"
+    P[HOST_ENV_VERIFY_SAID]="$(bh_reason "$out" "$BH_PROBE_REPORT")"
   fi
+  bh_probe_report_done
   return 0
 }
 
@@ -153,10 +196,29 @@ bh_probe_host_env() {
 # What a check printed about why it failed, on one line: its FAIL lines, or its
 # last non-blank line when it prints none. A probe keeps this rather than only
 # the exit status, so a row reads the reason and not merely that one exists.
+#
+# A check on the closing-report library lists its own problems in the report of
+# whatever run started it. A probe's check decides a step's state and is not a
+# problem of this run, and bootstrap-host probes again after every step, so a
+# check that failed before its step fixed it would fail the whole run. Each probe
+# therefore points the check's report at a private file (bh_probe_report), and
+# the errors in it serve as the reason when the check printed no FAIL line.
+bh_probe_report() {
+  BH_PROBE_REPORT="$(mktemp)"
+}
+
+bh_probe_report_done() {
+  rm -f "$BH_PROBE_REPORT"
+  BH_PROBE_REPORT=""
+}
+
 bh_reason() {
-  local out="$1" said
+  local out="$1" report="${2:-}" said
   said="$(grep -E '^[[:space:]]*FAIL[[:space:]]' <<< "$out" \
     | sed -E 's/^[[:space:]]*FAIL[[:space:]]+//; s/[[:space:]]+/ /g; s/ $//' | paste -sd ';' - | sed 's/;/; /g' || true)"
+  if [[ -z "$said" && -n "$report" && -s "$report" ]]; then
+    said="$(grep -E $'^ERROR\t' "$report" | cut -f2- | paste -sd ';' - | sed 's/;/; /g' || true)"
+  fi
   if [[ -z "$said" ]]; then
     said="$(grep -v '^[[:space:]]*$' <<< "$out" | tail -1 | sed -E 's/[[:space:]]+/ /g; s/^ //; s/ $//' || true)"
   fi
@@ -187,14 +249,16 @@ bh_backup_limit() {
 # bh_probe_pin <target>
 bh_probe_pin() {
   local rc=0 out
-  out="$(bash "${BH_SCRIPTS}/install-known-hosts.sh" --target "$1" --check </dev/null 2>&1)" || rc=$?
+  bh_probe_report
+  out="$(FOOTBAG_CR_REPORT_TO="$BH_PROBE_REPORT" bash "${BH_SCRIPTS}/install-known-hosts.sh" --target "$1" --check </dev/null 2>&1)" || rc=$?
   case "$rc" in
     0) P[PIN]=current ;;
     1) P[PIN]=stale ;;
     *) P[PIN]=unknown ;;
   esac
   P[PIN_SAID]=""
-  (( rc == 0 )) || P[PIN_SAID]="$(bh_reason "$out")"
+  (( rc == 0 )) || P[PIN_SAID]="$(bh_reason "$out" "$BH_PROBE_REPORT")"
+  bh_probe_report_done
 }
 
 # bh_probe_terraform <target>
@@ -267,14 +331,18 @@ bh_probe_aws() {
 
   local out
   rc=0
-  out="$(bash "${BH_SCRIPTS}/verify-cwagent-metrics.sh" --target "$target" </dev/null 2>&1)" || rc=$?
+  bh_probe_report
+  out="$(FOOTBAG_CR_REPORT_TO="$BH_PROBE_REPORT" bash "${BH_SCRIPTS}/verify-cwagent-metrics.sh" --target "$target" </dev/null 2>&1)" || rc=$?
   P[CW_METRICS_SAID]=""
-  if (( rc == 0 )); then P[CW_METRICS]=ok; else P[CW_METRICS]=fail; P[CW_METRICS_SAID]="$(bh_reason "$out")"; fi
+  if (( rc == 0 )); then P[CW_METRICS]=ok; else P[CW_METRICS]=fail; P[CW_METRICS_SAID]="$(bh_reason "$out" "$BH_PROBE_REPORT")"; fi
+  bh_probe_report_done
 
   rc=0
-  out="$(bash "${BH_SCRIPTS}/verify-host-snapshots.sh" --target "$target" </dev/null 2>&1)" || rc=$?
+  bh_probe_report
+  out="$(FOOTBAG_CR_REPORT_TO="$BH_PROBE_REPORT" bash "${BH_SCRIPTS}/verify-host-snapshots.sh" --target "$target" </dev/null 2>&1)" || rc=$?
   P[SNAPSHOT_SAID]=""
-  if (( rc == 0 )); then P[SNAPSHOT]=ok; else P[SNAPSHOT]=fail; P[SNAPSHOT_SAID]="$(bh_reason "$out")"; fi
+  if (( rc == 0 )); then P[SNAPSHOT]=ok; else P[SNAPSHOT]=fail; P[SNAPSHOT_SAID]="$(bh_reason "$out" "$BH_PROBE_REPORT")"; fi
+  bh_probe_report_done
 
   P[FEEDS_FLAG]="$(bh_tfvars_flag "$target" enable_feed_queues)"
 

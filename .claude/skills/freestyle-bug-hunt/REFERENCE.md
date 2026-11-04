@@ -258,12 +258,13 @@ exploratory status label and non-override footer.
 
 ### §F13 Generated-content drift
 
-Three `src/content/freestyle*.ts` modules are generated (the observational universe,
-tracked names and embedded coverage); the rest are hand-written. Confirm the set by
-grepping `src/content` for the `GENERATED` header rather than trusting this count.
-Generated TypeScript is being removed before cutover, its content moving into the
-database, and after that any generated file under `src/` is itself a finding. Until
-then, the generator, the committed module, and the consuming service must agree. A service
+One `src/content/freestyle*.ts` module is generated (the observational universe); the
+rest are hand-written. Confirm the set by grepping `src/content` for the `GENERATED`
+header rather than trusting this count. It ships at go-live frozen, a temporarily
+accepted deviation, and moves into the database in the post-go-live cleanup; any other
+generated file under `src/` is a finding, and so is a regeneration of this one after
+cutover. Until it moves, the generator, the committed module, and the consuming
+service must agree. A service
 that re-derives or overrides a generated field at request time (instead of the generator
 emitting it) is drift. Whether a module is stale against its inputs needs a regeneration
 the hunt cannot run read-only: list it as an owner-run check in the report, with the

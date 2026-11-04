@@ -338,6 +338,12 @@ function runPiped(argv: string[]) {
   return { status: r.status, stderr: r.stderr ?? '' };
 }
 
+/** The closing report: everything from its heading on. */
+function closingReport(out: string): string {
+  const at = out.lastIndexOf('Closing report');
+  return at === -1 ? '' : out.slice(at);
+}
+
 function runInTerminal(terminal: string[], extra: Record<string, string> = {}) {
   const inner = ['bash', JSON.stringify(SCRIPT), ...args().map((a) => JSON.stringify(a))].join(' ');
   const r = spawnSync('script', ['-qec', inner, '/dev/null'], {
@@ -1063,5 +1069,28 @@ describe('accept-dev-tester-onboarding.sh — what it leaves at the end', () => 
     const r = runInTerminal(FIRST_RUN, { ACCEPT_SETUP_CMD: failing });
     expect(r.status).toBe(1);
     expect(r.out).toMatch(/still lists something to do/);
+    expect(closingReport(r.out)).toMatch(/still lists something to do/);
+  });
+
+  it('lists a workstation setup that failed as a warning when its check then passes', () => {
+    // Swallowed with || true, a setup that failed left no trace at the end of
+    // the run; the check after it is the verdict, so the failure is a warning.
+    devMachine();
+    const setupFails = stub('setup-fails-check-passes', '[[ "$*" == *--check* ]] && exit 0; exit 1');
+    const r = runInTerminal(FIRST_RUN, { ACCEPT_SETUP_CMD: setupFails });
+    expect(r.status, r.out).toBe(0);
+    expect(closingReport(r.out)).toMatch(/the workstation setup exited 1/);
+  });
+
+  it('lists a key the agent would not take, rather than reporting the offer as done', () => {
+    // The old run printed "not added" among the progress lines and finished
+    // clean, so the person was asked for the passphrase on every connection
+    // with nothing at the end saying why.
+    devMachine();
+    const sshAdd = stub('ssh-add-refuses', '[[ "$1" == "-l" ]] && exit 1; echo "Could not add identity" >&2; exit 1');
+    const answers = [FIRST_RUN[0], 'APPLY', ...FIRST_RUN.slice(1)];
+    const r = runInTerminal(answers, { SSH_AUTH_SOCK: join(dir, 'agent.sock'), ACCEPT_SSH_ADD_BIN: sshAdd });
+    expect(r.status, r.out).toBe(0);
+    expect(closingReport(r.out)).toMatch(/ssh-add could not add/);
   });
 });

@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+# shellcheck shell=bash
 # Post-cutover refusal for the destructive database-replacing deploy.
 #
 # At cutover the live database becomes the single source of truth for content
@@ -25,6 +25,11 @@
 # mutation (database replace, env edits, media wipe, service stop); its non-zero
 # exit aborts the whole remote body. It also runs standalone for its tests, which
 # point ENV_PATH and DB_PATH at fixture files.
+#
+# It reports through crr_error and crr_warn, from
+# scripts/lib/closing-report-remote.sh, which the caller sends ahead of it on
+# the same stream, so a refusal or a fallback lands in the deploy's closing
+# report rather than only in the middle of its output.
 #
 # Rules:
 #   - both markers absent          -> allowed (pre-cutover host)
@@ -73,17 +78,13 @@ if [[ ! -f "$CUTOVER_GUARD_DB_PATH" ]]; then
   CUTOVER_GUARD_DB_MARKER="unknown"
 elif ! command -v sqlite3 >/dev/null 2>&1; then
   CUTOVER_GUARD_DB_MARKER="unknown"
-  echo "WARNING: cutover guard: sqlite3 is unavailable on this host, so the" >&2
-  echo "         in-database cutover marker could not be read. Falling back to the" >&2
-  echo "         env-file marker alone." >&2
+  crr_warn "cutover guard: sqlite3 is unavailable on this host, so the in-database cutover marker could not be read; the env-file marker decides alone."
 # The probe reads the schema rather than selecting a constant: SQLite opens a
 # file lazily, so `SELECT 1` succeeds against a text file without ever touching
 # the header, and a corrupt database would read as an empty one.
 elif ! sqlite3 "file:${CUTOVER_GUARD_DB_PATH}?mode=ro" 'SELECT count(*) FROM sqlite_master;' >/dev/null 2>&1; then
   CUTOVER_GUARD_DB_MARKER="unknown"
-  echo "WARNING: cutover guard: $CUTOVER_GUARD_DB_PATH is present but unreadable, so" >&2
-  echo "         the in-database cutover marker could not be read. Falling back to the" >&2
-  echo "         env-file marker alone." >&2
+  crr_warn "cutover guard: $CUTOVER_GUARD_DB_PATH is present but unreadable, so the in-database cutover marker could not be read; the env-file marker decides alone. sqlite3 said: $(sqlite3 "file:${CUTOVER_GUARD_DB_PATH}?mode=ro" 'SELECT count(*) FROM sqlite_master;' 2>&1 >/dev/null | tail -n 1)"
 else
   # A FAILED QUERY IS 'unknown', NOT 'absent'.
   #
@@ -126,10 +127,7 @@ else
            ORDER BY effective_start_at DESC, rowid DESC
            LIMIT 1;" 2>&1 >/dev/null
     ) || true
-    echo "WARNING: cutover guard: $CUTOVER_GUARD_DB_PATH is a readable database but its" >&2
-    echo "         cutover marker could not be read, so it gets no vote. Falling back to" >&2
-    echo "         the env-file marker alone." >&2
-    echo "         sqlite3 said: ${CUTOVER_GUARD_DB_ERR}" >&2
+    crr_warn "cutover guard: $CUTOVER_GUARD_DB_PATH is a readable database but its cutover marker could not be read, so it gets no vote; the env-file marker decides alone. sqlite3 said: ${CUTOVER_GUARD_DB_ERR}"
     CUTOVER_GUARD_DB_VALUE=""
   else
     # The value is stored as JSON, so it may arrive quoted, and a hand-edited
@@ -143,7 +141,7 @@ fi
 
 if [[ "$CUTOVER_GUARD_ENV_MARKER" == "present" && "$CUTOVER_GUARD_DB_MARKER" == "absent" ]] \
   || [[ "$CUTOVER_GUARD_ENV_MARKER" == "absent" && "$CUTOVER_GUARD_DB_MARKER" == "present" ]]; then
-  echo "ERROR: refusing the database-replacing deploy: the two cutover markers disagree." >&2
+  crr_error "refusing the database-replacing deploy: the two cutover markers disagree (env file: $CUTOVER_GUARD_ENV_MARKER, database: $CUTOVER_GUARD_DB_MARKER)."
   echo "       $CUTOVER_GUARD_ENV_PATH marker FOOTBAG_CUTOVER_COMPLETE: $CUTOVER_GUARD_ENV_MARKER" >&2
   echo "       $CUTOVER_GUARD_DB_PATH marker post_cutover: $CUTOVER_GUARD_DB_MARKER" >&2
   echo "       One was set, or reversed, without the other. Which of those it is decides" >&2
@@ -155,7 +153,7 @@ if [[ "$CUTOVER_GUARD_ENV_MARKER" == "present" && "$CUTOVER_GUARD_DB_MARKER" == 
 fi
 
 if [[ "$CUTOVER_GUARD_ENV_MARKER" == "present" || "$CUTOVER_GUARD_DB_MARKER" == "present" ]]; then
-  echo "ERROR: refusing the database-replacing deploy: this host is post-cutover." >&2
+  crr_error "refusing the database-replacing deploy: this host is post-cutover."
   echo "       The live database became the source of truth at cutover and a rebuild" >&2
   echo "       deploy would destroy live content edits. Use scripts/deploy-code.sh for" >&2
   echo "       code deploys. There is no bypass flag; a disaster rebuild requires" >&2

@@ -45,6 +45,14 @@ for arg in "$@"; do
   esac
 done
 
+# One closing report for the whole deploy, sourced after the help hand-off above,
+# which runs before anything can go wrong. The orchestrator and the leaves it
+# runs are on the same library, so every error and warning any of them meets,
+# the host half's included, is listed in this one report, the last thing the
+# run prints.
+# shellcheck source=scripts/lib/closing-report.sh
+source "${SCRIPT_DIR}/scripts/lib/closing-report.sh"
+
 # -----------------------------------------------------------------------------
 # Which environment. --target names it, as on every operator command, and is
 # staging when omitted: that is the deploy run every day, a forgotten flag lands
@@ -59,7 +67,7 @@ done
 # see only the options that are theirs.
 # -----------------------------------------------------------------------------
 if [[ -n "${DEPLOY_TARGET:-}" ]]; then
-  echo "ERROR: DEPLOY_TARGET is set in this shell ('${DEPLOY_TARGET}'). Name the environment" >&2
+  cr_error "DEPLOY_TARGET is set in this shell ('${DEPLOY_TARGET}'). Name the environment"
   echo "       with --target staging or --target production instead; this script sets" >&2
   echo "       DEPLOY_TARGET itself. Run 'unset DEPLOY_TARGET' and re-run." >&2
   exit 1
@@ -70,7 +78,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --target)
       TARGET="${2:-}"
-      shift 2 || { echo "ERROR: --target requires an argument" >&2; exit 2; }
+      shift 2 || { cr_error "--target requires an argument"; exit 2; }
       ;;
     # The joined spelling too: left in the arguments it would pass through
     # unread while the run went to the default environment.
@@ -82,7 +90,7 @@ set -- "${PASSTHROUGH_ARGS[@]+"${PASSTHROUGH_ARGS[@]}"}"
 case "$TARGET" in
   staging|production) ;;
   *)
-    echo "ERROR: --target must be 'staging' or 'production' (got '${TARGET}')." >&2
+    cr_error "--target must be 'staging' or 'production' (got '${TARGET}')."
     exit 2
     ;;
 esac
@@ -165,7 +173,7 @@ fi
 # every combination that could reach it is covered.
 PRIVATE_CHECKOUT="${SCRIPT_DIR}/footbag_private_repo"
 if (( DATA_REBUILD == 1 )) && [[ ! -d "$PRIVATE_CHECKOUT" ]]; then
-  echo "ERROR: the maintainers' private checkout is not reachable: ${PRIVATE_CHECKOUT}" >&2
+  cr_error "the maintainers' private checkout is not reachable: ${PRIVATE_CHECKOUT}"
   echo "Recommendation: clone the private operations repo beside this one and wire it with" >&2
   echo "  bash scripts/setup_private_repo.sh --private-repo <path to that clone>" >&2
   echo "  then re-run. A deploy requires it: the member intake" >&2
@@ -180,7 +188,7 @@ fi
 # ahead of the production gate, so the mistake costs no typed confirmation or
 # password. The orchestrator refuses it again for a direct invocation.
 if (( PUBLIC_REBUILD == 1 )) && [[ "$DEPLOY_TARGET" != "footbag-staging" ]]; then
-  echo "ERROR: --public-data is staging only. Production's database is built from the full" >&2
+  cr_error "--public-data is staging only. Production's database is built from the full"
   echo "       sources, never from the public inputs alone." >&2
   exit 1
 fi
@@ -199,7 +207,7 @@ for arg in "${EXPANDED_ARGS[@]+"${EXPANDED_ARGS[@]}"}"; do
 done
 if (( FINAL_MEMBER_LOAD_ASKED == 1 )) && \
    [[ "$DEPLOY_TARGET" != "footbag-production" || "$ALL_DATA_ASKED" -eq 0 ]]; then
-  echo "ERROR: --final-member-load is only meaningful on a production --all-data deploy." >&2
+  cr_error "--final-member-load is only meaningful on a production --all-data deploy."
   exit 1
 fi
 
@@ -226,15 +234,15 @@ if [[ "$DEPLOY_TARGET" == "footbag-production" ]]; then
   for arg in "${EXPANDED_ARGS[@]+"${EXPANDED_ARGS[@]}"}"; do
     case "$arg" in
       --soup-to-nuts)
-        echo "ERROR: --soup-to-nuts is not a production mode: it rebuilds from the legacy mirror, and" >&2
+        cr_error "--soup-to-nuts is not a production mode: it rebuilds from the legacy mirror, and"
         echo "       production's database is built from committed inputs only. Use --all-data." >&2
         exit 1 ;;
       --from-csv)
-        echo "ERROR: --from-csv alone is not a production mode: production's database is all the" >&2
+        cr_error "--from-csv alone is not a production mode: production's database is all the"
         echo "       data, member intake included. Use --all-data." >&2
         exit 1 ;;
       -r|--reuse-local-db)
-        echo "ERROR: -r/--reuse-local-db is not a production mode: production never ships an existing" >&2
+        cr_error "-r/--reuse-local-db is not a production mode: production never ships an existing"
         echo "       local database, which may carry test personas or development settings. Its" >&2
         echo "       database is built in the run, by --all-data." >&2
         exit 1 ;;
@@ -310,7 +318,7 @@ if [[ "${DEPLOY_TARGET:-footbag-staging}" == "footbag-production" ]]; then
   # session, systemd units), refuse with a clear message instead of prompting.
   if ! { [[ -t 0 ]] && [[ -t 1 ]] && [[ -t 2 ]]; }; then
     echo "" >&2
-    echo "ERROR: a production deploy requires interactive confirmation, but stdin/stdout/stderr are not all TTYs." >&2
+    cr_error "a production deploy requires interactive confirmation, but stdin/stdout/stderr are not all TTYs."
     echo "Recommendation: run it from a terminal. There is no non-interactive form of this confirmation." >&2
     exit 1
   fi
@@ -346,7 +354,7 @@ if [[ "${DEPLOY_TARGET:-footbag-staging}" == "footbag-production" ]]; then
     printf "  Skip the media upload, leaving the bucket exactly as it is? [y/N] " >&2
     if ! read -r _media </dev/tty 2>/dev/null; then
       echo "" >&2
-      echo "ERROR: a production deploy requires interactive confirmation, but no TTY is available." >&2
+      cr_error "a production deploy requires interactive confirmation, but no TTY is available."
       exit 1
     fi
     # Asked in the negative so the empty answer is the one that leaves the shipped
@@ -367,12 +375,12 @@ if [[ "${DEPLOY_TARGET:-footbag-staging}" == "footbag-production" ]]; then
   printf "  Type 'APPLY' to confirm: " >&2
   if ! read -r _ack </dev/tty 2>/dev/null; then
     echo "" >&2
-    echo "ERROR: a production deploy requires interactive confirmation, but no TTY is available." >&2
+    cr_error "a production deploy requires interactive confirmation, but no TTY is available."
     echo "Recommendation: run it from a terminal. There is no non-interactive form of this confirmation." >&2
     exit 1
   fi
   if [[ "$_ack" != "APPLY" ]]; then
-    echo "Aborted. Confirmation did not match." >&2
+    cr_error "Aborted. Confirmation did not match."
     exit 1
   fi
   echo "  → Confirmed. Proceeding." >&2
@@ -400,13 +408,13 @@ if [[ "${DEPLOY_TARGET:-footbag-staging}" == "footbag-production" ]]; then
   printf "  Host sudo password for footbag-production: " >&2
   if ! read -rs _PROD_SUDO_PASS </dev/tty 2>/dev/null; then
     echo "" >&2
-    echo "ERROR: could not read the host password from the terminal." >&2
+    cr_error "could not read the host password from the terminal."
     echo "Recommendation: run it from a terminal. There is no file fallback for production." >&2
     exit 1
   fi
   echo "" >&2
   if [[ -z "$_PROD_SUDO_PASS" ]]; then
-    echo "ERROR: a production deploy will not proceed on an empty password." >&2
+    cr_error "a production deploy will not proceed on an empty password."
     exit 1
   fi
   PROD_PASSWORD_TYPED=1
@@ -423,7 +431,7 @@ fi
 if (( SEED_TEST_PERSONAS == 1 )); then
   _persona_target="${DEPLOY_TARGET:-footbag-staging}"
   if [[ "$_persona_target" != "footbag-staging" ]]; then
-    echo "ERROR: --seed-test-personas is allowlisted to --target staging only (got '--target ${TARGET}')." >&2
+    cr_error "--seed-test-personas is allowlisted to --target staging only (got '--target ${TARGET}')."
     echo "Recommendation: persona seeding must never reach production or any other environment. Remove the flag, or deploy with --target staging if you intended to seed staging." >&2
     exit 1
   fi
@@ -436,7 +444,7 @@ fi
 if (( REFRESH_TEST_PERSONAS == 1 )); then
   _persona_target="${DEPLOY_TARGET:-footbag-staging}"
   if [[ "$_persona_target" != "footbag-staging" ]]; then
-    echo "ERROR: --refresh-test-personas is allowlisted to --target staging only (got '--target ${TARGET}')." >&2
+    cr_error "--refresh-test-personas is allowlisted to --target staging only (got '--target ${TARGET}')."
     echo "Recommendation: the persona rebuild deletes persona-owned rows and must never reach production or any other environment. Remove the flag, or deploy with --target staging if you intended to rebuild the staging personas." >&2
     exit 1
   fi
@@ -450,7 +458,7 @@ fi
 need_cmd() {
   local cmd="$1" pkg_hint="$2"
   if ! command -v "$cmd" >/dev/null 2>&1; then
-    echo "ERROR: required command not found: $cmd" >&2
+    cr_error "required command not found: $cmd"
     echo "Recommendation: $pkg_hint" >&2
     exit 1
   fi
@@ -485,7 +493,7 @@ export DEPLOY_TARGET="${DEPLOY_TARGET:-footbag-staging}"
 # kills the wrapper with exit 141 before our own error message can print.
 RESOLVED_HOST=$(ssh -G "$DEPLOY_TARGET" 2>/dev/null | awk '/^hostname / {print $2}' | tail -1)
 if [[ -z "$RESOLVED_HOST" || "$RESOLVED_HOST" == "$DEPLOY_TARGET" ]]; then
-  echo "ERROR: SSH alias '$DEPLOY_TARGET' is not configured (or resolves to itself)." >&2
+  cr_error "SSH alias '$DEPLOY_TARGET' is not configured (or resolves to itself)."
   echo "Recommendation: add the deploy alias stanza to ~/.ssh/config." >&2
   exit 1
 fi
@@ -494,7 +502,7 @@ fi
 # scratch can land 1-2 GB at peak.
 WS_AVAIL_KB=$(df -k --output=avail . 2>/dev/null | tail -1 | tr -d ' ')
 if [[ -n "$WS_AVAIL_KB" ]] && (( WS_AVAIL_KB < 2097152 )); then
-  echo "ERROR: workstation has only ${WS_AVAIL_KB}K free in this directory; need >=2 GB." >&2
+  cr_error "workstation has only ${WS_AVAIL_KB}K free in this directory; need >=2 GB."
   echo "Recommendation: free disk (docker system prune -af; clear caches) and re-run." >&2
   exit 1
 fi
@@ -507,7 +515,7 @@ if (( (DB_REBUILD_INVOLVED == 1) || (MODE_REUSE == 1) )) && command -v lsof >/de
   if [[ -f database/footbag.db ]]; then
     _lock_holders=$(lsof -F pcR database/footbag.db 2>/dev/null || true)
     if [[ -n "$_lock_holders" ]]; then
-      echo "ERROR: database/footbag.db is locked by another process." >&2
+      cr_error "database/footbag.db is locked by another process."
       echo "Holders:" >&2
       lsof database/footbag.db >&2 || true
       # Common case: local dev server (`tsx watch src/server.ts`) is running.
@@ -562,7 +570,7 @@ if (( (DB_REBUILD_INVOLVED == 1) || (MODE_REUSE == 1) )) && command -v lsof >/de
         rm -f database/footbag.db-wal database/footbag.db-shm
         # Re-verify before continuing.
         if [[ -n "$(lsof -t database/footbag.db 2>/dev/null || true)" ]]; then
-          echo "ERROR: database/footbag.db is still locked after kill attempt." >&2
+          cr_error "database/footbag.db is still locked after kill attempt."
           lsof database/footbag.db >&2 || true
           exit 1
         fi
@@ -605,18 +613,24 @@ if (( MODE_REUSE == 1 )) \
     && [[ "${FOOTBAG_SKIP_SCHEMA_DRIFT_CHECK:-}" != "1" ]] \
     && [[ -f database/footbag.db ]] && [[ -f database/schema.sql ]]; then
   _drift_tmp_db=$(mktemp -t schema_check.XXXXXX.db)
-  # shellcheck disable=SC2064
-  trap "rm -f '${_drift_tmp_db}' '${_drift_tmp_db}-wal' '${_drift_tmp_db}-shm'" EXIT
-  # A signal ends the run through the EXIT trap, never through bash's own
-  # fatal-signal handling, where a second signal can cut the cleanup short.
-  trap "trap '' HUP INT TERM; exit 129" HUP
-  trap "trap '' HUP INT TERM; exit 130" INT
-  trap "trap '' HUP INT TERM; exit 143" TERM
-  if ! sqlite3 "${_drift_tmp_db}" < database/schema.sql >/dev/null 2>&1; then
-    echo "WARNING: schema-drift preflight could not apply database/schema.sql to a tmp DB; skipping drift check." >&2
+  # The report library runs this at exit, interrupt included.
+  cr_cleanup rm -f "${_drift_tmp_db}" "${_drift_tmp_db}-wal" "${_drift_tmp_db}-shm" "${_drift_tmp_db}.err"
+  # Reads the database this mode would ship. A read that fails is reported as an
+  # unreadable database with sqlite's own message and stops the run: read as
+  # empty, every table in schema.sql would look missing and the operator would be
+  # sent to rebuild a database whose real problem is that it cannot be opened.
+  _live_read() {  # $1 = query; sets _live_out
+    if ! _live_out=$(sqlite3 database/footbag.db "$1" 2>"${_drift_tmp_db}.err"); then
+      cr_error "database/footbag.db could not be read, so its schema was not compared with database/schema.sql: $(tail -n 1 "${_drift_tmp_db}.err")"
+      exit 1
+    fi
+  }
+  if ! _apply_out=$(sqlite3 "${_drift_tmp_db}" < database/schema.sql 2>&1 >/dev/null); then
+    cr_warn "schema-drift preflight could not apply database/schema.sql to a tmp DB, so the drift check was skipped: $(printf '%s\n' "$_apply_out" | tail -n 1)"
   else
     _expected_tables=$(sqlite3 "${_drift_tmp_db}" "SELECT name FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name;")
-    _live_tables=$(sqlite3 database/footbag.db "SELECT name FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name;" 2>/dev/null || true)
+    _live_read "SELECT name FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name;"
+    _live_tables="$_live_out"
     _drift_lines=()
     # First pass: report items in schema.sql that are missing from the live DB.
     while IFS= read -r _t; do
@@ -626,7 +640,8 @@ if (( MODE_REUSE == 1 )) \
         continue
       fi
       _expected_cols=$(sqlite3 "${_drift_tmp_db}" "SELECT name FROM pragma_table_info('${_t}') ORDER BY name;")
-      _live_cols=$(sqlite3 database/footbag.db "SELECT name FROM pragma_table_info('${_t}') ORDER BY name;" 2>/dev/null || true)
+      _live_read "SELECT name FROM pragma_table_info('${_t}') ORDER BY name;"
+      _live_cols="$_live_out"
       _missing_cols=$(comm -23 <(printf '%s\n' "${_expected_cols}") <(printf '%s\n' "${_live_cols}"))
       if [[ -n "${_missing_cols}" ]]; then
         _cols_str=$(printf '%s\n' "${_missing_cols}" | paste -sd ',' - | sed 's/,/, /g')
@@ -647,7 +662,8 @@ if (( MODE_REUSE == 1 )) \
         continue
       fi
       _expected_cols=$(sqlite3 "${_drift_tmp_db}" "SELECT name FROM pragma_table_info('${_t}') ORDER BY name;")
-      _live_cols=$(sqlite3 database/footbag.db "SELECT name FROM pragma_table_info('${_t}') ORDER BY name;" 2>/dev/null || true)
+      _live_read "SELECT name FROM pragma_table_info('${_t}') ORDER BY name;"
+      _live_cols="$_live_out"
       _extra_cols=$(comm -13 <(printf '%s\n' "${_expected_cols}") <(printf '%s\n' "${_live_cols}"))
       if [[ -n "${_extra_cols}" ]]; then
         _cols_str=$(printf '%s\n' "${_extra_cols}" | paste -sd ',' - | sed 's/,/, /g')
@@ -655,7 +671,7 @@ if (( MODE_REUSE == 1 )) \
       fi
     done <<< "${_live_tables}"
     if (( ${#_drift_lines[@]} > 0 )); then
-      echo "ERROR: database/footbag.db schema is out of sync with database/schema.sql." >&2
+      cr_error "database/footbag.db schema is out of sync with database/schema.sql."
       echo "       Drift detected between the local DB and the declared schema:" >&2
       for _line in "${_drift_lines[@]}"; do echo "$_line" >&2; done
       echo "" >&2
@@ -678,8 +694,7 @@ if (( MODE_REUSE == 1 )) \
       exit 1
     fi
   fi
-  rm -f "${_drift_tmp_db}" "${_drift_tmp_db}-wal" "${_drift_tmp_db}-shm"
-  trap - EXIT HUP INT TERM
+  rm -f "${_drift_tmp_db}" "${_drift_tmp_db}-wal" "${_drift_tmp_db}-shm" "${_drift_tmp_db}.err"
 fi
 
 # Operator credential source, for staging only. Production has none: its host
@@ -768,25 +783,34 @@ if (( MODE_CODE_ONLY == 1 )) \
   source "${SCRIPT_DIR}/scripts/lib/ssh-known-hosts.sh"
   require_pinned_known_hosts || exit 1
   _fp_js="scripts/internal/host-db-fingerprint.js"
+  # Why the read failed is kept for the warning below, so a skipped check says
+  # what stopped it rather than listing every possible cause.
+  _fp_msg=""
   if [[ -r "$_fp_js" ]]; then
+    _fp_err="$(mktemp)"
     _host_fp=$(ssh "${FOOTBAG_SSH_PIN_OPTS[@]}" "$DEPLOY_TARGET" '
       c=$(docker ps --filter "name=web" --format "{{.Names}}" 2>/dev/null | head -1)
       [ -n "$c" ] || exit 9
       docker exec -i "$c" node
-    ' < "$_fp_js" 2>/dev/null) || _host_fp="__UNREACHABLE__"
+    ' < "$_fp_js" 2>"$_fp_err") || {
+      _fp_rc=$?
+      _host_fp="__UNREACHABLE__"
+      _fp_msg="exit ${_fp_rc}: $(tail -n 1 "$_fp_err")"
+      (( _fp_rc == 9 )) && _fp_msg="no running web container on the host"
+    }
+    rm -f "$_fp_err"
   else
     _host_fp="__UNREACHABLE__"
+    _fp_msg="$_fp_js is not readable"
   fi
 
   if [[ -z "$_expected_fp" ]]; then
-    echo "WARNING: schema-sync check could not read database/schema.sql; skipping." >&2
+    cr_warn "schema-sync check could not read database/schema.sql, so the deployed schema was not compared."
   elif [[ "$_host_fp" == "__UNREACHABLE__" ]]; then
-    echo "WARNING: schema-sync check could not read the deployed DB schema on '$DEPLOY_TARGET'" >&2
-    echo "         (host unreachable, /srv/footbag/env or DB missing, or sqlite3 absent on host)." >&2
-    echo "         Proceeding with the code-only deploy without a schema-drift check." >&2
+    cr_warn "schema-sync check could not read the deployed DB schema on '$DEPLOY_TARGET' (${_fp_msg}); the code-only deploy went ahead without a schema-drift check."
   elif [[ "$_host_fp" != "$_expected_fp" ]]; then
     echo "" >&2
-    echo "WARNING: database/schema.sql differs from the DB schema deployed on '$DEPLOY_TARGET'." >&2
+    cr_warn "database/schema.sql differs from the DB schema deployed on '$DEPLOY_TARGET'."
     echo "         A code-only deploy does NOT reapply schema on the host, so code that depends" >&2
     echo "         on the changed tables/columns will crash at runtime. Before go-live the fix" >&2
     echo "         is a rebuild that ships a fresh schema + DB; once production is live it is" >&2
@@ -813,7 +837,7 @@ if (( MODE_CODE_ONLY == 1 )) \
       # to select, so both now require the operator to say which they mean. This
       # is the same refusal the no-terminal branch below already makes, and it is
       # why that branch is no longer a special case.
-      echo "ERROR: schema drift detected and this deploy states no intent for the database." >&2
+      cr_error "schema drift detected and this deploy states no intent for the database."
       echo "Choose one explicitly and re-run:" >&2
       echo "  bash deploy_to_aws.sh -k         ship code only, leaving the deployed DB alone" >&2
       echo "  bash deploy_to_aws.sh --from-csv rebuild and REPLACE the deployed DB" >&2
@@ -830,6 +854,7 @@ if (( MODE_CODE_ONLY == 1 )) \
       printf "  Proceed with code-only deploy despite schema drift? [y/N] " >&2
       read -r _ans </dev/tty || _ans=""
       if ! [[ "${_ans:-}" =~ ^[Yy]$ ]]; then
+        cr_error "a code-only deploy onto a drifted schema was declined; nothing was deployed."
         echo "Aborted. Run a rebuild deploy (bash deploy_to_aws.sh --from-csv, or --public-data" >&2
         echo "  on staging without the private checkout), or set" >&2
         echo "  FOOTBAG_KEEP_DB_ACK_SCHEMA_DRIFT=1 to ship code-only despite drift." >&2
@@ -837,7 +862,7 @@ if (( MODE_CODE_ONLY == 1 )) \
       fi
     else
       # Non-interactive and not acked: refuse rather than silently ship a crash.
-      echo "ERROR: schema drift detected and no TTY to confirm." >&2
+      cr_error "schema drift detected and no TTY to confirm."
       echo "Recommendation: run a rebuild deploy (bash deploy_to_aws.sh --from-csv, or --public-data" >&2
       echo "  on staging without the private checkout), or set" >&2
       echo "  FOOTBAG_KEEP_DB_ACK_SCHEMA_DRIFT=1 to ship code-only anyway, or" >&2
@@ -879,16 +904,29 @@ echo "────────────────────────�
 # disk). A password is short, so today's bash would keep it in a pipe either way;
 # the point is that the guarantee comes from the construct rather than from the
 # version and the length, and this is not a value to make that bet about.
-# exec replaces this process image, so the variable does not outlive the handoff.
+# The variable is unset as soon as the orchestrator has returned, so it does not
+# outlive the handoff.
+#
+# The orchestrator runs as a child, never exec'd into: an exec would end this
+# process without its exit handling, so the closing report, which lists every
+# problem the orchestrator and the leaves met, would never print. The child keeps
+# the terminal, so the leaves' production gates still see one.
 #
 # PROD_MEDIA_ARGS carries the media intent the production gate asked for, appended
 # rather than substituted: an operator who named one of the media flags themselves
 # never reached that question, so the array is empty and the arguments are exactly
 # what they typed.
+_orchestrator_rc=0
 if (( PROD_PASSWORD_TYPED == 1 )); then
-  exec bash "$ORCHESTRATOR" "$@" "${PROD_MEDIA_ARGS[@]+"${PROD_MEDIA_ARGS[@]}"}" \
-    < <(printf '%s\n' "$_PROD_SUDO_PASS")
+  bash "$ORCHESTRATOR" "$@" "${PROD_MEDIA_ARGS[@]+"${PROD_MEDIA_ARGS[@]}"}" \
+    < <(printf '%s\n' "$_PROD_SUDO_PASS") || _orchestrator_rc=$?
+  unset _PROD_SUDO_PASS
 else
-  exec bash "$ORCHESTRATOR" "$@" "${PROD_MEDIA_ARGS[@]+"${PROD_MEDIA_ARGS[@]}"}" \
-    < "$OPERATOR_CREDENTIAL_FILE"
+  bash "$ORCHESTRATOR" "$@" "${PROD_MEDIA_ARGS[@]+"${PROD_MEDIA_ARGS[@]}"}" \
+    < "$OPERATOR_CREDENTIAL_FILE" || _orchestrator_rc=$?
 fi
+if (( _orchestrator_rc != 0 )); then
+  cr_error "the deploy (scripts/deploy-to-aws.sh) exited ${_orchestrator_rc}"
+  exit "$_orchestrator_rc"
+fi
+cr_finish

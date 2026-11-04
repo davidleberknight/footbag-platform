@@ -141,6 +141,11 @@ source "${REPO_ROOT}/scripts/lib/aws-profile.sh"
 source "${REPO_ROOT}/scripts/lib/ssh-alias.sh"
 # shellcheck source=lib/aws-credentials-file.sh
 source "${REPO_ROOT}/scripts/lib/aws-credentials-file.sh"
+# One closing report for the whole departure. The host and AWS steps run as
+# children, directly, so each keeps the terminal for its typed APPLY, and list
+# their own problems in this report. The library owns the exit and signal traps.
+# shellcheck source=lib/closing-report.sh
+source "${REPO_ROOT}/scripts/lib/closing-report.sh"
 
 HOST_CMD="${OFFBOARD_HOST_CMD:-${SCRIPT_DIR}/provision-dev-tester-account.sh}"
 AWS_CMD="${OFFBOARD_AWS_CMD:-${SCRIPT_DIR}/manage-dev-tester.sh}"
@@ -214,8 +219,9 @@ fi
 
 aws_profile_use "$FOOTBAG_OPERATOR_PROFILE" \
   "Retiring a dev-and-tester is refused to every role, including the job role, by the role's own policy." \
-  || exit 1
-aws_identity_require_direct_user "$FOOTBAG_OPERATOR_USER" || exit 1
+  || cr_die "the ${FOOTBAG_OPERATOR_PROFILE} profile could not be used; nothing was changed"
+aws_identity_require_direct_user "$FOOTBAG_OPERATOR_USER" \
+  || cr_die "this run is not the directly authenticated ${FOOTBAG_OPERATOR_USER}; nothing was changed"
 
 ALIAS="footbag-${TARGET}"
 
@@ -229,7 +235,7 @@ if command -v ssh >/dev/null 2>&1; then
   ALIAS_USER="$(env -u AWS_PROFILE ssh -G "$ALIAS" </dev/null 2>/dev/null | awk '/^user /{print $2}' | tail -1)"
 fi
 if [[ "$ALIAS_USER" != "$OPERATOR_SHARED_ACCOUNT" ]]; then
-  echo "ERROR: '${ALIAS}' connects as '${ALIAS_USER:-nothing}', not the shared account" >&2
+  cr_error "'${ALIAS}' connects as '${ALIAS_USER:-nothing}', not the shared account"
   echo "       '${OPERATOR_SHARED_ACCOUNT}'. That is the default every run relies on. Change its" >&2
   echo "       User line back to ${OPERATOR_SHARED_ACCOUNT} and re-run. Nothing was changed." >&2
   exit 1
@@ -243,7 +249,12 @@ HELD_HERE=0
 # The named account this machine's Match block connects as, if any. The filed
 # named-account password is one file per machine, not per account, so it is
 # this account's only when the Match block says this machine is theirs.
-MATCH_ACCOUNT_HERE="$(ssh_alias_match_account "$SSH_CONFIG" "$ALIAS" "$FOOTBAG_DEV_TESTER_PROFILE" 2>/dev/null || true)"
+# A config that could not be read is reported, and leaves the filed password
+# alone: the safe direction, but not one to take without saying so.
+if ! MATCH_ACCOUNT_HERE="$(ssh_alias_match_account "$SSH_CONFIG" "$ALIAS" "$FOOTBAG_DEV_TESTER_PROFILE")"; then
+  MATCH_ACCOUNT_HERE=""
+  cr_warn "could not read ${SSH_CONFIG}, so which named account this machine connects as is unknown; the filed sudo password is left alone"
+fi
 if [[ -e "$NAMED_KEY" || -e "${NAMED_KEY}.pub" || -e "${NAMED_KEY}.onboarded" ]] \
    || aws_cred_has_section "$AWS_CRED_PATH" "$ACCOUNT" \
    || [[ "$MATCH_ACCOUNT_HERE" == "$ACCOUNT" ]]; then
@@ -269,12 +280,13 @@ echo "and IAM user are both left inert, because the trail goes on naming them."
 echo "Their repository access on GitHub is separate, and is not touched here."
 echo ""
 if ! confirm_from_tty "Type 'APPLY' to retire ${ACCOUNT}: " "APPLY"; then
-  echo "Not confirmed; nothing was changed." >&2
+  cr_error "Not confirmed; nothing was changed."
   exit 1
 fi
 
 CONFIG_TMP=""
-trap 'rm -f -- "${CONFIG_TMP:-}"' EXIT INT TERM
+remove_config_tmp() { rm -f -- "${CONFIG_TMP:-}"; }
+cr_cleanup remove_config_tmp
 
 # ── Step 1: the host account ─────────────────────────────────────────────────
 
@@ -286,7 +298,7 @@ if (( FROM_STEP <= 1 )); then
   # read none of it.
   if ! bash "$HOST_CMD" --target "$TARGET" --account "$ACCOUNT" --offboard; then
     echo "" >&2
-    echo "ERROR: the host account was not retired, so the AWS identity has not" >&2
+    cr_error "the host account was not retired, so the AWS identity has not"
     echo "       been touched either. Ending one half and reporting the other" >&2
     echo "       as done is the failure this command exists to prevent." >&2
     echo "         bash scripts/offboard-dev-tester.sh ... --from-step 1" >&2
@@ -311,7 +323,7 @@ if (( FROM_STEP <= 2 )); then
     [[ "$ASSUME_YES" == "yes" ]] && AWS_ARGS+=(--yes)
     if ! bash "$AWS_CMD" "${AWS_ARGS[@]}" --driven-by-offboard </dev/null; then
       echo "" >&2
-      echo "ERROR: the AWS identity was not retired. The host account from step 1" >&2
+      cr_error "the AWS identity was not retired. The host account from step 1"
       echo "       IS retired, so this person currently holds an AWS identity and" >&2
       echo "       no shell. Finish it:" >&2
       echo "         bash scripts/offboard-dev-tester.sh ... --from-step 2" >&2
@@ -320,7 +332,7 @@ if (( FROM_STEP <= 2 )); then
   elif [[ "$USER_READ" == *NoSuchEntity* ]]; then
     echo "    IAM has no user named ${ACCOUNT}, so there is no AWS identity to retire."
   else
-    echo "ERROR: could not read whether ${ACCOUNT} has an IAM user:" >&2
+    cr_error "could not read whether ${ACCOUNT} has an IAM user: $(tail -n 1 <<<"$USER_READ")"
     printf '%s\n' "$USER_READ" | sed 's/^/         /' >&2
     echo "       The host account from step 1 IS retired. Resume once IAM can be read:" >&2
     echo "         bash scripts/offboard-dev-tester.sh ... --from-step 2" >&2
@@ -349,7 +361,7 @@ if (( FROM_STEP <= 3 )); then
     OWN_ADDRESS=""
     if [[ "$ADDRESS_READ_ERR" != *ParameterNotFound* ]]; then
       echo "" >&2
-      echo "ERROR: could not read ${ACCOUNT}'s staging address: ${ADDRESS_READ_ERR}" >&2
+      cr_error "could not read ${ACCOUNT}'s staging address: ${ADDRESS_READ_ERR}"
       echo "       The host account and the AWS identity ARE retired. Once it reads:" >&2
       echo "         bash scripts/offboard-dev-tester.sh ... --from-step 3" >&2
       exit 1
@@ -363,19 +375,22 @@ if (( FROM_STEP <= 3 )); then
     # address this machine connects from can end its own SSH to staging, unless
     # an administrator entry also admits it, which this run does not read: the
     # warning says both, and the person running it decides.
+    # A read that fails leaves this machine's address unknown, so whether the
+    # removal cuts this machine off cannot be checked: said, and listed.
     if [[ -n "$FETCH_CMD" ]]; then
       echo "SYNTHETIC: checkip='${FETCH_CMD}' -- this machine's address is a stand-in." >&2
-      HERE="$("$FETCH_CMD" 2>/dev/null || true)"
+      HERE="$("$FETCH_CMD")" || HERE=""
     else
-      HERE="$(curl -fsS --max-time 10 https://checkip.amazonaws.com 2>/dev/null || true)"
+      HERE="$(curl -fsS --max-time 10 https://checkip.amazonaws.com)" || HERE=""
     fi
     HERE="${HERE//[[:space:]]/}"
+    [[ -n "$HERE" ]] || cr_warn "could not read this machine's own address, so whether removing ${OWN_ADDRESS} ends this machine's SSH to ${TARGET} was not checked"
     [[ -n "$HERE" && "$HERE" != */* ]] && HERE="${HERE}/32"
     # The parameter lists every address the person connects from, so this
     # machine's is looked for among them.
     if [[ -n "$HERE" && ",${OWN_ADDRESS}," == *",${HERE},"* ]]; then
       echo ""
-      echo "  WARNING: this machine connects from ${HERE}, the address being removed."
+      cr_warn "this machine connects from ${HERE}, the address being removed."
       echo "  If no administrator entry also admits it, this machine loses SSH to"
       echo "  ${TARGET} when it is removed. An administrator's own entry stays exactly"
       echo "  as it is; the removal report says whether one still admits this address."
@@ -387,7 +402,7 @@ if (( FROM_STEP <= 3 )); then
       confirm_from_tty "Type 'APPLY' to remove this machine's own address: " "APPLY" && SELF_OK=1
       ASSUME_YES="$SELF_ASSUME_YES_WAS"
       if (( ! SELF_OK )); then
-        echo "Not confirmed. The host account and the AWS identity ARE retired; the" >&2
+        cr_error "Not confirmed. The host account and the AWS identity ARE retired; the"
         echo "address stays until this is resumed:" >&2
         echo "  bash scripts/offboard-dev-tester.sh ... --from-step 3" >&2
         exit 1
@@ -397,7 +412,7 @@ if (( FROM_STEP <= 3 )); then
     [[ "$ASSUME_YES" == "yes" ]] && ADDRESS_ARGS+=(--yes)
     if ! bash "$ADDRESS_CMD" "${ADDRESS_ARGS[@]}" </dev/null; then
       echo "" >&2
-      echo "ERROR: ${OWN_ADDRESS} was not proved off the ${TARGET} allow-list. The host" >&2
+      cr_error "${OWN_ADDRESS} was not proved off the ${TARGET} allow-list. The host"
       echo "       account and the AWS identity ARE retired. Resume:" >&2
       echo "         bash scripts/offboard-dev-tester.sh ... --from-step 3" >&2
       exit 1
@@ -424,7 +439,8 @@ else
   # That file holds the password of whichever named account this machine's
   # Match block connects as, so it is shredded only when that is this account.
   # Otherwise it is somebody else's, most often the person running this.
-  operator_credential_file_for "$ACCOUNT" "$TARGET" || exit 1
+  operator_credential_file_for "$ACCOUNT" "$TARGET" \
+    || cr_die "could not resolve ${ACCOUNT}'s credential file on this machine"
   if [[ "$MATCH_ACCOUNT_HERE" != "$ACCOUNT" ]]; then
     echo "  ${OPERATOR_CREDENTIAL_DISPLAY}: left alone, because this machine's named account"
     echo "    is ${MATCH_ACCOUNT_HERE:-none}, not ${ACCOUNT}"
@@ -446,11 +462,11 @@ else
       # The config file spells a named profile with a "profile " prefix, and the
       # section match ignores whitespace, hence the joined form.
       aws_cred_remove_section "$AWS_CONFIG_PATH" "profile${STAGING_RUNTIME_PROFILE}" || {
-        echo "ERROR: could not remove [profile ${STAGING_RUNTIME_PROFILE}]: ${AWS_CRED_ERROR}" >&2; exit 1; }
+        cr_error "could not remove [profile ${STAGING_RUNTIME_PROFILE}]: ${AWS_CRED_ERROR}"; exit 1; }
       echo "  [profile ${STAGING_RUNTIME_PROFILE}], chaining from it: removed"
     fi
     aws_cred_remove_section "$AWS_CONFIG_PATH" "profile${FOOTBAG_DEV_TESTER_PROFILE}" || {
-      echo "ERROR: could not remove [profile ${FOOTBAG_DEV_TESTER_PROFILE}]: ${AWS_CRED_ERROR}" >&2; exit 1; }
+      cr_error "could not remove [profile ${FOOTBAG_DEV_TESTER_PROFILE}]: ${AWS_CRED_ERROR}"; exit 1; }
     echo "  [profile ${FOOTBAG_DEV_TESTER_PROFILE}], sourcing ${ACCOUNT}: removed"
   else
     echo "  no ${FOOTBAG_DEV_TESTER_PROFILE} profile here sourcing ${ACCOUNT}"
@@ -463,7 +479,7 @@ else
   elif (( CRED_RC == 2 )); then
     echo "  [${ACCOUNT}] in the AWS credentials file: none here"
   else
-    echo "ERROR: could not remove [${ACCOUNT}]: ${AWS_CRED_ERROR}" >&2
+    cr_error "could not remove [${ACCOUNT}]: ${AWS_CRED_ERROR}"
     exit 1
   fi
 
@@ -477,14 +493,19 @@ else
   fi
   if (( BLOCK_RC == 0 )); then
     # The file is the operator's own, so the change is shown as it is made.
-    diff -u --label "${SSH_CONFIG} (before)" --label "${SSH_CONFIG} (after)" \
-      "$SSH_CONFIG" "$CONFIG_TMP" | sed 's/^/    /' || true
+    # diff exits 1 for files that differ, which these do; anything else means
+    # the change could not be shown, which is said rather than swallowed.
+    DIFF_RC=0
+    SHOWN="$(diff -u --label "${SSH_CONFIG} (before)" --label "${SSH_CONFIG} (after)" \
+      "$SSH_CONFIG" "$CONFIG_TMP")" || DIFF_RC=$?
+    printf '%s\n' "$SHOWN" | sed 's/^/    /'
+    (( DIFF_RC <= 1 )) || cr_warn "the change to ${SSH_CONFIG} could not be shown before it was written"
     cat "$CONFIG_TMP" > "$SSH_CONFIG"
     echo "  ${ACCOUNT}'s Match block for ${ALIAS}: removed"
   elif (( BLOCK_RC == 2 )); then
     echo "  ${ACCOUNT}'s Match block for ${ALIAS}: none here"
   else
-    echo "ERROR: could not read ${SSH_CONFIG}, or the result would not parse. It was not changed." >&2
+    cr_error "could not read ${SSH_CONFIG}, or the result would not parse. It was not changed."
     exit 1
   fi
 
@@ -521,4 +542,6 @@ echo "it by, and AWS ends a chained session within the hour."
 echo ""
 echo "Nothing else is owed. A dev-and-tester is onboarded onto staging only, and"
 echo "nobody named has a vault entry, so there is nothing to remove there."
-exit 0
+cr_proved "${ACCOUNT} retired on ${TARGET}, steps ${FROM_STEP} to 3, each proved by the step that ran it, and this workstation cleaned of what was theirs"
+cr_unproved "a staging runtime session chained before now: nothing names ${ACCOUNT} to refuse it by, and AWS ends it within the hour"
+cr_finish

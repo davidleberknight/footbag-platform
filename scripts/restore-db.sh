@@ -138,7 +138,16 @@
 #   # the cutover rollback, both flags, onto the live host:
 #   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/restore-db.sh --target production \
 #       --pre-flip --bucket footbag-production-db-snapshots-dr
+#
+# Test seam (CI only; operators never set it), announced on stderr:
+# RESTORE_DB_AWS_BIN replaces the aws CLI for the snapshot search and the local
+# download. The host is reached through FOOTBAG_HOST_SSH_BIN, which the shared
+# host library reads and announces; the identity check uses AWS_PROFILE_BIN and
+# AWS_IDENTITY_BIN, announced by theirs.
 set -euo pipefail
+
+# shellcheck source=lib/closing-report.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/closing-report.sh"
 
 TARGET=""
 SOURCE_ENV=""
@@ -154,12 +163,12 @@ ONTO_EMPTY=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --target)    TARGET="${2:-}";     shift 2 || { echo "ERROR: --target requires an argument" >&2; exit 2; } ;;
-    --source)    SOURCE_ENV="${2:-}"; shift 2 || { echo "ERROR: --source requires an argument" >&2; exit 2; } ;;
-    --to-local)  TO_LOCAL="${2:-}";   shift 2 || { echo "ERROR: --to-local requires an argument" >&2; exit 2; } ;;
-    --snapshot)  SNAPSHOT_KEY="${2:-}"; shift 2 || { echo "ERROR: --snapshot requires an argument" >&2; exit 2; } ;;
-    --bucket)    BUCKET="${2:-}";     shift 2 || { echo "ERROR: --bucket requires an argument" >&2; exit 2; } ;;
-    --profile)   AWS_PROFILE_ARG="${2:-}"; shift 2 || { echo "ERROR: --profile requires an argument" >&2; exit 2; } ;;
+    --target)    TARGET="${2:-}";     shift 2 || { cr_error "--target requires an argument"; exit 2; } ;;
+    --source)    SOURCE_ENV="${2:-}"; shift 2 || { cr_error "--source requires an argument"; exit 2; } ;;
+    --to-local)  TO_LOCAL="${2:-}";   shift 2 || { cr_error "--to-local requires an argument"; exit 2; } ;;
+    --snapshot)  SNAPSHOT_KEY="${2:-}"; shift 2 || { cr_error "--snapshot requires an argument"; exit 2; } ;;
+    --bucket)    BUCKET="${2:-}";     shift 2 || { cr_error "--bucket requires an argument"; exit 2; } ;;
+    --profile)   AWS_PROFILE_ARG="${2:-}"; shift 2 || { cr_error "--profile requires an argument"; exit 2; } ;;
     --pre-flip)  PRE_FLIP=1; shift ;;
     --drill)     DRILL=1; shift ;;
     --onto-empty) ONTO_EMPTY=1; shift ;;
@@ -171,11 +180,11 @@ while [[ $# -gt 0 ]]; do
       sed -n '2,/^set -eu/{/^set -eu/d;p;}' "$0"
       exit 0
       ;;
-    *) echo "ERROR: unknown argument '$1'" >&2; exit 2 ;;
+    *) cr_error "unknown argument '$1'"; exit 2 ;;
   esac
 done
 
-die() { echo "ERROR: $*" >&2; exit 1; }
+die() { cr_die "$*"; }
 
 # One destination, named. Two would be ambiguous and none would be a guess.
 if [[ -n "$TARGET" && -n "$TO_LOCAL" ]]; then
@@ -225,6 +234,13 @@ REMOTE_HALF="${SCRIPT_DIR}/internal/restore-db-remote.sh"
 # Travels ahead of the remote half on the same stream and defines the function
 # that deletes set-aside database copies once they are more than seven days old.
 PRUNE_LIB="${SCRIPT_DIR}/internal/prune-db-copies.sh"
+# Travels first on the same stream and defines how the remote half marks the
+# problems it meets, which this run then lists in its own closing report.
+REPORT_LIB="${SCRIPT_DIR}/lib/closing-report-remote.sh"
+
+AWS_BIN="${RESTORE_DB_AWS_BIN:-aws}"
+[[ -n "${RESTORE_DB_AWS_BIN:-}" ]] \
+  && echo "SYNTHETIC: RESTORE_DB_AWS_BIN='${AWS_BIN}' -- this run proves nothing about the estate." >&2
 
 # The remote half exits with this status when it leaves an erasure replay
 # pending: the restored database is in place, the site is held down and backups
@@ -232,12 +248,22 @@ PRUNE_LIB="${SCRIPT_DIR}/internal/prune-db-copies.sh"
 PENDING_EXIT=3
 report_replay_pending() {
   echo "" >&2
-  echo "ERROR: the erasure replay on ${SSH_ALIAS} has NOT completed." >&2
-  echo "       Backups on ${SSH_ALIAS} are PAUSED and the site is STOPPED, and both" >&2
-  echo "       stay that way, across a reboot or a deploy, until the replay is" >&2
-  echo "       finished. The host's own output above names the database in place" >&2
-  echo "       and the one it replaced. Finish it with:" >&2
-  echo "         bash scripts/restore-db.sh --target ${TARGET} --resume-erasure-replay" >&2
+  cr_error "the erasure replay on ${SSH_ALIAS} has NOT completed. Backups on ${SSH_ALIAS} are PAUSED and the site is STOPPED, and both stay that way, across a reboot or a deploy, until the replay is finished. Finish it with: bash scripts/restore-db.sh --target ${TARGET} --resume-erasure-replay"
+  echo "       The host's own output above names the database in place and the one it replaced." >&2
+}
+
+# send_to_host <assignments...>: one session on the host carrying the sudo
+# password, the given NAME=value assignments, the report library, the pruning
+# helper and the remote half, as the shared wire pattern sends every privileged
+# step. Run through cr_run_marked, so every problem the half marks is in this run's
+# closing report.
+send_to_host() {
+  local kv
+  {
+    printf '%s\n' "$SUDO_PASS"
+    for kv in "$@"; do printf '%s=%q\n' "${kv%%=*}" "${kv#*=}"; done
+    cat "$REPORT_LIB" "$PRUNE_LIB" "$REMOTE_HALF"
+  } | "$HOST_SSH_BIN" "${HOST_SSH_OPTS[@]}" "$SSH_ALIAS" 'sudo -k -S -p "" bash'
 }
 
 # ── Resume: finish a restore whose erasure replay did not complete ───────────
@@ -264,11 +290,12 @@ if (( RESUME )); then
   # shellcheck source=lib/host-env-remote.sh
   source "${SCRIPT_DIR}/lib/host-env-remote.sh"
   require_operator_stdin "scripts/restore-db.sh --target $TARGET --resume-erasure-replay" \
-    "$SSH_ALIAS" "$TARGET" || exit 1
-  require_ssh_alias "$SSH_ALIAS" || exit 1
-  require_host_is "$SSH_ALIAS" "$TARGET" || exit 1
+    "$SSH_ALIAS" "$TARGET" || die "no operator credential on standard input"
+  require_ssh_alias "$SSH_ALIAS" || die "no usable ssh alias ${SSH_ALIAS}"
+  require_host_is "$SSH_ALIAS" "$TARGET" || die "the host behind ${SSH_ALIAS} did not confirm it is ${TARGET}"
   [[ -r "$REMOTE_HALF" ]] || die "missing remote half: $REMOTE_HALF"
   [[ -r "$PRUNE_LIB" ]] || die "missing pruning helper: $PRUNE_LIB"
+  [[ -r "$REPORT_LIB" ]] || die "missing remote-half report library: $REPORT_LIB"
   echo ""
   echo "This re-runs the erasure replay against the database in place on ${SSH_ALIAS}"
   echo "and, only if it succeeds, starts the site and resumes backups."
@@ -278,24 +305,21 @@ if (( RESUME )); then
       || die "not confirmed; nothing was changed"
   fi
   resume_status=0
-  {
-    printf '%s\n' "$SUDO_PASS"
-    printf 'RESUME_ERASURE_REPLAY=%q\n' 1
-    cat "$PRUNE_LIB" "$REMOTE_HALF"
-  } | ssh "${HOST_SSH_OPTS[@]}" "$SSH_ALIAS" 'sudo -k -S -p "" bash' || resume_status=$?
-  if (( resume_status != 0 )); then
+  cr_run_marked "erasure replay resume on ${SSH_ALIAS}" -- \
+    send_to_host RESUME_ERASURE_REPLAY=1 || resume_status=$?
+  if (( resume_status != 0 )) || (( ${#CR_ERRORS[@]} )); then
     if (( resume_status == PENDING_EXIT )); then
       report_replay_pending
     else
       echo "" >&2
-      echo "ERROR: resuming the erasure replay failed on ${SSH_ALIAS}; its own output" >&2
-      echo "       above says why." >&2
+      cr_error "resuming the erasure replay failed on ${SSH_ALIAS}; the errors the host marked are listed in the closing report."
     fi
     exit 1
   fi
   echo ""
   echo "== erasure replay completed on ${TARGET}; the site is serving and backups resume =="
-  exit 0
+  cr_proved "the erasure replay re-ran on ${SSH_ALIAS}, the service reported ready and backups resumed (the host half's checks)"
+  cr_finish
 fi
 
 # The two directions with no legitimate form, refused before anything else runs
@@ -361,7 +385,7 @@ else
   # chain; this is the workstation half, which searches and pulls the artifact.
   # shellcheck source=lib/aws-profile.sh
   source "${SCRIPT_DIR}/lib/aws-profile.sh"
-  aws_profile_ensure || exit 1
+  aws_profile_ensure || die "no AWS identity is available for the snapshot search"
 fi
 
 # The two artifact classes are never mixed in a search. The cutover rollback
@@ -415,28 +439,47 @@ if (( DRY_RUN )); then
   exit 0
 fi
 
-command -v aws >/dev/null 2>&1 || die "aws CLI not installed"
+command -v "$AWS_BIN" >/dev/null 2>&1 || die "aws CLI not installed"
 
 # Latest unless the operator named one. Named explicitly is the normal case for
 # a real recovery, where the whole question is which point in time to return to.
+#
+# newest_under <prefix>: sets NEWEST to the newest snapshot key under the prefix,
+# or to nothing when the prefix holds none. It sets a variable rather than
+# printing, and is called directly rather than inside a command substitution,
+# because a failed listing has to end the run here with the CLI's own words: in
+# a substitution that refusal would end only the subshell. The CLI exits 1 with
+# nothing on stderr for a prefix holding no objects, which is an empty listing
+# and not a failure; anything it says on stderr is a failure.
+NEWEST=""
+LS_ERR="$(mktemp)"
+cr_cleanup rm -f -- "$LS_ERR"
 newest_under() {
+  local listing=""
+  NEWEST=""
+  if ! listing="$("$AWS_BIN" "${AWS_ARGS[@]+"${AWS_ARGS[@]}"}" s3 ls "s3://${BUCKET}/$1" --recursive 2>"$LS_ERR")"; then
+    [[ -s "$LS_ERR" ]] && die "could not list s3://${BUCKET}/$1: $(tail -n 1 "$LS_ERR")"
+    listing=""
+  fi
   # Objects sort chronologically within a generation because the key carries the UTC
-  # date path followed by the timestamped name.
-  aws "${AWS_ARGS[@]+"${AWS_ARGS[@]}"}" s3 ls "s3://${BUCKET}/$1" --recursive 2>/dev/null \
-    | grep -v '\.manifest\.json$' | sort | tail -1 | tr -s ' ' | cut -d' ' -f4
+  # date path followed by the timestamped name. grep exits 1 when it keeps no
+  # line, which here is an empty listing.
+  NEWEST="$(printf '%s\n' "$listing" | { grep -v -e '\.manifest\.json$' -e '^$' || [[ $? == 1 ]]; } \
+    | sort | tail -1 | tr -s ' ' | cut -d' ' -f4)"
 }
 
 if [[ -z "$SNAPSHOT_KEY" ]]; then
   echo "==> Finding the most recent snapshot in s3://${BUCKET}/ (${SEARCH_PREFIX})"
   if [[ "$PRE_FLIP" -eq 1 ]]; then
-    SNAPSHOT_KEY="$(newest_under "pre-flip/")"
+    newest_under "pre-flip/"
+    SNAPSHOT_KEY="$NEWEST"
   else
     # Compare the three generations on the object name (field 5 of gen/YYYY/MM/DD/name),
     # so the newest point wins wherever it happens to live.
-    SNAPSHOT_KEY="$(printf '%s\n' \
-        "$(newest_under 'routine/')" \
-        "$(newest_under 'hourly/')" \
-        "$(newest_under 'daily/')" \
+    newest_under 'routine/'; newest_routine="$NEWEST"
+    newest_under 'hourly/'; newest_hourly="$NEWEST"
+    newest_under 'daily/'; newest_daily="$NEWEST"
+    SNAPSHOT_KEY="$(printf '%s\n' "$newest_routine" "$newest_hourly" "$newest_daily" \
       | sed '/^$/d' | sort -t/ -k5 | tail -1)"
   fi
   if [[ -z "$SNAPSHOT_KEY" ]]; then
@@ -452,10 +495,10 @@ echo "    snapshot: s3://${BUCKET}/${SNAPSHOT_KEY}"
 if [[ -n "$TO_LOCAL" ]]; then
   umask 077
   work="$(mktemp -d)"
-  trap 'rm -rf "$work"' EXIT INT TERM
+  cr_cleanup rm -rf -- "$work"
 
   echo "==> Downloading"
-  aws "${AWS_ARGS[@]+"${AWS_ARGS[@]}"}" s3 cp "s3://${BUCKET}/${SNAPSHOT_KEY}" "${work}/snapshot.fetched" >/dev/null \
+  "$AWS_BIN" "${AWS_ARGS[@]+"${AWS_ARGS[@]}"}" s3 cp "s3://${BUCKET}/${SNAPSHOT_KEY}" "${work}/snapshot.fetched" >/dev/null \
     || die "could not download the snapshot"
   # Detect compression rather than assume it. Every artifact this project writes
   # is now gzipped, but assuming it is what made an uncompressed pre-flip
@@ -470,13 +513,18 @@ if [[ -n "$TO_LOCAL" ]]; then
   integrity="$(sqlite3 "${work}/snapshot.db" 'PRAGMA integrity_check;' 2>/dev/null || echo 'unreadable')"
   [[ "$integrity" == "ok" ]] || die "the snapshot failed its integrity check (${integrity})"
 
-  counts="$(sqlite3 "${work}/snapshot.db" "
+  # A count that cannot be taken is listed with sqlite3's words rather than
+  # left as a placeholder nobody reads: the copy still restored, so it warns.
+  if ! counts="$(sqlite3 "${work}/snapshot.db" "
     SELECT 'members=' || (SELECT COUNT(*) FROM members)
         || ' legacy_members=' || (SELECT COUNT(*) FROM legacy_members)
         || ' historical_persons=' || (SELECT COUNT(*) FROM historical_persons)
         || ' clubs=' || (SELECT COUNT(*) FROM clubs)
         || ' audit_entries=' || (SELECT COUNT(*) FROM audit_entries);
-  " 2>/dev/null || echo '(counts unavailable)')"
+  " 2>&1)"; then
+    cr_warn "the snapshot's row counts could not be read: ${counts##*$'\n'}"
+    counts='(counts unavailable)'
+  fi
 
   cp -a "${work}/snapshot.db" "$TO_LOCAL"
   echo ""
@@ -487,7 +535,8 @@ if [[ -n "$TO_LOCAL" ]]; then
   echo "  Contents: ${counts}"
   echo "  This is a copy of staging data. Delete it when you are done with it."
   echo "======================================================================"
-  exit 0
+  cr_proved "s3://${BUCKET}/${SNAPSHOT_KEY} passed its integrity check and is at ${TO_LOCAL}"
+  cr_finish
 fi
 
 # ── Host destination: in place, behind the adapter check and a typed word ────
@@ -503,11 +552,12 @@ ASSUME_YES=no
 source "${SCRIPT_DIR}/lib/host-env-remote.sh"
 
 require_operator_stdin "scripts/restore-db.sh --target $TARGET" \
-  "$SSH_ALIAS" "$TARGET" || exit 1
-require_ssh_alias "$SSH_ALIAS" || exit 1
-require_host_is "$SSH_ALIAS" "$TARGET" || exit 1
+  "$SSH_ALIAS" "$TARGET" || die "no operator credential on standard input"
+require_ssh_alias "$SSH_ALIAS" || die "no usable ssh alias ${SSH_ALIAS}"
+require_host_is "$SSH_ALIAS" "$TARGET" || die "the host behind ${SSH_ALIAS} did not confirm it is ${TARGET}"
 [[ -r "$REMOTE_HALF" ]] || die "missing remote half: $REMOTE_HALF"
 [[ -r "$PRUNE_LIB" ]] || die "missing pruning helper: $PRUNE_LIB"
+[[ -r "$REPORT_LIB" ]] || die "missing remote-half report library: $REPORT_LIB"
 
 # The drill changes nothing the host serves: it restores into a scratch
 # directory, starts nothing, and leaves the live database and the service alone.
@@ -520,10 +570,21 @@ if (( DRILL )); then
   echo ""
 else
 HOST_ENV_FILE="$(mktemp)"
-trap 'rm -f "$HOST_ENV_FILE"' EXIT INT TERM
-host_env_fetch "$SSH_ALIAS" "$HOST_ENV_FILE" || exit 1
+# The copy holds the host's whole env file, secrets included, so it is shredded,
+# and deleted anyway when the shred fails.
+shred_host_env_copy() {
+  [[ -e "$HOST_ENV_FILE" ]] || return 0
+  if ! shred -u -- "$HOST_ENV_FILE"; then
+    cr_warn "could not shred the copy of the host env file ${HOST_ENV_FILE}; it was deleted without overwriting"
+    rm -f -- "$HOST_ENV_FILE"
+  fi
+}
+cr_cleanup shred_host_env_copy
+host_env_fetch "$SSH_ALIAS" "$HOST_ENV_FILE" || die "could not read the env file on ${SSH_ALIAS}"
 
-host_value() { grep -E "^$1=" "$HOST_ENV_FILE" | tail -1 | cut -d= -f2-; }
+# A key the env file does not carry reads as unset: grep keeping no line exits
+# 1, which under pipefail would otherwise end the run here without a word.
+host_value() { { grep -E "^$1=" "$HOST_ENV_FILE" || [[ $? == 1 ]]; } | tail -1 | cut -d= -f2-; }
 SES_ADAPTER_ON_HOST="$(host_value SES_ADAPTER)"
 PAYMENT_ADAPTER_ON_HOST="$(host_value PAYMENT_ADAPTER)"
 
@@ -535,8 +596,7 @@ PAYMENT_ADAPTER_ON_HOST="$(host_value PAYMENT_ADAPTER)"
 # it still costs a typed confirmation below.
 if [[ "$TARGET" != "production" ]]; then
   if [[ "$SES_ADAPTER_ON_HOST" == "live" || "$PAYMENT_ADAPTER_ON_HOST" == "live" ]]; then
-    echo "ERROR: ${SSH_ALIAS} has an outbound adapter armed" >&2
-    echo "         SES_ADAPTER=${SES_ADAPTER_ON_HOST:-unset} PAYMENT_ADAPTER=${PAYMENT_ADAPTER_ON_HOST:-unset}" >&2
+    cr_error "${SSH_ALIAS} has an outbound adapter armed: SES_ADAPTER=${SES_ADAPTER_ON_HOST:-unset} PAYMENT_ADAPTER=${PAYMENT_ADAPTER_ON_HOST:-unset}"
     echo "       A restored database carries the outbox and every member's address, so" >&2
     echo "       bringing it up here would mail real people from a database that is not" >&2
     echo "       the live one. Disarm the host first with scripts/arming.sh, or restore" >&2
@@ -564,24 +624,22 @@ confirm_from_tty "Type '${CONFIRM_WORD}' to continue: " "$CONFIRM_WORD" \
 fi
 
 restore_status=0
-{
-  printf '%s\n' "$SUDO_PASS"
-  printf 'SNAPSHOT_KEY=%q\n' "$SNAPSHOT_KEY"
-  # BUCKET must cross the wire. Without it the remote half falls back to the
-  # host's own BACKUP_S3_BUCKET, which is the primary bucket -- so --bucket
-  # selected the snapshot and printed the banner above, then the host fetched
-  # from somewhere else. The cutover rollback lives in the DR bucket, so that
-  # silently restored the wrong database while displaying the right URI.
-  printf 'BUCKET=%q\n' "$BUCKET"
-  printf 'DRILL=%q\n' "$DRILL"
-  printf 'ONTO_EMPTY=%q\n' "$ONTO_EMPTY"
-  cat "$PRUNE_LIB" "$REMOTE_HALF"
-} | ssh "${HOST_SSH_OPTS[@]}" "$SSH_ALIAS" 'sudo -k -S -p "" bash' || restore_status=$?
-if (( restore_status != 0 )); then
+# BUCKET must cross the wire. Without it the remote half falls back to the
+# host's own BACKUP_S3_BUCKET, which is the primary bucket -- so --bucket
+# selected the snapshot and printed the banner above, then the host fetched
+# from somewhere else. The cutover rollback lives in the DR bucket, so that
+# silently restored the wrong database while displaying the right URI.
+run_label="restore on ${SSH_ALIAS}"
+(( DRILL )) && run_label="restore drill on ${SSH_ALIAS}"
+cr_run_marked "$run_label" -- \
+  send_to_host "SNAPSHOT_KEY=${SNAPSHOT_KEY}" "BUCKET=${BUCKET}" "DRILL=${DRILL}" "ONTO_EMPTY=${ONTO_EMPTY}" \
+  || restore_status=$?
+# Judged by the errors the host marked as well as by its exit, so a half that
+# marked an error and still exited 0 is never followed by a success line.
+if (( restore_status != 0 )) || (( ${#CR_ERRORS[@]} )); then
   if (( DRILL )); then
     echo "" >&2
-    echo "ERROR: the restore drill FAILED on ${SSH_ALIAS}. Its own output names the" >&2
-    echo "       check that failed. Nothing the host serves was changed." >&2
+    cr_error "the restore drill FAILED on ${SSH_ALIAS}. Nothing the host serves was changed."
     exit 1
   fi
   if (( restore_status == PENDING_EXIT )); then
@@ -589,7 +647,7 @@ if (( restore_status != 0 )); then
     exit 1
   fi
   echo "" >&2
-  echo "ERROR: the restore failed on ${SSH_ALIAS}." >&2
+  cr_error "the restore failed on ${SSH_ALIAS}."
   echo "       The remote half refuses before stopping the service, so an early" >&2
   echo "       failure changed nothing. If it failed after the stop, its own output" >&2
   echo "       names the copy it set aside and whether it restarted." >&2
@@ -602,9 +660,11 @@ if (( DRILL )); then
   echo "Record the date, the snapshot, its bucket, the counts and the elapsed time"
   echo "above: that record is the drill evidence the go-live backup and recovery"
   echo "gate asks for."
-  exit 0
+  cr_proved "s3://${BUCKET}/${SNAPSHOT_KEY} restored into scratch on ${SSH_ALIAS} and answered the member, payment and audit queries (the host half's checks)"
+  cr_finish
 fi
 echo "== restore complete on ${TARGET} =="
 echo "Record the date, the elapsed time and the outcome: that record is the drill"
 echo "evidence the go-live backup and recovery gate asks for."
-exit 0
+cr_proved "s3://${BUCKET}/${SNAPSHOT_KEY} is in place on ${SSH_ALIAS} with its erasures re-applied, and the service reported ready (the host half's checks)"
+cr_finish

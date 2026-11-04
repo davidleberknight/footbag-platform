@@ -1,0 +1,83 @@
+# Captured from the staging host (Amazon Linux 2023, pinned at 2023.12.20261021)
+# on 2026-11-03: `dnf -q check-update --releasever=latest`, standard output and
+# error together, exit 100. The step to the newer release obsoletes an installed
+# package, so the listing ends with the Obsoleting Packages section, whose rows
+# are not updates; the two Security lines are dnf's own notice.
+# expected-rows: 72
+amazon-linux-repo-s3.noarch         2023.12.20261102-0.amzn2023     amazonlinux
+amazon-ssm-agent.x86_64             3.3.5700.0-1.amzn2023           amazonlinux
+aws-cfn-bootstrap.noarch            2.0-42.amzn2023                 amazonlinux
+awscli-2.noarch                     2.38.0-1.amzn2023.0.1           amazonlinux
+bind-libs.x86_64                    32:9.18.50-1.amzn2023.0.5       amazonlinux
+bind-license.noarch                 32:9.18.50-1.amzn2023.0.5       amazonlinux
+bind-utils.x86_64                   32:9.18.50-1.amzn2023.0.5       amazonlinux
+ca-certificates.noarch              2025.2.76-1.0.amzn2023.0.5      amazonlinux
+containerd.x86_64                   2.3.7-1.amzn2023.0.2            amazonlinux
+curl-minimal.x86_64                 8.21.0-5.amzn2023.0.3           amazonlinux
+cyrus-sasl-lib.x86_64               2.1.27-18.amzn2023.0.4          amazonlinux
+cyrus-sasl-plain.x86_64             2.1.27-18.amzn2023.0.4          amazonlinux
+docker.x86_64                       25.0.18-1.amzn2023.0.2          amazonlinux
+grub2-common.noarch                 1:2.06-61.amzn2023.0.24         amazonlinux
+grub2-efi-x64-ec2.x86_64            1:2.06-61.amzn2023.0.24         amazonlinux
+grub2-pc-modules.noarch             1:2.06-61.amzn2023.0.24         amazonlinux
+grub2-tools.x86_64                  1:2.06-61.amzn2023.0.24         amazonlinux
+grub2-tools-minimal.x86_64          1:2.06-61.amzn2023.0.24         amazonlinux
+kernel.x86_64                       1:6.1.189-236.400.amzn2023      amazonlinux
+kernel-livepatch-repo-s3.noarch     2023.12.20261102-0.amzn2023     amazonlinux
+kernel-tools.x86_64                 1:6.1.189-236.400.amzn2023      amazonlinux
+libblkid.x86_64                     2.37.4-1.amzn2023.0.7           amazonlinux
+libcap.x86_64                       2.73-1.amzn2023.0.8             amazonlinux
+libcurl-minimal.x86_64              8.21.0-5.amzn2023.0.3           amazonlinux
+libfdisk.x86_64                     2.37.4-1.amzn2023.0.7           amazonlinux
+libmount.x86_64                     2.37.4-1.amzn2023.0.7           amazonlinux
+libsmartcols.x86_64                 2.37.4-1.amzn2023.0.7           amazonlinux
+libuuid.x86_64                      2.37.4-1.amzn2023.0.7           amazonlinux
+libxml2.x86_64                      2.10.4-1.amzn2023.0.22          amazonlinux
+nspr.x86_64                         4.39.0-1.amzn2023.0.2           amazonlinux
+nss.x86_64                          3.124.0-1.amzn2023.0.2          amazonlinux
+nss-softokn.x86_64                  3.124.0-1.amzn2023.0.2          amazonlinux
+nss-softokn-freebl.x86_64           3.124.0-1.amzn2023.0.2          amazonlinux
+nss-sysinit.x86_64                  3.124.0-1.amzn2023.0.2          amazonlinux
+nss-util.x86_64                     3.124.0-1.amzn2023.0.2          amazonlinux
+openssh.x86_64                      9.9p1-16.amzn2023.0.1           amazonlinux
+openssh-clients.x86_64              9.9p1-16.amzn2023.0.1           amazonlinux
+openssh-server.x86_64               9.9p1-16.amzn2023.0.1           amazonlinux
+pcre2.x86_64                        10.40-1.amzn2023.0.5            amazonlinux
+pcre2-syntax.noarch                 10.40-1.amzn2023.0.5            amazonlinux
+perl-AutoLoader.noarch              5.74-477.amzn2023.0.11          amazonlinux
+perl-B.x86_64                       1.80-477.amzn2023.0.11          amazonlinux
+perl-Class-Struct.noarch            0.66-477.amzn2023.0.11          amazonlinux
+perl-DynaLoader.x86_64              1.47-477.amzn2023.0.11          amazonlinux
+perl-Errno.x86_64                   1.30-477.amzn2023.0.11          amazonlinux
+perl-Fcntl.x86_64                   1.13-477.amzn2023.0.11          amazonlinux
+perl-File-Basename.noarch           2.85-477.amzn2023.0.11          amazonlinux
+perl-File-stat.noarch               1.09-477.amzn2023.0.11          amazonlinux
+perl-FileHandle.noarch              2.03-477.amzn2023.0.11          amazonlinux
+perl-Getopt-Std.noarch              1.12-477.amzn2023.0.11          amazonlinux
+perl-IO.x86_64                      1.43-477.amzn2023.0.11          amazonlinux
+perl-IPC-Open3.noarch               1.21-477.amzn2023.0.11          amazonlinux
+perl-POSIX.x86_64                   1.94-477.amzn2023.0.11          amazonlinux
+perl-SelectSaver.noarch             1.02-477.amzn2023.0.11          amazonlinux
+perl-Symbol.noarch                  1.08-477.amzn2023.0.11          amazonlinux
+perl-base.noarch                    2.27-477.amzn2023.0.11          amazonlinux
+perl-if.noarch                      0.60.800-477.amzn2023.0.11      amazonlinux
+perl-interpreter.x86_64             4:5.32.1-477.amzn2023.0.11      amazonlinux
+perl-libs.x86_64                    4:5.32.1-477.amzn2023.0.11      amazonlinux
+perl-mro.x86_64                     1.23-477.amzn2023.0.11          amazonlinux
+perl-overload.noarch                1.31-477.amzn2023.0.11          amazonlinux
+perl-overloading.noarch             0.02-477.amzn2023.0.11          amazonlinux
+perl-subs.noarch                    1.03-477.amzn2023.0.11          amazonlinux
+perl-vars.noarch                    1.05-477.amzn2023.0.11          amazonlinux
+python3.x86_64                      3.9.25-1.amzn2023.0.11          amazonlinux
+python3-awscrt.x86_64               0.37.0-1.amzn2023.0.1           amazonlinux
+python3-libs.x86_64                 3.9.25-1.amzn2023.0.11          amazonlinux
+runc.x86_64                         1.4.3-1.amzn2023.0.3            amazonlinux
+rust-toolset-srpm-macros.noarch     1.99.0-1.amzn2023               amazonlinux
+system-release.noarch               2023.12.20261102-0.amzn2023     amazonlinux
+util-linux.x86_64                   2.37.4-1.amzn2023.0.7           amazonlinux
+util-linux-core.x86_64              2.37.4-1.amzn2023.0.7           amazonlinux
+Obsoleting Packages
+grub2-tools-minimal.x86_64          1:2.06-61.amzn2023.0.24         amazonlinux
+    grub2-tools.x86_64              1:2.06-61.amzn2023.0.22         @amazonlinux
+Security: kernel-1:6.1.188-233.393.amzn2023.x86_64 is an installed security update
+Security: kernel-1:6.1.163-186.299.amzn2023.x86_64 is the currently running version

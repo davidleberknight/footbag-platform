@@ -1092,6 +1092,15 @@ describe.skipIf(!sqliteAvailable)('arming.sh — payments, judged from what the 
     /** The pause takes at step 4 but reads clear at step 5, as if cleared in between. */
     pauseLostBeforeVerify?: boolean;
     statusFails?: boolean;
+    /** The pause body is pointed at an empty database, so its read fails. */
+    hostDbBroken?: boolean;
+    /**
+     * The pause session prints a line of its own on stdout, and the deploy
+     * recorder copies the pause's temp file, so a case can read what reached disk.
+     */
+    sessionPrints?: boolean;
+    /** The pause session reports the switch set, then ends as a dropped connection does. */
+    sessionFailsAfter?: boolean;
   }): Stage {
     fileCounter += 1;
     const dir = join(tmpDir, `payments-e2e-${fileCounter}`);
@@ -1111,6 +1120,8 @@ describe.skipIf(!sqliteAvailable)('arming.sh — payments, judged from what the 
     // Runs only the runtime-pause body, with the host's database path mapped to
     // the scratch one; any other session (the env-file read) gets nothing back.
     const stream = join(dir, 'stream.txt');
+    const hostDb = opts.hostDbBroken ? join(dir, 'empty.db') : db;
+    if (opts.hostDbBroken) writeFileSync(hostDb, '');
     writeFileSync(join(bin, 'ssh'), [
       '#!/usr/bin/env bash',
       hostIdentityAnswer(),
@@ -1119,11 +1130,13 @@ describe.skipIf(!sqliteAvailable)('arming.sh — payments, judged from what the 
       'done',
       `cat > ${JSON.stringify(stream)}`,
       `grep -q '^CONFIG_KEY=' ${JSON.stringify(stream)} || exit 1`,
+      opts.sessionPrints ? 'echo "SESSION-ONLY-LINE from the host"' : ':',
       opts.pauseReadsBack === false
         ? 'echo SWITCH_PAUSED=0; exit 0'
         : opts.pauseLostBeforeVerify
           ? `grep -q "^ACTION=status" ${JSON.stringify(stream)} && { echo SWITCH_PAUSED=0; exit 0; }; tail -n +2 ${JSON.stringify(stream)} | sed 's|^DB_FILE=.*|DB_FILE=${db}|' | bash`
-          : `tail -n +2 ${JSON.stringify(stream)} | sed 's|^DB_FILE=.*|DB_FILE=${db}|' | bash`,
+          : `tail -n +2 ${JSON.stringify(stream)} | sed 's|^DB_FILE=.*|DB_FILE=${hostDb}|' | bash`,
+      opts.sessionFailsAfter ? 'exit 255' : ':',
     ].join('\n'), { mode: 0o755 });
 
     writeFileSync(join(bin, 'aws'), [
@@ -1146,6 +1159,7 @@ describe.skipIf(!sqliteAvailable)('arming.sh — payments, judged from what the 
       '#!/usr/bin/env bash',
       'echo RECORDER-DEPLOY-RAN',
       `sqlite3 ${JSON.stringify(db)} "SELECT COALESCE((SELECT value_json FROM system_config_current WHERE config_key='payments_paused'),'0');" > ${JSON.stringify(deployLog)}`,
+      opts.sessionPrints ? `cat "$TMPDIR"/footbag-arming-pause.* > ${JSON.stringify(join(dir, 'pause-on-disk.txt'))}` : ':',
     ].join('\n'), { mode: 0o755 });
 
     const probe = join(dir, 'probe.txt');
@@ -1177,6 +1191,7 @@ describe.skipIf(!sqliteAvailable)('arming.sh — payments, judged from what the 
         HOME: home,
         ARMING_DEPLOY_CMD: deploy,
         ARMING_STATUS_CMD: status,
+        ...(opts.sessionPrints ? { TMPDIR: dir } : {}),
       },
     };
   }
@@ -1301,9 +1316,93 @@ describe.skipIf(!sqliteAvailable)('arming.sh — payments, judged from what the 
     expect(res.stderr).toMatch(/could not read the status/);
   });
 
+  it('lists why the pause failed on the host, and deploys nothing', () => {
+    // Defect caught: the host half's reason for failing stayed on the session's
+    // stream, so the run reported only that the pause step failed, and the
+    // operator had to reach the host to learn why.
+    const s = stage({ marker: 'true', probe: DARK_PROBE, tfvarsState: 'armed', hostDbBroken: true });
+    const res = go(s, 'dark', 'APPLY\nyes\n');
+    expect(res.exitCode).toBe(1);
+    const report = res.stderr.slice(res.stderr.indexOf('==== Closing report'));
+    // Listed as the half's own entry, under the step that met it, not only as
+    // the session's last line.
+    expect(report).toMatch(/- payments pause \(pause\) on [^:\n]+: could not read payments_paused [^\n]*no such table/);
+    expect(res.stdout).not.toMatch(/RECORDER-DEPLOY-RAN/);
+  });
+
+  it('fails the run and deploys nothing when the pause session fails after reporting the switch', () => {
+    // Defect caught: a privileged session that ended in failure, with nothing
+    // marked, judged by the switch line alone, so the run deployed and its
+    // closing report never named the failed session.
+    const s = stage({ marker: 'true', probe: DARK_PROBE, tfvarsState: 'armed', sessionFailsAfter: true });
+    const res = go(s, 'dark', 'APPLY\nyes\n');
+    expect(res.exitCode).toBe(1);
+    const report = res.stderr.slice(res.stderr.indexOf('==== Closing report'));
+    expect(report).toMatch(/- payments pause \(pause\) on [^:\n]+: exit 255/);
+    expect(res.stdout).not.toMatch(/RECORDER-DEPLOY-RAN/);
+  });
+
+  it('writes only the switch line of the pause session to disk, and shows the rest', () => {
+    // Defect caught: the privileged pause session's own output, which can carry
+    // anything the stream held, kept in a temp file for the rest of the run
+    // instead of shown to the operator and dropped.
+    const s = stage({ marker: 'true', probe: DARK_PROBE, tfvarsState: 'armed', sessionPrints: true });
+    const res = go(s, 'dark', 'APPLY\nyes\n');
+    expect(res.exitCode, res.stderr).toBe(0);
+    const onDisk = readFileSync(join(s.dir, 'pause-on-disk.txt'), 'utf-8').trim().split('\n');
+    expect(onDisk).toEqual(['SWITCH_PAUSED=1']);
+    expect(res.stderr).toMatch(/SESSION-ONLY-LINE from the host/);
+  });
+
   it('announces the status stand-in, because a stubbed verification proves nothing', () => {
     const s = stage({ marker: 'false', probe: DARK_PROBE, tfvarsState: 'armed' });
     const res = go(s, 'dark', 'APPLY\nyes\n');
     expect(res.stderr).toMatch(/SYNTHETIC: status command=/);
+  });
+});
+
+/**
+ * Where the status view's rows are the operator's to judge (any switch off
+ * production payments), a status view that exited non-zero is a warning in the
+ * closing report, not a line in the scroll. Driven through the synthetic deploy
+ * and status seams.
+ */
+describe('arming.sh — a failing status view is listed where the operator judges the rows', () => {
+  function runWithStatus(statusExit: number): RunResult & { report: string } {
+    fileCounter += 1;
+    const dir = join(tmpDir, `status-warn-${fileCounter}`);
+    mkdirSync(dir, { recursive: true });
+    const deploy = join(dir, 'deploy.sh');
+    writeFileSync(deploy, '#!/usr/bin/env bash\necho RECORDER-DEPLOY-RAN\n', { mode: 0o755 });
+    const status = join(dir, 'status.sh');
+    writeFileSync(status, `#!/usr/bin/env bash\necho "status view row"\necho "status view stopped part-way" >&2\nexit ${statusExit}\n`, { mode: 0o755 });
+    const tfvars = writeTfvars(['environment    = "staging"', 'payments_armed = "armed"']);
+    const r = spawnSync('bash', [ARMING, '--target', 'staging', '--state', 'dark', '--tfvars', tfvars, '--from-step', '2'], {
+      cwd: process.cwd(),
+      encoding: 'utf-8',
+      input: 'yes\n',
+      env: { ...process.env, ARMING_DEPLOY_CMD: deploy, ARMING_STATUS_CMD: status, FOOTBAG_CR_REPORT_TO: '' },
+      ...SPAWN_GUARD,
+    });
+    const stderr = r.stderr ?? '';
+    return {
+      exitCode: r.status ?? 1, stdout: r.stdout ?? '', stderr,
+      report: stderr.slice(stderr.indexOf('==== Closing report')),
+    };
+  }
+
+  it('lists the status view\'s failure, with its last line, and still exits 0', () => {
+    // Defect caught: the warning printed mid-stream and the run ended on its
+    // closing advice, so the operator judged rows from a view that had failed.
+    const r = runWithStatus(3);
+    expect(r.stdout).toMatch(/RECORDER-DEPLOY-RAN/);
+    expect(r.exitCode, r.stderr).toBe(0);
+    expect(r.report).toMatch(/Warnings \(1\):[\s\S]*exited 3[\s\S]*stopped part-way/);
+  });
+
+  it('lists nothing when the status view succeeds', () => {
+    const r = runWithStatus(0);
+    expect(r.exitCode, r.stderr).toBe(0);
+    expect(r.report).not.toMatch(/Warnings \(/);
   });
 });

@@ -12,6 +12,12 @@
 #
 # scripts/internal/prune-db-copies.sh travels ahead of this body on the same
 # stream and defines prune_db_copies, which runs once the release reports ready.
+#
+# scripts/lib/closing-report-remote.sh travels ahead of everything else and
+# defines crr_error and crr_warn, through which this body reports what the
+# operator must see in the caller's closing report; the caller also reads every
+# line this body prints in the ERROR: or WARNING: form. The body ends with
+# crr_finish, whose status says whether any of those was an error.
 
 set -euo pipefail
 
@@ -65,7 +71,7 @@ cleanup_env_tempfiles() {
   # alarm breaches fifteen minutes later.
   if [[ "$backup_timer_paused" == "1" ]]; then
     systemctl start footbag-backup.timer || \
-      echo "WARNING: could not restart footbag-backup.timer. Backups are STOPPED; start it by hand." >&2
+      crr_error "could not restart footbag-backup.timer. Backups are STOPPED; start it by hand."
   fi
   if [[ "$service_stopped_for_migration" == "1" ]]; then
     echo "WARNING: this run ended while the service was stopped for the migration; starting it." >&2
@@ -73,7 +79,7 @@ cleanup_env_tempfiles() {
     echo "         back, so it holds either the pre-migration state or the migrated one, and its" >&2
     echo "         schema_migrations ledger says which." >&2
     systemctl start footbag || \
-      echo "WARNING: could not start the footbag service. The site is DOWN; start it by hand." >&2
+      crr_error "could not start the footbag service. The site is DOWN; start it by hand."
   fi
 }
 trap cleanup_env_tempfiles EXIT
@@ -866,15 +872,31 @@ chown root:root "$ENV_PATH"
 # variable is then cleared so the application hides its Legacy Archive card
 # instead of rendering a dead link. Present here as well as in the rebuild
 # path, so an archive config change rides either deploy mode.
+#
+# Missing means ParameterNotFound and nothing else. Any other failure (a
+# credential the host cannot use, a throttle, a network fault) says nothing about
+# whether the parameter exists, and read as absent it clears the variable on a
+# host whose archive is real: an error with the tool's own message instead.
+ssm_read_optional() {  # $1 = parameter name; prints its value, or nothing when it does not exist
+  local err out rc=0
+  err="$(mktemp)"
+  out="$(AWS_PROFILE="$AWS_PROFILE_VAL" aws ssm get-parameter \
+    --region "$AWS_REGION_VAL" \
+    --name "$1" \
+    --query 'Parameter.Value' \
+    --output text 2>"$err")" || rc=$?
+  if (( rc != 0 )) && ! grep -q 'ParameterNotFound' "$err"; then
+    crr_error "could not read $1 from Parameter Store (exit ${rc}): $(tail -n 1 "$err")"
+    rm -f "$err"
+    return 1
+  fi
+  rm -f "$err"
+  (( rc == 0 )) && printf '%s' "$out"
+  return 0
+}
 ssm_archive_url_param="/footbag/${FOOTBAG_ENV_VAL}/app/archive_url"
 echo "==> Syncing ARCHIVE_URL from $ssm_archive_url_param ..."
-ARCHIVE_URL_VAL=$(
-  AWS_PROFILE="$AWS_PROFILE_VAL" aws ssm get-parameter \
-    --region "$AWS_REGION_VAL" \
-    --name "$ssm_archive_url_param" \
-    --query 'Parameter.Value' \
-    --output text 2>/dev/null
-) || ARCHIVE_URL_VAL=""
+ARCHIVE_URL_VAL="$(ssm_read_optional "$ssm_archive_url_param")" || exit 1
 if [[ -n "$ARCHIVE_URL_VAL" && ! "$ARCHIVE_URL_VAL" =~ ^https:// ]]; then
   echo "ERROR: SSM $ssm_archive_url_param is '$ARCHIVE_URL_VAL'; expected an https:// base URL." >&2
   exit 1
@@ -901,13 +923,7 @@ chown root:root "$ENV_PATH"
 # the direct-link default.
 ssm_archive_redirect_param="/footbag/${FOOTBAG_ENV_VAL}/app/archive_login_redirect"
 echo "==> Syncing ARCHIVE_LOGIN_REDIRECT from $ssm_archive_redirect_param ..."
-ARCHIVE_LOGIN_REDIRECT_VAL=$(
-  AWS_PROFILE="$AWS_PROFILE_VAL" aws ssm get-parameter \
-    --region "$AWS_REGION_VAL" \
-    --name "$ssm_archive_redirect_param" \
-    --query 'Parameter.Value' \
-    --output text 2>/dev/null
-) || ARCHIVE_LOGIN_REDIRECT_VAL=""
+ARCHIVE_LOGIN_REDIRECT_VAL="$(ssm_read_optional "$ssm_archive_redirect_param")" || exit 1
 if [[ -n "$ARCHIVE_LOGIN_REDIRECT_VAL" && ! "$ARCHIVE_LOGIN_REDIRECT_VAL" =~ ^(0|1|true|false)$ ]]; then
   echo "ERROR: SSM $ssm_archive_redirect_param is '$ARCHIVE_LOGIN_REDIRECT_VAL'; expected 0, 1, true, or false." >&2
   exit 1
@@ -1376,7 +1392,9 @@ if ! cmp -s "$awslogs_dropin_tmp" /etc/systemd/system/docker.service.d/awslogs.c
   install -m 0644 -o root -g root "$awslogs_dropin_tmp" /etc/systemd/system/docker.service.d/awslogs.conf
   systemctl daemon-reload
   systemctl restart docker
-  echo "    Installed dockerd awslogs drop-in; restarted docker."
+  # A change this deploy made to the host's container runtime, so it is listed
+  # in the closing report rather than left as one line among hundreds.
+  crr_warn "installed the dockerd awslogs drop-in and restarted docker on this host."
 fi
 rm -f "$awslogs_dropin_tmp"
 
@@ -1392,7 +1410,7 @@ rm -f "$awslogs_dropin_tmp"
 # could only fail, and the provenance record describes a deploy that served.
 if [[ "$FIRST_INSTALL" == "1" ]]; then
   echo "==> First install complete: footbag.service installed, not enabled and not started."
-  exit 0
+  crr_finish
 fi
 
 # ── Schema migration, when one was supplied ──────────────────────────────────
@@ -1582,6 +1600,18 @@ if [[ -n "${MIGRATION_SQL:-}" ]]; then
   systemctl stop footbag
   service_stopped_for_migration=1
 
+  # Every refusal from here on starts the service it stopped. A start that fails
+  # after a refusal leaves the site down, so it is an error of its own carrying
+  # systemd's message, never swallowed: the refusal's "nothing was migrated" is
+  # true and is not the whole state of the host.
+  restart_after_refusal() {
+    local out
+    if ! out="$(systemctl start footbag 2>&1)"; then
+      crr_error "the migration was refused and footbag.service did not start again, so the site is DOWN; start it by hand: $(printf '%s\n' "${out:-systemctl start footbag exited non-zero}" | tail -n 1)"
+    fi
+    service_stopped_for_migration=0
+  }
+
   # Folded into the main file before the copy is taken. The stop above normally
   # checkpoints as each container takes SIGTERM, but the stop ends in SIGKILL
   # after its timeout, so a container killed there never checkpoints, and the
@@ -1603,8 +1633,7 @@ if [[ -n "${MIGRATION_SQL:-}" ]]; then
     echo "       means it was busy and did not complete)." >&2
     echo "       Refusing to migrate: a copy taken now could not be restored intact." >&2
     echo "       Nothing was migrated; restarting the service." >&2
-    systemctl start footbag || true
-    service_stopped_for_migration=0
+    restart_after_refusal
     exit 1
   fi
 
@@ -1624,16 +1653,14 @@ if [[ -n "${MIGRATION_SQL:-}" ]]; then
     echo "       Refusing the migration rather than copying blind: this copy is the" >&2
     echo "       only way back from a bad migration." >&2
     echo "       Nothing was migrated; restarting the service." >&2
-    systemctl start footbag || true
-    service_stopped_for_migration=0
+    restart_after_refusal
     exit 1
   fi
   if (( avail_kb < db_kb * 2 )); then
     echo "ERROR: not enough free space for the pre-migration copy." >&2
     echo "       database ${db_kb} KB, free ${avail_kb} KB, need at least $(( db_kb * 2 )) KB." >&2
     echo "       Nothing was migrated; restarting the service." >&2
-    systemctl start footbag || true
-    service_stopped_for_migration=0
+    restart_after_refusal
     exit 1
   fi
 
@@ -1643,8 +1670,7 @@ if [[ -n "${MIGRATION_SQL:-}" ]]; then
   if ! cp -a "$DB_PATH" "$migration_backup"; then
     echo "ERROR: could not take the pre-migration copy; nothing was migrated." >&2
     echo "       Restarting the service." >&2
-    systemctl start footbag || true
-    service_stopped_for_migration=0
+    restart_after_refusal
     exit 1
   fi
   echo "    pre-migration copy at ${migration_backup}"
@@ -1661,8 +1687,7 @@ if [[ -n "${MIGRATION_SQL:-}" ]]; then
       echo "ERROR: the off-host snapshot before the migration failed (footbag-backup.service)." >&2
       echo "       Refusing to migrate without it; nothing was migrated. Restarting the service." >&2
       echo "       journalctl -u footbag-backup.service says why." >&2
-      systemctl start footbag || true
-      service_stopped_for_migration=0
+      restart_after_refusal
       exit 1
     fi
     echo "    off-host snapshot taken (footbag-backup.service)"
@@ -1670,8 +1695,7 @@ if [[ -n "${MIGRATION_SQL:-}" ]]; then
     echo "ERROR: this production host has no footbag-backup.service, so no off-host snapshot" >&2
     echo "       can be taken before the migration. Install it (scripts/install-backup-timer.sh)" >&2
     echo "       and re-run. Nothing was migrated; restarting the service." >&2
-    systemctl start footbag || true
-    service_stopped_for_migration=0
+    restart_after_refusal
     exit 1
   else
     echo "WARNING: no footbag-backup.service on this host, so the on-host copy above is the" >&2
@@ -1695,8 +1719,7 @@ if [[ -n "${MIGRATION_SQL:-}" ]]; then
       service_stopped_for_migration=0
       exit 1
     fi
-    systemctl start footbag || true
-    service_stopped_for_migration=0
+    restart_after_refusal
     echo "" >&2
     echo "       STATE OF THIS HOST: the database is back as it was, but the code" >&2
     echo "       and images are the NEW release, promoted before the migration ran." >&2
@@ -1856,9 +1879,9 @@ _prune_db_dir="$(read_env FOOTBAG_DB_DIR)"
 if declare -F prune_db_copies >/dev/null; then
   echo "==> Pruning database copies older than seven days..."
   prune_db_copies "$_prune_db_dir" \
-    || echo "    WARNING: pruning old database copies did not complete; some may remain in ${_prune_db_dir}. The deploy itself succeeded." >&2
+    || crr_warn "pruning old database copies did not complete; some may remain in ${_prune_db_dir}. The deploy itself succeeded."
 else
-  echo "    WARNING: the copy-pruning helper did not arrive with this body; old database copies in ${_prune_db_dir} were left alone." >&2
+  crr_warn "the copy-pruning helper did not arrive with this body; old database copies in ${_prune_db_dir} were left alone."
 fi
 unset _prune_db_dir
 
@@ -1926,3 +1949,5 @@ if [[ -n "${DEPLOY_PROVENANCE:-}" ]]; then
   mv "$provenance_tmp" /srv/footbag/deployed-from
   echo "==> Recorded deploy provenance in /srv/footbag/deployed-from"
 fi
+
+crr_finish

@@ -128,6 +128,42 @@ describe('an interrupted seed', () => {
   });
 });
 
+describe('the caller\'s own interrupt handling', () => {
+  function withCallerTrap(seedCmd: string, after: string) {
+    const marker = join(scratch, 'caller-handler-ran');
+    const res = spawnSync(
+      'bash',
+      ['-c', [
+        `trap 'touch ${JSON.stringify(marker)}; exit 130' INT`,
+        `source "${LIBRARY}"`,
+        'curated_media_build "$1" "$1/database/footbag.db" || true',
+        after,
+      ].join('\n'), 'build', root],
+      { encoding: 'utf-8', env: { ...process.env, TMPDIR: tmp, CURATED_MEDIA_SEED_CMD: seedCmd }, ...SPAWN_GUARD },
+    );
+    return { status: res.status, stdout: res.stdout ?? '', marker };
+  }
+
+  it('is put back after the build returns', () => {
+    // Defect caught: the build clearing the caller's INT handler, so a deploy
+    // interrupted after the media step runs no cleanup and prints no report.
+    const r = withCallerTrap(stubSeeder(0), 'trap -p INT');
+    expect(r.stdout).toContain('caller-handler-ran');
+  });
+
+  it('runs when the seed is interrupted', () => {
+    // Defect caught: an interrupt during the seed ending the run past the
+    // caller's handler, so its cleanup and closing report never happen.
+    const s = join(scratch, 'seed-interrupted.sh');
+    writeFileSync(s, ['#!/usr/bin/env bash', 'kill -s INT "$PPID"', 'exit 0', ''].join('\n'));
+    chmodSync(s, 0o755);
+    const r = withCallerTrap(s, 'true');
+    expect(r.status).toBe(130);
+    expect(existsSync(r.marker)).toBe(true);
+    expect(readdirSync(tmp)).toEqual([]);
+  });
+});
+
 describe('the rebuild deploy stops when the curated build fails', () => {
   it('exits non-zero and goes no further', () => {
     // Defect: the deploy carries on after a failed curator seed and ships a

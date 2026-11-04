@@ -44,6 +44,8 @@ function checker(code: number): string {
 function runGate(checkCode: number, syncMedia: 'yes' | 'no') {
   const script = [
     'set -euo pipefail',
+    // The leaf reports through the closing-report library, as it does whole.
+    `source ${JSON.stringify(join(process.cwd(), 'scripts/lib/closing-report.sh'))}`,
     'tf_output_read() { TF_OUTPUT_VALUE=footbag-test-media; }',
     'tf_output_explain() { :; }',
     'aws_profile_ensure() { :; }',

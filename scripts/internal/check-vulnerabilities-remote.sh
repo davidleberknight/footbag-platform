@@ -33,8 +33,10 @@ trap 'rm -f "$out" "$err"' EXIT
 trap "trap '' HUP INT TERM; exit 130" INT
 trap "trap '' HUP INT TERM; exit 143" TERM
 
+# Quiet, so the metadata and repository download lines dnf prints as progress
+# are not on standard output, where each would be read as an advisory line.
 rc=0
-dnf updateinfo --releasever=latest --list > "$out" 2> "$err" || rc=$?
+dnf -q updateinfo --releasever=latest --list > "$out" 2> "$err" || rc=$?
 cat "$err" >&2
 while IFS=$'\t' read -r kind line; do
   if [[ "$kind" == ERROR ]]; then

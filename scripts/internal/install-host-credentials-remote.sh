@@ -16,6 +16,13 @@
 #
 # The logs-publisher profile is deliberately NOT written here: the deploy owns
 # that stanza and appends it itself, so two writers can never disagree.
+#
+# The caller sends scripts/lib/closing-report-remote.sh on the same stream just
+# ahead of this body. Every problem met here is marked with crr_error or
+# crr_warn so it lands in the caller's closing report; crr_finish ends the run,
+# non-zero when any was an error. The half keeps its own traps, because the
+# caller's library is not on this host and the staged secret has to be
+# shredded on an interrupt too.
 
 set -euo pipefail
 
@@ -41,9 +48,8 @@ fi
 # would look like unreadable credentials rather than a numbering mismatch.
 _actual_gid="$(getent group "$AWSCREDS_GROUP" | cut -d: -f3)"
 if [[ "$_actual_gid" != "$AWSCREDS_GID" ]]; then
-  echo "ERROR: group $AWSCREDS_GROUP has gid $_actual_gid, expected $AWSCREDS_GID." >&2
-  echo "       The compose files add the containers to gid $AWSCREDS_GID; reconcile before continuing." >&2
-  exit 1
+  crr_error "group $AWSCREDS_GROUP has gid $_actual_gid, expected $AWSCREDS_GID. The compose files add the containers to gid $AWSCREDS_GID; reconcile before continuing."
+  crr_finish
 fi
 
 install -d -m 0750 -o root -g "$AWSCREDS_GROUP" /root/.aws
@@ -82,19 +88,36 @@ install -m 0640 -o root -g "$AWSCREDS_GROUP" "$_conf_tmp" /root/.aws/config
 echo "    Installed /root/.aws/credentials and /root/.aws/config"
 
 # Prove the chain rather than assume it. A key that authenticates but cannot
-# assume the role fails later, inside the application, as an opaque denial.
-echo -n "    source profile resolves as: "
-aws sts get-caller-identity --profile "$SOURCE_PROFILE" --query Arn --output text
-
-echo -n "    runtime profile resolves as: "
-aws sts get-caller-identity --profile "$RUNTIME_PROFILE" --query Arn --output text
+# assume the role fails later, inside the application, as an opaque denial. A
+# proof that fails ends the run with the client's own reason marked.
+prove_profile() {
+  local label="$1" profile="$2" out
+  if ! out="$(aws sts get-caller-identity --profile "$profile" --query Arn --output text 2>&1)"; then
+    crr_error "the ${label} profile ${profile} does not resolve: $(tail -n 1 <<<"$out")"
+    crr_finish
+  fi
+  echo "    ${label} profile resolves as: ${out}"
+}
+prove_profile source "$SOURCE_PROFILE"
+prove_profile runtime "$RUNTIME_PROFILE"
 
 # The deploy reads this marker to confirm the environment is pre-live before it
 # will replace a database, and refuses on an unreadable one exactly as on a live
 # one. Reading it here turns "the deploy mysteriously refused" into a check that
 # passes or fails at the moment the credentials are installed.
-echo -n "    go-live marker reads: "
-AWS_PROFILE="$RUNTIME_PROFILE" aws ssm get-parameter \
-  --name "/footbag/${TARGET_ENV}/app/production_live" \
-  --region "$AWS_REGION_VAL" \
-  --query Parameter.Value --output text 2>/dev/null || echo "(absent; expected only where the environment has no go-live marker)"
+#
+# Only production has the marker, so on any other environment a parameter that
+# does not exist is the expected answer. Anything else that stops the read (a
+# denial, an unreachable endpoint, or production without its marker) is the
+# failure the deploy would meet, so it is an error carrying the client's reason.
+if marker="$(AWS_PROFILE="$RUNTIME_PROFILE" aws ssm get-parameter \
+    --name "/footbag/${TARGET_ENV}/app/production_live" \
+    --region "$AWS_REGION_VAL" \
+    --query Parameter.Value --output text 2>&1)"; then
+  echo "    go-live marker reads: ${marker}"
+elif [[ "$TARGET_ENV" != production && "$marker" == *"(ParameterNotFound)"* ]]; then
+  echo "    go-live marker: none on ${TARGET_ENV}, which carries no marker; only production does"
+else
+  crr_error "the go-live marker /footbag/${TARGET_ENV}/app/production_live could not be read through the runtime profile, and the deploy refuses on an unreadable marker: $(tail -n 1 <<<"$marker")"
+fi
+crr_finish

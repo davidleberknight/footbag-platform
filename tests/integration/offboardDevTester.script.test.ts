@@ -14,7 +14,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { writeFileSync, readFileSync, chmodSync, existsSync, mkdirSync, rmSync } from 'node:fs';
+import { writeFileSync, readFileSync, chmodSync, existsSync, mkdirSync, rmSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
@@ -86,6 +86,9 @@ function sshStub(): string {
     [
       '#!/usr/bin/env bash',
       'if [[ "$1" == "-G" ]]; then',
+      // ssh skips a default user config it cannot open and falls back to the
+      // login name; this stands for a login named as the shared account.
+      '  [[ -r "$OFFBOARD_SSH_CONFIG" ]] || { echo "user footbag"; echo "hostname 203.0.113.10"; exit 0; }',
       `  awk -v a="$2" 'tolower($1)=="host" { m=0; for (i=2;i<=NF;i++) if ($i==a) m=1; next }`,
       `    m && tolower($1)=="user" && u=="" { u=$2 } END { print "user " u; print "hostname 203.0.113.10" }' "$OFFBOARD_SSH_CONFIG"`,
       '  exit 0',
@@ -182,6 +185,18 @@ interface RunOptions {
   here?: string;
   /** What the terminal answers, for the warning about this machine's own address. */
   terminal?: string;
+  /** Replaces the AWS-identity child stub. */
+  awsCmd?: string;
+  /** Where the run's temp files go, so a test can see what is left there. */
+  tmpDir?: string;
+  /** Makes diff fail as it does when it cannot read a file. */
+  diffFails?: boolean;
+}
+
+/** The closing report: everything from its heading on. */
+function closingReport(stderr: string): string {
+  const at = stderr.lastIndexOf('Closing report');
+  return at === -1 ? '' : stderr.slice(at);
 }
 
 const BASE = ['--target', 'staging', '--account', ACCOUNT, '--yes'];
@@ -268,6 +283,9 @@ function run(options: RunOptions = {}) {
   );
   chmodSync(stubPath, 0o755);
   const bin = sshStub();
+  if (options.diffFails) {
+    writeFileSync(join(bin, 'diff'), '#!/usr/bin/env bash\necho "diff: fixture: cannot read" >&2\nexit 2\n', { mode: 0o755 });
+  }
   const res = spawnSync('bash', [SCRIPT, ...args], {
     cwd: process.cwd(),
     encoding: 'utf-8',
@@ -283,11 +301,12 @@ function run(options: RunOptions = {}) {
       AWS_PROFILE_BIN: stubPath,
       OFFBOARD_AWS_BIN: stubPath,
       OFFBOARD_HOST_CMD: childStub('host-child', hostLog, hostExit, true),
-      OFFBOARD_AWS_CMD: childStub('aws-child', awsLog, awsExit),
+      OFFBOARD_AWS_CMD: options.awsCmd ?? childStub('aws-child', awsLog, awsExit),
       OFFBOARD_SSH_CONFIG: sshConfig,
       OFFBOARD_ADDRESS_CMD: addressStub(removeExit),
       OFFBOARD_FETCH: fetchPath,
       HOME: workDir,
+      ...(options.tmpDir ? { TMPDIR: options.tmpDir } : {}),
     },
     ...SPAWN_GUARD,
   });
@@ -421,6 +440,27 @@ describe('offboard-dev-tester offboards the named identity this machine accepted
     expect(readFileSync(awsConfig, 'utf-8')).not.toContain('footbag-staging-runtime');
   });
 
+  it('leaves no copy of the SSH config behind in the temp directory', () => {
+    // The rewritten config is staged in a temp file; one left behind is a copy
+    // of the operator's SSH config, Match blocks included, outliving the run.
+    workstationHeldIt();
+    const tmpDir = join(workDir, 'tmp');
+    mkdirSync(tmpDir);
+    const r = run({ keepConfig: true, tmpDir });
+    expect(r.status, r.stderr).toBe(0);
+    expect(readFileSync(sshConfig, 'utf-8')).not.toContain(ACCOUNT);
+    expect(readdirSync(tmpDir)).toEqual([]);
+  });
+
+  it('lists a change to the SSH config it could not show before writing it', () => {
+    // The operator owns the file, so the change is shown first; a diff that
+    // failed was swallowed, and the file changed with nothing said at the end.
+    workstationHeldIt();
+    const r = run({ keepConfig: true, diffFails: true });
+    expect(r.status, r.stderr).toBe(0);
+    expect(closingReport(r.stderr)).toMatch(/could not be shown before it was written/);
+  });
+
   it('shreds their key pair without unloading anything from the SSH agent', () => {
     // The pair may be a copy of the person's everyday key, and ssh-add -d
     // removes an identity by its public key, so it would take the everyday
@@ -513,6 +553,32 @@ describe('offboard-dev-tester offboarding somebody else from your workstation', 
     expect(r.stdout).toMatch(/left alone, because this machine's named account\s+is david_leberknight/);
     expect(existsSync(namedKey)).toBe(false);
   });
+
+  // Root reads a file whatever its mode, so the unreadable config cannot be
+  // made for a run as root and the case would prove nothing there.
+  // skip-fails-in-ci: a runner that works as root fails here rather than
+  // skipping the case unseen.
+  if (process.getuid?.() === 0 && process.env.CI) {
+    throw new Error('the unreadable-config case cannot run as root; run CI as an ordinary user');
+  }
+  it.skipIf(process.getuid?.() === 0)('lists an SSH config it cannot read in the closing report, and leaves the filed password alone', () => {
+    // Defect caught: an unreadable config taken silently as "no named account
+    // here", so the operator never learns which account this machine is, or a
+    // filed password shredded on a guess.
+    mkdirSync(join(workDir, 'AWS'), { recursive: true });
+    writeFileSync(join(workDir, 'AWS', 'DEV_TESTER_HOST.txt'), 'the-holders-password\n', 'utf-8');
+    writeFileSync(sshConfig, blockFor(ACCOUNT) + stanza('footbag'), 'utf-8');
+    chmodSync(sshConfig, 0o000);
+    let r;
+    try {
+      r = run({ keepConfig: true });
+    } finally {
+      chmodSync(sshConfig, 0o600);
+    }
+    expect(r.status, r.stderr).toBe(0);
+    expect(closingReport(r.stderr)).toMatch(/Warnings \(1\):\s+- could not read \S*ssh-config/);
+    expect(readFileSync(join(workDir, 'AWS', 'DEV_TESTER_HOST.txt'), 'utf-8')).toBe('the-holders-password\n');
+  });
 });
 
 describe('offboard-dev-tester ends the shell before the AWS identity', () => {
@@ -604,7 +670,7 @@ describe('offboard-dev-tester takes their address off the allow-list', () => {
     // offboard loses its own SSH to staging.
     const r = run({ param: '203.0.113.7/32', here: '203.0.113.7' });
     expect(r.status).toBe(1);
-    expect(r.stdout).toMatch(/this machine connects from 203\.0\.113\.7\/32, the address being removed/);
+    expect(r.stderr).toMatch(/this machine connects from 203\.0\.113\.7\/32, the address being removed/);
     expect(addressCalls()).toBe('');
     expect(r.stderr).toMatch(/--from-step 3/);
   });
@@ -612,7 +678,7 @@ describe('offboard-dev-tester takes their address off the allow-list', () => {
   it('warns and asks when this machine connects from any address in their list, not only the first', () => {
     const r = run({ param: '198.51.100.250/32,203.0.113.7/32', here: '203.0.113.7' });
     expect(r.status).toBe(1);
-    expect(r.stdout).toMatch(/this machine connects from 203\.0\.113\.7\/32, the address being removed/);
+    expect(r.stderr).toMatch(/this machine connects from 203\.0\.113\.7\/32, the address being removed/);
     expect(addressCalls()).toBe('');
   });
 
@@ -621,13 +687,52 @@ describe('offboard-dev-tester takes their address off the allow-list', () => {
     // stop an offboard for a machine that loses nothing.
     const r = run({ param: '203.0.113.70/32', here: '203.0.113.7' });
     expect(r.status, r.stderr).toBe(0);
-    expect(r.stdout).not.toMatch(/WARNING: this machine connects from/);
+    expect(r.stderr).not.toMatch(/this machine connects from/);
   });
 
   it('asks nothing when this machine connects from somewhere else', () => {
     const r = run({ param: '203.0.113.7/32', here: '198.51.100.250' });
     expect(r.status, r.stderr).toBe(0);
-    expect(r.stdout).not.toMatch(/WARNING: this machine connects from/);
+    expect(r.stderr).not.toMatch(/this machine connects from/);
+  });
+
+  it('lists, and goes on past, a failure to read this machine\'s own address', () => {
+    // Swallowed, a failed checkip read skipped the check that this machine is
+    // not cutting off its own SSH, and the run said nothing about it.
+    const r = run({ param: '203.0.113.7/32', here: '' });
+    expect(r.status, r.stderr).toBe(0);
+    expect(addressCalls()).toContain('--remove');
+    expect(closingReport(r.stderr)).toMatch(/could not read this machine's own address/);
+  });
+
+  it('lists the warning about this machine\'s own address in the closing report', () => {
+    // Printed only above the typed prompt, the warning was gone from the end of
+    // the run that refused.
+    const r = run({ param: '203.0.113.7/32', here: '203.0.113.7' });
+    expect(r.status).toBe(1);
+    expect(closingReport(r.stderr)).toMatch(/this machine connects from 203\.0\.113\.7\/32/);
+  });
+
+  it('lists a warning a step reports in the one closing report', () => {
+    // The host and AWS steps run directly, keeping the terminal for their typed
+    // word; a step on the closing-report library lists its own problems here,
+    // so the operator reads one list for the whole departure.
+    const child = join(workDir, 'aws-child-on-library.sh');
+    writeFileSync(
+      child,
+      [
+        '#!/usr/bin/env bash',
+        'set -euo pipefail',
+        `source ${JSON.stringify(join(process.cwd(), 'scripts/lib/closing-report.sh'))}`,
+        'cr_warn "fixture: an earlier revocation was left in place"',
+        'cr_finish',
+      ].join('\n'),
+      { mode: 0o755 },
+    );
+    const r = run({ awsCmd: child });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stderr.split('Closing report').length - 1).toBe(1);
+    expect(closingReport(r.stderr)).toContain('fixture: an earlier revocation was left in place');
   });
 
   it('fails, naming where to resume, when a removal is not proved', () => {

@@ -65,7 +65,23 @@ interface World {
   outbox?: 'PAUSED' | 'DRAINING';
   deployFails?: boolean;
   verifyHostFails?: boolean;
+  /** The deploy, a script on the closing-report library, warns this and succeeds. */
+  deployWarns?: string;
+  /** The host check, a script on the closing-report library, reports this error. */
+  verifyHostError?: string;
+  /** Reading the outbox state fails, with this message on stderr. */
+  statusFails?: string;
+  /** grep fails (exit 2) where the plan is compared with the retirement. */
+  grepFails?: boolean;
+  /** chmod fails on the saved plan file: an unchecked command failing under errexit. */
+  planChmodFails?: boolean;
 }
+
+const CLOSING_REPORT_LIB = join(process.cwd(), 'scripts/lib/closing-report.sh');
+
+/** Stand-in lines for a child script on the closing-report library. */
+const onLibrary = (problem: 'cr_warn' | 'cr_error', message: string) =>
+  `source ${JSON.stringify(CLOSING_REPORT_LIB)}\n${problem} ${JSON.stringify(message)}\ncr_finish`;
 
 const RETIREMENT: [string, string][] = [
   ['aws_ses_email_identity.sender[0]', 'delete'],
@@ -143,6 +159,9 @@ function world(w: World): NodeJS.ProcessEnv {
       'IFS= read -r _password || true',
       log('pause'),
       `f=${JSON.stringify(join(state, 'outbox'))}`,
+      ...(w.statusFails
+        ? [`if [[ " $* " == *" --status "* ]]; then echo ${JSON.stringify(w.statusFails)} >&2; exit 1; fi`]
+        : []),
       'case " $* " in',
       '  *" --pause "*) echo PAUSED > "$f" ;;',
       '  *" --resume "*) echo DRAINING > "$f" ;;',
@@ -150,11 +169,49 @@ function world(w: World): NodeJS.ProcessEnv {
       'echo "outbound mail on production: $(cat "$f")"',
     ].join('\n'),
   );
-  const deploy = stub('deploy', `${log('deploy')}\n${w.deployFails ? 'exit 1' : 'exit 0'}`);
+  const deploy = stub(
+    'deploy',
+    `${log('deploy')}\n${w.deployWarns ? onLibrary('cr_warn', w.deployWarns) : w.deployFails ? 'exit 1' : 'exit 0'}`,
+  );
   const verifyHost = stub(
     'verify-host-env',
-    `IFS= read -r _password || true\n${log('verify-host-env')}\n${w.verifyHostFails ? 'exit 1' : 'exit 0'}`,
+    `IFS= read -r _password || true\n${log('verify-host-env')}\n${
+      w.verifyHostError ? onLibrary('cr_error', w.verifyHostError) : w.verifyHostFails ? 'exit 1' : 'exit 0'
+    }`,
   );
+  let pathFront = join(dir, 'bin');
+  if (w.grepFails) {
+    const grepBin = join(dir, 'grep-bin');
+    mkdirSync(grepBin, { recursive: true });
+    const realGrep = ['/usr/bin/grep', '/bin/grep'].find((p) => existsSync(p))!;
+    const grep = join(grepBin, 'grep');
+    writeFileSync(
+      grep,
+      [
+        '#!/usr/bin/env bash',
+        'if [[ " $* " == *" -vxF "* ]]; then echo "grep: stub read error" >&2; exit 2; fi',
+        `exec ${realGrep} "$@"`,
+      ].join('\n'),
+    );
+    chmodSync(grep, 0o755);
+    pathFront = `${grepBin}:${pathFront}`;
+  }
+  if (w.planChmodFails) {
+    const chmodBin = join(dir, 'chmod-bin');
+    mkdirSync(chmodBin, { recursive: true });
+    const realChmod = ['/usr/bin/chmod', '/bin/chmod'].find((p) => existsSync(p))!;
+    const chmodStub = join(chmodBin, 'chmod');
+    writeFileSync(
+      chmodStub,
+      [
+        '#!/usr/bin/env bash',
+        'if [[ " $* " == *sender-cutover-plan* ]]; then echo "chmod: stub failure" >&2; exit 1; fi',
+        `exec ${realChmod} "$@"`,
+      ].join('\n'),
+    );
+    chmodSync(chmodStub, 0o755);
+    pathFront = `${chmodBin}:${pathFront}`;
+  }
   const verifyEmail = stub('verify-email', log('verify-email'));
 
   const home = join(dir, 'home');
@@ -166,7 +223,7 @@ function world(w: World): NodeJS.ProcessEnv {
   return {
     ...process.env,
     ...awsIdentityStubEnv(dir),
-    PATH: `${join(dir, 'bin')}:${process.env.PATH ?? ''}`,
+    PATH: `${pathFront}:${process.env.PATH ?? ''}`,
     HOME: home,
     SENDER_CUTOVER_AWS_BIN: aws,
     SENDER_CUTOVER_TF_BIN: tf,
@@ -191,7 +248,8 @@ function run(w: World, args: string[] = [], answers: string[] = ['APPLY', 'APPLY
   });
   return {
     status: res.status,
-    out: `${res.stdout ?? ''}${res.stderr ?? ''}`,
+    // The pseudo-terminal ends lines with CR LF.
+    out: `${res.stdout ?? ''}${res.stderr ?? ''}`.replace(/\r/g, ''),
     calls: existsSync(calls) ? readFileSync(calls, 'utf-8').trim().split('\n') : [],
     tfvars: readFileSync(tfvars, 'utf-8'),
     outbox: readFileSync(join(dir, 'state', 'outbox'), 'utf-8').trim(),
@@ -416,6 +474,93 @@ describe('ses-sender-cutover.sh: the plan, and where a stop leaves the outbox', 
     const unapplied = run({ stateSender: INTERIM });
     expect(unapplied.out).not.toContain('Already done');
     expect(sequence(unapplied.calls).slice(0, 2)).toEqual(['pause --pause', 'terraform plan']);
+  });
+});
+
+/**
+ * This run's own closing report's list of errors or warnings. Scoped to this
+ * script's report, so a child that printed a report of its own cannot stand in
+ * for it.
+ */
+function listed(out: string, heading: 'Errors' | 'Warnings' | 'Proven'): string {
+  const header = out.lastIndexOf('==== Closing report: ses-sender-cutover.sh ====');
+  if (header === -1) return '';
+  const report = out.slice(header);
+  const at = report.search(heading === 'Proven' ? /^Proven:$/m : new RegExp(`^${heading} \\(\\d+\\):$`, 'm'));
+  if (at === -1) return '';
+  const rest = report.slice(at);
+  const end = rest.slice(1).search(/^(Errors|Warnings|Proven:|Not proven:|No errors)/m);
+  return end === -1 ? rest : rest.slice(0, end + 1);
+}
+
+const FINISHED_TFVARS = () =>
+  TFVARS_BEFORE.replace(`ses_sender_identity = "${INTERIM}"`, `ses_sender_identity = "${CANONICAL}"`)
+    .replace(`  "${INTERIM}",`, `  "${CANONICAL}",`) + 'ses_sender_on_domain_identity = true\n';
+
+describe('ses-sender-cutover.sh: every problem the run met is in its closing report', () => {
+  // Defect caught: the deploy's warnings stream past in the middle of a long run
+  // that ends on "Production now sends as", so the operator never reads them.
+  it("lists the deploy's warnings and still finishes the move", () => {
+    const r = run({ deployWarns: 'stub-deploy-disk-warning' });
+    expect(r.status, r.out).toBe(0);
+    expect(r.outbox).toBe('DRAINING');
+    expect(listed(r.out, 'Warnings')).toContain('stub-deploy-disk-warning');
+  });
+
+  // Defect caught: the host check's reason for refusing is printed in its own
+  // report mid-stream, and the end of the run says only that a step failed.
+  it("lists the host check's error, leaves the outbox paused and names the resume point", () => {
+    const r = run({ verifyHostError: 'stub-host-sender-mismatch' });
+    expect(r.status).not.toBe(0);
+    expect(listed(r.out, 'Errors')).toContain('stub-host-sender-mismatch');
+    expect(r.outbox).toBe('PAUSED');
+    expect(r.out).toContain('--from-step 3');
+  });
+
+  // Defect caught: the already-done check discards what the host check said, so
+  // the operator is told the host disagrees without being told how.
+  it('lists why the host check failed when deciding whether the move is already done', () => {
+    writeFileSync(tfvars, FINISHED_TFVARS());
+    const r = run({ stateSender: CANONICAL, verifyHostError: 'stub-host-sender-mismatch' });
+    expect(r.status).not.toBe(0);
+    expect(listed(r.out, 'Errors')).toContain('stub-host-sender-mismatch');
+    expect(r.out).toContain('Finish with --from-step 3');
+    expect(sequence(r.calls)).toEqual(['verify-host-env']);
+  });
+
+  // Defect caught: an outbox whose state could not be read is taken for one that
+  // is merely not draining, and the reason it could not be read is thrown away.
+  it('lists a failed read of the outbox state with the tool message', () => {
+    writeFileSync(tfvars, FINISHED_TFVARS());
+    const r = run({ stateSender: CANONICAL, statusFails: 'stub-outbox-unreachable' });
+    expect(r.status).not.toBe(0);
+    expect(r.out).not.toContain('Already done');
+    expect(listed(r.out, 'Errors')).toContain('stub-outbox-unreachable');
+  });
+
+  // Defect caught: a grep that could not compare the plan with the retirement
+  // reads as finding no difference, so a plan carrying unchecked changes is
+  // applied, one-way, under cover of the sender move.
+  it('refuses the apply when the plan could not be compared with the retirement', () => {
+    const r = run({ grepFails: true });
+    expect(r.status).not.toBe(0);
+    expect(sequence(r.calls)).toEqual(['pause --pause', 'terraform plan', 'terraform show', 'pause --resume']);
+    expect(r.outbox).toBe('DRAINING');
+    expect(r.tfvars).toBe(TFVARS_BEFORE);
+    expect(listed(r.out, 'Errors')).toMatch(/plan/);
+  });
+
+  // Defect caught: a command the script does not check fails after the outbox
+  // was paused and before the apply, and the run ends with live mail paused and
+  // the values file holding a cutover nothing applied, saying neither.
+  it('resumes the outbox and restores the values file when an unchecked command fails before the apply', () => {
+    const r = run({ planChmodFails: true });
+    expect(r.status).not.toBe(0);
+    expect(sequence(r.calls)).toEqual(['pause --pause', 'pause --resume']);
+    expect(r.outbox).toBe('DRAINING');
+    expect(r.tfvars).toBe(TFVARS_BEFORE);
+    expect(listed(r.out, 'Errors')).not.toBe('');
+    expect(listed(r.out, 'Proven')).toMatch(/outbox/);
   });
 });
 

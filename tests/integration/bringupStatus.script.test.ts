@@ -333,7 +333,9 @@ describe('bringup-status.sh — pending steps name their next command', () => {
       'TF_BACKUP_ALARM=absent',
     ]);
     const result = runScript(['--target', 'staging', '--probe-file', probe]);
-    expect(result.stdout).toMatch(/enable_backup_alarm = true in terraform\/staging\/terraform\.tfvars/);
+    // The next step names the script that makes the change, never a hand edit
+    // of the values file.
+    expect(result.stdout).toMatch(/set-terraform-gate\.sh --target staging --gate enable_backup_alarm --state on/);
   });
 });
 

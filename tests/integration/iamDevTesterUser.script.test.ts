@@ -83,6 +83,26 @@ describe('iam-dev-tester-user.sh on a name that is not a named dev-tester', () =
     }
   });
 
+  // Defect caught: an undo whose delete AWS refuses leaves an IAM user and its
+  // policy behind with nothing saying so, because the failure was swallowed.
+  it('lists a refused delete during the undo with AWS\'s own reason, and lists nothing when it succeeds', () => {
+    writeFileSync(aws, [
+      '#!/usr/bin/env bash',
+      `printf '%s\\n' "$*" >> ${JSON.stringify(calls)}`,
+      'if [[ "$2" == delete-user ]]; then echo "An error occurred (DeleteConflict) when calling the DeleteUser operation: Cannot delete entity, must remove access keys first." >&2; exit 254; fi',
+      'exit 0',
+      '',
+    ].join('\n'));
+    const undo = 'IAM_DEV_TESTER_TARGET=jane_doe; IAM_DEV_TESTER_CREATED_USER=1; IAM_DEV_TESTER_CREATED_POLICY=1; iam_dev_tester_undo';
+    const refused = run(undo);
+    expect(refused.status).toBe(0);
+    expect(refused.out).toMatch(/ERROR: the IAM user jane_doe this run created was not deleted: .*DeleteConflict/);
+    expect(refused.out).not.toMatch(/policy on jane_doe was not removed/);
+    writeFileSync(aws, `#!/usr/bin/env bash\nprintf '%s\\n' "$*" >> ${JSON.stringify(calls)}\nexit 0\n`);
+    const clean = run(undo);
+    expect(clean.out).not.toMatch(/ERROR:/);
+  });
+
   // Defect caught: the two cases above pass because the seam is not reaching
   // the stand-in at all, so no name could ever have produced a call.
   it('does reach AWS through the seam for a named dev-tester', () => {

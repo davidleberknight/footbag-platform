@@ -45,9 +45,14 @@ curated_media_build() {
     return 1
   }
   # An interrupt removes only the scratch folder this call made; the store is
-  # untouched until the seed has finished. Ordinary returns clean up below.
-  trap 'rm -rf -- "'"$scratch"'"; trap - INT TERM; kill -s INT $$' INT
-  trap 'rm -rf -- "'"$scratch"'"; trap - INT TERM; kill -s TERM $$' TERM
+  # untouched until the seed has finished. Ordinary returns clean up below. The
+  # caller's own INT and TERM handlers (a closing report's, say) are put back
+  # both on the way out and before the signal is passed on, so the caller still
+  # runs its cleanup and prints its report.
+  local caller_traps
+  caller_traps="trap - INT TERM; $(trap -p INT TERM)"
+  trap 'rm -rf -- "'"$scratch"'"; eval "$caller_traps"; kill -s INT $$' INT
+  trap 'rm -rf -- "'"$scratch"'"; eval "$caller_traps"; kill -s TERM $$' TERM
 
   if ! "${seed_cmd[@]}" --db "$db" --media-dir "$scratch"; then
     echo "ERROR: the curator seed failed; ${store} is left as it was." >&2
@@ -60,6 +65,6 @@ curated_media_build() {
   fi
 
   rm -rf -- "$scratch"
-  trap - INT TERM
+  eval "$caller_traps"
   return "$status"
 }

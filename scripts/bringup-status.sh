@@ -487,7 +487,7 @@ else
   elif [[ "${P[CW_BACKUP_METRIC]}" != "flowing" ]]; then
     next_cmd "wait for two timer runs; inspect: ssh $SSH_ALIAS journalctl -u footbag-backup.service -n 20"
   else
-    next_cmd "set enable_backup_alarm = true in terraform/$TARGET/terraform.tfvars and apply"
+    next_cmd "bash scripts/set-terraform-gate.sh --target $TARGET --gate enable_backup_alarm --state on"
   fi
 fi
 

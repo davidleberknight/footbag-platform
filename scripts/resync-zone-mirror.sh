@@ -110,9 +110,13 @@ if [[ "$CAPTURE" != /* ]]; then
 fi
 cd "$REPO_ROOT"
 
+# One closing report for the whole run: the apply, on the same library, hands its
+# errors and warnings to it, and the check's problem lines are read into it.
+# shellcheck source=lib/closing-report.sh
+source "$REPO_ROOT/scripts/lib/closing-report.sh"
+
 if [[ ! -f "$CAPTURE" || ! -r "$CAPTURE" ]]; then
-  echo "ERROR: the capture is not a readable file: $CAPTURE" >&2
-  exit 1
+  cr_die "the capture is not a readable file: $CAPTURE"
 fi
 
 if [[ -n "${RESYNC_ZONE_MIRROR_EVIDENCE_DIR:-}" ]]; then
@@ -122,14 +126,12 @@ else
   EVIDENCE_DIR="$REPO_ROOT/footbag_private_repo/evidence/zone-capture"
 fi
 if [[ ! -d "$EVIDENCE_DIR" ]]; then
-  echo "ERROR: no evidence directory at $EVIDENCE_DIR." >&2
   echo "       The report belongs in the private operations checkout beside the" >&2
   echo "       capture; link the checkout (scripts/setup_private_repo.sh) first." >&2
-  exit 1
+  cr_die "no evidence directory at $EVIDENCE_DIR."
 fi
 if ! command -v jq >/dev/null 2>&1; then
-  echo "ERROR: jq is required to read the zone's name servers. Nothing has been applied." >&2
-  exit 1
+  cr_die "jq is required to read the zone's name servers. Nothing has been applied."
 fi
 
 REPORT="$EVIDENCE_DIR/mirror-comparison.$(date -u +%Y-%m-%dT%H%M%SZ).txt"
@@ -144,28 +146,29 @@ if (( DRY_RUN )); then
   echo "  3. bash scripts/verify-zone-mirror.sh --capture $CAPTURE"
   echo "     --nameserver <first name server> --zone-id <zone id>"
   echo "     --out $REPORT"
-  exit 0
+  cr_unproved "the apply and the check (a dry run touches nothing)"
+  cr_finish
 fi
 
 # shellcheck source=lib/terraform-output.sh
 source "$REPO_ROOT/scripts/lib/terraform-output.sh"
 
 if ! tf_output_read "$TF_DIR" route53_zone_id || [[ -z "$TF_OUTPUT_VALUE" ]]; then
-  echo "ERROR: could not read route53_zone_id from $TF_DIR. Nothing has been applied." >&2
   tf_output_explain "$TF_DIR" route53_zone_id
-  exit 1
+  cr_die "could not read route53_zone_id from $TF_DIR. Nothing has been applied."
 fi
 ZONE_ID="$TF_OUTPUT_VALUE"
 
 if ! tf_output_read "$TF_DIR" route53_name_servers --json; then
-  echo "ERROR: could not read route53_name_servers from $TF_DIR. Nothing has been applied." >&2
   tf_output_explain "$TF_DIR" route53_name_servers
-  exit 1
+  cr_die "could not read route53_name_servers from $TF_DIR. Nothing has been applied."
 fi
-NAMESERVER="$(printf '%s' "$TF_OUTPUT_VALUE" | jq -r 'if type == "array" then (.[0] // "") else "" end' 2>/dev/null || true)"
+# jq's own complaint, if the output is not JSON, is shown on stderr; the empty
+# answer it leaves is then refused below.
+NAMESERVER="$(printf '%s' "$TF_OUTPUT_VALUE" | jq -r 'if type == "array" then (.[0] // "") else "" end')" \
+  || NAMESERVER=""
 if [[ -z "$NAMESERVER" ]]; then
-  echo "ERROR: route53_name_servers in $TF_DIR names no name server. Nothing has been applied." >&2
-  exit 1
+  cr_die "route53_name_servers in $TF_DIR names no name server. Nothing has been applied."
 fi
 
 echo "== resync zone mirror: $TARGET =="
@@ -176,28 +179,35 @@ echo ""
 
 echo "-- Step 1 of 2: apply the record changes --"
 apply_rc=0
+# Run directly, never through a pipe: the apply asks for its typed APPLY on this
+# terminal, and hands its own errors and warnings to this run's report.
 bash "$REPO_ROOT/scripts/terraform-apply.sh" --target "$TARGET" --dns-records-only || apply_rc=$?
 if (( apply_rc != 0 )); then
   echo "" >&2
-  echo "ERROR: the apply did not complete (exit $apply_rc). The check has not run." >&2
   echo "       Nothing beyond what the apply reported above has changed. Re-run this" >&2
   echo "       script once that is resolved; it applies only what is still pending." >&2
+  cr_error "the apply did not complete (exit $apply_rc). The check has not run."
+  cr_unproved "that the Route 53 copy answers what the capture holds (the check did not run)"
   exit "$apply_rc"
 fi
 
 echo ""
 echo "-- Step 2 of 2: check every name against the capture --"
+# The check asks for nothing, so its output is read as it runs: each name it
+# could not read or found different reaches the closing report by name.
 verify_rc=0
-bash "$REPO_ROOT/scripts/verify-zone-mirror.sh" \
+cr_run "verify-zone-mirror" -- bash "$REPO_ROOT/scripts/verify-zone-mirror.sh" \
   --capture "$CAPTURE" --nameserver "$NAMESERVER" --zone-id "$ZONE_ID" \
   --out "$REPORT" || verify_rc=$?
 
 echo ""
 if (( verify_rc != 0 )); then
-  echo "FAIL: the Route 53 copy does not answer what the capture holds (exit $verify_rc)." >&2
   echo "      Report: $REPORT" >&2
+  cr_error "FAIL: the Route 53 copy does not answer what the capture holds (exit $verify_rc)."
   exit "$verify_rc"
 fi
 echo "PASS: the Route 53 copy answers what the capture holds."
 echo "      Report: $REPORT"
 echo "      Commit it to the private checkout beside the capture."
+cr_proved "the Route 53 copy answers what the capture holds (report: $REPORT)"
+cr_finish

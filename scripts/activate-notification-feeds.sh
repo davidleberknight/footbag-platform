@@ -79,6 +79,11 @@ TFVARS_OVERRIDE=""
 AWS_PROFILE_ARG=""
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# One closing report for the whole run, the deploy's and the verification's
+# problems included, with the exit status following from it. The library owns
+# the exit and signal traps, so the temp files below are registered with it.
+# shellcheck source=lib/closing-report.sh
+source "${REPO_ROOT}/scripts/lib/closing-report.sh"
 # shellcheck source=lib/host-env-remote.sh
 source "${REPO_ROOT}/scripts/lib/host-env-remote.sh"
 # The shared firewall check step 4 runs before it hands off to the deploy. It
@@ -200,23 +205,53 @@ resolve_tfvars() {
   printf '%s' "$resolved"
 }
 
+# A file that declares no value is the "<absent>" state, so grep finding no line
+# is an answer; grep failing to read the file is not, and stops the run.
 read_tfvars_flag() {
   grep -E "^[[:space:]]*${TFVAR_NAME}[[:space:]]*=" "$1" | tail -1 \
-    | sed -E 's/.*=[[:space:]]*([a-z]+).*/\1/' || true
+    | sed -E 's/.*=[[:space:]]*([a-z]+).*/\1/' || [[ $? == 1 ]]
 }
 
 # The live side of the picture, so --status answers from the account rather than
 # from the declared value alone. A declared flag whose queues do not exist is
-# exactly the half-finished state this script is here to prevent.
+# exactly the half-finished state this script is here to prevent. Sets
+# LIVE_QUEUES rather than printing, so a failed read is listed in the closing
+# report as a warning carrying the tool's own message; inside a command
+# substitution the record would be lost with the subshell.
+LIVE_QUEUES=""
 read_live_queues() {
-  [[ -z "$AWS_PROFILE_ARG" ]] && { echo "(no --profile; not read)"; return 0; }
-  aws sqs list-queues \
-    --queue-name-prefix "footbag-${TARGET}" \
-    --region "${AWS_REGION:-us-east-1}" \
-    --profile "$AWS_PROFILE_ARG" \
-    --query 'QueueUrls[?ends_with(@, `-feed`)]' --output text 2>/dev/null \
-    || echo "<unreadable>"
+  local out
+  if [[ -z "$AWS_PROFILE_ARG" ]]; then
+    LIVE_QUEUES="(no --profile; not read)"
+    return 0
+  fi
+  if out="$(aws sqs list-queues \
+      --queue-name-prefix "footbag-${TARGET}" \
+      --region "${AWS_REGION:-us-east-1}" \
+      --profile "$AWS_PROFILE_ARG" \
+      --query 'QueueUrls[?ends_with(@, `-feed`)]' --output text 2>&1)"; then
+    LIVE_QUEUES="$out"
+  else
+    LIVE_QUEUES="<unreadable>"
+    cr_warn "the live feed queues could not be listed: $(tail -n 1 <<<"$out")"
+  fi
 }
+
+# Removes this run's temp files at exit, interrupt included. A saved plan is an
+# opaque archive that can carry live values, so it is shredded, and a shred that
+# fails is listed in the closing report rather than silenced.
+TFVARS_TMP=""
+TF_PLAN=""
+feeds_cleanup() {
+  if [[ -n "$TF_PLAN" && -e "$TF_PLAN" ]] && ! shred -u "$TF_PLAN"; then
+    cr_warn "could not shred the saved plan ${TF_PLAN}; it was deleted without overwriting"
+    rm -f -- "$TF_PLAN"
+  fi
+  if [[ -n "$TFVARS_TMP" && -e "$TFVARS_TMP" ]]; then
+    rm -f -- "$TFVARS_TMP"
+  fi
+}
+cr_cleanup feeds_cleanup
 
 TFVARS_PATH="$(resolve_tfvars)"
 CURRENT_FLAG="$(read_tfvars_flag "$TFVARS_PATH")"
@@ -228,13 +263,15 @@ if [[ "$MODE" == "status" ]]; then
   echo "== notification feeds: $TARGET =="
   echo ""
   echo "tfvars ($TFVARS_PATH): $TFVAR_NAME = ${CURRENT_FLAG:-<absent>}"
-  echo "live feed queues: $(read_live_queues)"
+  read_live_queues
+  echo "live feed queues: ${LIVE_QUEUES}"
   echo ""
   echo "The host reads each queue's URL from the environment file; the worker"
   echo "polls whichever it holds. For the running host, and everything else in"
   echo "the bring-up sequence:"
   echo "  scripts/bringup-status.sh --target $TARGET${AWS_PROFILE_ARG:+ --profile $AWS_PROFILE_ARG}"
-  exit 0
+  cr_unproved "the host's view of the feeds: the status read asks the values file and the account only"
+  cr_finish
 fi
 
 echo "== notification feeds: $TARGET -> $STATE =="
@@ -264,7 +301,8 @@ if (( DRY_RUN )); then
     echo "reading yet. None are lost: they wait, and the worker drains them when"
     echo "the deploy lands. Do not stop between those two steps."
   fi
-  exit 0
+  cr_unproved "anything: a dry run changes and checks nothing"
+  cr_finish
 fi
 
 # Every confirmation below is read from /dev/tty, never from stdin. Stdin is the
@@ -306,14 +344,12 @@ if (( FROM_STEP <= 1 )); then
       echo "  + $TFVAR_NAME = $WANTED_FLAG    (appended; the file declares no value today)"
       echo ""
       if ! confirm_from_tty "Append this line to ${TFVARS_PATH}? (yes/no): " "yes"; then
-        echo "Aborted: tfvars not changed." >&2
-        exit 1
+        cr_die "Aborted: tfvars not changed."
       fi
       printf '\n%s = %s\n' "$TFVAR_NAME" "$WANTED_FLAG" >> "$TFVARS_PATH"
       echo "  $TFVAR_NAME = $WANTED_FLAG appended."
     else
       TFVARS_TMP="$(mktemp "${TMPDIR:-/tmp}/footbag-feeds-tfvars.XXXXXX")"
-      trap 'rm -f "${TFVARS_TMP:-}"' EXIT INT TERM
       FLAG_VALUE="$WANTED_FLAG" VAR_NAME="$TFVAR_NAME" awk '
         BEGIN { pattern = "^[ \t]*" ENVIRON["VAR_NAME"] "[ \t]*=" }
         $0 ~ pattern && !done {
@@ -326,11 +362,12 @@ if (( FROM_STEP <= 1 )); then
       ' "$TFVARS_PATH" > "$TFVARS_TMP"
 
       echo ""
-      diff -u "$TFVARS_PATH" "$TFVARS_TMP" || true
+      # diff exits 1 when the files differ, which is the point of showing it;
+      # only its exit 2, a file it could not read, stops the run.
+      diff -u "$TFVARS_PATH" "$TFVARS_TMP" || [[ $? == 1 ]]
       echo ""
       if ! confirm_from_tty "Apply this change to ${TFVARS_PATH}? (yes/no): " "yes"; then
-        echo "Aborted: tfvars not changed." >&2
-        exit 1
+        cr_die "Aborted: tfvars not changed."
       fi
       cat "$TFVARS_TMP" > "$TFVARS_PATH"
       echo "  $TFVAR_NAME = $WANTED_FLAG written."
@@ -345,7 +382,8 @@ if (( SYNTHETIC )); then
   echo "  terraform -chdir=$TF_DIR plan -out=<temp>, then apply that plan"
   echo "  $DEPLOY_CMD --target $TARGET ${DEPLOY_ARGS[*]}   (syncs the queue URLs)"
   echo "  scripts/verify-host-env.sh --target $TARGET"
-  exit 0
+  cr_unproved "the queues, the deploy and the host: synthetic mode stops after the values file"
+  cr_finish
 fi
 
 # ── Step 2: create or remove the queues ──────────────────────────────────────
@@ -390,25 +428,21 @@ if (( FROM_STEP <= 2 )); then
   # redirect the archive into a checkout.
   TF_PLAN="$(mktemp /tmp/footbag-feeds-plan.XXXXXX)"
   chmod 600 "$TF_PLAN"
-  trap 'if [ -n "${TF_PLAN:-}" ] && [ -e "${TF_PLAN}" ]; then shred -u "${TF_PLAN}" 2>/dev/null || true; fi; rm -f "${TF_PLAN:-}" "${TFVARS_TMP:-}"' EXIT INT TERM
 
+  # Run directly, not through cr_run: a plan can print values from the state,
+  # and cr_run keeps a copy of everything a command prints on disk.
   if ! terraform -chdir="$TF_DIR" plan -out="$TF_PLAN"; then
-    echo "ERROR: terraform plan failed. Nothing was applied." >&2
-    echo "       Resume with --from-step 2 once fixed." >&2
-    exit 1
+    cr_die "terraform plan failed. Nothing was applied. Resume with --from-step 2 once fixed."
   fi
   echo ""
   echo "Read the plan above before answering. It covers this whole environment,"
   echo "not only the feeds: anything else pending in the tree is applied with them."
   echo ""
   if ! confirm_from_tty "Type 'APPLY' to apply the plan shown above: " "APPLY"; then
-    echo "Aborted before terraform apply. The tfvars change is already written;" >&2
-    echo "resume with --from-step 2 when ready." >&2
-    exit 1
+    cr_die "Aborted before terraform apply. The tfvars change is already written; resume with --from-step 2 when ready."
   fi
   if ! terraform -chdir="$TF_DIR" apply "$TF_PLAN"; then
-    echo "ERROR: terraform apply failed. Resume with --from-step 2 once fixed." >&2
-    exit 1
+    cr_die "terraform apply failed. Resume with --from-step 2 once fixed."
   fi
   echo ""
 fi
@@ -448,10 +482,10 @@ if (( FROM_STEP <= 4 )); then
   fi
   echo "  Running a CODE-ONLY deploy. Expect 15-25 seconds of degraded service."
   echo ""
+  # Run directly, not through cr_run: the deploy may ask on the terminal. Its own
+  # problems reach this run's closing report through the library's nested mode.
   if ! "$DEPLOY_CMD" --target "$TARGET" "${DEPLOY_ARGS[@]}"; then
-    echo "ERROR: the deploy failed. The queues exist and are collecting but the" >&2
-    echo "       host is not polling them yet. Resume with --from-step 4." >&2
-    exit 1
+    cr_die "the deploy failed: the queues exist and are collecting but the host is not polling them yet. Resume with --from-step 4."
   fi
   echo ""
 fi
@@ -459,12 +493,28 @@ fi
 # ── Step 5: prove it ─────────────────────────────────────────────────────────
 echo "-- step 5: verify --"
 echo ""
-printf '%s\n' "$SUDO_PASS" | bash "$REPO_ROOT/scripts/verify-host-env.sh" --target "$TARGET" || true
+# The verification is the step that proves the outcome, so its failure is an
+# error on this run, not a warning: the host env check exits non-zero only when
+# a critical invariant fails, and a run that printed the feeds live over a
+# failed check would be claiming what nothing showed. Its FAIL and WARN rows are
+# read into the closing report either way.
+verify_host_env() {
+  printf '%s\n' "$SUDO_PASS" | bash "$REPO_ROOT/scripts/verify-host-env.sh" --target "$TARGET"
+}
+VERIFIED=1
+cr_run_marked --errors "$FOOTBAG_FAILURE_GRAMMAR" --warnings "$FOOTBAG_NOTICE_GRAMMAR" \
+  "host env verification on ${TARGET}" -- verify_host_env || VERIFIED=0
 echo ""
 if [[ -n "$AWS_PROFILE_ARG" ]]; then
-  echo "Live feed queues: $(read_live_queues)"
+  read_live_queues
+  echo "Live feed queues: ${LIVE_QUEUES}"
   echo ""
 fi
+if (( ! VERIFIED )); then
+  cr_unproved "the feeds ${STATE} on ${TARGET}'s host: the host env verification failed; resume with --from-step 5 once fixed"
+  cr_finish
+fi
+cr_proved "the host env on ${TARGET} passed its critical checks after the feeds were turned ${STATE}"
 if [[ "$STATE" == "on" ]]; then
   echo "Confirm above that the feed rows read green. The feeds are live from the"
   echo "moment the containers came up: a bounce or an alarm published now is"
@@ -475,3 +525,4 @@ else
   echo "is a separate subscription and was not touched. Bounces and complaints"
   echo "are no longer recorded anywhere until a feed is brought back up."
 fi
+cr_finish

@@ -246,8 +246,11 @@ if (( READ_BACK_ONLY == 0 )); then
   fi
 fi
 
-DISTRIBUTION_ID="$("$TERRAFORM_BIN" -chdir="${REPO_ROOT}/terraform/staging" \
-  output -raw cloudfront_distribution_id 2>/dev/null || true)"
+if ! DISTRIBUTION_ID="$("$TERRAFORM_BIN" -chdir="${REPO_ROOT}/terraform/staging" \
+  output -raw cloudfront_distribution_id)"; then
+  echo "ERROR: Terraform could not read cloudfront_distribution_id (reason above), so the alarm's own metric cannot be read." >&2
+  exit 1
+fi
 
 # The report outlives the run by design, because the operator reads it
 # afterwards, so it is not on the trap. It is reclaimed by the session sweep in
@@ -263,8 +266,8 @@ read_back() {
   local start="$1" end="$2"
 
   if [[ -z "$DISTRIBUTION_ID" ]]; then
-    echo "WARNING: no distribution id available, so the alarm's own metric was not read." >&2
-    return 0
+    echo "ERROR: no distribution id available, so the alarm's own metric was not read." >&2
+    return 1
   fi
 
   echo "What the alarm's metric saw, ${start} to ${end} (five-minute periods):"
@@ -302,13 +305,32 @@ read_back() {
   echo "  requests in window   $(jq -r '[.Datapoints[].Sum] | add // 0 | floor' "${REPORT_DIR}/requests.json")"
   echo "  worst 5xx rate       $(jq -r '[.Datapoints[].Average] | if length == 0 then 0 else max end' "${REPORT_DIR}/5xx-rate.json")%"
   echo
-  echo "  highest five-minute p95 origin latency: ${worst} ms"
+  if [[ "$worst" == "none" ]]; then
+    echo "  highest five-minute p95 origin latency: none (no datapoints)"
+    WARNINGS+=("OriginLatency returned no datapoints for ${start} to ${end}, so nothing was measured against the alarm's threshold. CloudFront may not have published the closing period yet; re-read this window later.")
+  else
+    echo "  highest five-minute p95 origin latency: ${worst} ms"
+  fi
   echo "  the deployed alarm fires at 2000 ms, two consecutive periods."
+  echo
+}
+
+# Problems the read-back met that do not fail the run, listed once at the end
+# so a window that measured nothing never reads like one that measured well.
+WARNINGS=()
+list_warnings() {
+  (( ${#WARNINGS[@]} )) || return 0
+  echo "Warnings:"
+  local w
+  for w in "${WARNINGS[@]}"; do
+    echo "  WARNING: ${w}"
+  done
   echo
 }
 
 if (( READ_BACK_ONLY == 1 )); then
   read_back "$WINDOW_START" "$WINDOW_END"
+  list_warnings
   echo "Reports: ${REPORT_DIR}"
   exit 0
 fi
@@ -370,6 +392,7 @@ if (( SETTLE_SECONDS > 0 )); then
 fi
 
 read_back "$WINDOW_START" "$WINDOW_END"
+list_warnings
 
 echo "Reports: ${REPORT_DIR}"
 echo "Re-read this same window later with:"

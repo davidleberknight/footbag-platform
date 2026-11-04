@@ -23,6 +23,7 @@ import { join } from 'node:path';
 import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { hostIdentityAnswer } from '../fixtures/hostIdentityStub';
+import { readDnfSample } from '../fixtures/dnfSamples';
 import {
   DNF_UPDATEINFO_LIST_SAMPLE, OSV_GHSA_32GQ, OSV_GO_2024_3344, epssResponse, kevCatalog, kevEntry, nodeEntry,
   trivyReport, type TrivyVuln,
@@ -174,8 +175,15 @@ function writeSsh(): void {
     'IFS= read -r _password',
     `PATH=${JSON.stringify(hostBin)}:"$PATH" bash -s`,
   ]);
+  // dnf as it behaves: without -q it prints its repository download and
+  // metadata lines on standard output ahead of the listing; with -q, the
+  // listing alone.
+  const progress = join(state, 'dnf-progress.txt');
+  writeFileSync(progress, readDnfSample('dnf-updateinfo-progress.sample.txt').body);
   exe(join(hostBin, 'dnf'), [
-    `cat <<'OUT'`,
+    'quiet=0; for a in "$@"; do [[ "$a" == -q ]] && quiet=1; done',
+    `(( quiet )) || cat ${JSON.stringify(progress)}`,
+    `cat <<'OUT' | { if (( quiet )); then grep -v '^Last metadata expiration check'; else cat; fi; }`,
     ...DNF_UPDATEINFO_LIST_SAMPLE,
     'OUT',
     `[[ -e ${JSON.stringify(join(state, 'dnf-extra'))} ]] && echo "A line in a shape nobody has seen"`,
@@ -389,6 +397,19 @@ describe('check-vulnerabilities.sh', () => {
     expect(failed.report).toMatch(/Errors \([1-9]\):[\s\S]*dnf updateinfo: exit 1/);
     expect(failed.report).toMatch(/Not proven:[\s\S]*footbag-staging's installed packages: the host's listing did not complete/);
     expect(rows(failed.stdout).filter((x) => x[COL.advisory].startsWith('ALAS'))).toEqual([]);
+  });
+
+  it('reads none of the lines dnf prints as progress as an advisory line', () => {
+    // Defect caught: the host's listing is read with dnf's repository download
+    // and metadata lines in it, so every host report carries a warning per
+    // repository and a real unreadable advisory line hides among them.
+    const progress = readDnfSample('dnf-updateinfo-progress.sample.txt').body.split('\n').filter((l) => l.trim() !== '');
+    expect(progress.length).toBeGreaterThan(0);
+    const r = run(['--target', 'staging']);
+    expect(r.status, r.out).toBe(0);
+    for (const line of progress) expect(r.report, line).not.toContain(line.trim());
+    expect(r.report).not.toMatch(/cannot read/);
+    expect(rows(r.stdout).filter((x) => x[COL.advisory].startsWith('ALAS')).length).toBeGreaterThan(0);
   });
 
   it('refuses a target that is not an environment, before reaching anything', () => {

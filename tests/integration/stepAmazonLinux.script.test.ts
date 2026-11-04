@@ -31,6 +31,7 @@ import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 
 const REMOTE_HALF = join(process.cwd(), 'scripts/internal/step-amazon-linux-remote.sh');
 const REPORT_LIB = join(process.cwd(), 'scripts/lib/closing-report-remote.sh');
+const DNF_PARSER = join(process.cwd(), 'scripts/internal/dnf-check-update-remote.sh');
 const OPERATOR_SCRIPT = join(process.cwd(), 'scripts/step-amazon-linux.sh');
 const PINS = readFileSync(join(process.cwd(), 'ops/tool-versions.env'), 'utf8');
 const pin = (k: string): string => {
@@ -79,6 +80,7 @@ function writeHostTools(): void {
     '  *check-update*)',
     `    if [[ -e ${st}/upgraded && ! -e ${st}/left-behind ]]; then exit 0; fi`,
     `    [[ -e ${st}/check-update-fails ]] && { echo "Error: repo unreachable"; exit 1; }`,
+    `    [[ -e ${st}/check-update-listing ]] && { cat ${st}/check-update-listing; exit 100; }`,
     '    echo "docker.x86_64   25.0.16-1.amzn2023.0.5   amazonlinux"',
     '    echo "kernel.x86_64   6.1.150-1.amzn2023       amazonlinux"',
     '    exit 100 ;;',
@@ -99,7 +101,7 @@ function writeHostTools(): void {
     `echo "systemctl $*" >> ${log}`,
     'case "$1" in',
     `  stop) rm -f ${st}/running ;;`,
-    `  restart) touch ${st}/running ;;`,
+    `  restart) touch ${st}/running; [[ -e ${st}/restart-prints-error ]] && echo "Error: stand-in failure printed by the restart" ;;`,
     `  is-active) [[ -e ${st}/stays-active || -e ${st}/running ]] && exit 0; exit 3 ;;`,
     'esac',
     'exit 0',
@@ -147,7 +149,8 @@ function hostEnv(): NodeJS.ProcessEnv {
 
 function runRemote(mode: string, extra: string[] = []) {
   const stream = [`MODE=${mode}`, `AMAZON_LINUX_RELEASE=${PIN}`, ...extra].join('\n') + '\n'
-    + readFileSync(REPORT_LIB, 'utf-8') + '\n' + readFileSync(REMOTE_HALF, 'utf-8');
+    + readFileSync(REPORT_LIB, 'utf-8') + '\n' + readFileSync(DNF_PARSER, 'utf-8') + '\n'
+    + readFileSync(REMOTE_HALF, 'utf-8');
   const r = spawnSync('bash', ['-s'], {
     input: stream, encoding: 'utf-8', env: { ...process.env, ...hostEnv() }, ...SPAWN_GUARD,
   });
@@ -241,6 +244,22 @@ describe('the root-side step', () => {
     expect(failed.out).not.toContain('---FOOTBAG-PREVIEW---');
   });
 
+  it('fails, rather than counts nothing, when dnf says updates exist in a listing it cannot read', () => {
+    // Defect caught: after the upgrade, dnf still lists packages at the pin in a
+    // layout the count does not match, the count comes back empty with no error,
+    // and the step is reported complete over a transaction that did not finish;
+    // before it, the confirmation shows no number at all and says nothing why.
+    flag('left-behind');
+    flag('check-update-listing', 'Some layout this parser has never seen\n');
+    const step = runRemote('step');
+    expect(step.status, step.out).toBe(1);
+    expect(step.out).toMatch(/^---FOOTBAG-PROBLEM--- ERROR .*listed none this parser can count/m);
+    const preview = runRemote('preview');
+    expect(preview.status).toBe(1);
+    expect(preview.out).not.toContain('---FOOTBAG-PREVIEW---');
+    expect(preview.out).toMatch(/^---FOOTBAG-PROBLEM--- ERROR .*listed none this parser can count/m);
+  });
+
   it('reports the host against the pins, each difference an error', () => {
     // Defect caught: a step reported done on a host whose docker is not the
     // version the pins name.
@@ -254,7 +273,8 @@ describe('the root-side step', () => {
     writeFileSync(releaseFile, `Amazon Linux release ${PIN} (Amazon Linux)\n`);
     flag('docker-version', '24.0.0-1.amzn2023');
     const stream = ['MODE=prove', `AMAZON_LINUX_RELEASE=${PIN}`, ...expected].join('\n') + '\n'
-      + readFileSync(REPORT_LIB, 'utf-8') + '\n' + helper + '\n' + readFileSync(REMOTE_HALF, 'utf-8');
+      + readFileSync(REPORT_LIB, 'utf-8') + '\n' + readFileSync(DNF_PARSER, 'utf-8') + '\n'
+      + helper + '\n' + readFileSync(REMOTE_HALF, 'utf-8');
     const r = spawnSync('bash', ['-s'], { input: stream, encoding: 'utf-8', env: { ...process.env, ...hostEnv() }, ...SPAWN_GUARD });
     expect(r.status).toBe(1);
     expect((r.stdout ?? '') + (r.stderr ?? '')).toMatch(/---FOOTBAG-PROBLEM--- ERROR .*docker package is 24\.0\.0/);
@@ -271,9 +291,17 @@ describe('the operator half', () => {
    * runs each privileged stream locally as the host would: the password line is
    * dropped and the rest goes to bash with the host's tools first on the path.
    */
-  function standInHost(recorded?: string): { env: NodeJS.ProcessEnv; sessions: string } {
+  /**
+   * `printsOwnLine` makes every privileged session print an unmarked line of its
+   * own on stdout, and the backup read (after the reads and the stop) copies what
+   * the run kept of those sessions into `onDisk`.
+   */
+  function standInHost(recorded?: string, printsOwnLine = false): { env: NodeJS.ProcessEnv; sessions: string; onDisk: string } {
     const bin = join(dir, 'bin');
     mkdirSync(bin, { recursive: true });
+    const tmp = join(dir, 'tmp');
+    mkdirSync(tmp, { recursive: true });
+    const onDisk = join(dir, 'sessions-on-disk.txt');
     const sessions = join(dir, 'sessions.log');
     const host = hostEnv();
     exe(join(bin, 'ssh'), [
@@ -287,12 +315,19 @@ describe('the operator half', () => {
       'cat > "$body"',
       `cat "$body" >> ${JSON.stringify(sessions)}`,
       ...Object.entries(host).map(([k, v]) => `export ${k}=${JSON.stringify(v)}`),
-      'bash "$body"',
+      printsOwnLine ? 'echo "SESSION-ONLY-LINE from the host"' : ':',
+      'bash "$body"; rc=$?',
+      // The stop session ends as a dropped connection does, after its body ran.
+      `[[ -e ${JSON.stringify(join(state, 'stop-session-drops'))} ]] && grep -q '^MODE=stop' "$body" && exit 255`,
+      'exit "$rc"',
     ]);
     const known = join(dir, 'pin');
     writeFileSync(known, '[203.0.113.30]:22 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFAKE\n');
     exe(join(dir, 'aws'), [
       `echo "aws $*" >> ${JSON.stringify(callLog)}`,
+      printsOwnLine
+        ? `[[ "$*" == *list-objects-v2* ]] && cat "$TMPDIR"/*/send.* "$TMPDIR"/*/quiesce.* > ${JSON.stringify(onDisk)}`
+        : ':',
       'case "$*" in',
       '  *create-instance-snapshot*) exit 0 ;;',
       `  *get-instance-snapshot*) [[ -e ${JSON.stringify(join(state, 'snapshot-error'))} ]] && { printf 'error\\t%s\\n' "$(date -u +%FT%TZ)"; exit 0; }`,
@@ -318,8 +353,10 @@ describe('the operator half', () => {
         FOOTBAG_STEP_AL_POLL_SECS: '0',
         TF_OUTPUT_BIN: join(dir, 'terraform'),
         ...awsIdentityStubEnv(dir),
+        ...(printsOwnLine ? { TMPDIR: tmp } : {}),
       },
       sessions,
+      onDisk,
     };
   }
   function runOperator(args: string[], env: NodeJS.ProcessEnv, script = OPERATOR_SCRIPT) {
@@ -368,6 +405,42 @@ describe('the operator half', () => {
     expect(sent(sessions)).toContain('MODE=prove');
     expect(report(r.out)).toMatch(/match the pins/);
     expect(report(r.out)).toMatch(/footbag-staging-web-pre-step-/);
+  });
+
+  it('keeps only the marked lines of each privileged session on disk', () => {
+    // Defect caught: a session's whole stdout, which can carry anything the
+    // privileged stream held, kept in a temp file for the rest of the run.
+    const { env, onDisk } = standInHost(undefined, true);
+    const r = runOperator(['--target', 'staging'], env);
+    expect(r.status, r.out).toBe(0);
+    const kept = readFileSync(onDisk, 'utf8').trim().split('\n');
+    // The positive control: the values the run parses were kept.
+    expect(kept).toContain('---FOOTBAG-QUIESCED---');
+    const unmarked = kept.filter((l) => !/^---FOOTBAG-[A-Z0-9-]+---( |$)/.test(l));
+    expect(unmarked).toEqual([]);
+    // Shown to the operator as it arrived, though never written down.
+    expect(r.out).toMatch(/SESSION-ONLY-LINE from the host/);
+  });
+
+  it('does not step when the stop session fails, even after it reported the backup done', () => {
+    // Defect caught: a failed privileged session judged by its completion marker
+    // alone, so the host is stepped and the closing report never names the failure.
+    flag('stop-session-drops');
+    const { env } = standInHost();
+    const r = runOperator(['--target', 'staging'], env);
+    expect(r.status).toBe(1);
+    expect(report(r.out)).toMatch(/stop and back up: exit 255/);
+    expect(calls()).not.toMatch(/dnf upgrade/);
+  });
+
+  it('fails the run on a problem the restart printed over a healthy stack', () => {
+    // Defect caught: an error line from the unmarked restart body streamed past
+    // and the run reporting success because the stack then came back healthy.
+    flag('restart-prints-error');
+    const { env } = standInHost();
+    const r = runOperator(['--target', 'staging'], env);
+    expect(r.status).toBe(1);
+    expect(report(r.out)).toMatch(/start and prove the stack: Error: stand-in failure printed by the restart/);
   });
 
   it('reboots when the step says the host needs one, and proves it by a new boot id', () => {
@@ -462,5 +535,51 @@ describe('the operator half', () => {
     expect(r.status).toBe(1);
     expect(report(r.out)).toMatch(/release gate refuses/);
     expect(sent(sessions)).not.toMatch(/MODE=(preview|step)/);
+  });
+});
+
+describe('step-amazon-linux.sh: proving visitors are served again after the restart', () => {
+  // The check runs only on production, behind the release gate, so it is lifted
+  // out of the script by name and run against a stand-in curl.
+  function served(curl: string) {
+    const src = readFileSync(join(process.cwd(), 'scripts/step-amazon-linux.sh'), 'utf-8');
+    const fn = /^edge_served_again\(\) \{[\s\S]*?^\}$/m.exec(src)?.[0];
+    expect(fn, 'edge_served_again is defined in the script').toBeTruthy();
+    const stub = join(dir, 'curl-stand-in');
+    writeFileSync(stub, ['#!/usr/bin/env bash', curl, ''].join('\n'));
+    chmodSync(stub, 0o755);
+    const body = [
+      'set -euo pipefail',
+      `source '${join(process.cwd(), 'scripts/lib/closing-report.sh')}'`,
+      `CURL_BIN='${stub}'`,
+      fn,
+      'edge_served_again edge.example.test',
+      'cr_finish',
+      '',
+    ].join('\n');
+    const res = spawnSync('bash', ['-c', body], { encoding: 'utf-8', ...SPAWN_GUARD });
+    const err = res.stderr ?? '';
+    return err.slice(Math.max(0, err.lastIndexOf('Closing report')));
+  }
+
+  it('never proves an outage recovered when the edge cannot be read', () => {
+    // Defect caught: curl failing prints status 000 and the run records that
+    // visitors are served again, over a site nobody can reach.
+    const r = served('echo "curl: (6) Could not resolve host: edge.example.test" >&2; printf 000; exit 6');
+    expect(r).not.toMatch(/Proven:/);
+    expect(r).toMatch(/could not be read after the restart.*Could not resolve host/);
+  });
+
+  it('does not prove a status that is not a page', () => {
+    // Defect caught: an origin error after the restart recorded as recovery.
+    const r = served('printf 502');
+    expect(r).not.toMatch(/Proven:/);
+    expect(r).toMatch(/answers 502 after the restart, not a page/);
+  });
+
+  it('warns on a cached 503 and proves a page answer', () => {
+    // Defect caught: a branch that can never prove, or never warn.
+    expect(served('printf 503')).toMatch(/still answers 503/);
+    expect(served('printf 200')).toMatch(/Proven:[\s\S]*answers 200 again/);
   });
 });

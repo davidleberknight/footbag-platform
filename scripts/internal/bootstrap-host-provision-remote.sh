@@ -9,6 +9,7 @@
 #     printf 'MODE=%q\n' packages;
 #     printf 'COMPOSE_VERSION=%q\n' ...;   (and the other pins, for packages)
 #     cat scripts/lib/closing-report-remote.sh;
+#     cat scripts/internal/dnf-check-update-remote.sh;
 #     cat scripts/internal/bootstrap-host-provision-remote.sh;
 #   } | ssh REMOTE 'sudo -k -S -p "" bash -s footbag-bootstrap-provision'
 #
@@ -113,23 +114,12 @@ release_now() {
 case "$MODE" in
   preview)
     [[ -n "${AMAZON_LINUX_RELEASE:-}" ]] || refuse "remote half requires AMAZON_LINUX_RELEASE"
-    # dnf check-update exits 100 when it lists updates, 0 when there are none,
-    # and 1 on an error, so a failed read is never taken for "nothing to do".
-    # Each listed update is one "name.arch version repository" line; the
-    # section of packages a release obsoletes, which follows, is not counted
-    # twice.
-    rc=0
-    listing="$(dnf check-update -q --releasever="$AMAZON_LINUX_RELEASE" 2>&1)" || rc=$?
-    case "$rc" in
-      0) count=0 ;;
-      100)
-        printf '%s\n' "$listing"
-        count="$(sed '/^Obsoleting/,$d' <<< "$listing" \
-          | grep -cE '^[^[:space:]]+\.[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]*$' || true)"
-        (( count > 0 )) || refuse "dnf check-update --releasever=${AMAZON_LINUX_RELEASE} said there are updates and listed none this half can count"
-        ;;
-      *) refuse "dnf check-update --releasever=${AMAZON_LINUX_RELEASE} failed (exit ${rc}): ${listing##*$'\n'}" ;;
-    esac
+    declare -F dnf_check_update >/dev/null || refuse "dnf-check-update-remote.sh was not sent ahead of this body"
+    # A failed read, or a listing nothing in it can be counted from, is a marked
+    # error and never "nothing to do" (scripts/internal/dnf-check-update-remote.sh).
+    dnf_check_update "$AMAZON_LINUX_RELEASE" "$(changed_so_far)." || crr_finish
+    count="$DNF_UPDATE_COUNT"
+    (( count == 0 )) || printf '%s\n' "$DNF_UPDATE_LISTING"
     echo "    stepping to Amazon Linux ${AMAZON_LINUX_RELEASE} from $(release_now) would change ${count} package(s)"
     echo "---FOOTBAG-UPGRADE-COUNT---"
     echo "$count"

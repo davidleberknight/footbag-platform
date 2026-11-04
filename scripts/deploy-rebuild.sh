@@ -22,9 +22,18 @@
 #
 # If you are not absolutely sure that replacing the host database is correct,
 # STOP and do not run this script.
+#
+# Every run ends with one closing report (scripts/lib/closing-report.sh) listing
+# every error and warning it met, the guards' and the host half's included: they
+# report through scripts/lib/closing-report-remote.sh, sent ahead of them on the
+# same stream. Run by the orchestrator, the report folds into the one the
+# operator's entry point prints.
 # ============================================================================
 
 set -euo pipefail
+
+# shellcheck source=lib/closing-report.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/closing-report.sh"
 
 usage() {
   cat <<'USAGE'
@@ -63,7 +72,7 @@ USAGE
 }
 
 if [[ -t 0 ]]; then
-  echo "ERROR: must receive sudo password on stdin." >&2
+  cr_error "must receive sudo password on stdin."
   echo "       Run via: bash deploy_to_aws.sh" >&2
   echo "" >&2
   usage >&2
@@ -109,6 +118,9 @@ CUTOVER_GUARD="${SCRIPT_DIR}/internal/deploy-rebuild-cutover-guard.sh"
 # the SSM production-live marker reads exactly "false" (fail closed), and
 # independently when the on-host database already holds real member accounts.
 PROD_LIVE_GUARD="${SCRIPT_DIR}/internal/deploy-rebuild-production-live-guard.sh"
+# Travels first of all and defines how the guards and the remote half report
+# their problems, so they land in this run's closing report.
+REMOTE_REPORT_LIB="${SCRIPT_DIR}/lib/closing-report-remote.sh"
 
 # shellcheck source=lib/ssh-known-hosts.sh
 source "${REPO_ROOT}/scripts/lib/ssh-known-hosts.sh"
@@ -142,7 +154,7 @@ source "${REPO_ROOT}/scripts/lib/terminal.sh"
 # is allowed to happen at all. Behind the host-key check it would report a missing
 # pin file to a caller who was never entitled to run, which names the wrong problem.
 if [[ "$REMOTE" == "footbag-production" ]] && ! terminal_present; then
-  echo "ERROR: a production deploy requires a terminal, and none is attached." >&2
+  cr_error "a production deploy requires a terminal, and none is attached."
   echo "       Run: bash deploy_to_aws.sh" >&2
   echo "       It asks for the typed confirmation and takes the host password at the" >&2
   echo "       terminal. There is no unattended form of a production deploy, and" >&2
@@ -201,7 +213,7 @@ case "$REMOTE" in
   footbag-production) FOOTBAG_ENV="production" ;;
   footbag-staging)    FOOTBAG_ENV="staging"    ;;
   *)
-    echo "ERROR: cannot derive FOOTBAG_ENV from REMOTE='$REMOTE'." >&2
+    cr_error "cannot derive FOOTBAG_ENV from REMOTE='$REMOTE'."
     echo "       Expected exactly 'footbag-staging' or 'footbag-production'." >&2
     exit 1
     ;;
@@ -233,7 +245,7 @@ infra_sync_require "$REPO_ROOT" "$FOOTBAG_ENV" || exit 1
 # entry and sets it only after the word is typed. Together they say a person was
 # present and that the person agreed.
 if [[ "$FOOTBAG_ENV" == "production" && "${FOOTBAG_PROD_DB_REPLACE_ACK:-}" != "1" ]]; then
-  echo "ERROR: production database replacement requires the deploy_to_aws.sh confirmation." >&2
+  cr_error "production database replacement requires the deploy_to_aws.sh confirmation."
   echo "       Run: bash deploy_to_aws.sh — it asks for the typed confirmation and threads" >&2
   echo "       the acknowledgement through to this leaf. There is no non-interactive form" >&2
   echo "       of that confirmation, and setting the variable by hand does not create one." >&2
@@ -246,24 +258,25 @@ fi
 # media wipes are a separate operator procedure run out-of-band, never here.
 KEEP_MEDIA="${KEEP_MEDIA:-no}"
 if [[ $# -gt 0 ]]; then
-  echo "ERROR: deploy-rebuild.sh takes no positional arguments; configure via env vars (see usage)." >&2
+  cr_error "deploy-rebuild.sh takes no positional arguments; configure via env vars (see usage)."
   usage >&2
   exit 1
 fi
 
 if [[ "$FOOTBAG_ENV" != "staging" && "$KEEP_MEDIA" != "yes" ]]; then
-  echo "ERROR: refusing to auto-wipe S3 media on FOOTBAG_ENV=$FOOTBAG_ENV." >&2
+  cr_error "refusing to auto-wipe S3 media on FOOTBAG_ENV=$FOOTBAG_ENV."
   echo "       This script auto-wipes media only on staging. Either:" >&2
   echo "         set KEEP_MEDIA=yes (or pass -W via deploy_to_aws.sh) to rebuild the DB without touching S3, or" >&2
   echo "         use a staging deploy target." >&2
   exit 1
 fi
 
-[[ -r "$REMOTE_HALF" ]] || { echo "ERROR: missing remote-half: $REMOTE_HALF" >&2; exit 1; }
-[[ -r "$CUTOVER_GUARD" ]] || { echo "ERROR: missing cutover guard: $CUTOVER_GUARD" >&2; exit 1; }
-[[ -r "$HOST_TOOL_VERSIONS_LIB" ]] || { echo "ERROR: missing host tool-version check: $HOST_TOOL_VERSIONS_LIB" >&2; exit 1; }
-[[ -r "$PROD_LIVE_GUARD" ]] || { echo "ERROR: missing production-live guard: $PROD_LIVE_GUARD" >&2; exit 1; }
-command -v docker >/dev/null || { echo "ERROR: docker required locally for image build" >&2; exit 1; }
+[[ -r "$REMOTE_HALF" ]] || cr_die "missing remote-half: $REMOTE_HALF"
+[[ -r "$CUTOVER_GUARD" ]] || cr_die "missing cutover guard: $CUTOVER_GUARD"
+[[ -r "$HOST_TOOL_VERSIONS_LIB" ]] || cr_die "missing host tool-version check: $HOST_TOOL_VERSIONS_LIB"
+[[ -r "$PROD_LIVE_GUARD" ]] || cr_die "missing production-live guard: $PROD_LIVE_GUARD"
+[[ -r "$REMOTE_REPORT_LIB" ]] || cr_die "missing remote-half report library: $REMOTE_REPORT_LIB"
+command -v docker >/dev/null || cr_die "docker required locally for image build"
 
 # No `exit` in the awk body, and the last match rather than the first. `exit`
 # there closes the pipe while ssh -G is still writing, ssh takes SIGPIPE, and
@@ -274,7 +287,7 @@ HOST_IP=$(ssh -G "$REMOTE" | awk '/^hostname / {print $2}' | tail -1)
 LOCAL_DB="$REPO_ROOT/database/footbag.db"
 
 if [[ -z "$HOST_IP" ]]; then
-  echo "ERROR: unable to resolve deploy target hostname from ssh config: $REMOTE" >&2
+  cr_error "unable to resolve deploy target hostname from ssh config: $REMOTE"
   exit 1
 fi
 
@@ -295,7 +308,7 @@ REMOTE_HOME="$(ssh "${SSH_OPTS[@]}" "$REMOTE" 'printf %s "$HOME"' </dev/null)"
 # the one that does, and it survives every check downstream because both halves are
 # handed the same wrong value and therefore agree.
 if [[ -z "$REMOTE_HOME" || "$REMOTE_HOME" != /* ]]; then
-  echo "ERROR: could not resolve the home directory of the deploy account on $REMOTE." >&2
+  cr_error "could not resolve the home directory of the deploy account on $REMOTE."
   echo "       Refusing rather than guessing: the upload and the promotion must name" >&2
   echo "       the same directory, and a guess that is wrong ships somebody else's" >&2
   echo "       release over the live install, database and all." >&2
@@ -336,25 +349,21 @@ else
 fi
 
 command -v sqlite3 >/dev/null || {
-  echo "ERROR: sqlite3 is required locally" >&2
-  exit 1
+  cr_die "sqlite3 is required locally"
 }
 
 if [[ ! -f "$LOCAL_DB" ]]; then
-  echo "ERROR: rebuilt DB not found: $LOCAL_DB" >&2
-  exit 1
+  cr_die "rebuilt DB not found: $LOCAL_DB"
 fi
 
 echo "==> Verifying rebuilt local DB..."
 grep -qx 'ok' <<< "$(sqlite3 "$LOCAL_DB" 'PRAGMA integrity_check;')" || {
-  echo "ERROR: local rebuilt DB failed integrity_check" >&2
-  exit 1
+  cr_die "local rebuilt DB failed integrity_check"
 }
 
 grep -qx '1' <<< "$(sqlite3 "$LOCAL_DB" \
   "SELECT 1 FROM sqlite_master WHERE type='table' AND name='legacy_person_club_affiliations';")" || {
-  echo "ERROR: local rebuilt DB is missing table legacy_person_club_affiliations" >&2
-  exit 1
+  cr_die "local rebuilt DB is missing table legacy_person_club_affiliations"
 }
 
 # Prove the outcome rather than the invocation. The build leaves the developer-only
@@ -366,7 +375,7 @@ grep -qx '1' <<< "$(sqlite3 "$LOCAL_DB" \
 _dev_only_rows="$(sqlite3 "$LOCAL_DB" \
   "SELECT count(*) FROM system_config WHERE id = 'cfg_dev_outbox_poll';")"
 if [[ "${_dev_only_rows}" != "0" ]]; then
-  echo "ERROR: $LOCAL_DB carries developer-only configuration and must not be shipped." >&2
+  cr_error "$LOCAL_DB carries developer-only configuration and must not be shipped."
   echo "  The fast local outbox poll (system_config id 'cfg_dev_outbox_poll') is in the file." >&2
   echo "  Rebuild through the orchestrator, which builds without it:" >&2
   echo "    bash deploy_to_aws.sh --from-csv" >&2
@@ -518,16 +527,13 @@ require_images_for_hosts || exit 1
 # host. .Id is fragile because each daemon may re-serialize the image config
 # JSON, producing a benign hash difference on identical content.
 WEB_IMAGE_LAYERS=$(docker image inspect --format='{{range .RootFS.Layers}}{{.}} {{end}}' docker-web 2>/dev/null) || {
-  echo "ERROR: docker image inspect failed for docker-web (build did not produce expected image)" >&2
-  exit 1
+  cr_die "docker image inspect failed for docker-web (build did not produce expected image)"
 }
 WORKER_IMAGE_LAYERS=$(docker image inspect --format='{{range .RootFS.Layers}}{{.}} {{end}}' docker-worker 2>/dev/null) || {
-  echo "ERROR: docker image inspect failed for docker-worker" >&2
-  exit 1
+  cr_die "docker image inspect failed for docker-worker"
 }
 IMAGE_IMAGE_LAYERS=$(docker image inspect --format='{{range .RootFS.Layers}}{{.}} {{end}}' docker-image 2>/dev/null) || {
-  echo "ERROR: docker image inspect failed for docker-image" >&2
-  exit 1
+  cr_die "docker image inspect failed for docker-image"
 }
 
 # ── Transfer images to host via docker save | docker load ──────────────────
@@ -565,11 +571,25 @@ else
   # failing mid-stream leaves nothing to restart from. `image prune` without -a
   # takes only dangling images, which is what the previous :latest becomes, and
   # cannot touch a tagged image whatever the container state; `builder prune`
-  # takes the build cache. Neither removes a container.
+  # takes the build cache. Neither removes a container. A failure is a warning in
+  # the closing report carrying the tool's own message, so a host whose disk was
+  # not reclaimed is said so at the end rather than once in the middle.
   echo "==> Reclaiming host disk (journal vacuum + dangling images + build cache)..."
-  printf '%s\n' "$SUDO_PASS" \
-    | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" sh -c "journalctl --vacuum-time=7d; docker image prune -f; docker builder prune -af"' \
-    || echo "    WARNING: host disk-reclaim step failed; continuing." >&2
+  # Each step runs under the remote report library's crr_run, so a failing one
+  # is marked with the tool's own last line and reaches the report that way: the
+  # session itself is privileged, so nothing else it prints is written down.
+  reclaim_host_disk() {
+    {
+      printf '%s\n' "$SUDO_PASS"
+      cat "$REMOTE_REPORT_LIB"
+      printf '%s\n' \
+        'crr_run "journal vacuum" -- journalctl --vacuum-time=7d' \
+        'crr_run "dangling images" -- docker image prune -f' \
+        'crr_run "build cache" -- docker builder prune -af' \
+        'crr_finish'
+    } | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
+  }
+  cr_tolerate_marked "host disk reclaim on $REMOTE (the deploy continued)" -- reclaim_host_disk
   send_images_to_host
 fi
 
@@ -629,6 +649,14 @@ echo "==> Running remote-as-root rebuild deploy via cat-pipe..."
 # the remote-half the layer DiffIDs to verify against the docker-loaded images;
 # cat appends the remote-half script body. Layer DiffIDs are space-separated
 # sha256:[0-9a-f]{64} tokens and contain no shell metacharacters.
+#
+# The guards' and the host half's problems are read into this run's closing
+# report: every line they mark through the report library sent first on the
+# stream, and every line printed in the ERROR: or WARNING: form. Their exit status
+# still stops this run.
+REMOTE_HALF_ERRORS='^[[:space:]]*ERROR:'
+REMOTE_HALF_WARNINGS='^[[:space:]]*WARN(ING)?:'
+send_remote_half() {
 {
   printf '%s\n' "$SUDO_PASS"
   printf 'RELEASE_DIR=%q\n'                  "$REMOTE_RELEASE_DIR"
@@ -652,9 +680,13 @@ echo "==> Running remote-as-root rebuild deploy via cat-pipe..."
   # The guards run first inside the root session: on a post-cutover host, a
   # live-marked production, or a production database holding real members,
   # they exit non-zero before the remote half, so nothing live is touched. The
-  # tool-version helper defines one function and runs nothing.
-  cat "$CUTOVER_GUARD" "$PROD_LIVE_GUARD" "$HOST_TOOL_VERSIONS_LIB" "$HOST_VALUES_LIB" "$REMOTE_HALF"
+  # tool-version helper defines one function and runs nothing. The report
+  # library goes ahead of them all, because the guards report through it.
+  cat "$REMOTE_REPORT_LIB" "$CUTOVER_GUARD" "$PROD_LIVE_GUARD" "$HOST_TOOL_VERSIONS_LIB" "$HOST_VALUES_LIB" "$REMOTE_HALF"
 } | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
+}
+cr_run_marked --errors "$REMOTE_HALF_ERRORS" --warnings "$REMOTE_HALF_WARNINGS" \
+  "host half on $REMOTE" -- send_remote_half || exit 1
 
 # Smoke runs against the address the host records it serves (its
 # PUBLIC_BASE_URL), asked of the host again now, after the deploy synced it from
@@ -664,10 +696,12 @@ smoke_url="$HOST_PUBLIC_BASE_URL"
 
 if [[ "${SKIP_SMOKE:-no}" == "yes" ]]; then
   echo "==> Skipping post-deploy smoke check (SKIP_SMOKE=yes)"
+  cr_warn "the post-deploy smoke checks were skipped (SKIP_SMOKE=yes)"
+  cr_unproved "the site answering after this deploy: the smoke checks were skipped"
 elif [[ -z "$smoke_url" ]]; then
   # A deploy must never complete with smoke silently skipped; SKIP_SMOKE=yes is
   # a staging-only override, refused on production by the release gate.
-  echo "ERROR: $REMOTE records no PUBLIC_BASE_URL, so the deploy cannot be" >&2
+  cr_error "$REMOTE records no PUBLIC_BASE_URL, so the deploy cannot be"
   echo "       smoke-checked and will not report itself as done." >&2
   echo "       The deploy syncs it from /footbag/$FOOTBAG_ENV/app/public_base_url, which" >&2
   echo "       Terraform publishes once CloudFront is enabled; apply the tree and redeploy." >&2
@@ -675,7 +709,7 @@ elif [[ -z "$smoke_url" ]]; then
 else
   echo "==> Running smoke check against $smoke_url ..."
   if ! BASE_URL="$smoke_url" SMOKE_ENV="$FOOTBAG_ENV" bash "$REPO_ROOT/scripts/smoke-local.sh"; then
-    echo "ERROR: post-deploy smoke check failed against $smoke_url" >&2
+    cr_error "post-deploy smoke check failed against $smoke_url"
     echo "Inspect the host logs over the pinned connection: bash scripts/host-diagnostics.sh --target $FOOTBAG_ENV web-logs 200" >&2
     exit 1
   fi
@@ -684,10 +718,11 @@ else
   # smoke above. Mirrors deploy-code.sh.
   echo "==> Running security smoke probes against $smoke_url ..."
   if ! BASE_URL="$smoke_url" SMOKE_ENV="$FOOTBAG_ENV" bash "$REPO_ROOT/scripts/smoke-security.sh"; then
-    echo "ERROR: security smoke probes failed against $smoke_url" >&2
+    cr_error "security smoke probes failed against $smoke_url"
     echo "Inspect the host logs over the pinned connection: bash scripts/host-diagnostics.sh --target $FOOTBAG_ENV web-logs 200" >&2
     exit 1
   fi
+  cr_proved "the route smoke and the security smoke probes passed against $smoke_url"
 fi
 
 # Media integrity gate. The rebuild reseeded curated media and minted
@@ -714,7 +749,7 @@ echo "==> Verifying media integrity against the $FOOTBAG_ENV bucket ..."
 tf_output_read "$REPO_ROOT/terraform/$FOOTBAG_ENV" media_bucket_name || true
 MEDIA_BUCKET="$TF_OUTPUT_VALUE"
 if [[ -z "$MEDIA_BUCKET" ]]; then
-  echo "ERROR: could not read media_bucket_name from terraform/$FOOTBAG_ENV." >&2
+  cr_error "could not read media_bucket_name from terraform/$FOOTBAG_ENV."
   echo "       The rows this deploy shipped reference objects it cannot verify." >&2
   tf_output_explain "terraform/$FOOTBAG_ENV" media_bucket_name
   echo "" >&2
@@ -737,7 +772,7 @@ fi
 aws_profile_ensure || exit 1
 MEDIA_CHECK_REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-$(aws configure get region 2>/dev/null || true)}}"
 if [[ -z "$MEDIA_CHECK_REGION" ]]; then
-  echo "ERROR: no AWS region is configured, so the media integrity check cannot run." >&2
+  cr_error "no AWS region is configured, so the media integrity check cannot run."
   echo "       The rows this deploy shipped reference objects it cannot verify." >&2
   echo "       Give the workstation's AWS profile a region (or export AWS_REGION)," >&2
   echo "       then re-run the check against the bucket:" >&2
@@ -758,7 +793,7 @@ FOOTBAG_DB_PATH="$LOCAL_DB" \
   AWS_REGION="$MEDIA_CHECK_REGION" \
   bash "$MEDIA_CHECK_CMD" || MEDIA_CHECK_STATUS=$?
 if (( MEDIA_CHECK_STATUS == 1 )); then
-  echo "ERROR: media integrity check failed against s3://$MEDIA_BUCKET." >&2
+  cr_error "media integrity check failed against s3://$MEDIA_BUCKET."
   echo "       The live database references objects that are not in the bucket, so" >&2
   echo "       those images, posters or videos will 404." >&2
   if [[ "${SYNC_MEDIA:-no}" == "yes" ]]; then
@@ -770,12 +805,13 @@ if (( MEDIA_CHECK_STATUS == 1 )); then
   fi
   exit 1
 elif (( MEDIA_CHECK_STATUS != 0 )); then
-  echo "ERROR: the media integrity check could not run (exit $MEDIA_CHECK_STATUS)." >&2
+  cr_error "the media integrity check could not run (exit $MEDIA_CHECK_STATUS)."
   echo "       It reached no verdict, so whether the rows this deploy shipped resolve" >&2
   echo "       in s3://$MEDIA_BUCKET is unknown rather than bad. The reason is in the" >&2
   echo "       output above, and re-running the deploy will not change it." >&2
   exit 1
 fi
+cr_proved "every stored-bytes reference in the shipped database resolves in s3://$MEDIA_BUCKET"
 
 # The host's whole env file, verified after the deploy. Mirrors deploy-code.sh,
 # including the DEPLOY_VERIFY_HOST_ENV_CMD test seam.
@@ -785,14 +821,20 @@ if [[ -n "${DEPLOY_VERIFY_HOST_ENV_CMD:-}" ]]; then
 fi
 echo "==> Verifying $REMOTE's env file ..."
 if ! printf '%s\n' "$SUDO_PASS" | bash "$VERIFY_HOST_ENV_CMD" --target "$FOOTBAG_ENV"; then
-  echo "ERROR: $REMOTE's env file failed verification after the deploy; each FAIL above names its fix." >&2
+  cr_error "$REMOTE's env file failed verification after the deploy; each FAIL above names its fix."
   echo "       The release is live, so fix what failed and deploy again." >&2
   exit 1
 fi
+cr_proved "$REMOTE's env file passed verification after the deploy"
 
 echo
 echo "Deploy complete."
 # stderr, for the reason given at the target banner above.
 echo "Origin: http://$HOST_IP" >&2
-echo "WARNING: live DB was replaced from scratch."
 echo "Next: the read-only browser check, npm run test:deployed -- --target ${FOOTBAG_ENV}"
+# The one outcome of this deploy an operator must not miss is listed in the
+# closing report, the last thing the run prints, rather than as a line after the
+# completion message that the report would push off the screen.
+cr_warn "the live database on $REMOTE was replaced from scratch"
+cr_unproved "pages in a real browser: npm run test:deployed -- --target ${FOOTBAG_ENV}"
+cr_finish

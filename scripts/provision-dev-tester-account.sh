@@ -135,6 +135,13 @@
 
 set -euo pipefail
 
+# One closing report listing every error and warning the run met, the host
+# half's included. Run by onboard-dev-tester.sh or offboard-dev-tester.sh, it
+# lists them in that run's report instead. The library owns the exit and signal
+# traps; this run's cleanup is registered with it.
+# shellcheck source=lib/closing-report.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/closing-report.sh"
+
 TARGET=""
 ACCOUNT=""
 FULL_NAME=""
@@ -364,23 +371,20 @@ if [[ "$OFFBOARD" -eq 0 && "$INSPECT_ONLY" -eq 0 && -z "$PLACE_FILE" ]]; then
 
 if [[ -n "$KEY_LINE_ARG" ]]; then
   KEY_TMP="$(umask 077 && mktemp)"
-  # No trap here. The account cleanup installed further down replaces any EXIT
-  # trap this set, so one armed at this point is silently discarded and the
-  # staged key file survives every run that gets that far -- against this
-  # section's own promise that the operator is never left a file to clean up.
-  # provision_cleanup removes it instead, so there is exactly one EXIT handler
-  # and it knows about everything the run created.
+  # Registered with the closing-report library in the same breath, so the
+  # staged key file goes on every way out, however early the run stops.
+  cr_cleanup rm -f -- "$KEY_TMP"
   printf '%s\n' "$KEY_LINE_ARG" > "$KEY_TMP"
   KEY_FILE="$KEY_TMP"
 fi
 
 if [[ ! -f "$KEY_FILE" ]]; then
-  echo "ERROR: --key-file '${KEY_FILE}' is not a regular file." >&2
+  cr_error "--key-file '${KEY_FILE}' is not a regular file."
   exit 1
 fi
 
 if ! KEY_FINGERPRINT="$(ssh-keygen -l -f "$KEY_FILE" 2>/dev/null)"; then
-  echo "ERROR: ssh-keygen cannot read '${KEY_FILE}' as a public key file." >&2
+  cr_error "ssh-keygen cannot read '${KEY_FILE}' as a public key file."
   echo "       This wants the .pub half. If you were sent the key in a mail or a" >&2
   echo "       chat message, check it has not been wrapped across lines." >&2
   exit 1
@@ -391,14 +395,14 @@ fi
 # inventory would then describe only the first of them.
 KEY_COUNT="$(printf '%s\n' "$KEY_FINGERPRINT" | grep -c . || true)"
 if [[ "$KEY_COUNT" != "1" ]]; then
-  echo "ERROR: '${KEY_FILE}' holds ${KEY_COUNT} public keys; expected exactly one." >&2
+  cr_error "'${KEY_FILE}' holds ${KEY_COUNT} public keys; expected exactly one."
   echo "       One account, one key: that is what makes a login attributable." >&2
   exit 1
 fi
 
 KEY_LINE="$(grep -m1 . "$KEY_FILE")"
 if [[ -z "$KEY_LINE" ]]; then
-  echo "ERROR: '${KEY_FILE}' is empty." >&2
+  cr_error "'${KEY_FILE}' is empty."
   exit 1
 fi
 # The comment a key arrives with is whatever its maker typed, and a reader of
@@ -409,7 +413,7 @@ fi
 # by options is refused rather than relabelled: options are not something a
 # dev-and-tester sends, and keeping them would mean guessing where they end.
 if [[ ! "${KEY_LINE%% *}" =~ ^(ssh-|ecdsa-|sk-) ]]; then
-  echo "ERROR: '${KEY_FILE}' is not a plain public key line: it starts with" >&2
+  cr_error "'${KEY_FILE}' is not a plain public key line: it starts with"
   echo "       '${KEY_LINE%% *}' rather than the key type. Send the .pub file as" >&2
   echo "       ssh-keygen wrote it." >&2
   exit 1
@@ -422,6 +426,9 @@ fi  # end of the key section, skipped when offboarding or inspecting
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REMOTE="footbag-${TARGET}"
 REMOTE_HALF="${SCRIPT_DIR}/internal/provision-dev-tester-account-remote.sh"
+# Sent ahead of the half on every stream: the half reports through it, and its
+# marked lines are folded into this run's closing report.
+REMOTE_REPORT_LIB="${SCRIPT_DIR}/lib/closing-report-remote.sh"
 
 # shellcheck source=lib/ssh-known-hosts.sh
 source "${SCRIPT_DIR}/lib/ssh-known-hosts.sh"
@@ -478,9 +485,51 @@ require_operator_stdin \
 # deploy-alias stanza got a bare "Permission denied (publickey)" from the
 # reachability probe below, which reads as a rejected key rather than as a name
 # ssh could not resolve, and sends the operator to look at the wrong thing.
-require_ssh_alias "$REMOTE" || exit 1
+require_ssh_alias "$REMOTE" || cr_die "no usable ssh alias ${REMOTE}; nothing done"
 
-[[ -r "$REMOTE_HALF" ]] || { echo "ERROR: missing remote-half: $REMOTE_HALF" >&2; exit 1; }
+[[ -r "$REMOTE_HALF" ]] || cr_die "missing remote-half: $REMOTE_HALF"
+[[ -r "$REMOTE_REPORT_LIB" ]] || cr_die "missing remote-half report library: $REMOTE_REPORT_LIB"
+
+# One privileged session: the sudo password, the values, the report library and
+# the half. The assignment lines arrive as arguments of these shell functions,
+# which no process's argv ever carries, and are written by the printf builtin.
+_send_stream() {
+  printf '%s\n' "$SUDO_PASS"
+  printf '%s\n' "$@"
+  cat "$REMOTE_REPORT_LIB" "$REMOTE_HALF"
+}
+_send_ssh() { _send_stream "$@" | "$SSH_BIN" "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'; }
+
+# _send_marked <log> <assignment lines...>
+# Runs the session with its stdout passed through untouched and its stderr
+# shown as it arrives, and writes to <log> only the lines the half marked as
+# problems. The session's output is never kept on disk whole: the stream it
+# answers carries the sudo password and the one-time password, so only lines
+# the half authored as problem reports, which carry neither, are written down.
+# Safe inside a command substitution; returns the session's status.
+_send_marked() {
+  local log="$1"; shift
+  : > "${log}.rc"
+  { { _send_ssh "$@" || echo "$?" > "${log}.rc"; } 2>&1 1>&3 \
+      | tee /dev/stderr | grep -e "^${CRR_SENTINEL} " > "$log" || (( $? == 1 )); } 3>&1
+  local rc
+  rc="$(cat "${log}.rc")"
+  rm -f -- "${log}.rc"
+  return "${rc:-0}"
+}
+
+# send_half <label> <assignment lines...>
+# A session whose marked problems are listed in this run's report, and whose
+# failure is an error there. Returns the session's status.
+send_half() {
+  local label="$1" log rc=0; shift
+  log="$(mktemp "$(_cr_tmp)/half.XXXXXX")"
+  _send_marked "$log" "$@" || rc=$?
+  cr_harvest --sentinels-only "$label" "$log"
+  rm -f -- "$log"
+  (( rc == 0 )) || cr_error "${label}: exit ${rc}; the host's lines above say why"
+  return "$rc"
+}
 
 # Test seam (CI only; operators never set this). A stubbed run proves nothing
 # about the host, so it says so on stderr rather than looking like a real one.
@@ -514,7 +563,7 @@ ACCOUNT_PROBE="$("$SSH_BIN" "${SSH_OPTS[@]}" "$REMOTE" \
   2>/dev/null </dev/null || echo UNKNOWN)"
 
 if [[ "$ACCOUNT_PROBE" == "UNKNOWN" ]]; then
-  echo "ERROR: could not reach ${REMOTE} to check whether ${ACCOUNT} exists." >&2
+  cr_error "could not reach ${REMOTE} to check whether ${ACCOUNT} exists."
   echo "       Nothing has been done. Re-run when the host is reachable rather" >&2
   echo "       than acting on a guess about what is there." >&2
   exit 1
@@ -529,13 +578,17 @@ ACCOUNT_EXISTS="no"
 # Retired means locked now: an offboard's marker, a login shell that admits
 # nobody, or a locked password. Returns 1 when the account could not be read.
 inspect_account() {
-  INSPECT="$({
-      printf '%s\n' "$SUDO_PASS"
-      printf 'DTACC_MODE=%q\n' "inspect"
-      printf 'DTACC_ACCOUNT=%q\n' "$ACCOUNT"
-      printf 'DTACC_SHARED_ACCOUNT=%q\n' "$OPERATOR_SHARED_ACCOUNT"
-      cat "$REMOTE_HALF"
-    } | "$SSH_BIN" "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash')" || return 1
+  # The facts arrive on stdout; the half's stderr is shown, and only its marked
+  # problems are kept, to be listed in this run's report.
+  local errlog rc=0
+  errlog="$(mktemp "$(_cr_tmp)/inspect.XXXXXX")"
+  INSPECT="$(_send_marked "$errlog" \
+      "$(printf 'DTACC_MODE=%q' "inspect")" \
+      "$(printf 'DTACC_ACCOUNT=%q' "$ACCOUNT")" \
+      "$(printf 'DTACC_SHARED_ACCOUNT=%q' "$OPERATOR_SHARED_ACCOUNT")")" || rc=$?
+  cr_harvest --sentinels-only "reading ${ACCOUNT} on ${REMOTE}" "$errlog"
+  rm -f -- "$errlog"
+  (( rc == 0 )) || return 1
   INSPECT_SHELL="$(sed -n 's/^SHELL //p' <<<"$INSPECT")"
   INSPECT_PASSWORD="$(sed -n 's/^PASSWORD //p' <<<"$INSPECT")"
   INSPECT_KEYS="$(sed -n 's/^KEY //p' <<<"$INSPECT")"
@@ -559,7 +612,7 @@ if [[ "$INSPECT_ONLY" -eq 1 ]]; then
     exit 0
   fi
   if ! inspect_account; then
-    echo "ERROR: could not read ${ACCOUNT} on ${REMOTE}. Nothing changed." >&2
+    cr_error "could not read ${ACCOUNT} on ${REMOTE}. Nothing changed."
     exit 1
   fi
   echo "ACCOUNT present"
@@ -574,7 +627,8 @@ if [[ "$INSPECT_ONLY" -eq 1 ]]; then
   else
     echo "SHARED unknown"
   fi
-  exit 0
+  cr_proved "${ACCOUNT} on ${REMOTE} read back; nothing was changed"
+  cr_finish
 fi
 
 # ── Placing the delivery ─────────────────────────────────────────────────────
@@ -584,7 +638,7 @@ fi
 # crash. Its digest travels with it and the host proves the copy it wrote.
 if [[ -n "$PLACE_FILE" ]]; then
   if [[ "$ACCOUNT_EXISTS" == "no" ]]; then
-    echo "ERROR: ${ACCOUNT} does not exist on ${REMOTE}, so there is no home to place" >&2
+    cr_error "${ACCOUNT} does not exist on ${REMOTE}, so there is no home to place"
     echo "       the delivery in. Nothing changed." >&2
     exit 1
   fi
@@ -594,19 +648,17 @@ if [[ -n "$PLACE_FILE" ]]; then
   PLACE_SHA="$(openssl dgst -sha256 -r "$PLACE_FILE" | cut -d' ' -f1)"
   PLACE_B64="$(openssl base64 -A -in "$PLACE_FILE")"
   if [[ -z "$PLACE_SHA" || -z "$PLACE_B64" ]]; then
-    echo "ERROR: could not read ${PLACE_FILE}. Nothing changed." >&2
+    cr_error "could not read ${PLACE_FILE}. Nothing changed."
     exit 1
   fi
-  {
-    printf '%s\n' "$SUDO_PASS"
-    printf 'DTACC_MODE=%q\n' "place-delivery"
-    printf 'DTACC_ACCOUNT=%q\n' "$ACCOUNT"
-    printf 'DTACC_DELIVERY_NAME=%q\n' "$PLACE_NAME"
-    printf 'DTACC_DELIVERY_B64=%q\n' "$PLACE_B64"
-    printf 'DTACC_DELIVERY_SHA256=%q\n' "$PLACE_SHA"
-    cat "$REMOTE_HALF"
-  } | "$SSH_BIN" "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
-  exit 0
+  send_half "placing the delivery on ${REMOTE}" \
+    "$(printf 'DTACC_MODE=%q' "place-delivery")" \
+    "$(printf 'DTACC_ACCOUNT=%q' "$ACCOUNT")" \
+    "$(printf 'DTACC_DELIVERY_NAME=%q' "$PLACE_NAME")" \
+    "$(printf 'DTACC_DELIVERY_B64=%q' "$PLACE_B64")" \
+    "$(printf 'DTACC_DELIVERY_SHA256=%q' "$PLACE_SHA")"
+  cr_proved "the delivery read back on ${REMOTE} as ~${ACCOUNT}/${PLACE_NAME}, owned by ${ACCOUNT}, mode 600, with the digest sent"
+  cr_finish
 fi
 
 # ── Offboarding ──────────────────────────────────────────────────────────────
@@ -628,7 +680,8 @@ fi
 if [[ "$OFFBOARD" -eq 1 ]]; then
   if [[ "$ACCOUNT_EXISTS" == "no" ]]; then
     echo "Nothing to do: ${ACCOUNT} does not exist on ${REMOTE}."
-    exit 0
+    cr_proved "${REMOTE} answered that ${ACCOUNT} does not exist; nothing to offboard"
+    cr_finish
   fi
 
   echo ""
@@ -639,24 +692,22 @@ if [[ "$OFFBOARD" -eq 1 ]]; then
   echo "are, deliberately."
   echo ""
   if ! confirm_from_tty "Type 'APPLY' to offboard ${ACCOUNT}: " "APPLY"; then
-    echo "Not confirmed; the account is untouched." >&2
+    cr_error "Not confirmed; the account is untouched."
     exit 1
   fi
 
-  {
-    printf '%s\n' "$SUDO_PASS"
-    printf 'DTACC_ACCOUNT=%q\n' "$ACCOUNT"
-    printf 'DTACC_MODE=%q\n' "offboard"
-    printf 'DTACC_SHARED_ACCOUNT=%q\n' "$OPERATOR_SHARED_ACCOUNT"
-    cat "$REMOTE_HALF"
-  } | "$SSH_BIN" "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
+  send_half "offboarding ${ACCOUNT} on ${REMOTE}" \
+    "$(printf 'DTACC_ACCOUNT=%q' "$ACCOUNT")" \
+    "$(printf 'DTACC_MODE=%q' "offboard")" \
+    "$(printf 'DTACC_SHARED_ACCOUNT=%q' "$OPERATOR_SHARED_ACCOUNT")"
 
   echo ""
   echo "The host account is retired. This is the first step of a departure, not"
   echo "the whole of one: bash scripts/offboard-dev-tester.sh runs this step and then"
   echo "retires their AWS identity and their own allow-list address, and names what"
   echo "is left after that. Their repository access is separate, and not its to end."
-  exit 0
+  cr_proved "${ACCOUNT} on ${REMOTE} re-read as locked, nologin, expired, out of every privileged group, and authorized on no account"
+  cr_finish
 fi
 
 # An account that already exists is read, what it holds is shown, and the run
@@ -669,7 +720,7 @@ fi
 REOPEN=0
 if [[ "$ACCOUNT_EXISTS" == "yes" ]]; then
   if ! inspect_account; then
-    echo "ERROR: could not read ${ACCOUNT} on ${REMOTE}. Nothing changed." >&2
+    cr_error "could not read ${ACCOUNT} on ${REMOTE}. Nothing changed."
     exit 1
   fi
   if [[ "$INSPECT_LOCKED" == "yes" ]]; then
@@ -689,7 +740,7 @@ if [[ "$ACCOUNT_EXISTS" == "yes" ]]; then
     echo "refused. If it was not theirs, stop: a name is reused only by the person"
     echo "who held it."
     if ! confirm_from_tty "Type 'APPLY' to reopen ${ACCOUNT} for ${FULL_NAME}: " "APPLY"; then
-      echo "Not confirmed; ${ACCOUNT} is untouched." >&2
+      cr_error "Not confirmed; ${ACCOUNT} is untouched."
       exit 1
     fi
   else
@@ -707,7 +758,7 @@ if [[ "$ACCOUNT_EXISTS" == "yes" ]]; then
     fi
     echo ""
     if [[ "$HELD_SHAS" != "$GIVEN_SHA" ]]; then
-      echo "It does not hold exactly the key given to this run, so it is not" >&2
+      cr_error "${ACCOUNT} does not hold exactly the key given to this run, so it is not"
       echo "re-issued. A lost or replaced key is offboarded, then re-onboarded under" >&2
       echo "the same name with a fresh pair:" >&2
       echo "  bash scripts/offboard-dev-tester.sh --target ${TARGET} --account ${ACCOUNT}" >&2
@@ -718,7 +769,7 @@ if [[ "$ACCOUNT_EXISTS" == "yes" ]]; then
     echo "is being re-issued. It is given a fresh one-time password, sealed to that"
     echo "key; whatever password it holds now stops working."
     if ! confirm_from_tty "Type 'APPLY' to issue ${ACCOUNT} a fresh password: " "APPLY"; then
-      echo "Not confirmed; ${ACCOUNT} is untouched." >&2
+      cr_error "Not confirmed; ${ACCOUNT} is untouched."
       exit 1
     fi
   fi
@@ -732,7 +783,7 @@ MODE="create"
 # or re-issued only on a typed APPLY, so a run with no terminal would stop part
 # way.
 if [[ ! -t 1 || ! -t 2 ]] || ! { true >/dev/tty; } 2>/dev/null; then
-  echo "ERROR: no terminal to confirm on. A sealed run shows no password, but" >&2
+  cr_error "no terminal to confirm on. A sealed run shows no password, but"
   echo "       an account that already exists is reopened or re-issued only on a" >&2
   echo "       typed APPLY. Re-run from an interactive shell. Nothing has been" >&2
   echo "       created." >&2
@@ -750,9 +801,9 @@ fi
 PROVISION_STATE="none"
 NEW_PASS=""
 
-# Idempotent, and it has to be: the trap covers EXIT, INT and TERM, and a trapped
-# INT does not terminate bash, so the handler can run twice. The state reset at
-# the end is what makes each branch report exactly once.
+# Run once, at exit or on an interrupt, by the closing-report library, which
+# lists what it reports here. The state reset at the end keeps it idempotent all
+# the same.
 provision_cleanup() {
   case "$PROVISION_STATE" in
     created)
@@ -784,17 +835,15 @@ provision_cleanup() {
       echo "" >&2
       echo "The run stopped before the password was recorded anywhere, so the" >&2
       echo "account just created is being removed: ${ACCOUNT} on ${REMOTE}." >&2
-      if {
-        printf '%s\n' "$SUDO_PASS"
-        printf 'DTACC_MODE=%q\n' "remove"
-        printf 'DTACC_ACCOUNT=%q\n' "$ACCOUNT"
-        printf 'DTACC_FULL_NAME=%q\n' "$FULL_NAME"
-        printf 'DTACC_KEY_LINE=%q\n' ""
-        printf 'DTACC_PASSWORD=%q\n' ""
-        cat "$REMOTE_HALF"
-      } | "$SSH_BIN" "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash' >&2; then
+      if send_half "removing ${ACCOUNT}, created by this run, from ${REMOTE}" \
+          "$(printf 'DTACC_MODE=%q' "remove")" \
+          "$(printf 'DTACC_ACCOUNT=%q' "$ACCOUNT")" \
+          "$(printf 'DTACC_FULL_NAME=%q' "$FULL_NAME")" \
+          "$(printf 'DTACC_KEY_LINE=%q' "")" \
+          "$(printf 'DTACC_PASSWORD=%q' "")" >&2; then
         echo "Removed. Nothing was left behind." >&2
       else
+        cr_error "COULD NOT REMOVE ${ACCOUNT}, created by this run, from ${REMOTE}; end its access with --offboard before anything else"
         echo "COULD NOT REMOVE IT. End its access before doing anything else; the" >&2
         echo "host offboard disables it through the same pinned connection:" >&2
         echo "  < <the credential file your alias selects> \\" >&2
@@ -815,15 +864,9 @@ provision_cleanup() {
       echo "before the run stopped, and the old one may no longer work. Re-run the" >&2
       echo "onboarding to issue a fresh one; that is safe and is the intended way" >&2
       echo "out of this. The account's owner should not try to sudo until then." >&2
+      cr_warn "${ACCOUNT} on ${REMOTE} existed before this run and was left in place; its password is uncertain until the onboarding is re-run"
       ;;
   esac
-  # The staged public-key file, on every path out. A public key is not a secret,
-  # so this is about the promise that the operator is never left a file to
-  # remember rather than about exposure. It lives here because this is the only
-  # EXIT trap the script has: one armed beside the mktemp would be replaced by
-  # this one and never fire.
-  [[ -n "$KEY_TMP" ]] && rm -f -- "$KEY_TMP"
-  KEY_TMP=""
 
   # Neither branch is true a second time: the created account has been removed or
   # reported unremovable, and the rotated one reported as kept. "none" matches
@@ -831,7 +874,7 @@ provision_cleanup() {
   PROVISION_STATE="none"
   NEW_PASS=""
 }
-trap provision_cleanup EXIT INT TERM
+cr_cleanup provision_cleanup
 
 # The credential was read once, by the shared gate above: a single stdin cannot
 # serve two sessions, because the first consumer drains it, and the rollback
@@ -855,7 +898,7 @@ trap provision_cleanup EXIT INT TERM
 # about.
 NEW_PASS="$(openssl rand -base64 24 | tr -d '\n')"
 if [[ -z "$NEW_PASS" ]]; then
-  echo "ERROR: could not generate a password. Nothing has been created." >&2
+  cr_error "could not generate a password. Nothing has been created."
   exit 1
 fi
 
@@ -885,21 +928,19 @@ if [[ "$MODE" == "rotate" ]]; then
 else
   PROVISION_STATE="created"
 fi
-# printf lines emit shell-quoted assignments so the remote bash binds them before
-# running the body; cat appends the body. Combined stream -> ssh stdin -> remote
-# sudo -S consumes the password line -> bash inherits the rest. No secret reaches
-# argv on either hop.
-{
-  printf '%s\n' "$SUDO_PASS"
-  printf 'DTACC_MODE=%q\n' "$MODE"
-  printf 'DTACC_ACCOUNT=%q\n' "$ACCOUNT"
-  printf 'DTACC_FULL_NAME=%q\n' "$FULL_NAME"
-  printf 'DTACC_KEY_LINE=%q\n' "$KEY_LINE"
-  printf 'DTACC_PASSWORD=%q\n' "$NEW_PASS"
-  printf 'DTACC_SHARED_ACCOUNT=%q\n' "$OPERATOR_SHARED_ACCOUNT"
-  printf 'DTACC_REOPEN=%q\n' "$( (( REOPEN )) && echo yes || echo no )"
-  cat "$REMOTE_HALF"
-} | "$SSH_BIN" "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
+# printf emits shell-quoted assignments so the remote bash binds them before
+# running the body; the report library and the body follow. Combined stream ->
+# ssh stdin -> remote sudo -S consumes the password line -> bash inherits the
+# rest. printf is a builtin and send_half a shell function, so no secret reaches
+# any process's argv on either hop.
+send_half "${MODE} ${ACCOUNT} on ${REMOTE}" \
+  "$(printf 'DTACC_MODE=%q' "$MODE")" \
+  "$(printf 'DTACC_ACCOUNT=%q' "$ACCOUNT")" \
+  "$(printf 'DTACC_FULL_NAME=%q' "$FULL_NAME")" \
+  "$(printf 'DTACC_KEY_LINE=%q' "$KEY_LINE")" \
+  "$(printf 'DTACC_PASSWORD=%q' "$NEW_PASS")" \
+  "$(printf 'DTACC_SHARED_ACCOUNT=%q' "$OPERATOR_SHARED_ACCOUNT")" \
+  "$(printf 'DTACC_REOPEN=%q' "$( (( REOPEN )) && echo yes || echo no )")"
 
 # This password is NOT vaulted, and that is the point rather than an omission.
 # The vault is shared between custodians, so a personal credential kept in it
@@ -939,4 +980,6 @@ echo ""
 echo "The one-time password is in the file the calling script named, for it to"
 echo "seal. The proof that the account works runs when ${FULL_NAME} accepts the"
 echo "onboarding and replaces the password through sudo."
-exit 0
+cr_proved "${ACCOUNT} on ${REMOTE} passed the host half's checks: sudo group, a usable unexpired password, a login shell, no expiry, and the key installed at mode 600"
+cr_unproved "a login with ${FULL_NAME}'s own key: that runs when they accept the onboarding"
+cr_finish

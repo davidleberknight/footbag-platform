@@ -146,8 +146,54 @@ interface Run {
   calls: string[][];
 }
 
+/** How the aws CLI reports a failed call on stderr. */
+const awsFailure = (code: string, op: string) =>
+  `An error occurred (${code}) when calling the ${op} operation: stub`;
+
+/**
+ * An AWS stand-in for an archive that holds no content yet, so the run stands up
+ * the probe object; its removal at the end succeeds or fails as the case says.
+ */
+function emptyArchiveAws(caseDir: string, removal: 'removed' | 'fails'): string {
+  const path = join(caseDir, 'aws-empty-archive.sh');
+  writeFileSync(
+    path,
+    [
+      '#!/usr/bin/env bash',
+      'printf "%s\\x1f" "$@" >> "$STUB_LOG"; printf "\\n" >> "$STUB_LOG"',
+      'case "$1 $2" in',
+      `  "s3api head-object") echo ${JSON.stringify(awsFailure('404', 'HeadObject'))} >&2; exit 254 ;;`,
+      '  "s3 cp") exit 0 ;;',
+      removal === 'fails'
+        ? `  "s3 rm") echo ${JSON.stringify(`delete failed: s3://${BUCKET}/edge-proof/index.html ${awsFailure('AccessDenied', 'DeleteObject')}`)} >&2; exit 1 ;;`
+        : `  "s3 rm") echo "delete: s3://${BUCKET}/edge-proof/index.html"; exit 0 ;;`,
+      'esac',
+      'echo "unexpected aws invocation: $*" >&2; exit 64',
+    ].join('\n'),
+  );
+  chmodSync(path, 0o755);
+  return path;
+}
+
+/** The closing report's list of errors or warnings, so a case asserts what it lists. */
+function listed(stderr: string, heading: 'Errors' | 'Warnings'): string {
+  const at = stderr.search(new RegExp(`^${heading} \\(\\d+\\):$`, 'm'));
+  if (at === -1) return '';
+  const rest = stderr.slice(at);
+  const end = rest.slice(1).search(/^(Errors|Warnings|Proven:|Not proven:|No errors)/m);
+  return end === -1 ? rest : rest.slice(0, end + 1);
+}
+
 function run(
-  opts: { table?: string[][]; headers?: string; now?: number } = {},
+  opts: {
+    table?: string[][];
+    headers?: string;
+    now?: number;
+    /** Stand up the probe object, whose removal then succeeds or fails. */
+    probe?: 'removed' | 'fails';
+    /** A caller's report file, as a parent run on the closing-report library exports it. */
+    reportTo?: string;
+  } = {},
 ): Run {
   const caseDir = createScratchDir('verify-archive-edge-case');
   const log = join(caseDir, 'calls.log');
@@ -180,7 +226,8 @@ function run(
       ...awsIdentityStubEnv(caseDir),
       VERIFY_ARCHIVE_EDGE_CURL_BIN: join(dir, 'curl-stub.sh'),
       VERIFY_ARCHIVE_EDGE_TERRAFORM_BIN: join(dir, 'terraform-stub.sh'),
-      VERIFY_ARCHIVE_EDGE_AWS_BIN: join(dir, 'aws-stub.sh'),
+      VERIFY_ARCHIVE_EDGE_AWS_BIN: opts.probe ? emptyArchiveAws(caseDir, opts.probe) : join(dir, 'aws-stub.sh'),
+      ...(opts.reportTo ? { FOOTBAG_CR_REPORT_TO: opts.reportTo } : {}),
       STUB_DIR: dir,
       STUB_LOG: log,
       STUB_TABLE: table,
@@ -221,6 +268,9 @@ describe('verify-archive-edge.sh proves the archive edge or fails', () => {
     expect(r.status).toBe(1);
     expect(r.stdout).toMatch(/FAIL {2}root, no cookies\s+got 200, want 403/);
     expect(r.stderr).toContain('EDGE PROOF FAILED: 1 check(s).');
+    // The operator reads the end of the run, so the failure is in its closing
+    // report, not only in a row that scrolled past.
+    expect(listed(r.stderr, 'Errors')).toContain('EDGE PROOF FAILED: 1 check(s).');
   });
 
   it('fails when the gate page does not carry a noindex robots header', () => {
@@ -263,5 +313,49 @@ describe('verify-archive-edge.sh proves the archive edge or fails', () => {
     const r = run({ now });
     expect(r.status, r.stdout + r.stderr).toBe(0);
     expect(r.stdout).toMatch(/PASS {2}corrupted signature/);
+  });
+});
+
+describe('verify-archive-edge.sh: the probe object it stands up is never left behind unreported', () => {
+  const PROBE = `s3://${BUCKET}/edge-proof/index.html`;
+  const removals = (r: Run) => r.calls.filter((c) => c[0] === 's3' && c[1] === 'rm').map((c) => c[2]);
+
+  // Defect caught: a probe object the run could not remove stays in the archive
+  // bucket, served to members as a page of the archive, and the run reports a
+  // clean pass, so nobody knows to delete it.
+  it('lists a probe object it could not remove as a warning naming it and the AWS message', () => {
+    const r = run({ probe: 'fails' });
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(removals(r)).toEqual([PROBE]);
+    const warnings = listed(r.stderr, 'Warnings');
+    expect(warnings).toContain(PROBE);
+    expect(warnings).toContain('(AccessDenied)');
+  });
+
+  // Defect caught: the probe is never removed, or a removal that took is still
+  // reported as a leftover.
+  it('removes the probe object it stood up, with nothing to list', () => {
+    const r = run({ probe: 'removed' });
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(removals(r)).toEqual([PROBE]);
+    expect(listed(r.stderr, 'Warnings')).toBe('');
+    expect(r.stderr).not.toContain(PROBE);
+  });
+
+  // Defect caught: run by the archive publisher, the leftover probe is printed in
+  // a report of its own that scrolls past, and the publisher's closing report,
+  // the one the operator reads, says nothing about it.
+  it('hands the leftover probe to the report of the run that started it', () => {
+    const parent = createScratchDir('verify-archive-edge-parent');
+    const reportTo = join(parent, 'nested');
+    writeFileSync(reportTo, '');
+    try {
+      const r = run({ probe: 'fails', reportTo });
+      expect(r.status, r.stdout + r.stderr).toBe(0);
+      const handed = readFileSync(reportTo, 'utf-8');
+      expect(handed).toMatch(new RegExp(`^WARN\\tverify-archive-edge\\.sh: .*${PROBE.replace(/[.]/g, '\\.')}`, 'm'));
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
   });
 });

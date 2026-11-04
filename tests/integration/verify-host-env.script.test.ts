@@ -337,6 +337,51 @@ describe('verify-host-env.sh — dev-shortcut posture per target', () => {
   });
 });
 
+/** The closing report's list of errors or warnings, so a case asserts what it lists. */
+function listed(stderr: string, heading: 'Errors' | 'Warnings'): string {
+  const at = stderr.search(new RegExp(`^${heading} \\(\\d+\\):$`, 'm'));
+  if (at === -1) return '';
+  const rest = stderr.slice(at);
+  const end = rest.slice(1).search(/^(Errors|Warnings|Proven:|Not proven:|No errors)/m);
+  return end === -1 ? rest : rest.slice(0, end + 1);
+}
+
+describe('verify-host-env.sh — the closing report', () => {
+  // Defect caught: a line the parser could not read is counted and passed over,
+  // so every check below judges the value it held as unset while the run still
+  // reads as clean. The env file is the host's own record, so this fails it.
+  it('fails on an unparseable line, listing it by number with its content withheld', () => {
+    const secretish = 'pasted-value-on-its-own-line-0123456789';
+    const env = `${CLEAN_STAGING_ENV}\n${secretish}\n`;
+    const result = runScript({ envFilePath: writeEnvFile(env) });
+    expect(result.exitCode).toBe(1);
+    const lineNo = env.split('\n').indexOf(secretish) + 1;
+    expect(listed(result.stderr, 'Errors')).toMatch(new RegExp(`unparseable line ${lineNo} .*content withheld`));
+    expect(result.stdout + result.stderr).not.toContain(secretish);
+  });
+
+  // Defect caught: advisories are printed in the table and then only counted,
+  // so the closing line says how many there were and never which.
+  it('lists each advisory by name as a warning, and still passes', () => {
+    const result = runScript({ envFilePath: writeEnvFile(CLEAN_STAGING_ENV) });
+    expect(result.exitCode).toBe(0);
+    const warnings = listed(result.stderr, 'Warnings');
+    expect(warnings).toMatch(/JWT KMS key: JWT_KMS_KEY_ID is the key ARN/);
+    const counted = Number(/Warns: +(\d+)/.exec(result.stdout)?.[1]);
+    expect(counted).toBeGreaterThan(0);
+    expect(warnings.split('\n').filter((l) => l.startsWith('  - ')).length).toBe(counted);
+  });
+
+  // Defect caught: a failed invariant is printed mid-table and the closing
+  // report names none of them.
+  it('lists each failed invariant by name as an error', () => {
+    const env = mutate(/CAPTCHA_ADAPTER=stub/, 'CAPTCHA_ADAPTER=live');
+    const result = runScript({ envFilePath: writeEnvFile(env) });
+    expect(result.exitCode).toBe(1);
+    expect(listed(result.stderr, 'Errors')).toMatch(/captcha adapter/);
+  });
+});
+
 describe('verify-host-env.sh — advisory checks', () => {
   it('the terraform-managed JWT alias is the expected value and passes clean', () => {
     const env = mutate(/JWT_KMS_KEY_ID=.+/, 'JWT_KMS_KEY_ID=alias/footbag-staging-jwt');
@@ -596,11 +641,12 @@ describe('verify-host-env.sh — CLI / fixture errors', () => {
     expect(result.stderr ?? '').toContain('requires TF_JWT_KMS_KEY_ARN');
   });
 
-  it('unparseable env-file line → WARN to stderr, processing continues', () => {
+  it('unparseable env-file line → ERROR to stderr, the remaining checks still run, exit 1', () => {
     const env = CLEAN_STAGING_ENV + '\nthis is not a valid line\n';
     const result = runScript({ envFilePath: writeEnvFile(env) });
-    expect(result.exitCode).toBe(0);
-    expect(result.stderr).toMatch(/WARN: unparseable line/);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toMatch(/ERROR: unparseable line/);
+    expect(result.stdout).toMatch(/PASS +captcha adapter/);
   });
 
   it('comments and blank lines are silently ignored', () => {

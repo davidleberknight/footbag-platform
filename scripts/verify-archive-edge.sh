@@ -5,7 +5,8 @@
 # the members-only archive rests on, checked against a live distribution with
 # hand-signed CloudFront cookies. Read-only against the bucket except for one
 # temporary probe object it creates and removes when the archive holds no
-# content yet.
+# content yet. A removal that fails is a warning in the closing report naming
+# the object left behind.
 #
 # What it proves, one row per claim:
 #   1. Gate page, no cookies          200 + noindex   (unauthenticated behavior serves it)
@@ -64,6 +65,10 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # whichever shell the operator started from.
 # shellcheck source=lib/aws-profile.sh
 source "${SCRIPT_DIR}/lib/aws-profile.sh"
+# The one closing report. Run by publish-archive.sh, this run is nested and its
+# problems land in the publisher's report.
+# shellcheck source=lib/closing-report.sh
+source "${SCRIPT_DIR}/lib/closing-report.sh"
 
 TARGET_ENV=""
 AWS_PROFILE_ARG=""
@@ -84,24 +89,24 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --target)
       TARGET_ENV="${2:-}"
-      shift 2 || { echo "ERROR: --target requires an argument" >&2; exit 2; }
+      shift 2 || { cr_error "--target requires an argument"; exit 2; }
       ;;
     --profile)
       AWS_PROFILE_ARG="${2:-}"
-      shift 2 || { echo "ERROR: --profile requires an argument" >&2; exit 2; }
+      shift 2 || { cr_error "--profile requires an argument"; exit 2; }
       ;;
     --signing-key)
       SIGNING_KEY="${2:-}"
-      shift 2 || { echo "ERROR: --signing-key requires an argument" >&2; exit 2; }
+      shift 2 || { cr_error "--signing-key requires an argument"; exit 2; }
       ;;
     --check-logs) CHECK_LOGS=1; shift ;;
     -h|--help) usage ;;
-    *) echo "ERROR: unknown argument: $1" >&2; usage ;;
+    *) cr_error "unknown argument: $1"; usage ;;
   esac
 done
 
 if [[ "$TARGET_ENV" != "staging" && "$TARGET_ENV" != "production" ]]; then
-  echo "ERROR: --target must be 'staging' or 'production'" >&2
+  cr_error "--target must be 'staging' or 'production'"
   exit 2
 fi
 
@@ -121,11 +126,11 @@ else
   # No profile named on the command line, so the identity is the one the shared
   # library settles and proves: whatever this shell already carries, or the
   # operator profile. Nothing here asks the operator to export anything.
-  aws_profile_ensure || exit 1
+  aws_profile_ensure || cr_die "no AWS identity to read the archive with (the reason is printed above)"
 fi
 
 if [[ ! -r "$SIGNING_KEY" ]]; then
-  echo "ERROR: signing key not readable: ${SIGNING_KEY}" >&2
+  cr_error "signing key not readable: ${SIGNING_KEY}"
   echo "       Provision it with scripts/provision-archive-signing-key.sh," >&2
   echo "       or point --signing-key at the operator key directory." >&2
   exit 1
@@ -137,7 +142,7 @@ DOMAIN="$(tf_out archive_domain)"
 KEY_PAIR_ID="$(tf_out archive_key_pair_id)"
 BUCKET="$(tf_out archive_bucket_name)"
 if [[ -z "$DOMAIN" || -z "$KEY_PAIR_ID" || -z "$BUCKET" ]]; then
-  echo "ERROR: archive terraform outputs are empty in ${TF_DIR}." >&2
+  cr_error "archive terraform outputs are empty in ${TF_DIR}."
   echo "       The archive stack must be applied (enable_archive = true)." >&2
   exit 1
 fi
@@ -150,7 +155,7 @@ fi
 # open and pass.
 REQUIRE_COOKIES="$(tf_out archive_requires_signed_cookies)"
 if [[ -z "$REQUIRE_COOKIES" ]]; then
-  echo "ERROR: archive_requires_signed_cookies is not published by ${TF_DIR}." >&2
+  cr_error "archive_requires_signed_cookies is not published by ${TF_DIR}."
   echo "       Apply the archive stack so the output lands in state." >&2
   exit 1
 fi
@@ -163,21 +168,21 @@ else
 fi
 
 WORK_DIR="$(mktemp -d /tmp/footbag-archive-edge.XXXXXX)"
+cr_cleanup rm -rf "$WORK_DIR"
 PROBE_KEY=""
-cleanup() {
+remove_probe() {
   # Remove the probe object even on failure, so a failed run never leaves
-  # content in an otherwise-empty archive bucket.
-  if [[ -n "$PROBE_KEY" ]]; then
-    "$AWS_BIN" s3 rm "s3://${BUCKET}/${PROBE_KEY}" "${AWS_ARGS[@]}" >/dev/null 2>&1 || true
+  # content in an otherwise-empty archive bucket. A removal that fails is a
+  # warning naming the object, because the bucket then serves it to members
+  # until someone deletes it by hand.
+  local said
+  [[ -n "$PROBE_KEY" ]] || return 0
+  if ! said="$("$AWS_BIN" s3 rm "s3://${BUCKET}/${PROBE_KEY}" "${AWS_ARGS[@]}" 2>&1)"; then
+    cr_warn "the probe object s3://${BUCKET}/${PROBE_KEY} could not be removed and is still in the bucket; delete it by hand: $(printf '%s\n' "$said" | grep -v '^[[:space:]]*$' | tail -n 1)"
   fi
-  rm -rf "$WORK_DIR"
+  return 0
 }
-trap cleanup EXIT
-# A signal ends the run through the EXIT trap, never through bash's own
-# fatal-signal handling, where a second signal can cut the cleanup short.
-trap "trap '' HUP INT TERM; exit 129" HUP
-trap "trap '' HUP INT TERM; exit 130" INT
-trap "trap '' HUP INT TERM; exit 143" TERM
+cr_cleanup remove_probe
 
 # ---- Sign a short-lived cookie set --------------------------------------------
 
@@ -289,7 +294,10 @@ if [[ "$CHECK_LOGS" -eq 1 ]]; then
 fi
 
 if [[ "$failures" -ne 0 ]]; then
-  echo "EDGE PROOF FAILED: ${failures} check(s)." >&2
-  exit 1
+  cr_error "EDGE PROOF FAILED: ${failures} check(s). The FAIL rows above name each one."
+  cr_unproved "the archive edge on ${TARGET_ENV}: ${failures} check(s) failed"
+  cr_finish
 fi
 echo "EDGE PROOF PASSED: every refusal and serving claim holds."
+cr_proved "every refusal and serving claim of the archive edge on ${TARGET_ENV}"
+cr_finish

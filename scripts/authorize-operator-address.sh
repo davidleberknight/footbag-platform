@@ -122,6 +122,11 @@ usage() {
   exit "${1:-0}"
 }
 
+# One closing report for the whole run, the apply's problems included, with the
+# exit status following from it. The library owns the exit and signal traps, so
+# the restore and the temp-file removal below are registered with it.
+# shellcheck source=lib/closing-report.sh
+source "${REPO_ROOT}/scripts/lib/closing-report.sh"
 # shellcheck source=lib/host-env-remote.sh
 source "${REPO_ROOT}/scripts/lib/host-env-remote.sh"
 # shellcheck source=lib/aws-profile.sh
@@ -412,7 +417,7 @@ exact() {
 
 live_or_die() {
   if ! live_read; then
-    echo "ERROR: the live firewall on ${INSTANCE} could not be read: ${LIVE_WHY}." >&2
+    cr_error "the live firewall on ${INSTANCE} could not be read: ${LIVE_WHY}."
     echo "       Unknown is not the same as absent or admitted, so nothing is" >&2
     echo "       reported as done. ${1}" >&2
     exit 1
@@ -451,38 +456,60 @@ still_covered() {
   done
   return 1
 }
-# whose <cidr> -- who holds a range: the comment the values file carries for it,
-# and any dev-and-tester whose own parameter holds it, since the staging
-# firewall admits both and a removal report that named only the first would
-# leave the second looking like nobody's.
+# whose <cidr> -- sets WHOSE to who holds a range: the comment the values file
+# carries for it, and any dev-and-tester whose own parameter holds it, since the
+# staging firewall admits both and a removal report that named only the first
+# would leave the second looking like nobody's. Run in this shell, not in a
+# substitution, so a failed owner lookup reaches the closing report.
+WHOSE=""
 whose() {
-  local i note="not declared in the values file" owners
+  local i note="not declared in the values file"
   for i in "${!E_CANON[@]}"; do
     [[ "${E_CANON[$i]}" == "$1" ]] && { note="${E_NOTE[$i]:-(no attribution)}"; break; }
   done
-  owners=""
-  [[ "$TARGET" == "staging" ]] && owners="$(dev_tester_owners "$1")"
-  if [[ -n "$owners" ]]; then
-    printf '%s; and the dev-and-tester address of %s' "$note" "$owners"
+  DEV_TESTER_OWNERS=""
+  [[ "$TARGET" == "staging" ]] && dev_tester_owners "$1"
+  if [[ -n "$DEV_TESTER_OWNERS" ]]; then
+    WHOSE="${note}; and the dev-and-tester address of ${DEV_TESTER_OWNERS}"
   else
-    printf '%s' "$note"
+    WHOSE="$note"
   fi
 }
 
 # ── Dev-and-tester addresses ─────────────────────────────────────────────────
 
-# dev_tester_owners <cidr> -- prints, comma-separated, every dev-and-tester whose
-# own parameter lists exactly that address. Empty when none does or the path
-# cannot be read; a report built on this says which.
+# dev_tester_owners <cidr> -- sets DEV_TESTER_OWNERS to every dev-and-tester,
+# comma-separated, whose own parameter lists exactly that address. Empty when
+# none does or the path cannot be read; a read that fails is a warning in the
+# closing report carrying the client's reason, so an empty answer is never
+# mistaken for "nobody else holds it". Run in this shell, not in a substitution,
+# so that warning survives.
+DEV_TESTER_OWNERS=""
 dev_tester_owners() {
-  local listing
-  listing="$("$AWS_BIN" ssm get-parameters-by-path --region us-east-1 \
-    --path "$DEV_TESTER_PATH" --output json 2>/dev/null)" || return 0
-  jq -r --arg a "$1" --arg p "${DEV_TESTER_PATH}/" '
+  local listing err
+  local -a call=(ssm get-parameters-by-path --region us-east-1
+    --path "$DEV_TESTER_PATH" --output json)
+  DEV_TESTER_OWNERS=""
+  # Read from stdout alone, so a notice the CLI prints on stderr beside a
+  # successful answer is never handed to jq; the error text is fetched by
+  # reading again only when the read failed.
+  if ! listing="$("$AWS_BIN" "${call[@]}" 2>/dev/null)"; then
+    if err="$("$AWS_BIN" "${call[@]}" 2>&1 >/dev/null)"; then
+      err="the read failed, then succeeded when repeated"
+    fi
+    cr_warn "the dev-and-tester addresses under ${DEV_TESTER_PATH} could not be read, so who else holds $1 is unknown: $(tail -n 1 <<<"$err")"
+    return 0
+  fi
+  if ! DEV_TESTER_OWNERS="$(jq -r --arg a "$1" --arg p "${DEV_TESTER_PATH}/" '
       [ .Parameters[]?
         | select(.Value | split(",") | any(. == $a or . + "/32" == $a))
         | .Name | ltrimstr($p) ] | join(", ")
-    ' <<<"$listing" 2>/dev/null || true
+    ' <<<"$listing" 2>&1)"; then
+    # jq's own message, when the answer was not the JSON asked for.
+    cr_warn "the dev-and-tester addresses under ${DEV_TESTER_PATH} could not be parsed, so who else holds $1 is unknown: $(tail -n 1 <<<"$DEV_TESTER_OWNERS")"
+    DEV_TESTER_OWNERS=""
+  fi
+  return 0
 }
 
 # split_list <comma-separated addresses> -- one per line, each with its /32.
@@ -534,12 +561,20 @@ if [[ -n "$DEV_TESTER" ]]; then
 
   # Its description too, so a restore after a failed apply puts back the
   # attribution as well as the address. A description that cannot be read is
-  # only a missing note, never a reason to stop.
+  # only a missing note, never a reason to stop, so it is a warning carrying the
+  # client's reason: a restore that then drops the attribution is explained.
   CURRENT_DESC=""
   if [[ -n "$CURRENT" ]]; then
-    CURRENT_DESC="$("$AWS_BIN" ssm describe-parameters --region us-east-1 \
-      --parameter-filters "Key=Name,Values=${PARAM}" \
-      --query 'Parameters[0].Description' --output text 2>/dev/null || true)"
+    DESC_CALL=(ssm describe-parameters --region us-east-1
+      --parameter-filters "Key=Name,Values=${PARAM}"
+      --query 'Parameters[0].Description' --output text)
+    if ! CURRENT_DESC="$("$AWS_BIN" "${DESC_CALL[@]}" 2>/dev/null)"; then
+      if DESC_ERR="$("$AWS_BIN" "${DESC_CALL[@]}" 2>&1 >/dev/null)"; then
+        DESC_ERR="the read failed, then succeeded when repeated"
+      fi
+      cr_warn "the description of ${PARAM} could not be read, so a restore would put back the address without its attribution: $(tail -n 1 <<<"$DESC_ERR")"
+      CURRENT_DESC=""
+    fi
     [[ "$CURRENT_DESC" == "None" ]] && CURRENT_DESC=""
   fi
 
@@ -553,7 +588,8 @@ if [[ -n "$DEV_TESTER" ]]; then
   if (( REMOVE )); then
     if [[ -z "$CURRENT" ]]; then
       echo "Already absent: ${DEV_TESTER} has no staging address parameter. Nothing to do."
-      exit 0
+      cr_proved "${PARAM} does not exist (read just now)"
+      cr_finish
     fi
     ADDRESSES=(${CURRENT_ADDRESSES[@]+"${CURRENT_ADDRESSES[@]}"})
   fi
@@ -590,7 +626,8 @@ if [[ -n "$DEV_TESTER" ]]; then
     echo ""
     echo "Already authorized: ${PARAM} holds ${NEW_VALUE} and the firewall admits"
     echo "each of them on every SSH port. Nothing to do."
-    exit 0
+    cr_proved "${PARAM} holds ${NEW_VALUE} and the live firewall admits each on ports ${SSH_PORTS[*]}"
+    cr_finish
   fi
 
   echo ""
@@ -613,25 +650,33 @@ if [[ -n "$DEV_TESTER" ]]; then
   # back as it was. The parameter is this run's own change and nothing outside
   # has recorded it yet, so undoing it is safe, and it leaves no half-made change
   # pending for whoever applies staging next.
+  # A restore that fails is an error in the closing report with the client's own
+  # reason, since it leaves a change pending that the next staging apply would
+  # carry out.
   RESTORE_PENDING=0
   restore_parameter() {
+    local out
     (( RESTORE_PENDING )) || return 0
     RESTORE_PENDING=0
     if [[ -n "$CURRENT" ]]; then
       local -a restore_desc=()
       [[ -n "$CURRENT_DESC" ]] && restore_desc=(--description "$CURRENT_DESC")
-      "$AWS_BIN" ssm put-parameter --region us-east-1 --name "$PARAM" --type String \
-        --value "$CURRENT" --overwrite ${restore_desc[@]+"${restore_desc[@]}"} >/dev/null 2>&1 \
-        && echo "==> ${PARAM} restored to ${CURRENT}." >&2 \
-        || echo "ERROR: could not restore ${PARAM} to ${CURRENT}; set it back before the next staging apply." >&2
+      if out="$("$AWS_BIN" ssm put-parameter --region us-east-1 --name "$PARAM" --type String \
+          --value "$CURRENT" --overwrite ${restore_desc[@]+"${restore_desc[@]}"} 2>&1 >/dev/null)"; then
+        echo "==> ${PARAM} restored to ${CURRENT}." >&2
+      else
+        cr_error "could not restore ${PARAM} to ${CURRENT}; set it back before the next staging apply: $(tail -n 1 <<<"$out")"
+      fi
     else
-      "$AWS_BIN" ssm delete-parameter --region us-east-1 --name "$PARAM" >/dev/null 2>&1 \
-        && echo "==> ${PARAM} removed again." >&2 \
-        || echo "ERROR: could not remove ${PARAM}; delete it before the next staging apply." >&2
+      if out="$("$AWS_BIN" ssm delete-parameter --region us-east-1 --name "$PARAM" 2>&1 >/dev/null)"; then
+        echo "==> ${PARAM} removed again." >&2
+      else
+        cr_error "could not remove ${PARAM}; delete it before the next staging apply: $(tail -n 1 <<<"$out")"
+      fi
     fi
     return 0
   }
-  trap restore_parameter EXIT INT TERM
+  cr_cleanup restore_parameter
 
   RESTORE_PENDING=1
   if (( REMOVE )); then
@@ -665,9 +710,10 @@ if [[ -n "$DEV_TESTER" ]]; then
     done
   fi
   echo "==> Applying staging's firewall"
+  # Run directly, not through cr_run, because the apply may ask on the terminal;
+  # its own problems reach this run's report through the library's nested mode.
   if ! bash "$APPLY_CMD" --target "$TARGET" --firewall-only "${FIREWALL_NAMES[@]}"; then
-    echo "ERROR: the firewall apply did not complete; ${PARAM} is being put back." >&2
-    exit 1
+    cr_die "the firewall apply did not complete; ${PARAM} is being put back."
   fi
   RESTORE_PENDING=0
 
@@ -681,7 +727,8 @@ if [[ -n "$DEV_TESTER" ]]; then
         # The person's own entry is gone; whether the address still reaches the
         # host is decided by whoever else holds it. Named, so it is never
         # mistaken for this account still having access of its own.
-        OTHERS="$(dev_tester_owners "$ADDRESS")"
+        dev_tester_owners "$ADDRESS"
+        OTHERS="$DEV_TESTER_OWNERS"
         echo "    ${ADDRESS} is still admitted, because another entry"
         if [[ -n "$OTHERS" ]]; then
           echo "    holds it: the dev-and-tester address of ${OTHERS}."
@@ -697,7 +744,7 @@ if [[ -n "$DEV_TESTER" ]]; then
     for one in "${ADDRESSES[@]}"; do
       ADDRESS="$one"
       if ! admitted_everywhere; then
-        echo "ERROR: ${INSTANCE} does not admit ${ADDRESS} on every SSH port." >&2
+        cr_error "${INSTANCE} does not admit ${ADDRESS} on every SSH port."
         echo "       The parameter holds it and the apply reported success, so the" >&2
         echo "       staging Terraform did not carry it. Check the plan's warnings." >&2
         exit 1
@@ -707,7 +754,8 @@ if [[ -n "$DEV_TESTER" ]]; then
   fi
   echo ""
   echo "Done, and proved against the firewall rather than the parameter."
-  exit 0
+  cr_proved "the live firewall on ${INSTANCE}, read back after the apply, agrees with ${PARAM}"
+  cr_finish
 fi
 
 # ── The identity ─────────────────────────────────────────────────────────────
@@ -881,8 +929,7 @@ done <<<"$PARSED"
 # are is a question for a person, and a removal on a guess can lock somebody out.
 for i in "${!E_CANON[@]}"; do
   if [[ -z "${E_NOTE[$i]}" ]]; then
-    echo "==> NOTE: ${E_CANON[$i]} on line ${E_LINE[$i]} names nobody. The file's policy" >&2
-    echo "    is that every entry says whose it is; attribute or remove it by hand." >&2
+    cr_warn "${E_CANON[$i]} on line ${E_LINE[$i]} names nobody. The file's policy is that every entry says whose it is; attribute or remove it by hand."
   fi
 done
 
@@ -894,7 +941,8 @@ if [[ -n "$LIST_FOR" ]]; then
   for i in "${!E_CANON[@]}"; do
     [[ "${E_NOTE[$i]}" =~ ^#[[:space:]]*"${LIST_FOR}"[[:space:]]*\; ]] && printf '%s\n' "${E_CANON[$i]}"
   done
-  exit 0
+  cr_unproved "the live firewall: a listing reads the values file only"
+  cr_finish
 fi
 
 FILE_MATCHES=()
@@ -929,7 +977,8 @@ if (( ! REMOVE )); then
     echo ""
     echo "Already authorized: the values file carries ${ADDRESS} and the firewall"
     echo "admits it on every SSH port. Nothing to do."
-    exit 0
+    cr_proved "the values file carries ${ADDRESS} and the live firewall admits it on ports ${SSH_PORTS[*]}"
+    cr_finish
   fi
   # Added whenever the file does not carry it, including when the firewall
   # already admits it: a console change or somebody else's wider range is
@@ -940,15 +989,16 @@ if (( ! REMOVE )); then
 else
   if (( ! FILE_HAS )) && ! present_anywhere; then
     if COVER="$(still_covered)"; then
-      echo "ERROR: ${ADDRESS} is not an entry of its own, but the firewall still" >&2
-      echo "       admits it through ${COVER}, whose entry reads: $(whose "${COVER%% on port*}")." >&2
+      whose "${COVER%% on port*}"
+      cr_error "${ADDRESS} is not an entry of its own, but the firewall still admits it through ${COVER}, whose entry reads: ${WHOSE}."
       echo "       Removing an entry cannot end that. Their access has NOT ended." >&2
       exit 1
     fi
     echo ""
     echo "Already absent: neither the values file nor the firewall carries ${ADDRESS}"
     echo "on any SSH port. Nothing to do."
-    exit 0
+    cr_proved "neither the values file nor the live firewall carries ${ADDRESS} on ports ${SSH_PORTS[*]}"
+    cr_finish
   fi
   (( FILE_HAS )) && EDIT=1
   APPLY=1
@@ -958,7 +1008,7 @@ fi
 
 TFVARS_TMP=""
 cleanup() { [[ -n "$TFVARS_TMP" && -e "$TFVARS_TMP" ]] && rm -f -- "$TFVARS_TMP"; return 0; }
-trap cleanup EXIT INT TERM
+cr_cleanup cleanup
 
 if (( EDIT )); then
   # A literal /tmp rather than TMPDIR, so a caller cannot redirect the staging
@@ -1086,15 +1136,16 @@ if (( EDIT )); then
     echo "ERROR: the rewrite changed a line outside the ${TFVAR_NAME} list. Nothing done." >&2
     exit 1
   fi
-  if ! "$TERRAFORM_BIN" fmt - <"$TFVARS_TMP" >/dev/null 2>&1; then
-    echo "ERROR: the rewritten values file is not valid HCL. Nothing done." >&2
-    exit 1
+  if ! FMT_ERR="$("$TERRAFORM_BIN" fmt - <"$TFVARS_TMP" 2>&1 >/dev/null)"; then
+    cr_die "the rewritten values file is not valid HCL. Nothing done. terraform fmt said: $(tail -n 1 <<<"$FMT_ERR")"
   fi
 
   echo ""
   echo "The change to ${TFVARS_LINK}:"
   echo ""
-  diff -u "$TFVARS_PATH" "$TFVARS_TMP" || true
+  # diff exits 1 when the files differ, which is the point of showing it; only
+  # its exit 2, a file it could not read, stops the run.
+  diff -u "$TFVARS_PATH" "$TFVARS_TMP" || [[ $? == 1 ]]
   echo ""
 fi
 
@@ -1121,17 +1172,19 @@ fi
 if (( EDIT )); then
   cat "$TFVARS_TMP" > "$TFVARS_PATH"
   if ! cmp -s "$TFVARS_TMP" "$TFVARS_PATH"; then
-    trap - EXIT INT TERM
-    echo "ERROR: ${TFVARS_PATH} does not hold what was written. The intended content" >&2
-    echo "       is kept at ${TFVARS_TMP} so nothing is lost; compare the two." >&2
-    exit 1
+    # Kept, not cleaned up: the cleanup removes only the path it is given.
+    KEPT="$TFVARS_TMP"
+    TFVARS_TMP=""
+    cr_die "${TFVARS_PATH} does not hold what was written. The intended content is kept at ${KEPT} so nothing is lost; compare the two."
   fi
   echo "==> ${TFVAR_NAME} written"
 fi
 
 echo "==> Applying the ${TARGET} tree"
+# Run directly, not through cr_run, because production's apply asks on the
+# terminal; its own problems reach this run's report through nested mode.
 if ! bash "$APPLY_CMD" --target "$TARGET"; then
-  echo "ERROR: the apply did not complete, so the firewall is whatever it left." >&2
+  cr_error "the apply did not complete, so the firewall is whatever it left."
   echo "       The values file carries the intended state: re-run this to pick up" >&2
   echo "       where it stopped." >&2
   exit 1
@@ -1143,8 +1196,12 @@ echo "==> Reading the firewall back"
 live_or_die "The apply ran, so the firewall may or may not carry the change."
 if (( REMOVE )); then
   if present_anywhere; then
-    echo "ERROR: ${INSTANCE} still carries ${ADDRESS} on an SSH port." >&2
-    HELD_BY="$( [[ "$TARGET" == "staging" ]] && dev_tester_owners "$ADDRESS" || true)"
+    cr_error "${INSTANCE} still carries ${ADDRESS} on an SSH port. Their access has NOT ended."
+    HELD_BY=""
+    if [[ "$TARGET" == "staging" ]]; then
+      dev_tester_owners "$ADDRESS"
+      HELD_BY="$DEV_TESTER_OWNERS"
+    fi
     if [[ -n "$HELD_BY" ]]; then
       echo "       It is also the dev-and-tester address of ${HELD_BY}, which the staging" >&2
       echo "       firewall admits from that parameter; offboarding that person removes it." >&2
@@ -1156,15 +1213,15 @@ if (( REMOVE )); then
     exit 1
   fi
   if COVER="$(still_covered)"; then
-    echo "ERROR: ${ADDRESS} is off the list, but the firewall still admits it" >&2
-    echo "       through ${COVER}, whose entry reads: $(whose "${COVER%% on port*}")." >&2
+    whose "${COVER%% on port*}"
+    cr_error "${ADDRESS} is off the list, but the firewall still admits it through ${COVER}, whose entry reads: ${WHOSE}."
     echo "       Their access has NOT ended." >&2
     exit 1
   fi
   echo "    ${ADDRESS} is no longer admitted on ports ${SSH_PORTS[*]}"
 else
   if ! admitted_everywhere; then
-    echo "ERROR: ${INSTANCE} does not admit ${ADDRESS} on every SSH port." >&2
+    cr_error "${INSTANCE} does not admit ${ADDRESS} on every SSH port."
     echo "       The apply reported success, so what it applied did not carry" >&2
     echo "       this address. They still cannot reach the host." >&2
     exit 1
@@ -1174,4 +1231,5 @@ fi
 
 echo ""
 echo "Done, and proved against the firewall rather than the file."
-exit 0
+cr_proved "the live firewall on ${INSTANCE}, read back after the apply, agrees with the values file for ${ADDRESS}"
+cr_finish

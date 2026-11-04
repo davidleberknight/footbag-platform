@@ -34,12 +34,18 @@
 #   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/install-backup-timer.sh --target production
 #   scripts/install-backup-timer.sh --target staging --dry-run
 #
-# After the first two scheduled runs emit the BackupAgeMinutes metric, set
-# enable_backup_alarm = true in terraform/<target>/terraform.tfvars and
-# apply, so the backup alarms go live against flowing data (arming them
+# After the first two scheduled runs emit the BackupAgeMinutes metric, turn the
+# backup alarms on with scripts/set-terraform-gate.sh --gate enable_backup_alarm,
+# so they go live against flowing data (arming them
 # earlier pages immediately: the staleness alarm treats missing data as
 # breaching).
 set -euo pipefail
+
+# One closing report for the whole run, the host's half included: the remote
+# half marks each of its problems on the stream, the first backup run's failure
+# and retry lines among them, and the send below folds them into this report.
+# shellcheck source=lib/closing-report.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/closing-report.sh"
 
 TARGET=""
 DRY_RUN=0
@@ -102,8 +108,9 @@ if (( DRY_RUN )); then
   echo "Nothing is staged on the host, so nothing needs cleaning up afterwards."
   echo ""
   echo "Follow-up after two BackupAgeMinutes datapoints:"
-  echo "  set enable_backup_alarm = true in terraform/$TARGET/terraform.tfvars and apply"
-  exit 0
+  echo "  bash scripts/set-terraform-gate.sh --target $TARGET --gate enable_backup_alarm --state on"
+  cr_unproved "anything on the host: a dry run connects to nothing"
+  cr_finish
 fi
 
 require_operator_stdin "scripts/install-backup-timer.sh --target $TARGET" \
@@ -117,7 +124,9 @@ require_operator_stdin "scripts/install-backup-timer.sh --target $TARGET" \
 require_ssh_alias "$SSH_ALIAS" || exit 1
 require_host_is "$SSH_ALIAS" "$TARGET" || exit 1
 
-[[ -r "$REMOTE_HALF" ]] || { echo "ERROR: missing remote half: $REMOTE_HALF" >&2; exit 1; }
+REMOTE_REPORT_LIB="${SCRIPT_DIR}/lib/closing-report-remote.sh"
+[[ -r "$REMOTE_HALF" ]] || cr_die "missing remote half: $REMOTE_HALF"
+[[ -r "$REMOTE_REPORT_LIB" ]] || cr_die "missing remote-half report library: $REMOTE_REPORT_LIB"
 
 echo "== installing footbag-backup units on $TARGET (ssh alias: $SSH_ALIAS) =="
 echo ""
@@ -125,26 +134,39 @@ echo ""
 UNIT_SERVICE_B64="$(base64 -w0 < "$UNIT_SERVICE")"
 UNIT_TIMER_B64="$(base64 -w0 < "$UNIT_TIMER")"
 
-if ! {
-      printf '%s\n' "$SUDO_PASS"
-      printf 'UNIT_SERVICE_B64=%q\n' "$UNIT_SERVICE_B64"
-      printf 'UNIT_TIMER_B64=%q\n'   "$UNIT_TIMER_B64"
-      cat "$REMOTE_HALF"
-    } | ssh "${HOST_SSH_OPTS[@]}" "$SSH_ALIAS" 'sudo -k -S -p "" bash'; then
+# The client is the one the host check above used, so the install goes where the
+# confirmed session went. Only marked lines are read: the half's output is
+# systemd's and the journal's, whose ordinary lines carry words the default
+# grammar would take for problems.
+send_install() {
+  {
+    printf '%s\n' "$SUDO_PASS"
+    printf 'UNIT_SERVICE_B64=%q\n' "$UNIT_SERVICE_B64"
+    printf 'UNIT_TIMER_B64=%q\n'   "$UNIT_TIMER_B64"
+    cat "$REMOTE_REPORT_LIB" "$REMOTE_HALF"
+  } | "$HOST_SSH_BIN" "${HOST_SSH_OPTS[@]}" "$SSH_ALIAS" 'sudo -k -S -p "" bash'
+}
+# Judged by both the half's exit and the errors it marked, so a half that marked
+# an error and then exited zero still fails here, and no success line follows.
+if ! cr_run_marked "unit install on ${SSH_ALIAS}" -- send_install \
+     || (( ${#CR_ERRORS[@]} )); then
   echo "" >&2
-  echo "ERROR: unit install or first backup run failed on $SSH_ALIAS." >&2
+  echo "Unit install or first backup run failed on $SSH_ALIAS; the closing report below names every error." >&2
   echo "Common causes:" >&2
   echo "  - the credential file's first line is not the host sudo password" >&2
   echo "  - BACKUP_S3_BUCKET unset in /srv/footbag/env (backup-db.sh refuses to run)" >&2
   echo "  - sqlite3 or aws CLI missing on the host" >&2
   echo "  - /srv/footbag/scripts/backup-db.sh absent (no deploy has shipped it yet)" >&2
-  exit 1
+  cr_unproved "footbag-backup.timer active on ${TARGET} with a first snapshot uploaded"
+  cr_finish
 fi
+cr_proved "footbag-backup.timer is active on ${TARGET} and its first run succeeded (the host half's checks)"
+cr_unproved "the backup alarms: they go live only once scripts/set-terraform-gate.sh turns enable_backup_alarm on"
 
 echo ""
 echo "== footbag-backup.timer installed and active on $TARGET =="
 echo ""
 echo "Next step: after the timer has run at least twice (BackupAgeMinutes flowing"
-echo "in CloudWatch namespace Footbag/$TARGET), set enable_backup_alarm = true in"
-echo "terraform/$TARGET/terraform.tfvars and apply to arm the backup alarms."
-exit 0
+echo "in CloudWatch namespace Footbag/$TARGET), arm the backup alarms:"
+echo "  bash scripts/set-terraform-gate.sh --target $TARGET --gate enable_backup_alarm --state on"
+cr_finish

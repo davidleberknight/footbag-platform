@@ -36,7 +36,12 @@ beforeAll(() => {
       'fi',
       'if [[ "$1" == "run" ]]; then',
       '  cmd="${@: -1}"',
-      '  cd "$FAKE_IMAGE_DIR" && exec sh -c "$cmd"',
+      // A container docker could not start, for the one command a case names:
+      // docker reports its own failures with 125 and the daemon's reason.
+      '  if [[ -n "${FAKE_RUN_FAILS_ON:-}" && "$cmd" == *"$FAKE_RUN_FAILS_ON"* ]]; then',
+      '    echo "docker: Error response from daemon: fake-docker: container did not start." >&2; exit 125',
+      '  fi',
+      '  cd "$FAKE_IMAGE_DIR" && PATH="${FAKE_IMAGE_PATH_PREFIX:+$FAKE_IMAGE_PATH_PREFIX:}$PATH" exec sh -c "$cmd"',
       'fi',
       'echo "unexpected docker invocation: $*" >&2; exit 64',
     ].join('\n'),
@@ -131,5 +136,36 @@ describe('validate-qc-absence.sh', () => {
     expect(res.status).toBe(1);
     expect(res.stderr).toContain('still name a retired QC table');
     expect(res.stderr).toContain('dist/services/review.js');
+  });
+});
+
+describe('validate-qc-absence.sh: an inspection that did not happen', () => {
+  // Defect caught: a container docker could not start read as "path absent",
+  // so the production checklist printed PASS over an image nobody looked into.
+  // The valid run beside these is the clean-image pass above.
+  it.each([
+    ['the retired QC subtree', 'dist/internal-qc'],
+    ['the retired internal router', 'dist/routes/internalRoutes.js'],
+  ])('fails, with docker\'s reason, when the check for %s cannot run', (_label, probe) => {
+    const res = gate(image({}), [], { FAKE_RUN_FAILS_ON: probe });
+    expect(res.status).toBe(1);
+    expect(res.stdout).not.toContain('PASS');
+    expect(res.stderr).toContain('fake-docker: container did not start.');
+  });
+
+  // Defect caught: grep's own error (exit 2, here an unreadable module) was
+  // folded into "no hits", so a scan that read nothing reported no retired table.
+  it('fails, with grep\'s reason, when the table scan errors rather than finding nothing', () => {
+    const grepFails = path.join(root, 'grep-fails');
+    fs.mkdirSync(grepFails, { recursive: true });
+    fs.writeFileSync(
+      path.join(grepFails, 'grep'),
+      '#!/bin/sh\necho "grep: dist/server.js: Permission denied" >&2\nexit 2\n',
+      { mode: 0o755 },
+    );
+    const res = gate(image({}), [], { FAKE_IMAGE_PATH_PREFIX: grepFails });
+    expect(res.status).toBe(1);
+    expect(res.stdout).not.toContain('PASS');
+    expect(res.stderr).toContain('grep: dist/server.js: Permission denied');
   });
 });

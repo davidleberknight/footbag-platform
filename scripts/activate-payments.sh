@@ -121,6 +121,11 @@
 #   the previous-secret parameter (unset reads as the placeholder).
 set -euo pipefail
 
+# One closing report for the whole run, with the exit status following from it.
+# The library owns the exit and signal traps, so the secret-bearing temp files
+# below are registered with it rather than set on a trap here.
+# shellcheck source=lib/closing-report.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/closing-report.sh"
 # shellcheck source=lib/host-env-remote.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/host-env-remote.sh"
 
@@ -175,18 +180,28 @@ create_endpoint_via_api() {
   command -v curl >/dev/null || { echo "ERROR: --create-endpoint needs curl." >&2; return 1; }
 
   local repo_root; repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-  local domain=""
+  local domain="" tf_err=""
   # The identity was settled and proved before the first prompt, so a dead
-  # credential cannot arrive here disguised as an empty output.
-  domain="$(terraform -chdir="$repo_root/terraform/$TARGET" output -raw cloudfront_domain 2>/dev/null || true)"
+  # credential cannot arrive here disguised as an empty output. The output is
+  # read from stdout alone; terraform's own reason is fetched only on a failure,
+  # so the refusal carries it.
+  if ! domain="$(terraform -chdir="$repo_root/terraform/$TARGET" output -raw cloudfront_domain 2>/dev/null)"; then
+    if tf_err="$(terraform -chdir="$repo_root/terraform/$TARGET" output -raw cloudfront_domain 2>&1 >/dev/null)"; then
+      tf_err=""
+    fi
+    domain=""
+  fi
   if [[ -z "$domain" ]]; then
-    echo "ERROR: could not read cloudfront_domain from the $TARGET terraform output." >&2
+    cr_error "could not read cloudfront_domain from the $TARGET terraform output${tf_err:+: $(tail -n 1 <<<"$tf_err")}"
     echo "       Create the endpoint in the Dashboard and re-run without --create-endpoint." >&2
     return 1
   fi
   local url="https://${domain}/payments/webhook"
 
   local work; work="$(mktemp -d)"
+  # Known to the run's cleanup as well, because the curl config written here
+  # holds the Stripe key and an interrupt would otherwise leave it in /tmp.
+  ENDPOINT_WORK="$work"
   # Shredded here rather than by the caller's trap: the curl config holds the key.
   local cleanup_work='find "$work" -type f -exec shred -u {} + 2>/dev/null || true; rm -rf "$work"'
   printf 'user = "%s:"\n' "$STRIPE_KEY" > "$work/curlrc"
@@ -335,13 +350,11 @@ SSM_PLACEHOLDER="TODO-set-via-cli-after-apply"
 put_ssm_secret() {
   local param_name="$1" param_value="$2"
   umask 077
-  # KEY_TMP is deliberately global. A trap cannot see a function-local, and the
-  # window that matters is between creating this file and shredding it: an
-  # interrupt there leaves the plaintext secret in /tmp unless a trap names this
-  # very variable and it has been assigned. The trap that
-  # covers it is installed immediately below this definition, and the later
-  # cleanup_remote trap that replaces it shreds the same variable, so the window
-  # stays covered across both.
+  # KEY_TMP is deliberately global. A cleanup cannot see a function-local, and
+  # the window that matters is between creating this file and shredding it: an
+  # interrupt there leaves the plaintext secret in /tmp unless the cleanup names
+  # this very variable and it has been assigned. The cleanup that covers it,
+  # payments_cleanup, is registered immediately below this definition.
   KEY_TMP="$(mktemp /tmp/footbag-ssm-val.XXXXXX)"
   printf '%s' "$param_value" > "$KEY_TMP"
   if ! aws ssm put-parameter \
@@ -351,21 +364,53 @@ put_ssm_secret() {
     --key-id "$KMS_ALIAS" \
     --overwrite \
     --profile "$AWS_PROFILE_ARG" >/dev/null; then
-    shred -u "$KEY_TMP" 2>/dev/null || true
-    KEY_TMP=""
-    echo "ERROR: failed to write $param_name to Parameter Store." >&2
+    shred_key_tmp
+    cr_error "failed to write $param_name to Parameter Store."
     return 1
   fi
-  shred -u "$KEY_TMP" 2>/dev/null || true
-  KEY_TMP=""
+  shred_key_tmp
   echo "  stored $param_name"
 }
+
+# A plaintext secret left in /tmp is listed in the closing report rather than
+# silenced, so the operator knows there is a file to destroy by hand.
+shred_key_tmp() {
+  if [[ -n "$KEY_TMP" && -e "$KEY_TMP" ]]; then
+    shred -u "$KEY_TMP" || cr_warn "could not shred $KEY_TMP, which holds a secret; destroy it by hand"
+  fi
+  KEY_TMP=""
+}
+
+# Every local copy this run makes of a secret, destroyed at exit, interrupt
+# included. Only local copies need destroying: the wire leaves nothing on the
+# host. The new env copy is always this script's own, so it always goes; the old
+# copy is this script's only when it fetched one, because under --env-file it is
+# the caller's own file and shredding that would destroy their input. Registered
+# before any of them exists, so no exit path can outrun it.
 KEY_TMP=""
-trap 'shred -u "${KEY_TMP:-}" 2>/dev/null || true' EXIT INT TERM
+NEW_LOCAL=""
+OLD_LOCAL=""
+OLD_LOCAL_OWNED=0
+ENDPOINT_WORK=""
+payments_cleanup() {
+  shred_key_tmp
+  if [[ -n "$NEW_LOCAL" && -e "$NEW_LOCAL" ]]; then
+    shred -u "$NEW_LOCAL"
+  fi
+  if [[ "$OLD_LOCAL_OWNED" == "1" && -n "$OLD_LOCAL" && -e "$OLD_LOCAL" ]]; then
+    shred -u "$OLD_LOCAL"
+  fi
+  if [[ -n "$ENDPOINT_WORK" && -d "$ENDPOINT_WORK" ]]; then
+    find "$ENDPOINT_WORK" -type f -exec shred -u {} +
+    rm -rf -- "$ENDPOINT_WORK"
+  fi
+}
+cr_cleanup payments_cleanup
 
 # Reads a Parameter Store value without decrypting it into a variable any longer
 # than the comparison needs. Returns empty when the parameter is absent or
-# unreadable; callers that must distinguish those cases check the exit status.
+# unreadable; callers that must distinguish those cases check the exit status,
+# and ssm_read_error gives the reason.
 read_ssm_secret() {
   aws ssm get-parameter \
     --name "$1" \
@@ -373,6 +418,39 @@ read_ssm_secret() {
     --query 'Parameter.Value' \
     --output text \
     --profile "$AWS_PROFILE_ARG" 2>/dev/null
+}
+
+# ssm_read_error <name> -- the client's reason a read of <name> failed, from the
+# same read made again with its answer discarded, so no value is printed.
+ssm_read_error() {
+  local err
+  if err="$(aws ssm get-parameter \
+      --name "$1" \
+      --with-decryption \
+      --query 'Parameter.Value' \
+      --output text \
+      --profile "$AWS_PROFILE_ARG" 2>&1 >/dev/null)"; then
+    err="the read failed, then succeeded when repeated"
+  fi
+  printf '%s' "$err"
+}
+
+# read_current_stripe_key -- sets CURRENT_KEY to what $SSM_PARAM holds, empty
+# when the parameter does not exist. Any other failure stops the run: the value
+# decides whether activation would silently replace a key already in service,
+# and a denied or unreachable read taken as "absent" lets the overwrite through.
+CURRENT_KEY=""
+read_current_stripe_key() {
+  local err
+  if CURRENT_KEY="$(read_ssm_secret "$SSM_PARAM")"; then
+    return 0
+  fi
+  CURRENT_KEY=""
+  err="$(ssm_read_error "$SSM_PARAM")"
+  if [[ "$err" == *"(ParameterNotFound)"* ]]; then
+    return 0
+  fi
+  cr_die "could not read $SSM_PARAM, so whether it already holds a different Stripe API key is unknown. Nothing has been written: $(tail -n 1 <<<"$err")"
 }
 
 if (( DRY_RUN )); then
@@ -456,7 +534,8 @@ if (( DRY_RUN )); then
       echo "activation is a first activation rather than a rotation."
       ;;
   esac
-  exit 0
+  cr_unproved "anything: a dry run reads, writes and checks nothing"
+  cr_finish
 fi
 
 # -----------------------------------------------------------------------------
@@ -650,22 +729,9 @@ fi
 # -----------------------------------------------------------------------------
 # Step 3: fetch the host env file (or use the local override), rewrite it.
 # -----------------------------------------------------------------------------
+# The env-file copies made below are destroyed by payments_cleanup, registered
+# with the closing-report library before the first secret was read.
 OLD_LOCAL_OWNED=0
-
-# Widens the earlier parameter-store trap to the env-file copies as well. Only
-# local copies need destroying: the wire leaves nothing on the host. The new copy
-# is always this script's own, so it always goes; the old copy is this script's
-# only when it fetched one, because under --env-file it is the caller's own file
-# and shredding that would destroy their input. Registered before either copy
-# exists, so no exit path can outrun it.
-cleanup_local() {
-  shred -u "${KEY_TMP:-}" "${NEW_LOCAL:-}" 2>/dev/null || true
-  if [[ "$OLD_LOCAL_OWNED" == "1" ]]; then
-    shred -u "${OLD_LOCAL:-}" 2>/dev/null || true
-  fi
-  return 0
-}
-trap cleanup_local EXIT INT TERM
 
 if [[ -n "$ENV_FILE_OVERRIDE" ]]; then
   OLD_LOCAL="$ENV_FILE_OVERRIDE"
@@ -692,10 +758,10 @@ if ! grep -qE '^SECRETS_ADAPTER=["'"'"']?live["'"'"']?$' "$OLD_LOCAL"; then
 fi
 
 # Reads the last assignment of an env var from the staged file, matching how the
-# application parses it (last-wins). Always returns 0 so an absent key does not
-# trip `set -e` inside the command substitution.
+# application parses it (last-wins). An absent key is grep finding no line, which
+# is an answer and returns 0; a file grep cannot read is not, and stops the run.
 env_value() {
-  grep -E "^$1=" "$OLD_LOCAL" | tail -1 | cut -d= -f2- || true
+  grep -E "^$1=" "$OLD_LOCAL" | tail -1 | cut -d= -f2- || [[ $? == 1 ]]
 }
 CURRENT_WS="$(env_value STRIPE_WEBHOOK_SECRET)"
 PREVIOUS_WS="$(env_value STRIPE_WEBHOOK_SECRET_PREVIOUS)"
@@ -761,7 +827,8 @@ case "$MODE" in
     echo "  Parameter Store $SSM_WEBHOOK_PREV_PARAM: $SSM_PREV_STATE"
     if [[ -z "$PREVIOUS_WS" && "$SSM_PREV_STATE" == "placeholder" ]]; then
       echo "Neither the host nor Parameter Store holds a previous secret; no rotation window to close."
-      exit 0
+      cr_proved "no rotation window is open: the host env and $SSM_WEBHOOK_PREV_PARAM hold no previous secret"
+      cr_finish
     fi
     # A previous secret held only in Parameter Store means the rotation stopped
     # before its host push: the host still verifies with the outgoing secret as
@@ -811,7 +878,7 @@ if [[ -z "$ENV_FILE_OVERRIDE" ]]; then
       # replacement is a change nobody can see and nobody can undo. Refuse unless
       # the operator says explicitly that replacement is the intent. Matches the
       # protection the signing secret already has.
-      CURRENT_KEY="$(read_ssm_secret "$SSM_PARAM" || true)"
+      read_current_stripe_key
       if [[ -n "$CURRENT_KEY" && "$CURRENT_KEY" != TODO-* && "$CURRENT_KEY" != "$STRIPE_KEY" ]]; then
         if (( REPLACE_KEY )); then
           echo "  --replace-key given: replacing the existing Stripe API key."
@@ -925,7 +992,9 @@ mask() {
 
 echo ""
 echo "Env file change (secrets masked):"
-diff -u <(mask "$OLD_LOCAL") <(mask "$NEW_LOCAL") || true
+# diff exits 1 when the files differ, which is the point of showing it; only its
+# exit 2, a file it could not read, stops the run.
+diff -u <(mask "$OLD_LOCAL") <(mask "$NEW_LOCAL") || [[ $? == 1 ]]
 echo ""
 
 # -----------------------------------------------------------------------------
@@ -941,7 +1010,7 @@ else
   # pipe, and a prompt reading from it would swallow what follows the password.
   if ! confirm_from_tty "Push this change to ${HOST_ENV_PATH} on ${SSH_ALIAS}? (yes/no): " "yes"; then
     echo ""
-    echo "Aborted: env file not pushed." >&2
+    cr_error "Aborted: env file not pushed. What Parameter Store already holds is said below."
     # Parameter Store is already written by this point, in every mode that
     # writes it. Saying so is the whole value of this branch: the operator has
     # just declined, and without being told they will reasonably assume
@@ -998,12 +1067,18 @@ echo ""
 # own end state instead.
 if [[ "$MODE" == "deactivate" ]]; then
   if grep -qE '^STRIPE_WEBHOOK_SECRET(_PREVIOUS)?=' "$GATE_FILE"; then
-    echo "ERROR: a Stripe signing secret is still present after deactivation." >&2
-    exit 1
+    cr_die "a Stripe signing secret is still present after deactivation."
   fi
   echo "GATE: no Stripe signing secret remains in the env file."
+  cr_proved "the env file carries no Stripe signing secret after deactivation"
 else
-  FOOTBAG_ENV_FILE="$GATE_FILE" bash scripts/validate-payments-boot.sh
+  # The gate's FAIL lines are errors and its NOTICE lines (an open rotation
+  # window, say) warnings, read into the closing report rather than left in
+  # the scroll above it.
+  payments_boot_gate() { FOOTBAG_ENV_FILE="$GATE_FILE" bash scripts/validate-payments-boot.sh; }
+  cr_run --errors 'PAYMENTS-BOOT FAIL' --warnings 'PAYMENTS-BOOT NOTICE' "PAYMENTS-BOOT gate" -- \
+    payments_boot_gate || exit 1
+  cr_proved "the PAYMENTS-BOOT gate passed against the env file as installed"
 fi
 
 echo ""
@@ -1062,4 +1137,4 @@ case "$MODE" in
     echo "     enabled; nothing here reaches the provider."
     ;;
 esac
-exit 0
+cr_finish

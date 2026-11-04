@@ -22,8 +22,18 @@
 CRR_SENTINEL='---FOOTBAG-PROBLEM---'
 # The errors are counted in a file, not a variable, because a half often reports
 # from inside a command substitution, whose subshell would otherwise lose the
-# count and let crr_finish exit 0 over an error it printed.
-CRR_ERROR_FILE="$(mktemp)"
+# count and let crr_finish exit 0 over an error it printed. The file is held open
+# on a descriptor every subshell inherits and unlinked at once, so a half that
+# stops early, fails under errexit or is killed leaves nothing on the host; the
+# count is read back through the descriptor, which outlives the name.
+if ! _crr_tally="$(mktemp)"; then
+  printf 'ERROR: %s cannot start: no temp file could be made (TMPDIR=%s).\n' \
+    "$(basename "$0")" "${TMPDIR:-unset}" >&2
+  exit 1
+fi
+exec {CRR_ERROR_FD}>>"$_crr_tally"
+rm -f "$_crr_tally"
+unset _crr_tally
 # Counts kept in this shell, for a half that prints them in its own summary lines;
 # the exit status is decided by the file above, which subshells share.
 CRR_ERRORS=0
@@ -31,7 +41,7 @@ CRR_WARNINGS=0
 
 crr_error() {
   printf '%s ERROR %s\n' "$CRR_SENTINEL" "$*" >&2
-  echo x >> "$CRR_ERROR_FILE"
+  echo x >&"$CRR_ERROR_FD"
   CRR_ERRORS=$((CRR_ERRORS + 1))
 }
 
@@ -101,7 +111,9 @@ crr_run() {
 
 crr_finish() {
   local errors=0
-  [[ -s "$CRR_ERROR_FILE" ]] && errors=1
-  rm -f "$CRR_ERROR_FILE"
+  # A tally that cannot be read is no proof of a clean run.
+  if [[ ! -r "/proc/$$/fd/${CRR_ERROR_FD}" || -s "/proc/$$/fd/${CRR_ERROR_FD}" ]]; then
+    errors=1
+  fi
   exit "$errors"
 }

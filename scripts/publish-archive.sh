@@ -172,6 +172,11 @@ if [[ "$TARGET_ENV" != "staging" && "$TARGET_ENV" != "production" ]]; then
   exit 2
 fi
 
+# Every refusal, every tolerated failure and every problem the tools print is
+# listed once in the closing report at the end; the exit status follows from it.
+# shellcheck source=lib/closing-report.sh
+source "${SCRIPT_DIR}/lib/closing-report.sh"
+
 # Same convention as the edge-proof script this one delegates to, so the two
 # cannot disagree about which key signs the proof.
 : "${SIGNING_KEY:=${HOME}/AWS/archive-signing-key-${TARGET_ENV}.pem}"
@@ -180,10 +185,9 @@ fi
 # after the sync and the invalidation, so an unreadable key would fail a publish
 # whose bucket is already written and whose cache is already cleared.
 if [[ ! -r "$SIGNING_KEY" ]]; then
-  echo "ERROR: signing key not readable: ${SIGNING_KEY}" >&2
   echo "       Provision it with scripts/provision-archive-signing-key.sh," >&2
   echo "       or point --signing-key at the operator key directory." >&2
-  exit 1
+  cr_die "signing key not readable: ${SIGNING_KEY}"
 fi
 
 AWS_ARGS=()
@@ -193,31 +197,25 @@ else
   # No profile named on the command line, so the identity is the one the shared
   # library settles and proves: whatever this shell already carries, or the
   # operator profile. Nothing here asks the operator to export anything.
-  aws_profile_ensure || exit 1
+  aws_profile_ensure || cr_die "could not settle the AWS identity this run publishes as"
 fi
 
 WORK_DIR="$(mktemp -d /tmp/footbag-publish-archive.XXXXXX)"
-trap 'rm -rf "${WORK_DIR}"' EXIT
-# A signal ends the run through the EXIT trap, never through bash's own
-# fatal-signal handling, where a second signal can cut the cleanup short.
-trap "trap '' HUP INT TERM; exit 129" HUP
-trap "trap '' HUP INT TERM; exit 130" INT
-trap "trap '' HUP INT TERM; exit 143" TERM
+cr_cleanup rm -rf "${WORK_DIR}"
 
 # ---- 1. Source preconditions -------------------------------------------------
 
 WWW_ROOT="${MIRROR_ROOT}/www.footbag.org"
 if [[ ! -d "$WWW_ROOT" ]]; then
-  echo "ERROR: ${WWW_ROOT} is missing. The mirror root must be the crawler's" >&2
-  echo "output directory (repo symlink footbag_legacy_mirror points at it)." >&2
-  exit 1
+  echo "The mirror root must be the crawler's output directory" >&2
+  echo "(repo symlink footbag_legacy_mirror points at it)." >&2
+  cr_die "${WWW_ROOT} is missing"
 fi
 for manifest in sitemap.txt redirect_map.json skipped_videos.json skipped_videos_summary.txt; do
   if [[ ! -f "${MIRROR_ROOT}/${manifest}" ]]; then
-    echo "ERROR: crawl manifest missing: ${MIRROR_ROOT}/${manifest}." >&2
     echo "An incomplete mirror root must not be published; re-run the crawler" >&2
     echo "or point --mirror-root at a complete capture." >&2
-    exit 1
+    cr_die "crawl manifest missing: ${MIRROR_ROOT}/${manifest}"
   fi
 done
 
@@ -257,16 +255,19 @@ fi
 # ---- 2. Terraform-owned identifiers -----------------------------------------
 
 TF_DIR="${REPO_ROOT}/terraform/${TARGET_ENV}"
+# Terraform's own message is kept, so an unreadable state is reported as that
+# rather than as an archive stack that was never applied.
+TF_ERR="${WORK_DIR}/terraform_output.err"
 tf_out() {
-  "$TF_BIN" -chdir="$TF_DIR" output -raw "$1" 2>/dev/null || true
+  "$TF_BIN" -chdir="$TF_DIR" output -raw "$1" 2>>"$TF_ERR"
 }
-BUCKET="$(tf_out archive_bucket_name)"
-DIST_ID="$(tf_out archive_distribution_id)"
+BUCKET="$(tf_out archive_bucket_name)" || BUCKET=""
+DIST_ID="$(tf_out archive_distribution_id)" || DIST_ID=""
 if [[ -z "$BUCKET" || -z "$DIST_ID" ]]; then
-  echo "ERROR: archive terraform outputs are empty in ${TF_DIR}." >&2
   echo "The archive stack must be applied (enable_archive = true) and" >&2
   echo "'terraform -chdir=${TF_DIR} output archive_bucket_name' non-empty." >&2
-  exit 1
+  tf_said="$(grep -v '^[[:space:]]*$' "$TF_ERR" | tail -n 1 || [[ $? == 1 ]])"
+  cr_die "archive terraform outputs are empty in ${TF_DIR}: ${tf_said:-terraform printed no error}"
 fi
 
 # ---- 3. Sanitization gate ----------------------------------------------------
@@ -283,12 +284,13 @@ find "$WWW_ROOT" -type f \( -iname '*.jpeg' -o -iname '*.png' -o -iname '*.bmp' 
   -o -iname '*.tiff' -o -iname '*.tif' -o -iname '*.webp' -o -iname '*.mov' \
   -o -iname '*.avi' -o -iname '*.mkv' -o -iname '*.webm' -o -iname '*.wmv' \
   -o -iname '*.divx' -o -iname '*.mpg' -o -iname '*.mpeg' -o -iname '*.flv' \
-  -o -iname '*.m4v' -o -iname '*.ogv' \) > "$LEFTOVER_LIST" || true
+  -o -iname '*.m4v' -o -iname '*.ogv' \) > "$LEFTOVER_LIST" 2> "${WORK_DIR}/find.err" \
+  || cr_die "could not read the whole mirror tree, so its media cannot be vouched for: $(tail -n 1 "${WORK_DIR}/find.err")"
 if [[ -s "$LEFTOVER_LIST" ]]; then
   echo "REFUSING: unconverted media extensions on disk (crawler leftovers);" >&2
   echo "a completed crawl holds only .mp4/.jpg/.gif. Re-run the crawler for:" >&2
   cat "$LEFTOVER_LIST" >&2
-  exit 1
+  cr_die "unconverted media extensions on disk (crawler leftovers): $(grep -c '' "$LEFTOVER_LIST") file(s)"
 fi
 
 if [[ "$UNSANITIZED_COUNT" -gt 0 ]]; then
@@ -297,7 +299,7 @@ if [[ "$UNSANITIZED_COUNT" -gt 0 ]]; then
   echo "crawler so it does, or, if the archive should not serve them, add them to" >&2
   echo "${EXCLUSION_LIST##*/} and publish again:" >&2
   cat "$UNSANITIZED_LIST" >&2
-  exit 1
+  cr_die "${UNSANITIZED_COUNT} media files lack their .sanitized sidecar"
 fi
 
 # ---- 3a. Unrecognized file types ---------------------------------------------
@@ -328,7 +330,8 @@ find "$WWW_ROOT" -type f \
   ! -iname '*.mp4' ! -iname '*.css' ! -iname '*.pdf' ! -iname '*.ics' \
   ! -iname '*.ttf' ! -iname '*.eot' ! -iname '*.woff' ! -iname '*.woff2' \
   ! -iname '*.ico' ! -iname '*.sanitized' ! -iname '*.txt' ! -iname '*.ps' \
-  > "${KNOWN_LIST}.all" || true
+  > "${KNOWN_LIST}.all" 2> "${WORK_DIR}/find.err" \
+  || cr_die "could not read the whole mirror tree, so its file types cannot be vouched for: $(tail -n 1 "${WORK_DIR}/find.err")"
 # A path the exclusion list keeps out of the bucket is not a file anyone has to
 # accept: it is not being published. Dropping them here is what stops the
 # refusal from demanding an override for files the sync will never upload.
@@ -366,7 +369,7 @@ if [[ "$UNKNOWN_COUNT" -gt 0 ]]; then
   echo "  publish and records the decision once instead of per run." >&2
   echo "  A browser, and it simply was not scanned — then the capture needs fixing." >&2
   cat "$KNOWN_LIST" >&2
-  exit 1
+  cr_die "${UNKNOWN_COUNT} files of types nothing has scanned"
 fi
 
 # ---- 3b. Static-archive sanitization gate ------------------------------------
@@ -414,21 +417,36 @@ report_offenders() {
   if [[ "$skipped" -gt 0 ]]; then
     echo "  (${skipped} file(s) ${label}, not published, so not counted)"
   fi
-  count="$(grep -c '' "$published" || true)"
+  count="$(grep -c '' "$published" || [[ $? == 1 ]])"
   if [[ "$count" -gt 0 ]]; then
     echo "REFUSING: ${count} file(s) ${label}." >&2
     head -10 "$published" >&2
     [[ "$count" -gt 10 ]] && echo "  ... and $((count - 10)) more" >&2
+    cr_error "${count} file(s) ${label}"
+    sanitation_fail=1
+  fi
+}
+
+# gate_grep <out> <grep args...>
+# A grep over the tree whose no-match (exit 1) is the healthy answer. One that
+# could not read the tree (exit 2) refuses the publish with grep's own message:
+# a sanitation check that could not look is not one that found nothing.
+gate_grep() {
+  local out="$1" rc=0
+  shift
+  grep "$@" > "$out" 2> "${WORK_DIR}/grep.err" || rc=$?
+  if (( rc > 1 )); then
+    cr_error "a sanitation check could not read the tree (grep exit ${rc}): $(tail -n 1 "${WORK_DIR}/grep.err")"
     sanitation_fail=1
   fi
 }
 
 ADMIN_MARKED="${WORK_DIR}/admin_marked.txt"
-grep -rl --include='*.html' 'class="admin"' "$WWW_ROOT" > "$ADMIN_MARKED" 2>/dev/null || true
+gate_grep "$ADMIN_MARKED" -rl --include='*.html' 'class="admin"' "$WWW_ROOT"
 report_offenders "still carry admin-only contact fields" "$ADMIN_MARKED"
 
 SCRIPTED="${WORK_DIR}/scripted.txt"
-grep -rliE '<script[ >]' --include='*.html' "$WWW_ROOT" > "$SCRIPTED" 2>/dev/null || true
+gate_grep "$SCRIPTED" -rliE '<script[ >]' --include='*.html' "$WWW_ROOT"
 report_offenders "still carry a script tag" "$SCRIPTED"
 
 # The charset check applies to HTML. Some captured files are XML stored under a
@@ -439,14 +457,15 @@ report_offenders "still carry a script tag" "$SCRIPTED"
 # re-run a crawler that cannot change them. They are identified by their own
 # first line rather than by path, so a real page can never be waved through.
 XML_UNDER_HTML="${WORK_DIR}/xml_under_html.txt"
-grep -rn --include='*.html' -m1 -E '^<\?xml' "$WWW_ROOT" 2>/dev/null \
-  | grep -F ':1:<?xml' | sed 's/:1:<?xml.*$//' | sort -u > "$XML_UNDER_HTML" || true
+gate_grep "${XML_UNDER_HTML}.raw" -rn --include='*.html' -m1 -E '^<\?xml' "$WWW_ROOT"
+{ grep -F ':1:<?xml' "${XML_UNDER_HTML}.raw" || [[ $? == 1 ]]; } \
+  | sed 's/:1:<?xml.*$//' | sort -u > "$XML_UNDER_HTML"
 
 NO_CHARSET="${WORK_DIR}/no_charset.txt"
 NO_CHARSET_ALL="${WORK_DIR}/no_charset_all.txt"
-grep -rLi 'charset' --include='*.html' "$WWW_ROOT" > "$NO_CHARSET_ALL" 2>/dev/null || true
+gate_grep "$NO_CHARSET_ALL" -rLi 'charset' --include='*.html' "$WWW_ROOT"
 if [[ -s "$XML_UNDER_HTML" ]]; then
-  grep -xvFf "$XML_UNDER_HTML" "$NO_CHARSET_ALL" > "$NO_CHARSET" || true
+  grep -xvFf "$XML_UNDER_HTML" "$NO_CHARSET_ALL" > "$NO_CHARSET" || [[ $? == 1 ]]
   echo "Charset check: $(grep -c '' "$XML_UNDER_HTML") XML file(s) stored under an .html name exempted."
 else
   cp "$NO_CHARSET_ALL" "$NO_CHARSET"
@@ -454,14 +473,14 @@ fi
 report_offenders "declare no character set" "$NO_CHARSET"
 
 STALE_CSS="${WORK_DIR}/stale_css.txt"
-grep -rl --include='*.css' 'http://www.footbag.org/' "$WWW_ROOT" > "$STALE_CSS" 2>/dev/null || true
+gate_grep "$STALE_CSS" -rl --include='*.css' 'http://www.footbag.org/' "$WWW_ROOT"
 report_offenders "are stylesheets addressing the legacy host" "$STALE_CSS"
 
 if [[ "$sanitation_fail" -ne 0 ]]; then
   echo "" >&2
   echo "Re-run the crawler over this tree so its sanitization passes apply, then" >&2
   echo "publish again. These are not overridable: each one leaks or breaks." >&2
-  exit 1
+  cr_die "the sanitization gate refused the capture; nothing was uploaded"
 fi
 echo "Sanitization gate: no admin-only fields, scripts, missing charsets, or legacy-host stylesheet URLs."
 
@@ -479,29 +498,29 @@ echo "Sanitization gate: no admin-only fields, scripts, missing charsets, or leg
 # precisely the shape of a verification that looks complete while checking less
 # than it claims. Those two stand between a reader and material no reader may
 # see, so a skip in either refuses the publish. Other checks may legitimately
-# skip on a capture that predates what they read, and those are left to the
-# operator's eye rather than held against the publish.
+# skip on a capture that predates what they read; those do not hold the publish,
+# but each is listed as a warning in the closing report.
 if [[ ! -f "$TREE_VERIFIER" ]]; then
-  echo "ERROR: the mirror verifier is missing: ${TREE_VERIFIER}" >&2
   echo "A publish is not allowed to skip verification of the tree it ships." >&2
-  exit 1
+  cr_die "the mirror verifier is missing: ${TREE_VERIFIER}"
 fi
 VERIFY_OUT="${WORK_DIR}/verify_tree.txt"
 echo "Verifying the capture with ${TREE_VERIFIER##*/}; this reads every page ..."
-if ! bash "$TREE_VERIFIER" --mirror "$MIRROR_ROOT" | tee "$VERIFY_OUT"; then
+if ! bash "$TREE_VERIFIER" --mirror "$MIRROR_ROOT" 2>&1 | tee "$VERIFY_OUT"; then
   echo "" >&2
-  echo "REFUSING: the capture did not pass verification. Nothing was uploaded." >&2
   echo "Fix the capture (re-run the crawler over it) and publish again." >&2
-  exit 1
+  cr_harvest --errors '^[[:space:]]*FAIL[[:space:]]|^Error:' --warnings '' "mirror verifier" "$VERIFY_OUT"
+  cr_die "REFUSING: the capture did not pass verification. Nothing was uploaded."
 fi
-SKIPPED_GUARDS="$(grep -E '^[[:space:]]*SKIP[[:space:]]+(no excluded surface survived|no personal detail of the account owner)' "$VERIFY_OUT" || true)"
+cr_harvest --errors '' --warnings '^[[:space:]]*SKIP[[:space:]]' "mirror verifier" "$VERIFY_OUT"
+SKIPPED_GUARDS="$(grep -E '^[[:space:]]*SKIP[[:space:]]+(no excluded surface survived|no personal detail of the account owner)' "$VERIFY_OUT" || [[ $? == 1 ]])"
 if [[ -n "$SKIPPED_GUARDS" ]]; then
   echo "" >&2
   echo "REFUSING: verification skipped a check that guards what a reader must" >&2
   echo "never see. Supply what it names below and publish again; a check that" >&2
   echo "did not run is not a check that passed:" >&2
   printf '%s\n' "$SKIPPED_GUARDS" >&2
-  exit 1
+  cr_die "verification skipped a check that guards what a reader must never see"
 fi
 echo "Capture verification: passed, with both privacy checks run rather than skipped."
 
@@ -524,17 +543,30 @@ if [[ "$TARGET_ENV" == "production" && "$DRY_RUN" -eq 0 ]]; then
   echo "  distribution  ${DIST_ID}, the whole cache invalidated (/*)"
   echo "What the public archive serves is replaced by this capture."
   if ! confirm_from_tty "Type APPLY to publish to production: " "APPLY"; then
-    echo "Not confirmed; nothing was uploaded, deleted, or invalidated." >&2
-    exit 1
+    cr_die "Not confirmed; nothing was uploaded, deleted, or invalidated."
   fi
 fi
 
+# The listing before the sync feeds only the progress estimate and the dry run's
+# reconciliation preview; the post-publish checks that gate the invalidation take
+# their own listing after the sync. So a failed listing here is a warning with
+# AWS's message, never a silent empty bucket. An empty bucket answers non-zero
+# too, which the warning says.
 BUCKET_LISTING="${WORK_DIR}/bucket_before.txt"
-"$AWS_BIN" s3 ls "s3://${BUCKET}" --recursive "${AWS_ARGS[@]}" > "$BUCKET_LISTING" || true
+BUCKET_LISTED=1
+if ! "$AWS_BIN" s3 ls "s3://${BUCKET}" --recursive "${AWS_ARGS[@]}" > "$BUCKET_LISTING" 2> "${WORK_DIR}/ls_before.err"; then
+  BUCKET_LISTED=0
+  ls_said="$(grep -v '^[[:space:]]*$' "${WORK_DIR}/ls_before.err" | tail -n 1 || [[ $? == 1 ]])"
+  cr_warn "the bucket listing before the sync failed, so the progress estimate and any reconciliation preview are unreliable (an empty bucket also answers this way): ${ls_said:-aws printed no message}"
+fi
 echo "Bucket before: $(wc -l < "$BUCKET_LISTING") objects"
 
 # ---- 5. Sync -----------------------------------------------------------------
 
+# How aws s3 sync reports a problem on a line of its own: a transfer that
+# failed, a fatal error, or a file it skipped with a warning.
+SYNC_ERRORS='^(upload|download|copy|delete) failed:|^fatal error:'
+SYNC_WARNINGS='^warning:'
 SYNC_ARGS=(
   s3 sync "${WWW_ROOT}/" "s3://${BUCKET}/"
   --exclude "*.sanitized"
@@ -576,19 +608,26 @@ LC_ALL=C sort -o "$INTENDED_KEYS" "$INTENDED_KEYS"
 # put them there and must not take them away.
 stale_keys_from() {
   local listing="$1" out="$2"
+  # An empty listing (a first publish) leaves grep nothing to print, which is
+  # its exit 1 and not a failure.
   sed -E 's/^[0-9-]+ [0-9:]+ +[0-9]+ //' "$listing" \
-    | grep -v '^_gate/' \
+    | { grep -v '^_gate/' || [[ $? == 1 ]]; } \
     | LC_ALL=C sort > "${WORK_DIR}/bucket_keys.txt"
   comm -23 "${WORK_DIR}/bucket_keys.txt" "$INTENDED_KEYS" > "$out"
 }
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
   echo "DRY RUN (--dry-run): listing what a publish would change."
-  "$AWS_BIN" "${SYNC_ARGS[@]}" --dryrun "${AWS_ARGS[@]}" | tee "${WORK_DIR}/dryrun.txt" | tail -20
+  "$AWS_BIN" "${SYNC_ARGS[@]}" --dryrun "${AWS_ARGS[@]}" 2>&1 | tee "${WORK_DIR}/dryrun.txt" | tail -20
   echo "Dry-run change count: $(wc -l < "${WORK_DIR}/dryrun.txt")"
+  # Only the tail is shown, so a problem the sync printed earlier is read here.
+  cr_harvest --errors "$SYNC_ERRORS" --warnings "$SYNC_WARNINGS" "s3 sync (dry run)" "${WORK_DIR}/dryrun.txt"
   stale_keys_from "$BUCKET_LISTING" "${WORK_DIR}/stale_dry.txt"
   STALE_DRY="$(wc -l < "${WORK_DIR}/stale_dry.txt")"
-  if [[ "$STALE_DRY" -gt 0 ]]; then
+  if [[ "$BUCKET_LISTED" -eq 0 ]]; then
+    echo "Reconciliation: not previewed; the bucket could not be listed."
+    cr_unproved "which stale keys a real run would remove (the bucket could not be listed)"
+  elif [[ "$STALE_DRY" -gt 0 ]]; then
     echo "Reconciliation: ${STALE_DRY} key(s) in the bucket that this publish does not"
     echo "intend and the sync cannot reach; a real run removes them:"
     head -20 "${WORK_DIR}/stale_dry.txt"
@@ -599,7 +638,9 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
     echo "Reconciliation: nothing stale; the bucket holds only intended keys."
   fi
   echo "DRY RUN complete; nothing was uploaded, deleted, or invalidated."
-  exit 0
+  cr_proved "the capture passed every source gate (dry run)"
+  cr_unproved "the publish itself, the post-publish checks and the edge proof (dry run)"
+  cr_finish
 fi
 
 # Video is nearly all of the bytes a publish moves, and on a first upload it
@@ -679,7 +720,14 @@ report_sync_progress() {
 echo "Applying sync to s3://${BUCKET} ..."
 echo "Videos to upload: about ${VIDEO_TOTAL}, $(format_gb "$VIDEO_TOTAL_BYTES")"
 SYNC_START="$(date +%s)"
-"$AWS_BIN" "${SYNC_ARGS[@]}" "${AWS_ARGS[@]}" | report_sync_progress "${WORK_DIR}/sync.txt"
+# The terminal shows only the videos, so every problem line the sync printed is
+# read back from its log into the closing report.
+sync_rc=0
+"$AWS_BIN" "${SYNC_ARGS[@]}" "${AWS_ARGS[@]}" 2>&1 | report_sync_progress "${WORK_DIR}/sync.txt" || sync_rc=$?
+cr_harvest --errors "$SYNC_ERRORS" --warnings "$SYNC_WARNINGS" "s3 sync" "${WORK_DIR}/sync.txt"
+if [[ "$sync_rc" -ne 0 ]]; then
+  cr_die "the sync exited ${sync_rc}; NOT invalidating. Investigate before re-running."
+fi
 SYNC_SECONDS="$(( $(date +%s) - SYNC_START ))"
 echo "Sync complete in ${SYNC_SECONDS}s: $(wc -l < "${WORK_DIR}/sync.txt") operations"
 
@@ -710,8 +758,8 @@ fi
 
 fail=0
 for key in index.html _gate/denied.html _gate/not-found.html; do
-  if ! "$AWS_BIN" s3api head-object --bucket "$BUCKET" --key "$key" "${AWS_ARGS[@]}" >/dev/null 2>&1; then
-    echo "ERROR: expected key missing after sync: ${key}" >&2
+  if ! "$AWS_BIN" s3api head-object --bucket "$BUCKET" --key "$key" "${AWS_ARGS[@]}" >/dev/null 2> "${WORK_DIR}/head.err"; then
+    cr_error "expected key missing after sync: ${key}: $(tail -n 1 "${WORK_DIR}/head.err")"
     fail=1
   fi
 done
@@ -727,7 +775,7 @@ else
 fi
 echo "Bucket after: $(wc -l < "$AFTER_LISTING") objects"
 if grep -q '\.sanitized$' "$AFTER_LISTING"; then
-  echo "ERROR: .sanitized sidecar keys present in the bucket" >&2
+  cr_error ".sanitized sidecar keys present in the bucket"
   fail=1
 fi
 for manifest in sitemap.txt redirect_map.json skipped_videos.json skipped_videos_summary.txt; do
@@ -739,14 +787,14 @@ for manifest in sitemap.txt redirect_map.json skipped_videos.json skipped_videos
   # publish went on to invalidate the CDN and serve a manifest that carries the
   # crawling workstation's filesystem paths.
   if grep -qx "$manifest" <<< "$(awk '{print $4}' "$AFTER_LISTING")"; then
-    echo "ERROR: crawl manifest published to the bucket root: ${manifest}" >&2
+    cr_error "crawl manifest published to the bucket root: ${manifest}"
     fail=1
   fi
 done
 if [[ "$fail" -ne 0 ]]; then
-  echo "PUBLISH FAILED verification; NOT invalidating. Investigate before re-running." >&2
-  exit 1
+  cr_die "PUBLISH FAILED verification; NOT invalidating. Investigate before re-running."
 fi
+cr_proved "the bucket holds the landing page and both gate pages, and no sidecar or crawl manifest"
 
 # ---- 7. Invalidation ---------------------------------------------------------
 
@@ -767,9 +815,11 @@ echo "Invalidation created: ${INVALIDATION_ID} (distribution ${DIST_ID})"
 EDGE_ARGS=(--target "$TARGET_ENV" --signing-key "$SIGNING_KEY")
 [[ -n "$AWS_PROFILE_ARG" ]] && EDGE_ARGS+=(--profile "$AWS_PROFILE_ARG")
 if ! bash "$EDGE_VERIFIER" "${EDGE_ARGS[@]}"; then
-  echo "ERROR: edge verification failed after publish. If the invalidation just" >&2
-  echo "ran, the edge may still be settling; retry before investigating." >&2
-  exit 1
+  echo "If the invalidation just ran, the edge may still be settling; retry" >&2
+  echo "before investigating." >&2
+  cr_die "edge verification failed after publish"
 fi
+cr_proved "a member's signed request reads the archive through the distribution"
 
 echo "PUBLISH: ${TARGET_ENV} archive publish complete (${SRC_COUNT} source files, sync ${SYNC_SECONDS}s, invalidation ${INVALIDATION_ID})"
+cr_finish

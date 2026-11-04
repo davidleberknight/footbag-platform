@@ -117,6 +117,10 @@ interface Estate {
   runtimeTrustUnreadable?: boolean;
   /** Listing the role's inline policies fails, as a throttled call does. */
   inlineUnlistable?: boolean;
+  /** Reading the job role fails for a reason other than its absence. */
+  roleUnreadable?: boolean;
+  /** Listing the role's attached policies fails, as a throttled call does. */
+  attachedUnlistable?: boolean;
 }
 
 const HEALTHY: Required<Estate> = {
@@ -154,7 +158,15 @@ const HEALTHY: Required<Estate> = {
   runtimeTrustNamesJobRole: true,
   runtimeTrustUnreadable: false,
   inlineUnlistable: false,
+  roleUnreadable: false,
+  attachedUnlistable: false,
 };
+
+/** The closing report: everything from its heading on. */
+function closingReport(stderr: string): string {
+  const at = stderr.lastIndexOf('Closing report');
+  return at === -1 ? '' : stderr.slice(at);
+}
 
 let workDir: string;
 
@@ -192,9 +204,13 @@ function awsStub(estate: Estate): string {
       '    if [[ " $* " == *" footbag-staging-app-runtime "* ]]; then',
       `      ${e.runtimeTrustUnreadable ? 'exit 254' : `printf '%s\\n' ${JSON.stringify(JSON.stringify(e.runtimeTrustNamesJobRole ? { Statement: [{ Effect: 'Allow', Action: 'sts:AssumeRole', Principal: { AWS: ['arn:aws:iam::111122223333:user/footbag-operator', 'arn:aws:iam::111122223333:role/FootbagDevTester'] } }] } : { Statement: [{ Effect: 'Allow', Action: 'sts:AssumeRole', Principal: { AWS: ['arn:aws:iam::111122223333:user/footbag-operator'] } }] }))}; exit 0`}`,
       '    fi',
-      `    ${e.roleExists ? "printf '{}\\n'; exit 0" : 'exit 254'} ;;`,
+      e.roleUnreadable
+        ? '    echo "An error occurred (AccessDenied) when calling the GetRole operation: User is not authorized to perform: iam:GetRole" >&2; exit 254 ;;'
+        : `    ${e.roleExists ? "printf '{}\\n'; exit 0" : 'echo "An error occurred (NoSuchEntity) when calling the GetRole operation: The role with name FootbagDevTester cannot be found." >&2; exit 254'} ;;`,
       '  simulate-principal-policy) ;;',
-      e.jobPoliciesAttached
+      e.attachedUnlistable
+        ? '  list-attached-role-policies) echo "An error occurred (Throttling) when calling the ListAttachedRolePolicies operation: Rate exceeded" >&2; exit 254 ;;'
+        : e.jobPoliciesAttached
         ? `  list-attached-role-policies) printf 'FootbagDevTester-StagingServices\\tFootbagDevTester-EdgeAndIdentity\\tFootbagDevTester-Guardrails\\n'; exit 0 ;;`
         : `  list-attached-role-policies) printf 'FootbagDevTester-StagingServices\\n'; exit 0 ;;`,
       e.inlineUnlistable
@@ -376,6 +392,45 @@ describe('verify-dev-tester-role-denials.sh — before the identity tree is appl
     // at plan on an uninitialized backend.
     const r = run({ roleExists: false });
     expect(r.stderr).toMatch(/terraform-apply\.sh --target identity --init/);
+  });
+
+  it('reports a role it could not read as unread, with what AWS said, never as a tree not yet applied', () => {
+    // Read as absent, a denied or throttled read would send the operator to
+    // apply an identity tree that is already applied, and hide the real cause.
+    const r = run({ roleUnreadable: true });
+    expect(r.status).toBe(1);
+    expect(r.stderr).not.toMatch(/no FootbagDevTester role/);
+    expect(closingReport(r.stderr)).toMatch(/could not read the FootbagDevTester role.*AccessDenied/);
+  });
+});
+
+describe('verify-dev-tester-role-denials.sh — the closing report', () => {
+  it('lists a weaker-than-intended result at the end of a run that exits 0', () => {
+    // Printed only among seventy PASS lines, an implicit deny is read past: the
+    // operator reads the end of the run, sees no findings, and never learns the
+    // guarantee is missing.
+    const r = run({ lifecycleImplicit: 'iam:TagUser' });
+    expect(r.status, r.stderr).toBe(0);
+    expect(closingReport(r.stderr)).toMatch(/iam:TagUser is implicitDeny/);
+  });
+
+  it('lists every finding at the end of a run that fails', () => {
+    // A FAIL line in the middle of the run, with only a count at the end, sends
+    // the operator scrolling back through the run to find which denial broke.
+    const r = run({ lifecycleAllowed: 'iam:CreateAccessKey', staticIpReleasable: true });
+    expect(r.status).toBe(1);
+    const report = closingReport(r.stderr);
+    expect(report).toMatch(/iam:CreateAccessKey came back allowed/);
+    expect(report).toMatch(/lightsail:ReleaseStaticIp is granted/);
+  });
+
+  it('reports attached policies it could not list as unread, not as three policies missing', () => {
+    // Read as empty, a throttled listing would send the operator to apply the
+    // identity tree over policies that are attached.
+    const r = run({ attachedUnlistable: true });
+    expect(r.status).toBe(1);
+    expect(r.stderr).not.toMatch(/is not attached; apply the identity tree/);
+    expect(closingReport(r.stderr)).toMatch(/attached policies could not be listed.*Throttling/);
   });
 });
 

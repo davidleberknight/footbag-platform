@@ -259,6 +259,12 @@ const RUN_QUALITY_LADDER: readonly ComboAnalysisRunQualityEntry[] = [
 import {
   OBSERVATIONAL_TRICKS,
 } from '../content/freestyleObservationalTricks';
+// Current: Emerging Vocabulary is read from a generated module, frozen at go-live. This is a
+// temporarily accepted deviation from the rule that no file under src/ is generated, taken only
+// because of schedule risk to go-live and because the refactor is large and low priority; until
+// it is done no admin can record or change a ruling in the app.
+// Target: these reads come from the Emerging Vocabulary database tables, derived per request, and
+// the generated module is deleted, in the post-go-live cleanup of the maintainers' private plan.
 import {
   OBSERVATIONAL_UNIVERSE,
   OBSERVATIONAL_UNIVERSE_STATS,

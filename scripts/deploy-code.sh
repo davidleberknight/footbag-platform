@@ -50,8 +50,17 @@
 #     /srv/footbag/db, which is what the containers mount
 #   /srv/footbag/footbag.db and its -wal and -shm sidecars, the older layout
 #   /srv/footbag/media, /srv/footbag/data and /srv/footbag/.curated-build
+#
+# Every run ends with one closing report (scripts/lib/closing-report.sh) listing
+# every error and warning it met, the host half's included: the remote half
+# reports through scripts/lib/closing-report-remote.sh, sent ahead of it on the
+# same stream. Run by the orchestrator, the report folds into the one the
+# operator's entry point prints.
 
 set -euo pipefail
+
+# shellcheck source=lib/closing-report.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/closing-report.sh"
 
 # ── Args / help ───────────────────────────────────────────────────────────────
 
@@ -100,7 +109,7 @@ if [[ $# -gt 0 ]]; then
       FIRST_INSTALL=1
       shift
       if [[ "${1:-}" != "--target" || $# -ne 2 ]]; then
-        echo "ERROR: --first-install takes exactly --target <staging|production>." >&2
+        cr_error "--first-install takes exactly --target <staging|production>."
         exit 2
       fi
       FIRST_INSTALL_TARGET="$2"
@@ -108,12 +117,12 @@ if [[ $# -gt 0 ]]; then
       source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/host-env-remote.sh"
       require_target "$FIRST_INSTALL_TARGET" staging production || exit 2
       if [[ -n "${DEPLOY_TARGET:-}" && "$DEPLOY_TARGET" != "footbag-${FIRST_INSTALL_TARGET}" ]]; then
-        echo "ERROR: DEPLOY_TARGET names '${DEPLOY_TARGET}', but --target names ${FIRST_INSTALL_TARGET}." >&2
+        cr_error "DEPLOY_TARGET names '${DEPLOY_TARGET}', but --target names ${FIRST_INSTALL_TARGET}."
         exit 2
       fi
       ;;
     *)
-      echo "ERROR: unknown argument '$1'. This script takes none; deploy_to_aws.sh" >&2
+      cr_error "unknown argument '$1'. This script takes none; deploy_to_aws.sh"
       echo "       runs it with the environment named by its own --target." >&2
       usage >&2
       exit 2
@@ -121,12 +130,12 @@ if [[ $# -gt 0 ]]; then
   esac
 fi
 if (( FIRST_INSTALL )) && [[ -n "${MIGRATION_SQL:-}" ]]; then
-  echo "ERROR: --first-install installs onto a host with no database, so it carries no migration." >&2
+  cr_error "--first-install installs onto a host with no database, so it carries no migration."
   exit 2
 fi
 
 if [[ -t 0 ]]; then
-  echo "ERROR: must receive sudo password on stdin." >&2
+  cr_error "must receive sudo password on stdin."
   echo "       Run via: bash deploy_to_aws.sh -k" >&2
   echo "" >&2
   usage >&2
@@ -163,6 +172,9 @@ HOST_VALUES_LIB="${SCRIPT_DIR}/lib/host-values.sh"
 # changes anything: the host's sqlite3, docker, Compose plugin and Amazon Linux
 # release against the pins sent below.
 HOST_TOOL_VERSIONS_LIB="${SCRIPT_DIR}/internal/host-tool-versions-remote.sh"
+# Travels first of all and defines how the remote half reports its problems, so
+# they land in this run's closing report.
+REMOTE_REPORT_LIB="${SCRIPT_DIR}/lib/closing-report-remote.sh"
 
 # shellcheck source=lib/terminal.sh
 source "${REPO_ROOT}/scripts/lib/terminal.sh"
@@ -187,7 +199,7 @@ source "${REPO_ROOT}/scripts/lib/tool-versions.sh"
 # Staging is deliberately not gated. It is fed a credential file with nobody at the
 # keyboard by design, and its data is disposable.
 if [[ "$REMOTE" == "footbag-production" ]] && ! terminal_present; then
-  echo "ERROR: a production deploy requires a terminal, and none is attached." >&2
+  cr_error "a production deploy requires a terminal, and none is attached."
   echo "       Run: bash deploy_to_aws.sh -k" >&2
   echo "       It asks for the typed confirmation and takes the host password at" >&2
   echo "       the terminal. There is no unattended form of a production deploy," >&2
@@ -273,7 +285,7 @@ case "$REMOTE" in
   footbag-production) FOOTBAG_ENV="production" ;;
   footbag-staging)    FOOTBAG_ENV="staging"    ;;
   *)
-    echo "ERROR: cannot derive FOOTBAG_ENV from REMOTE='$REMOTE'." >&2
+    cr_error "cannot derive FOOTBAG_ENV from REMOTE='$REMOTE'."
     echo "       Expected exactly 'footbag-staging' or 'footbag-production'." >&2
     exit 1
     ;;
@@ -313,9 +325,10 @@ dev_tester_identity_agreement_require || exit 1
 source "${REPO_ROOT}/scripts/lib/infra-sync.sh"
 infra_sync_require "$REPO_ROOT" "$FOOTBAG_ENV" || exit 1
 
-[[ -r "$REMOTE_HALF" ]] || { echo "ERROR: missing remote-half: $REMOTE_HALF" >&2; exit 1; }
-[[ -r "$PRUNE_LIB" ]] || { echo "ERROR: missing pruning helper: $PRUNE_LIB" >&2; exit 1; }
-command -v docker >/dev/null || { echo "ERROR: docker required locally for image build" >&2; exit 1; }
+[[ -r "$REMOTE_HALF" ]] || cr_die "missing remote-half: $REMOTE_HALF"
+[[ -r "$PRUNE_LIB" ]] || cr_die "missing pruning helper: $PRUNE_LIB"
+[[ -r "$REMOTE_REPORT_LIB" ]] || cr_die "missing remote-half report library: $REMOTE_REPORT_LIB"
+command -v docker >/dev/null || cr_die "docker required locally for image build"
 
 HOST_IP=$(ssh -G "$REMOTE" | awk '/^hostname / {print $2}')
 
@@ -353,7 +366,7 @@ REMOTE_HOME="$(ssh "${SSH_OPTS[@]}" "$REMOTE" 'printf %s "$HOME"' </dev/null)"
 # banner is the one that does, and it survives every check downstream because
 # both halves are handed the same wrong value and therefore agree.
 if [[ -z "$REMOTE_HOME" || "$REMOTE_HOME" != /* ]]; then
-  echo "ERROR: could not resolve the home directory of the deploy account on $REMOTE." >&2
+  cr_error "could not resolve the home directory of the deploy account on $REMOTE."
   echo "       Refusing rather than guessing: the upload and the promotion must" >&2
   echo "       name the same directory, and a guess that is wrong ships somebody" >&2
   echo "       else's release." >&2
@@ -484,16 +497,13 @@ require_images_for_hosts || exit 1
 # daemon may re-serialize the image config JSON, producing a benign hash
 # difference on identical content.
 WEB_IMAGE_LAYERS=$(docker image inspect --format='{{range .RootFS.Layers}}{{.}} {{end}}' docker-web 2>/dev/null) || {
-  echo "ERROR: docker image inspect failed for docker-web (build did not produce expected image)" >&2
-  exit 1
+  cr_die "docker image inspect failed for docker-web (build did not produce expected image)"
 }
 WORKER_IMAGE_LAYERS=$(docker image inspect --format='{{range .RootFS.Layers}}{{.}} {{end}}' docker-worker 2>/dev/null) || {
-  echo "ERROR: docker image inspect failed for docker-worker" >&2
-  exit 1
+  cr_die "docker image inspect failed for docker-worker"
 }
 IMAGE_IMAGE_LAYERS=$(docker image inspect --format='{{range .RootFS.Layers}}{{.}} {{end}}' docker-image 2>/dev/null) || {
-  echo "ERROR: docker image inspect failed for docker-image" >&2
-  exit 1
+  cr_die "docker image inspect failed for docker-image"
 }
 
 # ── Step 4: Transfer images to host via docker save | docker load ────────────
@@ -535,11 +545,25 @@ else
   # restart from. `image prune` without -a takes only dangling images, which is
   # exactly what the previous :latest becomes, and cannot touch a tagged image
   # whatever the container state; `builder prune` takes the build cache. Neither
-  # removes a container.
+  # removes a container. A failure is a warning in the closing report carrying
+  # the tool's own message, so a host whose disk was not reclaimed is said so at
+  # the end rather than once in the middle of the transfer.
   echo "==> Reclaiming host disk (journal vacuum + dangling images + build cache)..."
-  printf '%s\n' "$SUDO_PASS" \
-    | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" sh -c "journalctl --vacuum-time=7d; docker image prune -f; docker builder prune -af"' \
-    || echo "    WARNING: host disk-reclaim step failed; continuing." >&2
+  # Each step runs under the remote report library's crr_run, so a failing one
+  # is marked with the tool's own last line and reaches the report that way: the
+  # session itself is privileged, so nothing else it prints is written down.
+  reclaim_host_disk() {
+    {
+      printf '%s\n' "$SUDO_PASS"
+      cat "$REMOTE_REPORT_LIB"
+      printf '%s\n' \
+        'crr_run "journal vacuum" -- journalctl --vacuum-time=7d' \
+        'crr_run "dangling images" -- docker image prune -f' \
+        'crr_run "build cache" -- docker builder prune -af' \
+        'crr_finish'
+    } | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
+  }
+  cr_tolerate_marked "host disk reclaim on $REMOTE (the deploy continued)" -- reclaim_host_disk
   send_images_to_host
 fi
 
@@ -599,6 +623,12 @@ if [[ "$DEPLOY_DIRTY_COUNT" != "0" ]]; then
 fi
 
 echo "==> Running remote-as-root deploy (promote, restart)..."
+# The host half's problems are read into this run's closing report: every line it
+# marks through the report library sent first on the stream, and every line it
+# prints in the ERROR: or WARNING: form. Its exit status still stops this run.
+REMOTE_HALF_ERRORS='^[[:space:]]*ERROR:'
+REMOTE_HALF_WARNINGS='^[[:space:]]*WARN(ING)?:'
+send_remote_half() {
 {
   printf '%s\n' "$SUDO_PASS"
   printf 'DEPLOY_PROVENANCE=%q\n'            "$DEPLOY_PROVENANCE"
@@ -628,11 +658,15 @@ echo "==> Running remote-as-root deploy (promote, restart)..."
   printf 'EXPECTED_DOCKER_ENGINE=%q\n'      "$PIN_DOCKER_ENGINE"
   printf 'EXPECTED_COMPOSE_VERSION=%q\n'    "$PIN_COMPOSE_VERSION"
   printf 'EXPECTED_AMAZON_LINUX_RELEASE=%q\n' "$PIN_AMAZON_LINUX_RELEASE"
-  # The pruning helper and the host-value catalogue define data and functions and
-  # run nothing, so the remote half can call them: the pruner once the new
-  # release reports ready, the catalogue's sync where the parameters land.
-  cat "$PRUNE_LIB" "$HOST_TOOL_VERSIONS_LIB" "$HOST_VALUES_LIB" "$REMOTE_HALF"
+  # The report library, the pruning helper and the host-value catalogue define
+  # data and functions and run nothing, so the remote half can call them: the
+  # report functions throughout, the pruner once the new release reports ready,
+  # the catalogue's sync where the parameters land.
+  cat "$REMOTE_REPORT_LIB" "$PRUNE_LIB" "$HOST_TOOL_VERSIONS_LIB" "$HOST_VALUES_LIB" "$REMOTE_HALF"
 } | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
+}
+cr_run_marked --errors "$REMOTE_HALF_ERRORS" --warnings "$REMOTE_HALF_WARNINGS" \
+  "host half on $REMOTE" -- send_remote_half || exit 1
 
 # Nothing is serving yet, so there is nothing to smoke-check and the env file is
 # not yet the one a running site reads; the code deploy that follows the restore
@@ -643,7 +677,9 @@ if (( FIRST_INSTALL )); then
   echo "with its erasure replay, which starts the service:"
   echo "  bash scripts/restore-db.sh --target $FOOTBAG_ENV --onto-empty"
   echo "then run the code deploy, which verifies the site."
-  exit 0
+  cr_proved "the release and its images were installed on $REMOTE (the host half's checks)"
+  cr_unproved "the site: nothing is serving until the restore starts it and the code deploy smoke-checks it"
+  cr_finish
 fi
 
 # ── Step 5: Smoke check ───────────────────────────────────────────────────────
@@ -662,11 +698,13 @@ smoke_url="$HOST_PUBLIC_BASE_URL"
 
 if [[ "$SKIP_SMOKE" == "yes" ]]; then
   echo "==> Skipping post-deploy smoke check (SKIP_SMOKE=yes)"
+  cr_warn "the post-deploy smoke checks were skipped (SKIP_SMOKE=yes)"
+  cr_unproved "the site answering after this deploy: the smoke checks were skipped"
 elif [[ -z "$smoke_url" ]]; then
   # A deploy must never complete with smoke silently skipped: a deploy that
   # "succeeds" unverified is false confidence. SKIP_SMOKE=yes is a staging-only
   # override; the release gate refuses it on production.
-  echo "ERROR: $REMOTE records no PUBLIC_BASE_URL, so the deploy cannot be" >&2
+  cr_error "$REMOTE records no PUBLIC_BASE_URL, so the deploy cannot be"
   echo "       smoke-checked and will not report itself as done." >&2
   echo "       The deploy syncs it from /footbag/$FOOTBAG_ENV/app/public_base_url, which" >&2
   echo "       Terraform publishes once CloudFront is enabled; apply the tree and redeploy." >&2
@@ -674,7 +712,7 @@ elif [[ -z "$smoke_url" ]]; then
 else
   echo "==> Running smoke check against $smoke_url ..."
   if ! BASE_URL="$smoke_url" SMOKE_ENV="$FOOTBAG_ENV" bash "$REPO_ROOT/scripts/smoke-local.sh"; then
-    echo "ERROR: post-deploy smoke check failed against $smoke_url" >&2
+    cr_error "post-deploy smoke check failed against $smoke_url"
     echo "Inspect the host logs over the pinned connection: bash scripts/host-diagnostics.sh --target $FOOTBAG_ENV web-logs 200" >&2
     exit 1
   fi
@@ -683,10 +721,11 @@ else
   # smoke above.
   echo "==> Running security smoke probes against $smoke_url ..."
   if ! BASE_URL="$smoke_url" SMOKE_ENV="$FOOTBAG_ENV" bash "$REPO_ROOT/scripts/smoke-security.sh"; then
-    echo "ERROR: security smoke probes failed against $smoke_url" >&2
+    cr_error "security smoke probes failed against $smoke_url"
     echo "Inspect the host logs over the pinned connection: bash scripts/host-diagnostics.sh --target $FOOTBAG_ENV web-logs 200" >&2
     exit 1
   fi
+  cr_proved "the route smoke and the security smoke probes passed against $smoke_url"
 fi
 
 # The host's whole env file, held against Terraform, the committed host config
@@ -701,10 +740,11 @@ if [[ -n "${DEPLOY_VERIFY_HOST_ENV_CMD:-}" ]]; then
 fi
 echo "==> Verifying $REMOTE's env file ..."
 if ! printf '%s\n' "$SUDO_PASS" | bash "$VERIFY_HOST_ENV_CMD" --target "$FOOTBAG_ENV"; then
-  echo "ERROR: $REMOTE's env file failed verification after the deploy; each FAIL above names its fix." >&2
+  cr_error "$REMOTE's env file failed verification after the deploy; each FAIL above names its fix."
   echo "       The release is live, so fix what failed and deploy again." >&2
   exit 1
 fi
+cr_proved "$REMOTE's env file passed verification after the deploy"
 
 echo ""
 echo "Deploy complete."
@@ -713,3 +753,5 @@ echo "Origin: http://$HOST_IP" >&2
 # The one check a curl smoke cannot make: pages loading in a real browser with
 # nothing refused by the content security policy and no script errors.
 echo "Next: the read-only browser check, npm run test:deployed -- --target ${FOOTBAG_ENV}"
+cr_unproved "pages in a real browser: npm run test:deployed -- --target ${FOOTBAG_ENV}"
+cr_finish

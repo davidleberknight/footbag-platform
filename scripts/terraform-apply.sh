@@ -547,6 +547,47 @@ fi
 # sensitive. Each defaults to null, so the shared tree still plans without the file
 # while the contacts stay unset behind enable_account_alternate_contacts.
 
+# Every Terraform error and warning the run meets, and every refusal, is listed
+# once in the closing report at the end; the exit status follows from it. A run
+# started by terraform-apply-all.sh hands its list to that run's report instead.
+# shellcheck source=lib/closing-report.sh
+source "${REPO_ROOT}/scripts/lib/closing-report.sh"
+
+# How Terraform reports a diagnostic once its colour is taken out: on a line of
+# its own, inside the box it draws, with the severity first.
+TF_ERRORS='^(│ )?Error: '
+TF_WARNINGS='^(│ )?Warning: '
+
+# tf_uncolour <capture>: takes Terraform's colour escapes out of a capture in
+# place, so the diagnostics read back by the patterns above. The colour stays on
+# the terminal; only the copy that is read loses it.
+tf_uncolour() {
+  local plain
+  plain="$(sed 's/\x1b\[[0-9;]*m//g' "$1")"
+  printf '%s\n' "$plain" > "$1"
+}
+
+# The plan file and every capture of Terraform's output are shredded on every
+# exit path, an interrupt included: the plan is a zip that can carry live
+# secrets, and the captures hold resource names and diagnostics that can quote
+# values. A file that could only be unlinked is listed.
+TF_PLAN=""
+TF_PLAN_LOG=""
+TF_SHOW_ERR=""
+TF_INIT_LOG=""
+TF_APPLY_LOG=""
+shred_run_files() {
+  local f
+  for f in "${TF_PLAN:-}" "${TF_PLAN_LOG:-}" "${TF_SHOW_ERR:-}" "${TF_INIT_LOG:-}" "${TF_APPLY_LOG:-}"; do
+    [[ -n "$f" && -e "$f" ]] || continue
+    if ! shred -u "$f"; then
+      cr_warn "could not shred ${f}; removed instead"
+      rm -f "$f"
+    fi
+  done
+}
+cr_cleanup shred_run_files
+
 if [[ -n "${TERRAFORM_APPLY_BIN:-}" ]]; then
   echo "SYNTHETIC: terraform='$TF_BIN' -- this run proves nothing about the estate." >&2
 fi
@@ -613,7 +654,7 @@ fi
 # is disposable and its state is not shared with anything that is not.
 if (( BREAK_LOCK )) && [[ "$ASSUME_YES" == "yes" ]] \
    && [[ "$TARGET" == "production" || "$TARGET" == "shared" || "$TARGET" == "identity" ]]; then
-  echo "ERROR: --yes does not carry breaking the ${TARGET} state lock." >&2
+  cr_error "--yes does not carry breaking the ${TARGET} state lock."
   echo "       Removing a lock while a run is genuinely live lets two runs write" >&2
   echo "       state at once, so the word is typed rather than passed in advance." >&2
   echo "       Re-run without --yes, read the four checks, and answer them." >&2
@@ -624,7 +665,7 @@ fi
 # proved here, once, rather than discovered by terraform. Placed after the
 # argument refusals and the dry run, which need no credential at all: a run that
 # was only going to print what it would do should not fail for want of one.
-aws_profile_ensure || exit 1
+aws_profile_ensure || { cr_error "no AWS identity could be settled for this run; nothing was planned"; exit 1; }
 
 # The identity tree declares the job role's own definition, and that role is
 # denied every write to it. Asserted here rather than left to AWS because the
@@ -637,7 +678,8 @@ aws_profile_ensure || exit 1
 # the library owns. They happen to agree today, and a check that reads the name
 # from the same place the credential came from is not a check.
 if [[ "$TARGET" == "identity" ]]; then
-  aws_identity_require_direct_user "footbag-operator" || exit 1
+  aws_identity_require_direct_user "footbag-operator" \
+    || { cr_error "the identity tree is applied only as the directly authenticated footbag-operator; nothing was planned"; exit 1; }
 fi
 
 # ── The snapshot that protects an instance replacement ───────────────────────
@@ -652,10 +694,11 @@ fi
 if [[ "$REPLACE_ADDR" == "$INSTANCE_ADDRESS" ]]; then
   # The instance as Terraform records it, which a restore from snapshot renames;
   # the original name would then prove a snapshot of the stopped old host.
-  tf_instance_name "$TARGET" || exit 1
+  tf_instance_name "$TARGET" \
+    || { cr_error "could not read the ${TARGET} web instance's name from Terraform; nothing was planned"; exit 1; }
   snap_instance="$TF_INSTANCE_NAME"
   snap_refuse() {
-    echo "ERROR: $1" >&2
+    cr_error "$1"
     echo "       ${INSTANCE_ADDRESS} is not replaced without a complete, recent snapshot" >&2
     echo "       of it. Nothing was planned. Use: bash scripts/bootstrap-host.sh --target ${TARGET} --replace-instance" >&2
     exit 1
@@ -712,7 +755,7 @@ if [[ -n "${TERRAFORM_APPLY_VALUES_FILE:-}" ]]; then
   echo "SYNTHETIC: values file='${VALUES_FILE}' -- the job-role check reads a stand-in." >&2
 fi
 if (( JOB_ROLE )) && [[ ! -r "$VALUES_FILE" ]]; then
-  echo "ERROR: terraform/${TARGET}/terraform.tfvars is missing or unreadable." >&2
+  cr_error "terraform/${TARGET}/terraform.tfvars is missing or unreadable."
   echo "       It is a link into the private operations checkout, which this" >&2
   echo "       workstation does not have wired. A dev-and-tester deploys and tests" >&2
   echo "       staging without applying Terraform; an apply needs the checkout," >&2
@@ -742,7 +785,6 @@ if (( BREAK_LOCK )); then
   chmod 600 "$TF_PLAN"
   TF_PLAN_LOG="$(mktemp "/tmp/footbag-${TARGET}-lockprobelog.XXXXXX")"
   chmod 600 "$TF_PLAN_LOG"
-  trap 'for f in "${TF_PLAN:-}" "${TF_PLAN_LOG:-}"; do if [ -n "$f" ] && [ -e "$f" ]; then shred -u "$f" 2>/dev/null || true; fi; rm -f "$f"; done' EXIT INT TERM
 
   # Check 1: the lock is held right now. A plan is the probe rather than a read of
   # the backend's object layout, because terraform is the authority on its own
@@ -756,13 +798,13 @@ if (( BREAK_LOCK )); then
   "$TF_BIN" -chdir="$TF_DIR" plan ${TF_INPUT_ARGS[@]+"${TF_INPUT_ARGS[@]}"} -no-color -lock-timeout=0 -out="$TF_PLAN" > "$TF_PLAN_LOG" 2>&1 || PROBE_STATUS=$?
 
   if (( PROBE_STATUS == 0 )); then
-    echo "ERROR: the state is not locked, so there is nothing to break." >&2
+    cr_error "the state is not locked, so there is nothing to break."
     echo "       The plan just ran to completion. Re-run without --break-stale-lock." >&2
     exit 2
   fi
   if ! parse_lock_info "$TF_PLAN_LOG"; then
-    echo "ERROR: the plan failed, but not on the state lock, so this mode has nothing" >&2
-    echo "       to act on. The output follows." >&2
+    cr_error "the plan failed, but not on the state lock, so this mode has nothing to act on."
+    echo "       The output follows." >&2
     cat "$TF_PLAN_LOG" >&2
     exit 1
   fi
@@ -779,7 +821,7 @@ if (( BREAK_LOCK )); then
   # holding process being dead, and only the holder's own machine can establish
   # that. Someone else's lock is a conversation, not a command.
   if [[ "$LOCK_WHO" != *"@$(hostname)" ]]; then
-    echo "REFUSED: the lock names ${LOCK_WHO}, not this machine ($(hostname))." >&2
+    cr_error "the lock names ${LOCK_WHO}, not this machine ($(hostname))."
     echo "         Only that machine can tell whether the run holding it is still" >&2
     echo "         alive. Ask that operator; do not break it from here." >&2
     exit 2
@@ -788,7 +830,7 @@ if (( BREAK_LOCK )); then
   # Check 3: a plan, not an apply. An apply killed part-way may have written some
   # of its changes into state, and that wants reading before anything else.
   if [[ "$LOCK_OP" != *Plan* ]]; then
-    echo "REFUSED: the lock was taken by ${LOCK_OP}, not a plan." >&2
+    cr_error "the lock was taken by ${LOCK_OP}, not a plan."
     echo "         An apply killed part-way may have left state partly written, so" >&2
     echo "         read the state and reconcile it before removing the lock." >&2
     exit 2
@@ -798,7 +840,7 @@ if (( BREAK_LOCK )); then
   # lock may be a live run whose process list this check missed, and an idle
   # process list may simply mean the run has not started its plan yet.
   if (( LOCK_AGE_SECS < 0 )); then
-    echo "REFUSED: the lock's timestamp could not be read, so its age is unknown." >&2
+    cr_error "the lock's timestamp could not be read, so its age is unknown."
     echo "         An unreadable timestamp is not an old lock." >&2
     exit 2
   fi
@@ -822,7 +864,7 @@ if (( BREAK_LOCK )); then
       echo "still be live is a process those two checks cannot see."
       echo ""
     else
-      echo "REFUSED: the lock is $(( LOCK_AGE_SECS / 60 )) minutes old, under the $(( STALE_LOCK_MIN_AGE_SECS / 60 ))-minute floor." >&2
+      cr_error "the lock is $(( LOCK_AGE_SECS / 60 )) minutes old, under the $(( STALE_LOCK_MIN_AGE_SECS / 60 ))-minute floor."
       echo "         A lock this young is more likely a run still working than one that" >&2
       echo "         died. Wait, then try again." >&2
       echo "" >&2
@@ -834,8 +876,8 @@ if (( BREAK_LOCK )); then
     fi
   fi
   if (( LOCK_RUNNING > 0 )); then
-    echo "REFUSED: ${LOCK_RUNNING} terraform process(es) are running on this machine, so a run" >&2
-    echo "         of your own may hold it. Wait for that run to finish." >&2
+    cr_error "${LOCK_RUNNING} terraform process(es) are running on this machine, so a run of your own may hold it."
+    echo "         Wait for that run to finish." >&2
     exit 2
   fi
 
@@ -852,7 +894,7 @@ if (( BREAK_LOCK )); then
   fi
   echo ""
   if ! confirm_from_tty "Type 'APPLY' to remove lock ${LOCK_ID}: " "APPLY"; then
-    echo "Aborted. The lock is untouched." >&2
+    cr_error "Aborted. The lock is untouched."
     exit 1
   fi
 
@@ -860,7 +902,7 @@ if (( BREAK_LOCK )); then
   # callers may have pointed at a credential, and the typed answer above is the
   # confirmation. The run is already past every check that prompt would ask about.
   if ! "$TF_BIN" -chdir="$TF_DIR" force-unlock -force "$LOCK_ID"; then
-    echo "ERROR: force-unlock failed. The lock is still held." >&2
+    cr_error "force-unlock failed. The lock is still held."
     exit 1
   fi
 
@@ -871,12 +913,12 @@ if (( BREAK_LOCK )); then
   VERIFY_STATUS=0
   "$TF_BIN" -chdir="$TF_DIR" plan ${TF_INPUT_ARGS[@]+"${TF_INPUT_ARGS[@]}"} -no-color -lock-timeout=0 -out="$TF_PLAN" > "$TF_PLAN_LOG" 2>&1 || VERIFY_STATUS=$?
   if parse_lock_info "$TF_PLAN_LOG"; then
-    echo "ERROR: the state is still locked, now by ${LOCK_WHO} (${LOCK_ID})." >&2
+    cr_error "the state is still locked, now by ${LOCK_WHO} (${LOCK_ID})."
     echo "       Something re-took it, or the unlock did not take effect." >&2
     exit 1
   fi
   if (( VERIFY_STATUS != 0 )); then
-    echo "Lock removed. The verifying plan then failed for an unrelated reason:" >&2
+    cr_warn "Lock removed. The verifying plan then failed for an unrelated reason; its output follows."
     cat "$TF_PLAN_LOG" >&2
   fi
   echo ""
@@ -906,10 +948,10 @@ fi
 # all, so the flag is simply unnecessary there rather than doing anything.
 if [[ ( "$TARGET" == "production" || "$TARGET" == "identity" ) && "$ASSUME_YES" == "yes" ]]; then
   if [[ "$TARGET" == "identity" ]]; then
-    echo "ERROR: --yes does not carry an identity apply." >&2
+    cr_error "--yes does not carry an identity apply."
     echo "       This plan is what every dev-and-tester may do, so the confirmation" >&2
   else
-    echo "ERROR: --yes does not carry a production apply." >&2
+    cr_error "--yes does not carry a production apply."
     echo "       This plan reaches what the public is served, so the confirmation is" >&2
   fi
   echo "       typed every time and is never supplied in advance by a flag." >&2
@@ -924,9 +966,16 @@ if (( FROM_STEP <= 1 )) && (( DO_INIT )); then
   echo ""
   INIT_ARGS=(init)
   (( INIT_UPGRADE )) && INIT_ARGS+=(-upgrade)
-  if ! "$TF_BIN" -chdir="$TF_DIR" "${INIT_ARGS[@]}"; then
-    echo "ERROR: terraform init failed. Nothing was applied." >&2
-    exit 1
+  # Shown and captured, so each warning init prints (a deprecated backend
+  # setting, a provider it could not verify) reaches the closing report.
+  TF_INIT_LOG="$(mktemp "/tmp/footbag-${TARGET}-initlog.XXXXXX")"
+  chmod 600 "$TF_INIT_LOG"
+  INIT_STATUS=0
+  "$TF_BIN" -chdir="$TF_DIR" "${INIT_ARGS[@]}" 2>&1 | tee "$TF_INIT_LOG" || INIT_STATUS=$?
+  tf_uncolour "$TF_INIT_LOG"
+  cr_harvest --errors "$TF_ERRORS" --warnings "$TF_WARNINGS" "terraform init" "$TF_INIT_LOG"
+  if (( INIT_STATUS != 0 )); then
+    cr_die "terraform init failed (exit ${INIT_STATUS}). Nothing was applied."
   fi
   echo ""
 fi
@@ -934,9 +983,9 @@ fi
 # ── Step 2: plan, confirm, apply that plan ───────────────────────────────────
 echo "-- step 2: terraform apply --"
 echo ""
-# The plan file is created mode 600 under a literal /tmp path and shredded by a
-# trap on EXIT, INT and TERM, so the shred runs on a failed plan, a failed apply
-# and an interrupt alike. The directory is literal rather than TMPDIR-relative so
+# The plan file is created mode 600 under a literal /tmp path and shredded by the
+# registered cleanup, so the shred runs on a failed plan, a failed apply and an
+# interrupt alike. The directory is literal rather than TMPDIR-relative so
 # the caller's environment cannot redirect the archive into a checkout, where a
 # single ignore rule would be all that stood between it and a stray commit.
 TF_PLAN="$(mktemp "/tmp/footbag-${TARGET}-apply.XXXXXX")"
@@ -951,7 +1000,6 @@ chmod 600 "$TF_PLAN_LOG"
 # TF_SHOW_ERR is created later, only on the jq path, and is swept here too: it
 # holds terraform's diagnostics, which can quote resource values.
 TF_SHOW_ERR=""
-trap 'for f in "${TF_PLAN:-}" "${TF_PLAN_LOG:-}" "${TF_SHOW_ERR:-}"; do if [ -n "$f" ] && [ -e "$f" ]; then shred -u "$f" 2>/dev/null || true; fi; rm -f "$f"; done' EXIT INT TERM
 
 # `|| PLAN_STATUS=$?` rather than an `if`, because `set -e` with `pipefail` would
 # otherwise abort the script on the failing plan before the report below runs,
@@ -962,12 +1010,14 @@ PLAN_STATUS=0
 # between the start of a line and its +/-/~ marker, which defeats an anchored
 # pattern and makes that check silently match nothing.
 "$TF_BIN" -chdir="$TF_DIR" plan ${TF_INPUT_ARGS[@]+"${TF_INPUT_ARGS[@]}"} ${PLAN_EXTRA_ARGS[@]+"${PLAN_EXTRA_ARGS[@]}"} -no-color -out="$TF_PLAN" 2>&1 | tee "$TF_PLAN_LOG" || PLAN_STATUS=$?
+# Each warning the plan printed (a deprecated argument, a provider notice) and
+# each error is read back from the capture into the closing report.
+cr_harvest --errors "$TF_ERRORS" --warnings "$TF_WARNINGS" "terraform plan" "$TF_PLAN_LOG"
 if (( PLAN_STATUS != 0 )); then
-  echo "ERROR: terraform plan failed. Nothing was applied." >&2
   if ! report_state_lock "$TF_PLAN_LOG"; then
     echo "       Resume with --from-step 2 once fixed." >&2
   fi
-  exit 1
+  cr_die "terraform plan failed. Nothing was applied. (exit ${PLAN_STATUS})"
 fi
 echo ""
 
@@ -1030,7 +1080,7 @@ if command -v jq >/dev/null 2>&1; then
     fi
   fi
   if (( ! DNS_READ_OK )); then
-    echo "ERROR: could not read the saved plan to check it for DNS changes." >&2
+    cr_error "could not read the saved plan to check it for DNS changes."
     if [[ -s "${TF_SHOW_ERR:-}" ]]; then
       tail -5 "$TF_SHOW_ERR" | sed 's/^/         /' >&2
     else
@@ -1059,7 +1109,7 @@ else
   DNS_GREP_STATUS=0
   DNS_CHANGES="$(grep -E '^[[:space:]]*[#~+-].*aws_route53' "$TF_PLAN_LOG")" || DNS_GREP_STATUS=$?
   if (( DNS_GREP_STATUS > 1 )); then
-    echo "ERROR: could not read the plan text to check it for DNS changes." >&2
+    cr_error "could not read the plan text to check it for DNS changes."
     echo "       Nothing has been applied. This check does not fail open: a plan" >&2
     echo "       it cannot read is a plan whose DNS changes it cannot see, and" >&2
     echo "       those are the ones that do not announce themselves." >&2
@@ -1089,7 +1139,7 @@ if command -v jq >/dev/null 2>&1 && [[ -n "${PLAN_JSON:-}" ]]; then
       | select(.address == $a and ((.change.actions // []) | index("delete")))
       | (.change.actions | join("+"))
     ')"; then
-    echo "ERROR: could not read the saved plan to check it for a change to ${INSTANCE_ADDRESS}." >&2
+    cr_error "could not read the saved plan to check it for a change to ${INSTANCE_ADDRESS}."
     echo "       Nothing has been applied." >&2
     exit 1
   fi
@@ -1098,7 +1148,7 @@ else
   INSTANCE_DELETES="$(grep -E "^[[:space:]]*# ${INSTANCE_ADDRESS//./\\.} (will be destroyed|must be replaced|is tainted, so must be replaced)" "$TF_PLAN_LOG")" \
     || INSTANCE_GREP_STATUS=$?
   if (( INSTANCE_GREP_STATUS > 1 )); then
-    echo "ERROR: could not read the plan text to check it for a change to ${INSTANCE_ADDRESS}." >&2
+    cr_error "could not read the plan text to check it for a change to ${INSTANCE_ADDRESS}."
     echo "       Nothing has been applied." >&2
     exit 1
   fi
@@ -1109,7 +1159,7 @@ else
 fi
 if [[ -n "$INSTANCE_DELETES" ]]; then
   if [[ "$REPLACE_ADDR" != "$INSTANCE_ADDRESS" ]]; then
-    echo "ERROR: this plan would ${INSTANCE_DELETES//+/ and } ${INSTANCE_ADDRESS}." >&2
+    cr_error "this plan would ${INSTANCE_DELETES//+/ and } ${INSTANCE_ADDRESS}."
     echo "       The instance's disk holds the member database between backups and" >&2
     echo "       everything a backup does not carry, so it is replaced only by" >&2
     echo "         bash scripts/bootstrap-host.sh --target ${TARGET} --replace-instance" >&2
@@ -1119,7 +1169,7 @@ if [[ -n "$INSTANCE_DELETES" ]]; then
     exit 1
   fi
   if [[ "$INSTANCE_DELETES" != "delete+create" && "$INSTANCE_DELETES" != "create+delete" ]]; then
-    echo "ERROR: this plan would destroy ${INSTANCE_ADDRESS} without recreating it (${INSTANCE_DELETES})." >&2
+    cr_error "this plan would destroy ${INSTANCE_ADDRESS} without recreating it (${INSTANCE_DELETES})."
     echo "       The replacement route replaces the instance; it never removes it." >&2
     echo "       Nothing has been applied." >&2
     exit 1
@@ -1148,7 +1198,7 @@ if (( JOB_ROLE )); then
                  or .address == $fw)
         | "  \(.change.actions | join("+"))  \(.address)"
       ')"; then
-      echo "ERROR: could not read the saved plan to check it for changes the job role may not apply." >&2
+      cr_error "could not read the saved plan to check it for changes the job role may not apply."
       echo "       Nothing has been applied." >&2
       exit 1
     fi
@@ -1156,13 +1206,13 @@ if (( JOB_ROLE )); then
     ROLE_GREP_STATUS=0
     ROLE_REFUSED="$(grep -E '^[[:space:]]*[#~+-].*(aws_iam_|aws_s3_bucket_replication_configuration|aws_lightsail_instance_public_ports)' "$TF_PLAN_LOG")" || ROLE_GREP_STATUS=$?
     if (( ROLE_GREP_STATUS > 1 )); then
-      echo "ERROR: could not read the plan text to check it for changes the job role may not apply." >&2
+      cr_error "could not read the plan text to check it for changes the job role may not apply."
       echo "       Nothing has been applied." >&2
       exit 1
     fi
   fi
   if [[ -n "$ROLE_REFUSED" ]]; then
-    echo "ERROR: this plan changes what the job role may not apply:" >&2
+    cr_error "this plan changes what the job role may not apply:"
     printf '%s\n' "$ROLE_REFUSED" >&2
     echo "       IAM and replication would be refused by AWS partway through, after" >&2
     echo "       the changes ahead of them had landed; the staging firewall's" >&2
@@ -1261,7 +1311,7 @@ fi
 # a replacement is exactly what that shape exists to keep out.
 if [[ "$PLAN_SHAPE" == "dns-records-only" ]]; then
   if ! command -v jq >/dev/null 2>&1 || [[ -z "${PLAN_JSON:-}" ]]; then
-    echo "ERROR: --dns-records-only needs the plan read as JSON, and jq is not installed." >&2
+    cr_error "--dns-records-only needs the plan read as JSON, and jq is not installed."
     echo "       Nothing has been applied." >&2
     exit 1
   fi
@@ -1276,12 +1326,11 @@ if [[ "$PLAN_SHAPE" == "dns-records-only" ]]; then
       | select(.change.actions != ["no-op"] and .change.actions != ["read"])
       | .address
     ')"; then
-    echo "ERROR: could not read the saved plan to check what it changes. Nothing has been applied." >&2
+    cr_error "could not read the saved plan to check what it changes. Nothing has been applied."
     exit 1
   fi
   if [[ -n "$NOT_RECORD_EDITS" ]]; then
-    echo "ERROR: this records-only apply would also make changes that are not a" >&2
-    echo "       Route 53 record being created or updated in place:" >&2
+    cr_error "this records-only apply would also make changes that are not a Route 53 record being created or updated in place:"
     printf '%s\n' "$NOT_RECORD_EDITS" >&2
     echo "       Nothing has been applied. Clear anything else pending with a plain" >&2
     echo "       scripts/terraform-apply.sh --target production first, and decide a" >&2
@@ -1298,7 +1347,7 @@ fi
 # the same reason the shapes are: without jq the flag does not run at all.
 if (( SKIP_EMPTY )); then
   if ! command -v jq >/dev/null 2>&1 || [[ -z "${PLAN_JSON:-}" ]]; then
-    echo "ERROR: --skip-empty-plan needs the plan read as JSON, and jq is not installed." >&2
+    cr_error "--skip-empty-plan needs the plan read as JSON, and jq is not installed."
     echo "       Nothing has been applied." >&2
     exit 1
   fi
@@ -1307,7 +1356,7 @@ if (( SKIP_EMPTY )); then
       | select(.change.actions != ["no-op"] and .change.actions != ["read"])
       | .address
     ')"; then
-    echo "ERROR: could not read the saved plan to check what it changes. Nothing has been applied." >&2
+    cr_error "could not read the saved plan to check what it changes. Nothing has been applied."
     exit 1
   fi
   if [[ -z "$PENDING_CHANGES" ]]; then
@@ -1318,7 +1367,7 @@ fi
 
 if [[ -n "$PLAN_SHAPE" && "$PLAN_SHAPE" != "dns-records-only" ]]; then
   if ! command -v jq >/dev/null 2>&1 || [[ -z "${PLAN_JSON:-}" ]]; then
-    echo "ERROR: --${PLAN_SHAPE/empty/require-empty-plan} needs the plan read as JSON, and jq is not installed." >&2
+    cr_error "--${PLAN_SHAPE/empty/require-empty-plan} needs the plan read as JSON, and jq is not installed."
     echo "       Nothing has been applied." >&2
     exit 1
   fi
@@ -1327,13 +1376,13 @@ if [[ -n "$PLAN_SHAPE" && "$PLAN_SHAPE" != "dns-records-only" ]]; then
       | select(.change.actions != ["no-op"] and .change.actions != ["read"])
       | .address
     ')"; then
-    echo "ERROR: could not read the saved plan to check what it changes. Nothing has been applied." >&2
+    cr_error "could not read the saved plan to check what it changes. Nothing has been applied."
     exit 1
   fi
   OTHER_CHANGES="$(printf '%s\n' "$PLANNED_CHANGES" | grep -vxF -e "$FIREWALL_ADDRESS" -e '' || true)"
   if [[ "$PLAN_SHAPE" == "empty" ]]; then
     if [[ -n "$PLANNED_CHANGES" ]]; then
-      echo "ERROR: the plan was required to be empty, and it changes:" >&2
+      cr_error "the plan was required to be empty, and it changes:"
       printf '%s\n' "$PLANNED_CHANGES" | sed 's/^/  /' >&2
       echo "       Nothing has been applied. A footbag-operator holder applies or" >&2
       echo "       resolves that drift first." >&2
@@ -1343,7 +1392,7 @@ if [[ -n "$PLAN_SHAPE" && "$PLAN_SHAPE" != "dns-records-only" ]]; then
     exit 0
   fi
   if [[ -n "$OTHER_CHANGES" ]]; then
-    echo "ERROR: this firewall-only apply would also change:" >&2
+    cr_error "this firewall-only apply would also change:"
     printf '%s\n' "$OTHER_CHANGES" | sed 's/^/  /' >&2
     echo "       That is drift this run did not come to apply. Nothing has been" >&2
     echo "       applied; a footbag-operator holder applies staging first." >&2
@@ -1365,7 +1414,7 @@ if [[ -n "$PLAN_SHAPE" && "$PLAN_SHAPE" != "dns-records-only" ]]; then
       | (ssh($c.before)) as $b | (ssh($c.after)) as $a
       | (($b - $a)[] | "removed \(.)"), (($a - $b)[] | "added \(.)")
     ')"; then
-    echo "ERROR: could not read the firewall's addresses out of the saved plan. Nothing has been applied." >&2
+    cr_error "could not read the firewall's addresses out of the saved plan. Nothing has been applied."
     exit 1
   fi
   declare -a NAMED=(-e '')
@@ -1378,7 +1427,7 @@ if [[ -n "$PLAN_SHAPE" && "$PLAN_SHAPE" != "dns-records-only" ]]; then
   done
   UNNAMED="$(printf '%s\n' "$SSH_DIFF" | grep -vxF "${NAMED[@]}" || true)"
   if [[ -n "$UNNAMED" ]]; then
-    echo "ERROR: this firewall-only apply would change SSH addresses it was not asked to:" >&2
+    cr_error "this firewall-only apply would change SSH addresses it was not asked to:"
     printf '%s\n' "$UNNAMED" | sed 's/^/  /' >&2
     ASKED_TEXT="$(printf '%s, ' "${ASKED[@]}")"
     echo "       Asked for: ${ASKED_TEXT%, }." >&2
@@ -1420,7 +1469,7 @@ if [[ -n "$DNS_CHANGES" ]]; then
   ASSUME_YES="no"
   if ! confirm_from_tty "Type 'APPLY' to change DNS: " "APPLY"; then
     ASSUME_YES="$DNS_ASSUME_YES_WAS"
-    echo "Aborted before terraform apply. Nothing was changed; resume with --from-step 2." >&2
+    cr_error "Aborted before terraform apply. Nothing was changed; resume with --from-step 2."
     exit 1
   fi
   ASSUME_YES="$DNS_ASSUME_YES_WAS"
@@ -1460,7 +1509,7 @@ if [[ "$TARGET" == "production" || "$TARGET" == "shared" || "$TARGET" == "identi
   echo "A destroy or a replacement you did not expect is a reason to stop, not to confirm."
   echo ""
   if ! confirm_from_tty "Type 'APPLY' to apply the plan shown above: " "APPLY"; then
-    echo "Aborted before terraform apply. Nothing was changed; resume with --from-step 2." >&2
+    cr_error "Aborted before terraform apply. Nothing was changed; resume with --from-step 2."
     exit 1
   fi
 else
@@ -1481,7 +1530,7 @@ if (( FW_INPLACE )); then
       --output json </dev/null 2>/dev/null
   }
   fw_stop() {
-    echo "ERROR: $1" >&2
+    cr_error "$1"
     echo "       Nothing else in the plan was applied. The firewall as it stands now:" >&2
     fw_live | jq -c '.portStates[]? | {fromPort, protocol, cidrs, cidrListAliases}' 2>/dev/null | sed 's/^/         /' >&2 || true
     echo "       Re-run this script: the next plan starts from the live firewall." >&2
@@ -1532,10 +1581,22 @@ if (( FW_INPLACE )); then
   echo ""
 fi
 
-if ! "$TF_BIN" -chdir="$TF_DIR" apply ${TF_INPUT_ARGS[@]+"${TF_INPUT_ARGS[@]}"} "$TF_PLAN"; then
-  echo "ERROR: terraform apply failed. Resume with --from-step 2 once fixed." >&2
-  exit 1
+# Applying a saved plan asks nothing, so the output can go through a capture
+# without taking the terminal from anything. "Applied." is said only when the
+# apply exited 0 and printed no error.
+TF_APPLY_LOG="$(mktemp "/tmp/footbag-${TARGET}-applylog.XXXXXX")"
+chmod 600 "$TF_APPLY_LOG"
+APPLY_STATUS=0
+"$TF_BIN" -chdir="$TF_DIR" apply ${TF_INPUT_ARGS[@]+"${TF_INPUT_ARGS[@]}"} "$TF_PLAN" 2>&1 \
+  | tee "$TF_APPLY_LOG" || APPLY_STATUS=$?
+tf_uncolour "$TF_APPLY_LOG"
+cr_harvest --errors "$TF_ERRORS" --warnings "$TF_WARNINGS" "terraform apply" "$TF_APPLY_LOG"
+if (( APPLY_STATUS != 0 )) || grep -qE "$TF_ERRORS" "$TF_APPLY_LOG"; then
+  cr_die "terraform apply failed (exit ${APPLY_STATUS}). Resume with --from-step 2 once fixed."
 fi
 echo ""
 echo "Applied. Confirm the resources you expected are present before relying on them:"
 echo "  terraform -chdir=terraform/$TARGET output"
+cr_proved "terraform apply of the reviewed plan to ${TARGET} exited 0 with no error"
+cr_unproved "that the applied resources are present and behave as intended"
+cr_finish

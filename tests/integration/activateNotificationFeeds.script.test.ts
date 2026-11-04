@@ -19,7 +19,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, readFileSync, rmSync, mkdirSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -346,5 +346,108 @@ describe('activate-notification-feeds.sh — the operator-address check before t
     for (const verdict of ['covered', 'uncovered', 'unknown'] as const) {
       expect(runEgressCheck(verdict, 'yes').stdout).toMatch(/the helper said its piece/);
     }
+  });
+});
+
+/**
+ * The verification step, run rather than read, with the closing-report library
+ * the script uses. Synthetic mode stops before it, so the step is sliced out of
+ * the script and run against a stand-in repository whose host env check prints
+ * the rows the test chooses and exits as the test says.
+ */
+function runVerifyStep(rows: string[], exitCode: number): RunResult & { stdinSeen: string } {
+  const script = readFileSync(SCRIPT, 'utf-8');
+  const start = script.indexOf('# ── Step 5: prove it');
+  expect(start, 'the verification step was not found in the script').toBeGreaterThan(-1);
+
+  fileCounter += 1;
+  const fakeRoot = join(tmpDir, `root-${fileCounter}`);
+  mkdirSync(join(fakeRoot, 'scripts'), { recursive: true });
+  const stdinSeen = join(fakeRoot, 'stdin-seen');
+  writeFileSync(
+    join(fakeRoot, 'scripts', 'verify-host-env.sh'),
+    [
+      'IFS= read -r line',
+      `printf '%s\\n' "$line" > ${JSON.stringify(stdinSeen)}`,
+      ...rows.map((r) => `echo ${JSON.stringify(r)}`),
+      `exit ${exitCode}`,
+    ].join('\n') + '\n',
+  );
+  const harness = join(tmpDir, `verify-${fileCounter}.sh`);
+  writeFileSync(
+    harness,
+    [
+      'set -euo pipefail',
+      `source ${JSON.stringify(join(process.cwd(), 'scripts/lib/closing-report.sh'))}`,
+      'TARGET=staging',
+      'STATE=on',
+      'SUDO_PASS=stub-sudo-pass',
+      'AWS_PROFILE_ARG=""',
+      `REPO_ROOT=${JSON.stringify(fakeRoot)}`,
+      script.slice(start),
+    ].join('\n') + '\n',
+  );
+  const r = spawnSync('bash', [harness], {
+    cwd: process.cwd(),
+    encoding: 'utf-8',
+    env: { ...process.env, FOOTBAG_CR_REPORT_TO: '' },
+    ...SPAWN_GUARD,
+  });
+  const seen = existsSync(stdinSeen) ? readFileSync(stdinSeen, 'utf-8') : '';
+  return { exitCode: r.status ?? 1, stdout: r.stdout ?? '', stderr: r.stderr ?? '', stdinSeen: seen };
+}
+
+describe('activate-notification-feeds.sh — the status read of the live queues', () => {
+  it('lists a queue listing that failed as a warning carrying the account\'s own reason', () => {
+    // Defect caught: a denied or failed listing printed only "<unreadable>" and
+    // was dropped, so the operator could not tell a missing permission from
+    // queues that do not exist.
+    fileCounter += 1;
+    const bin = join(tmpDir, `aws-bin-${fileCounter}`);
+    mkdirSync(bin);
+    const reason = 'An error occurred (AccessDenied) when calling the ListQueues operation: stub';
+    writeFileSync(join(bin, 'aws'), `#!/usr/bin/env bash\necho ${JSON.stringify(reason)} >&2\nexit 254\n`, { mode: 0o755 });
+    const r = spawnSync(
+      'bash',
+      [SCRIPT, '--target', 'staging', '--status', '--profile', 'stub', '--tfvars', writeTfvars(OFF_TFVARS)],
+      {
+        cwd: process.cwd(),
+        encoding: 'utf-8',
+        env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? ''}`, FOOTBAG_CR_REPORT_TO: '' },
+        ...SPAWN_GUARD,
+      },
+    );
+    expect(r.status, r.stderr).toBe(0);
+    const report = (r.stderr ?? '').slice((r.stderr ?? '').indexOf('==== Closing report'));
+    expect(report).toMatch(/Warnings \(1\):/);
+    expect(report).toContain('AccessDenied');
+  });
+});
+
+describe('activate-notification-feeds.sh — the verification decides the run', () => {
+  it('fails the run when the host env check fails, listing the failed row', () => {
+    // Defect caught: the check's failure was swallowed, so an activation whose
+    // host never received the queue URLs ended green and told the operator the
+    // feeds were live.
+    const failRow = '  FAIL  FEED_SES_QUEUE_URL is not set on the host';
+    const res = runVerifyStep([failRow], 1);
+    expect(res.exitCode, res.stderr).toBe(1);
+    const report = res.stderr.slice(res.stderr.indexOf('==== Closing report'));
+    expect(report).toContain(failRow.trim());
+    expect(report).toMatch(/exit 1/);
+  });
+
+  it('passes a run whose check passes, listing its warning rows rather than dropping them', () => {
+    // Defect caught: a warning the check printed scrolled past and the run
+    // ended without it, so the operator never learned the host carried it. The
+    // check is fed the one password line, as it expects.
+    const warnRow = '  WARN  FEED_ALARM_QUEUE_URL differs from Parameter Store';
+    const res = runVerifyStep(['  PASS  FEED_SES_QUEUE_URL', warnRow], 0);
+    expect(res.exitCode, res.stderr).toBe(0);
+    const report = res.stderr.slice(res.stderr.indexOf('==== Closing report'));
+    expect(report).toMatch(/Warnings \(1\):/);
+    expect(report).toContain(warnRow.trim());
+    expect(report).not.toMatch(/Errors \(/);
+    expect(res.stdinSeen).toBe('stub-sudo-pass\n');
   });
 });

@@ -416,8 +416,8 @@ describe('where the gate is called', () => {
       // Ahead of anything that reaches a host.
       expect(text.search(block), leaf).toBeLessThan(text.indexOf('require_pinned_known_hosts || exit 1'));
     }
-    // deploy-migrate.sh ships by handing off to deploy-code.sh.
+    // deploy-migrate.sh ships by handing off to deploy-code.sh, run as a child.
     expect(readFileSync(join(REPO_ROOT, 'scripts/deploy-migrate.sh'), 'utf8'))
-      .toMatch(/exec bash "\$\{SCRIPT_DIR\}\/deploy-code\.sh"/);
+      .toMatch(/^bash "\$\{SCRIPT_DIR\}\/deploy-code\.sh" \|\| deploy_rc=\$\?$/m);
   });
 });

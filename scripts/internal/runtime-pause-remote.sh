@@ -34,8 +34,22 @@
 #   ACTION      status | pause | resume
 #   REASON   free text recorded on the row (ignored by status)
 #   ACTOR    member id of the operator, recorded on the row (optional)
+#
+# A caller on the closing-report library sends scripts/lib/closing-report-remote.sh
+# on the same stream just ahead of this body, so every problem met here is marked
+# for the caller's closing report and crr_finish ends the run, non-zero when any
+# was an error. A caller that does not send it gets the same two calls in plain
+# form below: the problem printed as an ERROR line, and the exit status still
+# following from it. The SWITCH_PAUSED line on stdout is the read-back every
+# caller judges, and is the same either way.
 
 set -euo pipefail
+
+if ! declare -F crr_finish >/dev/null; then
+  _rp_failed=0
+  crr_error() { echo "ERROR: $*" >&2; _rp_failed=1; }
+  crr_finish() { exit "$_rp_failed"; }
+fi
 
 : "${DB_FILE:?remote half requires DB_FILE}"
 : "${CONFIG_KEY:?remote half requires CONFIG_KEY}"
@@ -49,42 +63,49 @@ set -euo pipefail
 # have moved while the platform carried on unchanged.
 case "$CONFIG_KEY" in
   payments_paused|email_outbox_paused|bulk_send_paused) ;;
-  *) echo "ERROR: unknown CONFIG_KEY '$CONFIG_KEY'." >&2; exit 1 ;;
+  *) crr_error "unknown CONFIG_KEY '$CONFIG_KEY'."; crr_finish ;;
 esac
 
 command -v sqlite3 >/dev/null 2>&1 || {
-  echo "ERROR: sqlite3 CLI is not installed on this host (apt-get install -y sqlite3)." >&2
-  exit 1
+  crr_error "sqlite3 CLI is not installed on this host (apt-get install -y sqlite3)."
+  crr_finish
 }
 
 if [[ ! -r "$DB_FILE" ]]; then
-  echo "ERROR: $DB_FILE does not exist or is unreadable even as root." >&2
-  exit 1
+  crr_error "$DB_FILE does not exist or is unreadable even as root."
+  crr_finish
 fi
 
+# A read that fails ends the run with sqlite3's own message, so the caller lists
+# why the switch could not be read rather than only that the session failed.
 read_state() {
-  sqlite3 "$DB_FILE" \
-    "SELECT COALESCE((SELECT value_json FROM system_config_current
-                      WHERE config_key = '${CONFIG_KEY}'), '0');"
+  local out
+  if ! out="$(sqlite3 "$DB_FILE" \
+      "SELECT COALESCE((SELECT value_json FROM system_config_current
+                        WHERE config_key = '${CONFIG_KEY}'), '0');" 2>&1)"; then
+    crr_error "could not read ${CONFIG_KEY} from ${DB_FILE}: $(tail -n 1 <<<"$out")"
+    crr_finish
+  fi
+  printf '%s' "$out"
 }
 
 before="$(read_state)"
 
 if [[ "$ACTION" == "status" ]]; then
   printf 'SWITCH_PAUSED=%s\n' "$before"
-  exit 0
+  crr_finish
 fi
 
 case "$ACTION" in
   pause)  want=1 ;;
   resume) want=0 ;;
-  *) echo "ERROR: unknown ACTION '$ACTION'." >&2; exit 1 ;;
+  *) crr_error "unknown ACTION '$ACTION'."; crr_finish ;;
 esac
 
 if [[ "$before" == "$want" ]]; then
   echo "    already in the requested state; no row written" >&2
   printf 'SWITCH_PAUSED=%s\n' "$before"
-  exit 0
+  crr_finish
 fi
 
 # A second-resolution timestamp could collide with an existing row on the
@@ -112,7 +133,7 @@ else
   actor_sql="NULL"
 fi
 
-sqlite3 "$DB_FILE" <<SQL
+if ! insert_out="$(sqlite3 "$DB_FILE" 2>&1 <<SQL
 PRAGMA busy_timeout=15000;
 INSERT INTO system_config
   (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
@@ -120,12 +141,17 @@ VALUES
   ('${row_id}', '${now}', '${CONFIG_KEY}', '${want}', '${now}',
    ${reason_sql}, ${actor_sql});
 SQL
+)"; then
+  crr_error "the ${CONFIG_KEY} row was not written: $(tail -n 1 <<<"$insert_out")"
+  crr_finish
+fi
 
 after="$(read_state)"
 if [[ "$after" != "$want" ]]; then
-  echo "ERROR: the switch did not take: wanted ${want}, reads ${after}." >&2
-  exit 1
+  crr_error "the switch did not take: wanted ${want}, reads ${after}."
+  crr_finish
 fi
 
 echo "    wrote ${CONFIG_KEY}=${want} effective ${now}" >&2
 printf 'SWITCH_PAUSED=%s\n' "$after"
+crr_finish

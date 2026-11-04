@@ -149,6 +149,12 @@ function run(args: string[], env: Record<string, string> = {}) {
   return { status: res.status, stdout: res.stdout ?? '', stderr: res.stderr ?? '' };
 }
 
+/** The closing report the run ends with, or nothing when it printed none. */
+function closingReport(stderr: string): string {
+  const at = stderr.indexOf('==== Closing report');
+  return at < 0 ? '' : stderr.slice(at);
+}
+
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'footbag-test-setupdev-'));
   repo = join(root, 'repo');
@@ -267,6 +273,10 @@ describe('setup-dev-workstation.sh — what it will not do unasked', () => {
     const r = run(['--yes']);
     expect(r.stderr).toContain('apt update reported errors (above); installing from the package lists apt has.');
     expect(readFileSync(aptLog, 'utf-8')).toContain('install -y rsync');
+    // Defect caught: the apt warning scrolled past above "Setup complete", with
+    // nothing at the end of the run to say the package lists may be stale.
+    expect(r.status, r.stderr).toBe(0);
+    expect(closingReport(r.stderr)).toMatch(/Warnings \(\d+\):[^]*\n {2}- apt update reported errors/);
   });
 
   it('asks apt only for the packages that are missing', () => {
@@ -479,6 +489,9 @@ describe('setup-dev-workstation.sh — the verdict is the outcome, not the steps
     expect(r.status).toBe(1);
     expect(r.stderr).toContain("still missing: npm dependencies at the lockfile's versions");
     expect(r.stderr).toContain('Setup incomplete: the items above are still missing.');
+    // Defect caught: what was still missing sat above the end of the run, and
+    // the closing report did not name it.
+    expect(closingReport(r.stderr)).toMatch(/Errors \(\d+\):[^]*\n {2}- still missing: npm dependencies at the lockfile's versions/);
   });
 
   it('plans activating the git hooks when they are not active', () => {
@@ -849,5 +862,8 @@ describe('setup-dev-workstation.sh — the link to the dev-tester clone', () => 
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).toContain('GitHub did not admit this machine to git@github.com:acme/footbag-dev-tester.git');
     expect(r.stdout).not.toContain('bug intake:');
+    // Defect caught: the unlinked bug intake was a line in the plan and nothing
+    // at the end of the run, so a dev-and-tester never learned to re-run.
+    expect(closingReport(r.stderr)).toMatch(/\n {2}- Bug intake is not linked: GitHub did not admit this machine/);
   });
 });

@@ -77,6 +77,7 @@ source "${SCRIPT_DIR}/lib/production-release-gate.sh"
 REMOTE_HALF="${SCRIPT_DIR}/internal/step-amazon-linux-remote.sh"
 REPORT_LIB="${SCRIPT_DIR}/lib/closing-report-remote.sh"
 VERSIONS_HALF="${SCRIPT_DIR}/internal/host-tool-versions-remote.sh"
+DNF_PARSER="${SCRIPT_DIR}/internal/dnf-check-update-remote.sh"
 QUIESCE_HALF="${SCRIPT_DIR}/internal/bootstrap-host-quiesce-remote.sh"
 REBOOT_HALF="${SCRIPT_DIR}/internal/bootstrap-host-reboot-remote.sh"
 RESTART_HALF="${SCRIPT_DIR}/internal/restart-host-remote.sh"
@@ -104,7 +105,7 @@ done
 [[ "$TARGET" == "production" || "$TARGET" == "staging" ]] \
   || cr_die "--target must be production or staging (got '${TARGET}')"
 local_file() { [[ -r "$1" ]] || cr_die "missing ${1#"${REPO_ROOT}/"}"; }
-local_file "$REMOTE_HALF"; local_file "$REPORT_LIB"; local_file "$VERSIONS_HALF"
+local_file "$REMOTE_HALF"; local_file "$REPORT_LIB"; local_file "$VERSIONS_HALF"; local_file "$DNF_PARSER"
 local_file "$QUIESCE_HALF"; local_file "$REBOOT_HALF"; local_file "$RESTART_HALF"
 
 tool_pins_ok AMAZON_LINUX_RELEASE SQLITE_VERSION DOCKER_ENGINE_HOST COMPOSE_VERSION \
@@ -131,22 +132,23 @@ send() {
     local kv
     for kv in "$@"; do printf '%s=%q\n' "${kv%%=*}" "${kv#*=}"; done
     cat "$REPORT_LIB"
+    cat "$DNF_PARSER"
     [[ "$mode" == prove ]] && cat "$VERSIONS_HALF"
     cat "$REMOTE_HALF"
   } | "$HOST_SSH_BIN" "${HOST_SSH_OPTS[@]}" "$ALIAS" 'sudo -k -S -p "" bash'
 }
 
-# Runs a send, shows it, keeps its output for the marked lines and lists every
-# problem it reported.
+# Runs a send, shows it, keeps only its marked value lines for marked() and lists
+# every problem it reported. The rest of the session is never written down.
 LAST_LOG=""
 send_reported() {
   local label="$1"; shift
   LAST_LOG="$(mktemp "$(_cr_tmp)/send.XXXXXX")"
   local rc=0
-  cr_run --sentinels-only "$label" -- _send_into "$LAST_LOG" "$@" || rc=$?
+  cr_run_marked "$label" -- _send_into "$LAST_LOG" "$@" || rc=$?
   return "$rc"
 }
-_send_into() { local log="$1"; shift; send "$@" | tee "$log"; return "${PIPESTATUS[0]}"; }
+_send_into() { local log="$1"; shift; send "$@" | cr_keep_marked "$log"; return "${PIPESTATUS[0]}"; }
 marked() { grep -m1 -e "^---FOOTBAG-$1--- " -- "$LAST_LOG" | cut -d' ' -f2-; }
 
 if [[ "$MODE" == status ]]; then
@@ -233,10 +235,10 @@ _quiesce_send() {
     cat "$QUIESCE_HALF"
   } | "$HOST_SSH_BIN" "${HOST_SSH_OPTS[@]}" "$ALIAS" 'sudo -k -S -p "" bash'
 }
-# The host's output is kept for its completion marker; the tee reads what the
-# host printed, never the stream carrying the password.
-_quiesce() { _quiesce_send | tee "$quiesce_log"; return "${PIPESTATUS[0]}"; }
-cr_run --sentinels-only "stop and back up" -- _quiesce || cr_die "stopping the service or its last backup failed"
+# Only the host's marked lines are kept, for its completion marker; the rest of
+# what it printed is shown and never written down.
+_quiesce() { _quiesce_send | cr_keep_marked "$quiesce_log"; return "${PIPESTATUS[0]}"; }
+cr_run_marked "stop and back up" -- _quiesce || cr_die "stopping the service or its last backup failed"
 grep -qx -- '---FOOTBAG-QUIESCED---' "$quiesce_log" || cr_die "${ALIAS} did not report its last backup complete"
 host_newest_backup "$AWS_BIN" "$BUCKET" || cr_die "$HS_ERROR"
 last_epoch="$(date -u -d "${HS_NEWEST_BACKUP:-}" +%s 2>/dev/null)" \
@@ -253,9 +255,13 @@ if [[ "$TARGET" == production ]]; then
   PAGE_MARKER="$(sed -n 's/.*<h1>\(.*\)<\/h1>.*/\1/p' "$page_source" 2>/dev/null | head -1)"
   if tf_output_read "${REPO_ROOT}/terraform/production" cloudfront_domain && [[ -n "$PAGE_MARKER" ]]; then
     DOMAIN="$TF_OUTPUT_VALUE"
-    body="$("$CURL_BIN" -s --max-time 20 -w '\n%{http_code}' "https://${DOMAIN}/" 2>&1)" || true
+    curl_err="$(mktemp "$(_cr_tmp)/curl.XXXXXX")"
+    curl_rc=0
+    body="$("$CURL_BIN" -sS --max-time 20 -w '\n%{http_code}' "https://${DOMAIN}/" 2>"$curl_err")" || curl_rc=$?
     status="${body##*$'\n'}"
-    if [[ "$status" == 503 && "$body" == *"$PAGE_MARKER"* ]]; then
+    if (( curl_rc != 0 )); then
+      cr_warn "with the service stopped, https://${DOMAIN}/ could not be read, so what visitors see was not checked: $(tail -n 1 "$curl_err")"
+    elif [[ "$status" == 503 && "$body" == *"$PAGE_MARKER"* ]]; then
       cr_proved "visitors see the branded maintenance page (503) while the service is stopped"
     else
       cr_warn "with the service stopped, https://${DOMAIN}/ answered ${status:-nothing}, not the branded maintenance page"
@@ -290,7 +296,8 @@ _restart() {
     cat "$RESTART_HALF"
   } | "$HOST_SSH_BIN" "${HOST_SSH_OPTS[@]}" "$ALIAS" 'sudo -k -S -p "" bash'
 }
-cr_run "start and prove the stack" -- _restart || cr_die "the stack did not come back healthy"
+cr_run_marked --errors "$FOOTBAG_FAILURE_GRAMMAR" --warnings "$FOOTBAG_NOTICE_GRAMMAR" \
+  "start and prove the stack" -- _restart || cr_die "the stack did not come back healthy"
 STARTED=1
 cr_proved "footbag.service active, every container healthy, /health/ready answering"
 send_reported "versions" prove \
@@ -301,13 +308,26 @@ send_reported "versions" prove \
   || cr_die "the host does not match the pins"
 cr_proved "the host's sqlite3, docker, Compose and release match the pins"
 
-if [[ -n "$DOMAIN" ]]; then
-  status="$("$CURL_BIN" -s -o /dev/null --max-time 20 -w '%{http_code}' "https://${DOMAIN}/" 2>&1)" || true
-  if [[ "$status" == 503 ]]; then
-    cr_warn "https://${DOMAIN}/ still answers 503 after the restart; CloudFront may be serving its cached error for a few more seconds"
+# edge_served_again <domain>
+# Proves visitors are served a page again after the restart. Only an answer
+# that is a page counts; a failed read or any other status is a warning with
+# what came back, never a proof.
+edge_served_again() {
+  local domain="$1" curl_err curl_rc=0 status
+  curl_err="$(mktemp "$(_cr_tmp)/curl.XXXXXX")"
+  status="$("$CURL_BIN" -sS -o /dev/null --max-time 20 -w '%{http_code}' "https://${domain}/" 2>"$curl_err")" || curl_rc=$?
+  if (( curl_rc != 0 )); then
+    cr_warn "https://${domain}/ could not be read after the restart, so visitors being served again was not proved: $(tail -n 1 "$curl_err")"
+  elif [[ "$status" == 503 ]]; then
+    cr_warn "https://${domain}/ still answers 503 after the restart; CloudFront may be serving its cached error for a few more seconds"
+  elif [[ "$status" =~ ^[23][0-9][0-9]$ ]]; then
+    cr_proved "https://${domain}/ answers ${status} again"
   else
-    cr_proved "https://${DOMAIN}/ answers ${status} again"
+    cr_warn "https://${domain}/ answers ${status:-nothing} after the restart, not a page"
   fi
+}
+if [[ -n "$DOMAIN" ]]; then
+  edge_served_again "$DOMAIN"
 fi
 
 cr_unproved "the patch date and any notable change are recorded: that is the System Administrator's note, per the patching story"

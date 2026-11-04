@@ -65,6 +65,8 @@ function sshStub(existingAccount: boolean): string {
       '# An inspection is answered with FAKE_INSPECT, the lines the remote half',
       '# prints, or fails when FAKE_INSPECT_FAILS is set.',
       'piped="$(cat)"',
+      // What the host half prints on stderr, such as a marked problem line.
+      '[[ -n "${FAKE_HOST_STDERR:-}" ]] && printf "%s\\n" "$FAKE_HOST_STDERR" >&2',
       'if [[ "$piped" == *"DTACC_MODE=inspect"* ]]; then',
       '  [[ -n "${FAKE_INSPECT_FAILS:-}" ]] && exit 1',
       '  printf "%s" "${FAKE_INSPECT:-}"',
@@ -139,6 +141,12 @@ beforeAll(() => {
   writeFileSync(PIN, '# pinned host keys fixture\n');
   chmodSync(PIN, 0o600);
 });
+
+/** The closing report: everything from its heading on. */
+function closingReport(out: string): string {
+  const at = out.lastIndexOf('Closing report');
+  return at === -1 ? '' : out.slice(at);
+}
 
 interface RunResult {
   exitCode: number;
@@ -522,7 +530,7 @@ describe('provision-dev-tester-account.sh — when the cleanup is armed', () => 
 
   it('arms the created state before the pipe that creates the account', () => {
     const armed = source.indexOf('PROVISION_STATE="created"');
-    const pipe = source.indexOf('printf \'DTACC_PASSWORD=%q\\n\' "$NEW_PASS"');
+    const pipe = source.indexOf('printf \'DTACC_PASSWORD=%q\' "$NEW_PASS"');
     expect(armed).toBeGreaterThan(-1);
     expect(pipe).toBeGreaterThan(-1);
     expect(armed).toBeLessThan(pipe);
@@ -544,7 +552,7 @@ describe('provision-dev-tester-account.sh — when the cleanup is armed', () => 
     const branch = source.slice(branchStart, branchEnd);
     expect(branch).toMatch(/id -u --/);
     // And it is consulted before the removal is attempted, not alongside it.
-    expect(branch.indexOf('id -u --')).toBeLessThan(branch.indexOf("DTACC_MODE=%q\\n' \"remove\""));
+    expect(branch.indexOf('id -u --')).toBeLessThan(branch.indexOf("DTACC_MODE=%q' \"remove\""));
   });
 
   it('only an explicit ABSENT skips the removal, never an unreachable host', () => {
@@ -983,6 +991,21 @@ describe('provision-dev-tester-account.sh — inspecting', () => {
     expect(r.stdout).toMatch(/^SHARED SHA256:abc$/m);
   });
 
+  it('lists a problem the host half marks in the closing report, keeping the facts on stdout clean', () => {
+    // The facts are read by the onboarding from stdout; the host's marked line
+    // belongs in the report, never among the facts and never dropped.
+    const r = runScript(INSPECT, {
+      existingAccount: true,
+      env: {
+        FAKE_INSPECT: `SHELL /bin/bash\nPASSWORD P\nOFFBOARDED no\nKEY ${fp()}\n`,
+        FAKE_HOST_STDERR: '---FOOTBAG-PROBLEM--- WARN fixture host warning',
+      },
+    });
+    expect(r.exitCode, r.stderr).toBe(0);
+    expect(r.stdout).not.toContain('fixture host warning');
+    expect(closingReport(r.stderr)).toContain('fixture host warning');
+  });
+
   it('reports the shared account as unknown when the host said nothing about it', () => {
     // A missing line must never read as "the key is not on the shared account".
     const r = runScript(INSPECT, {
@@ -1256,7 +1279,11 @@ describe('provision-dev-tester-account.sh — --sealed', () => {
   });
 
   /** A host that records every privileged session and answers the inspection. */
-  function sessionStub(probe: 'EXISTS' | 'ABSENT', inspect = ''): { stub: string; sessions: string } {
+  function sessionStub(
+    probe: 'EXISTS' | 'ABSENT',
+    inspect = '',
+    hostStderr = '',
+  ): { stub: string; sessions: string } {
     const sessions = mkdtempSync(join(WORK_DIR, 'sealed-sessions-'));
     const answer = join(sessions, 'inspect-answer');
     writeFileSync(answer, inspect);
@@ -1274,6 +1301,11 @@ describe('provision-dev-tester-account.sh — --sealed', () => {
         `      f=${JSON.stringify(sessions)}/session-$(date +%s%N)`,
         '      cat > "$f"',
         `      grep -qx 'DTACC_MODE=inspect' "$f" && cat ${JSON.stringify(answer)}`,
+        // A line the host half prints on stderr in a session that changes
+        // something, such as a marked problem.
+        ...(hostStderr
+          ? [`      grep -qx 'DTACC_MODE=inspect' "$f" || printf '%s\\n' ${JSON.stringify(hostStderr)} >&2`]
+          : []),
         '      exit 0 ;;',
         '  esac',
         'done',
@@ -1406,6 +1438,18 @@ describe('provision-dev-tester-account.sh — --sealed', () => {
     expect(lines).toContain(`DTACC_PASSWORD=${password}`);
     expect(r.stdout, 'the password reached the terminal').not.toContain(password);
     expect(r.stdout).toMatch(/Account james_leberknight is ready/);
+  });
+
+  it('lists a warning the host half marks in the closing report, and still exits 0', () => {
+    // The host half's warnings were printed in the middle of the run and then
+    // followed by "is ready", so an AllowUsers check that never ran, or a
+    // missing docker group, went unread.
+    const marked = '---FOOTBAG-PROBLEM--- WARN no docker group on this host; fixture';
+    const { stub } = sessionStub('ABSENT', '', marked);
+    const out = outFile();
+    const r = runSealed(stub, out, '');
+    expect(r.status, r.stdout).toBe(0);
+    expect(closingReport(r.stdout)).toContain('no docker group on this host; fixture');
   });
 
   it('asks for no vault confirmation and prints no vault entry, because a named account has none', () => {
@@ -1631,6 +1675,8 @@ describe('provision-dev-tester-account-remote.sh — the cross-account key sweep
       harness,
       [
         'set -euo pipefail',
+        // The report library the half's proof reports through, as on the stream.
+        `source ${JSON.stringify(join(process.cwd(), 'scripts/lib/closing-report-remote.sh'))}`,
         'DTACC_TMPS=()',
         `DTACC_ACCOUNT=${JSON.stringify(opts.departing)}`,
         `DTACC_THEIR_FPS=${JSON.stringify(opts.theirFingerprints.join('\n'))}`,

@@ -174,6 +174,9 @@ function drivePreflight({ leaf, last, remote, host, mainOmits = [], mainExtra = 
     'set -euo pipefail',
     // One stream, in order, so what is printed can be placed against the host calls.
     'exec 2>&1',
+    // The leaves report through the closing-report library, as they do whole.
+    `source ${JSON.stringify(join(REPO_ROOT, 'scripts/lib/closing-report.sh'))}`,
+    `REMOTE_REPORT_LIB=${JSON.stringify(join(REPO_ROOT, 'scripts/lib/closing-report-remote.sh'))}`,
     `REPO_ROOT=${JSON.stringify(world)}; SCRIPT_DIR="$REPO_ROOT/scripts"`,
     `REMOTE=${remote}; SUDO_PASS=fixture-password; SKIP_SMOKE=no`,
     'KEEP_MEDIA=yes; FOOTBAG_PROD_DB_REPLACE_ACK=1',

@@ -73,6 +73,13 @@
 
 set -euo pipefail
 
+# One closing report for the whole run, the host's half included: the remote
+# halves mark each of their problems on the stream and the sends below fold them
+# into this report. The library owns the exit and signal traps, so the key's
+# cleanup is registered with it rather than set as a trap here.
+# shellcheck source=lib/closing-report.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/closing-report.sh"
+
 # No default. Which environment a runtime credential is installed onto is the
 # whole decision this script carries out, and the two targets are not
 # interchangeable: the credential on stdin belongs to one host, the keys file
@@ -205,13 +212,15 @@ if [[ "$ACTION" != "delete" && -t 0 ]]; then
   exit 1
 fi
 
-command -v jq >/dev/null || { echo "ERROR: jq is required locally" >&2; exit 1; }
+command -v jq >/dev/null || cr_die "jq is required locally"
 
 SOURCE_PROFILE_USER="footbag-${TARGET}-source-profile"
 VAULT_ENTRY="aws-footbag-${TARGET}-source-profile"
 
 REMOTE_HALF="${SCRIPT_DIR}/internal/install-host-credentials-remote.sh"
-[[ -r "$REMOTE_HALF" ]] || { echo "ERROR: missing remote half: $REMOTE_HALF" >&2; exit 1; }
+REMOTE_REPORT_LIB="${SCRIPT_DIR}/lib/closing-report-remote.sh"
+[[ -r "$REMOTE_HALF" ]] || cr_die "missing remote half: $REMOTE_HALF"
+[[ -r "$REMOTE_REPORT_LIB" ]] || cr_die "missing remote-half report library: $REMOTE_REPORT_LIB"
 
 AWS_REGION_VAL="${AWS_REGION:-us-east-1}"
 
@@ -275,9 +284,7 @@ if [[ "$ACTION" != "install" ]]; then
       source "${SCRIPT_DIR}/internal/bootstrap-host-rebuild-keys.sh"
       host_key_id_read "$SSH_ALIAS" /root/.aws/credentials "$SOURCE_PROFILE_USER" || exit 1
       if [[ "$OLD_KEY" == "$HOST_KEY_ID" ]]; then
-        echo "REFUSING: ${OLD_KEY} is the key ${TARGET}'s host holds in /root/.aws/credentials." >&2
-        echo "          Retiring it would take the host off its credential chain. Nothing done." >&2
-        exit 1
+        cr_die "REFUSING: ${OLD_KEY} is the key ${TARGET}'s host holds in /root/.aws/credentials. Retiring it would take the host off its credential chain. Nothing done."
       fi
       skip_proof=0
       rebuild_key_slots_blocked "$SOURCE_PROFILE_USER" "$HOST_KEY_ID" && skip_proof=1
@@ -290,32 +297,47 @@ if [[ "$ACTION" != "install" ]]; then
         echo "    possible or needed: neither key is in service on this host."
       else
       echo "==> Proving ${TARGET}'s HOST resolves its chain, before retiring ${OLD_KEY}"
-      if ! {
-        printf '%s\n' "$SUDO_PASS"
-        printf 'RUNTIME_PROFILE=%q\n' "footbag-${TARGET}-runtime"
-        printf 'SOURCE_PROFILE=%q\n' "footbag-${TARGET}-source-profile"
-        cat <<'PROOF'
+      # The proof body marks its own failures, with the client's reason, on the
+      # stream, so they are listed in this run's closing report. The report
+      # helper goes ahead of it on the same stream, since the body cannot source.
+      send_chain_proof() {
+        {
+          printf '%s\n' "$SUDO_PASS"
+          printf 'RUNTIME_PROFILE=%q\n' "footbag-${TARGET}-runtime"
+          printf 'SOURCE_PROFILE=%q\n' "footbag-${TARGET}-source-profile"
+          cat "$REMOTE_REPORT_LIB"
+          cat <<'PROOF'
 set -euo pipefail
 export AWS_CONFIG_FILE=/root/.aws/config
 export AWS_SHARED_CREDENTIALS_FILE=/root/.aws/credentials
-src="$(aws sts get-caller-identity --profile "$SOURCE_PROFILE" --query Arn --output text)"
-run="$(aws sts get-caller-identity --profile "$RUNTIME_PROFILE" --query Arn --output text)"
+resolve() {
+  local out
+  if ! out="$(aws sts get-caller-identity --profile "$1" --query Arn --output text 2>&1)"; then
+    crr_error "the host's profile $1 does not resolve: $(tail -n 1 <<<"$out")"
+    crr_finish
+  fi
+  printf '%s' "$out"
+}
+src="$(resolve "$SOURCE_PROFILE")"
+run="$(resolve "$RUNTIME_PROFILE")"
 echo "    host source profile:  ${src}"
 echo "    host runtime profile: ${run}"
 case "$run" in
   *:assumed-role/*) ;;
   *)
-    echo "  FAIL the host's runtime profile resolved '${run}', not an assumed role." >&2
-    exit 1
+    crr_error "the host's runtime profile resolved '${run}', not an assumed role."
     ;;
 esac
+crr_finish
 PROOF
-      } | "$HOST_SSH_BIN" "${SSH_OPTS[@]}" "$SSH_ALIAS" 'sudo -k -S -p "" bash'; then
+        } | "$HOST_SSH_BIN" "${SSH_OPTS[@]}" "$SSH_ALIAS" 'sudo -k -S -p "" bash'
+      }
+      if ! cr_run_marked "host chain proof on ${SSH_ALIAS}" -- send_chain_proof \
+           || (( ${#CR_ERRORS[@]} )); then
         echo "" >&2
-        echo "ERROR: ${TARGET}'s host does not resolve its credential chain, so" >&2
-        echo "       the replacement has not been shown to be in service there." >&2
+        cr_error "${TARGET}'s host does not resolve its credential chain, so the replacement has not been shown to be in service there. Nothing has been retired."
         echo "       Retiring the predecessor now would take that host off SSM," >&2
-        echo "       S3 and SES at its next call. Nothing has been retired." >&2
+        echo "       S3 and SES at its next call." >&2
         echo "" >&2
         echo "       Install the credential first, or fix the chain, then re-run." >&2
         exit 1
@@ -324,27 +346,27 @@ PROOF
       echo ""
       echo "Deactivating ${OLD_KEY} on ${SOURCE_PROFILE_USER}. Reversible."
       if ! confirm_from_tty "Type 'APPLY' to deactivate it: " "APPLY"; then
-        echo "Not confirmed; the key is untouched." >&2
-        exit 1
+        cr_die "Not confirmed; the key is untouched."
       fi
       iam_key_retire "$SOURCE_PROFILE_USER" "$OLD_KEY" deactivate || exit 1
+      cr_proved "IAM accepted the deactivation of ${OLD_KEY} on ${SOURCE_PROFILE_USER}"
       echo ""
       echo "Observe before deleting: anything still holding the old key now fails"
       echo "visibly. The host reads its credential at every call, so a container"
       echo "still holding it surfaces within minutes rather than at the next deploy."
-      exit 0
+      cr_finish
       ;;
     delete)
       echo "==> Deleting ${OLD_KEY} on ${SOURCE_PROFILE_USER}"
       echo "Not reversible, and the key id is never reissued."
       if ! confirm_from_tty "Type 'APPLY' to delete it: " "APPLY"; then
-        echo "Not confirmed; the key is untouched." >&2
-        exit 1
+        cr_die "Not confirmed; the key is untouched."
       fi
       iam_key_retire "$SOURCE_PROFILE_USER" "$OLD_KEY" delete || exit 1
+      cr_proved "IAM accepted the deletion of ${OLD_KEY} from ${SOURCE_PROFILE_USER}"
       echo ""
       echo "Record the rotation date on the vault entry ${VAULT_ENTRY}."
-      exit 0
+      cr_finish
       ;;
   esac
 fi
@@ -359,14 +381,13 @@ AKID=""
 SAK=""
 
 if [[ -n "$KEYS_FILE" ]]; then
-  [[ -r "$KEYS_FILE" ]] || { echo "ERROR: cannot read keys file: $KEYS_FILE" >&2; exit 1; }
+  [[ -r "$KEYS_FILE" ]] || cr_die "cannot read keys file: $KEYS_FILE"
 
   # Reject a world-readable keys file. The window between issuing the key and
   # destroying the file is when a co-tenant on a shared workstation could read it.
   KEYS_PERMS=$(stat -c '%a' "$KEYS_FILE")
   if [[ "$KEYS_PERMS" != "600" && "$KEYS_PERMS" != "400" ]]; then
-    echo "ERROR: $KEYS_FILE has mode $KEYS_PERMS; expected 600 (or 400)." >&2
-    echo "       Treat the key it holds as exposed and replace it." >&2
+    cr_error "$KEYS_FILE has mode $KEYS_PERMS; expected 600 (or 400). Treat the key it holds as exposed and replace it."
     echo "       Better: run this script with no keys file at all. It mints the" >&2
     echo "       key itself and writes no secret to disk, so there is no temp" >&2
     echo "       file to get the mode wrong on." >&2
@@ -376,8 +397,7 @@ if [[ -n "$KEYS_FILE" ]]; then
   AKID=$(jq -r '.AccessKey.AccessKeyId // empty' "$KEYS_FILE")
   SAK=$(jq -r '.AccessKey.SecretAccessKey // empty' "$KEYS_FILE")
   if [[ -z "$AKID" || -z "$SAK" ]]; then
-    echo "ERROR: $KEYS_FILE does not contain .AccessKey.AccessKeyId / .SecretAccessKey" >&2
-    exit 1
+    cr_die "$KEYS_FILE does not contain .AccessKey.AccessKeyId / .SecretAccessKey"
   fi
   confirm_host
 else
@@ -404,7 +424,20 @@ the same name refuses every AssumeRole with no terraform diff.
 Rotation: scripts/install-host-credentials.sh --target ${TARGET}, then
 --retire <old-id>, then --delete <old-id>."
 
-  trap iam_key_cleanup EXIT INT TERM
+  # The key library's cleanup decides from how far the key travelled whether an
+  # unfinished run may withdraw it, and what it prints is an instruction the
+  # operator must see, so a key an unfinished run leaves minted or vaulted is
+  # listed in the closing report as well as printed.
+  host_key_cleanup() {
+    local state="$IAM_KEY_STATE" akid="${IAM_KEY_AKID:-}"
+    iam_key_cleanup
+    case "$state" in
+      minted|vaulted)
+        cr_warn "the run stopped with the access key ${akid} ${state}; the lines above say whether it was deleted or kept"
+        ;;
+    esac
+  }
+  cr_cleanup host_key_cleanup
   iam_key_provision "$SOURCE_PROFILE_USER" "$VAULT_ENTRY" "$ROTATE" || exit 1
   AKID="$IAM_KEY_AKID"
   SAK="$IAM_KEY_SAK"
@@ -417,7 +450,13 @@ require_pinned_known_hosts || exit 1
 SSH_OPTS=("${FOOTBAG_SSH_PIN_OPTS[@]}" -o "ConnectTimeout=10" -o "ServerAliveInterval=30")
 
 echo "== installing AWS credential chain on $TARGET (ssh alias: $SSH_ALIAS) =="
-ssh "${SSH_OPTS[@]}" "$SSH_ALIAS" "echo '    SSH OK'" </dev/null
+# Every session below goes through the client the host check above used, so the
+# one carrying the key goes where the confirmed one went, and a stand-in client
+# under test is announced by the shared library.
+ssh_reachable() {
+  "$HOST_SSH_BIN" "${SSH_OPTS[@]}" "$SSH_ALIAS" "echo '    SSH OK'" </dev/null
+}
+cr_run_marked "ssh to ${SSH_ALIAS}" -- ssh_reachable || exit 1
 
 # The account id is read through the operator's own credentials rather than
 # hardcoded, so the script works against any account without editing. Which
@@ -426,24 +465,41 @@ ssh "${SSH_OPTS[@]}" "$SSH_ALIAS" "echo '    SSH OK'" </dev/null
 # shellcheck source=lib/aws-profile.sh
 source "${SCRIPT_DIR}/lib/aws-profile.sh"
 aws_profile_ensure || exit 1
-ACCOUNT_ID=$(aws sts get-caller-identity "${IAM_KEY_AWS_ARGS[@]+"${IAM_KEY_AWS_ARGS[@]}"}" --query Account --output text)
-[[ -n "$ACCOUNT_ID" ]] || { echo "ERROR: could not resolve the AWS account id locally" >&2; exit 1; }
+ACCOUNT_ID=$(aws sts get-caller-identity "${IAM_KEY_AWS_ARGS[@]+"${IAM_KEY_AWS_ARGS[@]}"}" --query Account --output text) \
+  || cr_die "could not resolve the AWS account id locally; the aws client's reason is above"
+[[ -n "$ACCOUNT_ID" ]] || cr_die "could not resolve the AWS account id locally"
 
 echo "== writing credential files via cat-pipe =="
 # The password is the one line read from stdin before the host was confirmed,
 # not the whole file. sudo consumes the password line and leaves the rest for
 # bash, so forwarding every line the operator credential file holds runs each of
 # them as a root shell command on the host. printf emits shell-quoted
-# assignments so the remote bash binds them before running the body.
-{
-  printf '%s\n' "$SUDO_PASS"
-  printf 'AKID=%q\n' "$AKID"
-  printf 'SAK=%q\n' "$SAK"
-  printf 'ACCOUNT_ID=%q\n' "$ACCOUNT_ID"
-  printf 'TARGET_ENV=%q\n' "$TARGET"
-  printf 'AWS_REGION_VAL=%q\n' "$AWS_REGION_VAL"
-  cat "$REMOTE_HALF"
-} | ssh "${SSH_OPTS[@]}" "$SSH_ALIAS" 'sudo -k -S -p "" bash'
+# assignments so the remote bash binds them before running the body. The remote
+# report helper goes ahead of the body, so the half's problems, the go-live
+# marker read among them, are marked on the stream and listed in this report.
+send_install() {
+  {
+    printf '%s\n' "$SUDO_PASS"
+    printf 'AKID=%q\n' "$AKID"
+    printf 'SAK=%q\n' "$SAK"
+    printf 'ACCOUNT_ID=%q\n' "$ACCOUNT_ID"
+    printf 'TARGET_ENV=%q\n' "$TARGET"
+    printf 'AWS_REGION_VAL=%q\n' "$AWS_REGION_VAL"
+    cat "$REMOTE_REPORT_LIB" "$REMOTE_HALF"
+  } | "$HOST_SSH_BIN" "${SSH_OPTS[@]}" "$SSH_ALIAS" 'sudo -k -S -p "" bash'
+}
+# Judged by both the half's exit and the errors it marked, so a half that marked
+# an error and then exited zero still fails here, and no success line follows.
+# The credential is not committed on a failed run, so the cleanup reports what
+# became of it.
+if ! cr_run_marked "credential install on ${SSH_ALIAS}" -- send_install \
+     || (( ${#CR_ERRORS[@]} )); then
+  echo "" >&2
+  echo "FAILED: the credential chain on $SSH_ALIAS is not proven; the closing report below names every error." >&2
+  cr_unproved "the host's credential chain on ${TARGET} resolving through the new key, with its go-live marker readable"
+  cr_finish
+fi
+cr_proved "${TARGET}'s host resolves its source and runtime profiles through the installed key, and its go-live marker reads (production) or is absent as designed (staging) (the host half's checks)"
 
 SAK=""
 # Delivered and working, so the credential stops being this run's to withdraw.
@@ -479,3 +535,4 @@ if (( ROTATE == 1 )); then
   echo "This was a rotation. The previous key is still active, deliberately, so"
   echo "nothing on the host stopped. Retire it once you have seen the host working."
 fi
+cr_finish

@@ -1,6 +1,20 @@
 #!/usr/bin/env python3
 """Generate src/content/freestyleObservationalUniverse.ts from the observational inputs.
 
+Current: this generator writes Emerging Vocabulary into a TypeScript module under src/, and
+that module ships to production at go-live as a frozen snapshot. This is a temporarily
+accepted deviation from the rule that no file under src/ is generated, taken only because of
+schedule risk to go-live and because the refactor is large and low priority.
+Target: the documented names, open questions and decision groups live in database tables; the
+freestyle service derives the Emerging Vocabulary view from them per request; admins record and
+change rulings in the app with an audit row; and this generator and the module it writes are
+deleted. The work is scheduled in the post-go-live cleanup of the maintainers' private
+post-go-live plan.
+Until then: never run this generator against a database that is the live source of truth. It
+reads the committed CSVs and the ruling ledger, not production, so a regeneration after cutover
+silently discards every ruling recorded in production since. Meanwhile Emerging Vocabulary can
+change only through a developer regenerating and deploying, which writes no audit row.
+
 Read-only over the committed observational-inputs CSVs. Emits a deterministic,
 typed TS content module that the freestyle service reads to render the
 /freestyle/observational governance surface (generated TS content,

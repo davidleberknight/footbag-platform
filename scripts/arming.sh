@@ -166,6 +166,12 @@ AWS_PROFILE_ARG=""
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# One closing report for the whole run, the pause half's problems included, with
+# the exit status following from it. The library owns the exit and signal traps,
+# so the temp-file sweep below is registered with it rather than set as a trap.
+# shellcheck source=lib/closing-report.sh
+source "${REPO_ROOT}/scripts/lib/closing-report.sh"
+
 # Sourced for host_env_fetch and require_ssh_alias, which step 1 uses to read the
 # two SES readiness values that live in the host env file rather than asking the
 # operator to confirm them. Sourced before the flag loop, because the library
@@ -180,23 +186,26 @@ source "${REPO_ROOT}/scripts/lib/host-env-remote.sh"
 # shellcheck source=lib/egress-allowlist.sh
 source "${REPO_ROOT}/scripts/lib/egress-allowlist.sh"
 
-# Every temp file this run creates, removed on any exit path. One handler rather
-# than a trap per step: a second `trap` call REPLACES the first, so a later step
-# installing its own would silently stop cleaning up an earlier step's file, and
-# one of these files holds the host's entire secret set.
+# Every temp file this run creates, removed on any exit path. One handler for all
+# of them, so a later step cannot stop an earlier step's file being cleaned up,
+# and one of these files holds the host's entire secret set.
 ARMING_TMPS=()
 arming_cleanup() {
   local f
   for f in ${ARMING_TMPS[@]+"${ARMING_TMPS[@]}"}; do
-    [[ -n "$f" ]] || continue
+    [[ -n "$f" && -e "$f" ]] || continue
     # Overwritten rather than unlinked: the host env copy carries the session
     # signing key and the worker channel secret, and an unlink leaves the blocks
     # readable. shred is best-effort on a journalling filesystem; the plain
-    # removal stays as the fallback so the sweep cannot itself leave the file.
-    shred -u "$f" 2>/dev/null || rm -f "$f" 2>/dev/null || true
+    # removal stays as the fallback so the sweep cannot itself leave the file,
+    # and a shred that failed is listed rather than silenced.
+    if ! shred -u "$f"; then
+      rm -f -- "$f"
+      cr_warn "could not shred $f, which may hold host secrets; it was removed unshredded"
+    fi
   done
 }
-trap arming_cleanup EXIT INT TERM
+cr_cleanup arming_cleanup
 
 # The deploy command and its flags live in one place so the preview printed in
 # synthetic mode and the command actually run in step 4 cannot drift apart. The
@@ -375,17 +384,32 @@ resolve_tfvars() {
   printf '%s' "$resolved"
 }
 
+# A file that declares no value is the "<absent>" state, so grep finding no line
+# is an answer; grep failing to read the file is not, and stops the run.
 read_tfvars_armed() {
   grep -E "^[[:space:]]*${TFVAR_NAME}[[:space:]]*=" "$1" | tail -1 \
-    | sed -E 's/.*=[[:space:]]*"?([a-z]+)"?.*/\1/' || true
+    | sed -E 's/.*=[[:space:]]*"?([a-z]+)"?.*/\1/' || [[ $? == 1 ]]
 }
 
+# Sets SSM_ARMED rather than printing, so a failed read is listed in the closing
+# report as a warning with the client's reason; inside a command substitution
+# the record would be lost with the subshell.
+SSM_ARMED=""
 read_ssm_armed() {
-  [[ -z "$AWS_PROFILE_ARG" ]] && { echo "(no --profile; not read)"; return 0; }
-  aws ssm get-parameter \
-    --name "/footbag/$TARGET/app/$SSM_SUFFIX" \
-    --query 'Parameter.Value' --output text \
-    --profile "$AWS_PROFILE_ARG" 2>/dev/null || echo "<unreadable>"
+  local out
+  if [[ -z "$AWS_PROFILE_ARG" ]]; then
+    SSM_ARMED="(no --profile; not read)"
+    return 0
+  fi
+  if out="$(aws ssm get-parameter \
+      --name "/footbag/$TARGET/app/$SSM_SUFFIX" \
+      --query 'Parameter.Value' --output text \
+      --profile "$AWS_PROFILE_ARG" 2>&1)"; then
+    SSM_ARMED="$out"
+  else
+    SSM_ARMED="<unreadable>"
+    cr_warn "/footbag/$TARGET/app/$SSM_SUFFIX could not be read: $(tail -n 1 <<<"$out")"
+  fi
 }
 
 # Whether the account can send to an unverified recipient. In the sending
@@ -414,12 +438,14 @@ if [[ "$MODE" == "status" ]]; then
   echo "== $SWITCH arming: $TARGET =="
   echo ""
   echo "tfvars ($TFVARS_PATH): $TFVAR_NAME = ${CURRENT_TFVARS:-<absent>}"
-  echo "SSM  (/footbag/$TARGET/app/$SSM_SUFFIX): $(read_ssm_armed)"
+  read_ssm_armed
+  echo "SSM  (/footbag/$TARGET/app/$SSM_SUFFIX): ${SSM_ARMED}"
   echo ""
   echo "The host's $ADAPTER_LABEL is derived from the SSM value at deploy time."
   echo "For the running host, and everything else in the bring-up sequence:"
   echo "  scripts/bringup-status.sh --target $TARGET${AWS_PROFILE_ARG:+ --profile $AWS_PROFILE_ARG}"
-  exit 0
+  cr_unproved "the host's view of the switch: the status read asks the values file and the account only"
+  cr_finish
 fi
 
 WEBHOOK_PATH="/payments/webhook"
@@ -674,7 +700,8 @@ if (( DRY_RUN )); then
     echo "link on screen. That on-screen link is keyed on the mail adapter being"
     echo "stubbed, so anyone mid-registration relies on real mail from that moment."
   fi
-  exit 0
+  cr_unproved "anything: a dry run changes and checks nothing"
+  cr_finish
 fi
 
 # Every confirmation below is read from stdin, and this script is documented to
@@ -738,7 +765,8 @@ fi
 # test, and there it cannot fire by accident, because a run with no --profile and
 # no credential file takes neither of the two reads it requires.
 if (( FROM_STEP <= 1 )) && [[ "$MODE" != "status" ]]; then
-  sc_ssm="$(read_ssm_armed)"
+  read_ssm_armed
+  sc_ssm="$SSM_ARMED"
   sc_host="$(read_host_armed_value)"
   if [[ "$CURRENT_TFVARS" == "$STATE" && "$sc_ssm" == "$STATE" && "$sc_host" == "$STATE" ]]; then
     echo "Already $STATE, in all three places that have to agree:"
@@ -752,7 +780,8 @@ if (( FROM_STEP <= 1 )) && [[ "$MODE" != "status" ]]; then
     echo ""
     echo "To re-publish the parameter and re-derive the adapter anyway, name the step:"
     echo "  scripts/arming.sh --target $TARGET --switch $SWITCH --state $STATE --from-step 3"
-    exit 0
+    cr_proved "the tfvars, the SSM parameter and the host env file all read $STATE"
+    cr_finish
   fi
   if [[ "$CURRENT_TFVARS" == "$STATE" ]]; then
     # Worth stating rather than quietly proceeding: this is the shape the script
@@ -1104,7 +1133,9 @@ if (( FROM_STEP <= 2 )); then
     ' "$TFVARS_PATH" > "$TFVARS_TMP"
 
     echo ""
-    diff -u "$TFVARS_PATH" "$TFVARS_TMP" || true
+    # diff exits 1 when the files differ, which is the point of showing it; only
+    # its exit 2, a file it could not read, stops the run.
+    diff -u "$TFVARS_PATH" "$TFVARS_TMP" || [[ $? == 1 ]]
     echo ""
     printf "Apply this change to %s? (yes/no): " "$TFVARS_PATH"
     read -r CONFIRM
@@ -1125,25 +1156,33 @@ fi
 # run before the deploy: deploying the stub onto a launched site unpaused is the
 # outcome this exists to prevent.
 # Sends one pause-switch action (pause or status) to the host through the shared
-# remote half, on one stream with one credential read, and prints the switch
-# value the host reads back. Exits with what failed; `when` says in the message
-# how far the run had got.
+# remote half, on one stream with one credential read, and sets PAUSE_STATE to
+# the switch value the host reads back. Exits with what failed; `when` says in
+# the message how far the run had got.
+#
+# The remote report helper goes ahead of the half on the same stream, so every
+# problem the half meets is marked and listed in this run's closing report. Run
+# in this shell, never in a command substitution, so those records survive. The
+# session's output is kept in a temp file: its SWITCH_PAUSED line is the
+# read-back judged below, and the rest is shown as before.
+PAUSE_STATE=""
 pause_switch_remote() {
-  local action="$1" when="$2" alias="footbag-$TARGET" pass="" result=""
+  local action="$1" when="$2" alias="footbag-$TARGET" pass="" out=""
+  PAUSE_STATE=""
   if ! arming_select_credential; then
-    echo "ERROR: cannot reach the payments pause: ${ARMING_CRED_WHY}." >&2
+    cr_error "cannot reach the payments pause: ${ARMING_CRED_WHY}."
     echo "       $when" >&2
     exit 1
   fi
   IFS= read -r pass < "$ARMING_CRED_FILE" || true
   if [[ -z "$pass" ]]; then
-    echo "ERROR: cannot reach the payments pause: the credential file's first line is empty." >&2
+    cr_error "cannot reach the payments pause: the credential file's first line is empty."
     echo "       $when" >&2
     exit 1
   fi
   require_ssh_alias "$alias" || exit 1
   SUDO_PASS="$pass" require_host_is "$alias" "$TARGET" || exit 1
-  if ! result="$(
+  send_pause() {
     {
       printf '%s\n' "$pass"
       printf 'DB_FILE=%q\n' "/srv/footbag/db/footbag.db"
@@ -1151,26 +1190,45 @@ pause_switch_remote() {
       printf 'ACTION=%q\n' "$action"
       printf 'REASON=%q\n' "payments disarmed after launch by scripts/arming.sh; the stub checkout would grant tiers without payment"
       printf 'ACTOR=%q\n' ''
-      cat "$REPO_ROOT/scripts/internal/runtime-pause-remote.sh"
+      cat "$REPO_ROOT/scripts/lib/closing-report-remote.sh" \
+        "$REPO_ROOT/scripts/internal/runtime-pause-remote.sh"
     } | "$HOST_SSH_BIN" "${HOST_SSH_OPTS[@]}" "$alias" 'sudo -k -S -p "" bash'
-  )"; then
-    echo "ERROR: the payments pause step failed on $alias." >&2
+  }
+  # The session's lines are shown as they arrive; only the SWITCH_PAUSED line
+  # the switch is read from is written to $out, never the rest of the stream.
+  pause_read() {
+    local line
+    send_pause | while IFS= read -r line || [[ -n "$line" ]]; do
+      if [[ "$line" == SWITCH_PAUSED=* ]]; then
+        printf '%s\n' "$line"
+      else
+        printf '%s\n' "$line" >&2
+      fi
+    done
+    return "${PIPESTATUS[0]}"
+  }
+  out="$(mktemp "${TMPDIR:-/tmp}/footbag-arming-pause.XXXXXX")"
+  ARMING_TMPS+=("$out")
+  if ! cr_run_marked "payments pause (${action}) on ${alias}" -- pause_read > "$out"; then
+    cr_error "the payments pause step failed on $alias."
     echo "       $when" >&2
     exit 1
   fi
-  printf '%s\n' "$result" | sed -n 's/^SWITCH_PAUSED=//p' | tail -1
+  PAUSE_STATE="$(sed -n 's/^SWITCH_PAUSED=//p' "$out" | tail -1)"
 }
 
 post_launch_pause() {
   (( POST_LAUNCH_PAUSE )) || return 0
   local state=""
   echo "  Pausing payments before the deploy (production is live)."
-  state="$(pause_switch_remote pause "Nothing has been deployed. Resume with --from-step 4.")"
+  pause_switch_remote pause "Nothing has been deployed. Resume with --from-step 4."
+  state="$PAUSE_STATE"
   if [[ "$state" != "1" ]]; then
-    echo "ERROR: the payments pause did not take: the host reads '${state:-nothing}', not 1." >&2
+    cr_error "the payments pause did not take: the host reads '${state:-nothing}', not 1."
     echo "       Nothing has been deployed. Resume with --from-step 4." >&2
     exit 1
   fi
+  cr_proved "the payments pause on $TARGET reads 1 on the host before the deploy"
   echo "  payments on $TARGET: PAUSED (read back from the host). New purchases and"
   echo "  donations are refused; webhooks keep settling money already in flight."
   echo ""
@@ -1183,14 +1241,16 @@ post_launch_pause() {
 verify_pause_held() {
   (( POST_LAUNCH_PAUSE )) || return 0
   local now=""
-  now="$(pause_switch_remote status "The disarm itself is in place; resume with --from-step 4 to set the pause.")"
+  pause_switch_remote status "The disarm itself is in place; resume with --from-step 4 to set the pause."
+  now="$PAUSE_STATE"
   if [[ "$now" != "1" ]]; then
-    echo "ERROR: payments are dark but the payments pause reads '${now:-nothing}', not 1." >&2
+    cr_error "payments are dark but the payments pause reads '${now:-nothing}', not 1."
     echo "       New purchases are not refused, so the stub checkout could grant tiers" >&2
     echo "       without payment. Resume with --from-step 4 to set it." >&2
     exit 1
   fi
   echo "  payments pause on $TARGET: PAUSED (read back from the host)."
+  cr_proved "the payments pause on $TARGET still reads 1 on the host after the deploy"
 }
 
 # Runs the status view and, for payments on production, judges it. The view
@@ -1223,16 +1283,20 @@ verify_outcome() {
   fi
   echo ""
   if [[ "$SWITCH" != "payments" || "$TARGET" != "production" ]]; then
+    # Listed in the closing report, not only printed: the operator is about to
+    # judge the rows above by eye, and a status view that failed part-way is the
+    # thing that judgement must not miss.
     if (( status_rc != 0 )); then
-      echo "WARNING: the status view exited $status_rc; read the rows above with that in mind." >&2
+      cr_warn "the status view exited $status_rc; read its rows with that in mind: $(tail -n 1 <<<"$status_out")"
     fi
     echo "Confirm above that the host reads $SWITCH $STATE and that $ADAPTER_LABEL is"
     echo "$([[ "$STATE" == "armed" ]] && echo live || echo stub). The go-live marker is not touched by arming;"
     echo "move it deliberately with scripts/production-live-marker.sh if that is what you meant."
+    cr_unproved "that $TARGET reads $SWITCH $STATE: the status view's rows are for the operator to confirm"
     return 0
   fi
   if (( status_rc != 0 )); then
-    echo "ERROR: could not read the status of $TARGET (the status view exited $status_rc)." >&2
+    cr_error "could not read the status of $TARGET (the status view exited $status_rc)."
     echo "       The run is not reported as a success: nothing confirms the host reads" >&2
     echo "       payments $STATE. Re-run scripts/bringup-status.sh and check it by hand." >&2
     exit 1
@@ -1241,16 +1305,18 @@ verify_outcome() {
   if [[ "$STATE" == "armed" ]]; then
     if [[ "$payments_row" =~ DONE[[:space:]]+armed: && "$payments_row" == *"PAYMENT_ADAPTER=live"* ]]; then
       echo "VERIFIED: $TARGET reads payments armed, on the live adapter."
+      cr_proved "the status view reads payments armed on the live adapter on $TARGET"
     else
-      echo "ERROR: $TARGET does not read payments armed and live after the deploy." >&2
+      cr_error "$TARGET does not read payments armed and live after the deploy."
       echo "       It reads: ${payments_row:-<no Payments row in the status view>}" >&2
       exit 1
     fi
   else
     if [[ "$payments_row" == *"payments dark (stub adapter"* ]]; then
       echo "VERIFIED: $TARGET reads payments dark, on the stub adapter."
+      cr_proved "the status view reads payments dark on the stub adapter on $TARGET"
     else
-      echo "ERROR: $TARGET does not read payments dark on the stub after the deploy." >&2
+      cr_error "$TARGET does not read payments dark on the stub after the deploy."
       echo "       It reads: ${payments_row:-<no Payments row in the status view>}" >&2
       exit 1
     fi
@@ -1291,7 +1357,10 @@ if (( SYNTHETIC )); then
     echo "stays until cleared deliberately with:"
     echo "  scripts/payments-pause.sh --target production --resume --reason '...'"
   fi
-  exit 0
+  if [[ -z "${ARMING_STATUS_CMD:-}" ]]; then
+    cr_unproved "terraform, the deploy and the host: synthetic mode stops after the values file"
+  fi
+  cr_finish
 fi
 
 # ── Step 3: publish it ───────────────────────────────────────────────────────
@@ -1381,8 +1450,9 @@ if (( FROM_STEP <= 4 )); then
     # never that it already declares the new value: on a --from-step 4 resume
     # the apply may never have run, and asserting it would tell the operator
     # the parameter was published when it was not.
-    echo "ERROR: the deploy failed. Resume with --from-step 4." >&2
-    echo "       SSM /footbag/$TARGET/app/$SSM_SUFFIX reads: $(read_ssm_armed)" >&2
+    cr_error "the deploy failed. Resume with --from-step 4."
+    read_ssm_armed
+    echo "       SSM /footbag/$TARGET/app/$SSM_SUFFIX reads: ${SSM_ARMED}" >&2
     echo "       If that is not \"$STATE\", step 3 has not run; resume with --from-step 3." >&2
     exit 1
   fi
@@ -1454,3 +1524,4 @@ if [[ "$SWITCH" == "payments" && "$STATE" == "dark" ]]; then
   echo "recorded, against the stub's empty ledger, so an issue raised on one of those"
   echo "is an artefact of disarming; check it is one of those before resolving it."
 fi
+cr_finish

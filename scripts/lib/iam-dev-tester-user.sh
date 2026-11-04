@@ -312,18 +312,34 @@ iam_dev_tester_ensure() {
 # Removes the grant and the user this run created, and nothing that pre-dated
 # it. Idempotent, because a trapped INT does not terminate bash and the handler
 # can run twice.
+# A failed undo leaves IAM state the run created and nothing records; it is listed
+# in the caller's closing report when the caller is on the library, and printed
+# either way.
+_iam_dev_tester_undo_failed() {
+  if declare -F cr_error >/dev/null; then
+    cr_error "$1"
+  else
+    echo "ERROR: $1" >&2
+  fi
+}
+
 iam_dev_tester_undo() {
   local name="$IAM_DEV_TESTER_TARGET"
   [[ -z "$name" ]] && return 0
   _iam_dev_tester_refuse_reserved "$name" >/dev/null 2>&1 || return 0
+  local said
   if (( IAM_DEV_TESTER_CREATED_POLICY )); then
     echo "Removing the ${IAM_DEV_TESTER_POLICY_NAME} policy this run attached." >&2
-    "$IAM_DEV_TESTER_AWS_BIN" iam delete-user-policy --user-name "$name" \
-      --policy-name "$IAM_DEV_TESTER_POLICY_NAME" >/dev/null 2>&1 || true
+    if ! said="$("$IAM_DEV_TESTER_AWS_BIN" iam delete-user-policy --user-name "$name" \
+      --policy-name "$IAM_DEV_TESTER_POLICY_NAME" 2>&1 >/dev/null)"; then
+      _iam_dev_tester_undo_failed "the ${IAM_DEV_TESTER_POLICY_NAME} policy on ${name} was not removed: ${said##*$'\n'}"
+    fi
   fi
   if (( IAM_DEV_TESTER_CREATED_USER )); then
     echo "Deleting the IAM user this run created: ${name}." >&2
-    "$IAM_DEV_TESTER_AWS_BIN" iam delete-user --user-name "$name" >/dev/null 2>&1 || true
+    if ! said="$("$IAM_DEV_TESTER_AWS_BIN" iam delete-user --user-name "$name" 2>&1 >/dev/null)"; then
+      _iam_dev_tester_undo_failed "the IAM user ${name} this run created was not deleted: ${said##*$'\n'}"
+    fi
   else
     echo "The IAM user ${name} pre-dated this run and is NOT being deleted." >&2
     echo "Re-running is safe." >&2

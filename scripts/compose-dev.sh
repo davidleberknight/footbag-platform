@@ -92,6 +92,17 @@ COMPOSE_PID=$!
 # Loop-wait: bash's `wait` returns early when a trap fires (returns >128).
 # After the trap forwards the signal to compose, compose still needs time
 # to gracefully stop containers; keep waiting until compose actually exits.
+# The last wait's status is compose's own, and it is the run's exit status: a
+# stack that failed to build or start must not end this script with 0.
+COMPOSE_RC=""
 while kill -0 "$COMPOSE_PID" 2>/dev/null; do
-  wait "$COMPOSE_PID" 2>/dev/null || true
+  if wait "$COMPOSE_PID" 2>/dev/null; then COMPOSE_RC=0; else COMPOSE_RC=$?; fi
 done
+# Compose can exit before the first probe, and bash keeps its status for one wait.
+if [[ -z "$COMPOSE_RC" ]]; then
+  if wait "$COMPOSE_PID" 2>/dev/null; then COMPOSE_RC=0; else COMPOSE_RC=$?; fi
+fi
+if [[ "$COMPOSE_RC" != 0 ]]; then
+  echo "ERROR: docker compose exited ${COMPOSE_RC}; the stack did not run cleanly (its output is above)." >&2
+fi
+exit "$COMPOSE_RC"

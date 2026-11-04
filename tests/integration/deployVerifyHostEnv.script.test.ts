@@ -57,6 +57,8 @@ function driveVerify(leaf: string, verdict: number, seam = false) {
     driver,
     [
       'set -euo pipefail',
+      // The leaves report through the closing-report library, as they do whole.
+      `source ${JSON.stringify(join(REPO_ROOT, 'scripts/lib/closing-report.sh'))}`,
       `REPO_ROOT=${JSON.stringify(world)}`,
       'REMOTE=footbag-production; FOOTBAG_ENV=production; SUDO_PASS=fixture-password',
       ...lines.slice(start, end + 1),
@@ -91,6 +93,10 @@ describe.each(LEAVES)('%s verifies the host env file before reporting done', (le
     expect(res.status).toBe(1);
     expect(res.stdout).not.toContain('Deploy complete.');
     expect(res.stderr).toMatch(/env file failed verification after the deploy/);
+    // Defect caught: the failed verification printed mid-stream and missing from
+    // the closing report, the part of a long deploy the operator reads.
+    const report = res.stderr.slice(res.stderr.indexOf('==== Closing report'));
+    expect(report).toMatch(/Errors \(\d+\):\n(?:  - .*\n)*  - .*env file failed verification after the deploy/);
   });
 
   it('says on stderr when the verifier is replaced through its seam', () => {

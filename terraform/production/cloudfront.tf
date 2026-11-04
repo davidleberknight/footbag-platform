@@ -137,8 +137,9 @@ resource "aws_cloudfront_function" "strip_media_store_prefix" {
 # =============================================================================
 
 # The cutover migration notice rides this same function, behind a compile-time
-# flag: the freeze apply turns it on together with the alias records, and going
-# live is this flag lifting. It cannot ride enable_planned_maintenance, whose
+# flag: it goes on in the window state, before the freeze, and visitors meet it
+# once the freeze apply switches the alias records; going live is this flag
+# lifting. It cannot ride enable_planned_maintenance, whose
 # origin swap blanks every hostname including preview, while the window requires
 # preview to serve the real site throughout — only a viewer-request function
 # decides per hostname. The flag is compiled in by a literal-string substitution
@@ -146,7 +147,7 @@ resource "aws_cloudfront_function" "strip_media_store_prefix" {
 # the committed file; the unit suite exercises the source both ways by making
 # the same substitution.
 variable "enable_cutover_notice" {
-  description = "Serve the migration notice on www from the edge function while preview passes through to the platform. Flips on at the write-freeze, in the same apply as enable_apex_alias_records; before that moment the legacy site must be frozen and the archive top-up complete, because nothing after the record switch reaches the legacy site by name. Off is go-live."
+  description = "Serve the migration notice on www from the edge function while preview passes through to the platform. On in the window state, in the second pass of the production-readiness sitting, after the custom domain and the preview record; www and the apex keep their legacy records until the write-freeze apply switches enable_apex_alias_records, so visitors see the notice only from then. Before that switch the legacy site must be frozen and the archive top-up complete, because nothing after it reaches the legacy site by name. Off is go-live, in the launch apply."
   type        = bool
   default     = false
 }

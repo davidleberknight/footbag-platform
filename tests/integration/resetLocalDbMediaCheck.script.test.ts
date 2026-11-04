@@ -41,7 +41,12 @@ function runStep(checkCode: number) {
   chmodSync(checker, 0o755);
   const db = join(scratch, 'footbag.db');
   const path = join(scratch, 'step.sh');
-  writeFileSync(path, ['set -euo pipefail', `DB_FILE='${db}'`, step(), 'echo "STEP PASSED"'].join('\n'));
+  // The reset reports through the closing-report library, which the slice needs too.
+  const lib = join(process.cwd(), 'scripts/lib/closing-report.sh');
+  writeFileSync(
+    path,
+    ['set -euo pipefail', `source '${lib}'`, `DB_FILE='${db}'`, step(), 'echo "STEP PASSED"'].join('\n'),
+  );
   const res = spawnSync('bash', [path], {
     encoding: 'utf-8',
     env: { ...process.env, RESET_MEDIA_CHECK_CMD: checker },

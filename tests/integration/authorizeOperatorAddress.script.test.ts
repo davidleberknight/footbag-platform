@@ -105,6 +105,10 @@ interface Estate {
   ssmReadFails?: boolean;
   /** The instance Terraform names; the firewall answers only for it. */
   instance?: string;
+  /** Parameter writes and deletes refused once the apply has run: the restore. */
+  restoreFails?: boolean;
+  /** The listing of every dev-and-tester's address refused. */
+  ownersReadFails?: boolean;
 }
 
 const paramDir = () => join(workDir, 'params');
@@ -122,7 +126,7 @@ const paramOf = (account: string) => (existsSync(paramFile(account)) ? readFileS
 function awsStub(estate: Estate = {}): string {
   const {
     before = [EXISTING], after, after2222, callerArn = OPERATOR_ARN, live = 'ok', warn = false, ssmReadFails = false,
-    instance = 'footbag-staging-web',
+    instance = 'footbag-staging-web', restoreFails = false, ownersReadFails = false,
   } = estate;
   const afterSet = after ?? before;
   const path = join(workDir, 'aws-stub.sh');
@@ -181,6 +185,20 @@ function awsStub(estate: Estate = {}): string {
         : '  [[ -e "$f" ]] && { cat "$f"; echo; exit 0; }',
       '  echo "An error occurred (ParameterNotFound) when calling the GetParameter operation" >&2; exit 254',
       'fi',
+      ...(restoreFails
+        ? [
+            `if [[ "$1" == "ssm" && ( "$2" == "put-parameter" || "$2" == "delete-parameter" ) && -e ${JSON.stringify(appliedMarker)} ]]; then`,
+            '  echo "An error occurred (AccessDeniedException) when calling the PutParameter operation: restore refused" >&2; exit 254',
+            'fi',
+          ]
+        : []),
+      ...(ownersReadFails
+        ? [
+            'if [[ "$1" == "ssm" && "$2" == "get-parameters-by-path" ]]; then',
+            '  echo "An error occurred (AccessDeniedException) when calling the GetParametersByPath operation: listing refused" >&2; exit 254',
+            'fi',
+          ]
+        : []),
       'if [[ "$1" == "ssm" && "$2" == "put-parameter" ]]; then printf "%s" "$value" > "$f"; exit 0; fi',
       'if [[ "$1" == "ssm" && "$2" == "delete-parameter" ]]; then rm -f "$f"; exit 0; fi',
       'if [[ "$1" == "ssm" && "$2" == "get-parameters-by-path" ]]; then',
@@ -269,6 +287,11 @@ function run(options: RunOptions = {}) {
 }
 
 const applyRan = () => existsSync(appliedMarker);
+/** The closing report the run ends with, from its own heading on. */
+const closingReport = (stderr: string) => {
+  const at = stderr.indexOf('==== Closing report');
+  return at < 0 ? '' : stderr.slice(at);
+};
 const values = () => readFileSync(tfvarsTarget, 'utf-8');
 const listOf = (entries: string[]) =>
   TFVARS_BEFORE.replace(
@@ -641,6 +664,10 @@ describe('authorize-operator-address refuses a list it cannot read with certaint
     const r = run({ fileBody: TFVARS_SINGLE_LINE, before: [EXISTING], after: [EXISTING, NEW_ADDRESS] });
     expect(r.stderr).toMatch(/198\.51\.100\.4\/32 on line 3 names nobody/);
     expect(values()).toContain(`"${EXISTING}"`);
+    // Defect caught: the note scrolled past above the apply's output and the
+    // run ended without it, so the unattributed entry was never dealt with.
+    expect(r.status, r.stderr).toBe(0);
+    expect(closingReport(r.stderr)).toMatch(/Warnings \(\d+\):[\s\S]*198\.51\.100\.4\/32 on line 3 names nobody/);
   });
 });
 
@@ -932,6 +959,28 @@ describe('authorize-operator-address --dev-tester: a person\'s own address param
     expect(r.status).toBe(1);
     expect(paramOf('jane_doe')).toBe('192.0.2.9/32');
     expect(r.stderr).toMatch(/restored to 192\.0\.2\.9\/32/);
+  });
+
+  it('lists a restore that failed as an error with the client\'s reason', () => {
+    // Defect caught: the failed restore was a line above the end of the run, so
+    // the operator missed that the parameter still held the new address and the
+    // next staging apply would carry it out for a reason nobody remembered.
+    const r = run({
+      args: addFor('jane_doe', NEW_ADDRESS), params: { jane_doe: '192.0.2.9/32' }, applyExit: 1, restoreFails: true,
+    });
+    expect(r.status).toBe(1);
+    expect(closingReport(r.stderr)).toMatch(/Errors \(\d+\):[\s\S]*could not restore .*restore refused/);
+  });
+
+  it('warns, with the reason, when who else holds an address cannot be read', () => {
+    // Defect caught: a failed listing read as "nobody else holds it", so a
+    // removal named the administrators' list as the holder on no evidence.
+    const r = run({
+      args: removeFor('jane_doe'), params: { jane_doe: NEW_ADDRESS },
+      before: [EXISTING, NEW_ADDRESS], after: [EXISTING, NEW_ADDRESS], ownersReadFails: true,
+    });
+    expect(r.status, r.stderr).toBe(0);
+    expect(closingReport(r.stderr)).toMatch(/Warnings \(\d+\):[\s\S]*listing refused/);
   });
 
   it('removes a first-time write again when its apply fails', () => {

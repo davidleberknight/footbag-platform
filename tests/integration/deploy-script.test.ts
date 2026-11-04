@@ -88,9 +88,20 @@ const HAS_DOCKER = requireToolInCI('docker', '--version');
 // Copying the single file is enough: each of those assertions lands at the
 // production gate or the credential check, and both sit above anything else the
 // wrapper reads from the tree.
+// The closing-report library the deploy scripts source, copied beside a staged
+// script so it runs as it does in the checkout.
+const REPORT_LIBS = ['closing-report.sh', 'closing-report-remote.sh', 'verdict-banner.sh'];
+function copyReportLibs(root: string): void {
+  fs.mkdirSync(path.join(root, 'scripts', 'lib'), { recursive: true });
+  for (const lib of REPORT_LIBS) {
+    fs.copyFileSync(path.join(REPO_ROOT, 'scripts', 'lib', lib), path.join(root, 'scripts', 'lib', lib));
+  }
+}
+
 function scaffoldWrapperRoot(withPrivateCheckout = true): string {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-wrapper-'));
   fs.copyFileSync(path.join(REPO_ROOT, 'deploy_to_aws.sh'), path.join(tmpRoot, 'deploy_to_aws.sh'));
+  copyReportLibs(tmpRoot);
   if (withPrivateCheckout) {
     fs.mkdirSync(path.join(tmpRoot, 'footbag_private_repo'));
     writeConsistentLegacyChain(tmpRoot);
@@ -558,6 +569,7 @@ describe('deploy --public-data rebuilds staging from public inputs only', () => 
     const scripts = path.join(root, 'scripts');
     fs.mkdirSync(scripts);
     fs.copyFileSync(path.join(REPO_ROOT, 'scripts', 'deploy-to-aws.sh'), path.join(scripts, 'deploy-to-aws.sh'));
+    copyReportLibs(root);
     fs.writeFileSync(path.join(scripts, 'deploy-local-data.sh'), 'echo "local build $*"\n');
     fs.writeFileSync(path.join(scripts, 'deploy-rebuild.sh'), `cat >/dev/null\necho "rebuild leaf done"\nexit ${rebuildExit}\n`);
     return root;
@@ -569,12 +581,17 @@ describe('deploy --public-data rebuilds staging from public inputs only', () => 
       const r = run('bash', [path.join(root, 'scripts', 'deploy-to-aws.sh'), '--public-data'], { input: 'fake-pw\n' });
       expect(r.status, r.stderr).toBe(0);
       expect(r.stdout).toContain('rebuild leaf done');
-      // The warning is the last thing on stderr: nothing the run prints after the
-      // deploy can push it off the operator's screen.
-      const tail = (r.stderr ?? '').trimEnd().split('\n').slice(-12).join('\n');
-      expect(tail).toMatch(/Staging now runs a database built from the committed public inputs only/);
-      expect(tail).toMatch(MISSING);
-      expect(tail).toMatch(/Only a maintainer's full rebuild \(--all-data\) restores them/);
+      // The banner follows the deploy step, and the warning is listed in the
+      // closing report, the last thing the run prints, so nothing the run prints
+      // after the deploy can push it off the operator's screen.
+      const stderr = r.stderr ?? '';
+      const reportAt = stderr.indexOf('==== Closing report');
+      expect(reportAt, stderr).toBeGreaterThan(-1);
+      const banner = stderr.slice(0, reportAt);
+      expect(banner).toMatch(/Staging now runs a database built from the committed public inputs only/);
+      expect(banner).toMatch(MISSING);
+      expect(banner).toMatch(/Only a maintainer's full rebuild \(--all-data\) restores them/);
+      expect(stderr.slice(reportAt)).toMatch(/Warnings \(1\):\n {2}- staging now runs a database built from the committed public inputs only/);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
@@ -621,6 +638,8 @@ describe('scripts/deploy-local-data.sh member-intake dispatch', () => {
       path.join(REPO_ROOT, 'scripts/deploy-local-data.sh'),
       path.join(tmpRoot, 'scripts/deploy-local-data.sh'),
     );
+    // The closing-report library the build reports through.
+    fs.cpSync(path.join(REPO_ROOT, 'scripts/lib'), path.join(tmpRoot, 'scripts/lib'), { recursive: true });
     fs.writeFileSync(
       path.join(tmpRoot, 'scripts/reset-local-db.sh'),
       'touch "$(dirname "$0")/../SLATE_RAN"\n',
@@ -860,6 +879,79 @@ describe('scripts/deploy-local-data.sh member-intake dispatch', () => {
     }
   });
 
+  // The steps the build runs, standing in for the real ones: the pipeline pass,
+  // the member-intake runner and the two read-only reports, each printing what
+  // the case says.
+  function stubBuildSteps(tmpRoot: string, reportExit = 0) {
+    const write = (rel: string, body: string) => {
+      fs.mkdirSync(path.dirname(path.join(tmpRoot, rel)), { recursive: true });
+      fs.writeFileSync(path.join(tmpRoot, rel), body, { mode: 0o755 });
+    };
+    write('legacy_data/run_pipeline.sh', '#!/usr/bin/env bash\necho "pipeline $*"\n');
+    write(
+      'legacy_data/member_data_scripts/run_legacy_members.sh',
+      'echo "runner $*"\necho "WARN: 3 membership-only persons held for review"\n',
+    );
+    write('legacy_data/member_data_scripts/crosscheck_member_profile_ids.py', 'print("crosscheck written")\n');
+    write(
+      'legacy_data/member_data_scripts/report_legacy_member_honors.py',
+      `import sys\nprint("honors report: required input missing")\nsys.exit(${reportExit})\n`,
+    );
+  }
+
+  function closingReport(stderr: string | null | undefined): string {
+    const s = stderr ?? '';
+    const at = s.indexOf('==== Closing report');
+    return at < 0 ? '' : s.slice(at);
+  }
+
+  // Defect caught: the --db-only warning that enrichment was skipped scrolled
+  // past above a successful finish, with no report to carry it.
+  it('--db-only lists the skipped enrichment as a warning and still succeeds', () => {
+    const tmpRoot = scaffoldAllDataRoot();
+    try {
+      const r = run('bash', ['scripts/deploy-local-data.sh', '--db-only'], { cwd: tmpRoot, env: ENTRY });
+      expect(r.status, r.stderr ?? '').toBe(0);
+      expect(fs.existsSync(path.join(tmpRoot, 'SLATE_RAN'))).toBe(true);
+      expect(closingReport(r.stderr)).toMatch(/Warnings \(1\):\n {2}- --db-only skips phase C\/D\/E\/F\/G enrichment/);
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  // Defect caught: a warning the member intake printed was streamed and never
+  // collected, so the build ended clean over members held back from the load.
+  it('--all-data lists a warning the member intake printed, and still succeeds', () => {
+    const tmpRoot = scaffoldAllDataRoot();
+    try {
+      stubBuildSteps(tmpRoot);
+      const r = run('bash', ['scripts/deploy-local-data.sh', '--all-data'], { cwd: tmpRoot, env: ENTRY });
+      expect(r.status, r.stderr ?? '').toBe(0);
+      expect(r.stdout).toMatch(/runner --load --dry-run/);
+      expect(closingReport(r.stderr)).toMatch(
+        /- member intake preview: WARN: 3 membership-only persons held for review/,
+      );
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  // Defect caught: a data-review report that could not be written failed the
+  // build with no line saying which one.
+  it('--all-data fails, naming the report, when a data-review report cannot run', () => {
+    const tmpRoot = scaffoldAllDataRoot();
+    try {
+      stubBuildSteps(tmpRoot, 2);
+      const r = run('bash', ['scripts/deploy-local-data.sh', '--all-data'], { cwd: tmpRoot, env: ENTRY });
+      expect(r.status).not.toBe(0);
+      expect(closingReport(r.stderr)).toMatch(
+        /- member honors report: exit 2: honors report: required input missing/,
+      );
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
   // A direct run skips what each entry point adds around the build, so it is
   // refused, and refused before anything touches the database.
   it('a direct invocation is refused before any step runs, naming the entry points', () => {
@@ -938,6 +1030,10 @@ describe('scripts/reset-local-db.sh preflight', () => {
         'scripts/reset-local-db.sh',
         'scripts/internal/assert-db-pre-cutover.sh',
         'scripts/lib/db_cutover_guard.py',
+        // The closing-report library the reset reports through.
+        'scripts/lib/closing-report.sh',
+        'scripts/lib/closing-report-remote.sh',
+        'scripts/lib/verdict-banner.sh',
       ]) {
         fs.copyFileSync(path.join(REPO_ROOT, rel), path.join(tmpRoot, rel));
       }
@@ -1525,9 +1621,10 @@ describe('the deploy leaves reclaim host disk without risking the running releas
 
   it.each(LEAVES)('%s prunes dangling images and the build cache only', (relPath) => {
     const content = fs.readFileSync(path.join(REPO_ROOT, relPath), 'utf8');
-    expect(content).toContain(
-      'journalctl --vacuum-time=7d; docker image prune -f; docker builder prune -af',
-    );
+    // Each step runs on the host as its own reported step.
+    expect(content).toContain('-- journalctl --vacuum-time=7d');
+    expect(content).toContain('-- docker image prune -f');
+    expect(content).toContain('-- docker builder prune -af');
     const broad = content
       .split('\n')
       .filter((line) => !/^\s*#/.test(line))
@@ -1956,13 +2053,14 @@ describe('production deploys type their host password instead of reading a file'
     // file, and 5.1 still falls back to one above a threshold. A password is short
     // enough to get a pipe on a current bash, so this pins the construct rather
     // than the outcome: the guarantee should not rest on a version and a length.
-    // exec replaces the process image, so the variable does not outlive the call.
+    // The variable is unset once the orchestrator returns, so it does not
+    // outlive the call.
     const source = wrapper();
     // The media answer the gate may have appended sits between the arguments and
     // the redirect; what this pins is that the password still arrives as the
     // process-substitution stdin and nowhere else.
     expect(source).toMatch(
-      /exec bash "\$ORCHESTRATOR" "\$@" [^\n]*\\\n\s*< <\(printf '%s\\n' "\$_PROD_SUDO_PASS"\)/,
+      /^\s*bash "\$ORCHESTRATOR" "\$@" [^\n]*\\\n\s*< <\(printf '%s\\n' "\$_PROD_SUDO_PASS"\) \|\| _orchestrator_rc=\$\?\n\s*unset _PROD_SUDO_PASS$/m,
     );
     expect(source, 'the password is never exported').not.toMatch(/export _PROD_SUDO_PASS/);
     expect(source, 'no here-string carries the password').not.toMatch(/<<<.*_PROD_SUDO_PASS/);
@@ -1971,7 +2069,7 @@ describe('production deploys type their host password instead of reading a file'
   it('leaves staging reading its credential file, with the mode check intact', () => {
     const source = wrapper();
     expect(source).toMatch(
-      /exec bash "\$ORCHESTRATOR" "\$@" [^\n]*\\\n\s*< "\$OPERATOR_CREDENTIAL_FILE"/);
+      /^\s*bash "\$ORCHESTRATOR" "\$@" [^\n]*\\\n\s*< "\$OPERATOR_CREDENTIAL_FILE"/m);
     // The mode check moved into the shared rule rather than going away; this
     // pins that the deploy still runs it, since a wrong mode is silent and can
     // persist for months.
@@ -2187,7 +2285,7 @@ describe('the production gate asks what happens to the media bucket', () => {
   it('appends the answer to the handoff rather than replacing what was typed', () => {
     const handoff = wrapperSrc.slice(wrapperSrc.indexOf('if (( PROD_PASSWORD_TYPED == 1 )); then'));
     expect(handoff).toMatch(
-      /exec bash "\$ORCHESTRATOR" "\$@" "\$\{PROD_MEDIA_ARGS\[@\]\+"\$\{PROD_MEDIA_ARGS\[@\]\}"\}"/);
+      /^\s*bash "\$ORCHESTRATOR" "\$@" "\$\{PROD_MEDIA_ARGS\[@\]\+"\$\{PROD_MEDIA_ARGS\[@\]\}"\}"/m);
     // And the array is declared outside the gate, so a staging run's handoff is
     // safe under `set -u` where the gate never fires.
     expect(wrapperSrc.indexOf('PROD_MEDIA_ARGS=()'))
@@ -3309,7 +3407,9 @@ describe('deploy-code --first-install: the release installed without starting it
         const log = path.join(dir, 'calls.log');
         fs.writeFileSync(path.join(dir, 'systemctl'), `#!/usr/bin/env bash\necho "systemctl $*" >> ${JSON.stringify(log)}\n[[ "$1" == is-enabled ]] && exit 1\nexit 0\n`);
         fs.chmodSync(path.join(dir, 'systemctl'), 0o755);
-        const r = spawnSync('bash', ['-c', `set -euo pipefail\nFIRST_INSTALL=${first}\n${enable}\n${tail}\necho REACHED-RESTART`], {
+        // The report library the half's caller sends ahead of it on the stream.
+        const reportLib = path.join(REPO_ROOT, 'scripts/lib/closing-report-remote.sh');
+        const r = spawnSync('bash', ['-c', `set -euo pipefail\nsource ${JSON.stringify(reportLib)}\nFIRST_INSTALL=${first}\n${enable}\n${tail}\necho REACHED-RESTART`], {
           encoding: 'utf8', env: { ...process.env, PATH: `${dir}:${process.env.PATH ?? ''}` }, ...SPAWN_GUARD,
         });
         return { status: r.status, out: r.stdout ?? '', calls: fs.existsSync(log) ? fs.readFileSync(log, 'utf8') : '' };
@@ -3342,8 +3442,9 @@ describe('deploy-code --first-install: the release installed without starting it
     const end = leaf.indexOf('# ── Step 5: Smoke check');
     expect(start).toBeGreaterThan(-1);
     expect(end).toBeGreaterThan(start);
+    const reportLib = path.join(REPO_ROOT, 'scripts/lib/closing-report.sh');
     const runLeaf = (first: string) => spawnSync('bash', ['-c',
-      `set -euo pipefail\nFIRST_INSTALL=${first}\nREMOTE=footbag-production\nFOOTBAG_ENV=production\n${leaf.slice(start, end)}\necho REACHED-SMOKE`,
+      `set -euo pipefail\nsource ${JSON.stringify(reportLib)}\nFIRST_INSTALL=${first}\nREMOTE=footbag-production\nFOOTBAG_ENV=production\n${leaf.slice(start, end)}\necho REACHED-SMOKE`,
     ], { encoding: 'utf8', ...SPAWN_GUARD });
     const first = runLeaf('1');
     expect(first.status).toBe(0);

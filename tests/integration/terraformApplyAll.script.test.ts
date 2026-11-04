@@ -26,6 +26,8 @@ interface TreePlan {
   pending?: string[];
   /** Make this tree's plan fail. */
   planFails?: boolean;
+  /** A warning line this tree's plan prints while still succeeding. */
+  planWarns?: string;
 }
 
 let dir: string;
@@ -53,6 +55,7 @@ function terraformStub(plans: Partial<Record<Tree, TreePlan>>): string {
     });
     return [
       `  */terraform/${tree})`,
+      ...(plan.planWarns ? [`    if [ "$verb" = plan ]; then echo ${JSON.stringify(plan.planWarns)}; fi`] : []),
       `    if [ "$verb" = plan ] && ${plan.planFails ? 'true' : 'false'}; then echo "Error: plan failed for ${tree}" >&2; exit 1; fi`,
       `    if [ "$verb" = show ]; then cat <<'PLANJSON'`,
       json,
@@ -196,6 +199,39 @@ describe('terraform-apply-all.sh: the sweep', () => {
     expect(out).not.toMatch(/no terminal to confirm on/);
     expect(out).toMatch(/terraform\/production did not finish/);
     expect(readFileSync(callLog, 'utf-8')).not.toMatch(/ apply \//);
+  });
+
+  /** The closing report's list of errors or warnings, so a case asserts what it lists. */
+  const reportList = (stderr: string, heading: 'Errors' | 'Warnings'): string => {
+    const at = stderr.search(new RegExp(`^${heading} \\(\\d+\\):$`, 'm'));
+    if (at === -1) return '';
+    const rest = stderr.slice(at);
+    const end = rest.slice(1).search(/^(Errors|Warnings|Proven:|Not proven:|No errors)/m);
+    return end === -1 ? rest : rest.slice(0, end + 1);
+  };
+
+  // Defect caught: each tree's apply ends with a report of its own, so the
+  // outermost run closes on its own summary and a tree's error or warning sits
+  // in the middle of the output where nobody reads it.
+  it('ends with one closing report that lists the error of the tree that stopped it', () => {
+    const r = run(['--target', 'production'], { ...clean, production: { planFails: true } });
+    expect(r.exitCode).not.toBe(0);
+    expect(r.stderr.match(/^==== Closing report: /gm)).toHaveLength(1);
+    expect(r.stderr).toMatch(/^==== Closing report: terraform-apply-all\.sh ====$/m);
+    const errors = reportList(r.stderr, 'Errors');
+    expect(errors).toMatch(/terraform-apply\.sh: terraform plan: Error: plan failed for production/);
+    // And which tree stopped the sweep, in the sweep's own words.
+    expect(errors).toMatch(/^ {2}- terraform\/production did not finish \(exit 1\)/m);
+  });
+
+  it('lists a warning a clean tree printed, and still finishes every tree', () => {
+    const r = run(['--target', 'staging'], {
+      ...clean,
+      identity: { planWarns: 'Warning: Deprecated attribute in identity' },
+    });
+    expect(r.exitCode, r.stderr).toBe(0);
+    expect(plannedTrees()).toEqual(['shared', 'identity', 'staging']);
+    expect(reportList(r.stderr, 'Warnings')).toMatch(/terraform-apply\.sh: terraform plan: Warning: Deprecated attribute in identity/);
   });
 
   it('does not name the bootstrap check when a later tree fails', () => {

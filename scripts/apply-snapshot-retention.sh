@@ -600,10 +600,22 @@ if (( SNAPSHOT_REPLICATION )); then
 fi
 
 echo "Replication alarm states:"
+# A prefix listing has no not-found of its own: an estate without the alarms
+# answers with an empty list. Any failure is therefore this run being unable to
+# look, never "no alarm", and it fails the verification with the CLI's reason.
+ALARMS_RC=0
 ALARMS="$(aws_read cloudwatch describe-alarms --alarm-name-prefix "footbag-${TARGET}-" \
   --query "MetricAlarms[?contains(AlarmName, 'replication')].[AlarmName,StateValue]" \
-  --output text 2>/dev/null)" || ALARMS=""
-if [[ -z "$ALARMS" ]]; then
+  --output text 2>&1)" || ALARMS_RC=$?
+if (( ALARMS_RC )); then
+  echo "  <unreadable>"
+  echo ""
+  echo "  describe-alarms failed (exit ${ALARMS_RC}):"
+  printf '%s\n' "$ALARMS" | sed 's/^/    /'
+  echo "  This run cannot tell an absent alarm from one it could not see, and it does"
+  echo "  not pass on their behalf."
+  VERIFY_FAIL=1
+elif [[ -z "$ALARMS" ]]; then
   echo "  <none found>"
   echo ""
   if (( SNAPSHOT_REPLICATION )); then

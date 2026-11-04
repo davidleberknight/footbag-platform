@@ -325,6 +325,12 @@ function args(overrides: Partial<Record<string, string>> = {}, extra: string[] =
   return [...Object.entries(base).flatMap(([k, v]) => (v === '' ? [] : [k, v])), ...extra];
 }
 
+/** The closing report: everything from its heading on. */
+function closingReport(out: string): string {
+  const at = out.lastIndexOf('Closing report');
+  return at === -1 ? '' : out.slice(at);
+}
+
 /** Piped stdio: the condition every refusal before the terminal check sees. */
 function runPiped(argv: string[], extraEnv: Record<string, string> = {}) {
   const r = spawnSync('bash', [SCRIPT, ...argv], {
@@ -966,6 +972,32 @@ describe('onboard-dev-tester.sh — the key and the address it is given', () => 
     expect(r.stdout).toMatch(new RegExp(`fingerprint: +${pubSha.replace(/[+/]/g, '\\$&')}`));
   });
 
+  it('refuses to onboard yourself when the checkip read fails, with the tool\'s own reason in the closing report', () => {
+    // Defect caught: an unreachable checkip refused as an empty address with
+    // the reason thrown away, so the operator chases a typo that is not there.
+    mkdirSync(join(home, '.ssh'), { recursive: true });
+    writeFileSync(join(home, '.ssh', `id_ed25519_${ACCOUNT}.pub`), readFileSync(pub, 'utf-8'));
+    const fetch = stub('checkip', 'echo "curl: (6) Could not resolve host: checkip.amazonaws.com" >&2; exit 6');
+    const cred = join(dir, 'cred');
+    writeFileSync(cred, 'fixture-sudo-password\n', { mode: 0o600 });
+    const argv = args({ '--public-key': '', '--expect-fingerprint': '', '--address': '' });
+    const inner = ['bash', JSON.stringify(SCRIPT), ...argv.map((a) => JSON.stringify(a)), '<', JSON.stringify(cred)].join(' ');
+    const r = spawnSync('script', ['-qec', inner, '/dev/null'], {
+      encoding: 'utf-8',
+      input: 'APPLY\n',
+      env: { ...process.env, ...env(), ONBOARD_DEV_TESTER_FETCH: fetch },
+      ...SPAWN_GUARD,
+    });
+    expect(r.status, r.stdout).toBe(2);
+    const report = r.stdout.slice(r.stdout.lastIndexOf('Closing report'));
+    expect(report).toMatch(/Errors \([1-9]\d*\):[\s\S]*exit 6\): curl: \(6\) Could not resolve host/);
+    // Defect caught: the run's stdin, which carries the sudo password, read by
+    // the address lookup and surfacing in its message.
+    expect(r.stdout).not.toContain('fixture-sudo-password');
+    expect(read('address.args')).toBe('');
+    expect(mutatingCalls()).toEqual([]);
+  });
+
   it('refuses to onboard yourself when this machine has no pair of that name', () => {
     const r = runPiped(args({ '--public-key': '', '--expect-fingerprint': '' }));
     expect(r.status).toBe(2);
@@ -1131,6 +1163,61 @@ describe('onboard-dev-tester.sh --verify: one read-only verdict', () => {
     accepted();
     writeFileSync(join(dir, 'host-other-key'), '');
     expect(runVerify().status).toBe(1);
+  });
+
+  it('fails, rather than reporting pending, when CloudTrail cannot be read', () => {
+    // Read as "not yet seen", a denied lookup reported pending on every re-run,
+    // and the operator waited for an acceptance the run could never see.
+    accepted();
+    writeFileSync(join(dir, 'unreadable-lookup-events'), '');
+    const r = runVerify();
+    expect(r.status).toBe(1);
+    expect(r.stdout).not.toMatch(/PENDING/);
+    expect(closingReport(r.stderr)).toMatch(/CloudTrail could not be read.*AccessDenied/);
+  });
+
+  it('reports an address it could not read as unread, not as missing', () => {
+    // Read as absent, a denied read sent the operator to re-add an address
+    // that is already on the allow-list.
+    accepted();
+    writeFileSync(join(dir, 'unreadable-get-parameter'), '');
+    const r = runVerify();
+    expect(r.status).toBe(1);
+    expect(r.stderr).not.toMatch(/no staging address parameter/);
+    expect(closingReport(r.stderr)).toMatch(/staging address parameter could not be read.*AccessDenied/);
+  });
+
+  it('lists each FAIL in the closing report', () => {
+    // A FAIL among the ok lines, with only NOT VERIFIED at the end, sends the
+    // operator scrolling back for which fact was wrong.
+    accepted();
+    writeFileSync(join(dir, 'second-active-key'), '');
+    const r = runVerify();
+    expect(r.status).toBe(1);
+    expect(closingReport(r.stderr)).toMatch(/2 active keys where exactly one belongs/);
+  });
+
+  it('refuses a job role it could not read as unread, never as an identity tree not yet applied', () => {
+    // Read as absent, a denied read would send the operator to apply a tree
+    // that is already applied.
+    accepted();
+    writeFileSync(join(dir, 'unreadable-get-role'), '');
+    const r = runVerify();
+    expect(r.status).toBe(1);
+    expect(r.stderr).not.toMatch(/there is no FootbagDevTester role/);
+    expect(closingReport(r.stderr)).toMatch(/could not read the FootbagDevTester role.*AccessDenied/);
+  });
+
+  it('lists pending in the closing report, still exiting 3', () => {
+    accepted();
+    writeFileSync(join(dir, 'assumed'), '{"Events":[]}');
+    const r = runVerify();
+    expect(r.status).toBe(3);
+    expect(closingReport(r.stderr)).toMatch(/PENDING/);
+    // A pending end is not a failure: the verdict says so and no error is
+    // invented for the deliberate status.
+    expect(closingReport(r.stderr)).toMatch(/VERDICT: PENDING/);
+    expect(closingReport(r.stderr)).not.toMatch(/stopped before the end/);
   });
 
   it('takes nothing that would change anything', () => {

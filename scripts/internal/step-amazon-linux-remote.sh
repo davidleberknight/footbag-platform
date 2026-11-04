@@ -26,6 +26,9 @@
 #   prove    compare the host's tools with the pins (needs
 #            scripts/internal/host-tool-versions-remote.sh sent ahead)
 #
+# preview and step count with scripts/internal/dnf-check-update-remote.sh, which
+# is sent ahead of this body.
+#
 # Lines for the operator side to read:
 #   ---FOOTBAG-PREVIEW--- <packages>
 #   ---FOOTBAG-REBOOT--- needed|not-needed
@@ -63,17 +66,15 @@ release_now() {
   sed -n 's/^Amazon Linux release \([0-9][0-9.]*\).*/\1/p' "$release_file"
 }
 
-# `dnf check-update` exits 100 when it lists updates, 0 when there are none and 1
-# on an error, so the count and the failure cannot be confused.
+# The count, or a marked error when dnf failed or listed nothing countable
+# (scripts/internal/dnf-check-update-remote.sh, sent ahead).
 count_updates() {
-  local out rc
-  out="$(dnf -q check-update --releasever="$AMAZON_LINUX_RELEASE" 2>&1)"
-  rc=$?
-  case "$rc" in
-    0) echo 0 ;;
-    100) grep -cE '^[[:alnum:]_.+-]+\.(x86_64|aarch64|noarch|i686)[[:space:]]' <<<"$out" ;;
-    *) crr_error "dnf check-update failed (exit ${rc}): ${out##*$'\n'}"; return 1 ;;
-  esac
+  if ! declare -F dnf_check_update >/dev/null; then
+    crr_error "dnf-check-update-remote.sh was not sent ahead of this body"
+    return 1
+  fi
+  dnf_check_update "$AMAZON_LINUX_RELEASE" || return 1
+  echo "$DNF_UPDATE_COUNT"
 }
 
 # dnf needs-restarting -r exits 1 when a reboot is required and 0 when it is not;

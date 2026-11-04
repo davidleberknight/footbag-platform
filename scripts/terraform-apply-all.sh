@@ -96,6 +96,13 @@ fi
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
+# One closing report for the whole run. Each tree's apply is on the same
+# library, so it hands every error and warning it met (a Terraform warning, a
+# refusal) to this report rather than printing its own, while still running on
+# this terminal for its typed APPLY.
+# shellcheck source=lib/closing-report.sh
+source "$REPO_ROOT/scripts/lib/closing-report.sh"
+
 TREES=(shared identity "$TARGET")
 
 if (( DRY_RUN )); then
@@ -108,7 +115,8 @@ if (( DRY_RUN )); then
   echo ""
   echo "Each tree with changes prints its plan and asks for its own typed APPLY;"
   echo "a tree with nothing pending ends without a prompt."
-  exit 0
+  cr_unproved "every tree (a dry run plans nothing)"
+  cr_finish
 fi
 
 declare -a SUMMARY=()
@@ -123,12 +131,13 @@ for i in "${!TREES[@]}"; do
   bash "$REPO_ROOT/scripts/terraform-apply.sh" --target "$tree" --init --skip-empty-plan || rc=$?
   if (( rc != 0 )); then
     echo "" >&2
-    echo "ERROR: terraform/${tree} did not finish (exit ${rc}). The run stops here." >&2
+    cr_error "terraform/${tree} did not finish (exit ${rc}). The run stops here."
     if (( ${#SUMMARY[@]} > 0 )); then
       printf '       Done before it: %s\n' "${SUMMARY[@]}" >&2
     fi
     remaining=("${TREES[@]:$i}")
     echo "       Not applied: ${remaining[*]}." >&2
+    cr_unproved "not applied: ${remaining[*]}"
     if [[ "$tree" == "shared" ]]; then
       echo "       On an account whose state bucket does not exist yet, the first" >&2
       echo "       shared apply is not this script's: bash scripts/bootstrap-shared-state.sh --check" >&2
@@ -137,8 +146,10 @@ for i in "${!TREES[@]}"; do
     exit "$rc"
   fi
   SUMMARY+=("${tree}: finished")
+  cr_proved "terraform/${tree} applied or had nothing pending"
 done
 
 echo ""
 echo "== Every tree for ${TARGET} is applied =="
 printf '  %s\n' "${SUMMARY[@]}"
+cr_finish

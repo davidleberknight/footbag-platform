@@ -328,6 +328,26 @@ describe('activate-payments.sh — webhook-secret rotation', () => {
     expect(rewritten).toContain('PAYMENT_ADAPTER=live');
     // The gate observes the open rotation window.
     expect(result.stdout).toMatch(/rotation window is open/);
+    // Defect caught: the gate's notice of the open window scrolled past and the
+    // run ended without it, so a roll was left open with nobody reminded to
+    // close it. It is a warning, listed, and the run still succeeds.
+    const report = result.stderr.slice(result.stderr.indexOf('==== Closing report'));
+    expect(report).toMatch(/Warnings \(1\):[\s\S]*PAYMENTS-BOOT NOTICE/);
+  });
+
+  it('fails the run on a failed boot gate, listing it and claiming nothing after it', () => {
+    // Defect caught: the gate refused the rewritten env file and the run still
+    // printed the rotation as done, so the operator deployed a host that will
+    // not boot its payment adapter.
+    const envFile = writeEnvFile([...LIVE_ENV, 'PAYMENTS_ARMED=dark']);
+    const result = runScript(
+      ['--target', 'staging', '--env-file', envFile, '--rotate-webhook-secret'],
+      { STRIPE_WEBHOOK_SECRET_VALUE: 'whsec_new_value' },
+    );
+    expect(result.exitCode).toBe(1);
+    const report = result.stderr.slice(result.stderr.indexOf('==== Closing report'));
+    expect(report).toMatch(/Errors \(\d+\):[\s\S]*PAYMENTS-BOOT FAIL/);
+    expect(result.stdout).not.toMatch(/== webhook signing secret rotated/);
   });
 
   it('masks both the new and the previous secret in the diff', () => {
@@ -475,18 +495,148 @@ describe('activate-payments.sh — write ordering and key-file hygiene', () => {
     }
   });
 
-  it('the temp file holding the key is the one the trap actually shreds', () => {
-    // The previous trap named KEY_TMP while the function assigned a local, so an
-    // interrupt between creating the file and shredding it left the plaintext
-    // secret behind.
+  it('the temp file holding the key is the one the registered cleanup shreds', () => {
+    // A cleanup naming KEY_TMP while the function assigned a local would leave
+    // the plaintext secret behind after an interrupt between creating the file
+    // and shredding it. The interrupt itself is run in the next case.
     expect(source).toMatch(/KEY_TMP="\$\(mktemp \/tmp\/footbag-ssm-val\.XXXXXX\)"/);
-    expect(source).toMatch(/trap 'shred -u "\$\{KEY_TMP:-\}"/);
+    expect(source).toMatch(/^cr_cleanup payments_cleanup$/m);
     expect(source).toMatch(/--value "file:\/\/\$KEY_TMP"/);
+  });
+
+  it('destroys every local copy of a secret when the run is interrupted', () => {
+    // Defect caught: an interrupt part-way left the plaintext key, the env-file
+    // copies or the Stripe curl config in /tmp. The cleanup definitions are run
+    // with the closing-report library the script uses, and the run is
+    // terminated with each file in place.
+    const start = source.indexOf('# A plaintext secret left in /tmp');
+    const end = source.indexOf('cr_cleanup payments_cleanup');
+    expect(start, 'the cleanup definitions were not found').toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    const caseDir = mkdtempSync(join(tmpDir, 'cleanup-'));
+    const files = {
+      key: join(caseDir, 'key'),
+      newEnv: join(caseDir, 'new-env'),
+      oldEnv: join(caseDir, 'old-env'),
+      work: join(caseDir, 'work'),
+    };
+    const harness = join(caseDir, 'harness.sh');
+    writeFileSync(harness, [
+      'set -euo pipefail',
+      `source ${JSON.stringify(join(process.cwd(), 'scripts/lib/closing-report.sh'))}`,
+      source.slice(start, end + 'cr_cleanup payments_cleanup'.length),
+      `mkdir -p ${JSON.stringify(files.work)}`,
+      `printf secret > ${JSON.stringify(join(files.work, 'curlrc'))}`,
+      `printf secret > ${JSON.stringify(files.key)}`,
+      `printf secret > ${JSON.stringify(files.newEnv)}`,
+      `printf secret > ${JSON.stringify(files.oldEnv)}`,
+      `KEY_TMP=${JSON.stringify(files.key)}`,
+      `NEW_LOCAL=${JSON.stringify(files.newEnv)}`,
+      `OLD_LOCAL=${JSON.stringify(files.oldEnv)}`,
+      'OLD_LOCAL_OWNED=1',
+      `ENDPOINT_WORK=${JSON.stringify(files.work)}`,
+      'kill -TERM $$',
+      'echo NOT_REACHED',
+    ].join('\n') + '\n');
+    const r = spawnSync('bash', [harness], {
+      encoding: 'utf-8', env: { ...process.env, FOOTBAG_CR_REPORT_TO: '' }, ...SPAWN_GUARD,
+    });
+    expect(r.status, r.stderr).toBe(143);
+    for (const [name, path] of Object.entries(files)) {
+      expect(existsSync(path), `${name} survived the interrupt`).toBe(false);
+    }
+  });
+
+  it('keeps the caller\'s own env file under --env-file when interrupted', () => {
+    // The other side of the bound: the old copy is the caller's input there, and
+    // shredding it would destroy the file they asked the run to rewrite.
+    const start = source.indexOf('# A plaintext secret left in /tmp');
+    const end = source.indexOf('cr_cleanup payments_cleanup');
+    const caseDir = mkdtempSync(join(tmpDir, 'cleanup-own-'));
+    const own = join(caseDir, 'callers.env');
+    writeFileSync(own, 'SECRETS_ADAPTER=live\n');
+    const harness = join(caseDir, 'harness.sh');
+    writeFileSync(harness, [
+      'set -euo pipefail',
+      `source ${JSON.stringify(join(process.cwd(), 'scripts/lib/closing-report.sh'))}`,
+      source.slice(start, end + 'cr_cleanup payments_cleanup'.length),
+      `OLD_LOCAL=${JSON.stringify(own)}`,
+      'kill -TERM $$',
+    ].join('\n') + '\n');
+    const r = spawnSync('bash', [harness], {
+      encoding: 'utf-8', env: { ...process.env, FOOTBAG_CR_REPORT_TO: '' }, ...SPAWN_GUARD,
+    });
+    expect(r.status, r.stderr).toBe(143);
+    expect(existsSync(own)).toBe(true);
   });
 
   it('refuses to replace an existing Stripe key unless told to', () => {
     expect(source).toMatch(/already holds a different Stripe API key/);
     expect(source).toMatch(/Re-run with --replace-key/);
+  });
+
+  /**
+   * The read of the key already in Parameter Store, run rather than read. The
+   * real-host path needs a terminal for the key prompt, so the read's
+   * definitions are run on their own with the closing-report library the script
+   * uses, against a stand-in aws on PATH. The errors are the AWS CLI's
+   * documented "An error occurred (<Code>) when calling the <Operation>
+   * operation" shape with the service's own error codes.
+   */
+  function readCurrentKey(answer: 'value' | 'not-found' | 'denied') {
+    const start = source.indexOf('# Reads a Parameter Store value without decrypting');
+    const end = source.indexOf('if (( DRY_RUN )); then');
+    expect(start, 'the key-read definitions were not found').toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    const caseDir = mkdtempSync(join(tmpDir, 'key-read-'));
+    const bin = join(caseDir, 'bin');
+    mkdirSync(bin);
+    const reply = {
+      value: `echo ${SECRETS.STRIPE_SECRET_KEY_VALUE}`,
+      'not-found': 'echo "An error occurred (ParameterNotFound) when calling the GetParameter operation: " >&2; exit 254',
+      denied: 'echo "An error occurred (AccessDeniedException) when calling the GetParameter operation: stub denial" >&2; exit 254',
+    }[answer];
+    writeFileSync(join(bin, 'aws'), `#!/usr/bin/env bash\n${reply}\n`);
+    chmodSync(join(bin, 'aws'), 0o755);
+    const harness = join(caseDir, 'harness.sh');
+    writeFileSync(harness, [
+      'set -euo pipefail',
+      `source ${JSON.stringify(join(process.cwd(), 'scripts/lib/closing-report.sh'))}`,
+      'AWS_PROFILE_ARG=stub',
+      'SSM_PARAM=/footbag/production/secrets/stripe_secret_key',
+      source.slice(start, end),
+      'read_current_stripe_key',
+      'printf "KEY=<%s>\\n" "$CURRENT_KEY"',
+      'cr_finish',
+    ].join('\n') + '\n');
+    const r = spawnSync('bash', [harness], {
+      encoding: 'utf-8',
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? ''}`, FOOTBAG_CR_REPORT_TO: '' },
+      ...SPAWN_GUARD,
+    });
+    const stderr = r.stderr ?? '';
+    return { status: r.status, stdout: r.stdout ?? '', report: stderr.slice(stderr.indexOf('==== Closing report')) };
+  }
+
+  it('stops, with the reason, when the existing key cannot be read', () => {
+    // Defect caught: a denied read was taken as "no key there", so activation
+    // went on to overwrite a live Stripe key the guard exists to protect.
+    const r = readCurrentKey('denied');
+    expect(r.status).toBe(1);
+    expect(r.stdout).not.toMatch(/KEY=/);
+    expect(r.report).toMatch(/Errors \(\d+\):[\s\S]*AccessDeniedException/);
+  });
+
+  it('treats a parameter that does not exist as holding no key', () => {
+    const r = readCurrentKey('not-found');
+    expect(r.status, r.report).toBe(0);
+    expect(r.stdout).toContain('KEY=<>');
+  });
+
+  it('hands back the key the parameter holds, for the replacement check', () => {
+    const r = readCurrentKey('value');
+    expect(r.status, r.report).toBe(0);
+    expect(r.stdout).toContain(`KEY=<${SECRETS.STRIPE_SECRET_KEY_VALUE}>`);
   });
 
   it('accepts --replace-key as an argument', () => {

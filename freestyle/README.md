@@ -105,8 +105,9 @@ data is wholly derived from a committed file still replace their own rows.
   the TypeScript content module under `src/content/` for the observational
   universe. A committed-content drift guard
   (`scripts/ci/assert_generated_content_current.sh`) fails the build if it falls
-  out of date with the corpus. It is removed before cutover, with its content
-  moved into the database.
+  out of date with the corpus. The module ships at go-live as a frozen snapshot,
+  a temporarily accepted deviation; it and the guard are removed in the
+  post-go-live cleanup, with its content moved into the database.
 - **Gitignored build artifacts** (`out/`, `reports/`): QC output, never committed.
 
 ## Refreshing the footbag.org snapshot (pre-cutover only)
@@ -124,9 +125,13 @@ scrapes; it reads the committed snapshot.
 The observational-universe content module is regenerated from the corpus by
 `freestyle/scripts/build_observational_universe_content.py`, a manual step before
 cutover. Until then, regenerate it rather than hand-editing; the drift guard above
-enforces this. The module is being removed: its content moves into the database,
-served and computed at request time, and the generator, the module and the drift
-guard are deleted before cutover. No TypeScript in the app is generated.
+enforces this. Never regenerate it after cutover: the generator reads the committed
+CSVs and the ruling ledger, not production, so a regeneration would discard every
+ruling production has recorded since. The module ships at go-live frozen, a
+temporarily accepted deviation taken for schedule risk; in the post-go-live cleanup
+its content moves into the database, served and computed at request time, and the
+generator, the module and the drift guard are deleted. Target: no TypeScript in the
+app is generated.
 
 ## Symbolic-layer regeneration and its restricted authority
 

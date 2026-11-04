@@ -98,6 +98,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 ROLE_TF="${REPO_ROOT}/terraform/identity/dev-tester-role.tf"
 
+# Every FAIL and WEAK result is listed once more at the end, in the closing
+# report, and the exit status follows from it. The library owns the exit and
+# signal traps, so the cleanup below is registered with it.
+# shellcheck source=lib/closing-report.sh
+source "${SCRIPT_DIR}/lib/closing-report.sh"
+
 # The AWS identity this run uses, supplied and proved rather than inherited from
 # whichever shell the operator started from.
 # shellcheck source=lib/aws-profile.sh
@@ -123,22 +129,22 @@ while (( $# )); do
   case "$1" in
     --profile)
       PROFILE="${2:-}"
-      shift 2 || { echo "ERROR: --profile requires an argument" >&2; exit 2; }
+      shift 2 || { cr_error "--profile requires an argument"; exit 2; }
       ;;
     --dev-tester)
       DEV_TESTER_NAME="${2:-}"
-      shift 2 || { echo "ERROR: --dev-tester requires an argument" >&2; exit 2; }
+      shift 2 || { cr_error "--dev-tester requires an argument"; exit 2; }
       ;;
     --quiet) QUIET=1; shift ;;
     -h|--help) usage 0 ;;
-    *) echo "ERROR: unknown argument: $1" >&2; usage 2 ;;
+    *) cr_error "unknown argument: $1"; usage 2 ;;
   esac
 done
 
 if [[ -n "$PROFILE" ]]; then
   AWS_ARGS+=(--profile "$PROFILE")
 else
-  aws_profile_ensure || exit 1
+  aws_profile_ensure || cr_die "no AWS identity to run the simulations as"
 fi
 
 if [[ "$AWS_BIN" != "aws" ]]; then
@@ -146,7 +152,7 @@ if [[ "$AWS_BIN" != "aws" ]]; then
 fi
 
 [[ -r "$ROLE_TF" ]] || {
-  echo "ERROR: cannot read ${ROLE_TF}, which is where the denied actions are declared." >&2
+  cr_error "cannot read ${ROLE_TF}, which is where the denied actions are declared."
   echo "       Without it this run would be checking a list it made up." >&2
   exit 1
 }
@@ -154,8 +160,10 @@ fi
 FINDINGS=0
 WEAK=0
 pass() { (( QUIET )) || printf '  PASS  %s\n' "$1"; }
-fail() { printf '  FAIL  %s\n' "$1" >&2; FINDINGS=$(( FINDINGS + 1 )); }
-weak() { printf '  WEAK  %s\n' "$1" >&2; WEAK=$(( WEAK + 1 )); }
+# A finding is an error and a weaker-than-intended result a warning, each listed
+# again in the closing report rather than left in the middle of seventy lines.
+fail() { cr_error "FAIL  $1"; FINDINGS=$(( FINDINGS + 1 )); }
+weak() { cr_warn "WEAK  $1"; WEAK=$(( WEAK + 1 )); }
 note() { (( QUIET )) || printf '        %s\n' "$1"; }
 
 # A run makes about seventy simulator calls in a row, and IAM throttles that
@@ -164,7 +172,7 @@ note() { (( QUIET )) || printf '        %s\n' "$1"; }
 # kept, so a FAIL names the reason instead of "returned nothing".
 export AWS_RETRY_MODE=adaptive AWS_MAX_ATTEMPTS=10
 AWS_ERR="$(mktemp)"
-trap 'rm -f "$AWS_ERR"' EXIT INT TERM
+cr_cleanup rm -f "$AWS_ERR"
 aws_q() { "$AWS_BIN" "$@" ${AWS_ARGS[@]+"${AWS_ARGS[@]}"} 2>"$AWS_ERR"; }
 # The last error AWS gave, for a FAIL line; empty when it gave none.
 aws_said() {
@@ -199,9 +207,9 @@ statement_actions() {
 
 # ── The identity this run acts on the strength of ────────────────────────────
 
-ACCOUNT_ID="$(aws_q sts get-caller-identity --query Account --output text || true)"
+ACCOUNT_ID="$(aws_q sts get-caller-identity --query Account --output text)" || ACCOUNT_ID=""
 if [[ -z "$ACCOUNT_ID" || "$ACCOUNT_ID" == "None" ]]; then
-  echo "ERROR: could not resolve an identity, so nothing below could be read." >&2
+  cr_error "could not resolve an identity, so nothing below could be read$(aws_said)."
   echo "       Check the profile and that its key still authenticates." >&2
   exit 1
 fi
@@ -211,8 +219,15 @@ DEV_TESTER_ARN="arn:aws:iam::${ACCOUNT_ID}:user${DEV_TESTER_PATH}${DEV_TESTER_NA
 MFA_ARN="arn:aws:iam::${ACCOUNT_ID}:mfa/${DEV_TESTER_NAME}"
 FOOTBAG_OPERATOR_ARN="arn:aws:iam::${ACCOUNT_ID}:user/${FOOTBAG_OPERATOR_USER}"
 
-if ! aws_q iam get-role --role-name "$ROLE_NAME" >/dev/null 2>&1; then
-  echo "There is no ${ROLE_NAME} role in account ${ACCOUNT_ID}, so there are no" >&2
+# Absent only when IAM says so by name. Any other failure (a denied call, a
+# throttle, an expired session) is a read that failed, and is reported with what
+# AWS said rather than as a tree that was never applied.
+if ! aws_q iam get-role --role-name "$ROLE_NAME" >/dev/null; then
+  if ! grep -q 'NoSuchEntity' "$AWS_ERR"; then
+    cr_error "could not read the ${ROLE_NAME} role in account ${ACCOUNT_ID}, so no denial could be checked$(aws_said)."
+    exit 1
+  fi
+  cr_error "There is no ${ROLE_NAME} role in account ${ACCOUNT_ID}, so there are no"
   echo "denials to prove yet. The account-level identity tree has not been" >&2
   echo "applied. Apply it first, as the directly authenticated identity:" >&2
   echo "  bash scripts/terraform-apply.sh --target identity --init" >&2
@@ -691,15 +706,20 @@ for suffix in "${JOB_POLICIES[@]}"; do
   iam_write_probe "arn:aws:iam::${ACCOUNT_ID}:policy/${ROLE_NAME}-${suffix}" \
     iam:CreatePolicyVersion iam:SetDefaultPolicyVersion iam:DeletePolicyVersion iam:DeletePolicy
 done
-ATTACHED="$(aws_q iam list-attached-role-policies --role-name "$ROLE_NAME" \
-  --query 'AttachedPolicies[].PolicyName' --output text || true)"
-for suffix in "${JOB_POLICIES[@]}"; do
-  if [[ " ${ATTACHED//$'\t'/ } " == *" ${ROLE_NAME}-${suffix} "* ]]; then
-    pass "policy ${ROLE_NAME}-${suffix} is attached"
-  else
-    fail "policy ${ROLE_NAME}-${suffix} is not attached; apply the identity tree$( [[ -z "$ATTACHED" ]] && aws_said)"
-  fi
-done
+# A listing that failed is not an empty one, and is reported as unread rather
+# than as three policies missing.
+if ! ATTACHED="$(aws_q iam list-attached-role-policies --role-name "$ROLE_NAME" \
+    --query 'AttachedPolicies[].PolicyName' --output text)"; then
+  fail "the role's attached policies could not be listed, so whether the job's three are attached is unproven$(aws_said)"
+else
+  for suffix in "${JOB_POLICIES[@]}"; do
+    if [[ " ${ATTACHED//$'\t'/ } " == *" ${ROLE_NAME}-${suffix} "* ]]; then
+      pass "policy ${ROLE_NAME}-${suffix} is attached"
+    else
+      fail "policy ${ROLE_NAME}-${suffix} is not attached; apply the identity tree"
+    fi
+  done
+fi
 # A listing that failed is not an empty one: read as empty, it would pass the
 # very check it exists for.
 if ! INLINE="$(aws_q iam list-role-policies --role-name "$ROLE_NAME" \
@@ -754,10 +774,12 @@ if (( FINDINGS == 0 )); then
     echo "Each is an action refused because nothing grants it rather than because" >&2
     echo "the policy denies it. Nothing is wrong in the account today; what is" >&2
     echo "missing is the guarantee that stays true after somebody widens a grant." >&2
-    exit 0
+  else
+    echo "No findings."
   fi
-  echo "No findings."
-  exit 0
+  cr_proved "the simulator refused ${ROLE_NAME} every action read out of its denials, and allowed every staging action it must"
+  (( WEAK )) && cr_unproved "${WEAK} refusal(s) rest on nothing granting the action rather than on the policy denying it"
+  cr_finish
 fi
 echo "${FINDINGS} finding(s)." >&2
 exit 1

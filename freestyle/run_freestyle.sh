@@ -15,19 +15,48 @@
 # rebuild. exploration/ is research-only and is never a required build input.
 set -euo pipefail
 cd "$(dirname "$0")/.."          # repo root
+# shellcheck source=../scripts/lib/closing-report.sh
+source scripts/lib/closing-report.sh
 
 DB="${1:-database/footbag.db}"
-PY="${PYTHON:-python3}"
+PY_BIN="${PYTHON:-python3}"
 L="freestyle/loaders"
 S="freestyle/scripts"
 I="freestyle/inputs"
+
+# Every stage below is written "${PY}" <script> <args>, and PY names this
+# function rather than the interpreter, so each stage runs with its output shown
+# and then read: an error line, a warning line or a skipped row it printed is
+# listed in the closing report, and a non-zero exit fails the rebuild there. The
+# loaders mark a row they could not take with a bare SKIP, which the shared
+# notice grammar does not match. The trick-dictionary QC ends with a count
+# summary naming its review rows, "WARN 0" on a clean dictionary, so a WARN here
+# must be followed by a colon or by a count above zero.
+#
+# The media-coverage QC is the one advisory stage. It audits the curated MEDIA
+# layer (orphan tags, source registration), not the trick-table rebuild, and
+# currently reports pre-existing media-data cleanup items, so its failure does
+# not fail the rebuild; it is listed as a warning carrying the check's own last
+# line, so the cleanup it reports stays in front of whoever reads the report.
+LOADER_WARNINGS="${FOOTBAG_NOTICE_GRAMMAR//"WARN[: ]"/"WARN(:|[[:space:]][1-9])"}|(^|[[:space:]])SKIP[: ]"
+ADVISORY_STAGES=" 24_qc_freestyle_media_coverage.py "
+run_stage() {
+  local name
+  name="$(basename "$1")"
+  if [[ "$ADVISORY_STAGES" == *" ${name} "* ]]; then
+    cr_tolerate "${name} (advisory)" -- "${PY_BIN}" "$@"
+  else
+    cr_run --warnings "$LOADER_WARNINGS" "$name" -- "${PY_BIN}" "$@"
+  fi
+}
+PY=run_stage
 
 # Production-safety guard: this rebuild wipes and reloads every freestyle table,
 # so it refuses to run against anything but this checkout's own development
 # database. There is no bypass flag; at go-live the live database becomes the
 # source of truth and this pipeline retires, deleted once the final production
 # load is signed off.
-bash freestyle/_assert_dev_db.sh "${DB}"
+cr_run "dev-database guard" -- bash freestyle/_assert_dev_db.sh "${DB}"
 
 echo "→ Rebuilding freestyle tables into ${DB}"
 
@@ -79,11 +108,9 @@ echo "→ Rebuilding freestyle tables into ${DB}"
 # Trick-dictionary QC: hard gate (non-zero exit aborts the rebuild)
 "${PY}" "${L}/22_qc_trick_dictionary.py"        --db "${DB}"
 
-# Media-coverage QC: advisory. It audits the curated MEDIA layer (orphan tags,
-# source registration), not the trick-table rebuild, and currently reports
-# pre-existing media-data cleanup items; run it for visibility without failing
-# the rebuild.
-"${PY}" "${L}/24_qc_freestyle_media_coverage.py" --db "${DB}" || echo "  (media-coverage QC reported issues — pre-existing media-data cleanup, not a rebuild failure)"
+# Media-coverage QC: advisory, so run_stage lists a failure as a warning rather
+# than failing the rebuild (see ADVISORY_STAGES above).
+"${PY}" "${L}/24_qc_freestyle_media_coverage.py" --db "${DB}"
 
 # Media-tag invariant: hard gate on this path. The script is a refusal by
 # design, and a tripwire whose alarm is wired to an echo is not a tripwire.
@@ -93,3 +120,5 @@ echo "→ Rebuilding freestyle tables into ${DB}"
 "${PY}" "${L}/25_qc_media_tag_invariant.py"     --db "${DB}"
 
 echo "→ Freestyle rebuild complete."
+cr_proved "the trick-dictionary QC and the media-tag invariant passed over ${DB}"
+cr_finish

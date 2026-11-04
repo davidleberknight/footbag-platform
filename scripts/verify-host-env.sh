@@ -94,6 +94,11 @@ done
 
 require_target "$TARGET" staging production || exit 2
 
+# Every failed invariant, every advisory and every unparseable line is listed
+# once in the closing report at the end; the exit status follows from it.
+# shellcheck source=lib/closing-report.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/closing-report.sh"
+
 SSH_ALIAS="footbag-$TARGET"
 
 if [[ -z "$ENV_FILE_OVERRIDE" ]]; then
@@ -133,22 +138,32 @@ else
   echo ""
   # Only this branch reads terraform, so only this branch needs an identity: an
   # --env-file run compares a file against expectations and touches no account.
-  aws_profile_ensure || exit 1
+  aws_profile_ensure || cr_die "could not settle the AWS identity this run reads terraform as"
   echo "Reading terraform outputs from $TF_DIR..."
-  TF_JWT_KMS_KEY_ARN="$(terraform -chdir="$TF_DIR" output -raw jwt_signing_key_arn 2>/dev/null || true)"
-  TF_SES_SENDER="$(terraform -chdir="$TF_DIR" output -raw ses_sender_identity 2>/dev/null || true)"
-  TF_MEDIA_BUCKET="$(terraform -chdir="$TF_DIR" output -raw media_bucket_name 2>/dev/null || true)"
+  # Terraform's own message is kept, so an unreadable state is reported as that
+  # rather than as an apply that never ran.
+  TF_ERR="$(mktemp)"
+  cr_cleanup rm -f "$TF_ERR"
+  tf_output() { terraform -chdir="$TF_DIR" output -raw "$1" 2>>"$TF_ERR"; }
+  TF_JWT_KMS_KEY_ARN="$(tf_output jwt_signing_key_arn)" || TF_JWT_KMS_KEY_ARN=""
+  TF_SES_SENDER="$(tf_output ses_sender_identity)" || TF_SES_SENDER=""
+  TF_MEDIA_BUCKET="$(tf_output media_bucket_name)" || TF_MEDIA_BUCKET=""
   # The base address the tree decides for this moment, which is also what the
   # deploy syncs onto the host. Empty while CloudFront is off, when the site has
-  # no public name yet.
-  TF_PUBLIC_BASE_URL="$(terraform -chdir="$TF_DIR" output -raw public_base_url 2>/dev/null || true)"
+  # no public name yet. A read that failed is listed with Terraform's message,
+  # because the base-address check below then degrades to presence only.
+  if ! TF_PUBLIC_BASE_URL="$(tf_output public_base_url)"; then
+    TF_PUBLIC_BASE_URL=""
+    tf_said="$(grep -v '^[[:space:]]*$' "$TF_ERR" | tail -n 1 || [[ $? == 1 ]])"
+    cr_warn "could not read public_base_url from $TF_DIR, so the base address is checked for presence only: ${tf_said:-terraform printed no error}"
+  fi
   [[ "$TF_PUBLIC_BASE_URL" == "null" ]] && TF_PUBLIC_BASE_URL=""
   if [[ -z "$TF_JWT_KMS_KEY_ARN" || -z "$TF_SES_SENDER" || -z "$TF_MEDIA_BUCKET" ]]; then
-    echo "ERROR: required terraform outputs are empty. Has 'terraform apply' run for $TARGET?" >&2
     echo "  jwt_signing_key_arn = '$TF_JWT_KMS_KEY_ARN'" >&2
     echo "  ses_sender_identity = '$TF_SES_SENDER'" >&2
     echo "  media_bucket_name   = '$TF_MEDIA_BUCKET'" >&2
-    exit 1
+    tf_said="$(grep -v '^[[:space:]]*$' "$TF_ERR" | tail -n 1 || [[ $? == 1 ]])"
+    cr_die "required terraform outputs are empty. Has 'terraform apply' run for $TARGET? ${tf_said:-terraform printed no error}"
   fi
 fi
 
@@ -173,15 +188,23 @@ if [[ -n "$ENV_FILE_OVERRIDE" ]]; then
   HOST_ENV_RAW="$(cat "$ENV_FILE_OVERRIDE")"
 else
   require_operator_stdin "scripts/verify-host-env.sh --target $TARGET" \
-    "$SSH_ALIAS" "$TARGET" || exit 1
-  require_ssh_alias "$SSH_ALIAS" || exit 1
-  require_host_is "$SSH_ALIAS" "$TARGET" "$HOST_ENV_PATH" || exit 1
+    "$SSH_ALIAS" "$TARGET" || cr_die "no operator credential on standard input (the reason is printed above)"
+  require_ssh_alias "$SSH_ALIAS" || cr_die "the ssh alias $SSH_ALIAS does not resolve (the reason is printed above)"
+  require_host_is "$SSH_ALIAS" "$TARGET" "$HOST_ENV_PATH" \
+    || cr_die "$SSH_ALIAS is not recorded as $TARGET (the reason is printed above)"
 
   umask 077
   ENV_LOCAL="$(mktemp /tmp/footbag-env-verify.XXXXXX)"
-  # shred, not rm: the fetched copy is the host's entire secret set.
-  cleanup_local() { shred -u "${ENV_LOCAL:-}" 2>/dev/null || rm -f "${ENV_LOCAL:-}"; }
-  trap cleanup_local EXIT INT TERM
+  # shred, not rm: the fetched copy is the host's entire secret set, so a copy
+  # that could only be unlinked is listed.
+  cleanup_local() {
+    [[ -e "${ENV_LOCAL:-}" ]] || return 0
+    if ! shred -u "${ENV_LOCAL}"; then
+      cr_warn "the fetched host env copy ${ENV_LOCAL} could not be shredded, only removed"
+      rm -f "${ENV_LOCAL}"
+    fi
+  }
+  cr_cleanup cleanup_local
 
   echo ""
   echo "Reading $HOST_ENV_PATH from $SSH_ALIAS."
@@ -190,7 +213,7 @@ else
     echo "  - the credential file's first line is not the host sudo password" >&2
     echo "  - the operator account lacks general sudo access on the host" >&2
     echo "  - $HOST_ENV_PATH does not exist (host bootstrap incomplete)" >&2
-    exit 1
+    cr_die "could not read $HOST_ENV_PATH from $SSH_ALIAS"
   fi
   HOST_ENV_RAW="$(cat "$ENV_LOCAL")"
 fi
@@ -226,33 +249,42 @@ while IFS= read -r line; do
     # be printed as a locating aid, which defeats the purpose -- the likeliest
     # mangling is a value pasted onto a line of its own, and the head of a
     # secret is still a secret.
-    echo "WARN: unparseable line ${LINE_NO:-?} in $HOST_ENV_PATH (${#trimmed} chars); content withheld" >&2
+    #
+    # An error, not an advisory: the env file is the host's record of its own
+    # configuration, and a value it holds that this check could not read is a
+    # value every check below judged as absent.
+    cr_error "unparseable line ${LINE_NO:-?} in $HOST_ENV_PATH (${#trimmed} chars); content withheld"
     PARSE_ERRORS=$((PARSE_ERRORS + 1))
   fi
 done <<< "$HOST_ENV_RAW"
 
 if (( PARSE_ERRORS > 0 )); then
-  echo "WARN: $PARSE_ERRORS unparseable line(s) above; values for those keys were not loaded." >&2
+  echo "ERROR: $PARSE_ERRORS unparseable line(s) above; values for those keys were not loaded." >&2
 fi
 
 # -----------------------------------------------------------------------------
 # Check helpers.
 # -----------------------------------------------------------------------------
-FAILS=0
+# The unparseable lines above are failures of the same weight as any check's.
+FAILS=$PARSE_ERRORS
 WARNS=0
 
 check_pass() {
   printf "  PASS  %s\n" "$1"
 }
 
+# Shown in the table as it runs, and recorded for the closing report, so each
+# failure and each advisory is listed by name at the end rather than counted.
 check_fail() {
   printf "  FAIL  %s\n" "$1"
   FAILS=$((FAILS + 1))
+  cr_error "$1"
 }
 
 check_warn() {
   printf "  WARN  %s\n" "$1"
   WARNS=$((WARNS + 1))
+  cr_warn "$1"
 }
 
 # A check that cannot run because something it depends on already failed.
@@ -868,7 +900,9 @@ if (( FAILS > 0 )); then
   # Deliberately not "edit the host env file": most values on that host have a
   # declared owner, and hand-editing one is undone by the next deploy. Each
   # failure above names what owns the value it is about.
-  echo "$FAILS critical invariant(s) failed on $SSH_ALIAS. Fix each at its owner before deploying:" >&2
+  # An error of its own, so the exit status follows the count however a failure
+  # was recorded.
+  cr_error "$FAILS critical invariant(s) failed on $SSH_ALIAS. Fix each at its owner before deploying:"
   echo "  an arming switch (payments, email, URL screening, reachability)" >&2
   echo "      -> scripts/arming.sh --target <environment> --switch <name> --state armed|dark" >&2
   echo "         That script owns the values file, the apply and the deploy, in order." >&2
@@ -884,9 +918,10 @@ if (( FAILS > 0 )); then
   echo "  the environment record (FOOTBAG_ENV)" >&2
   echo "      -> scripts/set-host-env.sh --target <env>, once, at bring-up" >&2
   echo "  Every value's owner is declared in scripts/lib/host-values.sh." >&2
-  exit 1
+  cr_finish
 fi
 
 echo ""
-echo "All critical invariants passed. $WARNS advisory item(s); review above."
-exit 0
+echo "All critical invariants passed. $WARNS advisory item(s), each listed below."
+cr_proved "every critical invariant of the $TARGET host env file"
+cr_finish

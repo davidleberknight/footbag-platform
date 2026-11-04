@@ -26,11 +26,14 @@ import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const GUARD = 'scripts/internal/deploy-rebuild-cutover-guard.sh';
+// Sent ahead of the guard on the deploy's stream; the guard reports through it.
+const REMOTE_REPORT_LIB = 'scripts/lib/closing-report-remote.sh';
 
 let tmp: string;
 
+/** Runs the guard as the stream does: the report library first, then the guard. */
 function runGuard(env: Record<string, string>) {
-  return spawnSync('bash', [GUARD], {
+  return spawnSync('bash', ['-c', 'source "$1"; source "$2"', '_', REMOTE_REPORT_LIB, GUARD], {
     cwd: REPO_ROOT,
     env: { ...process.env, ...env },
     encoding: 'utf-8',
@@ -109,6 +112,9 @@ describe('destructive-deploy cutover guard', () => {
     });
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/this host is post-cutover/);
+    // Defect caught: the refusal printed only as prose mid-stream, so the
+    // deploy's closing report lists an exit code and not why the deploy stopped.
+    expect(r.stderr).toMatch(/^---FOOTBAG-PROBLEM--- ERROR refusing the database-replacing deploy: this host is post-cutover/m);
   });
 
   it('refuses when only the database carries the marker, which is a copied live database', () => {
@@ -202,6 +208,9 @@ describe('destructive-deploy cutover guard', () => {
     const r = runGuard({ ENV_PATH: envFile('env-corrupt-clean', false), DB_PATH: corrupt });
     expect(r.status).toBe(0);
     expect(r.stderr).toMatch(/present but unreadable/);
+    // Defect caught: a deploy that went ahead on the env line alone, because the
+    // database could not vote, reporting itself clean with no warning listed.
+    expect(r.stderr).toMatch(/^---FOOTBAG-PROBLEM--- WARN cutover guard: .* present but unreadable.*sqlite3 said: \S/m);
 
     // The disaster rebuild this fallback exists for: a broken database on a host
     // whose operator has already cleared the env line.

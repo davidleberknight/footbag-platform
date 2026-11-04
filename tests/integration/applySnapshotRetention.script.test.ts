@@ -74,7 +74,8 @@ interface AwsStubOptions {
   replication: 'scoped' | 'unfiltered' | 'none' | 'scoped-disabled';
   /** 'daily-disabled' is a rule that exists and expires nothing. */
   generationRules: 'all' | 'missing-daily' | 'daily-disabled';
-  alarms: 'present' | 'none';
+  /** 'unreadable' is a describe-alarms the credential cannot make, not an empty one. */
+  alarms: 'present' | 'none' | 'unreadable';
   /** 'unreadable' is a listing the credential cannot read, not an absent one. */
   drLifecycle: 'present' | 'unreadable';
 }
@@ -158,7 +159,9 @@ function writeAwsStub(hourly: number, daily: number, opts: Partial<AwsStubOption
       // reads a field or a name. If it ever parses one, capture the real rows.
       ...(o.alarms === 'present'
         ? ['    printf "footbag-production-snapshots-replication-failed\\tINSUFFICIENT_DATA\\n" ;;']
-        : ['    echo "" ;;']),
+        : o.alarms === 'unreadable'
+          ? ['    echo "aws-stub: describe-alarms refused for this case" >&2; exit 254 ;;']
+          : ['    echo "" ;;']),
       '  *) echo "" ;;',
       'esac',
       'exit 0',
@@ -603,6 +606,22 @@ describe('apply-snapshot-retention.sh: verification', () => {
     expect(res.exitCode).toBe(0);
     expect(res.stdout).toMatch(/this change arms no alarm here; nothing is wrong/);
   });
+
+  // Defect caught: a describe-alarms the credential could not make read as "no
+  // alarm", which on staging told the operator nothing was wrong when the run
+  // had seen nothing. The valid read beside it is the staging case above.
+  it.each(['staging', 'production'])(
+    'fails the run on %s, with the CLI\'s reason, when the alarms cannot be read',
+    (target) => {
+      writeAwsStub(2, 2, { alarms: 'unreadable' });
+      writeTerraformStub();
+      const res = run(['--target', target, '--verify']);
+      expect(res.exitCode).toBe(1);
+      expect(res.stdout).toContain('aws-stub: describe-alarms refused for this case');
+      expect(res.stdout).not.toMatch(/nothing is wrong/);
+      expect(res.stderr).toMatch(new RegExp(`VERIFICATION FAILED on ${target}`));
+    },
+  );
 });
 
 describe('apply-snapshot-retention.sh: the test seams', () => {

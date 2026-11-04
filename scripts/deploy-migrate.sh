@@ -76,9 +76,16 @@
 # The redirect supplies the password; it does not supply the person.
 #
 # --target is required and has no default: see the refusal below for why.
+#
+# Every run ends with one closing report (scripts/lib/closing-report.sh). The
+# code deploy this reuses runs as a child on the same library, so its errors and
+# warnings, the host half's included, are listed in this run's report.
 # ============================================================================
 
 set -euo pipefail
+
+# shellcheck source=lib/closing-report.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/closing-report.sh"
 
 usage() {
   cat <<'USAGE'
@@ -112,14 +119,14 @@ TARGET=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --target)    TARGET="${2:-}"; shift 2 || { echo "ERROR: --target requires an argument" >&2; exit 2; } ;;
-    --migration) MIGRATION_FILE="${2:-}"; shift 2 || { echo "ERROR: --migration requires an argument" >&2; exit 2; } ;;
+    --target)    TARGET="${2:-}"; shift 2 || { cr_error "--target requires an argument"; exit 2; } ;;
+    --migration) MIGRATION_FILE="${2:-}"; shift 2 || { cr_error "--migration requires an argument"; exit 2; } ;;
     --yes)       ASSUME_YES="yes"; shift ;;
     -h|--help)   usage 0 ;;
     # Refused here rather than handed on: the code deploy this reuses takes no
     # options of its own, so an unknown one would be refused there, after the
     # SQL had already been shown for confirmation.
-    *)           echo "ERROR: unknown argument '$1'" >&2; usage 2 >&2 ;;
+    *)           cr_error "unknown argument '$1'"; usage 2 >&2 ;;
   esac
 done
 
@@ -127,12 +134,12 @@ done
 # --target and nowhere else. One already exported in the shell is refused, so a
 # value left behind by an earlier session cannot choose the host to migrate.
 if [[ -n "${DEPLOY_TARGET:-}" ]]; then
-  echo "ERROR: DEPLOY_TARGET is set in this shell ('${DEPLOY_TARGET}'). Name the host with" >&2
+  cr_error "DEPLOY_TARGET is set in this shell ('${DEPLOY_TARGET}'). Name the host with"
   echo "       --target instead; this script sets DEPLOY_TARGET itself." >&2
   exit 1
 fi
 
-die() { echo "ERROR: $*" >&2; exit 1; }
+die() { cr_die "$*"; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MIGRATIONS_DIR="$(cd "${SCRIPT_DIR}/../database/migrations" 2>/dev/null && pwd || true)"
@@ -251,6 +258,16 @@ if [[ "$ASSUME_YES" != "yes" ]]; then
 fi
 
 # The shared deploy reads the sudo password from its own stdin, so this hands
-# its stdin straight through rather than consuming it here.
+# its stdin straight through rather than consuming it here. Run as a child, never
+# exec'd into: an exec would end this process without its exit handling, so no
+# closing report would print and the code deploy's problems, which the report
+# library folds into this run's list, would never be shown. The child keeps the
+# terminal, so the production gates it applies still see one.
 export MIGRATION_SQL MIGRATION_NAME MIGRATION_CHECKSUM
-exec bash "${SCRIPT_DIR}/deploy-code.sh"
+deploy_rc=0
+bash "${SCRIPT_DIR}/deploy-code.sh" || deploy_rc=$?
+if (( deploy_rc != 0 )); then
+  cr_error "the code deploy carrying ${MIGRATION_NAME} exited ${deploy_rc}"
+  exit "$deploy_rc"
+fi
+cr_finish

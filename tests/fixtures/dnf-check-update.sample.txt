@@ -1,0 +1,11 @@
+# Captured from the staging host (Amazon Linux 2023, kernel 6.1.163) on 2026-11-03:
+# `dnf -q check-update --releasever=latest docker containerd runc`, standard
+# output and error together, exit 100. Narrowed to three packages so the listing
+# carries no Obsoleting section; the two Security lines are dnf's own notice,
+# not update rows.
+# expected-rows: 3
+containerd.x86_64               2.3.7-1.amzn2023.0.2                 amazonlinux
+docker.x86_64                   25.0.18-1.amzn2023.0.2               amazonlinux
+runc.x86_64                     1.4.3-1.amzn2023.0.3                 amazonlinux
+Security: kernel-1:6.1.188-233.393.amzn2023.x86_64 is an installed security update
+Security: kernel-1:6.1.163-186.299.amzn2023.x86_64 is the currently running version

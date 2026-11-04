@@ -153,6 +153,11 @@ for _ignored in ${IGNORE_USERS[@]+"${IGNORE_USERS[@]}"}; do
   fi
 done
 
+# Every finding, every control deliberately off and every read that failed is
+# listed once in the closing report at the end; the exit status follows from it.
+# shellcheck source=lib/closing-report.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/closing-report.sh"
+
 AWS_ARGS=()
 if [[ -n "$PROFILE" ]]; then
   AWS_ARGS+=(--profile "$PROFILE")
@@ -160,7 +165,7 @@ else
   # No profile named on the command line, so the identity is the one the shared
   # library settles and proves: whatever this shell already carries, or the
   # operator profile. Nothing here asks the operator to export anything.
-  aws_profile_ensure || exit 1
+  aws_profile_ensure || cr_die "could not settle the AWS identity this run reads as"
 fi
 
 if [[ "$AWS_BIN" != "aws" ]]; then
@@ -181,19 +186,47 @@ FINDINGS=0
 GATED=0
 
 pass() { (( QUIET )) || printf '  PASS  %s\n' "$1"; }
-fail() { printf '  FAIL  %s\n' "$1" >&2; FINDINGS=$(( FINDINGS + 1 )); }
-# Reported on stderr beside the findings, because an operator reading for
+fail() { cr_error "$1"; FINDINGS=$(( FINDINGS + 1 )); }
+# Listed as a warning beside the findings, because an operator reading for
 # problems should see it, and counted separately, because it is not one.
-gated() { printf '  GATED %s\n' "$1" >&2; GATED=$(( GATED + 1 )); }
+gated() { cr_warn "GATED $1"; GATED=$(( GATED + 1 )); }
 note() { (( QUIET )) || printf '        %s\n' "$1"; }
 
-aws_q() { "$AWS_BIN" "$@" ${AWS_ARGS[@]+"${AWS_ARGS[@]}"} 2>/dev/null; }
+# AWS's own message from the last read is kept, so a read that failed is
+# reported with its reason and never mistaken for an answer.
+AWS_ERR="$(mktemp)"
+cr_cleanup rm -f "$AWS_ERR"
+aws_q() { "$AWS_BIN" "$@" ${AWS_ARGS[@]+"${AWS_ARGS[@]}"} 2>"$AWS_ERR"; }
+aws_err() {
+  local msg
+  msg="$(grep -v '^[[:space:]]*$' "$AWS_ERR" | tail -n 1)"
+  printf '%s' "${msg:-the aws CLI printed no message}"
+}
 
-ACCOUNT_ID="$(aws_q sts get-caller-identity --query Account --output text || true)"
+# aws_read <var> <absent-error-code|-> <what> <aws args...>
+# Reads into <var>. AWS answering that the thing does not exist, by the error
+# code the API documents for it, reads as an empty answer, which each check
+# judges as absence. Any other failure is a finding carrying AWS's own message,
+# and returns 1 so no check is judged on a read that did not answer.
+aws_read() {
+  local _var="$1" _absent="$2" _what="$3" _out
+  shift 3
+  if _out="$(aws_q "$@")"; then
+    printf -v "$_var" '%s' "$_out"
+    return 0
+  fi
+  printf -v "$_var" '%s' ""
+  if [[ "$_absent" != - ]] && grep -qF "(${_absent})" "$AWS_ERR"; then
+    return 0
+  fi
+  fail "could not read ${_what}: $(aws_err)"
+  return 1
+}
+
+ACCOUNT_ID="$(aws_q sts get-caller-identity --query Account --output text)" || ACCOUNT_ID=""
 if [[ -z "$ACCOUNT_ID" || "$ACCOUNT_ID" == "None" ]]; then
-  echo "ERROR: could not resolve an identity, so nothing below could be read." >&2
   echo "       Check the profile and that its key still authenticates." >&2
-  exit 1
+  cr_die "could not resolve an identity, so nothing below could be read: $(aws_err)"
 fi
 
 # ── The facts that must not move, saved or compared ──────────────────────────
@@ -207,7 +240,12 @@ fi
 # fails ends the run: a fact that could not be read is not the same fact.
 baseline_facts() {
   local out user rows policy tags mfa login trust role
-  facts_fail() { echo "ERROR: could not read ${1}; nothing was saved or compared." >&2; exit 1; }
+  # This runs in a pipeline's subshell, so the reason goes to a file the main
+  # shell lists in its report.
+  facts_fail() {
+    printf 'could not read %s; nothing was saved or compared: %s\n' "$1" "${2:-$(aws_err)}" > "$FACTS_ERR"
+    exit 1
+  }
 
   out="$(aws_q iam get-user --user-name "$FOOTBAG_OPERATOR_USER" \
     --query 'User.[UserId,Arn,PermissionsBoundary.PermissionsBoundaryArn]' --output text)" \
@@ -254,7 +292,7 @@ baseline_facts() {
   elif [[ "$login" == *NoSuchEntity* ]]; then
     printf 'operator.console\tabsent\n'
   else
-    facts_fail "${FOOTBAG_OPERATOR_USER}'s console sign-in"
+    facts_fail "${FOOTBAG_OPERATOR_USER}'s console sign-in" "$(tail -n 1 <<<"$login")"
   fi
   tags="$(aws_q iam list-user-tags --user-name "$FOOTBAG_OPERATOR_USER" \
     --query 'Tags[].[Key,Value]' --output text)" || facts_fail "${FOOTBAG_OPERATOR_USER}'s tags"
@@ -302,8 +340,11 @@ baseline_facts() {
 }
 
 if [[ "$MODE" == "save" || "$MODE" == "compare" ]]; then
-  command -v jq >/dev/null 2>&1 || { echo "ERROR: jq is needed to read the trust policies." >&2; exit 1; }
-  FACTS="$(baseline_facts | LC_ALL=C sort)"
+  command -v jq >/dev/null 2>&1 || cr_die "jq is needed to read the trust policies."
+  FACTS_ERR="$(mktemp)"
+  cr_cleanup rm -f "$FACTS_ERR"
+  FACTS="$(baseline_facts | LC_ALL=C sort)" \
+    || cr_die "$(cat "$FACTS_ERR")"
   if [[ "$MODE" == "save" ]]; then
     # A baseline is working state for one onboarding cycle, not a credential,
     # so it lives in a private temp directory rather than beside the credential
@@ -314,8 +355,7 @@ if [[ "$MODE" == "save" || "$MODE" == "compare" ]]; then
     mkdir -p -m 700 -- "$SAVE_DIR"
     if [[ -L "$SAVE_DIR" || ! -d "$SAVE_DIR" || ! -O "$SAVE_DIR" \
           || "$(stat -c '%a' "$SAVE_DIR" 2>/dev/null || stat -f '%Lp' "$SAVE_DIR")" != 700 ]]; then
-      echo "ERROR: ${SAVE_DIR} is not a directory of yours at mode 700; nothing was saved." >&2
-      exit 1
+      cr_die "${SAVE_DIR} is not a directory of yours at mode 700; nothing was saved."
     fi
     SAVE_BASE="${SAVE_DIR}/baseline-$(date -u +%Y-%m-%d)"
     SAVE_PATH="${SAVE_BASE}.txt"
@@ -323,7 +363,8 @@ if [[ "$MODE" == "save" || "$MODE" == "compare" ]]; then
     while [[ -e "$SAVE_PATH" ]]; do SAVE_PATH="${SAVE_BASE}-${n}.txt"; n=$(( n + 1 )); done
     ( umask 077 && printf '%s\n' "$FACTS" > "$SAVE_PATH" )
     echo "Saved $(grep -c . <<<"$FACTS") facts for account ${ACCOUNT_ID} to ${SAVE_PATH}"
-    exit 0
+    cr_proved "every baseline fact was read and saved to ${SAVE_PATH}"
+    cr_finish
   fi
   # A named user's own key lines are left out on both sides when asked: that
   # one change is what a dev-and-tester lifecycle makes. Nothing about
@@ -355,11 +396,17 @@ if [[ "$MODE" == "save" || "$MODE" == "compare" ]]; then
   NOW="$(ignore_filter <<<"$FACTS" | LC_ALL=C sort)"
   if [[ "$SAVED" == "$NOW" ]]; then
     echo "Unchanged since ${COMPARE_FILE}: footbag-operator, every key outside those left out, and both runtime trusts."
-    exit 0
+    cr_proved "footbag-operator, every key outside those left out, and both runtime trusts are unchanged since ${COMPARE_FILE}"
+    cr_finish
   fi
   echo "CHANGED since ${COMPARE_FILE}:" >&2
-  diff <(printf '%s\n' "$SAVED") <(printf '%s\n' "$NOW") | sed -n 's/^< /  was: /p; s/^> /  now: /p' >&2 || true
-  exit 3
+  # diff exits 1 when the two differ, which is the case this branch is in.
+  { diff <(printf '%s\n' "$SAVED") <(printf '%s\n' "$NOW") || [[ $? == 1 ]]; } \
+    | sed -n 's/^< /  was: /p; s/^> /  now: /p' >&2
+  # Exit 3 is the status a caller branches on, so the run ends on it on purpose,
+  # with the difference listed as the error it is.
+  cr_error "the compared facts have CHANGED since ${COMPARE_FILE}; each difference is printed above"
+  cr_finish_with 3 CHANGED
 fi
 
 echo "Account baseline for ${ACCOUNT_ID}"
@@ -370,10 +417,12 @@ echo ""
 # Per-bucket settings already exist; this is the account-wide backstop that
 # survives a bucket created later without them, which is the case it exists for.
 echo "Storage"
-PAB="$(aws_q s3control get-public-access-block --account-id "$ACCOUNT_ID" \
+if ! aws_read PAB NoSuchPublicAccessBlockConfiguration "the account-level public access block" \
+  s3control get-public-access-block --account-id "$ACCOUNT_ID" \
   --query 'PublicAccessBlockConfiguration.[BlockPublicAcls,IgnorePublicAcls,BlockPublicPolicy,RestrictPublicBuckets]' \
-  --output text || true)"
-if [[ -z "$PAB" ]]; then
+  --output text; then
+  note "the read did not answer, so the control was not checked rather than found absent"
+elif [[ -z "$PAB" ]]; then
   fail "account-level public access block is not configured at all"
   note "aws s3control put-public-access-block, or better, declare it in the shared tree"
 elif [[ "$PAB" == *"False"* || "$PAB" == *"false"* ]]; then
@@ -386,8 +435,10 @@ fi
 # ── 2. IAM password policy ───────────────────────────────────────────────────
 echo ""
 echo "Identity"
-PWPOL="$(aws_q iam get-account-password-policy --output json || true)"
-if [[ -z "$PWPOL" ]]; then
+if ! aws_read PWPOL NoSuchEntity "the IAM account password policy" \
+  iam get-account-password-policy --output json; then
+  note "the read did not answer, so the policy was not checked rather than found absent"
+elif [[ -z "$PWPOL" ]]; then
   fail "no IAM account password policy is set"
   note "without one a console user can be created later with a weak password"
 else
@@ -414,10 +465,11 @@ fi
 # analyzer reports unused roles and permissions, which is useful and is not
 # external access. Passing on any active analyzer would report the control as in
 # place while the class of mistake it exists to catch went unwatched.
-ANALYZERS="$(aws_q accessanalyzer list-analyzers \
+if ! aws_read ANALYZERS - "the Access Analyzer list" accessanalyzer list-analyzers \
   --query 'analyzers[?status==`ACTIVE` && (type==`ACCOUNT` || type==`ORGANIZATION`)].name' \
-  --output text || true)"
-if [[ -n "$ANALYZERS" ]]; then
+  --output text; then
+  note "the read did not answer, so the analyzers were not checked rather than found absent"
+elif [[ -n "$ANALYZERS" ]]; then
   pass "Access Analyzer active for external access: ${ANALYZERS}"
 else
   fail "no active IAM Access Analyzer of an external-access type"
@@ -432,9 +484,11 @@ fi
 echo ""
 echo "Notification reachability"
 for kind in BILLING OPERATIONS SECURITY; do
-  CONTACT="$(aws_q account get-alternate-contact --alternate-contact-type "$kind" \
-    --query 'AlternateContact.EmailAddress' --output text || true)"
-  if [[ -n "$CONTACT" && "$CONTACT" != "None" ]]; then
+  if ! aws_read CONTACT ResourceNotFoundException "the ${kind} alternate contact" \
+    account get-alternate-contact --alternate-contact-type "$kind" \
+    --query 'AlternateContact.EmailAddress' --output text; then
+    note "the read did not answer, so the ${kind} contact was not checked rather than found unset"
+  elif [[ -n "$CONTACT" && "$CONTACT" != "None" ]]; then
     pass "alternate contact ${kind} is set"
   else
     gated "alternate contact ${kind} is unset, which is the declared state"
@@ -444,8 +498,9 @@ done
 # ── 5. Root account posture ──────────────────────────────────────────────────
 echo ""
 echo "Root account"
-SUMMARY="$(aws_q iam get-account-summary --output json || true)"
-if [[ -z "$SUMMARY" ]]; then
+if ! aws_read SUMMARY - "the account summary" iam get-account-summary --output json; then
+  note "the read did not answer, so root's MFA and keys were not checked"
+elif [[ -z "$SUMMARY" ]]; then
   fail "could not read the account summary"
 else
   ROOT_MFA="$(printf '%s' "$SUMMARY" | jq -r '.SummaryMap.AccountMFAEnabled // 0' 2>/dev/null || echo 0)"
@@ -470,14 +525,17 @@ fi
 # of this amounts to a reason is a human's call.
 echo ""
 echo "Access keys"
-USERS="$(aws_q iam list-users --query 'Users[].UserName' --output text || true)"
-if [[ -z "$USERS" ]]; then
+if ! aws_read USERS - "the IAM users" iam list-users --query 'Users[].UserName' --output text; then
+  note "the read did not answer, so no key was reported"
+elif [[ -z "$USERS" ]]; then
   fail "could not list IAM users"
 else
   NOW="$(date -u +%s)"
   for user in $USERS; do
-    ROWS="$(aws_q iam list-access-keys --user-name "$user" \
-      --query 'AccessKeyMetadata[].[AccessKeyId,Status,CreateDate]' --output text || true)"
+    if ! aws_read ROWS - "${user}'s access keys" iam list-access-keys --user-name "$user" \
+      --query 'AccessKeyMetadata[].[AccessKeyId,Status,CreateDate]' --output text; then
+      continue
+    fi
     if [[ -z "$ROWS" ]]; then
       (( QUIET )) || printf '  ----  %s: no access keys\n' "$user"
       continue
@@ -486,8 +544,11 @@ else
       [[ -n "$akid" ]] || continue
       CREATED_EPOCH="$(date -u -d "$created" +%s 2>/dev/null || echo "$NOW")"
       AGE_DAYS=$(( ( NOW - CREATED_EPOCH ) / 86400 ))
-      LASTUSED="$(aws_q iam get-access-key-last-used --access-key-id "$akid" \
-        --query 'AccessKeyLastUsed.LastUsedDate' --output text || true)"
+      # A read that failed says so rather than reading as a key never used.
+      if ! aws_read LASTUSED - "the last use of ${akid}" iam get-access-key-last-used --access-key-id "$akid" \
+        --query 'AccessKeyLastUsed.LastUsedDate' --output text; then
+        LASTUSED="unknown (the read failed)"
+      fi
       [[ -z "$LASTUSED" || "$LASTUSED" == "None" ]] && LASTUSED="never used"
       printf '  ----  %-34s %-8s %-9s age %sd  last %s\n' \
         "$user" "$akid" "$status" "$AGE_DAYS" "$LASTUSED"
@@ -518,10 +579,12 @@ fi
 # rather than left to surface as a deploy failing weeks later.
 echo ""
 echo "Directly authenticated IAM user ${FOOTBAG_OPERATOR_USER}"
-BG_ROWS="$(aws_q iam list-access-keys --user-name "$FOOTBAG_OPERATOR_USER" \
-  --query 'AccessKeyMetadata[?Status==`Active`].AccessKeyId' --output text || true)"
-if [[ -z "$BG_ROWS" || "$BG_ROWS" == "None" ]]; then
-  fail "${FOOTBAG_OPERATOR_USER} holds no active access key, or could not be read"
+if ! aws_read BG_ROWS - "${FOOTBAG_OPERATOR_USER}'s active access keys" \
+  iam list-access-keys --user-name "$FOOTBAG_OPERATOR_USER" \
+  --query 'AccessKeyMetadata[?Status==`Active`].AccessKeyId' --output text; then
+  note "the read did not answer, so the way back in was not checked rather than found gone"
+elif [[ -z "$BG_ROWS" || "$BG_ROWS" == "None" ]]; then
+  fail "${FOOTBAG_OPERATOR_USER} holds no active access key"
   note "it is the way back in when whatever else broke is the job role itself"
 else
   # The ids are printed rather than discarded. This call already returned them
@@ -535,17 +598,20 @@ fi
 # The other half of the same evidence. Nothing here judges it: what it should be
 # is a question about this account rather than something this script can know,
 # and the value of printing it is that two runs can be compared.
-BG_ATTACHED="$(aws_q iam list-attached-user-policies --user-name "$FOOTBAG_OPERATOR_USER" \
-  --query 'AttachedPolicies[].PolicyName' --output text || true)"
-BG_INLINE="$(aws_q iam list-user-policies --user-name "$FOOTBAG_OPERATOR_USER" \
-  --query 'PolicyNames' --output text || true)"
+aws_read BG_ATTACHED - "${FOOTBAG_OPERATOR_USER}'s attached policies" \
+  iam list-attached-user-policies --user-name "$FOOTBAG_OPERATOR_USER" \
+  --query 'AttachedPolicies[].PolicyName' --output text || BG_ATTACHED="<unread>"
+aws_read BG_INLINE - "${FOOTBAG_OPERATOR_USER}'s inline policies" \
+  iam list-user-policies --user-name "$FOOTBAG_OPERATOR_USER" \
+  --query 'PolicyNames' --output text || BG_INLINE="<unread>"
 note "attached: ${BG_ATTACHED:-<none>}"
 note "inline:   ${BG_INLINE:-<none>}"
 
 for role in "${RUNTIME_ROLES[@]}"; do
-  TRUST="$(aws_q iam get-role --role-name "$role" \
-    --query 'Role.AssumeRolePolicyDocument' --output json || true)"
-  if [[ -z "$TRUST" ]]; then
+  if ! aws_read TRUST - "the trust policy of ${role}" iam get-role --role-name "$role" \
+    --query 'Role.AssumeRolePolicyDocument' --output json; then
+    note "the read did not answer, so ${role} was not checked"
+  elif [[ -z "$TRUST" ]]; then
     fail "${role}: could not read the trust policy"
   elif grep -qF ":user/${FOOTBAG_OPERATOR_USER}" <<< "$TRUST"; then
     pass "${role} still trusts ${FOOTBAG_OPERATOR_USER}"
@@ -572,7 +638,12 @@ echo "Dev-and-tester job role"
 
 DEV_TESTER_ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/${DEV_TESTER_ROLE}"
 DEV_TESTER_PRESENT=0
-if aws_q iam get-role --role-name "$DEV_TESTER_ROLE" >/dev/null 2>&1; then
+# AWS answering NoSuchEntity is the role's real absence; any other failure is a
+# read that did not answer, never the pre-apply state.
+if ! aws_read DEV_TESTER_DOC NoSuchEntity "the ${DEV_TESTER_ROLE} role" \
+  iam get-role --role-name "$DEV_TESTER_ROLE"; then
+  note "the read did not answer, so the job role was not checked"
+elif [[ -n "$DEV_TESTER_DOC" ]]; then
   DEV_TESTER_PRESENT=1
   pass "${DEV_TESTER_ROLE}: ${DEV_TESTER_ROLE_ARN}"
 else
@@ -582,17 +653,18 @@ else
 fi
 
 # One runtime role's trust document, or an empty string when it could not be
-# read. Which principals it names is the question every comparison below asks.
+# read; AWS's message for the failure is then aws_err. Which principals it names
+# is the question every comparison below asks.
 read_trust() {
   aws_q iam get-role --role-name "$1" --query 'Role.AssumeRolePolicyDocument' \
-    --output json || true
+    --output json
 }
 
 if (( DEV_TESTER_PRESENT )); then
   # Staging must name it, because the reads a deploy makes are that job.
-  STAGING_TRUST="$(read_trust "$STAGING_RUNTIME_ROLE")"
+  STAGING_TRUST="$(read_trust "$STAGING_RUNTIME_ROLE")" || STAGING_TRUST=""
   if [[ -z "$STAGING_TRUST" ]]; then
-    fail "${STAGING_RUNTIME_ROLE}: could not read the trust policy to compare the job role"
+    fail "${STAGING_RUNTIME_ROLE}: could not read the trust policy to compare the job role: $(aws_err)"
   elif grep -qF "$DEV_TESTER_ROLE_ARN" <<< "$STAGING_TRUST"; then
     pass "${STAGING_RUNTIME_ROLE} trusts ${DEV_TESTER_ROLE}"
   else
@@ -605,9 +677,9 @@ if (( DEV_TESTER_PRESENT )); then
   # Production must not, and its absence there cannot be asserted from that
   # tree's configuration: production declares no variable to set it, so an ARN
   # found in that trust was put there by hand and nothing else would report it.
-  PRODUCTION_TRUST="$(read_trust "$PRODUCTION_RUNTIME_ROLE")"
+  PRODUCTION_TRUST="$(read_trust "$PRODUCTION_RUNTIME_ROLE")" || PRODUCTION_TRUST=""
   if [[ -z "$PRODUCTION_TRUST" ]]; then
-    fail "${PRODUCTION_RUNTIME_ROLE}: could not read the trust policy to check the job role is absent"
+    fail "${PRODUCTION_RUNTIME_ROLE}: could not read the trust policy to check the job role is absent: $(aws_err)"
   elif grep -qF "$DEV_TESTER_ROLE_ARN" <<< "$PRODUCTION_TRUST"; then
     fail "${PRODUCTION_RUNTIME_ROLE} names ${DEV_TESTER_ROLE}"
     note "that role's job is staging, and this grant is the one thing the boundary"
@@ -637,9 +709,10 @@ fi
 echo ""
 echo "Identity Center dormancy"
 
-SSO_INSTANCE="$(aws_q sso-admin list-instances \
-  --query 'Instances[].[InstanceArn,IdentityStoreId]' --output text || true)"
-if [[ -z "$SSO_INSTANCE" || "$SSO_INSTANCE" == "None" ]]; then
+if ! aws_read SSO_INSTANCE - "the Identity Center instances" sso-admin list-instances \
+  --query 'Instances[].[InstanceArn,IdentityStoreId]' --output text; then
+  note "the read did not answer, so dormancy was not checked rather than confirmed."
+elif [[ -z "$SSO_INSTANCE" || "$SSO_INSTANCE" == "None" ]]; then
   pass "no Identity Center instance in this account"
 else
   # shellcheck disable=SC2086
@@ -664,7 +737,7 @@ else
       note "and no other check here looks at."
     fi
   else
-    fail "could not read the permission sets of the dormant instance"
+    fail "could not read the permission sets of the dormant instance: $(aws_err)"
     note "this is not the same as there being none: the call did not answer, so"
     note "dormancy was not checked rather than confirmed."
   fi
@@ -681,7 +754,7 @@ else
         note "path the named-IAM-user model does not account for."
       fi
     else
-      fail "could not read the users of the dormant directory"
+      fail "could not read the users of the dormant directory: $(aws_err)"
       note "the call did not answer, so this was not checked rather than confirmed."
     fi
   fi
@@ -700,7 +773,8 @@ fi
 
 if (( FINDINGS == 0 )); then
   echo "No findings."
-  exit 0
+  cr_proved "every account-level control read here is in place"
+  cr_finish
 fi
 echo "${FINDINGS} finding(s)." >&2
 echo "" >&2
@@ -709,4 +783,4 @@ echo "The public-access block, the password policy and Access Analyzer carry no"
 echo "values and apply as they stand. Apply the shared tree as the" >&2
 echo "directly authenticated identity; the job role cannot read its state," >&2
 echo "deliberately." >&2
-exit 1
+cr_finish

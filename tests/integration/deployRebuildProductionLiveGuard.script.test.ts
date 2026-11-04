@@ -26,6 +26,10 @@ const GUARD = path.join(
   'internal',
   'deploy-rebuild-production-live-guard.sh',
 );
+// Sent ahead of the guard on the deploy's stream; the guard reports through it.
+const REMOTE_REPORT_LIB = path.join(REPO_ROOT, 'scripts', 'lib', 'closing-report-remote.sh');
+/** bash arguments that run the guard as the stream does: report library first. */
+const SHIPPED = ['-c', 'source "$1"; source "$2"', '_', REMOTE_REPORT_LIB, GUARD];
 
 let dir: string;
 let envPath: string;
@@ -39,7 +43,7 @@ function writeFakeAws(): void {
   fs.writeFileSync(
     fakeAws,
     '#!/usr/bin/env bash\n' +
-      'if [[ "${FAKE_SSM_FAIL:-}" == "1" ]]; then exit 1; fi\n' +
+      'if [[ "${FAKE_SSM_FAIL:-}" == "1" ]]; then echo "An error occurred (AccessDeniedException) when calling the GetParameter operation: fixture-denied" >&2; exit 254; fi\n' +
       'printf \'%s\\n\' "${FAKE_SSM_VALUE:-false}"\n',
     { mode: 0o755 },
   );
@@ -69,7 +73,7 @@ function runGuard(overrides: Record<string, string> = {}): {
   status: number | null;
   stderr: string;
 } {
-  const res = spawnSync('bash', [GUARD], {
+  const res = spawnSync('bash', SHIPPED, {
     encoding: 'utf8',
     env: {
       ...process.env,
@@ -129,6 +133,9 @@ describe('production-live guard: marker check', () => {
     const res = runGuard({ FAKE_SSM_FAIL: '1' });
     expect(res.status).toBe(1);
     expect(res.stderr).toContain('unreadable');
+    // Defect caught: the refusal carrying no reason, so an operator whose host
+    // profile cannot read Parameter Store is sent to move a marker that is fine.
+    expect(res.stderr).toMatch(/^---FOOTBAG-PROBLEM--- ERROR refusing the database-replacing deploy: the production-live marker .*AccessDeniedException/m);
   });
 
   it('exempts non-production targets without reading the marker', () => {
@@ -217,7 +224,7 @@ describe('production-live guard: real-member tripwire', () => {
     // fallback would silently pass on a host with a non-standard path.
     seedMembers({ real: 4 });
     fs.appendFileSync(envPath, `FOOTBAG_DB_PATH=${dbPath}\n`);
-    const res = spawnSync('bash', [GUARD], {
+    const res = spawnSync('bash', SHIPPED, {
       encoding: 'utf8',
       env: {
         ...process.env,

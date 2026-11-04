@@ -82,8 +82,12 @@ export function machineIsolationRoot(workerTag: string): string {
  * to supply their own default, so the suite reads the blank instead of the
  * default and fails on a guard that was never about the machine at all. Absent
  * is what a clean runner actually presents.
+ *
+ * `FOOTBAG_CR_REPORT_TO` is set by an operator script on the closing-report
+ * library for the scripts it runs; a suite started from inside one would make
+ * every script under test think it was nested and print no report of its own.
  */
-export const MACHINE_ENV_TO_CLEAR = ['FOOTBAG_ENV'] as const;
+export const MACHINE_ENV_TO_CLEAR = ['FOOTBAG_ENV', 'FOOTBAG_CR_REPORT_TO'] as const;
 
 /**
  * The stub `ssh`. Two behaviours, and the first is the one that matters.

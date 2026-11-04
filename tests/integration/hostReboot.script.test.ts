@@ -8,17 +8,23 @@
  * The contract pinned: the reboot is proved by a boot id different from the
  * one the host reported before it, never by the host answering at all; a host
  * that cannot be asked, or that never comes back changed, fails with the reason;
- * and only the password line and the half travel on the stream.
+ * only the password line, the remote reporting library and the half travel on
+ * the stream; and what the half marks as a problem is listed in the caller's
+ * closing report and never read as the boot id.
+ *
+ * The root-side half runs too, against a stand-in systemd-run.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
 
 const LIB = join(process.cwd(), 'scripts/lib/host-reboot.sh');
+const REPORT = join(process.cwd(), 'scripts/lib/closing-report.sh');
+const REPORT_REMOTE = join(process.cwd(), 'scripts/lib/closing-report-remote.sh');
 const HALF = join(process.cwd(), 'scripts/internal/bootstrap-host-reboot-remote.sh');
 
 let work: string;
@@ -38,7 +44,11 @@ beforeEach(() => {
     '  *footbag-reboot*)',
     '    cat > "$STATE/reboot-stream"',
     '    [[ -e "$STATE/schedule-fails" ]] && { echo "sudo: stand-in: a password is required" >&2; exit 1; }',
-    '    [[ -e "$STATE/no-boot-id" ]] || printf -- "---FOOTBAG-BOOT-ID---\\nold-boot\\n"',
+    // A marked problem the half prints on its standard error between the boot-id
+    // line and the id, as a host's two streams can arrive.
+    '    if [[ -e "$STATE/marked" ]]; then',
+    '      printf -- "---FOOTBAG-BOOT-ID---\\n"; echo "---FOOTBAG-PROBLEM--- WARN stand-in host warning" >&2; printf "old-boot\\n"',
+    '    elif [[ ! -e "$STATE/no-boot-id" ]]; then printf -- "---FOOTBAG-BOOT-ID---\\nold-boot\\n"; fi',
     '    echo "---FOOTBAG-END---" ;;',
     '  *boot_id*)',
     '    n=$(( $(cat "$STATE/polls" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$STATE/polls"',
@@ -57,8 +67,10 @@ afterEach(() => {
   removeScratch(work);
 });
 
+let lastStderr = '';
 function reboot(tries = 3): Record<string, string> {
   const body = [
+    `source "${REPORT}"`,
     `source "${LIB}"`,
     'SUDO_PASS=stub-reboot-pass',
     `HOST_SSH_BIN=${JSON.stringify(ssh)}`,
@@ -68,6 +80,7 @@ function reboot(tries = 3): Record<string, string> {
   ].join('\n');
   const r = spawnSync('bash', ['-c', `set -euo pipefail\n${body}`], { encoding: 'utf-8', ...SPAWN_GUARD });
   expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
+  lastStderr = r.stderr ?? '';
   const out: Record<string, string> = {};
   for (const line of (r.stdout ?? '').split('\n')) {
     const i = line.indexOf('=');
@@ -96,6 +109,26 @@ describe('host_reboot_and_wait', () => {
     expect(polls()).toBe(3);
   });
 
+  it('names what the client last said when the host never comes back', () => {
+    // Defect caught: a host that stays down fails with a bare timeout, and the
+    // client's own reason (a refused connection, a changed host key) is dropped.
+    writeFileSync(join(work, 'answers'), 'refused\n');
+    const r = reboot(2);
+    expect(r.rc).toBe('1');
+    expect(r.error).toContain('Connection refused');
+  });
+
+  it('lists what the half marked in the closing report, and never reads it as the boot id', () => {
+    // Defect caught: the half's problem lines are dropped, or one arriving
+    // between the boot-id line and the id is taken for the old boot id, so the
+    // reboot is "proved" against a line of text.
+    writeFileSync(join(work, 'marked'), '');
+    const r = reboot();
+    expect(r).toMatchObject({ rc: '0', old: 'old-boot', new: 'new-boot' });
+    const report = lastStderr.slice(lastStderr.lastIndexOf('Closing report'));
+    expect(report).toMatch(/Warnings \(1\):\n {2}- reboot footbag-staging: stand-in host warning/);
+  });
+
   it('fails, with the reason, when the reboot could not be scheduled, and waits for nothing', () => {
     // Defect caught: a refused sudo reads as a reboot under way, and the run
     // polls for a reboot that was never asked for.
@@ -114,12 +147,50 @@ describe('host_reboot_and_wait', () => {
     expect(polls()).toBe(0);
   });
 
-  it('sends the password as the stream\'s first line, the half after it, and never in an argument', () => {
-    // Defect caught: the password reaches the host's process list, or a line
-    // other than the half runs as root.
+  it('sends the password as the stream\'s first line, the reporting library and the half after it, and never in an argument', () => {
+    // Defect caught: the password reaches the host's process list, a line other
+    // than the library and the half runs as root, or the half arrives without
+    // the library and stops at its first report.
     reboot();
     const stream = readFileSync(join(work, 'reboot-stream'), 'utf-8');
-    expect(stream).toBe(`stub-reboot-pass\n${readFileSync(HALF, 'utf-8')}`);
+    expect(stream).toBe(`stub-reboot-pass\n${readFileSync(REPORT_REMOTE, 'utf-8')}${readFileSync(HALF, 'utf-8')}`);
     expect(readFileSync(join(work, 'calls.log'), 'utf-8')).not.toContain('stub-reboot-pass');
+  });
+});
+
+describe('the root-side reboot half', () => {
+  /** Runs the half behind the reporting library with a stand-in systemd-run. */
+  function half(scheduleRc: number) {
+    const bin = join(work, 'host-bin');
+    mkdirSync(bin, { recursive: true });
+    writeFileSync(join(bin, 'systemd-run'), [
+      '#!/usr/bin/env bash',
+      `printf '%s\\n' "$*" >> ${JSON.stringify(join(work, 'systemd-run.log'))}`,
+      scheduleRc ? `echo "Failed to start transient timer unit: stand-in refusal" >&2; exit ${scheduleRc}` : 'exit 0',
+    ].join('\n') + '\n');
+    chmodSync(join(bin, 'systemd-run'), 0o755);
+    const r = spawnSync('bash', ['-s'], {
+      input: readFileSync(REPORT_REMOTE, 'utf-8') + readFileSync(HALF, 'utf-8'),
+      encoding: 'utf-8', env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? ''}` }, ...SPAWN_GUARD,
+    });
+    return { status: r.status, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
+  }
+
+  it('prints the boot id, schedules the reboot and ends its contract only once scheduled', () => {
+    const r = half(0);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/^---FOOTBAG-BOOT-ID---\n[0-9a-f-]{36}\n---FOOTBAG-END---\n$/);
+    expect(readFileSync(join(work, 'systemd-run.log'), 'utf-8')).toMatch(/--on-active=5 .*systemctl reboot/);
+    expect(r.stderr).not.toMatch(/---FOOTBAG-PROBLEM---/);
+  });
+
+  it('marks a reboot it could not schedule as an error with the tool\'s own words', () => {
+    // Defect caught: the scheduling failure leaves the half on a bare non-zero
+    // exit, so the caller's closing report lists nothing from the host about why
+    // no reboot happened.
+    const r = half(1);
+    expect(r.status).toBe(1);
+    expect(r.stdout).not.toMatch(/---FOOTBAG-END---/);
+    expect(r.stderr).toMatch(/^---FOOTBAG-PROBLEM--- ERROR schedule the reboot: exit 1: Failed to start transient timer unit: stand-in refusal$/m);
   });
 });

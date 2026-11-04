@@ -94,6 +94,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "$REPO_ROOT"
 
+# One closing report for the whole proof. The steps run as children, directly,
+# and any of them on the same library lists its own problems in this report.
+# shellcheck source=lib/closing-report.sh
+source "${SCRIPT_DIR}/lib/closing-report.sh"
+
 WRAP_CMD="${PROVE_WRAP_CMD:-${SCRIPT_DIR}/as-dev-tester.sh}"
 AWS_CMD="${PROVE_AWS_BIN:-aws}"
 APPLY_CMD="${PROVE_APPLY_CMD:-${SCRIPT_DIR}/terraform-apply.sh}"
@@ -116,33 +121,33 @@ usage() {
 
 while (( $# )); do
   case "$1" in
-    --account) ACCOUNT="${2:-}"; shift 2 || { echo "ERROR: --account requires a name" >&2; exit 2; } ;;
-    --baseline) BASELINE="${2:-}"; shift 2 || { echo "ERROR: --baseline requires a file" >&2; exit 2; } ;;
-    --from-step) FROM_STEP="${2:-}"; FROM_STEP_GIVEN=1; shift 2 || { echo "ERROR: --from-step requires a step" >&2; exit 2; } ;;
+    --account) ACCOUNT="${2:-}"; shift 2 || { cr_error "--account requires a name"; exit 2; } ;;
+    --baseline) BASELINE="${2:-}"; shift 2 || { cr_error "--baseline requires a file"; exit 2; } ;;
+    --from-step) FROM_STEP="${2:-}"; FROM_STEP_GIVEN=1; shift 2 || { cr_error "--from-step requires a step"; exit 2; } ;;
     --checks-only) CHECKS_ONLY=1; shift ;;
     -h|--help) usage 0 ;;
-    *) echo "ERROR: unknown argument '$1'" >&2; exit 2 ;;
+    *) cr_error "unknown argument '$1'"; exit 2 ;;
   esac
 done
 
 if [[ "$ACCOUNT" == "footbag-operator" || "$ACCOUNT" == "footbag" ]]; then
-  echo "ERROR: '${ACCOUNT}' is not a named identity; there is no role use of it to prove." >&2
+  cr_error "'${ACCOUNT}' is not a named identity; there is no role use of it to prove."
   exit 2
 fi
 # Required for the whole proof; optional for the checks alone, but never
 # malformed when given.
 if [[ -n "$ACCOUNT" ]] || (( ! CHECKS_ONLY )); then
   if [[ ! "$ACCOUNT" =~ ^[a-z][a-z0-9]*(_[a-z0-9]+)+$ || ${#ACCOUNT} -gt 32 ]]; then
-    echo "ERROR: --account names the dev-and-tester to prove, firstname_lastname." >&2
+    cr_error "--account names the dev-and-tester to prove, firstname_lastname."
     exit 2
   fi
 fi
 if (( CHECKS_ONLY && FROM_STEP_GIVEN )); then
-  echo "ERROR: --checks-only runs two read-only checks and is re-run whole; it takes no --from-step." >&2
+  cr_error "--checks-only runs two read-only checks and is re-run whole; it takes no --from-step."
   exit 2
 fi
 if [[ ! "$FROM_STEP" =~ ^[1-6]$ ]]; then
-  echo "ERROR: --from-step takes 1 to 6." >&2
+  cr_error "--from-step takes 1 to 6."
   exit 2
 fi
 
@@ -155,7 +160,7 @@ if [[ -z "$BASELINE" ]]; then
     | LC_ALL=C sort -n | tail -1 | cut -d' ' -f2- || true)"
 fi
 if [[ -z "$BASELINE" || ! -r "$BASELINE" ]]; then
-  echo "ERROR: no saved baseline to compare with, so this run could not show that" >&2
+  cr_error "no saved baseline to compare with, so this run could not show that"
   echo "       footbag-operator and both runtime trusts are unchanged. Save one now," >&2
   echo "       before anything else changes, and pass it with --baseline if it is" >&2
   echo "       not in ${BASELINE_DIR}:" >&2
@@ -188,7 +193,7 @@ if (( CHECKS_ONLY )); then
   fi
   check_failed() {
     echo "" >&2
-    echo "FAILED: ${1}. Re-run once fixed:" >&2
+    cr_error "FAILED: ${1}. Re-run once fixed:"
     echo "  bash scripts/prove-dev-tester-role.sh --checks-only${ACCOUNT:+ --account ${ACCOUNT}}" >&2
     exit 1
   }
@@ -209,11 +214,14 @@ if (( CHECKS_ONLY )); then
   [[ -n "$ACCOUNT" ]] && ASIDE=", ${ACCOUNT}'s own key aside"
   echo "CHECKED: the role's denials hold, and footbag-operator and both runtime trusts"
   echo "are exactly as they were in ${BASELINE}${ASIDE}."
-  exit 0
+  cr_proved "the job role's denials hold (step 4)"
+  cr_proved "footbag-operator and both runtime trusts match ${BASELINE}${ASIDE} (step 5)"
+  cr_unproved "steps 1 to 3 and 6: --checks-only does not use the role or read the onboarding"
+  cr_finish
 fi
 
 if [[ -t 0 ]]; then
-  echo "ERROR: stdin is a terminal. The last step reads the shared account's sudo" >&2
+  cr_error "stdin is a terminal. The last step reads the shared account's sudo"
   echo "       password from stdin, so redirect its file:" >&2
   echo "         < ~/AWS/AWS_OPERATOR.txt bash scripts/prove-dev-tester-role.sh --account ${ACCOUNT}" >&2
   exit 1
@@ -223,7 +231,7 @@ fi
 SUDO_PASS=""
 IFS= read -r SUDO_PASS || true
 if [[ -z "$SUDO_PASS" ]]; then
-  echo "ERROR: nothing arrived on stdin; redirect the shared account's staging sudo password file." >&2
+  cr_error "nothing arrived on stdin; redirect the shared account's staging sudo password file."
   exit 1
 fi
 
@@ -240,7 +248,7 @@ echo "     account facts against the baseline, and the onboarding read back"
 # stop <step> <what>: one failure, one place to resume.
 stop() {
   echo "" >&2
-  echo "FAILED at step ${1}: ${2}" >&2
+  cr_error "FAILED at step ${1}: ${2}"
   echo "       Resume once fixed:" >&2
   echo "         < ~/AWS/AWS_OPERATOR.txt bash scripts/prove-dev-tester-role.sh --account ${ACCOUNT} --from-step ${1}" >&2
   exit 1
@@ -307,7 +315,9 @@ case "$VERIFY_RC" in
     echo "Steps 1 to 5 proved. The onboarding is in place, but CloudTrail does not show"
     echo "its acceptance yet; re-run the last step in a few minutes:"
     echo "  < ~/AWS/AWS_OPERATOR.txt bash scripts/prove-dev-tester-role.sh --account ${ACCOUNT} --from-step 6"
-    exit 3
+    cr_warn "PENDING: ${ACCOUNT}'s acceptance is not yet in CloudTrail; re-run with --from-step 6"
+    cr_unproved "that ${ACCOUNT} has accepted the onboarding (step 6 is pending)"
+    cr_finish_with 3 PENDING
     ;;
   *) stop 6 "the onboarding did not read back as in place" ;;
 esac
@@ -316,3 +326,5 @@ echo ""
 echo "PROVED: ${ACCOUNT} chained into the staging runtime role, planned staging,"
 echo "dry-ran a deploy to it and tested it through the role, the role's denials hold, and footbag-operator"
 echo "and both runtime trusts are exactly as they were in ${BASELINE}."
+cr_proved "${ACCOUNT} proved through the FootbagDevTester role, steps ${FROM_STEP} to 6, against ${BASELINE}"
+cr_finish

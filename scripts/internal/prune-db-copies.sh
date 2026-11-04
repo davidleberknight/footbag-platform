@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+# shellcheck shell=bash
 # Deletes the database copies a deploy or a restore set aside, once they are
 # more than seven days old. Defines one function and runs nothing, so it can
 # travel ahead of a remote half on the same ssh stream, the way the deploy's
@@ -32,24 +32,39 @@
 # caller decides what that costs, and both callers treat it as a warning,
 # because a copy left in place is disk, not data loss.
 #
+# Each copy kept for a reason, and each failure, is a warning the operator's
+# closing report lists. It goes through crr_warn from
+# scripts/lib/closing-report-remote.sh, which the caller sends ahead of this file
+# on the same stream; on a stream that does not carry it the same line is printed
+# in the plain WARNING form, so a missing report library never turns a kept copy
+# into silence.
+#
 # Test seam: PRUNE_NOW_EPOCH fixes "now" to the given epoch second, and the run
 # says so on stderr, because a run on a fixed clock proves nothing about the
 # host's own.
 
+_prune_warn() {
+  if declare -F crr_warn >/dev/null; then
+    crr_warn "prune-db-copies: $*"
+  else
+    echo "prune-db-copies: WARNING: $*" >&2
+  fi
+}
+
 prune_db_copies() {
   local db_dir="${1:-}"
   local now max_age=$(( 7 * 24 * 60 * 60 ))
-  local path name stamp epoch rc=0
+  local path name stamp epoch rm_err rc=0
   local saved_nullglob
 
   if [[ -z "$db_dir" || ! -d "$db_dir" ]]; then
-    echo "prune-db-copies: no database directory at '${db_dir}'; nothing pruned." >&2
+    _prune_warn "no database directory at '${db_dir}'; nothing pruned."
     return 1
   fi
 
   if [[ -n "${PRUNE_NOW_EPOCH:-}" ]]; then
     if [[ ! "$PRUNE_NOW_EPOCH" =~ ^[0-9]+$ ]]; then
-      echo "prune-db-copies: PRUNE_NOW_EPOCH='${PRUNE_NOW_EPOCH}' is not an epoch second; nothing pruned." >&2
+      _prune_warn "PRUNE_NOW_EPOCH='${PRUNE_NOW_EPOCH}' is not an epoch second; nothing pruned."
       return 1
     fi
     echo "prune-db-copies: TEST SEAM: the clock is fixed at epoch ${PRUNE_NOW_EPOCH} by PRUNE_NOW_EPOCH" >&2
@@ -64,23 +79,23 @@ prune_db_copies() {
     name="${path##*/}"
     stamp="${name##*.}"
     if [[ ! "$stamp" =~ ^([0-9]{4})([0-9]{2})([0-9]{2})T([0-9]{2})([0-9]{2})([0-9]{2})Z$ ]]; then
-      echo "prune-db-copies: WARNING: kept ${name}: its name carries no readable timestamp." >&2
+      _prune_warn "kept ${name}: its name carries no readable timestamp."
       continue
     fi
     epoch="$(date -u -d "${BASH_REMATCH[1]}-${BASH_REMATCH[2]}-${BASH_REMATCH[3]} ${BASH_REMATCH[4]}:${BASH_REMATCH[5]}:${BASH_REMATCH[6]}" +%s 2>/dev/null)" || epoch=""
     if [[ ! "$epoch" =~ ^[0-9]+$ ]]; then
-      echo "prune-db-copies: WARNING: kept ${name}: its timestamp is not a real date." >&2
+      _prune_warn "kept ${name}: its timestamp is not a real date."
       continue
     fi
     if [[ ! -f "$path" || -L "$path" ]]; then
-      echo "prune-db-copies: WARNING: kept ${name}: not a regular file." >&2
+      _prune_warn "kept ${name}: not a regular file."
       continue
     fi
     if (( now - epoch > max_age )); then
-      if rm -f -- "$path"; then
+      if rm_err="$(rm -f -- "$path" 2>&1)"; then
         echo "prune-db-copies: deleted ${name}"
       else
-        echo "prune-db-copies: WARNING: could not delete ${name}." >&2
+        _prune_warn "could not delete ${name}: ${rm_err}"
         rc=1
       fi
     else

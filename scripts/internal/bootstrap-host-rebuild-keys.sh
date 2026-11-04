@@ -19,23 +19,40 @@
 
 REBUILD_KEYS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REBUILD_KEYID_HALF="${REBUILD_KEYS_DIR}/bootstrap-host-keyid-remote.sh"
+# Sent ahead of the half, which cannot source it.
+REBUILD_REPORT_LIB="${REBUILD_KEYS_DIR}/../lib/closing-report-remote.sh"
 
 # Set by host_key_id_read: the key id the host holds, empty when it holds none.
 HOST_KEY_ID=""
 
 # host_key_id_read <alias> <credentials-file> <profile>
+# The key id is read from the half's standard output only. What the half marked
+# on standard error is shown, and listed in the caller's closing report when the
+# caller is on scripts/lib/closing-report.sh.
 host_key_id_read() {
-  local alias="$1" file="$2" profile="$3" stream
+  local alias="$1" file="$2" profile="$3" stream err rc=0
   HOST_KEY_ID=""
   require_host_ssh_opts || return 1
-  if ! stream="$(
+  if declare -F _cr_tmp >/dev/null; then
+    err="$(mktemp "$(_cr_tmp)/keyid.XXXXXX")"
+  else
+    err="$(mktemp)"
+  fi
+  stream="$(
         {
           printf '%s\n' "$SUDO_PASS"
           printf 'CRED_FILE=%q\n' "$file"
           printf 'CRED_PROFILE=%q\n' "$profile"
+          cat "$REBUILD_REPORT_LIB"
           cat "$REBUILD_KEYID_HALF"
-        } | "$HOST_SSH_BIN" "${HOST_SSH_OPTS[@]}" "$alias" 'sudo -k -S -p "" bash -s footbag-host-key-id'
-      )"; then
+        } | "$HOST_SSH_BIN" "${HOST_SSH_OPTS[@]}" "$alias" 'sudo -k -S -p "" bash -s footbag-host-key-id' 2>"$err"
+      )" || rc=$?
+  cat "$err" >&2
+  if declare -F cr_harvest >/dev/null; then
+    cr_harvest --sentinels-only "key id on ${alias}" "$err"
+  fi
+  rm -f "$err"
+  if (( rc )); then
     echo "ERROR: could not ask ${alias} which key it holds in ${file}." >&2
     return 1
   fi

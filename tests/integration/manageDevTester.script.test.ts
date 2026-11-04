@@ -341,6 +341,21 @@ function config(): string {
   return existsSync(configFile) ? readFileSync(configFile, 'utf-8') : '';
 }
 
+/** An earlier departure's revocation, as this script writes one. */
+function seedRevocation(person: string, cutoff: string): void {
+  writeFileSync(
+    join(stateDir, `role-policy-revoke-sessions-${person}`),
+    `{"Version":"2012-10-17","Statement":[{"Sid":"RevokeSessionsIssuedBeforeOffboard","Effect":"Deny","Action":"*","Resource":"*","Condition":{"DateLessThan":{"aws:TokenIssueTime":"${cutoff}"},"StringLike":{"aws:userid":"*:${person}"}}}]}`,
+    'utf-8',
+  );
+}
+
+/** The closing report: everything from its heading on. */
+function closingReport(stderr: string): string {
+  const at = stderr.lastIndexOf('Closing report');
+  return at === -1 ? '' : stderr.slice(at);
+}
+
 function credentials(): string {
   return existsSync(credFile) ? readFileSync(credFile, 'utf-8') : '';
 }
@@ -460,6 +475,45 @@ describe('manage-dev-tester.sh — who may run it', () => {
     expect(r.stderr).toMatch(/--target identity/);
     expect(mutatingCalls()).toHaveLength(0);
   });
+
+  it('refuses a job role it could not read as unread, with what AWS said, never as a tree not yet applied', () => {
+    // Read as absent, a denied read would send the operator to apply an
+    // identity tree that is already applied, and hide the real cause.
+    writeFileSync(join(stateDir, 'unreadable-get-role'), '', 'utf-8');
+    const r = run(['--offboard', DEV_TESTER, '--yes'], ACTIVE);
+    expect(r.status).toBe(1);
+    expect(r.stderr).not.toMatch(/there is no FootbagDevTester role/);
+    expect(closingReport(r.stderr)).toMatch(/could not read the FootbagDevTester role.*AccessDenied/);
+    expect(mutatingCalls()).toHaveLength(0);
+  });
+});
+
+describe('manage-dev-tester.sh — the closing report', () => {
+  it('lists a revocation it left in place as a warning, and still exits 0', () => {
+    // Printed among the offboard's progress lines and followed by Done, a
+    // revocation nobody can clear is read past until the role's inline policies
+    // fill and an offboard cannot write its own.
+    seedRevocation('odd_one', '1 Jan 2020');
+    const r = run(['--offboard', DEV_TESTER, '--yes'], ACTIVE);
+    expect(r.status, r.stderr).toBe(0);
+    expect(closingReport(r.stderr)).toMatch(/revoke-sessions-odd_one: its cutoff could not be read/);
+  });
+
+  it('lists, with what AWS said, a clearing it could not attempt because the role could not be read', () => {
+    // The old run printed WARNING and went on to Done with no reason given.
+    writeFileSync(join(stateDir, 'unreadable-list-role-policies'), '', 'utf-8');
+    const r = run(['--offboard', DEV_TESTER, '--yes'], ACTIVE);
+    expect(r.status, r.stderr).toBe(0);
+    expect(closingReport(r.stderr)).toMatch(/no earlier revocation was cleared.*AccessDenied/);
+  });
+
+  it('lists each verify finding by name, not only their count', () => {
+    // A count at the end sends the operator back through the read-back to find
+    // which fact was wrong.
+    const r = run(['--verify', DEV_TESTER], { role: true, userPath: '/', tags: MANAGED_TAGS });
+    expect(r.status).toBe(1);
+    expect(closingReport(r.stderr)).toMatch(/sits at \/, not \/footbag-dev-testers\//);
+  });
 });
 
 describe('manage-dev-tester.sh — offboarding', () => {
@@ -532,13 +586,6 @@ describe('manage-dev-tester.sh — offboarding', () => {
     expect(r.stdout).toMatch(/no\s+job-role session still working/);
   });
 
-  /** An earlier departure's revocation, as this script writes one. */
-  const seedRevocation = (person: string, cutoff: string) =>
-    writeFileSync(
-      join(stateDir, `role-policy-revoke-sessions-${person}`),
-      `{"Version":"2012-10-17","Statement":[{"Sid":"RevokeSessionsIssuedBeforeOffboard","Effect":"Deny","Action":"*","Resource":"*","Condition":{"DateLessThan":{"aws:TokenIssueTime":"${cutoff}"},"StringLike":{"aws:userid":"*:${person}"}}}]}`,
-      'utf-8',
-    );
 
   it('clears an earlier revocation whose cutoff is older than any session can live', () => {
     seedRevocation('long_gone', '2020-01-01T00:00:00Z');

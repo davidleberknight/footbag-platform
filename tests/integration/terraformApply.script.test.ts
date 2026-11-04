@@ -71,12 +71,21 @@ function writeTerraformStub(
   opts: {
     planFails?: boolean;
     applyFails?: boolean;
+    /** Lines `apply` prints before it exits; printf escapes such as \033 are honoured. */
+    applyPrints?: string[];
+    /** Lines a successful `plan` prints. */
+    planPrints?: string[];
+    /** Lines `init` prints, and whether it then fails. */
+    initPrints?: string[];
+    initFails?: boolean;
     /** The instance Terraform names; footbag-<target>-web unless a restore renamed it. */
     instanceName?: string;
     lockHeldBy?: string;
     lockOperation?: string;
     lockCreated?: string;
     lockClearsAfterUnlock?: boolean;
+    /** Once the lock is gone, the verifying plan fails on something else. */
+    planFailsAfterUnlock?: boolean;
     /**
      * What `terraform show -json <plan>` answers, as the resource_changes array.
      * The DNS gate reads the saved plan through this, so a fixture here is the
@@ -166,7 +175,12 @@ function writeTerraformStub(
   // actually worked. That is the difference between proving the outcome and
   // trusting the exit status.
   const planArm = lockError
-    ? [`if [ ! -e "${unlockMarker}" ]; then`, lockError, 'fi'].join('\n')
+    ? [
+        `if [ ! -e "${unlockMarker}" ]; then`,
+        lockError,
+        'fi',
+        ...(opts.planFailsAfterUnlock ? ['echo "Error: Reference to undeclared input variable" >&2', 'exit 1'] : []),
+      ].join('\n')
     : opts.planFails
       ? 'exit 1'
       : ':';
@@ -186,10 +200,16 @@ function writeTerraformStub(
       opts.lockClearsAfterUnlock ? `      : > "${unlockMarker}"` : '      :',
       '      exit 0',
       '      ;;',
+      '    init)',
+      ...(opts.initPrints ?? []).map((l) => `      printf '%s\\n' ${JSON.stringify(l)}`),
+      `      ${opts.initFails ? 'exit 1' : ':'} ;;`,
       '    plan)',
+      ...(opts.planPrints ?? []).map((l) => `      printf '%s\\n' ${JSON.stringify(l)}`),
       planArm,
       '      ;;',
-      `    apply) ${opts.applyFails ? 'exit 1' : ':'} ;;`,
+      '    apply)',
+      ...(opts.applyPrints ?? []).map((l) => `      printf '%b\\n' ${JSON.stringify(l)}`),
+      `      ${opts.applyFails ? 'exit 1' : ':'} ;;`,
       '  esac',
       'done',
       // `show -json <plan>` answers with the fixture. Emitted before the -out
@@ -269,6 +289,12 @@ function run(args: string[], withStub = true, extraEnv: NodeJS.ProcessEnv = {}):
 
 function calls(): string {
   return existsSync(callLog) ? readFileSync(callLog, 'utf-8') : '';
+}
+
+/** The closing report: everything from its heading on. */
+function closingReport(stderr: string): string {
+  const at = stderr.lastIndexOf('Closing report');
+  return at === -1 ? '' : stderr.slice(at);
 }
 
 /**
@@ -371,6 +397,15 @@ describe('terraform-apply.sh: argument handling', () => {
     const res = run(['--target', 'production', '--yes']);
     expect(res.exitCode).toBe(2);
     expect(res.stderr).toMatch(/--yes does not carry a production apply/);
+  });
+
+  it('names a refusal before the plan in the closing report, not only mid-stream', () => {
+    // Defect caught: a run started by another one whose report says only that
+    // this run stopped early, so the operator scrolls back for the reason.
+    writeTerraformStub();
+    const res = run(['--target', 'production', '--yes']);
+    expect(res.exitCode).toBe(2);
+    expect(closingReport(res.stderr)).toMatch(/Errors \(\d+\):\s+- --yes does not carry a production apply/);
   });
 
   it('refuses --yes on an identity apply too, while the shared tree still accepts it', () => {
@@ -659,6 +694,9 @@ describe('terraform-apply.sh: a caller that knows what the plan may contain', ()
     expect(res.stderr).toMatch(/would also change:\n\s+aws_s3_bucket\.media/);
     expect(res.stderr).not.toContain('  aws_lightsail_instance_public_ports.web');
     expect(calls()).not.toMatch(/ apply \//);
+    // Defect caught: a refusal after the plan reported only as an early stop,
+    // with the drift that caused it left mid-stream above the plan output.
+    expect(closingReport(res.stderr)).toMatch(/Errors \(\d+\):\s+- this firewall-only apply would also change/);
   });
 
   it('applies nothing when the firewall already matches', () => {
@@ -862,6 +900,9 @@ describe('terraform-apply.sh: breaking a stale state lock', () => {
     expect(res.exitCode).toBe(2);
     expect(res.stderr).toMatch(/robin@OTHER-LAPTOP, not this machine/);
     expect(calls()).not.toMatch(/force-unlock/);
+    // Defect caught: the holder the operator must go and ask missing from the
+    // report, which says only that the run stopped early.
+    expect(closingReport(res.stderr)).toMatch(/Errors \(\d+\):\s+- the lock names robin@OTHER-LAPTOP/);
   });
 
   it('refuses a lock taken by an apply, since state may be partly written', () => {
@@ -980,6 +1021,20 @@ describe('terraform-apply.sh: breaking a stale state lock', () => {
     });
     expect(res.exitCode, res.stderr).toBe(0);
     expect(calls()).toMatch(/force-unlock -force db5207a9-4d80-8993-4c30-cdeb7e69020e/);
+  });
+
+  it('lists a verifying plan that failed for another reason as a warning, while still removing the lock', () => {
+    // Defect caught: a lock removal reported clean while the tree still does not
+    // plan, the failure shown mid-stream and absent from the closing report.
+    writeTerraformStub({
+      lockHeldBy: `someone@${thisHost}`, lockCreated: OLD, lockClearsAfterUnlock: true, planFailsAfterUnlock: true,
+    });
+    const res = run(['--target', 'staging', '--break-stale-lock', '--yes'], true, {
+      TERRAFORM_APPLY_PROC_COUNT: '0',
+    });
+    expect(res.exitCode, res.stderr).toBe(0);
+    expect(calls()).toMatch(/force-unlock -force db5207a9-4d80-8993-4c30-cdeb7e69020e/);
+    expect(closingReport(res.stderr)).toMatch(/Warnings \(1\):\s+- Lock removed\. The verifying plan then failed/);
   });
 
   it('proves the lock is gone by planning again, not by the unlock exit status', () => {
@@ -1389,6 +1444,74 @@ describe('terraform-apply.sh: the saved plan', () => {
     expect(existsSync(plannedPath()), 'the trap shredded the plan').toBe(false);
   });
 
+  // Defect caught: the apply's own output streams past and is never read, so a
+  // Terraform warning is lost and an error Terraform printed is followed by
+  // "Applied." whenever the exit status happens to be 0.
+  describe('the closing report reads what Terraform printed', () => {
+    const reportList = (stderr: string, heading: 'Errors' | 'Warnings'): string => {
+      const at = stderr.search(new RegExp(`^${heading} \\(\\d+\\):$`, 'm'));
+      if (at === -1) return '';
+      const rest = stderr.slice(at);
+      const end = rest.slice(1).search(/^(Errors|Warnings|Proven:|Not proven:|No errors)/m);
+      return end === -1 ? rest : rest.slice(0, end + 1);
+    };
+
+    it('lists a warning the apply printed, and still reports the apply', () => {
+      // In colour, as Terraform writes it when the apply is not told otherwise:
+      // the escapes sit between the box and the severity.
+      writeTerraformStub({
+        applyPrints: [
+          '\\033[33m╷\\033[0m',
+          '\\033[33m│\\033[0m \\033[0m\\033[1m\\033[33mWarning: \\033[0m\\033[0m\\033[1mArgument is deprecated\\033[0m',
+          '\\033[33m╵\\033[0m',
+        ],
+      });
+      const res = run(['--target', 'staging', '--yes']);
+      expect(res.exitCode, res.stderr).toBe(0);
+      expect(res.stdout).toMatch(/^Applied\./m);
+      expect(reportList(res.stderr, 'Warnings')).toMatch(/terraform apply: │ Warning: Argument is deprecated/);
+    });
+
+    it('stops on a failed init with its error listed, and plans nothing', () => {
+      writeTerraformStub({ initFails: true, initPrints: ['╷', '│ Error: Failed to query available provider packages', '╵'] });
+      const res = run(['--target', 'staging', '--yes', '--init']);
+      expect(res.exitCode).toBe(1);
+      expect(calls()).not.toMatch(/ plan /);
+      expect(reportList(res.stderr, 'Errors')).toMatch(/terraform init: │ Error: Failed to query available provider packages/);
+    });
+
+    it('lists a warning init printed, and goes on to plan', () => {
+      writeTerraformStub({ initPrints: ['╷', '│ Warning: Deprecated backend parameter', '╵'] });
+      const res = run(['--target', 'staging', '--yes', '--init']);
+      expect(res.exitCode, res.stderr).toBe(0);
+      expect(calls()).toMatch(/ plan /);
+      expect(reportList(res.stderr, 'Warnings')).toMatch(/terraform init: │ Warning: Deprecated backend parameter/);
+    });
+
+    it('lists a warning the plan printed', () => {
+      writeTerraformStub({ planPrints: ['╷', '│ Warning: Deprecated attribute in plan', '╵'] });
+      const res = run(['--target', 'staging', '--yes']);
+      expect(res.exitCode, res.stderr).toBe(0);
+      expect(reportList(res.stderr, 'Warnings')).toMatch(/terraform plan: │ Warning: Deprecated attribute in plan/);
+    });
+
+    it('lists the error a failed apply printed, and never says Applied', () => {
+      writeTerraformStub({ applyFails: true, applyPrints: ['╷', '│ Error: creating Lightsail Instance: stub-refusal', '╵'] });
+      const res = run(['--target', 'staging', '--yes']);
+      expect(res.exitCode).toBe(1);
+      expect(res.stdout).not.toMatch(/^Applied\./m);
+      expect(reportList(res.stderr, 'Errors')).toMatch(/terraform apply: │ Error: creating Lightsail Instance: stub-refusal/);
+    });
+
+    it('fails, and never says Applied, when the apply printed an error but exited 0', () => {
+      writeTerraformStub({ applyPrints: ['╷', '│ Error: a diagnostic the exit status did not carry', '╵'] });
+      const res = run(['--target', 'staging', '--yes']);
+      expect(res.exitCode).toBe(1);
+      expect(res.stdout).not.toMatch(/^Applied\./m);
+      expect(reportList(res.stderr, 'Errors')).toMatch(/a diagnostic the exit status did not carry/);
+    });
+  });
+
   it('names the resume point on every failure, so a part-way run is recoverable', () => {
     writeTerraformStub({ planFails: true });
     expect(run(['--target', 'staging', '--yes']).stderr).toMatch(/--from-step 2/);
@@ -1585,6 +1708,22 @@ describe('terraform-apply.sh: the DNS approval gate', () => {
     } finally {
       rmSync(binDir, { recursive: true, force: true });
     }
+  });
+
+  it('removes the init and apply captures as well as the plan', () => {
+    // Defect caught: the captures read back for the closing report hold resource
+    // names and diagnostics that can quote values, and one left out of the
+    // cleanup outlives the run in /tmp.
+    const captures = (): string[] =>
+      readdirSync('/tmp').filter(
+        (n) => n.startsWith('footbag-staging-applylog.') || n.startsWith('footbag-staging-initlog.'),
+      );
+    const before = new Set(captures());
+    writeTerraformStub();
+    const res = run(['--target', 'staging', '--yes', '--init']);
+    expect(res.exitCode, res.stderr).toBe(0);
+    expect(calls()).toMatch(/ apply /);
+    expect(captures().filter((n) => !before.has(n))).toEqual([]);
   });
 
   it('writes the plan without colour, so the no-jq fallback can match its markers', () => {

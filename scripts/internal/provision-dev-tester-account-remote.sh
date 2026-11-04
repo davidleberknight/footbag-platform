@@ -8,11 +8,17 @@
 #     printf 'DTACC_FULL_NAME=%q\n' "$FULL_NAME";
 #     printf 'DTACC_KEY_LINE=%q\n' "$KEY_LINE";
 #     printf 'DTACC_PASSWORD=%q\n' "$NEW_PASS";
+#     cat scripts/lib/closing-report-remote.sh;
 #     cat scripts/internal/provision-dev-tester-account-remote.sh;
 #   } | ssh REMOTE 'sudo -k -S -p "" bash'
 #
 # (sudo -S consumes the password line; bash inherits the rest, binds the
 # assignments, and runs this body as root. Nothing secret reaches argv.)
+#
+# Every problem is reported through crr_error and crr_warn, from the report
+# library sent ahead of this body, so the caller lists each one in its own
+# closing report; every way out that reached its end does so through
+# crr_finish, whose status says whether any was an error.
 #
 # Required shell variables (provided by the caller's prepended assignments):
 #   DTACC_MODE          create | rotate | remove | offboard | inspect |
@@ -48,7 +54,7 @@ DTACC_PASSWORD="${DTACC_PASSWORD:-}"
 DTACC_SHARED_ACCOUNT="${DTACC_SHARED_ACCOUNT:-}"
 
 if [[ $EUID -ne 0 ]]; then
-  echo "ERROR: this body must run as root; it is reached through sudo -S." >&2
+  crr_error "this body must run as root; it is reached through sudo -S."
   exit 1
 fi
 
@@ -91,7 +97,7 @@ dtacc_shared_fingerprints() {
 # would compare against nothing and pass, so a run that needs them refuses.
 dtacc_require_shared_account() {
   if [[ -z "$DTACC_SHARED_ACCOUNT" ]]; then
-    echo "REFUSING: the shared account's name did not arrive with this run, so" >&2
+    crr_error "REFUSING: the shared account's name did not arrive with this run, so"
     echo "       whether ${DTACC_ACCOUNT}'s key is also on it cannot be checked." >&2
     echo "       Nothing done." >&2
     exit 1
@@ -105,12 +111,15 @@ dtacc_require_shared_account() {
 if [[ "$DTACC_MODE" == "remove" ]]; then
   if ! id -u -- "$DTACC_ACCOUNT" >/dev/null 2>&1; then
     echo "  ${DTACC_ACCOUNT} does not exist; nothing to remove."
-    exit 0
+    crr_finish
   fi
-  pkill -KILL -u "$DTACC_ACCOUNT" 2>/dev/null || true
+  # pkill exits 1 when the account runs nothing, which is the usual case and no
+  # problem; any other failure is reported, and userdel below decides the run.
+  pkill -KILL -u "$DTACC_ACCOUNT" || (( $? == 1 )) \
+    || crr_warn "pkill could not end ${DTACC_ACCOUNT}'s processes before the removal"
   userdel -r -- "$DTACC_ACCOUNT"
   echo "  Removed ${DTACC_ACCOUNT} and its home directory."
-  exit 0
+  crr_finish
 fi
 
 # ── inspect ──────────────────────────────────────────────────────────────────
@@ -127,7 +136,7 @@ fi
 #   SHARED none, or SHARED unknown when the shared account cannot be read
 if [[ "$DTACC_MODE" == "inspect" ]]; then
   if ! id -u -- "$DTACC_ACCOUNT" >/dev/null 2>&1; then
-    echo "ERROR: ${DTACC_ACCOUNT} does not exist." >&2
+    crr_error "${DTACC_ACCOUNT} does not exist."
     exit 1
   fi
   inspect_home="$(getent passwd "$DTACC_ACCOUNT" | cut -d: -f6)"
@@ -177,7 +186,7 @@ if [[ "$DTACC_MODE" == "inspect" ]]; then
       done <<<"$inspect_shared"
     fi
   fi
-  exit 0
+  crr_finish
 fi
 
 # ── place-delivery ───────────────────────────────────────────────────────────
@@ -197,22 +206,22 @@ if [[ "$DTACC_MODE" == "place-delivery" ]]; then
   : "${DTACC_DELIVERY_B64:?missing DTACC_DELIVERY_B64 variable in pipe}"
   : "${DTACC_DELIVERY_SHA256:?missing DTACC_DELIVERY_SHA256 variable in pipe}"
   if [[ ! "$DTACC_DELIVERY_NAME" =~ ^${DTACC_ACCOUNT}-[a-z]+\.onboarding\.age$ ]]; then
-    echo "REFUSING: '${DTACC_DELIVERY_NAME}' is not ${DTACC_ACCOUNT}'s delivery name." >&2
+    crr_error "REFUSING: '${DTACC_DELIVERY_NAME}' is not ${DTACC_ACCOUNT}'s delivery name."
     exit 1
   fi
   if ! id -u -- "$DTACC_ACCOUNT" >/dev/null 2>&1; then
-    echo "ERROR: ${DTACC_ACCOUNT} does not exist, so there is no home to place it in." >&2
+    crr_error "${DTACC_ACCOUNT} does not exist, so there is no home to place it in."
     exit 1
   fi
   place_home="$(getent passwd "$DTACC_ACCOUNT" | cut -d: -f6)"
   place_gid="$(getent passwd "$DTACC_ACCOUNT" | cut -d: -f4)"
   if [[ -z "$place_home" || ! -d "$place_home" || -L "$place_home" ]]; then
-    echo "ERROR: ${DTACC_ACCOUNT}'s home '${place_home}' is not a directory." >&2
+    crr_error "${DTACC_ACCOUNT}'s home '${place_home}' is not a directory."
     exit 1
   fi
   place_dest="${place_home}/${DTACC_DELIVERY_NAME}"
   if [[ -L "$place_dest" ]] || { [[ -e "$place_dest" ]] && [[ ! -f "$place_dest" ]]; }; then
-    echo "REFUSING: ${place_dest} is a link or not a regular file. Nothing written." >&2
+    crr_error "REFUSING: ${place_dest} is a link or not a regular file. Nothing written."
     exit 1
   fi
   printf '%s' "$DTACC_DELIVERY_B64" | base64 -d | install_via_tmp "$place_dest" 600 "$DTACC_ACCOUNT" "$place_gid"
@@ -221,12 +230,11 @@ if [[ "$DTACC_MODE" == "place-delivery" ]]; then
   place_sha="$(sha256sum "$place_dest" 2>/dev/null | cut -d' ' -f1)"
   if [[ "$place_owner" != "$DTACC_ACCOUNT" || "$place_mode" != "600" \
         || "$place_sha" != "$DTACC_DELIVERY_SHA256" ]]; then
-    echo "ERROR: ${place_dest} did not read back as written: owner '${place_owner}'," >&2
-    echo "       mode '${place_mode}', digest ${place_sha:-unreadable}." >&2
+    crr_error "${place_dest} did not read back as written: owner '${place_owner}', mode '${place_mode}', digest ${place_sha:-unreadable}."
     exit 1
   fi
   echo "  Placed ${place_dest}: owned by ${DTACC_ACCOUNT}, mode 600, content as sealed."
-  exit 0
+  crr_finish
 fi
 
 # ── Which group carries sudo on this host ────────────────────────────────────
@@ -246,7 +254,7 @@ for candidate in wheel sudo; do
   fi
 done
 if [[ -z "$SUDO_GROUP" ]]; then
-  echo "ERROR: neither 'wheel' nor 'sudo' exists as a group on this host, so" >&2
+  crr_error "neither 'wheel' nor 'sudo' exists as a group on this host, so"
   echo "       there is no way to grant sudo by group membership. Nothing done." >&2
   exit 1
 fi
@@ -266,14 +274,14 @@ fi
 if [[ "$DTACC_MODE" == "offboard" ]]; then
   if ! id -u -- "$DTACC_ACCOUNT" >/dev/null 2>&1; then
     echo "  ${DTACC_ACCOUNT} does not exist on this host; nothing to offboard."
-    exit 0
+    crr_finish
   fi
 
   # The account the run itself arrived on. Disabling it mid-session locks the
   # person running it out of the host they are holding, and the next command
   # fails with a broken pipe rather than a reason.
   if [[ -n "${SUDO_USER:-}" && "$SUDO_USER" == "$DTACC_ACCOUNT" ]]; then
-    echo "REFUSING: this run is connected as ${DTACC_ACCOUNT}." >&2
+    crr_error "REFUSING: this run is connected as ${DTACC_ACCOUNT}."
     echo "       Offboarding the account you are using locks you out part-way" >&2
     echo "       through, with the rest of the run failing for a reason nothing" >&2
     echo "       reports. Run it from another account, as the shared account does by default." >&2
@@ -302,7 +310,7 @@ if [[ "$DTACC_MODE" == "offboard" ]]; then
   # keys were theirs is then unknown, the sweep cannot run, and a copy loaned
   # to another account would survive a run that reported success.
   if [[ -z "$DTACC_THEIR_FPS" ]]; then
-    echo "REFUSING: no key of ${DTACC_ACCOUNT}'s can be found on this host, in" >&2
+    crr_error "REFUSING: no key of ${DTACC_ACCOUNT}'s can be found on this host, in"
     echo "       ${ak} or in a copy of it moved aside, so which" >&2
     echo "       keys were theirs is unknown and no account can be swept of them." >&2
     echo "       List every authorized key with the host-access diagnostic and" >&2
@@ -327,7 +335,7 @@ if [[ "$DTACC_MODE" == "offboard" ]]; then
       fi
     done <<< "$DTACC_THEIR_FPS"
     if [[ -n "$dtacc_overlap" ]]; then
-      echo "REFUSING: a key on ${DTACC_ACCOUNT} is also authorized on the shared" >&2
+      crr_error "REFUSING: a key on ${DTACC_ACCOUNT} is also authorized on the shared"
       echo "       account ${DTACC_SHARED_ACCOUNT}:" >&2
       printf '         %s\n' $dtacc_overlap >&2
       echo "       Offboarding sweeps it off every account, ${DTACC_SHARED_ACCOUNT}" >&2
@@ -389,7 +397,7 @@ if [[ "$DTACC_MODE" == "offboard" ]]; then
   done < <(getent passwd)
 
   if (( remaining < 1 )); then
-    echo "REFUSING: ${DTACC_ACCOUNT} is the last account on this host that can" >&2
+    crr_error "REFUSING: ${DTACC_ACCOUNT} is the last account on this host that can"
     echo "       log in and use sudo. Disabling it leaves nobody able to" >&2
     echo "       administer the host over SSH, leaving only the Lightsail access" >&2
     echo "       path, which is the way back in and not a way to work. Provision" >&2
@@ -404,11 +412,13 @@ if [[ "$DTACC_MODE" == "offboard" ]]; then
   # removing the key does nothing against a password; the shell change does
   # nothing against a forced command; and the expiry closes them all but is the
   # one an administrator most often undoes by accident.
-  usermod -L -- "$DTACC_ACCOUNT" || true
+  # A lock that fails is reported here and does not stop the others; the proof
+  # below re-reads each one and decides the run.
+  usermod -L -- "$DTACC_ACCOUNT" || crr_warn "usermod -L could not lock ${DTACC_ACCOUNT}'s password"
   usermod -s /sbin/nologin -- "$DTACC_ACCOUNT" 2>/dev/null \
-    || usermod -s /usr/sbin/nologin -- "$DTACC_ACCOUNT" 2>/dev/null \
-    || true
-  chage -E 0 -- "$DTACC_ACCOUNT" || true
+    || usermod -s /usr/sbin/nologin -- "$DTACC_ACCOUNT" \
+    || crr_warn "usermod -s could not set a nologin shell for ${DTACC_ACCOUNT}"
+  chage -E 0 -- "$DTACC_ACCOUNT" || crr_warn "chage -E 0 could not expire ${DTACC_ACCOUNT}"
   # The sudo grant is ended as well as the login. A locked, expired account
   # cannot use it today, but a grant left in place is one that comes back the
   # moment anybody unlocks the account, and ending every access the person held
@@ -419,7 +429,8 @@ if [[ "$DTACC_MODE" == "offboard" ]]; then
   getent group docker >/dev/null 2>&1 && DTACC_PRIVILEGED_GROUPS+=(docker)
   for priv_group in "${DTACC_PRIVILEGED_GROUPS[@]}"; do
     if grep -qx -- "$priv_group" <<< "$(id -nG "$DTACC_ACCOUNT" 2>/dev/null | tr ' ' '\n')"; then
-      gpasswd -d "$DTACC_ACCOUNT" "$priv_group" >/dev/null || true
+      gpasswd -d "$DTACC_ACCOUNT" "$priv_group" >/dev/null \
+        || crr_warn "gpasswd could not take ${DTACC_ACCOUNT} out of ${priv_group}"
     fi
   done
 
@@ -433,10 +444,10 @@ if [[ "$DTACC_MODE" == "offboard" ]]; then
     [[ -e "$ak_retired" ]] && ak_retired="${ak_retired}-$$"
     mv -n -- "$ak" "$ak_retired"
     if [[ -e "$ak" ]]; then
-      echo "ERROR: could not move ${ak} aside without overwriting a record." >&2
+      crr_error "could not move ${ak} aside without overwriting a record."
       exit 1
     fi
-    chmod 600 -- "$ak_retired" 2>/dev/null || true
+    chmod 600 -- "$ak_retired" || crr_warn "could not set ${ak_retired} to mode 600"
     echo "  authorized_keys moved aside, not deleted."
   else
     echo "  no authorized_keys to move."
@@ -519,7 +530,7 @@ if [[ "$DTACC_MODE" == "offboard" ]]; then
   offboard_failed=0
 
   if compgen -G "${home_dir}/${DTACC_ACCOUNT}-*.onboarding.age" >/dev/null; then
-    echo "  FAIL an onboarding delivery is still in ${home_dir}" >&2
+    crr_error "FAIL an onboarding delivery is still in ${home_dir}"
     offboard_failed=1
   else
     echo "  OK   no onboarding delivery left in their home"
@@ -528,18 +539,18 @@ if [[ "$DTACC_MODE" == "offboard" ]]; then
   pw_state="$(passwd -S -- "$DTACC_ACCOUNT" 2>/dev/null | awk '{print $2}')"
   case "$pw_state" in
     L|LK) echo "  OK   password locked (${pw_state})" ;;
-    *)    echo "  FAIL password state is '${pw_state}', expected locked" >&2; offboard_failed=1 ;;
+    *)    crr_error "FAIL password state is '${pw_state}', expected locked"; offboard_failed=1 ;;
   esac
 
   shell_now="$(getent passwd "$DTACC_ACCOUNT" | cut -d: -f7)"
   case "$shell_now" in
     */nologin|*/false) echo "  OK   login shell ${shell_now}" ;;
-    *) echo "  FAIL login shell is '${shell_now}', expected a nologin shell" >&2; offboard_failed=1 ;;
+    *) crr_error "FAIL login shell is '${shell_now}', expected a nologin shell"; offboard_failed=1 ;;
   esac
 
   for priv_group in "${DTACC_PRIVILEGED_GROUPS[@]}"; do
     if grep -qx -- "$priv_group" <<< "$(id -nG "$DTACC_ACCOUNT" 2>/dev/null | tr ' ' '\n')"; then
-      echo "  FAIL still a member of ${priv_group}, so that grant stands" >&2
+      crr_error "FAIL still a member of ${priv_group}, so that grant stands"
       offboard_failed=1
     else
       echo "  OK   not a member of ${priv_group}"
@@ -547,7 +558,7 @@ if [[ "$DTACC_MODE" == "offboard" ]]; then
   done
 
   if [[ -e "$ak" ]]; then
-    echo "  FAIL ${ak} still exists" >&2
+    crr_error "FAIL ${ak} still exists"
     offboard_failed=1
   else
     echo "  OK   no authorized_keys in place"
@@ -562,7 +573,7 @@ if [[ "$DTACC_MODE" == "offboard" ]]; then
   if [[ -n "$expiry" && "$expiry" != "never" ]]; then
     echo "  OK   account expired (${expiry})"
   else
-    echo "  FAIL account expiry is '${expiry:-unset}'" >&2
+    crr_error "FAIL account expiry is '${expiry:-unset}'"
     offboard_failed=1
   fi
 
@@ -581,7 +592,7 @@ if [[ "$DTACC_MODE" == "offboard" ]]; then
       while IFS= read -r check_fp; do
         [[ -z "$check_fp" ]] && continue
         if grep -qx -- "$check_fp" <<< "$DTACC_THEIR_FPS"; then
-          echo "  FAIL ${check_name} still authorizes their key: ${check_fp}" >&2
+          crr_error "FAIL ${check_name} still authorizes their key: ${check_fp}"
           leftover=1
         fi
       done < <(ssh-keygen -l -f "$check_ak" 2>/dev/null | awk '{print $2}' || true)
@@ -594,28 +605,28 @@ if [[ "$DTACC_MODE" == "offboard" ]]; then
   fi
 
   if (( offboard_failed )); then
-    echo "ERROR: ${DTACC_ACCOUNT} is not fully disabled. Do not record this" >&2
+    crr_error "${DTACC_ACCOUNT} is not fully disabled. Do not record this"
     echo "       offboarding as done." >&2
     exit 1
   fi
 
   echo "  ${DTACC_ACCOUNT} can no longer log in. Home directory and file"
   echo "  ownership are intact, deliberately: that is what a review reads."
-  exit 0
+  crr_finish
 fi
 
 if [[ "$DTACC_MODE" != "create" && "$DTACC_MODE" != "rotate" ]]; then
-  echo "ERROR: DTACC_MODE must be create, rotate, remove or offboard; got '${DTACC_MODE}'." >&2
+  crr_error "DTACC_MODE must be create, rotate, remove or offboard; got '${DTACC_MODE}'."
   exit 2
 fi
 if [[ -z "$DTACC_KEY_LINE" ]]; then
-  echo "ERROR: ${DTACC_MODE} needs a key line in the pipe." >&2
+  crr_error "${DTACC_MODE} needs a key line in the pipe."
   exit 2
 fi
 # Every create and every rotation sets a password, so an empty one is refused
 # rather than set: an account with none accepts the key and refuses every sudo.
 if [[ -z "$DTACC_PASSWORD" ]]; then
-  echo "ERROR: ${DTACC_MODE} needs a password in the pipe." >&2
+  crr_error "${DTACC_MODE} needs a password in the pipe."
   exit 2
 fi
 # The shared account's keys are never replaced here. Several holders' keys sit
@@ -623,7 +634,7 @@ fi
 # was given, so every other holder's way in would go with it. The caller refuses
 # this first; this is the fail-closed copy for a pipe that arrives without it.
 if [[ -n "${DTACC_SHARED_ACCOUNT:-}" && "$DTACC_ACCOUNT" == "$DTACC_SHARED_ACCOUNT" ]]; then
-  echo "REFUSING: ${DTACC_ACCOUNT} is the shared account; its keys are added and" >&2
+  crr_error "REFUSING: ${DTACC_ACCOUNT} is the shared account; its keys are added and"
   echo "       removed one at a time with authorize-operator-key.sh, never replaced" >&2
   echo "       whole. Nothing done." >&2
   exit 1
@@ -642,7 +653,7 @@ if [[ "$DTACC_ACCOUNT" != "$DTACC_SHARED_ACCOUNT" ]]; then
   dtacc_new_fp="$(ssh-keygen -l -f "$dtacc_key_tmp" 2>/dev/null | awk '{print $2}' || true)"
   if [[ -n "$dtacc_new_fp" ]] \
       && grep -qxF -- "$dtacc_new_fp" <<< "$(dtacc_shared_fingerprints)"; then
-    echo "REFUSING: the key offered for ${DTACC_ACCOUNT} (${dtacc_new_fp}) is already" >&2
+    crr_error "REFUSING: the key offered for ${DTACC_ACCOUNT} (${dtacc_new_fp}) is already"
     echo "       authorized on the shared account ${DTACC_SHARED_ACCOUNT}. A named account" >&2
     echo "       needs a key pair of its own: retiring ${DTACC_ACCOUNT} later sweeps its" >&2
     echo "       keys off every account, so a shared key would end the way into" >&2
@@ -659,7 +670,7 @@ fi
 # the offboard moved aside, which are the only record of them.
 if [[ "${DTACC_REOPEN:-no}" == "yes" ]]; then
   if [[ "$DTACC_MODE" != "rotate" ]]; then
-    echo "ERROR: reopening applies to an existing account, so it needs rotate mode." >&2
+    crr_error "reopening applies to an existing account, so it needs rotate mode."
     exit 2
   fi
   reopen_home="$(getent passwd "$DTACC_ACCOUNT" | cut -d: -f6 || true)"
@@ -667,7 +678,7 @@ if [[ "${DTACC_REOPEN:-no}" == "yes" ]]; then
     [[ -f "$reopen_retired" ]] || continue
     if [[ -n "${dtacc_new_fp:-}" ]] && grep -qxF -- "$dtacc_new_fp" \
         <<< "$(ssh-keygen -l -f "$reopen_retired" 2>/dev/null | awk '{print $2}')"; then
-      echo "REFUSING: ${dtacc_new_fp} is a key ${DTACC_ACCOUNT} was retired with." >&2
+      crr_error "REFUSING: ${dtacc_new_fp} is a key ${DTACC_ACCOUNT} was retired with."
       echo "       A re-onboarding takes a key pair made fresh for it. Nothing done." >&2
       exit 1
     fi
@@ -680,7 +691,7 @@ fi
 # would then be created looking correct and be unable to do the one thing it is
 # for.
 if ! grep -Rqs -- "^[[:space:]]*%${SUDO_GROUP}[[:space:]]" /etc/sudoers /etc/sudoers.d/; then
-  echo "ERROR: group '${SUDO_GROUP}' exists but no sudoers rule grants it anything." >&2
+  crr_error "group '${SUDO_GROUP}' exists but no sudoers rule grants it anything."
   echo "       Creating the account would produce a login that cannot sudo." >&2
   echo "       Fix the sudoers rule first. Nothing done." >&2
   exit 1
@@ -693,8 +704,10 @@ fi
 # makes sshd refuse the login while everything else on the host looks right,
 # and the error it returns is indistinguishable from a bad key.
 SSHD_EFFECTIVE=""
-if ! SSHD_EFFECTIVE="$(sshd -T 2>/dev/null)"; then
-  echo "  WARNING: could not read the effective sshd config (sshd -T failed)." >&2
+SSHD_ERR="$(mktemp)"
+DTACC_TMPS+=("$SSHD_ERR")
+if ! SSHD_EFFECTIVE="$(sshd -T 2>"$SSHD_ERR")"; then
+  crr_warn "could not read the effective sshd config (sshd -T failed: $(grep -v '^[[:space:]]*$' "$SSHD_ERR" | tail -n 1)), so AllowUsers, AllowGroups, DenyUsers and PasswordAuthentication were not checked"
   echo "  Check AllowUsers/AllowGroups by hand before reporting this account ready," >&2
   echo "  and check that password authentication is off before trusting the" >&2
   echo "  password this run is about to set." >&2
@@ -704,12 +717,12 @@ else
   deny_users="$(printf '%s\n' "$SSHD_EFFECTIVE" | sed -n 's/^denyusers //p')"
 
   if [[ -n "$deny_users" ]] && grep -qx -- "$DTACC_ACCOUNT" <<< "$(printf '%s\n' $deny_users)"; then
-    echo "ERROR: sshd's DenyUsers names ${DTACC_ACCOUNT}, so it could not log in." >&2
+    crr_error "sshd's DenyUsers names ${DTACC_ACCOUNT}, so it could not log in."
     echo "       Nothing done." >&2
     exit 1
   fi
   if [[ -n "$allow_users" ]] && ! grep -qx -- "$DTACC_ACCOUNT" <<< "$(printf '%s\n' $allow_users)"; then
-    echo "ERROR: sshd has an AllowUsers list and ${DTACC_ACCOUNT} is not on it:" >&2
+    crr_error "sshd has an AllowUsers list and ${DTACC_ACCOUNT} is not on it:"
     echo "         ${allow_users}" >&2
     echo "       The account would be created and then refused at login, which" >&2
     echo "       looks exactly like a bad key. Add the name to AllowUsers in" >&2
@@ -717,7 +730,7 @@ else
     exit 1
   fi
   if [[ -n "$allow_groups" ]] && ! grep -qx -- "$SUDO_GROUP" <<< "$(printf '%s\n' $allow_groups)"; then
-    echo "ERROR: sshd has an AllowGroups list that does not carry '${SUDO_GROUP}':" >&2
+    crr_error "sshd has an AllowGroups list that does not carry '${SUDO_GROUP}':"
     echo "         ${allow_groups}" >&2
     echo "       The new account's groups would not satisfy it and the login" >&2
     echo "       would be refused. Fix sshd_config first. Nothing done." >&2
@@ -734,7 +747,7 @@ else
   # in is invisible until someone finds it.
   password_auth="$(printf '%s\n' "$SSHD_EFFECTIVE" | sed -n 's/^passwordauthentication //p')"
   if [[ "$password_auth" == "yes" ]]; then
-    echo "ERROR: sshd accepts password authentication on this host." >&2
+    crr_error "sshd accepts password authentication on this host."
     echo "       This script sets a password on ${DTACC_ACCOUNT}, which would" >&2
     echo "       then admit anyone who guesses it over SSH as well as unlocking" >&2
     echo "       sudo. Set 'PasswordAuthentication no', reload sshd, and re-run." >&2
@@ -746,14 +759,14 @@ fi
 # ── Create or rotate ─────────────────────────────────────────────────────────
 if [[ "$DTACC_MODE" == "create" ]]; then
   if id -u -- "$DTACC_ACCOUNT" >/dev/null 2>&1; then
-    echo "ERROR: ${DTACC_ACCOUNT} already exists; the caller should have caught this." >&2
+    crr_error "${DTACC_ACCOUNT} already exists; the caller should have caught this."
     exit 1
   fi
   useradd -m -G "$SUDO_GROUP" -c "$DTACC_FULL_NAME" -- "$DTACC_ACCOUNT"
   echo "  Created ${DTACC_ACCOUNT}, member of ${SUDO_GROUP}."
 else
   if ! id -u -- "$DTACC_ACCOUNT" >/dev/null 2>&1; then
-    echo "ERROR: ${DTACC_ACCOUNT} does not exist; nothing to rotate." >&2
+    crr_error "${DTACC_ACCOUNT} does not exist; nothing to rotate."
     exit 1
   fi
   usermod -aG "$SUDO_GROUP" -- "$DTACC_ACCOUNT"
@@ -779,13 +792,12 @@ if getent group docker >/dev/null 2>&1; then
   usermod -aG docker -- "$DTACC_ACCOUNT"
   echo "  ${DTACC_ACCOUNT} added to docker, which the deploy's schema-drift check reads through."
 else
-  echo "  NOTE: no docker group on this host; the deploy's schema-drift check will not run" >&2
-  echo "        for ${DTACC_ACCOUNT} until there is one." >&2
+  crr_warn "no docker group on this host; the deploy's schema-drift check will not run for ${DTACC_ACCOUNT} until there is one."
 fi
 
 HOME_DIR="$(getent passwd "$DTACC_ACCOUNT" | cut -d: -f6)"
 if [[ -z "$HOME_DIR" ]]; then
-  echo "ERROR: ${DTACC_ACCOUNT} has no home directory in passwd." >&2
+  crr_error "${DTACC_ACCOUNT} has no home directory in passwd."
   exit 1
 fi
 PRIMARY_GROUP="$(id -gn -- "$DTACC_ACCOUNT")"
@@ -819,7 +831,7 @@ FAILED=0
 if grep -qx -- "$SUDO_GROUP" <<< "$(id -nG -- "$DTACC_ACCOUNT" | tr ' ' '\n')"; then
   echo "  OK   member of ${SUDO_GROUP}"
 else
-  echo "  FAIL not a member of ${SUDO_GROUP}" >&2
+  crr_error "FAIL not a member of ${SUDO_GROUP}"
   FAILED=1
 fi
 
@@ -842,14 +854,14 @@ case "$PW_STATUS" in
     PW_CHANGED="$(LC_ALL=C chage -l -- "$DTACC_ACCOUNT" 2>/dev/null \
       | sed -n 's/^Last password change[^:]*: *//p')"
     if [[ "$PW_CHANGED" == "password must be changed" ]]; then
-      echo "  FAIL password is expired, so the owner could not replace it through sudo" >&2
+      crr_error "FAIL password is expired, so the owner could not replace it through sudo"
       FAILED=1
     else
       echo "  OK   password set and not expired"
     fi
     ;;
   *)
-    echo "  FAIL password status is '${PW_STATUS}'; expected a set password" >&2
+    crr_error "FAIL password status is '${PW_STATUS}'; expected a set password"
     echo "       (P on Debian-family, PS on RHEL-family; LK/L is locked, NP none)" >&2
     FAILED=1
     ;;
@@ -858,7 +870,7 @@ esac
 LOGIN_SHELL="$(getent passwd "$DTACC_ACCOUNT" | cut -d: -f7)"
 case "$LOGIN_SHELL" in
   */nologin|*/false|"")
-    echo "  FAIL login shell is '${LOGIN_SHELL}'" >&2
+    crr_error "FAIL login shell is '${LOGIN_SHELL}'"
     FAILED=1
     ;;
   *)
@@ -873,7 +885,7 @@ ACCOUNT_EXPIRES="$(LC_ALL=C chage -l -- "$DTACC_ACCOUNT" 2>/dev/null \
 if [[ "$ACCOUNT_EXPIRES" == "never" ]]; then
   echo "  OK   account does not expire"
 else
-  echo "  FAIL account expires '${ACCOUNT_EXPIRES:-unreadable}', so it cannot log in" >&2
+  crr_error "FAIL account expires '${ACCOUNT_EXPIRES:-unreadable}', so it cannot log in"
   FAILED=1
 fi
 
@@ -885,14 +897,14 @@ if [[ "$AK_MODE" == "600" && "$AK_OWNER" == "$DTACC_ACCOUNT" ]]; then
 else
   # sshd silently ignores an authorized_keys file it considers unsafe, and the
   # login then fails as publickey with nothing in the account's own logs.
-  echo "  FAIL authorized_keys is mode '${AK_MODE}' owned by '${AK_OWNER}'" >&2
+  crr_error "FAIL authorized_keys is mode '${AK_MODE}' owned by '${AK_OWNER}'"
   FAILED=1
 fi
 
 if INSTALLED_FP="$(ssh-keygen -l -f "$AK" 2>/dev/null)"; then
   echo "  OK   key on the host: ${INSTALLED_FP}"
 else
-  echo "  FAIL sshd will not be able to parse the installed key" >&2
+  crr_error "FAIL sshd will not be able to parse the installed key"
   FAILED=1
 fi
 
@@ -903,3 +915,4 @@ if [[ "$FAILED" -ne 0 ]]; then
 fi
 
 echo "  All checks passed."
+crr_finish

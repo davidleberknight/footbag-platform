@@ -45,6 +45,13 @@
 #      Lightsail instance's name cannot be reused while the old one exists and
 #      cannot be changed. Same zone, bundle, key pair, address type and
 #      snapshot time as the old one, and the tags the tree gives what it manages.
+#      With --instance-snapshot, the new instance is built from that named
+#      instance snapshot instead: the one a step or a replacement took of this
+#      environment's host before it changed anything, which is the way back
+#      when the automatic snapshots carry the change itself. The snapshot must
+#      be available and taken of an instance this environment's host is named
+#      for; the record's source tag names it, so a resumed run builds from the
+#      same one.
 #   5. The old instance's firewall, less the origin port (80), written onto the
 #      new one as soon as Lightsail accepts the write, and read back, because a
 #      snapshot carries no firewall rules and CloudFront must not reach the host
@@ -93,6 +100,10 @@
 #   - A static IP or Terraform state that disagrees with itself about which
 #     instance is the environment's host, before anything is changed.
 #   - An instance with no successful automatic snapshot.
+#   - An --instance-snapshot that Lightsail does not hold, that is not
+#     available, that was taken of an instance this environment's host is not
+#     named for, or whose name is not one a step (-pre-step-) or a replacement
+#     (-pre-replace-) gives the snapshot it takes first.
 #   - Opening the origin port before the real database is in place: with no
 #     last backup recorded, a host that does not confirm it is this
 #     environment, a service that will not stop, or a database restore that does
@@ -120,6 +131,8 @@
 #
 #   < ~/AWS/AWS_OPERATOR.txt bash scripts/restore-host.sh --target staging
 #   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/restore-host.sh --target production
+#   < ~/AWS/AWS_OPERATOR.txt bash scripts/restore-host.sh --target staging \
+#       --instance-snapshot footbag-staging-web-pre-step-20261026T072800Z
 #   < ~/AWS/AWS_OPERATOR.txt bash scripts/restore-host.sh --target staging --delete-old
 #   bash scripts/restore-host.sh --target staging --status
 #   bash scripts/restore-host.sh --target staging --dry-run
@@ -128,6 +141,10 @@
 #   --target <staging|production>  required; never defaulted.
 #   --restore-date YYYY-MM-DD      restore an older automatic snapshot than the
 #                                  newest. Only when starting a restore.
+#   --instance-snapshot <name>     restore from this Lightsail instance snapshot
+#                                  (a -pre-step- or -pre-replace- one) instead of
+#                                  an automatic snapshot. Only when starting a
+#                                  restore, and not with --restore-date.
 #   --db-snapshot <key>            the database backup to restore when the run
 #                                  recorded none (no backup of the old host was
 #                                  found). Refused when one is recorded.
@@ -153,6 +170,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "$REPO_ROOT"
 
+# shellcheck source=lib/closing-report.sh
+source "${SCRIPT_DIR}/lib/closing-report.sh"
 # confirm_from_tty, require_target, require_operator_stdin, require_host_is.
 # shellcheck source=lib/host-env-remote.sh
 source "${SCRIPT_DIR}/lib/host-env-remote.sh"
@@ -182,9 +201,10 @@ ORIGIN_PORT=80
 TARGET=""
 MODE="restore"
 RESTORE_DATE=""
+INSTANCE_SNAPSHOT=""
 DB_SNAPSHOT=""
 
-die() { echo "restore-host: $*" >&2; exit 1; }
+die() { cr_die "restore-host: $*"; }
 
 usage() {
   sed -n '2,/^set -eu/{/^set -eu/d;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
@@ -193,17 +213,18 @@ usage() {
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --target)       TARGET="${2:-}"; shift 2 || { echo "restore-host: --target requires an argument" >&2; exit 2; } ;;
-    --restore-date) RESTORE_DATE="${2:-}"; shift 2 || { echo "restore-host: --restore-date requires an argument" >&2; exit 2; } ;;
-    --db-snapshot)  DB_SNAPSHOT="${2:-}"; shift 2 || { echo "restore-host: --db-snapshot requires an argument" >&2; exit 2; } ;;
+    --target)       TARGET="${2:-}"; shift 2 || { cr_error "restore-host: --target requires an argument"; exit 2; } ;;
+    --restore-date) RESTORE_DATE="${2:-}"; shift 2 || { cr_error "restore-host: --restore-date requires an argument"; exit 2; } ;;
+    --instance-snapshot) INSTANCE_SNAPSHOT="${2:-}"; shift 2 || { cr_error "restore-host: --instance-snapshot requires a snapshot name"; exit 2; } ;;
+    --db-snapshot)  DB_SNAPSHOT="${2:-}"; shift 2 || { cr_error "restore-host: --db-snapshot requires an argument"; exit 2; } ;;
     --delete-old)   MODE="delete-old"; shift ;;
     --status)       MODE="status"; shift ;;
     --dry-run)      MODE="dry-run"; shift ;;
     --yes)
-      echo "restore-host: --yes is refused. Replacing a host is confirmed at a terminal, every time." >&2
+      cr_error "restore-host: --yes is refused. Replacing a host is confirmed at a terminal, every time."
       exit 2 ;;
     -h|--help) usage 0 ;;
-    *) echo "restore-host: unknown argument '$1' (try --help)" >&2; exit 2 ;;
+    *) cr_error "restore-host: unknown argument '$1' (try --help)"; exit 2 ;;
   esac
 done
 
@@ -211,6 +232,10 @@ require_target "$TARGET" staging production || exit 2
 if [[ -n "$RESTORE_DATE" ]]; then
   [[ "$MODE" == "restore" ]] || die "--restore-date applies only when starting a restore"
   [[ "$RESTORE_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || die "--restore-date must be YYYY-MM-DD (got '${RESTORE_DATE}')"
+fi
+if [[ -n "$INSTANCE_SNAPSHOT" ]]; then
+  [[ "$MODE" == "restore" ]] || die "--instance-snapshot applies only when starting a restore"
+  [[ -z "$RESTORE_DATE" ]] || die "--instance-snapshot and --restore-date name two different sources; give one"
 fi
 if [[ -n "$DB_SNAPSHOT" ]]; then
   [[ "$MODE" == "restore" ]] || die "--db-snapshot applies only to a restore run"
@@ -226,6 +251,17 @@ TF_DIR="terraform/${TARGET}"
 # restore's, which is the original plus the minute it was made.
 NAME_PATTERN="^${CANON}(-r[0-9]{12})?$"
 
+# A restore's source, as its record's tag holds it: the date of an automatic
+# snapshot, or the name of an instance snapshot.
+is_date_source() { [[ "$1" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; }
+source_label() {
+  if is_date_source "$1"; then
+    printf 'the automatic snapshot of %s' "$1"
+  else
+    printf 'the instance snapshot %s' "$1"
+  fi
+}
+
 if [[ "$MODE" == "dry-run" ]]; then
   cat <<EOF
 restore-host --target ${TARGET}: dry run, nothing reached.
@@ -237,7 +273,8 @@ A restore run would, deciding each step from what AWS and Terraform report:
   2. take a manual snapshot of the current instance (the restore's record)
   3. stop the current instance (forcing a stuck stop only after its own APPLY)
      and record its newest database backup and that backup's age
-  4. create ${CANON}-r<YYYYMMDDHHMM> from the automatic snapshot
+  4. create ${CANON}-r<YYYYMMDDHHMM> from the automatic snapshot, or from the
+     instance snapshot --instance-snapshot names
   5. copy the old instance's firewall onto it, without port ${ORIGIN_PORT}
   6. move ${STATIC_IP_NAME} onto it
   7. stop its service and backup timer, restore the recorded backup onto it with
@@ -282,14 +319,16 @@ now_epoch() { printf '%s' "${RESTORE_HOST_NOW:-$(date -u +%s)}"; }
 # from whichever subshell, goes when the run ends, however it ends.
 umask 077
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/footbag-restore-host.XXXXXX")" || die "could not create a private temporary directory"
+# A shred or removal that fails is returned, so the closing report lists it as
+# a warning with the tool's words: a saved plan left readable is worth knowing.
 cleanup_tmp() {
+  local rc=0
   [[ -n "${TMP_DIR:-}" && -d "$TMP_DIR" ]] || return 0
-  find "$TMP_DIR" -type f -exec shred -u {} + 2>/dev/null || true
-  rm -rf -- "$TMP_DIR"
-  return 0
+  find "$TMP_DIR" -type f -exec shred -u {} + || rc=$?
+  rm -rf -- "$TMP_DIR" || rc=$?
+  return "$rc"
 }
-trap cleanup_tmp EXIT
-trap 'cleanup_tmp; exit 130' INT TERM
+cr_cleanup cleanup_tmp
 tmp_file() { mktemp "${TMP_DIR}/$1.XXXXXX"; }
 
 # Set once this run has itself created the new instance, and once the static
@@ -301,37 +340,42 @@ NEW=""
 aws_ls() { "$AWS_BIN" lightsail "$@" --region "$REGION" </dev/null; }
 tf() { "$TF_BIN" -chdir="$TF_DIR" "$@" </dev/null; }
 
-on_interrupt() {
-  trap - INT TERM
+# Registered with the closing-report library, which owns the traps, and acting
+# only when the run is ending on an interrupt (130, 143 or 129): an ordinary
+# failure leaves the new instance for a re-run to pick up. Registered after the
+# temporary directory's cleanup, so it runs first and still has the directory to
+# keep the tool's words in.
+undo_on_interrupt() {
+  case "$(cr_exit_status)" in 130|143|129) ;; *) return 0 ;; esac
   echo "" >&2
   echo "restore-host: interrupted." >&2
   if (( CREATED_NEW )) && (( ! IP_MOVED )) && [[ -n "$NEW" ]]; then
     # Read live rather than trusted from the flag: an attach in flight when the
     # interrupt landed may have completed, and then the instance is in use.
-    local row="" to=""
+    local row="" to="" err=""
+    err="$(tmp_file undo-err)" || err="/dev/null"
     row="$(aws_ls get-static-ip --static-ip-name "$STATIC_IP_NAME" \
-          --query 'staticIp.[isAttached,attachedTo,ipAddress]' --output text 2>/dev/null)" || row=""
+          --query 'staticIp.[isAttached,attachedTo,ipAddress]' --output text 2>"$err")" || row=""
     IFS=$'\t' read -r _ to _ <<< "$row"
     if [[ -z "$row" ]]; then
-      echo "  The static IP could not be read, so ${NEW} is left in place. Check it before running again." >&2
+      cr_warn "the static IP could not be read after the interrupt, so ${NEW} is left in place; check it before running again: $(tail -n 1 "$err")"
     elif [[ "$to" == "$NEW" ]]; then
       echo "  The static IP is on ${NEW}, so it is in use and is left in place. Run again to finish." >&2
     else
       echo "  Deleting ${NEW}, which this run created and nothing points at yet." >&2
-      if aws_ls delete-instance --instance-name "$NEW" >/dev/null 2>&1; then
+      if aws_ls delete-instance --instance-name "$NEW" >/dev/null 2>"$err"; then
         echo "  Deleted. The old instance is as this run left it; run again to start over." >&2
       else
-        echo "  The delete was refused; remove ${NEW} in Lightsail once you have checked it." >&2
+        cr_error "the delete of ${NEW}, which this run created and nothing points at, was refused; remove it in Lightsail once you have checked it: $(tail -n 1 "$err")"
       fi
     fi
   else
     echo "  Nothing this run created is unreferenced, so everything is left as it stands." >&2
     echo "  Run again to finish, or --status to see where it stopped." >&2
   fi
-  cleanup_tmp
-  exit 130
+  return 0
 }
-trap on_interrupt INT TERM
+cr_cleanup undo_on_interrupt
 
 # ── Facts, read from AWS ─────────────────────────────────────────────────────
 
@@ -444,13 +488,27 @@ without_origin() {
 
 # ── The last real backup, judged against the backup alarm ────────────────────
 
-# The staleness threshold, in minutes, of the backup alarm Terraform manages,
-# read from state; empty when the alarm is not deployed.
+# Sets ALARM_MINUTES to the staleness threshold, in minutes, of the backup alarm
+# Terraform manages, read from state; empty when the alarm is not deployed. A
+# state that cannot be read is a warning with Terraform's words, never taken for
+# an alarm that is not there. Sets a variable rather than printing, so the
+# warning is recorded in this shell and not lost in a substitution's.
+ALARM_MINUTES=""
 backup_alarm_minutes() {
-  tf show -json 2>/dev/null \
-    | jq -r '[.values.root_module.resources[]?
+  local json err
+  ALARM_MINUTES=""
+  err="$(tmp_file tf-show-err)"
+  if ! json="$(tf show -json 2>"$err")"; then
+    cr_warn "could not read ${TF_DIR} state for the backup alarm's threshold, so the backup's age is not judged: $(tail -n 1 "$err")"
+    return 0
+  fi
+  if ! ALARM_MINUTES="$(jq -r '[.values.root_module.resources[]?
               | select(.type == "aws_cloudwatch_metric_alarm" and .name == "db_backup_age")
-              | .values.threshold][0] // empty' 2>/dev/null || true
+              | .values.threshold][0] // empty' <<< "$json" 2>"$err")"; then
+    ALARM_MINUTES=""
+    cr_warn "could not read the backup alarm's threshold from ${TF_DIR} state, so the backup's age is not judged: $(tail -n 1 "$err")"
+  fi
+  return 0
 }
 
 # The time a backup was taken, from its key's footbag-<UTC timestamp> name.
@@ -463,20 +521,19 @@ backup_key_epoch() {
 report_backup_age() {
   local key="$1" stopped="$2" taken age minutes
   if ! taken="$(backup_key_epoch "$key")"; then
-    echo "    WARNING: the age of ${key} cannot be read from its name; anything newer is only in the manual snapshot ${REC_NAME}."
+    cr_warn "the age of ${key} cannot be read from its name; anything newer is only in the manual snapshot ${REC_NAME}."
     return 0
   fi
   age=$(( stopped - taken ))
   (( age < 0 )) && age=0
   printf '    last database backup %s, written %dh %02dm before the stop\n' "$key" $(( age / 3600 )) $(( age % 3600 / 60 ))
-  minutes="$(backup_alarm_minutes)"
-  minutes="${minutes%%.*}"
+  backup_alarm_minutes
+  minutes="${ALARM_MINUTES%%.*}"
   if [[ ! "$minutes" =~ ^[0-9]+$ ]]; then
     echo "    (no backup-staleness alarm is in ${TF_DIR} state to judge that age against;"
     echo "    anything ${OLD} wrote after it is only in the manual snapshot ${REC_NAME})"
   elif (( age > minutes * 60 )); then
-    echo "    WARNING: that is older than the ${minutes}-minute backup alarm threshold. Anything ${OLD}"
-    echo "    wrote after it is only in the manual snapshot ${REC_NAME}, not in the restored database."
+    cr_warn "the last database backup is older than the ${minutes}-minute backup alarm threshold. Anything ${OLD} wrote after it is only in the manual snapshot ${REC_NAME}, not in the restored database."
   fi
   return 0
 }
@@ -589,7 +646,7 @@ if [[ "$MODE" == "status" ]]; then
     echo "  no restore is open for ${TARGET}."
     exit 0
   fi
-  echo "  open restore:      ${REC_FROM} -> ${REC_TO}, from the automatic snapshot of ${REC_SOURCE}"
+  echo "  open restore:      ${REC_FROM} -> ${REC_TO}, from $(source_label "$REC_SOURCE")"
   echo "  $(elapsed_line "$REC_STARTED")"
   step() { printf '  %-44s %s\n' "$1" "$2"; }
   step "manual snapshot ${REC_NAME}" "$REC_SNAP_STATE"
@@ -773,18 +830,22 @@ fi
 
 if (( RESUMING )); then
   [[ -z "$RESTORE_DATE" || "$RESTORE_DATE" == "$REC_SOURCE" ]] \
-    || die "a restore from ${REC_SOURCE} is already open; --restore-date ${RESTORE_DATE} cannot change it"
+    || die "a restore from $(source_label "$REC_SOURCE") is already open; --restore-date ${RESTORE_DATE} cannot change it"
+  [[ -z "$INSTANCE_SNAPSHOT" || "$INSTANCE_SNAPSHOT" == "$REC_SOURCE" ]] \
+    || die "a restore from $(source_label "$REC_SOURCE") is already open; --instance-snapshot ${INSTANCE_SNAPSHOT} cannot change it"
   [[ -z "$DB_SNAPSHOT" || -z "$REC_BACKUP" || "$DB_SNAPSHOT" == "$REC_BACKUP" ]] \
     || die "the open restore records the last backup ${REC_BACKUP}; --db-snapshot ${DB_SNAPSHOT} cannot change it"
   OLD="$REC_FROM"
   NEW="$REC_TO"
+  # The source the record names, whichever kind it is, so a resumed run builds
+  # from the snapshot the first run chose and not from today's newest.
   SOURCE_DATE="$REC_SOURCE"
   STARTED="$REC_STARTED"
-  echo "==> Resuming the open restore of ${TARGET}: ${OLD} -> ${NEW}, from the automatic snapshot of ${SOURCE_DATE}"
+  echo "==> Resuming the open restore of ${TARGET}: ${OLD} -> ${NEW}, from $(source_label "$SOURCE_DATE")"
   echo "    $(elapsed_line "$STARTED")"
   echo ""
   echo "About to continue the restore of ${TARGET}. Whatever is not yet done of:"
-  echo "  stop ${OLD}; create ${NEW} from its automatic snapshot of ${SOURCE_DATE};"
+  echo "  stop ${OLD}; create ${NEW} from $(source_label "$SOURCE_DATE");"
   echo "  copy the firewall without port ${ORIGIN_PORT}; move ${STATIC_IP_NAME} to ${NEW};"
   echo "  hold its service and backups and restore the last real backup onto it;"
   echo "  adopt ${NEW} into Terraform (values file, state, import through"
@@ -800,20 +861,41 @@ else
   [[ "$SIP_ATTACHED" == "True" && "$SIP_TO" == "$OLD" ]] \
     || die "the static IP ${STATIC_IP_NAME} is on '${SIP_TO:-nothing}', not ${OLD} as Terraform says; reconcile that before restoring"
 
-  listing="$(aws_ls get-auto-snapshots --resource-name "$OLD" \
-    --query 'autoSnapshots[].[date,createdAt,status]' --output text)" \
-    || die "could not read the automatic snapshots of ${OLD}; is the snapshot add-on enabled?"
-  SOURCE_DATE="" source_epoch=""
-  while IFS=$'\t' read -r d created status; do
-    [[ -n "${d:-}" && "$d" != "None" && "$status" == "Success" ]] || continue
-    [[ -z "$RESTORE_DATE" || "$d" == "$RESTORE_DATE" ]] || continue
-    if [[ "$created" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then e="${created%%.*}"
-    else e="$(date -u -d "$created" +%s 2>/dev/null)" || die "could not read snapshot time '${created}'"; fi
-    if [[ -z "$source_epoch" ]] || (( e > source_epoch )); then SOURCE_DATE="$d"; source_epoch="$e"; fi
-  done <<< "$listing"
-  if [[ -z "$SOURCE_DATE" ]]; then
-    [[ -n "$RESTORE_DATE" ]] && die "${OLD} has no successful automatic snapshot dated ${RESTORE_DATE}"
-    die "${OLD} has no successful automatic snapshot, so there is nothing to restore from"
+  if [[ -n "$INSTANCE_SNAPSHOT" ]]; then
+    # A named instance snapshot, checked before anything is changed: Lightsail
+    # holds it, it is complete, it was taken of an instance this environment's
+    # host is named for, and its name is one a step or a replacement mints for
+    # the snapshot it takes of that instance first.
+    snap_err="$(tmp_file snapshot-err)"
+    snap_row="$(aws_ls get-instance-snapshot --instance-snapshot-name "$INSTANCE_SNAPSHOT" \
+      --query 'instanceSnapshot.[state,fromInstanceName,createdAt]' --output text 2>"$snap_err")" \
+      || die "could not read the instance snapshot '${INSTANCE_SNAPSHOT}' from Lightsail: $(tail -n 1 "$snap_err")"
+    IFS=$'\t' read -r snap_state snap_from created <<< "$snap_row"
+    [[ "$snap_from" =~ $NAME_PATTERN ]] \
+      || die "the instance snapshot ${INSTANCE_SNAPSHOT} was taken of '${snap_from:-unknown}', which is not a name the ${TARGET} host carries"
+    [[ "$INSTANCE_SNAPSHOT" == "${snap_from}-pre-step-"* || "$INSTANCE_SNAPSHOT" == "${snap_from}-pre-replace-"* ]] \
+      || die "'${INSTANCE_SNAPSHOT}' is not a name a step (${snap_from}-pre-step-...) or a replacement (${snap_from}-pre-replace-...) gives the snapshot it takes first"
+    [[ "$snap_state" == "available" ]] \
+      || die "the instance snapshot ${INSTANCE_SNAPSHOT} is '${snap_state:-unknown}', not available"
+    if [[ "$created" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then source_epoch="${created%%.*}"
+    else source_epoch="$(date -u -d "$created" +%s)" || die "could not read the time of ${INSTANCE_SNAPSHOT} ('${created}')"; fi
+    SOURCE_DATE="$INSTANCE_SNAPSHOT"
+  else
+    listing="$(aws_ls get-auto-snapshots --resource-name "$OLD" \
+      --query 'autoSnapshots[].[date,createdAt,status]' --output text)" \
+      || die "could not read the automatic snapshots of ${OLD}; is the snapshot add-on enabled?"
+    SOURCE_DATE="" source_epoch=""
+    while IFS=$'\t' read -r d created status; do
+      [[ -n "${d:-}" && "$d" != "None" && "$status" == "Success" ]] || continue
+      [[ -z "$RESTORE_DATE" || "$d" == "$RESTORE_DATE" ]] || continue
+      if [[ "$created" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then e="${created%%.*}"
+      else e="$(date -u -d "$created" +%s 2>/dev/null)" || die "could not read snapshot time '${created}'"; fi
+      if [[ -z "$source_epoch" ]] || (( e > source_epoch )); then SOURCE_DATE="$d"; source_epoch="$e"; fi
+    done <<< "$listing"
+    if [[ -z "$SOURCE_DATE" ]]; then
+      [[ -n "$RESTORE_DATE" ]] && die "${OLD} has no successful automatic snapshot dated ${RESTORE_DATE}"
+      die "${OLD} has no successful automatic snapshot, so there is nothing to restore from"
+    fi
   fi
   STARTED="$(now_epoch)"
   age=$(( STARTED - source_epoch ))
@@ -823,7 +905,7 @@ else
   REC_NAME="${OLD}-pre-restore-${STAMP}"
 
   echo ""
-  echo "About to RESTORE the ${TARGET} host from its automatic snapshot."
+  echo "About to RESTORE the ${TARGET} host from $(source_label "$SOURCE_DATE")."
   if [[ -n "$SUPERSEDED_REC" ]]; then
     echo "  ${OLD} is the host an earlier restore made, and it no longer proves itself."
     echo "  That restore's record ${SUPERSEDED_REC} is marked superseded; ${SUPERSEDED_FROM},"
@@ -831,7 +913,7 @@ else
     echo "  --delete-old."
   fi
   echo "  current instance:   ${OLD} (${I_STATE}, ${I_BUNDLE}, ${I_AZ})"
-  echo "  restore from:       the automatic snapshot of ${SOURCE_DATE}, $(( age / 3600 ))h $(( age % 3600 / 60 ))m old"
+  echo "  restore from:       $(source_label "$SOURCE_DATE"), $(( age / 3600 ))h $(( age % 3600 / 60 ))m old"
   (( age > STALE_SNAPSHOT_SECS )) && echo "                      OLDER THAN A DAY: the host state it carries is that old."
   echo "  new instance:       ${NEW}"
   echo "  first, a manual snapshot of ${OLD}: ${REC_NAME}"
@@ -903,8 +985,7 @@ if [[ -z "$REC_BACKUP" ]]; then
   if [[ -n "$DB_SNAPSHOT" ]]; then
     key="$DB_SNAPSHOT"
   elif (( new_exists )); then
-    echo "    WARNING: ${NEW} already exists and no last backup of ${OLD} was recorded, so the"
-    echo "    newest backup in the bucket may be the restored host's own stale database."
+    cr_warn "${NEW} already exists and no last backup of ${OLD} was recorded, so the newest backup in the bucket may be the restored host's own stale database."
   else
     bucket="$(tf_output snapshots_bucket_name)"
     day="$(date -u -d "@$(now_epoch)" +%Y/%m/%d)"
@@ -916,7 +997,7 @@ if [[ -z "$REC_BACKUP" ]]; then
       [[ -n "$key" && "$key" != "None" ]] && break
       key=""
     done
-    [[ -n "$key" ]] || echo "    WARNING: no database backup from the last two days is in ${bucket}."
+    [[ -n "$key" ]] || cr_warn "no database backup from the last two days is in ${bucket}."
   fi
   if [[ -n "$key" ]]; then
     aws_ls tag-resource --resource-name "$REC_NAME" --tags "key=${TAG_BACKUP},value=${key}" >/dev/null \
@@ -933,9 +1014,9 @@ tf_now="$(tf_output lightsail_instance_name)"
 ADOPTED=0
 [[ "$tf_now" == "$NEW" ]] && ADOPTED=1
 
-# ── Step 4: the new instance, from the automatic snapshot ───────────────────
+# ── Step 4: the new instance, from the recorded source ──────────────────────
 
-echo "==> Step 4: create ${NEW} from the automatic snapshot of ${SOURCE_DATE}"
+echo "==> Step 4: create ${NEW} from $(source_label "$SOURCE_DATE")"
 if instance_row "$NEW"; then
   echo "    ${NEW} already exists (${I_STATE})"
 else
@@ -943,13 +1024,20 @@ else
   addons=()
   [[ -n "$I_SNAPTIME" && "$I_SNAPTIME" != "None" ]] \
     && addons=(--add-ons "addOnType=AutoSnapshot,autoSnapshotAddOnRequest={snapshotTimeOfDay=${I_SNAPTIME}}")
+  # An automatic snapshot is named by the instance it belongs to and its date;
+  # an instance snapshot by its own name.
+  if is_date_source "$SOURCE_DATE"; then
+    source_args=(--source-instance-name "$OLD" --restore-date "$SOURCE_DATE")
+  else
+    source_args=(--instance-snapshot-name "$SOURCE_DATE")
+  fi
   CREATED_NEW=1
   # The tags the tree gives everything it manages (its providers' default tags,
   # with environment = the target the tree is pinned to) and the instance's own,
   # so the dev-and-tester role's tag conditions apply to it from creation rather
   # than from the adoption apply.
   aws_ls create-instances-from-snapshot --instance-names "$NEW" --availability-zone "$I_AZ" \
-    --source-instance-name "$OLD" --restore-date "$SOURCE_DATE" --bundle-id "$I_BUNDLE" \
+    "${source_args[@]}" --bundle-id "$I_BUNDLE" \
     --key-pair-name "$I_KEY" --ip-address-type "$I_IPTYPE" ${addons[@]+"${addons[@]}"} \
     --tags "key=Project,value=footbag-platform" "key=Environment,value=${TARGET}" \
            "key=ManagedBy,value=terraform" "key=Role,value=web" >/dev/null \
@@ -1013,9 +1101,7 @@ if (( ADOPTED )); then
   if [[ -n "$REC_DB" ]]; then
     echo "    restored earlier: ${REC_DB}"
   else
-    echo "    WARNING: Terraform already manages ${NEW} and this restore records no database"
-    echo "    restore onto it. It is not repeated over a site that may be serving; check the"
-    echo "    database on ${NEW} by hand."
+    cr_warn "Terraform already manages ${NEW} and this restore records no database restore onto it. It is not repeated over a site that may be serving; check the database on ${NEW} by hand."
   fi
 else
   poll "Lightsail to report the host keys of ${NEW}" build_api_pin
@@ -1055,13 +1141,14 @@ else
   # checkout survives, with the change shown first.
   [[ -e "$VALUES_FILE" ]] || die "${VALUES_FILE} does not exist; the private operations checkout must be linked"
   values_tmp="$(tmp_file values)"
-  { grep -v -E '^[[:space:]]*lightsail_instance_name[[:space:]]*=' "$VALUES_FILE" || true
+  { grep -v -E '^[[:space:]]*lightsail_instance_name[[:space:]]*=' "$VALUES_FILE" || [[ $? == 1 ]]
     printf 'lightsail_instance_name = "%s"\n' "$NEW"; } > "$values_tmp"
   if cmp -s "$values_tmp" "$VALUES_FILE"; then
     echo "    ${VALUES_FILE} already names ${NEW}"
   else
     echo "    values file change:"
-    diff -u "$VALUES_FILE" "$values_tmp" | sed 's/^/      /' || true
+    # diff exits 1 when the files differ, which is the case here.
+    diff -u "$VALUES_FILE" "$values_tmp" | sed 's/^/      /' || [[ $? == 1 ]]
     cat "$values_tmp" > "$VALUES_FILE"
     echo "    wrote lightsail_instance_name to ${VALUES_FILE}"
   fi
@@ -1151,11 +1238,23 @@ verify_restored_host
 
 instance_is "$OLD" stopped || die "${OLD} is not stopped; a restore leaves it stopped until --delete-old"
 echo ""
-echo "== ${TARGET} restored: ${NEW} answers as ${TARGET} and is ready, on the database"
-echo "   ${REC_DB:-checked by hand}; ${OLD} is stopped =="
+if [[ -n "$REC_DB" ]]; then
+  echo "== ${TARGET} restored: ${NEW} answers as ${TARGET} and is ready, on the database"
+  echo "   ${REC_DB}; ${OLD} is stopped =="
+  cr_proved "the database ${REC_DB} was restored onto ${NEW} through scripts/restore-db.sh before port ${ORIGIN_PORT} opened"
+else
+  echo "== ${TARGET} restored: ${NEW} answers as ${TARGET} and is ready; ${OLD} is stopped =="
+  cr_unproved "which database ${NEW} serves: this restore records no database restored onto it"
+fi
+cr_proved "${NEW} holds ${STATIC_IP_NAME}, is the instance Terraform manages, and a plan changes nothing about it"
+cr_proved "port ${ORIGIN_PORT} on ${NEW} is open to the declared ranges and not to every address"
+cr_proved "the host-key pin carries ${NEW}'s keys as Lightsail reports them"
+cr_proved "the host behind ${ALIAS} records FOOTBAG_ENV=${TARGET} and the site answered ready"
+cr_proved "${OLD} is stopped, not deleted"
 echo "   $(elapsed_line "$STARTED")"
 echo ""
 echo "Next, in order:"
 echo "  1. Commit the values-file change in the private operations checkout."
 echo "  2. Once the drill has passed, delete the old instance in its own approved step:"
 echo "       < <credential file> bash scripts/restore-host.sh --target ${TARGET} --delete-old"
+cr_finish

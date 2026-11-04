@@ -292,6 +292,45 @@ describe('the outbound-mail switch', () => {
   });
 });
 
+describe('the body\'s problems, with the remote report helper sent ahead of it', () => {
+  // A caller on the closing-report library sends the helper on the same stream
+  // ahead of the body; the body then marks each problem for that caller's report.
+  const REPORT_LIB = join(process.cwd(), 'scripts/lib/closing-report-remote.sh');
+  function runWithHelper(env: Record<string, string>): RunResult {
+    const res = spawnSync('bash', ['-s'], {
+      input: `${readFileSync(REPORT_LIB, 'utf8')}\n${readFileSync(REMOTE_HALF, 'utf8')}`,
+      env: { ...process.env, CONFIG_KEY: PAYMENTS_KEY, ...env },
+      encoding: 'utf8',
+      ...SPAWN_GUARD,
+    });
+    return { exitCode: res.status ?? -1, stdout: res.stdout ?? '', stderr: res.stderr ?? '' };
+  }
+
+  it('marks a refusal for the caller\'s report and fails, writing nothing', () => {
+    // Defect caught: the body's refusal was a plain line the caller's closing
+    // report never read, so the run ended naming only a failed session.
+    const res = runWithHelper({ DB_FILE: dbFile, CONFIG_KEY: 'emails_paused', ACTION: 'pause', REASON: 'typo' });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/^---FOOTBAG-PROBLEM--- ERROR unknown CONFIG_KEY/m);
+  });
+
+  it('marks a database it cannot read, with sqlite3\'s reason', () => {
+    const empty = join(workDir, 'empty.db');
+    spawnSync('touch', [empty], SPAWN_GUARD);
+    const res = runWithHelper({ DB_FILE: empty, ACTION: 'status' });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/^---FOOTBAG-PROBLEM--- ERROR could not read payments_paused .*no such table/m);
+    expect(res.stdout).not.toMatch(/SWITCH_PAUSED=/);
+  });
+
+  it('pauses and reads the switch back exactly as without the helper, marking nothing', () => {
+    const res = runWithHelper({ DB_FILE: dbFile, ACTION: 'pause', REASON: 'incident' });
+    expect(res.exitCode, res.stderr).toBe(0);
+    expect(reportedState(res)).toBe('1');
+    expect(res.stderr).not.toContain('---FOOTBAG-PROBLEM---');
+  });
+});
+
 describe('the wire the operator half actually uses', () => {
   /**
    * The operator half does not pass these as environment variables: it prints

@@ -200,6 +200,135 @@ describe('closing report: expected failures', () => {
   });
 });
 
+describe('closing report: a command whose output can carry a secret', () => {
+  // The forms under test. A privileged ssh session's stream carries the sudo
+  // password and the values its half needs, so none of what it prints may be
+  // written down whole; only the lines its half marked are.
+  const RUN = 'cr_run_marked';
+  const TOLERATE = 'cr_tolerate_marked';
+
+  /**
+   * Driver lines that record every file under the library's temp directory
+   * holding the secret: just before the library removes anything (an `rm` the
+   * library calls finds this function first), and once more after the wrapped
+   * call returns. Written to `found`, which a clean run leaves empty.
+   */
+  function watchTemp(found: string): string[] {
+    return [
+      `: > '${found}'`,
+      `scan() { grep -rl -e 'SECRET-' "$(_cr_tmp)" >> '${found}' || [[ $? == 1 ]]; }`,
+      'rm() { scan; command rm "$@"; }',
+    ];
+  }
+
+  const BODY = 'echo "SECRET-OUT sudo-pass"; echo "SECRET-ERR one-time-pass" >&2; ' +
+    'echo "---FOOTBAG-PROBLEM--- WARN pending reboot" >&2; echo "---FOOTBAG-PROBLEM--- ERROR unit failed" >&2';
+  const SESSION = `bash -c '${BODY}'`;
+
+  it('writes no line it did not mark to disk, on stdout or stderr, while still showing every line', () => {
+    // Defect caught: the sudo password or a minted credential a session echoes
+    // sitting in a log file under the temp area for the length of the run.
+    const found = join(scratch, 'found');
+    const res = run([...watchTemp(found), `${RUN} "install on host" -- ${SESSION} || true`, 'scan', 'cr_finish']);
+    expect(readFileSync(found, 'utf8')).toBe('');
+    // The operator still sees both lines as they are printed.
+    expect(res.stdout).toContain('SECRET-OUT');
+    expect(res.stderr).toContain('SECRET-ERR');
+  });
+
+  it('writes nothing unmarked to disk when a grammar is given, and harvests the lines it matches', () => {
+    // Defect caught: a host half that reports in the ERROR: form having its
+    // whole stream kept so the grammar can be applied afterwards.
+    const found = join(scratch, 'found');
+    const res = run([
+      ...watchTemp(found),
+      `${RUN} --errors '^ERROR:' --warnings '^WARN:' "host half" -- bash -c 'echo "SECRET-OUT x"; echo "WARN: disk low"; echo "SECRET-ERR y" >&2; echo "ERROR: env file missing" >&2' || true`,
+      'scan',
+      'cr_finish',
+    ]);
+    expect(readFileSync(found, 'utf8')).toBe('');
+    expect(res.exitCode).toBe(1);
+    const r = report(res.stderr);
+    expect(r).toMatch(/Errors[^]*host half: ERROR: env file missing[^]*Warnings/);
+    expect(r).toMatch(/Warnings[^]*host half: WARN: disk low/);
+  });
+
+  it('lists every marked line in the report and fails the run on a marked error', () => {
+    // Defect caught: a half's marked error streamed past and the run ending on
+    // a success line because the session itself exited zero.
+    const res = run([`${RUN} "install on host" -- ${SESSION}`, 'cr_finish']);
+    expect(res.exitCode).toBe(1);
+    const r = report(res.stderr);
+    expect(r).toMatch(/Errors \(1\)[^]*install on host: unit failed[^]*Warnings \(1\)[^]*install on host: pending reboot/);
+  });
+
+  it('passes stdout through alone, so a caller can redirect it and parse what the half printed', () => {
+    // Defect caught: stderr or the marked lines mixed into a KEY=VALUE contract
+    // the caller reads from stdout, or the contract swallowed.
+    const out = join(scratch, 'out');
+    const res = run([`${RUN} "pause" -- bash -c 'echo SWITCH_PAUSED=1; echo "noise" >&2; echo "---FOOTBAG-PROBLEM--- WARN slow" >&2' > '${out}'`, 'cr_finish']);
+    expect(res.exitCode).toBe(0);
+    expect(readFileSync(out, 'utf8')).toBe('SWITCH_PAUSED=1\n');
+    expect(res.stderr).toContain('noise');
+    expect(report(res.stderr)).toContain('pause: slow');
+  });
+
+  it('returns the command\'s status and records a non-zero exit as an error naming it', () => {
+    // Defect caught: a failed session reading as a clean one, or a caller that
+    // branches on the status never seeing it.
+    const res = run([`${RUN} "chain proof" -- bash -c 'exit 3' || echo "returned $?"`, 'cr_finish']);
+    expect(res.stdout).toContain('returned 3');
+    expect(res.exitCode).toBe(1);
+    expect(report(res.stderr)).toMatch(/Errors[^]*chain proof: exit 3/);
+  });
+
+  it('returns zero and records nothing for a clean session', () => {
+    // Defect caught: a clean session reported as a problem, which teaches the
+    // operator to ignore the report.
+    const res = run([`${RUN} "reachable" -- bash -c 'echo ok' && echo "returned $?"`, 'cr_finish']);
+    expect(res.stdout).toContain('returned 0');
+    expect(res.exitCode).toBe(0);
+    expect(report(res.stderr)).not.toMatch(/Errors \(|Warnings \(/);
+  });
+
+  it('tolerates a failed session: its marked error and its exit are warnings, and it returns zero', () => {
+    // Defect caught: a best-effort host step (a disk reclaim) failing the
+    // deploy, or its failure vanishing from the report.
+    const found = join(scratch, 'found');
+    const res = run([...watchTemp(found), `${TOLERATE} "disk reclaim" -- bash -c '${BODY}; exit 2' && echo "returned $?"`, 'scan', 'cr_finish']);
+    expect(readFileSync(found, 'utf8')).toBe('');
+    expect(res.stdout).toContain('returned 0');
+    expect(res.exitCode).toBe(0);
+    const r = report(res.stderr);
+    expect(r).not.toMatch(/Errors \(/);
+    expect(r).toMatch(/Warnings \(3\)[^]*disk reclaim: pending reboot[^]*disk reclaim: unit failed[^]*disk reclaim: exit 2/);
+  });
+
+  it('lists a tolerated child script\'s errors as warnings', () => {
+    // Defect caught: a child script's error failing a run that called it as a
+    // best-effort step.
+    const leaf = join(scratch, 'leaf.sh');
+    writeFileSync(leaf, ['#!/usr/bin/env bash', 'set -euo pipefail', `source '${LIB}'`, 'cr_error "advisory host check failed"', 'cr_finish', ''].join('\n'));
+    const res = run([`${TOLERATE} "advisory" -- bash '${leaf}'`, 'cr_finish']);
+    expect(res.exitCode).toBe(0);
+    expect(report(res.stderr)).toMatch(/Warnings[^]*leaf\.sh: advisory host check failed/);
+  });
+
+  it('keeps only the marked stdout lines a caller parses, passing every line through', () => {
+    // Defect caught: a parse of the half's KEY lines that needs the whole
+    // session written to a file first.
+    const kept = join(scratch, 'kept');
+    const res = run([
+      `: > '${kept}'`,
+      `printf '%s\\n' 'SECRET-OUT x' '---FOOTBAG-PREVIEW--- 12' '---FOOTBAG-LISTED---' '---FOOTBAG-PREVIEWX' | cr_keep_marked '${kept}'`,
+      'cr_finish',
+    ]);
+    expect(res.exitCode).toBe(0);
+    expect(readFileSync(kept, 'utf8')).toBe('---FOOTBAG-PREVIEW--- 12\n---FOOTBAG-LISTED---\n');
+    expect(res.stdout).toBe('SECRET-OUT x\n---FOOTBAG-PREVIEW--- 12\n---FOOTBAG-LISTED---\n---FOOTBAG-PREVIEWX\n');
+  });
+});
+
 describe('closing report: a run that stops early', () => {
   it('still prints the report, with the stop listed, and keeps the exit status', () => {
     // Defect caught: an early `exit` dropping the rows and problems the run had
@@ -314,6 +443,156 @@ describe('closing report: cleanup', () => {
   });
 });
 
+describe('closing report: a script that runs another script', () => {
+  /** A child script on the library, written beside the driver. */
+  function child(name: string, lines: string[]): string {
+    const path = join(scratch, name);
+    writeFileSync(path, ['#!/usr/bin/env bash', 'set -euo pipefail', `source '${LIB}'`, ...lines, ''].join('\n'));
+    return path;
+  }
+
+  it('lists a child\'s warning in the outermost report when the child is run directly', () => {
+    // Defect caught: a deploy that runs a leaf script on the terminal, the leaf
+    // warns, and the deploy's own report at the bottom says nothing about it.
+    const leaf = child('leaf.sh', ['cr_warn "disk reclaim skipped"', 'cr_proved "release pinned"', 'cr_finish']);
+    const res = run([`bash '${leaf}'`, 'cr_finish']);
+    expect(res.exitCode).toBe(0);
+    const r = report(res.stderr);
+    expect(r).toContain('leaf.sh: disk reclaim skipped');
+    expect(r).toContain('leaf.sh: release pinned');
+    // Only the outermost run prints a full report.
+    expect(res.stderr.split('Closing report').length - 1).toBe(1);
+  });
+
+  it('keeps a child\'s exit status, so the caller can still branch on it', () => {
+    // Defect caught: a nested run reporting to its caller and exiting 0 over an
+    // error, so the caller carries on past a failed step.
+    const leaf = child('leaf.sh', ['cr_error "migration refused"', 'cr_finish']);
+    const res = run([`bash '${leaf}' || echo "caller saw $?"`, 'cr_finish']);
+    expect(res.stdout).toContain('caller saw 1');
+    expect(res.exitCode).toBe(1);
+    expect(report(res.stderr)).toContain('leaf.sh: migration refused');
+  });
+
+  it('lists a child\'s error once when the caller also wraps it in cr_run', () => {
+    // Defect caught: the child's own error line matched again by the caller's
+    // grammar, listing one problem twice.
+    const leaf = child('leaf.sh', ['cr_error "schema gate refused"', 'cr_finish']);
+    const res = run([`cr_run "leaf" -- bash '${leaf}' || true`, 'cr_finish']);
+    expect(res.exitCode).toBe(1);
+    expect(report(res.stderr).split('schema gate refused').length - 1).toBe(1);
+  });
+
+  it('reaches the outermost report from a grandchild', () => {
+    // Defect caught: a problem two levels down stopping at the middle script,
+    // which prints no full report of its own.
+    const grand = child('grand.sh', ['cr_warn "zone mirror lagging"', 'cr_finish']);
+    const middle = child('middle.sh', [`bash '${grand}'`, 'cr_finish']);
+    const res = run([`bash '${middle}'`, 'cr_finish']);
+    expect(report(res.stderr)).toContain('grand.sh: zone mirror lagging');
+  });
+
+  it('lists a tolerated child\'s errors as warnings', () => {
+    // Defect caught: an advisory check run with cr_tolerate failing the whole
+    // run through its own errors, or having them vanish.
+    const leaf = child('leaf.sh', ['cr_error "advisory host check failed"', 'cr_finish']);
+    const res = run([`cr_tolerate "advisory" -- bash '${leaf}'`, 'cr_finish']);
+    expect(res.exitCode).toBe(0);
+    expect(report(res.stderr)).toMatch(/Warnings[^]*leaf\.sh: advisory host check failed/);
+  });
+
+  it('prints a full report when the report variable names no file a parent run made', () => {
+    // Defect caught: a value left exported in an operator's shell silencing every
+    // run's report and sending its problems to a file nobody reads.
+    const leaf = child('leaf.sh', ['cr_error "the gate refused"', 'cr_finish']);
+    const stray = join(scratch, 'nobody-made-this');
+    const res = spawnSync('bash', [leaf], { cwd: scratch, encoding: 'utf8', env: { ...process.env, FOOTBAG_CR_REPORT_TO: stray }, ...SPAWN_GUARD });
+    expect(res.status).toBe(1);
+    expect(report(res.stderr ?? '')).toContain('the gate refused');
+    expect(existsSync(stray)).toBe(false);
+  });
+
+  it('prints a full report from a script run alone', () => {
+    // Defect caught: a stale report variable inherited from nowhere making a
+    // standalone run think it is nested and print no report.
+    const leaf = child('leaf.sh', ['cr_warn "alone"', 'cr_finish']);
+    const res = spawnSync('bash', [leaf], { cwd: scratch, encoding: 'utf8', ...SPAWN_GUARD });
+    expect(report(res.stderr ?? '')).toContain('alone');
+  });
+});
+
+describe('closing report: a deliberate non-zero end', () => {
+  it('ends on the chosen status and verdict, listing no error, when nothing went wrong', () => {
+    // Defect caught: a "pending" exit a caller branches on reading as FAILED
+    // with an invented "stopped before the end" error, so the operator chases a
+    // failure that is not there.
+    const res = run(['cr_warn "waiting for the first sign-in"', 'cr_finish_with 3 PENDING']);
+    expect(res.exitCode).toBe(3);
+    const r = report(res.stderr);
+    expect(r).toMatch(/VERDICT: PENDING/);
+    expect(r).not.toMatch(/Errors \(/);
+    expect(r).toContain('waiting for the first sign-in');
+  });
+
+  it('still reads FAILED when an error was recorded', () => {
+    // Defect caught: a pending end hiding an error the run met.
+    const res = run(['cr_error "the role could not be read"', 'cr_finish_with 3 PENDING']);
+    expect(res.exitCode).toBe(3);
+    expect(report(res.stderr)).toMatch(/VERDICT: FAILED/);
+  });
+});
+
+describe('closing report: no temp directory', () => {
+  it('refuses to start with the reason when no temp directory can be made', () => {
+    // Defect caught: a run killed at its first line with no message at all,
+    // because the library could not make its working directory.
+    const path = driver(['cr_finish']);
+    const res = spawnSync('bash', [path], { cwd: scratch, encoding: 'utf8', env: { ...process.env, TMPDIR: join(scratch, 'missing') }, ...SPAWN_GUARD });
+    expect(res.status).toBe(1);
+    expect(res.stderr).toMatch(/cannot start: no temp (directory|file) could be made \(TMPDIR=.*missing\)/);
+  });
+});
+
+describe('closing report: the exit status a cleanup sees', () => {
+  it('is zero on a finished run and the stop status on an early exit', () => {
+    // Defect caught: an undo meant only for an interrupted run firing on every
+    // run, because the cleanup cannot tell how the run ended.
+    const seen = join(scratch, 'seen');
+    const finished = run([`note() { cr_exit_status > '${seen}'; }`, 'cr_cleanup note', 'cr_finish']);
+    expect(finished.exitCode).toBe(0);
+    expect(readFileSync(seen, 'utf8')).toBe('0');
+    const stopped = run([`note() { cr_exit_status > '${seen}'; }`, 'cr_cleanup note', 'exit 5']);
+    expect(stopped.exitCode).toBe(5);
+    expect(readFileSync(seen, 'utf8')).toBe('5');
+  });
+
+  it('is 143 when the run is terminated', async () => {
+    // Defect caught: an interrupt-only undo that never fires because the
+    // cleanup reads the status before the signal sets it.
+    const seen = join(scratch, 'seen');
+    const ready = join(scratch, 'ready');
+    const path = driver([
+      `note() { cr_exit_status > '${seen}'; }`,
+      'cr_cleanup note',
+      'tail -f /dev/null >/dev/null 2>&1 & pid=$!',
+      'cr_cleanup kill "$pid"',
+      `touch '${ready}'`,
+      'wait "$pid"',
+      'cr_finish',
+    ]);
+    const proc = spawn('bash', [path], { cwd: scratch });
+    await new Promise<void>((resolve) => {
+      const poll = setInterval(() => {
+        if (existsSync(ready)) { clearInterval(poll); resolve(); }
+      }, 20);
+    });
+    proc.kill('SIGTERM');
+    const code = await new Promise<number | null>((resolve) => proc.on('close', resolve));
+    expect(code).toBe(143);
+    expect(readFileSync(seen, 'utf8')).toBe('143');
+  });
+});
+
 describe('closing report: a remote half', () => {
   function remote(lines: string[]): RunResult {
     const path = join(scratch, 'remote.sh');
@@ -337,6 +616,19 @@ describe('closing report: a remote half', () => {
     // count is lost and it exits 0 over an error it printed.
     const res = remote(['probe() { crr_error "probe failed"; echo value; }', 'v="$(probe)"', 'crr_finish']);
     expect(res.exitCode).toBe(1);
+  });
+
+  it('leaves no error tally behind on the host when it stops before crr_finish', () => {
+    // Defect caught: every remote half that fails under errexit or is killed
+    // leaving a temp file in the host's temp area, run after run.
+    const tmp = join(scratch, 'host-tmp');
+    mkdirSync(tmp);
+    const path = join(scratch, 'remote.sh');
+    writeFileSync(path, ['set -euo pipefail', 'crr_error "first problem"', 'false', 'crr_finish', ''].join('\n'));
+    const body = readFileSync(REMOTE_LIB, 'utf8') + '\n' + readFileSync(path, 'utf8');
+    const res = spawnSync('bash', [], { input: body, cwd: scratch, encoding: 'utf8', env: { ...process.env, TMPDIR: tmp }, ...SPAWN_GUARD });
+    expect(res.status).toBe(1);
+    expect(readdirSync(tmp)).toEqual([]);
   });
 
   it('exits zero when it met only warnings', () => {

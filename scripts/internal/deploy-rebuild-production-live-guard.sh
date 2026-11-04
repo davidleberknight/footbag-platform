@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+# shellcheck shell=bash
 # Production-live refusal for the destructive database-replacing deploy.
 #
 # Two independent checks, both fail closed, both production-only (staging and
@@ -48,7 +48,9 @@
 # between the post-cutover guard and the remote half, so it runs on the host
 # as root BEFORE any live mutation; a non-zero exit aborts the whole remote
 # body. It also runs standalone for its tests, which point ENV_PATH and
-# DB_PATH at fixture files.
+# DB_PATH at fixture files. Each refusal is reported through crr_error, from
+# scripts/lib/closing-report-remote.sh, which the caller sends ahead of it on the
+# same stream, so the reason lands in the deploy's closing report.
 #
 # Two preludes run for every environment, before the production-only checks:
 #   - Host-identity reconciliation. The workstation asserts FOOTBAG_ENV from
@@ -73,10 +75,9 @@ prod_live_guard_env() {
 
 PROD_LIVE_GUARD_HOST_ENV="$(prod_live_guard_env FOOTBAG_ENV)"
 if [[ -n "$PROD_LIVE_GUARD_HOST_ENV" && "$PROD_LIVE_GUARD_HOST_ENV" != "${FOOTBAG_ENV:-}" ]]; then
-  echo "ERROR: refusing the database-replacing deploy: the workstation asserted" >&2
-  echo "       FOOTBAG_ENV='${FOOTBAG_ENV:-}' but $PROD_LIVE_GUARD_ENV_PATH records" >&2
-  echo "       FOOTBAG_ENV='$PROD_LIVE_GUARD_HOST_ENV'. A misrouted SSH alias must never" >&2
-  echo "       skip this host's guards. Fix the deploy target and retry." >&2
+  crr_error "refusing the database-replacing deploy: the workstation asserted FOOTBAG_ENV='${FOOTBAG_ENV:-}' but $PROD_LIVE_GUARD_ENV_PATH records FOOTBAG_ENV='$PROD_LIVE_GUARD_HOST_ENV'."
+  echo "       A misrouted SSH alias must never skip this host's guards. Fix the" >&2
+  echo "       deploy target and retry." >&2
   exit 1
 fi
 
@@ -94,17 +95,20 @@ fi
 if [[ "${FOOTBAG_ENV:-}" == "production" ]]; then
   PROD_LIVE_AWS_PROFILE="$(prod_live_guard_env AWS_PROFILE)"
   PROD_LIVE_AWS_REGION="$(prod_live_guard_env AWS_REGION)"
+  # The read's own message is kept for the refusal, so an unreadable marker says
+  # why it was unreadable rather than only that it was.
+  PROD_LIVE_MARKER_ERR_FILE="$(mktemp)"
   PROD_LIVE_MARKER=$(
     AWS_PROFILE="$PROD_LIVE_AWS_PROFILE" aws ssm get-parameter \
       --region "${PROD_LIVE_AWS_REGION:-us-east-1}" \
       --name "/footbag/production/app/production_live" \
       --query 'Parameter.Value' \
-      --output text 2>/dev/null
-  ) || PROD_LIVE_MARKER="<unreadable>"
+      --output text 2>"$PROD_LIVE_MARKER_ERR_FILE"
+  ) || PROD_LIVE_MARKER="<unreadable: $(tail -n 1 "$PROD_LIVE_MARKER_ERR_FILE")>"
+  rm -f "$PROD_LIVE_MARKER_ERR_FILE"
   if [[ "$PROD_LIVE_MARKER" != "false" ]]; then
-    echo "ERROR: refusing the database-replacing deploy: the production-live marker" >&2
-    echo "       /footbag/production/app/production_live did not read exactly \"false\"" >&2
-    echo "       (read: '$PROD_LIVE_MARKER'). Pre-live is the only state in which the" >&2
+    crr_error "refusing the database-replacing deploy: the production-live marker /footbag/production/app/production_live did not read exactly \"false\" (read: '$PROD_LIVE_MARKER')."
+    echo "       Pre-live is the only state in which the" >&2
     echo "       production database may be replaced; from the go-live flip onward the" >&2
     echo "       full-refresh deploy is forbidden permanently, and a missing or" >&2
     echo "       unreadable marker refuses too (fail closed)." >&2
@@ -137,9 +141,7 @@ if [[ "${FOOTBAG_ENV:-}" == "production" ]]; then
   for PROD_LIVE_GUARD_DB_CANDIDATE in "${PROD_LIVE_GUARD_DB_CANDIDATES[@]}"; do
     if [[ -f "$PROD_LIVE_GUARD_DB_CANDIDATE" ]]; then
       if ! command -v sqlite3 >/dev/null 2>&1; then
-        echo "ERROR: refusing the database-replacing deploy: sqlite3 is unavailable, so" >&2
-        echo "       the real-member tripwire cannot inspect $PROD_LIVE_GUARD_DB_CANDIDATE" >&2
-        echo "       (fail closed). Install sqlite3 on the host and retry." >&2
+        crr_error "refusing the database-replacing deploy: sqlite3 is unavailable, so the real-member tripwire cannot inspect $PROD_LIVE_GUARD_DB_CANDIDATE (fail closed). Install sqlite3 on the host and retry."
         exit 1
       fi
       # The probe reads the schema rather than selecting a constant. SQLite opens
@@ -150,9 +152,7 @@ if [[ "${FOOTBAG_ENV:-}" == "production" ]]; then
       # opens the database.
       if ! sqlite3 "file:${PROD_LIVE_GUARD_DB_CANDIDATE}?mode=ro" \
         'SELECT count(*) FROM sqlite_master;' >/dev/null 2>&1; then
-        echo "ERROR: refusing the database-replacing deploy: $PROD_LIVE_GUARD_DB_CANDIDATE" >&2
-        echo "       exists but could not be read, so the real-member tripwire cannot" >&2
-        echo "       rule out live member data (fail closed)." >&2
+        crr_error "refusing the database-replacing deploy: $PROD_LIVE_GUARD_DB_CANDIDATE exists but could not be read, so the real-member tripwire cannot rule out live member data (fail closed). sqlite3 said: $(sqlite3 "file:${PROD_LIVE_GUARD_DB_CANDIDATE}?mode=ro" 'SELECT count(*) FROM sqlite_master;' 2>&1 >/dev/null | tail -n 1)"
         exit 1
       fi
       PROD_LIVE_HAS_MEMBERS_TABLE=$(
@@ -167,9 +167,7 @@ if [[ "${FOOTBAG_ENV:-}" == "production" ]]; then
       # the destructive deploy proceeds against a database that may hold real
       # member accounts.
       if [[ ! "$PROD_LIVE_HAS_MEMBERS_TABLE" =~ ^[0-9]+$ ]]; then
-        echo "ERROR: refusing the database-replacing deploy: the real-member tripwire" >&2
-        echo "       could not determine whether $PROD_LIVE_GUARD_DB_CANDIDATE carries a" >&2
-        echo "       members table, so it cannot rule out live member data (fail closed)." >&2
+        crr_error "refusing the database-replacing deploy: the real-member tripwire could not determine whether $PROD_LIVE_GUARD_DB_CANDIDATE carries a members table, so it cannot rule out live member data (fail closed)."
         exit 1
       fi
       if [[ "$PROD_LIVE_HAS_MEMBERS_TABLE" == "1" ]]; then
@@ -178,14 +176,12 @@ if [[ "${FOOTBAG_ENV:-}" == "production" ]]; then
             "SELECT COUNT(*) FROM members WHERE password_hash IS NOT NULL AND id NOT LIKE 'member_persona_%';" 2>/dev/null
         ) || PROD_LIVE_MEMBER_COUNT=""
         if [[ ! "$PROD_LIVE_MEMBER_COUNT" =~ ^[0-9]+$ ]]; then
-          echo "ERROR: refusing the database-replacing deploy: the real-member tripwire" >&2
-          echo "       query failed against $PROD_LIVE_GUARD_DB_CANDIDATE (fail closed)." >&2
+          crr_error "refusing the database-replacing deploy: the real-member tripwire query failed against $PROD_LIVE_GUARD_DB_CANDIDATE (fail closed)."
           exit 1
         fi
         if (( PROD_LIVE_MEMBER_COUNT > 3 )); then
-          echo "ERROR: refusing the database-replacing deploy: the on-host database holds" >&2
-          echo "       $PROD_LIVE_MEMBER_COUNT login-capable non-persona member accounts, over the" >&2
-          echo "       pre-launch allowance of 3. Real member data must never be replaced" >&2
+          crr_error "refusing the database-replacing deploy: the on-host database holds $PROD_LIVE_MEMBER_COUNT login-capable non-persona member accounts, over the pre-launch allowance of 3."
+          echo "       Real member data must never be replaced" >&2
           echo "       by a rebuild, whatever the production-live marker reads. Use" >&2
           echo "       scripts/deploy-code.sh for code deploys. There is no bypass flag." >&2
           exit 1

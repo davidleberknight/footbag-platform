@@ -336,7 +336,7 @@ require_host_is "$REMOTE" staging || exit 1
 # errors it marked, so a half that marked an error and then exited zero still
 # fails here, and no success line follows a failed half.
 install_on_host() {
-  if ! cr_run --sentinels-only "agent install on ${REMOTE}" -- "$1" \
+  if ! cr_run_marked "agent install on ${REMOTE}" -- "$1" \
        || (( ${#CR_ERRORS[@]} )); then
     echo >&2
     echo "FAILED: the agent on $REMOTE is not running on its new config; the closing report below names every error." >&2

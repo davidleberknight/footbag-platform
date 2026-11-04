@@ -69,6 +69,19 @@ describe('the heavy pentest runner names the probes that found something', () =>
     expect(runHeavy).toContain('tail -n 40 "${OUT_DIR}/${probe_name}.probe.log"');
   });
 
+  // Defect caught: a report-only leg that did not run (no Docker, a timed-out
+  // scan, an audit that could not reach its database) is swallowed and the
+  // harness closes as a full scan.
+  it('runs every report-only leg tolerated, so its problems reach the closing report', () => {
+    expect(runHeavy).toMatch(/^source scripts\/lib\/closing-report\.sh$/m);
+    for (const leg of ['zap-active.sh', 'zap-baseline.sh', 'deps-scan.sh', 'summarize.ts']) {
+      const line = runHeavy.split('\n').find((l) => l.includes(`scripts/pentest/${leg}`) && !l.trimStart().startsWith('#'));
+      expect(line, leg).toMatch(/^\s*cr_tolerate /);
+    }
+    expect(runHeavy).not.toMatch(/scripts\/pentest\/\S+.*\|\| true/);
+    expect(runHeavy).toContain('cr_error "probe ${name} reported findings');
+  });
+
   it('keeps pipefail, without which a teed probe failure would be invisible', () => {
     // The probe now runs through a pipe. A pipeline reports its last command's
     // status, so without pipefail the verdict would read tee's success and every

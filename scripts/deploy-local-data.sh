@@ -14,6 +14,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "${REPO_ROOT}"
+# shellcheck source=lib/closing-report.sh
+source "${SCRIPT_DIR}/lib/closing-report.sh"
 
 usage() {
   cat <<'USAGE'
@@ -100,7 +102,7 @@ USAGE
 
 if [[ $# -lt 1 ]]; then
   usage
-  exit 1
+  cr_die "no mode given"
 fi
 
 MODE=""
@@ -112,7 +114,7 @@ for arg in "$@"; do
   case "$arg" in
     --soup-to-nuts|--from-csv|--db-only|--all-data)
       if [[ -n "$MODE" ]]; then
-        echo "ERROR: only one mode may be specified (got '$MODE' and '$arg')" >&2
+        cr_error "only one mode may be specified (got '$MODE' and '$arg')"
         exit 1
       fi
       MODE="$arg"
@@ -134,7 +136,7 @@ for arg in "$@"; do
       exit 0
       ;;
     *)
-      echo "ERROR: unknown argument '$arg'" >&2
+      cr_error "unknown argument '$arg'"
       echo "" >&2
       usage >&2
       exit 1
@@ -143,7 +145,7 @@ for arg in "$@"; do
 done
 
 if [[ -z "$MODE" ]]; then
-  echo "ERROR: no mode specified" >&2
+  cr_error "no mode specified"
   echo "" >&2
   usage >&2
   exit 1
@@ -154,7 +156,7 @@ fi
 # point adds what a bare run of this script would leave out (the persona seed and
 # media for a developer, the deploy's own checks for a host).
 if [[ "${FOOTBAG_DATA_BUILD_ENTRY:-}" != "run_dev" && "${FOOTBAG_DATA_BUILD_ENTRY:-}" != "deploy" ]]; then
-  echo "ERROR: deploy-local-data.sh is not run directly." >&2
+  cr_error "deploy-local-data.sh is not run directly."
   echo "       Rebuild a local database with ./run_dev.sh (--reset, --from-csv, --soup-to-nuts" >&2
   echo "       or --all-data), or deploy one with bash deploy_to_aws.sh." >&2
   exit 1
@@ -163,22 +165,19 @@ fi
 # --apply-members writes real member data, which only the --all-data intake
 # carries; anywhere else it is almost certainly a mistake, so fail loud.
 if [[ "$APPLY_MEMBERS" == "yes" && "$MODE" != "--all-data" ]]; then
-  echo "ERROR: --apply-members is only meaningful with --all-data" >&2
-  exit 1
+  cr_die "--apply-members is only meaningful with --all-data"
 fi
 
 # --final-load marks the cutover member load, which is an applied intake; on a
 # preview or another mode it would assert nothing, so fail loud.
 if [[ "$FINAL_LOAD" == "yes" && ( "$MODE" != "--all-data" || "$APPLY_MEMBERS" != "yes" ) ]]; then
-  echo "ERROR: --final-load is only meaningful with --all-data --apply-members" >&2
-  exit 1
+  cr_die "--final-load is only meaningful with --all-data --apply-members"
 fi
 
 # --cutover-clubs shapes the cutover build, which is the --all-data path;
 # anywhere else it is almost certainly a mistake, so fail loud.
 if [[ "$CUTOVER_CLUBS" == "yes" && "$MODE" != "--all-data" ]]; then
-  echo "ERROR: --cutover-clubs is only meaningful with --all-data" >&2
-  exit 1
+  cr_die "--cutover-clubs is only meaningful with --all-data"
 fi
 if [[ "$CUTOVER_CLUBS" == "yes" || "$MODE" == "--all-data" ]]; then
   # Assigned here rather than inherited, and --all-data implies it rather than
@@ -216,7 +215,7 @@ require_private_inputs() {
     [[ -s "${REPO_ROOT}/${p}" ]] || missing+=("$p")
   done
   if [[ ${#missing[@]} -gt 0 ]]; then
-    echo "ERROR: ${MODE} needs inputs this machine does not have. Nothing was changed." >&2
+    cr_error "${MODE} needs inputs this machine does not have (${missing[*]}). Nothing was changed."
     for m in "${missing[@]}"; do echo "  MISSING: $m" >&2; done
     echo "" >&2
     echo "Without the private checkout:" >&2
@@ -234,7 +233,7 @@ run_soup_to_nuts() {
   require_private_inputs "$ROSTER_INPUT"
   local mirror_dir="${REPO_ROOT}/footbag_legacy_mirror"
   if [[ ! -d "$mirror_dir" ]]; then
-    echo "ERROR: mirror not found at ${mirror_dir}" >&2
+    cr_error "mirror not found at ${mirror_dir}"
     echo "       The legacy mirror must be present for --soup-to-nuts." >&2
     echo "       Use --from-csv if you do not have the mirror." >&2
     exit 1
@@ -273,7 +272,7 @@ run_from_csv() {
   done
 
   if [[ ${#missing[@]} -gt 0 ]]; then
-    echo "ERROR: csv_only preflight failed. Missing:" >&2
+    cr_error "csv_only preflight failed. Missing: ${missing[*]}"
     for m in "${missing[@]}"; do echo "  MISSING: $m" >&2; done
     echo "" >&2
     echo "These CSVs are produced by a prior --soup-to-nuts run or obtained" >&2
@@ -298,10 +297,7 @@ run_from_csv() {
 
 run_db_only() {
   echo "==> deploy-local-data: --db-only"
-  echo ""
-  echo "    WARNING: --db-only skips phase C/D/E/F/G enrichment."
-  echo "    Use --from-csv if you need those tables populated."
-  echo ""
+  cr_warn "--db-only skips phase C/D/E/F/G enrichment; use --from-csv if you need those tables populated."
   # reset-local-db.sh is mirror-free as of the deploy-script cleanup; it
   # reads committed seed CSVs (legacy_data/seed/clubs.csv,
   # legacy_data/seed/club_members.csv) instead of re-extracting from mirror.
@@ -328,7 +324,9 @@ run_all_data() {
   # cutover load, which ships the export production keeps.
   [[ "$FINAL_LOAD" == "yes" ]] && chain_args+=(--final-load)
   echo "==> legacy chain: one delivery throughout"
-  if ! "$py" "${REPO_ROOT}/legacy_data/scripts/check_legacy_chain.py" \
+  # Its output is read, so a warning a local rebuild only prints is listed in
+  # the closing report rather than left above the rest of the build.
+  if ! cr_run "legacy chain" -- "$py" "${REPO_ROOT}/legacy_data/scripts/check_legacy_chain.py" \
       "${chain_args[@]+"${chain_args[@]}"}"; then
     exit 1
   fi
@@ -350,9 +348,9 @@ run_all_data() {
   if [[ "$APPLY_MEMBERS" == "yes" ]]; then
     echo "==> member intake: reconcile + apply (writes member data to the local DB)"
     if [[ "$FINAL_LOAD" == "yes" ]]; then
-      run_or_print bash "$runner" --load --apply --final-load
+      cr_run "member intake" -- run_or_print bash "$runner" --load --apply --final-load
     else
-      run_or_print bash "$runner" --load --apply
+      cr_run "member intake" -- run_or_print bash "$runner" --load --apply
     fi
 
     echo ""
@@ -362,7 +360,7 @@ run_all_data() {
     echo "      legacy_data/member_data_scripts/out/."
   else
     echo "==> member intake: validate + preview (no write)"
-    run_or_print bash "$runner" --load --dry-run
+    cr_run "member intake preview" -- run_or_print bash "$runner" --load --dry-run
 
     echo ""
     echo "NOTE: member data was NOT loaded. This build previews the intake"
@@ -379,8 +377,8 @@ run_all_data() {
   # worklists carry real names and must never be committed.
   local mds="${REPO_ROOT}/legacy_data/member_data_scripts"
   echo "==> data-review reports (read-only)"
-  run_or_print "$py" "${mds}/crosscheck_member_profile_ids.py"
-  run_or_print "$py" "${mds}/report_legacy_member_honors.py"
+  cr_run "member profile crosscheck" -- run_or_print "$py" "${mds}/crosscheck_member_profile_ids.py"
+  cr_run "member honors report" -- run_or_print "$py" "${mds}/report_legacy_member_honors.py"
   echo "    Reports written:"
   echo "      legacy_data/reports/member_id_profile_url_crosscheck.md"
   echo "      legacy_data/reports/legacy_member_honors_resolution.md"
@@ -392,3 +390,4 @@ case "$MODE" in
   --db-only)      run_db_only ;;
   --all-data)     run_all_data ;;
 esac
+cr_finish

@@ -15,12 +15,14 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { writeFileSync, existsSync, rmSync, utimesSync } from 'node:fs';
+import { writeFileSync, existsSync, rmSync, utimesSync, symlinkSync, lstatSync } from 'node:fs';
 import { join } from 'node:path';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { createScratchDir } from '../fixtures/scratchDir';
 
 const LIB = join(process.cwd(), 'scripts/internal/prune-db-copies.sh');
+// Sent ahead of the helper on a deploy's stream; the helper warns through it.
+const REMOTE_REPORT_LIB = join(process.cwd(), 'scripts/lib/closing-report-remote.sh');
 
 /** The fixed "now" every case runs against, through the helper's clock seam. */
 const NOW = Date.UTC(2026, 9, 7, 12, 0, 0);
@@ -49,8 +51,12 @@ function seed(name: string): string {
   return path;
 }
 
-function prune(dir = dbDir): { status: number; stdout: string; stderr: string } {
-  const res = spawnSync('bash', ['-c', 'source "$1"; prune_db_copies "$2"', '_', LIB, dir], {
+/** Runs the helper as a deploy's stream does, behind the report library, or alone. */
+function prune(dir = dbDir, shipped = true): { status: number; stdout: string; stderr: string } {
+  const program = shipped
+    ? 'source "$3"; source "$1"; prune_db_copies "$2"'
+    : 'source "$1"; prune_db_copies "$2"';
+  const res = spawnSync('bash', ['-c', program, '_', LIB, dir, REMOTE_REPORT_LIB], {
     env: { ...process.env, PRUNE_NOW_EPOCH: String(NOW_EPOCH) },
     encoding: 'utf8',
     ...SPAWN_GUARD,
@@ -120,6 +126,35 @@ describe('pruning set-aside database copies', () => {
     expect(existsSync(impossible)).toBe(true);
     expect(res.stderr).toContain('kept footbag.db.pre-restore.yesterday');
     expect(res.stderr).toContain('kept footbag.db.pre-migration.20261399T250000Z');
+    // Defect caught: a copy kept for a reason said once mid-stream and missing
+    // from the deploy's closing report, so the disk it holds is never looked at.
+    expect(res.stderr).toMatch(/^---FOOTBAG-PROBLEM--- WARN prune-db-copies: kept footbag\.db\.pre-restore\.yesterday/m);
+    expect(res.stderr).toMatch(/^---FOOTBAG-PROBLEM--- WARN prune-db-copies: kept footbag\.db\.pre-migration\.20261399T250000Z/m);
+  });
+
+  // Defect caught: a symlink named like an old copy deleted, which removes a
+  // name some other path depends on, while the copy-aside step never makes one.
+  it('keeps a symlink named like an old copy, and warns', () => {
+    const target = seed('footbag.db');
+    const link = join(dbDir, `footbag.db.pre-restore.${stampAged(30 * DAY)}`);
+    symlinkSync(target, link);
+
+    const res = prune();
+
+    expect(res.status, res.stderr).toBe(0);
+    expect(lstatSync(link).isSymbolicLink()).toBe(true);
+    expect(res.stderr).toMatch(/^---FOOTBAG-PROBLEM--- WARN prune-db-copies: kept footbag\.db\.pre-restore\.\S+: not a regular file/m);
+  });
+
+  // Defect caught: a caller whose stream does not carry the report library (an
+  // in-place restore) losing the warning entirely, or failing on an undefined
+  // function, when the helper reports through that library.
+  it('still warns in the plain form on a stream without the report library', () => {
+    seed('footbag.db.pre-restore.yesterday');
+    const res = prune(dbDir, false);
+    expect(res.status, res.stderr).toBe(0);
+    expect(res.stderr).toMatch(/^prune-db-copies: WARNING: kept footbag\.db\.pre-restore\.yesterday/m);
+    expect(res.stderr).not.toContain('command not found');
   });
 
   // Defect caught: ageing by modification time. The copies are taken with

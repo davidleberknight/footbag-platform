@@ -40,6 +40,12 @@ afterEach(() => {
   removeScratch(dir);
 });
 
+/** The closing report: everything from its heading on. */
+function closingReport(out: string): string {
+  const at = out.lastIndexOf('Closing report');
+  return at === -1 ? '' : out.slice(at);
+}
+
 const log = () => (existsSync(join(dir, 'calls.log')) ? readFileSync(join(dir, 'calls.log'), 'utf-8') : '');
 
 /** A step that records its name, its arguments and its stdin, and exits as told. */
@@ -139,6 +145,9 @@ describe('prove-dev-tester-role.sh — refused before anything runs', () => {
   });
 
   it('refuses without a saved baseline, rather than claiming an invariant it never checked', () => {
+    // A temp directory that exists and holds no baseline, as on a machine where
+    // none was ever saved.
+    mkdirSync(join(dir, 'empty-tmp'));
     const r = spawnSync('bash', [SCRIPT, '--account', ACCOUNT], {
       encoding: 'utf-8',
       input: '',
@@ -227,6 +236,40 @@ describe('prove-dev-tester-role.sh — a whole run', () => {
     const r = run(['--account', ACCOUNT], { verify: 3 });
     expect(r.status).toBe(3);
     expect(r.out).toMatch(/--from-step 6/);
+    // Defect caught: a pending end read as a failure, with an error invented for
+    // the deliberate status, so the operator chases a fault that is not there.
+    expect(r.out).toMatch(/VERDICT: PENDING/);
+    expect(r.out).not.toMatch(/stopped before the end/);
+  });
+
+  it('lists a warning a step reports in the one closing report, and exits 0 for it', () => {
+    // A step on the closing-report library, as the denials check is: a weaker-
+    // than-intended result it prints in the middle of the proof would otherwise
+    // be followed by PROVED and never read.
+    const denials = join(dir, 'denials-on-library');
+    writeFileSync(
+      denials,
+      [
+        '#!/usr/bin/env bash',
+        'set -euo pipefail',
+        `source ${JSON.stringify(join(process.cwd(), 'scripts/lib/closing-report.sh'))}`,
+        'cr_warn "WEAK  fixture-weak-result"',
+        'cr_finish',
+      ].join('\n'),
+      { mode: 0o755 },
+    );
+    const r = run(['--account', ACCOUNT], {}, { PROVE_DENIALS_CMD: denials });
+    expect(r.status, r.out).toBe(0);
+    expect(r.out.split('Closing report').length - 1).toBe(1);
+    expect(closingReport(r.out)).toContain('fixture-weak-result');
+  });
+
+  it('lists the failed step in the closing report', () => {
+    // The resume line names the step; the report at the end must too, or the
+    // operator reads a bare exit status.
+    const r = run(['--account', ACCOUNT], { deploy: 1 });
+    expect(r.status).toBe(1);
+    expect(closingReport(r.out)).toMatch(/FAILED at step 2/);
   });
 
   it('resumes from the step named, running nothing before it', () => {
@@ -279,6 +322,7 @@ describe('prove-dev-tester-role.sh --checks-only — the denials and the baselin
     expect(checks(['--from-step', '4']).status).toBe(2);
     expect(checks(['--account', 'David']).status).toBe(2);
     expect(checks(['--account', 'footbag-operator']).status).toBe(2);
+    mkdirSync(join(dir, 'empty-tmp'));
     const none = checks([], {}, { TMPDIR: join(dir, 'empty-tmp') });
     expect(none.status).toBe(2);
     expect(none.err).toMatch(/verify-account-baseline\.sh --save/);

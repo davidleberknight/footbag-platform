@@ -56,6 +56,20 @@ interface Estate {
   /** Whether each runtime trust policy names the job role. */
   stagingTrustsDevTester?: boolean;
   productionTrustsDevTester?: boolean;
+  /**
+   * Subcommands whose read does not answer at all (an access denial), as
+   * distinct from AWS answering that the thing is absent.
+   */
+  readFails?: string[];
+}
+
+/**
+ * How the aws CLI reports a failed call on stderr: the API's documented error
+ * code in parentheses, then the operation and a message. The script judges
+ * absence by the code alone, which is the part the API documents.
+ */
+function awsError(code: string, operation: string): string {
+  return `echo "An error occurred (${code}) when calling the ${operation} operation: stub" >&2; exit 254`;
 }
 
 const OPERATOR = 'footbag-operator';
@@ -119,6 +133,7 @@ const HEALTHY: Required<Estate> = {
   devTesterRole: false,
   stagingTrustsDevTester: false,
   productionTrustsDevTester: false,
+  readFails: [],
 };
 
 function awsStub(estate: Estate): string {
@@ -126,7 +141,7 @@ function awsStub(estate: Estate): string {
   const path = join(workDir, 'aws-stub.sh');
   const pwPolicy =
     e.passwordPolicy === null
-      ? '    exit 1'
+      ? `    ${awsError('NoSuchEntity', 'GetAccountPasswordPolicy')}`
       : `    printf '%s' ${JSON.stringify(
           JSON.stringify({
             PasswordPolicy: {
@@ -139,10 +154,13 @@ function awsStub(estate: Estate): string {
     path,
     [
       '#!/usr/bin/env bash',
+      ...e.readFails.map(
+        (sub) => `[[ "$2" == ${JSON.stringify(sub)} ]] && { ${awsError('AccessDeniedException', 'Stub')}; }`,
+      ),
       'case "$2" in',
       '  get-caller-identity) echo 111122223333 ;;',
       `  get-public-access-block) ${
-        e.publicAccessBlock === null ? 'exit 1' : `printf '%s\\n' ${JSON.stringify(e.publicAccessBlock)}`
+        e.publicAccessBlock === null ? awsError('NoSuchPublicAccessBlockConfiguration', 'GetPublicAccessBlock') :`printf '%s\\n' ${JSON.stringify(e.publicAccessBlock)}`
       } ;;`,
       '  get-account-password-policy)',
       pwPolicy,
@@ -151,7 +169,7 @@ function awsStub(estate: Estate): string {
         e.analyzers === null ? 'exit 1' : `printf '%s\\n' ${JSON.stringify(e.analyzers)}`
       } ;;`,
       `  get-alternate-contact) ${
-        e.alternateContact === null ? 'exit 1' : `printf '%s\\n' ${JSON.stringify(e.alternateContact)}`
+        e.alternateContact === null ? awsError('ResourceNotFoundException', 'GetAlternateContact') : `printf '%s\\n' ${JSON.stringify(e.alternateContact)}`
       } ;;`,
       '  get-account-summary)',
       `    printf '%s' ${JSON.stringify(
@@ -186,7 +204,7 @@ function awsStub(estate: Estate): string {
       // The job role itself, asked for by name. A non-zero exit is how the
       // script learns it does not exist, which is the pre-apply state.
       `    if [[ "$*" == *FootbagDevTester* ]]; then ${
-        e.devTesterRole ? "printf '{}\\n'" : 'exit 254'
+        e.devTesterRole ? "printf '{}\\n'" : awsError('NoSuchEntity', 'GetRole')
       }; fi`,
       `    if [[ "$*" == *footbag-staging-app-runtime* ]]; then ${
         e.trustsStaging === null
@@ -370,6 +388,55 @@ describe('verify-account-baseline.sh — each control is genuinely checked', () 
   });
 });
 
+/** The closing report's list of errors or warnings, so a case asserts what it lists. */
+function listed(stderr: string, heading: 'Errors' | 'Warnings'): string {
+  const at = stderr.search(new RegExp(`^${heading} \\(\\d+\\):$`, 'm'));
+  if (at === -1) return '';
+  const rest = stderr.slice(at);
+  const end = rest.slice(1).search(/^(Errors|Warnings|Proven:|Not proven:|No errors)/m);
+  return end === -1 ? rest : rest.slice(0, end + 1);
+}
+
+describe('verify-account-baseline.sh — a read that does not answer is never absence', () => {
+  // Defect caught: an access denial or a throttle on a read is taken as AWS
+  // saying the control is absent (or, for the dormant instance and the job
+  // role, as the healthy pre-apply state), so the operator is sent to fix a
+  // control that may be fine, or the gate passes having checked nothing.
+  it.each([
+    ['the public access block', 'get-public-access-block', /could not read the account-level public access block: .*AccessDenied/, /not configured/],
+    ['the password policy', 'get-account-password-policy', /could not read the IAM account password policy: .*AccessDenied/, /no IAM account password policy/],
+    ['an alternate contact', 'get-alternate-contact', /could not read the BILLING alternate contact: .*AccessDenied/, /GATED/],
+    ['the Identity Center instances', 'list-instances', /could not read the Identity Center instances: .*AccessDenied/, /no Identity Center instance/],
+    ['the job role', 'get-role', /could not read the FootbagDevTester role: .*AccessDenied/, /no FootbagDevTester role yet/],
+  ])('lists a failed read of %s as an error with the AWS message, not as absence', (_label, sub, error, absence) => {
+    const r = run({ readFails: [sub] });
+    expect(r.status, r.stderr).toBe(1);
+    expect(listed(r.stderr, 'Errors')).toMatch(error);
+    expect(r.stdout + r.stderr).not.toMatch(absence);
+  });
+
+  // The same reading lets AWS's own answer of absence through as absence.
+  it('still reads an absence AWS names by its error code as absence', () => {
+    const r = run({ publicAccessBlock: null, devTesterRole: false, ssoInstance: null });
+    expect(r.status).toBe(1);
+    expect(listed(r.stderr, 'Errors')).toMatch(/public access block is not configured/);
+    expect(r.stdout).toMatch(/no FootbagDevTester role yet/);
+    expect(r.stdout).toMatch(/no Identity Center instance in this account/);
+    expect(r.stderr).not.toMatch(/could not read/);
+  });
+
+  // Defect caught: the controls deliberately off are printed mid-stream and the
+  // closing report reads as though everything was in place.
+  it('lists each control deliberately off as a warning in the closing report, and still passes', () => {
+    const r = run({ alternateContact: null });
+    expect(r.status, r.stderr).toBe(0);
+    const warnings = listed(r.stderr, 'Warnings');
+    for (const kind of ['BILLING', 'OPERATIONS', 'SECURITY']) {
+      expect(warnings, kind).toMatch(new RegExp(`GATED alternate contact ${kind} is unset`));
+    }
+  });
+});
+
 describe('verify-account-baseline.sh — how it behaves', () => {
   it('refuses when no identity resolves, rather than reporting everything absent', () => {
     // Otherwise a dead credential produces a full sheet of failures and sends
@@ -407,7 +474,7 @@ describe('verify-account-baseline.sh — how it behaves', () => {
   it('prints only failures under --quiet', () => {
     const r = run({ rootMfa: '0' }, ['--quiet']);
     expect(r.stdout).not.toMatch(/PASS/);
-    expect(r.stderr).toMatch(/FAIL/);
+    expect(r.stderr).toMatch(/ERROR: root has NO MFA/);
   });
 
   it('announces the stub, because stubbed evidence is worth nothing', () => {

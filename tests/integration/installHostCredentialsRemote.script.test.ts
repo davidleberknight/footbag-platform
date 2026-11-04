@@ -22,6 +22,19 @@ import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
 
 const REMOTE_HALF = path.resolve(__dirname, '..', '..', 'scripts', 'internal', 'install-host-credentials-remote.sh');
+const REMOTE_REPORT_LIB = path.resolve(__dirname, '..', '..', 'scripts', 'lib', 'closing-report-remote.sh');
+const PROBLEM = '---FOOTBAG-PROBLEM---';
+
+/**
+ * The marker read's answers. The two errors are the AWS CLI's documented
+ * "An error occurred (<Code>) when calling the <Operation> operation" shape,
+ * with the service's error codes for a missing parameter and a refused call.
+ */
+function markerAnswer(kind: 'false' | 'not-found' | 'denied'): string {
+  if (kind === 'false') return 'echo false';
+  const code = kind === 'not-found' ? 'ParameterNotFound' : 'AccessDeniedException';
+  return `echo "An error occurred (${code}) when calling the GetParameter operation: stub" >&2; exit 254`;
+}
 
 const AKID = 'AKIAIOSFODNN7EXAMPLE';
 const SAK = 'secret-value-not-real';
@@ -44,6 +57,8 @@ interface CaseOpts {
   groupGid?: string;
   /** A profile whose identity proof fails. */
   failProfile?: string;
+  /** What the go-live marker read answers: its value, or the client's error. */
+  marker?: 'false' | 'not-found' | 'denied';
   /** Overrides for the assignments the wrapper emits. */
   vars?: Record<string, string>;
 }
@@ -105,11 +120,15 @@ function runBody(opts: CaseOpts = {}) {
     'fi',
     'case "$1 $2" in',
     `  "sts get-caller-identity") echo "arn:aws:sts::${ACCOUNT}:assumed-role/$profile/x" ;;`,
-    '  "ssm get-parameter") echo false ;;',
+    `  "ssm get-parameter") ${markerAnswer(opts.marker ?? 'false')} ;;`,
     'esac',
   ]);
 
-  const res = spawnSync('bash', [REMOTE_HALF], {
+  // The caller sends the remote report helper ahead of the body on one stream,
+  // so the body runs here the same way: the two files as one script.
+  const stream = path.join(dir, 'stream.sh');
+  fs.writeFileSync(stream, `${fs.readFileSync(REMOTE_REPORT_LIB, 'utf8')}\n${fs.readFileSync(REMOTE_HALF, 'utf8')}`);
+  const res = spawnSync('bash', [stream], {
     encoding: 'utf-8',
     env: {
       ...process.env,
@@ -171,6 +190,39 @@ describe('install-host-credentials-remote.sh writes the runtime credential chain
     expect(res.status).not.toBe(0);
     expect(res.stdout).not.toContain('go-live marker reads');
     expect(res.tmpLeft).toEqual([]);
+    // The caller lists the failure with the client's reason, because only marked
+    // lines reach its closing report.
+    expect(res.stderr).toMatch(new RegExp(`^${PROBLEM} ERROR .*footbag-staging-runtime.*AccessDenied`, 'm'));
+  });
+
+  it('reads the go-live marker on production through the new chain and marks nothing', () => {
+    const res = runBody({ groupGid: '1500', vars: { TARGET_ENV: 'production' } });
+    expect(res.status, res.stderr).toBe(0);
+    expect(res.stdout).toMatch(/go-live marker reads: false/);
+    expect(res.stderr).not.toContain(PROBLEM);
+  });
+
+  it('accepts a missing marker on staging, which carries none', () => {
+    // Defect caught: an environment that by design has no marker failing or
+    // warning on every install, which teaches the operator to ignore the line.
+    const res = runBody({ groupGid: '1500', marker: 'not-found' });
+    expect(res.status, res.stderr).toBe(0);
+    expect(res.stderr).not.toContain(PROBLEM);
+  });
+
+  it('fails the run when the marker read is refused, with the client\'s reason', () => {
+    // Defect caught: a denied read was printed as "absent; expected" and the
+    // run ended green, so the deploy later refused at its go-live guard with
+    // nothing pointing back at the credential.
+    const res = runBody({ groupGid: '1500', marker: 'denied' });
+    expect(res.status).toBe(1);
+    expect(res.stderr).toMatch(new RegExp(`^${PROBLEM} ERROR .*AccessDeniedException`, 'm'));
+  });
+
+  it('fails the run on production when the marker is missing, since its deploy refuses then', () => {
+    const res = runBody({ groupGid: '1500', marker: 'not-found', vars: { TARGET_ENV: 'production' } });
+    expect(res.status).toBe(1);
+    expect(res.stderr).toMatch(new RegExp(`^${PROBLEM} ERROR .*ParameterNotFound`, 'm'));
   });
 
   it('creates the group at the id the containers join when the host has none', () => {

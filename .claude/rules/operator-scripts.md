@@ -10,8 +10,9 @@ paths:
 
 Writing or changing anything under `scripts/` that an operator runs against a real environment:
 an install, an apply, an activation, a provisioning step, a diagnostic; and fixture stagers under
-`scripts/ci/`, which can meet real data on a workstation. Secret transport has its
-own rule; this one covers the shape of the script around it.
+`scripts/ci/`, which can meet real data on a workstation. Secret transport has its own rule,
+`.claude/rules/script-secret-safety.md`, and the closing report has its own,
+`.claude/rules/script-closing-report.md`; this one covers the shape of the script around them.
 
 ## What a script owns
 
@@ -54,8 +55,10 @@ mutating step in the middle of it. In practice:
   running, if what matters is that it is configured and doing its job.
 - **The closing report states every error and warning the run met**; the requirement is the
   script closing-report rule, `.claude/rules/script-closing-report.md`.
-- **Cleanup is on a trap**, covering EXIT, INT and TERM, so an interrupt leaves nothing behind
-  that a successful run would not have left.
+- **Cleanup is on a trap**, covering EXIT, INT, TERM and HUP, so an interrupt leaves nothing behind
+  that a successful run would not have left. On the closing-report library the library holds the
+  traps and the script registers its cleanup with `cr_cleanup`; an interrupt-only cleanup returns
+  unless `cr_exit_status` is 130, 143 or 129. A remote half keeps its own trap.
 
   One exception, and it is narrow: where whether to clean up depends on how far the run got, the
   trap covers INT and TERM only and the ordinary exits keep deciding for themselves. A blanket EXIT
@@ -124,6 +127,10 @@ A violation of any of these fails silently.
   filesystem the caller stood on, still finds no database to check for a lock, and still conditions its
   schema gates on a file it is now looking for in the wrong place — so the run proceeds without the gate
   that exists to stop it, and says nothing. Anchor the whole run, not the path it hands off.
+- A guard stays fail-closed wherever it is written or moved: refuse anything that is not exactly
+  the safe value (`!= "false"`, never `== "true"`). A failed read is never "absent": only the
+  tool's own not-found (`ParameterNotFound`, `NoSuchEntity`) is, and any other failure is an error
+  carrying the tool's message.
 - A named test seam (an environment variable replacing the external binary) for anything that
   reaches AWS or a host, and the script **says on stderr when the seam is in use**, because a
   stubbed run proves nothing about the estate.
@@ -178,7 +185,9 @@ mutating path end to end against stand-ins (a stub binary, a scratch database), 
 comes from a real run. The archive publisher, whose post-publish checks gate the CDN
 invalidation, and the pause levers, which report the switch they read back, are the worked
 examples. Nothing real is reached or mutated.
-Synchronous spawns use the shared bound from `tests/fixtures/spawnGuard.ts`.
+Synchronous spawns use the shared bound from `tests/fixtures/spawnGuard.ts`. A script that parses
+output a tool never promised to keep stable (a package manager's listing, an error message) is
+tested against a sample captured from a real run, with its capture date, under the testing rule.
 
 ## Do not
 

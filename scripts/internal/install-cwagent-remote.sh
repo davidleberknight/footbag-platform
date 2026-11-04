@@ -112,10 +112,6 @@ fi
 # left it behind with nothing watching. A per-function trap cannot coexist with a
 # file-level one; a registry can.
 CWAGENT_TMPS=()
-# The report library keeps its error tally in a temp file of its own, removed by
-# crr_finish; an interrupt never reaches crr_finish, so the file is registered
-# here too and the one handler removes it.
-[[ -n "${CRR_ERROR_FILE:-}" ]] && CWAGENT_TMPS+=("$CRR_ERROR_FILE")
 cwagent_remote_cleanup() {
   local t
   for t in "${CWAGENT_TMPS[@]+"${CWAGENT_TMPS[@]}"}"; do

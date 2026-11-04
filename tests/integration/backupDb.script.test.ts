@@ -139,6 +139,13 @@ beforeEach(() => {
     '  mkdir -p "$(dirname "$S3/$bucket/$key")"',
     '  cp "$S3/$source" "$S3/$bucket/$key"; exit $?',
     'fi',
+    // A metric put the role refuses. The script relays the CLI's last line and
+    // parses nothing in it, so this stands in for the shape without claiming it.
+    'if [[ "$svc" == "cloudwatch" && -n "${AWS_STUB_METRIC_FAILS:-}" ]]; then',
+    '  echo "" >&2',
+    '  echo "aws-stub: metric put refused for this case" >&2',
+    '  exit 254',
+    'fi',
     'exit 0',
   ].join('\n'));
   chmodSync(join(binDir, 'aws'), 0o755);
@@ -295,6 +302,60 @@ describe('thinning the snapshot history by age', () => {
     runBackup();
 
     expect(calls()).toContain('--metric-name BackupPromotionFailures --value 0');
+  });
+});
+
+describe('a metric the backup could not publish', () => {
+  // Defect caught: a refused metric put was discarded with its reason, so an
+  // alarm whose metric stopped arriving left the journal silent about why, while
+  // the backup itself stayed green.
+  it('logs which metric was lost and the CLI\'s reason, and still succeeds', () => {
+    const res = runBackup({ AWS_STUB_METRIC_FAILS: '1' });
+
+    expect(res.status, res.stderr).toBe(0);
+    expect(keysUnder('routine/')).toHaveLength(1);
+    expect(res.stderr).toMatch(
+      /metric BackupConsecutiveFailures was not published: aws-stub: metric put refused for this case/,
+    );
+  });
+
+  it('says nothing about lost metrics when every put succeeds', () => {
+    const res = runBackup();
+
+    expect(res.status).toBe(0);
+    expect(calls()).toContain('--metric-name BackupConsecutiveFailures --value 0');
+    expect(res.stderr).not.toContain('was not published');
+  });
+});
+
+describe('clearing the consecutive-failure counter after a success', () => {
+  // Defect caught: a counter the run could not reset was skipped silently, so
+  // the old count survived and the next single failure added to it, raising the
+  // failing-backup alarm early with nothing in the journal saying why.
+  it('logs the counter it could not reset, with the shell\'s reason, and still succeeds', () => {
+    const unwritable = join(workDir, 'no-such-dir', 'failures');
+
+    const res = runBackup({ FOOTBAG_BACKUP_FAIL_STATE: unwritable });
+
+    expect(res.status, res.stderr).toBe(0);
+    expect(keysUnder('routine/')).toHaveLength(1);
+    // The script's own journal line, the form every other problem it reports
+    // takes, rather than bash's bare redirect error naming a line number.
+    const reported = res.stderr.split('\n').find((l) => l.startsWith('backup-db: '));
+    expect(reported, res.stderr).toBeDefined();
+    expect(reported).toContain(unwritable);
+    expect(reported).toMatch(/No such file or directory/);
+  });
+
+  it('resets the counter and says nothing about it when the write succeeds', () => {
+    const counter = join(dbDir, '.backup-consecutive-failures');
+    writeFileSync(counter, '2\n');
+
+    const res = runBackup();
+
+    expect(res.status, res.stderr).toBe(0);
+    expect(readFileSync(counter, 'utf8').trim()).toBe('0');
+    expect(res.stderr).not.toContain(counter);
   });
 });
 

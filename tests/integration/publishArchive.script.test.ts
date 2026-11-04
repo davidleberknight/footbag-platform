@@ -73,7 +73,21 @@ interface RunOpts {
   noTerminal?: boolean;
   /** Replace the stand-in mirror verifier. */
   treeVerifier?: string;
+  /** The first `s3 ls` (the listing before the sync) fails with this message. */
+  firstListingFails?: string;
+  /** What the stand-in sync prints, and the status it exits with. */
+  sync?: { lines: string[]; status: number };
+  /** `s3api head-object` fails with this message. */
+  headObjectFails?: string;
+  /** A directory put at the front of PATH, for a stand-in system tool. */
+  pathFront?: string;
+  /** Lines of bash the stand-in edge proof runs after logging its call. */
+  edgeBody?: string[];
 }
+
+/** How the aws CLI reports a failed call on stderr. */
+const awsFailure = (code: string, op: string) =>
+  `An error occurred (${code}) when calling the ${op} operation: stub`;
 
 /**
  * One isolated case directory: its own stand-ins and call log, so cases cannot
@@ -92,8 +106,16 @@ function runPublish(args: string[], opts: RunOpts = {}) {
     '#!/usr/bin/env bash',
     'printf "%s\\n" "$*" >> "$STUB_AWS_CALLS"',
     'case "$1 $2" in',
-    '  "s3 ls") cat "$STUB_LISTING" ;;',
-    '  "s3 sync"|"s3 rm"|"s3api head-object") ;;',
+    opts.firstListingFails
+      ? `  "s3 ls") if [[ ! -e "${dir}/listed-once" ]]; then : > "${dir}/listed-once"; echo ${JSON.stringify(opts.firstListingFails)} >&2; exit 1; fi; cat "$STUB_LISTING" ;;`
+      : '  "s3 ls") cat "$STUB_LISTING" ;;',
+    opts.sync
+      ? `  "s3 sync") printf '%s\\n' ${opts.sync.lines.map((l) => JSON.stringify(l)).join(' ')}; exit ${opts.sync.status} ;;`
+      : '  "s3 sync") ;;',
+    opts.headObjectFails
+      ? `  "s3api head-object") echo ${JSON.stringify(opts.headObjectFails)} >&2; exit 254 ;;`
+      : '  "s3api head-object") ;;',
+    '  "s3 rm") ;;',
     '  "cloudfront create-invalidation") echo I-STUBINVALIDATION ;;',
     '  *) echo "unexpected aws invocation: $*" >&2; exit 64 ;;',
     'esac',
@@ -115,7 +137,7 @@ function runPublish(args: string[], opts: RunOpts = {}) {
   writeExec(tree, '#!/usr/bin/env bash\necho "  PASS  no excluded surface survived"\n');
 
   const edge = path.join(dir, 'verify-edge');
-  writeExec(edge, '#!/usr/bin/env bash\nprintf "%s\\n" "$*" >> "$STUB_EDGE_CALLS"\n');
+  writeExec(edge, ['#!/usr/bin/env bash', 'printf "%s\\n" "$*" >> "$STUB_EDGE_CALLS"', ...(opts.edgeBody ?? [])].join('\n') + '\n');
 
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
@@ -129,6 +151,7 @@ function runPublish(args: string[], opts: RunOpts = {}) {
     STUB_LISTING: listing,
     ...opts.env,
   };
+  if (opts.pathFront) env.PATH = `${opts.pathFront}:${env.PATH}`;
   const argv = [SCRIPT, '--signing-key', stubKey, '--mirror-root', mirror, ...args];
   const [command, full] = opts.noTerminal ? ['setsid', ['--wait', 'bash', ...argv]] : ['bash', argv];
   const res = spawnSync(command, full, { cwd: REPO_ROOT, env, encoding: 'utf-8', ...SPAWN_GUARD });
@@ -283,5 +306,106 @@ describe('publish-archive.sh: production is confirmed by a person at a terminal'
     expect(sync[0]).toContain('--dryrun');
     expect(res.awsCalls.filter((c) => c.startsWith('s3 rm'))).toEqual([]);
     expect(invalidated(res.awsCalls)).toBe(false);
+  });
+});
+
+/** The closing report's list of errors or warnings, so a case asserts what it lists. */
+function listed(stderr: string, heading: 'Errors' | 'Warnings'): string {
+  const at = stderr.search(new RegExp(`^${heading} \\(\\d+\\):$`, 'm'));
+  if (at === -1) return '';
+  const rest = stderr.slice(at);
+  const end = rest.slice(1).search(/^(Errors|Warnings|Proven:|Not proven:|No errors)/m);
+  return end === -1 ? rest : rest.slice(0, end + 1);
+}
+
+describe('publish-archive.sh: every problem the run met is in its closing report', () => {
+  // Defect caught: a failed listing before the sync is swallowed and reads as
+  // an empty bucket, so the dry run's reconciliation preview says nothing is
+  // stale when nothing was looked at.
+  it('lists a failed listing before the sync as a warning with the AWS message, and still publishes', () => {
+    const res = runPublish(['--target', 'staging'], {
+      listing: HEALTHY,
+      firstListingFails: awsFailure('AccessDenied', 'ListObjectsV2'),
+    });
+    expect(res.status, res.stderr).toBe(0);
+    expect(listed(res.stderr, 'Warnings')).toMatch(/bucket listing before the sync failed.*AccessDenied/);
+    expect(invalidated(res.awsCalls)).toBe(true);
+  });
+
+  it('does not preview a reconciliation from a listing that failed', () => {
+    const res = runPublish(['--target', 'staging', '--dry-run'], {
+      listing: HEALTHY,
+      firstListingFails: awsFailure('AccessDenied', 'ListObjectsV2'),
+    });
+    expect(res.status, res.stderr).toBe(0);
+    expect(res.stdout).not.toMatch(/Reconciliation: nothing stale/);
+    expect(listed(res.stderr, 'Warnings')).toMatch(/AccessDenied/);
+  });
+
+  // Defect caught: the terminal shows only the video progress, so a failed
+  // upload the sync printed is never seen and the publish goes on to invalidate.
+  it('lists a failed upload the sync printed and withholds the invalidation', () => {
+    const res = runPublish(['--target', 'staging'], {
+      listing: HEALTHY,
+      sync: { lines: ['upload failed: ./index.html to s3://footbag-archive-stub/index.html stub-upload-marker'], status: 1 },
+    });
+    expect(res.status).toBe(1);
+    expect(listed(res.stderr, 'Errors')).toMatch(/s3 sync: upload failed: .*stub-upload-marker/);
+    expect(invalidated(res.awsCalls)).toBe(false);
+  });
+
+  it('lists a file the sync skipped with a warning, and still publishes', () => {
+    const res = runPublish(['--target', 'staging'], {
+      listing: HEALTHY,
+      sync: { lines: ['warning: Skipping file ./photo.jpg. File does not exist.'], status: 0 },
+    });
+    expect(res.status, res.stderr).toBe(0);
+    expect(listed(res.stderr, 'Warnings')).toMatch(/s3 sync: warning: Skipping file/);
+  });
+
+  // Defect caught: an access denial on the post-publish read is reported as a
+  // missing key with the reason thrown away.
+  it('names the AWS message when a post-publish key read fails, and withholds the invalidation', () => {
+    const res = runPublish(['--target', 'staging'], {
+      listing: HEALTHY,
+      headObjectFails: awsFailure('403', 'HeadObject'),
+    });
+    expect(res.status).toBe(1);
+    expect(listed(res.stderr, 'Errors')).toMatch(/expected key missing after sync: index\.html: .*\(403\)/);
+    expect(invalidated(res.awsCalls)).toBe(false);
+  });
+
+  // Defect caught: the edge proof's own warnings, such as a probe object it
+  // could not remove from the bucket, print in a report of their own that
+  // scrolls past, and the publish ends saying nothing about them.
+  it("lists the edge proof's warnings in the publisher's own closing report", () => {
+    const probe = 's3://footbag-archive-stub/edge-proof/index.html';
+    const res = runPublish(['--target', 'staging'], {
+      listing: HEALTHY,
+      edgeBody: [
+        `source ${JSON.stringify(path.join(REPO_ROOT, 'scripts', 'lib', 'closing-report.sh'))}`,
+        `cr_warn "the probe object ${probe} could not be removed"`,
+        'cr_finish',
+      ],
+    });
+    expect(res.status, res.stderr).toBe(0);
+    expect(listed(res.stderr, 'Warnings')).toContain(probe);
+  });
+
+  // Defect caught: a sanitation check whose grep could not read the tree is
+  // read as having found nothing, so the gate passes a capture it never looked at.
+  it('refuses before the sync when a sanitation check could not read the tree', () => {
+    const bin = path.join(root, 'grep-unreadable-bin');
+    fs.mkdirSync(bin, { recursive: true });
+    const realGrep = ['/usr/bin/grep', '/bin/grep'].find((p) => fs.existsSync(p))!;
+    writeExec(path.join(bin, 'grep'), [
+      '#!/usr/bin/env bash',
+      'if [[ " $* " == *class=\\"admin\\"* ]]; then echo "grep: page.html: Permission denied" >&2; exit 2; fi',
+      `exec ${realGrep} "$@"`,
+    ].join('\n'));
+    const res = runPublish(['--target', 'staging'], { listing: HEALTHY, pathFront: bin });
+    expect(res.status).toBe(1);
+    expect(listed(res.stderr, 'Errors')).toMatch(/could not read the tree.*Permission denied/);
+    expect(res.awsCalls.filter((c) => c.startsWith('s3 sync'))).toEqual([]);
   });
 });

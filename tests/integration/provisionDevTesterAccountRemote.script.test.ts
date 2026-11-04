@@ -37,6 +37,7 @@ import { createScratchDir } from '../fixtures/scratchDir';
 
 const REMOTE_HALF = join(process.cwd(), 'scripts/internal/provision-dev-tester-account-remote.sh');
 const ROOT_GUARD = 'if [[ $EUID -ne 0 ]]; then';
+const REMOTE_REPORT_LIB = join(process.cwd(), 'scripts/lib/closing-report-remote.sh');
 const LEAVER = 'leaver_one';
 
 let host: string;
@@ -192,7 +193,9 @@ beforeEach(() => {
   const source = readFileSync(REMOTE_HALF, 'utf-8');
   expect(source.split(ROOT_GUARD).length - 1).toBe(1);
   script = join(host, 'remote.sh');
-  writeFileSync(script, source.replace(ROOT_GUARD, 'if false; then'));
+  // The report library travels ahead of the half on the real stream, so it
+  // leads the script here too.
+  writeFileSync(script, `${readFileSync(REMOTE_REPORT_LIB, 'utf-8')}\n${source.replace(ROOT_GUARD, 'if false; then')}`);
   keys.leaver = makeKey('leaver');
   keys.other = makeKey('other');
 });
@@ -714,5 +717,69 @@ describe('the offboard removes an onboarding they never accepted', () => {
     expect(r.stdout).toContain('OK   no onboarding delivery left in their home');
     expect(existsSync(join(home, DELIVERY))).toBe(false);
     expect(readFileSync(join(home, 'notes.txt'), 'utf-8')).toBe('their own file\n');
+  });
+});
+
+/**
+ * What the half reports to its caller. Every problem it meets is one marked
+ * line on stderr, which the caller folds into its closing report; a warning
+ * printed any other way is read past on the operator's machine.
+ */
+describe('the half reports its problems as marked lines', () => {
+  const SENTINEL = '---FOOTBAG-PROBLEM---';
+
+  /** Replaces one stand-in tool for this case only. */
+  function stub(name: string, body: string): void {
+    const path = join(host, 'bin', name);
+    writeFileSync(path, `#!/usr/bin/env bash\nset -u\n${body}\n`);
+    chmodSync(path, 0o755);
+  }
+
+  it('marks an unreadable sshd config and a missing docker group as warnings, carrying sshd\'s own message', () => {
+    // Before, each was printed as plain text and the run went on to report the
+    // account ready, so the caller's closing report said nothing about the
+    // AllowUsers check that never ran.
+    addAccount('footbag', ['other']);
+    // The sudoers rule this host carries, answered here because the real check
+    // reads /etc; every other grep is the real one.
+    stub('grep', '[[ "${1:-}" == "-Rqs" ]] && exit 0\nexec /usr/bin/grep "$@"');
+    stub('sshd', 'echo "sshd: no hostkeys available -- exiting." >&2; exit 1');
+    stub('useradd', 'exit 0');
+
+    const r = runProvision('create', 'newcomer', keys.leaver);
+
+    expect(r.stderr).toContain(`${SENTINEL} WARN could not read the effective sshd config`);
+    expect(r.stderr).toMatch(/WARN could not read the effective sshd config.*no hostkeys available/);
+    expect(r.stderr).toContain(`${SENTINEL} WARN no docker group on this host`);
+  });
+
+  it('fails, and never says the account can no longer log in, when the password did not lock', () => {
+    // usermod -L that reported success without locking: the proof must refuse,
+    // not print the line an operator records the departure on.
+    addAccount('footbag', ['other']);
+    addAccount(LEAVER, ['leaver']);
+    addAccount('other_op', ['other']);
+    stub('usermod', 'case "$1" in\n  -L) exit 0 ;;\n  -s) awk -F: -v OFS=: -v n="$4" -v s="$2" \'$1==n{$7=s}1\' "$FAKE/passwd" > "$FAKE/passwd.new" && mv "$FAKE/passwd.new" "$FAKE/passwd" ;;\n  *) exit 2 ;;\nesac');
+
+    const r = runOffboard('other_op');
+
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain(`${SENTINEL} ERROR FAIL password state is 'P', expected locked`);
+    expect(r.stdout).not.toContain('can no longer log in');
+  });
+
+  it('marks a lock that failed as a warning and the failed proof as an error, and exits non-zero', () => {
+    // chage failing was swallowed with || true; the proof caught the result,
+    // but as an unmarked FAIL line the caller could not list.
+    addAccount('footbag', ['other']);
+    addAccount(LEAVER, ['leaver']);
+    addAccount('other_op', ['other']);
+    stub('chage', 'case "$1" in\n  -E) echo "chage: cannot lock /etc/shadow; try again later." >&2; exit 1 ;;\n  -l) echo "Account expires : never" ;;\nesac');
+
+    const r = runOffboard('other_op');
+
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain(`${SENTINEL} WARN chage -E 0 could not expire ${LEAVER}`);
+    expect(r.stderr).toContain(`${SENTINEL} ERROR FAIL account expiry is 'never'`);
   });
 });

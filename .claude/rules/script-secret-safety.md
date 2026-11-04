@@ -32,6 +32,14 @@ A secret must never appear in any process's argv on any host: `ps -ef` (any read
 - Pipe `sudo -S` into a stdin-consuming file writer (`tee`, `cat`, `dd`): if sudo consumes nothing, the password becomes the first line of the target file. Write the file from inside the remote half instead, through a root-side restricted temp file promoted with `install` (the `install_via_tmp` shape in `scripts/internal/install-cwagent-remote.sh`). `sudo -k -S -p "" bash` is not this case; it is the required form.
 - Reach a host's privileged state with `ssh -t` and an interactive sudo prompt. A TTY prompt cannot be driven by a test, it makes the operator hold a step in their head, and a tree carrying both forms drifts back to the weaker one. Every privileged remote step goes through the wire pattern below. This covers comments as well as code, because a comment describing the interactive flow gets cited back later as though it were the rule.
 - Write a secret to a world-readable file, or leave a keys file un-shredded.
+- Wrap a command whose output can carry a secret (a privileged ssh session, a Terraform plan,
+  anything that echoes stdin) in `cr_run` or `cr_tolerate`, which keep the whole output in a log
+  on disk. Run it through `cr_run_marked` (or `cr_tolerate_marked`) in
+  `scripts/lib/closing-report.sh`, which writes down only the lines the half marked, or run it
+  unwrapped.
+- Put a secret in a `cr_error` or `cr_warn` message, a label or a registered cleanup command.
+- Hand a password to a child script in argv or a here-string; send it on stdin by a pipe or a
+  process substitution.
 - Commit an archive of any kind. Every secret control here reads text, including the
   gitleaks history scan, so an archive is a container none of them can see into. A saved
   Terraform plan is a zip and can carry live secrets past every text scan.
@@ -48,7 +56,7 @@ Every privileged remote step is one ssh session carrying one stream: the sudo pa
 {
   printf '%s\n' "$SUDO_PASS"        # line 1, consumed by sudo -S
   printf 'VAR=%q\n' "$VALUE"        # printf is a builtin: no fork, no argv
-  cat "$REMOTE_HALF"                # scripts/internal/<name>-remote.sh
+  cat "$REPORT_LIB" "$REMOTE_HALF"  # scripts/lib/closing-report-remote.sh, then the half
 } | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
 ```
 
