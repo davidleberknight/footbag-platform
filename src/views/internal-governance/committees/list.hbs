@@ -1,0 +1,50 @@
+{{! /internal-governance/committees — throwaway legacy governance review screen }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p class="hero-subtitle">{{page.intro}}</p>
+    <div class="hero-stats">
+      <span>{{content.rowTotal}} committees</span>
+      <span>{{content.shownTotal}} shown</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section class="content-section">
+    <form method="GET" action="/internal-governance/committees" class="filter-bar">
+      <label>
+        Search
+        <input type="text" name="search" value="{{content.filters.search}}" placeholder="committee name">
+      </label>
+      <label>
+        <input type="checkbox" name="validOnly" value="1"{{#if content.filters.validOnly}} checked{{/if}}>
+        Valid only
+      </label>
+      <button type="submit">Filter</button>
+    </form>
+
+    <div class="records-table-wrap">
+      <table class="records-table">
+        <thead>
+          <tr>
+            <th>Name</th><th>Keyword</th><th>Type</th><th>Valid</th><th>Public</th><th>Official</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.rows}}
+          <tr>
+            <td><a href="{{detailHref}}">{{name}}</a></td>
+            <td>{{keyword}}</td>
+            <td>{{type}}</td>
+            <td>{{#if valid}}yes{{else}}no{{/if}}</td>
+            <td>{{#if isPublic}}yes{{else}}no{{/if}}</td>
+            <td>{{#if isOfficial}}yes{{else}}no{{/if}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

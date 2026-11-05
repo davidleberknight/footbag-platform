@@ -1,0 +1,31 @@
+{{! /internal-governance/elections — throwaway legacy governance review screen }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p class="hero-subtitle">{{page.intro}}</p>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section class="content-section">
+    <div class="records-table-wrap">
+      <table class="records-table">
+        <thead>
+          <tr><th>Title</th><th>Committee id</th><th>Visible</th><th>Starts</th><th>Deadline</th></tr>
+        </thead>
+        <tbody>
+          {{#each content.rows}}
+          <tr>
+            <td><a href="{{detailHref}}">{{title}}</a></td>
+            <td>{{committeeId}}</td>
+            <td>{{#if visible}}yes{{else}}no{{/if}}</td>
+            <td>{{startsAt}}</td>
+            <td>{{deadlineAt}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

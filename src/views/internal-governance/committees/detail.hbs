@@ -1,0 +1,77 @@
+{{! /internal-governance/committees/:id — throwaway legacy governance review screen }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section class="content-section">
+    <h2>Committee</h2>
+    <dl class="observed-decision-facts">
+      <dt>Keyword</dt><dd>{{content.committee.keyword}}</dd>
+      <dt>Type</dt><dd>{{content.committee.type}}</dd>
+      <dt>Valid</dt><dd>{{#if content.committee.valid}}yes{{else}}no{{/if}}</dd>
+      <dt>Public</dt><dd>{{#if content.committee.isPublic}}yes{{else}}no{{/if}}</dd>
+      <dt>Official</dt><dd>{{#if content.committee.isOfficial}}yes{{else}}no{{/if}}</dd>
+      <dt>Owner id</dt><dd>{{content.committee.ownerId}}</dd>
+      <dt>Subcommittee of</dt><dd>{{content.committee.subcommitteeOfId}}</dd>
+      <dt>Created</dt><dd>{{content.committee.createdAt}}</dd>
+      <dt>Modified</dt><dd>{{content.committee.modifiedAt}}</dd>
+    </dl>
+    {{#if content.committee.charter}}
+    <p class="text-muted">{{content.committee.charter}}</p>
+    {{/if}}
+  </section>
+
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Roster</h2>
+      <span class="section-count">{{content.roster.length}}</span>
+    </div>
+    <div class="records-table-wrap">
+      <table class="records-table">
+        <thead>
+          <tr><th>Name</th><th>Title</th><th>Admin</th><th>Voting</th><th>Privs</th></tr>
+        </thead>
+        <tbody>
+          {{#each content.roster}}
+          <tr>
+            <td>{{displayName}}</td>
+            <td>{{title}}</td>
+            <td>{{#if isAdmin}}yes{{else}}no{{/if}}</td>
+            <td>{{#if isVoting}}yes{{else}}no{{/if}}</td>
+            <td>{{privs}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Files</h2>
+      <span class="section-count">{{content.files.length}}</span>
+    </div>
+    <div class="records-table-wrap">
+      <table class="records-table">
+        <thead>
+          <tr><th>File</th><th>Description</th><th>Visible</th><th>Created</th><th>Custody</th></tr>
+        </thead>
+        <tbody>
+          {{#each content.files}}
+          <tr{{#if committeeScoped}} class="severity-high"{{/if}}>
+            <td>{{fileName}}</td>
+            <td>{{description}}</td>
+            <td>{{#if visible}}yes{{else}}no{{/if}}</td>
+            <td>{{createdAt}}</td>
+            <td>{{#if committeeScoped}}committee-scoped, held in custody{{else}}(none){{/if}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
