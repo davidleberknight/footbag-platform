@@ -183,6 +183,7 @@ import {
 import { emailService } from './emailService';
 import { whatsappDigits } from './memberService';
 import { mediaService, type EntityHashtag, type EntityMediaBlock } from './mediaService';
+import { personHref } from './personLink';
 import { logger } from '../config/logger';
 import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
@@ -663,7 +664,8 @@ export type ClubLeaderStatus = 'provisional' | 'claimed' | 'verified';
 // is what evolves. status drives both badge text and the showContact gate;
 // rendering only consumes pre-shaped fields.
 export interface ClubLeader {
-  personId?: string;            // historical_persons.person_id; enables /history/<id> link
+  personId?: string;            // historical_persons.person_id; matches a leader to its roster row
+  href?: string;                // the record's page; absent when the record holds only a name
   claimedMemberId?: string;     // members.id once the claim flow links a member; absent until then
   displayName: string;          // canonical person_name from historical_persons
   role: 'leader' | 'co-leader';
@@ -791,9 +793,9 @@ export interface PublicClubDetail extends PublicClubSummary {
   // "I left that field alone" indistinguishable from "clear the URL".
   editForm: ClubEditForm | null;
   joinHref: string | null;
-  // The club's hashtag under its title, linked to its gallery when media
-  // carries it, and the newest such media with the button to the whole
-  // gallery (null when none does, which hides the block).
+  // The club's hashtag for the page's media line, linked to its gallery when
+  // media carries it, and the label of the gallery link beside it (null when
+  // no media carries it, which leaves the hashtag a plain token).
   hashtag: EntityHashtag;
   media: EntityMediaBlock | null;
   // An inactive club is hidden from the directory but still reachable by direct
@@ -893,6 +895,8 @@ function toPublicClubSummary(
 // (toClubLeader / toClubLeaderSummary) decide displayName + linkability.
 interface BootstrapLeaderRow {
   person_id: string | null;
+  // 1 when the historical record has a page to link; the country summary's bulk read omits it.
+  person_has_page?: number;
   hp_person_name: string | null;
   lm_real_name: string | null;
   lm_display_name: string | null;
@@ -933,7 +937,7 @@ function toClubLeaderSummary(row: BootstrapLeaderRowWithClubId): ClubLeaderSumma
 // values. New statuses (e.g. 'verified') only require a new branch here.
 //
 // Identity completeness is a service concern, not a template concern: the
-// template branches on personId presence (linkable to /history/<id>) but
+// template branches on href presence (a record with a page to link) but
 // never infers identity completeness from any other field.
 function toClubLeader(row: BootstrapLeaderRow): ClubLeader {
   // Privacy gate: provisional leaders never expose contact email regardless
@@ -958,6 +962,8 @@ function toClubLeader(row: BootstrapLeaderRow): ClubLeader {
     showWhatsapp: false,
   };
   if (row.person_id)        leader.personId        = row.person_id;
+  const href = row.person_has_page === 1 ? personHref(null, row.person_id) : null;
+  if (href)                 leader.href            = href;
   if (row.claimed_member_id) leader.claimedMemberId = row.claimed_member_id;
   if (badgeLabel) leader.badgeLabel = badgeLabel;
   if (badgeNote)  leader.badgeNote  = badgeNote;
@@ -1065,6 +1071,7 @@ function toPublicClubDetail(
 // and every row feeds the member roster (toClubMemberSummary).
 interface AffiliationRow {
   person_id: string | null;
+  person_has_page: number;    // 1 when the historical record has a page to link
   person_name: string;
   inferred_role: 'member' | 'contact' | 'leader' | 'co-leader';
   resolution_status: 'confirmed_current' | 'promoted' | 'pending';
@@ -1087,6 +1094,7 @@ interface AffiliationRow {
 // imported row only reaches one through the historical person it was matched to.
 interface LiveMemberRow {
   person_id: string | null;
+  person_has_page: number;
   member_id: string;
   person_name: string;
   member_slug: string | null;
@@ -1117,8 +1125,9 @@ function toClubMemberSummary(row: AffiliationRow): ClubMemberSummary {
   let href: string | null = null;
   if (!isUnconfirmed && row.member_slug) {
     href = `/members/${row.member_slug}`;
-  } else if (row.person_id) {
-    href = `/history/${row.person_id}`;
+  } else if (row.person_has_page === 1) {
+    // A record holding only a name has no page, so its name shows unlinked.
+    href = personHref(null, row.person_id);
   }
   // The roster renders only for member viewers (gated by the caller), so
   // an opted-in member's gender is shown here; 'undisclosed' publishes nothing.
@@ -1166,6 +1175,8 @@ function affiliationRowToClubLeader(row: AffiliationRow): ClubLeader {
     showWhatsapp: false,
   };
   if (row.person_id) leader.personId = row.person_id;
+  const href = row.person_has_page === 1 ? personHref(null, row.person_id) : null;
+  if (href) leader.href = href;
   return leader;
 }
 
@@ -1589,10 +1600,7 @@ export class ClubService {
           title: `Clubs in ${country}`,
         },
         navigation: {
-          breadcrumbs: [
-            { label: 'Clubs', href: '/clubs' },
-            { label: country },
-          ],
+          contextLinks: [{ label: 'Back to Clubs', href: '/clubs' }],
         },
         content: {
           country,
@@ -1813,9 +1821,6 @@ export class ClubService {
             { label: 'Clubs', href: '/clubs' },
             { label: club.country, href: `/clubs/${club.countrySlug}` },
             { label: club.name },
-          ],
-          contextLinks: [
-            { label: `All clubs in ${club.country}`, href: `/clubs/${club.countrySlug}` },
           ],
         },
         content: { club, actionNotice: opts?.notice ?? null },

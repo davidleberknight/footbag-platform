@@ -24,11 +24,19 @@ const { dbPath } = setTestEnv('3073');
 let page: (path: string) => ReturnType<ReturnType<typeof cachedGet>>;
 const mediaIds: string[] = [];
 
-// The block runs from its id to the end of its section's own wrapper, so an
-// item tile rendered anywhere inside it falls within the slice.
+// The media line runs from its id to the end of its own paragraph, so an item
+// tile rendered inside it falls within the slice.
 function mediaBlock(html: string): string {
   const start = html.indexOf('id="event-media"');
-  return start === -1 ? '' : html.slice(start, html.indexOf('</div>', start));
+  return start === -1 ? '' : html.slice(start, html.indexOf('</p>', start));
+}
+
+// The hero runs from its own opening to the page body, the first wrapper after
+// it (the site header opens a wrapper of its own before the hero).
+function hero(html: string): string {
+  const start = html.indexOf('<div class="hero');
+  expect(start).toBeGreaterThan(-1);
+  return html.slice(start, html.indexOf('<div class="wrapper">', start));
 }
 
 beforeAll(async () => {
@@ -68,26 +76,29 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /events/:eventKey -- media block', () => {
-  it('shows only the gallery button and a linked hashtag when media carries the hashtag', async () => {
-    // Defect caught: an event with media gives no way into its gallery, or
-    // fills the event page with individual items that belong in the gallery.
+  it('shows a linked hashtag and the gallery link in the media line, and no items, when media carries the hashtag', async () => {
+    // Defect caught: an event with media gives no way into its gallery, the
+    // hashtag and the gallery link disagree, the hashtag sits in the hero, or
+    // the page fills with individual items that belong in the gallery.
     const res = await page('/events/event_2025_testopen');
     expect(res.status).toBe(200);
     const block = mediaBlock(res.text);
-    expect(block).toContain('href="/media/browse?context&#x3D;event_2025_testopen"');
+    expect(block).toContain(
+      '<a class="hashtag hashtag--media" href="/media/browse?context&#x3D;event_2025_testopen">#event_2025_testopen</a>');
+    expect(block).toContain('<a class="action-link" href="/media/browse?context&#x3D;event_2025_testopen">');
+    expect(hero(res.text)).not.toContain('#event_2025_testopen');
     expect(mediaIds.filter((id) => res.text.includes(id))).toEqual([]);
     expect(block).not.toContain('gallery-tile');
-    expect(res.text).toMatch(
-      /<p class="hero-hashtag"><a href="\/media\/browse\?context&#x3D;event_2025_testopen">#event_2025_testopen<\/a><\/p>/);
   });
 
-  it('shows no block and a plain hashtag when no media carries it', async () => {
-    // Defect caught: a gallery button leading to an empty gallery, or the
+  it('shows the hashtag as a plain token and no gallery link when no media carries it', async () => {
+    // Defect caught: a gallery link leading to an empty gallery, or the
     // hashtag a visitor should tag with missing from the page.
     const res = await page('/events/event_2025_nomedia');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('id="event-media"');
     expect(res.text).not.toContain('/media/browse?context&#x3D;event_2025_nomedia');
-    expect(res.text).toContain('<p class="hero-hashtag">#event_2025_nomedia</p>');
+    expect(res.text).toContain('<span class="hashtag">#event_2025_nomedia</span>');
+    expect(hero(res.text)).not.toContain('#event_2025_nomedia');
   });
 });

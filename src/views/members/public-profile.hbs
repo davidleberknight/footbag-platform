@@ -3,6 +3,7 @@
 <div class="wrapper">
   <section>
     {{> outcome-notice text=content.vouchNotice.text tone=content.vouchNotice.tone}}
+    {{> player-facts heroData=content.heroData}}
     {{#if content.avatarThumbUrl}}
     <div class="text-center mb-4">
       <img src="{{content.avatarThumbUrl}}" alt="{{content.displayName}}" class="profile-avatar-img" />

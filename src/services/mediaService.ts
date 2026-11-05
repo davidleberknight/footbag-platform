@@ -15,7 +15,9 @@
  *     with at least one matching item, newest matching upload first, paged
  *     with `?page=` at the shared page size, excluding the auto-default
  *     Personal Gallery; a page past the last is not found); the hub's Member
- *     galleries card appears on the same has-items rule
+ *     galleries card appears on the same has-items rule. Every gallery's item
+ *     count and newest matching upload are read in one statement
+ *     (`listMemberOwnedNamedGallerySummaries`), never per gallery
  *   - Profile Media section view-model (getMemberProfileMedia, consumed by
  *     memberService): the member's named galleries as link cards plus a view-all
  *     link, not an inline thumbnail grid
@@ -29,18 +31,20 @@
  *     the link to the ad-hoc gallery of that page's one hashtag, locking the
  *     hashtag as the gallery's context, decided by a one-row existence read
  *     with no total and no items shown on the page; null when nothing carries it
- *   - /media/:galleryId named-gallery page read (tag-AND membership). Its editable
+ *   - /media/:galleryId named-gallery page read (tag-AND membership), paged
+ *     over its whole matching set with `?page=` like browse. Its editable
  *     filter prefills the gallery's topic criteria as removable include chips and
- *     submits to /media/browse, so refining or broadening the initial set (and
- *     paging past the render cap) happens on the dynamic surface; the owner
- *     `#by_*` criterion stays a locked context tag.
+ *     submits to /media/browse, so refining or broadening the initial set
+ *     happens on the dynamic surface; the owner `#by_*` criterion stays a
+ *     locked context tag.
  *   - /media/:galleryId/:mediaId named-gallery item-detail read (one item with
- *     prev/next over the gallery's ordered set and a back link to the gallery)
+ *     prev/next over the gallery's whole ordered set and a back link to the
+ *     gallery)
  *   - /media/item/:mediaId standalone item-detail read: the same viewer reached
  *     from any tag-query surface (browse, profile, teaching). The `?tag=` /
  *     `?exclude=` / `?sort=` context rebuilds the ordered set so prev/next walk
- *     it; with no resolvable context (or an item past the render cap) it renders
- *     a single item with no pager and a `?back=` return link.
+ *     it; with no resolvable context (or an item no longer in the set) it
+ *     renders a single item with no pager and a `?back=` return link.
  *   - Item-detail prev/next wrap modulo the ordered set (next past the end
  *     returns to the first item, previous before the start to the last); a
  *     one-item set hides the pager. Every list surface (named gallery, browse,
@@ -66,8 +70,15 @@
  *   - Read-only: no persistence writes, no audit rows, no outbox enqueues.
  *   - Named-gallery and browse page reads filter `moderation_status = 'active'` and
  *     `is_avatar = 0`; default ordering follows `member_galleries.sort_order`.
- *   - Named-gallery render is capped at `GALLERY_ITEMS_QUERY_CAP` rows with a
- *     pre-shaped truncation notice when the matching set exceeds it.
+ *   - Every paged media surface (browse results, named gallery, member-galleries
+ *     list) reads its page size from the `media_page_size` config key, shapes
+ *     one pagination block (numbered links with first, last and gaps, "Page X
+ *     of Y") through `shapePagination`, and treats a page past the last as not
+ *     found. Browse results and named galleries add the large-result notice
+ *     above the grid whenever the set spans more than one page, and from page 2
+ *     the tab title ends "(page X of Y)". Item-detail prev/next locate the item
+ *     in the whole ordered set (`queryGalleryItemNeighbours`), never in a capped
+ *     window.
  *   - `/media/browse` accepts repeatable `?tag=` and `?exclude=`, normalized to
  *     `#<lowercase>`, deduplicated; include wins over same-token exclude. Mode is
  *     `browse` (form pane only) when no token resolves, otherwise `results`
@@ -132,7 +143,6 @@
 import {
   CuratorGalleryRow,
   FhNamedGalleryTagRow,
-  GALLERY_ITEMS_QUERY_CAP,
   GallerySortOrder,
   countGalleryItemsByCriteria,
   countGalleryItemsByTagGroups,
@@ -143,6 +153,7 @@ import {
   queryGalleryItemsByCriteria,
   queryGalleryItemsByTagGroups,
   queryGalleryItemsByCriteriaGrouped,
+  queryGalleryItemNeighbours,
   queryRecentCommunityMedia,
   queryMemberDisplayNamesBySlugs,
   mediaPlayerCredits,
@@ -150,7 +161,6 @@ import {
   queryStyleTermTagIds,
   queryTagIdsByNormalized,
   resolveTrickTags,
-  summarizeGalleryItemsByCriteria,
 } from '../db/db';
 import { tierBadgeShort } from './membershipTieringService';
 import { CANONICAL_SETS, resolveCanonicalSetAlias } from '../content/freestyleCanonicalSets';
@@ -158,6 +168,7 @@ import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { config } from '../config/env';
 import { isSafePath } from '../lib/safePath';
 import { runSqliteRead } from './sqliteRetry';
+import { readIntConfig } from './configReader';
 import { hasTier1Benefits } from './tierPredicates';
 import { buildTierBenefitNotice } from './tierBenefitNotice';
 import { NotFoundError } from './serviceErrors';
@@ -175,7 +186,98 @@ import {
 } from './hashtagDiscoveryService';
 import { FREESTYLE_MEDIA_STRUCTURE } from '../content/freestyleMedia';
 
-export const PAGE_SIZE = 24;
+// Items per page on every paged media surface, an administrator-tunable value
+// kept inside a range the grid lays out well; out-of-range values fall back to
+// the nearest bound.
+export const DEFAULT_MEDIA_PAGE_SIZE = 24;
+const MIN_MEDIA_PAGE_SIZE = 12;
+const MAX_MEDIA_PAGE_SIZE = 96;
+
+export function mediaPageSize(): number {
+  const n = readIntConfig('media_page_size', DEFAULT_MEDIA_PAGE_SIZE);
+  return Math.min(MAX_MEDIA_PAGE_SIZE, Math.max(MIN_MEDIA_PAGE_SIZE, n));
+}
+
+// One entry in the numbered pager: a page link, the current page, or a gap
+// standing for skipped pages. `isNeighbour` marks the pages beside the current
+// one, which a phone-width screen drops to keep the row on one line.
+export interface PageLink {
+  number: number | null;
+  href: string | null;
+  isCurrent: boolean;
+  isGap: boolean;
+  isNeighbour: boolean;
+}
+
+// The pager shows the first page, the last page, the current page and the pages on
+// either side of it, with a gap wherever pages are skipped.
+function buildPageLinks(page: number, totalPages: number, href: (p: number) => string): PageLink[] {
+  const shown = new Set<number>([1, totalPages, page, page - 1, page + 1]);
+  const numbers = [...shown].filter((p) => p >= 1 && p <= totalPages).sort((a, b) => a - b);
+  const links: PageLink[] = [];
+  let previous = 0;
+  for (const p of numbers) {
+    if (p - previous > 1) {
+      links.push({ number: null, href: null, isCurrent: false, isGap: true, isNeighbour: false });
+    }
+    const isCurrent = p === page;
+    links.push({
+      number: p,
+      href: isCurrent ? null : href(p),
+      isCurrent,
+      isGap: false,
+      isNeighbour: !isCurrent && p !== 1 && p !== totalPages,
+    });
+    previous = p;
+  }
+  return links;
+}
+
+// Resolves the requested page against the set size: a missing or malformed
+// page is the first, and a page past the last is not found, so a stale or
+// hand-edited link never renders a misleading empty set.
+function resolvePage(rawPage: unknown, total: number, pageSize: number): { page: number; totalPages: number } {
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const page = sanitizePage(rawPage);
+  if (page > totalPages) throw new NotFoundError(`media page ${page} out of range`);
+  return { page, totalPages };
+}
+
+function shapePagination(args: {
+  page: number;
+  totalPages: number;
+  pageSize: number;
+  total: number;
+  href: (p: number) => string;
+  withLargeSetNotice: boolean;
+}): GalleryPagination {
+  const { page, totalPages, pageSize, total, href } = args;
+  const hasPrev = page > 1;
+  const hasNext = page < totalPages;
+  const isMultiPage = totalPages > 1;
+  return {
+    page,
+    pageSize,
+    total,
+    totalPages,
+    hasNext,
+    hasPrev,
+    ...(hasPrev ? { prevHref: href(page - 1) } : {}),
+    ...(hasNext ? { nextHref: href(page + 1) } : {}),
+    isMultiPage,
+    pageLinks: isMultiPage ? buildPageLinks(page, totalPages, href) : [],
+    statusLabel: `Page ${page} of ${totalPages}`,
+    largeSetNotice: args.withLargeSetNotice && isMultiPage
+      ? `This is a large result set: ${total.toLocaleString('en-US')} items on ${totalPages} pages. To narrow it, add more hashtags to include or exclude in the hashtag filters.`
+      : null,
+  };
+}
+
+// The tab title of a paged page: unchanged on the first page, and from page 2
+// carrying the position so a screen-reader user knows the page changed.
+function pagedTitle(title: string, pagination: GalleryPagination): string {
+  return pagination.page > 1 ? `${title} (page ${pagination.page} of ${pagination.totalPages})` : title;
+}
 
 // Chip-shape for tag rendering: each tag display string carries an
 // optional href. `#by_<slug>` chips render the member's display name
@@ -311,11 +413,14 @@ function resolvePlayerCredits(tagDisplays: string[], viewer: ViewerContext): Tag
     const matches = persons.get(slug) ?? [];
     if (matches.length !== 1) continue;
     const p = matches[0];
+    // A record holding only a name has no page, so the credit leads to the
+    // media featuring the player instead, as a member credit does when signed out.
+    const pageHref = p.has_page === 1
+      ? (viewer.authenticated ? personHref(p.linked_member_slug, p.person_id) : personHref(null, p.person_id))
+      : null;
     credits.push({
       display: p.person_name,
-      href: viewer.authenticated
-        ? personHref(p.linked_member_slug, p.person_id)
-        : personHref(null, p.person_id),
+      href: pageHref ?? tagToBrowseHref(tag),
     });
   }
   return credits;
@@ -484,18 +589,19 @@ export interface GalleryItem {
   captionMask?: boolean;
 }
 
-// The media block on an event, club or player page: one button to the gallery
-// of the media carrying that page's hashtag. The page shows no items itself;
-// the gallery holds them. The owning service names the button for the kind of
-// gallery it opens.
+// The gallery link of an event, club or player page: one link to the gallery
+// of the media carrying that page's hashtag (in the media line on an event or
+// club page, in the media block on a person's page). The page shows no items
+// itself; the gallery holds them. The owning service names the link for the
+// kind of gallery it opens.
 export interface EntityMediaBlock {
   galleryHref: string;
   buttonLabel: string;
 }
 
-// A page's own hashtag under its title. It links to the hashtag's gallery when
-// media carries it and is a plain token otherwise, so presence of media shows
-// the same way on every event, club, player and trick page.
+// A page's own hashtag, shown in its media line near the top of the page body.
+// It links to the hashtag's gallery when media carries it and is a plain token
+// otherwise, so presence of media shows the same way on every page that has one.
 export interface EntityHashtag {
   display: string;
   galleryHref: string | null;
@@ -505,10 +611,17 @@ export interface GalleryPagination {
   page: number;
   pageSize: number;
   total: number;
+  totalPages: number;
   hasNext: boolean;
   hasPrev: boolean;
   nextHref?: string;
   prevHref?: string;
+  // True when the set spans more than one page; the pager renders only then.
+  isMultiPage: boolean;
+  pageLinks: PageLink[];
+  statusLabel: string;
+  // The notice above the grid on a multi-page hashtag result; null otherwise.
+  largeSetNotice: string | null;
 }
 
 // Owner attribution surfaced on hub cards and gallery hero blocks so
@@ -640,9 +753,9 @@ export interface NamedGalleryContent {
   // Pre-pluralized nouns so the hero subtitle never counts in the template.
   totalItemsNoun: string;   // 'item' / 'items'
   excludeTagsNoun: string;  // 'tag' / 'tags'
-  // Pre-shaped notice when the result set exceeds the single-page render
-  // cap; null when everything fits.
-  truncationNotice: string | null;
+  // The page of the whole matching set this render shows, with its pager and
+  // the large-result notice.
+  pagination: GalleryPagination;
   // Five site-wide popular tags, shown only when the gallery is empty so the
   // empty state is a teachable moment; absent otherwise.
   popularTags?: BrowseTagChip[];
@@ -864,11 +977,10 @@ export interface FilterChip {
 }
 
 // One co-occurring tag offered beneath the filter as a clickable chip that adds
-// itself to the include field. `value` is the hash-stripped token; `count` is how
-// many items in the current set carry it.
+// itself to the include field. `value` is the hash-stripped token. The chip
+// carries no count: a number inside a control is noise.
 export interface SuggestionChip {
   display: string;
-  count: number;
   value: string;
 }
 
@@ -1048,15 +1160,23 @@ function galleryCoverThumbUrls(galleryIds: string[]): Map<string, string> {
   );
 }
 
-// How many items a stored named gallery shows, and when its newest one was
-// uploaded, by the same tag-AND match its page renders. Membership is computed
-// at request time, so a gallery can be empty at creation and again later when
-// its items are deleted or retagged.
-function namedGallerySummary(galleryId: string): { n: number; latest: string | null } {
-  const tagIds = (media.listFhNamedGalleryTags.all(galleryId) as FhNamedGalleryTagRow[]).map((t) => t.id);
-  const excludeTagIds = (media.listFhNamedGalleryExcludeTags.all(galleryId) as FhNamedGalleryTagRow[])
-    .map((t) => t.id);
-  return summarizeGalleryItemsByCriteria(tagIds, excludeTagIds);
+// The member-owned named galleries that hold at least one matching item, by
+// the same tag-AND match their pages render, newest matching upload first.
+// Membership is computed at request time, so a gallery can be empty at
+// creation and again later when its items are deleted or retagged; an empty
+// one is absent. One statement for every gallery, never one per gallery.
+interface MemberGallerySummaryRow {
+  id: string;
+  name: string;
+  description: string;
+  created_at: string;
+  owner_slug: string;
+  owner_display_name: string;
+  item_count: number;
+  latest_uploaded_at: string;
+}
+function memberGallerySummaries(): MemberGallerySummaryRow[] {
+  return media.listMemberOwnedNamedGallerySummaries.all() as MemberGallerySummaryRow[];
 }
 
 // Upper bound on resolved include/exclude tags carried into the standalone item
@@ -1100,8 +1220,11 @@ function buildItemContextQueryString(
 }
 
 interface ResolvedItemSet {
-  rows: CuratorGalleryRow[];          // ordered set the pager walks; length >= 1
-  index: number;                       // position of the requested item in rows
+  row: CuratorGalleryRow;              // the requested item
+  position: number;                    // its 1-based place in the ordered set
+  total: number;                       // the set size; 1 hides the pager
+  prevId: string;                      // wraps from the first item to the last
+  nextId: string;                      // wraps from the last item to the first
   encodeItemHref: (id: string) => string;
   backHref: string;
   backLabel: string;
@@ -1113,17 +1236,25 @@ interface ResolvedItemSet {
   collectionTitle: string | null;
 }
 
-// The one-item fallback: the item shows on its own with no pager. Used by the
-// single context, and when a query context cannot locate the item in its
-// rebuildable window (past the render cap, or no longer carrying the criteria).
-function singleItemSet(mediaId: string, backHref: string, backLabel: string): ResolvedItemSet {
+function loadPublicItem(mediaId: string): CuratorGalleryRow {
   const row = media.getPublicMediaItemById.get(mediaId) as CuratorGalleryRow | undefined;
   if (!row) {
     throw new NotFoundError(`media item ${mediaId} not found`);
   }
+  return row;
+}
+
+// The one-item fallback: the item shows on its own with no pager. Used by the
+// single context, and when a query context cannot locate the item in its set
+// (it no longer carries the criteria).
+function singleItemSet(mediaId: string, backHref: string, backLabel: string): ResolvedItemSet {
+  const row = loadPublicItem(mediaId);
   return {
-    rows: [row],
-    index: 0,
+    row,
+    position: 1,
+    total: 1,
+    prevId: mediaId,
+    nextId: mediaId,
     encodeItemHref: (id) => `/media/item/${encodeURIComponent(id)}`,
     backHref,
     backLabel,
@@ -1146,21 +1277,17 @@ function resolveItemSet(ctx: GalleryContext, mediaId: string): ResolvedItemSet {
     const tagIds = (media.listFhNamedGalleryTags.all(ctx.galleryId) as FhNamedGalleryTagRow[]).map((t) => t.id);
     const excludeTagIds = (media.listFhNamedGalleryExcludeTags.all(ctx.galleryId) as FhNamedGalleryTagRow[])
       .map((t) => t.id);
-    // The same ordered, capped item set the gallery page renders, so prev/next
-    // follow the gallery's sort. A named-gallery item URL asserts membership, so
-    // an item not in the set (including one past the cap) is a genuine 404.
-    const fetched = queryGalleryItemsByCriteriaGrouped(
-      tagIds, gallery.sort_order, excludeTagIds, GALLERY_ITEMS_QUERY_CAP + 1,
-    );
-    const rows = fetched.length > GALLERY_ITEMS_QUERY_CAP ? fetched.slice(0, GALLERY_ITEMS_QUERY_CAP) : fetched;
-    const index = rows.findIndex((r) => r.id === mediaId);
-    if (index === -1) {
+    // The whole ordered set the gallery pages through, so prev/next follow the
+    // gallery's sort to every item. A named-gallery item URL asserts
+    // membership, so an item not in the set is a genuine 404.
+    const place = queryGalleryItemNeighbours(tagIds, gallery.sort_order, excludeTagIds, mediaId);
+    if (!place) {
       throw new NotFoundError(`item ${mediaId} not found in gallery ${ctx.galleryId}`);
     }
     const gid = encodeURIComponent(gallery.id);
     return {
-      rows,
-      index,
+      row: loadPublicItem(mediaId),
+      ...place,
       encodeItemHref: (id) => `/media/${gid}/${encodeURIComponent(id)}`,
       backHref: `/media/${gid}`,
       backLabel: 'Back to Gallery',
@@ -1183,23 +1310,19 @@ function resolveItemSet(ctx: GalleryContext, mediaId: string): ResolvedItemSet {
   // No criteria token resolved to a real tag: nothing to walk, so show the
   // single item with a back link to the (empty) browse results.
   if (criteriaTagIds.length === 0) {
-    return singleItemSet(mediaId, browseBack, 'Back to results');
+    return singleItemSet(mediaId, browseBack, 'Back to Results');
   }
 
-  const fetched = queryGalleryItemsByCriteriaGrouped(
-    criteriaTagIds, ctx.sort, excludeTagIds, GALLERY_ITEMS_QUERY_CAP + 1,
-  );
-  const rows = fetched.length > GALLERY_ITEMS_QUERY_CAP ? fetched.slice(0, GALLERY_ITEMS_QUERY_CAP) : fetched;
-  const index = rows.findIndex((r) => r.id === mediaId);
-  if (index === -1) {
-    // Past the render cap, or the item no longer carries the criteria: the tile
-    // was just rendered, so never dead-end — show it on its own, back to results.
-    return singleItemSet(mediaId, browseBack, 'Back to results');
+  const place = queryGalleryItemNeighbours(criteriaTagIds, ctx.sort, excludeTagIds, mediaId);
+  if (!place) {
+    // The item no longer carries the criteria: the tile was just rendered, so
+    // never dead-end; show it on its own, back to results.
+    return singleItemSet(mediaId, browseBack, 'Back to Results');
   }
   const ctxQuery = buildItemContextQueryString(ctx.includeNormalized, ctx.excludeNormalized, ctx.sort);
   return {
-    rows,
-    index,
+    row: loadPublicItem(mediaId),
+    ...place,
     encodeItemHref: (id) => `/media/item/${encodeURIComponent(id)}?${ctxQuery}`,
     backHref: browseBack,
     backLabel: 'Back to Results',
@@ -1227,8 +1350,7 @@ function buildItemPage(
   outcome: ShareOutcome | null = null,
 ): PageViewModel<MediaItemContent> {
   const set = resolveItemSet(ctx, mediaId);
-  const n = set.rows.length;
-  const row = set.rows[set.index];
+  const row = set.row;
 
   const itemTagRows = queryCuratorMediaTags([mediaId]);
   const { names: memberNamesBySlug, badges: memberBadgesBySlug } =
@@ -1276,7 +1398,7 @@ function buildItemPage(
   // The detail viewer reuses the gallery tile's caption-correction overlay so
   // the obsolete burnt-in caption never reappears when an item is opened.
   item.captionMask = itemCarriesMosaicCaption(itemTagRows.map((t) => t.tag_display));
-  const showPager = n > 1;
+  const showPager = set.total > 1;
   // The item's own title. When the item is viewed within a named gallery the
   // hero shows the gallery name and this sits as a heading above the media;
   // otherwise the hero is this title and no separate heading renders.
@@ -1315,9 +1437,9 @@ function buildItemPage(
       players: resolvePlayerCredits(itemTagRows.map((r) => r.tag_display), viewer),
       tags,
       showPager,
-      position: showPager ? { current: set.index + 1, total: n } : null,
-      prevHref: showPager ? set.encodeItemHref(set.rows[(set.index - 1 + n) % n].id) : null,
-      nextHref: showPager ? set.encodeItemHref(set.rows[(set.index + 1) % n].id) : null,
+      position: showPager ? { current: set.position, total: set.total } : null,
+      prevHref: showPager ? set.encodeItemHref(set.prevId) : null,
+      nextHref: showPager ? set.encodeItemHref(set.nextId) : null,
       flag: buildMediaFlagBlock({ mediaId, viewerMemberId, isOwnItem }),
       ownerEditHref,
       notices,
@@ -1362,9 +1484,7 @@ export const mediaService = {
       // least one matching item (the card links to the list page when so; an
       // empty gallery offers a visitor nothing, so it does not count) and
       // whether the chinlone collection is seeded (the Related Sports link).
-      const hasMemberGalleries = galleries.some(
-        (g) => g.is_system === 0 && namedGallerySummary(g.id).n > 0,
-      );
+      const hasMemberGalleries = memberGallerySummaries().length > 0;
       const relatedSportsHref = galleries.some((g) => g.id === 'gallery_chinlone')
         ? '/media/gallery_chinlone' : null;
 
@@ -1439,52 +1559,34 @@ export const mediaService = {
     rawPage?: unknown,
   ): PageViewModel<MemberGalleriesContent> {
     return runSqliteRead('mediaService.getMemberGalleriesPage', () => {
-      const rows = media.listMemberOwnedNamedGalleries.all() as Array<{
-        id: string;
-        name: string;
-        description: string;
-        created_at: string;
-        owner_slug: string;
-        owner_display_name: string;
-      }>;
       // A gallery with no matching items offers a visitor nothing, so it is
       // left off the list; it stays reachable from its owner's management page
       // and at its own URL, and reappears here once an item matches. The rest
       // order by their newest matching upload, newest first, so a gallery that
       // just gained an item rises and an abandoned one sinks; the gallery id
       // breaks ties so the order, and so every page boundary, is stable.
-      const listed = rows
-        .map((g) => ({ g, summary: namedGallerySummary(g.id) }))
-        .filter(({ summary }) => summary.n > 0)
-        .sort((a, b) => {
-          const byLatest = (b.summary.latest ?? '').localeCompare(a.summary.latest ?? '');
-          return byLatest !== 0 ? byLatest : b.g.id.localeCompare(a.g.id);
-        });
+      const listed = memberGallerySummaries();
 
       const total = listed.length;
-      const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-      const page = sanitizePage(rawPage);
-      if (page > totalPages) throw new NotFoundError('Member galleries page out of range');
-      const hasPrev = page > 1;
-      const hasNext = page < totalPages;
-      const pageHref = (p: number): string =>
-        p === 1 ? '/media/member-galleries' : `/media/member-galleries?page=${p}`;
-      const pagination: GalleryPagination = {
+      const pageSize = mediaPageSize();
+      const { page, totalPages } = resolvePage(rawPage, total, pageSize);
+      // A list of galleries has no hashtag filter to narrow with, so it pages
+      // without the large-result notice.
+      const pagination = shapePagination({
         page,
-        pageSize: PAGE_SIZE,
+        totalPages,
+        pageSize,
         total,
-        hasNext,
-        hasPrev,
-        ...(hasPrev ? { prevHref: pageHref(page - 1) } : {}),
-        ...(hasNext ? { nextHref: pageHref(page + 1) } : {}),
-      };
+        href: (p) => (p === 1 ? '/media/member-galleries' : `/media/member-galleries?page=${p}`),
+        withLargeSetNotice: false,
+      });
 
-      const offset = (page - 1) * PAGE_SIZE;
-      const pageRows = listed.slice(offset, offset + PAGE_SIZE);
+      const offset = (page - 1) * pageSize;
+      const pageRows = listed.slice(offset, offset + pageSize);
       // Covers only for the galleries this page shows.
-      const covers = galleryCoverThumbUrls(pageRows.map(({ g }) => g.id));
-      const galleries: MemberGalleryListItem[] = pageRows.map(({ g, summary }) => {
-        const itemCount = summary.n;
+      const covers = galleryCoverThumbUrls(pageRows.map((g) => g.id));
+      const galleries: MemberGalleryListItem[] = pageRows.map((g) => {
+        const itemCount = g.item_count;
         return {
           id: g.id,
           name: g.name,
@@ -1501,7 +1603,7 @@ export const mediaService = {
         };
       });
       return {
-        seo: { title: 'Member Galleries' },
+        seo: { title: pagedTitle('Member Galleries', pagination) },
         page: {
           sectionKey: 'media',
           pageKey: 'media_member_galleries',
@@ -1591,7 +1693,7 @@ export const mediaService = {
 
   getNamedGalleryPage(
     galleryId: string,
-    refine: { rawTags: string[]; rawExcludes: string[]; curated?: string } = { rawTags: [], rawExcludes: [] },
+    refine: { rawTags: string[]; rawExcludes: string[]; curated?: string; rawPage?: unknown } = { rawTags: [], rawExcludes: [] },
     viewer: ViewerContext = { authenticated: false },
     outcome: ShareOutcome | null = null,
   ): PageViewModel<NamedGalleryContent> {
@@ -1633,17 +1735,28 @@ export const mediaService = {
       const effectiveTagIds = [...new Set([...tagIds, ...refineIncludeRows.map((r) => r.id)])];
       const effectiveExcludeTagIds = [...new Set([...excludeTagIds, ...refineExcludeRows.map((r) => r.id)])];
 
-      // Fetch cap+1 to detect overflow: this is a public unauthenticated
-      // route, so the render must stay bounded no matter how broad the
-      // gallery criteria are.
-      const fetched = queryGalleryItemsByCriteriaGrouped(
-        effectiveTagIds, gallery.sort_order, effectiveExcludeTagIds, GALLERY_ITEMS_QUERY_CAP + 1,
+      // The whole matching set, one page at a time: this is a public
+      // unauthenticated route, so each render stays bounded at the page size
+      // however broad the gallery criteria are, and every item stays reachable.
+      const total = countGalleryItemsByCriteria(effectiveTagIds, effectiveExcludeTagIds);
+      const pageSize = mediaPageSize();
+      const { page, totalPages } = resolvePage(refine.rawPage, total, pageSize);
+      const rows = queryGalleryItemsByCriteriaGrouped(
+        effectiveTagIds, gallery.sort_order, effectiveExcludeTagIds, pageSize, (page - 1) * pageSize,
       );
-      const truncated = fetched.length > GALLERY_ITEMS_QUERY_CAP;
-      const rows = truncated ? fetched.slice(0, GALLERY_ITEMS_QUERY_CAP) : fetched;
-      const truncationNotice = truncated
-        ? `Showing the first ${GALLERY_ITEMS_QUERY_CAP} of ${countGalleryItemsByCriteria(effectiveTagIds, effectiveExcludeTagIds)} items.`
-        : null;
+      const refineQuery = buildBrowseQueryString(refineInclude, refineExclude);
+      const galleryPath = `/media/${encodeURIComponent(gallery.id)}`;
+      const pagination = shapePagination({
+        page,
+        totalPages,
+        pageSize,
+        total,
+        href: (p) => {
+          const query = [refineQuery, p === 1 ? '' : `page=${p}`].filter((s) => s.length > 0).join('&');
+          return query.length > 0 ? `${galleryPath}?${query}` : galleryPath;
+        },
+        withLargeSetNotice: true,
+      });
 
       // Editable, context-aware filter. The gallery's TOPIC criteria prefill the
       // removable include chips so a visitor can refine or broaden the initial
@@ -1731,7 +1844,7 @@ export const mediaService = {
         fallbackTitle: `Named Gallery: ${gallery.name}`,
         includeTagDisplays: tagRows.map((r) => r.tag_display),
         chips,
-        totalItems: rows.length,
+        totalItems: total,
         memberNamesBySlug,
         viewer,
       });
@@ -1744,7 +1857,7 @@ export const mediaService = {
         : undefined;
 
       return {
-        seo: { title: `Gallery ${gallery.name}`, ...(imageUrl ? { imageUrl } : {}) },
+        seo: { title: pagedTitle(`Gallery ${gallery.name}`, pagination), ...(imageUrl ? { imageUrl } : {}) },
         page: {
           sectionKey: 'media',
           pageKey: 'media_named_gallery',
@@ -1766,10 +1879,10 @@ export const mediaService = {
           },
           setHeader,
           items,
-          totalItems: rows.length,
-          totalItemsNoun: rows.length === 1 ? 'item' : 'items',
+          totalItems: total,
+          totalItemsNoun: total === 1 ? 'item' : 'items',
           excludeTagsNoun: chips.excludeTags.length === 1 ? 'tag' : 'tags',
-          truncationNotice,
+          pagination,
           popularTags: emptyResultSuggestions?.length ? emptyResultSuggestions : undefined,
           filter,
           // A gallery saved on its own, or its settings saved, reports it here.
@@ -1933,10 +2046,11 @@ export const mediaService = {
       }
 
       // Results mode.
-      const page = sanitizePage(args.rawPage);
       const total = countGalleryItemsByTagGroups(criteriaGroups, excludeTagIds);
-      const offset = (page - 1) * PAGE_SIZE;
-      const rows = queryGalleryItemsByTagGroups(criteriaGroups, PAGE_SIZE, offset, excludeTagIds);
+      const pageSize = mediaPageSize();
+      const { page, totalPages } = resolvePage(args.rawPage, total, pageSize);
+      const offset = (page - 1) * pageSize;
+      const rows = queryGalleryItemsByTagGroups(criteriaGroups, pageSize, offset, excludeTagIds);
 
       const itemTagRows = rows.length > 0 ? queryCuratorMediaTags(rows.map((r) => r.id)) : [];
 
@@ -1971,22 +2085,16 @@ export const mediaService = {
       });
       attachDestinations(items);
 
-      const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-      const hasPrev = page > 1;
-      const hasNext = page < totalPages;
       const baseQuery = [buildContextQueryString(contextNormalized), buildBrowseQueryString(includeNormalized, excludeNormalized)]
         .filter((s) => s.length > 0).join('&');
-      const pageHref = (p: number): string =>
-        p === 1 ? `/media/browse?${baseQuery}` : `/media/browse?${baseQuery}&page=${p}`;
-      const pagination: GalleryPagination = {
+      const pagination = shapePagination({
         page,
-        pageSize: PAGE_SIZE,
+        totalPages,
+        pageSize,
         total,
-        hasNext,
-        hasPrev,
-        ...(hasPrev ? { prevHref: pageHref(page - 1) } : {}),
-        ...(hasNext ? { nextHref: pageHref(page + 1) } : {}),
-      };
+        href: (p) => (p === 1 ? `/media/browse?${baseQuery}` : `/media/browse?${baseQuery}&page=${p}`),
+        withLargeSetNotice: true,
+      });
 
       const emptyResultSuggestions = total === 0
         ? hashtagDiscoveryService.getPopularTags(5) : undefined;
@@ -1996,8 +2104,7 @@ export const mediaService = {
       // popular list. Empty when the set yields nothing to co-occur with.
       const suggestionRows = queryCooccurringTags(criteriaTagIds, excludeTagIds, FILTER_SUGGESTION_LIMIT);
       // Curated opt-in: how many of the current results are curator-published,
-      // for the always-offered "Curated" suggestion (when curated is not already
-      // the active filter, offerCurated handles that downstream).
+      // so the "Curated" suggestion appears only when it would narrow them.
       const curatedTagRow = tagRowByNormalized.get(CURATED_TAG)
         ?? queryTagIdsByNormalized([CURATED_TAG])[0];
       const curatedTagId = curatedTagRow?.id ?? null;
@@ -2024,7 +2131,7 @@ export const mediaService = {
       });
 
       return {
-        seo: { title: 'Browse Media' },
+        seo: { title: pagedTitle('Browse Media', pagination) },
         page: {
           sectionKey: 'media',
           pageKey: 'media_browse',
@@ -2304,9 +2411,9 @@ export function buildTagFilterView(args: {
   excludeTags: TagRef[];
   setSize: number;
   candidates: SuggestionCandidate[];
-  // How many items in the current set carry `#curated`. Drives the always-offered
-  // "Curated" opt-in suggestion (include = view the curated subset; ⊘ = exclude
-  // it for community-only). 0/omitted when the surface has no curator content.
+  // How many items in the current set carry `#curated`. Drives the "Curated"
+  // opt-in suggestion (include = view the curated subset; ⊘ = exclude it for
+  // community-only). 0/omitted when the surface has no curator content.
   curatedCount?: number;
   minItems?: number;
 }): TagFilterView | null {
@@ -2320,17 +2427,17 @@ export function buildTagFilterView(args: {
   const active = new Set([...contextNormalized, ...includeNormalized, ...excludeNormalized]);
 
   // Context-aware suggestions: co-occurring tags that actually split the current
-  // set and are not already active. `#curated` is offered as an opt-in, pinned
-  // first, whenever the set has curator content and curated is not already active.
+  // set and are not already active. `#curated` is held to the same rule (some
+  // but not all of the set is curated) and, when offered, is pinned first.
   const partitioning = (args.candidates ?? [])
     .filter((c) => c.normalized !== CURATED_TAG && c.count > 0 && c.count < args.setSize && !active.has(c.normalized))
     .sort((a, b) => b.count - a.count || a.normalized.localeCompare(b.normalized))
     .slice(0, FILTER_SUGGESTION_LIMIT);
   const curatedCount = args.curatedCount ?? 0;
-  const offerCurated = curatedCount > 0 && !active.has(CURATED_TAG);
+  const offerCurated = curatedCount > 0 && curatedCount < args.setSize && !active.has(CURATED_TAG);
   const suggestions: SuggestionChip[] = [
-    ...(offerCurated ? [{ display: friendlyTagLabel(CURATED_TAG), count: curatedCount, value: stripHash(CURATED_TAG) }] : []),
-    ...partitioning.map((c) => ({ display: friendlyTagLabel(c.display), count: c.count, value: stripHash(c.normalized) })),
+    ...(offerCurated ? [{ display: friendlyTagLabel(CURATED_TAG), value: stripHash(CURATED_TAG) }] : []),
+    ...partitioning.map((c) => ({ display: friendlyTagLabel(c.display), value: stripHash(c.normalized) })),
   ];
 
   // Show the filter when there is anything to act on: an active tag (criteria or
@@ -2405,9 +2512,9 @@ export function canonicalFilterPath(args: {
 // visitor's removable refinements. `setSize` is the full result count and
 // `suggestionRows` carry per-tag counts, so the shared builder keeps only
 // splitting tags and suppresses the bar on thin context-only sets.
-// How many items in the given set carry `#curated`, for the always-offered
-// "Curated" opt-in. The set is `setTagIds`/`setExcludeIds`; adding the curated
-// id (deduped) and counting yields the curated subset size.
+// How many items in the given set carry `#curated`, for the "Curated" opt-in.
+// The set is `setTagIds`/`setExcludeIds`; adding the curated id (deduped) and
+// counting yields the curated subset size.
 function countCuratedInSet(
   setTagIds: string[],
   setExcludeIds: string[],

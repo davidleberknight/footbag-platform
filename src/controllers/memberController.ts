@@ -358,7 +358,7 @@ export const memberController = {
       seo:  { title: 'Change Password' },
       page: { sectionKey: 'members', pageKey: 'member_password', title: 'Change Password' },
       navigation: {
-        contextLinks: [{ label: 'Back to Profile', href: `/members/${req.params.memberKey}` }],
+        contextLinks: [{ label: 'Back to My Profile', href: `/members/${req.params.memberKey}` }],
       },
       content: { memberKey: req.params.memberKey, success },
     } satisfies PageViewModel<MemberPasswordEditContent>);
@@ -377,7 +377,7 @@ export const memberController = {
         seo:  { title: 'Change Password' },
         page: { sectionKey: 'members', pageKey: 'member_password', title: 'Change Password' },
         navigation: {
-          contextLinks: [{ label: 'Back to Profile', href: `/members/${req.params.memberKey}` }],
+          contextLinks: [{ label: 'Back to My Profile', href: `/members/${req.params.memberKey}` }],
         },
         content: { error: opts.error, memberKey: req.params.memberKey },
       } satisfies PageViewModel<MemberPasswordEditContent>);

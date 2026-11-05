@@ -546,9 +546,9 @@ describe('GET /freestyle/operators — compact modifier index + advanced referen
     expect(res.text).toContain('Operators &amp; Modifiers');
   });
 
-  it('renders breadcrumb back to /freestyle', async () => {
+  it('offers a back link to /freestyle', async () => {
     const res = await page('/freestyle/operators');
-    expect(res.text).toMatch(/<a href="\/freestyle">Freestyle<\/a>/);
+    expect(res.text).toContain('<a href="/freestyle" class="action-link">');
   });
 
   it('renders the compact index and a minimal cross-cutting decomposition tail', async () => {
@@ -586,9 +586,9 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
     expect(res.text).toContain('Emerging Vocabulary');
   });
 
-  it('renders breadcrumb back to /freestyle', async () => {
+  it('offers a back link to /freestyle', async () => {
     const res = await page('/freestyle/observational');
-    expect(res.text).toMatch(/<a href="\/freestyle">Freestyle<\/a>/);
+    expect(res.text).toContain('<a href="/freestyle" class="action-link">');
   });
 
   it('renders the observational layer note + canonical references', async () => {
@@ -1114,9 +1114,9 @@ describe('GET /freestyle/tricks/:slug — Reference Media filter', () => {
   it('renders a Media section that links to the trick gallery, not inline clips', async () => {
     const res = await page('/freestyle/tricks/ref-media-audit');
     expect(res.status).toBe(200);
-    // Links to the trick's full video gallery (locked-context convention).
-    expect(res.text).toContain('href="/media/browse?context&#x3D;ref-media-audit"');
-    expect(res.text).toContain('See All Videos for');
+    // The gallery link beside the hashtag opens the trick's full gallery
+    // (locked-context convention).
+    expect(res.text).toContain('<a class="action-link" href="/media/browse?context&#x3D;ref-media-audit">');
     // No reference media is embedded on the trick page anymore: neither
     // tutorial- nor record-tier clips, and no Tutorials/Demonstrations subsections.
     expect(res.text).not.toContain('REF_MEDIA_TUTORIAL_MARKER');

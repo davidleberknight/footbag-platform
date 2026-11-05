@@ -1,8 +1,6 @@
 <div class="hero hero-sm">
   <div>
     <h1>{{heroData.displayName}}{{#if heroData.honorificNickname}} <span class="player-nickname">"{{heroData.honorificNickname}}"</span>{{/if}}</h1>
-    {{#if heroData.hashtag}}{{> entity-hashtag heroData.hashtag}}{{/if}}
-    {{#if heroData.historicalPersonName}}<p class="hero-subtitle">Also known as {{heroData.historicalPersonName}} in competition records</p>{{/if}}
     {{#if heroData.isHof}}
       <p class="hero-subtitle">Member of the Footbag Hall of Fame{{#if heroData.hofInductionYear}} ({{heroData.hofInductionYear}}){{/if}}{{#if heroData.isBap}} and the Big Add Posse{{#if heroData.bapInductionYear}} ({{heroData.bapInductionYear}}){{/if}}{{/if}}</p>
     {{else if heroData.isBap}}
@@ -11,6 +9,8 @@
     {{#if heroData.isBoard}}
       <p class="hero-subtitle">Member of the IFPA Board of Directors</p>
     {{/if}}
-    {{#if (or heroData.city (or heroData.region heroData.country))}}<p class="hero-subtitle">{{#if heroData.city}}{{heroData.city}}{{#if heroData.region}}, {{heroData.region}}{{/if}}{{#if heroData.country}} · {{heroData.country}}{{/if}}{{else if heroData.region}}{{heroData.region}}{{#if heroData.country}} · {{heroData.country}}{{/if}}{{else}}{{heroData.country}}{{/if}}</p>{{/if}}
+    {{#if heroData.isHistoricalOnly}}
+      <p class="hero-subtitle">Historical player record</p>
+    {{/if}}
   </div>
 </div>

@@ -3926,6 +3926,7 @@ function getPaymentHistoryPage(
   return {
     seo:  { title: 'Payment History' },
     page: { sectionKey: 'members', pageKey: 'member_payment_history', title: 'Payment History' },
+    navigation: { contextLinks: [{ label: 'Back to My Profile', href: `/members/${memberKey}` }] },
     content: {
       memberKey,
       rows,

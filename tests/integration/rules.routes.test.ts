@@ -57,10 +57,11 @@ describe('GET /rules/x-square/2-square', () => {
     expect(res.text).toMatch(/<p class="rules-meta">IFPA, 2020<\/p>/);
   });
 
-  it('renders the back-link to the parent page its frontmatter names', async () => {
+  it('ends with one back link, to the Rules landing the page is nested under', async () => {
     const res = await page('/rules/x-square/2-square');
-    const back = res.text.match(/<section class="content-section rules-footer-back">[\s\S]*?<\/section>/)?.[0] ?? '';
-    expect(back).toContain('href="/x-square"');
+    // A reader would otherwise be sent up to a page this rule is not filed under.
+    const backs = [...res.text.matchAll(/<p class="page-back-link"><a href="([^"]+)"/g)].map((m) => m[1]);
+    expect(backs).toEqual(['/rules']);
   });
 
   it('contains zero offsite links', async () => {
@@ -102,15 +103,6 @@ describe('GET /rules/golf/footbag-golf', () => {
     expect(res.text).toContain('A maximum of 30 seconds is allowed to each player');
     expect(res.text).toContain('Mandatory Dog-Leg');
     expect(res.text).toContain('Yelling &quot;Fore&quot;');
-  });
-
-  // Defect caught: the golf rules send a reader back to the open-play page
-  // instead of the golf section.
-  it('renders the back-link to the golf section', async () => {
-    const res = await page('/rules/golf/footbag-golf');
-    const back = res.text.match(/<section class="content-section rules-footer-back">[\s\S]*?<\/section>/)?.[0] ?? '';
-    expect(back).toContain('href="/golf"');
-    expect(back).toContain('Back to Footbag Golf');
   });
 
   it('shows the IFPA Article IV authority line', async () => {

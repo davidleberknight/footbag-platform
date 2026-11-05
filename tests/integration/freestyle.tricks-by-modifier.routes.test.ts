@@ -274,12 +274,13 @@ describe('/freestyle/tricks?view=modifier — findability of representative ecos
     }
   });
 
-  it('the modifier jump index lists every rendered modifier with its count, paradox included', async () => {
+  it('the modifier jump index lists every rendered modifier by name alone, paradox included', async () => {
     const res = await page('/freestyle/tricks?view=modifier');
     expect(res.text).toContain('aria-label="Modifier jump"');
-    expect(res.text).toMatch(/href="#modifier-spinning">spinning \(\d+\)</);
-    expect(res.text).toMatch(/href="#modifier-paradox">paradox \(\d+\)</);
-    expect(res.text).toMatch(/href="#modifier-ducking">ducking \(\d+\)</);
+    // A control never carries a count, so each link holds the name and nothing else.
+    expect(res.text).toMatch(/href="#modifier-spinning">spinning</);
+    expect(res.text).toMatch(/href="#modifier-paradox">paradox</);
+    expect(res.text).toMatch(/href="#modifier-ducking">ducking</);
     expect(res.text).not.toMatch(/href="#modifier-fairy"/);
     expect(res.text).not.toMatch(/href="#modifier-whirling"/);
   });

@@ -228,8 +228,8 @@ describe('GET /freestyle/concepts — Freestyle Concepts', () => {
     expect(prose).not.toMatch(/\b[Tt]he glossary\b/);
     expect(prose).not.toMatch(/Freestyle Glossary/);
     expect(html).toMatch(/<a href="\/freestyle\/glossary">Glossary<\/a>/);
-    // Breadcrumb names the resource by its new identity.
-    expect(html).toMatch(/<span>Freestyle Concepts<\/span>/);
+    // The heading names the resource by its own identity.
+    expect(html).toMatch(/<h1>Freestyle Concepts<\/h1>/);
   });
 });
 
@@ -268,8 +268,10 @@ describe('Cross-surface links land on the right resource', () => {
     expect(trick).toContain('href="/freestyle/concepts#section-notation"');
     expect(trick).not.toContain('/freestyle/glossary#');
     const article = await get('/freestyle/notation-article');
-    expect(article).toContain('href="/freestyle/concepts#jobs-notation"');
-    expect(article).toContain('Back to Freestyle Concepts');
+    expect(article).toContain('href="/freestyle/concepts"');
+    expect(article).not.toContain('/freestyle/glossary');
+    // The article carries breadcrumbs, so a second way back would repeat them.
+    expect(article).not.toContain('class="page-back-link"');
     const sitemap = await page('/sitemap.xml');
     expect(sitemap.text).toContain('/freestyle/concepts');
     expect(sitemap.text).toContain('/freestyle/glossary');

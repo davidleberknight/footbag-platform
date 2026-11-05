@@ -38,6 +38,7 @@ export const mediaController = {
           rawTags: collectQueryArg(req.query.tag),
           rawExcludes: collectQueryArg(req.query.exclude),
           curated: typeof req.query.curated === 'string' ? req.query.curated : undefined,
+          rawPage: req.query.page,
         },
         { authenticated: req.isMember },
         takeShareFlash(req, res),

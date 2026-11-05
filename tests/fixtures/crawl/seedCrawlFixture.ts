@@ -112,7 +112,9 @@ export function seedCrawlWorld(db: BetterSqlite3.Database): PrivateFieldCanaries
   insertClub(db, { id: 'club-crawlville-real', name: 'Crawlville Footbag', city: 'Crawlville', country: 'United States', hashtag_tag_id: clubTag });
 
   insertEvent(db, { title: 'Crawl Open', status: 'reg_open' });
-  insertHistoricalPerson(db, { person_name: 'Historic Crawler', hof_member: 1 });
+  // The world record below credits this record, so the records page links the
+  // crawl to a history page the way a visitor reaches one.
+  const crawlPersonId = insertHistoricalPerson(db, { person_name: 'Historic Crawler', hof_member: 1 });
 
   // Minimal freestyle corpus so the freestyle surfaces are crawlable. whirl is
   // an official Family Parent, so the family links its pages render resolve;
@@ -134,7 +136,7 @@ export function seedCrawlWorld(db: BetterSqlite3.Database): PrivateFieldCanaries
   const crawlSourceId = insertFreestyleTrickSource(db, { source_label: 'Crawl Source', source_type: 'curated' });
   insertFreestyleTrickSourceLink(db, 'paradox_whirl', crawlSourceId, {});
   insertFreestyleRecord(db, {
-    id: 'crawl_record', display_name: 'Crawl Holder', trick_name: 'Whirl', value_numeric: 12,
+    id: 'crawl_record', person_id: crawlPersonId, display_name: 'Crawl Holder', trick_name: 'Whirl', value_numeric: 12,
   });
   insertConsecutiveKicksRecord(db, {
     id: 'crawl_ck_wr', sort_order: 401, section: 'Official World Records',

@@ -50,6 +50,14 @@ describe('GET /ifpa/membership-structure', () => {
     expect(res.text).toMatch(/<h2 id="[^"]+">/);
   });
 
+  it('ends with one back link, through the shared partial, to the IFPA landing it is nested under', async () => {
+    const res = await page('/ifpa/membership-structure');
+    // A reader of a governance document would otherwise have no way up to the
+    // list of documents, or two competing ones.
+    const backs = [...res.text.matchAll(/<p class="page-back-link"><a href="([^"]+)" class="action-link">/g)].map((m) => m[1]);
+    expect(backs).toEqual(['/ifpa']);
+  });
+
   it('contains the canonical tier names', async () => {
     const res = await page('/ifpa/membership-structure');
     expect(res.text).toContain('Tier 0');

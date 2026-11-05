@@ -6,10 +6,6 @@
 
 <div class="wrapper">
   <section>
-    {{#each navigation.contextLinks}}
-      <a href="{{href}}" class="back-link">{{label}}</a>
-    {{/each}}
-
     {{> outcome-notice text=content.error tone='no'}}
 
     {{!-- Read-only identity block --}}
@@ -306,5 +302,7 @@
       </div>
 
   </section>
+
+  {{> back-link}}
 </div>
 <script src="{{{asset 'js/region-picker.js'}}}" defer></script>

@@ -3,9 +3,9 @@
  *
  * A player hashtag says who appears in an item; the uploader hashtag says who
  * shared it. A person's page shows a button to the gallery of media crediting
- * them as a player in its own block, with no individual items, and their player
- * hashtag under their name linked to the same gallery: a historical person by
- * their record's folded name, a member by their own slug. That gallery is the
+ * them as a player in its own block, with no individual items, and never shows
+ * the player hashtag itself. The gallery is found by the hashtag: a historical
+ * person's by their record's folded name, a member's by their own slug. It is the
  * player hashtag's, never the member's uploader hashtag's. On another
  * member's profile the block is member-visible, like the member's uploads: an
  * anonymous visitor to an honoree's profile sees the honor record only.
@@ -84,25 +84,25 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('historical player page', () => {
-  it('shows media crediting the person and links their player hashtag to it', async () => {
+  it('shows media crediting the person through the gallery button, without showing the hashtag', async () => {
     // Defect caught: a credited player's page gives no way into the media they
-    // appear in, or lists the items themselves instead of linking the gallery.
+    // appear in, lists the items themselves instead of linking the gallery, or
+    // puts the internal credit token on the page as if it were their identity.
     const res = await request(createApp()).get(`/history/${HISTORICAL_ID}`);
     expect(res.status).toBe(200);
     const block = playerBlock(res.text);
     expect(block).toContain('href="/media/browse?context&#x3D;player_tuan_vu"');
     expect(block).not.toContain('gallery-tile');
     expect(res.text).not.toContain(creditedHistoricalMedia);
-    expect(res.text).toMatch(
-      /<p class="hero-hashtag"><a href="\/media\/browse\?context&#x3D;player_tuan_vu">#player_tuan_vu<\/a><\/p>/);
+    expect(res.text).not.toContain('#player_tuan_vu');
   });
 
-  it('shows a plain player hashtag and no block when nothing credits the person', async () => {
-    // Defect caught: a gallery button to an empty gallery, or no hashtag to credit them with.
+  it('shows neither a hashtag nor a block when nothing credits the person', async () => {
+    // Defect caught: a gallery button to an empty gallery, or a dead credit token.
     const res = await request(createApp()).get(`/history/${QUIET_ID}`);
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('id="player-media"');
-    expect(res.text).toContain('<p class="hero-hashtag">#player_quiet_player</p>');
+    expect(res.text).not.toContain('#player_quiet_player');
   });
 });
 
@@ -119,6 +119,7 @@ describe('member profiles', () => {
     expect(block).not.toContain('gallery-tile');
     expect(block).not.toContain(creditedMemberMedia);
     expect(block).not.toContain(uploadedOnlyMedia);
+    expect(res.text).not.toContain('#player_kim_lee');
   });
 
   it('shows the block to another signed-in member', async () => {

@@ -88,6 +88,17 @@ beforeAll(async () => {
     record_type: 'trick_consecutive', display_name: 'Resolved-Side Holder', value_numeric: 50,
   });
 
+  // A record named as the trick, only in another case: as a subtitle it would
+  // repeat the h1, so the hero shows none.
+  insertFreestyleTrick(db, {
+    slug: 'plain_catch', canonical_name: 'plain-catch', category: 'compound', adds: '3',
+    operational_notation: 'SET > OP OUT [DEX] > OP CLIP [XBD] [DEL]',
+  });
+  insertFreestyleRecord(db, {
+    trick_name: 'PLAIN CATCH', sort_name: 'PLAIN CATCH',
+    record_type: 'trick_consecutive', display_name: 'Same-Name Holder', value_numeric: 50,
+  });
+
   // A canonical trick can have a higher-value record whose name is a specific
   // variant's folk name, reachable through a curated alias (the op-side
   // "Infinity" for butterfly, matched via the infinity->butterfly alias). The
@@ -173,6 +184,15 @@ describe('Record-to-trick linkage', () => {
     expect(res.text).toContain('<h1>Resolved Catch</h1>');
     // The side is established, so it stays: real information, not jargon.
     expect(res.text).toMatch(/<p class="hero-subtitle">Resolved Catch \(ss\)<\/p>/);
+  });
+
+  it('shows no hero subtitle when the record name only repeats the trick name in another case', async () => {
+    // Defect caught: the hero restates its own heading on the line below it.
+    const res = await page('/freestyle/tricks/plain_catch');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Same-Name Holder');
+    expect(res.text).toContain('<h1>Plain Catch</h1>');
+    expect(res.text).not.toContain('class="hero-subtitle"');
   });
 
   it('titles a canonical page by its canonical name, not a higher-value variant record matched via an alias', async () => {

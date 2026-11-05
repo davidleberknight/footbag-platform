@@ -7,9 +7,10 @@
  *   yes/no  → "Legacy account: linked (since <date>)"
  *             + "Competition record: not yet linked."
  *             + "Find your competition record" CTA
- *   no/yes  → "Legacy account: none on file."
- *             + "Competition record: <person_name>." + no CTA
- *   yes/yes → both linked summaries + no CTA
+ *   no/yes  → "Legacy account: none on file." + the old-account CTA; the record's
+ *             name shows once, in the facts strip inside this block
+ *   yes/yes → legacy linked summary and the record's name + no CTA; the
+ *             claimed old-site account is never listed by name
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -87,6 +88,16 @@ const SLUG_BY_ID: Record<string, string> = {
   [YES_YES_ID]: YES_YES_SLUG,
 };
 
+// The Identity & History section's markup: from its heading to the next
+// section heading. A record name found outside it is the facts strip back at
+// the top of the profile, away from the history it belongs with.
+function identityBlock(html: string): string {
+  const start = html.indexOf('Identity &amp; History');
+  expect(start).toBeGreaterThan(-1);
+  const end = html.indexOf('profile-section-heading', start);
+  return html.slice(start, end === -1 ? undefined : end);
+}
+
 async function getDashboard(memberId: string): Promise<request.Response> {
   const slug = SLUG_BY_ID[memberId];
   return request(createApp())
@@ -127,8 +138,11 @@ describe('GET /members/<slug> — Identity & History block', () => {
     const res = await getDashboard(NO_YES_ID);
     expect(res.status).toBe(200);
     expect(res.text).toContain('Legacy account: none on file.');
-    expect(res.text).toContain(`>${HP_NAME}</a>.`);
-    expect(res.text).toMatch(/href="\/history\/[^"]+"/);
+    // The record's name shows once, inside this block, and nothing links to
+    // the claimed history page, which only redirects back here.
+    expect(res.text.split(HP_NAME).length - 1).toBe(1);
+    expect(identityBlock(res.text)).toContain(HP_NAME);
+    expect(res.text).not.toMatch(/href="\/history\/[^"]+"/);
     expect(res.text).toContain('Ask an administrator to link your old footbag.org account');
   });
 
@@ -136,8 +150,12 @@ describe('GET /members/<slug> — Identity & History block', () => {
     const res = await getDashboard(YES_YES_ID);
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/Legacy account: linked.*Jan.*2024/);
-    expect(res.text).toContain(`>${HP_NAME}</a>.`);
-    expect(res.text).toMatch(/href="\/history\/[^"]+"/);
+    expect(res.text.split(HP_NAME).length - 1).toBe(1);
+    expect(identityBlock(res.text)).toContain(HP_NAME);
+    // The old site's account name tells the member nothing they can use, so
+    // a claimed account is reported as linked and never listed by that name.
+    expect(res.text).not.toContain('Yes Yes Legacy');
+    expect(res.text).not.toMatch(/href="\/history\/[^"]+"/);
     expect(res.text).not.toContain('not yet linked');
     expect(res.text).not.toContain('none on file');
     expect(res.text).not.toContain('Find your past account');

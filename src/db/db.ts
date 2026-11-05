@@ -95,6 +95,18 @@ function notPendingSql(alias: string): string {
   return `(${alias}.deleted_at IS NOT NULL OR EXISTS (SELECT 1 FROM members_onboarded mo WHERE mo.id = ${alias}.id))`;
 }
 
+// The historical person aliased `alias` has a page worth linking: a result, a
+// public freestyle record (superseded ones count, since trick progression shows
+// them), an honor, or a live linked member. A record holding only a name makes
+// no public result intelligible, so nothing links to it.
+function historyPageSql(alias: string): string {
+  return `(${alias}.hof_member = 1 OR ${alias}.bap_member = 1
+    OR EXISTS (SELECT 1 FROM event_result_entry_participants hp_erp WHERE hp_erp.historical_person_id = ${alias}.person_id)
+    OR EXISTS (SELECT 1 FROM freestyle_records hp_fr WHERE hp_fr.person_id = ${alias}.person_id
+               AND hp_fr.confidence IN (${PUBLIC_FREESTYLE_RECORD_CONFIDENCE_SQL}))
+    OR EXISTS (SELECT 1 FROM members_onboarded hp_m WHERE hp_m.historical_person_id = ${alias}.person_id))`;
+}
+
 const ARCHIVE_YEAR_SQL = `CAST(substr(e.start_date, 1, 4) AS INTEGER)`;
 
 export interface PublicEventSummaryRow {
@@ -494,6 +506,7 @@ export const publicPlayers = {
     FROM historical_persons AS hp
     WHERE hp.source_scope = 'CANONICAL'
       AND hp.person_name LIKE '%' || ? || '%' ESCAPE '\\'
+      AND ${historyPageSql('hp')}
     ORDER BY hp.person_name COLLATE NOCASE
     LIMIT ?
   `); },
@@ -886,6 +899,7 @@ export const clubs = {
   get listMembersByClubId() { return db.prepare(`
     SELECT
       lpca.historical_person_id AS person_id,
+      CASE WHEN hp.person_id IS NOT NULL AND ${historyPageSql('hp')} THEN 1 ELSE 0 END AS person_has_page,
       COALESCE(hp.person_name, lpca.display_name) AS person_name,
       lpca.inferred_role AS inferred_role,
       lpca.resolution_status AS resolution_status,
@@ -929,6 +943,8 @@ export const clubs = {
   get listLiveMembersByClubId() { return db.prepare(`
     SELECT
       m.historical_person_id AS person_id,
+      -- The linked member is itself what gives the record a page.
+      CASE WHEN m.historical_person_id IS NOT NULL THEN 1 ELSE 0 END AS person_has_page,
       m.id                   AS member_id,
       m.display_name         AS person_name,
       ms.slug AS member_slug,
@@ -970,6 +986,7 @@ export const clubs = {
   get listBootstrapLeadersByClubId() { return db.prepare(`
     SELECT
       hp.person_id            AS person_id,
+      CASE WHEN hp.person_id IS NOT NULL AND ${historyPageSql('hp')} THEN 1 ELSE 0 END AS person_has_page,
       hp.person_name          AS hp_person_name,
       lm.real_name            AS lm_real_name,
       lm.display_name         AS lm_display_name,
@@ -6088,18 +6105,52 @@ export const media = {
     ORDER BY m.is_system DESC, g.name
   `); },
 
-  // Member-owned named galleries (non-default, non-system) oldest first.
-  // Feeds the /media/member-galleries list page, which re-orders them by newest
-  // matching upload once it has each gallery's items; the per-member auto-default
+  // Member-owned named galleries (non-default, non-system) that hold at least
+  // one matching item, each with its item count and its newest matching item's
+  // upload instant, newest first, in one statement however many galleries
+  // exist. An item matches as on the gallery page: active, not an avatar,
+  // carrying every criteria tag and no exclude tag. A gallery with no matching
+  // item, or no criteria tag at all, has no row. The per-member auto-default
   // Personal Gallery (is_default=1) is excluded so the list shows only
-  // deliberately-named galleries.
-  get listMemberOwnedNamedGalleries() { return db.prepare(`
-    SELECT g.id, g.name, g.description, g.created_at,
-           m.slug AS owner_slug, m.display_name AS owner_display_name
-    FROM member_galleries g
-    JOIN members_onboarded m ON m.id = g.owner_member_id
-    WHERE g.is_default = 0 AND m.is_system = 0
-    ORDER BY g.created_at ASC, g.id ASC
+  // deliberately-named galleries; the gallery id breaks ties so every page
+  // boundary is stable.
+  get listMemberOwnedNamedGallerySummaries() { return db.prepare(`
+    WITH g AS (
+      SELECT g.id, g.name, g.description, g.created_at,
+             m.slug AS owner_slug, m.display_name AS owner_display_name
+      FROM member_galleries g
+      JOIN members_onboarded m ON m.id = g.owner_member_id
+      WHERE g.is_default = 0 AND m.is_system = 0
+    ),
+    criteria AS (
+      SELECT mgt.gallery_id, COUNT(*) AS n
+      FROM member_gallery_tags mgt
+      JOIN g ON g.id = mgt.gallery_id
+      GROUP BY mgt.gallery_id
+    ),
+    matching AS (
+      SELECT mgt.gallery_id, mi.id, mi.uploaded_at
+      FROM member_gallery_tags mgt
+      JOIN g ON g.id = mgt.gallery_id
+      JOIN media_tags mt ON mt.tag_id = mgt.tag_id
+      JOIN media_items mi ON mi.id = mt.media_id
+      WHERE mi.moderation_status = 'active'
+        AND mi.is_avatar = 0
+        AND NOT EXISTS (
+          SELECT 1 FROM member_gallery_exclude_tags mget
+          JOIN media_tags mtex ON mtex.tag_id = mget.tag_id
+          WHERE mget.gallery_id = mgt.gallery_id AND mtex.media_id = mi.id
+        )
+      GROUP BY mgt.gallery_id, mi.id
+      HAVING COUNT(DISTINCT mgt.tag_id) =
+             (SELECT c.n FROM criteria c WHERE c.gallery_id = mgt.gallery_id)
+    )
+    SELECT g.id, g.name, g.description, g.created_at, g.owner_slug, g.owner_display_name,
+           COUNT(*) AS item_count, MAX(m.uploaded_at) AS latest_uploaded_at
+    FROM matching m
+    JOIN g ON g.id = m.gallery_id
+    GROUP BY g.id
+    ORDER BY latest_uploaded_at DESC, g.id DESC
   `); },
 
   // Insert a new member_galleries row. Caller wraps in a transaction
@@ -6469,9 +6520,10 @@ export interface NamedGalleryGroupedRow extends CuratorGalleryRow {
   source_id: string | null;
 }
 
-// Upper bound for single-page gallery renders (public named gallery and the
-// owner/admin edit grid). Services fetch cap+1 to detect overflow and show a
-// truncation notice instead of fanning out an unbounded render.
+// Upper bound for the owner/admin gallery edit grid, an editing aid that shows
+// a sample of the set rather than paging it. Services fetch cap+1 to detect
+// overflow and show a notice instead of fanning out an unbounded render. The
+// public named-gallery page pages its whole set instead.
 export const GALLERY_ITEMS_QUERY_CAP = 100;
 
 const GALLERY_ORDER_CLAUSE: Record<GallerySortOrder, string> = {
@@ -6485,6 +6537,7 @@ export function queryGalleryItemsByCriteriaGrouped(
   sortOrder: GallerySortOrder = 'upload_desc',
   excludeTagIds: string[] = [],
   limit: number = GALLERY_ITEMS_QUERY_CAP + 1,
+  offset = 0,
 ): NamedGalleryGroupedRow[] {
   if (tagIds.length === 0) return [];
   const placeholders = tagIds.map(() => '?').join(',');
@@ -6511,8 +6564,72 @@ export function queryGalleryItemsByCriteriaGrouped(
     GROUP BY mi.id
     HAVING COUNT(DISTINCT mt.tag_id) = ?
     ORDER BY ${orderBy}
-    LIMIT ?
-  `).all(...tagIds, ...excludeTagIds, tagIds.length, limit) as NamedGalleryGroupedRow[];
+    LIMIT ? OFFSET ?
+  `).all(...tagIds, ...excludeTagIds, tagIds.length, limit, offset) as NamedGalleryGroupedRow[];
+}
+
+// One item's place in a whole hashtag-AND set, for the item viewer's
+// previous/next: its 1-based position, the set size, and the ids at the
+// positions either side of it, wrapping from the last item to the first. The
+// set is ranked in full so the viewer reaches every item however large the set
+// grows, but only the item and its two neighbours come back. Null when the item
+// is not in the set.
+export interface GalleryItemNeighbours {
+  position: number;
+  total: number;
+  prevId: string;
+  nextId: string;
+}
+
+export function queryGalleryItemNeighbours(
+  tagIds: string[],
+  sortOrder: GallerySortOrder,
+  excludeTagIds: string[],
+  mediaId: string,
+): GalleryItemNeighbours | null {
+  if (tagIds.length === 0) return null;
+  const placeholders = tagIds.map(() => '?').join(',');
+  const orderBy = GALLERY_ORDER_CLAUSE[sortOrder];
+  const excludeClause = excludeTagIds.length === 0
+    ? ''
+    : `AND NOT EXISTS (
+         SELECT 1 FROM media_tags mtex
+         WHERE mtex.media_id = mi.id
+           AND mtex.tag_id IN (${excludeTagIds.map(() => '?').join(',')})
+       )`;
+  const rows = db.prepare(`
+    WITH ranked AS (
+      SELECT mi.id,
+             ROW_NUMBER() OVER (ORDER BY ${orderBy}) AS rn,
+             COUNT(*) OVER () AS total
+      FROM media_items mi
+      JOIN media_tags mt ON mt.media_id = mi.id
+      WHERE mi.moderation_status = 'active'
+        AND mi.is_avatar = 0
+        AND mt.tag_id IN (${placeholders})
+        ${excludeClause}
+      GROUP BY mi.id
+      HAVING COUNT(DISTINCT mt.tag_id) = ?
+    ),
+    target AS (SELECT rn, total FROM ranked WHERE id = ?)
+    SELECT ranked.id, ranked.rn, ranked.total
+    FROM ranked, target
+    WHERE ranked.rn IN (
+      target.rn,
+      CASE WHEN target.rn = 1 THEN target.total ELSE target.rn - 1 END,
+      CASE WHEN target.rn = target.total THEN 1 ELSE target.rn + 1 END
+    )
+  `).all(...tagIds, ...excludeTagIds, tagIds.length, mediaId) as Array<{ id: string; rn: number; total: number }>;
+  const self = rows.find((r) => r.id === mediaId);
+  if (!self) return null;
+  const at = (rn: number): string => rows.find((r) => r.rn === rn)?.id ?? mediaId;
+  const total = self.total;
+  return {
+    position: self.rn,
+    total,
+    prevId: at(self.rn === 1 ? total : self.rn - 1),
+    nextId: at(self.rn === total ? 1 : self.rn + 1),
+  };
 }
 
 // Returns slim display rows for the items currently matching a gallery's
@@ -6587,38 +6704,6 @@ export function countGalleryItemsByCriteria(
     )
   `).get(...tagIds, ...excludeTagIds, tagIds.length) as { n: number };
   return row.n;
-}
-
-// Count plus the newest matching item's upload instant, by the same tag-AND
-// match as countGalleryItemsByCriteria. The member-galleries list orders by that
-// instant, so a gallery that just gained an item rises to the top. latest is
-// null when nothing matches.
-export function summarizeGalleryItemsByCriteria(
-  tagIds: string[],
-  excludeTagIds: string[] = [],
-): { n: number; latest: string | null } {
-  if (tagIds.length === 0) return { n: 0, latest: null };
-  const placeholders = tagIds.map(() => '?').join(',');
-  const excludeClause = excludeTagIds.length === 0
-    ? ''
-    : `AND NOT EXISTS (
-         SELECT 1 FROM media_tags mtex
-         WHERE mtex.media_id = mi.id
-           AND mtex.tag_id IN (${excludeTagIds.map(() => '?').join(',')})
-       )`;
-  return db.prepare(`
-    SELECT COUNT(*) AS n, MAX(uploaded_at) AS latest FROM (
-      SELECT mi.id, mi.uploaded_at
-      FROM media_items mi
-      JOIN media_tags mt ON mt.media_id = mi.id
-      WHERE mi.moderation_status = 'active'
-        AND mi.is_avatar = 0
-        AND mt.tag_id IN (${placeholders})
-        ${excludeClause}
-      GROUP BY mi.id
-      HAVING COUNT(DISTINCT mt.tag_id) = ?
-    )
-  `).get(...tagIds, ...excludeTagIds, tagIds.length) as { n: number; latest: string | null };
 }
 
 /**
@@ -6812,6 +6897,7 @@ export interface PlayerCreditPersonRow {
   person_id: string;
   person_name: string;
   linked_member_slug: string | null;
+  has_page: number;
 }
 
 export const mediaPlayerCredits = {
@@ -6826,7 +6912,10 @@ export const mediaPlayerCredits = {
             WHERE m.historical_person_id = hp.person_id
               AND m.personal_data_purged_at IS NULL
             LIMIT 1
-           ) AS linked_member_slug
+           ) AS linked_member_slug,
+           -- Every record is kept, so a name two records share stays ambiguous;
+           -- only one with a page is linked.
+           CASE WHEN ${historyPageSql('hp')} THEN 1 ELSE 0 END AS has_page
     FROM historical_persons AS hp
     WHERE hp.source_scope = 'CANONICAL'
   `); },

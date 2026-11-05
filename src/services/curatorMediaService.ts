@@ -216,7 +216,7 @@
  */
 import { createHash, randomUUID } from 'crypto';
 import path from 'path';
-import { GALLERY_ITEMS_QUERY_CAP, countGalleryItemsByCriteria, isGalleryCoverCandidate, listGalleryCovers, listGalleryItemsForDisplay, media, mediaTags as mediaTagsDb, queryCuratorMediaTags, queryGalleryItemsByCriteriaGrouped, tagStats, transaction, type GallerySortOrder, type MediaJobRow } from '../db/db';
+import { GALLERY_ITEMS_QUERY_CAP, countGalleryItemsByCriteria, isGalleryCoverCandidate, listGalleryCovers, listGalleryItemsForDisplay, media, mediaTags as mediaTagsDb, queryCuratorMediaTags, queryGalleryItemNeighbours, tagStats, transaction, type GallerySortOrder, type MediaJobRow } from '../db/db';
 import { config } from '../config/env';
 import { logger } from '../config/logger';
 import { detectImageType, photoShapeRefusal, RENDITION_IMAGE_MIME } from '../lib/imageProcessing';
@@ -4880,9 +4880,9 @@ function sameTagSet(a: string[], b: string[]): boolean {
 /**
  * The page a share or a save lands on: the item inside the gallery it was
  * shared toward, when that gallery shows it, else the item's own page. A
- * gallery's item page answers only for an item in the set the gallery renders
- * (its criteria and excluded hashtags, in its order, up to its cap), so that
- * same set is read here; an item outside it would land on a page not found.
+ * gallery's item page answers only for an item in the gallery's set (its
+ * criteria and excluded hashtags), so that same set is checked here; an item
+ * outside it would land on a page not found.
  */
 function shareLandingHref(galleryId: string | null, mediaId: string): string {
   if (galleryId) {
@@ -4890,8 +4890,9 @@ function shareLandingHref(galleryId: string | null, mediaId: string): string {
     if (gallery) {
       const tagIds = (media.listFhNamedGalleryTags.all(galleryId) as Array<{ id: string }>).map((t) => t.id);
       const excludeTagIds = (media.listFhNamedGalleryExcludeTags.all(galleryId) as Array<{ id: string }>).map((t) => t.id);
-      const shown = queryGalleryItemsByCriteriaGrouped(tagIds, gallery.sort_order, excludeTagIds, GALLERY_ITEMS_QUERY_CAP);
-      if (shown.some((row) => row.id === mediaId)) return `/media/${galleryId}/${mediaId}`;
+      if (queryGalleryItemNeighbours(tagIds, gallery.sort_order, excludeTagIds, mediaId)) {
+        return `/media/${galleryId}/${mediaId}`;
+      }
     }
   }
   return `/media/item/${mediaId}`;

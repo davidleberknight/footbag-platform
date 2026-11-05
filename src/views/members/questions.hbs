@@ -6,10 +6,6 @@
 
 <div class="wrapper">
   <section>
-    {{#each navigation.contextLinks}}
-      <a href="{{href}}" class="back-link">{{label}}</a>
-    {{/each}}
-
     {{#if content.answered}}
       {{> outcome-notice text="Thank you. Your answer has been sent to the IFPA administrators." tone='ok'}}
     {{/if}}
@@ -92,4 +88,6 @@
       <p class="empty-state">Nothing is waiting for you. If an IFPA administrator asks you something, it will appear here and you will get an email telling you to log in.</p>
     {{/if}}
   </section>
+
+  {{> back-link}}
 </div>

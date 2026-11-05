@@ -929,7 +929,7 @@ describe('GET /media/:galleryId (named gallery, continued)', () => {
     expect(res.text).not.toContain('removed-by-admin-marker');
   });
 
-  it('renders all items on a single page (grouped, no pagination)', async () => {
+  it('pages the grouped curated gallery once it outgrows one page', async () => {
     const suffix = 'grouping-marker-901';
     const db = openDb();
     for (let i = 0; i < 25; i++) {
@@ -947,14 +947,17 @@ describe('GET /media/:galleryId (named gallery, continued)', () => {
 
     const app = createApp();
     const res = await request(app).get(`/media/${FH_GALLERY_ID}`);
-    // Grouped mode renders all items in one render; no per-page navigation.
-    expect(res.text).not.toContain('class="gallery-pagination"');
-    expect(res.text).not.toContain('?page&#x3D;2');
+    // A gallery past one page offers its later pages rather than dropping
+    // the oldest items; the oldest seeded item is reachable on a later page.
+    expect(res.text).toContain('class="gallery-pagination"');
+    expect(res.text).toContain(`href="/media/${FH_GALLERY_ID}?page&#x3D;2"`);
     expect(res.text).toContain(`${suffix}-24`);
-    expect(res.text).toContain(`${suffix}-00`);
+    expect(res.text).not.toContain(`${suffix}-00`);
+    const page2 = await request(app).get(`/media/${FH_GALLERY_ID}?page=2`);
+    expect(page2.text).toContain(`${suffix}-00`);
   });
 
-  it('caps the public render and shows a truncation notice when more items match than the single-page bound', async () => {
+  it('pages a named gallery over its whole set, so every item is reachable, and the viewer walks past item 100', async () => {
     // Dedicated gallery + tag so the 101-item corpus cannot pollute the
     // FH-gallery expectations of other tests in this file.
     const db = openDb();
@@ -980,22 +983,44 @@ describe('GET /media/:galleryId (named gallery, continued)', () => {
     db.close();
 
     const app = createApp();
-    const res = await request(app).get('/media/gallery_cap_stress');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Showing the first 100 of 101 items.');
-    // Exactly one matching item drops: with upload_desc ordering the oldest
-    // (lowest sequence) is the one past the cap.
-    expect(res.text).toContain('capstress-100');
-    expect(res.text).not.toContain('capstress-000');
+    // 101 items at the default 24 per page is five pages, newest first.
+    const first = await request(app).get('/media/gallery_cap_stress');
+    expect(first.status).toBe(200);
+    expect(first.text).toContain('capstress-100');
+    expect(first.text).not.toContain('capstress-000');
+    // A visitor in a multi-page gallery is told to narrow it, and the last
+    // page is one click away.
+    expect(first.text).toContain('notice-card--info');
+    expect(first.text).toContain('href="/media/gallery_cap_stress?page&#x3D;5" aria-label="Page 5"');
+
+    // The oldest item, which a fixed cut at 100 used to hide, is on the last page.
+    const last = await request(app).get('/media/gallery_cap_stress?page=5');
+    expect(last.status).toBe(200);
+    expect(last.text).toContain('capstress-000');
+    expect(last.text).not.toContain('capstress-100');
+    expect((await request(app).get('/media/gallery_cap_stress?page=6')).status).toBe(404);
+
+    // The item in position 101 opens, and its previous and next wrap round
+    // the whole set: next from the last item is the first (newest), previous
+    // is the item before it.
+    const item = await request(app).get('/media/gallery_cap_stress/media_cap_000');
+    expect(item.status).toBe(200);
+    expect(item.text).toContain('href="/media/gallery_cap_stress/media_cap_100"');
+    expect(item.text).toContain('href="/media/gallery_cap_stress/media_cap_001"');
+    // And from the first item, previous wraps to the last.
+    const newest = await request(app).get('/media/gallery_cap_stress/media_cap_100');
+    expect(newest.text).toContain('href="/media/gallery_cap_stress/media_cap_000"');
+    expect(newest.text).toContain('href="/media/gallery_cap_stress/media_cap_099"');
   });
 
-  it('ignores ?page query in grouped mode (no crash, still 200)', async () => {
+  it('clamps an invalid ?page to the first page and answers a page past the last with not found', async () => {
     const app = createApp();
-    for (const bad of ['abc', '-5', '0', '0.5', '999']) {
+    for (const bad of ['abc', '-5', '0', '0.5']) {
       const res = await request(app).get(`/media/${FH_GALLERY_ID}?page=${bad}`);
       expect(res.status).toBe(200);
       expect(res.text).toContain('Curated Freestyle Tricks');
     }
+    expect((await request(app).get(`/media/${FH_GALLERY_ID}?page=999`)).status).toBe(404);
   });
 
   it('returns 404 for an unknown gallery id', async () => {
@@ -1353,7 +1378,7 @@ describe('GET /media/:galleryId — browse-all handoff', () => {
     expect(res.text).not.toContain('Browse all matching media');
   });
 
-  it('shows the truncation notice and an editable filter springing to /media/browse when the set overflows the cap', async () => {
+  it('shows the large-result notice and an editable filter springing to /media/browse on a multi-page gallery', async () => {
     const db = openDb();
     for (let i = 0; i < 101; i++) {
       const seq = String(i).padStart(3, '0');
@@ -1369,9 +1394,9 @@ describe('GET /media/:galleryId — browse-all handoff', () => {
     const app = createApp();
     const res = await request(app).get('/media/gallery_handoff_big');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Showing the first 100 of 101 items.');
-    // The full set is reached by editing/applying the filter (which submits to
-    // /media/browse, paginated), not a separate Browse-all button.
+    expect(res.text).toContain('notice-card--info');
+    // Refining continues on /media/browse by editing/applying the filter, not
+    // a separate Browse-all button.
     expect(res.text).not.toContain('Browse all matching media');
     expect(res.text).toContain('action="/media/browse"');
     expect(res.text).toContain('name="tag" value="#handoff_big" data-tag-chips');

@@ -15,6 +15,7 @@ import {
   insertClub,
   insertMember,
   insertHistoricalPerson,
+  insertFreestyleRecord,
   insertLegacyClubCandidate,
   insertLegacyPersonClubAffiliation,
   insertMemberTierGrant,
@@ -108,6 +109,8 @@ beforeAll(async () => {
     resolution_status:        'confirmed_current',
     resolved_club_id:         clubId,
   });
+  // Yara's record holds a world record, so it has a page; Phantom's holds only a name.
+  insertFreestyleRecord(db, { person_id: unclaimedPersonId, display_name: 'Yara Unclaimed' });
 
   // Second person with a 'pending' (unresolved) affiliation — must never appear
   const pendingPersonId = insertHistoricalPerson(db, {
@@ -375,13 +378,14 @@ describe('GET /clubs/club_evergreen — authenticated', () => {
   // members in the same list, labeled per entry as unconfirmed, never presented
   // as confirmed current membership. Other excluded statuses (former_only,
   // not_mine, needs_review, rejected, superseded) stay hidden.
-  it('links a pending member to the history page with an unconfirmed status note', async () => {
+  it('names a pending member whose record holds only a name without a link, with an unconfirmed status note', async () => {
     const app = createApp();
     const res = await request(app)
       .get('/clubs/club_evergreen')
       .set('Cookie', authCookie());
-    expect(res.text).toMatch(/<a href="\/history\/person-pending-001">Phantom Unresolved<\/a>/);
-    expect(res.text).toMatch(/Phantom Unresolved<\/a>\s*<span class="text-muted fs-sm">\(historical member, unconfirmed current\)<\/span>/);
+    // A member would otherwise open a history page with nothing on it but the name.
+    expect(res.text).not.toContain('/history/person-pending-001');
+    expect(res.text).toMatch(/<span>Phantom Unresolved<\/span>\s*<span class="text-muted fs-sm">\(historical member, unconfirmed current\)<\/span>/);
   });
 
   it('does not attach the unconfirmed status note to confirmed members', async () => {

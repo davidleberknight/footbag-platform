@@ -70,7 +70,7 @@ const NO_DESCRIPTION_PAGES = [
   'ifpa', 'login', 'media',
   'media/browse', 'media/member-galleries', 'media/gallery_[a-z0-9_]+', 'members/canary_shown',
   'net', 'password/forgot', 'consecutives', 'register', 'rules', 'rules/[a-z-]+/[a-z0-9-]+', 'sideline',
-  'x-square', 'golf',
+  'x-square', 'golf', 'history/[A-Za-z0-9_-]+',
   'media/item/[A-Za-z0-9_]+', 'media/gallery_[a-z0-9_]+/[A-Za-z0-9_]+',
 ];
 

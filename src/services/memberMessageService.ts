@@ -345,7 +345,7 @@ export const memberMessageService = {
     return {
       seo:  { title: 'Questions for You', noindex: true },
       page: { sectionKey: 'members', pageKey: 'member_questions', title: 'Questions for You' },
-      navigation: { contextLinks: [{ label: 'Back to Profile', href: `/members/${slug}` }] },
+      navigation: { contextLinks: [{ label: 'Back to My Profile', href: `/members/${slug}` }] },
       content: {
         memberKey:    slug,
         questions,

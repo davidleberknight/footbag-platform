@@ -106,9 +106,16 @@ describe('GET /freestyle/tricks/:slug — Media section links to the gallery', (
   it('links to the trick gallery (?context=<slug>) with no inline media, filter bar, or embedded player', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/ripwalk');
     expect(res.status).toBe(200);
-    // Links to the trick's full video gallery using the locked-context convention.
-    expect(res.text).toContain('See All Videos for');
-    expect(res.text).toContain('href="/media/browse?context&#x3D;ripwalk"');
+    // The media line opens the page body: the hashtag and the gallery link
+    // both open the trick's video gallery, on the locked-context convention,
+    // and the hashtag is not in the hero.
+    const bodyStart = res.text.indexOf('<div class="wrapper trick-shell">');
+    const lineStart = res.text.indexOf('<p class="media-line" id="media">');
+    expect(lineStart).toBeGreaterThan(bodyStart);
+    const line = res.text.slice(lineStart, res.text.indexOf('</p>', lineStart));
+    expect(line).toContain('<a class="hashtag hashtag--media" href="/media/browse?context&#x3D;ripwalk">#ripwalk</a>');
+    expect(line).toContain('<a class="action-link" href="/media/browse?context&#x3D;ripwalk">');
+    expect(res.text.slice(res.text.indexOf('<div class="hero'), bodyStart)).not.toContain('#ripwalk');
     // The trick page embeds no clips, in-page filter, or players.
     expect(res.text).not.toContain('class="tag-filter-bar"');
     expect(res.text).not.toContain('Ripwalk Curated');

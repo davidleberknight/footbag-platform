@@ -27,6 +27,7 @@ import {
   insertMember,
   insertMemberTierGrant,
   insertHistoricalPerson,
+  insertFreestyleRecord,
   createTestSessionJwt,
   insertMediaItem,
   insertTag,
@@ -51,6 +52,9 @@ const HP_ACCENTED_TAG = '#player_zoe_pcquist';
 const HP_CLAIMED = 'hp-pc-claimed';
 const HP_CLAIMED_NAME = 'Ola Pcclaimed';
 const HP_CLAIMED_TAG = '#player_ola_pcclaimed';
+const HP_BARE = 'hp-pc-bare';
+const HP_BARE_NAME = 'Una Pcbare';
+const HP_BARE_TAG = '#player_una_pcbare';
 const DUP_NAME = 'Dup Pcname';
 const DUP_TAG = '#player_dup_pcname';
 const UNMATCHED_TAG = '#player_nobody_pchere';
@@ -99,6 +103,9 @@ beforeAll(async () => {
   insertMember(db, { id: SYSTEM_ID, slug: 'footbag_hacky_pc', display_name: 'Footbag Hacky', is_system: 1 });
 
   insertHistoricalPerson(db, { person_id: HP_ACCENTED, person_name: HP_ACCENTED_NAME, source_scope: 'CANONICAL' });
+  // The accented record holds a world record, so it has a page; the bare one holds only a name.
+  insertFreestyleRecord(db, { person_id: HP_ACCENTED, display_name: HP_ACCENTED_NAME });
+  insertHistoricalPerson(db, { person_id: HP_BARE, person_name: HP_BARE_NAME, source_scope: 'CANONICAL' });
   insertHistoricalPerson(db, { person_id: HP_CLAIMED, person_name: HP_CLAIMED_NAME, source_scope: 'CANONICAL' });
   insertMember(db, { id: CLAIMER_ID, slug: CLAIMER_SLUG, display_name: 'Pc Claimer', historical_person_id: HP_CLAIMED });
   insertHistoricalPerson(db, { person_id: 'hp-pc-dup-a', person_name: DUP_NAME, source_scope: 'CANONICAL' });
@@ -110,6 +117,7 @@ beforeAll(async () => {
     `#player_${PLAYER_SLUG}`,
     HP_ACCENTED_TAG,
     HP_CLAIMED_TAG,
+    HP_BARE_TAG,
     DUP_TAG,
     UNMATCHED_TAG,
   ]);
@@ -139,6 +147,12 @@ describe('item viewer player credits', () => {
     expect(credits).toContain(HP_ACCENTED_NAME);
     expect(credits).toContain(`href="/history/${HP_CLAIMED}"`);
     expect(credits).not.toContain('/members/');
+
+    // A record holding only a name has no page: its credit leads to the media
+    // featuring the player, never to an empty history page.
+    expect(credits).toContain(HP_BARE_NAME);
+    expect(credits).toContain(`href="${asRenderedHref('/media/browse?tag=player_una_pcbare')}"`);
+    expect(res.text).not.toContain(`/history/${HP_BARE}`);
 
     // Two records spell the same tag, and one tag names nobody: neither is a credit,
     // though both stay on the item as hashtags.

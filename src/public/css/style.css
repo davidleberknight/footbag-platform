@@ -655,22 +655,9 @@ section { margin-top: var(--space-2xl); }
 }
 
 /* ── Back link ──────────────────────────────────────────────── */
-/* A block of its own, as wide as its text, so the gap below it meets the next
-   block's margin instead of adding to it. */
-.back-link {
-  display: flex;
-  width: fit-content;
-  margin-bottom: var(--space-lg);
-}
-.back-link:last-child { margin-bottom: 0; }
-.back-link {
-  align-items: center;
-  gap: var(--space-sm);
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--text-muted);
-}
-.back-link:hover { color: var(--primary-ink); text-decoration: none; }
+/* The back link that closes a page sits one section gap below the block
+   above it, whatever that block's own bottom margin is. */
+.page-back-link { margin-top: var(--space-xl); }
 
 
 /* ── Member search ─────────────────────────────────────────── */
@@ -957,6 +944,8 @@ section { margin-top: var(--space-2xl); }
    last blocks would add their own gaps to the layout's gap. */
 .media-layout > * > :first-child { margin-top: 0; }
 .media-layout > * > :last-child { margin-bottom: 0; }
+/* The large-result notice sits above the grid at the section rhythm. */
+.media-layout-main > .notice-card { margin-bottom: var(--space-xl); }
 
 /* Vertical rhythm for stacked blocks inside one section. Blocks carry no
    margin of their own, so spacing is this gap and nothing else. */
@@ -1392,10 +1381,6 @@ button.tag-suggestion {
   font-family: inherit;
   font-size: 0.9rem;
 }
-.tag-filter-count {
-  font-size: 0.9rem;
-  color: var(--text-muted);
-}
 /* Tag chip input (progressive enhancement) */
 .tag-chip-input-container {
   display: flex;
@@ -1507,16 +1492,53 @@ button.tag-suggestion {
   font-size: 0.9rem;
 }
 
+/* The one pager: Previous, numbered pages and Next on one row, the
+   "Page X of Y" status beneath. At phone width the pages beside the current
+   one drop out, leaving first, current and last, so the row never wraps. */
 .gallery-pagination {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-top: var(--space-2xl);
+}
+.gallery-pagination-row {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: var(--space-md);
-  margin-top: var(--space-2xl);
+}
+.gallery-pagination-list {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.gallery-pagination-list a,
+.gallery-pagination-current {
+  display: inline-block;
+  min-width: 2.75rem;
+  padding: var(--space-xs) var(--space-sm);
+  text-align: center;
+}
+.gallery-pagination-current {
+  font-weight: 600;
+  border-bottom: 2px solid currentColor;
+}
+.gallery-pagination-gap {
+  color: var(--text-muted);
 }
 .gallery-pagination-status {
+  margin: 0;
   color: var(--text-muted);
   font-size: 0.9rem;
+}
+@media (max-width: 480px) {
+  .gallery-pagination-neighbour {
+    display: none;
+  }
 }
 
 /* Gallery description renders as a caption paragraph below the hero. */
@@ -2159,9 +2181,6 @@ p.badge { display: block; width: fit-content; }
 .club-member-entry { padding: var(--space-sm) 0; border-bottom: 1px solid var(--border); font-size: 1rem; color: var(--text); }
 .club-members-gate { margin-top: var(--space-xl); }
 .club-members-gate p { margin: 0; }
-.club-back-link {
-  margin-top: var(--space-xl);
-}
 
 .club-country-nav {
   margin: 0 0 var(--space-xl);
@@ -3090,7 +3109,6 @@ main fieldset > :not(:has(~ :not([type="hidden"]))) { margin-bottom: 0; }
   letter-spacing: 0.04em;
 }
 .candidate-card-action { display: inline-block; margin: var(--space-sm) var(--space-sm) 0 0; }
-.claimed-legacy-row { padding: var(--space-xs) 0; }
 
 /* ── Member dashboard blocks ─────────────────────────────────── */
 .quick-actions { display: flex; flex-wrap: wrap; gap: var(--space-sm); }
@@ -3287,9 +3305,6 @@ main fieldset > :not(:has(~ :not([type="hidden"]))) { margin-bottom: 0; }
 .teaching-stats { margin-top: var(--space-xl); }
 .gallery-external-link-row { margin-bottom: var(--space-md); }
 .gallery-external-link-row-quarantined { opacity: 0.7; }
-
-/* ── IFPA hub footer sections ────────────────────────────────── */
-.ifpa-footer-back,
 
 /* ── Official IFPA Roster: summary counts ────────────────────── */
 /* Reads like .club-detail-meta, but its labels are sentences rather than the
@@ -3550,6 +3565,23 @@ a.hashtag--media {
 a.hashtag--media:hover {
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+/* A page's own media line: its hashtag token and, when media exists, the
+   gallery link beside it, on one wrapping row near the top of the body. */
+.media-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm) var(--space-md);
+  margin: var(--space-md) 0;
+}
+/* Standing alone, a long hashtag (one underscore-joined word) breaks rather
+   than pushing a phone-width page sideways. */
+.media-line .hashtag {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  flex-shrink: 1;
+  min-width: 0;
 }
 /* ── Trick dictionary: ADD-grouped beginner view ─────────────────────────── */
 .trick-view-toggle {
@@ -4013,7 +4045,6 @@ a.hashtag--media:hover {
   color: var(--text-muted);
 }
 .related-modifier-groups-label { margin-right: var(--space-sm); }
-.related-modifier-group-count { color: var(--text-muted); }
 .related-modifier-group-sep { opacity: 0.5; }
 
 .family-badge {
@@ -4454,7 +4485,6 @@ a.hashtag--media:hover {
 .rules-toc strong { display: block; margin-bottom: var(--space-sm); }
 .rules-toc ul { margin: 0; padding-left: var(--space-xl); }
 .rules-toc li { margin: 0 0 var(--space-xs); }
-.rules-detail .rules-footer-back { margin-top: var(--space-xl); }
 .rules-detail .markdown-body h1 {
   margin: var(--space-lg) 0 var(--space-md);
   padding-top: var(--space-lg);
@@ -7033,7 +7063,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .jump-bar-label { color: var(--text-muted); font-weight: 600; margin-right: var(--space-xs); }
 .jump-bar-label--branch,
 .jump-bar-label--minor { margin-left: var(--space-md); }
-.jump-bar-count { color: var(--text-muted); font-weight: 400; font-size: 0.9rem; }
 .jump-bar-sep {
   color: var(--text-muted);
   margin: 0 var(--space-xs);

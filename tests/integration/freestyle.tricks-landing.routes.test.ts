@@ -227,8 +227,8 @@ describe('GET /freestyle/tricks — browse axes and their explanations', () => {
     expect(res.text).toContain('Root families:');
     // whirl has >1 member in the seed, so its family section + jump chip render;
     // the chip targets the in-page anchor, not the ?family= detail page.
-    expect(res.text).toMatch(/href="#family-whirl"/);
-    expect(res.text).toContain('class="jump-bar-count"');
+    // The chip names the family alone: a control never carries a count.
+    expect(res.text).toMatch(/<a href="#family-whirl">[^<\d]+<\/a>/);
   });
 
   it('orders family entries by operator rung: anchor, then 1-operator, then 2-operator', async () => {

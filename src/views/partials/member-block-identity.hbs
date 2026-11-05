@@ -1,5 +1,6 @@
 <div class="profile-section">
   <h2 class="profile-section-heading">Identity &amp; History</h2>
+  {{> player-facts heroData=heroData}}
   <div>
     {{#if legacyAccount.linked}}
       <p>Legacy account: linked{{#if legacyAccount.sinceDisplay}} (since {{legacyAccount.sinceDisplay}}){{/if}}.</p>
@@ -11,20 +12,13 @@
       {{/if}}
     {{/if}}
     {{#if historicalPerson.linked}}
-      <p>Competition record: {{#if historicalPerson.href}}<a href="{{historicalPerson.href}}">{{historicalPerson.summary}}</a>{{else}}{{historicalPerson.summary}}{{/if}}.</p>
+      {{#unless heroData.historicalPersonName}}
+        <p>Competition record: linked.</p>
+      {{/unless}}
     {{else}}
       {{#if legacyAccount.linked}}
         <p>Competition record: not yet linked.</p>
       {{/if}}
-    {{/if}}
-    {{#if claimedIdentities.length}}
-      <ul class="profile-account-list">
-        {{#each claimedIdentities}}
-        <li class="claimed-legacy-row">
-          <span>{{this.displayName}}{{#if this.claimedAtDisplay}} <span class="text-muted fs-sm">(linked {{this.claimedAtDisplay}})</span>{{/if}}</span>
-        </li>
-        {{/each}}
-      </ul>
     {{/if}}
     {{#if cta}}
       <a href="{{cta.href}}" class="btn btn-primary">{{cta.label}}</a>

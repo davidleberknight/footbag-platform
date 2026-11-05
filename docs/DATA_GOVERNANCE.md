@@ -52,7 +52,7 @@ Anything not in this taxonomy defaults to Sensitivity 4 until explicitly classif
 
 ## 4. Public historical record policy
 
-Approved public historical records: official event results, year archives, Hall of Fame, Big Add Posse, official world-record tables, and minimal historical-person pages (name, country, official honors, result and event links, world-record inclusion; no contact fields; not a member profile). Hall of Fame and Big Add Posse honors outlive a member's personal data: purge and the deceased flow preserve them.
+Approved public historical records: official event results, year archives, Hall of Fame, Big Add Posse, official world-record tables, and minimal historical-person pages (name, country, official honors, result and event links, world-record inclusion; no contact fields; not a member profile). A historical person whose record holds only a name, with no result, public world record, honor or linked member, has no page, and nothing links to one. Hall of Fame and Big Add Posse honors outlive a member's personal data: purge and the deceased flow preserve them.
 
 ---
 

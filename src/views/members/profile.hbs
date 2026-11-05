@@ -13,9 +13,9 @@
           {{else}}
           <div class="profile-avatar-placeholder" aria-hidden="true">&#128100;</div>
           {{/if}}
-          {{#each navigation.contextLinks}}
-            <a href="{{href}}" class="btn btn-primary">{{label}}</a>
-          {{/each}}
+          {{#if content.editProfileHref}}
+            <a href="{{content.editProfileHref}}" class="btn btn-primary">Edit Profile</a>
+          {{/if}}
         </div>
       </div>
 
@@ -85,7 +85,7 @@
           {{> player-results eventGroups=content.eventGroups hasDetailColumn=content.resultsHaveDetail firstCompetitionYear=content.firstCompetitionYear showCompetingSince=content.showCompetingSince}}
         </div>
 
-        {{> member-block-identity content.identity}}
+        {{> member-block-identity content.identity heroData=content.heroData}}
 
         <div class="profile-section">
           <h2 class="profile-section-heading">Account</h2>

@@ -7,8 +7,6 @@ export interface RulesCategoryFrontmatter {
   categoryLabel: string;
   authority: string;
   effective: string | null;
-  parentHref: string;
-  parentLabel: string;
 }
 
 export interface ParsedRulePage {
@@ -18,8 +16,6 @@ export interface ParsedRulePage {
   title: string;
   authority: string;
   effective: string | null;
-  parentHref: string;
-  parentLabel: string;
   bodyHtml: string;
   headings: { id: string; text: string }[];
 }
@@ -97,8 +93,6 @@ function buildCache(): Map<string, ParsedRulePage> {
     const categoryLabel = fm['categoryLabel'] ?? category;
     const authority = fm['authority'] ?? '';
     const effective = fm['effective'] ?? null;
-    const parentHref = fm['parentHref'] ?? '/rules';
-    const parentLabel = fm['parentLabel'] ?? 'Rules';
 
     for (const { headingText, segment } of splitByH1(body)) {
       const slug = slugifyHeading(headingText);
@@ -111,8 +105,6 @@ function buildCache(): Map<string, ParsedRulePage> {
         title: headingText,
         authority,
         effective,
-        parentHref,
-        parentLabel,
         bodyHtml: html,
         headings: extractHeadings(html),
       });

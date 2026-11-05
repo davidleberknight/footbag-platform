@@ -15,6 +15,10 @@
 
 <div class="wrapper trick-shell">
 
+  {{#if content.trickTag}}
+  {{> media-line id="media" display=content.trickTag galleryHref=content.referenceGalleryHref galleryLabel=content.referenceGalleryLabel}}
+  {{/if}}
+
   {{> trick-compressed-from}}
 
   {{!--
@@ -36,8 +40,8 @@
   {{> trick-about}}
 
   {{!-- Taxonomy ribbon: family, ADD, and pronunciation. Sits under the
-       plain-words opening, not above it. The identity hashtag renders in the
-       hero (trick-hero partial), matching the club-detail hero. --}}
+       plain-words opening, not above it. The hashtag renders in the media
+       line at the top of the body, as on the club and event pages. --}}
   <p class="trick-hero-meta-ribbon">
     {{#if content.familyChip}}
     <a class="trick-hero-meta-chip trick-hero-meta-chip-family{{#if content.familyChip.isMinorLineage}} trick-hero-meta-chip-family--minor{{/if}}" href="{{{content.familyChip.href}}}">{{content.familyChip.label}}{{#if content.familyChip.isMinorLineage}} &middot; minor lineage{{/if}}</a>
@@ -136,19 +140,6 @@
   {{> trick-related}}
 
   {{> symbolic-related-topology}}
-
-  {{#if content.referenceGalleryHref}}
-  <section id="media" class="content-section" aria-label="Media">
-    <div class="section-heading">
-      <h2>Media</h2>
-      <p class="section-intro">Videos referencing {{content.trickName}}.</p>
-    </div>
-
-    <p class="mt-4">
-      <a href="{{content.referenceGalleryHref}}" class="action-link">See All Videos for {{content.trickName}}</a>
-    </p>
-  </section>
-  {{/if}}
 
   {{> trick-records}}
 

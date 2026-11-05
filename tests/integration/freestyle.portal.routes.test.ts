@@ -598,10 +598,9 @@ describe('GET /freestyle/partnerships', () => {
     expect(res.text).toContain('All Partnerships');
   });
 
-  it('renders a breadcrumb back to /freestyle in the hero', async () => {
+  it('offers a back link to /freestyle', async () => {
     const res = await page('/freestyle/partnerships');
-    expect(res.text).toMatch(/class="breadcrumb"/);
-    expect(res.text).toMatch(/href="\/freestyle">Freestyle</);
+    expect(res.text).toContain('<a href="/freestyle" class="action-link">');
   });
 
   it('opens with a lede that links unfamiliar terms to the glossary', async () => {

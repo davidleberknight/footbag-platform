@@ -1,0 +1,24 @@
+{{!-- The one pager for a paged list. Takes `pagination`, the service-shaped
+      block: numbered links that always include the first and last page, a gap
+      for skipped pages, Previous and Next only where they lead somewhere, and a
+      "Page X of Y" status. Renders nothing for a one-page set. --}}
+{{#if pagination.isMultiPage}}
+  <nav class="gallery-pagination" aria-label="Pagination">
+    <div class="gallery-pagination-row">
+      {{#if pagination.hasPrev}}<a href="{{pagination.prevHref}}" rel="prev">Previous</a>{{/if}}
+      <ul class="gallery-pagination-list">
+        {{#each pagination.pageLinks}}
+          {{#if isGap}}
+            <li class="gallery-pagination-gap" aria-hidden="true">…</li>
+          {{else if isCurrent}}
+            <li><span class="gallery-pagination-current" aria-current="page">{{number}}</span></li>
+          {{else}}
+            <li{{#if isNeighbour}} class="gallery-pagination-neighbour"{{/if}}><a href="{{href}}" aria-label="Page {{number}}">{{number}}</a></li>
+          {{/if}}
+        {{/each}}
+      </ul>
+      {{#if pagination.hasNext}}<a href="{{pagination.nextHref}}" rel="next">Next</a>{{/if}}
+    </div>
+    <p class="gallery-pagination-status">{{pagination.statusLabel}}</p>
+  </nav>
+{{/if}}

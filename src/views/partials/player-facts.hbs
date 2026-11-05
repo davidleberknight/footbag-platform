@@ -1,0 +1,13 @@
+{{!-- The identifying-facts strip: where a person is, and the name their
+      competition results were recorded under when it differs from the name on
+      the page. It sits directly under the hero on the pages others read; on a
+      member's own profile it opens the Identity & History section, beside the
+      rest of their linked history. Receives the page's heroData; the
+      service has already withheld city and region from a visitor who may not
+      see them. --}}
+{{#if (or heroData.historicalPersonName (or heroData.city (or heroData.region heroData.country)))}}
+<div class="event-meta-row">
+  {{#if (or heroData.city (or heroData.region heroData.country))}}<span>{{#if heroData.city}}{{heroData.city}}{{#if heroData.region}}, {{heroData.region}}{{/if}}{{#if heroData.country}} · {{heroData.country}}{{/if}}{{else if heroData.region}}{{heroData.region}}{{#if heroData.country}} · {{heroData.country}}{{/if}}{{else}}{{heroData.country}}{{/if}}</span>{{/if}}
+  {{#if heroData.historicalPersonName}}<span>Competition record: {{heroData.historicalPersonName}}</span>{{/if}}
+</div>
+{{/if}}

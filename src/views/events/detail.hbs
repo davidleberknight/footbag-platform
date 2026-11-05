@@ -3,8 +3,6 @@
 <div class="hero hero-sm">
   <div>
     <h1>{{page.title}}</h1>
-    {{> entity-hashtag content.hashtag}}
-    <p>{{formatLocation content.event.city content.event.region content.event.country}} &middot; {{formatDate content.event.startDate}}{{#unless (eq content.event.startDate content.event.endDate)}} – {{formatDate content.event.endDate}}{{/unless}}</p>
   </div>
 </div>
 
@@ -28,17 +26,11 @@
         {{/if}}
       </div>
 
+      {{> media-line id="event-media" display=content.hashtag.display galleryHref=content.hashtag.galleryHref galleryLabel=content.media.buttonLabel}}
+
       {{! ── Description ───────────────────────────────────────── }}
       {{#if content.event.description}}
         <p>{{content.event.description}}</p>
-      {{/if}}
-
-      {{! ── Media ─────────────────────────────────────────────── }}
-      {{#if content.media}}
-        <div id="event-media">
-          <h2>Media</h2>
-          {{> entity-media content.media}}
-        </div>
       {{/if}}
 
       {{! ── Competition categories ────────────────────────────── }}
@@ -74,12 +66,8 @@
         {{/if}}
       </div>
 
-      {{#each navigation.contextLinks}}
-        <div>
-          <a href="{{href}}" class="btn btn-outline">{{label}}</a>
-        </div>
-      {{/each}}
-
     </div>
   </section>
+
+  {{> back-link}}
 </div>

@@ -391,8 +391,8 @@ describe('roster page controls keep the reader oriented', () => {
 
   it('offers a way back to the IFPA section', () => {
     const vm = ors.getOfficialRosterPage();
-    expect(vm.content.backHref).toBe('/ifpa');
-    expect(vm.content.backLabel).toBe('Back to IFPA Documents');
+    // The roster is nested under the IFPA landing, its only parent.
+    expect(vm.navigation?.contextLinks?.map((l) => l.href)).toEqual(['/ifpa']);
   });
 
   it('states a standing for a member holding no honours rather than leaving it blank', () => {

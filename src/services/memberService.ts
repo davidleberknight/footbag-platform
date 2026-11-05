@@ -301,22 +301,15 @@ export interface IdentityLinkView {
     linked: boolean;
     sinceDisplay: string | null;
   };
+  // The record's name shows in this block's facts strip when it differs from
+  // the member's name; a link would only redirect back to this profile.
   historicalPerson: {
     linked: boolean;
-    summary: string | null;
-    href: string | null;
   };
   cta: {
     href: string;
     label: string;
   } | null;
-  /**
-   * The old-site accounts this member has claimed. Part of the identity view
-   * rather than a block of its own: a reader shown "your past account and your
-   * competition record" beside a separate list of claimed accounts has no way
-   * to tell what distinguishes the two.
-   */
-  claimedIdentities: ClaimedLegacyIdentityView[];
 }
 
 export interface MemberWelcomeTier {
@@ -375,6 +368,8 @@ export interface MemberLinkView {
 }
 
 export interface OwnProfileContent {
+  /** The own profile's Edit Profile button; the edit page itself carries none. */
+  editProfileHref?: string;
   /** The newest media crediting the member as a player; absent or null when none does. */
   playerMedia?: EntityMediaBlock | null;
   playerMediaHeading?: string;
@@ -428,14 +423,6 @@ export interface OwnProfileContent {
   /** The outcome of a club action that redirected here, with its own tone:
    *  a refusal must not wear the treatment that means the act succeeded. */
   clubActionNotice?: OutcomeNoticeView | null;
-}
-
-/** A legacy account the member has claimed. Display-only: a member who believes
- *  a confirmed link is wrong uses the dispute path, not this list. */
-export interface ClaimedLegacyIdentityView {
-  legacyMemberId:   string;
-  displayName:      string;
-  claimedAtDisplay: string | null;
 }
 
 /** Wraps MemberSearchResult with the form action so the partial can render
@@ -658,7 +645,7 @@ function vouchOutcomeNotice(
 // not the profile: display name, country, avatar, honor badges, the historical
 // competition name, and the member-controlled competing-since year and
 // results. Every other field below empties or nulls for that viewer, including
-// the hero's city and region.
+// the city and region in heroData, which the facts strip under the hero reads.
 export interface PublicProfileContent {
   /** Member-visible: media crediting the member as a player; null otherwise. */
   playerMedia: EntityMediaBlock | null;
@@ -1024,15 +1011,6 @@ function fetchMemberBySlug(slug: string): MemberProfileRow {
   return row;
 }
 
-function buildClaimedLegacyIdentitiesView(memberId: string): ClaimedLegacyIdentityView[] {
-  const rows = identityAccessService.listClaimedLegacyIdentities(memberId);
-  return rows.map(r => ({
-    legacyMemberId:   r.legacyMemberId,
-    displayName:      r.displayName,
-    claimedAtDisplay: r.claimedAt ? formatDateDisplay(r.claimedAt) : null,
-  }));
-}
-
 export type PurgeAccountPIIResult =
   | {
       status: 'purged';
@@ -1305,7 +1283,7 @@ export const memberService = {
     const row = fetchMemberBySlug(slug);
     const eventGroups = fetchEventGroups(row);
     const playerMedia = buildPlayerMediaView(slug, row.display_name);
-    const heroData = { ...buildMemberHeroData(row), hashtag: playerMedia.hashtag };
+    const heroData = buildMemberHeroData(row);
     const query = opts?.query;
     // The authenticated owner is the search actor; the per-member quota and the
     // audit row key on their id.
@@ -1332,12 +1310,10 @@ export const memberService = {
         // that was saved, so the notice takes the success tone.
         ...(opts?.notice ? { notice: opts.notice, noticeTone: 'ok' as const } : {}),
       },
-      navigation: {
-        contextLinks: [{ label: 'Edit Profile', href: `/members/${slug}/edit`, variant: 'outline' }],
-      },
       content: {
         ...rowToContent(row),
         heroData,
+        editProfileHref: `/members/${slug}/edit`,
         profileBase: `/members/${slug}`,
         eventGroups,
         resultsHaveDetail: resultsHaveDetail(eventGroups),
@@ -1398,17 +1374,16 @@ export const memberService = {
     if (!viewer.authenticated && !isHof && !isBap) return null;
 
     const eventGroups = row.show_competitive_results !== 0 ? fetchEventGroups(row) : [];
-    // The hero is the only place a locality renders on this page, so gating
-    // content.city alone would change nothing on screen. City and region are
-    // member-only: the honor exception publishes the honor record, whose
-    // location is the country and nothing finer.
+    // The facts strip under the hero is the only place a locality renders on
+    // this page, and it reads heroData, so gating content.city alone would
+    // change nothing on screen. City and region are member-only: the honor
+    // exception publishes the honor record, whose location is the country and
+    // nothing finer.
     const fullHero = buildMemberHeroData(row);
+    const heroData = viewer.authenticated ? fullHero : { ...fullHero, city: null, region: null };
     // Media crediting the member is member-visible like their uploads: the
     // honor exception publishes the honor record and nothing more.
     const playerMedia = viewer.authenticated ? buildPlayerMediaView(slug, row.display_name) : null;
-    const heroData = playerMedia
-      ? { ...fullHero, hashtag: playerMedia.hashtag }
-      : { ...fullHero, city: null, region: null };
 
     const contactEmail =
       viewer.authenticated && row.email_visibility !== 'private'
@@ -1547,9 +1522,6 @@ export const memberService = {
     return {
       seo:  { title: 'Delete Account', noindex: true },
       page: { sectionKey: 'members', pageKey: 'member_delete_account', title: 'Delete Account' },
-      navigation: {
-        contextLinks: [{ label: 'Back to Profile', href: `/members/${slug}` }],
-      },
       content: {
         memberKey:      slug,
         formAction:     `/members/${slug}/delete`,
@@ -1617,7 +1589,7 @@ export const memberService = {
       seo:  { title: 'Edit Profile' },
       page: { sectionKey: 'members', pageKey: 'member_profile_edit', title: 'Edit Profile' },
       navigation: {
-        contextLinks: [{ label: 'Back to Profile', href: `/members/${slug}` }],
+        contextLinks: [{ label: 'Back to My Profile', href: `/members/${slug}` }],
       },
       content: {
         ...rowToContent(row),
@@ -2431,9 +2403,8 @@ function buildOwnProfileMediaView(memberId: string, slug: string): OwnProfileMed
 
 // Media crediting the member as a player, apart from the media they uploaded:
 // a member is credited by their own slug, the same token their uploader hashtag
-// carries. The hashtag shows under the name, linked when media carries it.
+// carries.
 interface PlayerMediaView {
-  hashtag: { display: string; galleryHref: string | null };
   media: EntityMediaBlock | null;
   heading: string;
 }
@@ -2442,7 +2413,6 @@ function buildPlayerMediaView(slug: string, displayName: string): PlayerMediaVie
   const tag = playerTagForMemberSlug(slug);
   const galleryHref = mediaService.getEntityGalleryHref(tag);
   return {
-    hashtag: { display: tag, galleryHref },
     media: galleryHref ? { galleryHref, buttonLabel: 'View Player Gallery' } : null,
     heading: `Media Featuring ${displayName}`,
   };
@@ -2832,12 +2802,7 @@ function buildIdentityLinkView(memberId: string, slug: string): IdentityLinkView
     },
     historicalPerson: {
       linked: hpLinked,
-      summary: personName,
-      href: row?.historical_person_id
-        ? `/history/${encodeURIComponent(row.historical_person_id)}`
-        : null,
     },
     cta: buildIdentityCta(slug, legacyLinked, hpLinked),
-    claimedIdentities: buildClaimedLegacyIdentitiesView(memberId),
   };
 }

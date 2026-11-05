@@ -440,6 +440,7 @@ export const broadcastService = {
     return {
       ...vm,
       page: { ...vm.page, title: 'Send a Community Announcement' },
+      navigation: { contextLinks: [{ label: 'Back to My Profile', href: `/members/${memberKey}` }] },
       content: {
         ...vm.content,
         formAction: `/members/${memberKey}/announce`,

@@ -1,0 +1,18 @@
+{{!-- A page's own media line, near the top of the page body and never in the
+      hero. The hashtag uses the shared hashtag token: a live link to its
+      gallery when media carries it, a resting token otherwise, so a visitor
+      always reads the tag that finds this page's media. When media exists the
+      gallery link sits beside it and opens the same gallery, so media presence
+      shows as two agreeing signals in one place.
+      Hash arguments: id (the line's anchor, set only when media exists, so a
+      jump link never lands on a line with nothing to open), display (the
+      hashtag), galleryHref (null without media), galleryLabel (the gallery
+      link's label). --}}
+<p class="media-line"{{#if galleryHref}} id="{{id}}"{{/if}}>
+  {{#if galleryHref}}
+  <a class="hashtag hashtag--media" href="{{galleryHref}}">{{display}}</a>
+  <a class="action-link" href="{{galleryHref}}">{{galleryLabel}}</a>
+  {{else}}
+  <span class="hashtag">{{display}}</span>
+  {{/if}}
+</p>

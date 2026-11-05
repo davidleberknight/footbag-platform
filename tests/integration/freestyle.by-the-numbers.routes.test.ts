@@ -102,13 +102,9 @@ describe('GET /freestyle/by-the-numbers', () => {
     expect(res.text).not.toContain('active canonical tricks');
   });
 
-  it('offers a breadcrumb back to the freestyle landing page', async () => {
+  it('offers a back link to the freestyle landing page', async () => {
     const res = await page('/freestyle/by-the-numbers');
-    const crumbAt = res.text.indexOf('class="breadcrumb"');
-    expect(crumbAt).toBeGreaterThan(-1);
-    const crumbs = res.text.slice(crumbAt, crumbAt + 400);
-    expect(crumbs).toContain('href="/freestyle"');
-    expect(crumbs).toContain('Freestyle by the Numbers');
+    expect(res.text).toContain('<a href="/freestyle" class="action-link">');
   });
 
   it('serves the page to an anonymous visitor and lists it for crawlers', async () => {

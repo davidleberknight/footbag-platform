@@ -55,8 +55,6 @@ describe('rules MD loader', () => {
     for (const page of listRulePages().filter((p) => p.category === 'x-square')) {
       expect(page.authority).toBe('IFPA');
       expect(page.effective).toBe('2020');
-      expect(page.parentHref).toBe('/x-square');
-      expect(page.parentLabel).toBe('X-Square');
     }
   });
 

@@ -69,6 +69,12 @@ describe('the clubs landing page states its country coverage', () => {
     const res = await page('/clubs');
     expect(res.status).toBe(200);
     expect(res.text).toContain(`${LISTED.length} countries`);
+    // A count is supporting metadata: it sits in the body with the list it
+    // counts, never as the hero's headline.
+    // The body is the first wrapper after the hero; the site header opens a
+    // wrapper of its own before the hero.
+    const bodyStart = res.text.indexOf('<div class="wrapper">', res.text.indexOf('<div class="hero'));
+    expect(res.text.indexOf(`${LISTED.length} countries`)).toBeGreaterThan(bodyStart);
   });
 
   it('counts a country once however many clubs it holds', async () => {

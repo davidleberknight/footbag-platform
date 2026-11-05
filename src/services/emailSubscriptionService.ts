@@ -96,7 +96,6 @@ export interface EmailSubscriptionListViewModel {
 
 export interface EmailSubscriptionsContent {
   formAction: string;
-  backHref: string;
   lists: EmailSubscriptionListViewModel[];
   hasLists: boolean;
   /** Why mailings to the member's address are stopped; empty while it receives mail. */
@@ -326,9 +325,9 @@ export const emailSubscriptionService = {
         pageKey: 'member_email_preferences',
         title: 'Email Preferences',
       },
+      navigation: { contextLinks: [{ label: 'Back to My Profile', href: `/members/${memberKey}` }] },
       content: {
         formAction: `/members/${memberKey}/email-preferences`,
-        backHref: `/members/${memberKey}`,
         lists,
         hasLists: lists.length > 0,
         addressNotice,

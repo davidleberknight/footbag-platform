@@ -3468,6 +3468,7 @@ VALUES
 --   member_search_rate_limit_max_per_member   Max member searches per member per window
 --   member_search_rate_limit_max_per_ip       Max member searches per source IP per window
 --   member_search_rate_limit_window_minutes   Fixed window formember-search rate limiting
+--   media_page_size                 Items per page on every paged media surface (12 to 96)
 -- Pricing keys:
 --   tier1_price_cents               Tier 1 IFPA Member dues (integer cents; $10.00 = 1000)
 --   tier2_price_cents               Tier 2 IFPA Organizer Member dues (integer cents; $50.00 = 5000)
@@ -4263,6 +4264,15 @@ VALUES
    'group_email_rate_limit_per_hour', '30',
    '2000-01-01T00:00:00.000Z',
    'Maximum messages one member may post to one group per hour; an abuse ceiling set well above what a live debate needs (default: 30).',
+   NULL
+  ),
+
+  (
+   'seed-media-page-size',
+   '2000-01-01T00:00:00.000Z',
+   'media_page_size', '24',
+   '2000-01-01T00:00:00.000Z',
+   'Items per page on every paged media surface: Browse Media, named galleries and the member-galleries list; valid 12 to 96 (default: 24).',
    NULL
   );
 

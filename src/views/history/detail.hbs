@@ -1,6 +1,7 @@
 {{> player-hero heroData=content.heroData}}
 
 <div class="wrapper">
+  {{> player-facts heroData=content.heroData}}
 
   {{#unless content.hofMember}}{{#unless content.bapMember}}
   <div class="card mb-4">
@@ -83,11 +84,5 @@
     </p>
   </section>
   {{/if}}
-
-  <section>
-    {{#each navigation.contextLinks}}
-      <a href="{{href}}" class="back-link">{{label}}</a>
-    {{/each}}
-  </section>
 
 </div>

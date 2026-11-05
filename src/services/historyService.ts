@@ -142,14 +142,13 @@ export const historyService = {
 
     // A historical person is credited by the record's name folded by the one
     // rule; a member is credited by their own slug, on their profile.
-    // A name with no a to z form has no player hashtag, so nothing shows.
+    // A name with no a to z form has no player hashtag, so no gallery shows.
     const playerTag = playerTagForName(player.personName);
     const hasTag = playerTag.length > PLAYER_TAG_PREFIX.length;
     const galleryHref = hasTag ? mediaService.getEntityGalleryHref(playerTag) : null;
     const media = galleryHref ? { galleryHref, buttonLabel: 'View Player Gallery' } : null;
 
     const heroData: PlayerHeroData = {
-      hashtag: hasTag ? { display: playerTag, galleryHref } : undefined,
       displayName:       player.personName,
       honorificNickname: player.bapNickname ?? undefined,
       isHof:             player.hofMember,
@@ -157,6 +156,7 @@ export const historyService = {
       hofInductionYear:  player.hofInductionYear ?? undefined,
       bapInductionYear:  player.bapInductionYear ?? undefined,
       country:           player.country,
+      isHistoricalOnly:  !player.hofMember && !player.bapMember,
     };
 
     const resolveActiveSlug = buildActiveTrickSlugResolver();
@@ -168,9 +168,6 @@ export const historyService = {
           sectionKey: 'history',
           pageKey:    'history_player_detail',
           title:      player.personName,
-        },
-        navigation: {
-          contextLinks: [{ label: 'Hall of Fame', href: '/hof' }],
         },
         content: {
           personId:      player.personId,

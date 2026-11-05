@@ -8,7 +8,6 @@
     </nav>
     {{/if}}
     <h1>{{page.title}}</h1>
-    {{> entity-hashtag content.club.hashtag}}
   </div>
 </div>
 
@@ -32,6 +31,8 @@
       {{/if}}
     </dl>
 
+    {{> media-line id="club-media" display=content.club.hashtag.display galleryHref=content.club.hashtag.galleryHref galleryLabel=content.club.media.buttonLabel}}
+
     {{#if content.club.description}}
     <div class="club-detail-description">
       <p>{{content.club.description}}</p>
@@ -42,13 +43,6 @@
     <div class="club-detail-description">
       <p>This club has an imported historical description that names individual people. It is shown to logged-in members only.</p>
     </div>
-    {{/if}}
-
-    {{#if content.club.media}}
-    <section class="mt-4" id="club-media">
-      <div class="section-heading"><h2>Media</h2></div>
-      {{> entity-media content.club.media}}
-    </section>
     {{/if}}
 
     {{#if content.club.contentEditHref}}
@@ -110,8 +104,8 @@
       <ul class="club-member-list">
         {{#each content.club.leaders}}
         <li class="club-member-entry">
-          {{#if personId}}
-            <a class="club-leader-name" href="/history/{{personId}}">{{displayName}}</a>
+          {{#if href}}
+            <a class="club-leader-name" href="{{href}}">{{displayName}}</a>
           {{else}}
             <span class="club-leader-name">{{displayName}}</span>
           {{/if}}
@@ -211,12 +205,6 @@
       <p><a href="/login?returnTo={{content.club.clubHref}}">Log in</a> to see club members.</p>
     </div>
     {{/if}}
-
-    {{#each navigation.contextLinks}}
-    <div class="club-back-link">
-      <a href="{{href}}" class="btn btn-outline">{{label}}</a>
-    </div>
-    {{/each}}
 
   </div>
 </div>

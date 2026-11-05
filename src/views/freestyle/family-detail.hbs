@@ -19,7 +19,7 @@
     {{/if}}
     <p class="hero-eyebrow">{{page.eyebrow}}</p>
     <h1>{{page.title}}</h1>
-    <p class="hero-subtitle">{{#if content.teaching}}{{content.teaching.hook}}{{else}}{{content.descendantCountLabel}}{{/if}}</p>
+    {{#if content.teaching}}<p class="hero-subtitle">{{content.teaching.hook}}</p>{{/if}}
     <p class="hero-hashtag">{{content.hashtag}}</p>
   </div>
 </div>

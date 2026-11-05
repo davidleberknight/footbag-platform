@@ -11,6 +11,7 @@ import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/
 import {
   insertMember,
   insertHistoricalPerson,
+  insertFreestyleRecord,
   insertActivePlayerGrant,
   createMemberAtTier,
   createTestSessionJwt,
@@ -89,6 +90,8 @@ beforeAll(async () => {
 
   // Historical persons (legacy data)
   insertHistoricalPerson(db, { person_id: 'person-dave-001', person_name: 'Dave Mockingbird', country: 'US' });
+  // Dave's record holds a world record, so it has a page; Zane's holds only a name.
+  insertFreestyleRecord(db, { person_id: 'person-dave-001', display_name: 'Dave Mockingbird' });
   insertHistoricalPerson(db, { person_id: 'person-zane-001', person_name: 'Zane Footbag', country: 'CA' });
 
   // 21 members under a unique prefix exercise the 20-result cap + refine
@@ -321,11 +324,13 @@ describe('GET /members/<slug>?q= — member search on personal home', () => {
     expect(res.text).toContain('/history/person-dave-001');
   });
 
-  it('links historical person to /history/:personId', async () => {
+  it('leaves out a historical record that holds only a name, so search never links an empty page', async () => {
     const app = createApp();
+    // A searcher would otherwise open a page with nothing on it but the name.
     const res = await request(app).get(`/members/${SEARCHER_SLUG}?q=zane`).set('Cookie', searcherCookie());
-    expect(res.text).toContain('Zane Footbag');
-    expect(res.text).toContain('/history/person-zane-001');
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('/history/person-zane-001');
+    expect(res.text).not.toContain('Zane Footbag');
   });
 
   it('resolves a historical person\'s linked-member slug through the searchable filter set', async () => {

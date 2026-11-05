@@ -175,9 +175,9 @@ describe('GET /members/:slug — HoF public profile', () => {
     expect(res.text).not.toContain(HOF_CITY);
     expect(res.text).not.toContain(HOF_LINK_LABEL);
     expect(res.text).not.toContain(HOF_LINK_URL);
-    // The location line carries the country alone: any surviving city or
-    // region would change this paragraph, so it pins both at once.
-    expect(res.text).toContain(`<p class="hero-subtitle">${HOF_COUNTRY}</p>`);
+    // The location entry carries the country alone: any surviving city or
+    // region would change this entry, so it pins both at once.
+    expect(res.text).toContain(`<span>${HOF_COUNTRY}</span>`);
   });
 
   it('shows the biography, the locality and the external links to a signed-in member', async () => {
@@ -190,7 +190,7 @@ describe('GET /members/:slug — HoF public profile', () => {
     expect(res.text).toContain(HOF_LINK_LABEL);
     expect(res.text).toContain(HOF_LINK_URL);
     expect(res.text).toContain(
-      `<p class="hero-subtitle">${HOF_CITY}, ${HOF_REGION} · ${HOF_COUNTRY}</p>`,
+      `<span>${HOF_CITY}, ${HOF_REGION} · ${HOF_COUNTRY}</span>`,
     );
   });
 });

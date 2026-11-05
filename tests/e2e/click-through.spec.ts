@@ -296,17 +296,17 @@ test('the curator uploads two real video clips, one into a new Footbag Hacky gal
   await expect.poll(() => tiles.locator('img').first().evaluate((el) => (el as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
   const wellingtonIds = await tileItemIds(tiles);
 
-  // The club the clip is tagged with links its gallery from its media block
-  // and its hashtag under the title, and shows no items itself; the gallery
-  // the button opens holds the clip.
+  // The club the clip is tagged with links its gallery from its media line,
+  // through both its hashtag and the gallery link, and shows no items itself;
+  // the gallery the link opens holds the clip.
   const clubGalleryHref = `/media/browse?context=${WELLINGTON_TAG.slice(1)}`;
   await page.goto(`/clubs/${WELLINGTON_TAG.slice(1)}`);
-  // Catches: the club's hashtag under its title not leading to its gallery.
-  await expect(page.locator(`.hero .hero-hashtag a[href="${clubGalleryHref}"]`)).toHaveCount(1);
+  // Catches: the club's hashtag not leading to its gallery.
+  await expect(page.locator(`#club-media a.hashtag[href="${clubGalleryHref}"]`)).toHaveCount(1);
   // Catches: the club page listing individual items that belong in the gallery.
-  await expect(page.locator('#club-media .gallery-tile')).toHaveCount(0);
-  // Catches: the club's gallery button missing or leading elsewhere.
-  await page.locator(`#club-media a[href="${clubGalleryHref}"]`).click();
+  await expect(page.locator('.gallery-tile')).toHaveCount(0);
+  // Catches: the club's gallery link missing or leading elsewhere.
+  await page.locator(`#club-media a.action-link[href="${clubGalleryHref}"]`).click();
   await expect(page).toHaveURL(new RegExp(`${clubGalleryHref.replace('?', '\\?')}$`));
   const clubTiles = page.locator('.gallery-grid .gallery-tile');
   // Catches: media carrying the club's hashtag missing from the club's

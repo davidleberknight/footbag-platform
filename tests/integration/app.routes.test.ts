@@ -469,6 +469,18 @@ describe('GET /events/:eventKey', () => {
     expect(res.text).toContain('Bob Hackysack');
   });
 
+  it('ends a completed event with one back link to the year page that lists it, and an upcoming one with a link to the events landing', async () => {
+    const backs = (html: string) =>
+      [...html.matchAll(/<p class="page-back-link"><a href="([^"]+)"/g)].map((m) => m[1]);
+    // A visitor on a completed event would otherwise lose its year's list; on
+    // an upcoming event they would land on a year page that does not list it.
+    const completed = await page(`/events/${BEAVER_OPEN_KEY}`);
+    expect(backs(completed.text)).toEqual(['/events/year/2025']);
+    const upcoming = await page(`/events/${SPRING_CLASSIC_KEY}`);
+    expect(upcoming.status).toBe(200);
+    expect(backs(upcoming.text)).toEqual(['/events']);
+  });
+
   it('links participants to /history/ not /members/', async () => {
     const res = await page(`/events/${BEAVER_OPEN_KEY}`);
     expect(res.text).toContain(`/history/${ALICE_ID}`);
@@ -816,6 +828,14 @@ describe('GET /clubs/club_:clubKey', () => {
     expect(res.text).toContain('#club_rose_city');
   });
 
+  it('leads back to its country through the breadcrumbs alone, with no second back link', async () => {
+    const res = await page('/clubs/club_rose_city');
+    // A visitor would otherwise lose the way up to the country list, or meet it twice.
+    const crumbs = res.text.match(/<nav class="breadcrumb"[\s\S]*?<\/nav>/)?.[0] ?? '';
+    expect(crumbs).toContain('href="/clubs/usa"');
+    expect(res.text).not.toContain('page-back-link');
+  });
+
   it('shows city and region', async () => {
     const res = await page('/clubs/club_rose_city');
     expect(res.text).toContain('Portland');
@@ -1151,20 +1171,30 @@ describe('GET /history/:personId', () => {
     expect(res.text).toContain('Shred30');
   });
 
-  it('ends the page with one back link, after the results, under one section-heading system', async () => {
+  it('carries no back link, since no page is its parent, and keeps one section-heading system', async () => {
     const app = createApp();
     const res = await request(app).get(`/history/${ALICE_ID}`);
     expect(res.status).toBe(200);
-    // A visitor would otherwise meet the way out before the results, or twice.
-    const backLinks = res.text.match(/class="back-link"/g) ?? [];
-    expect(backLinks).toHaveLength(1);
-    expect(res.text.indexOf('class="back-link"')).toBeGreaterThan(res.text.indexOf('<h2>Competitive Results</h2>'));
+    // A visitor would otherwise be sent to a page unrelated to the record.
+    expect(res.text).not.toContain('page-back-link');
     // Every section heading sits in the shared wrapper, so headings on this
     // page share one size and rhythm.
     const h2s = res.text.match(/<h2[^>]*>/g) ?? [];
     expect(h2s.length).toBeGreaterThan(0);
     expect(res.text).not.toMatch(/<h2 class=/);
     expect(res.text.match(/<div class="section-heading">\s*<h2>/g) ?? []).toHaveLength(h2s.length);
+  });
+
+  it('says in the hero that a record with no honor is a historical record, and adds nothing to an honoree hero', async () => {
+    const app = createApp();
+    const heroSubtitles = (html: string) =>
+      (html.match(/<div class="hero hero-sm">[\s\S]*?<\/div>\s*<\/div>/)?.[0].match(/class="hero-subtitle"/g) ?? []).length;
+    // Without it a visitor on a plain competitor's page cannot tell the record
+    // from a member account; an honoree's hero already says what they are.
+    const plain = await request(app).get(`/history/${BOB_ID}`);
+    expect(heroSubtitles(plain.text)).toBe(1);
+    const honoree = await request(app).get(`/history/${ALICE_ID}`);
+    expect(heroSubtitles(honoree.text)).toBe(1);
   });
 
   it('returns 404 for non-existent player', async () => {

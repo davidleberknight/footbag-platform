@@ -391,13 +391,6 @@
       } else {
         li.textContent = results[j].display;
       }
-      if (results[j].usageCount > 0) {
-        var count = document.createElement('span');
-        count.className = 'tag-chip-autocomplete-count';
-        count.textContent = ' (' + results[j].usageCount + ')';
-        li.appendChild(count);
-      }
-
       (function (token) {
         li.addEventListener('mousedown', function (e) {
           e.preventDefault();

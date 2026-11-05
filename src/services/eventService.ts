@@ -151,8 +151,8 @@ export interface PublicEventPage {
   isSparse: boolean;
   primarySection: 'details' | 'results';
   resultSections: PublicResultSection[];
-  // The event's hashtag under its title, linked to its gallery when media
-  // carries it, so a visitor sees exactly what to tag their own media with.
+  // The event's hashtag for the page's media line, linked to its gallery when
+  // media carries it, so a visitor sees exactly what to tag their own media with.
   hashtag: EntityHashtag;
   // The newest media carrying the event's hashtag and the button to its whole
   // gallery; null when none does, which hides the block.
@@ -635,11 +635,16 @@ export class EventService {
   getPublicEventPage(eventKey: string): PageViewModel<EventDetailContent> {
     const detail = this.getPublicEventDetail(eventKey);
     const year = detail.event.startDate.slice(0, 4);
+    // The back link names the page that lists this event: a year page lists
+    // completed events only, so an event still to come belongs to the events landing.
+    const backLink = detail.event.status === 'completed'
+      ? { label: `Back to Completed Events From ${year}`, href: `/events/year/${year}` }
+      : { label: 'Back to Footbag Events', href: '/events' };
     return {
       seo: { title: detail.event.standardTagDisplay },
       page: { sectionKey: 'events', pageKey: 'event_detail', title: detail.event.title },
       navigation: {
-        contextLinks: [{ label: `More events from ${year}`, href: `/events/year/${year}` }],
+        contextLinks: [backLink],
       },
       content: detail,
     };

@@ -1535,6 +1535,9 @@ export interface FreestyleTrickContent {
   // /media/browse?context=<slug>, the slug locked as context), shown when the
   // trick has reference media so the viewer can open it. Null when none.
   referenceGalleryHref: string | null;
+  // Label of the gallery link beside the hashtag in the page's media line.
+  // Null exactly when referenceGalleryHref is.
+  referenceGalleryLabel: string | null;
   // Pathways block: pre-shaped summary of Learn / Watch / Family availability
   // for the new "What you can do with this trick" panel near the top of the
   // detail page. All anchor hrefs are pre-built so templates render only.
@@ -2809,8 +2812,7 @@ export interface FreestyleRelatedModifierLink {
   modifierSlug: string;
   modifierName: string;
   modifierType: string;
-  count: number;          // number of in-family tricks linked to this modifier
-  href: string;           // /freestyle/tricks?view=modifier#set-{modifierSlug}
+  href: string;          // /freestyle/tricks?view=modifier#set-{modifierSlug}
 }
 
 export interface FreestyleTricksIndexContent {
@@ -2963,13 +2965,12 @@ export interface ModifierClusterView {
 }
 
 // Flat jump-index entry for the modifier browse: every rendered modifier as a
-// chip with its count, so common modifiers (paradox, symposium) are findable
-// on arrival without scrolling the cluster sections.
+// chip, so common modifiers (paradox, symposium) are findable on arrival
+// without scrolling the cluster sections.
 export interface ModifierJumpChip {
   slug:   string;
   name:   string;
-  count:  number;
-  anchor: string;   // `#modifier-{slug}`
+  anchor: string;  // `#modifier-{slug}`
 }
 
 export interface FreestyleMinorLineage {
@@ -3024,7 +3025,6 @@ export interface FreestyleFamilyRungGroup {
 export interface FreestyleFamilyJumpChip {
   slug: string;
   name: string;
-  count: number;     // rendered trick count in that family section
   anchor: string;    // in-page hash, e.g. "#family-whirl"
 }
 
@@ -3102,7 +3102,6 @@ export interface FreestyleFamilyDetailContent {
   displayArticle: string;          // 'a' | 'an'; shapes the "What is a/an <Name>?" heading
   hashtag: string;                 // '#' + slug; identity token, never a link
   tierLabel: string;               // 'Family Parent'
-  descendantCountLabel: string;    // pre-shaped: 'NN tricks in this family'
   // For a derived branch family, the parent family it presents under
   // (barfly and double-over-down present as branches of Down).
   branchParent: { name: string; href: string } | null;
@@ -6667,10 +6666,7 @@ export const freestyleService = {
         intro:      'Some freestyle tricks have been landed hundreds of times in a row.',
       },
       navigation: {
-        breadcrumbs: [
-          { label: 'Freestyle', href: '/freestyle' },
-          { label: 'Trick Records' },
-        ],
+        contextLinks: [{ label: 'Back to Freestyle Footbag', href: '/freestyle' }],
       },
       content: {
         groups,
@@ -6759,10 +6755,7 @@ export const freestyleService = {
         intro:      'Players with the most documented trick records.',
       },
       navigation: {
-        breadcrumbs: [
-          { label: 'Freestyle', href: '/freestyle' },
-          { label: 'Record Leaders' },
-        ],
+        contextLinks: [{ label: 'Back to Freestyle Footbag', href: '/freestyle' }],
       },
       content: {
         leaders,
@@ -6892,13 +6885,13 @@ export const freestyleService = {
     const catchSideIsEitherSide = /SAME\/OP[^>]*\[DEL\]/.test(dictRow?.operational_notation ?? '');
     const heroSubtitle: string | null = (() => {
       if (!sortName) return null;
-      // Resolved catch side: leave the subtitle exactly as before, side
-      // qualifier and all. Only the genuinely either-side tricks are touched.
-      if (!catchSideIsEitherSide) return sortName;
-      const shown = stripDisplaySideQualifier(sortName);
-      // A subtitle that then only repeats the heading (osis, once its false side
-      // qualifier is gone) adds nothing, so suppress it.
-      return shown && shown !== displayTrickName ? shown : null;
+      // Resolved catch side: the subtitle keeps its side qualifier. Only the
+      // genuinely either-side tricks lose it.
+      const shown = catchSideIsEitherSide ? stripDisplaySideQualifier(sortName) : sortName;
+      // A subtitle that only repeats the heading (a record name that is the
+      // trick name in another case, or osis once its false side qualifier is
+      // gone) adds nothing under the h1, so suppress it.
+      return shown && shown.toLowerCase() !== displayTrickName.toLowerCase() ? shown : null;
     })();
 
     // Load all tricks and all modifiers for composition computation in shapeDictEntry
@@ -7405,6 +7398,7 @@ export const freestyleService = {
           demoMedia,
           hasReferenceMedia,
           referenceGalleryHref,
+          referenceGalleryLabel: referenceGalleryHref ? 'View Trick Gallery' : null,
           pathways,
           notationGrammar: viewer.isMaintainer && dictRow
             ? shapeNotationGrammar(
@@ -7908,10 +7902,7 @@ export const freestyleService = {
           'and documented results.',
       },
       navigation: {
-        breadcrumbs: [
-          { label: 'Freestyle', href: '/freestyle' },
-          { label: 'Competition' },
-        ],
+        contextLinks: [{ label: 'Back to Freestyle Footbag', href: '/freestyle' }],
       },
       content: {
         formats,
@@ -7979,10 +7970,7 @@ export const freestyleService = {
         intro:      'The most significant doubles partnerships in freestyle footbag, ranked by competitive appearances.',
       },
       navigation: {
-        breadcrumbs: [
-          { label: 'Freestyle', href: '/freestyle' },
-          { label: 'Partnerships' },
-        ],
+        contextLinks: [{ label: 'Back to Freestyle Footbag', href: '/freestyle' }],
       },
       content: {
         buckets,
@@ -8008,10 +7996,7 @@ export const freestyleService = {
         intro:      'The story of how four decades of players turned a handful of tricks into the movement language this encyclopedia documents.',
       },
       navigation: {
-        breadcrumbs: [
-          { label: 'Freestyle', href: '/freestyle' },
-          { label: 'History' },
-        ],
+        contextLinks: [{ label: 'Back to Freestyle Footbag', href: '/freestyle' }],
       },
       content: HISTORY_NARRATIVE,
     };
@@ -8348,24 +8333,11 @@ export const freestyleService = {
           modifierSlug: b.modifierSlug,
           modifierName: b.modifierName,
           modifierType: b.modifierType,
-          count:        b.tricks.length,
           href:         clusterForModifier(b.modifierSlug) === 'set-uptime'
             ? `/freestyle/tricks?view=set#set-${b.modifierSlug}`
             : `/freestyle/tricks?view=modifier#modifier-${b.modifierSlug}`,
         }))
       : [];
-
-    // Public-family hit counts for the By-family jump menu, derived from the same
-    // membership map the browse sections render, so a family's chip count always
-    // matches its rendered section count. The map already folds sub-labels (for
-    // example paradox_mirage under mirage), aggregates an umbrella root (the Down
-    // family) from its branches, and applies dual memberships. A separate raw
-    // trick_family tally omitted the sub-label fold and undercounted such a family
-    // by exactly its folded rows.
-    const familyTrickCounts = new Map<string, number>();
-    for (const [fslug, rows] of familyMap) {
-      familyTrickCounts.set(fslug, rows.length);
-    }
 
     // Display tier (curated first-class roster): split the rendered family
     // groups into first-class Family Parents and a compact Minor-Lineage band.
@@ -8389,7 +8361,6 @@ export const freestyleService = {
     const familyJumpChip = (g: FreestyleFamilyGroup): FreestyleFamilyJumpChip => ({
       slug: g.familySlug,
       name: g.familyName,
-      count: g.cards.length,
       anchor: `#family-${g.familySlug}`,
     });
     const familyJumpIndex: FreestyleFamilyJumpIndex = {
@@ -8452,7 +8423,6 @@ export const freestyleService = {
       c.groups.map(g => ({
         slug:   g.slug,
         name:   g.name,
-        count:  g.trickCount,
         anchor: `#modifier-${g.slug}`,
       })));
 
@@ -8614,10 +8584,8 @@ export const freestyleService = {
               { label: 'Trick Dictionary', href: '/freestyle/tricks' },
               { label: `${addTier} ADD` },
             ]
-          : [
-              { label: 'Freestyle', href: '/freestyle' },
-              { label: 'Trick Dictionary' },
-            ],
+          : undefined,
+        contextLinks: addTier != null ? undefined : [{ label: 'Back to Freestyle Footbag', href: '/freestyle' }],
       },
       content: {
         addGroups: tierGroup ? [tierGroup] : addGroups,
@@ -8771,10 +8739,7 @@ export const freestyleService = {
         intro:      'How freestyle players describe trick difficulty, structure, and scoring.',
       },
       navigation: {
-        breadcrumbs: [
-          { label: 'Freestyle', href: '/freestyle' },
-          { label: 'ADD Analysis' },
-        ],
+        contextLinks: [{ label: 'Back to Freestyle Footbag', href: '/freestyle' }],
       },
       content,
     };
@@ -8805,10 +8770,7 @@ export const freestyleService = {
         intro:      'How freestyle tricks connect into longer flowing combinations and runs.',
       },
       navigation: {
-        breadcrumbs: [
-          { label: 'Freestyle', href: '/freestyle' },
-          { label: 'Combo Analysis' },
-        ],
+        contextLinks: [{ label: 'Back to Freestyle Footbag', href: '/freestyle' }],
       },
       content: FREESTYLE_COMBO_ANALYSIS_CONTENT,
     };
@@ -8833,10 +8795,7 @@ export const freestyleService = {
         intro:      'Everything you need for a first session: no experience assumed.',
       },
       navigation: {
-        breadcrumbs: [
-          { label: 'Freestyle', href: '/freestyle' },
-          { label: 'Getting Started' },
-        ],
+        contextLinks: [{ label: 'Back to Freestyle Footbag', href: '/freestyle' }],
       },
       content: {
         nextStepsIntro: START_NEXT_STEPS_INTRO,
@@ -8858,10 +8817,7 @@ export const freestyleService = {
         title:      'About Freestyle Footbag',
       },
       navigation: {
-        breadcrumbs: [
-          { label: 'Freestyle', href: '/freestyle' },
-          { label: 'About' },
-        ],
+        contextLinks: [{ label: 'Back to Freestyle Footbag', href: '/freestyle' }],
       },
       content: {},
     };
@@ -8994,10 +8950,7 @@ export const freestyleService = {
         intro:      'In-depth chapters on how freestyle tricks are built, named, and scored. For a quick definition, use the Glossary.',
       },
       navigation: {
-        breadcrumbs: [
-          { label: 'Freestyle', href: '/freestyle' },
-          { label: 'Freestyle Concepts' },
-        ],
+        contextLinks: [{ label: 'Back to Freestyle Footbag', href: '/freestyle' }],
       },
       content: {
         operatorBoard:         this.getOperatorBoard('concepts'),
@@ -9094,10 +9047,7 @@ export const freestyleService = {
         intro:      'Short definitions of the terms players use, A to Z.',
       },
       navigation: {
-        breadcrumbs: [
-          { label: 'Freestyle', href: '/freestyle' },
-          { label: 'Glossary' },
-        ],
+        contextLinks: [{ label: 'Back to Freestyle Footbag', href: '/freestyle' }],
       },
       content: {
         letters,
@@ -9273,10 +9223,7 @@ export const freestyleService = {
         intro:      'The waiting room of the freestyle dictionary. Nothing on this page is an official trick yet: these are community-documented names on their way toward the canonical dictionary, organized by what each one actually waits on. The official vocabulary lives in the Trick Dictionary.',
       },
       navigation: {
-        breadcrumbs: [
-          { label: 'Freestyle', href: '/freestyle' },
-          { label: 'Emerging Vocabulary' },
-        ],
+        contextLinks: [{ label: 'Back to Freestyle Footbag', href: '/freestyle' }],
       },
       content: {
         layerNote:
@@ -9402,10 +9349,7 @@ export const freestyleService = {
         intro:      'The movement ideas that transform one trick into many related variations.',
       },
       navigation: {
-        breadcrumbs: [
-          { label: 'Freestyle', href: '/freestyle' },
-          { label: 'Operators & Modifiers' },
-        ],
+        contextLinks: [{ label: 'Back to Freestyle Footbag', href: '/freestyle' }],
       },
       content: {
         indexAxes: buildOperatorIndexAxes(modifierRows),
@@ -9825,7 +9769,6 @@ export const freestyleService = {
         displayArticle,
         hashtag:              hashtagForRole(slug, 'family'),
         tierLabel:            FAMILY_TIER_LABEL['family-parent'],
-        descendantCountLabel: `${descendantCount} tricks in this family`,
         branchParent,
         orientation,
         overview: card
@@ -10163,10 +10106,7 @@ export const freestyleService = {
           'this index keeps it compact and browsable.',
       },
       navigation: {
-        breadcrumbs: [
-          { label: 'Freestyle', href: '/freestyle' },
-          { label: 'Sets' },
-        ],
+        contextLinks: [{ label: 'Back to Freestyle Footbag', href: '/freestyle' }],
       },
       content: {
         intro:
@@ -10373,10 +10313,7 @@ export const freestyleService = {
         intro:      'How the trick dictionary breaks down across its major dimensions.',
       },
       navigation: {
-        breadcrumbs: [
-          { label: 'Freestyle', href: '/freestyle' },
-          { label: 'Freestyle by the Numbers' },
-        ],
+        contextLinks: [{ label: 'Back to Freestyle Footbag', href: '/freestyle' }],
       },
       content: { cards, note },
     };

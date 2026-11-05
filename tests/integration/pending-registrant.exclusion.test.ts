@@ -10,12 +10,15 @@ import BetterSqlite3 from 'better-sqlite3';
 import request from '../fixtures/supertestWithOrigin';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import {
+  attachMediaTag,
   createTestSessionJwt,
   insertAuditEntry,
   insertClub,
   insertClubLeader,
   insertEvent,
+  insertFreeformTag,
   insertFreestyleRecord,
+  insertGalleryCriterionTag,
   insertHistoricalPerson,
   insertMailingListSubscription,
   insertMediaFlag,
@@ -111,9 +114,17 @@ describe('public surfaces leave a prospective member out', () => {
   });
 
   it('a gallery list and uploader credits name a member and never a prospective member', () => {
-    insertMemberGallery(db, { owner_member_id: MEMBER.id, name: 'Member Gallery', created_by: MEMBER.id });
-    insertMemberGallery(db, { owner_member_id: PENDING.id, name: 'Pending Gallery', created_by: PENDING.id });
-    const owners = (dbMod.media.listMemberOwnedNamedGalleries.all() as { owner_slug: string }[])
+    // Each gallery holds one matching item, because the list leaves an empty
+    // gallery out and the pair must differ only in the owner's state.
+    for (const who of [MEMBER, PENDING]) {
+      const galleryId = insertMemberGallery(db, {
+        owner_member_id: who.id, name: `Gallery ${who.slug}`, created_by: who.id,
+      });
+      const tagId = insertFreeformTag(db, { tag_normalized: `#list_${who.slug}`, tag_display: `#list_${who.slug}` });
+      insertGalleryCriterionTag(db, galleryId, tagId);
+      attachMediaTag(db, insertMediaItem(db, { uploader_member_id: who.id }), tagId);
+    }
+    const owners = (dbMod.media.listMemberOwnedNamedGallerySummaries.all() as { owner_slug: string }[])
       .map((g) => g.owner_slug);
     expect(owners).toContain(MEMBER.slug);
     expect(owners).not.toContain(PENDING.slug);

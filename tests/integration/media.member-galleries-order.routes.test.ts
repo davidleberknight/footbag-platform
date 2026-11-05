@@ -80,7 +80,7 @@ beforeAll(async () => {
 
   // Enough older galleries to spill exactly two onto a second page. The page
   // size is the service's own, read after the test database is in place.
-  ({ PAGE_SIZE: pageSize } = await import('../../src/services/mediaService'));
+  ({ DEFAULT_MEDIA_PAGE_SIZE: pageSize } = await import('../../src/services/mediaService'));
   const fillerCount = pageSize - 4 + 2;
   fillerIds = [];
   for (let i = 0; i < fillerCount; i++) {
@@ -146,7 +146,9 @@ describe('GET /media/member-galleries paging', () => {
     const [one, two] = await Promise.all([page(LIST), page(`${LIST}?page=2`)]);
     const all = ['gallery_order_a', 'gallery_order_b', 'gallery_order_c', 'gallery_order_d', ...fillerIds];
     for (const id of all) {
-      const link = `href="/media/${id}"`;
+      // A card links its gallery from its cover too; the title link is the
+      // one-per-card mark.
+      const link = `href="/media/${id}" class="card-title"`;
       const count = one.text.split(link).length - 1 + two.text.split(link).length - 1;
       expect(count, `${id} listed once`).toBe(1);
     }

@@ -17,7 +17,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, insertFreeformTag, insertMediaItem, attachMediaTag } from '../fixtures/factories';
+import { insertMember, insertFreeformTag, insertMediaItem, attachMediaTag, insertSystemConfig } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3128');
 
@@ -340,7 +340,7 @@ describe('GET /media/browse — results mode', () => {
 describe('GET /media/browse — pagination', () => {
   it('preserves ?tag and ?exclude in the pagination prev/next hrefs', async () => {
     const db = openDb();
-    // Bulk-insert > PAGE_SIZE (24) items tagged butterfly so a page-2
+    // Bulk-insert more than the default media page size (24) items tagged butterfly so a page-2
     // link appears. Use distinct tag rows that include butterfly so the
     // test doesn't pollute other test files' fixtures.
     for (let i = 0; i < 30; i++) {
@@ -371,5 +371,70 @@ describe('GET /media/browse — pagination', () => {
       expect(res.status).toBe(200);
       expect(res.text).toContain('class="gallery-grid"');
     }
+  });
+
+  it('answers a page past the last with not found, while the last page still renders', async () => {
+    // A stale or hand-edited link past the end would otherwise show the empty
+    // state, telling the visitor nothing matches when the set is full.
+    const app = createApp();
+    const first = await request(app).get('/media/browse?tag=butterfly');
+    const lastHref = /href="(\/media\/browse\?tag&#x3D;butterfly&amp;page&#x3D;(\d+))" aria-label/g;
+    const pages = [...first.text.matchAll(lastHref)].map((m) => Number(m[2]));
+    const lastPage = Math.max(...pages);
+    expect(lastPage).toBeGreaterThan(1);
+    const last = await request(app).get(`/media/browse?tag=butterfly&page=${lastPage}`);
+    expect(last.status).toBe(200);
+    expect(last.text).toContain('class="gallery-grid"');
+    const past = await request(app).get(`/media/browse?tag=butterfly&page=${lastPage + 1}`);
+    expect(past.status).toBe(404);
+  });
+
+  it('shows the large-result notice and a numbered pager on a multi-page set, and neither on a one-page set', async () => {
+    const db = openDb();
+    const smallTagId = insertFreeformTag(db, {
+      id: 'tag-browse-smallset', tag_normalized: '#smallset', tag_display: '#smallset',
+    });
+    insertPhoto(db, { id: 'media_browse_smallset_1', caption: 'smallset-1' });
+    attachMediaTag(db, 'media_browse_smallset_1', smallTagId);
+    db.close();
+
+    const app = createApp();
+    const big = await request(app).get('/media/browse?tag=butterfly&page=2');
+    // A visitor in a large set is told to narrow it, above the grid, and
+    // sees where they are in the pager.
+    const noticeAt = big.text.indexOf('notice-card--info');
+    expect(noticeAt).toBeGreaterThan(-1);
+    expect(noticeAt).toBeLessThan(big.text.indexOf('class="gallery-grid"'));
+    expect(big.text).toContain('<span class="gallery-pagination-current" aria-current="page">2</span>');
+    // The first page stays one click away from any page.
+    expect(big.text).toContain('href="/media/browse?tag&#x3D;butterfly" aria-label="Page 1"');
+
+    const small = await request(app).get('/media/browse?tag=smallset');
+    expect(small.text).toContain('smallset-1');
+    expect(small.text).not.toContain('notice-card--info');
+    expect(small.text).not.toContain('class="gallery-pagination"');
+  });
+});
+
+describe('GET /media/browse — configurable page size', () => {
+  it('reads the page size from the media_page_size setting, held to its floor', async () => {
+    // An administrator's setting that never reached the page, or a value too
+    // small for the grid, would leave the page size fixed or broken.
+    const db = openDb();
+    insertSystemConfig(db, {
+      config_key: 'media_page_size', value_json: '5', effective_start_at: '2020-01-01T00:00:00.000Z',
+    });
+    db.close();
+
+    const app = createApp();
+    const res = await request(app).get('/media/browse?tag=butterfly');
+    const tiles = res.text.match(/<li class="gallery-tile">/g) ?? [];
+    expect(tiles).toHaveLength(12);
+
+    const restore = openDb();
+    insertSystemConfig(restore, {
+      config_key: 'media_page_size', value_json: '24', effective_start_at: '2020-01-02T00:00:00.000Z',
+    });
+    restore.close();
   });
 });

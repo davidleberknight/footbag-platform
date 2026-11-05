@@ -132,8 +132,6 @@ export interface OfficialRosterPageContent {
   matchCount: number;
   hasMembers: boolean;
   emptyStateText: string;
-  backLabel: string;
-  backHref: string;
   page: number;
   pageCount: number;
   hasPaging: boolean;
@@ -362,11 +360,7 @@ export function getOfficialRosterPage(
       intro: 'Every current IFPA member, with their tier and Active Player standing.',
     },
     navigation: {
-      breadcrumbs: [
-        { label: 'IFPA', href: '/ifpa' },
-        { label: 'Official IFPA Roster' },
-      ],
-      contextLinks: [{ label: 'Back to IFPA Documents', href: '/ifpa' }],
+      contextLinks: [{ label: 'Back to IFPA', href: '/ifpa' }],
     },
     content: {
       summaryRows: [
@@ -400,8 +394,6 @@ export function getOfficialRosterPage(
       emptyStateText: isFiltered
         ? 'No roster member matches this search or tier filter.'
         : 'The Official IFPA Roster is empty.',
-      backLabel: 'Back to IFPA Documents',
-      backHref: '/ifpa',
       page,
       pageCount,
       hasPaging: pageCount > 1,

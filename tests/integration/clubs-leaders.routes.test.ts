@@ -25,6 +25,7 @@ import {
   insertTag,
   insertClub,
   insertHistoricalPerson,
+  insertFreestyleRecord,
   insertLegacyMember,
   insertClubBootstrapLeader,
   insertLegacyClubCandidate,
@@ -99,6 +100,8 @@ beforeAll(async () => {
     legacy_member_id: COLEADER_LEGACY_ID,
     source_scope:     'CANONICAL',
   });
+  // The leader's record holds a world record, so it has a page; the co-leader's holds only a name.
+  insertFreestyleRecord(db, { person_id: LEADER_PERSON_ID, display_name: 'Zelda Headleader' });
 
   insertClubBootstrapLeader(db, {
     club_id:          CLUB_ID,
@@ -203,7 +206,7 @@ beforeAll(async () => {
 
   // HP-less leader club: legacy_members row exists, but NO historical_persons
   // row. Path-B contract: still renders, name from legacy_members.real_name,
-  // no /history/<id> link (template branches on personId).
+  // no /history/<id> link (no record, so no page to link).
   const hplessTagId = insertTag(db, {
     standard_type: 'club',
     tag_normalized: '#club_test_hpless',
@@ -384,11 +387,13 @@ describe(`GET /clubs/${CLUB_KEY} — Leaders section (authenticated)`, () => {
     expect(leaderIdx).toBeLessThan(coleaderIdx);
   });
 
-  it('links leader name to /history/:personId when personId is set', async () => {
+  it('links a leader whose record has a page, and names one whose record holds only a name without a link', async () => {
     const app = createApp();
     const res = await request(app).get(`/clubs/${CLUB_KEY}`).set('Cookie', authCookie());
     expect(res.text).toContain(`href="/history/${LEADER_PERSON_ID}"`);
-    expect(res.text).toContain(`href="/history/${COLEADER_PERSON_ID}"`);
+    // A member would otherwise open a history page with nothing on it but the name.
+    expect(res.text).not.toContain(`/history/${COLEADER_PERSON_ID}`);
+    expect(res.text).toMatch(/<span class="club-leader-name">Anna Sidekick<\/span>/);
   });
 
   it('PRIVACY GATE: does not expose contact email for provisional leaders', async () => {
@@ -477,7 +482,7 @@ describe('GET /clubs/club_test_hpless — leader without historical_persons row'
   it('does NOT link the leader name to /history/:personId when no HP row exists', async () => {
     const app = createApp();
     const res = await request(app).get('/clubs/club_test_hpless').set('Cookie', authCookie());
-    // No anchor wrapping the name (template branches on personId presence).
+    // No anchor wrapping the name (the template links only a service-shaped href).
     expect(res.text).toMatch(/<span class="club-leader-name">Mira NoHistorical<\/span>/);
     expect(res.text).not.toMatch(/<a [^>]+href="\/history\/[^"]+"[^>]*>Mira NoHistorical<\/a>/);
   });

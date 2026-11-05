@@ -65,9 +65,10 @@ const coverRadio = (mediaId: string): RegExp =>
 const newestRadio = /<input type="radio" name="coverMediaId" value=""( checked)?>/;
 const isChecked = (html: string, re: RegExp): boolean => (html.match(re)?.[1] ?? '') === ' checked';
 
-/** One card's markup on a card list, found by the gallery's own link. */
+/** One card's markup on a card list, up to its title, found by the gallery's
+ *  own title link. */
 function cardFor(html: string, galleryId: string): string {
-  const at = html.indexOf(`href="/media/${galleryId}"`);
+  const at = html.indexOf(`href="/media/${galleryId}" class="card-title"`);
   expect(at, `no card links to /media/${galleryId}`).toBeGreaterThan(-1);
   const start = html.lastIndexOf('<div class="card">', at);
   return html.slice(start, at);
@@ -248,10 +249,14 @@ describe('choosing a gallery cover on the edit form', () => {
     expect(publicCard).not.toContain(thumbOf(newest));
     // The image is named for the gallery it stands for.
     expect(publicCard).toContain(`alt="Cover Gallery chosen"`);
+    // Clicking the cover opens the gallery, as clicking its name does; the
+    // second link is kept out of the keyboard and screen-reader order.
+    const coverLink = `<a href="/media/${s.galleryId}" tabindex="-1" aria-hidden="true"><img src="${thumbOf(older)}"`;
+    expect(publicCard).toContain(coverLink);
 
     const profile = await request(createApp()).get(`/members/${OWNER_SLUG}`).set('Cookie', viewerCookie());
     expect(profile.status).toBe(200);
-    expect(cardFor(profile.text, s.galleryId)).toContain(thumbOf(older));
+    expect(cardFor(profile.text, s.galleryId)).toContain(coverLink);
 
     const mine = await request(createApp()).get(`/members/${OWNER_SLUG}/galleries`).set('Cookie', ownerCookie());
     expect(listRowFor(mine.text, s.galleryId)).toContain(thumbOf(older));

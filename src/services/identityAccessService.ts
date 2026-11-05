@@ -550,7 +550,7 @@ export interface LinkHistoryContent {
   birthDateNoticeTone?: 'ok' | 'info';
   /** Where "carry on" goes: the member's next outstanding task. */
   continueHref?: string;
-  /** Always-rendered "Back to dashboard" link, to the member's own profile. */
+  /** The member's own profile. The claim step renders no link to it: a registrant is still onboarding. */
   dashboardHref: string;
   /** The cards, in the matching order: claimable first, strongest first. */
   candidates: LinkHistoryCandidate[];

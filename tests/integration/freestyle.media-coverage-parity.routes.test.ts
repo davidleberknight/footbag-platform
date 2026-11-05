@@ -75,6 +75,11 @@ function galleryHref(slug: string): string {
   return `/media/browse?context&#x3D;${slug}`;
 }
 
+// The trick page's own gallery link, which sits beside its hashtag.
+function galleryLink(slug: string): string {
+  return `<a class="action-link" href="${galleryHref(slug)}">`;
+}
+
 /** The one browse row for a trick, so row assertions cannot match a neighbour. */
 function browseRow(html: string, slug: string): string {
   const match = html.match(
@@ -168,8 +173,7 @@ describe('trick media coverage agrees between the dictionary browse rows and the
 
     const detail = await page(`/freestyle/tricks/${MEMBER_ONLY}`);
     expect(detail.status).toBe(200);
-    expect(detail.text).toContain(galleryHref(MEMBER_ONLY));
-    expect(detail.text).toContain('See All Videos for');
+    expect(detail.text).toContain(galleryLink(MEMBER_ONLY));
   });
 
   it('links a trick whose clip comes from the competition-records source, on both surfaces', async () => {
@@ -180,8 +184,7 @@ describe('trick media coverage agrees between the dictionary browse rows and the
 
     const detail = await page(`/freestyle/tricks/${RECORD_SOURCE}`);
     expect(detail.status).toBe(200);
-    expect(detail.text).toContain(galleryHref(RECORD_SOURCE));
-    expect(detail.text).toContain('See All Videos for');
+    expect(detail.text).toContain(galleryLink(RECORD_SOURCE));
   });
 
   it('links nothing for a trick with no footage at all, on both surfaces', async () => {
@@ -208,8 +211,7 @@ describe('a trick covered only through an alias slug links to a gallery holding 
 
     const detail = await page(`/freestyle/tricks/${ALIAS_ONLY}`);
     expect(detail.status).toBe(200);
-    expect(detail.text).toContain('See All Videos for');
-    expect(detail.text).toContain(galleryHref(FOLDED_ALIAS));
+    expect(detail.text).toContain(galleryLink(FOLDED_ALIAS));
     expect(detail.text).not.toContain(galleryHref(ALIAS_ONLY));
   });
 
@@ -235,8 +237,7 @@ describe('a tag whose display form differs from its normalized form cannot split
 
     const detail = await page(`/freestyle/tricks/${MIXED_CASE}`);
     expect(detail.status).toBe(200);
-    expect(detail.text).toContain('See All Videos for');
-    expect(detail.text).toContain(galleryHref(MIXED_CASE));
+    expect(detail.text).toContain(galleryLink(MIXED_CASE));
   });
 });
 

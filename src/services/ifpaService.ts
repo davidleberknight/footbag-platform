@@ -91,6 +91,9 @@ export const ifpaService = {
         pageKey: `ifpa_${doc.slug}`,
         title: doc.title,
       },
+      navigation: {
+        contextLinks: [{ label: 'Back to IFPA', href: '/ifpa' }],
+      },
       content: { doc },
     };
   },

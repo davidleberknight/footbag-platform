@@ -1,7 +1,7 @@
 <div class="hero hero-sm">
   <div>
     <h1>{{page.title}}</h1>
-    <p>Write to the members who have subscribed to community announcements: an event you are running, a project, news worth the community's attention. It goes out from {{content.fromIdentityDisplay}}.</p>
+    <p class="hero-subtitle">Write to the members who have subscribed to community announcements: an event you are running, a project, news worth the community's attention. It goes out from {{content.fromIdentityDisplay}}.</p>
   </div>
 </div>
 
@@ -29,7 +29,7 @@
       </div>
       <button type="submit" class="btn btn-primary">Send the Announcement</button>
     </form>
-
-    <p class="mt-4"><a href="{{content.backHref}}" class="btn btn-outline">Back to My Profile</a></p>
   </section>
+
+  {{> back-link}}
 </div>

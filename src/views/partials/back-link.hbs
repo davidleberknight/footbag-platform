@@ -1,0 +1,6 @@
+{{!-- The back link that closes a page one level below its section's landing
+      page, where the hero carries no breadcrumbs. Renders the page's
+      service-shaped navigation.contextLinks as prominent action links. --}}
+{{#each navigation.contextLinks}}
+<p class="page-back-link"><a href="{{href}}" class="action-link">{{label}}</a></p>
+{{/each}}

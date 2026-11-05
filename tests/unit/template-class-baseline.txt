@@ -47,7 +47,6 @@ avatar-edit-placeholder
 avatar-edit-row
 avatar-edit-thumb
 avatar-preview-frame
-back-link
 badge
 badge-coming-soon
 badge-historical
@@ -110,14 +109,12 @@ claim-evidence-item
 claim-evidence-list
 claim-evidence-outcome
 claim-evidence-revealed
-claimed-legacy-row
 cleanup-action-form
 cleanup-action-select
 cleanup-filter-form
 cleanup-group
 cleanup-queue-table
 cleanup-reason-input
-club-back-link
 club-country-index
 club-country-index-entry
 club-country-index-link
@@ -345,6 +342,11 @@ gallery-item-title
 gallery-item-uploader
 gallery-list-cover
 gallery-pagination
+gallery-pagination-current
+gallery-pagination-gap
+gallery-pagination-list
+gallery-pagination-neighbour
+gallery-pagination-row
 gallery-pagination-status
 gallery-references
 gallery-tile
@@ -503,12 +505,10 @@ identity-claim-link
 identity-fields
 identity-note
 identity-row
-ifpa-footer-back
 inline-form
 jump-bar
 jump-bar--inline
 jump-bar--wide
-jump-bar-count
 jump-bar-label
 jump-bar-label--branch
 jump-bar-label--minor
@@ -536,6 +536,7 @@ media-layout
 media-layout--rail-end
 media-layout-main
 media-layout-rail
+media-line
 media-report
 member-action-detail
 member-action-headline
@@ -649,6 +650,7 @@ operator-meta-chip
 operator-meta-chip--add
 operator-row-descriptor
 operator-row-links
+page-back-link
 page-philosophy
 participants-list
 passback-add-disagreement-details
@@ -693,7 +695,6 @@ records-table-wrap
 register-form
 related-group
 related-group-label
-related-modifier-group-count
 related-modifier-group-sep
 related-modifier-groups
 related-modifier-groups-label
@@ -707,7 +708,6 @@ results-section-header
 roster-summary-meta
 rules-authority
 rules-detail
-rules-footer-back
 rules-index
 rules-link-list
 rules-meta
@@ -817,7 +817,6 @@ tag-filter-chip
 tag-filter-chip--locked
 tag-filter-context
 tag-filter-context-label
-tag-filter-count
 tag-filter-field
 tag-filter-field--exclude
 tag-filter-field-label

@@ -54,9 +54,9 @@ discipline, and service-owned shaping. Internal `/internal/*` tooling is exempt 
 
 Compose every public page from one small set: site frame (header / main / footer), page hero
 (eyebrow / title / subtitle / notice), content section, compact disclosure card grid,
-discipline tag, result section, year navigation, metadata / summary rows, data table (`.data-table`,
+discipline tag, result section, year navigation, pager, metadata / summary rows, data table (`.data-table`,
 the one table treatment), queue row, grouped link
-index, prominent action link,
+index, prominent action link, back link (the `back-link` partial),
 empty state, notice block, and admin instructions block. A new page
 joins the standard only if it can be expressed through these. A genuinely new reusable primitive is
 added to the standard first, then applied across the relevant pages, never invented per page.
@@ -76,6 +76,10 @@ chrome and description. A **grouped link index** (`.admin-goto-grid`) is columns
 under group headings, carrying no counts and no descriptions, for the navigation half of a page
 whose destinations a reader learns the position of. Both are used on the administrator's home page.
 
+A **pager** (the `_pager` partial) closes every paged list: numbered page links and a "Page X of
+Y" status, shaped by the page service as its pagination block. A paged hashtag-media result also
+shows the large-result notice above its grid whenever the set spans more than one page.
+
 An **admin instructions block** (the `admin-instructions` partial) opens every administrator page,
 directly below the hero: what the screen does, why it exists, how to use it, and a heads-up list of
 the consequences a reader would not guess, such as a member being emailed, the act being permanent,
@@ -83,10 +87,15 @@ or a reason being required. The page service shapes it as `PageMeta.instructions
 nothing non-obvious to warn about omits the heads-up list. On a confirm page the block names the
 step, and its heads-up is the page's existing caution, never a second copy of it.
 
-The page hero carries only its own parts (eyebrow, title, subtitle, notice). Primary navigation, back
+The page hero carries only its own parts (eyebrow, title, subtitle, notice). A hashtag is not a hero
+part: a page's own media hashtag sits in the media line (the `media-line` partial) beside its gallery
+link. Primary navigation, back
 links, and item pagers belong in the page body, never in the hero. Breadcrumbs sit in the hero, above
 the eyebrow, and only on a page two or more levels below its section's landing page; a shallower page
-relies on its back link. Never render the same action's label twice on one page (for example a "Back
+relies on its back link. A back link exists only on a page nested under another, and leads one level
+up to that page, labelled "Back to <that page's title>"; it is drawn once, at the end of the body, by
+the `back-link` partial from `navigation.contextLinks`. A page nested under nothing, or carrying
+breadcrumbs, has none, and a back link never points anywhere but that one parent. Never render the same action's label twice on one page (for example a "Back
 to results" link in both the hero and the pager); one control reads cleaner. A page serving distinct
 audiences in side-by-side panels may repeat an action once per panel. Keep visible spacing between the hero and the first content block, and between
 stacked sections, so adjacent blocks never butt together with a zero gap.
@@ -102,9 +111,9 @@ tier is a design question to raise, never a licence to mint a class.
 |---|---|---|
 | Primary action | The main action of a page, or of each self-contained panel on it when a page serves distinct audiences side by side (the login page's log-in form and its two join panels) | `.btn .btn-primary` |
 | Secondary action | A real action, subordinate to the primary one, including every state-changing control in a list item, a table row or a filter bar | `.btn .btn-outline`, or `.btn .btn-inverse` on a dark gradient panel |
-| Prominent action link | A destination that must read as important without being a button: a cross-link out of a section, a "see all of X" pointer, the page's back link | `.action-link` |
+| Prominent action link | A destination that must read as important without being a button: a cross-link out of a section, a "see all of X" pointer, the page's back link (through the `back-link` partial) | `.action-link` |
 | Prose link | An ordinary link inside running text; the service shapes linked prose as text and link segments, never an HTML string, and an external one renders through the `externalLink` helper | bare `<a>` |
-| Tag or chip | A clickable filter, tag, or hashtag | `.tag-chip`; a trick hashtag uses the shared hashtag token |
+| Tag or chip | A clickable filter, tag, or hashtag | `.tag-chip`; a trick hashtag uses the shared hashtag token; no chip, button or link label carries a count |
 | Non-clickable token | An identity or status that is not a link | the hashtag token at rest; `.badge` for status |
 
 `.btn-sm` is a size modifier on the two button tiers, not a variant of its own; it changes the
@@ -210,7 +219,7 @@ discipline and the shared classes; per-section classes are in the stylesheet.
 - Never invent a class by analogy with another framework (`btn-secondary` is a Bootstrap name, not
   ours). New classes are added to `style.css`.
 - Shared classes: site frame `.skip-link`, `.wrapper`, `.site-header`, `.site-logo`, `.main-nav`,
-  `.site-footer`; hero `.hero`, `.hero-sm`, `.hero-eyebrow`, `.hero-subtitle`, `.hero-hashtag`;
+  `.site-footer`; hero `.hero`, `.hero-sm`, `.hero-eyebrow`, `.hero-subtitle`, `.hero-hashtag`; media line `.media-line` (its hashtag is the shared `.hashtag` token);
   sections `.content-section`, `.section-heading`, `.section-intro` (`.profile-section` on member
   profile pages only); cards and tables `.card`, `.card-static`, `.card-title`, `.card-meta`,
   `.card-description`, `.card-grid`, `.badge`, `.data-table`, `.empty-state`; actions `.btn`,
@@ -324,7 +333,8 @@ the measurable parts of this standard, with known findings in a shrink-only base
 ## Detail-page order
 
 A detail page orients before it analyses. Under the hero, in this order: a notice band if the page
-has one; a short horizontal strip of identifying facts; plain-language prose saying what the thing
+has one; a short horizontal strip of identifying facts, if one opens the page; the media line when
+the page has its own hashtag; plain-language prose saying what the thing
 is; then the structured or technical sections; then actions; then the back link from
 `navigation.contextLinks`. Club detail, event detail and the member profile are the worked examples.
 

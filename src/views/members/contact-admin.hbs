@@ -6,10 +6,6 @@
 
 <div class="wrapper">
   <section>
-    {{#each navigation.contextLinks}}
-      <a href="{{href}}" class="back-link">{{label}}</a>
-    {{/each}}
-
     {{#if content.successFlag}}
       {{> outcome-notice text="Your request has been sent to the IFPA administrator. We will reply by email." tone='ok'}}
     {{/if}}

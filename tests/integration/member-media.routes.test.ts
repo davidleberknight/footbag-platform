@@ -224,10 +224,9 @@ describe('member-uploaded media surfaces', () => {
   it('trick reference links to the trick gallery and shows the member clip', async () => {
     const trickPage = await page(`/freestyle/tricks/${TRICK_SLUG}`);
     expect(trickPage.status).toBe(200);
-    expect(trickPage.text).toContain('See All Videos for');
     // Handlebars HTML-escapes '=' in the href to '&#x3D;'. The trick slug rides
     // as a locked ?context= token (matching club/event/member gallery links).
-    expect(trickPage.text).toContain(`/media/browse?context&#x3D;${TRICK_SLUG}`);
+    expect(trickPage.text).toContain(`<a class="action-link" href="/media/browse?context&#x3D;${TRICK_SLUG}">`);
 
     const gallery = await page(`/media/browse?context=${TRICK_SLUG}`);
     expect(gallery.status).toBe(200);

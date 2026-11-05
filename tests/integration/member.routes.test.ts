@@ -117,6 +117,10 @@ describe('GET /members/:memberKey — profile view', () => {
       .get(`/members/${OWN_SLUG}`)
       .set('Cookie', ownCookie());
     expect(res.status).toBe(200);
+    // The owner would otherwise lose the one way into editing their profile;
+    // the profile is the member area's top page, so it carries no back link.
+    expect(res.text).toContain(`<a href="/members/${OWN_SLUG}/edit" class="btn btn-primary">`);
+    expect(res.text).not.toContain('page-back-link');
   });
 
   it("another member's profile → 200 read-only view for an authenticated viewer (no edit links, no payment/audit surfaces)", async () => {
@@ -224,13 +228,19 @@ describe('GET /members/:memberKey — profile view', () => {
     }
   });
 
-  it('shows the linked historical name as an "Also known as" line when it differs from the display name', async () => {
+  it('shows the linked historical name in the facts strip under the hero, not in the hero, when it differs from the display name', async () => {
     const app = createApp();
     const res = await request(app)
       .get(`/members/${LINKED_SLUG}`)
       .set('Cookie', otherCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Also known as Linked Historical in competition records');
+    // The body is the first wrapper after the hero; the site header opens a
+    // wrapper of its own before the hero.
+    const heroStart = res.text.indexOf('<div class="hero');
+    const bodyStart = res.text.indexOf('<div class="wrapper">', heroStart);
+    expect(res.text.slice(heroStart, bodyStart)).toContain('<h1>');
+    expect(res.text.slice(heroStart, bodyStart)).not.toContain('Linked Historical');
+    expect(res.text.slice(bodyStart)).toMatch(/class="event-meta-row">[\s\S]*?Linked Historical/);
   });
 
   it('a history-only claimant (historical-person link, no legacy account) shows the historical name and HoF induction year', async () => {
@@ -255,8 +265,31 @@ describe('GET /members/:memberKey — profile view', () => {
       .get(`/members/${CASEC_SLUG}`)
       .set('Cookie', otherCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Also known as Casey Halloffamer in competition records');
+    const bodyStart = res.text.indexOf('<div class="wrapper">', res.text.indexOf('<div class="hero'));
+    expect(res.text.slice(bodyStart)).toMatch(/class="event-meta-row">[\s\S]*?Casey Halloffamer/);
     expect(res.text).toContain('Member of the Footbag Hall of Fame (2015)');
+  });
+
+  it('shows the historical name in the facts strip even when the member has no location on file', async () => {
+    // Defect caught: the facts strip renders only for a member with a
+    // location, so a member with none loses their competition name entirely.
+    const db = new BetterSqlite3(dbPath);
+    const NOLOC_ID = 'member-noloc';
+    const NOLOC_SLUG = 'member_noloc';
+    const hp = insertHistoricalPerson(db, { person_name: 'Nowhere Recorded' });
+    insertMember(db, {
+      id: NOLOC_ID, slug: NOLOC_SLUG, display_name: 'Noloc Member',
+      login_email: 'noloc@example.com', city: null, region: null, country: null,
+    });
+    completeOnboarding(db, NOLOC_ID);
+    db.prepare('UPDATE members SET historical_person_id = ? WHERE id = ?').run(hp, NOLOC_ID);
+    db.close();
+
+    const res = await request(createApp())
+      .get(`/members/${NOLOC_SLUG}`)
+      .set('Cookie', otherCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toMatch(/class="event-meta-row">[\s\S]*?Nowhere Recorded/);
   });
 
   it('shows the IFPA Board line on a board member profile', async () => {
@@ -312,6 +345,10 @@ describe('GET /members/:memberKey/edit — edit form', () => {
     // The name and profile URL can be changed by an admin, so the page must not
     // tell the member they are permanent.
     expect(res.text).not.toContain('are permanent');
+    // One way back up to the profile, after the form, not above it.
+    const backs = [...res.text.matchAll(/<p class="page-back-link"><a href="([^"]+)"/g)];
+    expect(backs.map((m) => m[1])).toEqual([`/members/${OWN_SLUG}`]);
+    expect(res.text.indexOf('page-back-link')).toBeGreaterThan(res.text.lastIndexOf('</form>'));
   });
 
   it('a member with no gender set sees the gender control default to undisclosed', async () => {

@@ -23,8 +23,8 @@
     </div>
 
     <div class="media-layout-main">
-      {{#if content.truncationNotice}}
-        <div class="notice-card notice-card--info">{{content.truncationNotice}}</div>
+      {{#if content.pagination.largeSetNotice}}
+        <div class="notice-card notice-card--info">{{content.pagination.largeSetNotice}}</div>
       {{/if}}
 
       {{#if content.items.length}}
@@ -33,6 +33,8 @@
             {{> _gallery-tile this}}
           {{/each}}
         </ul>
+
+        {{> _pager pagination=content.pagination}}
       {{else}}
         {{> _set-empty-state popularTags=content.popularTags}}
       {{/if}}

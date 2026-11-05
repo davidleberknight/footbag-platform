@@ -64,12 +64,14 @@ describe('GET /freestyle/tricks/:slug — empty state (no records, no media)', (
     expect(res.text).not.toContain('<h2>Consecutive Records</h2>');
   });
 
-  it('omits the media section when the trick has no reference media', async () => {
+  it('shows the hashtag as a plain token, with no gallery link or media anchor, when the trick has no reference media', async () => {
+    // Defect caught: a gallery link to an empty gallery, a jump link landing on
+    // a line with nothing to open, or the hashtag missing from the page.
     const res = await page('/freestyle/tricks/whirl');
     expect(res.status).toBe(200);
-    // The Media section (and its anchor target) renders only when reference
-    // media exists, so no dangling #media anchor is left behind.
     expect(res.text).not.toContain('id="media"');
+    expect(res.text).not.toContain('/media/browse?context&#x3D;whirl');
+    expect(res.text).toContain('<span class="hashtag">#whirl</span>');
   });
 
   // Defect caught: a trick with nothing to say about itself still renders an

@@ -492,8 +492,8 @@ describe('GET /freestyle/tricks?family=… — hashtag filter', () => {
     // Deep-link into the modifier projection at the matching per-modifier
     // anchor (a launch set would deep-link into its ?view=set section instead).
     expect(res.text).toContain('href="/freestyle/tricks?view=modifier#modifier-spinning"');
-    // Link surface shows the modifier name and a count chip.
-    expect(res.text).toMatch(/<a href="[^"]*">spinning <span class="related-modifier-group-count">\(1\)<\/span>/);
+    // The link carries the modifier name alone: a control never carries a count.
+    expect(res.text).toMatch(/<a href="\/freestyle\/tricks\?view=modifier#modifier-spinning">spinning<\/a>/);
   });
 
   it('does NOT render the Related set/modifier groups block when no family is active', async () => {
@@ -570,9 +570,10 @@ describe('GET /freestyle/tricks/:slug — Media section + Learn-pathway counts',
     // demo-tier coverage.
     const res = await page('/freestyle/tricks/refmedia-tutorial-only');
     expect(res.status).toBe(200);
-    // The Media section links to the trick gallery; clips are watched there, not
-    // embedded inline, so there are no per-tier subsections.
-    expect(res.text).toMatch(/<h2>Media<\/h2>/);
+    // The media line links to the trick gallery, and the Learn pathway's jump
+    // link lands on it; clips are watched in the gallery, not embedded inline,
+    // so there are no per-tier subsections.
+    expect(res.text).toContain('<p class="media-line" id="media">');
     expect(res.text).toContain('href="/media/browse?context&#x3D;refmedia-tutorial-only"');
     expect(res.text).not.toMatch(/<h2>\s*Reference Media\s*<\/h2>/);
     expect(res.text).not.toContain('reference-media-subsection');
@@ -590,7 +591,7 @@ describe('GET /freestyle/tricks/:slug — Media section + Learn-pathway counts',
     // tutorial-tier coverage.
     const res = await page('/freestyle/tricks/refmedia-demo-only');
     expect(res.status).toBe(200);
-    expect(res.text).toMatch(/<h2>Media<\/h2>/);
+    expect(res.text).toContain('<p class="media-line" id="media">');
     expect(res.text).toContain('href="/media/browse?context&#x3D;refmedia-demo-only"');
     expect(res.text).not.toMatch(/<h2>\s*Reference Media\s*<\/h2>/);
     expect(res.text).not.toContain('reference-media-subsection');
@@ -610,7 +611,7 @@ describe('GET /freestyle/tricks/:slug — Media section + Learn-pathway counts',
     // in the curator-tagged channel.
     const res = await page('/freestyle/tricks/refmedia-mixed-media');
     expect(res.status).toBe(200);
-    expect(res.text).toMatch(/<h2>Media<\/h2>/);
+    expect(res.text).toContain('<p class="media-line" id="media">');
     expect(res.text).toContain('href="/media/browse?context&#x3D;refmedia-mixed-media"');
     expect(res.text).not.toMatch(/<h2>\s*Reference Media\s*<\/h2>/);
     expect(res.text).not.toContain('reference-media-subsection');

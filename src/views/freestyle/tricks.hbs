@@ -100,7 +100,7 @@
   <nav class="related-modifier-groups" aria-label="Related set or modifier groups">
     <span class="related-modifier-groups-label">Related set/modifier groups:</span>
     {{#each content.relatedModifierGroups}}
-      <a href="{{{href}}}">{{modifierName}} <span class="related-modifier-group-count">({{count}})</span></a>{{#unless @last}} <span class="related-modifier-group-sep">·</span> {{/unless}}
+      <a href="{{{href}}}">{{modifierName}}</a>{{#unless @last}} <span class="related-modifier-group-sep">·</span> {{/unless}}
     {{/each}}
   </nav>
   {{/if}}
@@ -232,7 +232,7 @@
 
   <nav class="jump-bar jump-bar--inline" aria-label="Modifier jump">
     {{#each content.modifierJumpIndex}}
-      <a href="{{anchor}}">{{name}} ({{count}})</a>{{#unless @last}} <span class="jump-bar-sep">·</span> {{/unless}}
+      <a href="{{anchor}}">{{name}}</a>{{#unless @last}} <span class="jump-bar-sep">·</span> {{/unless}}
     {{/each}}
   </nav>
 
@@ -346,12 +346,12 @@
   <nav class="jump-bar jump-bar--wide" aria-label="Jump to family">
     <span class="jump-bar-label">Root families:</span>
     {{#each content.familyJumpIndex.roots}}
-      <a href="{{anchor}}">{{name}} <span class="jump-bar-count">{{count}}</span></a>{{#unless @last}} <span class="jump-bar-sep">·</span> {{/unless}}
+      <a href="{{anchor}}">{{name}}</a>{{#unless @last}} <span class="jump-bar-sep">·</span> {{/unless}}
     {{/each}}
     {{#if content.familyJumpIndex.branches.length}}
     <span class="jump-bar-label jump-bar-label--branch">Derived / branch:</span>
     {{#each content.familyJumpIndex.branches}}
-      <a href="{{anchor}}">{{name}} <span class="jump-bar-count">{{count}}</span></a>{{#unless @last}} <span class="jump-bar-sep">·</span> {{/unless}}
+      <a href="{{anchor}}">{{name}}</a>{{#unless @last}} <span class="jump-bar-sep">·</span> {{/unless}}
     {{/each}}
     {{/if}}
     {{#if content.familyJumpIndex.hasMinorLineages}}
@@ -421,4 +421,5 @@
       rather than provenance the reader needed before they started reading. }}
   <p class="dict-back-to-top"><a class="btn btn-outline" href="#dictionary-top">{{content.backToTopLabel}}</a></p>
 
+  {{> back-link}}
 </div>

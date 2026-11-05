@@ -9,11 +9,9 @@
   two because it carries the arithmetic the strip would leave implicit.
 
   Sparse pages with no summary fall back to the records-side sortname for
-  identity continuity. The identity hashtag renders here as the hero identity
-  line, matching the club-detail hero; the taxonomy chips (family, ADD,
-  pronunciation) render in the page body, not here. The hashtag links to the
-  trick's media gallery only when reference media exists; otherwise it is a
-  plain identity token.
+  identity continuity, unless it only repeats the h1. The hashtag is not a
+  hero part: it renders in the media line at the top of the page body, and
+  the taxonomy chips (family, ADD, pronunciation) render in the body too.
 --}}
 <div class="hero hero-sm">
   <div>
@@ -29,13 +27,6 @@
     <p class="hero-subtitle">{{summary}}</p>
     {{else}}
       {{#if content.sortName}}<p class="hero-subtitle">{{content.sortName}}</p>{{/if}}
-    {{/if}}
-    {{#if content.trickTag}}
-      {{#if content.hasReferenceMedia}}
-      <p class="hero-hashtag"><a href="{{content.referenceGalleryHref}}">{{content.trickTag}}</a></p>
-      {{else}}
-      <p class="hero-hashtag">{{content.trickTag}}</p>
-      {{/if}}
     {{/if}}
   </div>
 </div>

@@ -30,9 +30,6 @@ function buildViewModel(
   return {
     seo:  { title: 'Contact IFPA Admin' },
     page: { sectionKey: 'members', pageKey: 'member_contact_admin', title: 'Contact IFPA Admin' },
-    navigation: {
-      contextLinks: [{ label: 'Back to Edit Profile', href: `/members/${memberKey}/edit` }],
-    },
     content: {
       memberKey,
       formAction: `/members/${memberKey}/contact-admin`,

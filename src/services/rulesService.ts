@@ -139,6 +139,11 @@ export const rulesService = {
         title: displayTitle,
         ...(intro ? { intro } : {}),
       },
+      // A rule page sits in the Rules section and is listed on its landing page,
+      // so that page is its parent; the sport page is a cross-link, not the parent.
+      navigation: {
+        contextLinks: [{ label: 'Back to Footbag Rules', href: '/rules' }],
+      },
       content: { page },
     };
   },

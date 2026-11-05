@@ -33,14 +33,11 @@ const HP_FORM_VM = {
 // the contact form is a member capability and would bounce them straight back
 // to the wizard. What it offers instead are the two self-serve remedies, which
 // work for this audience and resolve the commonest reason for landing here.
-function renderHpClaimUnavailable(res: Response, personId: string): void {
+function renderHpClaimUnavailable(res: Response): void {
   res.status(200).render('history/claim-unavailable', {
     seo:  { title: 'Claim Unavailable' },
     page: { sectionKey: 'members', pageKey: 'hp_claim_unavailable', title: 'Claim Unavailable' },
     content: {
-      cancelHref: personId
-        ? `/history/${encodeURIComponent(personId)}`
-        : '/',
       claimStepHref: '/register/wizard/legacy_claim',
     },
   });
@@ -96,7 +93,7 @@ export const claimController = {
           personId,
           memberId: req.user!.userId,
         });
-        renderHpClaimUnavailable(res, personId);
+        renderHpClaimUnavailable(res);
         return;
       }
       if (lookupResult.status === 'conflict') {
@@ -109,10 +106,9 @@ export const claimController = {
           seo:  { title: 'Claim Unavailable' },
           page: { sectionKey: 'members', pageKey: 'hp_claim_conflict', title: 'Claim Unavailable' },
           content: {
-            cancelHref: personId ? `/history/${encodeURIComponent(personId)}` : '/',
             claimStepHref: '/register/wizard/legacy_claim',
           },
-        } satisfies PageViewModel<{ cancelHref: string; claimStepHref: string }>);
+        } satisfies PageViewModel<{ claimStepHref: string }>);
         return;
       }
       const result = lookupResult.data;
@@ -158,7 +154,7 @@ export const claimController = {
           memberId: req.user!.userId,
           reason: err.message,
         });
-        renderHpClaimUnavailable(res, personId);
+        renderHpClaimUnavailable(res);
         return;
       }
       logger.error('hp claim lookup error', { error: err instanceof Error ? err.message : String(err) });

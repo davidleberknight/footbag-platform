@@ -2832,6 +2832,8 @@ Rationale:
 
 - The link green against body text is 2.54:1, below the 3:1 at which colour alone can mark a link inside text (WCAG 1.4.1), so a link in running text needs its underline. Navigation, link lists and cards signal a link by position, the convention the major design systems follow; there the underline appears on hover and on keyboard focus, so pointer and keyboard readers get the same cue.
 
+- The numbered pattern follows the GOV.UK Design System pagination component: the first and last page stay one click away and the reader always sees where they are.
+
 Requirements:
 
 - A link in running text is underlined at rest. A link without a resting underline sits where its context signals a link, and underlines on both hover and `:focus-visible`.
@@ -2841,6 +2843,8 @@ Requirements:
 - Disclosure summaries keep the native marker: no `list-style: none`, no marker suppression, no substitute glyph.
 
 - Pagination and back links carry words ("Previous", "Next", "Back to ..."), not glyphs.
+
+- A paged list shows numbered page links that always include the first and last page, an ellipsis marking skipped pages, no "Previous" on the first page or "Next" on the last, and no page links at all for a single page.
 
 Trade-offs:
 

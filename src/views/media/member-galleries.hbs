@@ -10,20 +10,17 @@
     <div class="card-grid card-grid-compact">
       {{#each content.galleries}}
       <div class="card">
-        {{#if coverThumbUrl}}<img src="{{coverThumbUrl}}" alt="{{name}}" class="card-cover" loading="lazy">{{/if}}
+        {{! The cover opens the gallery too. It is a second pointer for the eye
+            and hand only, so keyboard and screen-reader users meet one link
+            per card: the name. }}
+        {{#if coverThumbUrl}}<a href="{{href}}" tabindex="-1" aria-hidden="true"><img src="{{coverThumbUrl}}" alt="{{name}}" class="card-cover" loading="lazy"></a>{{/if}}
         <a href="{{href}}" class="card-title">{{name}}</a>
         {{#if description}}<p class="card-description">{{description}}</p>{{/if}}
         <p class="card-meta">{{itemCount}} {{itemCountNoun}} by {{#if ownerHref}}<a href="{{ownerHref}}">{{ownerDisplayName}}</a>{{else}}{{ownerDisplayName}}{{/if}}</p>
       </div>
       {{/each}}
     </div>
-    {{#if (or content.pagination.hasPrev content.pagination.hasNext)}}
-      <nav class="gallery-pagination" aria-label="Pagination">
-        {{#if content.pagination.hasPrev}}<a href="{{content.pagination.prevHref}}" rel="prev">Previous</a>{{/if}}
-        <span class="gallery-pagination-status">Page {{content.pagination.page}}</span>
-        {{#if content.pagination.hasNext}}<a href="{{content.pagination.nextHref}}" rel="next">Next</a>{{/if}}
-      </nav>
-    {{/if}}
+    {{> _pager pagination=content.pagination}}
   {{else}}
     <div class="empty-state">No member galleries yet.</div>
   {{/if}}
