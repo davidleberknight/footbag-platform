@@ -154,7 +154,6 @@ import {
   BIRTH_MONTH_NAMES,
   BirthDateParts,
 } from '../lib/birthDate';
-import { identityAccessService } from './identityAccessService';
 import { memberOnboardingService } from './memberOnboardingService';
 import { NotFoundError, RateLimitedError, ValidationError } from './serviceErrors';
 import { hit as rateLimitHit } from './rateLimitService';
