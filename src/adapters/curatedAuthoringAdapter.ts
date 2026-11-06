@@ -14,6 +14,11 @@
  * after every other input, so they win over the base inputs, and it reports each
  * value it overrides.
  *
+ * The curated media tree's files (a gallery, an email template, an uploaded item's
+ * bytes and its tags file) keep the shapes their seeders read, so the service
+ * formats them and names the path. The path is asked for only where a file is
+ * written, since a deployed host has no tree to name one in.
+ *
  * A write is atomic, so a failure leaves the previous file whole. The write comes
  * before the service's database transaction and refuses the save when it fails:
  * a save that reached only the database would look done and be lost at the next
@@ -95,6 +100,10 @@ export interface CuratedAuthoringAdapter {
   saveRulingFields(candidateId: string, fields: RulingSaveFields): CuratedSaveReceipt;
   /** Records one whole item, replacing any earlier save of it. */
   saveItem(kind: SaveItemKind, key: string, body: SaveItemBody): CuratedSaveReceipt;
+  /** Writes one file of the curated media tree, replacing any earlier one. */
+  writeAuthoringFile(locate: () => string, content: string | Buffer): CuratedSaveReceipt;
+  /** Removes one file of the curated media tree; a file already gone needs no removal. */
+  removeAuthoringFile(locate: () => string): CuratedSaveReceipt;
 }
 
 const NOTHING_TO_UNDO: CuratedSaveReceipt = { undo: () => undefined };
@@ -134,11 +143,11 @@ function assertSaveShape(slug: string, fields: TrickSaveFields): void {
   }
 }
 
-function writeAtomically(filePath: string, content: string): void {
+function writeAtomically(filePath: string, content: string | Buffer): void {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   const tmpPath = `${filePath}.tmp-${process.pid}`;
   try {
-    fs.writeFileSync(tmpPath, content, 'utf8');
+    fs.writeFileSync(tmpPath, content);
     fs.renameSync(tmpPath, filePath);
   } catch (err) {
     fs.rmSync(tmpPath, { force: true });
@@ -146,23 +155,39 @@ function writeAtomically(filePath: string, content: string): void {
   }
 }
 
-export function createFileCuratedAuthoringAdapter(opts: { rootDir: string }): CuratedAuthoringAdapter {
+// The freestyle saves folder is looked up only by a freestyle save, so a write to
+// the curated media tree never depends on it.
+export function createFileCuratedAuthoringAdapter(opts: { rootDir: string | (() => string) }): CuratedAuthoringAdapter {
+  const savesRoot = (): string => (typeof opts.rootDir === 'function' ? opts.rootDir() : opts.rootDir);
   return {
     saveTrickFields(slug, fields) {
       assertSaveShape(slug, fields);
-      return mergeFields(path.join(opts.rootDir, 'tricks', `${slug}.json`), { slug }, fields);
+      return mergeFields(path.join(savesRoot(), 'tricks', `${slug}.json`), { slug }, fields);
     },
     saveRulingFields(candidateId, fields) {
       assertRulingShape(candidateId, fields);
       return mergeFields(
-        path.join(opts.rootDir, 'rulings', `${candidateId}.json`), { candidate_id: candidateId }, fields,
+        path.join(savesRoot(), 'rulings', `${candidateId}.json`), { candidate_id: candidateId }, fields,
       );
     },
     saveItem(kind, key, body) {
       assertItemShape(kind, key);
-      const filePath = path.join(opts.rootDir, kind, `${key}.json`);
+      const filePath = path.join(savesRoot(), kind, `${key}.json`);
       const before = fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf8') : null;
       writeAtomically(filePath, `${JSON.stringify(body, null, 2)}\n`);
+      return receiptFor(filePath, before);
+    },
+    writeAuthoringFile(locate, content) {
+      const filePath = locate();
+      const before = fs.existsSync(filePath) ? fs.readFileSync(filePath) : null;
+      writeAtomically(filePath, content);
+      return receiptFor(filePath, before);
+    },
+    removeAuthoringFile(locate) {
+      const filePath = locate();
+      if (!fs.existsSync(filePath)) return NOTHING_TO_UNDO;
+      const before = fs.readFileSync(filePath);
+      fs.rmSync(filePath);
       return receiptFor(filePath, before);
     },
   };
@@ -181,7 +206,7 @@ function mergeFields(
   return receiptFor(filePath, before);
 }
 
-function receiptFor(filePath: string, before: string | null): CuratedSaveReceipt {
+function receiptFor(filePath: string, before: string | Buffer | null): CuratedSaveReceipt {
   return {
     undo() {
       if (before === null) fs.rmSync(filePath, { force: true });
@@ -204,6 +229,12 @@ export function createDatabaseOnlyCuratedAuthoringAdapter(): CuratedAuthoringAda
       assertItemShape(kind, key);
       return NOTHING_TO_UNDO;
     },
+    writeAuthoringFile() {
+      return NOTHING_TO_UNDO;
+    },
+    removeAuthoringFile() {
+      return NOTHING_TO_UNDO;
+    },
   };
 }
 
@@ -221,7 +252,7 @@ let singleton: CuratedAuthoringAdapter | null = null;
 export function getCuratedAuthoringAdapter(): CuratedAuthoringAdapter {
   if (singleton) return singleton;
   singleton = config.allowCuratedSidecarWrites
-    ? createFileCuratedAuthoringAdapter({ rootDir: resolveSavesRoot() })
+    ? createFileCuratedAuthoringAdapter({ rootDir: resolveSavesRoot })
     : createDatabaseOnlyCuratedAuthoringAdapter();
   return singleton;
 }

@@ -45,6 +45,7 @@ const WEBHOOK_SWEEP = 'tests/integration/paymentWebhook.fault-injection.sweep.te
 
 const ADDRESS_ONLY = 'builds a public address from a storage key; no call leaves the process';
 const CURATOR_SAVES = 'tests/integration/freestyle.curator-saves.test.ts';
+const CURATED_WRITE_BACK = 'tests/integration/curatedWriteBack.service.test.ts';
 const SAVE_THEN_COMMIT = 'writes a curated save file and then commits the row through the same put-back helper the swept saves use; a commit failure on this operation is not yet injected';
 const CONSTRUCTS_SERVICE = 'hands the adapter to a service factory; the calls it makes are the factory\'s own sites below it';
 
@@ -159,6 +160,14 @@ export const ADAPTER_SITES: AdapterSite[] = [
   { file: 'src/services/freestyleRecordCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'saveRecordFile', status: { pending: SAVE_THEN_COMMIT } },
   { file: 'src/services/consecutiveKicksCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'deleteRow', status: { pending: SAVE_THEN_COMMIT } },
   { file: 'src/services/consecutiveKicksCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'saveRowFile', status: { pending: SAVE_THEN_COMMIT } },
+  { file: 'src/services/emailTemplateAdminService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'updateTemplate', status: { swept: CURATED_WRITE_BACK } },
+  { file: 'src/services/curatorMediaService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'writeGalleryFile', status: { swept: CURATED_WRITE_BACK } },
+  { file: 'src/services/curatorMediaService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'deleteGallery', status: { swept: CURATED_WRITE_BACK } },
+  { file: 'src/services/curatorMediaService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'uploadPhoto binary', status: { swept: CURATED_WRITE_BACK } },
+  { file: 'src/services/curatorMediaService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'uploadPhoto sidecar', status: { swept: CURATED_WRITE_BACK } },
+  { file: 'src/services/curatorMediaService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'uploadVideo binary', status: { pending: SAVE_THEN_COMMIT } },
+  { file: 'src/services/curatorMediaService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'uploadVideo poster', status: { pending: SAVE_THEN_COMMIT } },
+  { file: 'src/services/curatorMediaService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'uploadVideo sidecar', status: { pending: SAVE_THEN_COMMIT } },
 
   // ── Secrets, signing and verification ─────────────────────────────────────
   {

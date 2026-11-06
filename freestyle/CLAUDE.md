@@ -55,16 +55,18 @@ read only from `freestyle/inputs/` and `freestyle/symbolic_grammar/` (and
 ## Run / verify
 
 `freestyle/run_freestyle.sh` is the routine refresh against `database/footbag.db`. It
-reconciles the committed inputs into the database already there, preserves everything a
-curator wrote, never deletes the database file, and is idempotent. Every rebuild path runs
-it as one of its own stages, so a rebuild is never followed by a separate refresh.
+reconciles the committed inputs into the database already there, which overwrites the fields
+and replaces the links of every trick those inputs define; its last stage then applies the
+curator save files under `freestyle/inputs/curator_saves/`, so curator work saved through the
+admin screens on this machine survives it. It never deletes the database file and is
+idempotent. Every rebuild path runs it as one of its own stages, so a rebuild is never
+followed by a separate refresh.
 
 Resetting is a different operation and is not this. The reset paths (`./run_dev.sh --reset`,
 `--from-csv`, `--soup-to-nuts`, `--all-data`, and `scripts/reset-local-db.sh` beneath them)
-delete the database file and rebuild from committed inputs, discarding authored notation drafts,
-publication and resolution state, curator-created canonical tricks and their aliases, source links
-and modifier links. No committed file brings those back. Use a reset deliberately, never as a way
-to refresh.
+delete the database file and rebuild from committed inputs, the curator save files included,
+so they reproduce curator work saved through the admin screens; anything held only in the
+database is gone. Use a reset deliberately, never as a way to refresh.
 
 The trick-dictionary QC (`22_*`) and the media tag-invariant QC (`25_*`) are hard
 gates; the media-coverage QC (`24_*`) is advisory (it audits the curated media

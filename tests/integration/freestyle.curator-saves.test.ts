@@ -363,6 +363,8 @@ describe('a trick edit on a developer machine', () => {
       saveTrickFields() { throw new Error('disk full'); },
       saveRulingFields() { throw new Error('disk full'); },
       saveItem() { throw new Error('disk full'); },
+      writeAuthoringFile() { throw new Error('disk full'); },
+      removeAuthoringFile() { throw new Error('disk full'); },
     });
     expect(() => service.updateTrickScalars(
       failFileSlug, formFor(before, { shortDescription: SAVED_TEXT }), ADMIN_ID,

@@ -1169,6 +1169,33 @@ describe('adapter-parity: CuratedAuthoringAdapter contract', () => {
     second.undo();
     expect(fs.readFileSync(filePath, 'utf8')).toBe(held);
   });
+
+  // Defect: a deployed host, which has no authoring tree, resolves a path in the
+  // curated media tree and fails the save or writes into the container.
+  it('the database-only backend never asks for a curated media path', () => {
+    const [, adapter] = backends[1]!;
+    const locate = (): string => { throw new Error('asked for a path'); };
+    expect(() => adapter.writeAuthoringFile(locate, 'x').undo()).not.toThrow();
+    expect(() => adapter.removeAuthoringFile(locate).undo()).not.toThrow();
+  });
+
+  // Defect: a refused save leaves the bytes it wrote over, or loses the file it
+  // removed, so the next rebuild loads the wrong item or drops one.
+  it('the file backend puts back the exact bytes a curated media write replaced or a removal took', () => {
+    const [, adapter] = backends[0]!;
+    const filePath = path.join(tmpDir, 'curated', 'photos', 'parity.jpg');
+    const original = Buffer.from([0xff, 0xd8, 0x00, 0x01]);
+    adapter.writeAuthoringFile(() => filePath, original);
+    adapter.writeAuthoringFile(() => filePath, Buffer.from([0x02])).undo();
+    expect(fs.readFileSync(filePath).equals(original)).toBe(true);
+    adapter.removeAuthoringFile(() => filePath).undo();
+    expect(fs.readFileSync(filePath).equals(original)).toBe(true);
+    const fresh = path.join(tmpDir, 'curated', 'photos', 'fresh.jpg');
+    adapter.writeAuthoringFile(() => fresh, original).undo();
+    expect(fs.existsSync(fresh)).toBe(false);
+    expect(() => adapter.removeAuthoringFile(() => fresh).undo()).not.toThrow();
+    expect(fs.existsSync(fresh)).toBe(false);
+  });
 });
 
 describe('adapter-parity: MediaStorageAdapter contract', () => {

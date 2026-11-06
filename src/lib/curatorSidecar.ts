@@ -39,14 +39,17 @@ export function readSidecar(dirPath: string, sourceFilename: string): CuratorSid
   return validateSidecarShape(parsed, sourceFilename);
 }
 
+export function formatSidecarJson(data: CuratorSidecar, sourceFilename: string): string {
+  return JSON.stringify(validateSidecarShape(data, sourceFilename), null, 2) + '\n';
+}
+
 export async function writeSidecar(
   dirPath: string,
   sourceFilename: string,
   data: CuratorSidecar,
 ): Promise<void> {
-  const validated = validateSidecarShape(data, sourceFilename);
   const sidecarPath = join(dirPath, sidecarPathForSource(sourceFilename));
-  await writeFile(sidecarPath, JSON.stringify(validated, null, 2) + '\n', 'utf-8');
+  await writeFile(sidecarPath, formatSidecarJson(data, sourceFilename), 'utf-8');
 }
 
 export function deleteSidecar(dirPath: string, sourceFilename: string): void {

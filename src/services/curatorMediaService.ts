@@ -59,8 +59,11 @@
  *     `media_items` row is the only write (DD §1.13).
  *   - Photo/video uploads with a `category` additionally write the source binary
  *     plus a file-paired `<slug>.meta.json` sidecar under `/curated/{category}/`
- *     (video also writes `<slug>.poster.<ext>`); the inline `media_items` insert is
- *     the read-path UX optimization per DD §1.13.
+ *     (video also writes `<slug>.poster.<ext>`) through the curated authoring
+ *     adapter, before the transaction; the inline `media_items` insert is the
+ *     read-path UX optimization per DD §1.13. A transaction that fails, including
+ *     the refusal of a file name already taken, puts back whatever those files
+ *     held before, so a refused upload never replaces another item's files.
  *   - Photo upload uses Sharp (aspect-preserving thumb, 800px-wide display, EXIF/ICC
  *     stripped); video upload uses ffmpeg curator transcode.
  *   - Magic-byte rejection for unsupported formats.
@@ -101,10 +104,13 @@
  *     No other member-owned gallery may take that name or the row id derived from
  *     it, on create or on rename, because the upload path re-derives that id and
  *     probes by that name. Enforced on every actor, admin included.
- *   - FH-owned writes JSON sidecar at `/curated/galleries/<slug>.json` after commit
- *     only where sidecar writes are enabled (a developer machine before go-live;
- *     sidecar I/O failure logged but does not roll back DB). Member-owned never
- *     touches the filesystem.
+ *   - An FH-owned gallery's create, edit and delete write or remove its JSON
+ *     sidecar at `/curated/galleries/<slug>.json` through the curated authoring
+ *     adapter before the transaction, which writes it only on a developer machine
+ *     before go-live. A sidecar that cannot be written or removed refuses the save
+ *     (ServiceUnavailableError); a transaction that then fails puts the earlier
+ *     sidecar back. The sidecar holds the lowercase form of each hashtag, which is
+ *     what the seeder matches. Member-owned never touches the filesystem.
  *   - Gallery edit never mutates item tags; current-items display rows derive from
  *     criteria/exclude tags via `listGalleryItemsForDisplay`.
  *   - A gallery's cover (`member_galleries.cover_media_id`) is chosen on the
@@ -255,13 +261,13 @@ import {
   GALLERY_DESCRIPTION_MAX_LEN,
   type GallerySortOrderValue,
   validateGallerySidecarData,
-  writeGallerySidecarFile,
-  deleteGallerySidecarFile,
+  formatGallerySidecarJson,
   deriveGallerySidecarPath,
   type GallerySidecarData,
 } from '../lib/curatorGallerySidecar';
-import { writeSidecar } from '../lib/curatorSidecar';
-import { promises as fsp } from 'fs';
+import { formatSidecarJson, sidecarPathForSource } from '../lib/curatorSidecar';
+import { getCuratedAuthoringAdapter, type CuratedSaveReceipt } from '../adapters/curatedAuthoringAdapter';
+import { writeAll, writeFileOrRefuse, writeFileThenCommit } from './curatedSaveFlow';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
 import { cleanUserText, INVALID_TEXT_ENCODING_MESSAGE, sanitizeUserText } from '../lib/textSanitizer';
 import { isSeededTestPersonaMemberId } from '../lib/personaGuards';
@@ -1846,6 +1852,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       // that no deploy preserves. Done before the DB transaction so the
       // sidecar identity matches the inserted row.
       let recordedSourceFilename = input.sourceFilename;
+      let curatedFiles: CuratedSaveReceipt | null = null;
       if (config.allowCuratedSidecarWrites && input.category) {
         if (!isValidCategoryName(input.category)) {
           throw new ValidationError(
@@ -1856,13 +1863,21 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         const slug = deriveCuratorSlug(input.sourceFilename);
         const binaryName = `${slug}.${ext}`;
         const categoryDir = path.join(getCuratedRootDir(), input.category);
-        await fsp.mkdir(categoryDir, { recursive: true });
-        await fsp.writeFile(path.join(categoryDir, binaryName), input.photoBuffer);
-        await writeSidecar(categoryDir, binaryName, {
+        const sidecarJson = formatSidecarJson({
           caption: input.caption,
           tags: input.tags,
           ...(normalizedExternalUrl !== null && { externalUrl: normalizedExternalUrl }),
-        });
+        }, binaryName);
+        // A name another curated item holds is refused by the insert below, so
+        // the files it would have replaced are put back, not lost.
+        curatedFiles = writeFileOrRefuse(writeAll([
+          () => getCuratedAuthoringAdapter().writeAuthoringFile(
+            () => path.join(categoryDir, binaryName), input.photoBuffer,
+          ),
+          () => getCuratedAuthoringAdapter().writeAuthoringFile(
+            () => path.join(categoryDir, sidecarPathForSource(binaryName)), sidecarJson,
+          ),
+        ]));
         recordedSourceFilename = binaryName;
       }
 
@@ -1895,6 +1910,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           });
         });
       } catch (err) {
+        curatedFiles?.undo();
         await compensatingStorageDelete(storage, [thumbKey, displayKey]);
         // Footbag Hacky already holds a photo under this file name: refused by
         // name, as a member's photo is, rather than failing the request.
@@ -1972,6 +1988,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       // sidecar's `poster:` field. Gated on a writable tree for the same reason
       // uploadPhoto is: the disk write is decided where the disk is touched.
       let recordedSourceFilename = input.sourceFilename;
+      let curatedFiles: CuratedSaveReceipt | null = null;
       if (config.allowCuratedSidecarWrites && input.category) {
         if (!isValidCategoryName(input.category)) {
           throw new ValidationError(
@@ -1984,15 +2001,23 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         const binaryName = `${slug}.${videoExt}`;
         const posterName = `${slug}.poster.${posterExt}`;
         const categoryDir = path.join(getCuratedRootDir(), input.category);
-        await fsp.mkdir(categoryDir, { recursive: true });
-        await fsp.writeFile(path.join(categoryDir, binaryName), input.videoBuffer);
-        await fsp.writeFile(path.join(categoryDir, posterName), input.posterBuffer);
-        await writeSidecar(categoryDir, binaryName, {
+        const sidecarJson = formatSidecarJson({
           caption: input.caption,
           tags: input.tags,
           poster: posterName,
           ...(normalizedExternalUrl !== null && { externalUrl: normalizedExternalUrl }),
-        });
+        }, binaryName);
+        curatedFiles = writeFileOrRefuse(writeAll([
+          () => getCuratedAuthoringAdapter().writeAuthoringFile(
+            () => path.join(categoryDir, binaryName), input.videoBuffer,
+          ),
+          () => getCuratedAuthoringAdapter().writeAuthoringFile(
+            () => path.join(categoryDir, posterName), input.posterBuffer,
+          ),
+          () => getCuratedAuthoringAdapter().writeAuthoringFile(
+            () => path.join(categoryDir, sidecarPathForSource(binaryName)), sidecarJson,
+          ),
+        ]));
         recordedSourceFilename = binaryName;
       }
 
@@ -2026,6 +2051,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           });
         });
       } catch (err) {
+        curatedFiles?.undo();
         await compensatingStorageDelete(storage, [
           videoKey,
           posterDisplayKey,
@@ -3229,7 +3255,29 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         : [];
 
       let moderationAuditId = '';
-      transaction(() => {
+      // The save file names the cover by its source filename, the curated
+      // item's stable key; its media id changes whenever its bytes do.
+      const coverPhoto = existing.is_system !== 1 || coverMediaId === null
+        ? undefined
+        : (media.getMediaSourceFilename.get(coverMediaId) as { source_filename: string | null } | undefined)
+          ?.source_filename ?? undefined;
+      const galleryFile = existing.is_system === 1
+        ? writeGalleryFile({
+          id: galleryId,
+          name: validated.name,
+          description: validated.description,
+          sortOrder: validated.sortOrder,
+          criteriaTags: validated.criteriaTags,
+          excludeTags: validated.excludeTags,
+          externalLinks: validated.externalLinks.map((lk, i) => ({
+            label: lk.label,
+            url: lk.url,
+            sortOrder: i,
+          })),
+          ...(coverPhoto ? { coverPhoto } : {}),
+        })
+        : null;
+      writeFileThenCommit(galleryFile, () => transaction(() => {
         media.updateMemberGalleryMetadata.run(
           validated.name,
           validated.description,
@@ -3282,36 +3330,14 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
             },
           });
         }
-      });
-
-      if (existing.is_system === 1) {
-        // The save file names the cover by its source filename, the curated
-        // item's stable key; its media id changes whenever its bytes do.
-        const coverPhoto = coverMediaId === null
-          ? undefined
-          : (media.getMediaSourceFilename.get(coverMediaId) as { source_filename: string | null } | undefined)
-            ?.source_filename ?? undefined;
-        await writeFhGallerySidecar({
-          id: galleryId,
-          name: validated.name,
-          description: validated.description,
-          sortOrder: validated.sortOrder,
-          criteriaTags: validated.criteriaTags,
-          excludeTags: validated.excludeTags,
-          externalLinks: validated.externalLinks.map((lk, i) => ({
-            label: lk.label,
-            url: lk.url,
-            sortOrder: i,
-          })),
-          ...(coverPhoto ? { coverPhoto } : {}),
-        });
-      }
+      }));
     },
 
     // Creates a new gallery row and its tag sets in a single transaction.
     // Owner is set explicitly: FH-owned (admin acting as system member,
     // suggestedId required) or member-owned (owner === actor, id auto-
-    // generated). For FH-owned, writes the JSON sidecar after commit.
+    // generated). For FH-owned, writes the JSON sidecar before the insert and
+    // takes it back if the insert fails.
     // Throws ValidationError on bad input or unauthorized actor;
     // ConflictError when UNIQUE(owner, name) is already taken. Writes a
     // `media.curated_gallery_created` / `media.member_gallery_created` audit row inside
@@ -3449,6 +3475,23 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       // the error message (`member_galleries.id` vs `…owner_member_id, …name`).
       const MAX_ID_ATTEMPTS = 100;
       let attempt = 0;
+      // A curated gallery's id is the curator's own, so its file is written before
+      // the insert and taken back on every path that does not create the gallery.
+      const galleryFile = isFhOwned
+        ? writeFileOrRefuse(writeGalleryFile({
+          id: galleryId,
+          name: validated.name,
+          description: validated.description,
+          sortOrder: validated.sortOrder,
+          criteriaTags: validated.criteriaTags,
+          excludeTags: validated.excludeTags,
+          externalLinks: validated.externalLinks.map((lk, i) => ({
+            label: lk.label,
+            url: lk.url,
+            sortOrder: i,
+          })),
+        }))
+        : null;
       while (true) {
         try {
           transaction(() => {
@@ -3475,6 +3518,9 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           });
           break;
         } catch (err) {
+          // Only a member gallery is retried under a new id, and it has no file,
+          // so every curated gallery leaving here takes its file back.
+          galleryFile?.undo();
           const msg = (err as Error).message ?? '';
           const isUnique = msg.includes('UNIQUE');
           const isIdCollision = isUnique && msg.includes('member_galleries.id');
@@ -3509,29 +3555,14 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         }
       }
 
-      if (isFhOwned) {
-        await writeFhGallerySidecar({
-          id: galleryId,
-          name: validated.name,
-          description: validated.description,
-          sortOrder: validated.sortOrder,
-          criteriaTags: validated.criteriaTags,
-          excludeTags: validated.excludeTags,
-          externalLinks: validated.externalLinks.map((lk, i) => ({
-            label: lk.label,
-            url: lk.url,
-            sortOrder: i,
-          })),
-        });
-      }
-
       return { id: galleryId };
     },
 
     // Hard-deletes a gallery row. Tag rows in member_gallery_tags and
     // member_gallery_exclude_tags cascade via ON DELETE CASCADE. For
-    // FH-owned galleries, removes the JSON sidecar after commit
-    // (best-effort, ENOENT-tolerant). Throws ValidationError on
+    // FH-owned galleries, removes the JSON sidecar before the delete and puts it
+    // back if the delete fails; a sidecar already gone does not stop the delete.
+    // A sidecar that cannot be removed refuses the delete. Throws ValidationError on
     // unauthorized actor; NotFoundError on unknown gallery.
     async deleteGallery(input: CuratorGalleryDeleteInput): Promise<'deleted' | 'own_repeat'> {
       const { actorMemberId, actorIsAdmin, galleryId } = input;
@@ -3586,7 +3617,14 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       // delete was the lone outlier, leaving deletions untraceable and
       // unrolled-back on audit failure. Mirrors the deleteMedia pattern at
       // ~line 1366.
-      transaction(() => {
+      // A curated gallery's file goes first: a file left behind would bring the
+      // gallery back at the next seeding.
+      const removeFile = existing.is_system === 1
+        ? () => getCuratedAuthoringAdapter().removeAuthoringFile(
+          () => deriveGallerySidecarPath(getCuratedRootDir(), galleryId),
+        )
+        : null;
+      writeFileThenCommit(removeFile, () => transaction(() => {
         media.deleteMemberGalleryById.run(galleryId);
         appendAuditEntry({
           actionType: existing.is_system === 1
@@ -3602,22 +3640,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
             isSystem: existing.is_system === 1,
           },
         });
-      });
-
-      if (existing.is_system === 1 && config.allowCuratedSidecarWrites) {
-        const sidecarPath = deriveGallerySidecarPath(getCuratedRootDir(), galleryId);
-        try {
-          await deleteGallerySidecarFile(sidecarPath);
-        } catch (err) {
-          // Sidecar I/O failures are logged but do not roll back the
-          // DB delete: the next seeder run will reconcile, and the
-          // gallery is already gone from the live read paths.
-          logger.warn('curatorMediaService: gallery sidecar unlink failed', {
-            galleryId,
-            error: (err as Error).message,
-          });
-        }
-      }
+      }));
       return 'deleted';
     },
 
@@ -4533,23 +4556,22 @@ function authorizeGalleryActor(
   // is logged but does not propagate, so a transient FS error never
   // corrupts a successful DB-side edit. The seeder reconciles on next
   // run.
-  async function writeFhGallerySidecar(data: GallerySidecarData): Promise<void> {
-    // Sidecar writes target /curated/galleries/<slug>.json which is the
-    // git-tracked seed source-of-truth. Permitted in dev only; staging /
-    // prod admin edits mutate the DB but the deployed /curated/ tree is
-    // part of the build artifact, not a runtime mutable surface.
-    if (!config.allowCuratedSidecarWrites) {
-      return;
-    }
-    try {
-      validateGallerySidecarData(data);
-      await writeGallerySidecarFile(getCuratedRootDir(), data);
-    } catch (err) {
-      logger.warn('curatorMediaService: gallery sidecar write failed', {
-        galleryId: data.id,
-        error: (err as Error).message,
-      });
-    }
+  // A curated gallery's committed file, /curated/galleries/<slug>.json, which the
+  // next seeding loads. The curated authoring adapter decides whether it is
+  // written at all: a deployed host has no authoring tree, and the database row
+  // is the whole save there.
+  // A gallery keeps its hashtags as the curator typed them, but its file holds the
+  // lowercase form the seeder matches on.
+  function writeGalleryFile(data: GallerySidecarData): () => CuratedSaveReceipt {
+    const matched = (tags: string[]): string[] => [...new Set(tags.map((t) => t.toLowerCase()))];
+    const file = { ...data, criteriaTags: matched(data.criteriaTags), excludeTags: matched(data.excludeTags) };
+    return () => {
+      validateGallerySidecarData(file);
+      return getCuratedAuthoringAdapter().writeAuthoringFile(
+        () => deriveGallerySidecarPath(getCuratedRootDir(), file.id),
+        formatGallerySidecarJson(file),
+      );
+    };
   }
 }
 

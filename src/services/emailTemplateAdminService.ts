@@ -15,9 +15,11 @@
  * version, the audit log nor the sidecar, and reports `unchanged`. Where the
  * authoring tree is written (`allowCuratedSidecarWrites`, a developer machine
  * before go-live), a save also writes the template's committed sidecar,
- * `curated/email_templates/<key>.json`, after the transaction commits, so the
- * edit survives the next seeding; on a deployed host the database is the whole
- * write. Where the authoring tree is written, a seeded test persona's save is
+ * `curated/email_templates/<key>.json`, through the curated authoring adapter
+ * before the transaction, so the edit survives the next seeding: a sidecar that
+ * cannot be written refuses the save (ServiceUnavailableError), and a transaction
+ * that then fails puts the earlier sidecar back. On a deployed host the database
+ * is the whole write. Where the authoring tree is written, a seeded test persona's save is
  * refused (ForbiddenError) before anything is written, so a switchable test
  * identity cannot rewrite committed source; on a deployed host any admin may
  * save.
@@ -35,8 +37,9 @@
  */
 import { emailTemplates, transaction, type EmailTemplateRow } from '../db/db';
 import { config } from '../config/env';
-import { logger } from '../config/logger';
-import { writeEmailTemplateSidecarFile } from '../lib/emailTemplateSidecar';
+import { emailTemplateSidecarPath, formatEmailTemplateSidecar } from '../lib/emailTemplateSidecar';
+import { getCuratedAuthoringAdapter } from '../adapters/curatedAuthoringAdapter';
+import { writeFileThenCommit } from './curatedSaveFlow';
 import { resolveCuratedRootDir } from './curatorMediaService';
 import { appendAuditEntry } from './auditService';
 import { ForbiddenError, NotFoundError, ValidationError } from './serviceErrors';
@@ -320,7 +323,16 @@ export const emailTemplateAdminService = {
     if (changedFields.length === 0) return { status: 'unchanged' };
 
     const now = new Date().toISOString();
-    transaction(() => {
+    const sidecar = formatEmailTemplateSidecar({
+      templateKey,
+      subjectTemplate: subject,
+      bodyTemplate: body,
+      piiClassification: classification,
+      isEnabled,
+    });
+    writeFileThenCommit(() => getCuratedAuthoringAdapter().writeAuthoringFile(
+      () => emailTemplateSidecarPath(resolveCuratedRootDir(), templateKey), sidecar,
+    ), () => transaction(() => {
       emailTemplates.updateByKey.run(
         subject, body, isEnabled ? 1 : 0, classification, now, actorMemberId, templateKey,
       );
@@ -332,28 +344,7 @@ export const emailTemplateAdminService = {
         entityId: templateKey,
         metadata: { changedFields },
       });
-    });
-
-    // On a developer machine before go-live the committed sidecar is the
-    // template's durable source, so the edit is written back to it; the next
-    // seeding would otherwise replace it. A failed write leaves the committed
-    // database change in place and says so.
-    if (config.allowCuratedSidecarWrites) {
-      try {
-        writeEmailTemplateSidecarFile(resolveCuratedRootDir(), {
-          templateKey,
-          subjectTemplate: subject,
-          bodyTemplate: body,
-          piiClassification: classification,
-          isEnabled,
-        });
-      } catch (err) {
-        logger.warn('emailTemplateAdminService: template sidecar write failed', {
-          templateKey,
-          error: (err as Error).message,
-        });
-      }
-    }
+    }));
     return { status: 'saved' };
   },
 };
