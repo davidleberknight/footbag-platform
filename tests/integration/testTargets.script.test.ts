@@ -116,6 +116,15 @@ describe('test-targets.sh — application source', () => {
     );
   });
 
+  // Defect caught: a service change is verified without the route suite of a
+  // controller from another domain that calls it, so a broken redirect that
+  // only that suite checks ships red to CI.
+  it('reaches the route suites of every controller importing a service, whatever its domain', () => {
+    const r = run(['src/services/curatorMediaService.ts']);
+    expect(r.tests).toContain('tests/integration/member-media-edit.routes.test.ts');
+    expect(r.tests).toContain('tests/integration/admin.curator.media.routes.test.ts');
+  });
+
   it('maps a controller to its domain route suites without a longer sibling domain', () => {
     const r = run(['src/controllers/adminClubController.ts']);
     expect(r.tests).toContain('tests/integration/admin-clubs.routes.test.ts');

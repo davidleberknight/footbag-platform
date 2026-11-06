@@ -305,12 +305,13 @@ describe('GET /clubs/club_evergreen — authenticated', () => {
       .get('/clubs/club_evergreen')
       .set('Cookie', authCookie());
     expect(res.status).toBe(200);
-    // Claimed member (Zephyr, Tier 1 + HoF/BAP/Board, Portland CA) is enriched.
+    // Claimed member (Zephyr, Tier 1 + HoF/BAP/Board, Portland, country
+    // stored as the code CA) is enriched, the country shown by its name.
     expect(res.text).toContain('Tier 1');
     expect(res.text).toContain('HoF');
     expect(res.text).toContain('BAP');
     expect(res.text).toContain('Board');
-    expect(res.text).toContain('Portland, CA');
+    expect(res.text).toContain('Portland, Canada');
     // The unclaimed historical row still renders, without member enrichment.
     expect(res.text).toContain('Yara Unclaimed');
   });

@@ -30,6 +30,8 @@ compile error at every call site.
   thin auth pages), rendered as a robots noindex meta. The layout also emits a self-referencing
   canonical and Open Graph / Twitter Card tags from request-derived `res.locals` (canonical and
   `og:url` are omitted on error and not-found responses); services own only the `seo` fields.
+  The canonical is the request path alone unless the page sets `seo.canonicalPath`: a paged or
+  hashtag-filtered page sets it to the address its own pager links to for the current page.
 - `page.sectionKey` names the page's section (the active nav entry is derived by middleware from the request path, as `currentSection`); `page.pageKey` is a unique page id; `page.title`
   is the displayed h1 (distinct from `seo.title`); `eyebrow` / `intro` / `notice` are optional.
 - `navigation` (breadcrumbs / siblings / contextLinks) is service-provided. Middleware separately
@@ -425,6 +427,12 @@ Registered helpers, from `src/app.ts`:
 - `asset(path)`: the versioned static-asset URL the static-asset rule above requires.
 - `externalLink(url, label, class)`: an external `<a>` with `rel="noopener noreferrer"`.
 - `formatLocation(city, region, country)`: location parts joined with commas.
+
+A person's country and location are shaped by `personLocation` in
+`src/services/countryUtils.ts`, never rendered from the raw columns: the country is the canonical
+name and comes last, joined to any city and region with commas. A person's own page shows it as a
+labeled fact ("Country: Finland", or "Location: Boulder, CO, United States" when a city or region
+is known); a list or table shows the text alone. Admin pages show the stored values.
 - `splitParagraphs(text)`: curator prose split on blank lines into paragraph strings.
 - `eq`, `gt`, `add`, `not`, `or`: for pre-shaped enum branching (`{{#if (eq activeView 'add')}}`),
   never to derive a label from a raw domain code.

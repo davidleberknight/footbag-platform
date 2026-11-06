@@ -1150,12 +1150,6 @@ describe('GET /history/:personId', () => {
     expect(res.text).toContain('Alice Footbag');
   });
 
-  it('does not show unreliable country on detail page hero', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/history/${ALICE_ID}`);
-    expect(res.text).not.toContain('Country');
-  });
-
   it("shows Alice's event result at 2025 Beaver Open", async () => {
     const app = createApp();
     const res = await request(app).get(`/history/${ALICE_ID}`);

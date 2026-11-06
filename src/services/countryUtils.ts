@@ -479,6 +479,34 @@ export function canonicalCountryName(country: string): string | null {
 }
 
 /**
+ * Where a person is, shaped once for every page that shows it. The country is
+ * the canonical name, so one place reads the same on every page, and comes
+ * last after any city and region, joined with commas the way club and event
+ * locations are. A spelling that names no country (only raw legacy data) is
+ * shown as written. `label` names the fact on a person's own page: "Country"
+ * when the country is all that is known, "Location" once a city or region is.
+ * A list or table shows `text` alone.
+ */
+export interface PersonLocation {
+  label: 'Country' | 'Location';
+  text: string;
+}
+
+export function personLocation(
+  city: string | null | undefined,
+  region: string | null | undefined,
+  country: string | null | undefined,
+): PersonLocation | null {
+  const c = city?.trim() ?? '';
+  const r = region?.trim() ?? '';
+  const raw = country?.trim() ?? '';
+  const co = raw ? (canonicalCountryName(raw) ?? raw) : '';
+  const parts = [c, r, co].filter(Boolean);
+  if (parts.length === 0) return null;
+  return { label: c || r ? 'Location' : 'Country', text: parts.join(', ') };
+}
+
+/**
  * The states or provinces a country's addresses are written with, as
  * code-and-label pairs, or an empty list for a country that does not use them.
  * Only the two the platform requires a region for are listed; everywhere else

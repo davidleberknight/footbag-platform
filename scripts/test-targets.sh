@@ -23,6 +23,9 @@
 #   - Services and controllers are mostly tested through route suites named by
 #     kebab-case domain (`hofService` -> `hof-bap-index.routes.test.ts`); about
 #     40% of services and nearly every controller are never named by a test.
+#     A service also reaches the suites of every controller importing it, as
+#     though that controller had changed: a controller of another domain is
+#     how a route suite reaches the service, and nothing names it there.
 #   - A page template is followed to the routes that render it (its render
 #     call, the handler around that call, the route registered with the
 #     handler), and every suite requesting one of those paths is selected:
@@ -383,6 +386,31 @@ service_layout_views() {
       [ -n "$f" ] && queue+=("$(basename "${f%.ts}")")
     done < <(grep -lE "from ['\"]\./${stem}['\"]" src/services/*.ts 2>/dev/null || true)
   done
+}
+
+# A controller's suites: those naming it, and the route suites of its domain.
+# Prints them; true when any were found.
+controller_suites() {
+  local stem domain
+  stem="$(basename "${1%.ts}")"
+  domain="$(kebab "${stem%Controller}")"
+  { naming "$stem"
+    [ -n "$domain" ] && domain_suites "$domain" '*.routes.test.ts' src/controllers
+  } | grep . || return 1
+}
+
+# The suites of every controller importing the service $1 directly. Route
+# suites reach a service over HTTP and rarely name it, so a service whose name
+# no suite carries is otherwise tested only through suites named for its own
+# domain, and a controller of another domain calling it is never reached.
+service_controller_suites() {
+  local stem f
+  stem="$(basename "${1%.ts}")"
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    # A controller with no suite is not the end of the list.
+    controller_suites "$f" || [[ $? == 1 ]]
+  done < <(grep -lE "from ['\"][./]*services/${stem}['\"]" src/controllers/*.ts 2>/dev/null || true)
 }
 
 high_fan_out() {
@@ -790,16 +818,13 @@ map_path() {
       local before="${#TESTS[@]}"
       collect naming "$stem" || true
       [ -n "$domain" ] && { collect domain_suites "$domain" '*.test.ts' src/services || true; }
+      collect service_controller_suites "$p" || true
       [ "${#TESTS[@]}" -gt "$before" ] || no_tests "$p"
       service_layout_views "$p"
       return ;;
     src/controllers/*.ts)
       add_check "npm run build"; add_check "npm run typecheck:tests"
-      domain="$(kebab "${stem%Controller}")"
-      local before="${#TESTS[@]}"
-      collect naming "$stem" || true
-      [ -n "$domain" ] && { collect domain_suites "$domain" '*.routes.test.ts' src/controllers || true; }
-      [ "${#TESTS[@]}" -gt "$before" ] || no_tests "$p"
+      collect controller_suites "$p" || no_tests "$p"
       controller_layout_views "$p"
       return ;;
     src/*.ts|src/*/*.ts|src/*/*/*.ts)

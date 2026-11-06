@@ -2,6 +2,7 @@
  * Shared types for player profile views (history detail, member profile, public profile).
  * All three views render the same entity -- a footbag player -- at different access levels.
  */
+import type { PersonLocation } from '../services/countryUtils';
 
 export interface PlayerResultEntry {
   disciplineName: string | null;
@@ -35,9 +36,9 @@ export interface PlayerHeroData {
   hofInductionYear?: number;
   bapInductionYear?: number;
   historicalPersonName?: string | null;
-  city?: string | null;
-  region?: string | null;
-  country?: string | null;
+  // The facts strip shows this as a labeled fact; the shaping service has
+  // already left out any city and region the viewer may not see.
+  location?: PersonLocation | null;
   firstCompetitionYear?: number | null;
   showFirstCompetitionYear?: boolean;
   // A historical record with no honor, so the hero says what the page is: a

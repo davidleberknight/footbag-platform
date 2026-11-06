@@ -8,6 +8,13 @@ export interface SeoMeta {
   // An absolute image address for the page's social preview (`og:image`). The
   // layout prefers it over the site logo, which stands in when it is absent.
   imageUrl?: string;
+  // The page's own address, as a site path with only the query parameters that
+  // identify it (the page number, the hashtags that select a result), for the
+  // layout's canonical link and `og:url`. A paged or hashtag-filtered page sets
+  // it to the address its own pager links to for the current page, so a search
+  // engine indexes each page and each result on its own, and every other
+  // parameter (tracking, sort) stays out. Absent, the canonical is the path.
+  canonicalPath?: string;
 }
 
 import type { OutcomeTone } from '../lib/outcomeNotice';

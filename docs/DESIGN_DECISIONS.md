@@ -2674,6 +2674,7 @@ Requirements:
 - A new public page joins the standard only if it can be expressed through the existing primitives and CSS vocabulary; a genuinely new reusable primitive is added to the standard first, then reused.
 - No section introduces its own chrome system or a parallel design language; section-specific vocabulary inherits the shared tokens and primitives.
 - Look-and-feel consistency is a forward requirement: it constrains every new surface, not only the current page set.
+- A person's country is shown one way everywhere: its canonical name, last, after any city and region, joined with commas. On the person's own page it is a labeled fact ("Country" alone, "Location" with a city or region); in a list or table the value stands alone.
 
 Trade-offs:
 
@@ -2702,6 +2703,7 @@ Requirements:
 
 - `robots.txt` is served on the canonical public host, permits page resources (CSS, JavaScript, images), names the sitemap, and names no private paths. Every other deployment serves a `robots.txt` that disallows all crawling and advertises no sitemap: any deployment whose configured public base URL is not the canonical host, which includes every non-production environment.
 - The shared layout emits a unique `<title>`, a `<meta name="description">`, a `<link rel="canonical">`, and Open Graph and Twitter Card tags for every public page, all sourced from the page view-model; the canonical and `og:url` are omitted on error and not-found responses.
+- A page's canonical is its own address: the path plus only the query parameters that identify it (the page number, and on a media result the hashtags that select its set), in one fixed order. Every other parameter, tracking parameters included, is dropped, and the first page of a paged list is never the canonical of the pages after it.
 - An XML sitemap lists public pages only; member profiles and the member-only legacy archive are never listed.
 - Authenticated routes and the legacy archive carry a noindex directive; every deployment that is not the canonical public host returns `X-Robots-Tag: noindex` for the whole site.
 - All crawlers are allowed, including AI retrieval and training crawlers; `robots.txt` carries no per-crawler restrictions. An `llms.txt` site map is served for AI agents. Structured data (Organization, Event) is added only when there is a demonstrated need.
@@ -3889,7 +3891,7 @@ A static, read-only mirror of key site content (e.g., events, clubs, media galle
 
 Decision:
 
-The legacy footbag.org site is preserved as a static HTML mirror in a dedicated S3 bucket served via CloudFront at archive.footbag.org. Access is restricted to authenticated members of the main platform. The platform links only to the archive's landing page and never constructs URLs into the mirror's interior: the mirror's paths are the legacy site's own URL space, and the platform serves every legacy URL its standard not-found page. Edge authentication uses CloudFront signed cookies via a trusted-signer key group; the main app issues the signed cookie at session creation and on every session refresh, to an account holding member authorization only.
+The legacy footbag.org site is preserved as a static HTML mirror in a dedicated S3 bucket served via CloudFront at archive.footbag.org. Access is restricted to authenticated members of the main platform. The platform links only to the archive's landing page and never constructs URLs into the mirror's interior: the mirror's paths are the legacy site's own URL space, and the platform serves every legacy URL its standard not-found page, except a short fixed list of legacy URLs that outside references still cite, each of which answers a 301 to the public platform page carrying the same content. Edge authentication uses CloudFront signed cookies via a trusted-signer key group; the main app issues the signed cookie at session creation and on every session refresh, to an account holding member authorization only.
 
 Rationale:
 
@@ -3899,7 +3901,9 @@ Rationale:
 
 - Members-only access protects old member contact information preserved in the archive HTML.
 
-- The platform serves every legacy URL its standard not-found page and derives no interior archive path from a platform-side key. Link integrity and search-engine equity across the roughly 93,500 mirrored URLs are deliberately traded away rather than carried by redirects: legacy content is reachable by browsing the archive from its landing page.
+- The platform serves every legacy URL its standard not-found page and derives no interior archive path from a platform-side key. Link integrity and search-engine equity across the roughly 93,500 mirrored URLs are deliberately traded away rather than carried by redirects: legacy content is reachable by browsing the archive from its landing page, and a redirect into the members-only archive would carry no search value because crawlers cannot pass its sign-in gate.
+
+- The few legacy URLs that Wikipedia articles and other outside references still cite each answer a 301 to the public platform page carrying the same content, so those citations keep working for the readers who follow them. The list is fixed in code, holds only URLs with a verified outside citation and a true content match, and grows only by a deliberate addition.
 
 - Archive HTML uses mp4 video and jpg images, and contains no JavaScript, so the mirror is fully static.
 

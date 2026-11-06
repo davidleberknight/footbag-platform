@@ -76,7 +76,11 @@
  *     of Y") through `shapePagination`, and treats a page past the last as not
  *     found. Browse results and named galleries add the large-result notice
  *     above the grid whenever the set spans more than one page, and from page 2
- *     the tab title ends "(page X of Y)". Item-detail prev/next locate the item
+ *     the tab title ends "(page X of Y)". A browse result's tab title names what
+ *     selects it (uploader name or hashtags, then "without" and any excluded
+ *     ones), so no two results share a title. Each sets `seo.canonicalPath` to the
+ *     address its pager gives the current page, so every page and every hashtag
+ *     result names itself as canonical. Item-detail prev/next locate the item
  *     in the whole ordered set (`queryGalleryItemNeighbours`), never in a capped
  *     window.
  *   - `/media/browse` accepts repeatable `?tag=` and `?exclude=`, normalized to
@@ -277,6 +281,18 @@ function shapePagination(args: {
 // carrying the position so a screen-reader user knows the page changed.
 function pagedTitle(title: string, pagination: GalleryPagination): string {
   return pagination.page > 1 ? `${title} (page ${pagination.page} of ${pagination.totalPages})` : title;
+}
+
+// The tab title of one hashtag result: each result is a page of its own with
+// its own canonical, so its title names what selects it (the uploader's name
+// for a `#by_*` tag, the hashtags otherwise, then any excluded ones), or two
+// results would read as duplicates to a search engine.
+function resultTabTitle(chips: { byMember: TagChip | null; criteriaTags: TagChip[]; excludeTags: TagChip[] }): string {
+  const include = [chips.byMember, ...chips.criteriaTags]
+    .filter((c): c is TagChip => c !== null)
+    .map((c) => c.display);
+  const exclude = chips.excludeTags.map((c) => c.display);
+  return ['Browse Media', ...include, ...(exclude.length > 0 ? ['without', ...exclude] : [])].join(' ');
 }
 
 // Chip-shape for tag rendering: each tag display string carries an
@@ -1572,12 +1588,13 @@ export const mediaService = {
       const { page, totalPages } = resolvePage(rawPage, total, pageSize);
       // A list of galleries has no hashtag filter to narrow with, so it pages
       // without the large-result notice.
+      const pageHref = (p: number) => (p === 1 ? '/media/member-galleries' : `/media/member-galleries?page=${p}`);
       const pagination = shapePagination({
         page,
         totalPages,
         pageSize,
         total,
-        href: (p) => (p === 1 ? '/media/member-galleries' : `/media/member-galleries?page=${p}`),
+        href: pageHref,
         withLargeSetNotice: false,
       });
 
@@ -1603,7 +1620,7 @@ export const mediaService = {
         };
       });
       return {
-        seo: { title: pagedTitle('Member Galleries', pagination) },
+        seo: { title: pagedTitle('Member Galleries', pagination), canonicalPath: pageHref(page) },
         page: {
           sectionKey: 'media',
           pageKey: 'media_member_galleries',
@@ -1746,15 +1763,16 @@ export const mediaService = {
       );
       const refineQuery = buildBrowseQueryString(refineInclude, refineExclude);
       const galleryPath = `/media/${encodeURIComponent(gallery.id)}`;
+      const pageHref = (p: number) => {
+        const query = [refineQuery, p === 1 ? '' : `page=${p}`].filter((s) => s.length > 0).join('&');
+        return query.length > 0 ? `${galleryPath}?${query}` : galleryPath;
+      };
       const pagination = shapePagination({
         page,
         totalPages,
         pageSize,
         total,
-        href: (p) => {
-          const query = [refineQuery, p === 1 ? '' : `page=${p}`].filter((s) => s.length > 0).join('&');
-          return query.length > 0 ? `${galleryPath}?${query}` : galleryPath;
-        },
+        href: pageHref,
         withLargeSetNotice: true,
       });
 
@@ -1857,7 +1875,11 @@ export const mediaService = {
         : undefined;
 
       return {
-        seo: { title: pagedTitle(`Gallery ${gallery.name}`, pagination), ...(imageUrl ? { imageUrl } : {}) },
+        seo: {
+          title: pagedTitle(`Gallery ${gallery.name}`, pagination),
+          canonicalPath: pageHref(page),
+          ...(imageUrl ? { imageUrl } : {}),
+        },
         page: {
           sectionKey: 'media',
           pageKey: 'media_named_gallery',
@@ -2087,12 +2109,13 @@ export const mediaService = {
 
       const baseQuery = [buildContextQueryString(contextNormalized), buildBrowseQueryString(includeNormalized, excludeNormalized)]
         .filter((s) => s.length > 0).join('&');
+      const pageHref = (p: number) => (p === 1 ? `/media/browse?${baseQuery}` : `/media/browse?${baseQuery}&page=${p}`);
       const pagination = shapePagination({
         page,
         totalPages,
         pageSize,
         total,
-        href: (p) => (p === 1 ? `/media/browse?${baseQuery}` : `/media/browse?${baseQuery}&page=${p}`),
+        href: pageHref,
         withLargeSetNotice: true,
       });
 
@@ -2131,7 +2154,13 @@ export const mediaService = {
       });
 
       return {
-        seo: { title: pagedTitle('Browse Media', pagination) },
+        seo: {
+          title: pagedTitle(
+            resultTabTitle(shapeGalleryChips([...contextRows, ...includeRows], excludeRows, viewer, memberNamesBySlug)),
+            pagination,
+          ),
+          canonicalPath: pageHref(page),
+        },
         page: {
           sectionKey: 'media',
           pageKey: 'media_browse',

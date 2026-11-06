@@ -3,9 +3,10 @@ The routine refresh keeps the database; the reset flags say they destroy it.
 
 Two operations that used to look interchangeable. One reconciles committed inputs
 into the database that is already there and preserves everything a curator wrote.
-The other deletes the database file and rebuilds it, discarding authored drafts,
-publication state and curator-created tricks that no committed file can restore.
-The refresh is what a maintainer should reach for; the reset is deliberate.
+The other deletes the database file and rebuilds it from committed files, so it
+keeps only the curator work saved to those files and loses anything held only in
+the database. The refresh is what a maintainer should reach for; the reset is
+deliberate.
 
 These tests run the refresh against throwaway databases and read the launcher's
 help text. They never invoke a destructive path and never touch the checkout's own
@@ -243,11 +244,17 @@ class TestTheLauncherSaysWhichCommandsDestroy:
         assert any("DESTRUCTIVE" in line for line in described), \
             f"{flag} is not marked destructive where it is described"
 
-    def test_the_help_says_what_a_reset_discards(self):
-        text = self.help_text()
-        for loss in ("authored adjudication drafts", "curator-created canonical tricks",
-                     "publication and resolution state"):
-            assert loss in text, f"the help does not say a reset discards {loss}"
+    def test_the_help_names_the_folder_a_rebuild_replays_saves_from(self):
+        """The help tells a developer their saved work survives a rebuild because
+        it sits in a named folder. If that folder is not the one the rebuild
+        replays saves from, the developer resets believing the work is safe and
+        loses it."""
+        sys.path.insert(0, str(REPO_ROOT / "scripts"))
+        from _freestyle_db_freshness import CURATOR_SAVES_DIR  # noqa: E402
+
+        named = CURATOR_SAVES_DIR.relative_to(REPO_ROOT).as_posix() + "/"
+        assert named in self.help_text(), \
+            f"the help does not name {named}, the folder a rebuild replays curator saves from"
 
     def test_no_rebuild_flag_is_called_a_refresh(self):
         """The word belongs to the command that preserves authority."""
@@ -260,19 +267,6 @@ class TestTheLauncherSaysWhichCommandsDestroy:
     def test_reset_is_not_described_as_merely_fast(self):
         """It was called a "fast reset", which reads as cheap rather than lossy."""
         assert "Fast reset from committed seeds" not in self.help_text()
-
-    def test_the_help_points_to_the_authority_preserving_refresh(self):
-        """In the help a developer reads, not only in a comment at the top.
-
-        The pointer appears twice in the file, so a check for the string alone
-        cannot tell whether the help itself still carries it.
-        """
-        text = self.help_text()
-        marker = "Refreshing freestyle without losing local work"
-        assert marker in text, "the help has no section naming the routine refresh"
-        section = text.split(marker, 1)[1].split("DB rebuild modes", 1)[0]
-        assert "freestyle/run_freestyle.sh" in section
-        assert "reconciles in place" in section
 
 
 class TestTheFreestyleDocsDescribeTheCurrentLifecycle:

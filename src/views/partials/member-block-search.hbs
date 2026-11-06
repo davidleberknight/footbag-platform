@@ -45,7 +45,7 @@
           {{#each results}}
             <div class="search-box-result">
               <a href="{{href}}">{{displayName}}</a>
-              {{#if country}}<span class="text-muted">{{country}}</span>{{/if}}
+              {{#if location}}<span class="text-muted">{{location}}</span>{{/if}}
               {{#if genderLabel}}<span class="text-muted">{{genderLabel}}</span>{{/if}}
               {{#if isHistorical}}<span class="badge badge-historical">Historical</span>{{else}}<span class="badge badge-member">Member</span>{{/if}}
               {{#if tierBadge}}<span class="badge badge-tier">{{tierBadge}}</span>{{/if}}

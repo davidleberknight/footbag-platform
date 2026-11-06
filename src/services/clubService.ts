@@ -195,7 +195,13 @@ import { getTierStatus, tierBadgeShort } from './membershipTieringService';
 import { hasTier1Benefits as actorHasTier1Benefits } from './tierPredicates';
 import { runSqliteRead } from './sqliteRetry';
 import { PageViewModel } from '../types/page';
-import { canonicalCountryName, countryCode, countrySlug, subdivisionsForCountry } from './countryUtils';
+import {
+  canonicalCountryName,
+  countryCode,
+  countrySlug,
+  personLocation,
+  subdivisionsForCountry,
+} from './countryUtils';
 import { COUNTRY_CHOICE_MESSAGE, capitalizeLowercaseCity } from './memberLocationRules';
 import { slugifyForTag } from './slugify';
 import { checkTypedSlug } from './typedTokenRules';
@@ -1136,9 +1142,6 @@ function toClubMemberSummary(row: AffiliationRow): ClubMemberSummary {
       ? (row.member_gender === 'male' ? 'Male' : 'Female')
       : null;
   const tierBadge = tierBadgeShort(row.member_tier_status);
-  const locationParts = [row.member_city, row.member_country].filter(
-    (p): p is string => typeof p === 'string' && p.trim() !== '',
-  );
   return {
     name: row.person_name,
     href,
@@ -1149,7 +1152,8 @@ function toClubMemberSummary(row: AffiliationRow): ClubMemberSummary {
     isHof: row.member_is_hof === 1,
     isBap: row.member_is_bap === 1,
     isBoard: row.member_is_board === 1,
-    location: locationParts.length > 0 ? locationParts.join(', ') : null,
+    // The roster shows city and country only, never the region.
+    location: personLocation(row.member_city, null, row.member_country)?.text ?? null,
   };
 }
 

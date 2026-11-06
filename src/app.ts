@@ -483,8 +483,11 @@ export function createApp(): express.Express {
     //     content responses. Error and not-found renders (status >= 400) must
     //     not canonicalize the requested URL: it would point search engines at
     //     a dead URL and, on anti-enumeration 404s, reflect the unknown
-    //     identifier into the page body. Query strings are dropped so filter
-    //     and sort variants of one page share a canonical.
+    //     identifier into the page body. The canonical is the path alone, so
+    //     tracking, sort and other variants of one page share it, unless the
+    //     page's view-model names its own address (`seo.canonicalPath`): a
+    //     paged list or a hashtag result keeps the page number and hashtags
+    //     that make it a page of its own.
     //  2. Clear the logout flash only when the banner actually renders, not on
     //     redirects: a logout that redirects through an auth-gated page would
     //     otherwise consume the cookie on the 303 before the banner surfaces.
@@ -494,7 +497,10 @@ export function createApp(): express.Express {
       // link) gets no canonical: the token would otherwise be written into the
       // page's markup.
       if (res.statusCode < 400 && redactTokenPaths(req.path) === req.path) {
-        res.locals.canonicalUrl = canonicalBase + req.path;
+        const options = args[1] as { seo?: { canonicalPath?: unknown } } | undefined;
+        const ownPath = options?.seo?.canonicalPath;
+        res.locals.canonicalUrl = canonicalBase
+          + (typeof ownPath === 'string' && ownPath.startsWith('/') ? ownPath : req.path);
       }
       if (res.locals.flashLoggedOut || res.locals.flashLoggedIn) {
         clearFlash(res, req);

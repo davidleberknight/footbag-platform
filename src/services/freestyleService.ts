@@ -294,6 +294,7 @@ import {
   type EquivalenceTopologyEntry,
 } from '../content/freestyleEquivalenceTopology';
 import { CORE_TRICKS, isCoreTrick } from './coreTrickRegistry';
+import { personLocation } from './countryUtils';
 import { START_NEXT_STEPS, START_NEXT_STEPS_INTRO, type StartNextStep } from '../content/freestyleStartNextSteps';
 // ---------------------------------------------------------------------------
 // Record type labels
@@ -7880,11 +7881,14 @@ export const freestyleService = {
     const championRows = runSqliteRead('freestyleCompetition.listWorldChampions', () =>
       freestyleCompetition.listWorldChampions.all() as FreestyleWorldChampionRow[],
     );
-    const worldChampions: FreestyleMilestoneEntry[] = championRows.map((r, i) => ({
-      rank: i + 1, name: r.person_name, country: r.country,
-      value: r.world_titles, detail: r.country ?? '',
-      profileHref: personHref(r.member_slug, r.person_id),
-    }));
+    const worldChampions: FreestyleMilestoneEntry[] = championRows.map((r, i) => {
+      const country = personLocation(null, null, r.country)?.text ?? null;
+      return {
+        rank: i + 1, name: r.person_name, country,
+        value: r.world_titles, detail: country ?? '',
+        profileHref: personHref(r.member_slug, r.person_id),
+      };
+    });
 
     return {
       seo: {

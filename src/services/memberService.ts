@@ -179,6 +179,7 @@ import {
   canonicalCountryName,
   countryCode,
   countryNames,
+  personLocation,
 } from './countryUtils';
 import {
   regionPickerEntries,
@@ -215,7 +216,8 @@ function auditProfileUpdate(memberId: string, fields: readonly string[]): void {
 
 export interface MemberSearchEntry {
   displayName: string;
-  country: string | null;
+  /** The person's country as the canonical name, or null when none is on file. */
+  location: string | null;
   href: string;
   /** Row-level membership-tier badge; null for Tier 0 and for unclaimed
    *  historical rows, which carry no membership tier of their own. */
@@ -902,7 +904,10 @@ function resolveHistoricalName(row: MemberProfileRow): string | null {
 }
 
 
-function buildMemberHeroData(row: MemberProfileRow): PlayerHeroData {
+function buildMemberHeroData(
+  row: MemberProfileRow,
+  { withholdLocality = false }: { withholdLocality?: boolean } = {},
+): PlayerHeroData {
   return {
     displayName:          row.display_name,
     honorificNickname:    row.historical_bap_nickname ?? undefined,
@@ -912,9 +917,9 @@ function buildMemberHeroData(row: MemberProfileRow): PlayerHeroData {
     hofInductionYear:     row.historical_hof_induction_year ?? undefined,
     bapInductionYear:     row.historical_bap_induction_year ?? undefined,
     historicalPersonName: resolveHistoricalName(row),
-    city:                 row.city,
-    region:               row.region,
-    country:              row.country,
+    location:             withholdLocality
+      ? personLocation(null, null, row.country)
+      : personLocation(row.city, row.region, row.country),
     // No fallback to the linked historical record's first year. Clearing the
     // field is how a member hides the "Competing since" line, and the claim
     // merge has already copied the record's year onto their row, so a read-time
@@ -1378,8 +1383,7 @@ export const memberService = {
     // change nothing on screen. City and region are member-only: the honor
     // exception publishes the honor record, whose location is the country and
     // nothing finer.
-    const fullHero = buildMemberHeroData(row);
-    const heroData = viewer.authenticated ? fullHero : { ...fullHero, city: null, region: null };
+    const heroData = buildMemberHeroData(row, { withholdLocality: !viewer.authenticated });
     // Media crediting the member is member-visible like their uploads: the
     // honor exception publishes the honor record and nothing more.
     const playerMedia = viewer.authenticated ? buildPlayerMediaView(slug, row.display_name) : null;
@@ -2109,7 +2113,7 @@ export const memberService = {
       seen.add(r.slug);
       merged.push({
         displayName: r.display_name,
-        country: r.country,
+        location: personLocation(null, null, r.country)?.text ?? null,
         href: `/members/${r.slug}`,
         tierBadge: tierBadgeShort(r.tier_status),
         isActivePlayer: r.is_active_player === 1,
@@ -2130,7 +2134,7 @@ export const memberService = {
       const isClaimed = Boolean(r.linked_member_slug);
       merged.push({
         displayName: r.person_name,
-        country: r.country,
+        location: personLocation(null, null, r.country)?.text ?? null,
         href: isClaimed ? `/members/${r.linked_member_slug}` : `/history/${r.person_id}`,
         // A historical row carries the person's honours, never a membership
         // tier: the tier belongs to a live member account, and any live account

@@ -39,6 +39,7 @@ import { FreestyleRecordViewModel, shapeFreestyleRecord } from './freestyleRecor
 import { buildActiveTrickSlugResolver } from './freestyleResolvableSlugs';
 import { mediaService, type EntityMediaBlock } from './mediaService';
 import { PLAYER_TAG_PREFIX, playerTagForName } from './slugify';
+import { personLocation } from './countryUtils';
 
 interface HistoricalPlayer {
   personId: string;
@@ -155,7 +156,7 @@ export const historyService = {
       isBap:             player.bapMember,
       hofInductionYear:  player.hofInductionYear ?? undefined,
       bapInductionYear:  player.bapInductionYear ?? undefined,
-      country:           player.country,
+      location:          personLocation(null, null, player.country),
       isHistoricalOnly:  !player.hofMember && !player.bapMember,
     };
 

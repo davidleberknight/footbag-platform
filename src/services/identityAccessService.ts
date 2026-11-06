@@ -337,6 +337,7 @@ import {
   stripAccents, surnameKey, surnameKeyMatchesName,
 } from './nameUtils';
 import { normalizeImportedLocation } from './memberLocationRules';
+import { personLocation } from './countryUtils';
 // Type only: the month picker on the claim step's last-attempt block renders the
 // same option shape the profile and personal-details date controls render, so
 // there is one shape for a month select rather than three.
@@ -1572,7 +1573,7 @@ function cardFor(candidate: Candidate): LinkHistoryCandidate {
       : `${MATCH_STRENGTH_LABELS[candidate.confidence]}.`,
     differingSurname: candidate.surname.differingSurname,
     claimRecordHref: cardKind === 'claim_record_page' ? `/history/${candidate.recordId}/claim` : null,
-    country: record?.country ?? account?.country ?? null,
+    country: personLocation(null, null, record?.country ?? account?.country)?.text ?? null,
     isHof: Boolean(record?.hof_member) || Boolean(account?.is_hof),
     isBap: Boolean(record?.bap_member) || Boolean(account?.is_bap),
     firstYear: record?.first_year ?? account?.first_competition_year ?? null,
@@ -2589,7 +2590,7 @@ function lookupHistoricalPersonForClaim(
     data: {
       personId: hp.person_id,
       personName: hp.person_name,
-      country: hp.country,
+      country: personLocation(null, null, hp.country)?.text ?? null,
       isHof: Boolean(hp.hof_member),
       isBap: Boolean(hp.bap_member),
       firstNameWarning: !firstNamesMatch(member.real_name, hp.person_name),

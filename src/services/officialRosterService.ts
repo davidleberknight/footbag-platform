@@ -35,6 +35,7 @@ import {
 } from '../db/db';
 import { ValidationError } from './serviceErrors';
 import { formatDateDisplay } from './dateFormat';
+import { personLocation } from './countryUtils';
 import type { PageViewModel } from '../types/page';
 
 export type MemberTier = 'tier0' | 'tier1' | 'tier2' | 'tier3';
@@ -241,8 +242,7 @@ export function summary(): RosterSummary {
 }
 
 function locationLabel(r: OfficialRosterListRow): string | null {
-  const parts = [r.city, r.region, r.country].filter((p): p is string => Boolean(p && p.trim()));
-  return parts.length ? parts.join(', ') : null;
+  return personLocation(r.city, r.region, r.country)?.text ?? null;
 }
 
 function honorLabels(r: OfficialRosterListRow): string[] {

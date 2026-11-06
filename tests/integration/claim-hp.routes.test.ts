@@ -249,7 +249,7 @@ describe('GET /history/:personId/claim', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('David Mockingbird');
     expect(res.text).toContain('Link the Record');
-    expect(res.text).toContain('NZ'); // country surfaced
+    expect(res.text).toContain('Country: New Zealand'); // country surfaced by its canonical name
   });
 
   it('Cancel on the confirm form returns to the wizard\'s claim step, the only way into a claim', async () => {

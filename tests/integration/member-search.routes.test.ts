@@ -206,11 +206,13 @@ describe('GET /members/<slug>?q= — member search on personal home', () => {
     expect(res.text).not.toMatch(/@example\.com/);
   });
 
-  it('shows country in results', async () => {
+  it('shows each result\'s country by its canonical name, whatever code is stored', async () => {
+    // Broken, a result would show a bare code ("CA") where every other page
+    // names the country.
     const app = createApp();
     const res = await request(app).get(`/members/${SEARCHER_SLUG}?q=ja`).set('Cookie', searcherCookie());
-    expect(res.text).toContain('US');
-    expect(res.text).toContain('CA');
+    expect(res.text).toContain('<span class="text-muted">United States</span>');
+    expect(res.text).toContain('<span class="text-muted">Canada</span>');
   });
 
   it('shows honor badge for HoF member', async () => {

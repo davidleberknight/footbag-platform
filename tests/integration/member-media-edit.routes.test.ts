@@ -37,6 +37,7 @@ import {
   insertSystemConfig,
   insertMemberGallery,
   insertGalleryCriterionTag,
+  insertGalleryExcludeTag,
 } from '../fixtures/factories';
 
 const OWNER_ID    = 'member-mme-owner-001';
@@ -719,11 +720,13 @@ describe('where a saved edit lands', () => {
   const PG_ID = 'member-mme-pg-001';
   const PG_SLUG = 'mme_pg';
   const PERSONAL_ID = `gallery_${PG_SLUG}_personal_gallery`;
+  const HIDDEN_TAG = `#${PG_SLUG}_hidden`;
   let oldestId = '';
-  let newestId = '';
+  let hiddenId = '';
 
-  // The Personal Gallery shows the newest items up to its cap, so an item
-  // uploaded before that many newer ones lies outside the set its page renders.
+  // The Personal Gallery pages through every item it matches, so an item
+  // uploaded before more newer ones than one query window holds is still in
+  // its set; an item carrying a hashtag the gallery excludes is not.
   beforeAll(async () => {
     const { GALLERY_ITEMS_QUERY_CAP } = await import('../../src/db/db');
     const db = new BetterSqlite3(dbPath);
@@ -739,40 +742,50 @@ describe('where a saved edit lands', () => {
       });
       for (let i = 0; i < GALLERY_ITEMS_QUERY_CAP; i += 1) {
         const at = new Date(Date.UTC(2021, 0, 1) + i * 60_000).toISOString();
-        const id = insertMediaItem(db, {
+        insertMediaItem(db, {
           uploader_member_id: PG_ID, source_filename: `pg-newer-${i}.jpg`, caption: null, uploaded_at: at, tags: [byTag],
         });
-        if (i === GALLERY_ITEMS_QUERY_CAP - 1) newestId = id;
       }
+      hiddenId = insertMediaItem(db, {
+        uploader_member_id: PG_ID, source_filename: 'pg-hidden.jpg', caption: 'hidden',
+        uploaded_at: '2022-01-01T00:00:00.000Z', tags: [byTag, HIDDEN_TAG],
+      });
       insertMemberGallery(db, {
         id: PERSONAL_ID, owner_member_id: PG_ID, name: 'Personal Gallery', is_default: 1,
         sort_order: 'upload_desc', created_by: PG_ID,
       });
       const tagId = (db.prepare('SELECT id FROM tags WHERE tag_normalized = ?').get(byTag) as { id: string }).id;
       insertGalleryCriterionTag(db, PERSONAL_ID, tagId);
+      const hiddenTagId = (db.prepare('SELECT id FROM tags WHERE tag_normalized = ?').get(HIDDEN_TAG) as { id: string }).id;
+      insertGalleryExcludeTag(db, PERSONAL_ID, hiddenTagId);
     } finally { db.close(); }
   });
 
-  async function save(mediaId: string): Promise<string> {
+  async function save(mediaId: string, tags = ''): Promise<string> {
     const res = await request(createApp())
       .post(`/members/${PG_SLUG}/media/${mediaId}/edit`)
       .set('Cookie', cookieFor(PG_ID))
       .type('form')
-      .send({ caption: 'edited', tags: '', externalUrl: '' });
+      .send({ caption: 'edited', tags, externalUrl: '' });
     expect(res.status).toBe(303);
     return res.headers.location as string;
   }
 
-  // Defect caught: saving an item the Personal Gallery's capped set leaves
-  // out sends the member to that gallery's page for the item, which is not
-  // found, instead of to the item's own page.
-  it('lands on the item\'s own page when the Personal Gallery does not show it, and inside the gallery when it does', async () => {
-    const outside = await save(oldestId);
-    expect(outside).toBe(`/media/item/${oldestId}`);
+  // Defect caught: saving an item the Personal Gallery excludes sends the
+  // member to that gallery's page for the item, which is not found, instead
+  // of to the item's own page.
+  it('lands on the item\'s own page when the Personal Gallery excludes it', async () => {
+    const outside = await save(hiddenId, HIDDEN_TAG);
+    expect(outside).toBe(`/media/item/${hiddenId}`);
     expect((await request(createApp()).get(outside).set('Cookie', cookieFor(PG_ID))).status).toBe(200);
+  });
 
-    const inside = await save(newestId);
-    expect(inside).toBe(`/media/${PERSONAL_ID}/${newestId}`);
+  // Defect caught: an item further down the gallery than one query window is
+  // treated as outside it, so the member lands on the item's own page instead
+  // of inside the gallery that pages through to it.
+  it('lands inside the Personal Gallery for an item past the first query window', async () => {
+    const inside = await save(oldestId);
+    expect(inside).toBe(`/media/${PERSONAL_ID}/${oldestId}`);
     expect((await request(createApp()).get(inside).set('Cookie', cookieFor(PG_ID))).status).toBe(200);
   });
 });
