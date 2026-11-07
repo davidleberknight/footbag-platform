@@ -223,7 +223,7 @@ Freeform tags follow the same slug rule as every hashtag, set out in the user st
 
 The event tag/key pattern is exact and underscore-based. Documentation and route contracts must not assume hyphen/underscore rewrites, aliasing, or fuzzy matching.
 
-The `tag_normalized` column stores the lowercased form; `tag_display` stores the original capitalization for rendering.
+The `tag_normalized` column stores the lowercased form. Standard tags are lowercase in both columns; `tag_display` keeps a member's own capitalization for free-text tags only.
 
 **Standard-tag permanence:** Standard tags are permanent identities and must not be hard-deleted. The global unique index enforces extant-row uniqueness, but permanent reservation of standard-tag normalized forms across time is workflow/application-enforced (see APP-024). No tag row is ever deleted. `retired_at` and `retired_by_member_id` mark a freeform tag an administrator has taken out of circulation, and the row survives precisely so its normalized form stays reserved and cannot be recreated under a new id.
 
@@ -1010,7 +1010,7 @@ Entity association is hashtag-driven via `media_tags`. An asset tagged `#curated
 
 A "named gallery" is a stable URL bookmark, not a content bucket. The `member_galleries` row provides the slug, name, description, owner, item ordering (`sort_order`), and cover photo (`cover_media_id`, honoured only while that photo is active and still matches the gallery, so membership is never stored); the row itself does not carry a list of member IDs. Content membership is computed at request time by tag-AND match against `member_gallery_tags`, minus any item that carries a tag in `member_gallery_exclude_tags`.
 
-**`member_galleries.sort_order`:** controls how items render on `/media/{gallery_id}`. Allowed values: `upload_desc` (default; newest upload first), `upload_asc` (oldest first), `caption_asc` (alphabetical by caption, used for ordered series whose captions encode the position with a zero-padded prefix). DB-enforced via `CHECK (sort_order IN (...))`.
+**`member_galleries.sort_order`:** controls how items render on `/media/{gallery_id}`. Allowed values: `upload_desc` (default; newest upload first), `upload_asc` (oldest first), `caption_asc` (by caption: captions beginning with a number first, in the order of the number's value, then the rest A to Z ignoring letter case; used for ordered series). DB-enforced via `CHECK (sort_order IN (...))`.
 
 **Table:** `member_gallery_tags(gallery_id, tag_id, created_at, created_by)` with composite primary key `(gallery_id, tag_id)`. `gallery_id ON DELETE CASCADE`: criteria rows disappear when the parent gallery is deleted. `tag_id ON DELETE NO ACTION`: tags are reference data shared with `media_tags`.
 

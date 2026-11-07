@@ -98,7 +98,7 @@ function insertGallery(db: BetterSqlite3.Database, o: { id: string; ownerId: str
   }
 }
 
-let MIX_TAG = ''; let SORT_TAG = ''; let MEMMIX_TAG = ''; let CRITA_TAG = ''; let CRITB_TAG = ''; let NAV_TAG = '';
+let MIX_TAG = ''; let SORT_TAG = ''; let NATSORT_TAG = ''; let MEMMIX_TAG = ''; let CRITA_TAG = ''; let CRITB_TAG = ''; let NAV_TAG = '';
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -127,6 +127,23 @@ beforeAll(async () => {
   for (const id of ['sort_03', 'sort_02', 'sort_01']) attachMediaTag(db, id, SORT_TAG);
   insertGallery(db, { id: 'gallery_sort_caption', ownerId: SYSTEM_ID, name: 'Caption Sorted', sortOrder: 'caption_asc', criteria: [SORT_TAG] });
   insertGallery(db, { id: 'gallery_sort_upload', ownerId: SYSTEM_ID, name: 'Upload Sorted', sortOrder: 'upload_desc', criteria: [SORT_TAG] });
+
+  // Numbered series without zero padding, plus unnumbered captions in mixed
+  // letter case. Plain text order would put "10" before "2" and "Banana"
+  // before "apple"; uploads are spread so upload order matches neither.
+  NATSORT_TAG = insertFreeformTag(db, '#natsort');
+  const natsort: Array<[string, string, string]> = [
+    ['nat_banana', 'Banana split', '2027-05-01T00:00:00.000Z'],
+    ['nat_10', '10 - Tenth lesson', '2027-05-02T00:00:00.000Z'],
+    ['nat_apple', 'apple pie', '2027-05-03T00:00:00.000Z'],
+    ['nat_2', '2 - Second lesson', '2027-05-04T00:00:00.000Z'],
+    ['nat_03', '03 - Third lesson', '2027-05-05T00:00:00.000Z'],
+  ];
+  for (const [id, caption, uploaded_at] of natsort) {
+    insertPhoto(db, { id, caption, uploaded_at });
+    attachMediaTag(db, id, NATSORT_TAG);
+  }
+  insertGallery(db, { id: 'gallery_natsort', ownerId: SYSTEM_ID, name: 'Numbered Series', sortOrder: 'caption_asc', criteria: [NATSORT_TAG] });
 
   // Member-owned mixed gallery: 1 photo + 2 videos → count 3.
   const mp = insertPhoto(db, { id: 'memmix_photo', caption: 'mm-photo', uploader: MEMBER_ID });
@@ -216,6 +233,27 @@ describe('Named-gallery sort_order reorders the rendered grid', () => {
     expect(i1).toBeGreaterThan(-1);
     expect(i1).toBeLessThan(i2);
     expect(i2).toBeLessThan(i3);
+  });
+
+  it('caption_asc orders a leading number by its value, then the rest A to Z ignoring case', async () => {
+    // A numbered tutorial series shown 10 before 2, or a lower-case caption
+    // pushed past every capitalised one, plays the lessons out of order.
+    const res = await request(createApp()).get('/media/gallery_natsort');
+    expect(res.status).toBe(200);
+    const expected = ['2 - Second lesson', '03 - Third lesson', '10 - Tenth lesson', 'apple pie', 'Banana split'];
+    const positions = expected.map((c) => res.text.indexOf(c));
+    for (let i = 0; i < expected.length; i++) {
+      expect(positions[i], `${expected[i]} missing`).toBeGreaterThan(-1);
+      if (i > 0) expect(positions[i], `${expected[i]} out of order`).toBeGreaterThan(positions[i - 1]);
+    }
+  });
+
+  it('caption_asc previous and next follow the same number-aware order across the 10 boundary', async () => {
+    // The item viewer must step 03 to 10 and 10 back to 03, not jump by text order.
+    const res = await request(createApp()).get('/media/gallery_natsort/nat_10');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('href="/media/gallery_natsort/nat_03" class="btn btn-outline" rel="prev"');
+    expect(res.text).toContain('href="/media/gallery_natsort/nat_apple" class="btn btn-outline" rel="next"');
   });
 
   it('upload_desc renders the same items newest-first (03, 02, 01)', async () => {

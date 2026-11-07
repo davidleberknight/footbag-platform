@@ -6577,7 +6577,7 @@ export function queryRecentCommunityMedia(
  * Tag-AND-of-N gallery query for the grouped /media/<id> view. Items appear
  * grouped by their canonical trick tag. Ordering is controlled by the
  * gallery's `sort_order` column: 'upload_desc' (default), 'upload_asc',
- * 'caption_asc'. Callers pass an explicit LIMIT; nothing enforces a small
+ * 'caption_asc' (number-aware and case-free). Callers pass an explicit LIMIT; nothing enforces a small
  * corpus, so an unbounded fetch on this public route would be a
  * resource-exhaustion vector once the corpus grows.
  */
@@ -6594,7 +6594,12 @@ export const GALLERY_ITEMS_QUERY_CAP = 100;
 const GALLERY_ORDER_CLAUSE: Record<GallerySortOrder, string> = {
   upload_desc: 'mi.uploaded_at DESC, mi.id DESC',
   upload_asc:  'mi.uploaded_at ASC, mi.id ASC',
-  caption_asc: 'mi.caption ASC, mi.id ASC',
+  // A caption led by a number sorts first, by that number's value (SQLite's
+  // CAST reads the leading integer of "12 - Cloud" as 12), so a series needs
+  // no zero padding; every other caption follows A to Z ignoring case.
+  caption_asc: "(COALESCE(mi.caption, '') GLOB '[0-9]*') DESC, "
+    + 'CAST(mi.caption AS INTEGER) ASC, '
+    + "COALESCE(mi.caption, '') COLLATE NOCASE ASC, mi.id ASC",
 };
 
 export function queryGalleryItemsByCriteriaGrouped(
