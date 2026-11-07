@@ -1449,7 +1449,7 @@ Freestyle, records and symbolic tables (fifteen):
   provenance registry and its many-to-many trick-to-source links, which preserve
   per-source assertions that may diverge from canonical.
 - **`freestyle_trick_modifiers`** and **`freestyle_trick_modifier_links`** - the
-  operator/modifier registry (the data-side mirror of the operator reference) and
+  operator/modifier registry (the single home of each modifier's ADD) and
   its per-trick apply-ordered links.
 - **`freestyle_ev_adjudications`** - the Emerging Vocabulary ruling record: one
   row per adjudicated observational name, carrying what the name is, what it

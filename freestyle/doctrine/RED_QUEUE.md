@@ -30,15 +30,13 @@ its blocker, so leaving a closed question's status stale leaves rows blocked on 
 question that is answered.
 
 **4. If the ruling defines an operator, update the operator authority.** An
-operator's ADD, structure and X-Dex behaviour are owned by
-`src/content/freestyleOperatorReference.ts`, mirrored on the data side by the
-modifier registry: the `inputs/base_dictionary/trick_modifiers.csv` seed before
-cutover, and the `freestyle_trick_modifiers` table, changed through a reviewed
-database migration, after. The generator cross-checks these: a
+operator's structure and X-Dex behaviour are owned by
+`src/content/freestyleOperatorReference.ts`, and its ADD by the modifier
+registry: the `inputs/base_dictionary/trick_modifiers.csv` seed before
+cutover, and the `freestyle_trick_modifiers` table, changed through the modifier
+editor, after. The generator cross-checks these: a
 ledger row still claiming an operator is undefined while the registry defines it is
-reported as a reconciliation defect, and the registry wins. Creating a modifier is
-deliberately code-managed with no in-app editor, because publishing one publishes its
-ADD to public surfaces.
+reported as a reconciliation defect, and the registry wins.
 
 **5. Clear the rows the answer unblocks, then, before cutover, re-run the generator
 and read its warnings.** It reports rows gated on an operator the registry now defines, rows whose

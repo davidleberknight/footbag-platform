@@ -178,6 +178,7 @@ each release contains is §1.3.
     - [A_Browse_Freestyle_Content](#a_browse_freestyle_content)
     - [A_Review_Emerging_Vocabulary](#a_review_emerging_vocabulary)
     - [A_Edit_Freestyle_Trick](#a_edit_freestyle_trick)
+    - [A_Edit_Freestyle_Modifier](#a_edit_freestyle_modifier)
     - [A_Register_Freestyle_Source](#a_register_freestyle_source)
     - [A_Edit_Freestyle_Record](#a_edit_freestyle_record)
     - [A_Edit_Consecutive_Kicks_Record](#a_edit_consecutive_kicks_record)
@@ -3288,7 +3289,7 @@ Success Criteria, Row fields:
 Success Criteria, Validation (enforced at the write; a save that fails any check is rejected with a clear message and the submitted values preserved):
 
 - The notation's scoring-bracket count equals the stored ADD value.
-- The editor never changes a modifier's or operator's own ADD: that changes only through the operator reference and a reviewed database migration.
+- The editor never changes a modifier's or operator's own ADD: that changes only through the modifier editor (A_Edit_Freestyle_Modifier).
 - A non-empty base trick names a trick in the dictionary.
 - The display-name-to-slug naming rule holds: the normalized canonical name reproduces the slug, honoring the curator-maintained genuine-hyphen exception list. This check applies to a name the admin changes; an existing row whose stored name predates the one-time name normalization stays editable in its other fields without the naming check blocking the save.
 - The naming rule is the one the freestyle content pipeline's quality gate applies, so a save that would fail that gate is refused in the application rather than accepted and reconciled later.
@@ -3312,6 +3313,35 @@ Success Criteria, Atomicity:
 Audit:
 
 - Every create, edit, and delete of a trick row or an attached alias, source, or modifier-link row appends one audit_entries row recording the admin actor, timestamp, a freestyle-namespaced action type (for example `freestyle.trick.updated`), and the affected trick slug or row id, parallel to A_Upload_Curated_Media, A_Override_Member_Data, and the other admin content actions.
+
+### A_Edit_Freestyle_Modifier
+
+Access: same as A_Edit_Freestyle_Trick. Editing a slug that has no modifier row returns 404.
+
+Story: As an admin, I can create a freestyle modifier and edit an existing one, with curator-grade validation, a confirmation before an ADD change takes effect, and an audit trail, so that the modifier vocabulary is maintained in the running application with no database migration.
+
+Success Criteria, Fields:
+
+- Create takes the slug, the display name, the ADD bonus, the modifier type and notes; edit changes every field but the slug. The rotational ADD bonus is always saved equal to the ADD bonus.
+- The modifier registry is the single home of a modifier's ADD: computed ADD, first-class status and every public surface read it from there.
+
+Success Criteria, Validation (a save that fails any check is rejected with a clear message and the submitted values preserved):
+
+- The slug is lowercase letters, digits and underscores, and is not already a modifier, trick or alias slug.
+- The ADD bonus is a whole number zero or greater, and the type is one the registry allows.
+- A new modifier renders in notation as itself, never as an existing token its name begins with.
+
+Success Criteria, ADD changes:
+
+- A change to a modifier's ADD first shows a confirmation page listing every linked trick whose stored ADD would no longer match its computed ADD, each linking to its edit page, under a caution that the change is live at once. It saves only from that page. The modifier editor never rewrites a trick's ADD; the curator corrects each listed trick through A_Edit_Freestyle_Trick.
+
+Success Criteria, Durability:
+
+- Before go-live, on a developer machine, a save is written back to the committed authoring files as every freestyle curation screen's is, so a rebuild reproduces it.
+
+Audit:
+
+- Every create and edit appends one audit_entries row recording the admin actor, timestamp, a freestyle-namespaced action type (`freestyle.modifier.created` or `freestyle.modifier.updated`), the modifier slug and the changed field names, with the old and new ADD for an ADD change.
 
 ### A_Register_Freestyle_Source
 

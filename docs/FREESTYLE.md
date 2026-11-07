@@ -30,7 +30,7 @@ pieces:
   govern classification, scoring, and naming. See section 6.
 - **The code-side authority modules.** `src/content/freestyle*.ts` carry the
   content that is deliberately code-managed rather than database-managed: the
-  operator reference (the ADD and structure authority), the family tiers, and
+  operator reference (operator structure), the family tiers, and
   the symbolic panels. See sections 2 and 4.
 - **The curated media lane.** A separate system from the dictionary, governed by
   the curated-media skill; it attaches reference videos to tricks. Never merged
@@ -56,11 +56,11 @@ tiers, and knowing which tier a datum sits in is the whole of making a safe edit
 1. **Live-database-owned curation.** Everything a curator edits in the running
    app: trick scalar and editorial-prose fields, aliases, source links, modifier
    links, records, consecutive-kicks records, and provenance-source rows. Section 4 lists the surface for each.
-2. **Code-managed doctrine and operator authority.** `freestyleOperatorReference.ts`
-   is the single authority for operator ADD, structure, and X-Dex behavior; the
-   rule and the secondary surfaces it binds are in the
-   `footbag-freestyle-dictionary` skill. Changing an operator is a code change
-   plus a reviewed data change, never an in-app edit. Doctrine rulings live in
+2. **Code-managed doctrine and operator structure.** A modifier's ADD lives in the
+   modifier registry and is changed in the modifier editor
+   (A_Edit_Freestyle_Modifier). `freestyleOperatorReference.ts` carries operator
+   structure and X-Dex behavior; the rule and the secondary surfaces it binds are
+   in the `footbag-freestyle-dictionary` skill. Doctrine rulings live in
    `freestyle/doctrine/` (section 6).
 3. **Generated or spreadsheet-owned symbolic research.** The five `symbolic_*`
    tables load from committed spreadsheets under `freestyle/symbolic_grammar/`;
@@ -119,11 +119,6 @@ exception below.
 
 **Deliberately ruled exceptions (no in-app editor by design):**
 
-- **Modifier-registry creation is authority-blocked and code-managed.** A new
-  modifier is published through the operator reference plus, before cutover, the
-  modifier seed and, after cutover, a reviewed database migration, not an in-app
-  create, because creating one publishes its ADD to public surfaces and
-  the database registry is secondary to the curator-locked operator reference.
 - **Trick relations are derived and read-only.** A trick page's related tricks
   are computed from the dictionary itself (family, base-trick ancestry, shared
   modifiers and movement neighbourhood), so they follow every edit to those rows.
