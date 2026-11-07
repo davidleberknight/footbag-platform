@@ -2132,23 +2132,6 @@ p.badge { display: block; width: fit-content; }
 }
 .club-country-index-link:hover { color: var(--primary-ink); text-decoration: underline; }
 
-/* detail page */
-.hero .hero-hashtag {
-  font-size: 0.9rem;
-  font-family: inherit;
-  color: var(--white);
-  opacity: 1;
-  margin-top: var(--space-sm);
-}
-/* Media-linked identity hashtag in the hero (trick detail): same identity
-   colour, resting underline as the colour-blind link affordance on the
-   dark panel. */
-.hero .hero-hashtag a {
-  color: var(--white);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-.hero .hero-hashtag a:hover { color: var(--white); }
 .club-detail {
   max-width: 680px;
 }

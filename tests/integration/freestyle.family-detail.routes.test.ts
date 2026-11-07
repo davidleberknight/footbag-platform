@@ -135,8 +135,9 @@ describe('GET /freestyle/families/:slug — family detail page', () => {
   it('carries the family-role hashtag, distinct from the anchor trick\'s tag', async () => {
     const res = await page('/freestyle/families/whirl');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('<p class="hero-hashtag">#family_whirl</p>');
-    expect(res.text).not.toContain('<p class="hero-hashtag">#whirl</p>');
+    const mediaLine = res.text.match(/<p class="media-line"[^>]*>([\s\S]*?)<\/p>/)?.[1] ?? '';
+    expect(mediaLine).toContain('#family_whirl');
+    expect(mediaLine).not.toMatch(/#whirl\b/);
   });
 
   it('renders the tier label and the shared-structure invariant', async () => {

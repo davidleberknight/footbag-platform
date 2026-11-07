@@ -490,7 +490,6 @@ hashtag--block
 hashtag--media
 hero
 hero-eyebrow
-hero-hashtag
 hero-mascot
 hero-sm
 hero-stats

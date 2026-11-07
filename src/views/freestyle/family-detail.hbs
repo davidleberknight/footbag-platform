@@ -20,7 +20,6 @@
     <p class="hero-eyebrow">{{page.eyebrow}}</p>
     <h1>{{page.title}}</h1>
     {{#if content.teaching}}<p class="hero-subtitle">{{content.teaching.hook}}</p>{{/if}}
-    <p class="hero-hashtag">{{content.hashtag}}</p>
   </div>
 </div>
 
@@ -30,6 +29,8 @@
   {{#if content.branchParent}}
   <p class="trick-family-branch-of mt-4">Branch of the <a href="{{content.branchParent.href}}">{{content.branchParent.name}}</a> family.</p>
   {{/if}}
+
+  {{> media-line id="media" display=content.mediaLine.display galleryHref=content.mediaLine.galleryHref galleryLabel=content.mediaLine.galleryLabel}}
 
   {{#if content.teaching}}
   <section class="content-section" aria-label="What is {{content.displayArticle}} {{content.displayName}}">

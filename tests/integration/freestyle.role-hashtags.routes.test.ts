@@ -209,7 +209,7 @@ describe('GET /freestyle/modifier/:slug — set-only slugs live on their set pag
     const res = await page('/freestyle/modifier/zulu');
     expect(res.status).toBe(200);
     const h1 = res.text.match(/<h1[^>]*>([\s\S]*?)<\/h1>/)?.[1] ?? '';
-    expect(h1).toMatch(/^Zulu <span class="hero-hashtag">/);
+    expect(h1.trim()).toBe('Zulu');
   });
 });
 

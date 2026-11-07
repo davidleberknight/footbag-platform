@@ -21,11 +21,12 @@
     {{/if}}
     <p class="hero-eyebrow">{{content.subtypeLabel}}</p>
     <h1>{{content.displayName}}</h1>
-    <p class="hero-hashtag">{{content.hashtag}}</p>
   </div>
 </div>
 
 <article class="wrapper set-detail" data-set-slug="{{content.slug}}">
+
+  {{> media-line id="media" display=content.mediaLine.display galleryHref=content.mediaLine.galleryHref galleryLabel=content.mediaLine.galleryLabel}}
 
   {{#if content.education}}
   {{!-- Teaching pages carry at most six sections: what it is, how it launches

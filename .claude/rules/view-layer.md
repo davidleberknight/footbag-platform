@@ -221,7 +221,7 @@ discipline and the shared classes; per-section classes are in the stylesheet.
 - Never invent a class by analogy with another framework (`btn-secondary` is a Bootstrap name, not
   ours). New classes are added to `style.css`.
 - Shared classes: site frame `.skip-link`, `.wrapper`, `.site-header`, `.site-logo`, `.main-nav`,
-  `.site-footer`; hero `.hero`, `.hero-sm`, `.hero-eyebrow`, `.hero-subtitle`, `.hero-hashtag`; media line `.media-line` (its hashtag is the shared `.hashtag` token);
+  `.site-footer`; hero `.hero`, `.hero-sm`, `.hero-eyebrow`, `.hero-subtitle`; media line `.media-line` (its hashtag is the shared `.hashtag` token);
   sections `.content-section`, `.section-heading`, `.section-intro` (`.profile-section` on member
   profile pages only); cards and tables `.card`, `.card-static`, `.card-title`, `.card-meta`,
   `.card-description`, `.card-grid`, `.badge`, `.data-table`, `.empty-state`; actions `.btn`,

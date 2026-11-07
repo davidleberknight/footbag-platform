@@ -296,6 +296,24 @@ import {
 import { CORE_TRICKS, isCoreTrick } from './coreTrickRegistry';
 import { personLocation } from './countryUtils';
 import { START_NEXT_STEPS, START_NEXT_STEPS_INTRO, type StartNextStep } from '../content/freestyleStartNextSteps';
+import { mediaService } from './mediaService';
+
+// A set, family or modifier page's own media line: its hashtag, linked to the
+// hashtag's gallery with the gallery link beside it when media carries the tag,
+// a plain token otherwise. The same one-row existence read decides it as on an
+// event, club or player page, so media presence shows the same way everywhere.
+export interface FreestyleMediaLine {
+  display: string;
+  galleryHref: string | null;
+  // Null exactly when galleryHref is.
+  galleryLabel: string | null;
+}
+
+function freestyleMediaLine(hashtag: string, galleryLabel: string): FreestyleMediaLine {
+  const galleryHref = mediaService.getEntityGalleryHref(hashtag.toLowerCase());
+  return { display: hashtag, galleryHref, galleryLabel: galleryHref ? galleryLabel : null };
+}
+
 // ---------------------------------------------------------------------------
 // Record type labels
 // ---------------------------------------------------------------------------
@@ -2702,6 +2720,7 @@ export interface EncyclopediaCrossLinks {
 export interface FreestyleSetDetailContent {
   slug:                 string;
   hashtag:              string;
+  mediaLine:            FreestyleMediaLine;
   displayName:          string;
   subtype:              SetSubtypeKey;
   subtypeLabel:         string;
@@ -3101,7 +3120,8 @@ export interface FreestyleFamilyDetailContent {
   slug: string;
   displayName: string;
   displayArticle: string;          // 'a' | 'an'; shapes the "What is a/an <Name>?" heading
-  hashtag: string;                 // '#' + slug; identity token, never a link
+  hashtag: string;                 // '#' + slug
+  mediaLine: FreestyleMediaLine;
   tierLabel: string;               // 'Family Parent'
   // For a derived branch family, the parent family it presents under
   // (barfly and double-over-down present as branches of Down).
@@ -4014,6 +4034,7 @@ export interface ModifierStubContent {
   slug:        string;
   displayName: string;
   hashtag:     string;
+  mediaLine:   FreestyleMediaLine;
   typeLabel:   string;
   addLabel:    string | null;
   notation:    string | null;
@@ -6598,7 +6619,7 @@ const RETIRED_SET_NICKNAME_REDIRECTS: ReadonlyMap<string, string> = new Map([
 
 // A hand-authored modifier teaching page, carrying the modifier's role-aware
 // hashtag beside its authored content.
-export type ModifierTeachingPageContent = ModifierFamilyPageContent & { hashtag: string };
+export type ModifierTeachingPageContent = ModifierFamilyPageContent & { hashtag: string; mediaLine: FreestyleMediaLine };
 
 // A canonical set with no active trick row: a set that migrated out of, or never
 // entered, the trick corpus, so its set page is its one home. Pixie and fairy are
@@ -8876,10 +8897,12 @@ export const freestyleService = {
     const modifierRow = runSqliteRead('freestyleTrickModifiers.getBySlug', () =>
       freestyleTrickModifiers.getBySlug.get(slug) as FreestyleTrickModifierRow | undefined,
     );
+    // The same role-aware hashtag the stub and the operators index show.
+    const teachingHashtag = modifierSurfaceHashtag(slug, modifierRow?.modifier_type);
     const content: ModifierTeachingPageContent = {
       ...built,
-      // The same role-aware hashtag the stub and the operators index show.
-      hashtag:  modifierSurfaceHashtag(slug, modifierRow?.modifier_type),
+      hashtag:   teachingHashtag,
+      mediaLine: freestyleMediaLine(teachingHashtag, 'View Modifier Gallery'),
       baseAtom: atom ? { label: `${operatorTitleCase(atom)} (base trick)`, href: `/freestyle/tricks/${atom}` } : null,
     };
     return {
@@ -9552,6 +9575,7 @@ export const freestyleService = {
         slug,
         displayName,
         hashtag:     modifierSurfaceHashtag(slug, row?.modifier_type),
+        mediaLine:   freestyleMediaLine(modifierSurfaceHashtag(slug, row?.modifier_type), 'View Modifier Gallery'),
         typeLabel,
         addLabel:    operatorAddLabel(row),
         notation:    operatorNotation(slug, row?.modifier_type),
@@ -9772,6 +9796,7 @@ export const freestyleService = {
         displayName,
         displayArticle,
         hashtag:              hashtagForRole(slug, 'family'),
+        mediaLine:            freestyleMediaLine(hashtagForRole(slug, 'family'), 'View Family Gallery'),
         tierLabel:            FAMILY_TIER_LABEL['family-parent'],
         branchParent,
         orientation,
@@ -9947,6 +9972,7 @@ export const freestyleService = {
       content: {
         slug:                  set.slug,
         hashtag:               set.hashtag,
+        mediaLine:             freestyleMediaLine(set.hashtag, 'View Set Gallery'),
         displayName:           set.displayName,
         subtype:               set.subtype,
         subtypeLabel,
