@@ -1,0 +1,52 @@
+{{! Confirm step before a modifier's ADD changes; the save itself is the POST below }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{> admin-instructions}}
+  <section>
+    <p class="notice notice-warn" role="alert">{{content.name}} changes from {{content.addBefore}} to {{content.addAfter}} ADD, live at once on every trick that links it. No trick's own stored ADD changes.</p>
+
+    {{#if content.hasAffected}}
+      <h2 class="section-heading">Tricks Whose Stored ADD Would Stop Matching</h2>
+      <div class="records-table-wrap mt-2" tabindex="0" role="region" aria-label="Tricks whose stored ADD would stop matching">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Trick</th>
+            <th>Stored ADD</th>
+            <th>Computed ADD After</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.affected}}
+            <tr>
+              <td><a href="{{this.editHref}}">{{this.name}}</a></td>
+              <td>{{this.storedAdd}}</td>
+              <td>{{this.computedAfter}}</td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+      </div>
+    {{else}}
+      <div class="empty-state"><p>No linked trick's stored ADD stops matching.</p></div>
+    {{/if}}
+
+    <div class="form-actions">
+      <form method="POST" action="{{content.formAction}}" class="inline-form">
+        <input type="hidden" name="modifierName" value="{{content.submitted.modifierName}}" />
+        <input type="hidden" name="addBonus" value="{{content.submitted.addBonus}}" />
+        <input type="hidden" name="modifierType" value="{{content.submitted.modifierType}}" />
+        <input type="hidden" name="notes" value="{{content.submitted.notes}}" />
+        <input type="hidden" name="confirm" value="1" />
+        <button type="submit" class="btn btn-primary">Save ADD Change</button>
+      </form>
+      <a href="{{content.cancelHref}}" class="btn btn-outline">Cancel</a>
+    </div>
+  </section>
+</div>

@@ -239,6 +239,10 @@ adminRouter.get('/freestyle/emerging-vocabulary', emergingVocabController.workbe
 // (the trick-dictionary provenance registry, distinct from the media-source registry).
 adminRouter.get('/freestyle/sources',           adminFreestyleController.sources);
 adminRouter.post('/freestyle/sources',          adminFreestyleController.createSource);
+adminRouter.get('/freestyle/modifiers',                adminFreestyleController.modifiers);
+adminRouter.post('/freestyle/modifiers',               adminFreestyleController.createModifier);
+adminRouter.get('/freestyle/modifiers/:slug/edit',     adminFreestyleController.editModifier);
+adminRouter.post('/freestyle/modifiers/:slug/edit',    adminFreestyleController.updateModifier);
 adminRouter.get('/freestyle/records',              adminFreestyleController.recordsIndex);
 adminRouter.get('/freestyle/records/new',          adminFreestyleController.recordNew);
 adminRouter.post('/freestyle/records',             adminFreestyleController.recordCreate);

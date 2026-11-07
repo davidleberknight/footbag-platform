@@ -110,6 +110,8 @@ exception below.
   consecutive-records surface.
 - Provenance-source rows (create): the admin dictionary-provenance registry at
   `/admin/freestyle/sources`. Distinct from the media-source registry.
+- Modifiers (create and edit, with a confirm step before an ADD change): the
+  admin modifier registry at `/admin/freestyle/modifiers`.
 - Notation authoring and canonical trick creation: the admin notation backlog at
   `/admin/freestyle/notation-backlog`, its drafts list, the authoring form and the
   publication form. Authoring writes a movement and its provenance onto an

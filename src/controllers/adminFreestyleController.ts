@@ -7,6 +7,7 @@ import {
   FreestyleSourceLinkInput,
   FreestyleModifierLinkInput,
   FreestyleSourceInput,
+  FreestyleModifierInput,
   FreestyleTrickPublicationInput,
   type CurationLinkOutcome,
 } from '../services/freestyleCurationService';
@@ -712,7 +713,82 @@ export const adminFreestyleController = {
       next(err);
     }
   },
+
+  modifiers(req: Request, res: Response, next: NextFunction): void {
+    try {
+      res.render('admin/freestyle-modifiers', freestyleCurationService.getModifierRegistryPage());
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // Create one modifier. Success redirects to the registry; a validation failure
+  // re-renders the create form (422) with the submitted values.
+  createModifier(req: Request, res: Response, next: NextFunction): void {
+    const input = modifierInputFromBody(req.body);
+    try {
+      freestyleCurationService.createModifier(input, req.user!.userId);
+      res.redirect(303, '/admin/freestyle/modifiers');
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        res.status(422).render('admin/freestyle-modifiers',
+          freestyleCurationService.getModifierRegistryPage({ submitted: input, error: err.message }));
+        return;
+      }
+      next(err);
+    }
+  },
+
+  editModifier(req: Request, res: Response, next: NextFunction): void {
+    try {
+      res.render('admin/freestyle-modifier-edit', freestyleCurationService.getModifierEditPage(str(req.params.slug)));
+    } catch (err) {
+      if (err instanceof NotFoundError) {
+        renderNotFound(res);
+        return;
+      }
+      next(err);
+    }
+  },
+
+  // Save one modifier's edit. An ADD change not yet confirmed renders the confirm
+  // page; a confirmed or ADD-free change saves and redirects to the registry.
+  updateModifier(req: Request, res: Response, next: NextFunction): void {
+    const slug = str(req.params.slug);
+    const input = modifierInputFromBody(req.body);
+    try {
+      const result = freestyleCurationService.updateModifier(slug, input, req.user!.userId, {
+        confirmed: req.body.confirm === '1',
+      });
+      if (result.status === 'confirm') {
+        res.render('admin/freestyle-modifier-add-confirm', result.page);
+        return;
+      }
+      res.redirect(303, '/admin/freestyle/modifiers');
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        res.status(422).render('admin/freestyle-modifier-edit',
+          freestyleCurationService.getModifierEditPage(slug, { submitted: input, error: err.message }));
+        return;
+      }
+      if (err instanceof NotFoundError) {
+        renderNotFound(res);
+        return;
+      }
+      next(err);
+    }
+  },
 };
+
+function modifierInputFromBody(body: Record<string, unknown>): FreestyleModifierInput {
+  return {
+    slug:         str(body.slug),
+    modifierName: str(body.modifierName),
+    addBonus:     str(body.addBonus),
+    modifierType: str(body.modifierType),
+    notes:        str(body.notes),
+  };
+}
 
 function recordInputFromBody(body: Record<string, unknown>): FreestyleRecordScalarInput {
   return {

@@ -157,6 +157,8 @@ export const ADAPTER_SITES: AdapterSite[] = [
   { file: 'src/services/freestyleCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'saveAuthoredNotation', status: { pending: SAVE_THEN_COMMIT } },
   { file: 'src/services/freestyleCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'publishCanonicalTrick', status: { pending: SAVE_THEN_COMMIT } },
   { file: 'src/services/freestyleCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'createSource', status: { pending: SAVE_THEN_COMMIT } },
+  { file: 'src/services/freestyleCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'createModifier', status: { pending: SAVE_THEN_COMMIT } },
+  { file: 'src/services/freestyleCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'updateModifier', status: { pending: SAVE_THEN_COMMIT } },
   { file: 'src/services/freestyleRecordCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'saveRecordFile', status: { pending: SAVE_THEN_COMMIT } },
   { file: 'src/services/consecutiveKicksCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'deleteRow', status: { pending: SAVE_THEN_COMMIT } },
   { file: 'src/services/consecutiveKicksCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'saveRowFile', status: { pending: SAVE_THEN_COMMIT } },

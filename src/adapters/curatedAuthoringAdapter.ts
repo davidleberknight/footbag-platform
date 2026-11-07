@@ -87,7 +87,7 @@ export interface CuratedSaveReceipt {
  * away, which a rebuild would otherwise bring back from a base input.
  */
 export const SAVE_ITEM_KINDS = [
-  'sources', 'published_tricks', 'aliases', 'source_links', 'modifier_links', 'records',
+  'sources', 'modifiers', 'published_tricks', 'aliases', 'source_links', 'modifier_links', 'records',
   'consecutive_records',
 ] as const;
 export type SaveItemKind = (typeof SAVE_ITEM_KINDS)[number];

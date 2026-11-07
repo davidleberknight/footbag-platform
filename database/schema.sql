@@ -5101,7 +5101,8 @@ CREATE INDEX idx_freestyle_tricks_family        ON freestyle_tricks(trick_family
 CREATE INDEX idx_freestyle_tricks_is_active     ON freestyle_tricks(is_active);
 CREATE INDEX idx_freestyle_tricks_review_status ON freestyle_tricks(review_status);
 
--- Modifier reference table — loaded from trick_modifiers.csv (21 rows).
+-- Modifier reference table — loaded from trick_modifiers.csv, and edited in the
+-- modifier editor. It is the single home of each modifier's ADD.
 -- Each modifier applies a flat ADD bonus to any base trick. The
 -- add_bonus_rotational column is currently set equal to add_bonus for every
 -- modifier; the historical rotational-base differential is retired.

@@ -85,6 +85,17 @@ const SUFFIX_TOKENS = new Set([
 
 const BODY_COMPONENT_RE = /^\[[A-Z]+\]$/;
 
+// A word the renderer classifies before it looks at the modifier registry. A
+// modifier with this name would always render as that word, so the modifier
+// editor refuses it.
+export function isFixedNotationWord(word: string): boolean {
+  const upper = word.toUpperCase();
+  return [
+    MULTIPLICITY_TOKENS, FOOTEDNESS_TOKENS, DIRECTION_TOKENS, SUFFIX_TOKENS,
+    ROTATION_TOKENS, DELAY_SURFACE_TOKENS, UNUSUAL_SURFACE_TOKENS,
+  ].some((set) => set.has(upper));
+}
+
 // ── Educational tooltip text (harmonized with operational renderer; ratified §5.4a) ─
 
 const ROLE_LABELS: Record<NotationRole, string> = {

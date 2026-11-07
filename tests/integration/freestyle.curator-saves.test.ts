@@ -236,6 +236,14 @@ beforeAll(async () => {
   service.detachModifier(
     baseModifierLink.trick_slug, baseModifierLink.modifier_slug, baseModifierLink.apply_order, ADMIN_ID,
   );
+  // A created modifier, a link to it, and an edit of a modifier the inputs define.
+  service.createModifier({
+    slug: 'saved_modifier', modifierName: 'Saved Modifier', addBonus: '2', modifierType: 'set', notes: '',
+  }, ADMIN_ID);
+  service.attachModifier(editedSlug, { modifierSlug: 'saved_modifier', applyOrder: '8' }, ADMIN_ID);
+  service.updateModifier('paradox', {
+    modifierName: 'paradox', addBonus: '1', modifierType: 'body', notes: 'Saved modifier note.',
+  }, ADMIN_ID, { confirmed: false });
 
   // Records and consecutive rows, including what the loaders alone cannot express:
   // a text value, a year-level date, and a row the records loader would skip.
@@ -496,6 +504,17 @@ describe('a rebuild', () => {
       [editedSlug, baseModifierLink.modifier_slug])).toBe(1);
     expect(rowCount(rebuildPath, 'freestyle_trick_modifier_links', 'trick_slug = ? AND modifier_slug = ? AND apply_order = ?',
       [baseModifierLink.trick_slug, baseModifierLink.modifier_slug, baseModifierLink.apply_order])).toBe(0);
+  });
+
+  it('brings back a created modifier, a link to it, and an edited modifier', () => {
+    // Defect: a modifier the curator created or edited is lost at the next
+    // rebuild, or a link to a new modifier fails because it is applied first.
+    expect(rowCount(rebuildPath, 'freestyle_trick_modifiers',
+      "slug = 'saved_modifier' AND add_bonus = 2 AND add_bonus_rotational = 2 AND modifier_type = 'set'", [])).toBe(1);
+    expect(rowCount(rebuildPath, 'freestyle_trick_modifier_links',
+      "trick_slug = ? AND modifier_slug = 'saved_modifier' AND apply_order = 8", [editedSlug])).toBe(1);
+    expect(rowCount(rebuildPath, 'freestyle_trick_modifiers',
+      "slug = 'paradox' AND notes = 'Saved modifier note.'", [])).toBe(1);
   });
 
   it('keeps record values the records loader cannot express', () => {

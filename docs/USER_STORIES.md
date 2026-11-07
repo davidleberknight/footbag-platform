@@ -3329,7 +3329,7 @@ Success Criteria, Validation (a save that fails any check is rejected with a cle
 
 - The slug is lowercase letters, digits and underscores, and is not already a modifier, trick or alias slug.
 - The ADD bonus is a whole number zero or greater, and the type is one the registry allows.
-- A new modifier renders in notation as itself, never as an existing token its name begins with.
+- A new modifier's slug is refused when it is one of the notation renderer's fixed words (a rotation, direction, surface, footedness, repetition or suffix word such as rev, toe or stall), because notation would always show it as that word and never as the modifier.
 
 Success Criteria, ADD changes:
 

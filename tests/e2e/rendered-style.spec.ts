@@ -34,7 +34,7 @@ import { submitForm } from './helpers/submitForm';
 import {
   insertAuditEntry, insertClub, insertClubLeader, insertCuratorVideo, insertDiscipline, insertEmailArchive, insertEvent, insertFreeformTag,
   insertResultEntry, insertResultParticipant, insertResultsUpload,
-  insertFreestyleEvAdjudication, insertFreestyleTrick, insertFreestyleTrickAlias,
+  insertFreestyleEvAdjudication, insertFreestyleTrick, insertFreestyleTrickAlias, insertFreestyleTrickModifier,
   insertHistoricalPerson, insertLegacyMember, insertMediaItem, insertMediaJob, insertMember,
   insertMemberClubAffiliation, insertMemberGallery, insertPayment,
   insertRecurringDonationSubscription, insertSystemJobRun, insertTag, insertWorkQueueItem,
@@ -83,6 +83,7 @@ test.beforeAll(() => {
   insertEmailArchive(db, { id: REACH_ROWS.broadcastId, sender_member_id: 'member_persona_admin_t2', recipient_count: 12 });
   insertSystemJobRun(db, { id: REACH_ROWS.reconciliationRunId, job_name: 'SYS_Reconcile_Payments_Nightly' });
   insertFreestyleEvAdjudication(db, { candidate_id: REACH_ROWS.backlogCandidateId, submitted_name: 'Rendered Style Backlog Candidate', blocker_id: 'D1' });
+  insertFreestyleTrickModifier(db, { slug: REACH_ROWS.modifierSlug, modifier_name: 'Rendered Style Modifier', add_bonus: 1, add_bonus_rotational: 1, modifier_type: 'body' });
   insertFreeformTag(db, { tag_normalized: `#${REACH_ROWS.retirableTag}`, tag_display: `#${REACH_ROWS.retirableTag}` });
 
   // A dispute: another member's claim took the old account the requester says is theirs.

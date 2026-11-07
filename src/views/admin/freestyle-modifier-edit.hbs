@@ -1,0 +1,39 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{> admin-instructions}}
+  <section>
+    {{> outcome-notice text=content.error tone='no'}}
+
+    <form method="POST" action="{{content.formAction}}" class="form-block">
+      <div class="form-field">
+        <label for="modifier-name">Name</label>
+        <input type="text" id="modifier-name" name="modifierName" value="{{content.submitted.modifierName}}" />
+      </div>
+      <div class="form-field">
+        <label for="modifier-add">ADD</label>
+        <input type="text" id="modifier-add" name="addBonus" inputmode="numeric" value="{{content.submitted.addBonus}}" />
+      </div>
+      <div class="form-field">
+        <label for="modifier-type">Type</label>
+        <select id="modifier-type" name="modifierType">
+          {{#each content.typeOptions}}
+            <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+          {{/each}}
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="modifier-notes">Notes (optional)</label>
+        <textarea id="modifier-notes" name="notes" rows="3">{{content.submitted.notes}}</textarea>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary btn-sm">Save Modifier</button>
+        <a href="{{content.cancelHref}}" class="btn btn-outline btn-sm">Cancel</a>
+      </div>
+    </form>
+  </section>
+</div>

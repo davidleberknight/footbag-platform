@@ -6,7 +6,7 @@ Before go-live a curation screen on a developer machine writes one small JSON fi
 per saved item under freestyle/inputs/curator_saves/. Those files are committed,
 so a rebuild reproduces the save. A trick's file names its target and only the
 fields a curator overrode, with a null field marking a deliberate clear. Sources,
-aliases and links are saved as whole records, and removed: true marks one taken
+modifiers, aliases and links are saved as whole records, and removed: true marks one taken
 away, since a rebuild would otherwise bring it back from a base input. Running last
 makes the precedence plain: base inputs first, curator saves on top.
 
@@ -53,6 +53,8 @@ RULING_SAVE_FIELDS = frozenset({
 RECORD_KINDS = (
     ("sources", "freestyle_trick_sources", ("id",),
      ("source_type", "source_label", "source_url", "retrieved_at", "notes")),
+    ("modifiers", "freestyle_trick_modifiers", ("slug",),
+     ("modifier_name", "add_bonus", "add_bonus_rotational", "modifier_type", "notes")),
     ("published_tricks", "freestyle_tricks", ("slug",),
      ("canonical_name", "adds", "base_trick", "trick_family", "category", "description",
       "operational_notation", "operational_notation_source", "notation_evidence_basis",
@@ -76,6 +78,7 @@ RECORD_KINDS = (
 # time is this load's, as it is for every row a loader writes.
 LOADED_AT = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
 FIXED_COLUMNS = {
+    "modifiers": {"loaded_at": LOADED_AT},
     "aliases": {"alias_origin_producer": "curator-application", "created_at": LOADED_AT},
     "published_tricks": {"aliases_json": "[]", "review_status": "curated", "is_active": 1, "is_core": 0,
                          "loaded_at": LOADED_AT, "trick_origin_producer": "curator-publication"},

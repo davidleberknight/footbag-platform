@@ -1,0 +1,75 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{> admin-instructions}}
+  <section>
+    <h2 class="section-heading">New Modifier</h2>
+
+    {{> outcome-notice text=content.error tone='no'}}
+
+    <form method="POST" action="/admin/freestyle/modifiers" class="form-block">
+      <div class="form-field">
+        <label for="modifier-slug">Slug</label>
+        <input type="text" id="modifier-slug" name="slug" value="{{content.submitted.slug}}" aria-describedby="modifier-slug-hint" />
+        <small class="form-hint" id="modifier-slug-hint">Lowercase letters, digits and underscores, beginning with a letter. Permanent once created.</small>
+      </div>
+      <div class="form-field">
+        <label for="modifier-name">Name</label>
+        <input type="text" id="modifier-name" name="modifierName" value="{{content.submitted.modifierName}}" />
+      </div>
+      <div class="form-field">
+        <label for="modifier-add">ADD</label>
+        <input type="text" id="modifier-add" name="addBonus" inputmode="numeric" value="{{content.submitted.addBonus}}" aria-describedby="modifier-add-hint" />
+        <small class="form-hint" id="modifier-add-hint">The ADD this modifier adds to a base trick, a whole number.</small>
+      </div>
+      <div class="form-field">
+        <label for="modifier-type">Type</label>
+        <select id="modifier-type" name="modifierType">
+          <option value="">Choose a type</option>
+          {{#each content.typeOptions}}
+            <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+          {{/each}}
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="modifier-notes">Notes (optional)</label>
+        <textarea id="modifier-notes" name="notes" rows="2">{{content.submitted.notes}}</textarea>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary btn-sm">Create Modifier</button>
+      </div>
+    </form>
+
+    <h2 class="section-heading mt-6">Existing Modifiers</h2>
+    {{#if content.hasRows}}
+      <div class="records-table-wrap mt-2" tabindex="0" role="region" aria-label="Existing modifiers">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Slug</th>
+            <th>Name</th>
+            <th>ADD</th>
+            <th>Type</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.rows}}
+            <tr>
+              <td><a href="{{this.editHref}}"><code>{{this.slug}}</code></a></td>
+              <td>{{this.name}}</td>
+              <td>{{this.addBonus}}</td>
+              <td>{{this.typeLabel}}</td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+      </div>
+    {{else}}
+      <div class="empty-state"><p>No modifiers yet.</p></div>
+    {{/if}}
+  </section>
+</div>

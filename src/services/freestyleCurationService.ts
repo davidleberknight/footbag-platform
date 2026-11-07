@@ -16,6 +16,16 @@
  *     sources and creating a new one with a curator-supplied permanent id, so
  *     post-cutover media and assertions can cite a new source. Editing, deleting,
  *     and merging sources are not owned here.
+ *   - The modifier registry (`freestyle_trick_modifiers`), the single home of a
+ *     modifier's ADD: listing it, creating a modifier, and editing one. A new
+ *     slug may not be a modifier, trick or alias slug, nor a word the notation
+ *     renderer reads first as something else. An ADD change saves only once
+ *     confirmed, after a confirm page lists every linked trick whose stored ADD
+ *     matches its computed ADD now and would not after; a trick's own ADD is
+ *     never rewritten. The rotational bonus is always saved equal to the ADD.
+ *     Each create and edit writes its save file first and appends one
+ *     `freestyle.modifier.created` or `freestyle.modifier.updated` audit row in
+ *     the same transaction as the row.
  *   - The notation authoring funnel: the backlog of Emerging Vocabulary rulings
  *     that still need a movement notation, authoring a notation draft for one
  *     with its provenance, and publishing an authored candidate as a new active
@@ -25,8 +35,7 @@
  * Does not own:
  *   - The public freestyle section pages (FreestyleService is public, read-only).
  *   - Freestyle ontology and doctrine (the content modules and doctrine docs).
- *   - The modifier registry itself (new modifier rows are not created here), and
- *     the separate media-source registry.
+ *   - The separate media-source registry.
  *
  * Text cleaning: every curator-typed text field on every write path (trick names,
  * prose, notations, alias texts and reasons, provenance notes, source labels and
@@ -44,7 +53,7 @@
  * cleared field meaning the unset zero, each
  * editorial prose field within a length cap, a non-empty base trick naming a
  * dictionary row, and no change to the ADD of a modifier row, whose own ADD
- * changes only through the operator reference and a reviewed migration) plus two
+ * changes only in the modifier editor) plus two
  * structural doctrine checks. The core-primitive column is not editable here: the
  * loaders write it and nothing reads it. When the ADD is numeric and the execution notation
  * carries scoring brackets, the scoring-bracket count must equal the ADD; rows
@@ -170,6 +179,7 @@ import {
   type SaveItemBody,
 } from '../adapters/curatedAuthoringAdapter';
 import { writeAll, writeFileThenCommit } from './curatedSaveFlow';
+import { isFixedNotationWord } from './notationRendering';
 import { isSeededTestPersonaMemberId } from '../lib/personaGuards';
 import {
   cleanUserText,
@@ -2124,11 +2134,10 @@ export const freestyleCurationService = {
     if (adds !== null && adds !== 'modifier' && !/^\d+$/.test(adds)) {
       fieldErrors.adds = 'ADD must be empty, a whole number, or "modifier".';
     } else if (current.category === 'modifier' && adds !== (current.adds ?? null)) {
-      // A modifier's own ADD is operator doctrine: the operator reference is its
-      // single authority and a reviewed migration its only write path, so an edit
-      // here would put the dictionary row out of step with the reference.
+      // A modifier's own ADD lives in the modifier registry and changes in the
+      // modifier editor, so an edit here would put this row out of step with it.
       fieldErrors.adds =
-        "A modifier's own ADD is not changed here. It changes only through the operator reference and a reviewed database migration.";
+        "A modifier's own ADD is not changed here. It changes in the modifier editor.";
     }
 
     const categoryRaw = (input.category ?? '').trim();
@@ -2871,7 +2880,368 @@ export const freestyleCurationService = {
       throw err;
     }
   },
+
+  // The modifier registry: every modifier with its ADD and type, and the form
+  // that creates one. A failed create re-renders with the submitted values.
+  getModifierRegistryPage(
+    opts: { submitted?: FreestyleModifierInput; error?: string } = {},
+  ): PageViewModel<FreestyleModifierRegistryContent> {
+    const rows = (freestyleTrickModifiers.listAll.all() as ModifierDbRow[]).map((r) => ({
+      slug:      r.slug,
+      name:      r.modifier_name,
+      addBonus:  r.add_bonus,
+      typeLabel: r.modifier_type,
+      editHref:  `/admin/freestyle/modifiers/${r.slug}/edit`,
+    }));
+    const submitted = opts.submitted ?? {};
+    return {
+      seo:  { title: 'Freestyle Modifiers' },
+      page: {
+        sectionKey: 'admin', pageKey: 'admin_freestyle_modifiers', title: 'Freestyle Modifiers',
+        instructions: {
+          what: 'Lists every freestyle modifier with its ADD, and creates a new one.',
+          why: 'A modifier\'s ADD is scored on every trick that links it, so the registry is where it is kept and changed.',
+          how: 'Fill in the new modifier and save, or open one below to edit it.',
+          headsUp: [
+            'A modifier\'s slug is permanent once it is created.',
+            'A new modifier\'s ADD is live on every public page as soon as a trick links it.',
+            'Creating or editing a modifier is recorded in the audit log.',
+          ],
+        },
+      },
+      content: {
+        rows,
+        hasRows: rows.length > 0,
+        typeOptions: modifierTypeOptions(submitted.modifierType),
+        submitted,
+        error: opts.error,
+      },
+    };
+  },
+
+  // The edit form for one modifier. Throws NotFoundError for an unknown slug.
+  getModifierEditPage(
+    slug: string,
+    opts: { submitted?: FreestyleModifierInput; error?: string } = {},
+  ): PageViewModel<FreestyleModifierEditContent> {
+    const row = freestyleTrickModifiers.getBySlug.get(slug) as ModifierDbRow | undefined;
+    if (!row) throw new NotFoundError(`No freestyle modifier "${slug}"`);
+    const submitted: FreestyleModifierInput = opts.submitted ?? {
+      modifierName: row.modifier_name,
+      addBonus:     String(row.add_bonus),
+      modifierType: row.modifier_type,
+      notes:        row.notes ?? '',
+    };
+    return {
+      seo:  { title: `Edit Modifier ${row.modifier_name}` },
+      page: {
+        sectionKey: 'admin', pageKey: 'admin_freestyle_modifier_edit', title: `Edit Modifier ${row.modifier_name}`,
+        instructions: {
+          what: 'Edits one freestyle modifier: its name, ADD, type and notes.',
+          why: 'So the modifier vocabulary is kept in the running application.',
+          how: 'Change the fields and save. An ADD change asks you to confirm it first.',
+          headsUp: [
+            'An ADD change is live at once on every trick that links this modifier.',
+            'This never changes a trick\'s own stored ADD; correct any trick the confirm page lists in the trick editor.',
+          ],
+        },
+      },
+      content: {
+        slug:        row.slug,
+        formAction:  `/admin/freestyle/modifiers/${row.slug}/edit`,
+        cancelHref:  '/admin/freestyle/modifiers',
+        submitted,
+        typeOptions: modifierTypeOptions(submitted.modifierType),
+        error:       opts.error,
+      },
+    };
+  },
+
+  // Create one modifier. The slug is permanent and must not collide with any
+  // modifier, trick or alias slug, nor be a word the notation renderer reads as
+  // something else. The registry row, its save file and its audit entry land
+  // together behind the persona guard.
+  createModifier(input: FreestyleModifierInput, actorMemberId: string): void {
+    assertActorMayCurateFreestyle(actorMemberId);
+    const slug = (input.slug ?? '').trim();
+    if (!slug) throw new ValidationError('Modifier slug is required.');
+    if (!MODIFIER_SLUG_PATTERN.test(slug)) {
+      throw new ValidationError('Modifier slug may use only lowercase letters, digits and underscores, and must begin with a letter.');
+    }
+    if (freestyleTrickModifiers.getBySlug.get(slug)) {
+      throw new ValidationError(`A modifier "${slug}" already exists.`);
+    }
+    if (freestyleTricks.getBySlug.get(slug) || freestyleTrickAliases.getByAliasSlug.get(slug)) {
+      throw new ValidationError(`"${slug}" is already a trick or alias slug, so it cannot also be a modifier.`);
+    }
+    if (isFixedNotationWord(slug)) {
+      throw new ValidationError(`"${slug}" is a word notation already reads as something else, so notation would never show it as this modifier.`);
+    }
+    const fields = validateModifierFields(input);
+    try {
+      writeFileThenCommit(
+        () => getCuratedAuthoringAdapter().saveItem('modifiers', slug, modifierSaveBody(slug, fields)),
+        () => transaction(() => {
+          freestyleTrickModifiers.insert.run(
+            slug, fields.name, fields.addBonus, fields.addBonus, fields.type, fields.notes, new Date().toISOString(),
+          );
+          appendAuditEntry({
+            actionType:    'freestyle.modifier.created',
+            actorType:     'admin',
+            actorMemberId,
+            entityType:    'freestyle_modifier',
+            entityId:      slug,
+            metadata:      { slug, addBonus: fields.addBonus, modifierType: fields.type },
+          });
+        }),
+      );
+    } catch (err) {
+      if (isDuplicateKeyError(err)) throw new ValidationError(`A modifier "${slug}" already exists.`);
+      throw err;
+    }
+  },
+
+  // Edit one modifier. A change to its ADD is not saved until it comes back
+  // confirmed: the first submit returns the confirm page, listing every linked
+  // trick whose stored ADD matches its computed ADD now and would not after. A
+  // trick's own ADD is never rewritten here. Throws NotFoundError for an unknown
+  // slug and ValidationError on bad input.
+  updateModifier(
+    slug: string,
+    input: FreestyleModifierInput,
+    actorMemberId: string,
+    opts: { confirmed: boolean },
+  ): UpdateModifierResult {
+    const current = freestyleTrickModifiers.getBySlug.get(slug) as ModifierDbRow | undefined;
+    if (!current) throw new NotFoundError(`No freestyle modifier "${slug}"`);
+    const fields = validateModifierFields(input);
+
+    const changed: string[] = [];
+    if (fields.name !== current.modifier_name) changed.push('modifier_name');
+    if (fields.addBonus !== current.add_bonus) changed.push('add_bonus');
+    if (fields.type !== current.modifier_type) changed.push('modifier_type');
+    if (fields.notes !== (current.notes ?? null)) changed.push('notes');
+    if (changed.length === 0) return { status: 'unchanged' };
+
+    const addChanged = changed.includes('add_bonus');
+    // The confirm page writes nothing, so the persona guard sits on the save.
+    if (addChanged && !opts.confirmed) {
+      return { status: 'confirm', page: modifierConfirmPage(current, fields, input) };
+    }
+
+    assertActorMayCurateFreestyle(actorMemberId);
+    writeFileThenCommit(
+      () => getCuratedAuthoringAdapter().saveItem('modifiers', slug, modifierSaveBody(slug, fields)),
+      () => transaction(() => {
+        freestyleTrickModifiers.update.run(fields.name, fields.addBonus, fields.addBonus, fields.type, fields.notes, slug);
+        appendAuditEntry({
+          actionType:    'freestyle.modifier.updated',
+          actorType:     'admin',
+          actorMemberId,
+          entityType:    'freestyle_modifier',
+          entityId:      slug,
+          metadata:      addChanged
+            ? { slug, changedFields: changed, addBefore: current.add_bonus, addAfter: fields.addBonus }
+            : { slug, changedFields: changed },
+        });
+      }),
+    );
+    return { status: 'saved' };
+  },
 };
+
+// ── Modifier registry ─────────────────────────────────────────────────────
+
+export interface FreestyleModifierInput {
+  slug?:         string;
+  modifierName?: string;
+  addBonus?:     string;
+  modifierType?: string;
+  notes?:        string;
+}
+
+// The types the registry carries; the schema's comment names the same three.
+export const MODIFIER_TYPES = ['body', 'set', 'rotational-qualifier'] as const;
+const MODIFIER_SLUG_PATTERN = /^[a-z][a-z0-9_]*$/;
+const MODIFIER_NAME_MAX = 80;
+const MODIFIER_NOTES_MAX = 2000;
+// No modifier adds more than a handful; a larger number is a typing slip.
+const MODIFIER_ADD_MAX = 9;
+
+interface ModifierDbRow {
+  slug: string;
+  modifier_name: string;
+  add_bonus: number;
+  add_bonus_rotational: number;
+  modifier_type: string;
+  notes: string | null;
+}
+
+interface ModifierFields {
+  name: string;
+  addBonus: number;
+  type: string;
+  notes: string | null;
+}
+
+export interface FreestyleModifierRegistryRow {
+  slug: string;
+  name: string;
+  addBonus: number;
+  typeLabel: string;
+  editHref: string;
+}
+
+export interface FreestyleModifierRegistryContent {
+  rows: FreestyleModifierRegistryRow[];
+  hasRows: boolean;
+  typeOptions: FilterOption[];
+  submitted: FreestyleModifierInput;
+  error?: string;
+}
+
+export interface FreestyleModifierEditContent {
+  slug: string;
+  formAction: string;
+  cancelHref: string;
+  submitted: FreestyleModifierInput;
+  typeOptions: FilterOption[];
+  error?: string;
+}
+
+export interface FreestyleModifierAffectedTrick {
+  name: string;
+  editHref: string;
+  storedAdd: string;
+  computedAfter: number;
+}
+
+export interface FreestyleModifierConfirmContent {
+  slug: string;
+  name: string;
+  addBefore: number;
+  addAfter: number;
+  affected: FreestyleModifierAffectedTrick[];
+  hasAffected: boolean;
+  formAction: string;
+  cancelHref: string;
+  // The submitted form, carried through the confirm page unchanged.
+  submitted: FreestyleModifierInput;
+}
+
+export type UpdateModifierResult =
+  | { status: 'saved' }
+  | { status: 'unchanged' }
+  | { status: 'confirm'; page: PageViewModel<FreestyleModifierConfirmContent> };
+
+function modifierTypeOptions(selected: string | undefined): FilterOption[] {
+  return MODIFIER_TYPES.map((t) => ({ value: t, label: t, selected: selected === t }));
+}
+
+function validateModifierFields(input: FreestyleModifierInput): ModifierFields {
+  const name = cleanUserText(input.modifierName ?? '', 'single_line', 'modifierName');
+  if (!name) throw new ValidationError('Modifier name is required.');
+  if (name.length > MODIFIER_NAME_MAX) {
+    throw new ValidationError(`Modifier name must be ${MODIFIER_NAME_MAX} characters or fewer.`);
+  }
+  const addRaw = (input.addBonus ?? '').trim();
+  if (!/^\d+$/.test(addRaw) || Number(addRaw) > MODIFIER_ADD_MAX) {
+    throw new ValidationError(`ADD must be a whole number from 0 to ${MODIFIER_ADD_MAX}.`);
+  }
+  const type = (input.modifierType ?? '').trim();
+  if (!(MODIFIER_TYPES as readonly string[]).includes(type)) {
+    throw new ValidationError('Choose a modifier type from the list.');
+  }
+  const notes = cleanUserText(input.notes ?? '', 'multi_line', 'notes');
+  if (notes.length > MODIFIER_NOTES_MAX) {
+    throw new ValidationError(`Notes must be ${MODIFIER_NOTES_MAX} characters or fewer.`);
+  }
+  return { name, addBonus: Number(addRaw), type, notes: nullIfEmpty(notes) };
+}
+
+function modifierSaveBody(slug: string, fields: ModifierFields): Record<string, string | number | null> {
+  return {
+    slug,
+    modifier_name: fields.name,
+    add_bonus: fields.addBonus,
+    add_bonus_rotational: fields.addBonus,
+    modifier_type: fields.type,
+    notes: fields.notes,
+  };
+}
+
+// Computed ADD is the base trick's ADD plus each linked modifier's bonus, the
+// derivation the public trick page uses. A trick is listed when that matches its
+// stored ADD now and would not with the new bonus.
+function modifierConfirmPage(
+  current: ModifierDbRow,
+  fields: ModifierFields,
+  input: FreestyleModifierInput,
+): PageViewModel<FreestyleModifierConfirmContent> {
+  const bonus = new Map(
+    (freestyleTrickModifiers.listAll.all() as ModifierDbRow[]).map((m) => [m.slug, m.add_bonus]),
+  );
+  const rows = freestyleTrickModifiers.listLinkedTrickModifiers.all(current.slug) as {
+    trick_slug: string; canonical_name: string; adds: string | null; base_adds: string | null; modifier_slug: string;
+  }[];
+  const byTrick = new Map<string, typeof rows>();
+  for (const r of rows) byTrick.set(r.trick_slug, [...(byTrick.get(r.trick_slug) ?? []), r]);
+
+  const affected: FreestyleModifierAffectedTrick[] = [];
+  for (const [trickSlug, links] of byTrick) {
+    const first = links[0]!;
+    if (!first.adds || !/^\d+$/.test(first.adds) || !first.base_adds || !/^\d+$/.test(first.base_adds)) continue;
+    const sum = (bonusOf: (m: string) => number | undefined): number | null => {
+      let total = Number(first.base_adds);
+      for (const l of links) {
+        const b = bonusOf(l.modifier_slug);
+        if (b === undefined) return null;
+        total += b;
+      }
+      return total;
+    };
+    const now = sum((m) => bonus.get(m));
+    const after = sum((m) => (m === current.slug ? fields.addBonus : bonus.get(m)));
+    if (now === null || after === null) continue;
+    if (now === Number(first.adds) && after !== Number(first.adds)) {
+      affected.push({
+        name: first.canonical_name,
+        editHref: `/admin/freestyle/tricks/${trickSlug}/edit`,
+        storedAdd: first.adds,
+        computedAfter: after,
+      });
+    }
+  }
+
+  return {
+    seo:  { title: `Confirm ADD Change for ${current.modifier_name}` },
+    page: {
+      sectionKey: 'admin', pageKey: 'admin_freestyle_modifier_add_confirm',
+      title: `Confirm ADD Change for ${current.modifier_name}`,
+      instructions: {
+        what: 'The confirm step before a modifier\'s ADD changes.',
+        why: 'The new ADD is scored at once on every trick that links this modifier.',
+        how: 'Check the tricks listed below, then save the change or cancel it.',
+      },
+    },
+    content: {
+      slug:      current.slug,
+      name:      current.modifier_name,
+      addBefore: current.add_bonus,
+      addAfter:  fields.addBonus,
+      affected,
+      hasAffected: affected.length > 0,
+      formAction: `/admin/freestyle/modifiers/${current.slug}/edit`,
+      cancelHref: `/admin/freestyle/modifiers/${current.slug}/edit`,
+      submitted: {
+        modifierName: input.modifierName ?? '',
+        addBonus:     input.addBonus ?? '',
+        modifierType: input.modifierType ?? '',
+        notes:        input.notes ?? '',
+      },
+    },
+  };
+}
 
 function emptyToNull(value: string | undefined): string | null {
   const trimmed = (value ?? '').trim();

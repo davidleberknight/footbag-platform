@@ -3291,6 +3291,33 @@ export const freestyleTrickModifiers = {
     WHERE slug = ?
   `); },
 
+  // The modifier editor's writes. The registry is a reference catalogue that
+  // carries its load time rather than the per-row audit stamps.
+  get insert() { return db.prepare(`
+    INSERT INTO freestyle_trick_modifiers
+      (slug, modifier_name, add_bonus, add_bonus_rotational, modifier_type, notes, loaded_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `); },
+
+  get update() { return db.prepare(`
+    UPDATE freestyle_trick_modifiers
+    SET modifier_name = ?, add_bonus = ?, add_bonus_rotational = ?, modifier_type = ?, notes = ?
+    WHERE slug = ?
+  `); },
+
+  // Every trick linked to one modifier, with its stored ADD, its base trick's ADD
+  // and each modifier it links, one row per (trick, linked modifier) pair. The
+  // modifier editor recomputes each trick's ADD from these before an ADD change.
+  get listLinkedTrickModifiers() { return db.prepare(`
+    SELECT t.slug AS trick_slug, t.canonical_name AS canonical_name, t.adds AS adds,
+           b.adds AS base_adds, l2.modifier_slug AS modifier_slug
+    FROM freestyle_tricks t
+    LEFT JOIN freestyle_tricks b ON b.slug = t.base_trick
+    INNER JOIN freestyle_trick_modifier_links l2 ON l2.trick_slug = t.slug
+    WHERE t.slug IN (SELECT trick_slug FROM freestyle_trick_modifier_links WHERE modifier_slug = ?)
+    ORDER BY t.slug, l2.apply_order, l2.modifier_slug
+  `); },
+
   // Modifier-grouped view of the trick dictionary. One row per
   // (modifier, trick) pair, ordered for service-side grouping. Excludes
   // pending tricks, modifier-category tricks (they're not display-tier),

@@ -73,6 +73,7 @@ export const REACH_ROWS = {
   broadcastId: 'emailarchive-rs',
   reconciliationRunId: 'jobrun_rs_reconcile',
   backlogCandidateId: 'ev-rs-backlog',
+  modifierSlug: 'rs_modifier',
 } as const;
 
 /**
@@ -155,6 +156,7 @@ export const REACH: readonly Reach[] = [
   { template: 'admin/club-leadership/demote-confirm', viewer: 'admin', url: `/admin/clubs/${R.leaderClubId}/leadership`, why: 'answers the demote form', submit: { action: `/admin/clubs/${R.leaderClubId}/leadership/demote`, fields: { reason: 'Rendered style check demote preview.' } } },
   { template: 'admin/historical-records/confirm', viewer: 'admin', url: '/admin/historical-records?q=Rendered%20Style%20Player%20A', why: 'answers the mark-deceased form', submit: { action: `/admin/historical-records/${R.playerAId}/deceased` } },
   { template: 'admin/event-results/confirm', viewer: 'admin', url: `/admin/events/${R.eventId}/results/entries/${R.resultEntryId}`, why: 'answers the result correction form', submit: { action: `/admin/events/${R.eventId}/results/entries/${R.resultEntryId}`, fields: { placement: '2', reason: 'Rendered style check correction preview.' } } },
+  { template: 'admin/freestyle-modifier-add-confirm', viewer: 'admin', url: `/admin/freestyle/modifiers/${R.modifierSlug}/edit`, why: 'answers an ADD change on the modifier form', submit: { action: `/admin/freestyle/modifiers/${R.modifierSlug}/edit`, fields: { modifierName: 'Rendered Style Modifier', addBonus: '2', modifierType: 'body', notes: '' } } },
   { template: 'admin/tags/confirm', viewer: 'admin', url: `/admin/tags?q=${R.retirableTag}`, why: 'answers the retire form', submit: { action: '/admin/tags/retire', fields: { reason: 'Rendered style check retire preview.' } } },
   { template: 'admin/work-queue/link-help-confirm', viewer: 'admin', url: '/admin/work-queue?category=membership', why: 'answers the link-help approve form', submit: { action: `/admin/work-queue/${R.linkHelpItemId}/link-help/approve`, fields: { target_legacy_member_id: R.linkHelpLegacyId } } },
   { template: 'admin/work-queue/dispute-revert-confirm', viewer: 'admin', url: '/admin/work-queue?category=membership', why: 'answers the dispute revert form', submit: { action: `/admin/work-queue/${R.disputeItemId}/link-help/dispute-revert`, fields: { target_legacy_member_id: R.disputedLegacyId, reason: 'Rendered style check revert preview.' } } },
