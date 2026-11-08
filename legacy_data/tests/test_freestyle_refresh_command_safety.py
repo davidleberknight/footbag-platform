@@ -278,9 +278,13 @@ class TestTheFreestyleDocsDescribeTheCurrentLifecycle:
             assert stale not in text, f"{doc} still claims: {stale}"
 
     @pytest.mark.parametrize("doc", ["freestyle/CLAUDE.md", "freestyle/README.md"])
-    def test_they_name_the_routine_refresh_and_what_a_reset_costs(self, doc):
+    def test_they_name_the_routine_refresh_and_what_a_reset_keeps(self, doc):
+        # A reader must learn that saved curator work lives in committed save
+        # files that a refresh and a reset both reapply, and must not be told it
+        # is lost, which would steer them away from the rebuild that restores it.
         text = (REPO_ROOT / doc).read_text(encoding="utf-8")
         assert "run_freestyle.sh" in text
         assert "routine refresh" in text
-        for loss in ("curator-created canonical tricks", "authored"):
-            assert loss in text, f"{doc} does not say a reset discards {loss}"
+        assert "curator_saves" in text, f"{doc} does not name the curator save files"
+        for stale in ("No committed file brings those back", "No committed file carries them"):
+            assert stale not in text, f"{doc} still claims: {stale}"

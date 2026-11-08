@@ -42,14 +42,14 @@ want.
 Everything built from `freestyle/inputs/` is reproducible. Delete it and a refresh
 puts it back exactly as the committed files describe it.
 
-Some of what these tables hold is not built from there at all. Curators author
-movement notations onto Emerging Vocabulary rulings, publish canonical tricks
-through the admin funnel, and resolve rulings against the tricks they create.
-Those rows, and the aliases, source links and modifier links attached to them,
-exist only in the database. No committed file carries them and nothing can restore
-them.
+Curators also edit these tables through the admin screens: trick fields, aliases,
+sources and links, modifiers, records, notation drafts, publications and ruling
+resolutions. On a developer machine before go-live each save is written to a file
+under `freestyle/inputs/curator_saves/`, and the last content loader applies those
+files over every other input, so a refresh or a rebuild reproduces them. Work held
+only in the database has no committed file to restore it.
 
-The routine refresh preserves all of it. Each trick-producing loader upserts what
+The routine refresh reconciles rather than rebuilds. Each trick-producing loader upserts what
 its own input carries; ownership is settled in a preflight pass before anything is
 written, and recorded per row, so no producer can delete another's rows and none
 can reach a curator's. Retirement runs last, over the complete map of what every
@@ -61,12 +61,10 @@ historical fact disagrees.
 
 Resetting the database is a different operation. `./run_dev.sh --reset`,
 `--from-csv`, `--soup-to-nuts` and `--all-data`, and `scripts/reset-local-db.sh`
-beneath them, delete the database file and rebuild it from committed inputs. That
-is right when you want a clean slate and wrong the rest of the time. It discards
-authored adjudication drafts, publication and resolution state, and
-curator-created canonical tricks, along with the aliases, source links and
-modifier links attached to them. Reach for a reset deliberately, never as a way to
-refresh.
+beneath them, delete the database file and rebuild it from committed inputs, the
+curator save files included, so saved curator work comes back; anything held only
+in the database is gone. That is right when you want a clean slate and wrong the
+rest of the time. Reach for a reset deliberately, never as a way to refresh.
 
 ## Loader catalog (execution order)
 
@@ -89,11 +87,12 @@ data is wholly derived from a committed file still replace their own rows.
 | 10 | `loaders/21b_apply_alias_overrides.py` | `inputs/base_dictionary/alias_overrides.csv` | `freestyle_trick_aliases` (class and display) | Enricher; fails closed on an override whose alias is absent |
 | 11 | `loaders/21c_retire_stale_tricks.py` | the complete desired ownership map | deletes stale committed `freestyle_tricks` rows | Runs last; removes only rows whose own producer stopped carrying them, never a curator's or an unclassified one, and fails closed on a surviving reference |
 | 12 | `loaders/28_load_ev_adjudications.py` | `inputs/observational/EV_FORMULA_IDENTITY_ROWS.csv` | `freestyle_ev_adjudications` | Inserts missing historical rulings, updates the ruling fields of one the app has never written to, and verifies the rest; never writes over app-authored work, and refuses rather than repairing a disagreement |
-| 13 | `scripts/parse_freestyle_notation.py --apply` | reads `freestyle_tricks` | updates `structural_parse_json`, `computed_adds`, `add_formula_status` | Derived from the notation it reads |
-| 14 | `loaders/26_load_symbolic_grammar.py` | `symbolic_grammar/*.csv` | the six `symbolic_*` tables | Replaces its own rows; wholly derived |
-| 15 | `loaders/22_qc_trick_dictionary.py` | reads the DB | QC report in `out/` | Read-only; **hard gate**, non-zero exit aborts the refresh |
-| 16 | `loaders/24_qc_freestyle_media_coverage.py` | reads the DB | coverage report | Read-only; advisory |
-| 17 | `loaders/25_qc_media_tag_invariant.py` | reads the DB | tag-invariant report | Read-only; **hard gate**, non-zero exit aborts the refresh |
+| 13 | `loaders/29_apply_curator_saves.py` | `inputs/curator_saves/**/*.json` | the rows each save names: tricks, rulings, sources, modifiers, aliases, source links, modifier links, records, consecutive records | Applied last over every base input, reporting each value it overrides; applies nothing when any file cannot be applied |
+| 14 | `scripts/parse_freestyle_notation.py --apply` | reads `freestyle_tricks` | updates `structural_parse_json`, `computed_adds`, `add_formula_status` | Derived from the notation it reads |
+| 15 | `loaders/26_load_symbolic_grammar.py` | `symbolic_grammar/*.csv` | the six `symbolic_*` tables | Replaces its own rows; wholly derived |
+| 16 | `loaders/22_qc_trick_dictionary.py` | reads the DB | QC report in `out/` | Read-only; **hard gate**, non-zero exit aborts the refresh |
+| 17 | `loaders/24_qc_freestyle_media_coverage.py` | reads the DB | coverage report | Read-only; advisory |
+| 18 | `loaders/25_qc_media_tag_invariant.py` | reads the DB | tag-invariant report | Read-only; **hard gate**, non-zero exit aborts the refresh |
 
 ## Artifacts: committed vs generated vs gitignored
 
