@@ -2761,6 +2761,36 @@ export const freestyleTricks = {
     WHERE slug = ?
   `); },
 
+  // Every other trick filed under this one as its family, published or not. The
+  // slug is passed twice: a family's anchor trick names itself, and that is not
+  // a dependency.
+  get listOtherFamilyMembers() { return db.prepare(`
+    SELECT slug, canonical_name
+    FROM freestyle_tricks
+    WHERE trick_family = ? AND slug <> ?
+    ORDER BY canonical_name COLLATE NOCASE, slug
+  `); },
+
+  // Every other active trick built on this one as its base. The slug is passed
+  // twice, because a trick may name itself as its own base.
+  get listOtherActiveOnBase() { return db.prepare(`
+    SELECT slug, canonical_name
+    FROM freestyle_tricks
+    WHERE base_trick = ? AND slug <> ? AND is_active = 1
+    ORDER BY canonical_name COLLATE NOCASE, slug
+  `); },
+
+  // How many live media items carry this hashtag, given in its stored '#'-prefixed
+  // form. An item an admin removed is excluded: no gallery shows it, so a curator
+  // sent to clear the tag could never reach it.
+  get countLiveMediaWithTag() { return db.prepare(`
+    SELECT COUNT(DISTINCT mi.id) AS n
+    FROM media_items mi
+    JOIN media_tags mt ON mt.media_id = mi.id
+    JOIN tags t ON t.id = mt.tag_id
+    WHERE t.tag_normalized = ? AND mi.moderation_status = 'active'
+  `); },
+
   // The category values actually present in the data. The admin edit form offers
   // these plus a "none" option; the scalar-edit validation accepts them (the set
   // is broad and has no CHECK, so it is read from the data, not hardcoded).
@@ -2870,6 +2900,14 @@ export const freestyleEvAdjudications = {
            published_trick_slug
     FROM freestyle_ev_adjudications
     WHERE normalized_name = ?
+  `); },
+
+  // How many unresolved rulings are linked to this trick. Disposition 'C' is the
+  // ledger's open state.
+  get countOpenByTrickSlug() { return db.prepare(`
+    SELECT COUNT(*) AS n
+    FROM freestyle_ev_adjudications
+    WHERE published_trick_slug = ? AND final_disposition = 'C'
   `); },
 
   // The notation-authoring backlog: rulings whose identity and difficulty are

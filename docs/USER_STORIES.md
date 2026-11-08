@@ -3305,6 +3305,8 @@ Success Criteria, Sources and modifier links:
 Success Criteria, Activation and publication:
 
 - Admin can set the active flag and the review status. A trick whose ADD is settled but whose structure is contested can be held (kept inactive or unpublished) rather than published, preserving the held-not-published publication rule for contested structures. Saving a held trick (inactive and pending) as active or with a settled review status publishes it: the Emerging Vocabulary ruling it answers resolves to it in the same transaction, with this editor's validation rather than the publication form's.
+- A save that makes a trick active is refused while an alias holds the trick's slug, and names the trick that alias belongs to.
+- A save that makes a trick inactive is refused while another record needs it active: its aliases and modifier links, media tagged with its hashtag, other tricks filed under it as their family, another active trick built on it as its base, or an open Emerging Vocabulary ruling linked to it. The refusal shows each kind, its count and a link to resolve it. Source links, audit history, resolved rulings, records history and saved gallery criteria never block.
 
 Success Criteria, Atomicity:
 

@@ -66,6 +66,15 @@
  * curator did not touch is never re-judged, which keeps a row whose stored name
  * predates the one-time normalization editable in its other fields.
  *
+ * Turning the active flag on is refused while an alias holds the trick's slug,
+ * because the one word would then name two tricks. Turning it off is refused while
+ * another record needs the trick active: its aliases and modifier links, live media
+ * carrying its hashtag, other tricks filed under it as their family, another active
+ * trick built on it as its base, or an open Emerging Vocabulary ruling linked to it.
+ * Source links, audit rows, resolved rulings, records history and saved gallery
+ * criteria stay valid after retirement and never block. Only a change of the flag
+ * is judged, and both refusals come before the save file is written.
+ *
  * Terminal-contact validation is deliberately absent rather than missing: the
  * corpus uses several notation registers whose terminal is legitimately neither
  * a stall nor a kick, and the terminal-contact vocabulary is itself an open
@@ -121,7 +130,8 @@
  * Persistence: reads and writes freestyle_tricks, freestyle_trick_aliases,
  * freestyle_trick_source_links, freestyle_trick_modifier_links,
  * freestyle_trick_sources, and freestyle_ev_adjudications; reads
- * freestyle_trick_modifiers. Appends freestyle.trick.updated,
+ * freestyle_trick_modifiers, and media_items, media_tags and tags to count a
+ * trick's live media. Appends freestyle.trick.updated,
  * freestyle.trick.published, freestyle.trick_alias.created/updated/deleted,
  * freestyle.trick_source_link.created/deleted,
  * freestyle.trick_modifier_link.created/deleted,
@@ -371,6 +381,14 @@ export interface FreestyleTrickEditFields {
   operationalNotationSource: string;
 }
 
+/** One kind of record that needs a trick to stay active, and where to resolve it. */
+export interface FreestyleBlockingReference {
+  label: string;
+  /** Where to resolve the whole kind, or null when each trick is linked instead. */
+  resolveHref: string | null;
+  tricks: { name: string; editHref: string }[];
+}
+
 export interface FreestyleTrickEditContent {
   slug: string;
   fields: FreestyleTrickEditFields;
@@ -390,6 +408,9 @@ export interface FreestyleTrickEditContent {
   fieldErrors: Record<string, string>;
   errorList: string[];
   hasErrors: boolean;
+  deactivationRefusal: string;
+  blockingReferences: FreestyleBlockingReference[];
+  hasBlockingReferences: boolean;
   addAliasHref: string;
   aliasTypeOptions: FilterOption[];
   /** Sources a new alias may cite, headed by the no-source curator assertion. */
@@ -1126,6 +1147,51 @@ function saveRulingResolution(slug: string, candidateId: string): () => CuratedS
     matched_existing_object: slug,
     published_trick_slug: slug,
   });
+}
+
+const DEACTIVATION_REFUSED = 'This trick cannot be made inactive while these depend on it:';
+
+function counted(n: number, one: string, many: string): string {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
+// What needs this trick to stay active, one entry per kind that has any. Source
+// links, audit rows, resolved rulings, records history and saved gallery criteria
+// are absent on purpose: they stay valid after a trick is retired.
+function blockingReferences(slug: string): FreestyleBlockingReference[] {
+  type TrickRef = { slug: string; canonical_name: string };
+  const toLinks = (rows: TrickRef[]) => rows.map((r) => ({
+    name: r.canonical_name,
+    editHref: `/admin/freestyle/tricks/${r.slug}/edit`,
+  }));
+
+  const aliases = freestyleTrickAliases.listForCuration.all(slug).length;
+  const modifierLinks = freestyleTrickModifiers.listLinksByTrickSlug.all(slug).length;
+  const media = (freestyleTricks.countLiveMediaWithTag.get(`#${slug}`) as { n: number }).n;
+  const family = freestyleTricks.listOtherFamilyMembers.all(slug, slug) as TrickRef[];
+  const built = freestyleTricks.listOtherActiveOnBase.all(slug, slug) as TrickRef[];
+  const rulings = (freestyleEvAdjudications.countOpenByTrickSlug.get(slug) as { n: number }).n;
+
+  const references: FreestyleBlockingReference[] = [];
+  if (aliases > 0) {
+    references.push({ label: counted(aliases, 'alias', 'aliases'), resolveHref: '#trick-aliases', tricks: [] });
+  }
+  if (modifierLinks > 0) {
+    references.push({ label: counted(modifierLinks, 'modifier link', 'modifier links'), resolveHref: '#trick-modifier-links', tricks: [] });
+  }
+  if (media > 0) {
+    references.push({ label: `${counted(media, 'clip', 'clips')} tagged #${slug}`, resolveHref: `/media/browse?context=${slug}`, tricks: [] });
+  }
+  if (family.length > 0) {
+    references.push({ label: `${counted(family.length, 'trick', 'tricks')} in this family`, resolveHref: null, tricks: toLinks(family) });
+  }
+  if (built.length > 0) {
+    references.push({ label: `${counted(built.length, 'active trick', 'active tricks')} using this as base`, resolveHref: null, tricks: toLinks(built) });
+  }
+  if (rulings > 0) {
+    references.push({ label: counted(rulings, 'open Emerging Vocabulary ruling', 'open Emerging Vocabulary rulings'), resolveHref: '/admin/freestyle/emerging-vocabulary', tricks: [] });
+  }
+  return references;
 }
 
 function rulingForPublication(
@@ -2046,7 +2112,10 @@ export const freestyleCurationService = {
       .map((v) => ({ value: v, label: REVIEW_STATUS_LABELS[v], selected: v === reviewStatus }));
 
     const fieldErrors = opts.fieldErrors ?? {};
-    const errorList = Object.values(fieldErrors);
+    // The deactivation refusal carries links, so it renders as its own list rather
+    // than as one of the plain error lines.
+    const errorList = Object.values(fieldErrors).filter((message) => message !== DEACTIVATION_REFUSED);
+    const blocking = fieldErrors.isActive === DEACTIVATION_REFUSED ? blockingReferences(row.slug) : [];
 
     return {
       seo:  { title: 'Freestyle Content' },
@@ -2079,6 +2148,9 @@ export const freestyleCurationService = {
         fieldErrors,
         errorList,
         hasErrors:        errorList.length > 0,
+        deactivationRefusal: DEACTIVATION_REFUSED,
+        blockingReferences:  blocking,
+        hasBlockingReferences: blocking.length > 0,
         addAliasHref:     `/admin/freestyle/tricks/${row.slug}/aliases`,
         aliasTypeOptions,
         aliasSourceOptions,
@@ -2152,6 +2224,19 @@ export const freestyleCurationService = {
     }
 
     const isActive = input.isActive === true ? 1 : 0;
+
+    // Only a change of the flag is judged, so a row already in either state stays
+    // editable however many references it carries. Both refuse before the save
+    // file is written.
+    if (isActive === 1 && current.is_active === 0) {
+      const alias = freestyleTrickAliases.getByAliasSlug.get(slug) as FullAliasDbRow | undefined;
+      if (alias) {
+        const owner = freestyleTricks.getForCurationBySlug.get(alias.trick_slug) as CurationEditDbRow;
+        fieldErrors.isActive = `"${slug}" is an alias of "${owner.canonical_name}", so it cannot be made active.`;
+      }
+    } else if (isActive === 0 && current.is_active === 1 && blockingReferences(slug).length > 0) {
+      fieldErrors.isActive = DEACTIVATION_REFUSED;
+    }
 
     // Browse sort position. The column is NOT NULL and its unset state is zero
     // (the load order the retiring content pipeline stamped), so a cleared field

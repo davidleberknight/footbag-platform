@@ -16,6 +16,19 @@
     {{> outcome-notice text="Saved." tone='ok'}}
     {{/if}}
     {{> outcome-notice lines=content.errorList tone='no'}}
+    {{#if content.hasBlockingReferences}}
+    {{#> outcome-notice tone='no'}}
+      <p>{{content.deactivationRefusal}}</p>
+      <ul>
+        {{#each content.blockingReferences}}
+        <li>
+          {{#if this.resolveHref}}<a href="{{{this.resolveHref}}}">{{this.label}}</a>{{else}}{{this.label}}{{/if}}{{#if this.tricks.length}}:{{/if}}
+          {{#each this.tricks}}<a href="{{{this.editHref}}}">{{this.name}}</a>{{#unless @last}}, {{/unless}}{{/each}}
+        </li>
+        {{/each}}
+      </ul>
+    {{/outcome-notice}}
+    {{/if}}
 
     <form method="POST" action="/admin/freestyle/tricks/{{content.slug}}/edit" class="form-block">
       <fieldset class="form-fieldset">
@@ -96,7 +109,7 @@
       </div>
     </form>
 
-    <h2 class="section-heading">Aliases</h2>
+    <h2 class="section-heading" id="trick-aliases">Aliases</h2>
     {{#if content.hasAliasError}}
     {{> outcome-notice text=content.aliasError tone='no'}}
     {{/if}}
@@ -220,7 +233,7 @@
     </form>
     {{else}}<p>All registry sources are linked.</p>{{/if}}
 
-    <h2 class="section-heading">Modifier Links</h2>
+    <h2 class="section-heading" id="trick-modifier-links">Modifier Links</h2>
     {{#if content.hasModifierError}}
     {{> outcome-notice text=content.modifierError tone='no'}}
     {{/if}}
