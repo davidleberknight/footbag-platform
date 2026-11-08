@@ -279,12 +279,21 @@ class TestTheFreestyleDocsDescribeTheCurrentLifecycle:
 
     @pytest.mark.parametrize("doc", ["freestyle/CLAUDE.md", "freestyle/README.md"])
     def test_they_name_the_routine_refresh_and_what_a_reset_keeps(self, doc):
-        # A reader must learn that saved curator work lives in committed save
-        # files that a refresh and a reset both reapply, and must not be told it
-        # is lost, which would steer them away from the rebuild that restores it.
+        """A developer deciding whether a reset is safe reads these docs. They must
+        name the folder a rebuild replays curator saves from, so the developer knows
+        where saved work lives, and must not claim a reset discards curator-created
+        tricks or that no committed file restores them, which would steer the
+        developer away from the rebuild that reproduces them from that folder."""
+        sys.path.insert(0, str(REPO_ROOT / "scripts"))
+        from _freestyle_db_freshness import CURATOR_SAVES_DIR  # noqa: E402
+
         text = (REPO_ROOT / doc).read_text(encoding="utf-8")
         assert "run_freestyle.sh" in text
         assert "routine refresh" in text
-        assert "curator_saves" in text, f"{doc} does not name the curator save files"
+        named = CURATOR_SAVES_DIR.relative_to(REPO_ROOT / "freestyle").as_posix()
+        assert named in text, \
+            f"{doc} does not name {named}, the folder a rebuild replays curator saves from"
+        assert "curator-created canonical tricks" not in text, \
+            f"{doc} still claims a reset discards curator-created tricks"
         for stale in ("No committed file brings those back", "No committed file carries them"):
             assert stale not in text, f"{doc} still claims: {stale}"

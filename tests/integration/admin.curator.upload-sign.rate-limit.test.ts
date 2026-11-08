@@ -1,11 +1,10 @@
 /**
  * The per-actor throttle on the asynchronous curator video upload.
  *
- * Signing is the abusable operation on this path: it mints two time-bounded
+ * Signing is the throttled operation on this path: it mints two time-bounded
  * write grants against the media bucket plus the job row that goes with them,
- * before a single byte has been transferred. The threat model is a compromised
- * administrator, so the admin role does not bypass the bucket, and exhausting
- * it answers 429 with the interval to wait rather than issuing more grants.
+ * before a single byte has been transferred. The admin role never bypasses
+ * this throttle, and exhausting it answers 429 with the interval to wait rather than issuing more grants.
  * The route shares one bucket with every other curator write, and it spends
  * exactly one slot per request however many operations that request performs.
  */

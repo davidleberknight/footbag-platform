@@ -22,16 +22,19 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { hclBlocks, onProvider } from '../fixtures/hclBlocks';
 
 const PAGE_PATH = resolve(
   __dirname,
   '../../terraform/production/maintenance-page/maintenance.html',
 );
 const S3_TF = resolve(__dirname, '../../terraform/production/s3.tf');
+const STAGING_S3_TF = resolve(__dirname, '../../terraform/staging/s3.tf');
 const CLOUDFRONT_TF = resolve(__dirname, '../../terraform/production/cloudfront.tf');
 
 const page = readFileSync(PAGE_PATH, 'utf8');
 const s3Tf = readFileSync(S3_TF, 'utf8');
+const stagingS3Tf = readFileSync(STAGING_S3_TF, 'utf8');
 const cloudfrontTf = readFileSync(CLOUDFRONT_TF, 'utf8');
 
 describe('maintenance page: the artifact', () => {
@@ -83,7 +86,7 @@ describe('maintenance page: Terraform places the object', () => {
 
   it('places it at the key the error responses ask for, in the maintenance bucket', () => {
     const block = s3Tf.slice(s3Tf.indexOf('resource "aws_s3_object" "maintenance_page"'));
-    expect(block).toMatch(/bucket\s*=\s*aws_s3_bucket\.maintenance\.id/);
+    expect(block).toMatch(/bucket\s*=\s*aws_s3_bucket\.maintenance_page\.id/);
     expect(block).toMatch(/key\s*=\s*"maintenance\.html"/);
   });
 
@@ -95,6 +98,84 @@ describe('maintenance page: Terraform places the object', () => {
   it('serves it as HTML, since a wrong content type renders the markup as text', () => {
     const block = s3Tf.slice(s3Tf.indexOf('resource "aws_s3_object" "maintenance_page"'));
     expect(block).toMatch(/content_type\s*=\s*"text\/html; charset=utf-8"/);
+  });
+});
+
+describe('maintenance page: held outside the primary region', () => {
+  // The page stands in for an origin that has failed, and a regional outage is
+  // the failure it most has to survive. A bucket back in the primary region
+  // fails along with the origin, and CloudFront then has no page to serve.
+  const trees = [
+    { tree: 'production', source: s3Tf },
+    { tree: 'staging', source: stagingS3Tf },
+  ];
+
+  it.each(trees)('$tree: every maintenance S3 resource is on the us-west-2 provider', ({ source }) => {
+    const maintenance = hclBlocks(source, 'resource').filter(
+      (b) => b.type.startsWith('aws_s3_') && b.name.startsWith('maintenance'),
+    );
+    // Positive control: an empty list would pass the loop below by construction.
+    expect(maintenance.map((b) => b.type)).toContain('aws_s3_bucket');
+    for (const b of maintenance) {
+      expect(onProvider(b, 'aws.us_west_2'), `${b.type}.${b.name} is not in us-west-2`).toBe(true);
+    }
+  });
+
+  it('production: CloudFront reads the page from that us-west-2 bucket', () => {
+    const bucket = hclBlocks(s3Tf, 'resource').find(
+      (b) => b.type === 'aws_s3_bucket' && b.name.startsWith('maintenance')
+        && onProvider(b, 'aws.us_west_2'),
+    );
+    expect(bucket, 'no maintenance bucket in us-west-2').toBeDefined();
+    const origin = cloudfrontTf.match(
+      /origin\s*\{[^}]*origin_id\s*=\s*"s3-maintenance"[^}]*\}/,
+    );
+    expect(origin, 'no s3-maintenance origin').not.toBeNull();
+    expect(origin![0]).toContain(`aws_s3_bucket.${bucket!.name}.bucket_regional_domain_name`);
+    // Signed with the access control the bucket policy's grant is written for;
+    // another one is a 403 from the bucket at the moment the page is needed.
+    expect(origin![0]).toMatch(
+      /origin_access_control_id\s*=\s*aws_cloudfront_origin_access_control\.maintenance\[0\]\.id/,
+    );
+  });
+
+  it.each(trees)('$tree: the bucket keeps the private baseline every other bucket has', ({ source }) => {
+    // Served only through CloudFront, so nothing about it is public and nothing
+    // is readable over plaintext; the move to a new region must not shed either.
+    const resources = hclBlocks(source, 'resource');
+    const block = resources.find(
+      (b) => b.type === 'aws_s3_bucket_public_access_block' && b.name.startsWith('maintenance'),
+    );
+    expect(block, 'no public-access block').toBeDefined();
+    for (const flag of ['block_public_acls', 'block_public_policy', 'ignore_public_acls', 'restrict_public_buckets']) {
+      expect(block!.body, `${flag} is not true`).toMatch(new RegExp(`^\\s*${flag}\\s*=\\s*true\\s*$`, 'm'));
+    }
+    const policy = resources.find(
+      (b) => b.type === 'aws_s3_bucket_policy' && b.name.startsWith('maintenance'),
+    )!;
+    const docName = policy.body.match(/data\.aws_iam_policy_document\.([a-z_0-9]+)\.json/)![1];
+    const doc = hclBlocks(source, 'data').find((b) => b.name === docName)!;
+    const deny = doc.body.slice(doc.body.indexOf('DenyPlaintextAccess'));
+    expect(deny).toMatch(/^\s*effect\s*=\s*"Deny"/m);
+    expect(deny).toMatch(/variable\s*=\s*"aws:SecureTransport"\s*values\s*=\s*\["false"\]/);
+  });
+
+  it('production: the read grant names that same bucket, so the origin it reads is not a 403', () => {
+    const bucket = hclBlocks(s3Tf, 'resource').find(
+      (b) => b.type === 'aws_s3_bucket' && b.name.startsWith('maintenance'),
+    )!;
+    const policy = hclBlocks(s3Tf, 'resource').find(
+      (b) => b.type === 'aws_s3_bucket_policy' && b.name.startsWith('maintenance'),
+    )!;
+    const docName = policy.body.match(/data\.aws_iam_policy_document\.([a-z_0-9]+)\.json/)![1];
+    const doc = hclBlocks(s3Tf, 'data').find((b) => b.name === docName)!;
+    const grant = doc.body.slice(doc.body.indexOf('AllowCloudFrontServicePrincipalRead'));
+    expect(grant).toContain(`aws_s3_bucket.${bucket.name}.arn`);
+    // Read only, by CloudFront only: the page is fetched, never written, through
+    // this grant.
+    expect(grant).toMatch(/effect\s*=\s*"Allow"/);
+    expect(grant).toMatch(/actions\s*=\s*\["s3:GetObject"\]/);
+    expect(grant).toMatch(/identifiers\s*=\s*\["cloudfront\.amazonaws\.com"\]/);
   });
 });
 

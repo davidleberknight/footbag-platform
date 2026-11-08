@@ -162,7 +162,7 @@ export function createMediaJobService(): MediaJobService {
         throw new ValidationError('adminMemberId is required.');
       }
       // Same per-admin curator-write bucket as the synchronous curator
-      // writes; compromised-admin is the threat model, so no bypass.
+      // writes. The admin role never bypasses this throttle.
       const max = readIntConfig('curator_write_rate_limit_per_hour', 60);
       const rl = rateLimitHit(`curator-write:${input.adminMemberId}`, max, 60);
       if (!rl.allowed) {

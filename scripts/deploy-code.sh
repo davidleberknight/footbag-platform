@@ -490,8 +490,9 @@ require_images_for_hosts || exit 1
 # Capture layer DiffIDs (RootFS.Layers) for end-to-end integrity verification:
 # the remote-half inspects the loaded images and exits non-zero if either layer
 # list does not match. Defends against a corrupted docker save | ssh |
-# docker load pipe (network truncation, host docker daemon mid-deploy, or
-# workstation registry tampering between build and save). DiffIDs are sha256
+# docker load pipe (network truncation, or the host docker daemon restarting
+# mid-deploy). Image identity is verified by DiffID (sha256) between build and
+# save. DiffIDs are sha256
 # of the uncompressed layer tars and survive save/load regardless of daemon
 # version skew between workstation and host. .Id is fragile because each
 # daemon may re-serialize the image config JSON, producing a benign hash

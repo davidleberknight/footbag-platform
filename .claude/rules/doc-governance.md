@@ -71,6 +71,7 @@ In any doc or plan, describe the thing in plain words a reader understands on it
 
 - **No hard-coded credentials or passwords** in docs, plan files, or any checked-in text. When referencing a stub auth mechanism with hard-coded values, say "hard-coded credentials" without spelling them out. The literals live only in code or local config.
 - **No preview / demo / special login identifiers** (usernames, emails, literal login_email values) in checked-in docs, plans, or comments. Refer by role only ("the preview-user account"). Literals live in local operator notes or env vars.
+- **No security-risk write-ups in public text.** This repository is public, so its documents and code comments state each security control and its design reason and present the design as secure. They never describe what a stolen or compromised credential, host, container or key could do, an attack path, a residual risk or hole, detection as the defence against a named attack, or planned hardening. Those live in the "Threat model and residual risks" section of DEVOPS_GUIDE.md (private GitHub repo), and planned hardening in the private version 2 scope; a public passage may say only that security risks are assessed in the maintainers' private operations documentation.
 - **Code comment / in-code text rules** (no doc references inside code, no sprint/slice/phase labels or dates, deviations as `Current:`/`Target:`, test comments never reference any doc) live in `.claude/rules/comments.md`, scoped to `src/` / `tests/` / scripts.
 
 ## Style

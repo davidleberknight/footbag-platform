@@ -29,6 +29,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
 │  footbag.org  Static assets   → token cache key → Lightsail origin  │
 │  archive.*    Archive HTML    → 1yr TTL         → S3 archive bucket │
 │                               (CloudFront signed-cookie auth)       │
+│  Origin down or 5xx → maintenance page from S3 (us-west-2)          │
 └─────────────────────────────────────────────────────────────────────┘
                 Route 53 → CloudFront      origin requests (~5%)
                              ↓
@@ -59,9 +60,19 @@ Visual aids for understanding the system design. Six diagrams cover production i
 │ S3 primary buckets (us-east-1):                                     │
 │    footbag-production-db-snapshots   SQLite snapshots, 2d/30d/400d  │
 │    footbag-production-media          photo variants (thumb+display) │
-│ Cross-region DR (us-west-2):                                        │
-│    footbag-production-db-snapshots-dr WORM Object Lock (immutable)  │
+│ Second region (us-west-2):                                          │
+│    footbag-production-db-snapshots-dr Object Lock GOVERNANCE, 90d   │
 │    footbag-production-media-dr         replica (no lock, erasure)   │
+│    footbag-production-archive-dr       replica (no lock, erasure)   │
+│    footbag-production-maintenance-page CloudFront error page        │
+│    footbag-production-aws-health-usw2  Health rule (backup copy) →  │
+│    footbag-production-alarms-usw2      alarm email, us-east-1 down  │
+└─────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│ Audit and access logs (us-east-1):                                  │
+│    footbag-production-cloudtrail     AWS API record, 365d, no delete│
+│    footbag-production-platform-logs  CloudFront access logs, 90d    │
+│    footbag-production-archive-logs   archive access logs, 90d       │
 └─────────────────────────────────────────────────────────────────────┘
 
   AWS managed services (accessed via IAM role — no hardcoded secrets):
@@ -71,10 +82,12 @@ Visual aids for understanding the system design. Six diagrams cover production i
 │  AWS KMS         JWT signing (asymmetric) · ballot encryption       │
 │  Parameter Store Stripe API keys · webhook secrets (not JWT)        │
 │  CloudWatch      Logs · metrics · backup-age alarm (>15 min)        │
+│  CloudTrail      AWS API record · ten audit alarms                  │
+│  GuardDuty       Threat findings (S3 protection) → alarm email      │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-**Caption:** The main site is served by one CloudFront distribution with different cache behaviors per path: dynamic HTML and static assets both route to the Lightsail origin (static assets cache-busted by a content-hash version token in the query string); the legacy archive is served by a separate CloudFront distribution backed by its own S3 bucket and protected by signed cookies (DD §6.4). The Lightsail instance runs four Docker containers sharing a local SQLite database file. The worker and web containers both access `footbag.db` directly; the image container is isolated with no database access. Photos live in a dedicated S3 bucket and are never stored in SQLite. Runtime AWS service integrations use IAM roles with no hardcoded secrets. Host shell access uses hardened SSH: administrators to the shared `footbag` account with their own keys, dev-and-testers to their own named staging accounts.
+**Caption:** The main site is served by one CloudFront distribution with different cache behaviors per path: dynamic HTML and static assets both route to the Lightsail origin (static assets cache-busted by a content-hash version token in the query string); the legacy archive is served by a separate CloudFront distribution backed by its own S3 bucket and protected by signed cookies (DD §6.4). The Lightsail instance runs four Docker containers sharing a local SQLite database file. The worker and web containers both access `footbag.db` directly; the image container is isolated with no database access. Photos live in a dedicated S3 bucket and are never stored in SQLite. The maintenance page CloudFront serves when the origin fails lives in an S3 bucket in us-west-2, and a second AWS Health rule there emails the backup copy of Health events AWS delivers to that region, so both the fallback page and notice of an AWS-side problem keep working when us-east-1 is down; the platform itself runs only in us-east-1, with no standby in the second region. Runtime AWS service integrations use IAM roles with no hardcoded secrets. Host shell access uses hardened SSH: administrators to the shared `footbag` account with their own keys, dev-and-testers to their own named staging accounts.
 
 ---
 

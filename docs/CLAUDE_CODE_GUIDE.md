@@ -139,7 +139,7 @@ A Stop hook (`guard-question-quality.sh`) blocks low-quality questions to the hu
 
 **Where the whole setup lives.** The guard scripts are in `.claude/hooks/` and are wired with their matchers in the `hooks` block of `.claude/settings.json` (all hooks matching a call run in parallel, and the most restrictive decision wins); the always-on permission floor is the `permissions` block of the same file; the read-only auto-approver is `.claude/hooks/allow-readonly-bash.sh`; and the guard hooks have fixtures in `scripts/ci/test_hooks.sh`. Read those files to see the entire enforcement surface — this document explains the design, not every line.
 
-Read-only is not the same as safe: an allowed read of a secret file plus an allowed network fetch is an exfiltration chain. That is why secret-bearing paths are denied to Bash outright (`guard-secret-reads.sh`), since the Read-tool deny rules do not bind shell commands, and why WebFetch is domain-scoped rather than open.
+Secret-bearing paths are denied to Bash outright (`guard-secret-reads.sh`), since the Read-tool deny rules do not bind shell commands, and WebFetch is domain-scoped rather than open, so a read of a secret can never be paired with an outbound fetch.
 
 **Fail mode is chosen per hook:** security gates fail closed and deny on doubt. Each security guard that runs before a tool call is wired with `onFailure: "block"` (in `settings.json` and in the auditor agent's own hook list), so a guard that cannot start, times out, or exits with an unexpected code blocks the call rather than letting it through to the normal permission flow; the harness self-check fails on a guard missing it. This needs Claude Code 2.1.295 or later. The read-only auto-approver only ever grants: it emits allow for a command it can prove read-only and otherwise stays silent so the normal prompt decides. How it earns that proof:
 
@@ -235,7 +235,7 @@ The third premise in practice: the workflow for editing the harness itself. Its 
 
 In short: Plan Mode and literal before/after approval for any non-trivial change; a permission rule before a hook wherever one can express the guard; a fixture test for every hook; skills with a precise trigger, a stop condition and no `allowed-tools`; and a periodic `/doctor prompt-audit`. The rule has the detail.
 
-**Why this rigor:** a committed `.claude/` directory that any contributor, or a compromised dependency, could alter is a real attack surface. A malicious `.claude/settings.json` can reach code execution and credential exfiltration before a trust prompt appears. Treating the configuration as reviewed, tested production code is the mitigation, and keeping platform-specific settings in each developer's own uncommitted `~/.claude/settings.json` keeps `.claude/` behaving identically for everyone.
+**Why this rigor:** the committed `.claude/` directory is treated as reviewed, tested production code, and platform-specific settings stay in each developer's own uncommitted `~/.claude/settings.json`, so `.claude/` behaves identically for everyone.
 
 **Official grounding:** Anthropic's guidance to version-control and review Claude Code configuration. The fixture-test requirement for hooks goes further.
 

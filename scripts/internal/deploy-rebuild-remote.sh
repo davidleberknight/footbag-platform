@@ -157,8 +157,7 @@ require_env() {
 # The committed file docker/env/<FOOTBAG_ENV>.env is the source of truth: keys
 # it lists are set, keys it omits are cleared (so production's omitted video
 # knobs fall back to the canonical encoder defaults). Only an allowlist of keys
-# is honored and every value is checked, so a tampered config file cannot inject
-# a secret or a malformed line into the runtime env. Because this runs on every
+# is honored and every value is checked. Because this runs on every
 # deploy rather than only when a line is absent, a hand edit on the host does
 # not survive.
 # All input reads are file-redirected (never fd 0), preserving the stdin /
@@ -392,8 +391,9 @@ fi
 # Verify the docker-loaded images match what the workstation built. The
 # preceding `docker save | ssh | docker load` step is the only path images
 # enter the host; a layer mismatch means corruption in the pipe (network
-# truncation, host docker daemon mid-deploy, or workstation registry tampering
-# between build and save). Fail before promoting the release. Compare
+# truncation, or the host docker daemon restarting mid-deploy). Image identity
+# is verified by DiffID (sha256) between build and save. Fail before promoting
+# the release. Compare
 # RootFS.Layers (DiffIDs = sha256 of uncompressed layer tars) rather than .Id;
 # DiffIDs survive save/load regardless of daemon version skew, while .Id is a
 # hash of the image config JSON that each daemon may re-serialize differently.
@@ -522,9 +522,8 @@ if [[ "$FOOTBAG_ENV_VAL" != "production" ]]; then
   mv "$env_tmp" "$ENV_PATH"
   chmod 600 "$ENV_PATH"
   chown root:root "$ENV_PATH"
-  # The stub adapter's built-in signing secret is committed source, so a host
-  # that kept it would accept a webhook forged by anyone holding a checkout of
-  # the repository. Give each host its own value instead. The whsec_stub_
+  # Each host gets its own generated stub webhook signing secret; the constant
+  # in the repository is for development and test only. The whsec_stub_
   # prefix keeps env.ts's production rejection working as a backstop if the
   # value is ever mis-pasted into STRIPE_WEBHOOK_SECRET. Never overwritten: a
   # regenerated secret would silently reject deliveries already configured.
@@ -885,10 +884,9 @@ host_values_sync_params "$ENV_PATH" "$FOOTBAG_ENV_VAL" "$AWS_PROFILE_VAL" "$AWS_
 # ride tfvars + apply + deploy with no host edit, and what makes a dark
 # production behave exactly like staging (stub adapters, simulated-email card,
 # fake checkout, no real-world side effect). env.ts refuses a flag/adapter
-# mismatch at boot as the fail-fast backstop. A dark payment side also gets a
-# host-unique stub webhook signing secret (as staging does): the stub
-# adapter's committed fallback secret would accept a webhook forged by anyone
-# holding a checkout of the repository.
+# mismatch at boot as the fail-fast backstop. A dark payment side also gets its
+# own generated stub webhook signing secret, as staging does; the constant in
+# the repository is for development and test only.
 if [[ "$FOOTBAG_ENV_VAL" == "production" ]]; then
   SES_ADAPTER_DERIVED='stub'
   [[ "$EMAIL_SEND_ARMED_VAL" == "armed" ]] && SES_ADAPTER_DERIVED='live'
@@ -1244,10 +1242,9 @@ for _runtime_dir in "$(dirname "$DB_PATH")" "${FOOTBAG_MEDIA_DIR:-/srv/footbag/m
   fi
 done
 
-# The AWS credential files stay owned by root and become readable by a dedicated
-# group the containers join, rather than being handed to the service account
-# outright: a compromised container could otherwise rewrite the credentials it
-# authenticates with. Without this the containers cannot read them, and the SDK
+# The credential files stay root-owned and readable only by a dedicated group
+# the containers join; the containers run unprivileged and do not own them.
+# Without this the containers cannot read them, and the SDK
 # quietly falls back to instance metadata and runs as the platform's own
 # instance role, which is a different identity with different permissions and
 # fails much later and less clearly than a missing file would.

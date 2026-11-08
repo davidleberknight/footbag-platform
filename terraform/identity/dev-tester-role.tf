@@ -208,12 +208,10 @@ locals {
     # The calls left here carry no resource of their own. An environment cannot
     # be expressed in a Lightsail, CloudFront, ACM or SES ARN, but that does not
     # justify a wildcard on the whole service: a service whose ARNs cannot carry
-    # an environment can still be scoped by ACTION. A whole-service wildcard on
-    # those four would let this role clone the production host, rewrite the edge
-    # function on every live request, send mail as the domain to the
-    # membership, and delete the certificate serving it. The statements below
-    # enumerate what the staging tree declares and what the scripts call, and
-    # grant nothing on ACM or budgets at all.
+    # an environment can still be scoped by ACTION, so none of those four gets
+    # a whole-service wildcard. The statements below enumerate what the staging
+    # tree declares and what the scripts call, and grant nothing on ACM or
+    # budgets at all.
     #
     # Budgets the staging tree genuinely does not declare. ACM it does, at
     # terraform/staging/archive.tf. What makes leaving it out right anyway is
@@ -221,8 +219,8 @@ locals {
     # sits behind: enable_archive_custom_domain, whose own description says it
     # "stays off in staging, which has neither a domain nor a zone". The
     # certificate is therefore declared and will never be created here, so an
-    # ACM grant could only ever reach the production certificate, which is the
-    # one the paragraph above names as something a wildcard could delete.
+    # ACM grant could only ever reach the production certificate, and none is
+    # granted.
     # The same reasoning keeps route53:ChangeResourceRecordSets out while the
     # zone's reads are granted below: one zone serves the estate, and a write
     # over it is a write over production's DNS.
@@ -265,13 +263,8 @@ locals {
     }
 
     # Metric publication, separated from the calls above so it can carry the one
-    # condition that scopes it. Without it this was PutMetricData on "*", which
-    # is write access to every namespace including the one production's alarms
-    # read. One injected zero suppresses the backup-promotion alarm outright,
-    # because that alarm triggers on a minimum; flooding the namespace buries
-    # the trail-derived security alarms in noise. Both runtime principals in the
-    # estate already carry exactly this condition, so this is parity rather than
-    # a new idea.
+    # condition that scopes it: PutMetricData is limited to the application's
+    # staging namespace, matching the condition both runtime principals carry.
     publish_staging_metrics = {
       Sid      = "PublishStagingMetricsOnly"
       Effect   = "Allow"
@@ -444,9 +437,8 @@ locals {
       Resource = local.scope.dev_tester_addresses
     }
 
-    # Who may reach staging's SSH ports is decided by these parameters, so a
-    # holder who could write one could admit any address, or drop a colleague's.
-    # Inverted, so a write action added to the service later is denied by
+    # Who may reach staging's SSH ports is decided by these parameters, so this
+    # role reads them and never writes them. Inverted, so a write action added to the service later is denied by
     # default; only the three reads the staging plan makes pass.
     never_write_operator_addresses = {
       Sid       = "NeverWriteOperatorAddresses"
@@ -488,16 +480,17 @@ locals {
       Effect = "Allow"
       Action = ["s3:GetAccountPublicAccessBlock",
         "access-analyzer:ListAnalyzers", "access-analyzer:GetAnalyzer",
-        "account:GetAlternateContact", "sso:ListInstances",
+        "access-analyzer:ListFindings", "guardduty:ListDetectors",
+        "guardduty:GetDetector", "guardduty:GetUsageStatistics", "cloudtrail:GetTrailStatus",
+        "cloudtrail:DescribeTrails", "account:GetAlternateContact", "sso:ListInstances",
         "sso:ListPermissionSets", "identitystore:ListUsers",
       "route53:ListResourceRecordSets", "route53:GetHostedZone"]
       Resource = "*"
     }
 
     # Each denial below is a way least privilege quietly becomes administrator
-    # again. Stopping or deleting the trail is denied; updating it is allowed,
-    # because Terraform manages it, so that remaining exposure is answered by
-    # code review rather than by permissions.
+    # again. Stopping or deleting the trail is denied; updating it is allowed
+    # because Terraform manages it.
     no_self_elevation = {
       Sid    = "NoSelfElevation"
       Effect = "Deny"
@@ -628,21 +621,14 @@ locals {
       Resource  = local.scope.runtime_roles
     }
 
-    # An alias is a label, not a boundary. The key grant above matches on the
-    # aliases a key already carries, and alias creation is a call that carries
-    # no resource, so a holder could point a staging-shaped alias at a
-    # production key and the condition would then match it: sign with the key
-    # that signs session tokens, which is authentication bypass for any member
-    # or administrator; decrypt every production secret; or schedule both keys
-    # for deletion. The comment beside that grant said seizing an existing key
-    # was beyond reach because those calls stay behind the alias. The alias was
-    # the attacker's to create.
+    # The key grant above matches on the aliases a key already carries. Alias
+    # creation carries no resource, so it is denied by the target key's
+    # Environment tag, written in the negative so everything that is not
+    # staging is covered, including production, later keys and untagged keys.
     #
     # Denied by tag rather than by ARN, because the alias call names the alias
-    # rather than the key it targets. Stated in the negative, like the host
-    # denial below and for the same reason: naming production leaves an untagged
-    # key uncovered, while denying everything that is not staging covers
-    # production, a later key, and a key carrying no tag at all. Both providers
+    # rather than the key it targets; the negative form matches the host denial
+    # below for the same reason. Both providers
     # set Environment through default_tags and a key carries its tags from the
     # create call, so the alias that follows is evaluated against a tagged key.
     # Verified against the live account rather than assumed, on all four keys.
@@ -677,13 +663,11 @@ locals {
       Resource = "arn:aws:cloudfront::${var.aws_account_id}:function/footbag-production-*"
     }
 
-    # The function denial above covers the function vector and nothing else. The
-    # CloudFront grant is Resource "*" and cannot be anything else, because a
+    # The function denial above covers edge functions only. The CloudFront
+    # grant is Resource "*" and cannot be anything else, because a
     # distribution ARN carries a generated id rather than a name and the pattern
-    # that scopes every other service here has nothing to match on. So the grant
-    # reached the production distribution serving the public site, with
-    # UpdateDistribution and DeleteDistribution among its actions, while this
-    # role's own description said it reaches no production resource.
+    # that scopes every other service here has nothing to match on. This
+    # denial keeps the production distribution outside this role's reach.
     #
     # Tags are what CloudFront does carry, and both environment providers set
     # Environment through default_tags, so this matches on the tag exactly as the

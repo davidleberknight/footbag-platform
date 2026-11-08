@@ -129,10 +129,9 @@ resource "aws_lightsail_instance_public_ports" "web" {
   }
 
   # HTTP — CloudFront origins only. The CloudFront origin-facing prefix list
-  # comes from data.http.aws_ip_ranges (above). Direct-to-origin probes from
-  # any other source are rejected at the Lightsail firewall before reaching
-  # nginx, defending the X-Forwarded-For trust chain (Express trusts RFC1918
-  # peers, so reaching nginx with a spoofed XFF would otherwise spoof req.ip).
+  # comes from data.http.aws_ip_ranges (above). Direct-to-origin traffic from
+  # any other source is refused at the Lightsail firewall, so the
+  # X-Forwarded-For chain only ever comes from CloudFront.
   # Belt-and-suspenders with the nginx-layer X-Origin-Verify shared-secret
   # gate.
   port_info {

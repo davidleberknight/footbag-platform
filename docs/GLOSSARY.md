@@ -184,7 +184,7 @@
 
 **Reconciliation Job**: A scheduled nightly job that matches Stripe payment records against platform transaction records, detecting discrepancies from webhook failures or timing issues (missing webhooks, amount or status mismatches, unexpected duplicates) and recording them as reconciliation issues for admin review.
 
-**Recovery Point Objective (RPO)**: The maximum acceptable amount of data that can be lost in a failure, measured in time. Footbag.org achieves an RPO of 5-10 minutes through a host-side systemd timer that uploads a consistent SQLite database snapshot to S3 every 5 minutes. Cross-region disaster recovery sync runs nightly providing a 24-hour RPO for catastrophic regional failures.
+**Recovery Point Objective (RPO)**: The maximum acceptable amount of data that can be lost in a failure, measured in time. Footbag.org achieves an RPO of 5-10 minutes through a host-side systemd timer that uploads a consistent SQLite database snapshot to S3 every 5 minutes. The promoted hourly and daily snapshots replicate continuously to a second region, so the recovery point for a regional loss is up to an hour.
 
 **Recovery Time Objective (RTO)**: The maximum acceptable time to restore normal service after a failure. Footbag.org targets an RTO of approximately 5 minutes: download the latest S3 backup, run PRAGMA integrity_check to validate the snapshot, replace the local database file, re-apply the erasures the restored snapshot records as due, restart application containers, and verify health endpoints return OK.
 
@@ -256,7 +256,7 @@
 
 **View Model**: A structured object that a controller passes to a template to render a page. The view model contains exactly the data and flags the template needs (member tier, role flags, labels) without exposing raw storage details such as S3 paths.
 
-**WAF (Web Application Firewall)**: AWS managed firewall service that can filter malicious web traffic at the CloudFront edge before requests reach the origin server. Footbag.org treats a WAFv2 web ACL as a deferred lever rather than a standing control: volumetric DDoS is handled by AWS Shield Standard, and application abuse by Turnstile plus in-process rate limiting on the Lightsail instance, with a WAF attached only if observed abuse warrants it.
+**WAF (Web Application Firewall)**: AWS managed firewall service that can filter web traffic at the CloudFront edge before requests reach the origin server. Footbag.org does not use one: volumetric DDoS is handled by AWS Shield Standard, and application abuse by Turnstile plus in-process rate limiting on the Lightsail instance.
 
 **Webhook**: HTTP callback allowing external services to notify applications of events. Footbag.org receives Stripe webhooks for payment events (payment succeeded, subscription canceled) validated using HMAC SHA-256 signatures. Webhook handlers process each event synchronously and idempotently (deduplicated via the `stripe_events` table), so Stripe retries are safe.
 

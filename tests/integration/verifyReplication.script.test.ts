@@ -50,6 +50,15 @@ interface Bucket {
 /** The archive's bucket name as `terraform output -json` prints it. */
 const ARCHIVE_OUTPUT = '"footbag-env-archive"';
 
+const HOURLY_KEY = 'hourly/2026/10/07/footbag-20261007T070000Z.db.gz';
+const DAILY_KEY = 'daily/2026/10/07/footbag-20261007T000000Z.db.gz';
+
+/** Each newest database copy locked for the bucket's 90-day default from NOW. */
+const LOCKED: Record<string, string> = {
+  [HOURLY_KEY]: 'GOVERNANCE\t2027-01-05T07:00:00+00:00',
+  [DAILY_KEY]: 'GOVERNANCE\t2027-01-05T00:00:00+00:00',
+};
+
 function run(
   target: string,
   buckets: Record<string, Bucket>,
@@ -61,13 +70,20 @@ function run(
    * read that fails.
    */
   archiveOutput: string | false = ARCHIVE_OUTPUT,
+  /**
+   * What `get-object-retention` reports for a destination key, as
+   * "<Mode>\t<RetainUntilDate>"; a key not named carries no retention.
+   */
+  retention: Record<string, string> = LOCKED,
+  /** What the replication-stopped alarm's StateValue reads; 'None' is no alarm. */
+  alarmState = 'OK',
 ) {
   const fixtures = join(workDir, 'fixtures');
   const lines: string[] = [
     '#!/usr/bin/env bash',
     `echo "aws $*" >> ${JSON.stringify(callLog)}`,
-    'bucket=""; key=""; prev=""',
-    'for a in "$@"; do case "$prev" in --bucket) bucket="$a" ;; --key) key="$a" ;; esac; prev="$a"; done',
+    'bucket=""; key=""; prefix=""; prev=""',
+    'for a in "$@"; do case "$prev" in --bucket) bucket="$a" ;; --key) key="$a" ;; --prefix) prefix="$a" ;; esac; prev="$a"; done',
     'case "$2" in',
   ];
   lines.push('  get-bucket-replication)');
@@ -75,12 +91,21 @@ function run(
     lines.push(`    [[ "$bucket" == ${JSON.stringify(name)} ]] && { echo ${JSON.stringify(b.dest || 'None')}; exit 0; }`);
   }
   lines.push('    exit 254 ;;');
+  // Filtered by --prefix, as S3 does, so the hourly and daily checks each see
+  // only their own tier.
   lines.push('  list-objects-v2)');
   for (const [name, b] of Object.entries(buckets)) {
-    const rows = b.objects.map(([m, k]) => `${m}\\t${k}`).join('\\n');
-    lines.push(`    [[ "$bucket" == ${JSON.stringify(name)} ]] && { printf "${rows}\\n"; exit 0; }`);
+    for (const [m, k] of b.objects) {
+      lines.push(`    [[ "$bucket" == ${JSON.stringify(name)} && ${JSON.stringify(k)} == "$prefix"* ]] && printf '%s\\t%s\\n' ${JSON.stringify(m)} ${JSON.stringify(k)}`);
+    }
   }
   lines.push('    exit 0 ;;');
+  lines.push('  get-object-retention)');
+  for (const [k, r] of Object.entries(retention)) {
+    const [mode, until] = r.split('\t');
+    lines.push(`    [[ "$key" == ${JSON.stringify(k)} ]] && { printf '%s\\t%s\\n' ${JSON.stringify(mode)} ${JSON.stringify(until)}; exit 0; }`);
+  }
+  lines.push('    echo "An error occurred (NoSuchObjectLockConfiguration)" >&2; exit 254 ;;');
   lines.push('  head-object)');
   for (const [name, b] of Object.entries(buckets)) {
     for (const [, k] of b.objects) {
@@ -93,7 +118,9 @@ function run(
       lines.push(`    [[ "$bucket" == ${JSON.stringify(name)} && "$key" == ${JSON.stringify(k)} ]] && { echo "{}"; exit 0; }`);
     }
   }
-  lines.push('    exit 254 ;;', 'esac', 'exit 64');
+  lines.push('    exit 254 ;;');
+  lines.push(`  describe-alarms) echo ${JSON.stringify(alarmState)}; exit 0 ;;`);
+  lines.push('esac', 'exit 64');
   writeFileSync(fixtures, lines.join('\n'));
   chmodSync(fixtures, 0o755);
 
@@ -141,7 +168,10 @@ function healthyProduction(): { buckets: Record<string, Bucket>; present: Record
       },
       'footbag-env-db-snapshots': {
         dest: SNAP_DR,
-        objects: [['2026-10-07T07:00:00+00:00', 'hourly/2026/10/07/footbag-20261007T070000Z.db.gz']],
+        objects: [
+          ['2026-10-07T00:00:00+00:00', DAILY_KEY],
+          ['2026-10-07T07:00:00+00:00', HOURLY_KEY],
+        ],
       },
       'footbag-env-archive': {
         dest: ARCHIVE_DR,
@@ -150,7 +180,7 @@ function healthyProduction(): { buckets: Record<string, Bucket>; present: Record
     },
     present: {
       'footbag-env-media-dr': ['photos/settled.jpg'],
-      'footbag-env-db-snapshots-dr': ['hourly/2026/10/07/footbag-20261007T070000Z.db.gz'],
+      'footbag-env-db-snapshots-dr': [HOURLY_KEY, DAILY_KEY],
       'footbag-env-archive-dr': ['members/roster.html'],
     },
   };
@@ -167,6 +197,66 @@ describe('verifying replication', () => {
     expect(res.stdout).toContain('present in footbag-env-archive-dr');
     expect(res.stdout).not.toContain('SKIP');
     expect(res.stdout).toContain('replication proven on production');
+  });
+
+  it('checks the daily tier too, so a stopped daily rule cannot pass behind a healthy hourly one', () => {
+    // Defect caught: the daily points are the longest-lived backups; with only
+    // hourly/ checked, a daily rule that stopped would leave them with no
+    // recovery-region copy and the run would still report replication proven.
+    const { buckets, present } = healthyProduction();
+    present['footbag-env-db-snapshots-dr'] = [HOURLY_KEY];
+    const res = run('production', buckets, present);
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain(`${DAILY_KEY} is missing from footbag-env-db-snapshots-dr`);
+  });
+
+  it('reads the lock on each newest database copy and reports it', () => {
+    // Defect caught: a lock configured on the bucket but absent from the copy
+    // protects nothing, and only reading the copy's own retention shows it.
+    const { buckets, present } = healthyProduction();
+    const res = run('production', buckets, present);
+    expect(res.status, res.stderr).toBe(0);
+    expect(res.stdout).toContain('locked (GOVERNANCE) until 2027-01-05T07:00:00+00:00');
+    expect(res.stdout).toContain('locked (GOVERNANCE) until 2027-01-05T00:00:00+00:00');
+  });
+
+  it('fails on production while the replication-stopped alarm fires or is missing', () => {
+    // Defect caught: a copy check passes on an object replicated before the
+    // rule stopped, so only the alarm's own state shows replication has gone
+    // silent; a missing alarm means the production tree was never applied.
+    const { buckets, present } = healthyProduction();
+    for (const [state, message] of [
+      ['ALARM', 'is in ALARM: no hourly snapshot has replicated for three hours'],
+      ['None', 'does not exist; apply the production tree'],
+    ] as const) {
+      const res = run('production', buckets, present, ARCHIVE_OUTPUT, LOCKED, state);
+      expect(res.status, state).toBe(1);
+      expect(res.stderr, state).toContain(`footbag-production-snapshots-hourly-replication-stopped ${message}`);
+    }
+    // A fresh alarm with no data yet is not a failure.
+    const fresh = run('production', buckets, present, ARCHIVE_OUTPUT, LOCKED, 'INSUFFICIENT_DATA');
+    expect(fresh.status, fresh.stderr).toBe(0);
+    expect(fresh.stdout).toContain('state INSUFFICIENT_DATA');
+  });
+
+  it('fails a database copy that carries no lock, or one ending under 60 days ahead', () => {
+    // Defect caught: an unlocked or nearly expired copy can be deleted early,
+    // which is the loss the recovery-region copy exists to prevent.
+    const { buckets, present } = healthyProduction();
+    for (const [retention, message] of [
+      [{ [DAILY_KEY]: LOCKED[DAILY_KEY] }, `${HOURLY_KEY} in footbag-env-db-snapshots-dr carries no Object Lock retention`],
+      [{ ...LOCKED, [HOURLY_KEY]: 'GOVERNANCE\t2026-12-05T07:59:59+00:00' }, `${HOURLY_KEY} in footbag-env-db-snapshots-dr is locked only until 2026-12-05T07:59:59+00:00`],
+    ] as const) {
+      const res = run('production', buckets, present, ARCHIVE_OUTPUT, retention);
+      expect(res.status, message).toBe(1);
+      expect(res.stderr, message).toContain(message);
+    }
+    // Exactly 60 days ahead is accepted, so the floor is pinned from both sides.
+    const atFloor = run('production', buckets, present, ARCHIVE_OUTPUT, {
+      ...LOCKED,
+      [HOURLY_KEY]: 'GOVERNANCE\t2026-12-06T08:00:00+00:00',
+    });
+    expect(atFloor.status, atFloor.stderr).toBe(0);
   });
 
   it('fails when the archive\'s settled object is missing from its DR bucket', () => {

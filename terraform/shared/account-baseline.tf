@@ -66,6 +66,39 @@ resource "aws_accessanalyzer_analyzer" "account" {
   type          = "ACCOUNT"
 }
 
+# Threat detection over the account's own records: the trail's management
+# events, VPC flow and DNS logs, and, with S3 protection on, object-level S3
+# events the trail deliberately does not store. It also reports a stopped or
+# deleted trail independently of the trail's own alarms. One detector per
+# region; us-east-1 is where the account runs and where global events land.
+#
+# Every other feature is set explicitly off rather than left to the account's
+# default, so a feature AWS later turns on for new detectors cannot start
+# billing unnoticed. The account runs no EKS, RDS, Lambda or EC2 volumes of its
+# own, so none of them has anything to watch.
+#
+# Like the analyzer, this tree holds no notification path: each environment
+# tree routes findings to its own alarm topic.
+resource "aws_guardduty_detector" "account" {
+  count                        = var.enable_guardduty ? 1 : 0
+  enable                       = true
+  finding_publishing_frequency = "FIFTEEN_MINUTES"
+}
+
+resource "aws_guardduty_detector_feature" "account" {
+  for_each = var.enable_guardduty ? {
+    S3_DATA_EVENTS         = "ENABLED"
+    EKS_AUDIT_LOGS         = "DISABLED"
+    EBS_MALWARE_PROTECTION = "DISABLED"
+    RDS_LOGIN_EVENTS       = "DISABLED"
+    LAMBDA_NETWORK_LOGS    = "DISABLED"
+    RUNTIME_MONITORING     = "DISABLED"
+  } : {}
+  detector_id = aws_guardduty_detector.account[0].id
+  name        = each.key
+  status      = each.value
+}
+
 # =============================================================================
 # Alternate contacts
 #

@@ -490,9 +490,9 @@ describe('verify-host-env.sh — advisory checks', () => {
     expect(result.stdout).toMatch(/FAIL +SES adapter/);
   });
 
-  // Without its own secret, a stub-adapter host verifies webhooks against a
-  // constant committed to the repository, so anyone with a copy could forge a
-  // delivery it accepts.
+  // Each host gets its own generated stub webhook signing secret; the constant
+  // in the repository is for development and test only, so a stub-adapter
+  // host without its own secret fails the check.
   it('STRIPE_WEBHOOK_SECRET_STUB unset under the stub adapter → FAIL', () => {
     const env = mutate(/STRIPE_WEBHOOK_SECRET_STUB=.*/, '');
     const result = runScript({ envFilePath: writeEnvFile(env) });
@@ -520,9 +520,9 @@ describe('verify-host-env.sh — advisory checks', () => {
     expect(result.stdout).toMatch(/PASS +stub webhook signing secret/);
   });
 
-  // A rotation left open keeps the outgoing signing secret valid indefinitely,
-  // so a leaked old secret still forges deliveries. Nothing else says so on a
-  // host check; it is a warning because the window is legitimate while a roll
+  // While STRIPE_WEBHOOK_SECRET_PREVIOUS is set the outgoing secret still
+  // verifies deliveries; close the window once every delivery signs with the
+  // new secret. Nothing else says so on a host check; it is a warning because the window is legitimate while a roll
   // is in progress.
   it('an open rotation window warns, names the command that closes it, and never prints the value', () => {
     const previous = 'whsec_outgoing_rotation_value';

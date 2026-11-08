@@ -185,8 +185,8 @@ describe('host-shell.sh — preconditions', () => {
   });
 
   it('refuses a pin other accounts can rewrite', () => {
-    // An attacker who can edit the pin can install the key of the host they
-    // want the session to reach, which is the substitution the pin prevents.
+    // The pin file must be owned by the invoking user and not writable by
+    // anyone else, so a pin other accounts can rewrite is refused.
     stubSshOnPath();
     writePin(0o666);
     const r = run(['--target', 'staging']);

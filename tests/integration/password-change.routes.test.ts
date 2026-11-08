@@ -502,9 +502,9 @@ describe('POST /members/:slug/edit/password — confirmation-email enqueue failu
 
 describe('POST /members/:slug/edit/password — the member could not be notified', () => {
   // Suppression is not an enqueue failure, so it does not roll the change back.
-  // It ends with the password changed and no mail sent, which is precisely the
-  // state someone using a stolen session would want, so it has to be visible
-  // afterwards rather than passing as an ordinary change.
+  // It ends with the password changed and no mail sent, so the change is left
+  // on record with a forensic row and an operator alert rather than passing as
+  // an ordinary change.
 
   function notificationFailureCount(): number {
     const db = new BetterSqlite3(dbPath, { readonly: true });

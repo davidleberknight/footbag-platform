@@ -99,17 +99,10 @@ resource "aws_iam_role_policy" "app_s3_snapshots" {
     Version = "2012-10-17"
     Statement = [
       {
-        # Put, get and list, and deliberately not delete. The backup script uses
-        # get and list for the generation promotion: it probes each prefix with
-        # list-objects-v2 and copies the source object server-side. Nothing
-        # deletes a snapshot -- expiry belongs entirely to this bucket's
-        # lifecycle rules -- and this is the role the web and worker containers
-        # assume, so a delete grant here is a delete grant to any compromised
-        # container. It would not destroy a version, but it would write a delete
-        # marker over every snapshot; markers replicate, Object Lock on the
-        # replica protects versions rather than visibility, and no alarm watches
-        # for this, so both regions would read empty while backup age and the
-        # failure counter stayed healthy until someone needed a restore.
+        # Put, get and list, and deliberately not delete: the backup script uses
+        # get and list for generation promotion (it probes each prefix with
+        # list-objects-v2 and copies the source object server-side), and expiry
+        # belongs entirely to the bucket's lifecycle rules.
         Sid    = "WriteSnapshots"
         Effect = "Allow"
         Action = [

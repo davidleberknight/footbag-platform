@@ -3,7 +3,7 @@
 #   - media:       user-facing media (future use)
 #   - snapshots:   SQLite DB snapshots (primary)
 #   - dr:          cross-region DR copy of snapshots
-#   - maintenance: static maintenance page served by CloudFront on 5xx
+#   - maintenance_page: static maintenance page served by CloudFront on 5xx, in us-west-2
 # =============================================================================
 
 # ── Media ─────────────────────────────────────────────────────────────────────
@@ -225,7 +225,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "media_dr" {
   }
 }
 
-# Cross-region replication: media → media_dr. Continuous, RPO < 15 min.
+# Cross-region replication: media → media_dr. Continuous, typically within
+# minutes; Replication Time Control is off, so no replication time is promised.
 # Delete markers replicated so account-erasure deletions propagate.
 # The s3_replication role's policy (iam.tf) covers BOTH snapshots and media
 # replication; see the role declaration for the combined resource list.
@@ -408,13 +409,13 @@ resource "aws_s3_bucket_lifecycle_configuration" "snapshots" {
 }
 
 # ── DR bucket (cross-region snapshots backup) ────────────────────────────────
-# Lives in us-west-2 (backup region). Object Lock is enabled at creation
-# (it cannot be retrofitted): the pre-flip cutover snapshot and replicated
-# routine backups become undeletable for the default retention window, which
-# covers the 48h rollback window plus disaster-recovery restore headroom. The
-# 90-day window keeps snapshots recoverable well past the rollback window.
-# GOVERNANCE mode (not COMPLIANCE) so an operator with
-# s3:BypassGovernanceRetention can still recover from a mistaken upload and can
+# Lives in us-west-2 (backup region). Object Lock is enabled at creation, so
+# no object ever lands unprotected: the pre-flip cutover snapshot and the
+# replicated hourly and daily backups become undeletable for the default
+# retention window, which covers the 48h rollback window plus disaster-recovery
+# restore headroom. The 90-day window keeps snapshots recoverable well past the
+# rollback window. GOVERNANCE mode (not COMPLIANCE) so an administrator, the only
+# identity holding s3:BypassGovernanceRetention, can still recover from a mistaken upload and can
 # honor a lawful erasure request; COMPLIANCE would make both impossible for the
 # full window. If this bucket already exists without
 # Object Lock, it must be recreated (import will not add the flag).
@@ -637,9 +638,17 @@ resource "aws_s3_bucket_replication_configuration" "snapshots" {
 }
 
 # ── Maintenance page ──────────────────────────────────────────────────────────
+#
+# The bucket and everything in it live in the recovery region, not the primary
+# one. The page is the fallback for a failed origin, so it is provisioned
+# outside the primary region's failure domain ahead of time: when the primary
+# region is impaired, CloudFront, which is global, still reads the page from
+# here, and nothing has to change during the outage. A copy in the primary
+# region would fail along with the origin it stands in for.
 
-resource "aws_s3_bucket" "maintenance" {
-  bucket = "${local.prefix}-maintenance"
+resource "aws_s3_bucket" "maintenance_page" {
+  provider = aws.us_west_2
+  bucket   = "${local.prefix}-maintenance-page"
 }
 
 # The page itself, placed by Terraform rather than by an operator upload. It has
@@ -659,7 +668,8 @@ resource "aws_s3_bucket" "maintenance" {
 # edited it is usually because it said something wrong, and a long browser cache
 # would keep serving the wrong words after the fix applied.
 resource "aws_s3_object" "maintenance_page" {
-  bucket        = aws_s3_bucket.maintenance.id
+  provider      = aws.us_west_2
+  bucket        = aws_s3_bucket.maintenance_page.id
   key           = "maintenance.html"
   content       = file("${path.module}/maintenance-page/maintenance.html")
   content_type  = "text/html; charset=utf-8"
@@ -671,8 +681,9 @@ resource "aws_s3_object" "maintenance_page" {
 # Terraform sets this on each application-data bucket, and a baseline that
 # twelve buckets assert and this one inherits is a baseline with a hole in it:
 # the account default is not visible in this tree and can be changed elsewhere.
-resource "aws_s3_bucket_server_side_encryption_configuration" "maintenance" {
-  bucket = aws_s3_bucket.maintenance.id
+resource "aws_s3_bucket_server_side_encryption_configuration" "maintenance_page" {
+  provider = aws.us_west_2
+  bucket   = aws_s3_bucket.maintenance_page.id
 
   rule {
     apply_server_side_encryption_by_default {
@@ -681,8 +692,9 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "maintenance" {
   }
 }
 
-resource "aws_s3_bucket_public_access_block" "maintenance" {
-  bucket                  = aws_s3_bucket.maintenance.id
+resource "aws_s3_bucket_public_access_block" "maintenance_page" {
+  provider                = aws.us_west_2
+  bucket                  = aws_s3_bucket.maintenance_page.id
   block_public_acls       = true
   block_public_policy     = true
   ignore_public_acls      = true
@@ -695,7 +707,7 @@ resource "aws_s3_bucket_public_access_block" "maintenance" {
 
 # Ungated document, gated statement, for the same reason as the media bucket
 # above: the deny must not disappear when the distribution is off.
-data "aws_iam_policy_document" "maintenance_cloudfront_oac" {
+data "aws_iam_policy_document" "maintenance_page_cloudfront_oac" {
   statement {
     sid    = "DenyPlaintextAccess"
     effect = "Deny"
@@ -705,8 +717,8 @@ data "aws_iam_policy_document" "maintenance_cloudfront_oac" {
     }
     actions = ["s3:*"]
     resources = [
-      aws_s3_bucket.maintenance.arn,
-      "${aws_s3_bucket.maintenance.arn}/*",
+      aws_s3_bucket.maintenance_page.arn,
+      "${aws_s3_bucket.maintenance_page.arn}/*",
     ]
     condition {
       test     = "Bool"
@@ -721,7 +733,7 @@ data "aws_iam_policy_document" "maintenance_cloudfront_oac" {
       sid       = "AllowCloudFrontServicePrincipalRead"
       effect    = "Allow"
       actions   = ["s3:GetObject"]
-      resources = ["${aws_s3_bucket.maintenance.arn}/*"]
+      resources = ["${aws_s3_bucket.maintenance_page.arn}/*"]
 
       principals {
         type        = "Service"
@@ -737,7 +749,8 @@ data "aws_iam_policy_document" "maintenance_cloudfront_oac" {
   }
 }
 
-resource "aws_s3_bucket_policy" "maintenance" {
-  bucket = aws_s3_bucket.maintenance.id
-  policy = data.aws_iam_policy_document.maintenance_cloudfront_oac.json
+resource "aws_s3_bucket_policy" "maintenance_page" {
+  provider = aws.us_west_2
+  bucket   = aws_s3_bucket.maintenance_page.id
+  policy   = data.aws_iam_policy_document.maintenance_page_cloudfront_oac.json
 }

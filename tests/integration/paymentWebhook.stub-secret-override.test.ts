@@ -2,11 +2,9 @@
  * Webhook signing for the stub payment adapter when the deployment supplies its
  * own secret.
  *
- * The stub's built-in signing secret is a constant committed to this
- * repository, so any deployment whose webhook endpoint is reachable and still
- * uses it would accept a delivery forged by anyone holding a copy of the
- * source. A deployment therefore supplies a generated secret, and once it does,
- * the committed constant must stop being a valid signing key.
+ * Each deployment supplies its own generated value; the committed constant is
+ * for development and test. Once a deployment supplies its secret, the
+ * committed constant must stop being a valid signing key.
  */
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 
@@ -81,8 +79,8 @@ describe('stub payment adapter: deployment-supplied webhook signing secret', () 
     const { rawBody } = await startSignedSuccess(M_REJECT);
 
     // Same body the adapter itself would have sent, re-signed with the secret
-    // that ships in the source: this is the forgery the deployment secret has
-    // to defeat.
+    // that ships in the source: with a deployment secret set, that signature
+    // is refused.
     const forged = signStripeWebhook(rawBody, STUB_WEBHOOK_SECRET);
     const res = await postWebhook(rawBody, forged);
     expect(res.status).toBe(400);

@@ -2,8 +2,9 @@
 # apply-account-baseline.sh
 #
 # Applies the account baseline declared in terraform/shared/account-baseline.tf
-# (the account-level public-access block, the IAM password policy and the
-# external-access Access Analyzer) and proves the outcome, as one operation.
+# (the account-level public-access block, the IAM password policy, the
+# external-access Access Analyzer and, behind enable_guardduty, the GuardDuty
+# detector) and proves the outcome, as one operation.
 #
 # WHY THIS HAS ITS OWN SCRIPT.
 #
@@ -12,7 +13,7 @@
 # account afterwards. This change has a narrower contract and a proof that
 # belongs to it:
 #
-#   1. The plan may create the three baseline resources and do nothing else. The
+#   1. The plan may create the baseline resources and do nothing else. The
 #      shared tree holds every environment's Terraform state, so anything else
 #      pending in it is not this change and is refused before the confirmation,
 #      rather than left for an operator to spot in a long plan. The alternate
@@ -34,25 +35,34 @@
 #
 # Steps:
 #   1  report the controls as they stand, and save the baseline to compare
-#   2  plan the shared tree, refuse anything beyond the three creates, take a
-#      typed APPLY, apply that exact plan
+#   2  plan the shared tree, refuse anything beyond the baseline creates, take
+#      a typed APPLY, apply that exact plan
 #   3  report again, which must show no findings, then compare the baseline
 #
 # Usage:
 #   scripts/apply-account-baseline.sh --dry-run
-#   scripts/apply-account-baseline.sh
+#   scripts/apply-account-baseline.sh [--enable-guardduty]
 #
 # Flags:
 #   --dry-run   State what a real run would do; run nothing.
+#   --enable-guardduty
+#               Turn on the GuardDuty detector. Refused unless both
+#               environments' finding rules exist and are ENABLED; shows the
+#               values-file change, plans with the gate on, and writes
+#               enable_guardduty = true to the shared values file only after
+#               the typed APPLY.
 #   --yes       Accept the confirmation where no terminal is attached.
 #
 # Test seams (CI only; operators never set these): TERRAFORM_APPLY_BIN points
-# the terraform command at a stub, and ACCOUNT_BASELINE_VERIFIER points the
-# verification at a stub script. Each is announced loudly when set, because a
+# the terraform command at a stub, ACCOUNT_BASELINE_VERIFIER points the
+# verification at a stub script, ACCOUNT_BASELINE_AWS_BIN replaces the aws CLI
+# for the finding-route check, and ACCOUNT_BASELINE_TFVARS points the values
+# file at a scratch copy. Each is announced loudly when set, because a
 # run that silently used a stub would prove nothing about the account.
 set -euo pipefail
 
 DRY_RUN=0
+ENABLE_GUARDDUTY=0
 # The shared confirm_from_tty helper reads this by name and compares it to the
 # string "yes", so it is not a numeric flag like the others here.
 ASSUME_YES=""
@@ -68,9 +78,35 @@ ALLOWED_CREATES=(
   "aws_s3_account_public_access_block.account"
   "aws_iam_account_password_policy.account"
   "aws_accessanalyzer_analyzer.account"
+  "aws_guardduty_detector.account[0]"
+  'aws_guardduty_detector_feature.account["S3_DATA_EVENTS"]'
+  'aws_guardduty_detector_feature.account["EKS_AUDIT_LOGS"]'
+  'aws_guardduty_detector_feature.account["EBS_MALWARE_PROTECTION"]'
+  'aws_guardduty_detector_feature.account["RDS_LOGIN_EVENTS"]'
+  'aws_guardduty_detector_feature.account["LAMBDA_NETWORK_LOGS"]'
+  'aws_guardduty_detector_feature.account["RUNTIME_MONITORING"]'
+)
+
+# The shared tree's values file, a symlink into the private operations checkout.
+# Written through the link, never replaced, so the link survives.
+TFVARS="${ACCOUNT_BASELINE_TFVARS:-${TF_DIR}/terraform.tfvars}"
+if [[ -n "${ACCOUNT_BASELINE_TFVARS:-}" ]]; then
+  echo "SYNTHETIC: values file='${TFVARS}' -- this run proves nothing about the account." >&2
+fi
+
+# The EventBridge rules each environment tree declares to route GuardDuty
+# findings to its own alarm topic. Both must exist before the detector does, so
+# the first finding reaches a person rather than only the console.
+GUARDDUTY_ROUTES=(
+  "footbag-staging-guardduty-findings"
+  "footbag-production-guardduty-findings"
 )
 
 TF_BIN="${TERRAFORM_APPLY_BIN:-terraform}"
+AWS_BIN="${ACCOUNT_BASELINE_AWS_BIN:-aws}"
+if [[ -n "${ACCOUNT_BASELINE_AWS_BIN:-}" ]]; then
+  echo "SYNTHETIC: aws='${AWS_BIN}' -- this run proves nothing about the account." >&2
+fi
 VERIFIER="${ACCOUNT_BASELINE_VERIFIER:-${REPO_ROOT}/scripts/verify-account-baseline.sh}"
 if [[ -n "${TERRAFORM_APPLY_BIN:-}" ]]; then
   echo "SYNTHETIC: terraform='${TF_BIN}' -- this run proves nothing about the account." >&2
@@ -89,6 +125,7 @@ usage() {
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --dry-run) DRY_RUN=1; shift ;;
+    --enable-guardduty) ENABLE_GUARDDUTY=1; shift ;;
     --yes)     ASSUME_YES="yes"; shift ;;
     -h|--help) usage 0 ;;
     *) echo "ERROR: unknown argument '$1'" >&2; usage 2 ;;
@@ -103,10 +140,13 @@ Dry run. A real run would, in this order:
           before the apply), then save the baseline of footbag-operator and
           both runtime trusts for comparison afterwards.
   step 2  plan terraform/shared into a mode-600 file shredded on every exit
-          path; refuse unless the plan creates exactly the public-access
-          block, the password policy and the Access Analyzer and changes
-          nothing else; take a typed APPLY; apply that exact plan. A plan with
-          nothing to do skips the apply.
+          path; refuse unless the plan only creates the public-access block,
+          the password policy, the Access Analyzer and the GuardDuty detector
+          and its features, and changes nothing else; take a typed APPLY;
+          apply that exact plan. A plan with nothing to do skips the apply.
+          With --enable-guardduty, first refuse unless both environments'
+          finding rules are ENABLED, and write enable_guardduty = true to the
+          shared values file after the typed APPLY.
   step 3  run the report again, which must show no findings, then compare
           against the saved baseline, which must show nothing changed.
 
@@ -125,6 +165,73 @@ source "${REPO_ROOT}/scripts/lib/aws-profile.sh"
 source "${REPO_ROOT}/scripts/lib/aws-identity.sh"
 aws_profile_ensure || exit 1
 aws_identity_require_direct_user "$FOOTBAG_OPERATOR_USER" || exit 1
+
+# ── Turning on GuardDuty ─────────────────────────────────────────────────────
+#
+# enable_guardduty is a line in the shared values file and an apply, and typed
+# by hand the pair drifts apart. With --enable-guardduty this script owns both:
+# it proves each environment routes findings to its alarm topic, shows the
+# values-file change, plans with the gate on, and writes the line only after the
+# typed APPLY, so an aborted run leaves the file as it was and a failed apply is
+# finished by running again. Without the flag a line already set to true is
+# honoured, which is how such a re-run completes.
+TF_PLAN_VARS=()
+TFVARS_NEW=""
+if (( ENABLE_GUARDDUTY )); then
+  [[ -e "$TFVARS" ]] || {
+    echo "REFUSING: ${TFVARS} does not resolve; the private operations checkout" >&2
+    echo "  must be present. Nothing was planned or applied." >&2
+    exit 1
+  }
+  for rule in "${GUARDDUTY_ROUTES[@]}"; do
+    rule_state=""
+    if ! rule_state="$("$AWS_BIN" events describe-rule --name "$rule" \
+      --query State --output text 2>&1)"; then
+      echo "REFUSING: could not read the EventBridge rule ${rule}: ${rule_state}" >&2
+      echo "  Apply that environment's tree with scripts/terraform-apply.sh first," >&2
+      echo "  staging before production, so a finding has somewhere to go." >&2
+      echo "  Nothing was planned or applied." >&2
+      exit 1
+    fi
+    if [[ "$rule_state" != "ENABLED" ]]; then
+      echo "REFUSING: the EventBridge rule ${rule} is ${rule_state}, not ENABLED." >&2
+      echo "  Nothing was planned or applied." >&2
+      exit 1
+    fi
+    echo "Finding route in place: ${rule}"
+  done
+  TF_PLAN_VARS=(-var "enable_guardduty=true")
+  tfvars_old="$(cat "$TFVARS")"
+  if grep -qE '^[[:space:]]*enable_guardduty[[:space:]]*=[[:space:]]*true[[:space:]]*$' <<<"$tfvars_old"; then
+    echo "The shared values file already sets enable_guardduty = true."
+  elif grep -qE '^[[:space:]]*enable_guardduty[[:space:]]*=' <<<"$tfvars_old"; then
+    TFVARS_NEW="$(sed -E 's/^[[:space:]]*enable_guardduty[[:space:]]*=.*$/enable_guardduty = true/' <<<"$tfvars_old")"
+  else
+    TFVARS_NEW="${tfvars_old}"$'\n'"enable_guardduty = true"
+  fi
+  if [[ -n "$TFVARS_NEW" ]]; then
+    echo ""
+    echo "Once confirmed, the shared values file changes like this:"
+    diff -u <(printf '%s\n' "$tfvars_old") <(printf '%s\n' "$TFVARS_NEW") \
+      --label "${TFVARS} (now)" --label "${TFVARS} (after)" || [[ $? == 1 ]]
+  fi
+  echo ""
+fi
+
+# Writes the gate line shown above, through the symlink, and reads it back. Run
+# after the typed APPLY and before the apply itself, so a failed apply leaves a
+# file that a plain re-run plans the same way.
+write_guardduty_line() {
+  [[ -n "$TFVARS_NEW" ]] || return 0
+  printf '%s\n' "$TFVARS_NEW" > "$TFVARS"
+  if ! grep -qE '^enable_guardduty = true$' "$TFVARS"; then
+    echo "ERROR: wrote ${TFVARS} but it does not read back enable_guardduty = true." >&2
+    echo "       Nothing was applied." >&2
+    exit 1
+  fi
+  echo "Wrote enable_guardduty = true to ${TFVARS}."
+  TFVARS_NEW=""
+}
 
 command -v jq >/dev/null 2>&1 || { echo "ERROR: jq is needed to read the plan." >&2; exit 1; }
 
@@ -173,7 +280,7 @@ echo ""
 TF_PLAN="$(mktemp /tmp/footbag-account-baseline-plan.XXXXXX)"
 chmod 600 "$TF_PLAN"
 
-if ! "$TF_BIN" -chdir="$TF_DIR" plan -input=false -out="$TF_PLAN"; then
+if ! "$TF_BIN" -chdir="$TF_DIR" plan -input=false ${TF_PLAN_VARS[@]+"${TF_PLAN_VARS[@]}"} -out="$TF_PLAN"; then
   echo "ERROR: terraform plan failed for the shared tree. Nothing was applied." >&2
   exit 1
 fi
@@ -219,7 +326,7 @@ if [[ -n "$unexpected" ]]; then
   echo "REFUSING: the shared-tree plan carries changes beyond the account baseline:" >&2
   printf '%s' "$unexpected" >&2
   echo "" >&2
-  echo "  This script applies the three baseline creates and nothing else, because" >&2
+  echo "  This script applies the baseline creates and nothing else, because" >&2
   echo "  the shared tree holds every environment's state. Apply or resolve the" >&2
   echo "  rest through scripts/terraform-apply.sh --target shared first, then run" >&2
   echo "  this again. Nothing was applied." >&2
@@ -229,6 +336,9 @@ fi
 if [[ -z "$changes" ]]; then
   echo "Nothing to apply: the baseline is already in Terraform state. Going"
   echo "straight to the proof."
+  # State already holds the detector, so the line only records what is live; a
+  # later plan reading the file without it would plan the detector's removal.
+  write_guardduty_line
   echo ""
 else
   echo ""
@@ -239,6 +349,7 @@ else
     echo "Aborted before terraform apply. Nothing was changed." >&2
     exit 1
   fi
+  write_guardduty_line
   if ! "$TF_BIN" -chdir="$TF_DIR" apply -input=false "$TF_PLAN"; then
     echo "ERROR: terraform apply failed for the shared tree. Run this script again:" >&2
     echo "       the next plan starts from whatever the apply left." >&2
@@ -270,5 +381,6 @@ if ! bash "$VERIFIER" --compare "$BASELINE_FILE"; then
   exit 1
 fi
 echo ""
-echo "Done. The public-access block, the password policy and the Access Analyzer"
-echo "are in place, and footbag-operator and both runtime trusts are unchanged."
+echo "Done. The public-access block, the password policy, the Access Analyzer and"
+echo "the GuardDuty detector are in place, and footbag-operator and both runtime"
+echo "trusts are unchanged."

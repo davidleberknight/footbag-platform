@@ -72,12 +72,26 @@ resource "aws_sns_topic_policy" "alarms" {
 }
 
 # ── AWS Health events ────────────────────────────────────────────────────────
-# Health events for global services publish to us-east-1, which is this
-# account's primary region, so one rule covers them. A second rule in us-west-2
-# is deliberately NOT wired: the only resources there are the disaster-recovery
-# replica buckets, whose failure surfaces through the replication alarms rather
-# than through a Health event nobody would act on differently. Recorded as a
-# decision rather than left as an omission.
+# Two rules, because every other alerting path lives in us-east-1, the primary
+# region, and an impairment there would take the site and its alarms down
+# together with nothing to say so.
+#
+# The primary rule stays: events for global services publish to us-east-1 only.
+# The second rule sits in us-west-2, which AWS designates the backup region for
+# every other standard region and delivers each us-east-1 event to as well, so
+# the warning still arrives while us-east-1 is impaired. An EventBridge rule
+# reaches another region only through an event bus, so it publishes to its own
+# topic there, emailing the same destinations as the primary topic. Like the
+# us-east-1 certificate topic, it uses no customer-managed key: it carries only
+# notices AWS generates.
+#
+# Each us-east-1 regional event therefore emails twice. AWS's answer is to
+# de-duplicate on the event's communication id, which an email subscription
+# cannot do, and a duplicate warning is the right side to err on.
+#
+# Ungated: nothing here depends on an earlier apply, and a rule matching nothing
+# costs nothing. Each new email subscription sends a confirmation that must be
+# clicked before it delivers.
 
 resource "aws_cloudwatch_event_rule" "aws_health" {
   name        = "${local.prefix}-aws-health"
@@ -90,6 +104,127 @@ resource "aws_cloudwatch_event_rule" "aws_health" {
 
 resource "aws_cloudwatch_event_target" "aws_health_to_alarms" {
   rule      = aws_cloudwatch_event_rule.aws_health.name
+  target_id = "alarms-topic"
+  arn       = aws_sns_topic.alarms.arn
+}
+
+resource "aws_sns_topic" "alarms_us_west_2" {
+  provider = aws.us_west_2
+  name     = "${local.prefix}-alarms-usw2"
+}
+
+# The owner statement is restated for the same reason as on the primary topic:
+# attaching a policy replaces the default one.
+resource "aws_sns_topic_policy" "alarms_us_west_2" {
+  provider = aws.us_west_2
+  arn      = aws_sns_topic.alarms_us_west_2.arn
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "OwnerFullAccess"
+        Effect    = "Allow"
+        Principal = { AWS = "arn:aws:iam::${var.aws_account_id}:root" }
+        Action    = local.sns_owner_actions
+        Resource  = aws_sns_topic.alarms_us_west_2.arn
+      },
+      {
+        Sid       = "AllowEventBridgePublish"
+        Effect    = "Allow"
+        Principal = { Service = "events.amazonaws.com" }
+        Action    = "SNS:Publish"
+        Resource  = aws_sns_topic.alarms_us_west_2.arn
+        Condition = {
+          StringEquals = {
+            "AWS:SourceAccount" = var.aws_account_id
+          }
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_cloudwatch_event_rule" "aws_health_us_west_2" {
+  provider    = aws.us_west_2
+  name        = "${local.prefix}-aws-health-usw2"
+  description = "AWS Health events delivered to the backup region, emailed from there"
+
+  event_pattern = jsonencode({
+    source = ["aws.health"]
+  })
+}
+
+resource "aws_cloudwatch_event_target" "aws_health_us_west_2_to_alarms" {
+  provider  = aws.us_west_2
+  rule      = aws_cloudwatch_event_rule.aws_health_us_west_2.name
+  target_id = "alarms-usw2-topic"
+  arn       = aws_sns_topic.alarms_us_west_2.arn
+}
+
+resource "aws_sns_topic_subscription" "alarm_email_us_west_2" {
+  provider  = aws.us_west_2
+  topic_arn = aws_sns_topic.alarms_us_west_2.arn
+  protocol  = "email"
+  endpoint  = var.alarm_email
+
+  lifecycle {
+    replace_triggered_by = [terraform_data.alarm_email_generation]
+  }
+}
+
+resource "aws_sns_topic_subscription" "alarm_ops_alert_us_west_2" {
+  count     = var.ops_alert_email != "" ? 1 : 0
+  provider  = aws.us_west_2
+  topic_arn = aws_sns_topic.alarms_us_west_2.arn
+  protocol  = "email"
+  endpoint  = var.ops_alert_email
+
+  lifecycle {
+    replace_triggered_by = [terraform_data.alarm_email_generation]
+  }
+}
+
+# ── Account detector and analyzer findings ───────────────────────────────────
+# The GuardDuty detector and the Access Analyzer are account properties declared
+# in the shared tree, which holds no notification path; these rules are what
+# make their findings reach a person. GuardDuty findings of severity 7 or more
+# (high and critical) only, so routine low-severity reconnaissance noise stays
+# in the console. Every active Access Analyzer finding, because each one is a
+# resource policy granting access outside the account. Neither rule is gated: a
+# rule matching nothing costs nothing, and declaring it before the detector
+# exists means the first finding already has somewhere to go.
+
+resource "aws_cloudwatch_event_rule" "guardduty_findings" {
+  name        = "${local.prefix}-guardduty-findings"
+  description = "High and critical GuardDuty findings, delivered to the alarm topic"
+
+  event_pattern = jsonencode({
+    source        = ["aws.guardduty"]
+    "detail-type" = ["GuardDuty Finding"]
+    detail        = { severity = [{ numeric = [">=", 7] }] }
+  })
+}
+
+resource "aws_cloudwatch_event_target" "guardduty_findings_to_alarms" {
+  rule      = aws_cloudwatch_event_rule.guardduty_findings.name
+  target_id = "alarms-topic"
+  arn       = aws_sns_topic.alarms.arn
+}
+
+resource "aws_cloudwatch_event_rule" "access_analyzer_findings" {
+  name        = "${local.prefix}-access-analyzer-findings"
+  description = "Active Access Analyzer findings, delivered to the alarm topic"
+
+  event_pattern = jsonencode({
+    source        = ["aws.access-analyzer"]
+    "detail-type" = ["Access Analyzer Finding"]
+    detail        = { status = ["ACTIVE"] }
+  })
+}
+
+resource "aws_cloudwatch_event_target" "access_analyzer_findings_to_alarms" {
+  rule      = aws_cloudwatch_event_rule.access_analyzer_findings.name
   target_id = "alarms-topic"
   arn       = aws_sns_topic.alarms.arn
 }

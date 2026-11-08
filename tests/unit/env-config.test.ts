@@ -738,9 +738,9 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     expect(config.paymentAdapter).toBe('stub');
   });
 
-  // The stub adapter's fallback signing secret is committed source. A staging
-  // host that kept it would accept a webhook forged by anyone holding a copy of
-  // the repository, so staging must carry its own generated value.
+  // Each deployment supplies its own generated stub signing secret; the
+  // committed constant is for development and test, so staging must carry its
+  // own generated value.
   it('requires STRIPE_WEBHOOK_SECRET_STUB when staging runs the stub adapter', async () => {
     baselineRequired();
     clearAwsWiring();
@@ -760,9 +760,9 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     );
   });
 
-  // A real provider signing secret placed in the stub's slot would make a
-  // staging host verify, and act on, deliveries signed for the live endpoint.
-  // The committed constant is refused for the forgery reason above.
+  // A deployed stub host accepts only the deploy-generated shape, so a real
+  // provider signing secret, the committed constant, or a short value in the
+  // stub's slot is refused at boot.
   it.each([
     ['a real provider signing secret', 'whsec_live_realvalue'],
     ['the committed stub constant', 'whsec_stub_0000000000000000000000000000'],
@@ -985,11 +985,8 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     expect(config.stripeWebhookSecret).toBe('whsec_live_realvalue');
   });
 
-  // FOOTBAG_TEST_MEMORY_PERCENT was read via process.env
-  // inside operationsPlatformService, ungated. An env injection in production
-  // could forge anonymous /health/ready readings. The new boot-time guard
-  // refuses production start when this var is set; tests and staging
-  // operators retain the override.
+  // FOOTBAG_TEST_MEMORY_PERCENT is a test-only override, refused at
+  // production start; tests and staging operators retain the override.
 
   it('parses FOOTBAG_TEST_MEMORY_PERCENT as a number under FOOTBAG_ENV=development', async () => {
     baselineRequired();

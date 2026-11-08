@@ -695,8 +695,8 @@ describe('verify-dev-tester-role-denials.sh — IAM write, other roles, operator
   });
 
   it('fails when an operator address can be written', () => {
-    // A holder who could write one could admit any address to staging SSH, or
-    // drop a colleague's.
+    // The addresses decide who reaches staging SSH, so the role must not be
+    // able to write one.
     const r = run({ addressWritable: true });
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/writing a dev-and-tester address: ssm:PutParameter came back allowed/);

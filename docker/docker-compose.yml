@@ -158,8 +158,8 @@ services:
       TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
       FOOTBAG_DEV_INITIAL_ADMIN_EMAILS: ${FOOTBAG_DEV_INITIAL_ADMIN_EMAILS:-}
       # Shared secret for web<->image auth (and web<->worker, in s3 mode).
-      # No default literal: a known fallback would let anything that reaches
-      # /ipc/* publish forged job events. scripts/compose-dev.sh generates a
+      # No default literal; the value is required in every mode.
+      # scripts/compose-dev.sh generates a
       # per-run value when neither the shell nor .env supplies one.
       INTERNAL_EVENT_SECRET: ${INTERNAL_EVENT_SECRET:?this stack runs NODE_ENV=production, so it needs a real value; launch via npm run compose:dev, which generates one}
       # Dedicated SNS feedback-webhook key: separate from INTERNAL_EVENT_SECRET

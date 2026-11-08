@@ -66,8 +66,8 @@ describe('the proxy hop count has exactly one definition', () => {
   it('states the same two-hop chain for both environments, at every milestone', () => {
     // CloudFront then nginx, in staging and in production, before and after the
     // DNS cutover: the platform is reached through its own distribution either
-    // way, so no legacy front-door hop sits in front of it. Being wrong upward
-    // here would let a client spoof its own address by sending a longer header.
+    // way, so no legacy front-door hop sits in front of it. The count must
+    // match the real chain exactly, so req.ip is the client's own address.
     expect(helper('expected_trust_proxy', 'staging')).toBe('2');
     expect(helper('expected_trust_proxy', 'production')).toBe('2');
   });

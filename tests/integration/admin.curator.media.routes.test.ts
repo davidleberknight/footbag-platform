@@ -727,11 +727,9 @@ describe('admin curator media routes — sidecar-backed (URL reference)', () => 
   });
 });
 
-// State-changing curator endpoints (upload / edit /
-// delete) were unlimited per admin session, so a compromised admin credential
-// could saturate S3 / delete rows in rapid succession before detection. The
-// limit applies even to admins (compromised-admin is the threat model). The
-// bucket is shared across upload/edit/delete; this test exercises the limit
+// State-changing curator endpoints (upload / edit / delete) are throttled per
+// administrator. The admin role never bypasses this throttle. The bucket is
+// shared across upload/edit/delete; this test exercises the limit
 // via the edit endpoint since it's the simplest to drive without a fresh
 // upload each iteration.
 describe('admin curator state-change rate limit', () => {

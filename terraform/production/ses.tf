@@ -600,9 +600,9 @@ resource "aws_sns_topic" "ses_feedback" {
 # The publish statement is the point. The default policy blocks other accounts
 # but says nothing about which service may publish, so the mail service's own
 # setup documentation supplies this shape: the service principal, pinned to this
-# account and to the identity the notifications belong to. Without the pin, any
-# principal that can publish here could inject a bounce that arrives wrapped in
-# the genuine topic identity the application checks before acting on it.
+# account and to the identity the notifications belong to, so only the mail
+# service publishes this identity's feedback onto the topic the application
+# trusts.
 resource "aws_sns_topic_policy" "ses_feedback" {
   arn = aws_sns_topic.ses_feedback.arn
 

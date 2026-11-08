@@ -141,6 +141,12 @@ export function createApp(): express.Express {
       ? `https://${config.mediaStorageS3Bucket}.s3.${config.awsRegion}.amazonaws.com`
       : null;
 
+  // The legacy archive is its own site on another origin. A visitor sent to
+  // log in from the archive gate signs in with a form POST that is answered
+  // 303 to /archive, which is answered 303 to the archive, so that origin is
+  // a hop of the login form's redirect chain.
+  const archiveOrigin = config.archiveUrl ? new URL(config.archiveUrl).origin : null;
+
   // Third-party player origins the click-to-load video facade builds iframes
   // for. One list feeds both the frame-src directive and the Permissions-Policy
   // delegation below, so a player host can never be allowed to frame while being
@@ -167,7 +173,8 @@ export function createApp(): express.Express {
         // that origin and the browser refuses the navigation with no server
         // error at all: the member sees the form reload unchanged, and the
         // stub adapter cannot reveal it because its redirect is same-origin.
-        formAction:     ["'self'", 'https://checkout.stripe.com'],
+        // A login from the archive gate ends on the archive origin the same way.
+        formAction:     ["'self'", 'https://checkout.stripe.com', ...(archiveOrigin ? [archiveOrigin] : [])],
         frameAncestors: ["'none'"],
         upgradeInsecureRequests: [],
         // Browser POSTs CSP violation reports to this path so the

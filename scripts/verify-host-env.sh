@@ -634,15 +634,13 @@ check_set "PAYMENT_ADAPTER" "payment adapter (expected: 'stub' on staging always
 if [[ "$TARGET" != "staging" && "${HOST_ENV[PAYMENTS_ARMED]:-}" == "dark" ]]; then
   check_equals "PAYMENT_ADAPTER" "stub" "payment adapter (payments dark: the stub is the required state)"
 fi
-# A stub-adapter host signs and verifies webhooks with a secret that, absent
-# this value, is the constant committed to the repository: anyone with a copy
-# could forge a delivery the endpoint accepts. The runtime refuses to boot
+# Each host gets its own generated stub webhook signing secret; the constant in
+# the repository is for development and test only. The runtime refuses to boot
 # without it; checking here reports it before the deploy gets that far.
-# Presence alone passes a real provider secret pasted into this slot, which
-# would have the stub host act on deliveries signed for the live endpoint, and
-# the committed all-zero constant or any short value anyone could guess. The
-# deploy generates whsec_stub_ plus 48 random hex characters, and the runtime
-# refuses to boot on anything else. The value is a secret, so a failure names
+# Presence alone is not the check: the deploy generates whsec_stub_ plus 48
+# random hex characters, this check requires exactly that shape, so a real
+# provider secret or the committed constant in this slot fails it, and the
+# runtime refuses to boot on anything else. The value is a secret, so a failure names
 # the shape, never the value. Recovery: delete the line and deploy, and the
 # deploy generates a fresh one.
 if [[ "${HOST_ENV[PAYMENT_ADAPTER]:-}" == "stub" ]]; then
@@ -657,10 +655,10 @@ if [[ "${HOST_ENV[PAYMENT_ADAPTER]:-}" == "stub" ]]; then
   unset STUB_SECRET_ACTUAL
 fi
 
-# An open signing-secret rotation keeps the outgoing secret valid for as long as
-# the line stays, so a leaked old secret still forges deliveries. The window is
-# legitimate while a roll is in progress, which is why this warns rather than
-# fails. Only presence is reported; the value is a secret.
+# While STRIPE_WEBHOOK_SECRET_PREVIOUS is set the outgoing secret still
+# verifies deliveries; close the window once every delivery signs with the new
+# secret. The window is legitimate while a roll is in progress, which is why
+# this warns rather than fails. Only presence is reported; the value is a secret.
 if [[ -n "${HOST_ENV[STRIPE_WEBHOOK_SECRET_PREVIOUS]:-}" ]]; then
   check_warn "webhook rotation window open: STRIPE_WEBHOOK_SECRET_PREVIOUS is set, so the outgoing signing secret still verifies deliveries. Once every delivery signs with the new secret, close it with: < <operator credential file> bash scripts/activate-payments.sh --target $TARGET --profile <profile> --complete-webhook-rotation"
 fi

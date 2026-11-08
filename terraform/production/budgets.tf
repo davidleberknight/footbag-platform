@@ -2,10 +2,11 @@
 # Billing — monthly cost budget
 # =============================================================================
 #
-# Spend is watched by the two resources in this file and by nothing else. Every
-# other alarm in this stack is about the application's health; none of them
-# notice a cost anomaly, so a misconfigured resource or a compromised credential
-# would run for a full billing cycle before anyone saw it on an invoice.
+# Spend is watched by the two resources in this file: a monthly cost budget
+# that warns on actual and forecast spend, and an estimated-charges alarm that
+# raises inside the application. Every other alarm in this stack is about the
+# application's health, so these two are what surface a cost anomaly within
+# the billing cycle rather than on the invoice.
 #
 # The two halves do different jobs. The budget mails the operator directly, and
 # is the only one of the two that can warn on a forecast, before the money is

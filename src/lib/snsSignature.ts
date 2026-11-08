@@ -63,9 +63,9 @@ export async function verifySnsSignature(
   });
 }
 
-/** Longest confirmation URL this will log. The body cap is a megabyte, so an
- *  unbounded log of an attacker-chosen URL is a log-flooding primitive, and a
- *  bound belongs here.
+/** Longest confirmation URL this will log. The confirmation URL is logged only
+ *  when it is an HTTPS SNS endpoint within a length bound, and is never
+ *  auto-fetched; this is that bound.
  *
  *  It is a URL bound, not a line-length one. Sized as "short enough for one log
  *  line" it was 300, and a genuine SNS confirmation URL is longer than that: the
@@ -74,16 +74,16 @@ export async function verifySnsSignature(
  *  confirmed at all, while a test whose "genuine" fixture ended `Token=abc` kept
  *  the guard looking sound. 2048 is the conventional URL bound; it clears a real
  *  one several times over and still sits three orders of magnitude under the
- *  body cap, so the flooding defence is untouched. */
+ *  body cap. */
 const MAX_LOGGED_URL_LENGTH = 2048;
 
 /**
  * The confirmation URL as it is safe to hand an operator, or a marker.
  *
  * A subscription confirmation is the one payload whose URL an operator is asked
- * to open, and on a forged confirmation that URL is attacker-chosen. Log it only
- * when it is really an SNS endpoint over HTTPS and short enough to belong on one
- * line; otherwise say so and log nothing else. Callers pass the raw envelope
+ * to open. The confirmation URL is logged only when it is an HTTPS SNS endpoint
+ * within a length bound, and is never auto-fetched; otherwise this says so and
+ * logs nothing else. Callers pass the raw envelope
  * field, so this never trusts its input.
  */
 export function safeSubscribeUrlForLog(raw: unknown): string {

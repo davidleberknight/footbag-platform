@@ -65,10 +65,10 @@ resource "aws_sns_topic_policy" "alarms" {
 }
 
 # ── AWS Health events ────────────────────────────────────────────────────────
-# Mirrors production. Health events for global services publish to us-east-1,
-# this account's primary region, so one rule covers them; us-west-2 is
-# deliberately not wired, since the only resources there are replica buckets
-# whose failure surfaces through the replication alarms instead.
+# Mirrors production, which carries the reasoning. Two rules: the primary one in
+# us-east-1, the only region that receives global-service events, and a second
+# in us-west-2, the backup region AWS also delivers every us-east-1 event to, on
+# its own topic so the alert still reaches a person while us-east-1 is impaired.
 
 resource "aws_cloudwatch_event_rule" "aws_health" {
   name        = "${local.prefix}-aws-health"
@@ -81,6 +81,124 @@ resource "aws_cloudwatch_event_rule" "aws_health" {
 
 resource "aws_cloudwatch_event_target" "aws_health_to_alarms" {
   rule      = aws_cloudwatch_event_rule.aws_health.name
+  target_id = "alarms-topic"
+  arn       = aws_sns_topic.alarms.arn
+}
+
+resource "aws_sns_topic" "alarms_us_west_2" {
+  provider = aws.us_west_2
+  name     = "${local.prefix}-alarms-usw2"
+}
+
+resource "aws_sns_topic_policy" "alarms_us_west_2" {
+  provider = aws.us_west_2
+  arn      = aws_sns_topic.alarms_us_west_2.arn
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "OwnerFullAccess"
+        Effect    = "Allow"
+        Principal = { AWS = "arn:aws:iam::${var.aws_account_id}:root" }
+        Action    = local.sns_owner_actions
+        Resource  = aws_sns_topic.alarms_us_west_2.arn
+      },
+      {
+        Sid       = "AllowEventBridgePublish"
+        Effect    = "Allow"
+        Principal = { Service = "events.amazonaws.com" }
+        Action    = "SNS:Publish"
+        Resource  = aws_sns_topic.alarms_us_west_2.arn
+        Condition = {
+          StringEquals = {
+            "AWS:SourceAccount" = var.aws_account_id
+          }
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_cloudwatch_event_rule" "aws_health_us_west_2" {
+  provider    = aws.us_west_2
+  name        = "${local.prefix}-aws-health-usw2"
+  description = "AWS Health events delivered to the backup region, emailed from there"
+
+  event_pattern = jsonencode({
+    source = ["aws.health"]
+  })
+}
+
+resource "aws_cloudwatch_event_target" "aws_health_us_west_2_to_alarms" {
+  provider  = aws.us_west_2
+  rule      = aws_cloudwatch_event_rule.aws_health_us_west_2.name
+  target_id = "alarms-usw2-topic"
+  arn       = aws_sns_topic.alarms_us_west_2.arn
+}
+
+resource "aws_sns_topic_subscription" "alarm_email_us_west_2" {
+  provider  = aws.us_west_2
+  topic_arn = aws_sns_topic.alarms_us_west_2.arn
+  protocol  = "email"
+  endpoint  = var.alarm_email
+
+  lifecycle {
+    replace_triggered_by = [terraform_data.alarm_email_generation]
+  }
+}
+
+resource "aws_sns_topic_subscription" "alarm_ops_alert_us_west_2" {
+  count     = var.ops_alert_email != "" ? 1 : 0
+  provider  = aws.us_west_2
+  topic_arn = aws_sns_topic.alarms_us_west_2.arn
+  protocol  = "email"
+  endpoint  = var.ops_alert_email
+
+  lifecycle {
+    replace_triggered_by = [terraform_data.alarm_email_generation]
+  }
+}
+
+# ── Account detector and analyzer findings ───────────────────────────────────
+# The GuardDuty detector and the Access Analyzer are account properties declared
+# in the shared tree, which holds no notification path; these rules are what
+# make their findings reach a person. Both environments receive every
+# account-wide finding, and staging's copy is applied first, so a sample finding
+# or a deliberately public staging resource proves the route before production
+# carries it. GuardDuty findings of severity 7 or more only; every active Access
+# Analyzer finding. Neither rule is gated: a rule matching nothing costs nothing.
+
+resource "aws_cloudwatch_event_rule" "guardduty_findings" {
+  name        = "${local.prefix}-guardduty-findings"
+  description = "High and critical GuardDuty findings, delivered to the alarm topic"
+
+  event_pattern = jsonencode({
+    source        = ["aws.guardduty"]
+    "detail-type" = ["GuardDuty Finding"]
+    detail        = { severity = [{ numeric = [">=", 7] }] }
+  })
+}
+
+resource "aws_cloudwatch_event_target" "guardduty_findings_to_alarms" {
+  rule      = aws_cloudwatch_event_rule.guardduty_findings.name
+  target_id = "alarms-topic"
+  arn       = aws_sns_topic.alarms.arn
+}
+
+resource "aws_cloudwatch_event_rule" "access_analyzer_findings" {
+  name        = "${local.prefix}-access-analyzer-findings"
+  description = "Active Access Analyzer findings, delivered to the alarm topic"
+
+  event_pattern = jsonencode({
+    source        = ["aws.access-analyzer"]
+    "detail-type" = ["Access Analyzer Finding"]
+    detail        = { status = ["ACTIVE"] }
+  })
+}
+
+resource "aws_cloudwatch_event_target" "access_analyzer_findings_to_alarms" {
+  rule      = aws_cloudwatch_event_rule.access_analyzer_findings.name
   target_id = "alarms-topic"
   arn       = aws_sns_topic.alarms.arn
 }

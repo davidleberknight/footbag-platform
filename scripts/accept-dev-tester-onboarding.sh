@@ -31,11 +31,10 @@
 #   - Open a delivery addressed to another account or environment than the one
 #     named, or one whose contents are not exactly the known format. It is read,
 #     never run.
-#   - Trust a delivery not proved issued in this project's AWS account to this
-#     person's own IAM user. The proof runs with the delivered key held in
-#     memory, before any file on this machine is written, so a delivery forged
-#     in another account under the same names writes nothing and is sent
-#     nothing.
+#   - Trust a delivery before it is proved issued in this project's AWS account
+#     to this person's own IAM user. The proof runs with the delivered key held
+#     in memory, before any file on this machine is written, so a delivery that
+#     fails it writes nothing and is sent nothing.
 #   - Trust a delivery naming a host other than the --host it was fetched from,
 #     or a host whose key, met on the fetch, is not among the delivery's pins.
 #   - Write a [footbag-operator] section, or change any AWS section but this

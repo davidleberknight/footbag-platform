@@ -249,10 +249,9 @@ describe('the job role grants what a terraform plan actually calls', () => {
     // Two opposite failures live in one list. The kms grant beside it is
     // conditioned on an alias a key does not carry until its own alias resource
     // exists, so the calls terraform makes in that window must be here —
-    // rotation always is, since every key in both trees enables it. And
-    // widening this far enough to cover a key's whole lifecycle would let a
-    // dev-and-tester seize or schedule the deletion of any key in the account,
-    // including one this project never named.
+    // rotation always is, since every key in both trees enables it. And the
+    // list stops short of a key's whole lifecycle, so seizing or scheduling the
+    // deletion of a key stays behind the alias condition.
     const list = actions('CallsThatCarryNoResource');
     expect(list).toEqual([
       // Authorized on no resource, and made on every staging refresh: scoped to
@@ -296,11 +295,9 @@ describe('the job role grants what a terraform plan actually calls', () => {
   });
 
   it('publishes metrics only into the staging namespace', () => {
-    // Unconditioned, this was write access to every namespace in the account,
-    // production's included. One injected zero suppresses the backup-promotion
-    // alarm, which triggers on a minimum; a flood buries the trail-derived
-    // security alarms. Both runtime principals in the estate already carry this
-    // condition, so its absence here was the outlier.
+    // Metric publication is condition-scoped to the application's staging
+    // namespace, matching the condition both runtime principals carry, so the
+    // namespace production's alarms read stays outside this role's reach.
     expect(actions('PublishStagingMetricsOnly')).toEqual(['cloudwatch:PutMetricData']);
     const s = statement('PublishStagingMetricsOnly');
     expect(s).toContain('"cloudwatch:namespace" = "Footbag/staging"');
@@ -363,6 +360,12 @@ describe('the job role grants what a terraform plan actually calls', () => {
       's3:GetAccountPublicAccessBlock',
       'access-analyzer:ListAnalyzers',
       'access-analyzer:GetAnalyzer',
+      'access-analyzer:ListFindings',
+      'guardduty:ListDetectors',
+      'guardduty:GetDetector',
+      'guardduty:GetUsageStatistics',
+      'cloudtrail:GetTrailStatus',
+      'cloudtrail:DescribeTrails',
       'account:GetAlternateContact',
       'sso:ListInstances',
       'sso:ListPermissionSets',
@@ -721,8 +724,8 @@ describe('the job role reaches staging and nothing else', () => {
 
   it('reads the dev-and-tester addresses and may write no operator address', () => {
     // The staging plan reads each person's address to build the SSH allow-list.
-    // A holder who could write one could admit any address or drop a
-    // colleague's, so writes are denied by inversion: only the three reads pass.
+    // Those addresses decide who reaches staging SSH, so writes are denied by
+    // inversion: only the three reads pass.
     expect(actions('ReadTheDevTesterAddresses')).toEqual([
       'ssm:GetParametersByPath',
       'ssm:GetParameter',

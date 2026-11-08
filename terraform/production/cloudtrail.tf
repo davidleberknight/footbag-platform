@@ -9,11 +9,9 @@
 # event history — not a permanent record, not queryable by a metric filter, and
 # not something an alarm can read.
 #
-# The gap matters most for the one credential this design concedes: the host
-# holds a long-lived IAM user key as the source profile for its assumed role,
-# because Lightsail has no instance profile. If that key leaks, this trail is the
-# only thing that says what was done with it. Without a trail, after ninety days
-# the answer is nothing at all.
+# The host assumes its runtime role from a source-profile IAM user key, because
+# Lightsail has no instance profile; the trail is the durable record of every
+# call made with it.
 #
 # WHY IN THE PRODUCTION TREE. A multi-region management-events trail is
 # account-global, and both environments share one account. The established
@@ -28,10 +26,9 @@
 # need, is charged at ingestion — also small here, and it is what turns the trail
 # from a record nobody reads into alarms that reach a person.
 #
-# MFA delete on the log bucket is declined deliberately: it is incompatible with
-# lifecycle rules and impractical for a single maintainer. Object versioning plus
-# the deny-delete bucket policy carry the tamper-resistance instead, alongside
-# CloudTrail's own log-file validation digests.
+# The log bucket is protected by object versioning, the deny-delete bucket
+# policy and CloudTrail's own log-file validation digests. MFA delete is not
+# used, because it is incompatible with lifecycle expiry.
 # =============================================================================
 
 variable "enable_cloudtrail" {
@@ -157,9 +154,8 @@ data "aws_iam_policy_document" "cloudtrail_bucket" {
   }
 
   # Tamper resistance without MFA delete: nobody, including the operator's own
-  # role, deletes trail objects or versions through the data path. Removing the
-  # record of an action is the first thing an attacker with credentials would
-  # try, and lifecycle expiry above is the only sanctioned way objects leave.
+  # role, deletes trail objects or versions through the data path; lifecycle
+  # expiry above is the only sanctioned way objects leave.
   statement {
     sid    = "DenyObjectDeletion"
     effect = "Deny"
@@ -255,13 +251,15 @@ resource "aws_cloudtrail" "main" {
   # and those are precisely the actions worth having a record of.
   is_multi_region_trail = true
 
-  # Management events only. Data events (per-object S3, per-function Lambda) are
-  # charged per event and would be dominated by the five-minute backup uploads,
-  # which the backup metrics already cover from the other direction.
   include_global_service_events = true
 
-  # Digest files signed by AWS, so deletion or modification of a log file is
-  # detectable rather than merely unlikely.
+  # No event_selector block, so the trail records read and write management
+  # events and no data events. Per-object S3 events would be charged per event
+  # and dominated by the five-minute backup uploads, and a second log nothing
+  # queries adds cost without detection: GuardDuty's S3 protection reads those
+  # events itself and raises a finding on an anomalous read, write or delete.
+
+  # Digest files signed by AWS, so log-file integrity can be validated.
   enable_log_file_validation = true
 
   cloud_watch_logs_group_arn = "${aws_cloudwatch_log_group.cloudtrail[0].arn}:*"
@@ -279,15 +277,14 @@ resource "aws_cloudtrail" "main" {
 # exists to prevent.
 
 # Root credential use. The account root should be used for nothing in normal
-# operation, so any use of it is either the operator doing something deliberate
-# and rare, or somebody else.
+# operation, so any use of it raises an alarm.
 resource "aws_cloudwatch_log_metric_filter" "root_account_used" {
   count          = var.enable_cloudtrail ? 1 : 0
   name           = "${local.prefix}-root-account-used"
   log_group_name = aws_cloudwatch_log_group.cloudtrail[0].name
   pattern        = "{ $.userIdentity.type = \"Root\" && $.userIdentity.invokedBy NOT EXISTS && $.eventType != \"AwsServiceEvent\" }"
   metric_transformation {
-    namespace     = "Footbag/${var.environment}"
+    namespace     = "Footbag/${var.environment}/Audit"
     name          = "RootAccountUsed"
     value         = "1"
     default_value = "0"
@@ -300,25 +297,25 @@ resource "aws_cloudwatch_metric_alarm" "root_account_used" {
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 1
   metric_name         = "RootAccountUsed"
-  namespace           = "Footbag/${var.environment}"
+  namespace           = "Footbag/${var.environment}/Audit"
   period              = 300
   statistic           = "Sum"
   threshold           = 0
   treat_missing_data  = "notBreaching"
   alarm_description   = "The AWS account root credential was used. Expected to be zero in normal operation; investigate unless this was a deliberate operator action."
   alarm_actions       = [aws_sns_topic.alarms.arn]
+  ok_actions          = [aws_sns_topic.alarms.arn]
 }
 
 # Host access details minted. GetInstanceAccessDetails issues a short-lived
-# certificate for the host's default account, which carries passwordless sudo,
-# so any mint could be a root shell on a host. The same call is also the only
-# authenticated source of a host's SSH host keys, so two routine scripts make
-# it through scripts/lib/ssh-known-hosts.sh: scripts/install-known-hosts.sh
-# (including its --check mode) and scripts/onboard-dev-tester.sh. Neither uses
-# the certificate. The path stays usable and is alarmed instead, so every
-# firing is matched to one of three things: a logged run of one of those
-# scripts, a declared emergency, or a test of the break-glass path. A firing
-# matching none is investigated. The trail is multi-region and records
+# certificate for the host's default account, which carries passwordless sudo.
+# The same call is also the only authenticated source of a host's SSH host
+# keys, so two routine scripts make it through scripts/lib/ssh-known-hosts.sh:
+# scripts/install-known-hosts.sh (including its --check mode) and
+# scripts/onboard-dev-tester.sh. Neither uses the certificate. Every firing is
+# matched to one of three things: a logged run of one of those scripts, a
+# declared emergency, or a test of the break-glass path. A firing matching none
+# is investigated. The trail is multi-region and records
 # management events, so this one filter counts calls against both hosts.
 resource "aws_cloudwatch_log_metric_filter" "break_glass_host_access" {
   count          = var.enable_cloudtrail ? 1 : 0
@@ -326,7 +323,7 @@ resource "aws_cloudwatch_log_metric_filter" "break_glass_host_access" {
   log_group_name = aws_cloudwatch_log_group.cloudtrail[0].name
   pattern        = "{ ($.eventSource = \"lightsail.amazonaws.com\") && ($.eventName = \"GetInstanceAccessDetails\") }"
   metric_transformation {
-    namespace     = "Footbag/${var.environment}"
+    namespace     = "Footbag/${var.environment}/Audit"
     name          = "BreakGlassHostAccess"
     value         = "1"
     default_value = "0"
@@ -339,18 +336,18 @@ resource "aws_cloudwatch_metric_alarm" "break_glass_host_access" {
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 1
   metric_name         = "BreakGlassHostAccess"
-  namespace           = "Footbag/${var.environment}"
+  namespace           = "Footbag/${var.environment}/Audit"
   period              = 300
   statistic           = "Sum"
   threshold           = 0
   treat_missing_data  = "notBreaching"
   alarm_description   = "Lightsail access details were minted for a host (staging or production): a short-lived certificate for the default account, which has passwordless sudo. Routine callers also make this call to read host keys: scripts/install-known-hosts.sh (including --check) and scripts/onboard-dev-tester.sh. Match the firing to a logged run of one of those, a declared emergency, or a test of the break-glass path; investigate if it matches none."
   alarm_actions       = [aws_sns_topic.alarms.arn]
+  ok_actions          = [aws_sns_topic.alarms.arn]
 }
 
 # Denied calls to the parameter store. The design says unusual parameter-store
-# access is alarmable; a burst of AccessDenied is the shape that matters, because
-# it is what credential probing looks like from the inside.
+# access is alarmable, and a burst of AccessDenied is the shape that matters.
 #
 # The wildcard covers both codes the parameter store actually returns for an IAM
 # refusal, AccessDenied and AccessDeniedException. UnauthorizedOperation is an
@@ -362,7 +359,7 @@ resource "aws_cloudwatch_log_metric_filter" "ssm_access_denied" {
   log_group_name = aws_cloudwatch_log_group.cloudtrail[0].name
   pattern        = "{ ($.eventSource = \"ssm.amazonaws.com\") && ($.errorCode = \"AccessDenied*\") }"
   metric_transformation {
-    namespace     = "Footbag/${var.environment}"
+    namespace     = "Footbag/${var.environment}/Audit"
     name          = "ParameterStoreAccessDenied"
     value         = "1"
     default_value = "0"
@@ -375,15 +372,16 @@ resource "aws_cloudwatch_metric_alarm" "ssm_access_denied" {
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 1
   metric_name         = "ParameterStoreAccessDenied"
-  namespace           = "Footbag/${var.environment}"
+  namespace           = "Footbag/${var.environment}/Audit"
   period              = 300
   statistic           = "Sum"
   # A handful can be ordinary (a script reaching for a parameter that does not
-  # exist yet). A run of them is something reading for what it cannot have.
+  # exist yet), so the alarm fires only above five.
   threshold          = 5
   treat_missing_data = "notBreaching"
-  alarm_description  = "More than five denied parameter-store calls in five minutes. Either a misconfigured caller or something enumerating secrets it cannot read."
+  alarm_description  = "More than five denied Parameter Store calls in five minutes; investigate the caller."
   alarm_actions      = [aws_sns_topic.alarms.arn]
+  ok_actions         = [aws_sns_topic.alarms.arn]
 }
 
 # Denied or failed KMS calls. The design commits to KMS error alarming, and this
@@ -402,7 +400,7 @@ resource "aws_cloudwatch_log_metric_filter" "kms_errors" {
   # a clean KMS call and another service's error.
   pattern = "{ ($.eventSource = \"kms.amazonaws.com\") && ($.errorCode = \"*\") }"
   metric_transformation {
-    namespace     = "Footbag/${var.environment}"
+    namespace     = "Footbag/${var.environment}/Audit"
     name          = "KmsCallErrors"
     value         = "1"
     default_value = "0"
@@ -415,24 +413,25 @@ resource "aws_cloudwatch_metric_alarm" "kms_errors" {
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 1
   metric_name         = "KmsCallErrors"
-  namespace           = "Footbag/${var.environment}"
+  namespace           = "Footbag/${var.environment}/Audit"
   period              = 300
   statistic           = "Sum"
   threshold           = 5
   treat_missing_data  = "notBreaching"
   alarm_description   = "More than five failed KMS calls in five minutes. Session signing runs through KMS, so a sustained failure is a login outage; a disabled or deleted key looks like this."
   alarm_actions       = [aws_sns_topic.alarms.arn]
+  ok_actions          = [aws_sns_topic.alarms.arn]
 }
 
-# Console sign-in failures. Cheap to watch and the clearest signal that someone
-# is trying credentials against the account itself rather than the application.
+# Console sign-in failures against the AWS account itself, as distinct from
+# failures on the application's own sign-in form.
 resource "aws_cloudwatch_log_metric_filter" "console_auth_failure" {
   count          = var.enable_cloudtrail ? 1 : 0
   name           = "${local.prefix}-console-auth-failure"
   log_group_name = aws_cloudwatch_log_group.cloudtrail[0].name
   pattern        = "{ ($.eventName = \"ConsoleLogin\") && ($.errorMessage = \"Failed authentication\") }"
   metric_transformation {
-    namespace     = "Footbag/${var.environment}"
+    namespace     = "Footbag/${var.environment}/Audit"
     name          = "ConsoleAuthFailures"
     value         = "1"
     default_value = "0"
@@ -445,11 +444,82 @@ resource "aws_cloudwatch_metric_alarm" "console_auth_failure" {
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 1
   metric_name         = "ConsoleAuthFailures"
-  namespace           = "Footbag/${var.environment}"
+  namespace           = "Footbag/${var.environment}/Audit"
   period              = 300
   statistic           = "Sum"
   threshold           = 3
   treat_missing_data  = "notBreaching"
   alarm_description   = "More than three failed console sign-ins in five minutes against this AWS account."
   alarm_actions       = [aws_sns_topic.alarms.arn]
+  ok_actions          = [aws_sns_topic.alarms.arn]
+}
+
+# ── Watching the watcher ─────────────────────────────────────────────────────
+#
+# Changes to the trail, its bucket, its log group and the alarm path each raise
+# an alarm on the first matching call, denied attempts included, and the email
+# reaches a mailbox outside AWS. Matching denied attempts is what lets a denied
+# call from a staging principal prove each alarm. All five are threshold zero
+# and share one shape, so they are declared from one map.
+locals {
+  audit_alarms = {
+    audit-trail-tampered = {
+      metric = "AuditTrailTampered"
+      pattern = join("", [
+        "{ ($.eventSource = \"cloudtrail.amazonaws.com\" && ($.eventName = \"CreateTrail\" || $.eventName = \"UpdateTrail\" || $.eventName = \"DeleteTrail\" || $.eventName = \"StopLogging\" || $.eventName = \"PutEventSelectors\"))",
+        " || ($.eventSource = \"s3.amazonaws.com\" && $.requestParameters.bucketName = \"${local.prefix}-cloudtrail\" && ($.eventName = \"PutBucketPolicy\" || $.eventName = \"DeleteBucketPolicy\" || $.eventName = \"PutBucketLifecycle\" || $.eventName = \"DeleteBucketLifecycle\" || $.eventName = \"PutBucketVersioning\"))",
+        " || ($.eventSource = \"logs.amazonaws.com\" && $.requestParameters.logGroupName = \"/footbag/${var.environment}/cloudtrail\" && ($.eventName = \"DeleteLogGroup\" || $.eventName = \"PutRetentionPolicy\" || $.eventName = \"DeleteMetricFilter\")) }",
+      ])
+      description = "The audit trail, its bucket or its log group was changed or a change was attempted: a trail created, updated, deleted or stopped, its event selectors replaced, the bucket's policy, lifecycle or versioning changed, or the log group deleted, its retention changed or a metric filter removed. Expected only during a deliberate Terraform apply of the trail."
+    }
+    alerting-disabled = {
+      metric      = "AlertingDisabled"
+      pattern     = "{ ($.eventSource = \"monitoring.amazonaws.com\" && ($.eventName = \"DeleteAlarms\" || $.eventName = \"DisableAlarmActions\")) || ($.eventSource = \"sns.amazonaws.com\" && ($.eventName = \"DeleteTopic\" || $.eventName = \"Unsubscribe\")) || ($.eventSource = \"guardduty.amazonaws.com\" && ($.eventName = \"DeleteDetector\" || $.eventName = \"UpdateDetector\")) }"
+      description = "The alarm path was changed or a change was attempted: alarms deleted or their actions disabled, a topic deleted or unsubscribed, or the GuardDuty detector deleted or updated. Expected only during a deliberate Terraform apply that replaces an alarm or topic."
+    }
+    iam-write = {
+      metric      = "IamWrite"
+      pattern     = "{ $.eventSource = \"iam.amazonaws.com\" && $.readOnly IS FALSE }"
+      description = "An IAM write call was made or attempted in this AWS account. Every staging or production Terraform apply that changes a role or policy fires this; match each firing to an apply, as host-access mints are matched to their scripts."
+    }
+    kms-key-disabled = {
+      metric      = "KmsKeyDisabled"
+      pattern     = "{ $.eventSource = \"kms.amazonaws.com\" && ($.eventName = \"DisableKey\" || $.eventName = \"ScheduleKeyDeletion\" || $.eventName = \"PutKeyPolicy\") }"
+      description = "A KMS key was disabled, scheduled for deletion or had its key policy replaced, or one of those was attempted. Session signing runs through KMS, so a disabled signing key is a login outage once it takes effect."
+    }
+    console-login-without-mfa = {
+      metric      = "ConsoleLoginWithoutMfa"
+      pattern     = "{ ($.eventName = \"ConsoleLogin\") && ($.additionalEventData.MFAUsed != \"Yes\") && ($.userIdentity.type = \"IAMUser\") && ($.responseElements.ConsoleLogin = \"Success\") }"
+      description = "An IAM user signed in to the AWS console without MFA. Every console user is expected to have MFA; investigate the user and enforce it."
+    }
+  }
+}
+
+resource "aws_cloudwatch_log_metric_filter" "audit" {
+  for_each       = var.enable_cloudtrail ? local.audit_alarms : {}
+  name           = "${local.prefix}-${each.key}"
+  log_group_name = aws_cloudwatch_log_group.cloudtrail[0].name
+  pattern        = each.value.pattern
+  metric_transformation {
+    namespace     = "Footbag/${var.environment}/Audit"
+    name          = each.value.metric
+    value         = "1"
+    default_value = "0"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "audit" {
+  for_each            = var.enable_cloudtrail ? local.audit_alarms : {}
+  alarm_name          = "${local.prefix}-${each.key}"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = each.value.metric
+  namespace           = "Footbag/${var.environment}/Audit"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 0
+  treat_missing_data  = "notBreaching"
+  alarm_description   = each.value.description
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+  ok_actions          = [aws_sns_topic.alarms.arn]
 }

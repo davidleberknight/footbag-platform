@@ -18,8 +18,10 @@
 # bucket is a check nobody can run twice.
 #
 # What it checks, per environment:
-#   production   the snapshot bucket's hourly/ tier, the media bucket, and the
-#                archive bucket
+#   production   the snapshot bucket's hourly/ and daily/ tiers, each copy's
+#                Object Lock retention read and required at least 60 days
+#                ahead, the media bucket, the archive bucket, and the state of
+#                the alarm that fires when hourly snapshot replication stops
 #   staging      the media bucket and the archive bucket
 #
 # The archive bucket exists only while the archive stack is enabled. Where its
@@ -84,15 +86,25 @@ tf_output() {
   "$TF_BIN" -chdir="terraform/${TARGET}" output -raw "$1" </dev/null 2>/dev/null
 }
 
-# Source bucket, prefix pairs. The snapshot bucket replicates its hourly/ and
-# daily/ tiers only; hourly/ is the one that always holds a recent object.
+# Source bucket, prefix and whether the copy must carry an Object Lock. The
+# snapshot bucket replicates its hourly/ and daily/ tiers only, through one rule
+# each, so both are checked: a daily rule that stopped would leave the
+# longest-lived points with no recovery-region copy while hourly/ still passed.
+# Their destination holds the Object Lock that keeps a database copy from being
+# deleted early, so the newest copy's retention is read as well; a lock that is
+# configured but not applied protects nothing.
 declare -a CHECKS=()
 MEDIA_BUCKET="$(tf_output media_bucket_name)" || die "could not read terraform/${TARGET} output media_bucket_name"
-CHECKS+=("${MEDIA_BUCKET}|")
+CHECKS+=("${MEDIA_BUCKET}||")
 if [[ "$TARGET" == "production" ]]; then
   SNAP_BUCKET="$(tf_output snapshots_bucket_name)" || die "could not read terraform/${TARGET} output snapshots_bucket_name"
-  CHECKS+=("${SNAP_BUCKET}|hourly/")
+  CHECKS+=("${SNAP_BUCKET}|hourly/|locked" "${SNAP_BUCKET}|daily/|locked")
 fi
+# The newest database copy must stay locked at least this many days ahead. The
+# bucket's default retention is 90 days, so a fresh copy reads about 90; below
+# 60 means the lock was shortened or the newest copy is far older than it
+# should be.
+MIN_LOCK_DAYS=60
 
 # Read as JSON rather than raw, because null (the archive stack is off) and an
 # empty string are different answers and only JSON tells them apart.
@@ -102,7 +114,7 @@ archive_json="$("$TF_BIN" -chdir="terraform/${TARGET}" output -json archive_buck
 if [[ "$archive_json" == "null" ]]; then
   skipped="archive"
 elif [[ "$archive_json" =~ ^\"([a-z0-9][a-z0-9.-]*)\"$ ]]; then
-  CHECKS+=("${BASH_REMATCH[1]}|")
+  CHECKS+=("${BASH_REMATCH[1]}||")
 else
   die "terraform/${TARGET} output archive_bucket_name is neither null nor a bucket name: ${archive_json}"
 fi
@@ -117,9 +129,10 @@ if [[ -n "$skipped" ]]; then
   echo "==> SKIP: archive bucket not checked: terraform/${TARGET} output archive_bucket_name is null, so the archive stack is off here"
 fi
 
+lock_floor="$(date -u -d "${now} UTC + ${MIN_LOCK_DAYS} days" +%Y-%m-%dT%H:%M:%S)"
+
 for check in "${CHECKS[@]}"; do
-  src="${check%%|*}"
-  prefix="${check#*|}"
+  IFS='|' read -r src prefix lock <<<"$check"
   echo "==> s3://${src}/${prefix}"
 
   dest_arn="$("$AWS_BIN" s3api get-bucket-replication --bucket "$src" \
@@ -157,8 +170,38 @@ for check in "${CHECKS[@]}"; do
     echo "    present in ${dest}"
   else
     fail "${key} is missing from ${dest}"
+    continue
+  fi
+
+  [[ "$lock" == "locked" ]] || continue
+  retention="$("$AWS_BIN" s3api get-object-retention --bucket "$dest" --key "$key" \
+    --query 'Retention.[Mode,RetainUntilDate]' --output text </dev/null 2>/dev/null)" || retention=""
+  read -r lock_mode lock_until <<<"$retention"
+  if [[ "${lock_mode:-}" != "GOVERNANCE" && "${lock_mode:-}" != "COMPLIANCE" ]]; then
+    fail "${key} in ${dest} carries no Object Lock retention, so it could be deleted early"
+  elif [[ "${lock_until:0:19}" < "$lock_floor" ]]; then
+    fail "${key} in ${dest} is locked only until ${lock_until}, less than ${MIN_LOCK_DAYS} days ahead"
+  else
+    echo "    locked (${lock_mode}) until ${lock_until}"
   fi
 done
+
+# The alarm that fires when hourly snapshot replication goes silent exists on
+# production only, the one environment whose snapshots replicate. A copy check
+# can pass on an object replicated before the rule stopped, so the alarm's own
+# state is read as well: it must exist and must not be firing.
+if [[ "$TARGET" == "production" ]]; then
+  stopped_alarm="footbag-production-snapshots-hourly-replication-stopped"
+  echo "==> alarm ${stopped_alarm}"
+  alarm_state="$("$AWS_BIN" cloudwatch describe-alarms --alarm-names "$stopped_alarm" \
+    --query 'MetricAlarms[0].StateValue' --output text </dev/null 2>/dev/null)" || alarm_state=""
+  case "$alarm_state" in
+    OK|INSUFFICIENT_DATA) echo "    state ${alarm_state}" ;;
+    ALARM) fail "${stopped_alarm} is in ALARM: no hourly snapshot has replicated for three hours" ;;
+    ""|None) fail "${stopped_alarm} does not exist; apply the production tree" ;;
+    *) fail "${stopped_alarm} reports an unexpected state '${alarm_state}'" ;;
+  esac
+fi
 
 echo ""
 if (( failures > 0 )); then

@@ -18,10 +18,11 @@ read only from `freestyle/inputs/` and `freestyle/symbolic_grammar/` (and
   snapshot; the rebuild never scrapes. The `check_no_live_pipeline_fetch.sh`
   guard enforces no new live fetch.
 - **Two kinds of data live in these tables.** Everything built from `freestyle/inputs/`
-  is reproducible: delete it and a refresh puts it back. Curator-authored work is not,
-  and no committed file can restore it: movement notations on Emerging Vocabulary
-  rulings, canonical tricks published through the admin funnel, and rulings resolved
-  against them. The refresh reconciles the first and preserves the second.
+  is reproducible: delete it and a refresh puts it back. Curator-authored work (movement
+  notations on Emerging Vocabulary rulings, canonical tricks published through the admin
+  funnel, and rulings resolved against them) is reproducible only from the curator save
+  files under `freestyle/inputs/curator_saves/`; work held only in the database has no
+  committed file to restore it. The refresh reconciles the first and preserves the second.
 - **The refresh reconciles and verifies in place; it does not clear and repopulate.**
   Each trick-producing loader upserts the rows its own input carries and stamps
   `trick_origin_producer` on insert, ownership settles in a preflight pass before

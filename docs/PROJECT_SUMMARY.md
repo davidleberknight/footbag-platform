@@ -37,7 +37,7 @@ The Footbag Website Modernization Project upgrades footbag.org into the global c
   - [6.5 Privacy-First Design](#65-privacy-first-design)
   - [6.6 Audit Logging](#66-audit-logging)
   - [6.7 Data Encryption](#67-data-encryption)
-  - [6.8 Threat Model](#68-threat-model)
+  - [6.8 Security Design](#68-security-design)
 - [7. DevOps](#7-devops)
   - [7.1 Backup Strategy](#71-backup-strategy)
   - [7.2 High Availability](#72-high-availability)
@@ -412,11 +412,12 @@ The platform could run on any cloud provider (Azure, Google Cloud, DigitalOcean)
 **Key AWS Services:**
 
 - AWS Lightsail: Simplified virtual server (4GB RAM, 2 vCPUs) hosting all Docker containers in us-east-1 region.
-- AWS S3: Object storage with 99.999999999% durability; primary bucket (us-east-1), backup bucket (us-west-2), and archive bucket for footbag.org mirror.
+- AWS S3: Object storage with 99.999999999% durability. In us-east-1: the media and database-snapshot buckets, the legacy archive bucket, two access-log buckets, the CloudTrail bucket and the Terraform state bucket. In us-west-2: replicas of the media, snapshot and archive buckets, and the maintenance-page bucket, so the page still serves when us-east-1 is down.
 - AWS CloudFront - Global CDN for caching content at edge locations globally, and serving custom error pages when the origin is unavailable. When the Lightsail origin returns 5xx errors or is unreachable, CloudFront serves a maintenance page from S3. 
 - AWS SES: Email delivery with authentication (SPF, DKIM, DMARC) and bounce handling.
 - AWS Parameter Store: Stores webhook/Stripe secrets and non-key config. JWT tokens are signed with an AWS KMS asymmetric key; signing keys are not stored in Parameter Store. SecureString secrets (organized hierarchically under /footbag/ namespace with /production/, /staging/, /development/ environment subpaths) can hold sensitive configuration details that must not be checked into source control.
 - AWS CloudWatch: Unified monitoring service for logs, metrics, and alarms.
+- AWS CloudTrail and GuardDuty: one multi-region trail records every action on the AWS account, kept for a year and watched by alarms; GuardDuty raises threat findings, delivered by email.
 - AWS Route 53: DNS service routing traffic to CloudFront distributions.
 
 **IAM Security Approach:**
@@ -476,7 +477,7 @@ The platform uses a focused, mainstream technology stack chosen for volunteer ma
 - AWS CloudFront - Global CDN for caching and custom error-page handling (maintenance-mode UX) when the origin is unavailable.
 - AWS S3 - Primary storage for photo data (with cross-region replication for backup) and storage for SQLite database snapshot backups.
 - AWS SES - Transactional and bulk email delivery with bounce/complaint handling.
-- AWS Parameter Store -- keeps some secrets out of source control; access is controlled by IAM. It does not protect against in-container compromise.
+- AWS Parameter Store -- keeps some secrets out of source control; access is controlled by IAM.
 - AWS KMS -- keeps secrets out of source control; access is controlled by IAM. Used for cryptographic operations needing non-exportable key custody.
 - AWS IAM -- Enforces security, role-based and minimal system permissions.
 - Docker - Container orchestration for local development and production.
@@ -545,6 +546,7 @@ Memory limits provide:
 - AWS S3 requests: $0.05 (Normal read/write volume).
 - AWS CloudFront: $0.00 (Free tier covers expected usage).
 - AWS SES email: under $1 (pay per message at community volumes).
+- CloudTrail, GuardDuty and security alarms: approximately $1 (estimated from list prices; GuardDuty's share is confirmed from its usage figures after the 30-day free trial).
 - AWS data transfer: $0.00 (Covered by Lightsail allowance).
  
 **Estimated TOTAL approximately $28 USD.** This estimate DOES NOT INCLUDE domain name costs, and assumes moderate community activity. Costs scale gradually with usage. All services pay-as-you-go.
@@ -609,7 +611,7 @@ External Service Stubs implement identical interfaces for dev or production serv
 
 ## 6.1 Authentication Design
 
-**Password Hashing:** User passwords are hashed using argon2id with a per-user random salt. No server-side pepper is used. The threat model assumes strong hashing (argon2id) combined with AWS IAM restrictions, HTTPS encryption in transit, and limited blast radius (one compromised database does not compromise all passwords) provides appropriate security without operational complexity and key rotation risks of server-side peppers.
+**Password Hashing:** User passwords are hashed using argon2id with a per-user random salt. No server-side pepper is used: argon2id combined with AWS IAM restrictions and HTTPS encryption in transit provides appropriate security without the operational complexity and key rotation risks of a server-side pepper.
 
 **Session Tokens (JWT) with Password Version Field:** After login, system issues JSON Web Token signed using AWS KMS asymmetric keys and stored as HttpOnly, Secure, SameSite=Lax cookie (24-hour expiration).
 
@@ -693,31 +695,33 @@ This design creates complete accountability trail. Disputes resolved definitivel
 
 AWS S3 default (SSE-S3) encrypts all data backup snapshots at rest. The local SQLite database file on Lightsail is stored unencrypted on the instance volume, which is an acceptable trade-off given that backups are encrypted, instance access is restricted via IAM, and the data is not financial or regulated.
 
-Ballot encryption uses AWS KMS envelope encryption with per-ballot data keys; store ciphertext plus encrypted data keys. Ballots are encrypted server-side before storage, providing strong cryptographic privacy protections independent of S3 encryption. This ensures ballot secrecy: even with S3 access, ballots remain encrypted without KMS decrypt access to the dedicated ballot key. Double-layer encryption (application-level ballot encryption plus S3-level storage encryption) provides defense in depth but absolute secrecy is not claimed under privileged-role compromise scenarios.
+Ballot encryption uses AWS KMS envelope encryption with per-ballot data keys; store ciphertext plus encrypted data keys. Ballots are encrypted server-side before storage, providing strong cryptographic privacy protections independent of S3 encryption. This ensures ballot secrecy: even with S3 access, ballots remain encrypted without KMS decrypt access to the dedicated ballot key. Double-layer encryption (application-level ballot encryption plus S3-level storage encryption) provides defense in depth.
 
-This approach is appropriate for the platform's threat model: Community membership data is not regulated (not HIPAA, not PCI, not financial records). Encryption at rest protects against physical disk theft and some insider threats. AWS handles key management, rotation, and security.
+This approach suits the platform's data: community membership data is not regulated (not HIPAA, not PCI, not financial records). AWS handles key management, rotation, and security.
 
-S3 storage encryption uses S3-managed keys (SSE-S3), not a customer-managed KMS key: a second key gate would not constrain a compromised runtime credential, which needs both permissions anyway, and would add failure modes to media rendering, database restore and cross-region replication. Customer-managed KMS keys are reserved for what needs non-exportable custody: session signing, ballot encryption and SecureString parameters.
+S3 storage encryption uses S3-managed keys (SSE-S3), not a customer-managed KMS key: a second key gate would add no separation, since the runtime role needs both permissions, and would add failure modes to media rendering, database restore and cross-region replication. Customer-managed KMS keys are reserved for what needs non-exportable custody: session signing, ballot encryption and SecureString parameters.
 
-## 6.8 Threat Model
+## 6.8 Security Design
 
-**Primary Threats Mitigated:**
+**How the main security concerns are addressed:**
 
-- Account takeover via credential theft: argon2id password hashing + HttpOnly JWT.
-- CSRF attacks: SameSite=Lax cookies, strict HTTP verb discipline, and Origin-header pinning on state-changing requests.
-- Malicious file uploads: Isolated image processor + format validation.
-- Ballot tampering: AES-256-GCM encryption + audit logging.
-- SQL injection: Mitigated by prepared statements with parameter binding.
+- Account security: argon2id password hashing and an HttpOnly signed session cookie.
+- Cross-site request forgery: SameSite=Lax cookies, strict HTTP verb discipline, and Origin-header pinning on state-changing requests.
+- File uploads: an isolated image processor with format validation.
+- Ballot integrity and secrecy: AES-256-GCM encryption and audit logging.
+- SQL injection: prepared statements with parameter binding.
+- Abuse and denial of service: AWS Shield Standard at CloudFront plus application-level rate limiting (Turnstile and in-process limits).
 
-**Accepted Risks:**
+**Design scope:**
 
-- Tier 0 members gain limited free access (acceptable for community building).
-- Single compute instance (mitigated by CloudFront error pages and rapid recovery procedures).
-- DDoS/abuse mitigation is layered but intentionally lightweight: AWS Shield Standard at CloudFront plus application-level rate limiting (Turnstile and in-process limits), with a WAFv2 ACL as a deferred lever; no complex multi-region active-active mitigation architecture.
+- Tier 0 members gain limited free access, for community building.
+- A single compute instance, covered by CloudFront maintenance pages and rapid recovery procedures.
 
 **Secrets Management:**
 
-Sensitive credentials (Stripe API keys, webhook secrets) are stored in AWS Parameter Store SecureString. Cryptographic operations requiring non-exportable key custody use AWS KMS instead (JWT signing, ballot encryption). Parameter Store does not protect against attacker shell access inside production containers or host paths that expose runtime credential/config material, so operations requiring non-exportable keys use KMS/HSM-backed asymmetric signing keys with IAM separation.
+Sensitive credentials (Stripe API keys, webhook secrets) are stored in AWS Parameter Store SecureString. Cryptographic operations requiring non-exportable key custody use AWS KMS (JWT signing, ballot encryption), with IAM separation.
+
+Security risks and their mitigations are assessed and kept in the maintainers' private operations documentation.
 
 ---
 
@@ -739,9 +743,9 @@ Photos are backed up via Amazon S3 cross-region replication separate from databa
 
 **Primary Recovery (most common):** Restore from primary S3 bucket using timestamped snapshots uploaded every 5 minutes. RPO is 5 to 10 minutes maximum for all data. Use this for: database corruption, accidental deletion, application bugs.
 
-**Disaster Recovery (rare):** Restore from the cross-region backup bucket, which receives the promoted hourly and daily snapshots by continuous S3 replication. The recovery point is up to an hour, the interval between promoted points, plus replication lag; photos replicate continuously too, with per-object propagation typically completing within minutes and no formal RPO commitment. Use this for: complete AWS region failure, S3 bucket deletion, catastrophic infrastructure loss.
+**Disaster Recovery (rare):** Restore from the cross-region backup bucket, which receives the promoted hourly and daily snapshots by continuous S3 replication. The recovery point is up to an hour, the interval between promoted points, plus replication lag; photos replicate continuously too, with per-object propagation typically completing within minutes and no formal RPO commitment. Use this for: permanent loss of the primary region, S3 bucket deletion, catastrophic infrastructure loss.
 
-**Recovery Time Objective (RTO):** Depends on failure scope: routine application/database recovery targets minutes-scale restoration (about 5 minutes for database file restore once operators begin recovery), The recovery-time objective is four hours for host or application failure in-region and up to twenty-four hours for a cross-region disaster, with the maintenance page served throughout.
+**Recovery Time Objective (RTO):** Depends on failure scope: routine application/database recovery targets minutes-scale restoration (about 5 minutes for database file restore once operators begin recovery). The recovery-time objective is four hours for host or application failure in-region, with the maintenance page served throughout. A loss of the primary region is tolerated as downtime: the platform returns when the region does, the maintenance page still serves from the recovery region, and the data is guaranteed to survive in its recovery-region copies.
 
 The AWS free tier does not provide viable continuous database backup at the required RPO. The selected 5-minute backup interval provides acceptable RPO (5-10 minutes) at minimal cost (approximately $1/month, held there by the per-generation lifecycle rules that expire each generation at the end of its window). This approach balances data protection requirements with budget constraints.
 
@@ -762,7 +766,7 @@ CloudFront exit from maintenance is automatic. When Lightsail origin returns to 
 
 **Monitoring and Alerting:** CloudWatch monitors origin error rates, application health, and resource utilization. Alarms trigger within 2 minutes of failures, notifying administrators via email. Documented recovery procedures, with host restore from the daily instance snapshot followed by database restore from its own backup stream, meet a four-hour in-region recovery-time objective.
 
-**Regional Outage Handling:** In the extremely unlikely event of extended AWS regional outage, recovery process: restore from the cross-region backup bucket (us-west-2) to a new Lightsail instance in the recovery region using documented procedures, within the recovery-time objective of up to twenty-four hours. No pre-planned regional failover is maintained; the probability is too low to justify ongoing complexity.
+**Regional Outage Handling:** The platform runs only in the primary region. In the unlikely event of an extended AWS regional outage, the site shows its maintenance page and returns when the region does; the database backups and photos are already copied to the recovery region (us-west-2), so the data survives. No regional failover is maintained; the probability is too low to justify the ongoing complexity.
 
 This approach provides high availability appropriate to community scale: reliable infrastructure, rapid recovery, transparent failure modes. NOT achieved through redundant compute instances, multi-region failover, or 24/7 operations.
 
@@ -789,7 +793,7 @@ All AWS infrastructure for the platform is defined as code using Terraform confi
 
 **Infrastructure changes approved by the maintainer:** The planned changes are reviewed before applying, ideally in a pull request, so team members can see exactly what will change.
 
-**Disaster recovery:** If AWS resources are accidentally deleted or an entire AWS account is compromised, infrastructure can be rebuilt from version-controlled Terraform files.
+**Disaster recovery:** If AWS resources are lost, infrastructure can be rebuilt from version-controlled Terraform files.
 
 **Documentation through code:** The Terraform files serve as authoritative documentation of what infrastructure exists and how it's configured. No documentation drift.
 

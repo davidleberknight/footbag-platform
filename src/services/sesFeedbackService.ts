@@ -10,8 +10,9 @@
  * overwritten, and a complaint outranks a bounce. A subscription-confirmation
  * message changes nothing on the platform, so it writes no audit row: it
  * surfaces the one-time SubscribeURL on the operator log line for out-of-band
- * confirmation, and the URL, a bearer token, is never auto-fetched
- * (auto-confirm would fetch an attacker-supplied URL). The log is not a void:
+ * confirmation. The URL is a bearer token; the confirmation URL is logged only
+ * when it is an HTTPS SNS endpoint within a length bound, and is never
+ * auto-fetched. The log is not a void:
  * it ships to CloudWatch and is retained, so the distinction being drawn is
  * which surface holds the token, not whether it is written down at all.
  *
@@ -79,9 +80,9 @@ function processSnsMessage(rawBody: string): SesFeedbackResult {
       }
       // A pending subscription changes nothing on the platform, so it writes no
       // audit row; this operator log line is its whole trail. The one-time
-      // SubscribeURL is a bearer confirmation token. It is also attacker-chosen on a forged
-      // confirmation, so it is logged only when it is genuinely an SNS endpoint
-      // and within a length bound; the token is single-use and expires, which is
+      // SubscribeURL is a bearer confirmation token. The confirmation URL is
+      // logged only when it is an HTTPS SNS endpoint within a length bound, and
+      // is never auto-fetched; the token is single-use and expires, which is
       // what makes the log an acceptable home for it.
       logger.warn('ses_feedback.subscription_confirmation_pending', {
         topicArn:     envelope.TopicArn,

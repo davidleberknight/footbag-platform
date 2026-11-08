@@ -3039,11 +3039,9 @@ async function changePassword(
     // cannot change on the strength of a notification the outbox refused.
     //
     // Suppression is the case that does not raise: an operator can disable this
-    // notification's template, and the send then returns without sending. That
-    // leaves the password changed and nobody told, which is the state someone
-    // using a stolen session wants, so it leaves a forensic row and an operator
-    // alert in the same transaction as the change itself rather than passing as
-    // an ordinary change.
+    // notification's template, and the send then returns without sending. The
+    // password change is left on record with a forensic row and an operator
+    // alert, in the same transaction as the change.
     if (!member?.login_email) {
       // Not defensive: the schema permits a null address only on an account
       // whose personal data is purged or on the system account, and neither has
@@ -3578,8 +3576,8 @@ export type DisputeRevertResult =
  */
 /**
  * Shared per-admin throttle for work-queue resolution actions, including those
- * AdminWorkQueueService resolves (same bucket key). Compromised-admin is the
- * threat model, so the admin role never bypasses it.
+ * AdminWorkQueueService resolves (same bucket key). The admin role never
+ * bypasses this throttle.
  */
 export function enforceWorkQueueResolveLimit(adminMemberId: string): void {
   const max = readIntConfig('work_queue_resolve_rate_limit_per_hour', 120);
@@ -4415,9 +4413,8 @@ function approveLinkHelpRequest(
   // An administrator may not approve their own help request. This path links
   // with 'admin_vetted_evidence', which skips the surname gate on the grounds
   // that an administrator checked the identity against the record; that
-  // reasoning collapses when the approver and the requester are one person,
-  // leaving nothing at all between a member and an unclaimed record. Compromised
-  // -admin is this file's stated threat model, so the role never self-serves.
+  // reasoning holds only when the approver and the requester are different
+  // people. An administrator cannot approve their own request.
   if (item.entity_id === adminMemberId) {
     throw new ValidationError(
       'You cannot approve your own help request. Another administrator must review it.',

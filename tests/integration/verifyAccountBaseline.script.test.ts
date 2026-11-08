@@ -56,12 +56,38 @@ interface Estate {
   /** Whether each runtime trust policy names the job role. */
   stagingTrustsDevTester?: boolean;
   productionTrustsDevTester?: boolean;
+  /** How many ACTIVE findings the external-access analyzer reports. */
+  activeFindings?: string;
+  /** The GuardDuty detector id; 'None' is no detector in the region. */
+  detectorId?: string;
+  /** The detector's Status. */
+  detectorStatus?: string;
+  /** The trail's IsLogging and LatestDeliveryError, tab-separated; null is no trail. */
+  trailStatus?: string | null;
+  /** What `cloudtrail validate-logs` prints, and whether it exits zero. */
+  validation?: { output: string; ok: boolean };
   /**
    * Subcommands whose read does not answer at all (an access denial), as
    * distinct from AWS answering that the thing is absent.
    */
   readFails?: string[];
 }
+
+/**
+ * Captured from a real `aws cloudtrail validate-logs` run against the account's
+ * trail on 2026-11-07, over about forty hours. The tool promises no output
+ * format, so the verifier's parsing is held to this sample rather than to a
+ * shape written from memory.
+ */
+const VALIDATE_LOGS_SAMPLE = [
+  'Validating log files for trail arn:aws:cloudtrail:us-east-1:111122223333:trail/footbag-production-trail between 2026-11-06T00:00:00Z and 2026-11-07T17:05:49Z',
+  '',
+  'Results requested for 2026-11-06T00:00:00Z to 2026-11-07T17:05:49Z',
+  'Results found for 2026-11-06T00:00:00Z to 2026-11-07T16:06:17Z:',
+  '',
+  '41/41 digest files valid',
+  '692/692 log files valid',
+].join('\n');
 
 /**
  * How the aws CLI reports a failed call on stderr: the API's documented error
@@ -133,12 +159,19 @@ const HEALTHY: Required<Estate> = {
   devTesterRole: false,
   stagingTrustsDevTester: false,
   productionTrustsDevTester: false,
+  activeFindings: '0',
+  detectorId: 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6',
+  detectorStatus: 'ENABLED',
+  trailStatus: 'True\tNone',
+  validation: { output: VALIDATE_LOGS_SAMPLE, ok: true },
   readFails: [],
 };
 
 function awsStub(estate: Estate): string {
   const e = { ...HEALTHY, ...estate };
   const path = join(workDir, 'aws-stub.sh');
+  const validationFile = join(workDir, 'validate-logs.txt');
+  writeFileSync(validationFile, `${e.validation.output}\n`, 'utf-8');
   const pwPolicy =
     e.passwordPolicy === null
       ? `    ${awsError('NoSuchEntity', 'GetAccountPasswordPolicy')}`
@@ -242,6 +275,24 @@ function awsStub(estate: Estate): string {
       `  list-permission-sets) ${
         e.ssoPermissionSetsReadFails ? 'exit 254' : `printf '%s\\n' ${JSON.stringify(e.ssoPermissionSets)}`
       } ;;`,
+      `  list-findings) printf '%s\\n' ${JSON.stringify(e.activeFindings)} ;;`,
+      `  list-detectors) printf '%s\\n' ${JSON.stringify(e.detectorId)} ;;`,
+      `  get-detector) printf '%s\\n' ${JSON.stringify(e.detectorStatus)} ;;`,
+      "  get-usage-statistics) printf 'S3_DATA_EVENTS\\t0.42\\tUSD\\nCLOUD_TRAIL\\t0.03\\tUSD\\n' ;;",
+      // A real `--output text` pair is tab-separated, and the tab must be a real
+      // one, for the reason the Identity Center arm below gives.
+      `  get-trail-status) ${
+        e.trailStatus === null
+          ? awsError('TrailNotFoundException', 'GetTrailStatus')
+          : `printf '%s\\t%s\\n' ${e.trailStatus
+              .split('\t')
+              .map((v) => JSON.stringify(v))
+              .join(' ')}`
+      } ;;`,
+      "  describe-trails) printf 'arn:aws:cloudtrail:us-east-1:111122223333:trail/footbag-production-trail\\n' ;;",
+      // From a file, because a multi-line string inside double quotes in bash
+      // keeps its newlines as literal backslash-n.
+      `  validate-logs) cat ${JSON.stringify(validationFile)}; ${e.validation.ok ? 'exit 0' : 'exit 1'} ;;`,
       'esac',
       'exit 0',
     ].join('\n'),
@@ -326,6 +377,81 @@ describe('verify-account-baseline.sh — each control is genuinely checked', () 
     expect(r.stderr).toMatch(/no active IAM Access Analyzer/);
   });
 
+  it('fails while the analyzer reports an active finding', () => {
+    // An active finding is a resource policy granting an outsider access now;
+    // passing on the analyzer merely existing would hide the exposure it found.
+    const r = run({ activeFindings: '2' });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/2 active finding/);
+  });
+
+  it('fails when there is no GuardDuty detector', () => {
+    // Without the detector, S3 object-level activity and a stopped trail go
+    // unreported, and the run would claim the account is watched.
+    const r = run({ detectorId: 'None' });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/no GuardDuty detector/);
+  });
+
+  it('reports GuardDuty cost by feature for the usage review', () => {
+    // Defect caught: without the line, the review after the free trial
+    // depends on someone remembering a console page; S3 protection is the
+    // part that scales with traffic and must be visible here.
+    const r = run();
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/GuardDuty cost, last 30 days, by feature:/);
+    expect(r.stdout).toMatch(/S3_DATA_EVENTS 0\.42 USD/);
+  });
+
+  it('fails a detector that exists but is suspended', () => {
+    // A suspended detector reads as present and watches nothing.
+    const r = run({ detectorStatus: 'DISABLED' });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/is DISABLED, not ENABLED/);
+  });
+
+  it('fails when the audit trail is missing, stopped, or not delivering', () => {
+    // Each of these keeps no record while the trail still reads as configured.
+    for (const [trailStatus, message] of [
+      [null, /no audit trail named footbag-production-trail/],
+      ['False\tNone', /is not logging/],
+      ['True\tAccessDenied', /delivery error: AccessDenied/],
+    ] as const) {
+      const r = run({ trailStatus });
+      expect(r.status, `trail status ${String(trailStatus)}`).toBe(1);
+      expect(r.stderr, `trail status ${String(trailStatus)}`).toMatch(message);
+    }
+  });
+
+  it('passes the captured validate-logs output, naming both counts', () => {
+    // A parser that matched nothing in the real output would fail every run;
+    // this proves the real sample reads as valid.
+    const r = run();
+    expect(r.stdout).toMatch(/41\/41 digest files valid, 692\/692 log files valid/);
+  });
+
+  it('fails when log-file validation finds a file that does not match its digest', () => {
+    // A deleted or edited log file is the tampering validation exists to catch.
+    const tampered = VALIDATE_LOGS_SAMPLE.replace('692/692 log files valid', '691/692 log files valid');
+    const r = run({ validation: { output: tampered, ok: false } });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/could not read the audit trail's log-file validation|did not validate/);
+  });
+
+  it('fails a validation that exits zero but counts a mismatch or prints no summary', () => {
+    // Judged on the counts, not only the exit status, so a tool that exits zero
+    // on a partial result cannot pass the run; an empty window checked nothing.
+    for (const output of [
+      VALIDATE_LOGS_SAMPLE.replace('692/692', '691/692'),
+      VALIDATE_LOGS_SAMPLE.replace('41/41', '0/0'),
+      'Results requested for 2026-11-06T00:00:00Z to 2026-11-07T17:05:49Z',
+    ]) {
+      const r = run({ validation: { output, ok: true } });
+      expect(r.status, output).toBe(1);
+      expect(r.stderr, output).toMatch(/did not validate for the last 7 days/);
+    }
+  });
+
   it('filters on analyzer type, not just on status', () => {
     // The console offers two kinds and only one answers this question. An
     // unused-access analyzer reports unused roles and permissions, which is
@@ -381,7 +507,7 @@ describe('verify-account-baseline.sh — each control is genuinely checked', () 
   });
 
   it('fails when root holds an access key', () => {
-    // A root access key bypasses every guard rail in the account.
+    // Root holds no access keys; one present fails the baseline.
     const r = run({ rootKeys: '1' });
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/root holds 1 access key/);

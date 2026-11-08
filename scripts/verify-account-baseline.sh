@@ -477,6 +477,122 @@ else
   note "unused-access analyzer is a different tool and does not cover this"
 fi
 
+# An analyzer that reports findings nobody resolves is a control in name only:
+# an active finding is a resource policy granting an outsider access right now.
+# Each external-access analyzer's active findings are counted, and any is a
+# finding here, so this run cannot pass while the account is exposed.
+if aws_read ANALYZER_ARNS - "the Access Analyzer ARNs" accessanalyzer list-analyzers \
+  --query 'analyzers[?status==`ACTIVE` && (type==`ACCOUNT` || type==`ORGANIZATION`)].arn' \
+  --output text && [[ -n "$ANALYZER_ARNS" && "$ANALYZER_ARNS" != "None" ]]; then
+  for analyzer_arn in $ANALYZER_ARNS; do
+    if ! aws_read ACTIVE_FINDINGS - "the active Access Analyzer findings" \
+      accessanalyzer list-findings --analyzer-arn "$analyzer_arn" \
+      --filter '{"status":{"eq":["ACTIVE"]}}' --query 'length(findings)' --output text; then
+      note "the read did not answer, so active findings were not counted"
+    elif [[ "$ACTIVE_FINDINGS" == "0" ]]; then
+      pass "Access Analyzer reports no active finding: ${analyzer_arn##*/}"
+    else
+      fail "Access Analyzer reports ${ACTIVE_FINDINGS} active finding(s): ${analyzer_arn##*/}"
+      note "each is a resource policy granting access outside the account; resolve"
+      note "the policy, or archive the finding only if the access is intended"
+    fi
+  done
+fi
+
+# ── 3a. GuardDuty ────────────────────────────────────────────────────────────
+#
+# The detector analyses the trail's management events and the S3 object-level
+# events the trail deliberately does not store, and reports a stopped trail on
+# its own. A detector that exists but is suspended reads as present and watches
+# nothing, so the check is on its status, not on its existence.
+if ! aws_read DETECTOR_ID - "the GuardDuty detector list" guardduty list-detectors \
+  --query 'DetectorIds[0]' --output text; then
+  note "the read did not answer, so the detector was not checked rather than found absent"
+elif [[ -z "$DETECTOR_ID" || "$DETECTOR_ID" == "None" ]]; then
+  fail "no GuardDuty detector in this region"
+  note "declared in the shared tree behind enable_guardduty; turn it on with"
+  note "scripts/apply-account-baseline.sh --enable-guardduty"
+elif ! aws_read DETECTOR_STATUS - "the GuardDuty detector status" guardduty get-detector \
+  --detector-id "$DETECTOR_ID" --query 'Status' --output text; then
+  note "the read did not answer, so the detector's status was not checked"
+elif [[ "$DETECTOR_STATUS" == "ENABLED" ]]; then
+  pass "GuardDuty detector enabled: ${DETECTOR_ID}"
+  # The last 30 days' cost per feature, so the usage review after the free
+  # trial is a line in this report rather than a console visit. S3 protection
+  # is the part that scales with traffic; turning it off is a Terraform change
+  # to the shared tree's feature list.
+  if aws_read GD_USAGE - "the GuardDuty usage statistics" guardduty get-usage-statistics \
+    --detector-id "$DETECTOR_ID" --usage-statistic-type SUM_BY_FEATURES \
+    --usage-criteria 'Features=S3_DATA_EVENTS,CLOUD_TRAIL,DNS_LOGS,FLOW_LOGS' \
+    --query 'UsageStatistics.SumByFeature[].[Feature,Total.Amount,Total.Unit]' --output text; then
+    note "GuardDuty cost, last 30 days, by feature:"
+    while IFS=$'\t' read -r gd_feature gd_amount gd_unit; do
+      [[ -n "${gd_feature:-}" ]] && note "  ${gd_feature} ${gd_amount} ${gd_unit}"
+    done <<<"$GD_USAGE"
+  fi
+else
+  fail "GuardDuty detector ${DETECTOR_ID} is ${DETECTOR_STATUS:-in an unreadable state}, not ENABLED"
+fi
+
+# ── 3b. The audit trail ──────────────────────────────────────────────────────
+#
+# The trail is declared in the production tree because production's alarms read
+# its log group, but it records the whole account, so it is checked here. A trail
+# that exists and is stopped, or that has stopped delivering, keeps nothing while
+# reading as configured. validate-logs then proves the files delivered over the
+# last seven days are the ones AWS signed: a deleted or edited log file fails it.
+TRAIL_NAME="footbag-production-trail"
+if ! aws_read TRAIL_STATUS TrailNotFoundException "the audit trail's status" cloudtrail \
+  get-trail-status --name "$TRAIL_NAME" \
+  --query '[IsLogging, LatestDeliveryError]' --output text; then
+  note "the read did not answer, so the trail was not checked rather than found stopped"
+elif [[ -z "$TRAIL_STATUS" ]]; then
+  fail "no audit trail named ${TRAIL_NAME}"
+else
+  read -r TRAIL_LOGGING TRAIL_DELIVERY_ERROR <<<"$TRAIL_STATUS"
+  if [[ "$TRAIL_LOGGING" != "True" ]]; then
+    fail "audit trail ${TRAIL_NAME} is not logging"
+  elif [[ -n "$TRAIL_DELIVERY_ERROR" && "$TRAIL_DELIVERY_ERROR" != "None" ]]; then
+    fail "audit trail ${TRAIL_NAME} reports a delivery error: ${TRAIL_DELIVERY_ERROR}"
+  else
+    pass "audit trail ${TRAIL_NAME} is logging with no delivery error"
+  fi
+  # The tool prints a summary per file kind, "<valid>/<total> digest files
+  # valid" and the same for log files, and names any file that fails. The
+  # verdict needs both summaries present with every file valid: a run that
+  # printed neither checked nothing, and a count of zero digests over seven
+  # days means nothing was delivered to check. It reads every digest and log
+  # file in the window from the trail bucket, so it takes minutes, and it needs
+  # read access to that bucket, which the dev-and-tester role deliberately
+  # lacks.
+  VALIDATE_START="$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ)"
+  if ! aws_read TRAIL_ARN - "the audit trail's ARN" cloudtrail describe-trails \
+    --trail-name-list "$TRAIL_NAME" --query 'trailList[0].TrailARN' --output text; then
+    note "the read did not answer, so the log files were not validated"
+  elif ! aws_read VALIDATION - "the audit trail's log-file validation" cloudtrail \
+    validate-logs --trail-arn "$TRAIL_ARN" --start-time "$VALIDATE_START"; then
+    note "the log files were not validated, which is a failure rather than a pass"
+  else
+    DIGESTS="$(grep -oE '^[0-9]+/[0-9]+ digest files valid' <<<"$VALIDATION" || [[ $? == 1 ]])"
+    LOGS="$(grep -oE '^[0-9]+/[0-9]+ log files valid' <<<"$VALIDATION" || [[ $? == 1 ]])"
+    digests_ok=0 logs_ok=0
+    if [[ "$DIGESTS" =~ ^([0-9]+)/([0-9]+)\  ]] && (( BASH_REMATCH[2] > 0 )) \
+      && [[ "${BASH_REMATCH[1]}" == "${BASH_REMATCH[2]}" ]]; then
+      digests_ok=1
+    fi
+    if [[ "$LOGS" =~ ^([0-9]+)/([0-9]+)\  ]] && [[ "${BASH_REMATCH[1]}" == "${BASH_REMATCH[2]}" ]]; then
+      logs_ok=1
+    fi
+    if (( digests_ok && logs_ok )) && ! grep -qi 'invalid' <<<"$VALIDATION"; then
+      pass "audit trail log files validate for the last 7 days: ${DIGESTS}, ${LOGS}"
+    else
+      fail "audit trail log files did not validate for the last 7 days"
+      note "${DIGESTS:-no digest summary printed}; ${LOGS:-no log summary printed}"
+      note "a deleted or edited log file, or a gap in delivery, looks like this"
+    fi
+  fi
+fi
+
 # ── 4. Alternate contacts ────────────────────────────────────────────────────
 #
 # Unset means every notice of that kind reaches only the root mailbox, and
@@ -514,7 +630,7 @@ else
     pass "root holds no access keys"
   else
     fail "root holds ${ROOT_KEYS} access key(s); root should hold none"
-    note "a root access key bypasses every guard rail in the account"
+    note "root should hold no access keys"
   fi
 fi
 

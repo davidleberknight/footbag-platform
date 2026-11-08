@@ -70,8 +70,7 @@ function hashToken(rawToken: string): string {
 /**
  * Issue a cryptographically random single-use token for a member.
  * Returns the raw token (to be delivered to the member via a side channel
- * such as email) and the row ID. Only the SHA-256 hash is persisted so a
- * database compromise cannot be replayed into account takeover.
+ * such as email) and the row ID. Only the SHA-256 hash is persisted.
  */
 export function issueToken(opts: {
   memberId: string;

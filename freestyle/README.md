@@ -61,10 +61,13 @@ historical fact disagrees.
 
 Resetting the database is a different operation. `./run_dev.sh --reset`,
 `--from-csv`, `--soup-to-nuts` and `--all-data`, and `scripts/reset-local-db.sh`
-beneath them, delete the database file and rebuild it from committed inputs, the
-curator save files included, so saved curator work comes back; anything held only
-in the database is gone. That is right when you want a clean slate and wrong the
-rest of the time. Reach for a reset deliberately, never as a way to refresh.
+beneath them, delete the database file and rebuild it from committed inputs,
+including the curator save files under `freestyle/inputs/curator_saves/`. That
+reproduces curator work saved through the admin screens on this machine: trick
+edits, adjudication rulings and their publication, and curator-created tricks with
+their aliases, source links and modifier links. Anything held only in the database
+is gone. That is right when you want a clean slate and wrong the rest of the time.
+Reach for a reset deliberately, never as a way to refresh.
 
 ## Loader catalog (execution order)
 

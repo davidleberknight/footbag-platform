@@ -531,10 +531,9 @@ function truncateMetadataValues(
  * synthesizes with the resolved secret and the same verifier production runs
  * validates them against it, so the signature path is exercised by every test.
  *
- * Because this value is committed source, anyone with a copy of this
- * repository could forge a signature a host still using it would accept. A
- * deployment whose stub endpoint is reachable therefore supplies its own
- * generated value through `config.stripeWebhookSecretStub`, and this constant
+ * Each deployment supplies its own generated value; the committed constant is
+ * for development and test. A deployment whose stub endpoint is reachable
+ * supplies it through `config.stripeWebhookSecretStub`, and this constant
  * covers only development and test. It ships in the production image but is
  * refused at boot (env.ts rejects a whsec_stub-prefixed STRIPE_WEBHOOK_SECRET
  * in production), not excluded from it.

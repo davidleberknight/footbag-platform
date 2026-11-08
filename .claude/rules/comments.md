@@ -47,6 +47,9 @@ self-contained. Forbidden everywhere:
   self-contained explanation, never as a substitute for one.
 - **Preview / demo / special login identifiers** (usernames, emails, literal `login_email`
   values). Refer by role ("the preview-user account"); literals live in env vars / local notes.
+- **Security-risk write-ups.** A comment states the control and why it exists, never what an
+  attacker or a compromised credential could do, a residual risk, or planned hardening; those
+  live in the private threat register, per the doc-governance rule.
 
 ## Deviations
 

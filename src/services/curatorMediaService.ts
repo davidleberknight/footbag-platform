@@ -818,8 +818,8 @@ function refundPerActor(bucket: string, actorId: string): void {
 }
 
 /**
- * Admin curator-surface write throttle. Compromised-admin is the threat
- * model, so the admin role never bypasses this bucket.
+ * Admin curator-surface write throttle. The admin role never bypasses this
+ * throttle.
  */
 function throttleCuratorWrite(adminMemberId: string): void {
   throttlePerActor(
@@ -832,7 +832,7 @@ function throttleCuratorWrite(adminMemberId: string): void {
 /**
  * Gallery-write throttle shared by the member and admin gallery methods:
  * members get the per-member gallery bucket; admins fold into the
- * curator-write bucket (no bypass, same threat model as other admin writes).
+ * curator-write bucket; the admin role never bypasses this throttle.
  */
 function throttleGalleryWrite(actorMemberId: string, actorIsAdmin: boolean): void {
   if (actorIsAdmin) {

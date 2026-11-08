@@ -2,11 +2,10 @@
  * The confirmation URL an operator is asked to open.
  *
  * A subscription confirmation is the one inbound payload that ends with a human
- * clicking a link, and on a forged confirmation that link is attacker-chosen.
- * The guard logs the URL only when it is really an SNS endpoint over HTTPS and
- * bounded in length; anything else becomes a marker, so the operator is never
- * handed a link the platform cannot vouch for and the log cannot be flooded
- * through a one-megabyte body.
+ * clicking a link. The confirmation URL is logged only when it is an HTTPS SNS
+ * endpoint within a length bound, and is never auto-fetched; anything else
+ * becomes a marker, so the operator is only handed a link the platform can
+ * vouch for and a log line stays bounded in length.
  *
  * The accepted fixture is a real-length URL on purpose. This suite once used a
  * URL ending `Token=abc` as its example of a genuine one, which is 74
@@ -56,9 +55,9 @@ describe('safeSubscribeUrlForLog', () => {
     expect(safeSubscribeUrlForLog('file:///etc/passwd')).toBe('(rejected)');
   });
 
-  it('rejects a URL long enough to be a log-flooding primitive', () => {
-    // The request body cap is a megabyte, so without a bound a forged
-    // confirmation can put a megabyte of attacker-chosen text on a log line.
+  it('rejects a URL longer than the logged-length bound', () => {
+    // The request body cap is a megabyte; the length bound keeps any logged
+    // confirmation URL far below it.
     const flood = `https://sns.us-east-1.amazonaws.com/?t=${'a'.repeat(50_000)}`;
     expect(safeSubscribeUrlForLog(flood)).toBe('(rejected)');
   });

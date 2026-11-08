@@ -73,8 +73,8 @@ resource "aws_cloudfront_cache_policy" "static_assets" {
 # =============================================================================
 # Origin Access Control for the maintenance bucket.
 # Lets the CloudFront distribution read the maintenance.html object via SigV4
-# without exposing the bucket publicly. Paired with aws_s3_bucket_policy.maintenance
-# in s3.tf.
+# without exposing the bucket publicly. Paired with
+# aws_s3_bucket_policy.maintenance_page in s3.tf.
 # =============================================================================
 
 resource "aws_cloudfront_origin_access_control" "maintenance" {
@@ -294,7 +294,7 @@ resource "aws_cloudfront_distribution" "main" {
   # ── Origin: S3 maintenance page (OAC-protected) ──────────────────────────
   origin {
     origin_id                = "s3-maintenance"
-    domain_name              = aws_s3_bucket.maintenance.bucket_regional_domain_name
+    domain_name              = aws_s3_bucket.maintenance_page.bucket_regional_domain_name
     origin_access_control_id = aws_cloudfront_origin_access_control.maintenance[0].id
   }
 

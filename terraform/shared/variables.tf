@@ -17,6 +17,17 @@ variable "enable_account_alternate_contacts" {
   default     = false
 }
 
+variable "enable_guardduty" {
+  description = <<-EOT
+    Enable the account's GuardDuty detector, with S3 protection on and every
+    other feature off. Flip this when each environment tree carries the
+    EventBridge rule routing findings to its own alarm topic, applied staging
+    first, so the first finding reaches a person rather than only the console.
+  EOT
+  type        = bool
+  default     = false
+}
+
 # One object per contact rather than a map, because Terraform refuses `for_each`
 # over a sensitive collection and these are sensitive for the reason alarm_email
 # is: the address is the AWS account's own recovery identity, and the phone

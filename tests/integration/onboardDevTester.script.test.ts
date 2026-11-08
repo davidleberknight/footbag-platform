@@ -1012,7 +1012,7 @@ describe('onboard-dev-tester.sh — the key and the address it is given', () => 
   });
 
   it('refuses a key the account was retired with, before anything is confirmed or created', () => {
-    // Reinstating it would let back in whoever still holds its private half.
+    // A key the account was retired with is never reinstated.
     writeFileSync(join(dir, 'host-retired-this-key'), '');
     const r = runInTerminal('APPLY\n');
     expect(r.status).toBe(1);

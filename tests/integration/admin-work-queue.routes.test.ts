@@ -667,9 +667,8 @@ describe('POST /admin/work-queue/:id/resolve', () => {
     });
   });
 
-  // Work-queue resolve was unlimited per admin session.
-  // A compromised admin could resolve many items rapidly before detection.
-  // The limit applies to admins (compromised-admin is the threat model).
+  // Work-queue resolution is throttled per administrator. The admin role never
+  // bypasses this throttle.
   it('admin exceeding work-queue-resolve rate-limit → 429 with Retry-After', async () => {
     const rlMod = await import('../../src/services/rateLimitService');
     rlMod.resetRateLimitForTests();

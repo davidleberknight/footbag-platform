@@ -391,6 +391,36 @@ resource "aws_cloudwatch_metric_alarm" "replication_backlog" {
   }
 }
 
+# Replication that has stopped altogether. The failed and backlog alarms above
+# watch operations that went wrong, so a rule deleted, disabled or pointed
+# elsewhere leaves them green while the DR copy goes stale. The hourly snapshot
+# tier is the one replicated stream with guaranteed traffic: a promoted point
+# lands every hour, and each one replicated reports a latency. Three hours with
+# no report is treated as breaching, so silence on this one rule is the alarm.
+# Photos, the daily tier and the archive replicate only when something is
+# written, so silence there is normal and they carry no such alarm.
+resource "aws_cloudwatch_metric_alarm" "snapshot_replication_stopped" {
+  count               = var.enable_replication_alarm ? 1 : 0
+  alarm_name          = "${local.prefix}-snapshots-hourly-replication-stopped"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = 3
+  metric_name         = "ReplicationLatency"
+  namespace           = "AWS/S3"
+  period              = 3600
+  statistic           = "SampleCount"
+  threshold           = 1
+  treat_missing_data  = "breaching"
+  alarm_description   = "No hourly database backup has replicated to the DR bucket for three hours; the DR copy is going stale. Check the snapshot bucket's replication rule and the hourly promotion."
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+  ok_actions          = [aws_sns_topic.alarms.arn]
+
+  dimensions = {
+    SourceBucket      = aws_s3_bucket.snapshots.id
+    DestinationBucket = aws_s3_bucket.dr.id
+    RuleId            = "replicate-hourly-tier-to-dr"
+  }
+}
+
 resource "aws_cloudwatch_metric_alarm" "cloudfront_5xx" {
   # Conditioned off the migration-notice flag, by ruling. The 5xxErrorRate
   # metric counts every viewer response with a 5xx status, including responses
@@ -411,8 +441,13 @@ resource "aws_cloudwatch_metric_alarm" "cloudfront_5xx" {
   period              = 60
   statistic           = "Average"
   threshold           = 5 # Alert if >5% 5xx rate
-  alarm_description   = "CloudFront 5xx error rate above 5%"
-  alarm_actions       = [aws_sns_topic.alarms.arn]
+  # CloudFront publishes no error rate for a minute with no requests, so a
+  # missing minute is an idle one. Treating it as normal keeps the alarm in OK
+  # instead of cycling through insufficient data, where every return to OK
+  # would publish a notice.
+  treat_missing_data = "notBreaching"
+  alarm_description  = "CloudFront 5xx error rate above 5%"
+  alarm_actions      = [aws_sns_topic.alarms.arn]
   # Published on the way back to normal as well, so the alarm the platform
   # recorded can actually clear rather than sitting open for ever.
   ok_actions = [aws_sns_topic.alarms.arn]
@@ -725,37 +760,70 @@ resource "aws_cloudfront_monitoring_subscription" "main" {
 # latency below what was measured, which costs sensitivity to a slow degradation
 # rather than producing false alarms. Re-read the number against real traffic
 # once launch traffic exists, or when the alarm proves too noisy or too quiet.
+#
+# A period counts only when it carried at least ten origin requests. On a quiet
+# distribution the p95 of one or two requests is simply those requests' own
+# latency, and the alarm's sliding window skips periods with no data, so two
+# lone slow requests far apart would otherwise read as two breaching periods in
+# a row. The sample count of the same metric is the period's origin request
+# count, and a quieter period evaluates as 0, below the threshold. Ten sits
+# between what idle staging produced when it fired falsely (one to four requests
+# a period) and the genuinely slow spells it should report (fourteen and up).
 resource "aws_cloudwatch_metric_alarm" "origin_latency" {
   count               = var.enable_cloudfront ? 1 : 0
   alarm_name          = "${local.prefix}-origin-latency"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 2
-  metric_name         = "OriginLatency"
-  namespace           = "AWS/CloudFront"
-  period              = 300
-  extended_statistic  = "p95"
   threshold           = 2000
   treat_missing_data  = "notBreaching"
   alarm_description   = "CloudFront p95 origin latency above 2s for 10+ minutes"
   alarm_actions       = [aws_sns_topic.alarms.arn]
   ok_actions          = [aws_sns_topic.alarms.arn]
 
-  dimensions = {
-    DistributionId = aws_cloudfront_distribution.main[0].id
-    Region         = "Global"
+  metric_query {
+    id          = "busy_latency"
+    expression  = "IF(requests >= 10, latency, 0)"
+    label       = "p95 origin latency in periods with at least 10 origin requests"
+    return_data = true
+  }
+
+  metric_query {
+    id = "latency"
+    metric {
+      metric_name = "OriginLatency"
+      namespace   = "AWS/CloudFront"
+      period      = 300
+      stat        = "p95"
+      dimensions = {
+        DistributionId = aws_cloudfront_distribution.main[0].id
+        Region         = "Global"
+      }
+    }
+  }
+
+  metric_query {
+    id = "requests"
+    metric {
+      metric_name = "OriginLatency"
+      namespace   = "AWS/CloudFront"
+      period      = 300
+      stat        = "SampleCount"
+      dimensions = {
+        DistributionId = aws_cloudfront_distribution.main[0].id
+        Region         = "Global"
+      }
+    }
   }
 }
 
 # ── Origin spike ──────────────────────────────────────────────────────────────
-# The detective backstop the design decisions name as the fourth leg of the
-# no-WAF posture, alongside Shield Standard, Turnstile at the form boundary and
-# in-process rate limiting. It escalates rather than blocks: an application-layer
-# flood of valid-looking requests on non-form routes cannot be stopped above the
-# application, so this alarm's job is to tell a human that abuse is happening.
+# The fourth leg of the edge posture the design decisions name, alongside
+# Shield Standard, Turnstile at the form boundary and in-process rate limiting.
+# This alarm tells an operator that origin request volume spiked.
 #
 # Requests rather than a derived origin-request count, because CloudFront
 # publishes no origin-request metric, and because this is the metric AWS's own
-# DDoS-resiliency guidance names for detecting an application-layer attack. It
+# DDoS-resiliency guidance names for request-volume alarms. It
 # counts viewer requests at the edge, a superset of what reaches the origin, but
 # every HTML behaviour on this distribution uses CachingDisabled, so the page
 # traffic in it is origin traffic; the overcount is cached static and media

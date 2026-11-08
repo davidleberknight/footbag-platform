@@ -31,15 +31,9 @@
 #      `legacy_members` instead would refuse every pre-live test load too, since
 #      a test load is itself a database-replacing deploy filling the same table
 #      with the same volume: the two are indistinguishable by row count. The
-#      production-live marker is the discriminator; this tripwire is not one and
-#      cannot be made into one.
+#      production-live marker is the discriminator; this row-count tripwire is
+#      not one.
 #
-#      The residual exposure is one window: between the final load and the
-#      marker flip, during the freeze. Nothing in code closes it. The go-live
-#      plan orders the marker flip immediately after the pre-flip snapshot
-#      verifies, to keep that window as short as it can be, and the operator
-#      knows when they are switching production over. Accepted risk, recorded
-#      here so it is inherited knowingly rather than discovered.
 #      A missing database file or a database without a members table is a
 #      fresh host and passes; a present-but-unreadable database, or missing
 #      sqlite3 tooling, refuses.

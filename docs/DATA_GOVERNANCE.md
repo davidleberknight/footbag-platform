@@ -79,6 +79,7 @@ Club rosters and event participant lists beyond official results are member-only
 - Logs never contain raw email addresses, tokens, passwords, or other sensitive personal data.
 - The same applies to infrastructure secrets: the session secret, AWS keys, raw session cookie values, raw account tokens (only their hashes are stored), and signing-key material. KMS key ARNs are not secrets but are not logged at request scope.
 - Member-search queries may be logged for abuse monitoring only once pseudonymized.
+- Exception: AWS's own infrastructure records outside the application, the CloudTrail record and the CloudFront access logs, carry IP addresses and AWS request parameters, which can include an email address an administrator releases from the suppression list. Only administrators read them, they are kept for the windows in the retention policy, and an erasure does not reach them.
 
 ---
 

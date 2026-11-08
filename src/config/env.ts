@@ -292,10 +292,9 @@ export interface AppConfig {
   // with both secrets for the length of the roll window; accepting both is what
   // lets the rotation happen without dropping deliveries. Unset outside a roll.
   stripeWebhookSecretPrevious: string | undefined;
-  // Per-deployment signing secret for the stub payment adapter. The stub's
-  // fallback constant is committed source, so any host that kept it would
-  // accept a webhook forged by anyone holding a checkout of this repository.
-  // Required wherever the stub serves a deployed host (staging, and
+  // Per-deployment signing secret for the stub payment adapter. Each deployment
+  // supplies its own generated value; the committed constant is for
+  // development and test. Required wherever the stub serves a deployed host (staging, and
   // production while payments are dark); undefined in development and test,
   // where the adapter falls back to its own constant.
   stripeWebhookSecretStub: string | undefined;
@@ -306,8 +305,7 @@ export interface AppConfig {
   //   - undefined: no override (read real cgroup)
   //   - null:      simulates "cgroup unavailable"
   //   - number:    simulates that utilization percent
-  // Boot-time guard refuses production start with this var set; an env
-  // injection in production must not be able to forge readiness state.
+  // This test-only override is refused at production start.
   testMemoryPercent: number | null | undefined;
   // True when the process runs inside the Vitest test runner. The live SES
   // and payment adapter accessors refuse to resolve while it is set, so no
@@ -421,9 +419,8 @@ function loadConfig(): AppConfig {
     );
   } else if (isProd) {
     // Mandatory-explicit under prod-mode boots, like the sibling adapter
-    // selectors: a silent stub default on a production host would answer
-    // "you are human" to every request, leaving only the in-process rate
-    // limiter against credential stuffing. Staging declares stub
+    // selectors: the real CAPTCHA must be on in production, and the stub
+    // answers "you are human" to every request. Staging declares stub
     // deliberately (the compose passthrough supplies it); production
     // declares live, enforced by the FOOTBAG_ENV=production gate further
     // down after footbagEnv is derived.
@@ -502,9 +499,8 @@ function loadConfig(): AppConfig {
     );
   }
 
-  // The session-signing key must be the non-exportable KMS key in production:
-  // the 'local' backend signs with an on-disk PEM, which silently replaces the
-  // key-never-leaves-KMS threat model with a file an attacker could read.
+  // The session-signing key must be the non-exportable KMS key in production;
+  // the local on-disk backend is refused.
   if (footbagEnv === 'production' && jwtSigner !== 'kms') {
     throw new Error(
       `JWT_SIGNER must be 'kms' when FOOTBAG_ENV=production (got '${jwtSigner}'); the local PEM signer replaces the non-exportable KMS signing key`,
@@ -860,11 +856,11 @@ function loadConfig(): AppConfig {
       'STRIPE_WEBHOOK_SECRET_PREVIOUS must not be a stub secret in production (whsec_stub-prefixed values are dev/test only)',
     );
   }
-  // The stub adapter's fallback signing secret is a committed constant, so a
-  // deployed host that keeps it accepts webhooks forged by anyone with a copy
-  // of this repository. Staging and dark production run the stub against the
-  // public internet and must therefore carry their own generated value, with
-  // no fallback; dev and test are not reachable and keep the constant.
+  // Each deployment supplies its own generated value; the committed constant
+  // is for development and test. Staging and dark production run the stub
+  // against the public internet and must therefore carry their own generated
+  // value, with no fallback; dev and test are not reachable and keep the
+  // constant.
   const stripeWebhookSecretStub = process.env.STRIPE_WEBHOOK_SECRET_STUB || undefined;
   if (
     (footbagEnv === 'staging' || footbagEnv === 'production') &&
@@ -875,12 +871,10 @@ function loadConfig(): AppConfig {
       `STRIPE_WEBHOOK_SECRET_STUB is required when FOOTBAG_ENV=${footbagEnv} and PAYMENT_ADAPTER='stub' (the committed stub constant must not sign a reachable endpoint)`,
     );
   }
-  // Presence is not enough. A real provider signing secret pasted into this
-  // slot would have the stub host verify, and act on, deliveries signed for the
-  // live endpoint; the committed constant, or any short or guessable value,
-  // would accept forgeries as above. The deploy generates `whsec_stub_`
-  // followed by 48 random hex characters, so anything else on a deployed host
-  // is a misconfiguration, refused before it serves a request.
+  // Presence is not enough. The deploy generates `whsec_stub_` followed by 48
+  // random hex characters, so anything else on a deployed host, a real
+  // provider signing secret or the committed constant included, is a
+  // misconfiguration, refused before it serves a request.
   if (
     (footbagEnv === 'staging' || footbagEnv === 'production') &&
     paymentAdapter === 'stub' &&
@@ -944,17 +938,16 @@ function loadConfig(): AppConfig {
     process.env.WEB_INTERNAL_URL || `http://localhost:${port}`;
   // INTERNAL_EVENT_SECRET authenticates web<->image-worker and web<->
   // transcode-worker calls. The /ipc router that trusts it is always
-  // mounted, so an explicit secret is required in every mode: a known
-  // fallback literal would let anyone who can reach /ipc/* on a
-  // misconfigured host publish forged job events. `./run_dev.sh` and the
+  // mounted, so there is no default literal on a deployed host: the value is
+  // required in every production-mode boot. `./run_dev.sh` and the
   // compose files supply the value for local stacks; web and image worker
   // launched from the same shell inherit the same token.
   // Authenticates the web, queue and image processes to each other on the /ipc
   // and /process routes, so all three have to hold the same value. In
   // development they hold it by falling back to the same literal, which is what
-  // lets a checkout run with nothing configured. Forging an event there means
-  // already running code on the developer's own machine, and buys a wrong
-  // thumbnail in a local database. A deployed host is refused the fallback:
+  // lets a checkout run with nothing configured; a development stack is
+  // reachable only from the developer's own machine. A deployed host is
+  // refused the fallback:
   // every host carries FOOTBAG_ENV, and a staging or production value requires
   // NODE_ENV=production, so isProd is true wherever the routes are reachable by
   // anyone else. The host verifier also refuses this literal by name.
@@ -1034,21 +1027,17 @@ function loadConfig(): AppConfig {
   } else if (/^\d+$/.test(rawTrustProxy)) {
     trustProxy = parseInt(rawTrustProxy, 10);
   } else if (rawTrustProxy === 'true' || rawTrustProxy === 'false') {
-    // The boolean form is refused at boot: TRUST_PROXY=true makes Express
-    // trust the entire X-Forwarded-For chain, so any client that reaches the
-    // app with a forged header controls its own req.ip and defeats per-IP
-    // rate limiting the moment origin enforcement fails open.
+    // TRUST_PROXY must be an exact hop count or an address-range list; the
+    // boolean form trusts the whole forwarded chain, so it is refused at boot.
     throw new Error(
-      `TRUST_PROXY must be an exact integer hop count or an address-range list, got: ${rawTrustProxy}. The boolean form trusts every forwarded hop and would honor a spoofed X-Forwarded-For`,
+      `TRUST_PROXY must be an exact integer hop count or an address-range list, got: ${rawTrustProxy}. The boolean form trusts the whole forwarded chain`,
     );
   } else {
     trustProxy = rawTrustProxy;
   }
 
-  // Test-only override for container memory-utilization readings. Refuses
-  // production start with this var set; otherwise an attacker with env
-  // injection in production could forge readiness (anonymous /health/ready
-  // is a liveness gate).
+  // Test-only override for container memory-utilization readings. This
+  // override is refused at production start.
   const rawTestMemoryPercent = process.env.FOOTBAG_TEST_MEMORY_PERCENT;
   let testMemoryPercent: number | null | undefined;
   if (rawTestMemoryPercent === undefined || rawTestMemoryPercent === '') {
@@ -1090,10 +1079,8 @@ function loadConfig(): AppConfig {
     }
   }
 
-  // The real CAPTCHA must be on in production: with the stub, login and
-  // registration answer "you are human" for every request and only the
-  // in-process rate limiter stands between an attacker and credential
-  // stuffing. FOOTBAG_ENV (the deployment environment), not NODE_ENV, is
+  // The real CAPTCHA must be on in production; the stub answers 'human' for
+  // every request. FOOTBAG_ENV (the deployment environment), not NODE_ENV, is
   // the discriminator, because staging runs prod-mode for hardening parity
   // yet stays on the stub by design.
   if (footbagEnv === 'production' && captchaAdapter !== 'live') {

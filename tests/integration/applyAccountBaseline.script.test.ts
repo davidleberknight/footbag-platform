@@ -107,17 +107,52 @@ function verifierStub({
   return path;
 }
 
+const tfvarsPath = () => join(stubDir, 'shared.tfvars');
+
+/** An aws stub answering `events describe-rule` with each named rule's State;
+ *  a rule not in the map is not found. */
+function awsStub(rules: Record<string, string>): string {
+  const path = join(stubDir, 'aws-stub.sh');
+  writeFileSync(
+    path,
+    [
+      '#!/usr/bin/env bash',
+      'name=""; prev=""',
+      'for a in "$@"; do [[ "$prev" == "--name" ]] && name="$a"; prev="$a"; done',
+      'case "$name" in',
+      ...Object.entries(rules).map(([n, s]) => `  ${JSON.stringify(n)}) echo ${JSON.stringify(s)}; exit 0 ;;`),
+      'esac',
+      'echo "An error occurred (ResourceNotFoundException) when calling the DescribeRule operation: stub" >&2',
+      'exit 254',
+    ].join('\n'),
+    'utf-8',
+  );
+  chmodSync(path, 0o755);
+  return path;
+}
+
+const BOTH_ROUTES = {
+  'footbag-staging-guardduty-findings': 'ENABLED',
+  'footbag-production-guardduty-findings': 'ENABLED',
+};
+
 function run(
   args: string[],
   planJson: string,
   verifier: VerifierOpts = {},
   arn?: string,
+  rules: Record<string, string> = BOTH_ROUTES,
 ) {
+  if (!existsSync(tfvarsPath())) {
+    writeFileSync(tfvarsPath(), 'aws_region = "us-east-1"\nenable_account_alternate_contacts = false\n', 'utf-8');
+  }
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     ...awsIdentityStubEnv(stubDir, arn ? { arn } : {}),
     TERRAFORM_APPLY_BIN: terraformStub(planJson),
     ACCOUNT_BASELINE_VERIFIER: verifierStub(verifier),
+    ACCOUNT_BASELINE_AWS_BIN: awsStub(rules),
+    ACCOUNT_BASELINE_TFVARS: tfvarsPath(),
   };
   const r = spawnSync('bash', [SCRIPT, ...args], {
     cwd: process.cwd(),
@@ -313,5 +348,90 @@ describe('apply-account-baseline.sh — the proof', () => {
     expect(r.exitCode).toBe(1);
     expect(r.stderr).toMatch(/could not save the baseline/);
     expect(r.tf).toBe('');
+  });
+});
+
+const GUARDDUTY_CREATES = [
+  change('aws_guardduty_detector.account[0]', ['create']),
+  ...['S3_DATA_EVENTS', 'EKS_AUDIT_LOGS', 'EBS_MALWARE_PROTECTION', 'RDS_LOGIN_EVENTS', 'LAMBDA_NETWORK_LOGS', 'RUNTIME_MONITORING'].map(
+    (f) => change(`aws_guardduty_detector_feature.account["${f}"]`, ['create']),
+  ),
+];
+
+describe('apply-account-baseline.sh — turning on GuardDuty', () => {
+  // The values line and the apply are one operation: typed by hand they drift,
+  // and a detector with no finding route raises findings nobody receives.
+  it('plans with the gate on, applies the detector, and writes the values line', () => {
+    const r = run(['--enable-guardduty', '--yes'], plan(GUARDDUTY_CREATES));
+    expect(r.exitCode, r.stderr).toBe(0);
+    expect(r.tf).toMatch(/plan -input=false -var enable_guardduty=true -out=/);
+    expect(r.stdout).toMatch(/\+enable_guardduty = true/);
+    const tfvars = readFileSync(tfvarsPath(), 'utf8');
+    expect(tfvars).toMatch(/^enable_guardduty = true$/m);
+    // The rest of the operator's file is kept, not replaced.
+    expect(tfvars).toMatch(/^enable_account_alternate_contacts = false$/m);
+  });
+
+  it('replaces an existing false line rather than adding a second one', () => {
+    // Two lines for one variable is a Terraform error on the next plan.
+    writeFileSync(tfvarsPath(), 'enable_guardduty = false\n', 'utf-8');
+    const r = run(['--enable-guardduty', '--yes'], plan(GUARDDUTY_CREATES));
+    expect(r.exitCode, r.stderr).toBe(0);
+    expect(readFileSync(tfvarsPath(), 'utf8')).toBe('enable_guardduty = true\n');
+  });
+
+  it('refuses before planning when either environment has no finding route', () => {
+    // Staging is applied first; a detector before production's route would
+    // send production findings nowhere.
+    for (const rules of [
+      { 'footbag-staging-guardduty-findings': 'ENABLED' },
+      { ...BOTH_ROUTES, 'footbag-production-guardduty-findings': 'DISABLED' },
+    ]) {
+      rmSync(tfLog(), { force: true });
+      const r = run(['--enable-guardduty', '--yes'], plan(GUARDDUTY_CREATES), {}, undefined, rules);
+      expect(r.exitCode).toBe(1);
+      expect(r.stderr).toMatch(/REFUSING: .*footbag-production-guardduty-findings/);
+      expect(r.tf).toBe('');
+      expect(readFileSync(tfvarsPath(), 'utf8')).not.toMatch(/enable_guardduty/);
+    }
+  });
+
+  it('leaves the values file untouched when the APPLY is not typed', () => {
+    // An aborted run must not leave a gate line that no apply carried out.
+    const r = spawnSync('bash', [SCRIPT, '--enable-guardduty'], {
+      cwd: process.cwd(),
+      encoding: 'utf-8',
+      input: 'no\n',
+      env: {
+        ...process.env,
+        ...awsIdentityStubEnv(stubDir),
+        TERRAFORM_APPLY_BIN: terraformStub(plan(GUARDDUTY_CREATES)),
+        ACCOUNT_BASELINE_VERIFIER: verifierStub(),
+        ACCOUNT_BASELINE_AWS_BIN: awsStub(BOTH_ROUTES),
+        ACCOUNT_BASELINE_TFVARS: (writeFileSync(tfvarsPath(), 'aws_region = "us-east-1"\n', 'utf-8'), tfvarsPath()),
+      },
+      ...SPAWN_GUARD,
+    });
+    expect(r.status).not.toBe(0);
+    expect(readLog(tfLog())).not.toMatch(/\bapply\b/);
+    expect(readFileSync(tfvarsPath(), 'utf8')).toBe('aws_region = "us-east-1"\n');
+  });
+
+  it('writes the line when the detector is already in state, so a later plan keeps it', () => {
+    // A run whose apply landed but whose line was lost would otherwise leave a
+    // file that plans the detector's removal.
+    const r = run(['--enable-guardduty', '--yes'], plan([]));
+    expect(r.exitCode, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/Nothing to apply/);
+    expect(readFileSync(tfvarsPath(), 'utf8')).toMatch(/^enable_guardduty = true$/m);
+  });
+
+  it('plans without the gate variable when the flag is not given', () => {
+    // Without the flag the file decides, so a re-run after a failed apply
+    // reads the line the first run wrote.
+    const r = run(['--yes'], plan(BASELINE_CREATES));
+    expect(r.exitCode, r.stderr).toBe(0);
+    expect(r.tf).not.toMatch(/enable_guardduty/);
+    expect(readFileSync(tfvarsPath(), 'utf8')).not.toMatch(/enable_guardduty/);
   });
 });

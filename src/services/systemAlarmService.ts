@@ -36,9 +36,9 @@
  *     confirmed, carrying the one-time confirmation URL, which is a bearer
  *     token. The log ships to CloudWatch and is retained,
  *     so this chooses which surface holds the token rather than avoiding
- *     writing it down; the token is single-use and expires. It is logged only
- *     when it is genuinely an HTTPS SNS endpoint and within a length bound,
- *     because a forged confirmation makes that URL attacker-chosen.
+ *     writing it down; the token is single-use and expires. The confirmation
+ *     URL is logged only when it is an HTTPS SNS endpoint within a length
+ *     bound, and is never auto-fetched.
  *
  * Service shape: object-literal singleton (`systemAlarmService`); no adapters.
  */
@@ -321,8 +321,9 @@ function processSnsMessage(rawBody: string): AlarmIngestResult {
       }
       // A pending subscription changes nothing on the platform, so it writes no
       // audit row; this operator line is its whole trail. The one-time
-      // confirmation URL is a bearer token and is attacker-chosen on a forged
-      // confirmation, so it is logged only when it is genuinely an SNS endpoint.
+      // confirmation URL is a bearer token. The confirmation URL is logged only
+      // when it is an HTTPS SNS endpoint within a length bound, and is never
+      // auto-fetched.
       logger.warn('alarm_feed.subscription_confirmation_pending', {
         topicArn:     envelope.TopicArn,
         subscribeUrl: safeSubscribeUrlForLog(envelope.SubscribeURL),

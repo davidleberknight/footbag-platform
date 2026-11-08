@@ -60,7 +60,7 @@ output "replication_alarm_enabled" {
 
 output "maintenance_bucket_name" {
   description = "S3 bucket hosting the static maintenance page"
-  value       = aws_s3_bucket.maintenance.bucket
+  value       = aws_s3_bucket.maintenance_page.bucket
 }
 
 output "archive_bucket_name" {

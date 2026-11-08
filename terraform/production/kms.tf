@@ -21,12 +21,10 @@ resource "aws_kms_key" "main" {
       },
       {
         # Granting a service principal on a resource policy grants it for EVERY
-        # account, not just this one, unless the grant says otherwise. Without
-        # the condition below, anyone who learned this key's ARN could create a
-        # SecureString parameter in their own account naming this key, and the
-        # parameter-store service would then encrypt and decrypt against it on
-        # their behalf. AWS calls this the cross-service confused deputy and asks
-        # for a source-account or source-ARN condition wherever a service
+        # account, not just this one, unless the grant says otherwise. The
+        # condition below pins the parameter-store service's use of this key to
+        # this account, which prevents the cross-service confused deputy; AWS
+        # asks for a source-account or source-ARN condition wherever a service
         # principal appears in a resource policy. The trail's own bucket policy
         # in this same tree carries the equivalent condition; this key protects
         # every secret the platform holds, so it is the last place to omit it.

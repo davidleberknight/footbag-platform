@@ -62,14 +62,8 @@ require_pinned_known_hosts() {
     return 1
   fi
 
-  # A pin any other account can rewrite is not a pin: an attacker who can edit
-  # it can install the key of the host they want the deploy to reach.
-  #
-  # Ownership is checked as well as mode, and a stat that fails is a refusal
-  # rather than a skip. Mode alone was not enough: a pin owned by another local
-  # account at 644 passed, while being writable by that account -- which is
-  # exactly the substitution described above, just performed by its owner
-  # instead of by the world.
+  # The pin file must be owned by the invoking user and not writable by anyone
+  # else; a stat that fails is a refusal, not a skip.
   local mode owner
   mode="$(stat -c '%a' "$pin" 2>/dev/null || echo "")"
   owner="$(stat -c '%u' "$pin" 2>/dev/null || echo "")"

@@ -8,11 +8,8 @@
 # exactly one thing, assume the runtime role, and everything the application
 # actually does happens under short-lived credentials from that role.
 #
-# The credential files stay owned by root and become readable by a dedicated
-# group the containers join, rather than being handed to the service account.
-# The containers run unprivileged and cannot read root's files by ownership,
-# and giving them ownership would let a compromised container rewrite the
-# credentials it authenticates with.
+# The credential files stay root-owned and readable only by a dedicated group
+# the containers join; the containers run unprivileged and do not own them.
 #
 # The logs-publisher profile is deliberately NOT written here: the deploy owns
 # that stanza and appends it itself, so two writers can never disagree.

@@ -3,7 +3,7 @@
 # - media:        processed photo objects and media assets
 # - snapshots:    5-minute SQLite WAL snapshots (primary backup)
 # - media_dr:     cross-region replication target for media (us-west-2)
-# - maintenance:  static maintenance page served by CloudFront during outages
+# - maintenance_page: static maintenance page bucket, in us-west-2
 #
 # PARITY DIVERGENCE, DELIBERATE. Production carries a fourth durable bucket, a
 # snapshot DR target in the backup region with Object Lock enabled at creation,
@@ -18,9 +18,9 @@
 
 locals {
   buckets = {
-    media       = "${local.prefix}-media"
-    snapshots   = "${local.prefix}-snapshots"
-    maintenance = "${local.prefix}-maintenance"
+    media            = "${local.prefix}-media"
+    snapshots        = "${local.prefix}-snapshots"
+    maintenance_page = "${local.prefix}-maintenance-page"
   }
 }
 
@@ -46,8 +46,10 @@ resource "aws_s3_bucket" "snapshots" {
 # custom error responses pointing at it, an object here would be a file nothing
 # can ever read. The reason staging serves no maintenance page at all is recorded
 # where those resources would otherwise sit, in cloudfront.tf.
-resource "aws_s3_bucket" "maintenance" {
-  bucket = local.buckets.maintenance
+resource "aws_s3_bucket" "maintenance_page" {
+  # In the recovery region, as in production, so both trees hold the same shape.
+  provider = aws.us_west_2
+  bucket   = local.buckets.maintenance_page
 }
 
 # ── Versioning ────────────────────────────────────────────────────────────────
@@ -100,8 +102,9 @@ resource "aws_s3_bucket_public_access_block" "snapshots" {
   restrict_public_buckets = true
 }
 
-resource "aws_s3_bucket_public_access_block" "maintenance" {
-  bucket                  = aws_s3_bucket.maintenance.id
+resource "aws_s3_bucket_public_access_block" "maintenance_page" {
+  provider                = aws.us_west_2
+  bucket                  = aws_s3_bucket.maintenance_page.id
   block_public_acls       = true
   block_public_policy     = true
   ignore_public_acls      = true
@@ -111,8 +114,9 @@ resource "aws_s3_bucket_public_access_block" "maintenance" {
 # Declared rather than inherited from the S3 account default, matching
 # production and the other buckets in this tree. The account default is not
 # visible here and can be changed elsewhere.
-resource "aws_s3_bucket_server_side_encryption_configuration" "maintenance" {
-  bucket = aws_s3_bucket.maintenance.id
+resource "aws_s3_bucket_server_side_encryption_configuration" "maintenance_page" {
+  provider = aws.us_west_2
+  bucket   = aws_s3_bucket.maintenance_page.id
 
   rule {
     apply_server_side_encryption_by_default {
@@ -418,7 +422,7 @@ resource "aws_s3_bucket_policy" "snapshots" {
   policy = data.aws_iam_policy_document.snapshots.json
 }
 
-data "aws_iam_policy_document" "maintenance" {
+data "aws_iam_policy_document" "maintenance_page" {
   statement {
     sid    = "DenyPlaintextAccess"
     effect = "Deny"
@@ -428,8 +432,8 @@ data "aws_iam_policy_document" "maintenance" {
     }
     actions = ["s3:*"]
     resources = [
-      aws_s3_bucket.maintenance.arn,
-      "${aws_s3_bucket.maintenance.arn}/*",
+      aws_s3_bucket.maintenance_page.arn,
+      "${aws_s3_bucket.maintenance_page.arn}/*",
     ]
     condition {
       test     = "Bool"
@@ -439,9 +443,10 @@ data "aws_iam_policy_document" "maintenance" {
   }
 }
 
-resource "aws_s3_bucket_policy" "maintenance" {
-  bucket = aws_s3_bucket.maintenance.id
-  policy = data.aws_iam_policy_document.maintenance.json
+resource "aws_s3_bucket_policy" "maintenance_page" {
+  provider = aws.us_west_2
+  bucket   = aws_s3_bucket.maintenance_page.id
+  policy   = data.aws_iam_policy_document.maintenance_page.json
 }
 
 data "aws_iam_policy_document" "media_dr" {

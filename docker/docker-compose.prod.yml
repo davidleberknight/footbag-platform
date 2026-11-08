@@ -159,9 +159,9 @@ services:
       # lets the secret change without dropping deliveries. Unset outside a roll.
       STRIPE_WEBHOOK_SECRET_PREVIOUS: ${STRIPE_WEBHOOK_SECRET_PREVIOUS:-}
       # Per-deployment signing secret for the stub adapter, seeded by the deploy
-      # script. The stub's built-in fallback is committed source, so a reachable
-      # stub endpoint that kept it would accept forged webhooks. Passed through
-      # unconditionally; env.ts is where staging requires it.
+      # script. Each deployment supplies its own generated value; the committed
+      # constant is for development and test. Passed through unconditionally;
+      # env.ts is where staging requires it.
       STRIPE_WEBHOOK_SECRET_STUB: ${STRIPE_WEBHOOK_SECRET_STUB:-}
       # Async curator video upload: web POSTs /transcode/dispatch to the worker
       # container (see src/transcodeWorker.ts). Worker pushes state events back
@@ -324,9 +324,9 @@ services:
       # lets the secret change without dropping deliveries. Unset outside a roll.
       STRIPE_WEBHOOK_SECRET_PREVIOUS: ${STRIPE_WEBHOOK_SECRET_PREVIOUS:-}
       # Per-deployment signing secret for the stub adapter, seeded by the deploy
-      # script. The stub's built-in fallback is committed source, so a reachable
-      # stub endpoint that kept it would accept forged webhooks. Passed through
-      # unconditionally; env.ts is where staging requires it.
+      # script. Each deployment supplies its own generated value; the committed
+      # constant is for development and test. Passed through unconditionally;
+      # env.ts is where staging requires it.
       STRIPE_WEBHOOK_SECRET_STUB: ${STRIPE_WEBHOOK_SECRET_STUB:-}
       # Curator video transcode dispatch HTTP server (src/transcodeWorker.ts)
       # runs alongside the email-outbox loop in this same node process. Web

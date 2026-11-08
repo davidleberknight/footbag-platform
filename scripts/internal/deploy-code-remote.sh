@@ -135,8 +135,7 @@ require_path() {
 # The committed file docker/env/<FOOTBAG_ENV>.env is the source of truth: keys
 # it lists are set, keys it omits are cleared (so production's omitted video
 # knobs fall back to the canonical encoder defaults). Only an allowlist of keys
-# is honored and every value is checked, so a tampered config file cannot inject
-# a secret or a malformed line into the runtime env. Because this runs on every
+# is honored and every value is checked. Because this runs on every
 # deploy rather than only when a line is absent, a hand edit on the host does
 # not survive.
 # Both deploy halves apply it from the incoming release tree, once the tree is
@@ -496,8 +495,8 @@ if [[ "$FOOTBAG_ENV_VAL" != "production" ]]; then
   # half does it. Without this a fresh non-production host holds the stub
   # selector and no stub secret, which the runtime refuses to boot, and since the
   # bare deploy invocation is code-only that is what the default command produces.
-  # The alternative to a generated per-host value is the constant committed to
-  # the repository, which anyone holding a checkout could forge a delivery with.
+  # Each host gets its own generated stub webhook signing secret; the constant
+  # in the repository is for development and test only.
   if ! grep -q '^STRIPE_WEBHOOK_SECRET_STUB=' "$ENV_PATH"; then
     echo "==> Seeding a generated STRIPE_WEBHOOK_SECRET_STUB into $ENV_PATH (preserved if already set)..."
     env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
@@ -584,13 +583,11 @@ chown -R root:root "$LIVE_DIR"
 # that account. Every step is idempotent: this runs on every deploy and is a
 # no-op once the host is already in the target shape.
 #
-# The credential files stay owned by root and stay off-limits to the host at
-# large. A dedicated group is the narrow opening: only that group can read
-# them, only the containers are in it, and no operator account gains access by
-# being an operator. Group-read is the standard arrangement when a root-managed
-# file must be read by an unprivileged service, and the alternative of giving
-# the files to the service account outright would let a compromised container
-# rewrite the credentials it authenticates with.
+# The credential files stay root-owned and readable only by a dedicated group
+# the containers join; the containers run unprivileged and do not own them.
+# Only the containers are in that group, and no operator account gains access
+# by being an operator. Group-read is the standard arrangement when a
+# root-managed file must be read by an unprivileged service.
 echo "==> Applying runtime-user ownership (containers run unprivileged)..."
 readonly APP_UID=1000
 readonly AWSCREDS_GROUP=awscreds
@@ -1112,10 +1109,9 @@ unset jwt_var
 # ride tfvars + apply + deploy with no host edit, and what makes a dark
 # production behave exactly like staging (stub adapters, simulated-email card,
 # fake checkout, no real-world side effect). env.ts refuses a flag/adapter
-# mismatch at boot as the fail-fast backstop. A dark payment side also gets a
-# host-unique stub webhook signing secret (as staging does): the stub
-# adapter's committed fallback secret would accept a webhook forged by anyone
-# holding a checkout of the repository.
+# mismatch at boot as the fail-fast backstop. A dark payment side also gets its
+# own generated stub webhook signing secret, as staging does; the constant in
+# the repository is for development and test only.
 if [[ "$FOOTBAG_ENV_VAL" == "production" ]]; then
   SES_ADAPTER_DERIVED='stub'
   [[ "$EMAIL_SEND_ARMED_VAL" == "armed" ]] && SES_ADAPTER_DERIVED='live'

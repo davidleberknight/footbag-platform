@@ -1196,8 +1196,8 @@ function memberGallerySummaries(): MemberGallerySummaryRow[] {
 }
 
 // Upper bound on resolved include/exclude tags carried into the standalone item
-// viewer. The viewer route is public and attacker-facing; each tag adds a query
-// placeholder, so an unbounded list is a mild query-size vector. Overflow is
+// viewer. The viewer route is public; each tag adds a query placeholder, so the
+// list is bounded. Overflow is
 // dropped, matching how unresolved tokens are silently dropped on browse.
 const ITEM_CONTEXT_TAG_CAP = 12;
 
