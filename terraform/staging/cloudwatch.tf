@@ -26,11 +26,21 @@ resource "aws_cloudwatch_log_group" "nginx" {
 # webhook-delivery-failure alarms below watch specific failure modes that never
 # reach logger.error(). Any new operator-visible failure mode that does call
 # logger.error() is surfaced here automatically.
+#
+# One deliberate divergence from production: the daily administrator-loss
+# sweep's "no administrator can sign in" line (msg admin.none_left) does not
+# count here. Staging's database is rebuilt routinely, and every rebuild leaves
+# it with no administrator until the persona seed or an allowlisted
+# registration restores one, so on staging the line reports a normal state and
+# would fire this alarm once a day. Production keeps it, because there it means
+# the platform has lost every administrator. The production behaviour is proved
+# on production itself: before its first administrator claims the bootstrap
+# token, the sweep logs this line and production's error alarm fires.
 
 resource "aws_cloudwatch_log_metric_filter" "app_errors" {
   name           = "${local.prefix}-app-errors"
   log_group_name = aws_cloudwatch_log_group.app.name
-  pattern        = "{ $.level = \"error\" }"
+  pattern        = "{ ($.level = \"error\") && ($.msg != \"admin.none_left\") }"
   metric_transformation {
     namespace     = "Footbag/${var.environment}"
     name          = "AppErrorCount"

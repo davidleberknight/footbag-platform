@@ -355,11 +355,27 @@ resource "aws_s3_bucket_policy" "snapshots" {
 
 resource "aws_s3_bucket_lifecycle_configuration" "snapshots" {
   bucket = aws_s3_bucket.snapshots.id
+  # The bucket is versioned, as replication requires, so each expiry rule below
+  # only writes a delete marker and leaves the expired snapshot behind as a
+  # noncurrent version, and a delete by hand or by a mistaken script does the
+  # same. Each tier's noncurrent window is therefore both how long an expired
+  # snapshot is really kept and how long a deleted one can still be undone.
+  #
+  # The windows differ by tier on purpose. routine/ and hourly/ keep a week:
+  # their points are also held for 90 days under Object Lock in the
+  # recovery-region bucket (hourly/) or are superseded within minutes (routine/),
+  # so a week is enough to notice a mistake. daily/ keeps 90 days: past the
+  # recovery bucket's 90-day lock, the primary's daily/ is the only copy of
+  # that history, so this window is its only undo, and 90 days matches the lock
+  # without keeping personal data past the retention the deletion policy relies
+  # on. The windows sit on the tier rules rather than one bucket-wide rule,
+  # because S3 honours the shorter of two overlapping expirations and a
+  # bucket-wide week would silently override daily/'s 90 days. A key outside the
+  # three prefixes has no noncurrent rule and is kept until someone decides.
   rule {
-    id     = "expire-noncurrent"
+    id     = "abort-incomplete-uploads"
     status = "Enabled"
     filter {}
-    noncurrent_version_expiration { noncurrent_days = 90 }
     # A snapshot is above the CLI's multipart threshold, so an upload killed
     # partway leaves billable parts that no expiration rule above reaches: parts
     # are not objects. The media and trail buckets already abort theirs; this one
@@ -374,7 +390,11 @@ resource "aws_s3_bucket_lifecycle_configuration" "snapshots" {
   # Measured inputs: a snapshot is ~13.7 MB and the timer yields ~240 a day, so
   # an undifferentiated 30-day routine window is ~7,200 objects and ~98 GB, and
   # nothing at all survives day 31. These windows hold ~1,600 objects and ~22 GB
-  # while adding a year of daily restore points that did not exist before.
+  # while adding a year of daily restore points that did not exist before. The
+  # figure holds only because each tier's noncurrent window removes its expired
+  # snapshots soon after the tier lets them go: a week for routine/ and hourly/,
+  # 90 days for daily/'s one point a day (about 1 GB). A long window on routine/
+  # would keep every one of its six-minute points for that whole window.
   #
   # What this costs in recovery terms: a corruption found within two days still
   # restores to within six minutes of it, one found inside a month to within an
@@ -389,6 +409,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "snapshots" {
     status = "Enabled"
     filter { prefix = "routine/" }
     expiration { days = 2 }
+    noncurrent_version_expiration { noncurrent_days = 7 }
   }
 
   rule {
@@ -396,6 +417,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "snapshots" {
     status = "Enabled"
     filter { prefix = "hourly/" }
     expiration { days = 30 }
+    noncurrent_version_expiration { noncurrent_days = 7 }
   }
 
   # Just over a year, so a restore point exists for the same month last year
@@ -405,6 +427,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "snapshots" {
     status = "Enabled"
     filter { prefix = "daily/" }
     expiration { days = 400 }
+    noncurrent_version_expiration { noncurrent_days = 90 }
   }
 }
 
@@ -667,7 +690,14 @@ resource "aws_s3_bucket" "maintenance_page" {
 # Cache-Control is short deliberately. The page is edited rarely, but when it is
 # edited it is usually because it said something wrong, and a long browser cache
 # would keep serving the wrong words after the fix applied.
-resource "aws_s3_object" "maintenance_page" {
+#
+# The address differs from the bucket's because the object lives in the
+# recovery region, and Terraform cannot move a resource from one provider
+# configuration to another: an address that changed provider would be read and
+# deleted through the wrong region's client. A distinct address leaves any
+# object recorded under the old one to be deleted through the provider its
+# state names.
+resource "aws_s3_object" "maintenance_page_html" {
   provider      = aws.us_west_2
   bucket        = aws_s3_bucket.maintenance_page.id
   key           = "maintenance.html"

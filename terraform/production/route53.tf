@@ -456,16 +456,6 @@ moved {
 }
 
 moved {
-  from = aws_route53_record.legacy_mirror_mx["ifpa"]
-  to   = aws_route53_record.workspace_mx["ifpa"]
-}
-
-moved {
-  from = aws_route53_record.legacy_mirror_txt["ifpa"]
-  to   = aws_route53_record.workspace_txt["ifpa"]
-}
-
-moved {
   from = aws_route53_record.legacy_mirror_cname["docs.my"]
   to   = aws_route53_record.workspace_cname["docs.my"]
 }

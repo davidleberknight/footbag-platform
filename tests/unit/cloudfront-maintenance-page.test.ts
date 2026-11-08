@@ -81,22 +81,22 @@ describe('maintenance page: it is the outage page, not the migration notice', ()
 
 describe('maintenance page: Terraform places the object', () => {
   it('declares the page as a managed object, so it cannot be absent', () => {
-    expect(s3Tf).toMatch(/resource\s+"aws_s3_object"\s+"maintenance_page"/);
+    expect(s3Tf).toMatch(/resource\s+"aws_s3_object"\s+"maintenance_page_html"/);
   });
 
   it('places it at the key the error responses ask for, in the maintenance bucket', () => {
-    const block = s3Tf.slice(s3Tf.indexOf('resource "aws_s3_object" "maintenance_page"'));
+    const block = s3Tf.slice(s3Tf.indexOf('resource "aws_s3_object" "maintenance_page_html"'));
     expect(block).toMatch(/bucket\s*=\s*aws_s3_bucket\.maintenance_page\.id/);
     expect(block).toMatch(/key\s*=\s*"maintenance\.html"/);
   });
 
   it('takes its content from the committed page rather than an inline copy that could drift', () => {
-    const block = s3Tf.slice(s3Tf.indexOf('resource "aws_s3_object" "maintenance_page"'));
+    const block = s3Tf.slice(s3Tf.indexOf('resource "aws_s3_object" "maintenance_page_html"'));
     expect(block).toMatch(/content\s*=\s*file\("\$\{path\.module\}\/maintenance-page\/maintenance\.html"\)/);
   });
 
   it('serves it as HTML, since a wrong content type renders the markup as text', () => {
-    const block = s3Tf.slice(s3Tf.indexOf('resource "aws_s3_object" "maintenance_page"'));
+    const block = s3Tf.slice(s3Tf.indexOf('resource "aws_s3_object" "maintenance_page_html"'));
     expect(block).toMatch(/content_type\s*=\s*"text\/html; charset=utf-8"/);
   });
 });

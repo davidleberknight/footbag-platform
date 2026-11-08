@@ -218,7 +218,7 @@ case "$GATE" in
     exit 2
     ;;
   enable_archive)
-    cr_error "enable_archive: the archive bring-up sets several values together (the flag, the signing key, the platform address), and turning it off is refused by Terraform's prevent_destroy; this script refuses it"
+    cr_error "enable_archive: the archive bring-up sets several values together (the flag, the signing key, the platform address), and turning it off is refused by Terraform's prevent_destroy; this script refuses it. Use scripts/production-cutover.sh --target ${TARGET} --stage archive-base"
     exit 2
     ;;
 esac

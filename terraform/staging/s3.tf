@@ -125,17 +125,22 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "maintenance_page"
   }
 }
 
-# ── Snapshot lifecycle — expire old versions after 90 days ───────────────────
+# ── Snapshot lifecycle — expire old versions after one day ──────────────────
 
 resource "aws_s3_bucket_lifecycle_configuration" "snapshots" {
   bucket = aws_s3_bucket.snapshots.id
 
+  # The bucket is versioned, so each expiry rule below only writes a delete
+  # marker and leaves the expired snapshot behind as a noncurrent version. This
+  # window is therefore how long every expired snapshot is really kept, on top
+  # of its tier's own window. One day, because staging is rebuilt from a seed
+  # and needs no recovery headroom beyond the tier windows below.
   rule {
     id     = "expire-old-snapshot-versions"
     status = "Enabled"
     filter {}
     noncurrent_version_expiration {
-      noncurrent_days = 90
+      noncurrent_days = 1
     }
     # Matches production. A snapshot is above the CLI's multipart threshold, and
     # parts left by a killed upload are not objects, so no expiration rule here
@@ -151,29 +156,32 @@ resource "aws_s3_bucket_lifecycle_configuration" "snapshots" {
   # The producer promotes the first run of each hour and each day into hourly/
   # and daily/, so all three prefixes need a window here even though staging is
   # reset-tolerant: an unswept prefix grows without bound whatever the data is
-  # worth. The windows are deliberately shorter than production's. Staging's
-  # database can be rebuilt from a seed at any time, so the long tail production
-  # keeps for a late-discovered corruption buys nothing here; what staging needs
-  # is enough history to rehearse a restore.
+  # worth. The windows are the smallest that staging's own scenarios need, far
+  # shorter than production's. Staging's database can be rebuilt from a seed at
+  # any time, so the history production keeps for a late-discovered corruption
+  # buys nothing here. What staging uses: a restore drill restores the newest
+  # snapshot, and the retention script's gate needs hourly/ and daily/ each to
+  # hold more than one recent object. Three days of daily/ keeps at least two
+  # after lifecycle rounds each age to the next midnight.
   rule {
     id     = "expire-routine-stream"
     status = "Enabled"
     filter { prefix = "routine/" }
-    expiration { days = 2 }
+    expiration { days = 1 }
   }
 
   rule {
     id     = "expire-hourly-tier"
     status = "Enabled"
     filter { prefix = "hourly/" }
-    expiration { days = 14 }
+    expiration { days = 2 }
   }
 
   rule {
     id     = "expire-daily-tier"
     status = "Enabled"
     filter { prefix = "daily/" }
-    expiration { days = 30 }
+    expiration { days = 3 }
   }
 }
 
