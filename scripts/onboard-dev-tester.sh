@@ -820,9 +820,22 @@ if grep -qxF -- "$KEY_SHA" <<<"$PRE_SHARED"; then
 fi
 
 # Read before anything changes, so a Terraform or Lightsail problem costs
-# nothing but the run.
-known_hosts_pin_lines "$TARGET" "$AWS_BIN" \
-  || cr_die "the ${TARGET} host's pin lines could not be read; nothing has been created"
+# nothing but the run. The lines are this operator's own pin, sealed only once
+# it is proven current against the instance record; reading them from Lightsail
+# instead would mint a host-access certificate and fire the break-glass alarm
+# on a routine onboarding.
+PIN_RC=0
+known_hosts_pin_current "$TARGET" "$AWS_BIN" || PIN_RC=$?
+if (( PIN_RC != 0 )); then
+  (( PIN_RC == 1 )) && cr_error "your ${TARGET} pin is not proven current: ${KNOWN_HOSTS_STALE_REASON}."
+  (( PIN_RC == 2 )) && cr_error "your ${TARGET} pin could not be checked; the reason is above."
+  echo "       Nothing has been created. Rebuild it, then run this again:" >&2
+  echo "         bash scripts/install-known-hosts.sh --target ${TARGET}" >&2
+  exit 1
+fi
+known_hosts_pin_lines_from_pin "$TARGET" \
+  || cr_die "the ${TARGET} pin lines could not be read from your pin; nothing has been created"
+PIN_RECORD="$KNOWN_HOSTS_INSTANCE_RECORD"
 
 HOST_FILE="$(delivery_file_name "$ACCOUNT" "$TARGET")"
 
@@ -921,6 +934,7 @@ DELIVERY_DEV_TESTER_ROLE_ARN="$DEV_TESTER_ROLE_ARN"
 DELIVERY_STAGING_RUNTIME_ROLE_ARN="$STAGING_ROLE_ARN"
 DELIVERY_HOST_ADDRESS="$KNOWN_HOSTS_PIN_IP"
 DELIVERY_HOST_PORT="$DELIVERY_SSH_PORT"
+DELIVERY_INSTANCE_RECORD="$PIN_RECORD"
 DELIVERY_PINS=()
 while IFS= read -r _pin; do
   [[ -n "$_pin" ]] && DELIVERY_PINS+=("$_pin")

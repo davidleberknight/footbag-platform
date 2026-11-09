@@ -449,6 +449,8 @@ describe('the server a run reaches follows its label, and confirms it', () => {
       'it connects to the staging address the sealed delivery names, as the new named account, before that account has a password the host accepts; it proves and sets only that account\'s own login',
     'deploy_to_aws.sh':
       'its one connection is a read-only schema fingerprint taken before the password is read, which can only warn; the worker scripts it hands off to confirm the host before any change',
+    'host-break-glass.sh':
+      'it is the route used when the shared account cannot reach the host, so it has no alias that answers and no sudo password to ask with; it confirms the host instead by requiring the minted response to name the address Terraform records for the target, and verifies the host against the host keys that response carries',
   };
 
   // Every form a script here opens a connection with: the ssh client itself

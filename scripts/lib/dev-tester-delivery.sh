@@ -8,7 +8,8 @@
 # The delivery is everything the newcomer cannot fetch for themselves: the
 # one-time password of their host account, their IAM access key, the account's
 # role ARNs, and the staging host's pin lines, which their job role is denied
-# the Lightsail call to read. It is sealed with age to the SSH public key they
+# the Lightsail call to read, with the instance record that says which instance
+# those lines were read from. It is sealed with age to the SSH public key they
 # sent, so only the holder of the matching private key opens it. The onboarding
 # places it in their own home on the staging host, where nobody but root and
 # that account can read it, and their acceptance fetches it from there and
@@ -20,11 +21,13 @@
 # sourced file is a program. Unknown keys, repeated keys (other than PIN) and
 # missing keys are refused rather than guessed around.
 
-DELIVERY_FORMAT="footbag-dev-tester-delivery-1"
+# The version moves whenever a key is added or removed, so a delivery sealed by
+# an older onboarding is refused by name rather than by a missing key.
+DELIVERY_FORMAT="footbag-dev-tester-delivery-2"
 # Every single-valued key, in the order the writer emits them.
 DELIVERY_KEYS=(TARGET ACCOUNT FULL_NAME HOST_PASSWORD AWS_ACCESS_KEY_ID
   AWS_SECRET_ACCESS_KEY AWS_ACCOUNT_ID DEV_TESTER_ROLE_ARN
-  STAGING_RUNTIME_ROLE_ARN HOST_ADDRESS HOST_PORT)
+  STAGING_RUNTIME_ROLE_ARN HOST_ADDRESS HOST_PORT INSTANCE_RECORD)
 
 # The SSH port every connection to the host is made on, the delivery's fetch
 # included. The delivery names it too, and the acceptance holds the two equal.

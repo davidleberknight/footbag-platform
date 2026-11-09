@@ -42,6 +42,13 @@ const MINTED_SECRET = 'fixture/minted+secret=value000000000000';
 const EARLIER_KEY_ID = 'fixture-earlier-key-id';
 const ONE_TIME = 'fixtureOneTimePassword0000000000';
 const ADDRESS = '198.51.100.7/32';
+const INSTANCE_ARN = 'arn:aws:lightsail:us-east-1:041904915126:Instance/0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0';
+const REBUILT_ARN = 'arn:aws:lightsail:us-east-1:041904915126:Instance/99999999-8888-7777-6666-555555555555';
+const CREATED = '2026-09-01T10:00:00.123000+00:00';
+const INSTANCE_RECORD = `footbag-staging footbag-staging-web ${INSTANCE_ARN} ${CREATED}`;
+/** The operator's current staging pin: two keys on both ports, each tagged. */
+const OPERATOR_PIN = ['ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFixtureHostKeyEd25519', 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABFixtureHostKeyRsa']
+  .flatMap((k) => [`203.0.113.10 ${k} footbag-staging`, `[203.0.113.10]:2222 ${k} footbag-staging`]);
 
 let dir: string;
 let home: string;
@@ -154,9 +161,11 @@ case "$1 $2" in
     else
       echo '{"Events":[]}'
     fi ;;
+  "lightsail get-instance")
+    if [[ -e "$S/rebuilt" ]]; then printf '%s\\t%s\\n' ${JSON.stringify(REBUILT_ARN)} ${JSON.stringify(CREATED)}
+    else printf '%s\\t%s\\n' ${JSON.stringify(INSTANCE_ARN)} ${JSON.stringify(CREATED)}; fi ;;
   "lightsail get-instance-access-details")
-    printf 'ssh-ed25519\\tAAAAC3NzaC1lZDI1NTE5AAAAIFixtureHostKeyEd25519\\n'
-    printf 'ssh-rsa\\tAAAAB3NzaC1yc2EAAAADAQABFixtureHostKeyRsa\\n' ;;
+    echo "minted: $*" >> "$S/mints.log"; exit 1 ;;
   *) echo "unexpected aws call: $*" >&2; exit 64 ;;
 esac`,
   );
@@ -285,7 +294,28 @@ beforeEach(() => {
   credFile = join(dir, 'credentials');
   writeFileSync(configFile, OPERATOR_CONFIG);
   writeFileSync(credFile, OPERATOR_CRED, { mode: 0o600 });
+  writeOperatorPin();
 });
+
+/** The operator's pin and its instance record, current for the stand-in instance. */
+function writeOperatorPin(): void {
+  mkdirSync(join(home, 'AWS'), { recursive: true });
+  writeFileSync(join(home, 'AWS', 'footbag_known_hosts'), OPERATOR_PIN.map((l) => `${l}\n`).join(''), { mode: 0o600 });
+  writeFileSync(join(home, 'AWS', 'footbag_known_hosts.instances'), `${INSTANCE_RECORD}\n`, { mode: 0o600 });
+}
+
+/**
+ * The operator's AWS directory holds its pin and record, exactly as seeded, and
+ * nothing else: no copy of the delivery, and the pin it was read from untouched.
+ */
+function expectOnlyOperatorPin(): void {
+  expect(readdirSync(join(home, 'AWS')).sort()).toEqual(['footbag_known_hosts', 'footbag_known_hosts.instances']);
+  expect(readFileSync(join(home, 'AWS', 'footbag_known_hosts'), 'utf-8')).toBe(OPERATOR_PIN.map((l) => `${l}\n`).join(''));
+  expect(readFileSync(join(home, 'AWS', 'footbag_known_hosts.instances'), 'utf-8')).toBe(`${INSTANCE_RECORD}\n`);
+}
+
+/** Every minting call the run made; onboarding must make none. */
+const mintCalls = (): string => (existsSync(join(dir, 'mints.log')) ? readFileSync(join(dir, 'mints.log'), 'utf-8') : '');
 
 afterEach(() => {
   removeScratch(dir);
@@ -544,8 +574,41 @@ describe('onboard-dev-tester.sh — a whole onboarding', () => {
     expect(body).toContain('AWS_ACCOUNT_ID=041904915126\n');
     expect(body).toContain('DEV_TESTER_ROLE_ARN=arn:aws:iam::041904915126:role/FootbagDevTester\n');
     expect(body).toContain('HOST_ADDRESS=203.0.113.10\n');
+    // The pins are the operator's own current lines, with the record of the
+    // instance they were read from, and nothing was minted to get them.
+    // Defect caught: onboarding minting a root-capable certificate and firing
+    // the break-glass alarm on routine work, or a newcomer left with a pin
+    // nothing proves current.
     expect(body.match(/^PIN=/gm)).toHaveLength(4);
-    expect(body).toContain('PIN=[203.0.113.10]:2222 ssh-ed25519 ');
+    for (const line of OPERATOR_PIN) expect(body).toContain(`PIN=${line}\n`);
+    expect(body).toContain(`INSTANCE_RECORD=${INSTANCE_RECORD}\n`);
+    expect(mintCalls()).toBe('');
+  });
+
+  it('refuses before any change when the operator\'s pin is stale, naming the fix, and mints nothing', () => {
+    // Defect caught: a rebuilt host's old keys sealed to a newcomer, whose
+    // first connection then refuses the real host; or the refusal coming after
+    // the host account and the IAM key already exist.
+    writeFileSync(join(dir, 'rebuilt'), '');
+    const r = runInTerminal('APPLY\n');
+    expect(r.status).toBe(1);
+    expect(r.out).toContain('rebuilt or replaced');
+    expect(r.out).toContain('bash scripts/install-known-hosts.sh --target staging');
+    expect(mutatingCalls()).toEqual([]);
+    expect(existsSync(join(dir, 'provision.args'))).toBe(false);
+    expect(existsSync(SEALED())).toBe(false);
+    expect(mintCalls()).toBe('');
+  });
+
+  it('refuses before any change when the operator\'s pin carries no instance record', () => {
+    // Defect caught: a pin of unknown provenance sealed as proven.
+    rmSync(join(home, 'AWS', 'footbag_known_hosts.instances'));
+    const r = runInTerminal('APPLY\n');
+    expect(r.status).toBe(1);
+    expect(r.out).toContain('not proven current');
+    expect(r.out).toContain('bash scripts/install-known-hosts.sh --target staging');
+    expect(existsSync(join(dir, 'provision.args'))).toBe(false);
+    expect(mintCalls()).toBe('');
   });
 
   it('puts their address on the allow-list, attributed to them, with the sudo password kept away from it', () => {
@@ -686,7 +749,7 @@ describe('onboard-dev-tester.sh — a whole onboarding', () => {
   it('leaves nothing of the delivery on this machine, sealed or not', () => {
     const r = runInTerminal('APPLY\n');
     expect(r.status, r.out).toBe(0);
-    expect(existsSync(join(home, 'AWS')) ? readdirSync(join(home, 'AWS')) : []).toEqual([]);
+    expectOnlyOperatorPin();
     expect(readdirSync(tmp).filter((f) => !f.startsWith('tf-'))).toEqual([]);
   });
 
@@ -914,7 +977,7 @@ describe('onboard-dev-tester.sh — an onboarding that stops after the host step
     expect(r.out).toMatch(/is left in place and is NOT being removed/);
     expect(existsSync(SEALED())).toBe(false);
     expect(read('address.args')).toBe('');
-    expect(existsSync(join(home, 'AWS')) ? readdirSync(join(home, 'AWS')) : []).toEqual([]);
+    expectOnlyOperatorPin();
     expect(readdirSync(tmp)).toEqual([]);
   });
 
@@ -1045,7 +1108,9 @@ describe('onboard-dev-tester.sh on a maintainer\'s own machine', () => {
     // The holder onboards themselves on the machine holding footbag-operator, both
     // runtime chains, the shared password files, the pin file and the stanzas.
     // None of these runs adds anything here: the sealed file goes to the host.
-    seedMaintainerMachine(home, ['203.0.113.10 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFixtureHost']);
+    seedMaintainerMachine(home, OPERATOR_PIN);
+    writeFileSync(join(home, 'AWS', 'footbag_known_hosts.instances'), `${INSTANCE_RECORD}\n`, { mode: 0o600 });
+    const record = readFileSync(join(home, 'AWS', 'footbag_known_hosts.instances'), 'utf-8');
     const files = {
       AWS_CONFIG_FILE: join(home, '.aws', 'config'),
       AWS_SHARED_CREDENTIALS_FILE: join(home, '.aws', 'credentials'),
@@ -1067,8 +1132,9 @@ describe('onboard-dev-tester.sh on a maintainer\'s own machine', () => {
     expect(snapshotAdminFiles(home)).toEqual(before);
     // Nothing is added there at all: the delivery goes to the host.
     expect(readdirSync(join(home, 'AWS')).sort()).toEqual(
-      ['AWS_OPERATOR.txt', 'AWS_OPERATOR_PRODUCTION.txt', 'footbag_known_hosts'].sort(),
+      ['AWS_OPERATOR.txt', 'AWS_OPERATOR_PRODUCTION.txt', 'footbag_known_hosts', 'footbag_known_hosts.instances'].sort(),
     );
+    expect(readFileSync(join(home, 'AWS', 'footbag_known_hosts.instances'), 'utf-8')).toBe(record);
   });
 });
 

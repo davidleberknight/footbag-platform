@@ -53,6 +53,7 @@ const VALUES: Record<string, string> = {
   STAGING_RUNTIME_ROLE_ARN: 'arn:aws:iam::000000000000:role/footbag-staging-app-runtime',
   HOST_ADDRESS: '203.0.113.10',
   HOST_PORT: '2222',
+  INSTANCE_RECORD: 'footbag-staging footbag-staging-web arn:aws:lightsail:us-east-1:000000000000:Instance/0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0 2026-09-01T10:00:00+00:00',
 };
 const PINS = ['203.0.113.10 ssh-ed25519 AAAAfixture', '[203.0.113.10]:2222 ssh-ed25519 AAAAfixture'];
 
@@ -126,6 +127,17 @@ describe('the delivery format — written and read by the same library', () => {
     const r = parse(bundle);
     expect(r.status).toBe(1);
     expect(r.stdout).toMatch(/'HOST_PORT' is missing/);
+  });
+
+  it('carries the instance record the pins were read from, and refuses a bundle without it', () => {
+    // Defect caught: a newcomer's pin written with nothing to say which
+    // instance its keys came from, so no later check can prove it current.
+    withLib(emitScript());
+    const written = readFileSync(join(dir, 'bundle'), 'utf-8');
+    expect(written).toContain(`INSTANCE_RECORD=${VALUES.INSTANCE_RECORD}\n`);
+    const r = parse(written.replace(/^INSTANCE_RECORD=.*\n/m, ''));
+    expect(r.status).toBe(1);
+    expect(r.stdout).toMatch(/'INSTANCE_RECORD' is missing/);
   });
 
   it('refuses a bundle of another format', () => {

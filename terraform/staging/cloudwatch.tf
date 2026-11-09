@@ -706,6 +706,13 @@ resource "aws_cloudwatch_metric_alarm" "origin_spike" {
 #     certificate, so there is no expiry to watch.
 #   - the us-east-1 alarms SNS topic and subscription: they exist only to carry
 #     the global (us-east-1) certificate alarm above, which staging does not have.
+#
+# The trail-derived security and audit alarms, the break-glass host-access
+# alarm among them, are also declared in production only: the trail is
+# account-global and production's alarms read its log group, so a call made
+# against staging raises them there. They are proved on staging by
+# staging-origin triggers: scripts/prove-audit-alarms.sh, and
+# scripts/host-break-glass.sh --drill --target staging.
 
 # ── Dashboard ─────────────────────────────────────────────────────────────────
 

@@ -43,7 +43,6 @@ scripts/ffmpeg-pinned.sh
 scripts/harden-sshd.sh
 scripts/host-diagnostics.sh
 scripts/host-shell.sh
-scripts/install-known-hosts.sh
 scripts/install-operator-key.sh
 scripts/internal/assert-db-pre-cutover.sh
 scripts/internal/authorize-operator-key-remote.sh

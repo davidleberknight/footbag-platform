@@ -574,6 +574,8 @@ for _pin in "${DELIVERY_PINS[@]}"; do
     *) cr_die "a pin line in the delivery names another host. Nothing changed." ;;
   esac
 done
+known_hosts_record_line_valid "$TARGET" "$DELIVERY_INSTANCE_RECORD" \
+  || cr_die "the delivery's instance record is not one for ${TARGET}. Nothing changed."
 echo "  opened: ${ACCOUNT} on ${TARGET}, host ${DELIVERY_HOST_ADDRESS}, key ${DELIVERY_AWS_ACCESS_KEY_ID}"
 
 # ── 4. Where it came from, proved before anything is written ─────────────────
@@ -875,14 +877,42 @@ for _pin in "${DELIVERY_PINS[@]}"; do
   MISSING+=("$_pin")
 done
 unset _pin_host _pin_key
+# Beside the pin, the record of which instance its lines were read from, which
+# is what lets a later check tell this host from a rebuilt one without the
+# Lightsail call the job role is denied. Written with the pins, under the same
+# confirmation; on its own when only it is missing.
+RECORD_FILE="$(FOOTBAG_KNOWN_HOSTS="$PIN" known_hosts_record_path)"
+RECORD_PRESENT=0
+[[ -f "$RECORD_FILE" ]] && grep -qxF -- "$DELIVERY_INSTANCE_RECORD" "$RECORD_FILE" && RECORD_PRESENT=1
+write_instance_record() {
+  FOOTBAG_KNOWN_HOSTS="$PIN" known_hosts_record_write "$TARGET" "$DELIVERY_INSTANCE_RECORD" \
+    || cr_die "the instance record ${RECORD_FILE} could not be written"
+}
 if (( ${#MISSING[@]} == 0 )); then
   echo "  already pinned in ${PIN}"
+  if (( RECORD_PRESENT )); then
+    echo "  already recorded in ${RECORD_FILE}"
+  elif (( OPERATOR_PROFILE_HERE )); then
+    # On an administrator's machine the record is theirs, kept by
+    # install-known-hosts.sh, and this run does not rewrite it.
+    cr_warn "${RECORD_FILE} does not record the instance this delivery's pins were read from; it is the administrators' record and is left as it is. Check it with: bash scripts/install-known-hosts.sh --target ${TARGET} --check"
+  else
+    echo "  The record of which staging instance those keys belong to, into ${RECORD_FILE}:"
+    echo "    ${DELIVERY_INSTANCE_RECORD}"
+    if ! confirm_from_tty "Type 'APPLY' to record it: " "APPLY"; then
+      cr_error "Not confirmed; nothing written."
+      exit 1
+    fi
+    write_instance_record
+  fi
 else
   echo "  The staging host's own keys, recorded on this computer so every later"
   echo "  connection can prove it reached the real staging host and not an impostor."
   echo "  They are public keys; nothing secret is written."
   echo "  Into ${PIN}, replacing any older lines for ${DELIVERY_HOST_ADDRESS} and keeping every other host's:"
   printf '    %s\n' "${DELIVERY_PINS[@]}"
+  echo "  And into ${RECORD_FILE}, the instance they were read from:"
+  echo "    ${DELIVERY_INSTANCE_RECORD}"
   if ! confirm_from_tty "Type 'APPLY' to pin them: " "APPLY"; then
     cr_error "Not confirmed; nothing written."
     exit 1
@@ -911,6 +941,7 @@ else
   printf '%s\n' "${DELIVERY_PINS[@]}" >> "$PIN_TMP"
   chmod 600 "$PIN_TMP"
   mv -f -- "$PIN_TMP" "$PIN"
+  write_instance_record
 fi
 if ! grep -q '^[^#]' <<< "$(ssh-keygen -F "$DELIVERY_HOST_ADDRESS" -f "$PIN" 2>/dev/null)" \
    || ! grep -q '^[^#]' <<< "$(ssh-keygen -F "[${DELIVERY_HOST_ADDRESS}]:${DELIVERY_HOST_PORT}" -f "$PIN" 2>/dev/null)"; then

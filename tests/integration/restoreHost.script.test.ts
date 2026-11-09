@@ -140,6 +140,8 @@ function writeAwsStub(): void {
     'has() { local k="$1"; shift; for a in "$@"; do [[ "$a" == "$k" ]] && return 0; done; return 1; }',
     'flip() { local f="$1" from="$2" to="$3"; [[ -f "$f" ]] && sed -i "s/\\t${from}\\t/\\t${to}\\t/" "$f"; }',
     'row() { grep "^$1"$\'\\t\' "$S/instances"; }',
+    // The CLI history setting, absent as on a workstation that never turned it on.
+    '[[ "$svc $sub" == "configure get" ]] && exit 1',
     'case "$sub" in',
     '  get-instances)',
     '    cat "$S/instances" 2>/dev/null',
@@ -187,7 +189,12 @@ function writeAwsStub(): void {
     '    printf \'{"portStates":%s}\' "$(arg --port-infos "$@")" > "$S/ports-$n.json" ;;',
     '  detach-static-ip) printf "False\\tNone\\t%s" "$(cut -f3 "$S/staticip")" > "$S/staticip.tmp" && mv "$S/staticip.tmp" "$S/staticip" ;;',
     '  attach-static-ip) printf "True\\t%s\\t%s" "$(arg --instance-name "$@")" "$(cut -f3 "$S/staticip")" > "$S/staticip.tmp" && mv "$S/staticip.tmp" "$S/staticip" ;;',
-    '  get-instance-access-details) cat "$S/hostkeys-$(arg --instance-name "$@")" ;;',
+    // The minting call answers in the shape the real one does, a private key
+    // and certificate beside the host keys, and records the application id the
+    // call carried, which is what the mint listing attributes it by.
+    '  get-instance-access-details)',
+    '    n="$(arg --instance-name "$@")"; echo "${AWS_SDK_UA_APP_ID:-none} $n" >> "$S/mints.log"',
+    '    jq -Rn --arg sentinel "$MINT_SENTINEL" \'[inputs | select(length > 0) | split("\\t") | {algorithm: .[0], publicKey: .[1]}] | {accessDetails: {privateKey: $sentinel, certKey: "ssh-rsa-cert-v01@openssh.com fixture", username: "ec2-user", hostKeys: .}}\' < "$S/hostkeys-$n" ;;',
     '  delete-instance) n="$(arg --instance-name "$@")"; grep -v "^$n"$\'\\t\' "$S/instances" > "$S/instances.tmp" || true; mv "$S/instances.tmp" "$S/instances" ;;',
     '  list-objects-v2) printf "%s\\n" "${LAST_BACKUP_KEY:-None}" ;;',
     '  *) echo "stand-in aws: unhandled $svc $sub" >&2; exit 2 ;;',
@@ -276,14 +283,15 @@ function writeTerraformStub(): void {
   ]);
   // scripts/install-known-hosts.sh's stand-in: pins the keys of the instance
   // Terraform names, as the real installer reads it, unless PIN_TF_NAME says
-  // the installer's Terraform still names another instance.
+  // the installer's Terraform still names another instance. Each line carries
+  // the environment's tag after the key, as the real installer writes it.
   exe(join(bin, 'pin-installer'), [
     `S=${JSON.stringify(st)}`,
     'echo "pin-installer $*" >> "$S/calls.log"',
     '[[ -n "${FAIL_ON:-}" && "$FAIL_ON" == "pin-installer" ]] && exit 1',
     `name="\${PIN_TF_NAME:-$(${JSON.stringify(join(bin, 'terraform'))} -chdir=terraform/staging output -raw lightsail_instance_name)}"`,
     `: > ${JSON.stringify(pinFile)}`,
-    `while IFS=$'\\t' read -r alg pub; do printf '%s %s %s\\n[%s]:2222 %s %s\\n' ${IP} "$alg" "$pub" ${IP} "$alg" "$pub" >> ${JSON.stringify(pinFile)}; done < "$S/hostkeys-$name"`,
+    `while IFS=$'\\t' read -r alg pub; do printf '%s %s %s footbag-staging\\n[%s]:2222 %s %s footbag-staging\\n' ${IP} "$alg" "$pub" ${IP} "$alg" "$pub" >> ${JSON.stringify(pinFile)}; done < "$S/hostkeys-$name"`,
     'exit 0',
   ]);
   // scripts/restore-db.sh's stand-in: records how it was asked, the password
@@ -394,9 +402,14 @@ function env(extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     AWS_PROFILE_BIN: join(bin, 'identity'),
     FOOTBAG_HOST_SSH_BIN: join(bin, 'ssh'),
     FOOTBAG_KNOWN_HOSTS: pinFile,
+    MINT_SENTINEL,
     ...extra,
   };
 }
+
+/** The private key the stand-in mint returns, which no output may carry. */
+const MINT_SENTINEL = 'FIXTURE-MINTED-PRIVATE-KEY-SENTINEL';
+const mints = () => read(p('mints.log')).split('\n').filter(Boolean);
 
 /** No terminal at all: the condition of a scheduled job or an agent session. */
 function runDetached(args: string[], extra: NodeJS.ProcessEnv = {}) {
@@ -533,6 +546,42 @@ describe.skipIf(!HAS_SCRIPT)('restore-host.sh, a full restore at a terminal', ()
     // restore that overran the objective in its last step reads as within it.
     const elapsedAt = r.out.lastIndexOf('elapsed 0h 00m, within the 4-hour in-region recovery objective');
     expect(elapsedAt).toBeGreaterThan(r.out.indexOf('== restore complete on staging =='));
+  });
+
+  it('mints once for the restored instance, attributed to the restore, and leaves the key nowhere', () => {
+    // Defect caught: each step that needs the restored host's keys minting its
+    // own certificate, so one restore fires the break-glass alarm several times;
+    // a mint the listing cannot attribute; or the minted private key reaching
+    // the terminal or left on disk.
+    const r = runAtTerminal(['--target', 'staging']);
+    expect(r.status, r.out).toBe(0);
+    expect(mints()).toEqual([`footbag-restore-host ${NEW}`]);
+    expect(r.out).not.toContain(MINT_SENTINEL);
+    expect(tmpLeft()).toEqual([]);
+  });
+
+  it('runs the pin installer even when the pin already carries the restored instance\'s keys', () => {
+    // A snapshot keeps the host keys and the static IP moves with the restore,
+    // so the pin can already hold the new instance's keys while its instance
+    // record still names the old instance. Defect caught: the installer skipped,
+    // the record left naming the old instance, and every later check reading
+    // the pin as stale, so onboarding refuses and the next bootstrap mints.
+    const tagged = (k: string) => `${IP} ${k} footbag-staging\n[${IP}]:2222 ${k} footbag-staging\n`;
+    writeFileSync(pinFile, tagged(`ssh-ed25519 ${keyOf(NEW)}`) + tagged(`ecdsa-sha2-nistp256 AAAAE2-${NEW}`), { mode: 0o600 });
+    const r = runAtTerminal(['--target', 'staging']);
+    expect(r.status, r.out).toBe(0);
+    expect(callLines().filter((l) => l.startsWith('pin-installer '))).toEqual(['pin-installer --target staging']);
+  });
+
+  it('refuses to mint while the AWS CLI history would keep the response', () => {
+    // Defect caught: the minted private key written into the CLI's history
+    // database, which nothing shreds.
+    const aws = read(join(bin, 'aws')).replace('[[ "$svc $sub" == "configure get" ]] && exit 1', '[[ "$svc $sub" == "configure get" ]] && { echo enabled; exit 0; }');
+    exe(join(bin, 'aws'), aws.split('\n').slice(1));
+    const r = runAtTerminal(['--target', 'staging']);
+    expect(r.status).toBe(1);
+    expect(r.out).toContain('cli_history disabled');
+    expect(mints()).toEqual([]);
   });
 
   it('stops before moving the address when the old firewall reads back empty', () => {
@@ -970,7 +1019,7 @@ describe.skipIf(!HAS_SCRIPT)('restore-host.sh, the restored host proves itself',
     const r = runAtTerminal(['--target', 'staging'], 'APPLY\n', { PIN_TF_NAME: OLD });
     expect(r.status).toBe(1);
     expect(r.out).toContain(`does not carry ${NEW}'s host keys`);
-    expect(read(pinFile)).toMatch(new RegExp(`${keyOf(OLD)}$`, 'm'));
+    expect(read(pinFile)).toMatch(new RegExp(`${keyOf(OLD)} footbag-staging$`, 'm'));
   });
 
   it('fails when the host behind the alias records another environment, before its database is touched', () => {

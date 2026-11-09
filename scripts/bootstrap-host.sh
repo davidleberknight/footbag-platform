@@ -27,7 +27,9 @@
 #       publishes none until CloudFront is enabled, and the run stops there
 #       naming that step rather than failing inside the deploy.
 #    2  install-known-hosts.sh: the host key pinned from the Lightsail API, so
-#       nothing below connects to a host it has not verified. Before the host
+#       nothing below connects to a host it has not verified. A pin already
+#       current against its instance record is left alone and nothing is
+#       minted; --status judges it the same way. Before the host
 #       records which environment it is, this pin is what proves the host is
 #       footbag-<target>-web: it is that instance's key, read from AWS.
 #    3  first login as ec2-user on port 22 with the Terraform key pair: sshd on

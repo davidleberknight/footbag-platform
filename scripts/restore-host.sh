@@ -177,6 +177,9 @@ source "${SCRIPT_DIR}/lib/closing-report.sh"
 source "${SCRIPT_DIR}/lib/host-env-remote.sh"
 # shellcheck source=lib/aws-profile.sh
 source "${SCRIPT_DIR}/lib/aws-profile.sh"
+# host_access_mint: the one place a host's keys are read from Lightsail.
+# shellcheck source=lib/host-access-mint.sh
+source "${SCRIPT_DIR}/lib/host-access-mint.sh"
 
 REGION="us-east-1"
 # The recovery objective for losing a host in its own region.
@@ -674,19 +677,43 @@ require_operator_stdin "scripts/restore-host.sh --target ${TARGET}$([[ "$MODE" =
 # A pin built from the keys the Lightsail API reports for NEW, at the static IP,
 # in this run's private directory. It reaches the restored host before
 # Terraform names it, which is what the operator's own pin, re-taken through
-# scripts/install-known-hosts.sh, waits on. Each read of the host keys fires the
-# break-glass alarm.
+# scripts/install-known-hosts.sh, waits on. The host keys come from the one
+# Lightsail call that returns them, which mints a host-access certificate and
+# fires the break-glass alarm, so each instance's keys are read once per run and
+# shared by every step that needs them.
 API_PIN=""
+HOST_KEY_ROWS=""
+HOST_KEY_ROWS_FOR=""
+# host_key_rows <instance>: sets HOST_KEY_ROWS to the instance's host keys, one
+# "algorithm<TAB>key" row each, minting only when this run holds none for it.
+# The response carries a private key: it is written to this run's private
+# directory by the mint library, read for the public keys, and shredded at once.
+# A response with no keys (an instance still starting) is not kept, so a poll
+# asks again.
+host_key_rows() {
+  local instance="$1" response rows
+  if [[ "$HOST_KEY_ROWS_FOR" == "$instance" && -n "$HOST_KEY_ROWS" ]]; then
+    return 0
+  fi
+  HOST_KEY_ROWS=""
+  HOST_KEY_ROWS_FOR=""
+  response="${TMP_DIR}/access-details.json"
+  host_access_mint "$AWS_BIN" footbag-restore-host "$instance" "$response" </dev/null || return 1
+  rows="$(jq -r '.accessDetails.hostKeys[]? | select(.algorithm and .publicKey) | [.algorithm, .publicKey] | @tsv' "$response")" || rows=""
+  shred -u -- "$response" || cr_warn "the Lightsail response for ${instance} could not be shredded; the run's private directory is removed at the end"
+  [[ -n "$rows" ]] || return 1
+  HOST_KEY_ROWS="$rows"
+  HOST_KEY_ROWS_FOR="$instance"
+}
 build_api_pin() {
-  local rows alg pub n=0
+  local alg pub n=0
   API_PIN="$(tmp_file pin)"
-  rows="$(aws_ls get-instance-access-details --instance-name "$NEW" \
-    --query 'accessDetails.hostKeys[].[algorithm,publicKey]' --output text)" || return 1
+  host_key_rows "$NEW" || return 1
   while IFS=$'\t' read -r alg pub; do
     [[ -n "$alg" && -n "$pub" && "$alg" != "None" ]] || continue
     printf '%s %s %s\n[%s]:2222 %s %s\n' "$SIP_ADDR" "$alg" "$pub" "$SIP_ADDR" "$alg" "$pub" >> "$API_PIN"
     n=$(( n + 1 ))
-  done <<< "$rows"
+  done <<< "$HOST_KEY_ROWS"
   (( n > 0 ))
 }
 
@@ -924,7 +951,9 @@ else
   echo "  ${VALUES_FILE} gets lightsail_instance_name = \"${NEW}\"; ${TF_INSTANCE} and"
   echo "  ${TF_PORTS} leave Terraform state (nothing is destroyed) and ${NEW} is imported"
   echo "  through scripts/terraform-apply.sh, which opens port ${ORIGIN_PORT}; the host-key"
-  echo "  pin is re-taken. Each read of the host keys fires the break-glass alarm (log it)."
+  echo "  pin is re-taken. The restored host's keys are read from Lightsail once by this run"
+  echo "  and once by the pin installer; each read fires the break-glass alarm, attributed"
+  echo "  to footbag-restore-host and footbag-install-known-hosts."
   echo ""
   confirm_from_tty "Type 'APPLY' to restore ${TARGET}: " "APPLY" || die "not confirmed; nothing was changed"
 
@@ -1209,26 +1238,29 @@ echo "    port ${ORIGIN_PORT} is open on ${NEW} to the declared ranges"
 # ── Step 9: the host-key pin ─────────────────────────────────────────────────
 
 echo "==> Step 9: host-key pin for ${NEW}"
+# The keys are the ones this run already read for NEW, so this step mints only
+# when no earlier step did. The installer writes each line with the
+# environment's tag after the key, which a match must allow for.
 pin_current() {
-  local pin="${FOOTBAG_KNOWN_HOSTS:-$FOOTBAG_KNOWN_HOSTS_DEFAULT}" rows alg pub n=0
+  local pin="${FOOTBAG_KNOWN_HOSTS:-$FOOTBAG_KNOWN_HOSTS_DEFAULT}" alg pub n=0 host
   [[ -f "$pin" ]] || return 1
-  rows="$(aws_ls get-instance-access-details --instance-name "$NEW" \
-    --query 'accessDetails.hostKeys[].[algorithm,publicKey]' --output text)" || die "could not read the host keys of ${NEW}"
+  host_key_rows "$NEW" || die "could not read the host keys of ${NEW}"
   while IFS=$'\t' read -r alg pub; do
     [[ -n "$alg" && -n "$pub" ]] || continue
-    grep -qxF -- "${SIP_ADDR} ${alg} ${pub}" "$pin" || return 1
-    grep -qxF -- "[${SIP_ADDR}]:2222 ${alg} ${pub}" "$pin" || return 1
+    for host in "$SIP_ADDR" "[${SIP_ADDR}]:2222"; do
+      grep -qxF -e "${host} ${alg} ${pub}" -e "${host} ${alg} ${pub} footbag-${TARGET}" -- "$pin" || return 1
+    done
     n=$(( n + 1 ))
-  done <<< "$rows"
+  done <<< "$HOST_KEY_ROWS"
   (( n > 0 ))
 }
-if pin_current; then
-  echo "    the pin already carries ${NEW}'s keys"
-else
-  bash "$PIN_INSTALLER" --target "$TARGET" </dev/null || die "scripts/install-known-hosts.sh did not complete"
-  pin_current || die "the pin does not carry ${NEW}'s host keys after the install. The installer reads the keys of the instance it is told is ${TARGET}'s host; it must read the name Terraform now holds, ${NEW}."
-  echo "    pinned and proved against ${NEW}'s keys"
-fi
+# The installer runs every time, even when the pin already carries these keys,
+# as it does after a snapshot restore that kept the host keys: its instance
+# record still names the old instance, and only the installer rewrites it. On a
+# pin already current for the new instance it mints nothing.
+bash "$PIN_INSTALLER" --target "$TARGET" </dev/null || die "scripts/install-known-hosts.sh did not complete"
+pin_current || die "the pin does not carry ${NEW}'s host keys after the install. The installer reads the keys of the instance it is told is ${TARGET}'s host; it must read the name Terraform now holds, ${NEW}."
+echo "    pinned and proved against ${NEW}'s keys"
 
 # ── Step 10: the host and the site ───────────────────────────────────────────
 

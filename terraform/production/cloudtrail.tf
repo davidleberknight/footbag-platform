@@ -310,12 +310,10 @@ resource "aws_cloudwatch_metric_alarm" "root_account_used" {
 # Host access details minted. GetInstanceAccessDetails issues a short-lived
 # certificate for the host's default account, which carries passwordless sudo.
 # The same call is also the only authenticated source of a host's SSH host
-# keys, so two routine scripts make it through scripts/lib/ssh-known-hosts.sh:
-# scripts/install-known-hosts.sh (including its --check mode) and
-# scripts/onboard-dev-tester.sh. Neither uses the certificate. Every firing is
-# matched to one of three things: a logged run of one of those scripts, a
-# declared emergency, or a test of the break-glass path. A firing matching none
-# is investigated. The trail is multi-region and records
+# keys. Every call, allowed or denied, is listed and attributed by
+# scripts/list-host-access-mints.sh, from the application id each minting
+# script carries in its user agent; any call it cannot attribute is
+# investigated. The trail is multi-region and records
 # management events, so this one filter counts calls against both hosts.
 resource "aws_cloudwatch_log_metric_filter" "break_glass_host_access" {
   count          = var.enable_cloudtrail ? 1 : 0
@@ -341,7 +339,7 @@ resource "aws_cloudwatch_metric_alarm" "break_glass_host_access" {
   statistic           = "Sum"
   threshold           = 0
   treat_missing_data  = "notBreaching"
-  alarm_description   = "Lightsail access details were minted for a host (staging or production): a short-lived certificate for the default account, which has passwordless sudo. Routine callers also make this call to read host keys: scripts/install-known-hosts.sh (including --check) and scripts/onboard-dev-tester.sh. Match the firing to a logged run of one of those, a declared emergency, or a test of the break-glass path; investigate if it matches none."
+  alarm_description   = "Lightsail access details were minted for a host (staging or production): a short-lived certificate for the default account, which has passwordless sudo. Every call, allowed or denied, is listed and attributed by scripts/list-host-access-mints.sh; investigate any call it cannot attribute."
   alarm_actions       = [aws_sns_topic.alarms.arn]
   ok_actions          = [aws_sns_topic.alarms.arn]
 }

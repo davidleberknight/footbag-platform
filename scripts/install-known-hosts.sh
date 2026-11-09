@@ -28,9 +28,18 @@
 # also mints a host-access certificate, and the FootbagDevTester role is denied
 # that call on every instance, because the certificate opens a root shell. A
 # dev-and-tester therefore receives the pin lines sealed in their delivery from
-# scripts/onboard-dev-tester.sh, which builds them with the same library function
-# this script uses, and installs them with
-# scripts/accept-dev-tester-onboarding.sh.
+# scripts/onboard-dev-tester.sh, which copies them out of the operator's current
+# pin, and installs them with scripts/accept-dev-tester-onboarding.sh.
+#
+# WHEN IT MINTS.
+#
+# Every mint fires the production break-glass alarm, so a routine run must not
+# make one. The pin is judged current without minting, against the instance
+# record written beside it when the keys were last read (the instance's name,
+# ARN and creation time, compared with Lightsail's GetInstance, which returns no
+# credential). --check never mints. An install whose pin is already current
+# mints nothing and says so. Only a missing, stale or unproven pin is rebuilt,
+# with one mint, attributed to footbag-install-known-hosts.
 #
 # WHAT IT REFUSES TO DO.
 #
@@ -60,8 +69,9 @@
 #   --target <staging|production>  which environment's host to pin. No default:
 #                                  which host a pin describes is never inherited
 #                                  from ambient state.
-#   --check                        report what is pinned and whether it verifies,
-#                                  change nothing, and exit non-zero if it would.
+#   --check                        report whether the pin is proven current,
+#                                  change nothing, mint nothing, and exit
+#                                  non-zero if an install would change it.
 #
 # Re-run it whenever an instance is rebuilt: new instance, new host keys, and the
 # deploy then fails closed with SSH's host-key warning. Re-running is the fix;
@@ -97,9 +107,12 @@ Terraform outputs, covering both algorithms on both SSH ports, then proves it
 with ssh-keygen. Lines for other environments are preserved.
 
   --target <env>   staging or production. Required; never defaulted.
-  --check          report only, change nothing, non-zero if a change is needed.
+  --check          report only, change nothing, mint nothing, non-zero if a
+                   change is needed.
 
-Override the file location with FOOTBAG_KNOWN_HOSTS.
+A pin proven current is left alone and nothing is minted. Override the file
+location with FOOTBAG_KNOWN_HOSTS; the instance record sits beside it, with
+.instances appended to its name.
 EOF
 }
 
@@ -125,30 +138,49 @@ done
 # wording that drifts per script is what teaches an operator to skim it.
 require_target "$TARGET" staging production || exit 2
 
+# The closing report: every refusal and problem below is listed once at the end,
+# and the library holds the exit and interrupt traps.
+# shellcheck source=lib/closing-report.sh
+source "${SCRIPT_DIR}/lib/closing-report.sh"
+
 PIN="${FOOTBAG_KNOWN_HOSTS:-$FOOTBAG_KNOWN_HOSTS_DEFAULT}"
 
 # The AWS profile, supplied rather than exported. Both reads below reach
 # AWS, so a run with no identity should say so here rather than failing twice
 # with two different messages.
-aws_profile_ensure || exit 1
+aws_profile_ensure || cr_die "could not settle the AWS identity this run acts as. Nothing was minted or written."
 
-echo "==> Pinning the ${TARGET} web instance into ${PIN}"
+[[ "$AWS_BIN" != "aws" ]] && echo "SYNTHETIC: aws='${AWS_BIN}' -- this run proves nothing about the account." >&2
 
-# ── The lines, from the address in Terraform and the keys in Lightsail ───────
+# The staged pin and any mint response are removed however the run ends; the
+# response holds a private key.
+PIN_TMP=""
+remove_staged_pin() {
+  [[ -z "${PIN_TMP:-}" ]] || rm -f -- "$PIN_TMP"
+}
+cr_cleanup known_hosts_mint_cleanup
+cr_cleanup remove_staged_pin
+
+echo "==> Checking the ${TARGET} pin in ${PIN}, minting nothing"
+
+# ── Is the pin already current? ──────────────────────────────────────────────
 #
-# Built by the shared library, which the onboarding script also uses to seal the same
-# lines to a newcomer whose job role is denied the Lightsail call. The instance
-# is the one Terraform names, which a restore from snapshot changes.
-known_hosts_pin_lines "$TARGET" "$AWS_BIN" || exit 1
+# Judged against the instance record, with no mint: the address and instance
+# from Terraform, the instance's ARN and creation time from GetInstance.
+CURRENT_RC=0
+known_hosts_pin_current "$TARGET" "$AWS_BIN" || CURRENT_RC=$?
+(( CURRENT_RC == 2 )) && cr_die "could not judge whether the ${TARGET} pin is current; the reason is above. Nothing was minted or written."
 IP="$KNOWN_HOSTS_PIN_IP"
 INSTANCE="$KNOWN_HOSTS_PIN_INSTANCE"
+RECORD_LINE="$KNOWN_HOSTS_INSTANCE_RECORD"
+STALE_REASON="$KNOWN_HOSTS_STALE_REASON"
 # Each line carries the environment's name as its trailing comment field, which
 # OpenSSH ignores when matching. It is what lets a later run find this
 # environment's lines again after the address they name has moved on, and keep
 # its hands off the other environment's.
 TAG="footbag-${TARGET}"
 OTHER_TAG="footbag-$([[ "$TARGET" == staging ]] && echo production || echo staging)"
-NEW_LINES="$(printf '%s\n' "$KNOWN_HOSTS_PIN_LINES" | sed "/./s/\$/ ${TAG}/")"
+NEW_LINES="$KNOWN_HOSTS_PIN_LINES"
 EXPECTED_COUNT="$KNOWN_HOSTS_PIN_COUNT"
 
 # ── Where this alias pointed before ──────────────────────────────────────────
@@ -193,7 +225,13 @@ pin_line_is_ours() {
 }
 PRESERVED=""
 STALE=0
-if [[ -f "$PIN" ]]; then
+# Splits the file into the lines this run keeps and its own, counting as stale
+# each of its own lines that NEW_LINES does not carry.
+sort_pin_lines() {
+  local line
+  PRESERVED=""
+  STALE=0
+  [[ -f "$PIN" ]] || return 0
   while IFS= read -r line || [[ -n "$line" ]]; do
     if [[ -n "$line" ]] && pin_line_is_ours "$line"; then
       # A line that is neither the current address nor rewritten identically is
@@ -204,44 +242,72 @@ if [[ -f "$PIN" ]]; then
     PRESERVED+="${line}"$'\n'
   done < "$PIN"
   PRESERVED="${PRESERVED%$'\n'}"
+}
+
+# A current pin can still carry this environment's leftovers at the address the
+# alias named before a rebuild; they verify a host that no longer exists.
+if (( CURRENT_RC == 0 )); then
+  sort_pin_lines
+  if (( STALE > 0 )); then
+    CURRENT_RC=1
+    STALE_REASON="${STALE} line(s) still pin ${INSTANCE} under a key or address it no longer has"
+  fi
+fi
+
+if (( CURRENT_RC == 0 )); then
+  if [[ "$CHECK" == "1" ]]; then
+    echo "    Pinned and current: ${EXPECTED_COUNT} lines for ${INSTANCE} at ${IP}; nothing minted."
+  else
+    echo "    Already current, nothing minted: ${EXPECTED_COUNT} lines for ${INSTANCE} at ${IP}."
+  fi
+  cr_proved "the ${TARGET} pin is current for ${INSTANCE} at ${IP}, judged against its instance record with no mint"
+  cr_finish
 fi
 
 if [[ "$CHECK" == "1" ]]; then
-  # Counted in this shell rather than judged by a subshell's exit status: a
-  # `while` on the right of a pipe runs in a subshell, and reasoning about which
-  # status escapes it is exactly the kind of cleverness a check should not carry.
-  # A line written before lines were tagged still counts as present.
-  MISSING=0
-  if [[ -f "$PIN" ]]; then
-    while IFS= read -r l; do
-      [[ -n "$l" ]] || continue
-      grep -qxF -e "$l" -e "${l% "${TAG}"}" -- "$PIN" || MISSING=$(( MISSING + 1 ))
-    done <<< "$NEW_LINES"
-  else
-    MISSING="$EXPECTED_COUNT"
-  fi
-  if (( MISSING == 0 && STALE == 0 )); then
-    echo "    Pinned and current: ${EXPECTED_COUNT} lines for ${INSTANCE} at ${IP}"
-    exit 0
-  fi
-  (( MISSING > 0 )) && echo "    ${MISSING} of ${EXPECTED_COUNT} pin lines for ${INSTANCE} at ${IP} are missing or stale." >&2
-  (( STALE > 0 )) && echo "    ${STALE} line(s) still pin ${INSTANCE} under a key or address it no longer has." >&2
-  echo "    Re-run without --check to install them." >&2
-  exit 1
+  echo "    Not proven current: ${STALE_REASON}." >&2
+  echo "    Re-run without --check to rebuild it. That reads the host keys from" >&2
+  echo "    Lightsail, which mints a host-access certificate and fires the" >&2
+  echo "    break-glass alarm, attributed to footbag-install-known-hosts." >&2
+  cr_die "the ${TARGET} pin is not proven current: ${STALE_REASON}. Nothing was minted or written."
 fi
+
+# ── The lines, from the address in Terraform and the keys in Lightsail ───────
+#
+# One mint, through the shared library. The instance is the one Terraform names,
+# which a restore from snapshot changes.
+echo "    Not current: ${STALE_REASON}."
+echo "==> Reading ${INSTANCE}'s host keys from Lightsail. This mints a host-access"
+echo "    certificate, so the break-glass alarm fires; the mint is attributed to"
+echo "    footbag-install-known-hosts. The response is shredded once read."
+known_hosts_pin_lines "$TARGET" "$AWS_BIN" \
+  || cr_die "could not read ${INSTANCE}'s host keys from Lightsail; the reason is above. Nothing was written."
+if [[ "$KNOWN_HOSTS_PIN_IP" != "$IP" || "$KNOWN_HOSTS_PIN_INSTANCE" != "$INSTANCE" ]]; then
+  cr_die "Terraform named ${INSTANCE} at ${IP} and then ${KNOWN_HOSTS_PIN_INSTANCE} at ${KNOWN_HOSTS_PIN_IP} within one run. Nothing was written; run it again."
+fi
+cr_proved "read ${INSTANCE}'s host keys from Lightsail with one mint, attributed to footbag-install-known-hosts"
+NEW_LINES="$(printf '%s\n' "$KNOWN_HOSTS_PIN_LINES" | sed "/./s/\$/ ${TAG}/")"
+EXPECTED_COUNT="$KNOWN_HOSTS_PIN_COUNT"
+sort_pin_lines
 
 # Staged beside the target so the install is a rename within one filesystem,
 # never a half-written pin that parses as far as the damage.
 PIN_DIR="$(dirname -- "$PIN")"
 [[ -d "$PIN_DIR" ]] || mkdir -p -m 700 -- "$PIN_DIR"
 PIN_TMP="$(umask 077 && mktemp "${PIN_DIR}/.footbag_known_hosts.XXXXXX")"
-trap 'rm -f -- "${PIN_TMP:-}"' EXIT INT TERM
 
 [[ -n "$PRESERVED" ]] && printf '%s\n' "$PRESERVED" >> "$PIN_TMP"
 printf '%s\n' "$NEW_LINES" >> "$PIN_TMP"
 chmod 600 "$PIN_TMP"
 mv -f -- "$PIN_TMP" "$PIN"
 PIN_TMP=""
+
+# The record names the instance the keys were read from, so a later check can
+# tell this host from a rebuilt one without minting. Written after the pin: a
+# run stopped between the two leaves a pin with an older record, which reads as
+# not current and is rebuilt, never the reverse.
+known_hosts_record_write "$TARGET" "$RECORD_LINE" \
+  || cr_die "the pin was written but its instance record was not; re-run this script."
 
 # ── Prove it, rather than trusting that it wrote what it meant to ────────────
 #
@@ -253,11 +319,14 @@ FOUND_PORT="$(ssh-keygen -F "[${IP}]:2222" -f "$PIN" 2>/dev/null | grep -c '^[^#
 PER_PORT=$(( EXPECTED_COUNT / 2 ))
 
 if (( FOUND_PLAIN < PER_PORT || FOUND_PORT < PER_PORT )); then
-  echo "ERROR: the pin was written but does not verify." >&2
-  echo "       ${IP} matched ${FOUND_PLAIN} of ${PER_PORT}; [${IP}]:2222 matched ${FOUND_PORT} of ${PER_PORT}." >&2
-  echo "       Do not hand-edit it: re-run this script, which rebuilds from the API." >&2
-  exit 1
+  cr_die "the pin was written but does not verify: ${IP} matched ${FOUND_PLAIN} of ${PER_PORT}; [${IP}]:2222 matched ${FOUND_PORT} of ${PER_PORT}. Do not hand-edit it: re-run this script, which rebuilds from the API."
 fi
+# And the judgement every later run makes, so a pin written here is one the
+# next --check reads as current rather than one that sends it back to mint.
+if ! known_hosts_pin_current "$TARGET" "$AWS_BIN"; then
+  cr_die "the pin was written but does not read as current: ${KNOWN_HOSTS_STALE_REASON:-a source could not be read}."
+fi
+cr_proved "wrote ${EXPECTED_COUNT} lines for ${INSTANCE} at ${IP} on ports 22 and 2222, verified with ssh-keygen under both spellings and read back as current"
 
 echo "    Wrote and verified ${EXPECTED_COUNT} lines for ${INSTANCE} at ${IP}"
 echo "    ${PER_PORT} algorithm(s), on port 22 and port 2222."
@@ -270,7 +339,8 @@ echo "    Fingerprints now pinned for this host:"
 ssh-keygen -lf "$PIN" 2>/dev/null \
   | grep -F "$IP" \
   | awk '{print "      " $2 "  " $4}' \
-  | sort -u || echo "      (could not read them back; check with: ssh-keygen -lf ${PIN})"
-[[ -n "$PRESERVED" ]] && echo "    Other environments' pins preserved."
+  | sort -u || cr_warn "the pinned fingerprints could not be read back for display; check with: ssh-keygen -lf ${PIN}"
+[[ -z "$PRESERVED" ]] || echo "    Other environments' pins preserved."
 echo ""
 echo "Pinned. Re-run this after any instance rebuild: new instance, new host keys."
+cr_finish

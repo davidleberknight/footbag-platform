@@ -240,6 +240,11 @@ function aliasSsh(): string {
  * placed where the onboarding puts it: in the person's home on the host.
  * `account` is the AWS account the delivery names throughout.
  */
+/** The record of which staging instance the delivery's pins were read from. */
+function instanceRecord(account = PROJECT_ACCOUNT): string {
+  return `footbag-staging footbag-staging-web arn:aws:lightsail:us-east-1:${account}:Instance/0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0 2026-09-01T10:00:00+00:00`;
+}
+
 function seal(overrides: Record<string, string> = {}, extraLine = '', account = PROJECT_ACCOUNT) {
   const host = overrides.HOST_ADDRESS ?? ADDRESS;
   const values: Record<string, string> = {
@@ -254,6 +259,7 @@ function seal(overrides: Record<string, string> = {}, extraLine = '', account = 
     STAGING_RUNTIME_ROLE_ARN: `arn:aws:iam::${account}:role/footbag-staging-app-runtime`,
     HOST_ADDRESS: ADDRESS,
     HOST_PORT: '2222',
+    INSTANCE_RECORD: instanceRecord(account),
     ...overrides,
   };
   const pub = readFileSync(join(home, '.ssh', 'id_ed25519_footbag_operator.pub'), 'utf-8').trim();
@@ -780,6 +786,10 @@ describe('accept-dev-tester-onboarding.sh — a whole acceptance', () => {
     const pins = read('AWS', 'footbag_known_hosts');
     expect(pins.split('\n').filter(Boolean)).toHaveLength(2);
     expect(statSync(join(home, 'AWS', 'footbag_known_hosts')).mode & 0o777).toBe(0o600);
+    // Beside the pin, the record of the instance its keys were read from.
+    // Defect caught: a newcomer's pin that no later check can prove current.
+    expect(read('AWS', 'footbag_known_hosts.instances')).toBe(`${instanceRecord()}\n`);
+    expect(statSync(join(home, 'AWS', 'footbag_known_hosts.instances')).mode & 0o777).toBe(0o600);
 
     const ssh = read('.ssh', 'config');
     expect(ssh).toContain(`Host footbag-staging\n  Hostname ${ADDRESS}\n  Port 2222\n  User footbag`);
@@ -978,6 +988,11 @@ describe('accept-dev-tester-onboarding.sh on a maintainer\'s own machine', () =>
     expect(after['AWS/AWS_OPERATOR.txt']).toBe(before['AWS/AWS_OPERATOR.txt']);
     expect(after['AWS/AWS_OPERATOR_PRODUCTION.txt']).toBe(before['AWS/AWS_OPERATOR_PRODUCTION.txt']);
     expect(after['AWS/footbag_known_hosts']).toBe(before['AWS/footbag_known_hosts']);
+    // The administrators' instance record is theirs too: left absent, and the
+    // run says how they settle it. Defect caught: an acceptance rewriting what
+    // every administrator check judges the pin by.
+    expect(existsSync(join(home, 'AWS', 'footbag_known_hosts.instances'))).toBe(false);
+    expect(r.out).toMatch(/install-known-hosts\.sh --target staging --check/);
     expect(after['.aws/credentials']!.startsWith(OPERATOR_SECTION)).toBe(true);
     expect(stillHolds(home, '.aws/config', OPERATOR_PROFILES)).toBe(true);
     expect(after['.aws/config']!.match(/\[profile footbag-staging-runtime\]/g)).toHaveLength(1);
@@ -1029,13 +1044,39 @@ describe('accept-dev-tester-onboarding.sh — what it leaves at the end', () => 
     // One line naming both forms of the host, which ssh accepts and an exact
     // line comparison does not: an administrator's working pin file is left alone.
     mkdirSync(join(home, 'AWS'), { recursive: true });
+    devMachine();
     const pins = `${ADDRESS},[${ADDRESS}]:2222 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFixtureHost\n`;
     writeFileSync(join(home, 'AWS', 'footbag_known_hosts'), pins, { mode: 0o600 });
-    const answers = FIRST_RUN.filter((_, i) => i !== 2); // no pin confirmation is asked
-    const r = runInTerminal(answers);
+    // No pin confirmation is asked; the missing record asks its own in its place.
+    const r = runInTerminal(FIRST_RUN);
     expect(r.status, r.out).toBe(0);
     expect(r.out).toMatch(/already pinned/);
     expect(read('AWS', 'footbag_known_hosts')).toBe(pins);
+    expect(read('AWS', 'footbag_known_hosts.instances')).toBe(`${instanceRecord()}\n`);
+  });
+
+  it('writes no record without its own APPLY when the pins are already in place', () => {
+    // Defect caught: an operator-owned file changed with no confirmation.
+    devMachine();
+    mkdirSync(join(home, 'AWS'), { recursive: true });
+    const pins = `${ADDRESS},[${ADDRESS}]:2222 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFixtureHost\n`;
+    writeFileSync(join(home, 'AWS', 'footbag_known_hosts'), pins, { mode: 0o600 });
+    const answers = FIRST_RUN.map((a, i) => (i === 2 ? 'no' : a));
+    const r = runInTerminal(answers);
+    expect(r.status).toBe(1);
+    expect(existsSync(join(home, 'AWS', 'footbag_known_hosts.instances'))).toBe(false);
+  });
+
+  it('refuses a delivery whose instance record is not staging\'s, before writing anything', () => {
+    // Defect caught: a forged or production record written beside a newcomer's
+    // staging pin, making a later check judge the wrong instance.
+    devMachine();
+    seal({ INSTANCE_RECORD: instanceRecord().replace(/^footbag-staging footbag-staging-web/, 'footbag-production footbag-production-web') });
+    const r = runInTerminal(FIRST_RUN);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/instance record is not one for staging/);
+    expect(existsSync(join(home, 'AWS', 'footbag_known_hosts'))).toBe(false);
+    expect(read('.aws', 'credentials')).toBe('');
   });
 
   it('records which pair was accepted, for a later re-onboarding to retire', () => {

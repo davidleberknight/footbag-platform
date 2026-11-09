@@ -672,9 +672,10 @@ fi
 # hiding that was what made every distinct failure read as the same one.
 step "Pinned host-key file"
 if (( IDENTITY_OK == 0 )); then
-  # The pin is built from the Lightsail API and the Terraform output, so it
-  # needs the same identity. Named here rather than left to read as a stale pin.
-  todo "cannot build or check the pin for ${TARGET} without a working AWS identity: it is read from the Lightsail API and the Terraform output. Fix the AWS profiles step above."
+  # The pin is built from the Lightsail API and the Terraform output, and judged
+  # current against the instance's Lightsail record, so both need the same
+  # identity. Named here rather than left to read as a stale pin.
+  todo "cannot build or check the pin for ${TARGET} without a working AWS identity: it is built from the Lightsail API and the Terraform output, and checked against the instance's Lightsail record. Fix the AWS profiles step above."
 elif (( RUN_AS_JOB_ROLE )); then
   # The role cannot read the host keys, so the pin it relies on arrived sealed in
   # its delivery. Verified where it is: present, not writable by others, and
@@ -693,7 +694,7 @@ elif (( CHECK )); then
   if bash "${SCRIPT_DIR}/install-known-hosts.sh" --target "$TARGET" --check >/dev/null 2>&1; then
     ok "pinned and current for ${TARGET}"
   else
-    todo "the pin for ${TARGET} is missing, stale, or could not be built — run this to see why: bash scripts/install-known-hosts.sh --target ${TARGET}"
+    todo "the pin for ${TARGET} is missing, stale, or could not be built — see why, minting nothing, with: bash scripts/install-known-hosts.sh --target ${TARGET} --check; rebuild it without --check, which mints once and fires the break-glass alarm"
   fi
 elif bash "${SCRIPT_DIR}/install-known-hosts.sh" --target "$TARGET"; then
   ok "pinned and verified"
