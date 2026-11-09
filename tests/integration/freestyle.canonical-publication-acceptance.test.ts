@@ -12,12 +12,10 @@
  * it and their rulings reopened, and then the funnel puts them back using the same
  * rulings that are actually in the ledger.
  *
- * Two differences from the historical rows are intended rather than tolerated. The
+ * One difference from the historical rows is intended rather than tolerated. The
  * funnel creates a trick as `curated`, because publication is a curator's act and
  * expert review is a later, separate one; the historical rows read
- * `expert_reviewed` because that is what the CSV said. And no derived parse is
- * expected, because a parse is produced by the content pipeline and a newly
- * published trick simply has none yet.
+ * `expert_reviewed` because that is what the CSV said.
  *
  * The four built on the reverse swirl land in the reverse-swirl family, which is
  * the corrected doctrine. The historical rows carry an override to the swirl
@@ -215,7 +213,7 @@ function trickRow(conn: BetterSqlite3.Database, slug: string) {
     `SELECT slug, canonical_name, adds, base_trick, trick_family, category, description,
             aliases_json, notation, operational_notation, operational_notation_source,
             notation_evidence_basis, notation_derivation_method, notation_convention_id,
-            review_status, is_active, is_core, structural_parse_json, computed_adds,
+            review_status, is_active, is_core,
             trick_origin_producer
        FROM freestyle_tricks WHERE slug = ?`,
   ).get(slug) as Record<string, unknown> | undefined;
@@ -437,8 +435,6 @@ describe('the funnel reproduces the ten promotions', () => {
       expect(row.trick_origin_producer).toBe('curator-publication');
       // Owned by the content pipeline, not by publication.
       expect(row.notation).toBeNull();
-      expect(row.structural_parse_json).toBeNull();
-      expect(row.computed_adds).toBeNull();
     });
 
   it.each(TEN.map((c) => [c.slug, c] as const))(
@@ -519,12 +515,6 @@ describe('what publication deliberately does not reproduce', () => {
       expect(trickRow(db, c.slug)!.review_status).toBe('curated');
     }
     expect(historicalRows.some((r) => r.review_status === 'expert_reviewed')).toBe(true);
-  });
-
-  it('leaves the derived parse absent', () => {
-    for (const c of TEN) {
-      expect(trickRow(db, c.slug)!.structural_parse_json).toBeNull();
-    }
   });
 });
 

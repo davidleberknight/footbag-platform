@@ -82,15 +82,7 @@
  * reference is a curated subset today, authoritative where an entry exists, and
  * a membership rule would refuse half the linked corpus.
  *
- * A save that changes either notation field or the
- * asserted ADD also clears the row's stored notation parse (the structural parse,
- * the computed ADD and its formula, and the parse status) in the same
- * transaction, and records that it did so on the audit entry: those fields are
- * derived from the notation and graded against the asserted ADD by the content
- * pipeline, which this surface cannot re-run, so keeping them would publish a
- * grammar panel describing notation the row no longer carries. A row with no
- * stored parse renders without the panel, which is the same state a
- * never-parsed row is in. addAlias derives the alias slug from the display
+ * addAlias derives the alias slug from the display
  * text with the pipeline's normalization, and rejects a slug that equals any
  * canonical trick slug (checked across every row regardless of status) or an
  * existing alias slug (the global primary key); it leaves source_id and notes
@@ -326,38 +318,6 @@ export interface FreestyleTrickEditModifierLink {
   applyOrder: number;
   detachHref: string;
 }
-
-/**
- * The row columns the notation parser reads, and therefore the edits that make a
- * stored parse wrong.
- *
- * The parse is not a function of the notation alone. The parser decomposes the
- * canonical name into a base plus operators and grades the result against the
- * asserted ADD, reading the family, the base trick, the category and the active
- * flag along the way. An edit to any of them leaves the stored decomposition
- * describing the row as it was, while the maintainer's grammar panel presents it
- * as current.
- *
- * `slug` is deliberately absent although the parser selects it: it is the row's
- * identity and the key the update is issued against, not an input that can change
- * underneath a parse.
- *
- * This list is one declaration on purpose: three inline copies of the field
- * names would let a rename of the parser's primary input leave a parse of the
- * old name behind. A test pins it against the
- * parser's own select list, so widening what the parser reads cannot silently
- * narrow what invalidates it.
- */
-export const PARSE_INPUT_FIELDS = [
-  'canonical_name',
-  'adds',
-  'base_trick',
-  'trick_family',
-  'category',
-  'is_active',
-  'notation',
-  'operational_notation',
-] as const;
 
 export interface FreestyleTrickEditFields {
   canonicalName: string;
@@ -2345,16 +2305,6 @@ export const freestyleCurationService = {
     if (pronunciation !== comparableStored(current.pronunciation, 'multi_line')) changedFields.push('pronunciation');
     if (operationalNotationSource !== comparableStored(current.operational_notation_source, 'notation')) changedFields.push('operational_notation_source');
 
-    // The stored notation parse is derived from the row, so an edit to anything
-    // the parser reads leaves it describing a row that no longer exists. Nothing
-    // in the application can re-derive it (the parse is produced by the content
-    // pipeline), so the honest outcome is to drop it and let the grammar panel
-    // fall silent until it is derived again, rather than keep serving a parse of
-    // the previous row.
-    const parseInputsChanged = changedFields.some(
-      (field) => (PARSE_INPUT_FIELDS as readonly string[]).includes(field),
-    );
-
     // The row leaving the held-out candidate set is publication, and the ruling
     // for the name resolves with it. Both writes and the audit entry commit
     // together: a published trick whose ruling still reads as an open candidate,
@@ -2394,9 +2344,6 @@ export const freestyleCurationService = {
             description, shortDescription, executionSummary, learningNotes,
             prerequisiteNotes, pronunciation, operationalNotationSource, slug,
           );
-          if (parseInputsChanged) {
-            freestyleTricks.clearDerivedParse.run(slug);
-          }
           const resolvedAdjudication = publishing
             ? resolveAdjudicationOnPublication(slug, canonicalName, actorMemberId)
             : null;
@@ -2408,7 +2355,6 @@ export const freestyleCurationService = {
             entityId:      slug,
             metadata:      {
               changedFields,
-              derivedParseCleared: parseInputsChanged,
               published: publishing,
               // Present only when a ruling was resolved, so the trail says which
               // record moved rather than only that a publication happened.

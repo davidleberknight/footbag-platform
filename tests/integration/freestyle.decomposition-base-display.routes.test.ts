@@ -69,9 +69,6 @@ beforeAll(async () => {
       slug: `child_${i}`, canonical_name: `child ${i}`, adds: '5', base_trick: slug,
       trick_family: 'legover', category: 'compound', review_status: 'expert_reviewed',
       is_active: 1, operational_notation: 'SET > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]',
-      // A present (even minimal) parse enables the notation-grammar panel that
-      // renders the editorial decomposition and its composed derivation.
-      structural_parse_json: '{}',
     });
   });
   db.close();

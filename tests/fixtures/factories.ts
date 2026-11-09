@@ -901,14 +901,6 @@ export interface FreestyleTrickOverrides {
   // Marks an irreducible dex/body/set primitive. Defaults to 0, the state of
   // every compound row.
   is_core?:        0 | 1;
-  // Notation-grammar columns (all nullable; a test that does not opt in
-  // gets NULL and is unaffected by them).
-  jobs_notation_raw?:        string | null;
-  jobs_notation_normalized?: string | null;
-  structural_parse_json?:    string | null;
-  computed_add_formula?:     string | null;
-  computed_adds?:            number | null;
-  add_formula_status?:       string | null;
   // Operational notation column (nullable; default NULL).
   operational_notation?:        string | null;
   // Free-form curator-authored provenance / citation line for
@@ -943,13 +935,11 @@ export function insertFreestyleTrick(
     INSERT INTO freestyle_tricks
       (slug, canonical_name, adds, base_trick, trick_family, category,
        description, aliases_json, notation, sort_order, review_status, is_active, is_core, loaded_at,
-       jobs_notation_raw, jobs_notation_normalized, structural_parse_json,
-       computed_add_formula, computed_adds, add_formula_status,
        operational_notation, operational_notation_source, pronunciation,
        short_description, execution_summary, learning_notes, prerequisite_notes,
        notation_evidence_basis, notation_derivation_method, notation_convention_id,
        trick_origin_producer)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?)
   `).run(
     slug,
@@ -966,12 +956,6 @@ export function insertFreestyleTrick(
     o.is_active      ?? 1,
     o.is_core        ?? 0,
     nowIso(),
-    o.jobs_notation_raw         ?? null,
-    o.jobs_notation_normalized  ?? null,
-    o.structural_parse_json     ?? null,
-    o.computed_add_formula      ?? null,
-    o.computed_adds             ?? null,
-    o.add_formula_status        ?? null,
     o.operational_notation      ?? null,
     o.operational_notation_source ?? null,
     o.pronunciation             ?? null,

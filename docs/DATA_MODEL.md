@@ -1439,9 +1439,7 @@ Freestyle, records and symbolic tables (fifteen):
 - **`freestyle_tricks`** - the trick corpus. Load-bearing columns: `adds` (the ADD
   value; may be numeric, blank, or the literal `modifier`), `review_status` and
   `is_active` (only `is_active = 1` rows render publicly), `trick_family`,
-  `base_trick`, `category`, the editorial-prose fields, and the structural-parse
-  columns (`structural_parse_json`, `computed_adds`, `add_formula_status`)
-  populated by the notation parser.
+  `base_trick`, `category`, and the editorial-prose fields.
 - **`freestyle_trick_aliases`** - first-class aliases, each with a semantic
   class (`alias_type`) and a display flag (`alias_display`). How the two decide
   search and display is in the `freestyle-dictionary-surface` skill.

@@ -1,5 +1,6 @@
 {{!--
-  Structural decomposition (parser diagnostic).
+  Structural decomposition (maintainer panel), computed on read from the trick's
+  base, its modifier links and the modifier registry.
   Required param:
     collapsed - boolean. true = wrap in <details> closed by default;
                 false = render expanded inline.
@@ -11,75 +12,24 @@
   <details class="notation-grammar-collapsible">
     <summary>
       <span class="notation-grammar-summary-title">Structural decomposition</span>
-      <span class="notation-grammar-summary-hint">Parser diagnostic. Click to expand.</span>
+      <span class="notation-grammar-summary-hint">Click to expand.</span>
     </summary>
   {{else}}
   <div class="section-heading">
     <h2>Structural decomposition</h2>
-    <p class="section-intro">A token-level reading of this trick's name. Asserted ADD is editorial truth; the computed value below is diagnostic.</p>
+    <p class="section-intro">Asserted ADD is editorial truth.</p>
   </div>
   {{/if}}
 
   <dl>
-    <dt>Status</dt>
-    <dd>
-      <strong>{{content.notationGrammar.statusLabel}}</strong>
-      <p>{{content.notationGrammar.statusDescription}}</p>
-    </dd>
-
     <dt>Asserted ADD</dt>
     <dd>{{#if content.notationGrammar.assertedAdds}}{{content.notationGrammar.assertedAdds}}{{else}}&mdash;{{/if}}</dd>
-
-    <dt>Computed ADD</dt>
-    <dd>
-      {{#if content.notationGrammar.computedAdds}}{{content.notationGrammar.computedAdds}}{{else}}&mdash;{{/if}}
-      {{#if content.notationGrammar.addsAgree}}
-      <span class="notation-grammar-agree">(agrees with asserted)</span>
-      {{else}}
-      <span>(disagrees with asserted; asserted value is editorial truth)</span>
-      {{/if}}
-    </dd>
-
-    {{#if content.notationGrammar.formula}}
-    <dt>Derivation</dt>
-    <dd><code>{{content.notationGrammar.formula}}</code></dd>
-    {{/if}}
   </dl>
-
-  {{#if content.notationGrammar.descriptiveRoles.length}}
-  <div>
-    <h3>Descriptive roles</h3>
-    <p>Per-token classification before any self-canonical-atom collapse. Preserves what the parser saw at each position.</p>
-    <ul>
-      {{#each content.notationGrammar.descriptiveRoles}}
-      <li>
-        <strong>{{label}}:</strong>
-        {{#each tokens}}{{#unless @first}}, {{/unless}}<code>{{token}}</code>{{#if atomResolved}} <em>(atom)</em>{{/if}}{{/each}}
-      </li>
-      {{/each}}
-    </ul>
-  </div>
-  {{/if}}
-
-  {{#if content.notationGrammar.addContributingRoles.length}}
-  <div>
-    <h3>ADD-contributing roles</h3>
-    <p>Tokens whose weights feed the ADD math. May differ from the descriptive layer when a self-atom subsumes its components.</p>
-    <ul>
-      {{#each content.notationGrammar.addContributingRoles}}
-      <li>
-        <strong>{{label}}:</strong>
-        {{#each tokens}}{{#unless @first}}, {{/unless}}<code>{{token}}</code>{{#if atomResolved}} <em>(atom)</em>{{/if}}{{/each}}
-      </li>
-      {{/each}}
-    </ul>
-  </div>
-  {{/if}}
 
   {{#if content.notationGrammar.editorialDecomposition}}
   <div data-source="editorial">
     <h3>Editorial decomposition</h3>
-    <p>Curator-asserted lineage from this row's <code>base_trick</code> and modifier links. Independent of the parser-derived structural decomposition above. Asserted ADD remains editorial truth.</p>
+    <p>Curator-asserted lineage from this row's <code>base_trick</code> and modifier links. Asserted ADD remains editorial truth.</p>
 
     <dl>
       <dt>Base</dt>
@@ -129,32 +79,6 @@
     <h3>Editorial context</h3>
     <p class="notation-grammar-editorial-text">{{content.notationGrammar.editorialContext}}</p>
   </div>
-  {{/if}}
-
-  {{#if content.notationGrammar.policyTokens.length}}
-  <div>
-    <h3>Policy tokens</h3>
-    <p>Tokens whose ADD weight or ontology placement is contested and pending expert review.</p>
-    <ul>
-      {{#each content.notationGrammar.policyTokens}}
-      <li><code>{{this}}</code></li>
-      {{/each}}
-    </ul>
-  </div>
-  {{/if}}
-
-  {{#if content.notationGrammar.hasDiagnosticDetails}}
-  <details>
-    <summary>Diagnostic details</summary>
-
-    {{#if content.notationGrammar.jobsNotationRaw}}
-    <dl>
-      <dt>Jobs notation</dt>
-      <dd><code>{{content.notationGrammar.jobsNotationRaw}}</code></dd>
-    </dl>
-    {{/if}}
-
-  </details>
   {{/if}}
 
   {{#if collapsed}}

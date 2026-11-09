@@ -2671,16 +2671,15 @@ fi
 # this way, each beside a sibling that stamped correctly, and neither was visible to
 # any test: the row was right in every column the page renders.
 #
-# Allowlisted exceptions, both companions that run in the same transaction as a
+# Allowlisted exception, a companion that runs in the same transaction as a
 # statement stamping the same row:
-#   - clearDerivedParse           runs with updateScalars, which stamps the trick row
 #   - setMediaItemExternalUrl     runs with the INSERT that created the media row
 if check "UPDATE statements stamp the metadata columns their table carries" src/db/db.ts database/schema.sql; then
 stamp_hits=$(python3 - <<'PYEOF'
 import re, pathlib
 
 MUTABLE = ('updated_at', 'updated_by', 'version')
-ALLOWED = {'clearDerivedParse', 'setMediaItemExternalUrl'}
+ALLOWED = {'setMediaItemExternalUrl'}
 
 schema = pathlib.Path('database/schema.sql').read_text()
 carried = {}

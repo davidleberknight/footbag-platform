@@ -2,17 +2,13 @@
 //
 // Reads the existing `notation` field on a freestyle_tricks row and produces
 // a list of role-classified tokens for the trick-detail template. Display-
-// only: never affects parser output, ADD math, or asserted_adds.
+// only: never affects ADD math or asserted_adds.
 //
 // Architectural notes:
-//   - Hybrid registry: static parser-mirror sets here in TS for vocabulary
+//   - Hybrid registry: static sets here in TS for vocabulary
 //     not in the DB (rotation, direction, delay/unusual surface, body
 //     component, footedness, multiplicity, suffix); DB-driven lookups
 //     for modifier slugs+types and core-family slugs+aliases.
-//   - Forever-rule §7 sync: when freestyle/scripts/parse_freestyle_notation.py adds
-//     or modifies a token in ROTATION_TOKENS, DIRECTION_TOKENS,
-//     DELAY_SURFACE_TOKENS, or UNUSUAL_SURFACE_TOKENS, the matching constant
-//     in this file MUST update in the same change.
 //   - Restraint principle (§0): only the four primary roles
 //     (core_family, set, rotation, modifier) carry color saturation. Others
 //     render muted; unresolved is amber dashed (NOT red error styling).
@@ -47,11 +43,8 @@ export interface NotationDisplay {
   tokens:      NotationToken[];
 }
 
-// ── Static parser-mirror sets ─────────────────────────────────────────────
-// SYNC RULE: keep aligned with freestyle/scripts/parse_freestyle_notation.py registries.
-// Tokens stored UPPERCASE here to match the authored notation casing
-// (parser stores lowercase because it tokenizes canonical_name which is
-// lowercase; this renderer tokenizes notation which is uppercase).
+// ── Static token sets ─────────────────────────────────────────────────────
+// Tokens stored UPPERCASE here to match the authored notation casing.
 
 const ROTATION_TOKENS = new Set([
   'SPINNING', 'INSPINNING', 'SWIRLING', 'WHIRLING', 'GYRO',

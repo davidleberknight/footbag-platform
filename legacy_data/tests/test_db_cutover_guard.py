@@ -357,7 +357,6 @@ FREESTYLE_WRITE_LOADERS = [
     "freestyle/loaders/21a_load_alias_additions.py",
     "freestyle/loaders/21b_apply_alias_overrides.py",
     "freestyle/loaders/26_load_symbolic_grammar.py",
-    "freestyle/scripts/parse_freestyle_notation.py",
 ]
 
 

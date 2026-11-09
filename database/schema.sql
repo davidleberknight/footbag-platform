@@ -4998,25 +4998,6 @@ CREATE TABLE freestyle_tricks (
   loaded_at       TEXT NOT NULL,
   updated_at      TEXT,                            -- v2.1: populated by loaders on row update; nullable on first insert
 
-  -- ── Notation grammar ─────────────────────────────────────────────────────
-  --
-  -- Raw Jobs notation is preserved exactly as documented (historical
-  -- evidence). The structured-parse columns are PARALLEL metadata derived
-  -- from canonical_name + jobs_notation_raw; they are filled by a future
-  -- parser and used for ADD-derivation QC and visualization.
-  --
-  -- Asserted `adds` above remains authoritative for editorial truth.
-  -- Computed values below are diagnostic only; status field tracks how
-  -- the computed value relates to the asserted one.
-  --
-  -- All six are nullable; existing rows load unchanged.
-  jobs_notation_raw         TEXT,                  -- canonical raw Jobs notation; never mutated. Backfill source = current `notation` column.
-  jobs_notation_normalized  TEXT,                  -- whitespace-collapsed / case-standardized form for diff + QC. Derived; regenerable from jobs_notation_raw.
-  structural_parse_json     TEXT,                  -- JSON the notation parser emits: {descriptive_roles, add_contributing_roles, policy_tokens, additive_flags, parse_warnings, parser_version, parsed_at, parse_source, raw_token_count, resolved_token_count}.
-  computed_add_formula      TEXT,                  -- human-readable ADD derivation, e.g. 'spinning(+1 rot) + whirl(3) = 4'. NULL when unresolved.
-  computed_adds             INTEGER,               -- numeric ADD when derivable. NULL otherwise. Diagnostic only — does NOT override `adds` above.
-  add_formula_status        TEXT,                  -- 'exact_modifier_derived' | 'exact_self_atom' | 'approximate' | 'unresolved' | 'policy_dependent' (no CHECK; see PROPOSAL §7.2 + PHASE_2_5_REFINEMENTS §2)
-
   -- ── UX3 editorial prose + featured-media columns ─────────────────────────
   -- Curator-authored editorial prose backing the universal-shell template
   -- (src/views/freestyle/trick-shell.hbs) UX2-tier rendering. Service-layer

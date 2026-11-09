@@ -4,8 +4,7 @@ import { slugToHashtag } from './freestyleRecordShaping';
 // Structural-neighbors layer: the ±1-operator relation over the freestyle
 // dictionary, derived from two already-populated curator inputs only -- each
 // trick's `base_trick` and its rows in `freestyle_trick_modifier_links`. It
-// never reads parser output (structural_parse_json / computed_adds) and never
-// derives canonical classification from notation; it surfaces how a trick sits
+// never derives canonical classification from notation; it surfaces how a trick sits
 // among its operator-neighbors so the reader can navigate "remove one
 // operator", "swap one operator", "add one operator", and "same operator(s),
 // other base".

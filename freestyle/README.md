@@ -91,11 +91,10 @@ data is wholly derived from a committed file still replace their own rows.
 | 11 | `loaders/21c_retire_stale_tricks.py` | the complete desired ownership map | deletes stale committed `freestyle_tricks` rows | Runs last; removes only rows whose own producer stopped carrying them, never a curator's or an unclassified one, and fails closed on a surviving reference |
 | 12 | `loaders/28_load_ev_adjudications.py` | `inputs/observational/EV_FORMULA_IDENTITY_ROWS.csv` | `freestyle_ev_adjudications` | Inserts missing historical rulings, updates the ruling fields of one the app has never written to, and verifies the rest; never writes over app-authored work, and refuses rather than repairing a disagreement |
 | 13 | `loaders/29_apply_curator_saves.py` | `inputs/curator_saves/**/*.json` | the rows each save names: tricks, rulings, sources, modifiers, aliases, source links, modifier links, records, consecutive records | Applied last over every base input, reporting each value it overrides; applies nothing when any file cannot be applied |
-| 14 | `scripts/parse_freestyle_notation.py --apply` | reads `freestyle_tricks` | updates `structural_parse_json`, `computed_adds`, `add_formula_status` | Derived from the notation it reads |
-| 15 | `loaders/26_load_symbolic_grammar.py` | `symbolic_grammar/*.csv` | the six `symbolic_*` tables | Replaces its own rows; wholly derived |
-| 16 | `loaders/22_qc_trick_dictionary.py` | reads the DB | QC report in `out/` | Read-only; **hard gate**, non-zero exit aborts the refresh |
-| 17 | `loaders/24_qc_freestyle_media_coverage.py` | reads the DB | coverage report | Read-only; advisory |
-| 18 | `loaders/25_qc_media_tag_invariant.py` | reads the DB | tag-invariant report | Read-only; **hard gate**, non-zero exit aborts the refresh |
+| 14 | `loaders/26_load_symbolic_grammar.py` | `symbolic_grammar/*.csv` | the six `symbolic_*` tables | Replaces its own rows; wholly derived |
+| 15 | `loaders/22_qc_trick_dictionary.py` | reads the DB | QC report in `out/` | Read-only; **hard gate**, non-zero exit aborts the refresh |
+| 16 | `loaders/24_qc_freestyle_media_coverage.py` | reads the DB | coverage report | Read-only; advisory |
+| 17 | `loaders/25_qc_media_tag_invariant.py` | reads the DB | tag-invariant report | Read-only; **hard gate**, non-zero exit aborts the refresh |
 
 ## Artifacts: committed vs generated vs gitignored
 

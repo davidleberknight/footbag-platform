@@ -229,7 +229,7 @@ def load_ifpa_state() -> dict:
         active: list[dict] = []
         for row in conn.execute(
             "SELECT slug, canonical_name, base_trick, trick_family, adds, "
-            "category, computed_adds, add_formula_status, "
+            "category, "
             "(CASE WHEN short_description IS NOT NULL AND short_description!='' THEN 1 ELSE 0 END) AS is_pilot "
             "FROM freestyle_tricks WHERE is_active=1"
         ):
@@ -240,8 +240,6 @@ def load_ifpa_state() -> dict:
                 "trick_family": row["trick_family"] or "",
                 "adds": row["adds"],
                 "category": row["category"] or "",
-                "computed_adds": row["computed_adds"],
-                "add_formula_status": row["add_formula_status"] or "",
                 "is_pilot": bool(row["is_pilot"]),
             })
 

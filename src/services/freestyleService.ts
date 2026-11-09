@@ -47,7 +47,7 @@
  */
 import {
   FreestyleLeaderRow, FreestyleRecordRow, FreestyleTrickRow, FreestyleTrickModifierRow,
-  FreestyleTrickRowWithStatus, FreestyleTrickRowWithParse,
+  FreestyleTrickRowWithStatus, FreestyleTrickDetailRow,
   FreestyleTrickAliasRow, FreestyleMediaCoveredSourceRow,
   FreestyleTrickModifierLinkRow, FreestyleTrickModifierLinkDetailRow,
   FreestyleModifierLinkPairRow,
@@ -895,7 +895,7 @@ export interface SemanticNotation {
   // Base-lineage layer fields:
   baseSlug:              string | null;
   baseName:              string | null;
-  // Source attribution (const literal; never claims parser provenance)
+  // Source attribution (const literal)
   sourceLabel:           'editorial';
 }
 
@@ -1437,8 +1437,8 @@ export type TerminalDerivedView =
 
 /** Who is reading a trick-detail page.
  *
- *  The page is public and identical for every reader except the parser
- *  diagnostic, which is curator material rather than teaching material. Shaping
+ *  The page is public and identical for every reader except the structural
+ *  panel, which is curator material rather than teaching material. Shaping
  *  it here rather than hiding it in the template keeps it out of the response a
  *  reader receives, instead of merely out of what the browser paints. */
 export interface TrickDetailViewer {
@@ -1560,18 +1560,15 @@ export interface FreestyleTrickContent {
   // for the new "What you can do with this trick" panel near the top of the
   // detail page. All anchor hrefs are pre-built so templates render only.
   pathways: TrickPathways;
-  // Notation grammar diagnostic panel (read-only surface). Curator material,
-  // not teaching material: it reports the parser's status, its computed ADD
-  // beside the asserted one, per-token roles, unresolved tokens, and the
-  // editorial lineage, any of which can disagree with the published value while
-  // the row is correct. A reader has no way to tell a parser coverage gap from
-  // a miscount, so it is shaped only for a maintainer viewer. Null for every
-  // ordinary reader, and null for a maintainer when the row has no
-  // structural_parse_json.
+  // Structural panel (read-only surface). Curator material, not teaching
+  // material: it reports the asserted ADD beside the editorial lineage, which can
+  // disagree with the published value while the row is correct, and a reader has
+  // no way to tell a curation gap from a miscount. So it is shaped only for a
+  // maintainer viewer, and null for every ordinary reader.
   notationGrammar: NotationGrammarPanel | null;
   // Role-aware notation rendering. Pre-shaped tokens with role
   // classification + educational tooltip text. Null when notation is empty.
-  // Display-only; never affects parser output or ADD math.
+  // Display-only; never affects ADD math.
   notationDisplay: NotationDisplay | null;
   // Curator-authored one-line subtitle per detail-page section; each value is
   // null when no entry exists (the heading then stands alone, never generic
@@ -1990,36 +1987,18 @@ export interface ModifierLayering {
   totalLabel: string;       // 'N ADD' summary line under the nested boxes
 }
 
-// ── Notation grammar (read-only display) ────────────────────────────
-// Diagnostic surface for the structured-parse columns (schema +
-// parser fills). Read-only: asserted `adds` remains authoritative; computed values
-// here are diagnostic only and never override editorial truth.
-//
-// Returns null on the page view-model when structural_parse_json is missing or
-// unparseable — the trick-detail page renders exactly as before in that case.
-
-export interface NotationGrammarRoleToken {
-  token: string;       // e.g. 'spinning', 'symposium', 'whirl'
-  atomResolved: boolean; // true when this token represents a self-canonical atom
-}
-
-export interface NotationGrammarRoleBucket {
-  key:    string;     // 'core_family' | 'set' | 'rotation' | 'modifier' | 'delay_surface' | 'directionality' | 'unusual_surface' | 'unresolved_tokens'
-  label:  string;     // human-readable bucket label (e.g. 'Core family', 'Modifier')
-  tokens: NotationGrammarRoleToken[]; // empty list omitted by the template
-}
+// ── Structural panel (read-only display) ────────────────────────────
+// Computed on every read from the row, its base and its modifier links, so a
+// change to any of them shows at once. Asserted `adds` remains authoritative;
+// composed values here never override editorial truth.
 
 // Editorial decomposition — surfaces curator-asserted structural lineage
-// (base_trick + freestyle_trick_modifier_links) as a SECOND, parallel
-// decomposition view alongside the parser-derived one. Strict editorial
+// (base_trick + freestyle_trick_modifier_links). Strict editorial
 // decomposition: consults ONLY the explicit join table + base column. Does NOT
-// re-tokenize canonical_name and does NOT parse description text. Always
-// labeled `sourceLabel='editorial'` so the template can never present this
-// claim as parser output.
+// tokenize canonical_name and does NOT parse description text.
 //
 // Invariants this shaping path preserves:
 //   - Editorial-derived `composedAdds` NEVER overrides asserted_adds.
-//   - Editorial-derived `composedAdds` NEVER overrides parser `computed_adds`.
 //   - No slug-specific branches anywhere in the shaping path.
 //   - Broken-link / sparse-coverage states surface honestly; never invented.
 export interface EditorialDecompositionModifier {
@@ -2056,108 +2035,18 @@ export interface EditorialDecomposition {
 }
 
 export interface NotationGrammarPanel {
-  // Status — service-shaped label and one-line description for the badge.
-  status:            string;     // raw status value: exact_modifier_derived | exact_self_atom | approximate | unresolved | policy_dependent
-  statusLabel:       string;     // human-readable label, e.g. 'Exact (modifier-derived)'
-  statusDescription: string;     // one-sentence explanation suitable for a tooltip or caption
-
-  // ADD reconciliation. Asserted is authoritative; computed is diagnostic.
+  // Authoritative; a composed value beside it never replaces it.
   assertedAdds:      number | null;
-  computedAdds:      number | null;
-  addsAgree:         boolean;    // true when both present and equal; false otherwise (including either null)
-  formula:           string | null;
-
-  // Raw notation source (when present in DB).
-  jobsNotationRaw:        string | null;
-  jobsNotationNormalized: string | null;
-
-  // Two role layers: descriptive (what each token is classified as) and
-  // add-contributing (used for ADD math). Empty buckets
-  // are omitted so the template can render only present roles.
-  descriptiveRoles:     NotationGrammarRoleBucket[];
-  addContributingRoles: NotationGrammarRoleBucket[];
-
-  // Honesty signals.
-  parseWarnings:    string[];
-  policyTokens:     string[];
-  additiveFlags:    string[];
-  unresolvedTokens: string[];   // raw token strings; convenience flat list for the template
 
   // Editorial context — surfaces the row's `description` column so named compounds
-  // (sumo, sailing, blur, barfly, etc.) carry their human explanation in the panel
-  // even when the parser-derived formula is just `slug(N) = N`. Null when the row
-  // has no description or the description is empty/whitespace.
+  // (sumo, sailing, blur, barfly, etc.) carry their human explanation in the panel.
+  // Null when the row has no description or the description is empty/whitespace.
   editorialContext: string | null;
-
-  // Pre-shaped predicate driving the "Diagnostic details" disclosure block.
-  // True when there is any content (parse warnings or jobs notation) to put
-  // behind the disclosure; false suppresses the wrapper entirely.
-  hasDiagnosticDetails: boolean;
 
   // Editorial decomposition — curator-asserted structural lineage. Null when
   // the row has no usable editorial decomposition data (no base_trick, or
-  // self-reference base_trick AND no modifier links). When present, ALWAYS
-  // labeled as editorial; never claims parser provenance.
+  // self-reference base_trick).
   editorialDecomposition: EditorialDecomposition | null;
-}
-
-const ROLE_BUCKET_ORDER: ReadonlyArray<{ key: string; label: string }> = [
-  { key: 'core_family',      label: 'Core family' },
-  { key: 'set',              label: 'Set' },
-  { key: 'rotation',         label: 'Rotation' },
-  { key: 'modifier',         label: 'Modifier' },
-  { key: 'delay_surface',    label: 'Stall surface' },
-  { key: 'directionality',   label: 'Directionality' },
-  { key: 'unusual_surface',  label: 'Unusual surface' },
-  { key: 'unresolved_tokens', label: 'Unresolved tokens' },
-];
-
-const STATUS_LABELS: Record<string, { label: string; description: string }> = {
-  exact_modifier_derived: {
-    label:       'Exact: structurally derived',
-    description: 'The structural decomposition reproduces the asserted ADD from a base trick plus modifier weights.',
-  },
-  exact_self_atom: {
-    label:       'Exact: named trick / self-atom',
-    description: 'The trick is its own canonical anchor; computed ADD equals the asserted value tautologically: a different kind of agreement than a structural derivation.',
-  },
-  approximate: {
-    label:       'Approximate',
-    description: 'The structural decomposition resolves cleanly but the computed ADD disagrees with the asserted value.',
-  },
-  unresolved: {
-    label:       'Unresolved',
-    description: 'The parser could not classify enough tokens to compute an ADD from the structural decomposition.',
-  },
-  policy_dependent: {
-    label:       'Policy-dependent',
-    description: 'The parse contains a token whose ADD weight or ontology placement is contested and pending expert review.',
-  },
-};
-
-function shapeRoleBuckets(
-  layer: Record<string, unknown> | undefined,
-): NotationGrammarRoleBucket[] {
-  if (!layer || typeof layer !== 'object') return [];
-  const buckets: NotationGrammarRoleBucket[] = [];
-  for (const { key, label } of ROLE_BUCKET_ORDER) {
-    const raw = (layer as Record<string, unknown>)[key];
-    if (!Array.isArray(raw) || raw.length === 0) continue;
-    const tokens: NotationGrammarRoleToken[] = [];
-    for (const t of raw) {
-      if (t && typeof t === 'object') {
-        const tok = (t as { token?: unknown }).token;
-        if (typeof tok === 'string' && tok.length > 0) {
-          tokens.push({
-            token: tok,
-            atomResolved: (t as { atom_resolved?: unknown }).atom_resolved === true,
-          });
-        }
-      }
-    }
-    if (tokens.length > 0) buckets.push({ key, label, tokens });
-  }
-  return buckets;
 }
 
 // Editorial-decomposition shaping (strict):
@@ -2173,13 +2062,12 @@ function shapeRoleBuckets(
 //
 // Render-rule: returns non-null when base_trick is set AND base_trick is not
 // a self-reference. Self-referencing rows (e.g. sailing's base_trick=sailing)
-// have nothing structural to decompose into; the parser-derived view + the
-// description (Editorial context block) are sufficient.
+// have nothing structural to decompose into; the description (Editorial context
+// block) is sufficient.
 //
 // Invariants this shaping path preserves:
 //   - Reads ONLY base_trick + freestyle_trick_modifier_links.
-//   - Never re-tokenizes canonical_name. Never parses description.
-//   - Never claims parser provenance (sourceLabel always 'editorial').
+//   - Never tokenizes canonical_name. Never parses description.
 //   - composedAdds is presentation-only; never feeds back into asserted_adds.
 // Resolve a trick slug to its human display name for rendered decomposition copy:
 // the dictionary canonical name when the slug resolves, else the slug with
@@ -2191,7 +2079,7 @@ function displayNameForSlug(slug: string, dictBySlug: Map<string, FreestyleTrick
 }
 
 function shapeEditorialDecomposition(
-  row: FreestyleTrickRowWithParse,
+  row: FreestyleTrickDetailRow,
   dictBySlug: Map<string, FreestyleTrickRow>,
   modifierLinks: FreestyleTrickModifierLinkDetailRow[],
 ): EditorialDecomposition | null {
@@ -2273,7 +2161,7 @@ function shapeEditorialDecomposition(
 //
 // Editorial-layer rules preserved:
 //   - Reads only slug / notation / base_trick + dictBySlug for base resolution.
-//   - Never tokenizes canonical_name; never recurses; never invokes parser.
+//   - Never tokenizes canonical_name; never recurses.
 //   - Auto-link tokens only resolve to CORE_TRICKS or OPERATOR_REFERENCE_ENTRIES.
 //   - sourceLabel='editorial' const literal.
 const RECOGNIZED_LINK_SLUGS: ReadonlySet<string> = (() => {
@@ -2320,7 +2208,7 @@ function tokenizeEquivalenceReading(reading: string): SemanticNotationToken[] {
 }
 
 function shapeSemanticNotation(
-  row: FreestyleTrickRowWithParse,
+  row: FreestyleTrickDetailRow,
   dictBySlug: Map<string, FreestyleTrickRow>,
 ): SemanticNotation | null {
   const slug = row.slug;
@@ -2390,53 +2278,11 @@ function shapeSemanticNotation(
 }
 
 function shapeNotationGrammar(
-  row: FreestyleTrickRowWithParse,
+  row: FreestyleTrickDetailRow,
   dictBySlug: Map<string, FreestyleTrickRow>,
   modifierLinks: FreestyleTrickModifierLinkDetailRow[],
-): NotationGrammarPanel | null {
-  if (!row.structural_parse_json) return null;
-  let parsed: Record<string, unknown>;
-  try {
-    const candidate = JSON.parse(row.structural_parse_json);
-    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
-      return null;
-    }
-    parsed = candidate as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-
-  const status = row.add_formula_status ?? 'unresolved';
-  // Unrecognized parser status: never render the raw status value or an
-  // internal-document reference on the public page; fall back to a neutral hedge.
-  const statusEntry = STATUS_LABELS[status]
-    ?? { label: 'Pending review', description: 'Analysis status pending review.' };
-
+): NotationGrammarPanel {
   const assertedAdds = row.adds !== null && /^\d+$/.test(row.adds) ? parseInt(row.adds, 10) : null;
-  const computedAdds = row.computed_adds;
-  const addsAgree    = assertedAdds !== null && computedAdds !== null && assertedAdds === computedAdds;
-
-  const descriptive = parsed.descriptive_roles as Record<string, unknown> | undefined;
-  const contributing = parsed.add_contributing_roles as Record<string, unknown> | undefined;
-
-  const parseWarningsRaw = parsed.parse_warnings;
-  const policyTokensRaw  = parsed.policy_tokens;
-  const additiveFlagsRaw = parsed.additive_flags;
-  const parseWarnings = Array.isArray(parseWarningsRaw)
-    ? parseWarningsRaw.filter((x): x is string => typeof x === 'string') : [];
-  const policyTokens = Array.isArray(policyTokensRaw)
-    ? policyTokensRaw.filter((x): x is string => typeof x === 'string') : [];
-  const additiveFlags = Array.isArray(additiveFlagsRaw)
-    ? additiveFlagsRaw.filter((x): x is string => typeof x === 'string') : [];
-
-  // Unresolved tokens live inside descriptive_roles; flatten the
-  // string list for the template's convenience.
-  const unresolvedRaw = descriptive ? descriptive['unresolved_tokens'] : undefined;
-  const unresolvedTokens: string[] = Array.isArray(unresolvedRaw)
-    ? unresolvedRaw
-        .map(t => (t && typeof t === 'object' ? (t as { token?: unknown }).token : null))
-        .filter((x): x is string => typeof x === 'string')
-    : [];
 
   // The collapsed structural panel's editorial prose passes through the same
   // suppression the About block applies (single-home policy in
@@ -2449,32 +2295,10 @@ function shapeNotationGrammar(
     ? row.description.trim()
     : null;
 
-  // Raw parse warnings are internal QC and are not rendered publicly, so the
-  // diagnostic-details block is shown only when there is raw notation to display.
-  const hasDiagnosticDetails =
-    typeof row.jobs_notation_raw === 'string' && row.jobs_notation_raw.length > 0;
-
-  const editorialDecomposition = shapeEditorialDecomposition(row, dictBySlug, modifierLinks);
-
   return {
-    status,
-    statusLabel:       statusEntry.label,
-    statusDescription: statusEntry.description,
     assertedAdds,
-    computedAdds,
-    addsAgree,
-    formula:           row.computed_add_formula,
-    jobsNotationRaw:        row.jobs_notation_raw,
-    jobsNotationNormalized: row.jobs_notation_normalized,
-    descriptiveRoles:     shapeRoleBuckets(descriptive),
-    addContributingRoles: shapeRoleBuckets(contributing),
-    parseWarnings,
-    policyTokens,
-    additiveFlags,
-    unresolvedTokens,
     editorialContext,
-    hasDiagnosticDetails,
-    editorialDecomposition,
+    editorialDecomposition: shapeEditorialDecomposition(row, dictBySlug, modifierLinks),
   };
 }
 
@@ -6068,7 +5892,7 @@ const FEATURED_MEDIA_EMPTY_WITH_RECORD =
   "See the record-holder demonstration in the records below.";
 
 function shapeUx2PilotFromRow(
-  row: FreestyleTrickRowWithParse | undefined,
+  row: FreestyleTrickDetailRow | undefined,
   recordCount: number,
 ): Ux2PilotData | null {
   if (!row) return null;
@@ -6774,7 +6598,7 @@ export const freestyleService = {
     // the canonical page. getBySlug filters is_active = 1, so a row here means
     // the raw slug is an active canonical trick.
     const rawActiveRow = runSqliteRead('freestyleTricks.getBySlug', () =>
-      freestyleTricks.getBySlug.get(rawSlug) as FreestyleTrickRowWithParse | undefined,
+      freestyleTricks.getBySlug.get(rawSlug) as FreestyleTrickDetailRow | undefined,
     );
     let slug: string;
     if (rawActiveRow) {
@@ -6795,12 +6619,10 @@ export const freestyleService = {
     const publicRows = allPublicRows.filter(r => !r.superseded_by);
 
     // Also check dictionary for slug resolution (trick may have no records).
-    // getBySlug returns the parser columns (jobs_notation_raw, structural
-    // _parse_json, computed_*) alongside the base trick fields; only this
-    // statement loads them, so grids stay lean. Reuse the raw-slug row when it
-    // was already an active canonical trick to avoid a second lookup.
+    // Reuse the raw-slug row when it was already an active canonical trick to
+    // avoid a second lookup.
     const dictRow = rawActiveRow ?? runSqliteRead('freestyleTricks.getBySlug', () =>
-      freestyleTricks.getBySlug.get(slug) as FreestyleTrickRowWithParse | undefined,
+      freestyleTricks.getBySlug.get(slug) as FreestyleTrickDetailRow | undefined,
     );
 
     // Match records to this trick by its canonical slug or any of its alias

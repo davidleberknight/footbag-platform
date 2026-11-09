@@ -2572,17 +2572,10 @@ export interface FreestyleTrickRow {
   sort_order:           number;
 }
 
-// Extension of FreestyleTrickRow that also carries the parser notation-grammar
-// columns plus the operational-notation column. Returned only by `getBySlug`
-// (heavy parse JSON not loaded on grids; operational_notation is light but
-// only the trick-detail page needs it). All seven extra fields are nullable.
-export interface FreestyleTrickRowWithParse extends FreestyleTrickRow {
-  jobs_notation_raw:           string | null;
-  jobs_notation_normalized:    string | null;
-  structural_parse_json:       string | null;
-  computed_add_formula:        string | null;
-  computed_adds:               number | null;
-  add_formula_status:          string | null;
+// Extension of FreestyleTrickRow that also carries the operational-notation and
+// editorial prose columns. Returned only by `getBySlug`, because only the
+// trick-detail page needs them. Every extra field is nullable.
+export interface FreestyleTrickDetailRow extends FreestyleTrickRow {
   operational_notation:        string | null;
   operational_notation_source: string | null;
   // Editorial prose columns.
@@ -2695,9 +2688,6 @@ export const freestyleTricks = {
   get getBySlug() { return db.prepare(`
     SELECT slug, canonical_name, adds, base_trick, trick_family, category,
            description, aliases_json, notation, sort_order,
-           jobs_notation_raw, jobs_notation_normalized,
-           structural_parse_json, computed_add_formula,
-           computed_adds, add_formula_status,
            operational_notation, operational_notation_source,
            short_description, execution_summary, learning_notes,
            prerequisite_notes, pronunciation
@@ -2849,20 +2839,6 @@ export const freestyleTricks = {
   // source batch, so a funnel-published row goes after everything that exists.
   get maxSortOrder() { return db.prepare(`
     SELECT COALESCE(MAX(sort_order), 0) AS max_sort FROM freestyle_tricks
-  `); },
-
-  // Drop the notation parse derived for this row. The parse fields are a function
-  // of the notation the parse was taken from and of the asserted ADD it was
-  // compared against; when a curation edit changes either, the stored parse
-  // describes notation the row no longer carries. Clearing them leaves the row in
-  // the same state as a trick whose notation has never been parsed, which the
-  // public grammar panel already handles by not rendering, rather than leaving a
-  // panel that confidently describes the previous notation.
-  get clearDerivedParse() { return db.prepare(`
-    UPDATE freestyle_tricks
-    SET structural_parse_json = NULL, computed_add_formula = NULL,
-        computed_adds = NULL, add_formula_status = NULL
-    WHERE slug = ?
   `); },
 };
 

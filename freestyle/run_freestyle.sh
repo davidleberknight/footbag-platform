@@ -21,7 +21,6 @@ source scripts/lib/closing-report.sh
 DB="${1:-database/footbag.db}"
 PY_BIN="${PYTHON:-python3}"
 L="freestyle/loaders"
-S="freestyle/scripts"
 I="freestyle/inputs"
 
 # Every stage below is written "${PY}" <script> <args>, and PY names this
@@ -100,12 +99,8 @@ echo "→ Rebuilding freestyle tables into ${DB}"
 "${PY}" "${L}/28_load_ev_adjudications.py"          --db "${DB}"
 
 # Curator saves: what the admin screens wrote to committed files on a developer
-# machine. Last of the content writers, so a save wins over every base input, and
-# before the parser, which reads the notation a save may have changed.
+# machine. Last of the content writers, so a save wins over every base input.
 "${PY}" "${L}/29_apply_curator_saves.py"            --db "${DB}"
-
-# Parser population (structural_parse_json + computed_adds)
-"${PY}" "${S}/parse_freestyle_notation.py" --apply --db "${DB}"
 
 # Symbolic-grammar observational layer (read at runtime by symbolicGrammarService)
 "${PY}" "${L}/26_load_symbolic_grammar.py" --db "${DB}"

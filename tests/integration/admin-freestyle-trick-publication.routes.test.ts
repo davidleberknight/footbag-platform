@@ -113,7 +113,7 @@ function trick(slug: string) {
     `SELECT slug, canonical_name, adds, base_trick, trick_family, category, description,
             is_active, is_core, review_status, aliases_json, notation, operational_notation,
             operational_notation_source, notation_evidence_basis, notation_derivation_method,
-            notation_convention_id, sort_order, structural_parse_json,
+            notation_convention_id, sort_order,
             trick_origin_producer
        FROM freestyle_tricks WHERE slug = ?`,
   ).get(slug) as Record<string, unknown> | undefined;
@@ -455,11 +455,21 @@ describe('a published trick', () => {
     // is a separate claim this form does not make.
     expect(row.operational_notation).toBe(NOTATION);
     expect(row.notation).toBeNull();
-    // A parse is derived by the content pipeline, never by publication.
-    expect(row.structural_parse_json).toBeNull();
     // The row belongs to the curator who made it. No committed producer owns it,
     // so a rebuild reading committed files has nothing it may retire here.
     expect(row.trick_origin_producer).toBe('curator-publication');
+  });
+
+  // Defect caught: a newly published trick has no structural panel until some
+  // later step fills in data for it.
+  it('has its structural panel from the first read', async () => {
+    const id = publishableDraft('pub-panel');
+    await post(publishHref(id), validForm({ canonicalName: 'panel movement' }));
+
+    const res = await get('/freestyle/tricks/panel_movement', admin());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('notation-grammar-panel');
+    expect(res.text).toContain('data-source="editorial"');
   });
 
   it('carries the notation provenance as both structured fields and a citation line', async () => {
