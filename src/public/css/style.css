@@ -151,7 +151,6 @@
   --gray-200:    #eee;      /* light gray */
   --gray-250:    #e5e7eb;   /* light cool gray */
   --gray-300:    #e0e0e0;   /* light gray */
-  --gray-350:    #ddd;      /* light gray */
   --gray-400:    #d0d0d0;   /* silver gray */
   --gray-500:    #aaa;      /* medium gray */
   --gray-600:    #777;      /* medium-dark gray */
@@ -329,7 +328,6 @@
   --flagship-umber: #b8923a;
   --historical-umber: #c4a472;
   --historical-umber-strong: #7a5a3a;
-  --deprecated-stone: #c7c0b0;
   --core-family-moss: #4ade80;
   --doctrine-plum: #4e366f;
   --tier-umber: #b87333;
@@ -5010,7 +5008,6 @@ a.hashtag--media:hover {
 }
 .trick-equivalence-topology-source-chip--historical    { background: var(--parch-350); }
 .trick-equivalence-topology-source-chip--curator-derived { background: var(--fern-100); }
-.trick-equivalence-topology-source-chip--community     { background: var(--parch-250); }
 .trick-equivalence-topology-source-chip--structural    { background: var(--slate-200); }
 .trick-equivalence-topology-breakdown {
   background: var(--parch-100);
@@ -5030,8 +5027,6 @@ a.hashtag--media:hover {
   color: var(--text-muted);
 }
 .trick-equivalence-topology-role-badge--historical { border-color: var(--historical-umber); color: var(--historical-umber-strong); }
-.trick-equivalence-topology-role-badge--doctrine-locked-alternate { border-color: var(--slate-400); color: var(--slate-600); }
-.trick-equivalence-topology-role-badge--deprecated { border-color: var(--deprecated-stone); color: var(--text-muted); font-style: italic; }
 
 /* ── Compact content section ──────────────────────────────────────────────
    The dense variant of the content-section primitive. A page that stacks
@@ -5891,14 +5886,6 @@ a.hashtag--media:hover {
   background: var(--fern-150);
   color: var(--fern-700);
 }
-.glossary-add-example-status--pending-doctrine {
-  background: var(--pending-umber);
-  color: var(--earth-bronze);
-}
-.glossary-add-example-status--doctrine-locked {
-  background: var(--gray-350);
-  color: var(--doctrine-plum);
-}
 .glossary-add-example-fields {
   display: grid;
   grid-template-columns: 100px 1fr;
@@ -6459,9 +6446,7 @@ a.hashtag--media:hover {
 .observed-card-source-badge--PB { background: var(--sec-border); color: var(--steel-600); }
 .observed-card-source-badge--FM { background: var(--danger-border); color: var(--earth-bronze); }
 .observed-card-source-badge--SG { background: var(--fern-150); color: var(--fern-700); }
-.observed-card-source-badge--FF { background: var(--slate-300); color: var(--steel-600); }
 .observed-card-source-badge--FB { background: var(--parch-350); color: var(--earth-bronze); }   /* footbag.org */
-.observed-card-source-badge--OTHER { background: var(--gray-300); color: var(--gray-700); }
 
 .observed-card-meta {
   margin: var(--space-xs) 0 0 0;
@@ -6617,7 +6602,6 @@ a.hashtag--media:hover {
   font-variant-numeric: tabular-nums;
 }
 .observed-card-source-badge--MULTI { background: var(--gray-250); color: var(--doctrine-plum); }
-.observed-card-source-badge--IFPA  { background: var(--fern-150); color: var(--fern-700); }
 /* v2 card-meta carries several chips; wrap + left-align (overrides the
    single-reading space-between rule above). */
 .observed-card .observed-card-meta {
