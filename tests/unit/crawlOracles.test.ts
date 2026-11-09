@@ -29,6 +29,7 @@ import {
 import {
   crawl,
   extractTargets,
+  fragmentFindings,
   type CrawlPersona,
   type CrawlResponse,
   type Fetcher,
@@ -265,6 +266,59 @@ describe('finding exemptions', () => {
     const ex = { oracle: 'seo' as const, url: /^\/a$/, problem: /meta description/, reason: 'known-defect' as const, why: 'w' };
     expect(applyFindingExemptions([f, { ...f, url: '/b' }], [ex])).toEqual({ open: [{ ...f, url: '/b' }], stale: [] });
     expect(applyFindingExemptions([], [ex]).stale).toEqual([ex]);
+  });
+});
+
+describe('fragment links', () => {
+  const at = (url: string, body: string) => ({ url, html: page(body) });
+
+  // Defect caught: a contents link or deep link that scrolls nowhere.
+  it('reports a same-page fragment with no matching id, and passes one that has it', () => {
+    expect(fragmentFindings([at('/a', '<a href="#gone">x</a>')]))
+      .toEqual([{ url: '/a', problem: 'link to #gone: no element on this page has that id' }]);
+    expect(fragmentFindings([at('/a', '<a href="#here">x</a><h2 id="here">y</h2>')])).toEqual([]);
+  });
+
+  // Defect caught: a section renamed on one page while another page still links it.
+  it('reports a cross-page fragment the crawled target lacks, and passes one it has', () => {
+    const target = at('/b', '<h2 id="here">y</h2>');
+    expect(fragmentFindings([at('/a', '<a href="/b#gone">x</a>'), target]))
+      .toEqual([{ url: '/a', problem: 'link to /b#gone: no element on that page has that id' }]);
+    expect(fragmentFindings([at('/a', '<a href="/b#here">x</a>'), target])).toEqual([]);
+  });
+
+  // Defect caught: a page the crawl never loaded is reported as broken, which
+  // would make the check fail on every external or skipped address.
+  it('does not judge a target the crawl did not load, an off-site link, or a bare #', () => {
+    expect(fragmentFindings([at('/a',
+      '<a href="/never-crawled#x">x</a><a href="https://example.com/#x">x</a><a href="#">x</a><a href="#top">x</a>')]))
+      .toEqual([]);
+  });
+
+  // Defect caught: an escaped query link is judged against the wrong page.
+  it('decodes an escaped query link and matches the exact crawled address', () => {
+    const target = at('/t?view=family', '<h2 id="family-a">y</h2>');
+    expect(fragmentFindings([at('/a', '<a href="/t?view&#x3D;family#family-a">x</a>'), target])).toEqual([]);
+    expect(fragmentFindings([at('/a', '<a href="/t?view&#x3D;family#family-b">x</a>'), target])).toHaveLength(1);
+  });
+
+  // Defect caught: the # inside an escaped equals sign read as a fragment, which
+  // reports every query link on the site as broken.
+  it('does not read an escaped query link with no fragment as a fragment link', () => {
+    const target = at('/t?view=family', '<h2>y</h2>');
+    expect(fragmentFindings([at('/a', '<a href="/t?view&#x3D;family">x</a>'), target])).toEqual([]);
+  });
+
+  // Defect caught: an attribute that merely ends in "id" satisfying a link, or a
+  // link inside script text being judged as a rendered link.
+  it('counts only real id attributes and only rendered links', () => {
+    expect(fragmentFindings([at('/a', '<a href="#x">x</a><div data-id="x"></div>')])).toHaveLength(1);
+    expect(fragmentFindings([at('/a', '<script>var s = \'<a href="#x">x</a>\';</script>')])).toEqual([]);
+  });
+
+  // Defect caught: one broken link repeated in a shared footer floods the report.
+  it('reports each broken link once per page', () => {
+    expect(fragmentFindings([at('/a', '<a href="#x">1</a><a href="#x">2</a>')])).toHaveLength(1);
   });
 });
 

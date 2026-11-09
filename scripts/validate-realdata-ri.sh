@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/validate-realdata-ri.sh -- real-data invariants RI1-RI4.
+# scripts/validate-realdata-ri.sh -- real-data invariants RI1-RI5.
 #
 # Read-only whole-population checks over a loaded real dataset. Emits one
 # GATE: RI<N> PASS|FAIL: <reason> line per invariant to stdout, each carrying a
@@ -10,6 +10,7 @@
 #   RI2: every claimed legacy account points at a real member
 #   RI3: every stored login email is lowercased
 #   RI4: every US and Canadian club and club candidate carries a state
+#   RI5: every active freestyle trick's ADD matches its scoring brackets
 #
 # One copy of these queries serves both places they run: the test runner calls
 # this file against the local database, and the staging real-data leg streams
@@ -72,4 +73,20 @@ else
   echo "GATE: RI4 FAIL: ${stateless_clubs} US or Canadian club or club candidate row(s) carry no state"
 fi
 
-[[ "${orphan_links}" == "0" && "${orphan_claims}" == "0" && "${bad_emails}" == "0" && "${stateless_clubs}" == "0" ]]
+# A trick's numeric ADD equals its count of scoring brackets, the rule the trick
+# editor enforces on a save; this holds it over the whole dictionary. A row with
+# no number or no scoring bracket cannot be judged. Every bracket must be a known
+# one: seven that score, and KICK, which marks an action and does not.
+bracket_count="(length(n)-length(replace(n,'[BOD]','')))/5 + (length(n)-length(replace(n,'[DEX]','')))/5 + (length(n)-length(replace(n,'[XBD]','')))/5 + (length(n)-length(replace(n,'[DEL]','')))/5 + (length(n)-length(replace(n,'[UNS]','')))/5 + (length(n)-length(replace(n,'[PDX]','')))/5 + (length(n)-length(replace(n,'[XDEX]','')))/6"
+known_removed="replace(replace(replace(replace(replace(replace(replace(replace(n,'[BOD]',''),'[DEX]',''),'[XBD]',''),'[DEL]',''),'[UNS]',''),'[PDX]',''),'[XDEX]',''),'[KICK]','')"
+active_tricks=$(sqlite3 -readonly "${db}" "SELECT COUNT(*) FROM freestyle_tricks WHERE is_active = 1;" 2>/dev/null || echo -1)
+bad_notations=$(sqlite3 -readonly "${db}" "WITH t AS (SELECT adds, upper(COALESCE(operational_notation,'')) AS n FROM freestyle_tricks WHERE is_active = 1), c AS (SELECT adds, n, ${bracket_count} AS k FROM t) SELECT COUNT(*) FROM c WHERE ${known_removed} LIKE '%[%' OR (k > 0 AND adds GLOB '[0-9]*' AND adds NOT GLOB '*[^0-9]*' AND k <> CAST(adds AS INTEGER));" 2>/dev/null || echo -1)
+if [[ "${active_tricks}" == "0" ]]; then
+  echo "GATE: RI5 SKIP: no active freestyle tricks are loaded"
+elif [[ "${bad_notations}" == "0" ]]; then
+  echo "GATE: RI5 PASS: every active freestyle trick's ADD matches its scoring brackets"
+else
+  echo "GATE: RI5 FAIL: ${bad_notations} active trick(s) have an ADD that differs from their scoring brackets, or an unknown bracket"
+fi
+
+[[ "${orphan_links}" == "0" && "${orphan_claims}" == "0" && "${bad_emails}" == "0" && "${stateless_clubs}" == "0" && "${active_tricks}" != "-1" && "${bad_notations}" == "0" ]]

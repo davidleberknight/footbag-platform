@@ -31,10 +31,10 @@
 #   - A missing credential file, or one whose mode is not 600 or 400, by name.
 #   - A workstation with no ssh alias for staging, or no pinned host key.
 #   - Any line from the host that is not a gate line of the shape the check
-#     scripts print (GATE: G1-G6 or RI1-RI4, PASS or FAIL, then the reason) or a
+#     scripts print (GATE: G1-G6 or RI1-RI5, PASS or FAIL, then the reason) or a
 #     known RDI_ key of the expected shape. Everything else is dropped, never
 #     printed.
-#   - An invariants run in which any of the nine gates reported no line, however
+#   - An invariants run in which any of the gates reported no line, however
 #     clean the exit codes look.
 #   - A target id that is not a short run of letters, digits, underscores and
 #     hyphens. The id is the one value that is not a count, so its shape is held
@@ -146,8 +146,8 @@ fi
 # line is held to the shape the two check scripts print: a known gate id, a
 # verdict, then the reason. SKIP is the verdict a gate gives when the data it
 # judges was never loaded.
-GATE_LINE_RE='^GATE: (G[1-6]|RI[1-4]) (PASS|FAIL|SKIP): .+$'
-REQUIRED_GATES=(G1 G2 G3 G4 G5 G6 RI1 RI2 RI3 RI4)
+GATE_LINE_RE='^GATE: (G[1-6]|RI[1-5]) (PASS|FAIL|SKIP): .+$'
+REQUIRED_GATES=(G1 G2 G3 G4 G5 G6 RI1 RI2 RI3 RI4 RI5)
 kept=()
 seen_gates=" "
 target_id=""

@@ -13,6 +13,7 @@ export type OracleName =
   | 'server-error'
   | 'logged-error'
   | 'dead-link'
+  | 'dead-fragment'
   | 'dead-asset'
   | 'shown-but-refused'
   | 'open-redirect'

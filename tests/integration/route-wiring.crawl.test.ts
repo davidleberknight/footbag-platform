@@ -7,6 +7,7 @@
  * form and asset breadth-first. It fails on:
  *   - a 5xx, or an operator-alert error logged while a request was served;
  *   - a rendered link, form or asset that resolves to 404;
+ *   - a link whose #fragment names no element on the crawled page it points at;
  *   - a rendered link or form the same persona is then refused;
  *   - a redirect that leaves the site, including a path-carrying query
  *     parameter replayed with an off-site value;
@@ -35,6 +36,7 @@ import { createTestSessionJwt } from '../fixtures/factories';
 import { loadServedRoutes, type ServedRoute } from '../fixtures/routeTable';
 import {
   crawl,
+  fragmentFindings,
   supertestFetcher,
   switchTo,
   type CrawlPersona,
@@ -60,6 +62,7 @@ import {
   applyFindingExemptions,
   CANARY_CONTROL_EXEMPTIONS,
   CRAWL_FINDING_EXEMPTIONS,
+  FRAGMENT_FINDING_EXEMPTIONS,
   getWritesByDesign,
   ROUTE_EXEMPTIONS,
   SITEMAP_FINDING_EXEMPTIONS,
@@ -225,6 +228,23 @@ describe('route wiring crawl', () => {
     const { open, stale } = applyFindingExemptions(allFindings(set), CRAWL_FINDING_EXEMPTIONS);
     expect(open, 'crawl findings').toEqual([]);
     expect(stale.map((e) => e.why), 'finding exemptions that no longer match anything').toEqual([]);
+  }, CRAWL_TIMEOUT_MS);
+
+  // Defect caught: a section renamed or removed while a link still names it, so
+  // the link loads the page and silently fails to scroll to anything.
+  it('every fragment link lands on an element of the page it points at', async () => {
+    const set = await crawls();
+    const reported = new Map<string, Finding>();
+    for (const [persona, result] of set.byPersona) {
+      const pages = result.pages.map((p) => ({ url: p.url, html: p.res.body }));
+      expect(pages.length, `${persona} crawled no pages`).toBeGreaterThan(0);
+      for (const f of fragmentFindings(pages)) {
+        reported.set(`${f.url} ${f.problem}`, { persona, url: f.url, via: '(fragments)', oracle: 'dead-fragment', problem: f.problem });
+      }
+    }
+    const { open, stale } = applyFindingExemptions([...reported.values()], FRAGMENT_FINDING_EXEMPTIONS);
+    expect(open.map((f) => `${f.url}: ${f.problem}`), 'links that scroll nowhere').toEqual([]);
+    expect(stale.map((e) => e.why), 'fragment exemptions that no longer match anything').toEqual([]);
   }, CRAWL_TIMEOUT_MS);
 
   it('the walk follows HTML-escaped query links and login-blocked persona rows', async () => {

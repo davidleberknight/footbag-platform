@@ -113,6 +113,17 @@ export const CRAWL_FINDING_EXEMPTIONS: readonly FindingExemption[] = [
   },
 ];
 
+/** Fragment-link findings the crawl's seeded data cannot satisfy. */
+export const FRAGMENT_FINDING_EXEMPTIONS: readonly FindingExemption[] = [
+  {
+    oracle: 'dead-fragment', reason: 'harness-by-design',
+    url: /^\/freestyle\//,
+    problem: /^link to \/freestyle\/tricks\?view=(?:family#family|modifier#modifier|set#set)-[a-z0-9_]+: /,
+    why: 'The dictionary draws a group section only for a group holding tricks, and the crawl seeds '
+      + 'too few tricks to fill these groups; the links resolve on the built dictionary.',
+  },
+];
+
 /** Duplicate-title findings across the anonymous crawl, recorded rather than fixed here. */
 export const TITLE_FINDING_EXEMPTIONS: readonly FindingExemption[] = [
   {

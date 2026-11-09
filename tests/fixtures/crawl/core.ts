@@ -188,6 +188,45 @@ export function extractTargets(html: string, pageUrl?: string): Targets {
   return { gets, posts, assets };
 }
 
+/**
+ * Links whose `#fragment` lands on nothing: a same-page `#x`, or a `/path#x` to
+ * a page in `pages`, where no element carries that id. A browser reports nothing
+ * for these, it simply fails to scroll. A target outside `pages` is not judged,
+ * because the crawl has not seen its ids. A bare `#` and `#top` are valid without
+ * an element. Each broken link is reported once per page.
+ */
+export function fragmentFindings(
+  pages: ReadonlyArray<{ url: string; html: string }>,
+): Array<{ url: string; problem: string }> {
+  const visible = (html: string) =>
+    html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '');
+  const idsOf = new Map(pages.map((p) => [
+    p.url,
+    new Set([...visible(p.html).matchAll(/\s(?:id|name)="([^"]+)"/g)].map((m) => decodeEntities(m[1]))),
+  ]));
+  const findings: Array<{ url: string; problem: string }> = [];
+  for (const page of pages) {
+    const seen = new Set<string>();
+    for (const m of visible(page.html).matchAll(/<a\b[^>]*?\shref="([^"]*)"/gi)) {
+      // Decoded first: an escaped equals sign is `&#x3D;`, whose # is not a fragment.
+      const href = decodeEntities(m[1]);
+      const hash = href.indexOf('#');
+      if (hash < 0 || seen.has(href)) continue;
+      seen.add(href);
+      const fragment = href.slice(hash + 1);
+      if (fragment === '' || fragment === 'top') continue;
+      const samePage = hash === 0;
+      const targetIds = samePage ? idsOf.get(page.url) : idsOf.get(normalize(href) ?? '');
+      if (!targetIds || targetIds.has(fragment)) continue;
+      findings.push({
+        url: page.url,
+        problem: `link to ${href}: no element on ${samePage ? 'this' : 'that'} page has that id`,
+      });
+    }
+  }
+  return findings;
+}
+
 // Brace runs inside JSON data islands are legitimate; everything else in a
 // rendered page must be mustache-free.
 export function stripJsonIslands(html: string): string {
