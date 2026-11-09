@@ -120,6 +120,10 @@ effect. Then:
   by an exact repo-flag prefix, which is why every mutating command writes the repo flag
   first: `gh issue edit -R "$FOOTBAG_PRIVATE_REPO" <number> …`. Put the flag anywhere else
   and the rule stops matching and the prompt returns.
+- **Post a comment or body from a file.** Write the text to the session scratchpad and pass it
+  with `--body-file`, never inline after `--body`: auto mode's safety check can refuse a long
+  inline body even though the repo-flag rule allows the command, and a file keeps the posted
+  text exactly the text the human approved.
 - **Every new card names its owner, and the human confirms it.** A `gh issue create` without
   `--assignee` is not run: an unowned card is invisible to every per-person read and accrues
   silently against the milestone. The owner is never inferred and filed silently, not even

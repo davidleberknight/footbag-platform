@@ -28,10 +28,10 @@ import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const SCRIPT = path.join(REPO_ROOT, 'scripts', 'confirm-alarm-subscription.sh');
 
-function link(topic: string, token = 'a1b2c3d4e5'): string {
+function link(topic: string, token = 'a1b2c3d4e5', region = 'us-east-1'): string {
   return (
-    'https://sns.us-east-1.amazonaws.com/confirmation.html?TopicArn=' +
-    encodeURIComponent(`arn:aws:sns:us-east-1:000000000000:${topic}`) +
+    `https://sns.${region}.amazonaws.com/confirmation.html?TopicArn=` +
+    encodeURIComponent(`arn:aws:sns:${region}:000000000000:${topic}`) +
     `&Token=${token}&Endpoint=ops-alert@footbag.org`
   );
 }
@@ -102,8 +102,20 @@ describe('confirm-alarm-subscription: confirming', () => {
     expect(call).toContain('--region us-east-1');
   });
 
-  it('accepts production’s certificate-alarm topic on production', () => {
-    expect(run(['--target', 'production', '--yes'], link('footbag-production-alarms-use1')).status).toBe(0);
+  it('accepts each of the environment’s three alarm topics, each in its own region', () => {
+    // Defect caught: the group's critical-topic link, or either address's
+    // us-west-2 link, refused, so that subscription can only be confirmed by
+    // clicking, which leaves it removable by any unsubscribe link.
+    expect(run(['--target', 'production', '--yes'], link('footbag-production-alarms-critical')).status).toBe(0);
+    const west = run(['--target', 'staging', '--yes'], link('footbag-staging-alarms-usw2', 'a1b2c3d4e5', 'us-west-2'));
+    expect(west.status, west.stderr).toBe(0);
+    expect(confirmCalls().at(-1)).toContain('--region us-west-2');
+  });
+
+  it('refuses the us-west-2 topic named in another region', () => {
+    const res = run(['--target', 'staging', '--yes'], link('footbag-staging-alarms-usw2'));
+    expect(res.status).toBe(2);
+    expect(res.stderr).toContain('where it does not live');
   });
 
   it('fails when the read-back shows a subscription an unsubscribe link could still remove', () => {
@@ -135,10 +147,10 @@ describe('confirm-alarm-subscription: refusals', () => {
     expect(confirmCalls()).toHaveLength(0);
   });
 
-  it('refuses production’s certificate-alarm topic on staging', () => {
-    const res = run(['--target', 'staging', '--yes'], link('footbag-production-alarms-use1'));
+  it('refuses the other environment’s critical topic', () => {
+    const res = run(['--target', 'staging', '--yes'], link('footbag-production-alarms-critical'));
     expect(res.status).toBe(2);
-    expect(res.stderr).toContain("not staging's");
+    expect(res.stderr).toContain("not one of staging's alarm topics");
   });
 
   it('refuses a topic that is not an alarm topic', () => {

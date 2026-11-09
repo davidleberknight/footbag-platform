@@ -23,9 +23,11 @@
 # prompt.
 #
 # Each tree goes through scripts/terraform-apply.sh with --init and
-# --skip-empty-plan. Every plan is printed in full and every tree with changes
-# takes its own typed APPLY, so one command never applies a tree its operator did
-# not read. A tree with nothing pending ends without a prompt. A failure or a
+# --skip-empty-plan. Every plan is printed in full, and every tree with changes
+# but staging takes its own typed APPLY, so one command never applies a shared,
+# identity or production change its operator did not read; staging, whose data is
+# disposable, applies straight through. A tree with nothing pending ends without a
+# prompt. A failure or a
 # declined confirmation stops the run at that tree; a re-run is safe, because a
 # tree already applied plans empty and is passed over.
 #

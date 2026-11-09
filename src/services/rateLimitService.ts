@@ -1,3 +1,25 @@
+/**
+ * Told of every refusal, with the action only. The limiter loads no
+ * application module of its own, so importing it never loads the
+ * configuration; the process that serves requests registers the listener that
+ * writes the refusal-volume log line.
+ */
+type RefusalListener = (action: string) => void;
+let refusalListener: RefusalListener | null = null;
+
+export function onRateLimitRefusal(listener: RefusalListener | null): void {
+  refusalListener = listener;
+}
+
+/** The action a bucket key counts: everything before its first ':', when that
+ *  is an action name. A key with no such prefix logs as `unnamed`, so a key made
+ *  only of an address can never reach a log line. */
+export function actionOf(key: string): string {
+  const colon = key.indexOf(':');
+  const prefix = colon === -1 ? '' : key.slice(0, colon);
+  return /^[a-z][a-z0-9_-]{0,63}$/.test(prefix) ? prefix : 'unnamed';
+}
+
 export interface RateLimitResult {
   allowed: boolean;
   /** How long attempts on this key will be refused. Set on a refusal, and on
@@ -154,6 +176,10 @@ export function hit(
 
   const retryAfterMs = expiresAt(bucket) - t;
   const retryAfterSeconds = Math.max(1, Math.ceil(retryAfterMs / 1000));
+  // One notice per refusal feeds the refusal-volume metric. It names only the
+  // action, the key's prefix: the rest of a key carries an email address or an
+  // IP address, which never reaches a log line.
+  refusalListener?.(actionOf(key));
   return { allowed: false, retryAfterSeconds };
 }
 

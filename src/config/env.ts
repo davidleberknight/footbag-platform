@@ -206,7 +206,11 @@ export interface AppConfig {
   // pairs signature verification with rejecting an unexpected TopicArn. Unset
   // means the feed refuses every delivery: an unauthenticatable feed is off.
   sesFeedbackTopicArn: string | undefined;
-  alarmTopicArn: string | undefined;
+  // The platform-alarm feed accepts more than one topic, because alarms are
+  // published to more than one: the environment's main alarm topic and the
+  // sibling topic AWS Health notices reach in its backup Region. The main topic
+  // comes first; an empty list means the feed refuses every delivery.
+  alarmTopicArns: readonly string[];
   // The queues the worker polls for each feed. Unset means that feed is not
   // read here, which is the state of an environment whose queues have not been
   // created yet; boot does not require them, because a queue is created and
@@ -963,7 +967,15 @@ function loadConfig(): AppConfig {
   // closed when unset, so a feed reads nothing rather than reading a message it
   // cannot attribute.
   const sesFeedbackTopicArn = process.env.SES_FEEDBACK_TOPIC_ARN || undefined;
-  const alarmTopicArn = process.env.ALARM_TOPIC_ARN || undefined;
+  // The main alarm topic, then any others the alarm feed queue is subscribed to,
+  // comma separated. An additional topic without the main one configures
+  // nothing: the feed stays off until the environment's own topic is known.
+  const alarmTopicArns: readonly string[] = process.env.ALARM_TOPIC_ARN
+    ? Object.freeze([
+      process.env.ALARM_TOPIC_ARN,
+      ...(process.env.ALARM_ADDITIONAL_TOPIC_ARNS ?? '').split(',').map((s) => s.trim()).filter(Boolean),
+    ])
+    : Object.freeze([]);
   // The queue per feed; see the interface comment. A queue without its topic
   // ARN is not read, so an environment cannot end up consuming notifications it
   // has no way to attribute.
@@ -1214,7 +1226,7 @@ function loadConfig(): AppConfig {
     webInternalUrl,
     internalEventSecret,
     sesFeedbackTopicArn,
-    alarmTopicArn,
+    alarmTopicArns,
     sesFeedbackQueueUrl,
     alarmQueueUrl,
     mediaJobLeaseSeconds,

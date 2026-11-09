@@ -867,12 +867,19 @@ bh_milestones() {
     echo "  - first admin (once, on a production with no administrator):"
     echo "      bash scripts/admin-bootstrap-token.sh --target production \\"
     echo "        --profile <prod-profile> provision"
-    echo "  - cutover login alarm (for the cutover window only):"
-    echo "      enable_cutover_login_alarm = true in the values file, then"
-    echo "      bash scripts/terraform-apply.sh --target production"
+    echo "  - cutover login alarm (pass 1 of the production-readiness sitting only):"
+    echo "      bash scripts/set-terraform-gate.sh --target production \\"
+    echo "        --gate enable_cutover_login_alarm --state on"
   else
     echo "  - payments activation, first admin and the cutover login alarm are"
     echo "    production steps; staging runs the stub payment adapter and takes its"
     echo "    administrators from the dev bootstrap."
   fi
+  echo "  - the alarms, once the metrics each watches are arriving (arming earlier"
+  echo "    pages at once, since their missing data counts as breaching):"
+  echo "      bash scripts/arm-cwagent-alarms.sh --target ${t}"
+  echo "      bash scripts/set-terraform-gate.sh --target ${t} --gate enable_backup_alarm --state on"
+  echo "      bash scripts/set-terraform-gate.sh --target ${t} --gate enable_container_alarms --state on"
+  echo "  - each alarm email subscription, once its confirmation email has arrived:"
+  echo "      bash scripts/confirm-alarm-subscription.sh --target ${t}"
 }

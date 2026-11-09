@@ -102,9 +102,9 @@ resource "aws_cloudwatch_metric_alarm" "high_cpu" {
   threshold                 = 85
   treat_missing_data        = "missing"
   alarm_description         = "CPU utilization above 85% for 3 consecutive minutes"
-  alarm_actions             = [aws_sns_topic.alarms.arn]
-  ok_actions                = [aws_sns_topic.alarms.arn]
-  insufficient_data_actions = [aws_sns_topic.alarms.arn]
+  alarm_actions             = local.critical_alarm_actions
+  ok_actions                = local.critical_alarm_actions
+  insufficient_data_actions = local.warning_alarm_actions
 
   dimensions = {
     cpu = "cpu-total"
@@ -123,9 +123,9 @@ resource "aws_cloudwatch_metric_alarm" "high_memory" {
   threshold                 = 85
   treat_missing_data        = "missing"
   alarm_description         = "Memory utilization above 85% for 3 consecutive minutes"
-  alarm_actions             = [aws_sns_topic.alarms.arn]
-  ok_actions                = [aws_sns_topic.alarms.arn]
-  insufficient_data_actions = [aws_sns_topic.alarms.arn]
+  alarm_actions             = local.critical_alarm_actions
+  ok_actions                = local.critical_alarm_actions
+  insufficient_data_actions = local.warning_alarm_actions
 }
 
 # Disk used % on root filesystem. CWAgent config sets drop_device:true so
@@ -144,9 +144,9 @@ resource "aws_cloudwatch_metric_alarm" "high_disk" {
   threshold                 = 85
   treat_missing_data        = "missing"
   alarm_description         = "Root filesystem usage above 85% for 3 consecutive minutes"
-  alarm_actions             = [aws_sns_topic.alarms.arn]
-  ok_actions                = [aws_sns_topic.alarms.arn]
-  insufficient_data_actions = [aws_sns_topic.alarms.arn]
+  alarm_actions             = local.critical_alarm_actions
+  ok_actions                = local.critical_alarm_actions
+  insufficient_data_actions = local.warning_alarm_actions
 
   dimensions = {
     path   = "/"
@@ -166,8 +166,8 @@ resource "aws_cloudwatch_metric_alarm" "db_backup_age" {
   threshold           = 15 # Alert if no backup in 15 minutes
   treat_missing_data  = "breaching"
   alarm_description   = "SQLite backup has not completed in 15+ minutes"
-  alarm_actions       = [aws_sns_topic.alarms.arn]
-  ok_actions          = [aws_sns_topic.alarms.arn]
+  alarm_actions       = local.critical_alarm_actions
+  ok_actions          = local.critical_alarm_actions
 }
 
 resource "aws_cloudwatch_metric_alarm" "db_backup_failures" {
@@ -182,8 +182,8 @@ resource "aws_cloudwatch_metric_alarm" "db_backup_failures" {
   threshold           = 3              # Alert after three consecutive failed backups
   treat_missing_data  = "notBreaching" # silence is covered by the staleness alarm
   alarm_description   = "SQLite backup has failed three or more times in a row"
-  alarm_actions       = [aws_sns_topic.alarms.arn]
-  ok_actions          = [aws_sns_topic.alarms.arn]
+  alarm_actions       = local.critical_alarm_actions
+  ok_actions          = local.critical_alarm_actions
 }
 
 # Promotion is the retention story rather than the backup itself, and it fails on
@@ -447,10 +447,10 @@ resource "aws_cloudwatch_metric_alarm" "cloudfront_5xx" {
   # would publish a notice.
   treat_missing_data = "notBreaching"
   alarm_description  = "CloudFront 5xx error rate above 5%"
-  alarm_actions      = [aws_sns_topic.alarms.arn]
+  alarm_actions      = local.critical_alarm_actions
   # Published on the way back to normal as well, so the alarm the platform
   # recorded can actually clear rather than sitting open for ever.
-  ok_actions = [aws_sns_topic.alarms.arn]
+  ok_actions = local.critical_alarm_actions
 
   dimensions = {
     DistributionId = aws_cloudfront_distribution.main[0].id
@@ -897,8 +897,8 @@ resource "aws_cloudwatch_metric_alarm" "cf_function_validation_errors_apex" {
   threshold           = 0
   treat_missing_data  = "notBreaching"
   alarm_description   = "The apex-redirect edge function returned an invalid response; viewers are getting 502 and no function test would have caught it"
-  alarm_actions       = [aws_sns_topic.alarms.arn]
-  ok_actions          = [aws_sns_topic.alarms.arn]
+  alarm_actions       = local.critical_alarm_actions
+  ok_actions          = local.critical_alarm_actions
 
   dimensions = {
     FunctionName = aws_cloudfront_function.apex_redirect[0].name
@@ -918,8 +918,8 @@ resource "aws_cloudwatch_metric_alarm" "cf_function_execution_errors_apex" {
   threshold           = 0
   treat_missing_data  = "notBreaching"
   alarm_description   = "The apex-redirect edge function failed to complete; the origin is never reached"
-  alarm_actions       = [aws_sns_topic.alarms.arn]
-  ok_actions          = [aws_sns_topic.alarms.arn]
+  alarm_actions       = local.critical_alarm_actions
+  ok_actions          = local.critical_alarm_actions
 
   dimensions = {
     FunctionName = aws_cloudfront_function.apex_redirect[0].name
@@ -939,8 +939,8 @@ resource "aws_cloudwatch_metric_alarm" "cf_function_validation_errors_media" {
   threshold           = 0
   treat_missing_data  = "notBreaching"
   alarm_description   = "The media-prefix edge function returned an invalid response; member photo URLs are returning 502"
-  alarm_actions       = [aws_sns_topic.alarms.arn]
-  ok_actions          = [aws_sns_topic.alarms.arn]
+  alarm_actions       = local.critical_alarm_actions
+  ok_actions          = local.critical_alarm_actions
 
   dimensions = {
     FunctionName = aws_cloudfront_function.strip_media_store_prefix[0].name
@@ -960,8 +960,8 @@ resource "aws_cloudwatch_metric_alarm" "cf_function_execution_errors_media" {
   threshold           = 0
   treat_missing_data  = "notBreaching"
   alarm_description   = "The media-prefix edge function failed to complete; the media origin is never reached"
-  alarm_actions       = [aws_sns_topic.alarms.arn]
-  ok_actions          = [aws_sns_topic.alarms.arn]
+  alarm_actions       = local.critical_alarm_actions
+  ok_actions          = local.critical_alarm_actions
 
   dimensions = {
     FunctionName = aws_cloudfront_function.strip_media_store_prefix[0].name
@@ -1038,47 +1038,21 @@ resource "aws_cloudwatch_metric_alarm" "acm_cert_expiry" {
   threshold           = 30
   treat_missing_data  = "notBreaching"
   alarm_description   = "footbag.org certificate expires in under 30 days (ACM auto-renewal is failing)"
-  alarm_actions       = [aws_sns_topic.alarms_us_east_1[0].arn]
-  ok_actions          = [aws_sns_topic.alarms_us_east_1[0].arn]
+  # The primary region is us-east-1, the region ACM publishes this metric in, so
+  # the alarm publishes to the main topic like every other alarm and reaches the
+  # admin console through the alarm feed.
+  alarm_actions = local.critical_alarm_actions
+  ok_actions    = local.critical_alarm_actions
 
   dimensions = {
     CertificateArn = aws_acm_certificate.main[0].arn
   }
-}
-
-# Alarm actions must target an SNS topic in the alarm's own region; the cert
-# alarm lives in us-east-1, so it gets a sibling topic with the same email
-# subscription.
-resource "aws_sns_topic" "alarms_us_east_1" {
-  # Follows the certificate alarm it exists for, not the distribution.
-  # Creating it earlier would mean an empty topic and a subscription
-  # confirmation email for something that never publishes.
-  count    = var.enable_platform_custom_domain ? 1 : 0
-  provider = aws.us_east_1
-  name     = "${local.prefix}-alarms-use1"
-}
-
-resource "aws_sns_topic_subscription" "alarm_email_us_east_1" {
-  count     = var.enable_platform_custom_domain ? 1 : 0
-  provider  = aws.us_east_1
-  topic_arn = aws_sns_topic.alarms_us_east_1[0].arn
-  protocol  = "email"
-  endpoint  = var.alarm_email
 
   lifecycle {
-    replace_triggered_by = [terraform_data.alarm_email_generation]
-  }
-}
-
-resource "aws_sns_topic_subscription" "alarm_ops_alert_us_east_1" {
-  count     = var.enable_platform_custom_domain && var.ops_alert_email != "" ? 1 : 0
-  provider  = aws.us_east_1
-  topic_arn = aws_sns_topic.alarms_us_east_1[0].arn
-  protocol  = "email"
-  endpoint  = var.ops_alert_email
-
-  lifecycle {
-    replace_triggered_by = [terraform_data.alarm_email_generation]
+    precondition {
+      condition     = var.aws_region == "us-east-1"
+      error_message = "The certificate-expiry alarm publishes to the primary region's alarm topic, which must be in us-east-1 with it."
+    }
   }
 }
 

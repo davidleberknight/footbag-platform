@@ -245,12 +245,62 @@ resource "terraform_data" "alarm_email_generation" {
   input = var.alarm_email_subscription_generation
 }
 
+# ── Critical alarms ──────────────────────────────────────────────────────────
+# Two audiences. The account's own mailbox and the admin console receive every
+# alarm, warnings included, through the main topic. The group of everyone on the
+# watch receives only the alarms that need someone to act now: those publish to
+# this topic as well as the main one, so each is still recorded on the console
+# and in the account mailbox exactly once. Membership is the alarm's own action
+# list, so which alarms reach the group is read from the alarm definitions
+# rather than from a filter that could silently stop matching.
+resource "aws_sns_topic" "alarms_critical" {
+  name              = "${local.prefix}-alarms-critical"
+  kms_master_key_id = aws_kms_key.main.arn
+}
+
+resource "aws_sns_topic_policy" "alarms_critical" {
+  arn = aws_sns_topic.alarms_critical.arn
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "OwnerFullAccess"
+        Effect    = "Allow"
+        Principal = { AWS = "arn:aws:iam::${var.aws_account_id}:root" }
+        Action    = local.sns_owner_actions
+        Resource  = aws_sns_topic.alarms_critical.arn
+      },
+      {
+        Sid       = "AllowCloudWatchPublish"
+        Effect    = "Allow"
+        Principal = { Service = "cloudwatch.amazonaws.com" }
+        Action    = "SNS:Publish"
+        Resource  = aws_sns_topic.alarms_critical.arn
+        Condition = {
+          StringEquals = {
+            "AWS:SourceAccount" = var.aws_account_id
+          }
+        }
+      }
+    ]
+  })
+}
+
+locals {
+  # Every alarm sends its warning and its return to normal to the main topic; a
+  # critical one also sends both to the critical topic.
+  warning_alarm_actions  = [aws_sns_topic.alarms.arn]
+  critical_alarm_actions = [aws_sns_topic.alarms.arn, aws_sns_topic.alarms_critical.arn]
+}
+
 # A second destination, beside the account's own mailbox rather than instead of
-# it: a group whose members are everyone on the watch. The account mailbox stays
-# the one destination that does not depend on this domain's own mail.
+# it: a group whose members are everyone on the watch, subscribed to the
+# critical alarms. The account mailbox stays the one destination that does not
+# depend on this domain's own mail, and receives every alarm.
 resource "aws_sns_topic_subscription" "alarm_ops_alert" {
   count     = var.ops_alert_email != "" ? 1 : 0
-  topic_arn = aws_sns_topic.alarms.arn
+  topic_arn = aws_sns_topic.alarms_critical.arn
   protocol  = "email"
   endpoint  = var.ops_alert_email
 
@@ -303,15 +353,34 @@ resource "aws_sqs_queue_policy" "alarm_feed" {
       Action    = "sqs:SendMessage"
       Resource  = aws_sqs_queue.alarm_feed[0].arn
       Condition = {
-        ArnEquals = { "aws:SourceArn" = aws_sns_topic.alarms.arn }
+        ArnEquals = { "aws:SourceArn" = local.alarm_feed_topic_arns }
       }
     }]
   })
 }
 
+# The feed reads every topic an alarm or a Health notice can arrive on, so
+# nothing that reaches a mailbox is missing from the admin console: the main
+# topic, and the us-west-2 topic AWS Health's backup copy publishes to. The
+# critical topic carries nothing the main topic does not, so it is not read.
+locals {
+  alarm_feed_topic_arns = [aws_sns_topic.alarms.arn, aws_sns_topic.alarms_us_west_2.arn]
+}
+
 resource "aws_sns_topic_subscription" "alarm_feed" {
   count                = var.enable_feed_queues ? 1 : 0
   topic_arn            = aws_sns_topic.alarms.arn
+  protocol             = "sqs"
+  endpoint             = aws_sqs_queue.alarm_feed[0].arn
+  raw_message_delivery = false
+}
+
+# Cross-region: the subscription lives with its topic in us-west-2 and delivers
+# to the queue in the primary region.
+resource "aws_sns_topic_subscription" "alarm_feed_us_west_2" {
+  count                = var.enable_feed_queues ? 1 : 0
+  provider             = aws.us_west_2
+  topic_arn            = aws_sns_topic.alarms_us_west_2.arn
   protocol             = "sqs"
   endpoint             = aws_sqs_queue.alarm_feed[0].arn
   raw_message_delivery = false

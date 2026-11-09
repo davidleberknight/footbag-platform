@@ -1174,6 +1174,19 @@ describe('pruning set-aside database copies after a code deploy', () => {
    * answer as a healthy release unless READY_EXIT says otherwise. The prelude
    * stands where the shipped helper does on the wire.
    */
+  // What `compose ps` prints for a stack whose four containers all came up:
+  // nginx carries no healthcheck, so its health column is empty.
+  const HEALTHY_LISTING = 'nginx running \\nweb running healthy\\nworker running healthy\\nimage running healthy\\n';
+  // The three agent pins in the shape the shipped pin file carries them.
+  const PIN_FILE = [
+    'CWAGENT_VERSION=1.300074.0b1920',
+    'CWAGENT_URL=https://amazoncloudwatch-agent.s3.amazonaws.com/amazon_linux/amd64/1.300074.0b1920/amazon-cloudwatch-agent.rpm',
+    'CWAGENT_SHA256=41609c43d73747c7cf23f28c4ddfdc2370b80cd556aecd296190fc9cdb8c72a4',
+    '',
+  ].join('\n');
+  // What `ss -Hulpn` prints for the agent's StatsD input bound to loopback.
+  const STATSD_LOOPBACK = 'UNCONN 0 0 127.0.0.1:8125 0.0.0.0:* users:((\\"amazon-cloudwatch\\",pid=1,fd=9))\\n';
+
   function runTail(prelude: string, extraEnv?: NodeJS.ProcessEnv) {
     const remote = readFileSync(REMOTE, 'utf8');
     const start = remote.indexOf('_stack_healthy=0');
@@ -1190,23 +1203,54 @@ describe('pruning set-aside database copies after a code deploy', () => {
     const log = join(workDir, 'tail-calls.log');
     rmSync(log, { force: true });
 
+    // A stand-in release tree for the agent re-apply: the real report library,
+    // a pin file, and an installer half that records how it was called and
+    // exits as CWAGENT_EXIT says. The host holds an agent key unless the case
+    // removes it, and no stamp, so a first run re-applies.
+    const liveDir = join(workDir, 'live');
+    mkdirSync(join(liveDir, 'scripts', 'internal'), { recursive: true });
+    mkdirSync(join(liveDir, 'scripts', 'lib'), { recursive: true });
+    mkdirSync(join(liveDir, 'ops'), { recursive: true });
+    writeFileSync(join(liveDir, 'scripts', 'lib', 'closing-report-remote.sh'), readFileSync(REMOTE_REPORT_LIB, 'utf8'));
+    const pinFile = join(liveDir, 'ops', 'tool-versions.env');
+    if (!existsSync(pinFile)) writeFileSync(pinFile, PIN_FILE);
+    writeFileSync(join(liveDir, 'scripts', 'internal', 'install-cwagent-remote.sh'), [
+      `echo "cwagent keep=$CWAGENT_KEEP_CREDENTIALS profile=$CWAGENT_PROFILE ns=$CWAGENT_NAMESPACE version=$CWAGENT_VERSION" >> ${JSON.stringify(log)}`,
+      '[[ "${CWAGENT_EXIT:-0}" == 0 ]] || crr_error "stand-in agent install failed"',
+      'exit "${CWAGENT_EXIT:-0}"',
+    ].join('\n'));
+    const creds = join(workDir, 'cwagent-credentials');
+    writeFileSync(creds, '[footbag-staging-cwagent]\naws_access_key_id = stub\n');
+    const stamp = join(workDir, 'cwagent-stamp');
+
     const harness = join(workDir, 'tail-harness.sh');
     writeFileSync(harness, [
       'set -euo pipefail',
       `source ${JSON.stringify(REMOTE_REPORT_LIB)}`,
       prelude,
       `LOG=${JSON.stringify(log)}`,
-      'systemctl() { echo "systemctl $*" >> "$LOG"; }',
+      'systemctl() {',
+      '  echo "systemctl $*" >> "$LOG"',
+      '  case "$1" in',
+      '    is-enabled) [[ "$*" != *container-monitor* || "${MONITOR_ENABLED:-1}" == 1 ]] ;;',
+      '    show) echo "${MONITOR_RESULT:-success}" ;;',
+      '  esac',
+      '}',
+      `ss() { echo "ss $*" >> "$LOG"; printf '%b' "\${STATSD-${STATSD_LOOPBACK}}"; }`,
       'sleep() { :; }',
       'docker() {',
       '  echo "docker $*" >> "$LOG"',
       '  case "$*" in',
       '    *wget*) return "${READY_EXIT:-0}" ;;',
       '    *GetCallerIdentityCommand*) printf "arn:aws:sts::1:assumed-role/footbag-staging-app-runtime/s" ;;',
+      `    *" ps --all --format "*) printf '%b' "\${CONTAINERS-${HEALTHY_LISTING}}" ;;`,
       '  esac',
       '}',
       `ENV_PATH=${JSON.stringify(envPath)}`,
       'FOOTBAG_ENV_VAL=staging',
+      `LIVE_DIR=${JSON.stringify(liveDir)}`,
+      `CWAGENT_CREDS_FILE="\${TEST_CREDS:-${creds}}"`,
+      `CWAGENT_STAMP_FILE=${JSON.stringify(stamp)}`,
       readEnv,
       remote.slice(start, end + endMarker.length),
       'echo TAIL_DONE',
@@ -1223,8 +1267,52 @@ describe('pruning set-aside database copies after a code deploy', () => {
       stderr: res.stderr ?? '',
       dbDir,
       log: existsSync(log) ? readFileSync(log, 'utf8') : '',
+      stamp: existsSync(stamp) ? readFileSync(stamp, 'utf8').trim() : '',
     };
   }
+
+  // Defect caught: a new agent pin or agent configuration that only reaches a
+  // host when someone remembers a separate upgrade run, so hosts drift from the
+  // release and the container readings go nowhere.
+  it('re-applies the CloudWatch agent from the release, keeping its key, then records the release', () => {
+    const res = runTail('prune_db_copies() { :; }');
+
+    expect(res.status, res.stderr).toBe(0);
+    expect(res.log).toMatch(/cwagent keep=1 profile=footbag-staging-cwagent ns=CWAgent version=1\.300074\.0b1920/);
+    expect(res.stamp).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('leaves the agent alone once this release is the one applied', () => {
+    runTail('prune_db_copies() { :; }');
+    const again = runTail('prune_db_copies() { :; }');
+
+    expect(again.log).not.toMatch(/^cwagent /m);
+  });
+
+  it('re-applies again when the pin changes', () => {
+    runTail('prune_db_copies() { :; }');
+    const pins = join(workDir, 'live', 'ops', 'tool-versions.env');
+    writeFileSync(pins, PIN_FILE.replace(/1\.300074\.0b1920/g, '1.300080.0b2000'));
+    const bumped = runTail('prune_db_copies() { :; }');
+
+    expect(bumped.log).toMatch(/cwagent keep=1 .*version=1\.300080\.0b2000/);
+  });
+
+  // Defect caught: a failed agent install recorded as applied, so no later
+  // deploy retries it and the host keeps an agent the release no longer pins.
+  it('reports a failed re-apply as an error and records nothing, so the next deploy retries', () => {
+    const res = runTail('prune_db_copies() { :; }', { CWAGENT_EXIT: '1' });
+
+    expect(res.stderr).toMatch(/ ERROR re-applying the CloudWatch agent failed/);
+    expect(res.stamp).toBe('');
+  });
+
+  it('warns and installs nothing where the agent holds no key yet', () => {
+    const res = runTail('prune_db_copies() { :; }', { TEST_CREDS: join(workDir, 'no-such-credentials') });
+
+    expect(res.stderr).toMatch(/ WARN the CloudWatch agent holds no key on this host yet/);
+    expect(res.log).not.toMatch(/^cwagent /m);
+  });
 
   /** A copy-aside timestamp, `days` before now. */
   const stampDaysAgo = (days: number): string =>
@@ -1266,6 +1354,56 @@ describe('pruning set-aside database copies after a code deploy', () => {
 
     expect(res.status).toBe(1);
     expect(res.log).not.toContain('prune ');
+  });
+
+  // Defect caught: a deploy reported live while the worker or the image
+  // processor crash-loops, because only web's readiness was polled; outbound
+  // mail or photo processing would then be dead behind a green deploy.
+  it.each([
+    ['worker restarting', 'nginx running \\nweb running healthy\\nworker restarting \\nimage running healthy\\n'],
+    ['image unhealthy', 'nginx running \\nweb running healthy\\nworker running healthy\\nimage running unhealthy\\n'],
+    ['compose reaching nothing', ''],
+  ])('fails the deploy when a container is not healthy (%s)', (_label, listing) => {
+    const res = runTail('prune_db_copies() { :; }', { CONTAINERS: listing });
+
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('did not reach healthy state');
+    expect(res.stdout).not.toContain('TAIL_DONE');
+  });
+
+  it('passes the readiness poll once every container is running and healthy', () => {
+    const res = runTail('prune_db_copies() { :; }');
+
+    expect(res.status, res.stderr).toBe(0);
+    expect(res.stdout).toContain('TAIL_DONE');
+    // A healthy stack with the agent on loopback raises nothing.
+    expect(res.stderr).not.toMatch(/ ERROR | WARN /);
+  });
+
+  // Defect caught: a deploy shipping a container monitor that cannot run, and
+  // reporting success, so the host goes unwatched until the heartbeat alarm
+  // fires minutes later, or never where that alarm is not yet armed.
+  it('runs one container reading after the poll and fails the deploy when it does not succeed', () => {
+    const res = runTail('prune_db_copies() { :; }', { MONITOR_RESULT: 'exit-code' });
+
+    expect(res.log).toMatch(/systemctl start footbag-container-monitor\.service/);
+    expect(res.stderr).toMatch(/ ERROR the container monitor's first reading ended 'exit-code'/);
+  });
+
+  // Defect caught: readings sent by UDP into nothing, because the agent's StatsD
+  // input is off, with no sign of it anywhere; or an input bound on every
+  // interface, which the containers could reach as well.
+  it('warns when no agent listens for the readings and refuses one listening beyond loopback', () => {
+    const silent = runTail('prune_db_copies() { :; }', { STATSD: '' });
+    expect(silent.stderr).toMatch(/ WARN nothing listens on UDP 8125/);
+
+    const wide = runTail('prune_db_copies() { :; }', { STATSD: 'UNCONN 0 0 *:8125 *:* users:((\\"amazon-cloudwatch\\",pid=1,fd=9))\\n' });
+    expect(wide.stderr).toMatch(/ ERROR the CloudWatch agent's StatsD input listens beyond the loopback address/);
+  });
+
+  it('takes no reading where the monitor timer is not enabled', () => {
+    const res = runTail('prune_db_copies() { :; }', { MONITOR_ENABLED: '0' });
+    expect(res.log).not.toMatch(/start footbag-container-monitor/);
   });
 
   // Defect caught: a deploy that had already succeeded reported as failed

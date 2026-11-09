@@ -10,7 +10,7 @@
 # does, because it holds every environment's state.
 #
 # It now has a companion secrets file, like staging and production: the account's
-# three alternate contacts carry a recovery address and a named person's phone
+# operations and security alternate contacts carry an address and a phone
 # number, so those values go in secrets.auto.tfvars and never here. The gate
 # below is the only part of them that is not sensitive.
 #
@@ -26,9 +26,10 @@ aws_region = "us-east-1"
 # and never afterwards.
 state_bucket_suffix = "TODO-set-unique-suffix"
 
-# Turn the account's three alternate contacts on. Flip this only once all three
-# identities have been decided and their values are in secrets.auto.tfvars; an
-# apply with this on and a value missing is refused by a precondition naming the
-# one that is absent. The three account controls beside them carry no values and
-# do not wait on this.
+# Turn the account's operations and security alternate contacts on, both naming
+# the operations group's mailbox. Flip this only once both values are in
+# secrets.auto.tfvars; an apply with this on and a value missing is refused by a
+# precondition naming the one that is absent. Billing notices stay with the root
+# mailbox, so there is no billing contact. The three account controls beside
+# them carry no values and do not wait on this.
 enable_account_alternate_contacts = false

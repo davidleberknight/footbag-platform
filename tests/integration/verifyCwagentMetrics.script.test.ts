@@ -211,3 +211,28 @@ describe('verify-cwagent-metrics.sh verdicts', () => {
     expect(r.stdout).not.toContain('enable_cwagent_alarms = true');
   });
 });
+
+describe('verify-cwagent-metrics.sh --containers', () => {
+  // Defect caught: the container alarms armed while the monitor's readings
+  // never arrive, so the heartbeat alarm pages at once and the others watch
+  // nothing; or the readings arriving under a dimension the alarms do not bind.
+  it('passes once the heartbeat and a container-tagged reading arrive, naming the gate', () => {
+    const r = run(['--target', 'production', '--containers'], {
+      container_monitor_heartbeat: '9',
+      container_memory_percent: '9',
+    });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toContain('--gate enable_container_alarms --state on');
+    const queries = calls().filter((c) => c.includes('get-metric-statistics'));
+    expect(queries.some((c) => /--namespace CWAgent\/production --metric-name container_monitor_heartbeat --start-time/.test(c))).toBe(true);
+    expect(queries.some((c) => /container_memory_percent --dimensions Name=container,Value=web/.test(c))).toBe(true);
+  });
+
+  it('refuses while the heartbeat is missing, and reads none of the host rows', () => {
+    const r = run(['--target', 'staging', '--containers'], { container_memory_percent: '9' });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/Missing: container_monitor_heartbeat/);
+    expect(r.stderr).toContain('Do not arm the container alarms until this passes.');
+    expect(calls().some((c) => c.includes('cpu_usage_active'))).toBe(false);
+  });
+});

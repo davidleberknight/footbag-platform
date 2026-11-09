@@ -1,8 +1,10 @@
 /**
  * SystemHealthService -- the operator's read view of platform health.
  *
- * Owns: the view model for the admin system-health page, and the small health
- * summary the admin dashboard shows as badges. Reads only; every number on the
+ * Owns: the view model for the admin system-health page, the small health
+ * summary the admin dashboard shows as badges, and the alarm banner every admin
+ * page carries (unacknowledged alarms, and alarms unable to arrive because the
+ * worker that reads them has stopped). Reads only; every number on the
  * page comes from data another service already wrote. Does not own: draining
  * the outbound-email queue (CommunicationService), running the scheduled jobs
  * or their run records (OperationsPlatformService), the per-message email log
@@ -44,6 +46,7 @@
 import { outbox, systemJobRuns } from '../db/db';
 import { runSqliteRead } from './sqliteRetry';
 import { readIntConfig, readHealthWindowHours } from './configReader';
+import { config } from '../config/env';
 import { systemAlarmService } from './systemAlarmService';
 import { evaluateBulkFeedbackHalt } from './communicationService';
 import { JOBS, listHighFrequencyJobNames } from './jobRegistry';
@@ -246,7 +249,52 @@ function isRowOverdue(row: JobSummaryRow, nowMs: number): boolean {
 }
 
 
+/** The line every admin page carries while an alarm needs answering or alarms
+ *  cannot arrive. Either line may be absent; the banner itself is absent when
+ *  both are. */
+export interface AdminAlarmBanner {
+  alarmLine: string | null;
+  alarmHref: string;
+  alarmLinkLabel: string;
+  feedStalledLine: string | null;
+}
+
 export const systemHealthService = {
+  /**
+   * The admin-wide alarm banner. Alarms reach this application only through the
+   * worker, which reads them from their queue, so a stopped worker is also the
+   * one failure the alarm list itself can never show. The web process therefore
+   * judges the worker from the database by the same overdue rule the missed-run
+   * alarm uses, over the jobs the worker runs most often: when any of them is
+   * overdue, the banner says alarms are not reaching the console. That line
+   * appears only where the alarm feed is configured, since an environment with
+   * no feed receives no alarms here in any case.
+   */
+  getAdminAlarmBanner(): AdminAlarmBanner | null {
+    return runSqliteRead('admin alarm banner', () => {
+      const active = systemAlarmService.countActiveUnacknowledged();
+      let feedStalled = false;
+      if (config.alarmQueueUrl && config.alarmTopicArns.length > 0) {
+        const watched = new Set(listHighFrequencyJobNames());
+        const since = windowStartIso(readHealthWindowHours(), Date.now());
+        const nowMs = Date.now();
+        feedStalled = (systemJobRuns.summarizeByJob.all(since, since) as JobSummaryRow[])
+          .some((row) => watched.has(row.job_name) && isRowOverdue(row, nowMs));
+      }
+      if (active === 0 && !feedStalled) return null;
+      return {
+        alarmLine: active === 0 ? null
+          : active === 1 ? '1 platform alarm needs attention.'
+          : `${active} platform alarms need attention.`,
+        alarmHref: '/admin/alarms',
+        alarmLinkLabel: 'View Platform Alarms',
+        feedStalledLine: feedStalled
+          ? 'Alarms are not reaching this page: the background worker has stopped running its jobs. Alarm emails still arrive.'
+          : null,
+      };
+    });
+  },
+
   /** The counts the admin dashboard shows as badges, without shaping the whole
    *  health page for them.
    *

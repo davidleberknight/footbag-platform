@@ -114,6 +114,13 @@
 #   bash scripts/set-terraform-gate.sh --target production --gate enable_cutover_login_alarm --state on    # pass 1 only
 #   bash scripts/set-terraform-gate.sh --target production --gate enable_cutover_login_alarm --state off
 #   bash scripts/set-terraform-gate.sh --target production --gate enable_billing_alarm --state on --dry-run
+#   bash scripts/set-terraform-gate.sh --target staging --gate enable_container_alarms --state on
+#   bash scripts/set-terraform-gate.sh --target production --gate enable_host_key_alarm --state on
+#
+# Before arming, enable_container_alarms needs the container monitor's
+# heartbeat flowing, and enable_host_key_alarm (production only, where the
+# trail lives) needs the trail's last week to show every call by each host key
+# from that host's address; each is checked, and refused otherwise.
 #
 # Flags:
 #   --target staging|production  Environment (required, no default).
@@ -152,6 +159,8 @@ ALLOWED_GATES=(
   enable_jobs_heartbeat_alarm
   enable_billing_alarm
   enable_cutover_login_alarm
+  enable_container_alarms
+  enable_host_key_alarm
 )
 
 TARGET=""
@@ -557,6 +566,56 @@ read_region() {
   fi
 }
 
+# The host-key alarms fire on any call signed by a host's key from an address
+# other than the one the tree expects for that host. Arming them is safe only
+# when the trail's last week agrees: every call each key made came from its
+# expected address. The users and addresses are read from the tree itself
+# (local.host_keys), so the check and the filter cannot disagree about either.
+host_key_precheck() {
+  local out rc=0 keys start key user ip events seen
+  out="$(printf 'jsonencode(local.host_keys)\n' | "$TF_BIN" -chdir="$TF_DIR" console 2>&1)" || rc=$?
+  if [[ "$rc" != 0 ]]; then
+    cr_error "the read of local.host_keys failed (exit ${rc}): $(error_titles <<<"$out")"
+    return 1
+  fi
+  # console prints the encoded value as a quoted string; decode it once.
+  keys="$(tail -n 1 <<<"$out" | jq -r 'fromjson | to_entries[] | "\(.key) \(.value.user) \(.value.ip)"' 2>&1)" || {
+    cr_error "local.host_keys in terraform/${TARGET} did not read back as the expected map: $(tail -n 1 <<<"$keys")"
+    return 1
+  }
+  start="$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ)"
+  while read -r key user ip; do
+    [[ -n "$key" ]] || continue
+    if [[ -z "$ip" ]]; then
+      cr_error "refusing to arm ${GATE}: no address is set for ${user} (set staging_web_static_ip in the values file first)"
+      return 1
+    fi
+    rc=0
+    events="$("$AWS_BIN" cloudtrail lookup-events --region us-east-1 \
+      --lookup-attributes "AttributeKey=Username,AttributeValue=${user}" \
+      --start-time "$start" --query 'Events[].CloudTrailEvent' --output json 2>&1)" || rc=$?
+    if [[ "$rc" != 0 ]]; then
+      cr_error "reading the trail's last week for ${user} failed (exit ${rc}): $(tail -n 1 <<<"$events")"
+      return 1
+    fi
+    # Addresses of the calls the key signed itself; calls a service made on its
+    # behalf carry the service and are not what the filter watches.
+    seen="$(jq -r '.[] | fromjson | select(.userIdentity.invokedBy == null) | .sourceIPAddress' <<<"$events" 2>&1 | sort -u)" || {
+      cr_error "the trail's events for ${user} did not parse: $(tail -n 1 <<<"$seen")"
+      return 1
+    }
+    if [[ -z "$seen" ]]; then
+      echo "host-key check: ${user} made no call of its own in the last week; nothing contradicts ${ip}."
+      continue
+    fi
+    if [[ "$seen" != "$ip" ]]; then
+      cr_error "refusing to arm ${GATE}: in the last week ${user} signed calls from $(tr '\n' ' ' <<<"$seen")but the alarm expects ${ip} only; arming it would hold the alarm in ALARM. Find each address in the trail first."
+      return 1
+    fi
+    echo "host-key check: every call ${user} signed in the last week came from ${ip}."
+  done <<<"$keys"
+}
+
 # Before an alarm is armed, what it reads must be there: the backup and
 # missed-run alarms treat missing data as breaching, so arming them over
 # nothing pages at once, and the billing alarm over no metric watches nothing.
@@ -599,6 +658,22 @@ metric_precheck() {
       # and it is armed only in pass 1, where its firing on the idle production
       # is the fire test, so there is nothing to look for first.
       echo "metric check: none for ${GATE}; it is armed in pass 1 to fire on missing data."
+      return 0
+      ;;
+    enable_container_alarms)
+      read_region || return 1
+      # The container monitor's heartbeat, which the heartbeat alarm treats as
+      # breaching when missing. Staging's agent publishes to the bare CWAgent
+      # namespace; production's to CWAgent/production.
+      local ns="CWAgent"
+      [[ "$TARGET" == "production" ]] && ns="CWAgent/production"
+      aws_count "listing container_monitor_heartbeat in ${ns} (${REGION})" \
+        cloudwatch list-metrics --region "$REGION" --namespace "$ns" \
+        --metric-name container_monitor_heartbeat --recently-active PT3H --query 'length(Metrics)' || return 1
+      present_msg="container_monitor_heartbeat has had no data in ${ns} (${REGION}) in the last three hours: the heartbeat alarm treats missing data as breaching and would page at once. Deploy a release carrying the container monitor and let it run first."
+      ;;
+    enable_host_key_alarm)
+      host_key_precheck || return 1
       return 0
       ;;
     *)

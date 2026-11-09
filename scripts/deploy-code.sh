@@ -404,6 +404,10 @@ echo "==> Rsyncing source to host (code only, no database)..."
 # so the cutover's own rollback-artifact step failed on every host.
 # assert-no-erasure-replay-pending.sh is the fourth: the main unit runs it by
 # relative path before every start, so a host without it cannot start the site.
+# container-monitor.sh is the fifth: its timer runs it every minute, and it
+# reports through the closing-report library, so the three library files it
+# sources ship with it. The CloudWatch agent's installer half is the sixth: the
+# deploy re-applies the agent from it whenever its pin or configuration changed.
 # The rest of scripts/ is operator tooling that has no business on a host, so the
 # directory is included only far enough for rsync to descend into it.
 rsync -av --delete -e "ssh ${SSH_OPTS[*]}" \
@@ -417,6 +421,13 @@ rsync -av --delete -e "ssh ${SSH_OPTS[*]}" \
   --include='/scripts/cutover-marker.sh' \
   --include='/scripts/take-pre-cutover-snapshot.sh' \
   --include='/scripts/assert-no-erasure-replay-pending.sh' \
+  --include='/scripts/container-monitor.sh' \
+  --include='/scripts/lib/' \
+  --include='/scripts/lib/closing-report.sh' \
+  --include='/scripts/lib/closing-report-remote.sh' \
+  --include='/scripts/lib/verdict-banner.sh' \
+  --include='/scripts/internal/' \
+  --include='/scripts/internal/install-cwagent-remote.sh' \
   --include='/package.json' \
   --include='/package-lock.json' \
   --include='/tsconfig.json' \

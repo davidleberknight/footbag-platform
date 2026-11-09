@@ -432,7 +432,7 @@ Impact:
 
 - Container will be killed (OOM) if exceeds allocated memory. Health checks and restart policies ensure container restarts automatically, and the host survives the episode: no single container's ceiling can exhaust what the host and its swap can supply.
 
-- CloudWatch agent monitors container-level memory usage via docker stats API.
+- A container monitor on the host reads each container's working-set memory against its limit every minute and sends it to the CloudWatch agent.
 
 - Alerts configured: Warning at 80 percent container memory, critical at 90 percent.
 
@@ -1889,7 +1889,7 @@ Impact:
 
 - SecretsAdapter abstracts Parameter Store in production and an in-memory stub in development.
 - Cryptographic signing/encryption paths depend on KMS-backed adapters (`JwtSigningAdapter` for sessions today; `BallotEncryptionAdapter` for envelope encryption when ballots land), not Parameter Store.
-- CloudTrail/CloudWatch monitoring should watch for unusual Parameter Store access patterns and KMS error rates.
+- CloudTrail metric filters alarm on KMS errors and on denied Parameter Store access.
 - Parameter Store secrets rotate through new parameter version + controlled container restart / redeploy.
 - KMS keys rotate through an explicit key-rotation procedure (the new key signs at once and a token naming the old key is refused; deploy archive verifier update if applicable).
 
@@ -4680,7 +4680,7 @@ Impact:
 
 Health Checks and Restart Policies:
 
-All containers configured with health checks (30-60s intervals, 3 retries) and restart policies. Web/worker/nginx use restart: unless-stopped for continuous availability. Image container uses restart: on-failure with max 5 attempts to prevent restart loops. CloudWatch monitors container health status and alerts on persistent failures.
+All containers configured with health checks (30-60s intervals, 3 retries) and restart policies. All four containers use restart: unless-stopped with no retry cap, so a container comes back after any number of crashes or out-of-memory kills and stays down only when an operator stops it. CloudWatch monitors container health status, crashes and out-of-memory kills and alerts on each, so a restart loop is seen rather than capped.
 
 ## 7.4 GitHub
 
@@ -4979,7 +4979,7 @@ Requirements:
 
 Decision:
 
-CloudWatch metrics and alarms monitor key system health indicators: application errors (5xx rates, exceptions), Lightsail instance health (CPU, memory, disk), S3 operation failures, SES bounce rates, backup failures, scheduled-job failures and missed runs, Stripe webhook processing failures. SNS topics deliver alarms to the administrator mailbox, including alarms for KMS error rates/latency (auth signing, ballot encryption) and alerts for unusual Parameter Store access patterns.
+CloudWatch metrics and alarms monitor key system health indicators: application errors (5xx rates, exceptions), Lightsail instance health (CPU, memory, disk), each container's memory, crashes, out-of-memory kills and health, site availability from outside, rate-limit refusals, S3 operation failures (which surface through the application error alarm), SES bounce rates, backup failures, scheduled-job failures and missed runs, Stripe webhook processing failures. SNS topics deliver alarms to the administrator mailbox, including alarms on KMS errors (auth signing, ballot encryption) and on denied Parameter Store access; critical alarms also reach the operations group's mailbox through a topic of their own.
 
 Rationale:
 
@@ -5009,7 +5009,7 @@ Impact:
 
 Decision:
 
-In-process rate limiting via an in-memory bucket service (not a route middleware; see the Layered Architecture: Controllers, Services, Middleware, Adapters section): state-changing actions are bucketed per action and request-derived key (per-member, per-IP, per-target), with bucket sizes and windows from system config. App-side rate limiting state (including IP-based counters for login/reset) is kept in memory only and is not persisted to the database or logs. Cloudflare Turnstile CAPTCHA gates login, register, password-reset, and verify-email-resend form submissions; the server verifies the Turnstile response token before any DB read. Turnstile runs in Managed mode (Cloudflare-recommended default), which completes without user interaction for low-risk sessions and escalates to a checkbox challenge for higher-risk sessions. AWS Shield Standard, automatic on the CloudFront distribution, covers volumetric L3/L4 DDoS at no additional cost. A CloudWatch origin-spike alarm notifies the operator when sustained per-minute origin request volume exceeds the configured threshold. No edge-layer application abuse rule engine. No managed WAF or AI-based bot detection beyond Turnstile's risk scoring. The bucket store is bounded twice: expired buckets are swept on a schedule amortised across ordinary writes, and a hard ceiling evicts when a flood outruns the sweep. Every bucket is judged against its own action's window, because one store holds all of them and the windows differ by action. A caller may also set a cooldown, a lockout that outlives the counting window and runs from the attempt that crossed the ceiling; login uses one, so the penalty for exhausting the attempts does not shrink the later in a window an attacker starts. A bucket serving a cooldown counts as actively refusing and is not evicted. Eviction takes buckets that are not refusing attempts ahead of any that are, so reaching the ceiling can never clear a limit that is actively being enforced. A free account's first club join is the one self-service way to Tier 1 benefits such as media upload, so the club's co-leaders are its human check: their join email asks them to report a name they do not recognise, and a club with no co-leader refuses a join from a member without Tier 1 benefits.
+In-process rate limiting via an in-memory bucket service (not a route middleware; see the Layered Architecture: Controllers, Services, Middleware, Adapters section): state-changing actions are bucketed per action and request-derived key (per-member, per-IP, per-target), with bucket sizes and windows from system config. App-side rate limiting state (including IP-based counters for login/reset) is kept in memory only: no counter and no key is persisted to the database or written to a log. Each refusal writes one warning line naming only its action, which feeds the refusal-count metric. Cloudflare Turnstile CAPTCHA gates login, register, password-reset, and verify-email-resend form submissions; the server verifies the Turnstile response token before any DB read. Turnstile runs in Managed mode (Cloudflare-recommended default), which completes without user interaction for low-risk sessions and escalates to a checkbox challenge for higher-risk sessions. AWS Shield Standard, automatic on the CloudFront distribution, covers volumetric L3/L4 DDoS at no additional cost. A CloudWatch origin-spike alarm notifies the operator when sustained per-minute origin request volume exceeds the configured threshold. No edge-layer application abuse rule engine. No managed WAF or AI-based bot detection beyond Turnstile's risk scoring. The bucket store is bounded twice: expired buckets are swept on a schedule amortised across ordinary writes, and a hard ceiling evicts when a flood outruns the sweep. Every bucket is judged against its own action's window, because one store holds all of them and the windows differ by action. A caller may also set a cooldown, a lockout that outlives the counting window and runs from the attempt that crossed the ceiling; login uses one, so the penalty for exhausting the attempts does not shrink the later in a window an attacker starts. A bucket serving a cooldown counts as actively refusing and is not evicted. Eviction takes buckets that are not refusing attempts ahead of any that are, so reaching the ceiling can never clear a limit that is actively being enforced. A free account's first club join is the one self-service way to Tier 1 benefits such as media upload, so the club's co-leaders are its human check: their join email asks them to report a name they do not recognise, and a club with no co-leader refuses a join from a member without Tier 1 benefits.
 
 Rationale:
 
@@ -5302,9 +5302,9 @@ Simplified monitoring (binary availability states), simplified troubleshooting (
 
 Container memory limits: Docker memory limits are explicitly set for each container preventing unbounded memory consumption. Configuration: the `deploy.resources.limits.memory` directive, env-driven per environment (production: web 512M, worker 384M). These are deployment configuration values for container resource management, not Administrator-configurable application parameters.
 
-Health check integration: The /health/ready endpoint returns 503 when memory usage exceeds 90 percent. During this condition, the origin responds with 503 and CloudFront serves the configured maintenance/error experience; alerts fire so operators can intervene or restart containers. (CloudFront does not perform active health checks.)
+Health check integration: The /health/ready endpoint returns 503 when the container's working-set memory, its charge less the reclaimable file cache, exceeds 90 percent of its limit. During this condition, the origin responds with 503 and CloudFront serves the configured maintenance/error experience; alerts fire so operators can intervene or restart containers. (CloudFront does not perform active health checks.)
 
-Monitoring and alerts: Alert if memory usage remains above 80 percent for five consecutive minutes indicating sustained pressure requiring investigation. Container restart policy configured for automatic recovery with maximum three restart attempts preventing restart loops from persistent issues.
+Monitoring and alerts: Alert if memory usage remains above 80 percent for five consecutive minutes indicating sustained pressure requiring investigation. Every container restarts automatically after any number of crashes or out-of-memory kills, and each crash or kill raises an alarm, so a restart loop is seen rather than capped.
 
 ## 9.6 Infrastructure as Code
 
@@ -5334,7 +5334,7 @@ Infrastructure Managed by Terraform:
 - Route53 DNS records.
 - SES email identities (sender, plus future bounce and complaint feed configuration).
 - Budget alerts and SNS topics.
-- Account-level security controls: the account-wide public-access block on storage, the IAM account password policy, IAM Access Analyzer with the account as its zone of trust, and the account's billing, operations and security alternate contacts. These belong to the account rather than to an environment, so they live in the shared tree and are applied by the directly authenticated identity; the human job role cannot read that tree's state.
+- Account-level security controls: the account-wide public-access block on storage, the IAM account password policy, IAM Access Analyzer with the account as its zone of trust, and the account's operations and security alternate contacts, which name the operations group's mailbox (billing notices stay with the account's root mailbox). These belong to the account rather than to an environment, so they live in the shared tree and are applied by the directly authenticated identity; the human job role cannot read that tree's state.
 
 Host-State Boundary:
 
@@ -5416,7 +5416,7 @@ Trade-offs:
 
 Impact:
 
-- CloudWatch Monitoring: Key metrics tracked: OriginAvailability, Origin5xxErrorRate, ApplicationErrorRate, CPUUtilization, S3OperationFailures, StripeAPIErrors.
+- CloudWatch Monitoring: Key metrics tracked: OriginAvailability (a Route 53 health check on the readiness endpoint through the distribution), Origin5xxErrorRate, ApplicationErrorRate (which carries S3 operation failures), CPUUtilization, StripeAPIErrors.
 
 - Critical alarms: Origin availability / 5xx rate \>5% for 2 minutes, host CPU / memory / disk \>85% for 3 minutes.
 
@@ -5428,15 +5428,15 @@ Impact:
 
 Decision:
 
-The platform implements three-layer monitoring covering infrastructure health, application behavior, and business operations. CloudWatch provides the monitoring substrate. Signals come from three places: the metrics AWS publishes for the services in use, metric filters over the application's structured logs, and a small set of custom metrics the host backup script publishes directly. Application code publishes no metrics of its own, so every application-level signal is one a log line can carry. Alerts route through CloudWatch Alarms to SNS topics with email notification. AWS Health events reach the same mailbox through a rule in the primary region, which also receives the global events, and a second in us-west-2, the Region AWS Health delivers its backup copy of every other Region's events to, publishing to a sibling topic there, so notice of a primary-region impairment does not depend on the primary region. Two alert severities (warning, critical) have different response time expectations and escalation paths. CloudWatch is the primary monitoring system; optional external error tracking/APM tooling may be adopted if it is budget-appropriate and reduces operational risk.
+The platform implements three-layer monitoring covering infrastructure health, application behavior, and business operations. CloudWatch provides the monitoring substrate. Signals come from three places: the metrics AWS publishes for the services in use, metric filters over the application's structured logs, and a small set of custom metrics two host scripts publish directly: the backup script, and the container monitor every deploy installs. Application code publishes no metrics of its own, so every application-level signal is one a log line can carry. Alerts route through CloudWatch Alarms to SNS topics with email notification. AWS Health events reach the same mailbox through a rule in the primary region, which also receives the global events, and a second in us-west-2, the Region AWS Health delivers its backup copy of every other Region's events to, publishing to a sibling topic there, so notice of a primary-region impairment does not depend on the primary region. Two alert severities (warning, critical) have different response time expectations and escalation paths. CloudWatch is the primary monitoring system; optional external error tracking/APM tooling may be adopted if it is budget-appropriate and reduces operational risk.
 
 Rationale:
 
 Proactive monitoring detects issues before user impact and enables data-driven capacity planning. Three-layer structure provides visibility at appropriate abstraction levels for different audiences (operations team vs administrators). CloudWatch native integration minimizes operational overhead compared to external monitoring services.
 
-Layer 1 - Infrastructure Metrics: Lightsail instance CPU, memory and root-volume disk use, collected by the CloudWatch agent, which gathers only what the alarms and the operations dashboard read. Alongside it, the metrics AWS publishes unasked for the services in use: distribution errors and latency, and object-store replication health. Container-level metrics are not collected: on a single instance a failing container surfaces as host pressure, as an application error, or as the deploy's own readiness failure, and all three are watched. These detect resource exhaustion and infrastructure failures.
+Layer 1 - Infrastructure Metrics: Lightsail instance CPU, memory and root-volume disk use, collected by the CloudWatch agent, which gathers only what the alarms and the operations dashboard read. Alongside it, the metrics AWS publishes unasked for the services in use: distribution errors and latency, and object-store replication health. A container monitor on the host reads each container once a minute and sends its working-set memory, out-of-memory kills, crashes and health to the agent, because a container the host survives losing, and restarts, leaves no other trace. These detect resource exhaustion and infrastructure failures.
 
-Layer 2 - Application Signals (CloudWatch log metric filters): Application error rate, login successes, outbox depth, webhook delivery failures, and the scheduled-job heartbeat, each counted from the structured log stream. Origin request latency comes from the CloudFront distribution rather than from the application, so it measures origin processing and not the edge and network time in front of it. These detect application bugs and performance degradation at the granularity a log line supports, which is per-signal rather than per-route.
+Layer 2 - Application Signals (CloudWatch log metric filters): Application error rate, login successes, outbox depth, webhook delivery failures, rate-limit refusals, and the scheduled-job heartbeat, each counted from the structured log stream. Origin request latency comes from the CloudFront distribution rather than from the application, so it measures origin processing and not the edge and network time in front of it. These detect application bugs and performance degradation at the granularity a log line supports, which is per-signal rather than per-route.
 
 Layer 3 - Business Figures (read from the database through administrator surfaces): Member registrations, photo uploads, payment transactions, email delivery and event registrations are read on demand by an administrator from the records themselves, not published as metrics and not alarmed on. Email delivery is the exception that reaches CloudWatch, through the provider's own bounce and complaint metrics.
 

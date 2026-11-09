@@ -503,15 +503,15 @@ describe('compose cross-service consistency', () => {
 });
 
 describe('docker-compose.prod.yml structural invariants', () => {
-  it('web and image have restart: always; worker has restart: unless-stopped', () => {
-    // Web and image must auto-restart on any crash or OOM-kill (image's
-    // OOM-recovery story depends on it). Worker is the email-outbox loop;
-    // it's intentionally `unless-stopped` so an operator can stop it for
-    // maintenance via `docker compose down` without it bouncing back.
+  it('every service restarts unless-stopped, with no retry cap', () => {
+    // A service on `on-failure:N` stays down after its Nth crash, leaving
+    // that part of the site dead until an operator starts it by hand; one
+    // on `always` comes back after an operator deliberately stopped it.
+    // Every service must recover from any number of crashes or OOM kills.
     const overlay = loadCompose('docker/docker-compose.prod.yml');
-    expect(overlay.services.web.restart).toBe('always');
-    expect(overlay.services.image.restart).toBe('always');
-    expect(overlay.services.worker.restart).toBe('unless-stopped');
+    for (const name of ['nginx', 'web', 'worker', 'image']) {
+      expect(overlay.services[name]?.restart, `${name} restart policy`).toBe('unless-stopped');
+    }
   });
 
   // Long-term contract: the image container holds NO AWS credentials. The

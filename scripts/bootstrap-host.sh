@@ -761,16 +761,10 @@ if grep -qF -- "$BASE_URL_PARAM" <<< "$missing_param"; then
   echo "STOPPED: ${TARGET} publishes no ${BASE_URL_PARAM} yet, because CloudFront is not" >&2
   echo "         enabled in its values file, and the deploy cannot run without the address" >&2
   echo "         the site is served at. Next:" >&2
-  echo "           1. in terraform/${TARGET}/terraform.tfvars set enable_cloudfront = true and" >&2
-  if [[ "$TARGET" == "staging" ]]; then
-    echo "              lightsail_origin_dns = \"<static address>.nip.io\", from:" >&2
-    echo "                terraform -chdir=terraform/${TARGET} output -raw lightsail_static_ip" >&2
-  else
-    echo "              lightsail_origin_dns to the origin record pointing at the static address" >&2
-  fi
+  echo "           1. bash scripts/enable-cloudfront.sh --target ${TARGET}" >&2
+  echo "              which sets both values-file lines, applies, and proves the address" >&2
   echo "           2. re-run: < ${BH_CRED} bash scripts/bootstrap-host.sh --target ${TARGET}" >&2
-  echo "         The re-run's Terraform step creates the distribution and publishes the" >&2
-  echo "         address. Nothing on the host was changed." >&2
+  echo "         Nothing on the host was changed." >&2
   cr_die "stopped: ${TARGET} publishes no ${BASE_URL_PARAM} until CloudFront is enabled; the next steps are above"
 fi
 proved "Terraform publishes ${BASE_URL_PARAM}"
@@ -953,11 +947,38 @@ else
   echo "    kept. Re-run this script in a few minutes to retire it."
 fi
 
+# The deploy boots the site, and the site refuses to boot on a secret that still
+# holds the value Terraform seeded, so each such secret is read before the deploy
+# starts and the run stops, naming the command that stores it, while any is
+# unset. Each read is the provision script's own read-only status, so what
+# counts as set is decided in one place.
+require_boot_secrets() {
+  local out missing=0
+  out="$(FOOTBAG_CR_REPORT_TO="$BH_PROBE_REPORT" bash "${BH_SCRIPTS}/provision-ssm-secret.sh" \
+    --target "$TARGET" --secret session_secret status </dev/null 2>&1)" || true
+  if ! grep -qE '^  value: +set \(' <<<"$out"; then
+    cr_error "the session secret for ${TARGET} is not stored, and the site refuses to boot without it."
+    echo "       Store it, then re-run this script:" >&2
+    echo "         bash scripts/provision-ssm-secret.sh --target ${TARGET} --secret session_secret store" >&2
+    missing=1
+  fi
+  if [[ "$TARGET" == "production" ]] \
+     && ! FOOTBAG_CR_REPORT_TO="$BH_PROBE_REPORT" bash "${BH_SCRIPTS}/provision-turnstile-key.sh" \
+          --target production status </dev/null >/dev/null 2>&1; then
+    cr_error "the Turnstile secret for production is not stored, and production refuses to boot on the placeholder."
+    echo "       Store it, then re-run this script:" >&2
+    echo "         bash scripts/provision-turnstile-key.sh --target production store" >&2
+    missing=1
+  fi
+  (( missing == 0 )) || exit 1
+}
+
 # 10. The first deploy, or on a live production the restore and a code deploy.
 refresh_host
 if verdict_is_done deploy; then
   proved "deployed runtime: ${BH_DETAIL}"
 else
+  require_boot_secrets
   confirm_identity
   if [[ "$TARGET" == "staging" ]]; then
     say "First deploy: a rebuild from the committed data"

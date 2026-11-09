@@ -204,12 +204,16 @@ echo
 # an alarm binds to one exact dimension set, so an agent upgrade would otherwise
 # unbind every host alarm silently. The three sets listed are exactly what the
 # alarms in each environment's cloudwatch.tf match on: cpu-total for processor,
-# path plus filesystem type for disk, and the empty set for memory. The
-# host-tagged originals are still published alongside them.
+# path plus filesystem type for disk, the container name for the readings the
+# container monitor sends, and the empty set for memory and the monitor's
+# heartbeat. The host-tagged originals are still published alongside them.
 #
-# Only the three measurements the alarms and the dashboard read are collected.
-# Every custom metric is billed, so collecting others would buy diagnostic
-# breadth nobody consumes.
+# Only the three measurements the alarms and the dashboard read are collected,
+# plus the container monitor's readings, which arrive on the StatsD input. That
+# input listens on the loopback address only: the containers reach the host on
+# its bridge address, never on loopback, so nothing inside them can send it a
+# reading. Every custom metric is billed, so collecting others would buy
+# diagnostic breadth nobody consumes.
 #
 # There is deliberately no append_dimensions block. fetch-config's translator
 # drops it, so an InstanceId declared there never reaches CloudWatch. Keeping
@@ -229,8 +233,13 @@ install_via_tmp "${AGENT_DIR}/etc/amazon-cloudwatch-agent.json" 0644 <<JSON
   },
   "metrics": {
     "namespace": "$NAMESPACE",
-    "aggregation_dimensions": [["cpu"], ["path", "fstype"], []],
+    "aggregation_dimensions": [["cpu"], ["path", "fstype"], ["container"], []],
     "metrics_collected": {
+      "statsd": {
+        "service_address": "127.0.0.1:8125",
+        "metrics_collection_interval": 60,
+        "metrics_aggregation_interval": 60
+      },
       "cpu": {
         "measurement": ["usage_active"],
         "totalcpu": true

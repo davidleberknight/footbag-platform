@@ -31,6 +31,8 @@ interface Estate {
   passwordPolicy?: { min: number; reuse: number } | null;
   analyzers?: string | null;
   alternateContact?: string | null;
+  /** The BILLING contact alone; unset (null) unless a case sets one. */
+  billingContact?: string | null;
   rootMfa?: string;
   rootKeys?: string;
   users?: string | null;
@@ -140,6 +142,7 @@ const HEALTHY: Required<Estate> = {
   passwordPolicy: { min: 14, reuse: 5 },
   analyzers: 'footbag-account-analyzer',
   alternateContact: 'ops@example.invalid',
+  billingContact: null,
   rootMfa: '1',
   rootKeys: '0',
   users: 'footbag-operator',
@@ -201,9 +204,12 @@ function awsStub(estate: Estate): string {
       `  list-analyzers) ${
         e.analyzers === null ? 'exit 1' : `printf '%s\\n' ${JSON.stringify(e.analyzers)}`
       } ;;`,
-      `  get-alternate-contact) ${
+      '  get-alternate-contact)',
+      `    if [[ " $* " == *" BILLING "* ]]; then ${
+        e.billingContact == null ? awsError('ResourceNotFoundException', 'GetAlternateContact') : `printf '%s\\n' ${JSON.stringify(e.billingContact)}`
+      }; else ${
         e.alternateContact === null ? awsError('ResourceNotFoundException', 'GetAlternateContact') : `printf '%s\\n' ${JSON.stringify(e.alternateContact)}`
-      } ;;`,
+      }; fi ;;`,
       '  get-account-summary)',
       `    printf '%s' ${JSON.stringify(
         JSON.stringify({
@@ -463,15 +469,29 @@ describe('verify-account-baseline.sh — each control is genuinely checked', () 
     expect(script).not.toMatch(/analyzers\[\?status==`ACTIVE`\]\.name/);
   });
 
-  it('reports each unset alternate contact separately, and as gated', () => {
+  it('reports each unset operations and security contact separately, and as gated', () => {
     // Unset means a notice of that kind reaches only the root mailbox, and
-    // nobody is told if it goes unread. It is still not a fault: the three sit
-    // behind a flag that stays off until their identities are decided, so the
+    // nobody is told if it goes unread. It is still not a fault: the two sit
+    // behind a flag that stays off until their values are set, so the
     // declared state and the actual state agree.
     const r = run({ alternateContact: 'None' });
-    expect(r.stderr).toMatch(/GATED.*alternate contact BILLING is unset/);
     expect(r.stderr).toMatch(/GATED.*alternate contact OPERATIONS is unset/);
     expect(r.stderr).toMatch(/GATED.*alternate contact SECURITY is unset/);
+    expect(r.stderr).not.toMatch(/GATED.*BILLING/);
+  });
+
+  it('passes an unset billing contact, because billing notices stay with the root mailbox', () => {
+    const r = run({});
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/PASS {2}no BILLING alternate contact: billing notices stay with the root mailbox/);
+  });
+
+  // Defect caught: a billing contact set by hand in the console sends billing
+  // notices away from the shared mailbox with no tree recording it.
+  it('fails a billing contact that is set, since no tree declares one', () => {
+    const r = run({ billingContact: 'someone@example.invalid' });
+    expect(r.status).toBe(1);
+    expect(listed(r.stderr, 'Errors')).toMatch(/a BILLING alternate contact is set/);
   });
 
   it('does not let a gated control decide the run', () => {
@@ -486,7 +506,7 @@ describe('verify-account-baseline.sh — each control is genuinely checked', () 
 
   it('says how many are deliberately off, so silence does not read as passing', () => {
     const r = run({ alternateContact: 'None' });
-    expect(r.stderr).toMatch(/3 control\(s\) deliberately off/);
+    expect(r.stderr).toMatch(/2 control\(s\) not yet on/);
     expect(r.stderr).toMatch(/enable_account_alternate_contacts/);
     expect(r.stderr).toMatch(/do not decide this run/);
   });
@@ -496,7 +516,7 @@ describe('verify-account-baseline.sh — each control is genuinely checked', () 
     // the gate, which is the mirror of the defect above.
     const r = run({ alternateContact: 'None', rootMfa: '0' });
     expect(r.status).toBe(1);
-    expect(r.stderr).toMatch(/GATED.*alternate contact BILLING/);
+    expect(r.stderr).toMatch(/GATED.*alternate contact OPERATIONS/);
     expect(r.stderr).toMatch(/1 finding\(s\)/);
   });
 
@@ -531,7 +551,7 @@ describe('verify-account-baseline.sh — a read that does not answer is never ab
   it.each([
     ['the public access block', 'get-public-access-block', /could not read the account-level public access block: .*AccessDenied/, /not configured/],
     ['the password policy', 'get-account-password-policy', /could not read the IAM account password policy: .*AccessDenied/, /no IAM account password policy/],
-    ['an alternate contact', 'get-alternate-contact', /could not read the BILLING alternate contact: .*AccessDenied/, /GATED/],
+    ['an alternate contact', 'get-alternate-contact', /could not read the OPERATIONS alternate contact: .*AccessDenied/, /GATED/],
     ['the Identity Center instances', 'list-instances', /could not read the Identity Center instances: .*AccessDenied/, /no Identity Center instance/],
     ['the job role', 'get-role', /could not read the FootbagDevTester role: .*AccessDenied/, /no FootbagDevTester role yet/],
   ])('lists a failed read of %s as an error with the AWS message, not as absence', (_label, sub, error, absence) => {
@@ -557,7 +577,7 @@ describe('verify-account-baseline.sh — a read that does not answer is never ab
     const r = run({ alternateContact: null });
     expect(r.status, r.stderr).toBe(0);
     const warnings = listed(r.stderr, 'Warnings');
-    for (const kind of ['BILLING', 'OPERATIONS', 'SECURITY']) {
+    for (const kind of ['OPERATIONS', 'SECURITY']) {
       expect(warnings, kind).toMatch(new RegExp(`GATED alternate contact ${kind} is unset`));
     }
   });

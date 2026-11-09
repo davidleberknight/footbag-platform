@@ -5,7 +5,8 @@
 #   docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml up -d
 #
 # Key differences from local dev:
-#   - restart: always on nginx and web; worker is unless-stopped (long-running)
+#   - restart: unless-stopped on all four services, with no retry cap, so a
+#     crash or OOM kill always comes back and a deliberate stop stays stopped
 #   - Explicit memory limits to prevent OOM runaway
 #   - DB volume path from env (not a hardcoded local path)
 #   - No host port binding for web — traffic flows through nginx only
@@ -30,7 +31,7 @@ x-log-rotation: &log-rotation
 services:
 
   nginx:
-    restart: always
+    restart: unless-stopped
     logging:
       driver: awslogs
       options:
@@ -62,7 +63,7 @@ services:
     build:
       args:
         INCLUDE_DEV_SHORTCUTS: 0
-    restart: always
+    restart: unless-stopped
     logging:
       driver: awslogs
       options:
@@ -187,6 +188,7 @@ services:
       # cannot be authenticated is off rather than trusting.
       SES_FEEDBACK_TOPIC_ARN: ${SES_FEEDBACK_TOPIC_ARN:-}
       ALARM_TOPIC_ARN: ${ALARM_TOPIC_ARN:-}
+      ALARM_ADDITIONAL_TOPIC_ARNS: ${ALARM_ADDITIONAL_TOPIC_ARNS:-}
       SES_FEEDBACK_QUEUE_URL: ${SES_FEEDBACK_QUEUE_URL:-}
       ALARM_QUEUE_URL: ${ALARM_QUEUE_URL:-}
       # Base URL of the members-only legacy archive, served by its own
@@ -347,6 +349,7 @@ services:
       # cannot be authenticated is off rather than trusting.
       SES_FEEDBACK_TOPIC_ARN: ${SES_FEEDBACK_TOPIC_ARN:-}
       ALARM_TOPIC_ARN: ${ALARM_TOPIC_ARN:-}
+      ALARM_ADDITIONAL_TOPIC_ARNS: ${ALARM_ADDITIONAL_TOPIC_ARNS:-}
       SES_FEEDBACK_QUEUE_URL: ${SES_FEEDBACK_QUEUE_URL:-}
       ALARM_QUEUE_URL: ${ALARM_QUEUE_URL:-}
     deploy:
@@ -371,7 +374,8 @@ services:
   # the host carries a disk swapfile, so the host itself stays responsive.
   # Defenses:
   #   - IMAGE_MAX_CONCURRENT=1 caps in-flight Sharp ops to one
-  #   - `restart: always` brings the container back automatically on OOM-kill
+  #   - `restart: unless-stopped` brings the container back automatically on
+  #     OOM-kill, however many times it happens
   #   - healthcheck flips unhealthy on kill, back to healthy in ~30s
   #   - in-flight web requests see ECONNRESET, mapped to ImageProcessingError
   #     and a 5xx user-facing response by the HTTP adapter
@@ -381,7 +385,7 @@ services:
     build:
       args:
         INCLUDE_DEV_SHORTCUTS: 0
-    restart: always
+    restart: unless-stopped
     logging: *log-rotation
     # No /root/.aws mount: this container holds NO AWS credentials. The from-
     # storage video transcode route receives presigned GET + PUT URLs from the

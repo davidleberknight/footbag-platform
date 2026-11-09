@@ -121,6 +121,12 @@ done
 
 require_target "$TARGET" staging production || exit 2
 
+# One closing report from here on, on stderr, so the status rows on stdout stay
+# as the callers and tests that read them expect. Sourced after the usage
+# checks, so a usage error keeps its plain exit 2.
+# shellcheck source=lib/closing-report.sh
+source "${SCRIPT_DIR}/lib/closing-report.sh"
+
 SSH_ALIAS="footbag-$TARGET"
 BH_TARGET="$TARGET"
 bh_announce_seams
@@ -151,13 +157,14 @@ declare -A P=(
   [SSM_STRIPE_KEY]=unknown
   [SSM_BOOTSTRAP_TOKEN]=unknown
   [CW_BACKUP_METRIC]=unknown
+  [CW_MONITOR_HEARTBEAT]=unknown
   [ORIGIN_HOP]=unknown
 )
 
 if [[ -n "$PROBE_FILE" ]]; then
   if [[ ! -f "$PROBE_FILE" ]]; then
-    echo "ERROR: --probe-file path '$PROBE_FILE' does not exist" >&2
-    exit 2
+    cr_error "--probe-file path '$PROBE_FILE' does not exist"
+    cr_finish_with 2 FAILED
   fi
   while IFS= read -r line; do
     [[ -z "$line" || "$line" == \#* ]] && continue
@@ -179,6 +186,7 @@ else
     echo "  Re-run as: < $(operator_cred_file) bash scripts/bringup-status.sh --target $TARGET"
     echo "  Or pass --skip-remote to stop this notice."
     echo ""
+    cr_unproved "the host rows: the remote probe was skipped for want of the sudo password on stdin"
     SKIP_REMOTE=1
   fi
 
@@ -189,7 +197,7 @@ else
     TMP_REPORT="$(mktemp /tmp/footbag-bringup-report.XXXXXX)"
     # shred, not rm: the fetched copy is the host's entire secret set.
     cleanup_local() { shred -u "${TMP_ENV:-}" "${TMP_REPORT:-}" 2>/dev/null || rm -f "${TMP_ENV:-}" "${TMP_REPORT:-}"; }
-    trap cleanup_local EXIT INT TERM
+    cr_cleanup cleanup_local
 
     echo "Probing $SSH_ALIAS..."
     echo ""
@@ -250,7 +258,7 @@ else
     # a bring-up that has not happened.
     # shellcheck source=lib/aws-profile.sh
     source "${SCRIPT_DIR}/lib/aws-profile.sh"
-    aws_profile_ensure || exit 1
+    aws_profile_ensure || cr_die "the AWS identity for the status read could not be settled; no AWS probe ran"
     # Anchored on this script, so a run started outside the repository root
     # still reads the trees rather than reporting every one as unknown.
     TF_ROOT="$SCRIPT_DIR/../terraform"
@@ -353,6 +361,21 @@ else
         --profile "$AWS_PROFILE_ARG" 2>/dev/null || echo "")"
       if [[ "$DATAPOINTS" =~ ^[0-9]+$ ]]; then
         (( DATAPOINTS > 0 )) && P[CW_BACKUP_METRIC]=flowing || P[CW_BACKUP_METRIC]=missing
+      fi
+
+      # The container monitor's heartbeat, which the agent publishes in the
+      # host's own namespace with no dimensions, once a minute.
+      CW_NAMESPACE="CWAgent"
+      [[ "$TARGET" == "production" ]] && CW_NAMESPACE="CWAgent/production"
+      HEARTBEATS="$(aws cloudwatch get-metric-statistics \
+        --namespace "$CW_NAMESPACE" --metric-name container_monitor_heartbeat \
+        --start-time "$(date -u -d '10 minutes ago' +%Y-%m-%dT%H:%M:%SZ)" \
+        --end-time "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        --period 600 --statistics SampleCount \
+        --query 'length(Datapoints)' --output text \
+        --profile "$AWS_PROFILE_ARG" 2>/dev/null || echo "")"
+      if [[ "$HEARTBEATS" =~ ^[0-9]+$ ]]; then
+        (( HEARTBEATS > 0 )) && P[CW_MONITOR_HEARTBEAT]=flowing || P[CW_MONITOR_HEARTBEAT]=missing
       fi
 
       # Origin hop: read from the live distribution by the same check that
@@ -529,10 +552,11 @@ if [[ "$TARGET" != "production" ]]; then
 else
   case "${P[TF_CUTOVER_ALARM]}" in
     present)
-      row 7 "Cutover login alarm" INFO "ON; disable after the cutover window (enable_cutover_login_alarm = false, apply)"
+      row 7 "Cutover login alarm" INFO "ON; disable after the cutover window"
+      next_cmd "bash scripts/set-terraform-gate.sh --target production --gate enable_cutover_login_alarm --state off"
       ;;
     absent)
-      row 7 "Cutover login alarm" INFO "OFF; correct outside the cutover window (enable for the window: enable_cutover_login_alarm = true, apply)"
+      row 7 "Cutover login alarm" INFO "OFF; correct outside the cutover window, which turns it on itself"
       ;;
     *)
       row 7 "Cutover login alarm" UNKNOWN "terraform state unavailable"
@@ -553,8 +577,13 @@ else
     svc_health="$(bh_container_health "$svc")"
     [[ "$svc_health" == Up*"(healthy)"* ]] || RUNTIME_MISSING+="${svc} (${svc_health}); "
   done
-  if [[ -z "$RUNTIME_MISSING" ]]; then
-    row 8 "Deployed runtime" DONE "${P[CONTAINERS]}"
+  if [[ -z "$RUNTIME_MISSING" && "${P[CW_MONITOR_HEARTBEAT]}" == "missing" ]]; then
+    # Healthy containers nobody is watching: the deploy installs the monitor,
+    # so a missing heartbeat means its readings are not reaching CloudWatch.
+    row 8 "Deployed runtime" PENDING "containers healthy, but container_monitor_heartbeat is not arriving"
+    next_cmd "ssh $SSH_ALIAS journalctl -u footbag-container-monitor.service -n 20   (then the next deploy re-applies the agent)"
+  elif [[ -z "$RUNTIME_MISSING" ]]; then
+    row 8 "Deployed runtime" DONE "${P[CONTAINERS]}; container monitor heartbeat: ${P[CW_MONITOR_HEARTBEAT]}"
   else
     row 8 "Deployed runtime" PENDING "not healthy: ${RUNTIME_MISSING%; }"
     next_cmd "./deploy_to_aws.sh   (ships the local working tree)"
@@ -615,4 +644,7 @@ for step in pin account packages layout envrecord dbdir credentials cwagent depl
 done
 
 echo ""
-exit 0
+# A status view: the rows above are its findings, each with the command that
+# finishes it, so a pending row is not a failed run.
+cr_proved "the rows above, from: ${PROBES_RUN:-no probe}"
+cr_finish

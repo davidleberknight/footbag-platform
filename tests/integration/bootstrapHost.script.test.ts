@@ -287,7 +287,7 @@ beforeEach(() => {
     'install-host-credentials.sh', 'install-cwagent-staging.sh', 'install-cwagent-production.sh',
     'deploy_to_aws.sh', 'deploy-code.sh', 'restore-db.sh', 'install-backup-timer.sh', 'activate-notification-feeds.sh',
     'harden-sshd.sh', 'verify-cwagent-metrics.sh', 'verify-host-snapshots.sh', 'verify-host-env.sh',
-    'build-sqlite3.sh',
+    'build-sqlite3.sh', 'provision-ssm-secret.sh', 'provision-turnstile-key.sh',
   ];
   for (const name of siblings) {
     sh(join(work, 'siblings', name), [
@@ -317,6 +317,16 @@ beforeEach(() => {
     'grep -qx "DB_FILE=present" "$STATE/host.status" && { echo "restore stand-in: a database exists" >&2; exit 1; }',
     '[[ -e "$STATE/release-installed" ]] || { echo "restore stand-in: no release on the host to replay the erasures in" >&2; exit 1; }',
     `printf '%s\\n' DB_FILE=present REPLAY_PENDING=no ${JSON.stringify(`CONTAINERS=${HEALTHY_CONTAINERS}`)} > "$STATE/fix/$ev"`,
+  ]);
+  // The secrets the first deploy boots on report stored unless a case marks
+  // one unset, in the shape each provision script's status prints.
+  hook('provision-ssm-secret.sh', [
+    'if [[ -e "$STATE/unset-session-secret" ]]; then echo "  value:     placeholder only; this environment has never been provisioned"',
+    'else echo "  value:     set (64 characters); value not shown"; fi',
+  ]);
+  hook('provision-turnstile-key.sh', [
+    '[[ -e "$STATE/unset-turnstile" ]] && { echo "  state:     placeholder"; exit 1; }',
+    'echo "  state:     set"',
   ]);
   hook('deploy-code.sh--first-install', [
     'grep -qx "DB_FILE=present" "$STATE/host.status" && { echo "first-install stand-in: a database exists" >&2; exit 1; }',
@@ -701,6 +711,22 @@ describe('bootstrap-host.sh: the bootstrap', () => {
     expect(r.out).toMatch(/The host is bootstrapped/);
   });
 
+  it('names the script for every alarm gate and subscription it stops before, never a values-file edit', () => {
+    // Defect caught: a closing list telling the operator to edit the values file
+    // and apply by hand, which skips the gate script's own guards (the
+    // cutover-login alarm is refused outside pass 1) and its read-back.
+    writeHost(finishedHost('production'));
+    const r = runTty(['--target', 'production']);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toMatch(/set-terraform-gate\.sh --target production \\/);
+    expect(r.out).toMatch(/--gate enable_cutover_login_alarm --state on/);
+    expect(r.out).toMatch(/arm-cwagent-alarms\.sh --target production/);
+    expect(r.out).toMatch(/--gate enable_backup_alarm --state on/);
+    expect(r.out).toMatch(/--gate enable_container_alarms --state on/);
+    expect(r.out).toMatch(/confirm-alarm-subscription\.sh --target production/);
+    expect(r.out).not.toMatch(/= true in the values file, then/);
+  });
+
   it('lists a problem the status body marked in the closing report, once however often the host is read', () => {
     // Defects caught: the status body's marked problems are thrown away with its
     // standard error, so a failed read on the host reads as a host in another
@@ -737,7 +763,7 @@ describe('bootstrap-host.sh: the bootstrap', () => {
     expect(r.status, r.out).toBe(0);
     expect(r.out).toMatch(/activate-payments\.sh/);
     expect(r.out).toMatch(/admin-bootstrap-token\.sh/);
-    expect(r.out).toMatch(/enable_cutover_login_alarm = true/);
+    expect(r.out).toMatch(/--gate enable_cutover_login_alarm --state on/);
     expect(siblingCalls().some((c) => /activate-payments|admin-bootstrap/.test(c))).toBe(false);
   });
 
@@ -971,6 +997,38 @@ describe('bootstrap-host.sh: the bootstrap', () => {
     expect(siblingCalls().some((c) => c.startsWith('restore-db.sh'))).toBe(false);
   });
 
+  // Defect caught: the first deploy started on a secret still holding
+  // Terraform's placeholder, so it failed at boot far from the cause, or the
+  // site came up with a session secret anyone could read in the source.
+  it('refuses the deploy step while the session secret is unset, naming the command that stores it', () => {
+    writeHost({ ...finishedHost('staging'), SERVICE_ENABLED: 'disabled' });
+    writeFileSync(join(state, 'unset-session-secret'), '');
+    const r = runTty(['--target', 'staging']);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/the session secret for staging is not stored/);
+    expect(r.out).toMatch(/provision-ssm-secret\.sh --target staging --secret session_secret store/);
+    expect(siblingCalls().some((c) => /^(deploy_to_aws|deploy-code)/.test(c))).toBe(false);
+  });
+
+  it('refuses the production deploy step while the Turnstile secret is the placeholder', () => {
+    writeHost({ ...finishedHost('production'), SERVICE_ENABLED: 'disabled' });
+    writeFileSync(join(state, 'unset-turnstile'), '');
+    const r = runTty(['--target', 'production']);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/provision-turnstile-key\.sh --target production store/);
+    expect(siblingCalls().some((c) => /^(deploy_to_aws|deploy-code)/.test(c))).toBe(false);
+  });
+
+  it('checks the staging secrets only for what staging boots on', () => {
+    // Staging carries no Turnstile secret of its own; asking for one would stop
+    // every staging bootstrap.
+    writeHost({ ...finishedHost('staging'), SERVICE_ENABLED: 'disabled' });
+    writeFileSync(join(state, 'unset-turnstile'), '');
+    runTty(['--target', 'staging']);
+    expect(siblingCalls().some((c) => c.startsWith('provision-turnstile-key.sh'))).toBe(false);
+    expect(siblingCalls().some((c) => c.startsWith('deploy_to_aws.sh'))).toBe(true);
+  });
+
   it('refuses the production deploy step while the go-live marker cannot be read', () => {
     writeHost({ ...finishedHost('production'), SERVICE_ENABLED: 'disabled' });
     rmSync(join(state, 'marker'));
@@ -1043,7 +1101,9 @@ describe('bootstrap-host.sh: the bootstrap', () => {
     const r = runTty(['--target', 'staging']);
     expect(r.status).toBe(1);
     expect(r.out).toMatch(/publishes no \/footbag\/staging\/app\/public_base_url/);
-    expect(r.out).toMatch(/enable_cloudfront = true/);
+    // The next step is the script that makes the change, never a hand edit.
+    expect(r.out).toMatch(/bash scripts\/enable-cloudfront\.sh --target staging/);
+    expect(r.out).not.toMatch(/terraform\.tfvars set/);
     expect(sessions()).toHaveLength(0);
     expect(siblingCalls().map((c) => c.split(' ')[0])).toEqual(['terraform-apply-all.sh']);
   });

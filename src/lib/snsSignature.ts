@@ -107,17 +107,18 @@ export function safeSubscribeUrlForLog(raw: unknown): string {
  * signature adds no fact the queue has not already established; what remains
  * worth asserting is that the message belongs to this feed rather than another
  * one delivered onto the same queue by a subscription nobody meant to make.
- * Unset expectation refuses, matching the signature path: a feed that cannot
+ * A feed may expect more than one topic; the envelope must name one of them.
+ * An empty expectation refuses, matching the signature path: a feed that cannot
  * say what it expects is a feed that reads nothing.
  */
 export function publishedByExpectedTopic(
   rawBody: string,
-  expectedTopicArn: string | undefined,
+  expectedTopicArns: readonly string[],
 ): boolean {
-  if (!expectedTopicArn) return false;
+  if (expectedTopicArns.length === 0) return false;
   try {
     const parsed = JSON.parse(rawBody) as Record<string, unknown>;
-    return parsed.TopicArn === expectedTopicArn;
+    return typeof parsed.TopicArn === 'string' && expectedTopicArns.includes(parsed.TopicArn);
   } catch {
     return false;
   }

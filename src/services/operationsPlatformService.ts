@@ -91,6 +91,7 @@ import { recordOperationalError } from './operationalErrors';
 import { getCommunicationService, type ProcessBatchResult } from './communicationService';
 import { getNotificationFeedAdapter } from '../adapters/notificationFeedAdapter';
 import { publishedByExpectedTopic } from '../lib/snsSignature';
+import { workingSetPercent } from '../lib/containerMemory';
 import { sesFeedbackService } from './sesFeedbackService';
 import { systemAlarmService } from './systemAlarmService';
 import { workQueueService } from './workQueueService';
@@ -172,20 +173,18 @@ export function resetTestMemoryPercentForTests(): void {
   testMemoryPercentOverride = config.testMemoryPercent;
 }
 
-// memory.current includes page cache by design; this matches the value
-// CWAgent emits as mem_used_percent so the readiness gate aligns with the
-// host-side alarm threshold. Do not subtract cache.
+// Readiness judges working-set memory, not memory.current, so a full file
+// cache never serves the maintenance page; see workingSetPercent.
 export function readContainerMemoryUsedPercent(): number | null {
   if (testMemoryPercentOverride !== undefined) {
     return testMemoryPercentOverride;
   }
   try {
-    const max = readFileSync('/sys/fs/cgroup/memory.max', 'utf8').trim();
-    if (max === 'max') return null;
-    const maxBytes = BigInt(max);
-    if (maxBytes === 0n) return null;
-    const current = BigInt(readFileSync('/sys/fs/cgroup/memory.current', 'utf8').trim());
-    return Number((current * 10000n) / maxBytes) / 100;
+    return workingSetPercent(
+      readFileSync('/sys/fs/cgroup/memory.max', 'utf8'),
+      readFileSync('/sys/fs/cgroup/memory.current', 'utf8'),
+      readFileSync('/sys/fs/cgroup/memory.stat', 'utf8'),
+    );
   } catch {
     return null;
   }
@@ -220,7 +219,7 @@ export class OperationsPlatformService {
       {
         name: 'ses_feedback' as const,
         queueUrl: config.sesFeedbackQueueUrl,
-        topicArn: config.sesFeedbackTopicArn,
+        topicArns: config.sesFeedbackTopicArn ? [config.sesFeedbackTopicArn] : [],
         handle: (body: string): void => {
           sesFeedbackService.processSnsMessage(body);
         },
@@ -228,7 +227,7 @@ export class OperationsPlatformService {
       {
         name: 'platform_alarm' as const,
         queueUrl: config.alarmQueueUrl,
-        topicArn: config.alarmTopicArn,
+        topicArns: config.alarmTopicArns,
         handle: (body: string): void => {
           systemAlarmService.processSnsMessage(body);
         },
@@ -240,7 +239,7 @@ export class OperationsPlatformService {
     const adapter = getNotificationFeedAdapter();
 
     for (const feed of feeds) {
-      if (!feed.queueUrl || !feed.topicArn) continue;
+      if (!feed.queueUrl || feed.topicArns.length === 0) continue;
       const messages = await adapter.receive(feed.queueUrl, {
         waitTimeSeconds: opts.waitTimeSeconds,
         abortSignal: opts.abortSignal,
@@ -252,7 +251,7 @@ export class OperationsPlatformService {
         // delivered onto the wrong queue being processed as though it were the
         // right one. A mismatch is deleted, not retried: redelivering it would
         // only produce the same refusal until the queue aged it out.
-        if (!publishedByExpectedTopic(message.body, feed.topicArn)) {
+        if (!publishedByExpectedTopic(message.body, feed.topicArns)) {
           skipped += 1;
           logger.warn('notification feed: message from an unexpected topic', {
             feed: feed.name,
@@ -284,7 +283,7 @@ export class OperationsPlatformService {
   hasNotificationFeeds(): boolean {
     return Boolean(
       (config.sesFeedbackQueueUrl && config.sesFeedbackTopicArn)
-      || (config.alarmQueueUrl && config.alarmTopicArn),
+      || (config.alarmQueueUrl && config.alarmTopicArns.length > 0),
     );
   }
 

@@ -6,10 +6,11 @@ variable "aws_region" {
 
 variable "enable_account_alternate_contacts" {
   description = <<-EOT
-    Set the account's billing, operations and security alternate contacts.
-    Flip this when all three identities have been decided AND their values are
-    in this tree's companion secrets file. Off, every notice of those three
-    kinds reaches only the root mailbox, and nobody is told if it goes unread.
+    Set the account's operations and security alternate contacts to the
+    operations group's mailbox. Flip this when both values are in this tree's
+    companion secrets file and the group receives outside mail. Off, every
+    notice of those two kinds reaches only the root mailbox, and nobody is told
+    if it goes unread. Billing notices stay with the root mailbox by design.
     The three account controls beside them carry no values and do not wait on
     this, which is why they are not behind the same gate.
   EOT
@@ -32,18 +33,6 @@ variable "enable_guardduty" {
 # over a sensitive collection and these are sensitive for the reason alarm_email
 # is: the address is the AWS account's own recovery identity, and the phone
 # number beside it is a named person's.
-variable "alternate_contact_billing" {
-  description = "Billing alternate contact. Vault-governed: set from the gitignored secrets file, never from a committed one."
-  type = object({
-    name          = string
-    title         = string
-    email_address = string
-    phone_number  = string
-  })
-  sensitive = true
-  default   = null
-}
-
 variable "alternate_contact_operations" {
   description = "Operations alternate contact. Vault-governed: set from the gitignored secrets file, never from a committed one."
   type = object({

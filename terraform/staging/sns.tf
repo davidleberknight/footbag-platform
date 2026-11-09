@@ -219,12 +219,56 @@ resource "terraform_data" "alarm_email_generation" {
   input = var.alarm_email_subscription_generation
 }
 
+# ── Critical alarms ──────────────────────────────────────────────────────────
+# Mirrors production, which carries the reasoning: the main topic and the admin
+# console receive every alarm; the watch group receives only the alarms that
+# need someone to act now, which publish here as well.
+resource "aws_sns_topic" "alarms_critical" {
+  name              = "${local.prefix}-alarms-critical"
+  kms_master_key_id = aws_kms_key.main.arn
+}
+
+resource "aws_sns_topic_policy" "alarms_critical" {
+  arn = aws_sns_topic.alarms_critical.arn
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "OwnerFullAccess"
+        Effect    = "Allow"
+        Principal = { AWS = "arn:aws:iam::${var.aws_account_id}:root" }
+        Action    = local.sns_owner_actions
+        Resource  = aws_sns_topic.alarms_critical.arn
+      },
+      {
+        Sid       = "AllowCloudWatchPublish"
+        Effect    = "Allow"
+        Principal = { Service = "cloudwatch.amazonaws.com" }
+        Action    = "SNS:Publish"
+        Resource  = aws_sns_topic.alarms_critical.arn
+        Condition = {
+          StringEquals = {
+            "AWS:SourceAccount" = var.aws_account_id
+          }
+        }
+      }
+    ]
+  })
+}
+
+locals {
+  warning_alarm_actions  = [aws_sns_topic.alarms.arn]
+  critical_alarm_actions = [aws_sns_topic.alarms.arn, aws_sns_topic.alarms_critical.arn]
+}
+
 # A second destination, beside the account's own mailbox rather than instead of
-# it: a group whose members are everyone on the watch. The account mailbox stays
-# the one destination that does not depend on this domain's own mail.
+# it: a group whose members are everyone on the watch, subscribed to the
+# critical alarms. The account mailbox stays the one destination that does not
+# depend on this domain's own mail, and receives every alarm.
 resource "aws_sns_topic_subscription" "alarm_ops_alert" {
   count     = var.ops_alert_email != "" ? 1 : 0
-  topic_arn = aws_sns_topic.alarms.arn
+  topic_arn = aws_sns_topic.alarms_critical.arn
   protocol  = "email"
   endpoint  = var.ops_alert_email
 
@@ -277,15 +321,30 @@ resource "aws_sqs_queue_policy" "alarm_feed" {
       Action    = "sqs:SendMessage"
       Resource  = aws_sqs_queue.alarm_feed[0].arn
       Condition = {
-        ArnEquals = { "aws:SourceArn" = aws_sns_topic.alarms.arn }
+        ArnEquals = { "aws:SourceArn" = local.alarm_feed_topic_arns }
       }
     }]
   })
 }
 
+# Mirrors production: the feed reads the main topic and the us-west-2 topic AWS
+# Health's backup copy publishes to.
+locals {
+  alarm_feed_topic_arns = [aws_sns_topic.alarms.arn, aws_sns_topic.alarms_us_west_2.arn]
+}
+
 resource "aws_sns_topic_subscription" "alarm_feed" {
   count                = var.enable_feed_queues ? 1 : 0
   topic_arn            = aws_sns_topic.alarms.arn
+  protocol             = "sqs"
+  endpoint             = aws_sqs_queue.alarm_feed[0].arn
+  raw_message_delivery = false
+}
+
+resource "aws_sns_topic_subscription" "alarm_feed_us_west_2" {
+  count                = var.enable_feed_queues ? 1 : 0
+  provider             = aws.us_west_2
+  topic_arn            = aws_sns_topic.alarms_us_west_2.arn
   protocol             = "sqs"
   endpoint             = aws_sqs_queue.alarm_feed[0].arn
   raw_message_delivery = false

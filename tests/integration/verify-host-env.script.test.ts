@@ -47,6 +47,7 @@ const CLEAN_STAGING_ENV = [
   'SES_FEEDBACK_TOPIC_ARN=arn:aws:sns:us-east-1:000:footbag-staging-ses-feedback',
   'ALARM_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/000/footbag-staging-alarm-feed',
   'ALARM_TOPIC_ARN=arn:aws:sns:us-east-1:000:footbag-staging-alarms',
+  'ALARM_ADDITIONAL_TOPIC_ARNS=arn:aws:sns:us-west-2:000:footbag-staging-alarms-usw2',
   'PUBLIC_BASE_URL=https://staging.footbag.org',
   'AWS_PROFILE=footbag-staging-runtime',
   'FOOTBAG_DB_DIR=/srv/footbag/db',

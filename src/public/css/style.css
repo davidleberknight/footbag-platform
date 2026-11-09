@@ -3128,6 +3128,10 @@ main fieldset > :not(:has(~ :not([type="hidden"]))) { margin-bottom: 0; }
   color: var(--warn-text);
   text-decoration-thickness: 2px;
 }
+/* The admin alarm banner can carry two lines, one per condition, so each is a
+   paragraph that keeps the band as compact as the single-line form. */
+.flash-action p { margin: 0; }
+.flash-action p + p { margin-top: var(--space-xs); }
 .membership-badges { display: flex; flex-wrap: wrap; gap: var(--space-sm); align-items: center; margin-bottom: var(--space-sm); }
 .membership-upgrade-form { margin-top: var(--space-sm); }
 .membership-upgrade-price { margin-left: var(--space-md); }

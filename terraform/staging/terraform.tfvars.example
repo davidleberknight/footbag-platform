@@ -50,6 +50,10 @@ lightsail_origin_dns = ""
 enable_cwagent_alarms       = false
 enable_backup_alarm         = false
 enable_jobs_heartbeat_alarm = false
+enable_container_alarms     = false
+
+# Rate-limit refusals in 15 minutes above which the refusal-volume warning fires.
+rate_limit_refusal_alarm_threshold = 50
 
 # ── SES sender identity ───────────────────────────────────────────────────────
 # Target canonical: noreply@footbag.org (once the footbag.org domain is

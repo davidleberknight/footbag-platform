@@ -16,9 +16,11 @@
 #   1. The plan may create the baseline resources and do nothing else. The
 #      shared tree holds every environment's Terraform state, so anything else
 #      pending in it is not this change and is refused before the confirmation,
-#      rather than left for an operator to spot in a long plan. The alternate
-#      contacts stay behind enable_account_alternate_contacts and are not part
-#      of this; a plan touching them is refused like anything else.
+#      rather than left for an operator to spot in a long plan. The operations
+#      and security alternate contacts stay behind
+#      enable_account_alternate_contacts and are created only on a run given
+#      --enable-alternate-contacts; otherwise a plan touching them is refused
+#      like anything else.
 #
 #   2. Success is the account reporting the controls in place, not the apply
 #      exiting zero. scripts/verify-account-baseline.sh reads every control
@@ -41,7 +43,7 @@
 #
 # Usage:
 #   scripts/apply-account-baseline.sh --dry-run
-#   scripts/apply-account-baseline.sh [--enable-guardduty]
+#   scripts/apply-account-baseline.sh [--enable-guardduty] [--enable-alternate-contacts]
 #
 # Flags:
 #   --dry-run   State what a real run would do; run nothing.
@@ -51,6 +53,13 @@
 #               values-file change, plans with the gate on, and writes
 #               enable_guardduty = true to the shared values file only after
 #               the typed APPLY.
+#   --enable-alternate-contacts
+#               Turn on the operations and security alternate contacts, both
+#               naming the ops-alert group. Refused unless the shared tree's
+#               secrets file assigns alternate_contact_operations and
+#               alternate_contact_security; then the same shown change, plan
+#               and write-after-APPLY as above, for
+#               enable_account_alternate_contacts = true.
 #   --yes       Accept the confirmation where no terminal is attached.
 #
 # Test seams (CI only; operators never set these): TERRAFORM_APPLY_BIN points
@@ -63,6 +72,7 @@ set -euo pipefail
 
 DRY_RUN=0
 ENABLE_GUARDDUTY=0
+ENABLE_CONTACTS=0
 # The shared confirm_from_tty helper reads this by name and compares it to the
 # string "yes", so it is not a numeric flag like the others here.
 ASSUME_YES=""
@@ -85,6 +95,8 @@ ALLOWED_CREATES=(
   'aws_guardduty_detector_feature.account["RDS_LOGIN_EVENTS"]'
   'aws_guardduty_detector_feature.account["LAMBDA_NETWORK_LOGS"]'
   'aws_guardduty_detector_feature.account["RUNTIME_MONITORING"]'
+  "aws_account_alternate_contact.operations[0]"
+  "aws_account_alternate_contact.security[0]"
 )
 
 # The shared tree's values file, a symlink into the private operations checkout.
@@ -92,6 +104,12 @@ ALLOWED_CREATES=(
 TFVARS="${ACCOUNT_BASELINE_TFVARS:-${TF_DIR}/terraform.tfvars}"
 if [[ -n "${ACCOUNT_BASELINE_TFVARS:-}" ]]; then
   echo "SYNTHETIC: values file='${TFVARS}' -- this run proves nothing about the account." >&2
+fi
+# The shared tree's secrets file, which carries the contacts' values. Only the
+# assignments' names are read here, never their values.
+SECRETS="${ACCOUNT_BASELINE_SECRETS:-${TF_DIR}/secrets.auto.tfvars}"
+if [[ -n "${ACCOUNT_BASELINE_SECRETS:-}" ]]; then
+  echo "SYNTHETIC: secrets file='${SECRETS}' -- this run proves nothing about the account." >&2
 fi
 
 # The EventBridge rules each environment tree declares to route GuardDuty
@@ -126,6 +144,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --dry-run) DRY_RUN=1; shift ;;
     --enable-guardduty) ENABLE_GUARDDUTY=1; shift ;;
+    --enable-alternate-contacts) ENABLE_CONTACTS=1; shift ;;
     --yes)     ASSUME_YES="yes"; shift ;;
     -h|--help) usage 0 ;;
     *) echo "ERROR: unknown argument '$1'" >&2; usage 2 ;;
@@ -146,7 +165,10 @@ Dry run. A real run would, in this order:
           apply that exact plan. A plan with nothing to do skips the apply.
           With --enable-guardduty, first refuse unless both environments'
           finding rules are ENABLED, and write enable_guardduty = true to the
-          shared values file after the typed APPLY.
+          shared values file after the typed APPLY. With
+          --enable-alternate-contacts, first refuse unless the shared secrets
+          file assigns both contacts, and write
+          enable_account_alternate_contacts = true the same way.
   step 3  run the report again, which must show no findings, then compare
           against the saved baseline, which must show nothing changed.
 
@@ -175,14 +197,33 @@ aws_identity_require_direct_user "$FOOTBAG_OPERATOR_USER" || exit 1
 # typed APPLY, so an aborted run leaves the file as it was and a failed apply is
 # finished by running again. Without the flag a line already set to true is
 # honoured, which is how such a re-run completes.
+#
+# The alternate contacts follow the same shape with --enable-alternate-contacts:
+# their precondition is that the shared secrets file assigns both values, read
+# by name only, since a gate turned on with a value missing is refused by the
+# tree's own precondition only after the plan has started.
 TF_PLAN_VARS=()
 TFVARS_NEW=""
-if (( ENABLE_GUARDDUTY )); then
+GATES=()
+if (( ENABLE_GUARDDUTY || ENABLE_CONTACTS )); then
   [[ -e "$TFVARS" ]] || {
     echo "REFUSING: ${TFVARS} does not resolve; the private operations checkout" >&2
     echo "  must be present. Nothing was planned or applied." >&2
     exit 1
   }
+fi
+if (( ENABLE_CONTACTS )); then
+  for contact in alternate_contact_operations alternate_contact_security; do
+    if ! grep -qE "^[[:space:]]*${contact}[[:space:]]*=" "$SECRETS" 2>/dev/null; then
+      echo "REFUSING: ${SECRETS} assigns no ${contact}. Add it there, naming the" >&2
+      echo "  ops-alert group's address, then run this again. Nothing was planned or applied." >&2
+      exit 1
+    fi
+    echo "Contact value present: ${contact}"
+  done
+  GATES+=(enable_account_alternate_contacts)
+fi
+if (( ENABLE_GUARDDUTY )); then
   for rule in "${GUARDDUTY_ROUTES[@]}"; do
     rule_state=""
     if ! rule_state="$("$AWS_BIN" events describe-rule --name "$rule" \
@@ -200,16 +241,23 @@ if (( ENABLE_GUARDDUTY )); then
     fi
     echo "Finding route in place: ${rule}"
   done
-  TF_PLAN_VARS=(-var "enable_guardduty=true")
+  GATES+=(enable_guardduty)
+fi
+if (( ${#GATES[@]} )); then
   tfvars_old="$(cat "$TFVARS")"
-  if grep -qE '^[[:space:]]*enable_guardduty[[:space:]]*=[[:space:]]*true[[:space:]]*$' <<<"$tfvars_old"; then
-    echo "The shared values file already sets enable_guardduty = true."
-  elif grep -qE '^[[:space:]]*enable_guardduty[[:space:]]*=' <<<"$tfvars_old"; then
-    TFVARS_NEW="$(sed -E 's/^[[:space:]]*enable_guardduty[[:space:]]*=.*$/enable_guardduty = true/' <<<"$tfvars_old")"
-  else
-    TFVARS_NEW="${tfvars_old}"$'\n'"enable_guardduty = true"
-  fi
-  if [[ -n "$TFVARS_NEW" ]]; then
+  draft="$tfvars_old"
+  for gate in "${GATES[@]}"; do
+    TF_PLAN_VARS+=(-var "${gate}=true")
+    if grep -qE "^[[:space:]]*${gate}[[:space:]]*=[[:space:]]*true[[:space:]]*$" <<<"$draft"; then
+      echo "The shared values file already sets ${gate} = true."
+    elif grep -qE "^[[:space:]]*${gate}[[:space:]]*=" <<<"$draft"; then
+      draft="$(sed -E "s/^[[:space:]]*${gate}[[:space:]]*=.*$/${gate} = true/" <<<"$draft")"
+    else
+      draft="${draft}"$'\n'"${gate} = true"
+    fi
+  done
+  if [[ "$draft" != "$tfvars_old" ]]; then
+    TFVARS_NEW="$draft"
     echo ""
     echo "Once confirmed, the shared values file changes like this:"
     diff -u <(printf '%s\n' "$tfvars_old") <(printf '%s\n' "$TFVARS_NEW") \
@@ -218,18 +266,21 @@ if (( ENABLE_GUARDDUTY )); then
   echo ""
 fi
 
-# Writes the gate line shown above, through the symlink, and reads it back. Run
-# after the typed APPLY and before the apply itself, so a failed apply leaves a
-# file that a plain re-run plans the same way.
-write_guardduty_line() {
+# Writes the gate lines shown above, through the symlink, and reads each back.
+# Run after the typed APPLY and before the apply itself, so a failed apply leaves
+# a file that a plain re-run plans the same way.
+write_gate_lines() {
   [[ -n "$TFVARS_NEW" ]] || return 0
   printf '%s\n' "$TFVARS_NEW" > "$TFVARS"
-  if ! grep -qE '^enable_guardduty = true$' "$TFVARS"; then
-    echo "ERROR: wrote ${TFVARS} but it does not read back enable_guardduty = true." >&2
-    echo "       Nothing was applied." >&2
-    exit 1
-  fi
-  echo "Wrote enable_guardduty = true to ${TFVARS}."
+  local gate
+  for gate in "${GATES[@]}"; do
+    if ! grep -qE "^${gate} = true$" "$TFVARS"; then
+      echo "ERROR: wrote ${TFVARS} but it does not read back ${gate} = true." >&2
+      echo "       Nothing was applied." >&2
+      exit 1
+    fi
+    echo "Wrote ${gate} = true to ${TFVARS}."
+  done
   TFVARS_NEW=""
 }
 
@@ -336,9 +387,9 @@ fi
 if [[ -z "$changes" ]]; then
   echo "Nothing to apply: the baseline is already in Terraform state. Going"
   echo "straight to the proof."
-  # State already holds the detector, so the line only records what is live; a
-  # later plan reading the file without it would plan the detector's removal.
-  write_guardduty_line
+  # State already holds what the gates create, so the lines only record what is
+  # live; a later plan reading the file without them would plan its removal.
+  write_gate_lines
   echo ""
 else
   echo ""
@@ -349,7 +400,7 @@ else
     echo "Aborted before terraform apply. Nothing was changed." >&2
     exit 1
   fi
-  write_guardduty_line
+  write_gate_lines
   if ! "$TF_BIN" -chdir="$TF_DIR" apply -input=false "$TF_PLAN"; then
     echo "ERROR: terraform apply failed for the shared tree. Run this script again:" >&2
     echo "       the next plan starts from whatever the apply left." >&2

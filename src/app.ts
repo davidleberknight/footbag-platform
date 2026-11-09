@@ -8,6 +8,7 @@ import { config } from './config/env';
 import { authMiddleware } from './middleware/auth';
 import { requireOriginPin } from './middleware/requireOriginPin';
 import { memberActionBanner } from './middleware/memberActionBanner';
+import { adminAlarmBanner } from './middleware/adminAlarmBanner';
 import { FLASH_KIND, readFlash, clearFlash } from './lib/flashCookie';
 import { healthRouter }   from './routes/healthRoutes';
 import { seoRouter }      from './routes/seoRoutes';
@@ -26,6 +27,12 @@ import { countryFlag } from './services/countryUtils';
 import { externalLinkHelper } from './web/helpers/externalLink';
 import { formatDate, formatDateRange } from './lib/handlebarsHelpers';
 import { ForbiddenError, RateLimitedError, ServiceUnavailableError } from './services/serviceErrors';
+import { onRateLimitRefusal } from './services/rateLimitService';
+
+// Every rate-limit refusal in the serving process writes one warning naming its
+// action, which the refusal-volume metric filter counts. Registered here rather
+// than in the limiter so that importing the limiter loads no configuration.
+onRateLimitRefusal((action) => logger.warn('rate_limit.refused', { action }));
 
 const NAV_SECTIONS: ReadonlyArray<{ href: string; section: string; label: string }> = [
   { href: '/',          section: 'home',      label: 'Home' },
@@ -526,6 +533,8 @@ export function createApp(): express.Express {
   // Runs after the auth locals above, because it needs req.isMember and the
   // signed-in member's slug.
   app.use(memberActionBanner);
+  // Runs after the auth locals above, because it needs res.locals.isAdmin.
+  app.use(adminAlarmBanner);
 
   app.use((req, _res, next) => {
     logger.debug('incoming request', { method: req.method, url: redactTokenPaths(req.url) });

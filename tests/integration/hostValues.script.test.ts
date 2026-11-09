@@ -54,6 +54,7 @@ const PUBLISHED: Record<string, string> = {
   'app/ses_configuration_set_bulk': 'footbag-staging-bulk',
   'app/snapshots_bucket': 'footbag-staging-db-snapshots',
   'app/alarm_topic_arn': 'arn:aws:sns:us-east-1:000000000000:footbag-staging-alarms',
+  'app/alarm_topic_arn_us_west_2': 'arn:aws:sns:us-west-2:000000000000:footbag-staging-alarms-usw2',
   'app/ses_feedback_topic_arn': 'arn:aws:sns:us-east-1:000000000000:footbag-staging-ses-feedback',
   'app/alarm_queue_url': 'https://sqs.us-east-1.amazonaws.com/000000000000/footbag-staging-alarm-feed',
   'app/ses_feedback_queue_url': 'https://sqs.us-east-1.amazonaws.com/000000000000/footbag-staging-ses-feedback-feed',
@@ -271,7 +272,9 @@ describe('the catalogue agrees with every list it must match', () => {
     const tree = listFiles(`terraform/${target}`, /\.tf$/)
       .map((f) => readFileSync(join(REPO, `terraform/${target}`, f), 'utf-8'))
       .join('\n');
-    const published = new Set([...tree.matchAll(/ssm_prefix\}\/((?:app|secrets)\/[a-z_]+)/g)].map((m) => m[1]));
+    // Digits included: a name such as alarm_topic_arn_us_west_2 is one name, and
+    // reading it cut at the digit would match no catalogue entry.
+    const published = new Set([...tree.matchAll(/ssm_prefix\}\/((?:app|secrets)\/[a-z0-9_]+)/g)].map((m) => m[1]));
     const sources = new Set(
       catalogue().filter((e) => ['param', 'derived', 'secret'].includes(e.klass)).map((e) => e.source),
     );

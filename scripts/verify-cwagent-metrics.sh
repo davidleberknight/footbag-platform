@@ -43,6 +43,12 @@
 #                                (default 15). Widen it only when the agent was
 #                                just installed and the first publish is still
 #                                in flight.
+#   --containers                 Check the container monitor's readings instead,
+#                                the binding the container alarms need:
+#                                container_monitor_heartbeat with no dimensions,
+#                                and container_memory_percent for container=web.
+#                                The deploy installs the monitor, so on a host
+#                                that has not been deployed these are absent.
 #
 # Test seam (CI only; operators never set this): CWAGENT_VERIFY_AWS_BIN replaces
 # the aws CLI. A run using it says so on stderr, because this script exists to be
@@ -54,6 +60,7 @@ set -euo pipefail
 TARGET=""
 PROFILE=""
 WINDOW_MINUTES=15
+CONTAINERS=0
 
 # Both environments' stacks are us-east-1, and metrics are region-scoped, so an
 # operator whose ambient default region is elsewhere would otherwise get three
@@ -83,6 +90,7 @@ while [[ $# -gt 0 ]]; do
       WINDOW_MINUTES="${2:-}"
       shift 2 || { echo "ERROR: --window-minutes requires an argument" >&2; exit 2; }
       ;;
+    --containers) CONTAINERS=1; shift ;;
     --help|-h) usage ;;
     *) echo "ERROR: unknown argument '$1'" >&2; usage ;;
   esac
@@ -100,6 +108,12 @@ if [[ ! "$WINDOW_MINUTES" =~ ^[0-9]+$ ]] || (( WINDOW_MINUTES < 1 )); then
   exit 2
 fi
 
+# One closing report from here on, on stderr, so the PASS and FAIL rows on stdout
+# stay as the callers that read them expect. Sourced after the usage checks, so a
+# usage error keeps its plain exit 2.
+# shellcheck source=lib/closing-report.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/closing-report.sh"
+
 if [[ -n "$PROFILE" ]]; then
   export AWS_PROFILE="$PROFILE"
 else
@@ -108,7 +122,7 @@ else
   # operator profile.
   # shellcheck source=lib/aws-profile.sh
   source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/aws-profile.sh"
-  aws_profile_ensure || exit 1
+  aws_profile_ensure || cr_die "the AWS identity for this check could not be settled; nothing was read"
 fi
 
 # The agent publishes no instance dimension, so the namespace is the only thing
@@ -158,6 +172,25 @@ if [[ -n "${CWAGENT_VERIFY_AWS_BIN:-}" ]]; then
   echo "SYNTHETIC: aws='${AWS_BIN}' -- this run proves nothing about the estate." >&2
 fi
 
+if (( CONTAINERS )); then
+  echo "Checking ${TARGET} container monitor readings in namespace ${NAMESPACE}, last ${WINDOW_MINUTES} minutes:"
+  check_metric container_monitor_heartbeat "no dimensions"
+  check_metric container_memory_percent    "container=web" --dimensions Name=container,Value=web
+  echo
+  if (( FAILED == 0 )); then
+    echo "The container monitor's readings are arriving. Arm the container alarms with:"
+    echo "  bash scripts/set-terraform-gate.sh --target ${TARGET} --gate enable_container_alarms --state on"
+    cr_proved "the container monitor's heartbeat and a container=web reading are arriving in ${NAMESPACE}"
+    cr_finish
+  fi
+  echo "Missing:${FAILED_NAMES}. The deploy installs the monitor and re-applies the" >&2
+  echo "agent's StatsD input. The monitor's own journal on the host says why:" >&2
+  echo "  journalctl -u footbag-container-monitor.service -n 20" >&2
+  echo "Do not arm the container alarms until this passes." >&2
+  cr_error "no recent datapoints in ${NAMESPACE} for:${FAILED_NAMES}"
+  cr_finish
+fi
+
 echo "Checking ${TARGET} host metrics in namespace ${NAMESPACE}, last ${WINDOW_MINUTES} minutes:"
 check_metric cpu_usage_active  "cpu=cpu-total"    --dimensions Name=cpu,Value=cpu-total
 check_metric mem_used_percent  "no dimensions"
@@ -183,7 +216,8 @@ if (( FAILED == 0 )); then
     echo "  scripts/arm-cwagent-alarms.sh --target ${TARGET}"
     echo "which runs this same check first, so there is nothing to remember."
   fi
-  exit 0
+  cr_proved "all three host metric combinations have recent datapoints in ${NAMESPACE}"
+  cr_finish
 fi
 
 # Which failures appear says which fault it is, and the two have completely
@@ -207,4 +241,5 @@ fi
 
 echo >&2
 echo "Do not arm the alarms until this passes." >&2
-exit 1
+cr_error "no recent datapoints in ${NAMESPACE} for:${FAILED_NAMES}"
+cr_finish

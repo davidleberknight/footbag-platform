@@ -1818,6 +1818,16 @@ describe('both remote halves verify the container AWS identity', () => {
     expect(own.stdout).toMatch(/Container AWS identity verified: footbag-staging-app-runtime/);
   });
 
+  it.each(halves)('$file gates its readiness poll on every container being healthy', ({ content }) => {
+    // Defect caught: one half polling only web's readiness, so a deploy of that
+    // kind reports live while the worker or the image processor crash-loops.
+    // The code half's poll is driven end to end in the deploy migrate suite;
+    // this pins that both halves share the gate.
+    const poll = content.slice(content.indexOf('_stack_healthy=0'), content.indexOf('_stack_healthy == 0'));
+    expect(poll).toMatch(/ps --all --format '\{\{\.Service\}\} \{\{\.State\}\} \{\{\.Health\}\}'/);
+    expect(poll).toMatch(/&& _containers_healthy \\\n/);
+  });
+
   it.each(halves)('$file runs the check after the readiness poll', ({ content }) => {
     // Asking a container that is not up yet fails the deploy for the wrong
     // reason, and the half most exposed to that is the one this parity case
@@ -2502,8 +2512,146 @@ describe('both deploy paths start from an empty upload directory', () => {
       expect(source).toContain("--include='/scripts/cutover-marker.sh'");
       expect(source).toContain("--include='/scripts/take-pre-cutover-snapshot.sh'");
       expect(source).toContain("--include='/scripts/assert-no-erasure-replay-pending.sh'");
+      // The container monitor's timer runs it every minute, and it sources the
+      // report library, so a host missing any of these runs a monitor that
+      // fails every minute and watches nothing.
+      for (const f of ['container-monitor.sh', 'lib/closing-report.sh', 'lib/closing-report-remote.sh', 'lib/verdict-banner.sh']) {
+        expect(source, f).toContain(`--include='/scripts/${f}'`);
+      }
+      expect(source).toContain("--include='/scripts/lib/'");
     },
   );
+
+  // Defect caught: a deploy that ships the monitor's units but never installs or
+  // enables them, leaving every host unwatched until someone runs a separate
+  // install step nobody is reminded of.
+  it.each(['scripts/internal/deploy-code-remote.sh', 'scripts/internal/deploy-rebuild-remote.sh'])(
+    '%s installs and enables the container monitor with the stack',
+    (file) => {
+      const source = read(file);
+      expect(source).toContain('cp "$LIVE_DIR/ops/systemd/footbag-container-monitor.service" /etc/systemd/system/');
+      expect(source).toContain('cp "$LIVE_DIR/ops/systemd/footbag-container-monitor.timer" /etc/systemd/system/');
+      const copied = source.indexOf('footbag-container-monitor.timer" /etc/systemd/system/');
+      const reload = source.indexOf('systemctl daemon-reload', copied);
+      const enabled = source.indexOf('systemctl enable --now footbag-container-monitor.timer');
+      expect(reload).toBeGreaterThan(copied);
+      expect(enabled).toBeGreaterThan(reload);
+    },
+  );
+
+  // Defect caught: a host left with no backups because enabling the timer was a
+  // separate step nobody ran; a first backup that failed reported as a good
+  // deploy; or backups started on a first install before the restore.
+  describe.each(['scripts/internal/deploy-code-remote.sh', 'scripts/internal/deploy-rebuild-remote.sh'])(
+    '%s backup timer',
+    (file) => {
+      const runBackupBlock = (opts: { enabled: boolean; bucket: boolean; result?: string; firstInstall?: boolean }) => {
+        const source = read(file);
+        const start = source.indexOf('# The backup timer is restarted when it is enabled');
+        expect(start).toBeGreaterThan(-1);
+        const block = source.slice(start, source.indexOf('\n\n', start));
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-backup-enable-'));
+        try {
+          const log = path.join(dir, 'calls.log');
+          const env = path.join(dir, 'env');
+          fs.writeFileSync(env, opts.bucket ? 'FOOTBAG_ENV=staging\nBACKUP_S3_BUCKET=footbag-staging-snapshots\n' : 'FOOTBAG_ENV=staging\n');
+          fs.writeFileSync(path.join(dir, 'systemctl'), [
+            '#!/usr/bin/env bash',
+            `echo "systemctl $*" >> ${JSON.stringify(log)}`,
+            `[[ "$1" == is-enabled ]] && exit ${opts.enabled ? 0 : 1}`,
+            `[[ "$1" == show ]] && echo ${JSON.stringify(opts.result ?? 'success')}`,
+            'exit 0',
+          ].join('\n'));
+          fs.chmodSync(path.join(dir, 'systemctl'), 0o755);
+          const reportLib = path.join(REPO_ROOT, 'scripts/lib/closing-report-remote.sh');
+          const r = spawnSync('bash', ['-c', `set -euo pipefail\nsource ${JSON.stringify(reportLib)}\nENV_PATH=${JSON.stringify(env)}\nFIRST_INSTALL=${opts.firstInstall ? 1 : 0}\n${block}\necho BLOCK-DONE`], {
+            encoding: 'utf8', env: { ...process.env, PATH: `${dir}:${process.env.PATH ?? ''}` }, ...SPAWN_GUARD,
+          });
+          return { status: r.status, stdout: r.stdout ?? '', stderr: r.stderr ?? '', calls: fs.existsSync(log) ? fs.readFileSync(log, 'utf8') : '' };
+        } finally {
+          fs.rmSync(dir, { recursive: true, force: true });
+        }
+      };
+
+      it('restarts a timer already enabled and takes no extra backup', () => {
+        const r = runBackupBlock({ enabled: true, bucket: true });
+        expect(r.calls).toMatch(/systemctl restart footbag-backup\.timer/);
+        expect(r.calls).not.toMatch(/enable --now/);
+      });
+
+      it('enables the timer and proves a first backup once the bucket is configured', () => {
+        const r = runBackupBlock({ enabled: false, bucket: true });
+        expect(r.status, r.stderr).toBe(0);
+        expect(r.calls).toMatch(/systemctl enable --now footbag-backup\.timer/);
+        expect(r.calls).toMatch(/systemctl start footbag-backup\.service/);
+        expect(r.stderr).not.toMatch(/ ERROR | WARN /);
+      });
+
+      it('reports a failed first backup as an error', () => {
+        const r = runBackupBlock({ enabled: false, bucket: true, result: 'exit-code' });
+        expect(r.stderr).toMatch(/ ERROR the first backup ended 'exit-code'/);
+      });
+
+      it('warns, enabling nothing, while the host has no snapshots bucket', () => {
+        const r = runBackupBlock({ enabled: false, bucket: false });
+        expect(r.stderr).toMatch(/ WARN the backup timer is not enabled: BACKUP_S3_BUCKET is not set/);
+        expect(r.calls).not.toMatch(/enable --now/);
+      });
+
+      it('leaves backups off on a first install, before the restore', () => {
+        const r = runBackupBlock({ enabled: false, bucket: true, firstInstall: true });
+        expect(r.calls).not.toMatch(/enable --now|start footbag-backup/);
+        expect(r.stderr).not.toMatch(/ WARN /);
+      });
+    },
+  );
+
+  // Defect caught: the compressed swap device left in use after a deploy wrote
+  // its suppression, with nothing telling the operator a reboot is still owed.
+  it.each(['scripts/internal/deploy-code-remote.sh', 'scripts/internal/deploy-rebuild-remote.sh'])(
+    '%s warns while the compressed swap device is still in use, and only then',
+    (file) => {
+      const source = read(file);
+      const start = source.indexOf('# The suppression waits for a boot');
+      expect(start).toBeGreaterThan(-1);
+      const block = source.slice(start, source.indexOf('\nfi\n', start) + 4);
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-zram-'));
+      try {
+        const swaps = path.join(dir, 'swaps');
+        const reportLib = path.join(REPO_ROOT, 'scripts/lib/closing-report-remote.sh');
+        const run = (contents: string, env: string) => {
+          fs.writeFileSync(swaps, contents);
+          return spawnSync('bash', ['-c', `set -euo pipefail\nsource ${JSON.stringify(reportLib)}\nFOOTBAG_ENV=${env}\n${block.replace('/proc/swaps', swaps)}`], {
+            encoding: 'utf8', ...SPAWN_GUARD,
+          }).stderr ?? '';
+        };
+        const header = 'Filename\tType\tSize\tUsed\tPriority\n';
+        expect(run(`${header}/dev/zram0 partition 1000 0 100\n/swapfile file 2000 0 -2\n`, 'staging')).toMatch(/ WARN the compressed in-RAM swap device is still in use/);
+        expect(run(`${header}/swapfile file 2000 0 -2\n`, 'staging')).not.toMatch(/ WARN /);
+        expect(run(`${header}/dev/zram0 partition 1000 0 100\n`, 'production')).not.toMatch(/ WARN /);
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    },
+  );
+
+  // Defect caught: the agent re-apply drifting between the two halves, so a
+  // host deployed one way picks up a pin bump and a host deployed the other way
+  // silently keeps the old agent. The code half's block is driven end to end in
+  // the deploy migrate suite.
+  it('both halves carry the same CloudWatch agent re-apply, and both deploys ship its installer', () => {
+    const block = (file: string) => {
+      const source = read(file);
+      const start = source.indexOf('# The CloudWatch agent is re-applied from this release');
+      const end = source.indexOf('# One container reading now', start);
+      expect(start, file).toBeGreaterThan(-1);
+      return source.slice(start, end);
+    };
+    expect(block('scripts/internal/deploy-rebuild-remote.sh')).toBe(block('scripts/internal/deploy-code-remote.sh'));
+    for (const file of ['scripts/deploy-code.sh', 'scripts/deploy-rebuild.sh']) {
+      expect(read(file), file).toContain("--include='/scripts/internal/install-cwagent-remote.sh'");
+    }
+  });
 });
 
 describe('the removed one-shot seeds stay removed', () => {

@@ -23,7 +23,6 @@ scripts/authorize-operator-key.sh
 scripts/backfill-replication.sh
 scripts/backup-db.sh
 scripts/bootstrap-shared-state.sh
-scripts/bringup-status.sh
 scripts/build-sqlite3.sh
 scripts/bulk-send-pause.sh
 scripts/capture-legacy-zone.sh
@@ -31,7 +30,6 @@ scripts/check-certificate-transparency.sh
 scripts/check-media-integrity.sh
 scripts/clean_up_rubbish.sh
 scripts/compose-dev.sh
-scripts/confirm-alarm-subscription.sh
 scripts/create-stripe-endpoint.sh
 scripts/cutover-marker-host.sh
 scripts/cutover-marker.sh
@@ -84,7 +82,6 @@ scripts/restart-host.sh
 scripts/rotate-jwt-signing-key.sh
 scripts/rotate-operator-key.sh
 scripts/rotate-origin-verify-secret.sh
-scripts/send-test-alarm.sh
 scripts/set-host-env.sh
 scripts/setup-operator-workstation.sh
 scripts/setup_private_repo.sh
@@ -106,7 +103,6 @@ scripts/validate-realdata-ri.sh
 scripts/validate-showcase-presence.sh
 scripts/verify-captcha-outage-alarm.sh
 scripts/verify-cutover-notice.sh
-scripts/verify-cwagent-metrics.sh
 scripts/verify-host-snapshots.sh
 scripts/verify-mail-records.sh
 scripts/verify-prod-email.sh

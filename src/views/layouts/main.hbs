@@ -75,6 +75,16 @@
         <a href="{{memberActionBanner.href}}">{{memberActionBanner.linkLabel}}</a>
       </div>
     {{/if}}
+    {{#if adminAlarmBanner}}
+      <div class="flash-banner flash-action" role="alert" id="admin-alarm-banner">
+        {{#if adminAlarmBanner.alarmLine}}
+          <p>{{adminAlarmBanner.alarmLine}} <a href="{{adminAlarmBanner.alarmHref}}">{{adminAlarmBanner.alarmLinkLabel}}</a></p>
+        {{/if}}
+        {{#if adminAlarmBanner.feedStalledLine}}
+          <p>{{adminAlarmBanner.feedStalledLine}}</p>
+        {{/if}}
+      </div>
+    {{/if}}
     {{{body}}}
   </main>
 

@@ -253,6 +253,16 @@ ses_enable_domain_auth        = false
 ses_sender_on_domain_identity = false
 ses_enable_mail_records       = false
 enable_cutover_login_alarm    = false
+enable_container_alarms       = false
+enable_host_key_alarm         = false
+
+# The staging host's static address, for the host-key alarms this tree's trail
+# carries for both hosts. Required once enable_host_key_alarm is true.
+staging_web_static_ip = "TODO-staging-static-ip"
+
+# Rate-limit refusals in 15 minutes above which the refusal-volume warning fires,
+# set from the staging baseline.
+rate_limit_refusal_alarm_threshold = 50
 
 # ── Legacy archive (archive.footbag.org) ──────────────────────────────────────
 # Independent of enable_cloudfront and of the apex alias flip: archive.footbag.org

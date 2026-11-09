@@ -42,6 +42,10 @@ const { dbPath } = setTestEnv('4098');
 // and would freeze a config that names no queues.
 process.env.SES_FEEDBACK_QUEUE_URL = SES_QUEUE;
 process.env.ALARM_QUEUE_URL = ALARM_QUEUE;
+// The sibling topic AWS Health notices reach in the backup Region, which the
+// alarm feed's queue is subscribed to beside the main alarm topic.
+const HEALTH_TOPIC = 'arn:aws:sns:us-west-2:000:alarms-usw2';
+process.env.ALARM_ADDITIONAL_TOPIC_ARNS = HEALTH_TOPIC;
 
 type FeedModule = typeof import('../../src/adapters/notificationFeedAdapter');
 type OpsService = typeof import('../../src/services/operationsPlatformService')['operationsPlatformService'];
@@ -173,6 +177,28 @@ describe('notification feeds read from queues', () => {
     expect(result.handled).toBe(0);
     expect(result.skipped).toBe(1);
     expect(emailStatusOf(BOUNCED_EMAIL)).not.toBe('complained');
+  });
+
+  it('records an alarm published by the additional topic and refuses one from any other', async () => {
+    // Defect caught: an AWS Health notice from the backup Region never reaching
+    // the admin console; or the list widening the feed to topics nobody named.
+    feed.publishForTests(
+      ALARM_QUEUE,
+      alarmEnvelope(alarmStateChange('footbag-test-health-usw2', 'ALARM'), { messageId: 'sns-health-1', topicArn: HEALTH_TOPIC }),
+    );
+    feed.publishForTests(
+      ALARM_QUEUE,
+      alarmEnvelope(alarmStateChange('footbag-test-foreign', 'ALARM'), {
+        messageId: 'sns-foreign-1', topicArn: 'arn:aws:sns:us-west-2:999:someone-elses-topic',
+      }),
+    );
+
+    const before = alarmCount();
+    const result = await operationsPlatformService.runNotificationFeeds();
+
+    expect(result.handled).toBe(1);
+    expect(result.skipped).toBe(1);
+    expect(alarmCount()).toBe(before + 1);
   });
 
   it('deletes a notification only after the record it produces is written', () => {

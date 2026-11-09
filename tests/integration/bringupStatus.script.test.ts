@@ -107,6 +107,17 @@ describe('bringup-status.sh — fully provisioned production', () => {
     expect(result.stdout).toMatch(/8\. Deployed runtime\s+DONE/);
   });
 
+  it('holds the runtime row pending while the container monitor heartbeat is not arriving', () => {
+    // Defect caught: healthy containers reported done while nothing watches
+    // them, because the monitor's readings never reach CloudWatch.
+    const probe = writeProbeFile([...ALL_DONE_PRODUCTION, 'CW_MONITOR_HEARTBEAT=missing']);
+    const result = runScript(['--target', 'production', '--probe-file', probe]);
+    expect(result.stdout).toMatch(/8\. Deployed runtime\s+PENDING\s+containers healthy, but container_monitor_heartbeat is not arriving/);
+    expect(result.stdout).toMatch(/journalctl -u footbag-container-monitor\.service/);
+    const flowing = runScript(['--target', 'production', '--probe-file', writeProbeFile([...ALL_DONE_PRODUCTION, 'CW_MONITOR_HEARTBEAT=flowing'])]);
+    expect(flowing.stdout).toMatch(/8\. Deployed runtime\s+DONE.*container monitor heartbeat: flowing/);
+  });
+
   it('an absent bootstrap token reads as claimed-or-unprovisioned, never DONE', () => {
     const probe = writeProbeFile(ALL_DONE_PRODUCTION);
     const result = runScript(['--target', 'production', '--probe-file', probe]);
@@ -132,6 +143,9 @@ describe('bringup-status.sh — fully provisioned production', () => {
     );
     const on = runScript(['--target', 'production', '--probe-file', onProbe]);
     expect(on.stdout).toMatch(/7\. Cutover login alarm\s+INFO\s+ON; disable after the cutover window/);
+    // The way off is the gate script, never a values-file edit and an apply.
+    expect(on.stdout).toMatch(/set-terraform-gate\.sh --target production --gate enable_cutover_login_alarm --state off/);
+    expect(on.stdout).not.toMatch(/enable_cutover_login_alarm = (true|false), apply/);
   });
 });
 

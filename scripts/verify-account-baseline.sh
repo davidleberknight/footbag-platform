@@ -177,8 +177,8 @@ FINDINGS=0
 # are not faults.
 #
 # A verdict has to distinguish the outcomes it is asked about, and this one
-# could not. The three alternate contacts sit behind a flag that stays off until
-# their identities are decided, so counting them as findings made the exit
+# could not. The two alternate contacts sit behind a flag that stays off until
+# their values are set, so counting them as findings made the exit
 # status non-zero before an apply and non-zero after a completely successful
 # one, leaving an operator to tell the two apart by counting failure lines. The
 # denial proof already carries a third verdict for the same reason; this is the
@@ -599,7 +599,7 @@ fi
 # nobody is told if it goes unread.
 echo ""
 echo "Notification reachability"
-for kind in BILLING OPERATIONS SECURITY; do
+for kind in OPERATIONS SECURITY; do
   if ! aws_read CONTACT ResourceNotFoundException "the ${kind} alternate contact" \
     account get-alternate-contact --alternate-contact-type "$kind" \
     --query 'AlternateContact.EmailAddress' --output text; then
@@ -607,9 +607,20 @@ for kind in BILLING OPERATIONS SECURITY; do
   elif [[ -n "$CONTACT" && "$CONTACT" != "None" ]]; then
     pass "alternate contact ${kind} is set"
   else
-    gated "alternate contact ${kind} is unset, which is the declared state"
+    gated "alternate contact ${kind} is unset until enable_account_alternate_contacts is on"
   fi
 done
+# Billing notices stay with the root mailbox by design, so a billing contact is
+# not declared; one set by hand would send them somewhere nothing records.
+if ! aws_read CONTACT ResourceNotFoundException "the BILLING alternate contact" \
+  account get-alternate-contact --alternate-contact-type BILLING \
+  --query 'AlternateContact.EmailAddress' --output text; then
+  note "the read did not answer, so the BILLING contact was not checked rather than found unset"
+elif [[ -n "$CONTACT" && "$CONTACT" != "None" ]]; then
+  fail "a BILLING alternate contact is set, but billing notices belong with the root mailbox and no tree declares one"
+else
+  pass "no BILLING alternate contact: billing notices stay with the root mailbox"
+fi
 
 # ── 5. Root account posture ──────────────────────────────────────────────────
 echo ""
@@ -880,10 +891,10 @@ echo ""
 # The gated count is stated on both paths, because a run that said nothing about
 # it would read as though those controls had passed.
 if (( GATED )); then
-  echo "${GATED} control(s) deliberately off: the alternate contacts sit behind" >&2
-  echo "enable_account_alternate_contacts, which stays off until the three" >&2
-  echo "identities are decided and their values are in the shared tree's secrets" >&2
-  echo "file. They are not findings and do not decide this run." >&2
+  echo "${GATED} control(s) not yet on: the operations and security contacts sit" >&2
+  echo "behind enable_account_alternate_contacts, which turns on once both values" >&2
+  echo "are in the shared tree's secrets file. They are not findings and" >&2
+  echo "do not decide this run." >&2
   echo "" >&2
 fi
 

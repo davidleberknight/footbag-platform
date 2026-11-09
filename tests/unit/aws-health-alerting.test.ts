@@ -83,19 +83,22 @@ describe.each(trees)('AWS Health alerting: $tree', ({ blocks }) => {
     expect(grant).toMatch(/"AWS:SourceAccount"\s*=\s*var\.aws_account_id/);
   });
 
-  it('emails the same destinations as the primary alarm topic, renewable the same way', () => {
+  it('emails every destination the primary-region alarm topics email, renewable the same way', () => {
     const topic = backupTopic(blocks);
+    const isEmail = (b: HclBlock) => /protocol\s*=\s*"email"/.test(b.body);
     const subscriptions = blocks.filter(
-      (b) => b.type === 'aws_sns_topic_subscription'
+      (b) => b.type === 'aws_sns_topic_subscription' && isEmail(b)
         && b.body.includes(`aws_sns_topic.${topic.name}.arn`),
     );
     const endpoints = (list: HclBlock[]) =>
       list.map((b) => b.body.match(/endpoint\s*=\s*(var\.[a-z_]+)/)?.[1]).sort();
+    // The account mailbox on the main topic and the watch group on the critical
+    // topic: a Health notice needs someone to act, so both receive it.
     const primary = blocks.filter(
-      (b) => b.type === 'aws_sns_topic_subscription' && /protocol\s*=\s*"email"/.test(b.body)
-        && b.body.includes('aws_sns_topic.alarms.arn'),
+      (b) => b.type === 'aws_sns_topic_subscription' && isEmail(b)
+        && /aws_sns_topic\.alarms(_critical)?\.arn/.test(b.body),
     );
-    // Derived from the primary topic, so a destination added there and
+    // Derived from the primary topics, so a destination added there and
     // forgotten here fails rather than passing on a stale list.
     expect(endpoints(primary).length).toBeGreaterThan(0);
     expect(endpoints(subscriptions)).toEqual(endpoints(primary));

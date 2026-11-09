@@ -2867,3 +2867,36 @@ describe('env config: link-protection switches (URL_SCREENING_ARMED / REACHABILI
     );
   });
 });
+
+describe('env config: the topics the platform-alarm feed accepts', () => {
+  let snap: EnvSnapshot;
+  beforeEach(() => {
+    snap = snapshotEnv();
+    vi.resetModules();
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+  });
+  afterEach(() => restoreEnv(snap));
+
+  const MAIN = 'arn:aws:sns:us-east-1:000000000000:footbag-staging-alarms';
+  const HEALTH = 'arn:aws:sns:us-west-2:000000000000:footbag-staging-alarms-usw2';
+
+  it('lists the main topic first, then each additional one, trimmed', async () => {
+    // Defect caught: an AWS Health notice from the backup Region refused as
+    // unattributable, so it never reaches the admin console.
+    process.env.ALARM_TOPIC_ARN = MAIN;
+    process.env.ALARM_ADDITIONAL_TOPIC_ARNS = ` ${HEALTH} , `;
+    const { config } = await import('../../src/config/env');
+    expect(config.alarmTopicArns).toEqual([MAIN, HEALTH]);
+  });
+
+  it('accepts no topic at all when the main topic is unset, whatever else is listed', async () => {
+    // Defect caught: a feed that reads alarms on the strength of a secondary
+    // topic while the environment's own topic is unknown.
+    delete process.env.ALARM_TOPIC_ARN;
+    process.env.ALARM_ADDITIONAL_TOPIC_ARNS = HEALTH;
+    const { config } = await import('../../src/config/env');
+    expect(config.alarmTopicArns).toEqual([]);
+  });
+});

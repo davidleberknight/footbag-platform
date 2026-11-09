@@ -102,34 +102,20 @@ resource "aws_guardduty_detector_feature" "account" {
 # =============================================================================
 # Alternate contacts
 #
-# Unset, every notice of these three kinds reaches only the root mailbox, and
-# nobody is told if it goes unread. The support plan is Basic, so there is no
-# case to open behind a missed one.
+# The operations and security contacts name the operations group's mailbox, so
+# a service or security notice that needs someone to act reaches everyone on the
+# watch. Unset, those notices reach only the root mailbox, and nobody is told if
+# they go unread. The support plan is Basic, so there is no case to open behind a
+# missed one. Billing notices stay with the root mailbox, the shared one the
+# maintainers read, so no billing contact is declared.
 #
 # Gated because these are the only part of the baseline carrying values, and the
-# three controls above should not wait on those values being decided. The values
+# three controls above should not wait on those values being set. The values
 # live in this tree's companion secrets file rather than its ordinary values
 # file, for the reason production's alarm mailbox does: the address is the AWS
 # account's own recovery identity, and the phone number beside it is a named
 # person's.
 # =============================================================================
-
-resource "aws_account_alternate_contact" "billing" {
-  count = var.enable_account_alternate_contacts ? 1 : 0
-
-  alternate_contact_type = "BILLING"
-  name                   = var.alternate_contact_billing.name
-  title                  = var.alternate_contact_billing.title
-  email_address          = var.alternate_contact_billing.email_address
-  phone_number           = var.alternate_contact_billing.phone_number
-
-  lifecycle {
-    precondition {
-      condition     = var.alternate_contact_billing != null
-      error_message = "enable_account_alternate_contacts is on but alternate_contact_billing is unset. Set it in this tree's secrets.auto.tfvars, which is a symlink into the private operations checkout."
-    }
-  }
-}
 
 resource "aws_account_alternate_contact" "operations" {
   count = var.enable_account_alternate_contacts ? 1 : 0

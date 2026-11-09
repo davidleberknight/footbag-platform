@@ -1298,3 +1298,24 @@ describe('POST /csp-report', () => {
   });
 });
 
+describe('rate-limit refusal log line', () => {
+  // Defect caught: the serving process registers no refusal listener, so no
+  // refusal reaches the log and the refusal-volume alarm counts nothing while a
+  // lockout campaign runs; or the line carries the key, leaking an address.
+  it('writes one warning naming only the action for each refusal the app sees', async () => {
+    const loggerMod = await import('../../src/config/logger');
+    const limiter = await import('../../src/services/rateLimitService');
+    const warn = vi.spyOn(loggerMod.logger, 'warn').mockImplementation(() => undefined);
+    try {
+      const key = 'login:someone@example.com:203.0.113.9';
+      limiter.hit(key, 1, 5);
+      limiter.hit(key, 1, 5);
+      const refusals = warn.mock.calls.filter(([msg]) => msg === 'rate_limit.refused');
+      expect(refusals).toEqual([['rate_limit.refused', { action: 'login' }]]);
+    } finally {
+      warn.mockRestore();
+      limiter.resetRateLimitForTests();
+    }
+  });
+});
+

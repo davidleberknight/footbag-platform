@@ -171,6 +171,7 @@ services:
       # the endpoints are inert, which is the honest local state.
       SES_FEEDBACK_TOPIC_ARN: ${SES_FEEDBACK_TOPIC_ARN:-}
       ALARM_TOPIC_ARN: ${ALARM_TOPIC_ARN:-}
+      ALARM_ADDITIONAL_TOPIC_ARNS: ${ALARM_ADDITIONAL_TOPIC_ARNS:-}
       SES_FEEDBACK_QUEUE_URL: ${SES_FEEDBACK_QUEUE_URL:-}
       ALARM_QUEUE_URL: ${ALARM_QUEUE_URL:-}
     volumes:
@@ -306,6 +307,7 @@ services:
       # the endpoints are inert, which is the honest local state.
       SES_FEEDBACK_TOPIC_ARN: ${SES_FEEDBACK_TOPIC_ARN:-}
       ALARM_TOPIC_ARN: ${ALARM_TOPIC_ARN:-}
+      ALARM_ADDITIONAL_TOPIC_ARNS: ${ALARM_ADDITIONAL_TOPIC_ARNS:-}
       SES_FEEDBACK_QUEUE_URL: ${SES_FEEDBACK_QUEUE_URL:-}
       ALARM_QUEUE_URL: ${ALARM_QUEUE_URL:-}
     volumes:

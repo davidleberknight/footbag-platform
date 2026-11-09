@@ -143,7 +143,7 @@ variable "alarm_email_subscription_generation" {
 }
 
 variable "ops_alert_email" {
-  description = "The operational alarm group, ops-alert@footbag.org, subscribed to the alarm topic beside alarm_email so every alarm reaches everyone on the watch. Empty until the group exists and receives mail, which is after mail day: a subscription to an address that cannot receive is never confirmed. Its confirmation is authenticated by scripts/confirm-alarm-subscription.sh, so the unsubscribe link in an alarm cannot remove it."
+  description = "The operational alarm group, ops-alert@footbag.org, subscribed to the critical alarm topic and the us-west-2 Health topic, so every alarm that needs someone to act now, and every AWS Health notice, reaches everyone on the watch; alarm_email receives every alarm. Empty until the group exists and receives mail, which is after mail day: a subscription to an address that cannot receive is never confirmed. Its confirmation is authenticated by scripts/confirm-alarm-subscription.sh, so the unsubscribe link in an alarm cannot remove it."
   type        = string
   default     = ""
 }

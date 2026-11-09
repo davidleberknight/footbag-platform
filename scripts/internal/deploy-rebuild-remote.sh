@@ -343,6 +343,8 @@ require_path "release dir"        "$RELEASE_DIR"
 require_path "env file"           "$ENV_PATH"
 require_path "uploaded DB"        "$NEW_DB"
 require_path "service unit source" "$RELEASE_DIR/ops/systemd/footbag.service"
+require_path "monitor unit source" "$RELEASE_DIR/ops/systemd/footbag-container-monitor.service"
+require_path "monitor timer source" "$RELEASE_DIR/ops/systemd/footbag-container-monitor.timer"
 require_path "compose file"        "$RELEASE_DIR/docker/docker-compose.yml"
 require_path "compose prod file"   "$RELEASE_DIR/docker/docker-compose.prod.yml"
 
@@ -1339,6 +1341,11 @@ ensure_zram_disabled() {
   chmod 644 /etc/systemd/zram-generator.conf
 }
 ensure_zram_disabled
+# The suppression waits for a boot, and a deploy never reboots, so a device
+# still in use is reported rather than left outstanding without a word.
+if [[ "$FOOTBAG_ENV" != "production" ]] && grep -q '^/dev/zram' /proc/swaps 2>/dev/null; then
+  crr_warn "the compressed in-RAM swap device is still in use and goes only at the next boot: reboot through bash scripts/bootstrap-host.sh --target ${FOOTBAG_ENV}, whose reboot step asks first"
+fi
 
 # Assert the end state now that both writers have run: the committed host config
 # supplies the JWT signer, and the Terraform-published parameter supplies its key
@@ -1379,16 +1386,37 @@ fi
 if [[ -f "$LIVE_DIR/ops/systemd/footbag-backup.timer" ]]; then
   cp "$LIVE_DIR/ops/systemd/footbag-backup.timer" /etc/systemd/system/
 fi
+cp "$LIVE_DIR/ops/systemd/footbag-container-monitor.service" /etc/systemd/system/
+cp "$LIVE_DIR/ops/systemd/footbag-container-monitor.timer" /etc/systemd/system/
 systemctl daemon-reload
 # Enable for boot, not merely start. A unit installed and started without
 # being enabled runs correctly on a host whose first deploy was a rebuild until
 # its first reboot, and then comes back with nothing running. Leaving it disabled asserts the incoherent "run now, but not after a reboot".
 systemctl is-enabled --quiet footbag || systemctl enable footbag
-# Only restart the timer if it was already enabled: installing the backup timer
-# for the first time is a deliberate operator step with its own procedure
-# (scripts/install-backup-timer.sh), not something a deploy should switch on.
+# The container monitor has no prerequisite of its own beyond the running
+# stack, so every deploy enables it with the stack: a monitor that waits on a
+# separate install step is a host that is not watched.
+systemctl enable --now footbag-container-monitor.timer
+# The backup timer is restarted when it is enabled, and enabled by the deploy
+# itself once its one prerequisite holds, the snapshots bucket in the host env
+# file, so no host is left without backups waiting on a separate install step.
+# The first backup is the proof that the bucket, the database tool and the AWS
+# client all work, so it runs now and its failure is this deploy's error. A
+# first install, before the restore, leaves it off for the stack's own reason.
 if systemctl is-enabled --quiet footbag-backup.timer 2>/dev/null; then
   systemctl restart footbag-backup.timer
+elif [[ "${FIRST_INSTALL:-0}" != "1" ]]; then
+  if [[ -n "$(awk -F= '$1=="BACKUP_S3_BUCKET" {sub(/^[^=]*=/,""); print}' "$ENV_PATH" | tail -1)" ]]; then
+    echo "==> Enabling the backup timer and taking its first backup..."
+    systemctl enable --now footbag-backup.timer
+    systemctl start footbag-backup.service || true
+    _backup_result="$(systemctl show -p Result --value footbag-backup.service)"
+    if [[ "$_backup_result" != "success" ]]; then
+      crr_error "the first backup ended '${_backup_result}', not success; see journalctl -u footbag-backup.service"
+    fi
+  else
+    crr_warn "the backup timer is not enabled: BACKUP_S3_BUCKET is not set in ${ENV_PATH}, so this host takes no backups"
+  fi
 fi
 
 # No host-side image build: the workstation builds + ships images via
@@ -1474,9 +1502,26 @@ fi
 # script, bash reaches end of input, and the deploy exits 0 having silently
 # skipped everything below this point. It failed exactly that way, dropping the
 # persona seed and the provenance record while reporting success.
+#
+# Every container must also be running and healthy, worker and image as well as
+# web: a rebuild that leaves either crash-looping would otherwise report
+# success. A container with no healthcheck reports an empty health, which counts
+# as healthy once it is running; an empty listing means compose reached nothing.
 _stack_healthy=0
-for _i in 1 2 3 4 5 6 7 8 9 10; do
+_containers_healthy() {
+  local listing line service state health
+  listing="$(compose_cmd ps --all --format '{{.Service}} {{.State}} {{.Health}}' 2>/dev/null </dev/null)" || return 1
+  [[ -n "$listing" ]] || return 1
+  while IFS= read -r line; do
+    read -r service state health <<<"$line"
+    [[ "$state" == "running" ]] || return 1
+    [[ -z "$health" || "$health" == "healthy" ]] || return 1
+  done <<<"$listing"
+  return 0
+}
+for (( _i = 1; _i <= 45; _i++ )); do
   if systemctl is-active --quiet footbag.service \
+     && _containers_healthy \
      && compose_cmd exec -T web wget -qO- --timeout=3 http://localhost:3000/health/ready >/dev/null 2>&1 </dev/null; then
     _stack_healthy=1
     break
@@ -1484,9 +1529,63 @@ for _i in 1 2 3 4 5 6 7 8 9 10; do
   sleep 2
 done
 if (( _stack_healthy == 0 )); then
-  echo "    ERROR: stack did not reach a ready state within ~20s after restart. Dumping diagnostics..." >&2
+  echo "    ERROR: stack did not reach a ready state within ~90s after restart. Dumping diagnostics..." >&2
   dump_diagnostics
   exit 1
+fi
+
+# The CloudWatch agent is re-applied from this release whenever its pinned
+# package or its configuration differs from what this host last had applied, so
+# a pin bump or a configuration change reaches every host with its next deploy
+# and never needs a separate run. The fingerprint covers the installer half,
+# which carries the configuration, and the three agent pins. The installer runs
+# in its keep-credentials mode: it installs the pinned package and the
+# configuration and restarts the agent, minting nothing, so the host keeps the
+# key bootstrap gave it. A host whose agent holds no key yet is left to
+# bootstrap's agent step, which installs it with one.
+_cwagent_half="$LIVE_DIR/scripts/internal/install-cwagent-remote.sh"
+_cwagent_stamp="${CWAGENT_STAMP_FILE:-/etc/amazon-cloudwatch-agent.aws/applied-release.sha256}"
+_cwagent_creds="${CWAGENT_CREDS_FILE:-/etc/amazon-cloudwatch-agent.aws/credentials}"
+[[ -n "${CWAGENT_STAMP_FILE:-}${CWAGENT_CREDS_FILE:-}" ]] \
+  && echo "SYNTHETIC: CWAGENT_STAMP_FILE or CWAGENT_CREDS_FILE set -- the agent check proves nothing about the estate." >&2
+_cwagent_profile="footbag-${FOOTBAG_ENV_VAL}-cwagent"
+_cwagent_ns="CWAgent"
+[[ "$FOOTBAG_ENV_VAL" == "production" ]] && _cwagent_ns="CWAgent/production"
+_cwagent_want="$( { cat "$_cwagent_half"; grep -E '^CWAGENT_(VERSION|URL|SHA256)=' "$LIVE_DIR/ops/tool-versions.env"; } | sha256sum | cut -d' ' -f1)"
+if ! grep -qE "^[[:space:]]*\[${_cwagent_profile}\][[:space:]]*$" "$_cwagent_creds" 2>/dev/null; then
+  crr_warn "the CloudWatch agent holds no key on this host yet, so this deploy did not re-apply it; bootstrap-host.sh's agent step installs it"
+elif [[ "$(cat "$_cwagent_stamp" 2>/dev/null || true)" != "$_cwagent_want" ]]; then
+  echo "==> Re-applying the CloudWatch agent from this release (its pin or configuration changed)..."
+  if ( set -a
+       # shellcheck source=/dev/null
+       source "$LIVE_DIR/ops/tool-versions.env"
+       set +a
+       export CWAGENT_KEEP_CREDENTIALS=1 INSTANCE_NAME="footbag-${FOOTBAG_ENV_VAL}-web" \
+         CWAGENT_PROFILE="$_cwagent_profile" CWAGENT_NAMESPACE="$_cwagent_ns"
+       cat "$LIVE_DIR/scripts/lib/closing-report-remote.sh" "$_cwagent_half" | bash ); then
+    printf '%s\n' "$_cwagent_want" > "$_cwagent_stamp"
+  else
+    crr_error "re-applying the CloudWatch agent failed (its own errors are listed in this report); the host keeps the agent it had, and the next deploy tries again"
+  fi
+fi
+
+# One container reading now, against the stack this deploy just brought up, so a
+# monitor that cannot run fails the deploy that shipped it rather than going
+# quiet until its heartbeat alarm fires. Its readings travel by UDP, which
+# cannot report an absent listener, so the agent's StatsD input is checked here
+# too: on the loopback address, and nowhere a container could also reach.
+if systemctl is-enabled --quiet footbag-container-monitor.timer; then
+  systemctl start footbag-container-monitor.service || true
+  _monitor_result="$(systemctl show -p Result --value footbag-container-monitor.service)"
+  if [[ "$_monitor_result" != "success" ]]; then
+    crr_error "the container monitor's first reading ended '${_monitor_result}', not success; see journalctl -u footbag-container-monitor.service"
+  fi
+  _statsd="$(ss -Hulpn 'sport = :8125' 2>&1)" || _statsd=""
+  if [[ -z "$_statsd" ]]; then
+    crr_warn "nothing listens on UDP 8125, so the container readings are dropped: the CloudWatch agent's StatsD input is off on this host"
+  elif grep -qvE '127\.0\.0\.1:8125' <<<"$_statsd"; then
+    crr_error "the CloudWatch agent's StatsD input listens beyond the loopback address: ${_statsd//$'\n'/; }"
+  fi
 fi
 
 # The containers resolve AWS credentials from the mounted profile. When they cannot

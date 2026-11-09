@@ -1,0 +1,33 @@
+# =============================================================================
+# /etc/systemd/system/footbag-container-monitor.service
+#
+# One-shot per-container health reading; scheduled by
+# footbag-container-monitor.timer. Installed by
+# scripts/install-container-monitor.sh, which also checks that the CloudWatch
+# agent is listening for its readings.
+# =============================================================================
+
+[Unit]
+Description=Footbag per-container health reading
+Documentation=https://github.com/davidleberknight/footbag-platform
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/srv/footbag
+ExecStart=/usr/bin/env bash scripts/container-monitor.sh
+
+# The one piece of state it keeps, the moment its last run read Docker's events
+# up to, lives in a directory systemd creates and owns for it.
+StateDirectory=footbag-container-monitor
+
+# Sandboxing. The script reads Docker's socket, the cgroup files and its own
+# state, and sends readings to the agent on the loopback address; nothing else
+# on the host is written to. It holds no AWS credential, so root's home is not
+# reached at all.
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6

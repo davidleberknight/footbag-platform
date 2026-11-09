@@ -1,0 +1,129 @@
+/**
+ * scripts/reconfirm-alarm-subscriptions.sh: the read-only status of every alarm
+ * email subscription, and the recreation of all of them through the values
+ * file, against a stand-in aws CLI, a scratch values file and a stand-in apply.
+ */
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { spawnSync } from 'node:child_process';
+import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
+
+const SCRIPT = join(process.cwd(), 'scripts/reconfirm-alarm-subscriptions.sh');
+
+let dir: string;
+let tfvars: string;
+
+// Answers the three reads the status makes. SUBS_<topic> lists that topic's
+// email subscriptions as "arn endpoint" lines; AUTH_<n> answers for sub-<n>.
+const AWS_STUB = `#!/usr/bin/env bash
+case "$2" in
+  list-topics)
+    region=""; prev=""; for a in "$@"; do [[ "$prev" == --region ]] && region="$a"; prev="$a"; done
+    if [[ "$region" == us-west-2 ]]; then printf 'arn:aws:sns:us-west-2:000000000000:footbag-staging-alarms-usw2\\n'
+    else printf 'arn:aws:sns:us-east-1:000000000000:footbag-staging-alarms\\tarn:aws:sns:us-east-1:000000000000:footbag-staging-alarms-critical\\n'; fi ;;
+  list-subscriptions-by-topic)
+    topic=""; prev=""; for a in "$@"; do [[ "$prev" == --topic-arn ]] && topic="\${a##*:}"; prev="$a"; done
+    var="SUBS_\${topic//-/_}"; printf '%b' "\${!var:-}" ;;
+  get-subscription-attributes)
+    sub=""; prev=""; for a in "$@"; do [[ "$prev" == --subscription-arn ]] && sub="$a"; prev="$a"; done
+    var="AUTH_\${sub##*-}"; echo "\${!var:-true}" ;;
+esac
+`;
+
+function run(args: string[], env: NodeJS.ProcessEnv = {}) {
+  const res = spawnSync('bash', [SCRIPT, '--target', 'staging', ...args], {
+    encoding: 'utf8',
+    env: { ...process.env, RECONFIRM_AWS_BIN: join(dir, 'aws'), ...env },
+    ...SPAWN_GUARD,
+  });
+  return { status: res.status, stdout: res.stdout ?? '', stderr: res.stderr ?? '' };
+}
+
+beforeEach(() => {
+  dir = createScratchDir('reconfirm-alarm-subs');
+  tfvars = join(dir, 'terraform.tfvars');
+  writeFileSync(join(dir, 'aws'), AWS_STUB);
+  chmodSync(join(dir, 'aws'), 0o755);
+});
+afterEach(() => removeScratch(dir));
+
+describe('reconfirm-alarm-subscriptions.sh --status', () => {
+  const SUBS = {
+    SUBS_footbag_staging_alarms: 'sub-1\\tops@example.invalid\\n',
+    SUBS_footbag_staging_alarms_usw2: 'sub-2\\tops@example.invalid\\nPendingConfirmation\\tgroup@example.invalid\\n',
+  };
+
+  it('reports an authenticated subscription as safe and passes', () => {
+    const r = run(['--status'], { SUBS_footbag_staging_alarms: 'sub-1\\tops@example.invalid\\n' });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/footbag-staging-alarms: ops@example\.invalid authenticated/);
+    expect(r.stderr).not.toMatch(/ WARN/);
+  });
+
+  // Defect caught: a subscription confirmed by a click, which any unsubscribe
+  // link in an alarm email can remove, reported as fine.
+  it('warns on a click-confirmed subscription, naming the recreation', () => {
+    const r = run(['--status'], { ...SUBS, AUTH_2: 'false' });
+    expect(r.stderr).toMatch(/footbag-staging-alarms-usw2: ops@example\.invalid was confirmed by a click/);
+    expect(r.stderr).toMatch(/reconfirm-alarm-subscriptions\.sh --target staging/);
+  });
+
+  it('warns on a pending subscription, naming the confirm script', () => {
+    const r = run(['--status'], SUBS);
+    expect(r.stderr).toMatch(/group@example\.invalid is pending confirmation; confirm its link with bash scripts\/confirm-alarm-subscription\.sh --target staging/);
+  });
+});
+
+describe('reconfirm-alarm-subscriptions.sh, recreating the subscriptions', () => {
+  it('raises an existing generation by one, keeping the rest of the file', () => {
+    writeFileSync(tfvars, 'alarm_email = "x"\nalarm_email_subscription_generation = 3   # bumped on resend\nenable_cloudfront = true\n');
+    const r = run(['--tfvars', tfvars, '--yes']);
+    expect(r.status, r.stderr).toBe(0);
+    expect(readFileSync(tfvars, 'utf8')).toBe('alarm_email = "x"\nalarm_email_subscription_generation = 4   # bumped on resend\nenable_cloudfront = true\n');
+  });
+
+  it('adds the line at 1 when the file has none', () => {
+    writeFileSync(tfvars, 'alarm_email = "x"\n');
+    run(['--tfvars', tfvars, '--yes']);
+    expect(readFileSync(tfvars, 'utf8')).toBe('alarm_email = "x"\nalarm_email_subscription_generation = 1\n');
+  });
+
+  it('refuses a generation that is not a whole number, changing nothing', () => {
+    writeFileSync(tfvars, 'alarm_email_subscription_generation = "two"\n');
+    const r = run(['--tfvars', tfvars, '--yes']);
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toMatch(/is '"two"', not a whole number/);
+    expect(readFileSync(tfvars, 'utf8')).toBe('alarm_email_subscription_generation = "two"\n');
+  });
+
+  it('changes nothing without the typed confirmation', () => {
+    writeFileSync(tfvars, 'alarm_email_subscription_generation = 2\n');
+    const r = run(['--tfvars', tfvars]);
+    expect(r.status).not.toBe(0);
+    expect(readFileSync(tfvars, 'utf8')).toBe('alarm_email_subscription_generation = 2\n');
+  });
+
+  it('applies and then names the confirm script for each fresh link', () => {
+    writeFileSync(tfvars, 'alarm_email_subscription_generation = 0\n');
+    const tf = join(dir, 'terraform-apply.sh');
+    writeFileSync(tf, '#!/usr/bin/env bash\necho "applied $*"\n');
+    chmodSync(tf, 0o755);
+    const r = run(['--tfvars', tfvars, '--yes'], { RECONFIRM_TERRAFORM: tf });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/applied --target staging/);
+    expect(r.stdout).toMatch(/bash scripts\/confirm-alarm-subscription\.sh --target staging/);
+  });
+
+  it('keeps the raised generation after a failed apply, since the apply may have recreated some', () => {
+    writeFileSync(tfvars, 'alarm_email_subscription_generation = 0\n');
+    const tf = join(dir, 'terraform-apply.sh');
+    writeFileSync(tf, '#!/usr/bin/env bash\necho "Error: creating SNS subscription" >&2; exit 1\n');
+    chmodSync(tf, 0o755);
+    const r = run(['--tfvars', tfvars, '--yes'], { RECONFIRM_TERRAFORM: tf });
+    expect(r.status).not.toBe(0);
+    expect(readFileSync(tfvars, 'utf8')).toBe('alarm_email_subscription_generation = 1\n');
+  });
+});

@@ -4,6 +4,7 @@ import {
   refund,
   resetRateLimitForTests,
   rateLimitBucketCountForTests,
+  onRateLimitRefusal,
 } from '../../src/services/rateLimitService';
 
 beforeEach(() => {
@@ -307,5 +308,37 @@ describe('rateLimitService.refund', () => {
     vi.setSystemTime(new Date('2026-04-17T12:02:00Z'));
     expect(hit('k', 2, 1, 10).allowed).toBe(true);
     expect(hit('k', 2, 1, 10).allowed).toBe(true);
+  });
+});
+
+describe('refusal notice', () => {
+  afterEach(() => onRateLimitRefusal(null));
+
+  it('notifies once per refusal naming only the action', () => {
+    // The refusal-volume alarm counts these notices; a missing one hides a
+    // lockout campaign, and one carrying the key leaks an email or IP.
+    const seen: string[] = [];
+    onRateLimitRefusal((action) => seen.push(action));
+    const key = 'login:someone@example.com:203.0.113.9';
+    hit(key, 1, 5);
+    expect(seen).toEqual([]);
+    hit(key, 1, 5);
+    hit(key, 1, 5);
+    expect(seen).toEqual(['login', 'login']);
+  });
+
+  it('names a key with no action prefix as unnamed, never the key itself', () => {
+    const seen: string[] = [];
+    onRateLimitRefusal((action) => seen.push(action));
+    for (const key of ['someone@example.com', 'Someone@Example.com:1', ':203.0.113.9']) {
+      hit(key, 1, 5);
+      hit(key, 1, 5);
+    }
+    expect(seen).toEqual(['unnamed', 'unnamed', 'unnamed']);
+  });
+
+  it('refuses as before with no listener registered', () => {
+    hit('k', 1, 5);
+    expect(hit('k', 1, 5).allowed).toBe(false);
   });
 });

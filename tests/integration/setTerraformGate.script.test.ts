@@ -83,6 +83,7 @@ case "$1" in
   console)
     read -r expr
     echo "console read $expr" >> "$STUB_CALLS"
+    if [[ "$expr" == "jsonencode(local.host_keys)" ]]; then printf '%s\\n' "\${STUB_HOST_KEYS:-}"; exit 0; fi
     name="\${expr#var.}"
     if [[ "$name" == aws_region ]]; then
       if [[ -n "\${STUB_REGION_RC:-}" ]]; then echo "Error: stub region read failure" >&2; exit "$STUB_REGION_RC"; fi
@@ -120,6 +121,12 @@ if [[ -n "\${STUB_AWS_RC:-}" ]]; then
   echo "An error occurred (AccessDenied) when calling the $2 operation: stub denied" >&2
   exit "$STUB_AWS_RC"
 fi
+if [[ "$1" == cloudtrail ]]; then
+  user=""
+  for a in "$@"; do [[ "$a" == AttributeKey=Username,AttributeValue=* ]] && user="\${a#AttributeKey=Username,AttributeValue=}"; done
+  if [[ -r "$STUB_TRAIL_DIR/$user.json" ]]; then cat "$STUB_TRAIL_DIR/$user.json"; else echo '[]'; fi
+  exit 0
+fi
 region="" namespace="" metric="" group="" pattern="" start=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -152,6 +159,8 @@ const PRESENT = [
   'us-east-1:AWS/Billing:EstimatedCharges',
   `us-east-1:/footbag/staging/app:${HEARTBEAT_PATTERN}`,
   `us-east-1:/footbag/production/app:${HEARTBEAT_PATTERN}`,
+  'us-east-1:CWAgent:container_monitor_heartbeat',
+  'us-east-1:CWAgent/production:container_monitor_heartbeat',
 ].join('|');
 
 /** An operator address of the kind the real values file carries, from the
@@ -842,6 +851,16 @@ describe('set-terraform-gate.sh checks the metric an alarm reads before arming i
       target: 'production',
       where: /^aws cloudwatch list-metrics --region us-east-1 --namespace AWS\/Billing --metric-name EstimatedCharges /m,
     },
+    {
+      gate: 'enable_container_alarms',
+      target: 'staging',
+      where: /^aws cloudwatch list-metrics .*--namespace CWAgent --metric-name container_monitor_heartbeat .*--recently-active PT3H/m,
+    },
+    {
+      gate: 'enable_container_alarms',
+      target: 'production',
+      where: /^aws cloudwatch list-metrics .*--namespace CWAgent\/production --metric-name container_monitor_heartbeat .*--recently-active PT3H/m,
+    },
   ];
   const arm = (a: { gate: string; target: string }, env: Record<string, string> = {}) =>
     run(['--target', a.target, '--gate', a.gate, '--state', 'on', '--yes'], env);
@@ -919,5 +938,73 @@ describe('set-terraform-gate.sh checks the metric an alarm reads before arming i
     expect(r.status, r.stderr).toBe(0);
     expect(callLog()).not.toMatch(/^aws /m);
     expect(callLog()).toMatch(/^apply --target staging$/m);
+  });
+});
+
+describe('set-terraform-gate.sh arms the host-key alarms only when the trail agrees', () => {
+  /** What the console prints for jsonencode(local.host_keys): the encoded map,
+   *  as a quoted string. Addresses are from the documentation ranges. */
+  const hostKeys = (stagingIp: string) => JSON.stringify(JSON.stringify({
+    'production-source-profile': { user: 'footbag-production-source-profile', ip: '198.51.100.10' },
+    'staging-source-profile': { user: 'footbag-staging-source-profile', ip: stagingIp },
+  }));
+  /** A trail lookup's answer: each event is a JSON string, as CloudTrail returns
+   *  them, signed by the user from the address given, or made by a service on
+   *  the user's behalf. */
+  const trail = (user: string, events: Array<{ ip: string; invokedBy?: string }>) => {
+    mkdirSync(join(dir, 'trail'), { recursive: true });
+    writeFileSync(join(dir, 'trail', `${user}.json`), JSON.stringify(events.map((e) => JSON.stringify({
+      userIdentity: { type: 'IAMUser', userName: user, ...(e.invokedBy ? { invokedBy: e.invokedBy } : {}) },
+      sourceIPAddress: e.ip,
+    }))));
+  };
+  const arm = (env: Record<string, string> = {}) =>
+    run(['--target', 'production', '--gate', 'enable_host_key_alarm', '--state', 'on', '--yes'],
+      { STUB_TRAIL_DIR: join(dir, 'trail'), STUB_HOST_KEYS: hostKeys('192.0.2.20'), ...env });
+
+  it('arms when every call each key signed came from its host, services on its behalf aside', () => {
+    // Defect caught: a check that reads the wrong user or ignores the trail,
+    // arming an alarm that the hosts' own traffic then holds in ALARM.
+    trail('footbag-production-source-profile', [{ ip: '198.51.100.10' }, { ip: 'AWS Internal', invokedBy: 'cloudformation.amazonaws.com' }]);
+    trail('footbag-staging-source-profile', [{ ip: '192.0.2.20' }]);
+    const r = arm();
+    expect(r.status, r.stderr).toBe(0);
+    expect(callLog()).toMatch(/^aws cloudtrail lookup-events .*AttributeValue=footbag-production-source-profile /m);
+    expect(callLog()).toMatch(/^aws cloudtrail lookup-events .*AttributeValue=footbag-staging-source-profile /m);
+    expect(callLog()).toMatch(/^apply --target production$/m);
+  });
+
+  it('refuses while a key signed calls from an address the alarm does not expect', () => {
+    // Defect caught: the alarm armed while a host really reaches AWS from a
+    // second address, so it sits in ALARM and teaches the watch to ignore it.
+    trail('footbag-production-source-profile', [{ ip: '198.51.100.10' }, { ip: '2001:db8::7' }]);
+    const r = arm();
+    expect(r.status).toBe(1);
+    expect(r.report).toContain('2001:db8::7');
+    expect(r.report).toContain('198.51.100.10');
+    expect(values('production')).toBe(VALUES);
+    expect(callLog()).not.toMatch(/^apply /m);
+  });
+
+  it('refuses while a host has no address set, reading no trail for it', () => {
+    // Defect caught: a filter built with an empty expected address, which
+    // matches every call the key ever makes.
+    const r = arm({ STUB_HOST_KEYS: hostKeys('') });
+    expect(r.status).toBe(1);
+    expect(r.report).toContain('staging_web_static_ip');
+    expect(callLog()).not.toMatch(/^apply /m);
+  });
+
+  it('treats a failed trail read as an error carrying AWS\'s message', () => {
+    const r = arm({ STUB_AWS_RC: '255' });
+    expect(r.status).toBe(1);
+    expect(r.report).toContain('stub denied');
+    expect(callLog()).not.toMatch(/^apply /m);
+  });
+
+  it('is a production gate only, because the trail lives in production', () => {
+    const r = run(['--target', 'staging', '--gate', 'enable_host_key_alarm', '--state', 'on', '--yes']);
+    expect(r.status).toBe(2);
+    expect(r.report).toContain('not declared in terraform/staging');
   });
 });

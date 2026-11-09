@@ -523,3 +523,95 @@ resource "aws_cloudwatch_metric_alarm" "audit" {
   alarm_actions       = [aws_sns_topic.alarms.arn]
   ok_actions          = [aws_sns_topic.alarms.arn]
 }
+
+# ── Host keys used from their own host only ──────────────────────────────────
+#
+# Each host holds two long-lived IAM user keys: the source profile its runtime
+# role is assumed from, and the CloudWatch agent's publisher. Both are used from
+# that host's static address and nowhere else, so a call signed by either from
+# any other address raises an alarm. Calls AWS services make on the user's
+# behalf carry the service rather than an address and are excluded. Declared
+# here, beside the trail, for both hosts: the trail is account-wide, so a call
+# by a staging key is recorded in this log group too.
+
+variable "enable_host_key_alarm" {
+  description = <<-EOT
+    Set to true only once the trail's history shows every call by each host key
+    coming from that host's static IPv4 address: scripts/set-terraform-gate.sh
+    reads the last week of CloudTrail events for each user and refuses to flip
+    this while any came from elsewhere, because an address the host really uses
+    but this filter does not expect would hold the alarm in ALARM. Requires
+    enable_cloudtrail and a real staging_web_static_ip.
+  EOT
+  type        = bool
+  default     = false
+}
+
+variable "staging_web_static_ip" {
+  description = "The staging web host's static IPv4 address (the staging tree's lightsail_static_ip output). This tree watches the staging host's keys as well as its own, and cannot read the staging tree's state. Required when enable_host_key_alarm is true."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.staging_web_static_ip == "" || can(regex("^(25[0-5]|2[0-4][0-9]|1?[0-9]?[0-9])(\\.(25[0-5]|2[0-4][0-9]|1?[0-9]?[0-9])){3}$", var.staging_web_static_ip))
+    error_message = "staging_web_static_ip must be empty or an IPv4 address; the terraform.tfvars.example placeholder (TODO-...) is rejected."
+  }
+}
+
+locals {
+  host_keys = {
+    production-source-profile = {
+      user = aws_iam_user.source_profile.name
+      ip   = aws_lightsail_static_ip.web.ip_address
+    }
+    production-cwagent-publisher = {
+      user = aws_iam_user.cwagent_publisher.name
+      ip   = aws_lightsail_static_ip.web.ip_address
+    }
+    staging-source-profile = {
+      user = "footbag-staging-source-profile"
+      ip   = var.staging_web_static_ip
+    }
+    staging-cwagent-publisher = {
+      user = "footbag-staging-cwagent-publisher"
+      ip   = var.staging_web_static_ip
+    }
+  }
+}
+
+resource "aws_cloudwatch_log_metric_filter" "host_key_off_host" {
+  for_each       = var.enable_cloudtrail && var.enable_host_key_alarm ? local.host_keys : {}
+  name           = "${local.prefix}-host-key-off-host-${each.key}"
+  log_group_name = aws_cloudwatch_log_group.cloudtrail[0].name
+  pattern        = "{ ($.userIdentity.type = \"IAMUser\") && ($.userIdentity.userName = \"${each.value.user}\") && ($.userIdentity.invokedBy NOT EXISTS) && ($.sourceIPAddress != \"${each.value.ip}\") }"
+  metric_transformation {
+    namespace     = "Footbag/${var.environment}/Audit"
+    name          = "HostKeyOffHost-${each.key}"
+    value         = "1"
+    default_value = "0"
+  }
+
+  lifecycle {
+    precondition {
+      condition     = each.value.ip != ""
+      error_message = "enable_host_key_alarm needs staging_web_static_ip set to the staging host's static address."
+    }
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "host_key_off_host" {
+  for_each                  = var.enable_cloudtrail && var.enable_host_key_alarm ? local.host_keys : {}
+  alarm_name                = "${local.prefix}-host-key-off-host-${each.key}"
+  comparison_operator       = "GreaterThanThreshold"
+  evaluation_periods        = 1
+  metric_name               = "HostKeyOffHost-${each.key}"
+  namespace                 = "Footbag/${var.environment}/Audit"
+  period                    = 300
+  statistic                 = "Sum"
+  threshold                 = 0
+  treat_missing_data        = "notBreaching"
+  alarm_description         = "The ${each.value.user} key signed a call from an address other than its host's (${each.value.ip}); it is used from that host only. Find the call in the trail and follow the first-checks row for this alarm."
+  alarm_actions             = local.critical_alarm_actions
+  ok_actions                = local.critical_alarm_actions
+  insufficient_data_actions = local.warning_alarm_actions
+}

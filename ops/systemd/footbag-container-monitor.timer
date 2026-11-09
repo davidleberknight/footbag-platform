@@ -1,0 +1,20 @@
+# =============================================================================
+# /etc/systemd/system/footbag-container-monitor.timer
+#
+# Drives footbag-container-monitor.service every minute, the period the
+# per-container alarms evaluate on. The heartbeat alarm breaches when the
+# readings stop arriving, so a dead timer is operator-visible within minutes.
+# Install: scripts/install-container-monitor.sh.
+# =============================================================================
+
+[Unit]
+Description=Footbag per-container health reading every minute
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+AccuracySec=5s
+Unit=footbag-container-monitor.service
+
+[Install]
+WantedBy=timers.target

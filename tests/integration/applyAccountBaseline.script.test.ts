@@ -142,6 +142,7 @@ function run(
   verifier: VerifierOpts = {},
   arn?: string,
   rules: Record<string, string> = BOTH_ROUTES,
+  extraEnv: NodeJS.ProcessEnv = {},
 ) {
   if (!existsSync(tfvarsPath())) {
     writeFileSync(tfvarsPath(), 'aws_region = "us-east-1"\nenable_account_alternate_contacts = false\n', 'utf-8');
@@ -153,6 +154,7 @@ function run(
     ACCOUNT_BASELINE_VERIFIER: verifierStub(verifier),
     ACCOUNT_BASELINE_AWS_BIN: awsStub(rules),
     ACCOUNT_BASELINE_TFVARS: tfvarsPath(),
+    ...extraEnv,
   };
   const r = spawnSync('bash', [SCRIPT, ...args], {
     cwd: process.cwd(),
@@ -433,5 +435,50 @@ describe('apply-account-baseline.sh — turning on GuardDuty', () => {
     expect(r.exitCode, r.stderr).toBe(0);
     expect(r.tf).not.toMatch(/enable_guardduty/);
     expect(readFileSync(tfvarsPath(), 'utf8')).not.toMatch(/enable_guardduty/);
+  });
+});
+
+const CONTACT_CREATES = [
+  change('aws_account_alternate_contact.operations[0]', ['create']),
+  change('aws_account_alternate_contact.security[0]', ['create']),
+];
+
+describe('apply-account-baseline.sh — turning on the operations and security contacts', () => {
+  // Defect caught: the contacts turned on by a values-file edit and an apply
+  // typed by hand, or with a value missing, so AWS's service and security
+  // notices keep reaching only the root mailbox and nobody on the watch.
+  const secretsPath = () => join(stubDir, 'shared.secrets.auto.tfvars');
+  const withSecrets = (body: string) => {
+    writeFileSync(secretsPath(), body, 'utf-8');
+    return { ACCOUNT_BASELINE_SECRETS: secretsPath() };
+  };
+  const BOTH = 'alternate_contact_operations = { name = "x" }\nalternate_contact_security = { name = "x" }\n';
+
+  it('plans with the gate on, creates both contacts, and writes the values line', () => {
+    const r = run(['--enable-alternate-contacts', '--yes'], plan(CONTACT_CREATES), {}, undefined, BOTH_ROUTES, withSecrets(BOTH));
+    expect(r.exitCode, r.stderr).toBe(0);
+    expect(r.tf).toMatch(/plan -input=false -var enable_account_alternate_contacts=true -out=/);
+    const tfvars = readFileSync(tfvarsPath(), 'utf8');
+    expect(tfvars).toMatch(/^enable_account_alternate_contacts = true$/m);
+    expect(tfvars).not.toMatch(/enable_account_alternate_contacts = false/);
+  });
+
+  it.each([
+    ['the operations contact', 'alternate_contact_security = { name = "x" }\n', /assigns no alternate_contact_operations/],
+    ['the security contact', 'alternate_contact_operations = { name = "x" }\n', /assigns no alternate_contact_security/],
+  ])('refuses before planning while %s has no value', (_label, body, message) => {
+    const r = run(['--enable-alternate-contacts', '--yes'], plan(CONTACT_CREATES), {}, undefined, BOTH_ROUTES, withSecrets(body));
+    expect(r.exitCode).toBe(1);
+    expect(r.stderr).toMatch(message);
+    expect(r.tf).toBe('');
+    expect(readFileSync(tfvarsPath(), 'utf8')).toMatch(/enable_account_alternate_contacts = false/);
+  });
+
+  it('turns on both gates in one run when both flags are given', () => {
+    const r = run(['--enable-guardduty', '--enable-alternate-contacts', '--yes'], plan([...GUARDDUTY_CREATES, ...CONTACT_CREATES]), {}, undefined, BOTH_ROUTES, withSecrets(BOTH));
+    expect(r.exitCode, r.stderr).toBe(0);
+    const tfvars = readFileSync(tfvarsPath(), 'utf8');
+    expect(tfvars).toMatch(/^enable_guardduty = true$/m);
+    expect(tfvars).toMatch(/^enable_account_alternate_contacts = true$/m);
   });
 });

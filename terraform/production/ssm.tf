@@ -124,6 +124,15 @@ resource "aws_ssm_parameter" "app_alarm_topic_arn" {
   value = aws_sns_topic.alarms.arn
 }
 
+# The second topic the alarm feed reads: AWS Health's backup copy, published in
+# us-west-2. The worker accepts a notification only from a topic it was told
+# about, so this one is published to it beside the main topic.
+resource "aws_ssm_parameter" "app_alarm_topic_arn_us_west_2" {
+  name  = "${local.ssm_prefix}/app/alarm_topic_arn_us_west_2"
+  type  = "String"
+  value = aws_sns_topic.alarms_us_west_2.arn
+}
+
 resource "aws_ssm_parameter" "app_ses_feedback_topic_arn" {
   name  = "${local.ssm_prefix}/app/ses_feedback_topic_arn"
   type  = "String"

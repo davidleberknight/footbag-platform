@@ -109,9 +109,9 @@ resource "aws_cloudwatch_metric_alarm" "high_cpu" {
   threshold                 = 85
   treat_missing_data        = "missing"
   alarm_description         = "CPU utilization above 85% for 3 consecutive minutes"
-  alarm_actions             = [aws_sns_topic.alarms.arn]
-  ok_actions                = [aws_sns_topic.alarms.arn]
-  insufficient_data_actions = [aws_sns_topic.alarms.arn]
+  alarm_actions             = local.critical_alarm_actions
+  ok_actions                = local.critical_alarm_actions
+  insufficient_data_actions = local.warning_alarm_actions
 
   dimensions = {
     cpu = "cpu-total"
@@ -130,9 +130,9 @@ resource "aws_cloudwatch_metric_alarm" "high_memory" {
   threshold                 = 85
   treat_missing_data        = "missing"
   alarm_description         = "Memory utilization above 85% for 3 consecutive minutes"
-  alarm_actions             = [aws_sns_topic.alarms.arn]
-  ok_actions                = [aws_sns_topic.alarms.arn]
-  insufficient_data_actions = [aws_sns_topic.alarms.arn]
+  alarm_actions             = local.critical_alarm_actions
+  ok_actions                = local.critical_alarm_actions
+  insufficient_data_actions = local.warning_alarm_actions
 }
 
 # Disk used % on root filesystem. CWAgent config sets drop_device:true so the
@@ -151,9 +151,9 @@ resource "aws_cloudwatch_metric_alarm" "high_disk" {
   threshold                 = 85
   treat_missing_data        = "missing"
   alarm_description         = "Root filesystem usage above 85% for 3 consecutive minutes"
-  alarm_actions             = [aws_sns_topic.alarms.arn]
-  ok_actions                = [aws_sns_topic.alarms.arn]
-  insufficient_data_actions = [aws_sns_topic.alarms.arn]
+  alarm_actions             = local.critical_alarm_actions
+  ok_actions                = local.critical_alarm_actions
+  insufficient_data_actions = local.warning_alarm_actions
 
   dimensions = {
     path   = "/"
@@ -173,8 +173,8 @@ resource "aws_cloudwatch_metric_alarm" "db_backup_age" {
   threshold           = 15 # Alert if no backup in 15 minutes
   treat_missing_data  = "breaching"
   alarm_description   = "SQLite backup has not completed in 15+ minutes"
-  alarm_actions       = [aws_sns_topic.alarms.arn]
-  ok_actions          = [aws_sns_topic.alarms.arn]
+  alarm_actions       = local.critical_alarm_actions
+  ok_actions          = local.critical_alarm_actions
 }
 
 resource "aws_cloudwatch_metric_alarm" "db_backup_failures" {
@@ -189,8 +189,8 @@ resource "aws_cloudwatch_metric_alarm" "db_backup_failures" {
   threshold           = 3              # Alert after three consecutive failed backups
   treat_missing_data  = "notBreaching" # silence is covered by the staleness alarm
   alarm_description   = "SQLite backup has failed three or more times in a row"
-  alarm_actions       = [aws_sns_topic.alarms.arn]
-  ok_actions          = [aws_sns_topic.alarms.arn]
+  alarm_actions       = local.critical_alarm_actions
+  ok_actions          = local.critical_alarm_actions
 }
 
 # Promotion is the retention story rather than the backup itself, and it fails on
@@ -383,10 +383,10 @@ resource "aws_cloudwatch_metric_alarm" "cloudfront_5xx" {
   # would publish a notice.
   treat_missing_data = "notBreaching"
   alarm_description  = "CloudFront 5xx error rate above 5%"
-  alarm_actions      = [aws_sns_topic.alarms.arn]
+  alarm_actions      = local.critical_alarm_actions
   # Published on the way back to normal as well, so the alarm the platform
   # recorded can actually clear rather than sitting open for ever.
-  ok_actions = [aws_sns_topic.alarms.arn]
+  ok_actions = local.critical_alarm_actions
 
   dimensions = {
     DistributionId = var.enable_cloudfront ? aws_cloudfront_distribution.main[0].id : ""

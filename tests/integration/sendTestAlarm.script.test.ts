@@ -51,6 +51,9 @@ beforeEach(() => {
       'if [[ -n "${FAKE_REFUSE_STATE:-}" && "$*" == *"--state-value ${FAKE_REFUSE_STATE}"* ]]; then',
       '  echo "ResourceNotFound" >&2; exit 254',
       'fi',
+      'if [[ "$1" == cloudwatch && "$2" == describe-alarms ]]; then',
+      '  printf \'%s\\n\' "${FAKE_ACTIONS-arn:aws:sns:us-east-1:000000000000:footbag-production-alarms	arn:aws:sns:us-east-1:000000000000:footbag-production-alarms-critical}"',
+      'fi',
       '',
     ].join('\n'),
     { mode: 0o755 },
@@ -104,6 +107,26 @@ describe('send-test-alarm: refusals', () => {
   it('changes nothing without the typed confirmation when no terminal is attached', () => {
     const res = run(['--target', 'production', '--alarm', 'footbag-production-5xx-rate']);
     expect(res.status).toBe(1);
+    expect(calls()).toHaveLength(0);
+  });
+
+  it('says which inboxes to check, from the alarm\'s own actions', () => {
+    // Defect caught: the group told to watch for a warning that never reaches
+    // it, recorded as a failed delivery; or a critical test the group is not
+    // told about.
+    const critical = run(['--target', 'production', '--alarm', 'footbag-production-site-unavailable', '--yes']);
+    expect(critical.stdout).toContain('the watch group receives both mails as well');
+    const warning = run(['--target', 'production', '--alarm', 'footbag-production-high-cpu-warning', '--yes'], {
+      FAKE_ACTIONS: 'arn:aws:sns:us-east-1:000000000000:footbag-production-alarms',
+    });
+    expect(warning.status).toBe(0);
+    expect(warning.stdout).toContain('the watch group does not receive it');
+  });
+
+  it('refuses a name that is not one of the environment\'s alarms, changing nothing', () => {
+    const res = run(['--target', 'production', '--alarm', 'footbag-production-no-such-alarm', '--yes'], { FAKE_ACTIONS: 'None' });
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('has no alarm named');
     expect(calls()).toHaveLength(0);
   });
 
