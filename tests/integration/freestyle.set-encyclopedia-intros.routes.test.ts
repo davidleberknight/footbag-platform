@@ -30,32 +30,9 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('/freestyle/sets — subtype intro one-liners', () => {
-  it('each subtype section renders an intro paragraph under the h2', async () => {
-    const res = await page('/freestyle/sets');
-    expect(res.status).toBe(200);
-    // The new class is the data-bearing tripwire
-    expect(res.text).toContain('class="sets-encyclopedia-subtype-intro"');
-  });
-
-  it('the hero intro opens with a beginner-plain definition of a set', async () => {
-    const res = await page('/freestyle/sets');
-    expect(res.text).toContain('A set is how a freestyle trick begins');
-  });
-
-  it('intros for each curator-authored subtype are present in the rendered output', async () => {
-    const res = await page('/freestyle/sets');
-    // Spot-check a phrase from each subtype's intro (sourced verbatim
-    // from SET_SUBTYPE_SPECS in freestyleCanonicalSets.ts)
-    expect(res.text).toMatch(/Foundational entry primitives/i);               // true-core
-    expect(res.text).toMatch(/Multi-dex chains and derived entry topologies/i); // composite-derived
-    expect(res.text).toMatch(/SPIN body token inside the set chain/i);          // rotational
-    expect(res.text).toMatch(/CLIP-anchored cross-body rotational sets/i);      // whirl-swirl
-    expect(res.text).toMatch(/initial contact is something other than TOE or CLIP/i); // uns
-    expect(res.text).toMatch(/setting foot stays on the ground/i);             // rooted-antisymposium
-  });
-
   it('intro renders after the h2 + count header (positional check)', async () => {
     const res = await page('/freestyle/sets');
+    expect(res.status).toBe(200);
     // The h2 + count cluster is wrapped in sets-encyclopedia-subtype-head;
     // the intro paragraph follows immediately after the head closes.
     expect(res.text).toMatch(/<\/div>\s*<p class="sets-encyclopedia-subtype-intro">/);

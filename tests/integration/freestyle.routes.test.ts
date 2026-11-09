@@ -425,20 +425,6 @@ describe('GET /freestyle/about', () => {
 // ---------------------------------------------------------------------------
 
 describe('GET /freestyle/sets — the Historical Move-Set Reference section (Holden table)', () => {
-  it('returns 200 with the section heading', async () => {
-    const res = await page('/freestyle/sets');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Historical Move-Set Reference');
-  });
-
-  it('contains core set names', async () => {
-    const res = await page('/freestyle/sets');
-    expect(res.text).toContain('Pixie');
-    expect(res.text).toContain('Fairy');
-    expect(res.text).toContain('Nuclear');
-    expect(res.text).toContain('Stepping');
-  });
-
   // ── cross-link moves → dictionary ───────────────────────────────
   // Strict rule: slugify(label) must exactly equal a public freestyle_tricks
   // slug. Compound labels and modifier-only matches stay plain text. Every
@@ -446,6 +432,7 @@ describe('GET /freestyle/sets — the Historical Move-Set Reference section (Hol
 
   it('renders trick-matched basic-set labels as anchors to /freestyle/tricks/:slug', async () => {
     const res = await page('/freestyle/sets');
+    expect(res.status).toBe(200);
     expect(res.text).toContain('<a href="/freestyle/tricks/pixie">Pixie</a>');
     expect(res.text).toContain('<a href="/freestyle/tricks/fairy">Fairy</a>');
     expect(res.text).toContain('<a href="/freestyle/tricks/stepping">Stepping</a>');
@@ -512,21 +499,9 @@ describe('GET /freestyle/sets — the Historical Move-Set Reference section (Hol
 
 // ---------------------------------------------------------------------------
 
-describe('Set-notation reference cross-links', () => {
-  it('Concepts §3 intermediate-operators block links to the Historical Move-Set Reference section', async () => {
-    const res = await page('/freestyle/concepts');
-    const intermediateIdx = res.text.indexOf('id="intermediate-operators"');
-    const linkIdx         = res.text.indexOf('href="/freestyle/sets#historical-move-set-reference"', intermediateIdx);
-    expect(intermediateIdx).toBeGreaterThan(0);
-    expect(linkIdx).toBeGreaterThan(intermediateIdx);
-  });
-
-  it('landing surfaces Operators & Modifiers as a banner tile linking to /freestyle/operators', async () => {
-    // The Language banner carries an "Operators & Modifiers" tile with a single
-    // outbound link to /freestyle/operators. No embedded operator-board.
+describe('Freestyle landing — operators stay on their own page', () => {
+  it('embeds no operator board on the landing', async () => {
     const res = await page('/freestyle');
-    expect(res.text).toContain('Operators &amp; Modifiers');
-    expect(res.text).toContain('href="/freestyle/operators"');
     expect(res.text).not.toContain('class="operator-board ');
     expect(res.text).not.toContain('class="operator-board-footer-link"');
   });

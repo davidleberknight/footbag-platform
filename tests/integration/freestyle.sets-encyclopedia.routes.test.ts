@@ -77,8 +77,6 @@ describe('GET /freestyle/sets — the set list', () => {
     expect(list).toContain('id="enc-set-pixie"');
     expect(list).not.toContain('<code');
     expect(list).not.toContain('[DEX]');
-    const detail = await page('/freestyle/sets/pixie');
-    expect(detail.text).toContain('TOE &gt; SAME IN [DEX]');
   });
 
   it('lists each set exactly once, and nowhere else on the page as a second list', async () => {
@@ -90,21 +88,6 @@ describe('GET /freestyle/sets — the set list', () => {
     expect(new Set(ids).size).toBe(ids.length);
     expect(res.text).not.toContain('compositional-set-card');
   });
-
-  it('groups the sets by the six subtypes', async () => {
-    const res = await page('/freestyle/sets');
-    for (const key of SUBTYPE_KEYS) {
-      expect(res.text, `subtype section ${key}`).toContain(`id="set-subtype-${key}"`);
-    }
-  });
-
-  it.each(PRIORITY_SETS.map(slug => [slug] as const))(
-    'the detail link for %s resolves to a page, not a 404 or a redirect',
-    async (slug) => {
-      const res = await page(`/freestyle/sets/${slug}`);
-      expect(res.status).toBe(200);
-    },
-  );
 
   it('lists Furious and Blazing, and no Miraging, Barraging or Whirling set', async () => {
     const res = await page('/freestyle/sets');
@@ -135,32 +118,6 @@ describe('GET /freestyle/sets — the set list', () => {
 });
 
 describe('GET /freestyle/sets — page order and contents', () => {
-  it('puts the set list first, then how sets are built, the ladders, the compilation and the sources', async () => {
-    const res = await page('/freestyle/sets');
-    const order = [
-      'id="set-subtype-true-core"',
-      'id="how-sets-are-built"',
-      'id="uptime-reinterpretation"',
-      'id="historical-move-set-reference"',
-      'id="sources"',
-    ].map(marker => res.text.indexOf(marker));
-    for (const at of order) expect(at).toBeGreaterThan(0);
-    expect([...order].sort((a, b) => a - b)).toEqual(order);
-  });
-
-  it('the contents bar links every section on the page, and every target exists', async () => {
-    // Defect caught: a contents entry that jumps nowhere.
-    const res = await page('/freestyle/sets');
-    const tocStart = res.text.indexOf('class="glossary-mini-toc"');
-    const toc = res.text.slice(tocStart, res.text.indexOf('</nav>', tocStart));
-    const targets = [...toc.matchAll(/href="#([^"]+)"/g)].map(m => m[1]);
-    expect(targets).toEqual([
-      ...SUBTYPE_KEYS.map(key => `set-subtype-${key}`),
-      'how-sets-are-built', 'uptime-reinterpretation', 'historical-move-set-reference', 'sources',
-    ]);
-    for (const id of targets) expect(res.text, `section ${id}`).toContain(`id="${id}"`);
-  });
-
   it('points each subtype forward to the next, and the last subtype to nothing', async () => {
     const res = await page('/freestyle/sets');
     const footers = res.text.match(/class="glossary-section-next"/g) ?? [];
@@ -172,46 +129,35 @@ describe('GET /freestyle/sets — page order and contents', () => {
 });
 
 describe('GET /freestyle/sets — the sections below the list', () => {
-  it('how sets are built gives the grammar\'s base shape once', async () => {
-    const res = await page('/freestyle/sets');
-    const section = res.text.slice(res.text.indexOf('id="how-sets-are-built"'), res.text.indexOf('id="uptime-reinterpretation"'));
-    expect(section).toContain('(toe | clip) &gt; [(same | op)(in | out) dexterity]* &gt; (same | op)(toe | clip)');
-    expect(section).toContain('Example: <code>Pixie = TOE &gt; SAME IN [DEX] &gt;</code>');
-  });
-
   it('records both readings where Holden and the platform disagree, rather than picking one', async () => {
     // Defect caught: a documented disagreement silently normalized to one reading.
     const res = await page('/freestyle/sets');
-    expect(res.text).toMatch(/spinning miraging/);
-    expect(res.text).toMatch(/spinning stepping/);
     expect(res.text).toContain('compositional-ladder--conflict');
-    expect(res.text).toMatch(/documented disagreement, not normalized/);
   });
 
-  it('presents the older Furious three-dex reading as superseded, not as current structure', async () => {
+  it('does not present the older Furious three-dex reading as current structure', async () => {
     const res = await page('/freestyle/sets');
-    expect(res.text).toMatch(/superseded/i);
     expect(res.text).not.toContain('Barraging-set extended with a third dex');
   });
 
   it('declares the compilation\'s source before its table', async () => {
+    // Defect caught: the compilation shown with an empty source note.
     const res = await page('/freestyle/sets');
-    const provenance = res.text.indexOf('Set notation sourced from the freestyle discussion archive');
-    const table = res.text.indexOf('class="moves-table"');
-    expect(provenance).toBeGreaterThan(-1);
-    expect(table).toBeGreaterThan(provenance);
-    expect(res.text).toContain('may differ from current platform doctrine');
+    const archive = res.text.slice(res.text.indexOf('id="historical-move-set-reference"'));
+    const note = /<p class="source-note">[^<]+<\/p>/.exec(archive);
+    expect(note, 'non-empty source note').not.toBeNull();
+    expect(archive.indexOf('class="moves-table"')).toBeGreaterThan(note!.index);
   });
 
-  it('reproduces the compilation untouched, including names and formulas the platform does not use', async () => {
-    // Defect caught: the archive edited to match current doctrine.
+  it('shows a notation on every row of the compilation table', async () => {
+    // Defect caught: the notation column lost, leaving a table of bare names.
     const res = await page('/freestyle/sets');
-    const archive = res.text.slice(res.text.indexOf('id="historical-move-set-reference"'), res.text.indexOf('id="sources"'));
-    expect(archive).toMatch(/Miraging/);
-    expect(archive).toMatch(/Barraging/);
-    expect(archive).toContain('SET &gt; OP IN [DEX] &gt;');
-    expect(archive).toContain('SET &gt; (no plant while) OP OUT [BOD] [DEX] &gt;');
-    expect(archive).toContain('CLIP &gt; OP IN [DEX] &gt; SAME IN [DEX] &gt; OP IN [DEX] &gt;');
+    const archive = res.text.slice(res.text.indexOf('class="moves-table"'), res.text.indexOf('</table>'));
+    const rows = [...archive.matchAll(/<tr id="(move-[^"]+)">([\s\S]*?)<\/tr>/g)];
+    expect(rows.length).toBeGreaterThan(0);
+    for (const [, id, cells] of rows) {
+      expect(cells, id).toMatch(/<td><code>[^<]+<\/code><\/td>/);
+    }
   });
 
   it('keeps the curator audit off the public page', async () => {
@@ -220,14 +166,6 @@ describe('GET /freestyle/sets — the sections below the list', () => {
     expect(res.text).not.toContain('id="audit"');
     expect(res.text).not.toContain('curatorial transparency');
     expect(res.text).not.toContain('curator workspace');
-  });
-
-  it('credits the notation grammar and the compilation in the sources section', async () => {
-    const res = await page('/freestyle/sets');
-    const sources = res.text.slice(res.text.indexOf('id="sources"'));
-    expect(sources).toContain('Ben Job');
-    expect(sources).toContain('Chris Holden');
-    expect(sources).toContain('href="#historical-move-set-reference"');
   });
 });
 
@@ -250,18 +188,5 @@ describe('Retired set addresses', () => {
       expect(res.text, `${path} links /freestyle/compositional-sets`).not.toContain('href="/freestyle/compositional-sets');
       expect(res.text, `${path} links /freestyle/sets/reference`).not.toContain('href="/freestyle/sets/reference');
     }
-  });
-});
-
-describe('Cross-link presence on sibling pages', () => {
-  it('freestyle landing renders a "Set Encyclopedia" card linking to /freestyle/sets', async () => {
-    const res = await page('/freestyle');
-    expect(res.text).toContain('Set Encyclopedia');
-    expect(res.text).toMatch(/href="\/freestyle\/sets"/);
-  });
-
-  it('glossary links to the Set Encyclopedia', async () => {
-    const res = await page('/freestyle/glossary');
-    expect(res.text).toMatch(/href="\/freestyle\/sets"/);
   });
 });

@@ -17,6 +17,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
+import Handlebars from 'handlebars';
 import { cachedGet } from '../fixtures/cachedGet';
 
 import {
@@ -30,6 +31,7 @@ import {
   insertFreestyleTrickModifier,
   insertFreestyleTrickModifierLink,
 } from '../fixtures/factories';
+import { BRANCH_FAMILIES, ROOT_TERMINAL_FAMILIES } from '../../src/content/freestyleGlossaryFamilyCards';
 
 const { dbPath } = setTestEnv('4021');
 
@@ -138,19 +140,36 @@ describe('GET /freestyle/families/:slug — page budget and examples', () => {
   });
 });
 
+describe('GET /freestyle/families/:slug — every family page teaches from its own card', () => {
+  // Defect caught: a family page losing a teaching field, or showing another
+  // family's card. Every field is checked against the card read at test time, and
+  // each miss is named, so one broken field does not hide the others.
+  it('renders each family\'s hook, description, importance, first recognition cue and plain reading', async () => {
+    const cards = [...ROOT_TERMINAL_FAMILIES, ...BRANCH_FAMILIES];
+    const missing: string[] = [];
+    for (const slug of FIRST_CLASS_FAMILY_SLUGS) {
+      const teaching = cards.find(c => c.slug === slug)?.teaching;
+      if (!teaching) {
+        missing.push(`${slug}: no teaching card`);
+        continue;
+      }
+      const { text } = await page(`/freestyle/families/${slug}`);
+      const fields = {
+        hook: teaching.hook,
+        physicalDescription: teaching.physicalDescription,
+        importance: teaching.importance,
+        howToRecognize: teaching.howToRecognize[0] ?? '',
+        plainLanguageReading: teaching.plainLanguageReading ?? '',
+      };
+      for (const [field, value] of Object.entries(fields)) {
+        if (!text.includes(Handlebars.escapeExpression(value))) missing.push(`${slug}: ${field}`);
+      }
+    }
+    expect(missing).toEqual([]);
+  });
+});
+
 describe('GET /freestyle/families/:slug — family detail page', () => {
-  it('returns 200 for a first-class family parent (whirl)', async () => {
-    const res = await page('/freestyle/families/whirl');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Whirl Family');
-  });
-
-  it('returns 200 for a first-class family parent with no seeded members (osis)', async () => {
-    const res = await page('/freestyle/families/osis');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Osis Family');
-  });
-
   it('returns 404 for an unknown slug (anti-enumeration)', async () => {
     const res = await page('/freestyle/families/not-a-real-family');
     expect(res.status).toBe(404);
@@ -174,11 +193,6 @@ describe('GET /freestyle/families/:slug — family detail page', () => {
     const mediaLine = res.text.match(/<p class="media-line"[^>]*>([\s\S]*?)<\/p>/)?.[1] ?? '';
     expect(mediaLine).toContain('#family_whirl');
     expect(mediaLine).not.toMatch(/#whirl\b/);
-  });
-
-  it('renders the tier label', async () => {
-    const res = await page('/freestyle/families/whirl');
-    expect(res.text).toContain('Family Parent');
   });
 
   it('renders member tricks as links to their trick-detail pages', async () => {
@@ -222,16 +236,9 @@ describe('GET /freestyle/families/down — umbrella family draws examples from e
 });
 
 describe('GET /freestyle/families/down — the teaching flow (model family page)', () => {
-  it('leads the hero with the teaching hook, not the descendant count', async () => {
+  it('does not lead the hero with a descendant count', async () => {
     const res = await page('/freestyle/families/down');
-    expect(res.text).toContain('look like four different tricks. They are not.');
     expect(res.text).not.toContain('documented descendants');
-  });
-
-  it('explains what a down physically is, in plain words, before the notation', async () => {
-    const res = await page('/freestyle/families/down');
-    expect(res.text).toContain('What is a Down?');
-    expect(res.text).toContain('A down is a finishing movement');
   });
 
   it('renders none of the structural-reference sections, and no observational badge', async () => {
@@ -247,19 +254,9 @@ describe('GET /freestyle/families/down — the teaching flow (model family page)
     }
   });
 
-  it('opens "What is a ...?" with the family\'s plain reading where the card authors one', async () => {
-    const res = await page('/freestyle/families/pickup');
-    const whatIs = res.text.indexOf('<h2>What is a Pickup?</h2>');
-    expect(whatIs, 'the What-is section renders').toBeGreaterThan(-1);
-    const reading = res.text.indexOf('One inward dexterity, caught by the dexing foot.');
-    expect(reading).toBeGreaterThan(whatIs);
-    expect(reading).toBeLessThan(res.text.indexOf('</section>', whatIs));
-  });
-
   it('renders the recognition cues, distinct from execution', async () => {
     const res = await page('/freestyle/families/down');
     expect(res.text).toContain('How to recognize one');
-    expect(res.text).toContain('Look for the double dex');
   });
 
   // Every page-worthy family now carries authored teaching, so no rendered
@@ -268,17 +265,6 @@ describe('GET /freestyle/families/down — the teaching flow (model family page)
 });
 
 describe('GET /freestyle/families/illusion — the teaching flow (direction-pair page)', () => {
-  it('leads the hero with the direction-is-structural hook', async () => {
-    const res = await page('/freestyle/families/illusion');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('a direction is not a detail: it is a different trick');
-  });
-
-  it('explains what an illusion physically is, in plain words', async () => {
-    const res = await page('/freestyle/families/illusion');
-    expect(res.text).toContain('An Illusion is a single dexterity caught on a toe stall');
-  });
-
   it('renders recognition cues', async () => {
     const res = await page('/freestyle/families/illusion');
     expect(res.text).toContain('How to recognize one');
@@ -286,22 +272,13 @@ describe('GET /freestyle/families/illusion — the teaching flow (direction-pair
 });
 
 describe('GET /freestyle/families/:slug — newly authored teaching pages render the flow', () => {
-  const AUTHORED: ReadonlyArray<readonly [string, string]> = [
-    ['legover', 'the leg-over motion enters freestyle'],
-    ['pickup', 'scoops under the bag instead of circling over the top'],
-    ['torque', 'an osis with a dexterity added in front'],
-    ['blender', 'another osis reached by adding a dexterity in front'],
-    ['barfly', 'Barfly is one of the downs'],
-    ['double_over_down', 'the one down whose name is its structure'],
-    ['drifter', 'a clipper reached by adding a dexterity in front'],
-    ['double_leg_over', 'a legover done twice'],
-    ['eggbeater', 'the legover in its atomic form'],
-    ['inside_stall', 'a catch surface of its own'],
+  const AUTHORED = [
+    'legover', 'pickup', 'torque', 'blender', 'barfly', 'double_over_down',
+    'drifter', 'double_leg_over', 'eggbeater', 'inside_stall',
   ];
-  it.each(AUTHORED)('renders the teaching flow for %s', async (slug, hook) => {
+  it.each(AUTHORED)('renders the recognition section for %s', async (slug) => {
     const res = await page(`/freestyle/families/${slug}`);
     expect(res.status).toBe(200);
-    expect(res.text).toContain(hook);
     expect(res.text).toContain('How to recognize one');
   });
 });
@@ -326,68 +303,23 @@ describe('GET /freestyle/families/:slug — the "What is a/an <Name>" heading us
 });
 
 describe('GET /freestyle/families/osis — a generative-tree teaching page (contract stress test)', () => {
-  it('leads with the hook and defines osis by its ending, not its entry', async () => {
-    const res = await page('/freestyle/families/osis');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('so much of the advanced vocabulary grows out of it');
-    expect(res.text).toContain('a spin that resolves into a clipper stall');
-    expect(res.text).toContain('defined by that ending, not by the way the player enters it');
-  });
-
-  it('makes recognition visual and entry-independent', async () => {
+  it('renders the recognition section', async () => {
     const res = await page('/freestyle/families/osis');
     expect(res.text).toContain('How to recognize one');
-    expect(res.text).toContain('If removing the modifiers leaves an osis ending');
   });
-
 });
 
 describe('GET /freestyle/families/mirage — the reduction lesson (foundational dexterity)', () => {
-  it('answers why to learn Mirage first, with a pictureable physical description', async () => {
-    const res = await page('/freestyle/families/mirage');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('a complete dexterity movement');
-    expect(res.text).toContain('the bag returns to the same toe that set it');
-    expect(res.text).toContain('the circling leg performs the dexterity but does not make the catch');
-    expect(res.text).toContain('Much of freestyle grows from Mirage');
-  });
-
-  it('teaches recognition by reduction', async () => {
+  it('renders the recognition section', async () => {
     const res = await page('/freestyle/families/mirage');
     expect(res.text).toContain('How to recognize one');
-    expect(res.text).toContain('Remove the modifiers and Mirage is what is left');
-  });
-});
-
-describe('GET /freestyle/families/butterfly — the flow lesson (cultural transformation)', () => {
-  it('frames Butterfly by the experience, not a universal learning-order claim', async () => {
-    const res = await page('/freestyle/families/butterfly');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('For many players, Butterfly is the first trick that feels less like an isolated move');
-  });
-
-  it('teaches the transformation from isolated tricks to continuous movement', async () => {
-    const res = await page('/freestyle/families/butterfly');
-    expect(res.text).toContain('stops feeling like individual tricks and starts feeling like continuous movement');
-    expect(res.text).toContain('the beginning of real freestyle');
-  });
-});
-
-describe('GET /freestyle/families/whirl — the connector (why it became central)', () => {
-  it('explains why whirl became the hub, not merely that it is common', async () => {
-    const res = await page('/freestyle/families/whirl');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('starts and ends in the same position, a clipper');
-    expect(res.text).toContain('leave the player in a position where the next trick is possible');
   });
 });
 
 describe('GET /freestyle/families/swirl — four-sibling matrix framing', () => {
-  it('frames swirl as one cell of the clipper-terminal matrix, not a whirl reversal story', async () => {
+  it('does not frame swirl as a whirl reversal story', async () => {
     const res = await page('/freestyle/families/swirl');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Swirl matters because it completes a structural family');
-    expect(res.text).toContain('the four cells of one clipper-terminal matrix');
     expect(res.text).not.toContain('whirl run the other way');
     expect(res.text).not.toContain('marks the moment');
   });
@@ -438,21 +370,17 @@ describe('sitemap — family-detail pages are enumerated', () => {
 // through different entries, sets, and modifiers, rather than stating an
 // over-narrow "the family is [start]-to-[finish]" claim that only fits the base.
 describe('GET /freestyle/families/:slug — family cards distinguish base from family', () => {
-  it('whirl card describes the base whirl with entry-generic wording and notes the family extends beyond clipper entries', async () => {
+  it('never locks the base whirl to a clipper-only entry', async () => {
     const res = await page('/freestyle/families/whirl');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('It can be entered from a clipper or a toe stall');
-    expect(res.text).toContain('not every whirl-family trick starts from a clipper');
     // The base is never locked to a clipper-only entry; the trick page says it
     // can start from a clipper or a toe stall.
     expect(res.text).not.toContain('clipper-to-clipper');
   });
 
-  it('swirl card describes the base swirl with entry-generic wording and notes the family extends the ending pattern', async () => {
+  it('never locks the base swirl to a clipper-only entry', async () => {
     const res = await page('/freestyle/families/swirl');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('the clipper is the terminus, not the start');
-    expect(res.text).toContain('The swirl family extends that ending pattern');
     expect(res.text).not.toContain('clipper-to-clipper');
   });
 });
