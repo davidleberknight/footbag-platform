@@ -146,13 +146,13 @@ describe('Freestyle Concepts §12 — named source families', () => {
     expect(res.text).toContain('Footbag Finland');
   });
 
-  it('names no individual beyond Ben Job, the standing attribution exception', async () => {
+  it('names no individual in the sources section', async () => {
     const res = await page('/freestyle/concepts');
     const start = res.text.indexOf('id="section-sources"');
     expect(start).toBeGreaterThan(-1);
     const sources = res.text.slice(start, res.text.indexOf('</section>', start));
-    expect(sources).toContain('Ben Job');
-    for (const name of ['Matt Kemmer', 'Ben Lynn', 'Red Husted', 'Steve Goldberg', 'Chris Holden']) {
+    expect(sources).toContain('glossary-sources-list');
+    for (const name of ['Ben Job', 'Matt Kemmer', 'Ben Lynn', 'Red Husted', 'Steve Goldberg', 'Chris Holden']) {
       expect(sources, name).not.toContain(name);
     }
   });
