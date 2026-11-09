@@ -1223,12 +1223,21 @@ CREATE INDEX idx_alarm_created ON system_alarm_events(created_at);
 -- state change can arrive more than once; claiming its message id in the same
 -- transaction as the alarm write makes the second delivery a no-op. Parallel to
 -- ses_events for SES feedback and stripe_events for payment webhooks.
+--
+-- Each claim also records the alarm state the notification carried and the time
+-- the monitoring service changed it. The queue does not keep order, so an alarm's
+-- return to normal can arrive before the alarm itself; a notification older than
+-- one already claimed for the same alarm is recognised by these two columns and
+-- changes nothing. Both are NULL on a subscription confirmation.
 CREATE TABLE sns_alarm_events (
-  message_id   TEXT PRIMARY KEY,
-  created_at   TEXT NOT NULL,
-  alarm_name   TEXT NOT NULL,
-  processed_at TEXT NOT NULL
+  message_id       TEXT PRIMARY KEY,
+  created_at       TEXT NOT NULL,
+  alarm_name       TEXT NOT NULL,
+  processed_at     TEXT NOT NULL,
+  alarm_state      TEXT CHECK (alarm_state IS NULL OR alarm_state IN ('ALARM', 'INSUFFICIENT_DATA', 'OK')),
+  state_changed_at TEXT
 );
+CREATE INDEX idx_sns_alarm_events_name_changed ON sns_alarm_events(alarm_name, state_changed_at);
 
 -- =============================================================================
 -- SECTION 10: PAYMENTS

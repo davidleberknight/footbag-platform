@@ -140,6 +140,30 @@ describe('notification feeds read from queues', () => {
     expect(feed.deleted(ALARM_QUEUE)).toHaveLength(1);
   });
 
+  it('an alarm whose return to normal arrives first ends with no active alarm, both messages handled', async () => {
+    // The queue does not keep order. Defect caught: the return to normal dropped
+    // because nothing was open, then the late raise opening an alarm that holds
+    // the admin banner up for good, since nothing redelivers a handled message.
+    feed.publishForTests(ALARM_QUEUE, alarmEnvelope(
+      alarmStateChange('footbag-test-overtaken', 'OK', { stateChangeTime: '2026-08-25T00:00:02.000+0000' }),
+      { messageId: 'sns-overtaken-ok' },
+    ));
+    feed.publishForTests(ALARM_QUEUE, alarmEnvelope(
+      alarmStateChange('footbag-test-overtaken', 'ALARM', { stateChangeTime: '2026-08-25T00:00:01.000+0000' }),
+      { messageId: 'sns-overtaken-alarm' },
+    ));
+    const deletedBefore = feed.deleted(ALARM_QUEUE).length;
+
+    await operationsPlatformService.runNotificationFeeds();
+
+    const active = withDb((db) => (db.prepare(
+      "SELECT COUNT(*) AS n FROM system_alarm_events WHERE alarm_type = 'footbag-test-overtaken' AND status = 'active'",
+    ).get() as { n: number }).n);
+    expect(active).toBe(0);
+    expect(feed.deleted(ALARM_QUEUE).length - deletedBefore).toBe(2);
+    expect(feed.inFlight(ALARM_QUEUE)).toHaveLength(0);
+  });
+
   it('handles a redelivered notification exactly once', async () => {
     // The queue promises at-least-once delivery, so the same notification
     // arriving twice must leave the record exactly as it stands rather than

@@ -1070,10 +1070,13 @@ if command -v jq >/dev/null 2>&1; then
   TF_SHOW_ERR="$(mktemp "/tmp/footbag-${TARGET}-tfshow.XXXXXX")"
   chmod 600 "$TF_SHOW_ERR"
   if PLAN_JSON="$("$TF_BIN" -chdir="$TF_DIR" show -json "$TF_PLAN" 2>"$TF_SHOW_ERR")"; then
+    # Every Route 53 type counts except a health check, which probes a URL from
+    # outside and writes no record and no zone.
     if DNS_CHANGES="$(printf '%s' "$PLAN_JSON" | jq -r '
         .resource_changes[]?
         | select(.change.actions != ["no-op"] and .change.actions != ["read"])
         | select(.type | startswith("aws_route53"))
+        | select(.type != "aws_route53_health_check")
         | "  \(.change.actions | join("+"))  \(.address)"
       ')"; then
       DNS_READ_OK=1

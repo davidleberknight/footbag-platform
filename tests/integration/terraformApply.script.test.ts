@@ -1800,6 +1800,32 @@ describe('terraform-apply.sh: the DNS approval gate', () => {
     expect(run(['--target', 'staging']).exitCode).toBe(1);
   });
 
+  it('does not call an uptime health check a DNS change, while a record beside it still fires', () => {
+    // A health check is an outside probe of a URL; it writes no record and
+    // touches no zone. Defect caught: every apply that adds or changes the
+    // availability check asks the operator to type APPLY "to change DNS",
+    // which teaches them to type it without reading.
+    writeTerraformStub({
+      planResourceChanges: [
+        { type: 'aws_route53_health_check', address: 'aws_route53_health_check.site_ready[0]', actions: ['create'] },
+      ],
+    });
+    const res = run(['--target', 'staging']);
+    expect(res.exitCode, res.stderr).toBe(0);
+    expect(res.stdout).not.toMatch(/THIS PLAN CHANGES DNS/);
+
+    writeTerraformStub({
+      planResourceChanges: [
+        { type: 'aws_route53_health_check', address: 'aws_route53_health_check.site_ready[0]', actions: ['create'] },
+        { type: 'aws_route53_record', address: 'aws_route53_record.apex_a', actions: ['update'] },
+      ],
+    });
+    const both = run(['--target', 'staging']);
+    expect(both.exitCode).toBe(1);
+    expect(both.stdout).toMatch(/THIS PLAN CHANGES DNS/);
+    expect(both.stdout).not.toContain('aws_route53_health_check.site_ready');
+  });
+
   it('applies normally when the plan touches no DNS at all', () => {
     writeTerraformStub({ planResourceChanges: noDnsChange });
     const res = run(['--target', 'staging']);

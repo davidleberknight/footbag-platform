@@ -85,6 +85,9 @@ function stateChange(
   }, opts.messageId);
 }
 
+/** The monitoring service's change time for the nth change in a sequence, in its own format. */
+const at = (n: number) => `2026-08-19T03:22:${String(10 + n).padStart(2, '0')}.000+0000`;
+
 /** Hands the service one envelope, the way the feed loop does. */
 function deliver(body: string) {
   return alarmService.processSnsMessage(body);
@@ -157,40 +160,91 @@ describe('an alarm that fires again before it clears', () => {
   // would therefore never receive a clear of its own and would hold the
   // dashboard badge up for good.
   it('keeps one open record per alarm name through a flap, and a return to normal ends it', () => {
-    deliver(stateChange('footbag-prod-errors', 'ALARM', { messageId: 'flap-1' }));
-    deliver(stateChange('footbag-prod-errors', 'INSUFFICIENT_DATA', { messageId: 'flap-2' }));
+    deliver(stateChange('footbag-prod-errors', 'ALARM', { messageId: 'flap-1', at: at(1) }));
+    deliver(stateChange('footbag-prod-errors', 'INSUFFICIENT_DATA', { messageId: 'flap-2', at: at(2) }));
 
     const open = alarms().filter((a) => a.cleared_at === null);
     expect(open).toHaveLength(1);
     // The record carries the newest state the monitor reported.
     expect(open[0].severity).toBe('warning');
 
-    deliver(stateChange('footbag-prod-errors', 'OK', { messageId: 'flap-3' }));
+    deliver(stateChange('footbag-prod-errors', 'OK', { messageId: 'flap-3', at: at(3) }));
     expect(alarms().filter((a) => a.cleared_at === null)).toHaveLength(0);
   });
+});
 
-  // A return to normal can overtake its own raise in delivery. The clear finds
-  // nothing, and if that dismissal consumed the message identifier the sender's
-  // redelivery would be discarded as a duplicate and the alarm would stay open
-  // for ever.
-  it('a return to normal that arrives before its raise still clears once redelivered', () => {
-    deliver(stateChange('footbag-prod-late', 'OK', { messageId: 'early-ok' }));
-    expect(claimedMessageIds()).not.toContain('early-ok');
+describe('notifications that arrive out of order', () => {
+  // The queue does not keep order, so an alarm's return to normal can arrive
+  // before the alarm itself, and nothing redelivers a message once handled.
+  // What decides is the monitoring service's own change time.
 
-    deliver(stateChange('footbag-prod-late', 'ALARM', { messageId: 'late-raise' }));
-    expect(alarms().filter((a) => a.cleared_at === null)).toHaveLength(1);
+  it('a return to normal that arrives before its raise leaves no active alarm', () => {
+    // Defect caught: the late raise opening an alarm nothing will ever clear,
+    // holding the admin banner up while the monitoring service reads normal.
+    expect(deliver(stateChange('footbag-prod-late', 'OK', { messageId: 'early-ok', at: at(2) })))
+      .toEqual({ status: 'ignored', reason: 'nothing_to_clear' });
+    expect(deliver(stateChange('footbag-prod-late', 'ALARM', { messageId: 'late-raise', at: at(1) })))
+      .toEqual({ status: 'ignored', reason: 'stale' });
 
-    deliver(stateChange('footbag-prod-late', 'OK', { messageId: 'early-ok' }));
-    expect(alarms().filter((a) => a.cleared_at === null)).toHaveLength(0);
+    expect(alarms().filter((a) => a.alarm_type === 'footbag-prod-late')).toHaveLength(0);
+    // Both are recorded, so a redelivery of either is still a duplicate.
+    expect(claimedMessageIds().sort()).toEqual(['early-ok', 'late-raise']);
+  });
+
+  it('a late raise after an alarm has already been raised and cleared reopens nothing', () => {
+    // Defect caught: the out-of-order copy of an earlier raise reopening the
+    // incident the return to normal ended.
+    deliver(stateChange('footbag-prod-reopen', 'ALARM', { messageId: 'r-1', at: at(1) }));
+    deliver(stateChange('footbag-prod-reopen', 'OK', { messageId: 'r-3', at: at(3) }));
+    deliver(stateChange('footbag-prod-reopen', 'INSUFFICIENT_DATA', { messageId: 'r-2', at: at(2) }));
+    const rows = alarms().filter((a) => a.alarm_type === 'footbag-prod-reopen');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].status).toBe('cleared');
+  });
+
+  it('an older raise arriving after a newer one does not overwrite the newer state', () => {
+    // Defect caught: the alarm shown at the severity and raise time of a state
+    // the monitoring service has already moved past.
+    deliver(stateChange('footbag-prod-order', 'INSUFFICIENT_DATA', { messageId: 'o-2', at: at(2) }));
+    deliver(stateChange('footbag-prod-order', 'ALARM', { messageId: 'o-1', at: at(1) }));
+    const open = alarms().filter((a) => a.alarm_type === 'footbag-prod-order');
+    expect(open).toHaveLength(1);
+    expect(open[0].severity).toBe('warning');
+    expect(open[0].raised_at).toBe('2026-08-19T03:22:12.000Z');
+  });
+
+  it('a raise and a return to normal recorded in the same instant end cleared, whichever arrives first', () => {
+    // Defect caught: a tie read as "the last to arrive wins", so a test pair
+    // leaves the alarm open on one delivery order and not the other.
+    deliver(stateChange('footbag-prod-tie-a', 'OK', { messageId: 'ta-ok', at: at(5) }));
+    deliver(stateChange('footbag-prod-tie-a', 'ALARM', { messageId: 'ta-alarm', at: at(5) }));
+    deliver(stateChange('footbag-prod-tie-b', 'ALARM', { messageId: 'tb-alarm', at: at(5) }));
+    deliver(stateChange('footbag-prod-tie-b', 'OK', { messageId: 'tb-ok', at: at(5) }));
+    expect(alarms().filter((a) => a.status === 'active')).toHaveLength(0);
+  });
+
+  it('a real recurrence, newer than the return to normal, is raised afresh', () => {
+    // Defect caught: the ordering check swallowing a genuine new incident
+    // because an earlier clear for the same alarm is on record.
+    deliver(stateChange('footbag-prod-recur', 'OK', { messageId: 'rc-ok', at: at(1) }));
+    deliver(stateChange('footbag-prod-recur', 'ALARM', { messageId: 'rc-alarm', at: at(2) }));
+    expect(alarms().filter((a) => a.alarm_type === 'footbag-prod-recur' && a.status === 'active')).toHaveLength(1);
+  });
+
+  it('the ordering is per alarm: a newer change of one alarm does not make another alarm stale', () => {
+    // Defect caught: one alarm's clear silencing a different alarm's raise.
+    deliver(stateChange('footbag-prod-one', 'OK', { messageId: 'p-one', at: at(9) }));
+    deliver(stateChange('footbag-prod-two', 'ALARM', { messageId: 'p-two', at: at(1) }));
+    expect(alarms().filter((a) => a.alarm_type === 'footbag-prod-two' && a.status === 'active')).toHaveLength(1);
   });
 });
 
 describe('clearing an alarm', () => {
   it('clears the newest uncleared alarm of that name and leaves other alarms alone', async () => {
     const other = withDb((db) => insertSystemAlarmEvent(db, { alarm_type: 'footbag-other', status: 'active' }));
-    deliver(stateChange('footbag-prod-backlog', 'ALARM', { messageId: 'raise-1' }));
+    deliver(stateChange('footbag-prod-backlog', 'ALARM', { messageId: 'raise-1', at: at(1) }));
 
-    deliver(stateChange('footbag-prod-backlog', 'OK', { messageId: 'clear-1' }));
+    deliver(stateChange('footbag-prod-backlog', 'OK', { messageId: 'clear-1', at: at(2) }));
 
     const rows = alarms();
     const backlog = rows.find((r) => r.alarm_type === 'footbag-prod-backlog')!;
@@ -226,19 +280,19 @@ describe('processing each notification exactly once', () => {
   });
 
   it('a redelivered return-to-normal does not clear a second time', () => {
-    deliver(stateChange('footbag-prod-dupclear', 'ALARM', { messageId: 'dupc-raise' }));
-    deliver(stateChange('footbag-prod-dupclear', 'OK', { messageId: 'dupc-clear' }));
+    deliver(stateChange('footbag-prod-dupclear', 'ALARM', { messageId: 'dupc-raise', at: at(1) }));
+    deliver(stateChange('footbag-prod-dupclear', 'OK', { messageId: 'dupc-clear', at: at(2) }));
     const firstClear = alarms().find((r) => r.alarm_type === 'footbag-prod-dupclear')!.cleared_at;
-    deliver(stateChange('footbag-prod-dupclear', 'OK', { messageId: 'dupc-clear' }));
+    deliver(stateChange('footbag-prod-dupclear', 'OK', { messageId: 'dupc-clear', at: at(2) }));
     const rows = alarms().filter((r) => r.alarm_type === 'footbag-prod-dupclear');
     expect(rows).toHaveLength(1);
     expect(rows[0].cleared_at).toBe(firstClear);
   });
 
   it('a genuine recurrence under a new message id is recorded afresh', () => {
-    deliver(stateChange('footbag-prod-again', 'ALARM', { messageId: 'again-1' }));
-    deliver(stateChange('footbag-prod-again', 'OK',    { messageId: 'again-2' }));
-    deliver(stateChange('footbag-prod-again', 'ALARM', { messageId: 'again-3' }));
+    deliver(stateChange('footbag-prod-again', 'ALARM', { messageId: 'again-1', at: at(1) }));
+    deliver(stateChange('footbag-prod-again', 'OK',    { messageId: 'again-2', at: at(2) }));
+    deliver(stateChange('footbag-prod-again', 'ALARM', { messageId: 'again-3', at: at(3) }));
     const rows = alarms().filter((r) => r.alarm_type === 'footbag-prod-again');
     expect(rows).toHaveLength(2);
     expect(rows.filter((r) => r.status === 'active')).toHaveLength(1);

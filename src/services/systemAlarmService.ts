@@ -15,6 +15,14 @@
  *     a redelivery leaves the record exactly as it stands. The notification
  *     service redelivers whenever it does not see a timely success, so this is
  *     the difference between one alarm row and a dozen.
+ *   - State changes apply in the monitoring service's own order, never the
+ *     order they arrive: the queue does not keep order, so a return to normal
+ *     can arrive before the alarm it ends. Each claim records the state and its
+ *     change time, and a change older than one already claimed for that alarm
+ *     is recorded and changes nothing. On an exact tie a return to normal wins.
+ *     A return to normal with nothing open keeps its claim, which is what marks
+ *     the late raise as stale. Every message is therefore final once handled;
+ *     none relies on being delivered again.
  *   - A clear applies to the newest uncleared alarm of that name, whether it
  *     was acknowledged or not: acknowledging records that an administrator is
  *     handling the incident, and the monitored condition is what ends it.
@@ -27,7 +35,8 @@
  *     critical and a monitor that has lost its data is a warning.
  *
  * Persistence: system_alarm_events (insert and update), sns_alarm_events
- * (idempotency claim), members (read, to name the acknowledging admin).
+ * (idempotency claim, and the per-alarm order read), members (read, to name the
+ * acknowledging admin).
  *
  * Side effects:
  *   - audit_entries append (alarm.acknowledged only: a raise and a clear are
@@ -62,7 +71,7 @@ export type AlarmIngestResult =
   | { status: 'subscription_pending' }
   | {
       status: 'ignored';
-      reason: 'malformed' | 'unknown_type' | 'unknown_state' | 'nothing_to_clear';
+      reason: 'malformed' | 'unknown_type' | 'unknown_state' | 'nothing_to_clear' | 'stale';
     };
 
 export type AlarmAcknowledgeResult =
@@ -197,12 +206,42 @@ function shapeAlarmRow(row: AlarmListRow, rejected?: RejectedAcknowledgement): A
   };
 }
 
+type AlarmState = 'ALARM' | 'INSUFFICIENT_DATA' | 'OK';
+
 /**
- * Internal signal that a clear found no open alarm to apply to. It exists to
- * roll the surrounding transaction back, releasing the notification's message-id
- * claim, and never escapes this module.
+ * Claims a notification and places it in the alarm's own order, inside the
+ * caller's transaction. The claim is written first, recording the state and the
+ * monitoring service's change time, so a redelivery is a duplicate and a later
+ * arrival can be judged against it. A change is stale when a change for the same
+ * alarm with a later change time was already claimed: the queue does not keep
+ * order, so a return to normal can arrive before the alarm it ends. On an exact
+ * tie a return to normal outranks a raise, so a pair the monitoring service
+ * recorded in the same instant ends cleared. A notification without an
+ * identifier cannot be claimed or deduplicated; it is still judged against what
+ * was claimed, and processed if current, because losing a real alarm is worse
+ * than recording one twice.
  */
-class NothingToClearSignal extends Error {}
+function claimInOrder(
+  messageId: string | null,
+  alarmName: string,
+  state: AlarmState,
+  changedAt: string,
+  now: string,
+): 'duplicate' | 'stale' | 'current' {
+  if (messageId) {
+    const claim = systemAlarms.claimMessageOrIgnore.run(
+      messageId, now, alarmName, now, state, changedAt,
+    );
+    if (claim.changes === 0) return 'duplicate';
+  }
+  const newest = systemAlarms.findNewestApplied.get(alarmName, messageId ?? '') as
+    | { alarm_state: AlarmState | null; state_changed_at: string }
+    | undefined;
+  if (!newest) return 'current';
+  if (changedAt > newest.state_changed_at) return 'current';
+  if (changedAt < newest.state_changed_at) return 'stale';
+  return state === 'OK' && newest.alarm_state !== 'OK' ? 'current' : 'stale';
+}
 
 /** The alarms page at a given page number; page one carries no parameter. */
 function alarmsPageHref(page: number): string {
@@ -214,6 +253,7 @@ function alarmsPageHref(page: number): string {
 function applyStateChange(
   messageId: string | null,
   alarmName: string,
+  state: 'ALARM' | 'INSUFFICIENT_DATA',
   severity: 'critical' | 'warning',
   raisedAt: string,
   details: Record<string, unknown>,
@@ -221,17 +261,18 @@ function applyStateChange(
   const now = new Date().toISOString();
   let outcome: AlarmIngestResult = { status: 'processed', kind: 'raised', alarmType: alarmName };
   transaction(() => {
-    // Claim the notification identifier first. A redelivery whose id is already
-    // recorded reports no change, so the alarm row and its audit entry are
-    // written exactly once. A notification arriving without an identifier cannot
-    // be deduplicated and is processed anyway: losing a real alarm is worse than
-    // recording one twice.
-    if (messageId) {
-      const claim = systemAlarms.claimMessageOrIgnore.run(messageId, now, alarmName, now);
-      if (claim.changes === 0) {
-        outcome = { status: 'duplicate' };
-        return;
-      }
+    // Claim first, so the alarm row is written exactly once, and judge the
+    // change against what the alarm already reported: a raise older than a
+    // claimed change of the same alarm is late, and opening or refreshing a row
+    // for it would show an alarm the monitoring service has already ended.
+    const order = claimInOrder(messageId, alarmName, state, raisedAt, now);
+    if (order === 'duplicate') {
+      outcome = { status: 'duplicate' };
+      return;
+    }
+    if (order === 'stale') {
+      outcome = { status: 'ignored', reason: 'stale' };
+      return;
     }
     // The monitoring source is a state machine with one state per alarm, so at
     // most one uncleared row per name exists. A name that fires again before it
@@ -264,34 +305,29 @@ function applyClear(
 ): AlarmIngestResult {
   const now = new Date().toISOString();
   let outcome: AlarmIngestResult = { status: 'processed', kind: 'cleared', alarmType: alarmName };
-  try {
-    transaction(() => {
-      if (messageId) {
-        const claim = systemAlarms.claimMessageOrIgnore.run(messageId, now, alarmName, now);
-        if (claim.changes === 0) {
-          outcome = { status: 'duplicate' };
-          return;
-        }
-      }
-      const prior = systemAlarms.findLatestUncleared.get(alarmName) as UnclearedAlarmRow | undefined;
-      if (prior === undefined) {
-        // A recovery notification for an alarm this platform has no open record
-        // of: it fired before the feed existed, it has already been cleared, or
-        // this clear has overtaken its own raise in delivery.
-        //
-        // Throwing rolls the transaction back, which gives the message-id claim
-        // back. Returning normally would commit it -- the database wrapper
-        // commits whatever the callback did unless it throws -- and a claimed id
-        // is dismissed as a duplicate forever, so a redelivery arriving after the
-        // raise finally lands could never clear it.
-        throw new NothingToClearSignal();
-      }
-      systemAlarms.markCleared.run(clearedAt, now, prior.id);
-    });
-  } catch (err) {
-    if (!(err instanceof NothingToClearSignal)) throw err;
-    return { status: 'ignored', reason: 'nothing_to_clear' };
-  }
+  transaction(() => {
+    const order = claimInOrder(messageId, alarmName, 'OK', clearedAt, now);
+    if (order === 'duplicate') {
+      outcome = { status: 'duplicate' };
+      return;
+    }
+    if (order === 'stale') {
+      outcome = { status: 'ignored', reason: 'stale' };
+      return;
+    }
+    const prior = systemAlarms.findLatestUncleared.get(alarmName) as UnclearedAlarmRow | undefined;
+    if (prior === undefined) {
+      // A return to normal for an alarm with no open record: it fired before
+      // the feed existed, it has already been cleared, it is the first report of
+      // a newly created alarm, or it has overtaken its own raise in delivery. The
+      // claim stays committed either way: it is the record that this alarm is
+      // back to normal as of this change time, so the raise that arrives late is
+      // judged stale against it rather than opening an alarm nothing will clear.
+      outcome = { status: 'ignored', reason: 'nothing_to_clear' };
+      return;
+    }
+    systemAlarms.markCleared.run(clearedAt, now, prior.id);
+  });
   return outcome;
 }
 
@@ -312,7 +348,7 @@ function processSnsMessage(rawBody: string): AlarmIngestResult {
     transaction(() => {
       if (confirmationId) {
         const claim = systemAlarms.claimMessageOrIgnore.run(
-          confirmationId, seenAt, 'subscription_confirmation', seenAt,
+          confirmationId, seenAt, 'subscription_confirmation', seenAt, null, null,
         );
         if (claim.changes === 0) {
           outcome = { status: 'duplicate' };
@@ -358,10 +394,10 @@ function processSnsMessage(rawBody: string): AlarmIngestResult {
   };
 
   if (state === 'ALARM') {
-    return applyStateChange(messageId, alarmName, 'critical', stateChangedAt, details);
+    return applyStateChange(messageId, alarmName, 'ALARM', 'critical', stateChangedAt, details);
   }
   if (state === 'INSUFFICIENT_DATA') {
-    return applyStateChange(messageId, alarmName, 'warning', stateChangedAt, details);
+    return applyStateChange(messageId, alarmName, 'INSUFFICIENT_DATA', 'warning', stateChangedAt, details);
   }
   if (state === 'OK') {
     return applyClear(messageId, alarmName, stateChangedAt);

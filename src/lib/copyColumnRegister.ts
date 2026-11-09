@@ -466,7 +466,7 @@ export const COPY_COLUMN_REGISTER: Readonly<Record<string, TableClassification>>
       'mail_message_id', 'outbox_email_id'],
   },
   sns_alarm_events: {
-    keep: ['message_id', 'created_at', 'alarm_name', 'processed_at'],
+    keep: ['message_id', 'created_at', 'alarm_name', 'processed_at', 'alarm_state', 'state_changed_at'],
   },
   stripe_events: {
     notCopied: 'the ledger of provider webhook events is made of provider identifiers and nothing else',

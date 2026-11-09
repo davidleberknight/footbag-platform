@@ -43,7 +43,8 @@ let calls: string;
  *  STUB_CONSOLE_RC makes the console itself fail, and STUB_CONSOLE_FAIL_VAR
  *  makes only the read of that one variable fail. var.aws_region answers
  *  STUB_REGION (quoted, as terraform prints a string), and STUB_REGION_RC makes
- *  that one read fail. Like terraform, a plan with changes pending exits 2 only
+ *  that one read fail. STUB_LOCK_NOTICES prints terraform's state-lock notices
+ *  around every console answer, as a tree with a locking backend does. Like terraform, a plan with changes pending exits 2 only
  *  under -detailed-exitcode, and 0 without it. */
 const TERRAFORM_STUB = `#!/usr/bin/env bash
 chdir="\${1#-chdir=}"
@@ -83,6 +84,10 @@ case "$1" in
   console)
     read -r expr
     echo "console read $expr" >> "$STUB_CALLS"
+    if [[ -n "\${STUB_LOCK_NOTICES:-}" ]]; then
+      echo "Acquiring state lock. This may take a few moments..."
+      trap 'echo "Releasing state lock. This may take a few moments..."' EXIT
+    fi
     if [[ "$expr" == "jsonencode(local.host_keys)" ]]; then printf '%s\\n' "\${STUB_HOST_KEYS:-}"; exit 0; fi
     name="\${expr#var.}"
     if [[ "$name" == aws_region ]]; then
@@ -424,6 +429,29 @@ describe('set-terraform-gate.sh argument guards, each beside a run it lets throu
 });
 
 describe('set-terraform-gate.sh end to end against stand-ins', () => {
+  it('adds a gate the values file lacks as a group of its own, after a blank line', () => {
+    // terraform fmt aligns the = signs of consecutive lines, so a gate
+    // appended straight after the file's last value must be padded to match
+    // it. Defect caught: every flip that adds a gate leaving the values file
+    // failing the fmt check the full gate runs.
+    writeFileSync(join(dir, 'private', 'staging.tfvars'),
+      VALUES.replace(/^enable_backup_alarm.*\n/m, ''), 'utf-8');
+    const r = run(ON_STAGING);
+    expect(r.status, r.stderr).toBe(0);
+    expect(values('staging')).toMatch(/\S\n\nenable_backup_alarm = true\n$/);
+  });
+
+  it('reads the region and the read-back through terraform\'s state-lock notices', () => {
+    // A tree with a locking backend prints "Releasing state lock..." after the
+    // value of every console read. Defect caught: that notice taken as the
+    // value, so every gate that reads the region refuses before planning and
+    // the read-back of every gate fails.
+    const r = run(ON_STAGING, { STUB_LOCK_NOTICES: '1' });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.report).toMatch(/Proven:\n {2}- enable_backup_alarm = true on staging/);
+    expect(r.report).not.toMatch(/Errors \(/);
+  });
+
   it('announces both seams on stderr, because a stubbed run proves nothing', () => {
     // Defect caught: a stubbed run whose output reads like a real apply.
     const r = run(ON_STAGING);
@@ -971,6 +999,16 @@ describe('set-terraform-gate.sh arms the host-key alarms only when the trail agr
     expect(r.status, r.stderr).toBe(0);
     expect(callLog()).toMatch(/^aws cloudtrail lookup-events .*AttributeValue=footbag-production-source-profile /m);
     expect(callLog()).toMatch(/^aws cloudtrail lookup-events .*AttributeValue=footbag-staging-source-profile /m);
+    expect(callLog()).toMatch(/^apply --target production$/m);
+  });
+
+  it('reads the host-key map through terraform\'s state-lock notices', () => {
+    // Defect caught: the lock notice handed to jq as the encoded map, so the
+    // host-key alarms can never be armed on a tree with a locking backend.
+    trail('footbag-production-source-profile', [{ ip: '198.51.100.10' }]);
+    trail('footbag-staging-source-profile', [{ ip: '192.0.2.20' }]);
+    const r = arm({ STUB_LOCK_NOTICES: '1' });
+    expect(r.status, r.stderr).toBe(0);
     expect(callLog()).toMatch(/^apply --target production$/m);
   });
 

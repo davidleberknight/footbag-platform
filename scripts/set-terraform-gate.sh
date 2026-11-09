@@ -338,8 +338,16 @@ build_new_content() {
       }
       next
     }
-    { print }
-    END { if (!seen) printf "%s = %s\n", ENVIRON["VAR_NAME"], ENVIRON["VAR_VALUE"] }
+    { print; last = $0 }
+    # An added gate goes after a blank line, so terraform fmt treats it as a
+    # group of its own rather than aligning it with whatever the file ends on;
+    # otherwise every flip that adds a gate fails the fmt check.
+    END {
+      if (!seen) {
+        if (NR > 0 && last != "") print ""
+        printf "%s = %s\n", ENVIRON["VAR_NAME"], ENVIRON["VAR_VALUE"]
+      }
+    }
   ' "$TFVARS_PATH")"
   NEW_LINE="$(grep -E "$GATE_PATTERN" <<<"$NEW_CONTENT")"
   # The rewrite must have changed nothing but the gate's own lines: one gate
@@ -416,6 +424,13 @@ error_titles() {
   printf '%s' "${titles:-no error title printed}"
 }
 
+# The value line of a terraform console read. Terraform locks the state for a
+# console read and prints its own lock notices on stdout around the value, so
+# the value is the last line that is not one of those notices.
+console_value() {
+  grep -vE '^(Acquiring|Releasing) state lock' | sed '/^[[:space:]]*$/d' | tail -n 1
+}
+
 # The effective value terraform reads for the gate, compared with the one
 # wanted. This is the outcome check: the apply wrapper exiting 0 says it ran,
 # this says what the tree now holds.
@@ -430,7 +445,7 @@ prove_gate() {
     cr_unproved "${GATE} = ${WANTED} on ${TARGET}: the read-back did not run"
     return 1
   fi
-  out="$(tail -n 1 <<<"$out" | tr -d '[:space:]')"
+  out="$(console_value <<<"$out" | tr -d '[:space:]')"
   # Anything other than a bool is not repeated, for the same reason.
   [[ "$out" == true || "$out" == false ]] || out="<not a bool>"
   echo "read-back: var.${GATE} = ${out}"
@@ -479,7 +494,7 @@ read_tf_bool() {
     cr_error "the read of var.${name} failed (exit ${rc}): $(error_titles <<<"$out")"
     return 1
   fi
-  TF_BOOL="$(tail -n 1 <<<"$out" | tr -d '[:space:]')"
+  TF_BOOL="$(console_value <<<"$out" | tr -d '[:space:]')"
   if [[ "$TF_BOOL" != true && "$TF_BOOL" != false ]]; then
     cr_error "var.${name} on ${TARGET} did not read back as a bool"
     return 1
@@ -559,7 +574,7 @@ read_region() {
     cr_error "the read of var.aws_region failed (exit ${rc}): $(error_titles <<<"$out")"
     return 1
   fi
-  REGION="$(tail -n 1 <<<"$out" | tr -d '[:space:]"')"
+  REGION="$(console_value <<<"$out" | tr -d '[:space:]"')"
   if [[ ! "$REGION" =~ ^[a-z]{2}(-[a-z]+)+-[0-9]+$ ]]; then
     cr_error "var.aws_region in terraform/${TARGET} did not read back as a region"
     return 1
@@ -579,7 +594,7 @@ host_key_precheck() {
     return 1
   fi
   # console prints the encoded value as a quoted string; decode it once.
-  keys="$(tail -n 1 <<<"$out" | jq -r 'fromjson | to_entries[] | "\(.key) \(.value.user) \(.value.ip)"' 2>&1)" || {
+  keys="$(console_value <<<"$out" | jq -r 'fromjson | to_entries[] | "\(.key) \(.value.user) \(.value.ip)"' 2>&1)" || {
     cr_error "local.host_keys in terraform/${TARGET} did not read back as the expected map: $(tail -n 1 <<<"$keys")"
     return 1
   }

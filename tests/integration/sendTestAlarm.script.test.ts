@@ -49,7 +49,12 @@ beforeEach(() => {
       '#!/usr/bin/env bash',
       'printf \'%s\\n\' "$*" >> "$FAKE_AWS_LOG"',
       'if [[ -n "${FAKE_REFUSE_STATE:-}" && "$*" == *"--state-value ${FAKE_REFUSE_STATE}"* ]]; then',
-      '  echo "ResourceNotFound" >&2; exit 254',
+      '  if [[ -z "${FAKE_REFUSE_ALARM:-}" || "$*" == *"--alarm-name ${FAKE_REFUSE_ALARM} "* ]]; then',
+      '    echo "ResourceNotFound" >&2; exit 254',
+      '  fi',
+      'fi',
+      'if [[ "$1" == cloudwatch && "$2" == describe-alarms && "$*" == *"--alarm-name-prefix"* ]]; then',
+      '  printf \'%s\\n\' "${FAKE_PREFIX_NAMES-None}"; exit 0',
       'fi',
       'if [[ "$1" == cloudwatch && "$2" == describe-alarms ]]; then',
       '  printf \'%s\\n\' "${FAKE_ACTIONS-arn:aws:sns:us-east-1:000000000000:footbag-production-alarms	arn:aws:sns:us-east-1:000000000000:footbag-production-alarms-critical}"',
@@ -89,6 +94,54 @@ describe('send-test-alarm: raising the alarm', () => {
     });
     expect(res.status).toBe(1);
     expect(res.stderr).toContain('could not be set back to OK');
+  });
+});
+
+describe('send-test-alarm: a set of alarms in one run', () => {
+  const stateCalls = () => calls().map((l) => {
+    const name = /--alarm-name (\S+)/.exec(l)?.[1];
+    const state = /--state-value (\S+)/.exec(l)?.[1];
+    return `${name} ${state}`;
+  });
+
+  it('raises every alarm a prefix names and every named one, each once, ALARM then OK', () => {
+    // Defect caught: an alarm the prefix names skipped, one raised twice, or
+    // an alarm left raised because its OK was sent before the next ALARM.
+    const res = run([
+      '--target', 'staging', '--alarm-prefix', 'footbag-staging-container-',
+      '--alarm', 'footbag-staging-site-unavailable', '--alarm', 'footbag-staging-container-oom-web', '--yes',
+    ], { FAKE_PREFIX_NAMES: 'footbag-staging-container-crash-web\tfootbag-staging-container-oom-web' });
+    expect(res.status, res.stderr).toBe(0);
+    expect(stateCalls()).toEqual([
+      'footbag-staging-container-crash-web ALARM', 'footbag-staging-container-crash-web OK',
+      'footbag-staging-container-oom-web ALARM', 'footbag-staging-container-oom-web OK',
+      'footbag-staging-site-unavailable ALARM', 'footbag-staging-site-unavailable OK',
+    ]);
+    expect(res.stdout).toContain('About to raise 3 staging alarm(s)');
+  });
+
+  it('changes nothing when a prefix names no alarm', () => {
+    // Defect caught: a mistyped prefix reported as a passed test of nothing.
+    const res = run(['--target', 'staging', '--alarm-prefix', 'footbag-staging-contianer-', '--yes']);
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('has no alarm whose name starts with footbag-staging-contianer-');
+    expect(calls()).toHaveLength(0);
+  });
+
+  it('stops at an alarm whose raise is refused, leaving the earlier ones restored and the later untouched', () => {
+    // Defect caught: a run that carries on past a refusal and reports the set
+    // as proven, or leaves an alarm raised.
+    const res = run(['--target', 'staging', '--alarm', 'footbag-staging-a', '--alarm', 'footbag-staging-b',
+      '--alarm', 'footbag-staging-c', '--yes'], { FAKE_REFUSE_STATE: 'ALARM', FAKE_REFUSE_ALARM: 'footbag-staging-b' });
+    expect(res.status).toBe(1);
+    expect(stateCalls()).toEqual(['footbag-staging-a ALARM', 'footbag-staging-a OK', 'footbag-staging-b ALARM']);
+    expect(res.stderr).toContain('The alarms after it were not touched');
+  });
+
+  it('refuses a prefix belonging to the other environment', () => {
+    const res = run(['--target', 'staging', '--alarm-prefix', 'footbag-production-', '--yes']);
+    expect(res.status).toBe(2);
+    expect(fs.readFileSync(awsLog, 'utf8')).toBe('');
   });
 });
 

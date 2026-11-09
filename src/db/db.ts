@@ -10344,8 +10344,21 @@ export const systemAlarms = {
   // service claims first inside its transaction and short-circuits on changes=0.
   get claimMessageOrIgnore() { return db.prepare(`
     INSERT OR IGNORE INTO sns_alarm_events
-      (message_id, created_at, alarm_name, processed_at)
-    VALUES (?, ?, ?, ?)
+      (message_id, created_at, alarm_name, processed_at, alarm_state, state_changed_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `); },
+
+  // The newest state change already claimed for an alarm, by the monitoring
+  // service's own change time, other than the message being claimed now. The
+  // queue does not keep order, so this is what tells a late notification from a
+  // current one. Ties on the change time end on message_id, which completes the
+  // table's primary key.
+  get findNewestApplied() { return db.prepare(`
+    SELECT alarm_state, state_changed_at
+    FROM sns_alarm_events
+    WHERE alarm_name = ? AND message_id != ? AND state_changed_at IS NOT NULL
+    ORDER BY state_changed_at DESC, message_id DESC
+    LIMIT 1
   `); },
 
   get insertAlarm() { return db.prepare(`
