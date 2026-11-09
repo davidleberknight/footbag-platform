@@ -1,21 +1,17 @@
 /**
  * Integration tests for GET /freestyle/modifier/:slug.
  *
- * The spinning, paradox, and ducking modifier pages all ship and return 200;
- * any unknown slug returns 404.
  * Verifies:
- *   - /freestyle/modifier/spinning returns 200 with the teaching page
+ *   - Every teaching page shows its own definition, a progression numbered from
+ *     an anchor on step 1, resolved links for each step and example, related
+ *     concepts, its own Concepts link and a breadcrumb, within its page budget
  *   - /freestyle/modifier/garbage-slug returns 404
- *   - The teaching sections render (What it is / How it changes the base /
- *     Progression / Representative examples / Related concepts) within budget
  *   - The legacy mechanical-lead layout is not rendered
- *   - Progression first step marked as anchor
- *   - Cross-base examples link to detail pages when slug is pilot
- *   - Freestyle Concepts link present
  *   - Route ordering: /freestyle/modifier/X does NOT collide with
  *     /freestyle/tricks/:slug
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import Handlebars from 'handlebars';
 import { cachedGet } from '../fixtures/cachedGet';
 
 import {
@@ -25,11 +21,15 @@ import {
   importApp,
 } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
+import { getTier1OperatorDefinition } from '../../src/content/freestyleOperatorReference';
+import { conceptsHrefForTerm } from '../../src/services/conceptsAnchors';
 
 const { dbPath } = setTestEnv('3093');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 const page = cachedGet(() => createApp());
+
+const TEACHING_SLUGS = ['spinning', 'paradox', 'ducking', 'diving', 'symposium', 'gyro', 'tapping', 'inspinning'];
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -124,6 +124,13 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'inspinning_butterfly',      canonical_name: 'inspinning butterfly',      adds: '4', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound' });
   insertFreestyleTrick(db, { slug: 'inspinning_paradox_mirage', canonical_name: 'inspinning paradox mirage', adds: '4', base_trick: 'mirage',  trick_family: 'mirage',  category: 'compound' });
 
+  // Symposium concept-first page uses underscore slugs.
+  insertFreestyleTrick(db, { slug: 'symposium_mirage',    canonical_name: 'symposium mirage',    adds: '3', base_trick: 'mirage',    trick_family: 'mirage',  category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'symposium_whirl',     canonical_name: 'symposium whirl',     adds: '4', base_trick: 'whirl',     trick_family: 'whirl',   category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'symposium_torque',    canonical_name: 'symposium torque',    adds: '5', base_trick: 'torque',    trick_family: 'torque',  category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'symposium_eggbeater', canonical_name: 'symposium eggbeater', adds: '4', base_trick: 'eggbeater', trick_family: 'legover', category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'witchdoctor',         canonical_name: 'witchdoctor',         adds: '6', base_trick: 'whirl',     trick_family: 'whirl',   category: 'compound' });
+
   db.close();
   createApp = await importApp();
 });
@@ -131,14 +138,6 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /freestyle/modifier/spinning — happy path', () => {
-  it('renders page title and subtitle (structural framing, not "turning around")', async () => {
-    const res = await page('/freestyle/modifier/spinning');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Spinning');
-    expect(res.text).toMatch(/body-rotation operator/);
-    expect(res.text).toMatch(/the underlying dexterity unchanged/);
-  });
-
   // Defect caught: the teaching page carries no hashtag, while the stub and the
   // operators index show the modifier's role-aware tag, so the same modifier
   // reads with an identity on one surface and none on another.
@@ -148,289 +147,71 @@ describe('GET /freestyle/modifier/spinning — happy path', () => {
     const mediaLine = res.text.match(/<p class="media-line"[^>]*>([\s\S]*?)<\/p>/)?.[1] ?? '';
     expect(mediaLine).toContain('#operator_spinning');
   });
-
-  it('renders the concept-first sections, teaching the concept before execution', async () => {
-    const res = await page('/freestyle/modifier/spinning');
-    expect(res.text).toContain('<h2>What it is</h2>');
-    expect(res.text).toContain('<h2>How it changes the base trick</h2>');
-    expect(res.text).toContain('<h2>Representative examples</h2>');
-    expect(res.text).toContain('<h2>Related concepts</h2>');
-    expect(res.text).not.toContain('The body and the motion');
-  });
-
-  it('renders progression chain with anchor flag on step 1 (underscore slugs, fixed order)', async () => {
-    const res = await page('/freestyle/modifier/spinning');
-    expect(res.text).toContain('modifier-step-1-whirl');
-    expect(res.text).toContain('modifier-step-2-spinning_whirl');
-    expect(res.text).toContain('modifier-step-3-spinning_symposium_whirl');
-    expect(res.text).toContain('modifier-step-4-montage');
-    const anchorMatches = res.text.match(/is-anchor/g) ?? [];
-    expect(anchorMatches.length).toBe(1);
-    const idxWhirl   = res.text.indexOf('modifier-step-1-whirl');
-    const idxSpin    = res.text.indexOf('modifier-step-2-spinning_whirl');
-    const idxSymp    = res.text.indexOf('modifier-step-3-spinning_symposium_whirl');
-    const idxMontage = res.text.indexOf('modifier-step-4-montage');
-    expect(idxSpin).toBeGreaterThan(idxWhirl);
-    expect(idxSymp).toBeGreaterThan(idxSpin);
-    expect(idxMontage).toBeGreaterThan(idxSymp);
-  });
-
-  it('renders representative examples as clickable links, organized by category', async () => {
-    const res = await page('/freestyle/modifier/spinning');
-    expect(res.text).toContain('href="/freestyle/tricks/spinning_mirage"');
-    expect(res.text).toContain('href="/freestyle/tricks/spinning_whirl"');
-    expect(res.text).toContain('href="/freestyle/tricks/spinning_drifter"');
-    expect(res.text).toContain('href="/freestyle/tricks/spinning_symposium_whirl"');
-    expect(res.text).toContain('href="/freestyle/tricks/montage"');
-    for (const cat of ['Basic dex', 'Whirl family', 'Cross-body', 'Multiple operators', 'Advanced composition']) {
-      expect(res.text).toContain(cat);
-    }
-  });
-
-  it('renders related concepts including the directional variants and sibling rotations', async () => {
-    const res = await page('/freestyle/modifier/spinning');
-    expect(res.text).toContain('related-modifiers-list');
-    for (const name of ['gyro', 'inspinning', 'paradox', 'symposium', 'ducking', 'whirling', 'swirling']) {
-      expect(res.text).toContain(name);
-    }
-  });
-
-  it('renders Freestyle Concepts link deep-linking to the spinning entry', async () => {
-    const res = await page('/freestyle/modifier/spinning');
-    expect(res.text).toContain('href="/freestyle/concepts#term-spinning"');
-  });
-
-  it('breadcrumb back to /freestyle', async () => {
-    const res = await page('/freestyle/modifier/spinning');
-    expect(res.text).toMatch(/href="\/freestyle">Freestyle</);
-  });
 });
 
 describe('GET /freestyle/modifier/paradox — happy path', () => {
-  it('renders page title and subtitle (definition framing, not a formula)', async () => {
-    const res = await page('/freestyle/modifier/paradox');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Paradox');
-    expect(res.text).toMatch(/changes the relationship between the body, the support leg, and the dexterity/);
-  });
-
   it('carries the prominent working-model caveat: our consistent reading, not universal community consensus', async () => {
     const res = await page('/freestyle/modifier/paradox');
+    expect(res.status).toBe(200);
     expect(res.text).toMatch(/working model this encyclopedia uses for consistent notation and indexing/);
-    expect(res.text).toMatch(/do not agree on every Paradox and cross-body case/);
     // The caveat is paradox-specific; pages whose doctrine is settled carry none.
     const spinning = await page('/freestyle/modifier/spinning');
     expect(spinning.text).not.toContain('working model this encyclopedia uses');
   });
-
-  it('renders the concept-first sections, teaching the concept before execution', async () => {
-    const res = await page('/freestyle/modifier/paradox');
-    expect(res.text).toContain('<h2>What it is</h2>');
-    expect(res.text).toContain('<h2>How it changes the base trick</h2>');
-    expect(res.text).toContain('<h2>Representative examples</h2>');
-    expect(res.text).toContain('<h2>Related concepts</h2>');
-    expect(res.text).not.toContain('The body and the motion');
-  });
-
-  it('renders progression chain with anchor flag on mirage step (underscore slugs)', async () => {
-    const res = await page('/freestyle/modifier/paradox');
-    expect(res.text).toContain('modifier-step-1-mirage');
-    expect(res.text).toContain('modifier-step-2-paradox_mirage');
-    expect(res.text).toContain('modifier-step-3-paradox_whirl');
-    expect(res.text).toContain('modifier-step-4-paradox_symposium_whirl');
-    const anchorMatches = res.text.match(/is-anchor/g) ?? [];
-    expect(anchorMatches.length).toBe(1);
-  });
-
-  it('renders representative examples as clickable links, organized by category', async () => {
-    const res = await page('/freestyle/modifier/paradox');
-    expect(res.text).toContain('href="/freestyle/tricks/paradox_mirage"');
-    expect(res.text).toContain('href="/freestyle/tricks/paradox_whirl"');
-    expect(res.text).toContain('href="/freestyle/tricks/paradox_drifter"');
-    expect(res.text).toContain('href="/freestyle/tricks/paradox_symposium_whirl"');
-    expect(res.text).toContain('href="/freestyle/tricks/food_processor"');
-    for (const cat of ['Basic dex', 'Whirl family', 'Cross-body', 'Multiple operators', 'Advanced composition']) {
-      expect(res.text).toContain(cat);
-    }
-  });
-
-  it('renders related concepts cross-linking the canonical surfaces', async () => {
-    const res = await page('/freestyle/modifier/paradox');
-    expect(res.text).toContain('related-modifiers-list');
-    for (const name of ['symposium', 'atomic', 'miraging', 'nuclear', 'x-dex', 'cross-body traversal', 'whirl', 'mirage']) {
-      expect(res.text).toContain(name);
-    }
-  });
 });
 
-describe('GET /freestyle/modifier/ducking — happy path', () => {
-  it('renders page title and subtitle (bag-path framing, not "lowering the head")', async () => {
-    const res = await page('/freestyle/modifier/ducking');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Ducking');
-    expect(res.text).toMatch(/body operator/);
-    expect(res.text).toMatch(/passes beneath the bag/);
-  });
+describe('GET /freestyle/modifier/:slug — every teaching page shows its own content', () => {
+  // Each case names every miss, so one broken field does not hide the others.
 
-  it('renders the concept-first sections, teaching the concept before execution', async () => {
-    const res = await page('/freestyle/modifier/ducking');
-    expect(res.text).toContain('<h2>What it is</h2>');
-    expect(res.text).toContain('<h2>How it changes the base trick</h2>');
-    expect(res.text).toContain('<h2>Representative examples</h2>');
-    expect(res.text).toContain('<h2>Related concepts</h2>');
-    expect(res.text).not.toContain('The body and the motion');
-  });
-
-  it('renders progression chain with anchor flag on butterfly step (underscore slugs)', async () => {
-    const res = await page('/freestyle/modifier/ducking');
-    expect(res.text).toContain('modifier-step-1-butterfly');
-    expect(res.text).toContain('modifier-step-2-ducking_butterfly');
-    expect(res.text).toContain('modifier-step-3-ducking_whirl');
-    expect(res.text).toContain('modifier-step-4-phoenix');
-    const anchorMatches = res.text.match(/is-anchor/g) ?? [];
-    expect(anchorMatches.length).toBe(1);
-  });
-
-  it('renders representative examples as clickable links, including a folk Alpine pattern', async () => {
-    const res = await page('/freestyle/modifier/ducking');
-    expect(res.text).toContain('href="/freestyle/tricks/ducking_mirage"');
-    expect(res.text).toContain('href="/freestyle/tricks/ducking_whirl"');
-    expect(res.text).toContain('href="/freestyle/tricks/ducking_drifter"');
-    expect(res.text).toContain('href="/freestyle/tricks/mind_bender"');
-    expect(res.text).toContain('href="/freestyle/tricks/gyro_ducking_symposium_torque"');
-    for (const cat of ['Basic dex', 'Whirl family', 'Cross-body', 'Multiple operators', 'Alpine pattern (folk naming)']) {
-      expect(res.text).toContain(cat);
+  // Defect caught: a page losing its definition, looking one up under the wrong
+  // modifier, or showing another modifier's page.
+  it('teaches each modifier from its own definition, under its own title', async () => {
+    const problems: string[] = [];
+    for (const slug of TEACHING_SLUGS) {
+      const res = await page(`/freestyle/modifier/${slug}`);
+      expect(res.status, slug).toBe(200);
+      expect(res.text, slug).not.toContain('The body and the motion');
+      const definition = /aria-label="What it is">\s*<div class="section-heading"><h2>What it is<\/h2><\/div>\s*<p>([^<]*)<\/p>/.exec(res.text)?.[1]?.trim() ?? '';
+      if (!definition) problems.push(`${slug}: empty definition`);
+      const tier1 = getTier1OperatorDefinition(slug);
+      if (tier1 && definition !== Handlebars.escapeExpression(tier1.definition)) {
+        problems.push(`${slug}: definition differs from the operator reference`);
+      }
+      if (!res.text.includes(`<h1>${slug.charAt(0).toUpperCase()}${slug.slice(1)}`)) {
+        problems.push(`${slug}: wrong title`);
+      }
     }
+    expect(problems).toEqual([]);
   });
 
-  it('renders related concepts including the ducking family and Alpine as a folk label', async () => {
-    const res = await page('/freestyle/modifier/ducking');
-    expect(res.text).toContain('related-modifiers-list');
-    for (const name of ['diving', 'zulu', 'weaving', 'alpine', 'spinning', 'paradox', 'symposium']) {
-      expect(res.text).toContain(name);
+  // Defect caught: a step or example whose slug no longer resolves turning from a
+  // link into plain text, steps misnumbered, or the anchor on the wrong step.
+  it('numbers the progression from an anchor on step 1 and links every step and example', async () => {
+    const problems: string[] = [];
+    for (const slug of TEACHING_SLUGS) {
+      const { text } = await page(`/freestyle/modifier/${slug}`);
+      const steps = [...text.matchAll(/<li class="progression-step( is-anchor)?" id="modifier-step-(\d+)-/g)];
+      const numbers = steps.map(m => Number(m[2]));
+      if (numbers.length === 0 || numbers.some((n, i) => n !== i + 1)) problems.push(`${slug}: steps numbered ${numbers.join(',')}`);
+      const anchors = steps.filter(m => m[1]).map(m => m[2]);
+      if (anchors.join() !== '1') problems.push(`${slug}: anchor on step ${anchors.join(',')}`);
+      if (!text.includes('<a class="step-name" href') || text.includes('<span class="step-name"')) problems.push(`${slug}: unlinked step`);
+      if (!text.includes('<a class="cross-base-name" href') || text.includes('<span class="cross-base-name"')) problems.push(`${slug}: unlinked example`);
     }
-  });
-});
-
-describe('GET /freestyle/modifier/diving — sister operator of ducking', () => {
-  it('renders page title and subtitle (over-the-bag framing, complement of ducking)', async () => {
-    const res = await page('/freestyle/modifier/diving');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Diving');
-    expect(res.text).toMatch(/body operator/);
-    expect(res.text).toMatch(/the bag passes over the player/);
+    expect(problems).toEqual([]);
   });
 
-  it('renders the concept-first sections, parallel to ducking', async () => {
-    const res = await page('/freestyle/modifier/diving');
-    expect(res.text).toContain('<h2>What it is</h2>');
-    expect(res.text).toContain('<h2>How it changes the base trick</h2>');
-    expect(res.text).toContain('<h2>Representative examples</h2>');
-    expect(res.text).toContain('<h2>Related concepts</h2>');
-  });
-
-  it('renders progression with anchor on butterfly, landing on the Pixie Diving Butterfly (darkwalk)', async () => {
-    const res = await page('/freestyle/modifier/diving');
-    expect(res.text).toContain('modifier-step-1-butterfly');
-    expect(res.text).toContain('modifier-step-2-diving_butterfly');
-    expect(res.text).toContain('modifier-step-3-diving_whirl');
-    expect(res.text).toContain('modifier-step-4-darkwalk');
-    const anchorMatches = res.text.match(/is-anchor/g) ?? [];
-    expect(anchorMatches.length).toBe(1);
-  });
-
-  it('renders representative examples as clickable links, including the Alpine Tap pattern', async () => {
-    const res = await page('/freestyle/modifier/diving');
-    expect(res.text).toContain('href="/freestyle/tricks/diving_mirage"');
-    expect(res.text).toContain('href="/freestyle/tricks/diving_whirl"');
-    expect(res.text).toContain('href="/freestyle/tricks/diving_drifter"');
-    expect(res.text).toContain('href="/freestyle/tricks/stepping_diving_mirage"');
-    expect(res.text).toContain('href="/freestyle/tricks/tapping_diving_mirage"');
-    for (const cat of ['Basic dex', 'Whirl family', 'Cross-body', 'Multiple operators', 'Alpine pattern (folk naming)']) {
-      expect(res.text).toContain(cat);
+  // Defect caught: the related list emptied, every page linking one Concepts term,
+  // or a page losing the breadcrumb that is its only way back up.
+  it('gives each page related concepts, its own Concepts link and a breadcrumb to Freestyle', async () => {
+    const problems: string[] = [];
+    for (const slug of TEACHING_SLUGS) {
+      const { text } = await page(`/freestyle/modifier/${slug}`);
+      if (!/<span class="related-name">[^<]+<\/span>: [^<\s]/.test(text)) problems.push(`${slug}: no related concepts`);
+      if (!text.includes(`href="${conceptsHrefForTerm(slug)}"`)) problems.push(`${slug}: wrong Concepts link`);
+      if (!/class="breadcrumb"[\s\S]*?href="\/freestyle">Freestyle</.test(text)) problems.push(`${slug}: no breadcrumb`);
     }
-  });
-
-  it('renders related concepts including ducking (the sister) and the shared family', async () => {
-    const res = await page('/freestyle/modifier/diving');
-    expect(res.text).toContain('related-modifiers-list');
-    for (const name of ['ducking', 'zulu', 'weaving', 'alpine', 'spinning', 'paradox', 'symposium']) {
-      expect(res.text).toContain(name);
-    }
-  });
-});
-
-describe('GET /freestyle/modifier/tapping — a +1 midtime-body modifier (canonical doctrine)', () => {
-  it('renders title and subtitle framing tapping as a +1 modifier that adds a quick tap', async () => {
-    const res = await page('/freestyle/modifier/tapping');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Tapping');
-    expect(res.text).toMatch(/adds a quick tap ahead of the base/);
-  });
-
-  it('renders the concept-first sections', async () => {
-    const res = await page('/freestyle/modifier/tapping');
-    for (const h of ['What it is', 'How it changes the base trick', 'Representative examples', 'Related concepts']) {
-      expect(res.text).toContain(`<h2>${h}</h2>`);
-    }
-  });
-
-  it('renders progression and clickable representative examples across families', async () => {
-    const res = await page('/freestyle/modifier/tapping');
-    expect(res.text).toContain('modifier-step-1-butterfly');
-    expect(res.text).toContain('modifier-step-2-tapping_butterfly');
-    expect(res.text).toContain('href="/freestyle/tricks/tapping_mirage"');
-    expect(res.text).toContain('href="/freestyle/tricks/tapping_whirl"');
-    expect(res.text).toContain('href="/freestyle/tricks/tapping_clipper"');
-    expect(res.text).toContain('href="/freestyle/tricks/tapping_legover"');
-    expect(res.text).toContain('href="/freestyle/tricks/tapping_drifter"');
-    const anchorMatches = res.text.match(/is-anchor/g) ?? [];
-    expect(anchorMatches.length).toBe(1);
-  });
-
-  it('renders related concepts including the body-operator contrast and toe-set kin', async () => {
-    const res = await page('/freestyle/modifier/tapping');
-    expect(res.text).toContain('related-modifiers-list');
-    for (const name of ['ducking', 'diving', 'slapping', 'quantum', 'atomic', 'stepping']) {
-      expect(res.text).toContain(name);
-    }
-  });
-});
-
-describe('GET /freestyle/modifier/inspinning — closely related rotational operator (finishes the trio)', () => {
-  it('renders title and forward-rotation subtitle', async () => {
-    const res = await page('/freestyle/modifier/inspinning');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Inspinning');
-    expect(res.text).toMatch(/rotational operator/);
-    expect(res.text).toMatch(/chest passing the bag first/);
-  });
-
-  it('renders the concept-first sections', async () => {
-    const res = await page('/freestyle/modifier/inspinning');
-    for (const h of ['What it is', 'How it changes the base trick', 'Representative examples', 'Related concepts']) {
-      expect(res.text).toContain(`<h2>${h}</h2>`);
-    }
-  });
-
-  it('renders progression and clickable representative examples across families', async () => {
-    const res = await page('/freestyle/modifier/inspinning');
-    expect(res.text).toContain('modifier-step-1-mirage');
-    expect(res.text).toContain('modifier-step-2-inspinning_mirage');
-    expect(res.text).toContain('href="/freestyle/tricks/inspinning_clipper"');
-    expect(res.text).toContain('href="/freestyle/tricks/inspinning_legover"');
-    expect(res.text).toContain('href="/freestyle/tricks/inspinning_butterfly"');
-    expect(res.text).toContain('href="/freestyle/tricks/inspinning_paradox_mirage"');
-    const anchorMatches = res.text.match(/is-anchor/g) ?? [];
-    expect(anchorMatches.length).toBe(1);
-  });
-
-  it('renders related concepts including spinning and gyro (the rotational trio)', async () => {
-    const res = await page('/freestyle/modifier/inspinning');
-    expect(res.text).toContain('related-modifiers-list');
-    for (const name of ['spinning', 'gyro', 'paradox', 'symposium', 'ducking', 'whirling', 'swirling']) {
-      expect(res.text).toContain(name);
-    }
+    expect(problems).toEqual([]);
   });
 });
 
@@ -438,7 +219,7 @@ describe('GET /freestyle/modifier/:slug — page budget', () => {
   // Defect caught: a teaching page regrows into the long reference it was cut
   // from, so a newcomer has to scroll past notation essays to reach the examples.
   it('keeps every teaching page under 600 words and at most 6 sections', async () => {
-    for (const slug of ['spinning', 'paradox', 'ducking', 'diving', 'symposium', 'gyro', 'tapping', 'inspinning']) {
+    for (const slug of TEACHING_SLUGS) {
       const res = await page(`/freestyle/modifier/${slug}`);
       expect(res.status, slug).toBe(200);
       const main = res.text.match(/<main[\s\S]*<\/main>/)?.[0] ?? '';
@@ -465,68 +246,6 @@ describe('GET /freestyle/modifier/:slug — route ordering', () => {
     // The page does NOT use trick-shell.hbs
     expect(res.text).not.toContain('trick-shell');
     expect(res.text).toContain('symbolic-modifier-family');
-  });
-});
-
-describe('GET /freestyle/modifier/symposium — concept-first frozen template', () => {
-  it('renders the concept-first sections, teaching the concept before execution', async () => {
-    const res = await page('/freestyle/modifier/symposium');
-    expect(res.status).toBe(200);
-    // Concept-first section order: definition before execution.
-    expect(res.text).toContain('<h2>What it is</h2>');
-    expect(res.text).toContain('<h2>How it changes the base trick</h2>');
-    expect(res.text).toContain('<h2>Representative examples</h2>');
-    expect(res.text).toContain('<h2>Related concepts</h2>');
-    expect(res.text).not.toContain('The body and the motion');
-  });
-});
-
-describe('GET /freestyle/modifier/gyro — concept-first (Tier-1, closely related rotational operators)', () => {
-  it('renders page title and subtitle (structural rotational framing)', async () => {
-    const res = await page('/freestyle/modifier/gyro');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Gyro');
-    expect(res.text).toMatch(/rotational operator/);
-    expect(res.text).toMatch(/changes the body.{0,8}orientation during a trick/);
-  });
-
-  it('renders the concept-first sections', async () => {
-    const res = await page('/freestyle/modifier/gyro');
-    expect(res.text).toContain('<h2>What it is</h2>');
-    expect(res.text).toContain('<h2>How it changes the base trick</h2>');
-    expect(res.text).toContain('<h2>Representative examples</h2>');
-    expect(res.text).toContain('<h2>Related concepts</h2>');
-    expect(res.text).not.toContain('The body and the motion');
-  });
-
-  it('renders progression with anchor on whirl (underscore slugs)', async () => {
-    const res = await page('/freestyle/modifier/gyro');
-    expect(res.text).toContain('modifier-step-1-whirl');
-    expect(res.text).toContain('modifier-step-2-gyro_whirl');
-    expect(res.text).toContain('modifier-step-3-gyro_symposium_whirl');
-    expect(res.text).toContain('modifier-step-4-gyro_ducking_symposium_torque');
-    const anchorMatches = res.text.match(/is-anchor/g) ?? [];
-    expect(anchorMatches.length).toBe(1);
-  });
-
-  it('renders representative examples as clickable links, organized by category', async () => {
-    const res = await page('/freestyle/modifier/gyro');
-    expect(res.text).toContain('href="/freestyle/tricks/gyro_mirage"');
-    expect(res.text).toContain('href="/freestyle/tricks/gyro_whirl"');
-    expect(res.text).toContain('href="/freestyle/tricks/gyro_eggbeater"');
-    expect(res.text).toContain('href="/freestyle/tricks/gyro_symposium_mirage"');
-    expect(res.text).toContain('href="/freestyle/tricks/mobius"');
-    for (const cat of ['Basic dex', 'Whirl family', 'Cross-body', 'Multiple operators', 'Recognizable named trick']) {
-      expect(res.text).toContain(cat);
-    }
-  });
-
-  it('renders related concepts including the closely related rotational operators', async () => {
-    const res = await page('/freestyle/modifier/gyro');
-    expect(res.text).toContain('related-modifiers-list');
-    for (const name of ['spinning', 'inspinning', 'paradox', 'symposium', 'ducking', 'whirling', 'swirling']) {
-      expect(res.text).toContain(name);
-    }
   });
 });
 

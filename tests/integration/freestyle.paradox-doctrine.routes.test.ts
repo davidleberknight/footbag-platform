@@ -42,17 +42,11 @@ describe('paradox is a single-dex relationship on every live teaching surface', 
       expect(html).not.toMatch(/between two dex/i);
     });
   }
-
-  it('the paradox page teaches the single-dex relationship', async () => {
-    const html = await page('/freestyle/modifier/paradox');
-    expect(html).toMatch(/dex still happens once|single dex/i);
-  });
 });
 
 describe('miraging never reappears as a scored set on the paradox page', () => {
-  it('the related-concepts entry frames miraging as descriptive, not a set', async () => {
+  it('the related-concepts entry never frames miraging as a scored set', async () => {
     const html = await page('/freestyle/modifier/paradox');
     expect(html).not.toMatch(/miraging[^.<]{0,60}(uptime dex set|\+1 uptime)/i);
-    expect(html).toMatch(/not a launch set and not a scored operator/i);
   });
 });

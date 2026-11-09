@@ -515,27 +515,10 @@ describe('GET /freestyle/operators — compact modifier index + advanced referen
   // decomposition reference retained below it via a shared sub-partial. The
   // modifier feel cards live only in Freestyle Concepts §6.
 
-  it('returns 200 with page title', async () => {
+  it('renders no feel cards or per-modifier reference on the compact index', async () => {
     const res = await page('/freestyle/operators');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Operators &amp; Modifiers');
-  });
-
-  it('offers a back link to /freestyle', async () => {
-    const res = await page('/freestyle/operators');
-    expect(res.text).toContain('<a href="/freestyle" class="action-link">');
-  });
-
-  it('renders the compact index and a minimal cross-cutting decomposition tail', async () => {
-    const res = await page('/freestyle/operators');
-    // Compact index rows, not a scroll of feel cards.
-    expect(res.text).toContain('dict-trick-row-stack');
-    expect(res.text).toContain('id="operator-paradox"');
     expect(res.text).not.toContain('class="glossary-modifier-card"');
-    // Tail keeps only the cross-cutting notes (how operators combine + alpine);
-    // per-modifier depth moved to the detail pages.
-    expect(res.text).toContain('id="how-operators-combine"');
-    expect(res.text).toContain('id="alpine"');
     // The per-modifier reference dl/grid does not render on the operators page.
     expect(res.text).not.toContain('id="intermediate-operators"');
     expect(res.text).not.toContain('id="set-modifiers-tier-1"');

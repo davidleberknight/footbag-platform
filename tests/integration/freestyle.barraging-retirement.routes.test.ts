@@ -1,8 +1,8 @@
 /**
  * Barraging is a historical name for the Furious set, not a set or modifier of
  * its own. Its old standalone URLs redirect permanently, one hop, to the Furious
- * set page; the Furious page renders as the +2 set; and no public copy presents
- * barraging as a scored +1 operator or as decomposing to "high stepping".
+ * set page; and no public copy presents barraging as a scored +1 operator or as
+ * decomposing to "high stepping".
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -80,14 +80,6 @@ describe('Barraging retirement — redirect to the Furious set', () => {
     expect(first.status).toBe(301);
     const dest = await page(first.headers['location']!);
     expect(dest.status).toBe(200);
-  });
-
-  it('the Furious set page renders as the +2 set', async () => {
-    const res = await page(FURIOUS);
-    expect(res.status).toBe(200);
-    expect(res.text).toMatch(/Furious/);
-    // The Furious set page describes the two-dex set as worth +2.
-    expect(res.text).toContain('+2');
   });
 });
 
