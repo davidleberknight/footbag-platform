@@ -9878,8 +9878,7 @@ export const freestyleService = {
         title:       `${set.displayName} (set system)`,
         description:
           `${set.displayName} canonical set ontology: formula, movement explanation, ` +
-          `equivalence readings, derived and related systems, example tricks, and ` +
-          `Holden / platform provenance.`,
+          `equivalence readings, derived and related systems, and example tricks.`,
       },
       page: {
         sectionKey: 'freestyle',

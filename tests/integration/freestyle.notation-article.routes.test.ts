@@ -56,7 +56,7 @@ describe('Freestyle Concepts Jobs-notation section — source-location prose rem
     const html = await concepts();
     expect(html).toContain('href="/freestyle/notation-article"');
     expect(html).toContain('To See the Entire Article, Press Here.');
-    expect(html).toContain('Source: Ben Job');
+    expect(html).toContain('Source: <em>By the Way, Not the Name</em>');
   });
 
   it('no longer prints the source-link or reproduction-location prose', async () => {

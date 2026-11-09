@@ -1008,7 +1008,7 @@ const TAPPING_CONTENT: ModifierEducationInput = {
   jobNotation:
     'Tapping mirage decomposes as tapping(+1) + mirage(2) = 3: the tap contributes +1 as a modifier on the base. In the notation that tap appears as the leading TOE > OP OUT [DEX], a quick toe-set dex performed ahead of the base, often with a plant, so tapping mirage reads TOE > OP OUT [DEX] >> OP IN [DEX] > OP TOE [DEL]. The tap is written as a dex because it is a quick dexterity movement, but it is scored as a +1 modifier on the trick, not as an extra dex folded into the base.',
   whereItAppears:
-    'Tapping composes across many dexterity families: players meet it on mirages, whirls, clippers, leg-overs, and drifters, and it stacks onto longer compounds. It belongs to the midtime-body modifiers, alongside the spins and the head movements, as the tap treatment of that group. Holden separately reads a tapping launch as an "Atomic same-side" set, a historical and alternative reading rather than tapping\'s identity as a +1 modifier.',
+    'Tapping composes across many dexterity families: players meet it on mirages, whirls, clippers, leg-overs, and drifters, and it stacks onto longer compounds. It belongs to the midtime-body modifiers, alongside the spins and the head movements, as the tap treatment of that group. A historical compilation separately reads a tapping launch as an "Atomic same-side" set, a historical and alternative reading rather than tapping\'s identity as a +1 modifier.',
   howItComposes:
     'Tapping composes with almost any base dexterity, prepending its tap ahead of the trick. It applies to uptime, rotational, and cross-body dexes, and it can stack with other treatments on longer compounds. Like the other midtime-body modifiers, it contributes a single +1 to the trick it is added to.',
   executionNotes:
@@ -1020,9 +1020,9 @@ const TAPPING_CONTENT: ModifierEducationInput = {
         'Both, in different senses. The tap is mechanically a quick dexterity movement, and the notation writes it as a short toe-set dex. But the platform scores tapping as a +1 modifier on the base, the same way it scores the spins and the head movements, not as an extra dex folded into the trick. Tapping is a +1 modifier on the midtime-body axis whose mechanic happens to be a tap.',
     },
     {
-      heading: 'Tapping vs its Holden set reading',
+      heading: 'Tapping vs its historical set reading',
       prose:
-        'Holden records a tapping launch as an "Atomic same-side" set. That is a historical, alternative reading, not the platform identity of tapping, which is an operator that adds a tap dexterity. The set reading is a cross-reference, not a second name for the operator.',
+        'A historical compilation records a tapping launch as an "Atomic same-side" set. That is a historical, alternative reading, not the platform identity of tapping, which is an operator that adds a tap dexterity. The set reading is a cross-reference, not a second name for the operator.',
     },
     {
       heading: 'Tapping vs slapping',
@@ -1119,7 +1119,7 @@ const TAPPING_CONTENT: ModifierEducationInput = {
     },
     {
       name:  'atomic',
-      prose: 'The set Holden equates with the tapping launch, the "Atomic same-side" reading; an alternative reading, not tapping\'s primary identity.',
+      prose: 'The set a historical compilation equates with the tapping launch, the "Atomic same-side" reading; an alternative reading, not tapping\'s primary identity.',
     },
     {
       name:  'stepping',

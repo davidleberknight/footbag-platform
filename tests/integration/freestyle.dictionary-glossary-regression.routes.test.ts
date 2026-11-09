@@ -262,10 +262,10 @@ describe('Item 4: Freestyle Concepts has Jobs notation section with archive refe
     expect(res.text).toContain('Jobs notation');
   });
 
-  it('cites Ben Job\'s article without leaking an internal repo path', async () => {
+  it('cites the notation article without leaking an internal repo path', async () => {
     const res = await page('/freestyle/concepts');
     expect(res.text).not.toContain('exploration/fborg/JobsNotation.txt');
-    expect(res.text).toContain('Source: Ben Job');
+    expect(res.text).toContain('By the Way, Not the Name');
     expect(res.text).toContain('href="/freestyle/notation-article"');
   });
 });

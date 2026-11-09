@@ -334,7 +334,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     formula: 'CLIP > OP OUT [DEX] >',
     movementExplanation:
       'A clipper set with an opposite-side outward dex; the reverse-direction mirror of ' +
-      'stepping. Named in Holden\'s compilation but not currently a platform canonical.',
+      'stepping. Named in the historical compilation but not currently a platform canonical.',
     equivalenceNotes: [],
     derivedSystems: [],
     relatedSystems: [
@@ -350,7 +350,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     formula: 'TOE > OP IN [DEX] > (same side component)',
     movementExplanation:
       'Toe set, then an opposite-side inward dex resolving to a same-side terminal, the ' +
-      'terminal-side mirror of quantum. Holden-cited; no current platform canonical.',
+      'terminal-side mirror of quantum. From the historical compilation;no current platform canonical.',
     equivalenceNotes: [],
     derivedSystems: [],
     relatedSystems: [
@@ -366,7 +366,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     formula: 'TOE > OP OUT [DEX] (plant) > (same side component)',
     movementExplanation:
       'Toe set, then an opposite-side outward dex with a plant, resolving to a same-side ' +
-      'terminal. A historical Holden set reading (also read as Atomic same-side); the ' +
+      'terminal. A historical set reading (also read as Atomic same-side); the ' +
       'platform-canonical identity of tapping is the operator, a +1 tap modifier taught on the Tapping operator page.',
     equivalenceNotes: [
       { reading: 'Atomic same side', citation: 'Holden parenthetical' },
@@ -425,7 +425,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'sailing', hashtag: '#set_sailing', displayName: 'Sailing', subtype: 'composite-derived',
     formula: 'TOE > SAME IN [DEX] > OP OUT [DEX] >',
     movementExplanation:
-      'Pixie extended with an illusion-style dex (folk name Pixie Illusion). Holden-cited; ' +
+      'Pixie extended with an illusion-style dex (folk name Pixie Illusion). From the historical compilation;' +
       'no current platform canonical.',
     equivalenceNotes: [
       { reading: 'Pixie Illusion', citation: 'Holden parenthetical' },
@@ -497,7 +497,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     formula: 'TOE > SAME IN [DEX] > OP IN [DEX] >',
     movementExplanation:
       'Pixie into quantum\'s direction: pixie\'s opening dex followed by an opposite-side ' +
-      'inward dex. Holden-cited; no current platform canonical.',
+      'inward dex. From the historical compilation;no current platform canonical.',
     equivalenceNotes: [
       { reading: 'pixie-quantum', citation: 'Holden reading' },
     ],
@@ -515,7 +515,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'fairy_atomic', hashtag: '#set_fairy_atomic', displayName: 'Fairy Atomic', subtype: 'composite-derived',
     formula: 'TOE > SAME OUT [DEX] > OP OUT [DEX] >',
     movementExplanation:
-      'Two-dex chain combining fairy\'s opening with atomic\'s direction. Holden-cited; ' +
+      'Two-dex chain combining fairy\'s opening with atomic\'s direction. From the historical compilation;' +
       'no current platform canonical.',
     equivalenceNotes: [],
     derivedSystems: [],
@@ -533,7 +533,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     formula: 'CLIP > OP IN [DEX] > OP OUT [PDX][DEX] >',
     movementExplanation:
       'Stepping with a paradox-style orientation change, extended by an illusion-style dex ' +
-      '(folk name Stepping Paradox Illusion). Holden-cited; no current platform canonical.',
+      '(folk name Stepping Paradox Illusion). From the historical compilation;no current platform canonical.',
     equivalenceNotes: [
       { reading: 'Stepping Paradox Illusion', citation: 'Holden parenthetical' },
     ],
@@ -573,7 +573,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     formula: 'CLIP > SAME OUT [DEX] >',
     movementExplanation:
       'A clipper-based compound entry combining a paradox hip shift with an illusion-style ' +
-      'dex. Holden treats it as a basic single-dex set; the platform tracks it as a +2 ' +
+      'dex. The historical compilation treats it as a basic single-dex set; the platform tracks it as a +2 ' +
       'compound.',
     equivalenceNotes: [
       { reading: 'paradox + illusion compound', citation: 'Platform reading' },
@@ -596,7 +596,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'surging', hashtag: '#set_surging', displayName: 'Surging', subtype: 'rotational',
     formula: 'SET > (BACK/FRONT) SPIN [BOD] > OP IN [DEX] >',
     movementExplanation:
-      'Spin-anchored set system. Holden reads it as spinning miraging; later platform ' +
+      'Spin-anchored set system. The historical compilation reads it as spinning miraging; later platform ' +
       'analysis records the decomposition as spinning + stepping (CLIP-led). Both readings ' +
       'preserved as documented disagreement.',
     equivalenceNotes: [
@@ -616,7 +616,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'sonic', hashtag: '#set_sonic', displayName: 'Sonic', subtype: 'rotational',
     formula: 'CLIP > (BACK) SPIN [BOD] > (BACK) SPIN [BOD] >',
     movementExplanation:
-      'Double spinning over a clipper set, two back-spin tokens in sequence. Holden-cited; ' +
+      'Double spinning over a clipper set, two back-spin tokens in sequence. From the historical compilation;' +
       'no current platform canonical.',
     equivalenceNotes: [
       { reading: 'double spinning', citation: 'Holden parenthetical' },
@@ -635,7 +635,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     formula: 'SET > (BACK) SPIN [BOD] > (BACK) SPIN [BOD] >',
     movementExplanation:
       'Double spinning, SET-led variant. The directional sibling of sonic with a SET ' +
-      'rather than CLIP anchor. Holden-cited; no current platform canonical.',
+      'rather than CLIP anchor. From the historical compilation;no current platform canonical.',
     equivalenceNotes: [
       { reading: 'double spinning (SET-led)', citation: 'Holden parenthetical' },
     ],
@@ -652,7 +652,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'leaning', hashtag: '#set_leaning', displayName: 'Leaning', subtype: 'rotational',
     formula: 'CLIP > OP IN [DEX] > (FRONT) SPIN [BOD] >',
     movementExplanation:
-      'Stepping with a forward spin (folk name Stepping inspinning). Holden-cited; no ' +
+      'Stepping with a forward spin (folk name Stepping inspinning). From the historical compilation;no ' +
       'current platform canonical.',
     equivalenceNotes: [
       { reading: 'stepping inspinning', citation: 'Holden parenthetical' },
@@ -672,7 +672,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     formula: 'CLIP > OP IN [DEX] > (BACK) SPIN [BOD] >',
     movementExplanation:
       'Stepping backspinning. The directional sibling of leaning with a back-spin token. ' +
-      'Holden-cited; no current platform canonical.',
+      'From the historical compilation;no current platform canonical.',
     equivalenceNotes: [
       { reading: 'stepping backspinning', citation: 'Holden parenthetical' },
     ],
@@ -691,7 +691,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     formula: 'CLIP > SAME OUT [DEX] > (FRONT) SPIN [BOD] >',
     movementExplanation:
       'Nuclear inspinning. Nuclear\'s opening dex followed by a front-spin body token. ' +
-      'Holden-cited; no current platform canonical.',
+      'From the historical compilation;no current platform canonical.',
     equivalenceNotes: [
       { reading: 'nuclear inspinning', citation: 'Holden parenthetical' },
     ],
@@ -708,7 +708,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'neutron', hashtag: '#set_neutron', displayName: 'Neutron', subtype: 'rotational',
     formula: 'TOE > OP OUT [DEX] > (BACK) SPIN [BOD] > (op side component)',
     movementExplanation:
-      'Atomic with an added back spin (folk name Atomic spin). Holden-cited; no current ' +
+      'Atomic with an added back spin (folk name Atomic spin). From the historical compilation;no current ' +
       'platform canonical.',
     equivalenceNotes: [
       { reading: 'Atomic spin', citation: 'Holden parenthetical' },
@@ -726,7 +726,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'fairy_spinning', hashtag: '#set_fairy_spinning', displayName: 'Fairy Spinning', subtype: 'rotational',
     formula: 'TOE > SAME OUT [DEX] > (BACK) SPIN [BOD] >',
     movementExplanation:
-      'Fairy\'s opening dex followed by a back-spin body token. Holden-cited; no current ' +
+      'Fairy\'s opening dex followed by a back-spin body token. From the historical compilation;no current ' +
       'platform canonical.',
     equivalenceNotes: [],
     derivedSystems: [],
@@ -743,7 +743,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'pixie_inspinning', hashtag: '#set_pixie_inspinning', displayName: 'Pixie Inspinning', subtype: 'rotational',
     formula: 'TOE > SAME IN [DEX] > (FRONT) SPIN [BOD] >',
     movementExplanation:
-      'Pixie\'s opening dex followed by a front-spin body token. Holden-cited; no current ' +
+      'Pixie\'s opening dex followed by a front-spin body token. From the historical compilation;no current ' +
       'platform canonical.',
     equivalenceNotes: [],
     derivedSystems: [],
@@ -800,7 +800,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     formula: 'CLIP > OP OUT [DEX] > (same side component)',
     movementExplanation:
       'Reverse Whirling (same-side terminal). The opposite-direction sibling of whirling. ' +
-      'Holden-cited; no current platform canonical.',
+      'From the historical compilation;no current platform canonical.',
     equivalenceNotes: [
       { reading: 'Reverse Whirling (same side)', citation: 'Holden parenthetical' },
     ],
@@ -818,7 +818,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     formula: 'CLIP > OP OUT [DEX] > (op side component)',
     movementExplanation:
       'Reverse Whirling (op-side terminal). The terminal-side mirror of scattered. ' +
-      'Holden-cited; no current platform canonical.',
+      'From the historical compilation;no current platform canonical.',
     equivalenceNotes: [
       { reading: 'Reverse Whirling (op side)', citation: 'Holden parenthetical' },
     ],
@@ -869,7 +869,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     formula: 'CLIP > OP OUT [DEX] > (SAME)',
     movementExplanation:
       'Clipper reverse whirl. The reverse-direction sibling of the whirl shape; folk-named ' +
-      'in Holden\'s compilation. The underlying reverse-whirl shape is canonical; the name ' +
+      'in the historical compilation. The underlying reverse-whirl shape is canonical; the name ' +
       '"Broken" itself is folk.',
     equivalenceNotes: [
       { reading: 'clipper reverse whirl', citation: 'Holden parenthetical' },
@@ -890,7 +890,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     formula: 'PINCH > SAME OUT [DEX] >',
     movementExplanation:
       'Fairy off a pinch entry (folk name Pinching Fairy): fairy\'s outward dex over a ' +
-      'pinch surface, not a toe set. Holden-cited; no current platform canonical.',
+      'pinch surface, not a toe set. From the historical compilation;no current platform canonical.',
     equivalenceNotes: [
       { reading: 'Pinching Fairy set', citation: 'Holden parenthetical' },
     ],
@@ -907,7 +907,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'pixie_pinching', hashtag: '#set_pixie_pinching', displayName: 'Pixie Pinching', subtype: 'uns',
     formula: 'PINCH > SAME IN [DEX] >',
     movementExplanation:
-      'Pixie\'s dex direction over a pinch entry surface. Holden-cited; no current ' +
+      'Pixie\'s dex direction over a pinch entry surface. From the historical compilation;no current ' +
       'platform canonical.',
     equivalenceNotes: [],
     derivedSystems: [],
@@ -925,7 +925,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     formula: 'DRAGON > SAME FRONT SWIRL [DEX] > SAME IN/OUT [PDX][DEX] >',
     movementExplanation:
       'Dragon-set Swirling Paradox. A SWIRL token over a dragon entry, then a paradox-token ' +
-      'second dex. Holden-cited; no current platform canonical.',
+      'second dex. From the historical compilation;no current platform canonical.',
     equivalenceNotes: [
       { reading: 'Dragon set Swirling Paradox', citation: 'Holden parenthetical' },
     ],
@@ -942,7 +942,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'snapping', hashtag: '#set_snapping', displayName: 'Snapping', subtype: 'uns',
     formula: 'DRAGON > SAME FRONT SWIRL [DEX] >',
     movementExplanation:
-      'Dragon-set Swirling. A SWIRL token over a dragon entry surface. Holden-cited; no ' +
+      'Dragon-set Swirling. A SWIRL token over a dragon entry surface. From the historical compilation;no ' +
       'current platform canonical.',
     equivalenceNotes: [
       { reading: 'Dragon set Swirling', citation: 'Holden parenthetical' },
@@ -962,7 +962,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     formula: 'FRIGIDOSIS > SAME IN [DEX] >',
     movementExplanation:
       'Pixie off a frigidosis entry (folk name Frigidosis Pixie): pixie\'s inward dex over ' +
-      'a frigidosis surface. Holden-cited; no current platform canonical.',
+      'a frigidosis surface. From the historical compilation;no current platform canonical.',
     equivalenceNotes: [
       { reading: 'frigidosis Pixie', citation: 'Holden parenthetical' },
     ],

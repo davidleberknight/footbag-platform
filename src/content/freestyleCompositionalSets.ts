@@ -293,7 +293,7 @@ export const UPTIME_REINTERPRETATION_LADDERS: readonly UptimeReinterpretationLad
       'miraging (reading)  =  SET > OP IN [DEX] >   (the toe-stall terminal omitted as the dex continues into the next move)',
       'Reading: the inward mirage shape read as descriptive language. Miraging is retained as descriptive mirage-family language for the inward standalone movement; Quantum is the same inward movement realized with a set role, and miraging is not treated as a launch set or a Quantum equivalent.',
     ],
-    sourceCitation:  'Per the platform\'s operational notation system; aligned with Holden\'s basic-set listing.',
+    sourceCitation:  'Per the platform\'s operational notation system; aligned with the historical compilation\'s basic-set listing.',
     conflictNote:    'Retained as descriptive mirage-family language for the inward standalone movement, not a launch set. Quantum is the same inward movement realized with a set role.',
   },
   {
@@ -302,11 +302,11 @@ export const UPTIME_REINTERPRETATION_LADDERS: readonly UptimeReinterpretationLad
     reinterpretation:'Illusion-family descriptive language (not a modern set)',
     steps: [
       'illusion    (trick)   =  SET > OP OUT [DEX] > OP TOE [DEL]',
-      'illusioning (reading) =  SET > OP OUT [DEX] >   (structurally analogous to miraging, but not explicitly in Holden\'s compilation)',
+      'illusioning (reading) =  SET > OP OUT [DEX] >   (structurally analogous to miraging, but not explicitly in the historical compilation)',
       'Reading: the illusion shape read as descriptive language. Illusioning is retained as descriptive illusion-family language for the outward standalone movement; Atomic is the same outward movement realized with a set role, and illusioning is not a launch set or an Atomic equivalent.',
     ],
-    sourceCitation:  'Structural inference from the mirage/illusion direction-mirror sibling pair; not in Holden\'s compilation.',
-    conflictNote:    'Named "illusioning" is not in Holden\'s list or the platform canonical, and current doctrine holds it a standalone movement, not a launch set or an Atomic equivalent. Some instructional and historical sources describe sets by reference to familiar standalone motions; the encyclopedia preserves those as teaching / source language, not as equivalent canonical set names.',
+    sourceCitation:  'Structural inference from the mirage/illusion direction-mirror sibling pair; not in the historical compilation.',
+    conflictNote:    'Named "illusioning" is not in the historical compilation or the platform canonical, and current doctrine holds it a standalone movement, not a launch set or an Atomic equivalent. Some instructional and historical sources describe sets by reference to familiar standalone motions; the encyclopedia preserves those as teaching / source language, not as equivalent canonical set names.',
   },
   {
     setName:         'blurry',
@@ -317,7 +317,7 @@ export const UPTIME_REINTERPRETATION_LADDERS: readonly UptimeReinterpretationLad
       '+ paradox second dex (OP OUT [DEX]) layered on top',
       '=  blurry (compound set) =  CLIP > OP IN [DEX] > OP OUT [DEX] >',
     ],
-    sourceCitation:  'Per Holden\'s parenthetical (Blurry = Stepping Paradox) and the platform ruling. Aligned.',
+    sourceCitation:  'Per the historical compilation (Blurry = Stepping Paradox) and the platform ruling. Aligned.',
     conflictNote:    null,
   },
   {
@@ -329,7 +329,7 @@ export const UPTIME_REINTERPRETATION_LADDERS: readonly UptimeReinterpretationLad
       'barraging is a legacy name pattern for the Furious set, not a separate timing-defined operator; barraging-named rows and aliases are preserved for name continuity and resolve to Furious',
       'a superseded reading extended this with a third dex (OP IN [DEX]) as "Barraging Paradox Miraging"',
     ],
-    sourceCitation:  'Holden compilation; barraging is a legacy name pattern for the Furious set, and barraging-named tricks resolve to the Furious two-dex set.',
+    sourceCitation:  'Historical compilation; barraging is a legacy name pattern for the Furious set, and barraging-named tricks resolve to the Furious two-dex set.',
     conflictNote:    'The earlier three-dex Barraging Paradox Miraging chain is historical lineage, not current structure.',
   },
   {
@@ -337,11 +337,11 @@ export const UPTIME_REINTERPRETATION_LADDERS: readonly UptimeReinterpretationLad
     setNotation:     'SET > (BACK/FRONT) SPIN [BOD] > OP IN [DEX] >',
     reinterpretation:'Two recorded readings; the platform tracks both',
     steps: [
-      'Holden\'s reading   =  spinning miraging  (a spin body modifier layered with a miraging-like terminal)',
+      'Historical reading =  spinning miraging  (a spin body modifier layered with a miraging-like terminal)',
       'Platform reading   =  spinning stepping  (per later compilation: a spin body modifier layered with a stepping CLIP-direction dex)',
       'Both readings share the SPIN [BOD] entry; they disagree on whether the terminal dex reads as miraging (SET-led) or stepping (CLIP-led).',
     ],
-    sourceCitation:  'Holden\'s compilation and later platform analysis.',
+    sourceCitation:  'The historical compilation and later platform analysis.',
     conflictNote:    'Surfaced as a documented disagreement, not normalized.',
   },
 ];

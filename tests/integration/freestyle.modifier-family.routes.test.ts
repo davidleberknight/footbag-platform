@@ -524,10 +524,10 @@ describe('GET /freestyle/modifier/tapping — a +1 midtime-body modifier (canoni
     expect(res.text).toMatch(/tapping\(\+1\) \+ mirage\(2\)/);
   });
 
-  it('teaches tapping as a +1 modifier and keeps the Holden set reading historical', async () => {
+  it('teaches tapping as a +1 modifier and keeps the compilation set reading historical', async () => {
     const res = await page('/freestyle/modifier/tapping');
     expect(res.text).toContain('Is the tap a dexterity or a modifier?');
-    expect(res.text).toContain('Tapping vs its Holden set reading');
+    expect(res.text).toContain('Tapping vs its historical set reading');
     expect(res.text).toContain('Tapping vs slapping');
     expect(res.text).toContain('Tapping does not replace the base trick');
     expect(res.text).toMatch(/Atomic same-side/);
