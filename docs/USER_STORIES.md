@@ -179,6 +179,9 @@ each release contains is §1.3.
     - [A_Review_Emerging_Vocabulary](#a_review_emerging_vocabulary)
     - [A_Edit_Freestyle_Trick](#a_edit_freestyle_trick)
     - [A_Edit_Freestyle_Modifier](#a_edit_freestyle_modifier)
+    - [A_Edit_Freestyle_Family](#a_edit_freestyle_family)
+    - [A_Edit_Freestyle_Set](#a_edit_freestyle_set)
+    - [A_Edit_Freestyle_Glossary](#a_edit_freestyle_glossary)
     - [A_Register_Freestyle_Source](#a_register_freestyle_source)
     - [A_Edit_Freestyle_Record](#a_edit_freestyle_record)
     - [A_Edit_Consecutive_Kicks_Record](#a_edit_consecutive_kicks_record)
@@ -3344,6 +3347,90 @@ Success Criteria, Durability:
 Audit:
 
 - Every create and edit appends one audit_entries row recording the admin actor, timestamp, a freestyle-namespaced action type (`freestyle.modifier.created` or `freestyle.modifier.updated`), the modifier slug and the changed field names, with the old and new ADD for an ADD change.
+
+### A_Edit_Freestyle_Family
+
+Access: same as A_Edit_Freestyle_Trick. Editing a slug that has no family row returns 404.
+
+Story: As an admin, I can edit a freestyle family, with validation and an audit trail, so that how families are named, grouped and taught is maintained in the running application with no database migration.
+
+Success Criteria, Fields:
+
+- Editable fields are the display name, the parent family (empty for a root family), the display tier (family parent or minor lineage), the plain-language description of what the family is, and how to do it. The slug is never edited.
+- Which tricks belong to a family is set on each trick (A_Edit_Freestyle_Trick); member lists, member counts and example tricks are computed when read.
+
+Success Criteria, Validation (a save that fails any check is rejected with a clear message and the submitted values preserved):
+
+- A non-empty parent names another family, and a save that would make a family its own ancestor is refused.
+- The tier is one the roster allows, and a universal catch surface (toe stall, clipper stall) cannot become a family parent.
+
+Success Criteria, Display:
+
+- A saved change shows on the next read of the family page, the By-family browse and every other surface that names the family. A family moved out of family-parent tier loses its page (404) and every link to it, per V_Learn_Freestyle.
+
+Success Criteria, Durability:
+
+- Before go-live, on a developer machine, a save is written back to the committed authoring files as every freestyle curation screen's is, so a rebuild reproduces it.
+
+Audit:
+
+- Every edit appends one audit_entries row recording the admin actor, timestamp, the action type `freestyle.family.updated`, the family slug and the changed field names.
+
+### A_Edit_Freestyle_Set
+
+Access: same as A_Edit_Freestyle_Trick. Editing a slug that has no set row returns 404.
+
+Story: As an admin, I can create a freestyle set and edit an existing one, with validation and an audit trail, so that the set vocabulary is maintained in the running application with no database migration.
+
+Success Criteria, Fields:
+
+- Create takes the slug, the display name, the set group, the formula, the plain-language explanation, the equivalent names, the related sets and the sets derived from it; edit changes every field but the slug. The hashtag is always `#set_{slug}`.
+- The formula may be empty; the set page then says its notation is pending.
+- A set can be held off the encyclopedia list while its status is undecided; its page still resolves.
+
+Success Criteria, Validation (a save that fails any check is rejected with a clear message and the submitted values preserved):
+
+- The slug is lowercase letters, digits and underscores and is not already a set slug. It may equal a trick or modifier slug, because a name that is both has both pages.
+- The set group is one the encyclopedia defines, and every related or derived set names an existing set other than this one.
+
+Success Criteria, Display:
+
+- A created set has its page, its encyclopedia list entry and its sitemap entry on the next read, with no deployment. It renders the standard set page; a teaching guide is added separately by a code change.
+
+Success Criteria, Durability:
+
+- Before go-live, on a developer machine, a save is written back to the committed authoring files as every freestyle curation screen's is, so a rebuild reproduces it.
+
+Audit:
+
+- Every create and edit appends one audit_entries row recording the admin actor, timestamp, a freestyle-namespaced action type (`freestyle.set.created` or `freestyle.set.updated`), the set slug and the changed field names.
+
+### A_Edit_Freestyle_Glossary
+
+Access: same as A_Edit_Freestyle_Trick. Editing a slug that has no glossary term returns 404.
+
+Story: As an admin, I can add, edit and remove A to Z glossary terms, with validation and an audit trail, so that the glossary is maintained in the running application with no deployment.
+
+Success Criteria, Fields:
+
+- A term has its displayed term, its slug, a one-sentence definition, its aliases, and an optional link to deeper material with its label. The slug is fixed when the term is added, because other pages link to `#term-{slug}`. Order on the page is alphabetical and computed when read.
+
+Success Criteria, Validation (a save that fails any check is rejected with a clear message and the submitted values preserved):
+
+- The term, slug and definition are present; the slug is unique; an alias does not equal another entry's term.
+- The link and its label are both present or both absent, and the link is a path on this site.
+
+Success Criteria, Removal:
+
+- Removing a term goes through a confirmation page stating that the entry and any links to its anchor stop working.
+
+Success Criteria, Durability:
+
+- Before go-live, on a developer machine, a save is written back to the committed authoring files as every freestyle curation screen's is, so a rebuild reproduces it.
+
+Audit:
+
+- Every add, edit and removal appends one audit_entries row recording the admin actor, timestamp, a freestyle-namespaced action type (`freestyle.glossary_term.created`, `.updated` or `.removed`), the term slug and the changed field names.
 
 ### A_Register_Freestyle_Source
 
