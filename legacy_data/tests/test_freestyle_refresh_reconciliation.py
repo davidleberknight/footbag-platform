@@ -336,6 +336,42 @@ class TestRetirement:
         assert result.returncode == 0, result.stderr
         assert owner_of(db, "a_withdrawn_trick") is KeyError
 
+    def test_a_row_removed_from_the_base_dictionary_is_retired_by_a_whole_refresh(self, db):
+        """Its base-dictionary source link is not recreated to hold it in place.
+
+        The link is the dictionary loader's own, so a refresh that rebuilt it for
+        a row the file no longer carries would make the row unretirable, while a
+        row the file still carries keeps its link.
+        """
+        conn = connect(db)
+        with conn:
+            conn.execute(
+                "INSERT INTO freestyle_tricks (slug, canonical_name, adds, review_status,"
+                " is_active, is_core, sort_order, loaded_at, trick_origin_producer)"
+                " VALUES ('a_removed_base_trick', 'a removed base trick', '3', 'curated',"
+                " 1, 0, 99995, '2026-08-29T00:00:00.000Z', ?)",
+                (BASE_DICTIONARY,),
+            )
+            conn.execute(
+                "INSERT INTO freestyle_trick_source_links (trick_slug, source_id)"
+                " VALUES ('a_removed_base_trick', 'curated-v1')"
+            )
+        conn.close()
+
+        failed, result = refresh(db)
+
+        assert failed is None, f"{failed} failed:\n{result.stderr if result else ''}"
+        assert owner_of(db, "a_removed_base_trick") is KeyError
+        conn = connect(db)
+        try:
+            kept = conn.execute(
+                "SELECT COUNT(*) FROM freestyle_trick_source_links"
+                " WHERE trick_slug = 'whirl' AND source_id = 'curated-v1'"
+            ).fetchone()[0]
+        finally:
+            conn.close()
+        assert kept == 1
+
     def test_a_stale_row_that_is_still_referenced_fails_closed(self, db):
         """Nothing is retired, and the diagnostic names the row and the reference."""
         conn = connect(db)

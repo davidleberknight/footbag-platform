@@ -1350,6 +1350,7 @@ def seed_file_paired_sidecars(
     """
     seen_basenames: set[str] = set()
     count = 0
+    alias_map = load_alias_map(con)
 
     for category_dir in sorted(p for p in source_dir.iterdir() if p.is_dir()):
         category = category_dir.name
@@ -1434,6 +1435,11 @@ def seed_file_paired_sidecars(
                         f"ERROR: {sidecar_path}: '#curated' must NOT appear in "
                         "sidecar tags; the seeder auto-prepends it"
                     )
+                # A trick has one gallery, so an alias is stored under its
+                # trick here as on the URL-reference path.
+                raw_tags = list(dict.fromkeys(
+                    "#" + canonicalize_slug(tag[1:], alias_map) for tag in raw_tags
+                ))
 
             # Build the dict shape expected by seed_item. id_seed must be
             # stable per (category, binary) so re-runs land on the same

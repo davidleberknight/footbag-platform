@@ -45,13 +45,16 @@ describe('recognized abbreviations expand before identity grouping', () => {
   });
 
   it.each([
-    'Symp. DLO',
     'Symp Mirage',
     'PS Mirage',
     'Pdx Dada Curve',
     'Miraging Symp.Mirage',
   ])('%s is recognized as a published trick and leaves the surface', name => {
     expect(byName(name)).toBeUndefined();
+  });
+
+  it('files Symp. DLO as an alias of the trick it names, so it waits on no ruling', () => {
+    expect(byName('Symp. DLO')).toMatchObject({ publicSection: 'archive', resolvedTarget: 'alias:nova' });
   });
 
   it('no name waiting on a ruling carries an unexpanded compositional shorthand it shares with a published trick', () => {

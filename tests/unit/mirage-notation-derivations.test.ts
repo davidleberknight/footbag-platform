@@ -10,7 +10,6 @@ const APPROVED = [
   { slug: 'diving-mirage',             adds: 3, notation: 'SET > DIVE [BOD] > OP IN [DEX] > OP TOE [DEL]' },
   { slug: 'furious-mirage',          adds: 4, notation: 'SET > OP IN [DEX] > SAME IN [DEX] > OP IN [DEX] > OP TOE [DEL]' },
   { slug: 'swirling-mirage',           adds: 3, notation: 'SET > SAME BACK SWIRL [DEX] > OP IN [DEX] > OP TOE [DEL]' },
-  { slug: 'whirling-mirage',           adds: 3, notation: 'SET > OP FRONT WHIRL [DEX] > OP IN [DEX] > OP TOE [DEL]' },
   { slug: 'diving-symposium-mirage',   adds: 4, notation: 'SET > DIVE [BOD] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL]' },
   { slug: 'swirling-paradox-mirage',   adds: 4, notation: 'CLIP > SAME BACK SWIRL [DEX] > OP IN [PDX] [DEX] > OP TOE [DEL]' },
   { slug: 'symposium-miraging-mirage', adds: 4, notation: 'SET > OP IN [DEX] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL]' },

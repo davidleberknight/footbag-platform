@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-// The six curator-approved whirl-family notation derivations written into
+// The five curator-approved whirl-family notation derivations written into
 // red_corrections. Each must open on a set surface and close on a catch delay
 // (parse), its ADD must equal its add-bearing token count, and the exact
 // notation string must survive verbatim in the curated source.
@@ -15,7 +15,6 @@ const APPROVED = [
   { slug: 'spinning-ducking-symposium-whirl', adds: 6, notation: 'SET > (back) SPIN [BOD] > DUCK [BOD] > (no plant while) OP IN [BOD] [DEX] > OP CLIP [XBD] [DEL]' },
   { slug: 'whirling-whirl',                   adds: 4, notation: 'SET > OP FRONT WHIRL [DEX] > OP IN [DEX] > OP CLIP [XBD] [DEL]' },
   { slug: 'miraging-symposium-whirl',         adds: 5, notation: 'SET > OP IN [DEX] > (no plant while) OP IN [BOD] [DEX] > OP CLIP [XBD] [DEL]' },
-  { slug: 'barraging-whirl',                  adds: 5, notation: 'SET > OP IN [DEX] > SAME IN [DEX] > OP IN [DEX] > OP CLIP [XBD] [DEL]' },
   { slug: 'swirling-whirl',                   adds: 4, notation: 'SET > SAME BACK SWIRL [DEX] > OP IN [DEX] > OP CLIP [XBD] [DEL]' },
   { slug: 'swirling-symposium-whirl',         adds: 5, notation: 'SET > SAME BACK SWIRL [DEX] > (no plant while) OP IN [BOD] [DEX] > OP CLIP [XBD] [DEL]' },
 ] as const;

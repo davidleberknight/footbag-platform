@@ -39,7 +39,6 @@ const APPROVED = [
   { slug: 'triple-swirl',           adds: 5, notation: 'CLIP > SAME BACK SWIRL [DEX] > SAME BACK SWIRL [DEX] > SAME BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]' },
   { slug: 'triple-mirage',          adds: 4, notation: 'SET > OP IN [DEX] > OP IN [DEX] > OP IN [DEX] > OP TOE [DEL]' },
   { slug: 'atomic-blender',         adds: 5, notation: 'TOE > OP OUT [DEX] > OP IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]' },
-  { slug: 'atomic-double-leg-over', adds: 4, notation: 'TOE > OP OUT [DEX] > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]' },
   { slug: 'atomic-ducking-torque',  adds: 6, notation: 'TOE > OP OUT [DEX] > DUCK [BOD] > OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]' },
 ] as const;
 

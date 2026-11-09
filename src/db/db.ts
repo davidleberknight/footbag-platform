@@ -3258,11 +3258,6 @@ export const freestyleMediaLinks = {
   // member-uploaded clip, which is coverage exactly as a curator-published
   // clip is. Reading the linkable-video view rather than the bare table is
   // what keeps this answer identical to the trick detail page's.
-  // media_tag is the tag the clip actually carries, which is the canonical
-  // slug tag on the first arm and an alias slug tag on the second. The
-  // gallery filters on one literal token and never expands aliases, so a
-  // link built from the canonical slug of an alias-only-tagged trick lands
-  // on an empty gallery; the caller picks a tag from here that resolves.
   // is_tutorial answers what the clip is for, which the clip's own tags say and
   // the source id does not. It is an EXISTS over the clip's tags rather than a
   // second join, because a join would multiply each coverage row by its tag count.
@@ -3270,7 +3265,6 @@ export const freestyleMediaLinks = {
     SELECT DISTINCT
       ft.slug          AS slug,
       mi.source_id     AS source_id,
-      t.tag_normalized AS media_tag,
       EXISTS (
         SELECT 1 FROM media_tags ct
         INNER JOIN tags ctt ON ctt.id = ct.tag_id
@@ -3281,23 +3275,6 @@ export const freestyleMediaLinks = {
     INNER JOIN tags t        ON t.id        = mt.tag_id
     INNER JOIN freestyle_tricks ft ON ('#' || ft.slug) = t.tag_normalized
     WHERE ft.is_active = 1
-    UNION
-    -- Media tagged with a trick's alias slug (e.g. a retired structural name
-    -- folded onto its folk-named canonical) is coverage for that canonical.
-    SELECT DISTINCT
-      ft.slug          AS slug,
-      mi.source_id     AS source_id,
-      t.tag_normalized AS media_tag,
-      EXISTS (
-        SELECT 1 FROM media_tags ct
-        INNER JOIN tags ctt ON ctt.id = ct.tag_id
-        WHERE ct.media_id = mi.id AND ctt.tag_normalized = '#tutorial'
-      )                AS is_tutorial
-    FROM media_items_linkable_video mi
-    INNER JOIN media_tags mt ON mt.media_id = mi.id
-    INNER JOIN tags t        ON t.id        = mt.tag_id
-    INNER JOIN freestyle_trick_aliases a ON ('#' || a.alias_slug) = t.tag_normalized
-    INNER JOIN freestyle_tricks ft       ON ft.slug = a.trick_slug AND ft.is_active = 1
   `); },
 };
 
@@ -3306,9 +3283,6 @@ export interface FreestyleMediaCoveredSourceRow {
   // NULL for a member-uploaded clip: the source registry names curated
   // channels and series, and a member's own clip belongs to none of them.
   source_id: string | null;
-  // The '#'-prefixed normalized tag the clip carries: the trick's canonical
-  // slug tag, or one of its alias slug tags.
-  media_tag: string;
   // 1 when the clip carries #tutorial. Every other curated trick clip carries
   // #demo or #record, and anything untagged counts as a demonstration: the
   // instructional claim is the one that has to be made rather than assumed.

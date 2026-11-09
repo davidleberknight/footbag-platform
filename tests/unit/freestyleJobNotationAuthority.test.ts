@@ -30,10 +30,10 @@ const snap = (slug: string) => notationBySlug.get(slug.replace(/-/g, '_')) ?? nu
 
 const RETIRED_GUIDE = 'NOTATION_' + 'STYLE_GUIDE';
 
-// The 40 corrections that historically cited the retired guide, partitioned by
+// The 39 corrections that historically cited the retired guide, partitioned by
 // disposition. Held rows keep a name-form value the default rule does not bless;
 // every other row is repointed to the JOB-notation default or its registry.
-const HELD = ['blur', 'spinning-symposium-whirl', 'sailing', 'tripwalk'];
+const HELD = ['blur', 'sailing', 'tripwalk'];
 const REPOINTED = [
   'head-stall', 'toe-stall', 'heel-stall', 'inside-stall', 'outside-stall',
   'mirage', 'whirl', 'butterfly', 'osis', 'illusion', 'legover', 'torque',
@@ -62,9 +62,9 @@ describe('JOB-notation authority migration', () => {
     expect(corrections.includes(RETIRED_GUIDE)).toBe(false);
   });
 
-  it('repoints 36 locks to the JOB-notation authority and holds 4', () => {
+  it('repoints 36 locks to the JOB-notation authority and holds 3', () => {
     expect(REPOINTED.length).toBe(36);
-    expect(HELD.length).toBe(4);
+    expect(HELD.length).toBe(3);
 
     for (const slug of REPOINTED) {
       const rows = notationRows(slug);

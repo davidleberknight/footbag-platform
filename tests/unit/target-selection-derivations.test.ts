@@ -7,7 +7,6 @@ import { join } from 'node:path';
 // unambiguous. Each must parse, close on its asserted family terminal, have ADD
 // equal to its token count, and survive verbatim in the source.
 const APPROVED = [
-  { slug: 'paradox-fusion',               adds: 6, terminal: 'OP CLIP [XBD] [DEL]',   notation: 'TOE > OP OUT [DEX] > OP OUT [DEX] > OP OUT [PDX] [DEX] > OP CLIP [XBD] [DEL]' },
   { slug: 'pixie-symposium-whirling-swirl', adds: 6, terminal: 'SAME CLIP [XBD] [DEL]', notation: 'TOE > SAME IN [DEX] >> OP IN [DEX] > (no plant while) OP BACK SWIRL [BOD] [DEX] > SAME CLIP [XBD] [DEL]' },
   { slug: 'symposium-atomic-butterfly',   adds: 5, terminal: 'OP CLIP [XBD] [DEL]',   notation: 'TOE > OP OUT [DEX] > (no plant while) OP OUT [BOD] [DEX] > OP CLIP [XBD] [DEL]' },
   { slug: 'symposium-whirling-mirage',    adds: 4, terminal: 'OP TOE [DEL]',          notation: 'SET > OP FRONT WHIRL [DEX] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL]' },

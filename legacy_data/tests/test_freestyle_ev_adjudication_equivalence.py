@@ -12,7 +12,7 @@ nothing, and it proves things that do not imply each other:
 
   Projection equivalence — a generator run emits content byte-identical to the
   committed module, which was generated before the authority moved. This is a
-  claim about 910 rows composed from the corpus, most of which carry a ruling and
+  claim about 950 rows composed from the corpus, most of which carry a ruling and
   some of which carry none.
 
   Authority — the generator reads the table and nothing else. Editing the ledger
@@ -210,7 +210,7 @@ def test_the_blocked_cohort_is_the_same_two_hundred_and_twenty(ledger_rows, seed
 def test_a_ruling_suppressed_from_the_corpus_is_still_in_the_record(
     ledger_rows, seeded_rows, committed_module_rows
 ):
-    """The 89 rulings layer separation keeps out of the observational corpus.
+    """The 88 rulings layer separation keeps out of the observational corpus.
 
     A slug cannot be both canonical and observational, so a ruling whose name is
     already published, already an alias, parser-internal or authoring-suppressed
@@ -226,7 +226,7 @@ def test_a_ruling_suppressed_from_the_corpus_is_still_in_the_record(
         if r["normalized_name"] not in corpus_names
         and key(r["submitted_name"]) not in corpus_names
     ]
-    assert len(suppressed) == 89
+    assert len(suppressed) == 88
     assert {r["ev_state"] for r in suppressed} <= SUPPRESSED_STATES
 
     seeded_names = {r["normalized_name"] for r in seeded_rows}
@@ -348,9 +348,9 @@ def test_the_database_authority_emits_the_committed_module_byte_for_byte(regener
 
 def test_the_emitted_corpus_has_the_same_shape(regenerated_from_db, committed_module_rows):
     rows = _module_rows(regenerated_from_db)
-    assert len(rows) == len(committed_module_rows) == 910
-    assert sum(1 for r in rows if r["layer"] == "frontier") == 178
-    assert sum(1 for r in rows if r["layer"] == "archive") == 732
+    assert len(rows) == len(committed_module_rows) == 950
+    assert sum(1 for r in rows if r["layer"] == "frontier") == 196
+    assert sum(1 for r in rows if r["layer"] == "archive") == 754
 
 
 def test_every_emitted_row_matches_the_committed_one_in_order(

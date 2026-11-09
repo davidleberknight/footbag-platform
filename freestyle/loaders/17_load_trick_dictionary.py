@@ -346,7 +346,7 @@ def upsert_curated_v1_source(conn: sqlite3.Connection) -> None:
     )
 
 
-def load_curated_source_links(conn: sqlite3.Connection) -> int:
+def load_curated_source_links(conn: sqlite3.Connection, tricks_csv: Path) -> int:
     """One source_link row per curated trick, all asserted_* fields NULL (curated-v1 IS canonical)."""
     conn.execute(
         "DELETE FROM freestyle_trick_source_links WHERE source_id = ?",
@@ -356,11 +356,19 @@ def load_curated_source_links(conn: sqlite3.Connection) -> int:
     # table, which was the same set while the table had just been emptied and
     # refilled from this one input. It is not the same set any more: unscoped, a
     # refresh would claim the whole dictionary as curated-v1 sourced, including
-    # rows from the other producers and tricks a curator published.
-    rows = list(conn.execute(
+    # rows from the other producers and tricks a curator published. A row this
+    # loader owns but its input no longer carries gets no link either, because
+    # the link would stop the refresh's last step from retiring that row.
+    with tricks_csv.open(newline="", encoding="utf-8") as f:
+        input_slugs = {
+            trick_name_to_slug(row["trick_canon"].strip())
+            for row in csv.DictReader(f)
+            if row["trick_canon"].strip()
+        }
+    rows = [r for r in conn.execute(
         "SELECT slug FROM freestyle_tricks WHERE trick_origin_producer = ?",
         (BASE_DICTIONARY,),
-    ).fetchall())
+    ).fetchall() if r[0] in input_slugs]
     conn.executemany(
         """
         INSERT INTO freestyle_trick_source_links
@@ -592,7 +600,7 @@ def load(db_path: Path, tricks_csv: Path, modifiers_csv: Path, aliases_csv: Path
             n_modifiers = load_modifiers(conn, modifiers_csv, loaded_at)
             n_base_links = insert_base_modifier_links(conn, base_modifier_links)
             upsert_curated_v1_source(conn)
-            n_source_links = load_curated_source_links(conn)
+            n_source_links = load_curated_source_links(conn, tricks_csv)
 
         print(f"Loaded {n_tricks} tricks into freestyle_tricks (review_status='curated').")
         cur = conn.execute(

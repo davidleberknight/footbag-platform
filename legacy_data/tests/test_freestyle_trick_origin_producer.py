@@ -92,7 +92,7 @@ def owners(db) -> dict:
 def test_every_row_is_classified(loaded_db):
     """A clean load leaves no row unowned; an unowned row is unrefreshable."""
     o = owners(loaded_db)
-    assert len(o) == 1032
+    assert len(o) == 1000
     assert [s for s, p in o.items() if p is None] == []
 
 
@@ -103,8 +103,8 @@ def test_producer_counts_match_the_writer_inventory(loaded_db):
     for producer in o.values():
         counts[producer] = counts.get(producer, 0) + 1
     assert counts == {
-        BASE_DICTIONARY: 70,
-        EXPERT_ADDITIONS: 955,
+        BASE_DICTIONARY: 69,
+        EXPERT_ADDITIONS: 924,
         FOOTBAG_ORG_PENDING: 7,
     }
 
@@ -123,7 +123,7 @@ def test_rewriting_a_row_does_not_acquire_it(loaded_db):
         overlay = {_slug(r["canonical_name"]) for r in csv.DictReader(fh)}
 
     shared = base & overlay
-    assert len(shared) == 35, "the overlap this rule exists for has changed size"
+    assert len(shared) == 34, "the overlap this rule exists for has changed size"
 
     o = owners(loaded_db)
     misowned = sorted(s for s in shared if o[s] != BASE_DICTIONARY)

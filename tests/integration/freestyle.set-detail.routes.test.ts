@@ -26,7 +26,6 @@ import {
 } from '../fixtures/testDb';
 import {
   insertFreestyleTrick,
-  insertFreestyleTrickAlias,
   insertFreestyleTrickModifier,
   insertFreestyleTrickModifierLink,
   insertMember,
@@ -67,17 +66,13 @@ beforeAll(async () => {
   });
   insertFreestyleTrickModifierLink(db, 'sailing_mirage', 'sailing');
 
-  // This example trick's only footage is tagged under a retired structural
-  // name folded onto it, and nothing carries its canonical slug. The set
-  // page's example row must link on the tag the clip actually has, or it
-  // sends the visitor to an empty gallery the way the browse rows and the
-  // trick detail page once did.
-  insertFreestyleTrickAlias(db, 'sailing_symposium_mirage_folded', 'sailing_mirage');
+  // This example trick has footage under its own slug, so the set page's
+  // example row links to the gallery holding it.
   insertTtLesson(db, {
     uploader_member_id: insertMember(db, { id: 'm-setdetail1', slug: 'setdetail_uploader' }),
     ttNumber: 9,
-    trickSlug: 'sailing_symposium_mirage_folded',
-    videoId: 'setaliasvid1',
+    trickSlug: 'sailing_mirage',
+    videoId: 'setexamplevid1',
   });
 
   // Stepping set-education page resolves progression + representative-trick
@@ -168,11 +163,10 @@ describe('GET /freestyle/sets/:slug — set detail page', () => {
     expect(res.text).not.toContain('OP IN [DEX] &gt; OP TOE [DEL]');
   });
 
-  it('links an example trick covered only through an alias on the tag its clip carries', async () => {
+  it('links an example trick to the gallery of its own slug', async () => {
     const res = await page('/freestyle/sets/sailing');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('/media/browse?context&#x3D;sailing_symposium_mirage_folded');
-    expect(res.text).not.toContain('/media/browse?context&#x3D;sailing_mirage');
+    expect(res.text).toContain('/media/browse?context&#x3D;sailing_mirage');
   });
 
   it('leaves the full trick list to the dictionary on a teaching page, and links it', async () => {

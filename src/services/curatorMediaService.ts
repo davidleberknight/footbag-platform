@@ -48,6 +48,10 @@
  *     in the site's one form; two typed spellings of one tag are kept once. The
  *     save's success message names each typed tag that folding changed
  *     (`changedTypedTags`, `foldedTagsLine`), on every page a media save lands on.
+ *   - Every media upload and edit stores a trick alias tag under its active trick,
+ *     so each trick has one gallery. A tag naming no trick stays a free-text
+ *     hashtag, an alias of an inactive trick is left as typed, and gallery tags
+ *     and criteria are not converted.
  *   - Member gallery ids fold the gallery name by the same rule.
  *   - URL-reference uploads insert the `media_items` row directly (parallel to
  *     photo/video, minus S3 since url-refs host no bytes), keyed on the
@@ -202,7 +206,8 @@
  *
  * Persistence:
  *   media_items, media_tags, tags, audit_entries, members, member_galleries,
- *   member_gallery_tags, member_gallery_exclude_tags. Filesystem:
+ *   member_gallery_tags, member_gallery_exclude_tags; reads freestyle_trick_aliases
+ *   and freestyle_tricks to store a trick alias tag under its trick. Filesystem:
  *   `/curated/{category}/*.meta.json` (URL-reference sidecars), file-paired
  *   `<slug>.{jpg,png,mp4,webm,mov}` + sibling `<slug>.meta.json` + optional
  *   `<slug>.poster.<ext>`, `/curated/galleries/<slug>.json` (FH gallery sidecars;
@@ -222,7 +227,7 @@
  */
 import { createHash, randomUUID } from 'crypto';
 import path from 'path';
-import { GALLERY_ITEMS_QUERY_CAP, countGalleryItemsByCriteria, isGalleryCoverCandidate, listGalleryCovers, listGalleryItemsForDisplay, media, mediaTags as mediaTagsDb, queryCuratorMediaTags, queryGalleryItemNeighbours, tagStats, transaction, type GallerySortOrder, type MediaJobRow } from '../db/db';
+import { GALLERY_ITEMS_QUERY_CAP, countGalleryItemsByCriteria, freestyleTrickAliases, isGalleryCoverCandidate, listGalleryCovers, listGalleryItemsForDisplay, media, mediaTags as mediaTagsDb, queryCuratorMediaTags, queryGalleryItemNeighbours, tagStats, transaction, type GallerySortOrder, type MediaJobRow } from '../db/db';
 import { config } from '../config/env';
 import { logger } from '../config/logger';
 import { detectImageType, photoShapeRefusal, RENDITION_IMAGE_MIME } from '../lib/imageProcessing';
@@ -1021,6 +1026,18 @@ function checkedTags(tags: string[]): string[] {
   return stored;
 }
 
+// The tags a media item is saved with: checked as above, with a trick alias stored
+// under its trick, because a gallery filters on one literal tag and a clip saved
+// under an alias would be missing from the trick's own gallery. A tag that names no
+// trick stays a free-text hashtag, and so does an alias whose trick is not active.
+function checkedMediaTags(tags: string[]): string[] {
+  return checkedTags(tags).map((tag) => {
+    const alias = freestyleTrickAliases.getCanonicalForAlias.get(tag.slice(1).toLowerCase()) as
+      { trick_slug: string } | undefined;
+    return alias ? `#${alias.trick_slug}` : tag;
+  });
+}
+
 // Service-boundary URL validation per DD §3.17. Returns the normalized
 // URL on accept, null on absent input, throws ValidationError on invalid.
 // Callers persist the returned value to media_items.external_url and
@@ -1814,7 +1831,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       assertCuratorActorMayWriteCurated(input.adminMemberId);
       throttleCuratorWrite(input.adminMemberId);
       input = { ...input, caption: validateCaption(input.caption) };
-      input = { ...input, tags: checkedTags(input.tags) };
+      input = { ...input, tags: checkedMediaTags(input.tags) };
       const normalizedExternalUrl = await normalizeExternalUrlOrThrow(input.externalUrl);
 
       if (input.photoBuffer.length > PHOTO_MAX_BYTES) {
@@ -1929,7 +1946,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       assertCuratorActorMayWriteCurated(input.adminMemberId);
       throttleCuratorWrite(input.adminMemberId);
       input = { ...input, caption: validateCaption(input.caption) };
-      input = { ...input, tags: checkedTags(input.tags) };
+      input = { ...input, tags: checkedMediaTags(input.tags) };
       const normalizedExternalUrl = await normalizeExternalUrlOrThrow(input.externalUrl);
 
       if (input.videoBuffer.length > VIDEO_MAX_BYTES) {
@@ -2099,7 +2116,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       // tree is the source of truth (dev). No-op in staging/production.
       assertCuratorActorMayWriteCurated(job.admin_member_id);
 
-      const tags = checkedTags(parseTagList(job.tags));
+      const tags = checkedMediaTags(parseTagList(job.tags));
       const caption = validateCaption(job.caption);
 
       // Poster is small (cap 25 MB) and the worker container can hold it
@@ -2385,7 +2402,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     ): Promise<CuratorUrlReferenceResult> {
       assertCuratorActorMayWriteCurated(input.adminMemberId);
       input = { ...input, title: validateCaption(input.title) };
-      input = { ...input, tags: checkedTags(input.tags) };
+      input = { ...input, tags: checkedMediaTags(input.tags) };
       const normalizedExternalUrl = await normalizeExternalUrlOrThrow(input.externalUrl);
       assertKnownSourceId(input.sourceId);
 
@@ -2565,7 +2582,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         input = { ...input, caption: validateCaption(input.caption) };
       }
       if (input.tags !== undefined) {
-        input = { ...input, tags: checkedTags(input.tags) };
+        input = { ...input, tags: checkedMediaTags(input.tags) };
       }
       // Three-way switch on external URL: undefined = no change, null =
       // clear, string = validate+normalize. The validator rejects bad
@@ -3737,7 +3754,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         );
       }
       input = { ...input, caption: validateCaption(input.caption) };
-      input = { ...input, tags: checkedTags(input.tags) };
+      input = { ...input, tags: checkedMediaTags(input.tags) };
       const normalizedExternalUrl = await normalizeExternalUrlOrThrow(input.externalUrl);
 
       const maxPhotoBytes = photoMaxBytes(input.actorIsAdmin === true);
@@ -3895,7 +3912,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         input = { ...input, caption: validateCaption(input.caption) };
       }
       if (input.tags !== undefined) {
-        input = { ...input, tags: checkedTags(withPlayerCredits(input.tags, input.addPlayer)) };
+        input = { ...input, tags: checkedMediaTags(withPlayerCredits(input.tags, input.addPlayer)) };
       }
       let normalizedExternalUrlEdit: string | null | undefined;
       if (input.externalUrl !== undefined) {
@@ -4102,7 +4119,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         );
       }
       input = { ...input, caption: validateCaption(input.caption) };
-      input = { ...input, tags: checkedTags(input.tags) };
+      input = { ...input, tags: checkedMediaTags(input.tags) };
       const normalizedExternalUrl = await normalizeExternalUrlOrThrow(input.externalUrl);
 
       const verify = await videoUrlVerifier(input.videoUrl, input.videoPlatform);

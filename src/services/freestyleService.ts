@@ -2526,18 +2526,10 @@ function hasLinkableMediaCoverage(coverage: TrickMediaCoverage): boolean {
   return coverage === 'tutorial' || coverage === 'demo';
 }
 
-// The gallery destination for a trick whose coverage is linkable. The gallery
-// filters on one literal token and never expands aliases, so a trick whose
-// clips are tagged only under an alias slug has to link on that alias tag;
-// linking on its canonical slug would open the empty gallery the coverage
-// signal just promised was full. Context and include tokens are a conjunction
-// there, so this is one resolving token and never the canonical plus the alias.
-// Falls back to the canonical slug when no resolved tag is available, which is
-// the shaping paths that carry no context and the pre-existing behaviour.
-function galleryHrefForTrick(slug: string, ctx?: TrickIndexShapingContext): string {
-  const tag = ctx?.galleryTagBySlug?.get(slug);
-  const token = tag ? tag.replace(/^#/, '') : slug;
-  return `/media/browse?context=${encodeURIComponent(token)}`;
+// The gallery destination for a trick whose coverage is linkable. Every save path
+// stores a trick's clips under its canonical slug, so that is the one gallery.
+function galleryHrefForTrick(slug: string): string {
+  return `/media/browse?context=${encodeURIComponent(slug)}`;
 }
 
 export interface FreestyleTrickIndexRow {
@@ -5314,10 +5306,6 @@ interface TrickIndexShapingContext {
   // from the map means 'none'. shapeTrickIndexRow derives the row's
   // hasMedia boolean and mediaCoverage tier from this lookup.
   mediaCoverageBySlug: Map<string, TrickMediaCoverage>;
-  // Map<slug, '#tag'> naming the tag each trick's gallery link filters on:
-  // the canonical slug tag when it carries media, otherwise an alias slug
-  // tag that does. Absence means the trick has no linkable gallery.
-  galleryTagBySlug?: Map<string, string>;
   // Per-row status overrides for the listAllWithPending path; absent when
   // shaping a plain active row (defaults: isActive=1, reviewStatus='curated').
   statusBySlug?: Map<string, { isActive: number; reviewStatus: string }>;
@@ -5400,7 +5388,6 @@ function deriveModifierLinkFormula(
 function shapeDictionaryTrickCard(
   row: FreestyleTrickRowWithStatus,
   indexRow: FreestyleTrickIndexRow,
-  ctx?: TrickIndexShapingContext,
 ): DictionaryTrickCard {
   // When the row is one of
   // the 12 curator-authoritative core atoms, source operational notation
@@ -5515,7 +5502,7 @@ function shapeDictionaryTrickCard(
     kind:                       resolveTrickKind(indexRow.slug),
     slug:                       indexRow.slug,
     hashtag:                    indexRow.hashtag,
-    hashtagHref:                hasLinkableMediaCoverage(indexRow.mediaCoverage) ? galleryHrefForTrick(indexRow.slug, ctx) : null,
+    hashtagHref:                hasLinkableMediaCoverage(indexRow.mediaCoverage) ? galleryHrefForTrick(indexRow.slug) : null,
     displayName:                indexRow.canonicalName,
     href:                       indexRow.detailHref,
     adds:                       indexRow.adds,
@@ -5631,14 +5618,6 @@ function buildTrickIndexShapingContext(
     freestyleMediaLinks.listCoveredTrickSlugsWithSource.all() as FreestyleMediaCoveredSourceRow[],
   );
   const mediaCoverageBySlug = new Map<string, TrickMediaCoverage>();
-  // The tag to build this trick's gallery link from. The gallery filters on
-  // one literal token and never expands aliases, so a trick whose clips are
-  // tagged only under an alias slug must link on that alias tag or the
-  // gallery renders empty. The canonical slug tag wins whenever it carries
-  // media, so an ordinary trick's link is unchanged; otherwise the
-  // lowest-sorted alias tag that does carry media is chosen, which keeps the
-  // href stable across rebuilds.
-  const galleryTagBySlug = new Map<string, string>();
   for (const r of mediaCoverageRows) {
     const isTutorial = r.is_tutorial === 1;
     const current = mediaCoverageBySlug.get(r.slug);
@@ -5647,12 +5626,6 @@ function buildTrickIndexShapingContext(
       mediaCoverageBySlug.set(r.slug, 'tutorial');
     } else if (current !== 'tutorial') {
       mediaCoverageBySlug.set(r.slug, 'demo');
-    }
-    const canonicalTag = `#${r.slug}`;
-    const chosen = galleryTagBySlug.get(r.slug);
-    if (chosen === canonicalTag) continue;
-    if (r.media_tag === canonicalTag || chosen === undefined || r.media_tag < chosen) {
-      galleryTagBySlug.set(r.slug, r.media_tag);
     }
   }
 
@@ -5715,7 +5688,6 @@ function buildTrickIndexShapingContext(
       aliasesByTrickSlug,
       slugsWithAnyAlias,
       mediaCoverageBySlug,
-      galleryTagBySlug,
       statusBySlug,
       modifierLinksByTrickSlug,
       addsBySlug,
@@ -5915,7 +5887,7 @@ function buildFamilyGroup(
   // Pass the familySlug as the group anchor
   // so semantic tokens matching it carry isFamilyAnchor=true (solid
   // underline at render time).
-  const cards   = sorted.map((r, i) => shapeDictionaryTrickCard(r, members[i]!, ctx));
+  const cards   = sorted.map((r, i) => shapeDictionaryTrickCard(r, members[i]!));
   // Display name resolution: the curated public-family label wins
   // (e.g. 'double-leg-over' → 'Double Legover'); then the curator override;
   // otherwise default capitalize.
@@ -7056,27 +7028,9 @@ export const freestyleService = {
         //   - demoMedia: named-trick performance (Footbag Finland, Flipsider)
         //   - dropped (passback_records): renders in the Passback Records
         //     table below instead, to avoid duplicating record-clip data
-        // Match media tagged with the canonical slug AND with any alias slug,
-        // so media tagged under a retired structural name (folded onto this
-        // folk-named canonical) stays attached. Dedupe by media id.
-        const mediaTagCandidates = [`#${slug}`, ...[...aliasSlugs].sort().map(a => `#${a}`)];
-        const seenRefMediaIds = new Set<string>();
-        const allRefMedia: TrickRefMediaRow[] = [];
-        // The tags that actually returned a clip, in candidate order, so the
-        // gallery link below can be built from one that resolves rather than
-        // from the canonical slug the gallery may hold nothing under.
-        const resolvingMediaTags: string[] = [];
-        for (const tag of mediaTagCandidates) {
-          const rows = runSqliteRead('media.listMediaByTrickTag', () =>
-            media.listMediaByTrickTag.all(tag) as TrickRefMediaRow[],
-          );
-          if (rows.length > 0) resolvingMediaTags.push(tag);
-          for (const r of rows) {
-            if (seenRefMediaIds.has(r.id)) continue;
-            seenRefMediaIds.add(r.id);
-            allRefMedia.push(r);
-          }
-        }
+        const allRefMedia = runSqliteRead('media.listMediaByTrickTag', () =>
+          media.listMediaByTrickTag.all(`#${slug}`) as TrickRefMediaRow[],
+        );
         // Batch-load hashtag chips for every reference-media row in one round-trip.
         // Builds mediaId → raw-tag-array map; shapeReferenceMedia applies the
         // browse-surface suppression policy.
@@ -7117,17 +7071,12 @@ export const freestyleService = {
           }
         }
         const hasReferenceMedia = refMediaCount > 0;
-        // The trick's full gallery is the dynamic tag-set gallery for the tag
-        // its clips actually carry. That is the canonical slug for almost every
-        // trick, and an alias slug for one whose clips are tagged only under a
-        // folded structural name; linking on the canonical slug there promises
-        // footage and opens an empty gallery. The token rides as a locked
-        // context (matching club/event/member gallery links) so it renders
-        // non-removable in the gallery's filter bar, and it stays a single
-        // token because context and include tokens are a conjunction.
-        const galleryToken = (resolvingMediaTags[0] ?? `#${slug}`).replace(/^#/, '');
+        // The trick's full gallery is the dynamic tag-set gallery for its
+        // canonical slug. The token rides as a locked context (matching
+        // club/event/member gallery links) so it renders non-removable in the
+        // gallery's filter bar.
         const referenceGalleryHref = hasReferenceMedia
-          ? `/media/browse?context=${encodeURIComponent(galleryToken)}`
+          ? `/media/browse?context=${encodeURIComponent(slug)}`
           : null;
 
         const familySlug = effectiveFamilySlug;
@@ -8144,7 +8093,7 @@ export const freestyleService = {
       entries: AddBucketEntry[],
     ): FreestyleTrickAddGroup => {
       const sorted = entries.slice().sort((a, b) => byCanonicalNameAlpha(a.indexRow, b.indexRow));
-      const cardOf = (e: AddBucketEntry) => shapeDictionaryTrickCard(e.row, e.indexRow, ctx);
+      const cardOf = (e: AddBucketEntry) => shapeDictionaryTrickCard(e.row, e.indexRow);
       // Group each entry under its NEAREST public family, using the same
       // nearest-anchor model the Family view uses: FAMILY_OVERRIDES, then the
       // DB trick_family, resolved by resolveDisplayFamily. NO walk to the root
@@ -8334,7 +8283,7 @@ export const freestyleService = {
         return x.canonical_name.localeCompare(y.canonical_name, undefined, { sensitivity: 'base' });
       });
       const indexRows = sorted.map(r => shapeTrickIndexRow(r, ctx));
-      const cards     = sorted.map((r, i) => shapeDictionaryTrickCard(r, indexRows[i]!, ctx));
+      const cards     = sorted.map((r, i) => shapeDictionaryTrickCard(r, indexRows[i]!));
       return {
         modifierSlug: b.modifierSlug,
         modifierName: b.modifierName,
@@ -9898,7 +9847,7 @@ export const freestyleService = {
     // gallery holds nothing under.
     const mediaHrefFor = (s: string): string | null => {
       const cov = setCtx.mediaCoverageBySlug.get(s) ?? 'none';
-      return hasLinkableMediaCoverage(cov) ? galleryHrefForTrick(s, setCtx) : null;
+      return hasLinkableMediaCoverage(cov) ? galleryHrefForTrick(s) : null;
     };
     const linkedTrickSlugs = new Set<string>(
       linkRows.filter(l => l.modifier_slug === set.slug).map(l => l.trick_slug),
