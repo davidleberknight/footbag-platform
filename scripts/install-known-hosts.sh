@@ -335,9 +335,11 @@ echo "    Fingerprints now pinned for this host:"
 # Printed because an operator is asked to compare one against the project's
 # record, and an instruction to check a value nothing displays cannot be
 # followed. Read back out of the file that was just written, so what is shown is
-# what is installed rather than what was intended.
+# what is installed rather than what was intended. ssh-keygen lists a line by
+# its trailing comment when it has one, so this environment's lines are found
+# by their tag, not by the address.
 ssh-keygen -lf "$PIN" 2>/dev/null \
-  | grep -F "$IP" \
+  | grep -F -- " ${TAG} " \
   | awk '{print "      " $2 "  " $4}' \
   | sort -u || cr_warn "the pinned fingerprints could not be read back for display; check with: ssh-keygen -lf ${PIN}"
 [[ -z "$PRESERVED" ]] || echo "    Other environments' pins preserved."

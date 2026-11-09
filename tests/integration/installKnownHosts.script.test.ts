@@ -285,6 +285,27 @@ describe('install-known-hosts.sh — what it writes', () => {
     expect(statSync(recordPath).mode & 0o777).toBe(0o600);
   });
 
+  it('shows the fingerprint of the key it pinned, with no warning', () => {
+    // The operator is asked to compare the printed fingerprint against the
+    // host's, so it is drawn from a real key the stand-in host reports.
+    // Defect caught: the written lines carry the environment's tag, which
+    // ssh-keygen lists in place of the address, so a listing filtered by the
+    // address shows nothing and the comparison cannot be made.
+    const keyFile = join(workDir, 'host_ed25519');
+    const gen = spawnSync('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-C', 'host', '-f', keyFile], { encoding: 'utf-8', ...SPAWN_GUARD });
+    expect(gen.status, gen.stderr).toBe(0);
+    const body = readFileSync(`${keyFile}.pub`, 'utf-8').split(' ')[1];
+    setKeys(`ssh-ed25519\t${body}\n`);
+    const listed = spawnSync('ssh-keygen', ['-lf', `${keyFile}.pub`], { encoding: 'utf-8', ...SPAWN_GUARD });
+    const fingerprint = listed.stdout.split(' ')[1];
+    expect(fingerprint).toMatch(/^SHA256:/);
+
+    const r = run(['--target', 'staging']);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toContain(fingerprint);
+    expect(r.stderr).toContain('No errors or warnings.');
+  });
+
   it('mints once, attributed to this script, and leaves the private key nowhere', () => {
     // Defect caught: a mint the listing cannot attribute to a known script, so
     // a routine install reads as an unexplained break-glass; or the response's
