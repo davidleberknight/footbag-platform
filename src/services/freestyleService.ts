@@ -1268,6 +1268,7 @@ function buildOperatorIndexAxes(
 // (then by canonical name), capped to keep the visual budget tight.
 const FAMILY_TREE_PILOTS: readonly string[] = ['whirl', 'butterfly', 'mirage', 'osis'];
 const FAMILY_TREE_MEMBER_CAP = 7;
+const FAMILY_PAGE_EXAMPLE_COUNT = 8;
 
 function shapeFamilyTrees(trickRows: readonly FreestyleTrickRow[]): FreestyleFamilyTree[] {
   const trees: FreestyleFamilyTree[] = [];
@@ -2540,7 +2541,6 @@ export interface FreestyleSetDetailContent {
   movementExplanation:  string;
   // Doctrine-supported alternate / historic set names. Pre-shaped for direct
   // rendering.
-  equivalentNames:      readonly { name: string; structuralReading: string | null; note: string | null }[];
   relatedSystems:       readonly SlugLinkVM[];
   exampleTricks:        readonly SetDetailExampleTrick[];
   hasExampleTricks:     boolean;
@@ -2875,45 +2875,13 @@ export interface FamilyDetailMemberLink {
   mediaHref: string | null;
 }
 
-// One operator-depth band of member tricks (Core / 1 operator / ...).
-export interface FamilyDetailRungGroup {
-  label: string;
-  members: FamilyDetailMemberLink[];
-}
-
-// One variant section on an umbrella family page (the Down family): the same
-// core movement launched from a different set or performed by the other foot.
-export interface FamilyDetailVariantGroup {
-  slug: string;
-  name: string;
-  // The variant's own family page when the variant is itself a first-class
-  // Family Parent (barfly, double-over-down); null for a minor-tier variant
-  // (paradon, down-double-down), whose tricks are reachable only here.
-  pageHref: string | null;
-  memberCount: number;
-  members: FamilyDetailMemberLink[];
-}
-
-export interface FamilyDetailEvolutionStep {
-  branchAxis: string;
-  prose: string;
-  exemplarLinks: { label: string; href: string | null }[];
-}
-
-// Reader-facing teaching flow for a family page (the model family-page shape).
-// Prose fields are authored on the glossary family card; the service shapes the
-// see-it-in compounds into display-and-href pairs, dropping any that do not
-// resolve to a live trick so the section never renders a dead link.
+// Reader-facing teaching flow for a family page. Prose fields are authored on
+// the glossary family card.
 export interface FamilyDetailTeaching {
   hook: string;
   physicalDescription: string;
   importance: string;
   howToRecognize: string[];
-  howToThink: string;
-  misconceptions: string[];
-  seeItIn: { name: string; href: string }[];
-  notationIntro: string;
-  takeaway: string;
   // A one-line plain reading of the family's shape, opening "What is a ...?".
   // Null when the card does not author one.
   plainLanguageReading: string | null;
@@ -2930,32 +2898,14 @@ export interface FreestyleFamilyDetailContent {
   // (barfly and double-over-down present as branches of Down).
   branchParent: { name: string; href: string } | null;
   orientation: string;             // one-sentence plain-language lead
-  overview: { canonicalFormula: string; anchorAddsLabel: string } | null;
-  // The family anchor trick's detail link, when the anchor is a dictionary
-  // member (the Down umbrella has no anchor trick of its own).
-  anchorTrick: { displayName: string; href: string } | null;
-  sharedStructure: string | null;  // family invariant one-liner
-  evolutionSteps: FamilyDetailEvolutionStep[];
-  hasEvolution: boolean;
-  // Member grouping. An umbrella family groups by variant (variantGroups);
-  // every other family groups by operator depth (rungGroups).
-  isUmbrella: boolean;
-  variantIntro: string | null;     // one-sentence framing for the variant grouping
-  variantGroups: FamilyDetailVariantGroup[];
-  rungGroups: FamilyDetailRungGroup[];
-  showRungLabels: boolean;
-  memberCount: number;
-  hasMembers: boolean;
+  // The family's lowest-ADD members, in ADD order: where a newcomer starts.
+  exampleTricks: FamilyDetailMemberLink[];
+  memberCount: number;             // every member, not only the examples shown
+  allTricksHref: string;           // /freestyle/tricks?view=family#family-{slug}
   siblingFamilies: { name: string; href: string }[];
-  notableCompounds: string[];
   // Reader-facing teaching flow; null for a family with no authored teaching,
-  // in which case the page renders the compact projection instead.
+  // in which case the page opens with the one-line orientation instead.
   teaching: FamilyDetailTeaching | null;
-  familyCrossLink: { label: string; href: string } | null;
-  crossLinks: {
-    familyBrowseHref: string;      // /freestyle/tricks?view=family#family-{slug}
-    conceptsHref: string;          // /freestyle/concepts#term-{slug}
-  };
 }
 
 // ---------------------------------------------------------------------------
@@ -9399,10 +9349,9 @@ export const freestyleService = {
    * Renders only for a curated first-class Family Parent; minor lineages,
    * raw trick_family labels, and unknown slugs all return null, which the
    * controller maps to 404 (anti-enumeration, same as the set pages).
-   * Projects existing family content (glossary family card, invariant,
-   * evolution narrative, operator-rung member grouping); authors no new
-   * family doctrine. An umbrella family (Down: variant branches, no raw
-   * rows of its own) groups members by variant instead.
+   * Projects the glossary family card's teaching text and the family's
+   * lowest-ADD members. An umbrella family (Down: variant branches, no raw
+   * rows of its own) draws its members from every variant.
    */
   getFamilyDetailPage(slug: string): PageViewModel<FreestyleFamilyDetailContent> | null {
     if (!hasFamilyPage(slug)) return null;
@@ -9433,70 +9382,31 @@ export const freestyleService = {
     });
 
     // Umbrella family: a roster root with variant branches and no raw
-    // trick_family rows of its own. Its members group by variant (the ruled
-    // set-by-foot decomposition) instead of by operator depth alone.
-    const variantGroups: FamilyDetailVariantGroup[] = isUmbrella
-      ? variantBranches
-          .map(branch => {
-            const branchGroup = buildFamilyGroup(
-              branch.slug, familyMap.get(branch.slug) ?? [], ctx, rungOf,
-            );
-            return {
-              slug:        branch.slug,
-              name:        branch.label,
-              pageHref:    isOfficialFamilyParent(branch.slug)
-                ? `/freestyle/families/${branch.slug}`
-                : null,
-              memberCount: branchGroup.cards.length,
-              members:     branchGroup.cards.map(memberLinkOf),
-            };
-          })
-          .filter(v => v.memberCount > 0)
-      : [];
+    // trick_family rows of its own, so its members come from every variant.
+    const memberCards: DictionaryTrickCard[] = isUmbrella
+      ? variantBranches.flatMap(branch =>
+          buildFamilyGroup(branch.slug, familyMap.get(branch.slug) ?? [], ctx, rungOf).cards)
+      : group.cards;
+
+    // A card whose ADD is not a number sorts after every numbered one.
+    const addsOf = (c: DictionaryTrickCard): number => {
+      const adds = parseInt(c.addsLabel, 10);
+      return Number.isNaN(adds) ? Number.POSITIVE_INFINITY : adds;
+    };
+    const exampleTricks = [...memberCards]
+      .sort((a, b) => addsOf(a) - addsOf(b) || a.displayName.localeCompare(b.displayName))
+      .slice(0, FAMILY_PAGE_EXAMPLE_COUNT)
+      .map(memberLinkOf);
 
     const card = [...ROOT_TERMINAL_FAMILIES, ...BRANCH_FAMILIES]
       .find(c => c.slug === slug) ?? null;
-    const evolution = getTrickFamilyEvolution(slug);
-    // An exemplar slug that has no resolvable trick page renders as plain text
-    // rather than a dead link.
-    const resolvableExemplars = getResolvableTrickSlugs();
-    const evolutionSteps: FamilyDetailEvolutionStep[] = (evolution?.narrativeSteps ?? []).map(s => ({
-      branchAxis: s.branchAxis,
-      prose:      s.prose,
-      exemplarLinks: s.exemplarSlugs.map(es => ({
-        label: es.replace(/[-_]/g, ' '),
-        href:  resolvableExemplars.has(es) ? `/freestyle/tricks/${es}` : null,
-      })),
-    }));
 
-    const anchorRow = memberRows.find(r => r.slug === slug) ?? null;
-    // Live rendered membership: the number of trick cards this page actually
-    // shows. An umbrella family (e.g. down) renders its members grouped by
-    // variant branch, so its count is the sum of those branches; a normal family
-    // renders its own group.
-    const descendantCount = isUmbrella
-      ? variantGroups.reduce((n, v) => n + v.memberCount, 0)
-      : group.cards.length;
-
-    const rowBySlug = new Map(allRows.map(r => [r.slug, r]));
     const teaching: FamilyDetailTeaching | null = card?.teaching
       ? {
           hook:                card.teaching.hook,
           physicalDescription: card.teaching.physicalDescription,
           importance:          card.teaching.importance,
           howToRecognize:      [...card.teaching.howToRecognize],
-          howToThink:          card.teaching.howToThink,
-          misconceptions:      [...card.teaching.misconceptions],
-          seeItIn: card.teaching.seeItIn
-            .map(s => {
-              const row = rowBySlug.get(s);
-              return row && row.is_active === 1
-                ? { name: row.canonical_name, href: `/freestyle/tricks/${s}` }
-                : null;
-            })
-            .filter((x): x is { name: string; href: string } => x !== null),
-          notationIntro:       card.teaching.notationIntro,
-          takeaway:            card.teaching.takeaway,
           plainLanguageReading: card.teaching.plainLanguageReading ?? null,
         }
       : null;
@@ -9524,16 +9434,14 @@ export const freestyleService = {
         }
       : null;
 
-    const orientation = isUmbrella
-      ? `The ${displayName} family is one core movement performed from different sets and from different feet; its named variants group the member tricks below.`
-      : `The ${displayName} family groups the tricks that share the ${displayName.toLowerCase()} structure, from its simplest form to deep operator compounds.`;
+    const orientation = `The ${displayName} family groups the tricks that share the ${displayName.toLowerCase()} structure, from its simplest form to deep operator compounds.`;
 
     return {
       seo: {
         title: `${displayName} Family (freestyle trick family)`,
         description:
-          `${displayName} freestyle trick family: shared structure, how it branches, ` +
-          `member tricks grouped by ${isUmbrella ? 'variant' : 'operator depth'}, and related families.`,
+          `${displayName} freestyle trick family: what it is, why it matters, how to ` +
+          `recognize one, example tricks, and related families.`,
       },
       page: {
         sectionKey: 'freestyle',
@@ -9558,40 +9466,11 @@ export const freestyleService = {
         tierLabel:            FAMILY_TIER_LABEL['family-parent'],
         branchParent,
         orientation,
-        overview: card
-          ? {
-              canonicalFormula: card.canonicalFormula,
-              anchorAddsLabel:  `${card.familyAnchorAdds} ADD`,
-            }
-          : null,
-        anchorTrick: anchorRow
-          ? { displayName: anchorRow.canonical_name, href: `/freestyle/tricks/${anchorRow.slug}` }
-          : null,
-        sharedStructure: group.sharedStructure,
-        evolutionSteps,
-        hasEvolution:    evolutionSteps.length > 0,
-        isUmbrella,
-        variantIntro: isUmbrella
-          ? 'Members are grouped by variant: the same core movement launched from a different set or performed from the other foot.'
-          : null,
-        variantGroups,
-        rungGroups: isUmbrella
-          ? []
-          : group.rungGroups.map(rg => ({
-              label:   rg.label,
-              members: rg.cards.map(memberLinkOf),
-            })),
-        showRungLabels: !isUmbrella && group.showRungLabels,
-        memberCount:    descendantCount,
-        hasMembers:     isUmbrella ? variantGroups.length > 0 : group.cards.length > 0,
+        exampleTricks,
+        memberCount:   memberCards.length,
+        allTricksHref: `/freestyle/tricks?view=family#family-${slug}`,
         siblingFamilies,
-        notableCompounds:   [...(card?.notableCompounds ?? [])],
         teaching,
-        familyCrossLink:    group.crossLink,
-        crossLinks: {
-          familyBrowseHref:    `/freestyle/tricks?view=family#family-${slug}`,
-          conceptsHref:        `/freestyle/concepts#term-${slug}`,
-        },
       },
     };
   },
@@ -9724,11 +9603,6 @@ export const freestyleService = {
         subtypeLabel,
         formula:               set.formula,
         movementExplanation:   set.movementExplanation,
-        equivalentNames:       (set.equivalentNames ?? []).map(e => ({
-          name:              e.name,
-          structuralReading: e.structuralReading ?? null,
-          note:              e.note ?? null,
-        })),
         relatedSystems:        set.relatedSystems.map(r => ({
           slug:  r.slug,
           label: r.label,

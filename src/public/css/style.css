@@ -4449,13 +4449,11 @@ a.hashtag--media:hover {
 .rules-index .rules-link-list li:first-child,
 .symbolic-modifier-family .related-modifiers-list li:first-child,
 .set-detail-cross-links li:first-child,
-.set-detail-link-list li:first-child,
-.set-detail-equivalent-names li:first-child { padding-top: 0; }
+.set-detail-link-list li:first-child { padding-top: 0; }
 .rules-index .rules-link-list li:last-child,
 .symbolic-modifier-family .related-modifiers-list li:last-child,
 .set-detail-cross-links li:last-child,
-.set-detail-link-list li:last-child,
-.set-detail-equivalent-names li:last-child { padding-bottom: 0; }
+.set-detail-link-list li:last-child { padding-bottom: 0; }
 .rules-index .rules-authority {
   display: block;
   font-size: 0.9rem;
@@ -4917,36 +4915,6 @@ a.hashtag--media:hover {
 }
 .trick-interpretation-notes li {
   margin: var(--space-xs) 0;
-}
-
-/* ── Family page: how the family evolves ── */
-.trick-family-evolution {
-  margin-top: var(--space-xl);
-}
-.trick-family-evolution-steps {
-  list-style: none;
-  padding-left: 0;
-  margin: var(--space-sm) 0;
-}
-.trick-family-evolution-step {
-  border-left: 3px solid var(--border);
-  padding-left: var(--space-lg);
-  margin-bottom: var(--space-lg);
-}
-.trick-family-evolution-axis {
-  margin: 0 0 var(--space-xs);
-  color: var(--slate-800);
-}
-.trick-family-evolution-prose {
-  margin: 0 0 var(--space-sm);
-  font-size: 1rem;
-  line-height: 1.5;
-  color: var(--text);
-}
-.trick-family-evolution-exemplars {
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  margin: 0;
 }
 
 /* Reverse-pair transform overlay.
@@ -6963,15 +6931,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   margin: var(--space-xs) 0;
   line-height: 1.55;
 }
-.family-teaching-takeaway {
-  margin-top: var(--space-lg);
-  padding: var(--space-md) var(--space-lg);
-  border-left: 3px solid var(--secondary);
-  background: var(--gray-100);
-  border-radius: var(--radius-sm);
-  font-weight: 600;
-  line-height: 1.5;
-}
 .trick-family-branch-of {
   margin: var(--space-xs) 0;
   font-size: 0.9rem;
@@ -8125,22 +8084,10 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 }
 .set-detail-link-list,
 .set-detail-cross-links,
-.set-detail-equivalent-names {
-  list-style: disc;
-  padding-left: var(--space-xl);
-  margin: 0;
-}
 .set-detail-link-list li,
-.set-detail-cross-links li,
-.set-detail-equivalent-names li {
+.set-detail-cross-links li {
   padding: var(--space-xs) 0;
   font-size: 1rem;
-}
-.set-detail-equivalent-structural,
-.set-detail-equivalent-note {
-  display: block;
-  font-size: 0.9rem;
-  color: var(--text-muted);
 }
 .set-detail-trick-list {
   list-style: none;

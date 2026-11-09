@@ -5,14 +5,11 @@
  *   - 200 on curated first-class Family Parent slugs (whirl, osis, down)
  *   - 404 on unknown slugs, minor-lineage slugs, and raw trick_family
  *     labels (anti-enumeration; only first-class parents have a page)
- *   - Detail page renders: family name, tier label, shared-structure
- *     invariant, member-trick links, glossary-card overview fields
- *   - Optional sections (evolution narrative, observational notes) are
- *     omitted when no source entry exists, never rendered empty
- *   - The Down family is an umbrella: members group by variant (barfly /
- *     double-over-down / paradon / down-double-down); the dod raw label
- *     folds into the double-over-down variant; minor-tier variants have
- *     no page of their own but their tricks render on the down page
+ *   - Detail page renders: family name, tier label, teaching text, and the
+ *     lowest-ADD example tricks with a link to the whole family
+ *   - The Down family is an umbrella: its examples come from every variant;
+ *     the dod raw label folds into the double-over-down variant; minor-tier
+ *     variants have no page of their own
  *   - Branch parents (barfly) present as branches of Down with a link
  *   - Route ordering: the family template renders, not the trick shell
  *   - /freestyle/families (bare) has no page and answers not-found
@@ -96,11 +93,50 @@ beforeAll(async () => {
     trick_family: 'down_double_down', category: 'compound', is_active: 1,
   });
 
+  // Inside-stall family: more members than the page shows, seeded with the
+  // highest ADD first so a list in insertion order cannot pass the ordering case.
+  for (let adds = 12; adds >= 1; adds -= 1) {
+    insertFreestyleTrick(db, {
+      slug: `inside_example_${adds}`, canonical_name: `inside example ${adds}`, adds: String(adds),
+      trick_family: 'inside_stall', category: 'compound', is_active: 1,
+    });
+  }
+
   db.close();
   createApp = await importApp();
 });
 
 afterAll(() => cleanupTestDb(dbPath));
+
+describe('GET /freestyle/families/:slug — page budget and examples', () => {
+  // Defect caught: a family page regrows into the long reference it was cut from.
+  it('keeps every family page under 600 words and at most 6 sections', async () => {
+    for (const slug of FIRST_CLASS_FAMILY_SLUGS) {
+      const res = await page(`/freestyle/families/${slug}`);
+      expect(res.status, slug).toBe(200);
+      const main = res.text.match(/<main[\s\S]*<\/main>/)?.[0] ?? '';
+      expect(main.match(/<h2[\s>]/g)?.length ?? 0, `${slug} sections`).toBeLessThanOrEqual(6);
+      const words = main.replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean).length;
+      expect(words, `${slug} words`).toBeLessThan(600);
+    }
+  });
+
+  // Defect caught: the example list shows every member again, or shows the
+  // hardest tricks instead of where a newcomer starts.
+  it('shows the eight lowest-ADD members in ADD order', async () => {
+    const res = await page('/freestyle/families/inside_stall');
+    const shown = [...res.text.matchAll(/<li class="set-detail-trick">\s*<a href="\/freestyle\/tricks\/inside_example_(\d+)"/g)]
+      .map(m => Number(m[1]));
+    expect(shown).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+  });
+
+  // Defect caught: the members beyond the eighth become unreachable from the page.
+  it('links to the whole family in the dictionary and counts every member', async () => {
+    const res = await page('/freestyle/families/inside_stall');
+    expect(res.text).toContain('href="/freestyle/tricks?view=family#family-inside_stall"');
+    expect(res.text).toMatch(/<span class="section-count">12<\/span>/);
+  });
+});
 
 describe('GET /freestyle/families/:slug — family detail page', () => {
   it('returns 200 for a first-class family parent (whirl)', async () => {
@@ -140,75 +176,31 @@ describe('GET /freestyle/families/:slug — family detail page', () => {
     expect(mediaLine).not.toMatch(/#whirl\b/);
   });
 
-  it('renders the tier label and the shared-structure invariant', async () => {
+  it('renders the tier label', async () => {
     const res = await page('/freestyle/families/whirl');
     expect(res.text).toContain('Family Parent');
-    expect(res.text).toContain('Shared terminal structure');
-    expect(res.text).toContain('leggy in dex &gt; ss clipper');
   });
 
-  it('renders member tricks as links to their trick-detail pages, banded by operator depth', async () => {
+  it('renders member tricks as links to their trick-detail pages', async () => {
     const res = await page('/freestyle/families/whirl');
     expect(res.text).toContain('href="/freestyle/tricks/whirl"');
     expect(res.text).toContain('href="/freestyle/tricks/paradox_whirl"');
-    // Two rung bands (Core + 1 operator) mean band headers render.
-    expect(res.text).toContain('>Core<');
-    expect(res.text).toContain('>1 operator<');
   });
 
-  it('renders the canonical formula and anchor ADD (in the notation reference for an authored family)', async () => {
-    const res = await page('/freestyle/families/drifter');
-    expect(res.text).toContain('Notation reference');
-    expect(res.text).toContain('SET &gt; OP IN [DEX] &gt; SAME CLIP [XBD] [DEL]');
-    expect(res.text).toContain('3 ADD');
-  });
-
-  it('renders the evolution narrative for a family that has one (whirl)', async () => {
-    const res = await page('/freestyle/families/whirl');
-    expect(res.text).toContain('How it branches');
-  });
-
-  it('links evolution exemplars that resolve, and renders unresolvable ones as plain text', async () => {
-    const res = await page('/freestyle/families/whirl');
-    // blender is seeded -> a real trick page -> link.
-    expect(res.text).toContain('href="/freestyle/tricks/blender"');
-    // blistering and pogo have no trick row -> plain text, never a dead link.
-    expect(res.text).not.toContain('href="/freestyle/tricks/blistering"');
-    expect(res.text).not.toContain('href="/freestyle/tricks/pogo"');
-    // ...but their labels still render in the branch prose/exemplars.
-    expect(res.text).toContain('blistering');
-    expect(res.text).toContain('pogo');
-  });
-
-  it('omits the evolution section cleanly for a family without an entry (swirl)', async () => {
-    const res = await page('/freestyle/families/swirl');
-    expect(res.status).toBe(200);
-    expect(res.text).not.toContain('How it branches');
-  });
-
-  it('omits the member-tricks section when the dictionary holds no members yet', async () => {
-    const res = await page('/freestyle/families/pickup');
-    expect(res.status).toBe(200);
-    expect(res.text).not.toContain('Member tricks');
+  it('omits the example-tricks section when the dictionary holds no members yet', async () => {
+    const empty = await page('/freestyle/families/pickup');
+    expect(empty.status).toBe(200);
+    expect(empty.text).not.toContain('aria-label="Example tricks"');
+    const seeded = await page('/freestyle/families/whirl');
+    expect(seeded.text).toContain('aria-label="Example tricks"');
   });
 });
 
-describe('GET /freestyle/families/down — umbrella family groups members by variant', () => {
-  it('returns 200 and renders all four variant groups', async () => {
-    const res = await page('/freestyle/families/down');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('id="variant-barfly"');
-    expect(res.text).toContain('id="variant-double_over_down"');
-    expect(res.text).toContain('id="variant-paradon"');
-    expect(res.text).toContain('id="variant-down_double_down"');
-  });
-
+describe('GET /freestyle/families/down — umbrella family draws examples from every variant', () => {
   it('folds the raw dod label into the double-over-down variant', async () => {
     const res = await page('/freestyle/families/down');
-    const dodStart = res.text.indexOf('id="variant-double_over_down"');
-    const dodEnd   = res.text.indexOf('id="variant-paradon"');
-    const dodBlock = res.text.slice(dodStart, dodEnd);
-    expect(dodBlock).toContain('href="/freestyle/tricks/fusion"');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('href="/freestyle/tricks/fusion"');
   });
 
   it('keeps minor-tier variant tricks reachable on the down page while their own page 404s', async () => {
@@ -221,27 +213,11 @@ describe('GET /freestyle/families/down — umbrella family groups members by var
     expect(dddRes.status).toBe(404);
   });
 
-  it('links the first-class variants to their own family pages', async () => {
-    const res = await page('/freestyle/families/down');
-    expect(res.text).toContain('href="/freestyle/families/barfly"');
-    expect(res.text).toContain('href="/freestyle/families/double_over_down"');
-  });
-
   it('barfly presents as a branch of the Down family, linking the down page', async () => {
     const res = await page('/freestyle/families/barfly');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Branch of the');
     expect(res.text).toContain('href="/freestyle/families/down"');
-  });
-
-  // Defect caught: the barfly notation note tells a visitor its bracket order
-  // was "curator-preserved", internal curation vocabulary that has no place in
-  // public prose. The note itself still renders, so the absence is not vacuous.
-  it('barfly explains its reversed bracket order without curation vocabulary', async () => {
-    const res = await page('/freestyle/families/barfly');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('OP CLIP [DEL] [XBD]');
-    expect(res.text).not.toMatch(/curator-preserved/i);
   });
 });
 
@@ -256,16 +232,11 @@ describe('GET /freestyle/families/down — the teaching flow (model family page)
     const res = await page('/freestyle/families/down');
     expect(res.text).toContain('What is a Down?');
     expect(res.text).toContain('A down is a finishing movement');
-    const physicalAt = res.text.indexOf('A down is a finishing movement');
-    const notationAt = res.text.indexOf('Notation reference');
-    expect(physicalAt).toBeGreaterThan(-1);
-    expect(notationAt).toBeGreaterThan(physicalAt);
   });
 
   it('renders none of the structural-reference sections, and no observational badge', async () => {
     // The formula block, signature or model, atlas lines and observational notes
-    // read as internal reference to a casual visitor; the formula itself stays
-    // under the notation reference.
+    // read as internal reference to a casual visitor.
     for (const slug of ['down', 'osis', 'pickup']) {
       const res = await page(`/freestyle/families/${slug}`);
       expect(res.status).toBe(200);
@@ -273,7 +244,6 @@ describe('GET /freestyle/families/down — the teaching flow (model family page)
         expect(res.text, `${slug}: ${heading}`).not.toContain(`<h2>${heading}</h2>`);
       }
       expect(res.text, slug).not.toContain('glossary-layer-badge--observational');
-      expect(res.text, slug).toContain('<h2>Notation reference</h2>');
     }
   });
 
@@ -292,24 +262,6 @@ describe('GET /freestyle/families/down — the teaching flow (model family page)
     expect(res.text).toContain('Look for the double dex');
   });
 
-  it('renders the common misconceptions, including the finish-not-start lesson', async () => {
-    const res = await page('/freestyle/families/down');
-    expect(res.text).toContain('Common misconceptions');
-    expect(res.text).toContain('named for how the trick finishes, not how it starts');
-  });
-
-  it('links famous compounds that build on the family and drops ones with no live trick', async () => {
-    const res = await page('/freestyle/families/down');
-    expect(res.text).toContain('Common descendants');
-    expect(res.text).toContain('href="/freestyle/tricks/fusion"');
-    expect(res.text).not.toContain('href="/freestyle/tricks/dolomite"');
-  });
-
-  it('closes with the memorable takeaway', async () => {
-    const res = await page('/freestyle/families/down');
-    expect(res.text).toContain('stop seeing four different tricks and start seeing one family');
-  });
-
   // Every page-worthy family now carries authored teaching, so no rendered
   // family exercises the compact-projection fallback; the {{#if content.teaching}}
   // gate stays in the template for any future sub-threshold family.
@@ -322,25 +274,14 @@ describe('GET /freestyle/families/illusion — the teaching flow (direction-pair
     expect(res.text).toContain('a direction is not a detail: it is a different trick');
   });
 
-  it('explains what an illusion physically is, in plain words, before the notation', async () => {
+  it('explains what an illusion physically is, in plain words', async () => {
     const res = await page('/freestyle/families/illusion');
     expect(res.text).toContain('An Illusion is a single dexterity caught on a toe stall');
-    const physicalAt = res.text.indexOf('An Illusion is a single dexterity caught on a toe stall');
-    const notationAt = res.text.indexOf('Notation reference');
-    expect(physicalAt).toBeGreaterThan(-1);
-    expect(notationAt).toBeGreaterThan(physicalAt);
   });
 
-  it('renders recognition cues and the direction-is-structural misconception', async () => {
+  it('renders recognition cues', async () => {
     const res = await page('/freestyle/families/illusion');
     expect(res.text).toContain('How to recognize one');
-    expect(res.text).toContain('Common misconceptions');
-    expect(res.text).toContain('the reversed direction is what makes Illusion its own trick');
-  });
-
-  it('closes with the memorable takeaway', async () => {
-    const res = await page('/freestyle/families/illusion');
-    expect(res.text).toContain('a reversed movement is a new trick, not a variation of the old one');
   });
 });
 
@@ -361,8 +302,7 @@ describe('GET /freestyle/families/:slug — newly authored teaching pages render
     const res = await page(`/freestyle/families/${slug}`);
     expect(res.status).toBe(200);
     expect(res.text).toContain(hook);
-    expect(res.text).toContain('Common misconceptions');
-    expect(res.text).toContain('Notation reference');
+    expect(res.text).toContain('How to recognize one');
   });
 });
 
@@ -400,21 +340,6 @@ describe('GET /freestyle/families/osis — a generative-tree teaching page (cont
     expect(res.text).toContain('If removing the modifiers leaves an osis ending');
   });
 
-  it('keeps misconceptions timeless and confines the doctrine gap to the notation reference', async () => {
-    const res = await page('/freestyle/families/osis');
-    expect(res.text).toContain('defined by its terminal movement, not by a particular entry');
-    const misconStart  = res.text.indexOf('Common misconceptions');
-    const notationStart = res.text.indexOf('Notation reference');
-    expect(misconStart).toBeGreaterThan(-1);
-    expect(notationStart).toBeGreaterThan(misconStart);
-    expect(res.text.slice(misconStart, notationStart)).not.toContain('has not been ruled');
-    expect(res.text.slice(notationStart)).toContain('has not been ruled');
-  });
-
-  it('closes with the tightened takeaway', async () => {
-    const res = await page('/freestyle/families/osis');
-    expect(res.text).toContain('begin recognizing an entire branch of advanced freestyle');
-  });
 });
 
 describe('GET /freestyle/families/mirage — the reduction lesson (foundational dexterity)', () => {
@@ -431,13 +356,6 @@ describe('GET /freestyle/families/mirage — the reduction lesson (foundational 
     const res = await page('/freestyle/families/mirage');
     expect(res.text).toContain('How to recognize one');
     expect(res.text).toContain('Remove the modifiers and Mirage is what is left');
-    expect(res.text).toContain('Naming the mirage underneath a trick is usually most of the work');
-  });
-
-  it('corrects the beginner-trick misconception and closes on the connected-system takeaway', async () => {
-    const res = await page('/freestyle/families/mirage');
-    expect(res.text).toContain('not just a beginner trick');
-    expect(res.text).toContain('one connected system instead of hundreds of unrelated names');
   });
 });
 
@@ -453,11 +371,6 @@ describe('GET /freestyle/families/butterfly — the flow lesson (cultural transf
     expect(res.text).toContain('stops feeling like individual tricks and starts feeling like continuous movement');
     expect(res.text).toContain('the beginning of real freestyle');
   });
-
-  it('closes on the link-movement takeaway', async () => {
-    const res = await page('/freestyle/families/butterfly');
-    expect(res.text).toContain('starts being movement you can link together');
-  });
 });
 
 describe('GET /freestyle/families/whirl — the connector (why it became central)', () => {
@@ -466,11 +379,6 @@ describe('GET /freestyle/families/whirl — the connector (why it became central
     expect(res.status).toBe(200);
     expect(res.text).toContain('starts and ends in the same position, a clipper');
     expect(res.text).toContain('leave the player in a position where the next trick is possible');
-  });
-
-  it('closes on the return-to-where-the-next-move-begins takeaway', async () => {
-    const res = await page('/freestyle/families/whirl');
-    expect(res.text).toContain('always returns you to where the next move can begin');
   });
 });
 
@@ -482,11 +390,6 @@ describe('GET /freestyle/families/swirl — four-sibling matrix framing', () => 
     expect(res.text).toContain('the four cells of one clipper-terminal matrix');
     expect(res.text).not.toContain('whirl run the other way');
     expect(res.text).not.toContain('marks the moment');
-  });
-
-  it('closes on the sibling-cells takeaway', async () => {
-    const res = await page('/freestyle/families/swirl');
-    expect(res.text).toContain('four sibling tricks, one grid of leg times direction');
   });
 });
 

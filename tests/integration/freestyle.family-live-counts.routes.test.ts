@@ -41,7 +41,7 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 const memberSectionCount = (html: string) =>
-  html.match(/Member tricks<\/h2>\s*<span class="section-count">(\d+)<\/span>/)?.[1];
+  html.match(/Example tricks<\/h2>\s*<span class="section-count">(\d+)<\/span>/)?.[1];
 
 // The trick-detail links inside the rendered member list on a family page.
 const renderedMemberSlugs = (html: string): string[] =>

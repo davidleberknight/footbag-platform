@@ -110,15 +110,12 @@ describe('GET /freestyle/tricks/:slug — Butterfly cluster after the safe clean
 });
 
 describe('GET /freestyle/families/butterfly — glossary/family card reconciled to far default', () => {
-  it('the butterfly family card presents the far/opposite-side formula and framing, not SAME/OP', async () => {
+  it('the butterfly family page presents the far/opposite-side framing, not SAME/OP', async () => {
     const res = await page('/freestyle/families/butterfly');
     expect(res.status).toBe(200);
-    // Reconciled canonical formula: opposite-side out-dex, no side-either marker.
-    expect(res.text).toContain('OP OUT [DEX]');
     expect(res.text).not.toContain('SAME/OP');
     // Far-default framing prose is present.
     expect(res.text).toContain('far/opposite-side form');
-    expect(res.text).toContain('far by default');
     // Butterfly Same Side is named as the separate same-side variant.
     expect(res.text).toContain('Butterfly Same Side');
   });

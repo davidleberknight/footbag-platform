@@ -67,7 +67,7 @@ describe('GET /freestyle/tricks/osis and /freestyle/families/osis — one either
   });
 
   it('the osis family card renders the same either-side SAME/OP clipper catch', async () => {
-    const res = await request(await createApp()).get('/freestyle/families/osis');
+    const res = await request(await createApp()).get('/freestyle/concepts');
     expect(res.status).toBe(200);
     expect(res.text).toContain('SAME/OP CLIP');
   });

@@ -3356,7 +3356,7 @@ Story: As an admin, I can edit a freestyle family, with validation and an audit 
 
 Success Criteria, Fields:
 
-- Editable fields are the display name, the parent family (empty for a root family), the display tier (family parent or minor lineage), the plain-language description of what the family is, and how to do it. The slug is never edited.
+- Editable fields are the display name, the parent family (empty for a root family), the display tier (family parent or minor lineage), the plain-language description of what the family is, why it matters, and how to recognize one. The slug is never edited.
 - Which tricks belong to a family is set on each trick (A_Edit_Freestyle_Trick); member lists, member counts and example tricks are computed when read.
 
 Success Criteria, Validation (a save that fails any check is rejected with a clear message and the submitted values preserved):
@@ -3384,14 +3384,14 @@ Story: As an admin, I can create a freestyle set and edit an existing one, with 
 
 Success Criteria, Fields:
 
-- Create takes the slug, the display name, the set group, the formula, the plain-language explanation, the equivalent names, the related sets and the sets derived from it; edit changes every field but the slug. The hashtag is always `#set_{slug}`.
+- Create takes the slug, the display name, the set group, the formula, the plain-language explanation and the related sets; edit changes every field but the slug. The hashtag is always `#set_{slug}`.
 - The formula may be empty; the set page then says its notation is pending.
 - A set can be held off the encyclopedia list while its status is undecided; its page still resolves.
 
 Success Criteria, Validation (a save that fails any check is rejected with a clear message and the submitted values preserved):
 
 - The slug is lowercase letters, digits and underscores and is not already a set slug. It may equal a trick or modifier slug, because a name that is both has both pages.
-- The set group is one the encyclopedia defines, and every related or derived set names an existing set other than this one.
+- The set group is one the encyclopedia defines, and every related set names an existing set other than this one.
 
 Success Criteria, Display:
 

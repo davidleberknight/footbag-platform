@@ -275,14 +275,10 @@ describe('GET /freestyle/sets/:slug — a retired non-set name is not found', ()
   });
 });
 
-describe('GET /freestyle/sets/:slug — "Equivalent names" (doctrine set-name equivalences)', () => {
-  it('atomic does not show Illusioning as an equivalent name; it is a distinct standalone movement', async () => {
+describe('GET /freestyle/sets/:slug — set-name distinctions', () => {
+  it('atomic states that Illusioning is a distinct standalone movement', async () => {
     const res = await page('/freestyle/sets/atomic');
     expect(res.status).toBe(200);
-    // Atomic and Illusioning are distinct under current doctrine, so atomic has
-    // no equivalent-name section, and its Set Encyclopedia teaching page states
-    // the distinction rather than presenting Illusioning as a synonym.
-    expect(res.text).not.toContain('Equivalent names');
     expect(res.text).toContain('illusioning is the outward dex realized standalone, not another name for atomic');
   });
 
@@ -297,12 +293,6 @@ describe('GET /freestyle/sets/:slug — "Equivalent names" (doctrine set-name eq
       expect(res.text, slug).not.toContain('<h2>Derived systems</h2>');
       expect(res.text, slug).toContain('aria-label="Example tricks"');
     }
-  });
-
-  it('a set without equivalent names (pixie) does not render the section', async () => {
-    const res = await page('/freestyle/sets/pixie');
-    expect(res.status).toBe(200);
-    expect(res.text).not.toContain('Equivalent names');
   });
 
   it('quantum names Miraging only to disambiguate it, never as an equivalent or related set', async () => {
@@ -343,12 +333,11 @@ describe('GET /freestyle/sets/:slug — set vs non-set concepts', () => {
 });
 
 // Section-order parity with the trick-detail shell: the plain explanation first,
-// then the formula, then equivalent names, relationships, examples and cross-links.
+// then the formula, then relationships, examples and cross-links.
 const SET_PARITY_ORDER = [
   'aria-label="About This Set"',
   'aria-label="Formula"',
-  'aria-label="Equivalent names"',
-  'aria-label="Related systems"',
+  'aria-label="Related sets"',
   'aria-label="Example tricks"',
   'aria-label="Cross-references"',
 ];
@@ -367,7 +356,7 @@ describe('GET /freestyle/sets/:slug — section order mirrors the trick-detail s
   it('a set page without teaching content renders its sections in trick-detail order', async () => {
     const res = await page('/freestyle/sets/sailing');
     const { present, ascending } = presentSectionsInOrder(res.text);
-    expect(present).toEqual(SET_PARITY_ORDER.filter(s => s !== 'aria-label="Equivalent names"'));
+    expect(present).toEqual(SET_PARITY_ORDER);
     expect(ascending).toBe(true);
   });
 });

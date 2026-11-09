@@ -1,12 +1,8 @@
 {{!--
   Family detail page.
-  One page per curated first-class trick family. A projection of existing
-  family content (glossary family card, family invariant, evolution
-  narrative, operator-rung member grouping) onto one stable URL; no new
-  family doctrine is authored here. Self-contained: no partials. Any
-  section whose source is absent is omitted, never rendered empty. An
-  umbrella family (Down) groups members by variant instead of by operator
-  depth alone.
+  One page per curated first-class trick family: what it is, why it matters,
+  how to recognize one, its lowest-ADD example tricks, and related families.
+  Any section whose source is absent is omitted, never rendered empty.
 --}}
 <div class="hero hero-sm">
   <div>
@@ -50,96 +46,30 @@
     <p>{{content.teaching.importance}}</p>
   </section>
   {{else}}
-  <section class="content-section" aria-label="Overview">
+  <section class="content-section" aria-label="What is {{content.displayArticle}} {{content.displayName}}">
     <div class="section-heading">
-      <h2>Overview</h2>
+      <h2>What is {{content.displayArticle}} {{content.displayName}}?</h2>
     </div>
     <p>{{content.orientation}}</p>
-    {{#if content.overview}}
-    <dl class="glossary-family-card-fields">
-      <dt>Canonical formula</dt>
-      <dd><code>{{content.overview.canonicalFormula}}</code></dd>
-      <dt>Family anchor</dt>
-      <dd>
-        {{#if content.anchorTrick}}<a href="{{content.anchorTrick.href}}">{{content.anchorTrick.displayName}}</a>{{else}}{{content.displayName}}{{/if}}
-        <span class="glossary-family-card-anchor-adds">{{content.overview.anchorAddsLabel}}</span>
-      </dd>
-    </dl>
-    {{/if}}
-  </section>
-
-  {{#if content.sharedStructure}}
-  <section class="content-section" aria-label="Shared structure">
-    <div class="section-heading">
-      <h2>Shared structure</h2>
-    </div>
-    <p class="trick-family-shared-structure">Shared terminal structure: <code>{{content.sharedStructure}}</code></p>
-  </section>
-  {{/if}}
-  {{/if}}
-
-  {{#if content.hasEvolution}}
-  <section class="content-section trick-family-evolution" aria-label="How it branches">
-    <div class="section-heading">
-      <h2>How it branches</h2>
-      <p class="section-intro">How the movement-language expands through this family.</p>
-    </div>
-    <ol class="trick-family-evolution-steps">
-      {{#each content.evolutionSteps}}
-      <li class="trick-family-evolution-step">
-        <h3 class="trick-family-evolution-axis">{{branchAxis}}</h3>
-        <p class="trick-family-evolution-prose">{{prose}}</p>
-        {{#if exemplarLinks.length}}
-        <p class="trick-family-evolution-exemplars">
-          Exemplars:
-          {{#each exemplarLinks}}{{#if href}}<a href="{{href}}">{{label}}</a>{{else}}{{label}}{{/if}}{{#unless @last}}, {{/unless}}{{/each}}
-        </p>
-        {{/if}}
-      </li>
-      {{/each}}
-    </ol>
   </section>
   {{/if}}
 
-  {{#if content.hasMembers}}
-  <section class="content-section" aria-label="Member tricks">
+  {{#if content.exampleTricks.length}}
+  <section class="content-section" aria-label="Example tricks">
     <div class="section-heading">
-      <h2>Member tricks</h2>
+      <h2>Example tricks</h2>
       <span class="section-count">{{content.memberCount}}</span>
     </div>
-    {{#if content.isUmbrella}}
-    {{#if content.variantIntro}}<p class="section-intro">{{content.variantIntro}}</p>{{/if}}
-    {{#each content.variantGroups}}
-    <div class="trick-family-rung" id="variant-{{slug}}">
-      <h3 class="family-rung-header">{{name}} <span class="section-count">{{memberCount}}</span></h3>
-      {{#if pageHref}}<p class="trick-family-cross-link"><a class="action-link" href="{{pageHref}}">{{name}} family page</a></p>{{/if}}
-      <ul class="set-detail-trick-list">
-        {{#each members}}
-        <li class="set-detail-trick">
-          <a href="{{href}}">{{displayName}}</a>
-          <span class="set-detail-trick-add">({{addsLabel}})</span>
-          {{#if mediaHref}}<a class="tag-chip tag-chip--sm" href="{{mediaHref}}" aria-label="Media for {{displayName}}">media</a>{{/if}}
-        </li>
-        {{/each}}
-      </ul>
-    </div>
-    {{/each}}
-    {{else}}
-    {{#each content.rungGroups}}
-    <div class="trick-family-rung">
-      {{#if ../content.showRungLabels}}<h3 class="family-rung-header">{{label}}</h3>{{/if}}
-      <ul class="set-detail-trick-list">
-        {{#each members}}
-        <li class="set-detail-trick">
-          <a href="{{href}}">{{displayName}}</a>
-          <span class="set-detail-trick-add">({{addsLabel}})</span>
-          {{#if mediaHref}}<a class="tag-chip tag-chip--sm" href="{{mediaHref}}" aria-label="Media for {{displayName}}">media</a>{{/if}}
-        </li>
-        {{/each}}
-      </ul>
-    </div>
-    {{/each}}
-    {{/if}}
+    <ul class="set-detail-trick-list">
+      {{#each content.exampleTricks}}
+      <li class="set-detail-trick">
+        <a href="{{href}}">{{displayName}}</a>
+        <span class="set-detail-trick-add">({{addsLabel}})</span>
+        {{#if mediaHref}}<a class="tag-chip tag-chip--sm" href="{{mediaHref}}" aria-label="Media for {{displayName}}">media</a>{{/if}}
+      </li>
+      {{/each}}
+    </ul>
+    <p class="mt-2"><a class="action-link" href="{{{content.allTricksHref}}}">See All Tricks in This Family</a></p>
   </section>
   {{/if}}
 
@@ -152,38 +82,6 @@
     <ul class="family-teaching-list">
       {{#each content.teaching.howToRecognize}}
       <li>{{this}}</li>
-      {{/each}}
-    </ul>
-  </section>
-  {{/if}}
-
-  <section class="content-section" aria-label="How to think about the family">
-    <div class="section-heading">
-      <h2>How to think about the family</h2>
-    </div>
-    <p>{{content.teaching.howToThink}}</p>
-  </section>
-
-  <section class="content-section" aria-label="Common misconceptions">
-    <div class="section-heading">
-      <h2>Common misconceptions</h2>
-    </div>
-    <ul class="family-teaching-list">
-      {{#each content.teaching.misconceptions}}
-      <li>{{this}}</li>
-      {{/each}}
-    </ul>
-  </section>
-
-  {{#if content.teaching.seeItIn.length}}
-  <section class="content-section" aria-label="Common descendants">
-    <div class="section-heading">
-      <h2>Common descendants</h2>
-    </div>
-    <p>Well-known tricks that build on {{content.displayName}}, each easier to understand once you can spot it:</p>
-    <ul class="set-detail-cross-links">
-      {{#each content.teaching.seeItIn}}
-      <li><a href="{{href}}">{{name}}</a></li>
       {{/each}}
     </ul>
   </section>
@@ -202,44 +100,6 @@
     </ul>
   </section>
   {{/if}}
-
-  {{#if content.teaching}}
-  <section class="content-section" aria-label="Notation reference">
-    <div class="section-heading">
-      <h2>Notation reference</h2>
-    </div>
-    <p>{{content.teaching.notationIntro}}</p>
-    {{#if content.overview}}<p class="trick-family-shared-structure"><code>{{content.overview.canonicalFormula}}</code></p>{{/if}}
-    {{#if content.sharedStructure}}<p class="trick-family-shared-structure">Shared terminal structure: <code>{{content.sharedStructure}}</code></p>{{/if}}
-  </section>
-  {{else}}
-  {{#if content.notableCompounds.length}}
-  <section class="content-section" aria-label="Notable compounds">
-    <div class="section-heading">
-      <h2>Notable compounds</h2>
-    </div>
-    <p>
-      {{#each content.notableCompounds}}{{#unless @first}} &middot; {{/unless}}<span class="glossary-family-card-compound">{{this}}</span>{{/each}}
-    </p>
-  </section>
-  {{/if}}
-  {{/if}}
-
-  <section class="content-section" aria-label="Where to go next">
-    <div class="section-heading">
-      <h2>Where to go next</h2>
-    </div>
-    <ul class="set-detail-cross-links">
-      <li><a href="{{content.crossLinks.familyBrowseHref}}">Browse This Family in the Dictionary</a></li>
-      <li><a href="{{content.crossLinks.conceptsHref}}">Family Card in Freestyle Concepts</a></li>
-      {{#if content.familyCrossLink}}
-      <li><a href="{{content.familyCrossLink.href}}">{{content.familyCrossLink.label}}</a></li>
-      {{/if}}
-    </ul>
-    {{#if content.teaching}}
-    <p class="family-teaching-takeaway">{{content.teaching.takeaway}}</p>
-    {{/if}}
-  </section>
 
 </article>
 </div>

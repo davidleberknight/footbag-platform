@@ -56,19 +56,6 @@ export interface EquivalenceNote {
   citation: string;    // e.g. "Holden parenthetical"
 }
 
-/**
- * A doctrine-supported alternate or historic NAME for the set, distinct from
- * the structural equivalenceNotes. `structuralReading` gives the structural
- * explanation that grounds the name (e.g. Illusioning's REV(0) Miraging);
- * `note` carries any phrasing nuance. This is a set-naming equivalence, not a
- * folk alias and not a structural ≡ reading.
- */
-export interface SetEquivalentName {
-  name: string;
-  structuralReading?: string;
-  note?: string;
-}
-
 export interface SlugReference {
   slug: string;        // e.g. "pixie"
   label: string;       // e.g. "Pixie"
@@ -95,11 +82,6 @@ export interface CanonicalSet {
   movementExplanation: string;
   /** Equivalence notes (Holden parentheticals, folk-name readings). */
   equivalenceNotes: readonly EquivalenceNote[];
-  /**
-   * Doctrine-supported alternate / historic set names ("Equivalent names"),
-   * kept distinct from the structural equivalenceNotes / ≡ readings.
-   */
-  equivalentNames?: readonly SetEquivalentName[];
   /** Sets that compose FROM this one (e.g. pixie → terraging). */
   derivedSystems: readonly SlugReference[];
   /** Parallel / sibling sets (e.g. pixie ↔ fairy directional mirrors). */

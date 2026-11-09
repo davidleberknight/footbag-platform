@@ -281,7 +281,6 @@ family-lineage-tier-label
 family-lineage-tier-members
 family-rung-header
 family-teaching-list
-family-teaching-takeaway
 family-view-ordering-note
 featured-caption
 featured-card
@@ -739,9 +738,6 @@ semantic-notation-pending
 set-detail
 set-detail-component-note
 set-detail-cross-links
-set-detail-equivalent-names
-set-detail-equivalent-note
-set-detail-equivalent-structural
 set-detail-examples-empty
 set-detail-examples-section
 set-detail-formula
@@ -867,12 +863,6 @@ trick-family-anchor-label
 trick-family-anchor-sublabel
 trick-family-branch-of
 trick-family-cross-link
-trick-family-evolution
-trick-family-evolution-axis
-trick-family-evolution-exemplars
-trick-family-evolution-prose
-trick-family-evolution-step
-trick-family-evolution-steps
 trick-family-group
 trick-family-lineage
 trick-family-minor-tag

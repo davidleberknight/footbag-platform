@@ -39,11 +39,9 @@ describe('Atomic and Illusioning are distinct (no merge)', () => {
     expect(findCanonicalSetBySlug('illusioning')).toBeNull();
   });
 
-  it('the atomic entry does not carry Illusioning as an equivalent name and does not link to miraging', () => {
+  it('the atomic entry does not link to miraging', () => {
     const atomic = findCanonicalSetBySlug('atomic');
     expect(atomic).not.toBeNull();
-    const equivNames = (atomic!.equivalentNames ?? []).map(e => e.name);
-    expect(equivNames).not.toContain('Illusioning');
     const relatedSlugs = (atomic!.relatedSystems ?? []).map(s => s.slug);
     expect(relatedSlugs).not.toContain('miraging');
   });
