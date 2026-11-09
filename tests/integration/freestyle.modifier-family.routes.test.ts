@@ -6,12 +6,9 @@
  * Verifies:
  *   - /freestyle/modifier/spinning returns 200 with the teaching page
  *   - /freestyle/modifier/garbage-slug returns 404
- *   - The concept-first teaching sections render (What it is / Why it exists /
- *     How it changes the base / JOB notation / Where it appears / Progression /
- *     Representative examples / Common confusions / Related concepts / Execution
- *     notes), with the definition preceding the execution notes
+ *   - The teaching sections render (What it is / How it changes the base /
+ *     Progression / Representative examples / Related concepts) within budget
  *   - The legacy mechanical-lead layout is not rendered
- *   - Observational-layer badge + footer rendered
  *   - Progression first step marked as anchor
  *   - Cross-base examples link to detail pages when slug is pilot
  *   - Freestyle Concepts link present
@@ -155,36 +152,10 @@ describe('GET /freestyle/modifier/spinning — happy path', () => {
   it('renders the concept-first sections, teaching the concept before execution', async () => {
     const res = await page('/freestyle/modifier/spinning');
     expect(res.text).toContain('<h2>What it is</h2>');
-    expect(res.text).toContain('<h2>Why it exists</h2>');
     expect(res.text).toContain('<h2>How it changes the base trick</h2>');
-    expect(res.text).toContain('<h2>JOB notation</h2>');
-    expect(res.text).toContain('<h2>Where it appears</h2>');
-    expect(res.text).toContain('<h2>How it composes</h2>');
     expect(res.text).toContain('<h2>Representative examples</h2>');
-    expect(res.text).toContain('<h2>Common confusions</h2>');
     expect(res.text).toContain('<h2>Related concepts</h2>');
-    expect(res.text).toContain('<h2>Execution notes</h2>');
-    expect(res.text.indexOf('<h2>What it is</h2>')).toBeLessThan(res.text.indexOf('<h2>Execution notes</h2>'));
     expect(res.text).not.toContain('The body and the motion');
-  });
-
-  it('teaches the SPIN [BOD] notation as a scored body event', async () => {
-    const res = await page('/freestyle/modifier/spinning');
-    expect(res.text).toContain('SPIN [BOD]');
-    expect(res.text).toContain('(back) SPIN [BOD]');
-    expect(res.text).toMatch(/comes from the rotation itself, not from introducing another dexterity, delay, or body relationship/);
-  });
-
-  it('renders the required common confusions, framing gyro/inspinning as variants', async () => {
-    const res = await page('/freestyle/modifier/spinning');
-    expect(res.text).toContain('Spinning vs gyro');
-    expect(res.text).toContain('Spinning vs inspinning');
-    expect(res.text).toContain('Rotation vs dexterity');
-    expect(res.text).toContain('Body event vs body orientation');
-    expect(res.text).toContain('Spinning does not replace the base trick');
-    expect(res.text).toMatch(/closely related rotational operators/);
-    expect(res.text).not.toMatch(/rotational family/);
-    expect(res.text).not.toMatch(/half-rotation variant/);
   });
 
   it('renders progression chain with anchor flag on step 1 (underscore slugs, fixed order)', async () => {
@@ -224,12 +195,6 @@ describe('GET /freestyle/modifier/spinning — happy path', () => {
     }
   });
 
-  it('disclaimer footer rendered', async () => {
-    const res = await page('/freestyle/modifier/spinning');
-    expect(res.text).toContain('symbolic-layer-footer');
-    expect(res.text).toMatch(/does not change the official IFPA family classifications/i);
-  });
-
   it('renders Freestyle Concepts link deep-linking to the spinning entry', async () => {
     const res = await page('/freestyle/modifier/spinning');
     expect(res.text).toContain('href="/freestyle/concepts#term-spinning"');
@@ -261,37 +226,10 @@ describe('GET /freestyle/modifier/paradox — happy path', () => {
   it('renders the concept-first sections, teaching the concept before execution', async () => {
     const res = await page('/freestyle/modifier/paradox');
     expect(res.text).toContain('<h2>What it is</h2>');
-    expect(res.text).toContain('<h2>Why it exists</h2>');
     expect(res.text).toContain('<h2>How it changes the base trick</h2>');
-    expect(res.text).toContain('<h2>JOB notation</h2>');
-    expect(res.text).toContain('<h2>Where it appears</h2>');
-    expect(res.text).toContain('<h2>How it composes</h2>');
     expect(res.text).toContain('<h2>Representative examples</h2>');
-    expect(res.text).toContain('<h2>Common confusions</h2>');
     expect(res.text).toContain('<h2>Related concepts</h2>');
-    expect(res.text).toContain('<h2>Execution notes</h2>');
-    // Definition precedes execution notes; not the legacy mechanical-lead layout.
-    expect(res.text.indexOf('<h2>What it is</h2>')).toBeLessThan(res.text.indexOf('<h2>Execution notes</h2>'));
     expect(res.text).not.toContain('The body and the motion');
-  });
-
-  it('teaches the [PDX] notation and distinguishes it from [XBD] and [XDEX]', async () => {
-    const res = await page('/freestyle/modifier/paradox');
-    expect(res.text).toContain('[PDX]');
-    expect(res.text).toContain('[XBD]');
-    expect(res.text).toContain('[XDEX]');
-    // The entry formula appears only as the canonical example, with the mid-trick caveat.
-    expect(res.text).toContain('CLIP &gt; OP IN [DEX]');
-    expect(res.text).toMatch(/canonical paradox entry example/);
-    expect(res.text).toMatch(/mid-trick/);
-  });
-
-  it('renders the required common confusions', async () => {
-    const res = await page('/freestyle/modifier/paradox');
-    expect(res.text).toContain('Paradox vs cross-body ([XBD])');
-    expect(res.text).toContain('Paradox vs X-Dex');
-    expect(res.text).toContain('Paradox vs same-side and opposite-side');
-    expect(res.text).toContain('The entry example is not the definition');
   });
 
   it('renders progression chain with anchor flag on mirage step (underscore slugs)', async () => {
@@ -323,20 +261,6 @@ describe('GET /freestyle/modifier/paradox — happy path', () => {
       expect(res.text).toContain(name);
     }
   });
-
-  it('disclaimer footer rendered', async () => {
-    const res = await page('/freestyle/modifier/paradox');
-    expect(res.text).toContain('symbolic-layer-footer');
-    expect(res.text).toMatch(/does not change the official IFPA family classifications/i);
-  });
-
-  it('renders cross-link footer to the Butterfly family page, never a retired address', async () => {
-    const res = await page('/freestyle/modifier/paradox');
-    expect(res.text).toContain('symbolic-crosslinks');
-    expect(res.text).toContain('href="/freestyle/families/butterfly"');
-    expect(res.text).not.toContain('href="/freestyle/learn"');
-    expect(res.text).not.toContain('href="/freestyle/progression/walking-family"');
-  });
 });
 
 describe('GET /freestyle/modifier/ducking — happy path', () => {
@@ -351,36 +275,10 @@ describe('GET /freestyle/modifier/ducking — happy path', () => {
   it('renders the concept-first sections, teaching the concept before execution', async () => {
     const res = await page('/freestyle/modifier/ducking');
     expect(res.text).toContain('<h2>What it is</h2>');
-    expect(res.text).toContain('<h2>Why it exists</h2>');
     expect(res.text).toContain('<h2>How it changes the base trick</h2>');
-    expect(res.text).toContain('<h2>JOB notation</h2>');
-    expect(res.text).toContain('<h2>Where it appears</h2>');
-    expect(res.text).toContain('<h2>How it composes</h2>');
     expect(res.text).toContain('<h2>Representative examples</h2>');
-    expect(res.text).toContain('<h2>Common confusions</h2>');
     expect(res.text).toContain('<h2>Related concepts</h2>');
-    expect(res.text).toContain('<h2>Execution notes</h2>');
-    expect(res.text.indexOf('<h2>What it is</h2>')).toBeLessThan(res.text.indexOf('<h2>Execution notes</h2>'));
     expect(res.text).not.toContain('The body and the motion');
-  });
-
-  it('teaches the DUCK [BOD] notation as a scored body event, not merely a head movement', async () => {
-    const res = await page('/freestyle/modifier/ducking');
-    expect(res.text).toContain('DUCK [BOD]');
-    expect(res.text).toMatch(/comes from the body movement itself, not from a dexterity, a delay, or a body relationship/);
-    expect(res.text).toMatch(/merely a head movement/);
-  });
-
-  it('renders the required common confusions, with the ducking family doctrine', async () => {
-    const res = await page('/freestyle/modifier/ducking');
-    expect(res.text).toContain('Ducking vs diving');
-    expect(res.text).toContain('Ducking operator vs zulu and weaving sets');
-    expect(res.text).toContain('Ducking vs alpine');
-    expect(res.text).toContain('Body event vs dexterity');
-    expect(res.text).toContain('Ducking does not replace the base trick');
-    // Zulu/weaving are launch sets whose launch incorporates ducking; Alpine is a naming convention.
-    expect(res.text).toMatch(/launch sets whose launch incorporates the ducking body movement/);
-    expect(res.text).toMatch(/Alpine is not another body operator/);
   });
 
   it('renders progression chain with anchor flag on butterfly step (underscore slugs)', async () => {
@@ -412,20 +310,6 @@ describe('GET /freestyle/modifier/ducking — happy path', () => {
       expect(res.text).toContain(name);
     }
   });
-
-  it('disclaimer footer rendered', async () => {
-    const res = await page('/freestyle/modifier/ducking');
-    expect(res.text).toContain('symbolic-layer-footer');
-    expect(res.text).toMatch(/does not change the official IFPA family classifications/i);
-  });
-
-  it('renders cross-link footer to the Butterfly family page, never a retired address', async () => {
-    const res = await page('/freestyle/modifier/ducking');
-    expect(res.text).toContain('symbolic-crosslinks');
-    expect(res.text).toContain('href="/freestyle/families/butterfly"');
-    expect(res.text).not.toContain('href="/freestyle/learn"');
-    expect(res.text).not.toContain('href="/freestyle/progression/walking-family"');
-  });
 });
 
 describe('GET /freestyle/modifier/diving — sister operator of ducking', () => {
@@ -440,33 +324,9 @@ describe('GET /freestyle/modifier/diving — sister operator of ducking', () => 
   it('renders the concept-first sections, parallel to ducking', async () => {
     const res = await page('/freestyle/modifier/diving');
     expect(res.text).toContain('<h2>What it is</h2>');
-    expect(res.text).toContain('<h2>Why it exists</h2>');
     expect(res.text).toContain('<h2>How it changes the base trick</h2>');
-    expect(res.text).toContain('<h2>JOB notation</h2>');
-    expect(res.text).toContain('<h2>Where it appears</h2>');
-    expect(res.text).toContain('<h2>How it composes</h2>');
     expect(res.text).toContain('<h2>Representative examples</h2>');
-    expect(res.text).toContain('<h2>Common confusions</h2>');
     expect(res.text).toContain('<h2>Related concepts</h2>');
-    expect(res.text).toContain('<h2>Execution notes</h2>');
-    expect(res.text.indexOf('<h2>What it is</h2>')).toBeLessThan(res.text.indexOf('<h2>Execution notes</h2>'));
-  });
-
-  it('teaches DIVE [BOD], the same notation as ducking, differing only in path', async () => {
-    const res = await page('/freestyle/modifier/diving');
-    expect(res.text).toContain('DIVE [BOD]');
-    expect(res.text).toMatch(/comes from the body movement itself, not from a dexterity, a delay, or a body relationship/);
-    expect(res.text).toMatch(/shares this notation with ducking/);
-  });
-
-  it('renders the defining distinction and the diving-vs-ducking confusion', async () => {
-    const res = await page('/freestyle/modifier/diving');
-    expect(res.text).toContain('Diving vs ducking');
-    expect(res.text).toContain('Diving operator vs the ducking-family sets');
-    expect(res.text).toContain('Diving vs alpine');
-    expect(res.text).toContain('Body event vs dexterity');
-    expect(res.text).toContain('Diving does not replace the base trick');
-    expect(res.text).toMatch(/the bag passes over the player/);
   });
 
   it('renders progression with anchor on butterfly, landing on the Pixie Diving Butterfly (darkwalk)', async () => {
@@ -510,27 +370,9 @@ describe('GET /freestyle/modifier/tapping — a +1 midtime-body modifier (canoni
 
   it('renders the concept-first sections', async () => {
     const res = await page('/freestyle/modifier/tapping');
-    for (const h of ['What it is', 'Why it exists', 'How it changes the base trick', 'JOB notation',
-      'Where it appears', 'How it composes', 'Representative examples', 'Common confusions',
-      'Related concepts', 'Execution notes']) {
+    for (const h of ['What it is', 'How it changes the base trick', 'Representative examples', 'Related concepts']) {
       expect(res.text).toContain(`<h2>${h}</h2>`);
     }
-  });
-
-  it('reconciles the tap: written as a toe-set dex, scored as a +1 modifier', async () => {
-    const res = await page('/freestyle/modifier/tapping');
-    expect(res.text).toMatch(/TOE &gt; OP OUT \[DEX\]/);
-    expect(res.text).toMatch(/scored as a \+1 modifier on the trick, not as an extra dex folded into the base/);
-    expect(res.text).toMatch(/tapping\(\+1\) \+ mirage\(2\)/);
-  });
-
-  it('teaches tapping as a +1 modifier and keeps the compilation set reading historical', async () => {
-    const res = await page('/freestyle/modifier/tapping');
-    expect(res.text).toContain('Is the tap a dexterity or a modifier?');
-    expect(res.text).toContain('Tapping vs its historical set reading');
-    expect(res.text).toContain('Tapping vs slapping');
-    expect(res.text).toContain('Tapping does not replace the base trick');
-    expect(res.text).toMatch(/Atomic same-side/);
   });
 
   it('renders progression and clickable representative examples across families', async () => {
@@ -566,26 +408,9 @@ describe('GET /freestyle/modifier/inspinning — closely related rotational oper
 
   it('renders the concept-first sections', async () => {
     const res = await page('/freestyle/modifier/inspinning');
-    for (const h of ['What it is', 'Why it exists', 'How it changes the base trick', 'JOB notation',
-      'Where it appears', 'How it composes', 'Representative examples', 'Common confusions',
-      'Related concepts', 'Execution notes']) {
+    for (const h of ['What it is', 'How it changes the base trick', 'Representative examples', 'Related concepts']) {
       expect(res.text).toContain(`<h2>${h}</h2>`);
     }
-  });
-
-  it('teaches SPIN [BOD] as the shared rotational token, distinguished by direction', async () => {
-    const res = await page('/freestyle/modifier/inspinning');
-    expect(res.text).toContain('SPIN [BOD]');
-    expect(res.text).toMatch(/the chest passes the bag first, where spinning by default passes the back first/);
-  });
-
-  it('uses "closely related rotational operators" framing, never "rotational family"', async () => {
-    const res = await page('/freestyle/modifier/inspinning');
-    expect(res.text).toMatch(/closely related rotational operators/);
-    expect(res.text).not.toMatch(/rotational family/);
-    expect(res.text).toContain('Inspinning vs spinning');
-    expect(res.text).toContain('Inspinning vs gyro');
-    expect(res.text).toContain('Inspinning does not replace the base trick');
   });
 
   it('renders progression and clickable representative examples across families', async () => {
@@ -605,6 +430,21 @@ describe('GET /freestyle/modifier/inspinning — closely related rotational oper
     expect(res.text).toContain('related-modifiers-list');
     for (const name of ['spinning', 'gyro', 'paradox', 'symposium', 'ducking', 'whirling', 'swirling']) {
       expect(res.text).toContain(name);
+    }
+  });
+});
+
+describe('GET /freestyle/modifier/:slug — page budget', () => {
+  // Defect caught: a teaching page regrows into the long reference it was cut
+  // from, so a newcomer has to scroll past notation essays to reach the examples.
+  it('keeps every teaching page under 600 words and at most 6 sections', async () => {
+    for (const slug of ['spinning', 'paradox', 'ducking', 'diving', 'symposium', 'gyro', 'tapping', 'inspinning']) {
+      const res = await page(`/freestyle/modifier/${slug}`);
+      expect(res.status, slug).toBe(200);
+      const main = res.text.match(/<main[\s\S]*<\/main>/)?.[0] ?? '';
+      expect(main.match(/<h2[\s>]/g)?.length ?? 0, `${slug} sections`).toBeLessThanOrEqual(6);
+      const words = main.replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean).length;
+      expect(words, `${slug} words`).toBeLessThan(600);
     }
   });
 });
@@ -634,17 +474,9 @@ describe('GET /freestyle/modifier/symposium — concept-first frozen template', 
     expect(res.status).toBe(200);
     // Concept-first section order: definition before execution.
     expect(res.text).toContain('<h2>What it is</h2>');
-    expect(res.text).toContain('<h2>Why it exists</h2>');
     expect(res.text).toContain('<h2>How it changes the base trick</h2>');
-    expect(res.text).toContain('<h2>JOB notation</h2>');
-    expect(res.text).toContain('<h2>Where it appears</h2>');
-    expect(res.text).toContain('<h2>How it composes</h2>');
     expect(res.text).toContain('<h2>Representative examples</h2>');
     expect(res.text).toContain('<h2>Related concepts</h2>');
-    expect(res.text).toContain('<h2>Execution notes</h2>');
-    // Definition appears before the execution notes in the document.
-    expect(res.text.indexOf('<h2>What it is</h2>')).toBeLessThan(res.text.indexOf('<h2>Execution notes</h2>'));
-    // It does NOT use the legacy mechanical-lead layout.
     expect(res.text).not.toContain('The body and the motion');
   });
 });
@@ -658,40 +490,13 @@ describe('GET /freestyle/modifier/gyro — concept-first (Tier-1, closely relate
     expect(res.text).toMatch(/changes the body.{0,8}orientation during a trick/);
   });
 
-  it('renders the full 11-section concept-first template, concept before execution', async () => {
+  it('renders the concept-first sections', async () => {
     const res = await page('/freestyle/modifier/gyro');
     expect(res.text).toContain('<h2>What it is</h2>');
-    expect(res.text).toContain('<h2>Why it exists</h2>');
     expect(res.text).toContain('<h2>How it changes the base trick</h2>');
-    expect(res.text).toContain('<h2>JOB notation</h2>');
-    expect(res.text).toContain('<h2>Where it appears</h2>');
-    expect(res.text).toContain('<h2>How it composes</h2>');
     expect(res.text).toContain('<h2>Representative examples</h2>');
-    expect(res.text).toContain('<h2>Common confusions</h2>');
     expect(res.text).toContain('<h2>Related concepts</h2>');
-    expect(res.text).toContain('<h2>Execution notes</h2>');
-    expect(res.text.indexOf('<h2>What it is</h2>')).toBeLessThan(res.text.indexOf('<h2>Execution notes</h2>'));
     expect(res.text).not.toContain('The body and the motion');
-  });
-
-  it('teaches SPIN [BOD] and the gyro-vs-spinning orientation distinction', async () => {
-    const res = await page('/freestyle/modifier/gyro');
-    expect(res.text).toContain('SPIN [BOD]');
-    // Gyro flips the leading dex to SAME where spinning leaves it OP.
-    expect(res.text).toMatch(/gyro mirage reads SAME IN \[DEX\] where spinning mirage reads OP IN \[DEX\]/);
-  });
-
-  it('frames gyro/spinning/inspinning as closely related rotational operators', async () => {
-    const res = await page('/freestyle/modifier/gyro');
-    expect(res.text).toContain('Gyro vs spinning');
-    expect(res.text).toContain('Gyro vs inspinning');
-    expect(res.text).toContain('Rotation vs dexterity');
-    expect(res.text).toContain('Gyro does not replace the base trick');
-    // The dex-less collapse is a highlighted structural insight in How it composes,
-    // not a common confusion.
-    expect(res.text).not.toContain('Gyro and spinning collapse on a dex-less base');
-    expect(res.text).toMatch(/closely related rotational operators/);
-    expect(res.text).toMatch(/gyro and spinning resolve to the same structure/);
   });
 
   it('renders progression with anchor on whirl (underscore slugs)', async () => {

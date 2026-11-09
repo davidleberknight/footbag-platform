@@ -1,12 +1,11 @@
 /**
  * Integration tests for the DISCOVERABILITY phase of the symbolic subsystem.
  *
- * Covers three surfaces:
+ * Covers two surfaces:
  *   1. Trick-page educational CTAs, decided from the trick's own structure:
  *      built on the butterfly → the Butterfly family page
  *      built on the whirl, or carrying the spinning modifier → spinning modifier page
- *   2. The cross-links rendered on the /freestyle/modifier/spinning footer.
- *   3. Landing-page educational pointer paragraph at /freestyle.
+ *   2. Landing-page educational pointer paragraph at /freestyle.
  *
  * Observational-layer separation invariants verified throughout.
  */
@@ -174,22 +173,7 @@ describe('trick-page educational CTAs follow the trick, not a stored grouping', 
 });
 
 // ─────────────────────────────────────────────────────────────────────────
-// 3. Cross-links between symbolic full-pages
-// ─────────────────────────────────────────────────────────────────────────
-
-describe('symbolic full-page cross-links — modifier-family footer', () => {
-  it('spinning modifier page renders the symbolic-crosslinks block', async () => {
-    const res = await page('/freestyle/modifier/spinning');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('symbolic-crosslinks');
-    expect(res.text).toContain('href="/freestyle/families/butterfly"');
-    expect(res.text).not.toContain('href="/freestyle/learn"');
-    expect(res.text).not.toContain('href="/freestyle/progression/walking-family"');
-  });
-});
-
-// ─────────────────────────────────────────────────────────────────────────
-// 4. Landing-page educational pointer paragraph
+// 3. Landing-page educational pointer paragraph
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('GET /freestyle — beginner on-ramp', () => {

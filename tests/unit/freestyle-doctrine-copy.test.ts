@@ -184,10 +184,10 @@ describe('Tapping preserves base identity and re-authors the base side coordinat
     expect(tappingDef).toMatch(/leg relation changes; the OUT direction does not/);
   });
 
-  it('the tapping education cards describe re-authoring, not an unchanged base', () => {
-    // The three tapping education prose strings each mention re-authoring the base side coordinate.
+  it('the tapping education card describes re-authoring, not an unchanged base', () => {
+    // The tapping page's "how it changes the base" prose teaches the re-authored side coordinate.
     const tappingCards = edu.match(/[^']*re-author a downstream base component[^']*/g) ?? [];
-    expect(tappingCards.length).toBeGreaterThanOrEqual(2);
+    expect(tappingCards.length).toBeGreaterThanOrEqual(1);
     expect(edu).not.toMatch(/base dexterity then follows unchanged/);
   });
 });

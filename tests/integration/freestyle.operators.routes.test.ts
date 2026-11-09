@@ -230,7 +230,7 @@ describe('GET /freestyle/modifier/:slug — universal detail resolution', () => 
     expect(res.status).toBe(200);
     // The rich concept-first teaching page, not the stub.
     expect(res.text).toContain('<h2>What it is</h2>');
-    expect(res.text).toContain('<h2>JOB notation</h2>');
+    expect(res.text).toContain('<h2>Representative examples</h2>');
   });
 
   it('an operator links back to its base atom (reverse of the atom->operator cross-link)', async () => {

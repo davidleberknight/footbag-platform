@@ -793,8 +793,6 @@ step-number
 step-rationale
 structural-fact
 structural-fact-note
-symbolic-crosslinks
-symbolic-crosslinks-label
 symbolic-layer-badge
 symbolic-layer-footer
 symbolic-layer-footer--glossary

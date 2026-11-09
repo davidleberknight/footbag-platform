@@ -6355,34 +6355,6 @@ a.hashtag--media:hover {
 }
 .symbolic-trick-ctas li { font-size: 0.9rem; }
 
-/* Symbolic-surface cross-links footer (walking-progression + modifier-family) */
-.symbolic-crosslinks {
-  margin-top: var(--space-2xl);
-  padding: var(--space-lg);
-  background: var(--parch-50);
-  border-top: 1px solid var(--parch-350);
-  border-bottom: 1px solid var(--parch-350);
-}
-.symbolic-crosslinks-label {
-  display: block;
-  font-size: 0.9rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
-  margin-bottom: var(--space-sm);
-}
-.symbolic-crosslinks ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-}
-/* A navigation strip: its links rest without an underline and take the site
-   link's hover and focus underline. */
-.symbolic-crosslinks a { font-size: 0.9rem; }
-
 /* ─── Semantic-notation ladder (NF-2B) ──────────────────────────────────
  * Layer 2 (equivalence chain): editorial palette, subtle progressive
  *   typography (100 / 92 / 86%), recognized-token links use a quiet

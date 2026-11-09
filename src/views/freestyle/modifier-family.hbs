@@ -41,40 +41,17 @@
 
     {{#if content.definition}}
     {{!-- ── Concept-first frozen template (Definition / What changes / How it
-          changes / JOB notation / Where it appears / Progression / Representative
-          examples / Common confusions / Related concepts / Execution notes).
-          Teaches the concept before the execution. ── --}}
+          changes / Progression / Representative examples / Related concepts).
+          ── --}}
     <section class="content-section" aria-label="What it is">
       <div class="section-heading"><h2>What it is</h2></div>
       <p>{{content.definition}}</p>
-    </section>
-
-    <section class="content-section" aria-label="Why it exists">
-      <div class="section-heading"><h2>Why it exists</h2></div>
-      <p>{{content.whyItExists}}</p>
     </section>
 
     <section class="content-section" aria-label="How it changes the base trick">
       <div class="section-heading"><h2>How it changes the base trick</h2></div>
       <p>{{content.howItChangesBase}}</p>
     </section>
-
-    <section class="content-section" aria-label="JOB notation">
-      <div class="section-heading"><h2>JOB notation</h2></div>
-      <p>{{content.jobNotation}}</p>
-    </section>
-
-    <section class="content-section" aria-label="Where it appears">
-      <div class="section-heading"><h2>Where it appears</h2></div>
-      <p>{{content.whereItAppears}}</p>
-    </section>
-
-    {{#if content.howItComposes}}
-    <section class="content-section" aria-label="How it composes">
-      <div class="section-heading"><h2>How it composes</h2></div>
-      <p>{{content.howItComposes}}</p>
-    </section>
-    {{/if}}
 
     <section class="content-section symbolic-walking-progression" aria-label="Progression {{content.progression.anchorBaseLabel}}">
       <div class="section-heading"><h2>Progression {{content.progression.anchorBaseLabel}}</h2></div>
@@ -102,20 +79,9 @@
           <span class="cross-base-base">{{baseLabel}}</span>
           {{#if isPilot}}<a class="cross-base-name" href="{{detailHref}}">{{canonicalName}}</a>{{else}}<span class="cross-base-name">{{canonicalName}}</span>{{/if}}
           {{#if adds}}<span class="cross-base-adds">{{adds}} ADD</span>{{/if}}
-          <p class="cross-base-prose">{{prose}}</p>
         </li>
         {{/each}}
       </ul>
-    </section>
-
-    <section class="content-section" aria-label="Common confusions">
-      <div class="section-heading"><h2>Common confusions</h2></div>
-      {{#each content.confusions}}
-      <div class="confusion-card">
-        <h3>{{heading}}</h3>
-        <p>{{prose}}</p>
-      </div>
-      {{/each}}
     </section>
 
     <section class="content-section" aria-label="Related concepts">
@@ -128,23 +94,7 @@
       <p class="modifier-glossary-link"><a href="{{content.conceptsHref}}">Read more in Freestyle Concepts</a></p>
     </section>
 
-    {{#if content.executionNotes}}
-    <section class="content-section" aria-label="Execution notes">
-      <div class="section-heading"><h2>Execution notes</h2></div>
-      <p>{{content.executionNotes}}</p>
-    </section>
     {{/if}}
-
-    {{/if}}
-
-    <nav class="symbolic-crosslinks" aria-label="Related symbolic surfaces">
-      <span class="symbolic-crosslinks-label">Related educational pages</span>
-      <ul>
-        <li><a href="/freestyle/families/butterfly">Butterfly family: how the walking tricks branch</a></li>
-      </ul>
-    </nav>
-
-    <p class="symbolic-layer-footer">This page describes the {{content.displayName}} modifier physically and mechanically. It does not change the official IFPA family classifications or modifier-table ADD rules. Official term entry: <a href="/freestyle/concepts#section-modifiers">{{content.displayName}} in Freestyle Concepts</a>.</p>
 
   </article>
   {{else}}
