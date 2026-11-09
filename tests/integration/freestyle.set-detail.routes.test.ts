@@ -130,29 +130,6 @@ describe('GET /freestyle/sets/:slug — set detail page', () => {
     expect(res.text).toMatch(/href="\/freestyle\/sets\/fairy"/);
   });
 
-  it('renders source provenance label', async () => {
-    const res = await page('/freestyle/sets/pixie');
-    expect(res.text).toContain('set-card-source--platform-tracked');
-    expect(res.text).toContain('Tracked here');
-  });
-
-  it('renders audit-status label for sets that carry one (atomic = partial)', async () => {
-    const res = await page('/freestyle/sets/atomic');
-    expect(res.text).toContain('set-card-audit--partial');
-  });
-
-  it('renders the conflict audit label for surging', async () => {
-    const res = await page('/freestyle/sets/surging');
-    expect(res.text).toContain('set-card-audit--conflict');
-    expect(res.text).toContain('Documented disagreement');
-  });
-
-  it('renders the holden-only audit label and dashed-border style for bubba', async () => {
-    const res = await page('/freestyle/sets/bubba');
-    expect(res.text).toContain('set-card-audit--holden-only');
-    expect(res.text).toContain('set-card-source--holden-only');
-  });
-
   it('lists every linked trick, without its notation, on a set page with no teaching content', async () => {
     // Defect caught: a long notation string per row running the list off a
     // phone and repeating what each trick's own page says.
@@ -263,14 +240,12 @@ describe('GET /freestyle/sets/:slug — S5 sibling navigation strip', () => {
     expect(res.text).not.toMatch(/<a class="set-detail-sibling-nav-next"/);
   });
 
-  it('sibling strip is placed between cross-references and provenance footer', async () => {
+  it('sibling strip follows the cross-references', async () => {
     const res = await page('/freestyle/sets/stepping');
     const crossLinksIdx = res.text.indexOf('class="set-detail-cross-links"');
     const siblingIdx    = res.text.indexOf('class="set-detail-sibling-nav"');
-    const provenanceIdx = res.text.indexOf('class="set-detail-provenance"');
     expect(crossLinksIdx).toBeGreaterThan(0);
     expect(siblingIdx).toBeGreaterThan(crossLinksIdx);
-    expect(provenanceIdx).toBeGreaterThan(siblingIdx);
   });
 
   it('sibling strip suppresses entirely when both prev and next are null', async () => {
@@ -367,17 +342,15 @@ describe('GET /freestyle/sets/:slug — set vs non-set concepts', () => {
   });
 });
 
-// Section-order parity with the trick-detail shell: identity/notation/explanation
-// near the top, then equivalent names, then the structural equivalence readings,
-// then relationships, examples, cross-links, and provenance last.
+// Section-order parity with the trick-detail shell: the plain explanation first,
+// then the formula, then equivalent names, relationships, examples and cross-links.
 const SET_PARITY_ORDER = [
+  'aria-label="About This Set"',
   'aria-label="Formula"',
-  'aria-label="Movement explanation"',
   'aria-label="Equivalent names"',
   'aria-label="Related systems"',
   'aria-label="Example tricks"',
   'aria-label="Cross-references"',
-  'class="set-detail-provenance"',
 ];
 
 function presentSectionsInOrder(text: string): { present: string[]; ascending: boolean } {
@@ -482,9 +455,9 @@ describe('GET /freestyle/sets/stepping — set-page educational reference implem
 
   it('absorbs the thin Formula / Movement sections into the teaching layer', async () => {
     const res = await page('/freestyle/sets/stepping');
-    // On a migrated set the teaching layer replaces the bare Formula/Movement headings.
+    // On a migrated set the teaching layer replaces the bare explanation and formula headings.
     expect(res.text).not.toContain('<h2>Formula</h2>');
-    expect(res.text).not.toContain('<h2>Movement</h2>');
+    expect(res.text).not.toContain('<h2>About This Set</h2>');
   });
 
   it('teaches the set notation: stepping is the CLIP > OP IN [DEX] launch, not a body token', async () => {
@@ -519,11 +492,10 @@ describe('GET /freestyle/sets/stepping — set-page educational reference implem
     }
   });
 
-  it('keeps the page links and provenance below the teaching layer', async () => {
+  it('keeps the page links below the teaching layer', async () => {
     const res = await page('/freestyle/sets/stepping');
     const links = res.text.indexOf('class="set-detail-cross-links"');
     expect(links).toBeGreaterThan(res.text.indexOf('<h2>What it is</h2>'));
-    expect(res.text.indexOf('class="set-detail-provenance"')).toBeGreaterThan(links);
   });
 });
 
@@ -539,7 +511,7 @@ describe('GET /freestyle/sets/:slug — migrated set-education pages (pixie / fa
     it(`${slug} absorbs the thin Formula/Movement sections into the teaching layer`, async () => {
       const res = await page(`/freestyle/sets/${slug}`);
       expect(res.text).not.toContain('<h2>Formula</h2>');
-      expect(res.text).not.toContain('<h2>Movement</h2>');
+      expect(res.text).not.toContain('<h2>About This Set</h2>');
     });
 
     it(`${slug} modifier route redirects to its set page`, async () => {
@@ -550,48 +522,47 @@ describe('GET /freestyle/sets/:slug — migrated set-education pages (pixie / fa
   }
 });
 
-// A set formula is usually quoted from an outside compilation rather than
-// authored here, so the page names its source before showing the notation. The
-// case that matters is blazing: the compilation's notation is shown as the
-// compilation wrote it, while the side rule the page states in prose is the
-// platform's own. Without the attribution a reader has no way to tell those
-// apart, and would read the quoted string as the platform's ruling.
-describe('/freestyle/sets/:slug — formula provenance', () => {
+describe('/freestyle/sets/:slug — formula, and what a visitor is not shown', () => {
   const formulaSection = (html: string): string | null => {
     const m = /aria-label="Formula">([\s\S]*?)<\/section>/.exec(html);
     return m ? m[1]! : null;
   };
 
-  it('names the source above the formula, and that source is the compilation for blazing', async () => {
+  // Defect caught: the plain explanation sits below the notation, or loses the
+  // heading a newcomer reads first.
+  it('leads a page without teaching content with the plain explanation', async () => {
     const res = await page('/freestyle/sets/blazing');
     expect(res.status).toBe(200);
-    const body = formulaSection(res.text);
-    expect(body, 'formula section').not.toBeNull();
-    expect(body!).toContain('Source: Holden compilation (2003)');
-    // Read before the notation, not inferred from the footer afterwards.
-    expect(body!.indexOf('Source:')).toBeLessThan(body!.indexOf('set-detail-formula'));
-    // The notation is untouched, and the ruling its citation opens with is not
-    // credited for a string it did not author.
-    expect(body!).toContain('CLIP &gt; OP IN [DEX] &gt; (op side component)');
-    expect(body!).not.toMatch(/Source:[^<]*Red/);
+    expect(res.text).toContain('<h2>About This Set</h2>');
+    expect(res.text.indexOf('<h2>About This Set</h2>')).toBeLessThan(res.text.indexOf('<h2>Formula</h2>'));
   });
 
-  // The rendered counterpart of the ruling, on the blazing page, beside the
-  // quoted formula. A page that still says the relation is unsettled
-  // contradicts the dictionary it sits beside.
-  // Defect caught: the provenance footer on a set page names the rules expert's
-  // ruling and its relay channel ("Red ruling (curator-relayed, ...)"), internal
-  // curation vocabulary a visitor should never read. The footer still renders its
-  // outside source, so the absence is checked against a footer that is there.
-  it('renders the blazing and flailing citations without ruling identifiers', async () => {
-    for (const slug of ['blazing', 'flailing']) {
-      const res = await page(`/freestyle/sets/${slug}`);
-      expect(res.status, slug).toBe(200);
-      const footer = /<p class="set-detail-citation">([\s\S]*?)<\/p>/.exec(res.text);
-      expect(footer, `${slug} citation footer`).not.toBeNull();
-      expect(footer![1]!, slug).toContain('Holden compilation (2003)');
-      expect(res.text, slug).not.toMatch(/Red ruling|curator-relayed/i);
+  // Defect caught: a source line returns above the formula, naming a person or
+  // an internal record on a public page.
+  it('shows the formula with no source line', async () => {
+    const res = await page('/freestyle/sets/blazing');
+    const body = formulaSection(res.text);
+    expect(body, 'formula section').not.toBeNull();
+    expect(body!).toContain('CLIP &gt; OP IN [DEX] &gt; (op side component)');
+    expect(body!).not.toContain('Source:');
+  });
+
+  // Defect caught: internal reconciliation state reaches a visitor. Checked over
+  // every set page, and the count of pages read keeps the absence from passing
+  // on an empty loop.
+  it('shows no citation or reconciliation status on any set page', async () => {
+    const app = await createApp();
+    const internal = /set-detail-provenance|set-detail-citation|set-card-source|set-card-audit|Holden-only|Aligned with Holden|Holden-cited only|Tracked here|Red ruling|curator-relayed/;
+    const shown: string[] = [];
+    let pages = 0;
+    for (const set of CANONICAL_SETS) {
+      const res = await request(app).get(`/freestyle/sets/${set.slug}`);
+      if (res.status !== 200) continue;
+      pages += 1;
+      if (internal.test(res.text)) shown.push(set.slug);
     }
+    expect(pages).toBeGreaterThan(0);
+    expect(shown).toEqual([]);
   });
 
   it('states the settled side reference on the blazing page, beside the quoted formula', async () => {
@@ -601,44 +572,9 @@ describe('/freestyle/sets/:slug — formula provenance', () => {
     expect(res.text).not.toMatch(/side relation is not settled/);
   });
 
-  it('credits the platform, not the compilation, where the formula is the platform own', async () => {
-    for (const slug of ['toe', 'clipper']) {
-      const res = await page(`/freestyle/sets/${slug}`);
-      const body = formulaSection(res.text);
-      expect(body, slug).not.toBeNull();
-      expect(body!).toContain('Source: Platform entry-surface reference');
-      expect(body!).not.toContain('Holden');
-    }
-  });
-
-  it('never shows a formula without its source, on any set page', async () => {
-    // Stated as an invariant over every set rather than as the absence of a
-    // section on the pages that currently teach notation in prose. Absence held
-    // only while those pages took the branch that renders no formula: if one ever
-    // showed its raw string, the old assertion would have gone on passing on a
-    // page whose notation had become unattributed.
-    //
-    // Whether a page that teaches its notation should also show the raw string is
-    // a content question this does not answer. It holds whichever way that is
-    // decided, which is the point.
-    const app = await createApp();
-    const unattributed: string[] = [];
-    for (const set of CANONICAL_SETS) {
-      const res = await request(app).get(`/freestyle/sets/${set.slug}`);
-      if (res.status !== 200) continue;
-      const body = formulaSection(res.text);
-      if (!body || !body.includes('set-detail-formula')) continue;
-      const sourceAt = body.indexOf('Source:');
-      const formulaAt = body.indexOf('set-detail-formula');
-      if (sourceAt === -1 || sourceAt > formulaAt) unattributed.push(set.slug);
-    }
-    expect(unattributed).toEqual([]);
-  });
-
   it('shows a formula on every set whose formula the derivation supplies', async () => {
-    // The other half of the same invariant. Without it the one above is satisfied
-    // by a page that shows no formula at all, so a rendering change that silently
-    // dropped every formula would read as success.
+    // Without this, a rendering change that silently dropped every formula would
+    // read as success.
     const app = await createApp();
     const withFormula = CANONICAL_SETS.filter(s => s.formula.trim().length > 0);
     expect(withFormula.length).toBeGreaterThan(0);

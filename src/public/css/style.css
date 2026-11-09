@@ -8013,33 +8013,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   color: var(--text);
   font-style: italic;
 }
-.set-card-source {
-  padding: 1px var(--space-sm);
-  border-radius: var(--radius-2xs);
-  background: var(--gray-100);
-  font-weight: 600;
-}
-.set-card-source--canonical {
-  background: var(--green-pale);
-  color: var(--success-text);
-}
-.set-card-source--platform-tracked {
-  background: var(--slate-100);
-  color: var(--steel-accent);
-}
-.set-card-source--holden-only {
-  background: var(--orange-soft);
-  color: var(--earth-bronze);
-}
-.set-card-audit {
-  padding: 1px var(--space-sm);
-  border-radius: var(--radius-2xs);
-  font-weight: 500;
-}
-.set-card-audit--aligned    { background: var(--green-pale); color: var(--fern-600); }
-.set-card-audit--partial    { background: var(--orange-soft); color: var(--warn-text); }
-.set-card-audit--conflict   { background: var(--red-pale); color: var(--danger-text); }
-.set-card-audit--holden-only{ background: var(--hover-tint); color: var(--doctrine-plum); }
 
 /* ── Set Encyclopedia (standalone /freestyle/sets) ──────────
  * Denser visual treatment than the dictionary browse views. Goal:
@@ -8278,23 +8251,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .set-detail-sibling-nav-next:hover .set-detail-sibling-nav-name,
 .set-detail-sibling-nav-next:focus .set-detail-sibling-nav-name {
   text-decoration: underline;
-}
-.set-detail-provenance {
-  border-top: 1px dashed var(--border);
-  padding-top: var(--space-md);
-  margin-top: var(--space-xl);
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-sm);
-  align-items: baseline;
-  font-size: 0.9rem;
-}
-.set-detail-citation {
-  flex: 1 0 100%;
-  margin: var(--space-xs) 0 0;
-  font-style: italic;
-  color: var(--text-muted);
-  line-height: 1.4;
 }
 
 .family-view-ordering-note {

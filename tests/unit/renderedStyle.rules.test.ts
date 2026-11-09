@@ -343,7 +343,7 @@ describe('grey text', () => {
     // A source note or byline may be long and grey; prose merely sitting inside
     // a metadata block is still prose a reader has to read.
     const grey = { color: 'rgb(102, 102, 102)' };
-    for (const cls of ['source-note', 'set-detail-citation', 'form-hint', 'card-meta']) {
+    for (const cls of ['source-note', 'form-hint', 'card-meta']) {
       expect(hits(buildCapture(el('p', { cls, text: LONG, style: grey })), 'prose-muted'), cls).toEqual([]);
     }
     expect(hits(buildCapture(el('p', { cls: 'section-desc', text: LONG, style: grey })), 'prose-muted')).toHaveLength(1);

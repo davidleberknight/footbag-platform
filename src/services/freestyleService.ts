@@ -190,7 +190,6 @@ import {
   CANONICAL_SETS,
   SET_SUBTYPE_SPECS,
   findCanonicalSetBySlug,
-  formulaSourceLabel,
   resolveSetRouteRedirect,
 } from '../content/freestyleCanonicalSets';
 import { COMPETITION_FORMATS } from '../content/freestyleCompetitionFormats';
@@ -2628,9 +2627,6 @@ export type SetSubtypeKey =
   | 'uns'
   | 'rooted-antisymposium';
 
-export type CanonicalSetSourceKey = 'canonical' | 'platform-tracked' | 'holden-only';
-export type CanonicalSetAuditKey   = 'aligned' | 'partial' | 'conflict' | 'holden-only';
-
 export interface SlugLinkVM {
   slug:  string;
   label: string;
@@ -2706,9 +2702,9 @@ export interface EncyclopediaCrossLinks {
 
 // Set detail page content.
 // One page per canonical set at /freestyle/sets/<slug>. Mirrors the
-// trick-detail structure: hashtag · formula · movement explanation ·
+// trick-detail structure: hashtag · plain explanation · formula ·
 // equivalence readings · derived/related systems · example tricks ·
-// cross-links · source/audit provenance.
+// cross-links.
 export interface FreestyleSetDetailContent {
   slug:                 string;
   hashtag:              string;
@@ -2717,10 +2713,6 @@ export interface FreestyleSetDetailContent {
   subtype:              SetSubtypeKey;
   subtypeLabel:         string;
   formula:              string;
-  /** Short attribution for the formula above, derived from this set's own
-   *  sourceCitation. Null where the set shows no formula. The full citation is
-   *  unchanged and still renders in the provenance footer. */
-  formulaSource:        string | null;
   movementExplanation:  string;
   // Doctrine-supported alternate / historic set names. Pre-shaped for direct
   // rendering.
@@ -2729,11 +2721,6 @@ export interface FreestyleSetDetailContent {
   exampleTricks:        readonly SetDetailExampleTrick[];
   hasExampleTricks:     boolean;
   crossLinks:           SetDetailCrossLinks;
-  source:               CanonicalSetSourceKey;
-  sourceLabel:          string;
-  sourceCitation:       string;
-  auditStatus?:         CanonicalSetAuditKey;
-  auditStatusLabel?:    string;
   componentMechanicsNote: string;
   /** Notation-authority note rendered on the atomic / quantum / nuclear set pages:
    *  X-Dex is scored from [XDEX] in the notation. The full rule lives in the glossary
@@ -9808,17 +9795,6 @@ export const freestyleService = {
     const set = findCanonicalSetBySlug(slug);
     if (!set) return null;
 
-    const sourceLabels: Record<CanonicalSetSourceKey, string> = {
-      'canonical':        'Canonical',
-      'platform-tracked': 'Tracked here',
-      'holden-only':      'Holden-only',
-    };
-    const auditLabels: Record<CanonicalSetAuditKey, string> = {
-      'aligned':     'Aligned with Holden',
-      'partial':     'Partial: framing differs',
-      'conflict':    'Documented disagreement',
-      'holden-only': 'Holden-cited only',
-    };
     const subtypeLabel = SET_SUBTYPE_SPECS.find(s => s.key === set.subtype)?.label ?? set.subtype;
 
     // Example tricks: tricks linked to this set's slug in the modifier-link
@@ -9940,12 +9916,6 @@ export const freestyleService = {
         exampleTricks,
         hasExampleTricks:      exampleTricks.length > 0,
         crossLinks,
-        source:                set.source,
-        sourceLabel:           sourceLabels[set.source],
-        sourceCitation:        set.sourceCitation,
-        formulaSource:         formulaSourceLabel(set),
-        auditStatus:           set.auditStatus,
-        auditStatusLabel:      set.auditStatus ? auditLabels[set.auditStatus] : undefined,
         componentMechanicsNote:
           (set.slug === 'zulu' || set.slug === 'weaving')
             ? 'This is a set defined by its launch mechanism, and that launch incorporates ' +

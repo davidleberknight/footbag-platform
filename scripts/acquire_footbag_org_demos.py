@@ -12,6 +12,10 @@ Input  : freestyle/tools/trick_video_discovery/footbag_org_rehost_candidates.csv
 Output : curated/freestyle_demos/<stem>.mov          (re-host source binary)
          curated/freestyle_demos/<stem>.poster.jpg   (poster; seeder skips *.poster.*)
          curated/freestyle_demos/<stem>.meta.json     (paired sidecar)
+         curated/freestyle_demos/<stem>.meta.json.proposed
+                                                      (written instead when a sidecar
+                                                      already exists and differs, so
+                                                      a hand edit is never overwritten)
 
 Each sidecar carries:
   caption      move name only (contributor names are NOT emitted; they stay in
@@ -198,7 +202,7 @@ def main() -> int:
 
     # ── apply ──
     DEST_DIR.mkdir(parents=True, exist_ok=True)
-    dl_mov = skip_mov = dl_poster = skip_poster = wrote_sidecar = 0
+    dl_mov = skip_mov = dl_poster = skip_poster = wrote_sidecar = proposed_sidecar = 0
     total_bytes = 0
     for p in plan:
         if p["mov_path"].exists():
@@ -220,14 +224,21 @@ def main() -> int:
             "poster": p["poster_path"].name,
             "externalUrl": p["external_url"],
         }
-        p["sidecar_path"].write_text(json.dumps(sidecar, indent=2) + "\n", encoding="utf-8")
-        wrote_sidecar += 1
+        generated = json.dumps(sidecar, indent=2) + "\n"
+        if not p["sidecar_path"].exists():
+            p["sidecar_path"].write_text(generated, encoding="utf-8")
+            wrote_sidecar += 1
+        elif p["sidecar_path"].read_text(encoding="utf-8") != generated:
+            Path(f"{p['sidecar_path']}.proposed").write_text(generated, encoding="utf-8")
+            proposed_sidecar += 1
+            print(f"  ? {p['sidecar_path'].name} differs; wrote a .proposed file beside it")
 
     print()
     print("=== acquisition summary ===")
     print(f"  .mov downloaded / skipped(existing): {dl_mov} / {skip_mov}")
     print(f"  posters downloaded / skipped:        {dl_poster} / {skip_poster}")
-    print(f"  sidecars written:                    {wrote_sidecar}")
+    print(f"  new sidecars written:                {wrote_sidecar}")
+    print(f"  proposals for existing sidecars:     {proposed_sidecar}")
     print(f"  bytes downloaded this run:           {total_bytes:,} (~{total_bytes/1_048_576:.1f} MiB)")
     print("\nNext: run the local seed/reset, then 25_qc_media_tag_invariant.py + "
           "24_qc_freestyle_media_coverage.py.")

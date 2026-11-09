@@ -1,20 +1,21 @@
 #!/usr/bin/env python3
 """Cross-source freestyle vocabulary reconciliation audit.
 
-Read-only. Reconciles every documented trick name across the master
-spreadsheet (which already integrates footbagmoves / footbag.org /
-PassBack) and the live freestyle_tricks table, classifying each unique
-name into one of nine governance states.
+Changes no input and no database. Reconciles every documented trick name
+across the master spreadsheet (which already integrates footbagmoves /
+footbag.org / PassBack) and the live freestyle_tricks table, classifying
+each unique name into one of nine governance states.
 
 Sources of record:
 - freestyle/inputs/observational/SYMBOLIC_GRAMMAR_MASTER.csv
 - database/footbag.db  (freestyle_tricks)
 
 Output:
-- freestyle/inputs/observational/RECONCILIATION.csv
-  (one row per unique name; a live input of the freestyle content
-  generators and hand-maintained between audit runs, so rerunning this
-  script overwrites those hand edits)
+- freestyle/reports/RECONCILIATION.proposed.csv
+  (one row per unique name, gitignored. The live
+  freestyle/inputs/observational/RECONCILIATION.csv is an input of the
+  freestyle content generators and hand-maintained, so a curator compares
+  this proposal with it and copies across what should change.)
 - prints an aggregate stats block for the audit report.
 
 State derivation is HEURISTIC (priority-ordered, first match) and
@@ -33,9 +34,10 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 MASTER = REPO / 'freestyle/inputs/observational/SYMBOLIC_GRAMMAR_MASTER.csv'
 DB = REPO / 'database/footbag.db'
-# The reconciliation CSV is a live input of the freestyle content generators,
-# so the maintained copy lives under freestyle/inputs/.
-OUTDIR = REPO / 'freestyle/inputs/observational'
+# The maintained reconciliation CSV under freestyle/inputs/ holds hand edits, so
+# a run writes its result beside the other generated reports instead.
+OUTDIR = REPO / 'freestyle/reports'
+OUTPUT = OUTDIR / 'RECONCILIATION.proposed.csv'
 
 
 def norm(s: str) -> str:
@@ -82,7 +84,7 @@ def derive_state(c: dict) -> tuple[str, str]:
 
 
 def main() -> None:
-    OUTDIR.mkdir(exist_ok=True)
+    OUTDIR.mkdir(parents=True, exist_ok=True)
 
     # ── live DB ────────────────────────────────────────────────
     db = sqlite3.connect(DB)
@@ -172,7 +174,7 @@ def main() -> None:
             'primary_operator', 'add_formula', 'parser_notes', 'unresolved_questions',
             'provenance_notes']
     recon.sort(key=lambda c: (c['governance_state'], c['name'].lower()))
-    with (OUTDIR / 'RECONCILIATION.csv').open('w', newline='') as f:
+    with OUTPUT.open('w', newline='') as f:
         w = csv.DictWriter(f, fieldnames=cols, quoting=csv.QUOTE_ALL, extrasaction='ignore')
         w.writeheader()
         w.writerows(recon)
@@ -193,7 +195,7 @@ def main() -> None:
     fc_ready_unpub = [c for c in recon if c['publication_status'] == 'first_class_ready'
                       and not c['in_db']]
     print(f"\nHigh-ROI publication candidates (first_class_ready, not in DB): {len(fc_ready_unpub)}")
-    print(f"\nWrote: {(OUTDIR / 'RECONCILIATION.csv').relative_to(REPO)}")
+    print(f"\nWrote: {OUTPUT.relative_to(REPO)}")
 
 
 if __name__ == '__main__':

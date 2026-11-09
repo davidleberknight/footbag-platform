@@ -1,10 +1,9 @@
 {{!--
   Set detail page.
   One page per canonical set. Mirrors the trick-detail information order so the
-  two surfaces read the same way: identity (name / hashtag) then notation
-  (formula) then explanation (movement) near the top, then equivalent names,
-  then related systems, then example tricks, then cross-links, sibling
-  navigation, and source / audit provenance last.
+  two surfaces read the same way: identity (name / hashtag), then the plain
+  explanation, then the formula, then equivalent names, related systems, example
+  tricks, cross-links and sibling navigation.
 --}}
 {{! The shared page hero and page frame, arranged as the trick detail page
     arranges them, since this page mirrors that one's information order. The
@@ -108,12 +107,12 @@
   {{/if}}
 
   {{#unless content.education}}
-  {{> _set-formula}}
-
-  <section class="set-detail-section" aria-label="Movement explanation">
-    <h2>Movement</h2>
+  <section class="set-detail-section" aria-label="About This Set">
+    <h2>About This Set</h2>
     <p class="set-detail-movement">{{content.movementExplanation}}</p>
   </section>
+
+  {{> _set-formula}}
   {{/unless}}
 
   {{#unless content.education}}
@@ -196,11 +195,5 @@
     {{/if}}
   </nav>
   {{/if}}
-
-  <footer class="set-detail-provenance">
-    <span class="set-card-source set-card-source--{{content.source}}">{{content.sourceLabel}}</span>
-    {{#if content.auditStatusLabel}}<span class="set-card-audit set-card-audit--{{content.auditStatus}}">{{content.auditStatusLabel}}</span>{{/if}}
-    <p class="set-detail-citation">{{content.sourceCitation}}</p>
-  </footer>
 
 </article>

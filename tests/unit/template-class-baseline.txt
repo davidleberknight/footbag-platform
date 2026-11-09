@@ -737,7 +737,6 @@ semantic-base-lineage
 semantic-base-lineage-phrase
 semantic-notation-pending
 set-detail
-set-detail-citation
 set-detail-component-note
 set-detail-cross-links
 set-detail-equivalent-names
@@ -748,7 +747,6 @@ set-detail-examples-section
 set-detail-formula
 set-detail-link-list
 set-detail-movement
-set-detail-provenance
 set-detail-section
 set-detail-sibling-nav
 set-detail-sibling-nav-label

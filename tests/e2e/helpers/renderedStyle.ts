@@ -467,7 +467,7 @@ const TEXTLESS_INPUT_TYPES = new Set(['hidden', 'checkbox', 'radio', 'range', 'c
 const MESSAGE_CLASSES = ['empty-state', 'form-notice', 'form-error-banner', 'form-success-banner', 'notice'];
 // The standard's metadata treatments, which may stay grey at any length:
 // source and provenance notes, citations, form hints and card bylines.
-const METADATA_CLASSES = ['source-note', 'set-detail-citation', 'form-hint', 'card-meta'];
+const METADATA_CLASSES = ['source-note', 'form-hint', 'card-meta'];
 
 /** A scroll box the standard allows: keyboard-focusable, a region, and named. */
 function isSanctionedScrollRegion(el: ElementRecord): boolean {
