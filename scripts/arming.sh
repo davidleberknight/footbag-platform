@@ -468,6 +468,13 @@ elif [[ "$SWITCH" == "url_screening" && "$STATE" == "armed" ]]; then
 elif [[ "$SWITCH" == "url_screening" && "$STATE" == "dark" ]]; then
   PRECONDITION="screening-exposure"
 fi
+# The two side-effect switches are inert below production: the stub adapters
+# apply there whatever the switch says, so no provider-side precondition exists
+# to settle or attest to, and asking would have the operator attest to a step
+# that cannot happen.
+if [[ "$TARGET" != "production" && ( "$SWITCH" == "payments" || "$SWITCH" == "email" ) ]]; then
+  PRECONDITION="inert"
+fi
 # reachability has no precondition in either direction: no credential, no third
 # party, and nothing that has to be settled elsewhere first. Its consequence is
 # still stated at step 5, because "no probe" is not the same as "no change".
@@ -839,6 +846,16 @@ if [[ "$SWITCH" == "payments" && "$STATE" == "dark" && "$TARGET" == "production"
 fi
 
 # ── Step 1: the provider side, which this script cannot do for you ───────────
+if (( FROM_STEP <= 1 )) && [[ "$PRECONDITION" == "inert" ]]; then
+  echo "-- step 1: provider precondition --"
+  echo ""
+  if [[ "$SWITCH" == "payments" ]]; then provider="the Stripe simulation"; else provider="the simulated-email card"; fi
+  echo "Nothing to do here: the $SWITCH switch is inert on $TARGET. $TARGET always runs"
+  echo "$provider, whatever this switch says, so there is no live provider step to"
+  echo "settle before moving it. On production this step asks before going on."
+  echo ""
+fi
+
 if (( FROM_STEP <= 1 )) && [[ "$PRECONDITION" == "ses-readiness" ]]; then
   echo "-- step 1: SES readiness --"
   echo ""

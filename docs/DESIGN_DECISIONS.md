@@ -2228,7 +2228,7 @@ Sanitization steps (in order):
 Output encoding:
 
 - All user text is HTML-encoded by the template engine at render time. Handlebars escapes by default.
-- No "unescaped" placeholders for user content. Triple-mustache or `SafeString` is reserved for trusted admin-controlled content (release notes, official announcements).
+- No unescaped placeholder prints user content as written. Triple-mustache output is limited to the allow-list in the view-layer rule (`.claude/rules/view-layer.md`): helpers, the layout body, JSON data islands whose builder escapes `<`, sanitised markdown, and service-shaped `*Href` values built from the site's own routes, never from a user-submitted or external URL.
 - The two-layer defense (sanitize at write, escape at read) means a missed escape in one template does not leak stored XSS, and a missed sanitize at one route does not leak via templates.
 
 International content preservation:
@@ -4700,11 +4700,17 @@ Rationale:
 
 - GitHub is the standard place to store project code and track code changes.
 
+- The primary maintainer reviews every change another contributor makes, and GitHub does not let an author approve their own pull request, so the admin bypass is what lets the primary maintainer's own changes merge.
+
+- Green CI is enforced where a change reaches members: the production release gate refuses a deploy unless CI passed on that exact commit, so `main` carries no required status check.
+
+- The git history is the change record.
+
 Requirements:
 
 - Every GitHub Actions workflow declares a top-level `permissions: { contents: read }` and elevates per-job only where required (e.g. `security-events: write` for the CodeQL job). Default-write tokens are not used.
 - GitHub Actions are pinned by commit SHA (`actions/checkout@<sha>`), not by floating tag or major version. SHA bumps are approved by the maintainer, ideally through a pull request; no action runs at a mutable reference. CI runners are named by release (`ubuntu-24.04`), never `*-latest`, which moves to a new operating system on the provider's schedule.
-- The `main` branch is protected against force-pushes and deletion, and every change reaches it through a pull request, which needs no approving review; nothing bypasses the rule. The ruleset is committed beside `scripts/github-ruleset.sh`, which compares the live ruleset with it and puts it back when they differ. Secret scanning and push protection are enabled at the repo level.
+- From go-live, the `main` branch is protected against force-pushes and deletion, and every change reaches it through a pull request that the primary maintainer reviews: the ruleset requires one approving review, and the repository-admin role alone may bypass it, so the primary maintainer can merge their own. Before go-live the maintainers push to `main` directly. The ruleset is committed beside `scripts/github-ruleset.sh`, which compares the live ruleset with it and puts it back when they differ. Secret scanning and push protection are enabled at the repo level.
 - Each project MCP server package is an exactly pinned devDependency governed by the lockfile, and `.mcp.json` runs it from `node_modules/.bin`, never through `@latest` or an `npx` fetch. A version bump is approved by the maintainer, ideally through a pull request, not a transparent upstream change.
 - Every dependency, devDependency and override in `package.json` is pinned to an exact version (no `^` or `~`), enforced by the version-pin convention gate (`scripts/ci/check_version_pins.sh`). The lockfile is the canonical source for transitive versions, and installs read it with `npm ci`. A version in `package.json`, an override among them, is changed only by `scripts/pin-npm-package.sh`, which moves that one package in the lockfile and refuses any other change to it.
 - The Node and Python runtimes are pinned exactly in `.nvmrc` and `.python-version`. CI, the local runners and the workstation setup script all read those two files, so no second copy of either version exists to drift.
@@ -4868,7 +4874,7 @@ Impact:
 
 Decision:
 
-Patching runs on the System Administrator's judgment, never on a schedule. Whenever they choose, they run the on-demand vulnerability report, which checks every pinned version against published advisories and ranks each finding by known exploitation and exposure; they pick the versions to patch, and a person reviews each bump before it lands. No scan runs on a schedule and no bot opens a version bump. The procedure lives in DEVOPS_GUIDE.md (private GitHub repo), "Routine Security and Platform Operations".
+Patching runs on the System Administrator's judgment, never on a schedule. Whenever they choose, they run the on-demand vulnerability report, which checks every pinned version against published advisories and ranks each finding by known exploitation and exposure; they pick the versions to patch, and a person reviews each bump before it lands. No scan of the project's own runs on a schedule, GitHub's vulnerability alerts watch the pinned dependencies, and no bot opens a version bump. The procedure lives in DEVOPS_GUIDE.md (private GitHub repo), "Routine Security and Platform Operations".
 
 Rationale:
 
@@ -4876,13 +4882,15 @@ Rationale:
 
 - A bot that opens version bumps replaces a deliberate review step with an unreviewed upstream change, which is the opposite of why dependencies are pinned at all.
 
+- Vulnerability alerts open no pull request and change no code, so every bump stays a person's reviewed decision, while an advisory published against a pinned package reaches the maintainers between on-request reports.
+
 - Once production is live its database is the only copy of members' data, so every way back from a patch must keep every write: the snapshot recovers the host, and the backup proved after the stop holds every write up to it. Checking the host against main's tip rather than the deployed commit keeps the host and the code CI proved in step, and allows a code rollback without moving the host.
 
 Requirements:
 
 - Dependency versions are reviewed and bumped by hand. No bot opens or merges a version bump.
 
-- Patching happens when the maintainer decides. Repository-level vulnerability alerting is off; the advisory and staleness reports over the pinned versions run on request.
+- Patching happens when the maintainer decides. Repository vulnerability alerts are on and email the maintainers when a pinned package gains a critical or high advisory; Dependabot security-update pull requests are off. The advisory and staleness reports over the pinned versions run on request.
 
 - The dependency audit reports advisories at moderate severity and above, and the pull-request dependency review inspects what each change introduces. Both report as warnings and never fail CI: an advisory is published upstream on its own schedule and can land on a commit that changed nothing, so acting on it is the maintainer's patching decision, not a red build.
 

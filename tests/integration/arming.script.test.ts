@@ -366,6 +366,35 @@ describe('arming.sh — disarming cannot proceed past the Stripe endpoint', () =
   });
 });
 
+describe('arming.sh — the side-effect switches below production', () => {
+  // Defect caught: staging asking the operator to attest to a provider step
+  // that cannot exist there (disabling a live Stripe webhook, Stripe
+  // credentials, the mail sender, queued mail), so the honest answer is a
+  // false attestation. Staging keeps its stub adapters whatever these switches
+  // say, so the run says so and asks nothing.
+  const MOVES: [string, string, string][] = [
+    ['payments', 'dark', 'armed'],
+    ['payments', 'armed', 'dark'],
+    ['email', 'armed', 'dark'],
+    ['email', 'dark', 'armed'],
+  ];
+  it.each(MOVES)('%s to %s on staging asks no provider question and says why', (sw, to, from) => {
+    const tfvars = writeTfvars([`payments_armed   = "${sw === 'payments' ? from : 'armed'}"`, `email_send_armed = "${sw === 'email' ? from : 'armed'}"`]);
+    const res = run(ARMING, ['--target', 'staging', '--switch', sw, '--state', to, '--tfvars', tfvars], 'yes\n');
+    expect(res.stdout, res.stderr).toMatch(new RegExp(`the ${sw} switch is inert on staging`));
+    expect(res.stdout).not.toMatch(/once you have done it|only if activation|disarm email anyway|SES readiness/);
+    expect(readFileSync(tfvars, 'utf-8')).toMatch(new RegExp(`${sw === 'payments' ? 'payments_armed' : 'email_send_armed'}\\s+= "${to}"`));
+  });
+
+  it('production still asks before payments goes dark', () => {
+    const tfvars = writeTfvars(['payments_armed   = "armed"']);
+    const res = run(ARMING, ['--target', 'production', '--state', 'dark', '--tfvars', tfvars], 'no\n');
+    expect(res.stdout).toMatch(/once you have done it/);
+    expect(res.stdout).not.toMatch(/inert on/);
+    expect(readFileSync(tfvars, 'utf-8')).toMatch(/payments_armed\s+= "armed"/);
+  });
+});
+
 describe('arming.sh — the email switch', () => {
   const EMAIL_TFVARS = [
     'environment      = "production"',

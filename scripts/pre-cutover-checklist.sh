@@ -120,6 +120,15 @@ if [[ "${NO_SNAPSHOT}" -eq 1 && -z "${TARGET}" ]]; then
   exit 2
 fi
 
+# The rollback snapshot goes to the environment's disaster-recovery snapshot
+# bucket, and only production has one: staging's data is rebuilt, never rolled
+# back to. Refused here rather than at AWS, after the host work began.
+if [[ "${TARGET}" == "staging" && "${NO_SNAPSHOT}" -eq 0 ]]; then
+  echo "staging has no disaster-recovery snapshot bucket to take the rollback snapshot to;" >&2
+  echo "  run the staging checks with --no-snapshot, which reads the live database read-only." >&2
+  exit 2
+fi
+
 # Every gate line any step printed that failed or skipped is listed once in the
 # closing report at the end, and the exit status follows from it.
 # shellcheck source=lib/closing-report.sh

@@ -8,8 +8,11 @@
 # ruleset is committed as scripts/github-ruleset-protect-main.json, and it is the
 # target from go-live on: active on the default branch, blocking its deletion
 # and any force push, and requiring a pull request before anything merges into
-# main (no approving review, code-owner review or resolved threads required),
-# with no bypass entry and no required status check. Until go-live, main takes
+# main with one approving review (no code-owner review or resolved threads
+# required). The repository admin role may bypass the pull-request rule alone,
+# since GitHub lets no author approve their own pull request, so the
+# maintainer reviews every other contributor's change and can still merge
+# their own; there is no required status check. Until go-live, main takes
 # direct pushes and carries no such ruleset, so --verify reports that gap and
 # that is expected. --apply is a go-live-day step and is never run before
 # go-live. --verify compares the live ruleset with the committed copy; --apply

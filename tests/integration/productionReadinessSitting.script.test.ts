@@ -19,7 +19,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import {
-  chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync,
+  chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync,
 } from 'node:fs';
 import { dirname, join } from 'node:path';
 
@@ -125,6 +125,26 @@ function awsStub(offsetSecs: number): string {
   ].join('\n') + '\n');
   chmodSync(path, 0o755);
   return path;
+}
+
+/** Makes the deploy-migrate stand-in keep each migration it is given; returns a reader of them, in call order. */
+function keepMigrations(): () => string[] {
+  const kept = join(dir, 'migrations');
+  mkdirSync(kept, { recursive: true });
+  const stub = join(root, 'scripts', 'deploy-migrate.sh');
+  writeFileSync(stub, `#!/usr/bin/env bash\ncp "$4" ${JSON.stringify(kept)}/"$(ls ${JSON.stringify(kept)} | wc -l)"\n${readFileSync(stub, 'utf-8').replace(/^#!.*\n/, '')}`);
+  return () => readdirSync(kept).sort((a, b) => Number(a) - Number(b)).map((f) => readFileSync(join(kept, f), 'utf-8'));
+}
+
+/** The tables left after running `sql` on a database holding `tables`. */
+async function tablesAfter(tables: string[], sql: string): Promise<string[]> {
+  const { default: Database } = await import('better-sqlite3');
+  const db = new Database(':memory:');
+  for (const t of tables) db.exec(`CREATE TABLE ${t} (id INTEGER PRIMARY KEY)`);
+  db.exec(sql);
+  const left = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all() as { name: string }[];
+  db.close();
+  return left.map((r) => r.name);
 }
 
 beforeEach(() => {
@@ -234,9 +254,15 @@ describe('a full staging run', () => {
     const digest = (n: number) => calls().map((c, i) => [c, i] as const).filter(([c]) => /table-digests/.test(c.call))[n][1];
     expect(digest(0)).toBeLessThan(firstCall(/deploy-migrate\.sh/));
     expect(firstCall(/deploy-migrate\.sh/)).toBeLessThan(digest(1));
-    expect(firstCall(/rotate-jwt-signing-key/)).toBeLessThan(firstCall(/^deploy_to_aws\.sh/));
+    const deployAfterRotation = calls().findIndex((c, i) => i > firstCall(/rotate-jwt-signing-key/) && /^scripts\/deploy-migrate\.sh/.test(c.call));
+    expect(firstCall(/provision-ssm-secret\.sh .*store/)).toBeLessThan(deployAfterRotation);
     expect(firstCall(/--state dark/)).toBeLessThan(firstCall(/--state armed/));
-    expect(firstCall(/admin-bootstrap-token\.sh .*provision/)).toBeLessThan(firstCall(/admin-bootstrap-token\.sh .*status/));
+    // Staging always has administrators, and the first-admin claim grants only
+    // while none exists, so staging provisions no claim token it could never
+    // use, and removes any one left there, proving it gone.
+    expect(firstCall(/admin-bootstrap-token\.sh .*provision/)).toBe(-1);
+    expect(firstCall(/admin-bootstrap-token\.sh --target staging cleanup/)).toBeGreaterThan(-1);
+    expect(firstCall(/admin-bootstrap-token\.sh --target staging cleanup/)).toBeLessThan(firstCall(/admin-bootstrap-token\.sh --target staging status/));
   });
 
   // Defect caught: the password reaching a step that reads its stdin as an
@@ -469,6 +495,56 @@ describe('derived values', () => {
     expect(migrate.call).toMatch(/--migration \S+\/sitting_durability_\d{14}\.sql$/);
   });
 
+  // Defect caught: the durability probe leaving its table behind, so every later
+  // code-only deploy finds the deployed schema differing from schema.sql and
+  // refuses. The probe must still be a real migration the host records.
+  it('generates a probe migration that runs and leaves the schema as it was', async () => {
+    const kept = keepMigrations();
+    const r = sit(['--target', 'staging', '--from-step', 's05c', '--to-step', 's05c']);
+    expect(r.status, r.out).toBe(0);
+    const [sql] = kept();
+    expect(sql).toMatch(/CREATE TABLE sitting_durability_\d{14}/);
+    expect(await tablesAfter([], sql)).toEqual([]);
+  });
+
+  // Defect caught: a probe table left on staging, or brought back by the
+  // restore, surviving into the deploy after the secret rotation, which then
+  // refuses on schema drift. That deploy is a
+  // migration deploy that removes the probe table s05c's run created, read
+  // from this run or, on a resume, from s05c's recorded row.
+  it('removes the probe table of the recorded durability run in the deploy after the rotation', async () => {
+    writeFileSync(logReal, LOG_HEAD + [
+      '', '## 9. Production-readiness sitting', '', 'One row per step.', '',
+      '| Started (UTC) | Finished (UTC) | Target | Step | Command | Result | Notes |', '|---|---|---|---|---|---|---|',
+      '| 2026-11-10T07:04:16Z | 2026-11-10T07:10:19Z | staging | s05c | scripts/deploy-migrate.sh --target staging --migration /tmp/tmp.x/sitting_durability_20261110070416.sql | ok |  |',
+      '',
+    ].join('\n'));
+    const kept = keepMigrations();
+    const r = sit(['--target', 'staging', '--from-step', 's07d', '--to-step', 's07d']);
+    expect(r.status, r.out).toBe(0);
+    const deploy = stepCalls().find((c) => /deploy-migrate/.test(c.call))!;
+    expect(deploy.call).toMatch(/--migration \S+\/sitting_durability_cleanup_20261110070416\.sql$/);
+    expect(deploy.line).toBe(PASSWORD);
+    const [sql] = kept();
+    expect(await tablesAfter(['sitting_durability_20261110070416', 'members'], sql)).toEqual(['members']);
+  });
+
+  it('removes the probe table of the durability run in the same run', async () => {
+    const kept = keepMigrations();
+    const r = sit(['--target', 'staging', '--from-step', 's05b', '--to-step', 's07d'], YES(3));
+    expect(r.status, r.out).toBe(0);
+    const [probe, cleanup] = kept();
+    const stamp = probe.match(/sitting_durability_(\d{14})/)![1];
+    expect(await tablesAfter([`sitting_durability_${stamp}`], cleanup)).toEqual([]);
+  });
+
+  it('stops the deploy after the rotation when no durability run is recorded', () => {
+    const r = sit(['--target', 'staging', '--from-step', 's07d', '--to-step', 's07d']);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/step s05c has no ok row/);
+    expect(firstCall(/deploy-migrate/)).toBe(-1);
+  });
+
   // Defect caught: the preserved tables changing across the migration unnoticed.
   it('passes the digests that match and fails the ones that differ', () => {
     const same = 'DIGEST members rows=3 sha256=' + 'b'.repeat(64);
@@ -555,6 +631,52 @@ describe('waiting, and an interrupted step', () => {
 describe('steps that need alarm mail', () => {
   const PENDING = { match: 'scripts/reconfirm-alarm-subscriptions.sh --target * --status', codes: [3] };
 
+  // Defect caught: the alarm-mail confirmation left outside the pass, so
+  // nothing in the run gets it done, or a topic the operator skips stopping
+  // the run although alarm mail must not block it.
+  it('runs the confirmation walk at a terminal, and carries on deferred when a topic is left pending', () => {
+    writeRules([PENDING, { match: 'scripts/confirm-alarm-subscription.sh --target staging', codes: [3] }]);
+    const r = sit(['--target', 'staging', '--from-step', 's03', '--to-step', 's04b']);
+    expect(r.status, r.out).toBe(0);
+    const walk = stepCalls().find((c) => /confirm-alarm-subscription/.test(c.call))!;
+    expect(walk.call).toBe('scripts/confirm-alarm-subscription.sh --target staging');
+    expect(walk.tty).toBe(true);
+    expect(rows().map((c) => [c[3], c[5]])).toEqual([
+      ['s03', 'deferred (alarm mail not confirmed)'],
+      ['s04a', 'deferred (alarm mail not confirmed)'],
+      ['s04b', 'deferred (alarm mail not confirmed)'],
+    ]);
+  });
+
+  // Defect caught: the subscriptions read before the walk confirmed them, so the
+  // test alarm right after the walk is deferred anyway.
+  it('runs the mail steps once the walk confirms every subscription', () => {
+    // Pending until the walk has run, clean after it.
+    writeRules([{ match: 'scripts/reconfirm-alarm-subscriptions.sh --target * --status', codes: [0] }]);
+    const r = sit(['--target', 'staging', '--from-step', 's03', '--to-step', 's04b'], ['yes']);
+    const walkAt = calls().findIndex((c) => /confirm-alarm-subscription/.test(c.call));
+    const readAt = calls().findIndex((c) => /reconfirm-alarm-subscriptions\.sh .*--status/.test(c.call));
+    expect(walkAt).toBeLessThan(readAt);
+    expect(r.status, r.out).toBe(0);
+    expect(rows().map((c) => [c[3], c[5]])).toEqual([['s03', 'ok'], ['s04a', 'ok'], ['s04b', 'ok']]);
+  });
+
+  it('stops when the walk fails rather than leaving a topic pending', () => {
+    writeRules([{ match: 'scripts/confirm-alarm-subscription.sh --target staging', codes: [1] }]);
+    const r = sit(['--target', 'staging', '--from-step', 's03', '--to-step', 's04b']);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/VERDICT: STOPPED AT s03/);
+  });
+
+  it('walks production before its first step that needs mail', () => {
+    const r = spawnSync('bash', [SCRIPT, '--target', 'production', '--dry-run'], { encoding: 'utf-8', ...SPAWN_GUARD });
+    const ids = [...r.stdout.matchAll(/^ {2}(p\d+[a-z]?) /gm)].map((m) => m[1]);
+    const lines = r.stdout.split('\n');
+    const walkAt = ids.findIndex((id) => lines.some((l) => l.startsWith(`  ${id} `) && /confirm-alarm-subscription\.sh --target production/.test(l)));
+    expect(walkAt).toBeGreaterThan(-1);
+    expect(walkAt).toBeLessThan(ids.indexOf('p11a'));
+  });
+
   // Defect caught: a pass stopped by alarm mail nobody can confirm yet, or a
   // test alarm sent while nothing can receive it.
   it('defers them while the subscriptions are pending, and carries on with the rest', () => {
@@ -570,6 +692,15 @@ describe('steps that need alarm mail', () => {
     expect(r.out).toMatch(/- deferred until alarm mail is confirmed: s04a/);
     // One read of the subscriptions serves the whole run.
     expect(calls().filter((c) => /reconfirm-alarm-subscriptions\.sh .*--status/.test(c.call))).toHaveLength(1);
+  });
+
+  // Defect caught: subscriptions confirmed by clicking their emails, which do
+  // receive alarm mail, read as not confirmed, so the alarm work never runs.
+  it('runs them once the subscriptions read confirmed by a click', () => {
+    writeRules([{ match: 'scripts/reconfirm-alarm-subscriptions.sh --target * --status', codes: [4] }]);
+    const r = sit(['--target', 'staging', '--from-step', 's04a', '--to-step', 's04b'], ['yes']);
+    expect(r.status, r.out).toBe(0);
+    expect(rows().map((c) => [c[3], c[5]])).toEqual([['s04a', 'ok'], ['s04b', 'ok']]);
   });
 
   // Defect caught: the deferral firing on confirmed mail too, so the alarm work

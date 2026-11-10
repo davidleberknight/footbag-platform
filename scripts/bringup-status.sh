@@ -756,12 +756,14 @@ esac
 case "${P[SUBS_STATE]}" in
   confirmed) row 12 "Alarm subscriptions" DONE "every email subscription on the $TARGET alarm topics is confirmed by its link" ;;
   click)
-    row 12 "Alarm subscriptions" PENDING "confirmed by a click, so an unsubscribe link can remove it: ${P[SUBS_DETAIL]}"
-    next_cmd "bash scripts/reconfirm-alarm-subscriptions.sh --target $TARGET   (pauses alarm mail to the address until confirmed), then bash scripts/confirm-alarm-subscription.sh --target $TARGET once per email"
+    # Confirmed and receiving alarm mail. Clicking the link is how the
+    # operations mailbox confirms; an unsubscribe click in an alarm email to
+    # that address would remove it, which this row then shows as missing.
+    row 12 "Alarm subscriptions" DONE "confirmed (by clicking the email link): ${P[SUBS_DETAIL]}"
     ;;
   pending)
     row 12 "Alarm subscriptions" PENDING "awaiting confirmation: ${P[SUBS_DETAIL]}"
-    next_cmd "bash scripts/confirm-alarm-subscription.sh --target $TARGET   (paste the link from the email; never click it)"
+    next_cmd "click Confirm subscription in each AWS confirmation email to that address, or run bash scripts/confirm-alarm-subscription.sh --target $TARGET, which also sends fresh emails"
     ;;
   *) row 12 "Alarm subscriptions" UNKNOWN "not read (pass --profile)" ;;
 esac

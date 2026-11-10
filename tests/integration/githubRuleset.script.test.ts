@@ -183,13 +183,14 @@ describe('github-ruleset.sh: --verify', () => {
   it("ignores GitHub's bookkeeping and rule order, and reports every real difference", () => {
     // Defect caught: a comparison that fails on ids and timestamps, so a healthy
     // ruleset always reads as drift; or one that misses a ruleset switched off,
-    // a rule added or a bypass entry granted.
+    // a rule added or a bypass entry widened.
     expect(run(['--verify'], [MATCHING]).status).toBe(0);
     const drift = run(['--verify'], [LIVE_CAPTURE]);
     expect(drift.status).toBe(1);
     expect(drift.stdout).toMatch(/^[-+].*"enforcement"/m);
     expect(drift.stdout).toMatch(/^\+.*required_status_checks/m);
-    expect(drift.stdout).toMatch(/^\+.*"actor_type": "RepositoryRole"/m);
+    expect(drift.stdout).toMatch(/^-.*"bypass_mode": "pull_request"/m);
+    expect(drift.stdout).toMatch(/^\+.*"bypass_mode": "always"/m);
     expect(drift.stdout).not.toMatch(/updated_at|node_id/);
     expect(writesMade()).toEqual([]);
   });

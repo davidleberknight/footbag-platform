@@ -471,6 +471,11 @@ export interface MediaFlagOverrides {
   reason_text?: string | null;
   reported_at?: string;
   status?: 'open' | 'resolved';
+  /** The resolution an administrator records; all null on an open flag. */
+  resolved_at?: string | null;
+  resolved_by_admin_member_id?: string | null;
+  resolution_label?: string | null;
+  resolution_reason?: string | null;
 }
 
 export function insertMediaFlag(db: BetterSqlite3.Database, o: MediaFlagOverrides): string {
@@ -478,8 +483,9 @@ export function insertMediaFlag(db: BetterSqlite3.Database, o: MediaFlagOverride
   db.prepare(`
     INSERT INTO media_flags (
       id, created_at, created_by, updated_at, updated_by, version,
-      media_id, reporter_member_id, reason_code, reason_text, reported_at, status
-    ) VALUES (?, ?, 'test', ?, 'test', 1, ?, ?, ?, ?, ?, ?)
+      media_id, reporter_member_id, reason_code, reason_text, reported_at, status,
+      resolved_at, resolved_by_admin_member_id, resolution_label, resolution_reason
+    ) VALUES (?, ?, 'test', ?, 'test', 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id, nowIso(), nowIso(),
     o.media_id,
@@ -488,6 +494,10 @@ export function insertMediaFlag(db: BetterSqlite3.Database, o: MediaFlagOverride
     o.reason_text === undefined ? null : o.reason_text,
     o.reported_at ?? nowIso(),
     o.status ?? 'open',
+    o.resolved_at ?? null,
+    o.resolved_by_admin_member_id ?? null,
+    o.resolution_label ?? null,
+    o.resolution_reason ?? null,
   );
   return id;
 }
@@ -1792,6 +1802,59 @@ export function insertOutboxEmail(db: BetterSqlite3.Database, o: OutboxEmailOver
     o.reviewed_by_member_id ?? null,
     o.review_note ?? null,
     o.provider_message_id ?? null,
+  );
+  return id;
+}
+
+// ── Recurring donation lifecycle transition ─────────────────────────────────
+//
+// One row of the append-only ledger of a recurring gift's lifecycle. The
+// member is denormalised onto the row, as the webhook writer stores it, so the
+// caller passes the subscription and its member together.
+export interface RecurringDonationTransitionOverrides {
+  id?: string;
+  recurring_subscription_id: string;
+  member_id: string;
+  stripe_event_id?: string | null;
+  stripe_subscription_id?: string;
+  stripe_invoice_id?: string | null;
+  event_type?: string;
+  lifecycle_event_code?: 'activated' | 'charge_succeeded' | 'charge_failed'
+    | 'cancel_requested' | 'canceled' | 'updated';
+  old_status?: 'incomplete' | 'active' | 'past_due' | 'canceled' | null;
+  new_status?: 'active' | 'past_due' | 'canceled' | null;
+  occurred_at?: string;
+  reason_text?: string | null;
+  correlation_key?: string | null;
+}
+
+export function insertRecurringDonationTransition(
+  db: BetterSqlite3.Database,
+  o: RecurringDonationTransitionOverrides,
+): string {
+  const id = o.id ?? `rdst-test-${uid()}`;
+  const at = o.occurred_at ?? nowIso();
+  db.prepare(`
+    INSERT INTO recurring_donation_subscription_transitions (
+      id, created_at, created_by,
+      recurring_subscription_id, member_id,
+      stripe_event_id, stripe_subscription_id, stripe_invoice_id,
+      event_type, lifecycle_event_code,
+      old_status, new_status, occurred_at, reason_text, correlation_key
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id, at, SYS,
+    o.recurring_subscription_id, o.member_id,
+    o.stripe_event_id ?? null,
+    o.stripe_subscription_id ?? `sub-test-${uid()}`,
+    o.stripe_invoice_id ?? null,
+    o.event_type ?? 'customer.subscription.created',
+    o.lifecycle_event_code ?? 'activated',
+    o.old_status === undefined ? 'incomplete' : o.old_status,
+    o.new_status === undefined ? 'active' : o.new_status,
+    at,
+    o.reason_text ?? null,
+    o.correlation_key ?? null,
   );
   return id;
 }

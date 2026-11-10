@@ -10968,6 +10968,193 @@ export const memberExport = {
     WHERE member_id = ? AND status <> 'incomplete'
     ORDER BY started_at DESC
   `); },
+
+  // Every change to the member's tier, with its reason. The actor is never
+  // selected: which administrator acted is another person's identity.
+  get tierGrantHistory() { return db.prepare(`
+    SELECT
+      change_type, old_tier_status, new_tier_status,
+      old_underlying_tier_status, new_underlying_tier_status,
+      reason_code, reason_text, related_payment_id, created_at
+    FROM member_tier_grants
+    WHERE member_id = ?
+    ORDER BY created_at, id
+  `); },
+
+  // Every change to the member's Active Player standing, without the actor.
+  get activePlayerGrantHistory() { return db.prepare(`
+    SELECT
+      change_type, old_active_player_expires_at, new_active_player_expires_at,
+      reason_code, reason_text, related_event_id, related_club_id, created_at
+    FROM active_player_grants
+    WHERE member_id = ?
+    ORDER BY created_at, id
+  `); },
+
+  // Vouches other members gave this member: when, why and what they changed.
+  // The voucher is never selected.
+  get vouchesReceived() { return db.prepare(`
+    SELECT vouched_at, reason_text, old_active_player_expires_at, new_active_player_expires_at
+    FROM active_player_vouches
+    WHERE target_member_id = ?
+    ORDER BY vouched_at, id
+  `); },
+
+  get eventOrganizerRoles() { return db.prepare(`
+    SELECT eo.event_id, e.title AS event_title, e.start_date, eo.role, eo.added_at
+    FROM event_organizers AS eo
+    INNER JOIN events AS e ON e.id = eo.event_id
+    WHERE eo.member_id = ?
+    ORDER BY eo.added_at, eo.id
+  `); },
+
+  // How each of the member's payments moved between states. Provider event,
+  // intent, invoice and subscription identifiers, the correlation key and the
+  // metadata are never selected.
+  get paymentTransitions() { return db.prepare(`
+    SELECT
+      pst.payment_id, pst.event_type, pst.from_status, pst.to_status,
+      pst.transition_at, pst.transition_reason_text
+    FROM payment_status_transitions AS pst
+    INNER JOIN payments AS p ON p.id = pst.payment_id
+    WHERE p.member_id = ?
+    ORDER BY pst.transition_at, pst.id
+  `); },
+
+  // The same for the member's recurring gifts, with the same exclusions.
+  get recurringDonationTransitions() { return db.prepare(`
+    SELECT
+      recurring_subscription_id, event_type, lifecycle_event_code,
+      old_status, new_status, occurred_at, reason_text
+    FROM recurring_donation_subscription_transitions
+    WHERE member_id = ?
+    ORDER BY occurred_at, id
+  `); },
+
+  // Reports other members made against the member's own media. The reporter
+  // and the resolving administrator are never selected, and neither is the
+  // reporter's own wording, which can identify them; the reason category, the
+  // dates and the administrator's outcome are what was recorded about the item.
+  get flagsOnOwnMedia() { return db.prepare(`
+    SELECT
+      mf.media_id, mf.reason_code, mf.reported_at, mf.status,
+      mf.resolved_at, mf.resolution_label, mf.resolution_reason
+    FROM media_flags AS mf
+    INNER JOIN media_items AS mi ON mi.id = mf.media_id
+    WHERE mi.uploader_member_id = ?
+    ORDER BY mf.reported_at, mf.id
+  `); },
+
+  // Reports the member made, in their own words. The administrator's
+  // resolution reason concerns the uploader of the reported item, another
+  // person, so only the outcome label is selected.
+  get flagsRaised() { return db.prepare(`
+    SELECT
+      media_id, reason_code, reason_text, reported_at, status,
+      resolved_at, resolution_label
+    FROM media_flags
+    WHERE reporter_member_id = ?
+    ORDER BY reported_at, id
+  `); },
+
+  // Mail addressed to the member, listed by subject, kind and time. The body is
+  // never selected, because a reset or verification body carries a live link,
+  // and neither is the provider's message identifier, the sender or the
+  // reviewing administrator.
+  get mailReceived() { return db.prepare(`
+    SELECT subject, template_key, status, created_at, sent_at
+    FROM outbox_emails
+    WHERE recipient_member_id = ?
+    ORDER BY created_at, id
+  `); },
+
+  // An administrator's questions to the member and the member's answers. The
+  // sending administrator is never selected.
+  get messagesReceived() { return db.prepare(`
+    SELECT
+      subject, body_text, expected_answer_kind, status, outcome, note_text,
+      sent_at, answered_at
+    FROM member_messages
+    WHERE recipient_member_id = ?
+    ORDER BY sent_at, id
+  `); },
+
+  // Work-queue items about the member. No actor column is selected, and
+  // neither is reason_text: an identity-link request stores its payload there,
+  // and that payload names the other accounts holding the disputed records.
+  get workQueueItemsAbout() { return db.prepare(`
+    SELECT
+      queue_category, task_type, status, opened_at, resolved_at,
+      decision_label, detail_text, parked_at, park_reason
+    FROM work_queue_items
+    WHERE entity_type = 'member' AND entity_id = ?
+    ORDER BY opened_at, id
+  `); },
+
+  get clubInsightNotes() { return db.prepare(`
+    SELECT n.club_id, c.name AS club_name, n.source_stage, n.note_text, n.created_at
+    FROM club_insight_notes AS n
+    LEFT JOIN clubs AS c ON c.id = n.club_id
+    WHERE n.member_id = ?
+    ORDER BY n.created_at, n.id
+  `); },
+
+  get clubViabilitySignals() { return db.prepare(`
+    SELECT s.club_id, c.name AS club_name, s.source_stage, s.activity_signal, s.created_at
+    FROM club_viability_signals AS s
+    LEFT JOIN clubs AS c ON c.id = s.club_id
+    WHERE s.member_id = ?
+    ORDER BY s.created_at, s.id
+  `); },
+
+  // The onboarding steps and where the member stands on each. The held
+  // answers are never selected: they carry the claim target and the held
+  // claim-evidence rows, which can point at another person's legacy record.
+  get onboardingTasks() { return db.prepare(`
+    SELECT
+      task_type, state, completed_at, birth_date_changes,
+      last_attempt_opened_at, created_at, updated_at
+    FROM member_onboarding_tasks
+    WHERE member_id = ?
+    ORDER BY task_type
+  `); },
+
+  // The tags that define which items each of the member's galleries shows,
+  // and the tags that keep items out of it.
+  get galleryTags() { return db.prepare(`
+    SELECT mgt.gallery_id, t.tag_display, 'include' AS criterion
+    FROM member_gallery_tags AS mgt
+    INNER JOIN member_galleries AS g ON g.id = mgt.gallery_id
+    INNER JOIN tags AS t ON t.id = mgt.tag_id
+    WHERE g.owner_member_id = ?
+    UNION ALL
+    SELECT mget.gallery_id, t.tag_display, 'exclude' AS criterion
+    FROM member_gallery_exclude_tags AS mget
+    INNER JOIN member_galleries AS g ON g.id = mget.gallery_id
+    INNER JOIN tags AS t ON t.id = mget.tag_id
+    WHERE g.owner_member_id = ?
+    ORDER BY 1, 3, 2
+  `); },
+
+  get galleryExternalLinks() { return db.prepare(`
+    SELECT gl.gallery_id, gl.label, gl.url, gl.validated_at, gl.quarantine_reason,
+           gl.sort_order, gl.created_at
+    FROM gallery_external_links AS gl
+    INNER JOIN member_galleries AS g ON g.id = gl.gallery_id
+    WHERE g.owner_member_id = ?
+    ORDER BY gl.gallery_id, gl.sort_order, gl.id
+  `); },
+
+  // What others, and the system, did to the member's record, as the action and
+  // when it happened. Entries the member made themselves are their own actions
+  // and are not repeated here. The actor, reason, metadata and category are
+  // never selected: they name who acted and routinely name other people.
+  get auditActionsAbout() { return db.prepare(`
+    SELECT action_type, occurred_at
+    FROM audit_entries
+    WHERE entity_type = 'member' AND entity_id = ? AND actor_member_id IS NOT ?
+    ORDER BY occurred_at, id
+  `); },
 };
 
 // Member fields the payment flows read and write: the honor flags that supply a

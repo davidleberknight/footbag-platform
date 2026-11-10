@@ -140,6 +140,27 @@ describe('verify-host-env.sh — clean baseline', () => {
   });
 });
 
+describe('verify-host-env.sh — the side-effect switches on staging', () => {
+  // Defect caught: staging's payments or email switch moved to dark (the
+  // arming drill moves every switch both ways) failing the post-deploy check,
+  // although staging keeps its stub adapters whatever these switches say.
+  it('either switch dark on staging passes', () => {
+    const env = mutate(/^EMAIL_SEND_ARMED=armed$/m, 'EMAIL_SEND_ARMED=dark',
+      mutate(/^PAYMENTS_ARMED=armed$/m, 'PAYMENTS_ARMED=dark'));
+    const result = runScript({ envFilePath: writeEnvFile(env) });
+    expect(result.exitCode, result.stdout).toBe(0);
+    expect(result.stdout).not.toContain('  FAIL  ');
+  });
+
+  // Defect caught: a staging switch value that is neither armed nor dark
+  // passing, so a mistyped switch goes unnoticed.
+  it('a value that is neither armed nor dark still fails', () => {
+    const result = runScript({ envFilePath: writeEnvFile(mutate(/^PAYMENTS_ARMED=armed$/m, 'PAYMENTS_ARMED=off')) });
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toMatch(/FAIL +payments arming switch/);
+  });
+});
+
 describe('verify-host-env.sh — critical invariant FAIL boundaries', () => {
   it('FOOTBAG_ENV unset → FAIL env discriminator', () => {
     const env = mutate(/^FOOTBAG_ENV=.*\n/m, '');

@@ -295,6 +295,7 @@ beforeEach(() => {
     'deploy_to_aws.sh', 'deploy-code.sh', 'restore-db.sh', 'install-backup-timer.sh', 'activate-notification-feeds.sh',
     'harden-sshd.sh', 'verify-cwagent-metrics.sh', 'verify-host-snapshots.sh', 'verify-host-env.sh',
     'build-sqlite3.sh', 'provision-ssm-secret.sh', 'provision-turnstile-key.sh',
+    'confirm-alarm-subscription.sh',
   ];
   for (const name of siblings) {
     sh(join(work, 'siblings', name), [
@@ -742,11 +743,34 @@ describe('bootstrap-host.sh: the bootstrap', () => {
     const r = runTty(['--target', 'staging']);
     expect(r.status, r.out).toBe(0);
     const calls = siblingCalls().map((c) => c.split(' ')[0]);
-    expect(calls.filter((c) => !['terraform-apply-all.sh', 'install-known-hosts.sh', 'verify-cwagent-metrics.sh', 'verify-host-snapshots.sh', 'verify-host-env.sh'].includes(c))).toEqual([]);
+    expect(calls.filter((c) => !['terraform-apply-all.sh', 'install-known-hosts.sh', 'verify-cwagent-metrics.sh', 'verify-host-snapshots.sh', 'verify-host-env.sh', 'confirm-alarm-subscription.sh'].includes(c))).toEqual([]);
     const labels = sessions().map((s) => s.args);
     expect(labels.some((a) => /footbag-bootstrap-(account|provision)|footbag-reboot/.test(a))).toBe(false);
     expect(r.out).toMatch(/Stopped before the milestone-gated steps/);
     expect(r.out).toMatch(/The host is bootstrapped/);
+  });
+
+  // Defect caught: a bring-up that leaves the alarm email subscriptions it
+  // created unconfirmed, so no alarm reaches anyone until someone remembers a
+  // separate script; or one left pending failing the bring-up of a host that is
+  // otherwise done.
+  it('walks the alarm email confirmation at the terminal, and reports a topic left pending without failing', () => {
+    const done = runTty(['--target', 'staging']);
+    expect(done.status, done.out).toBe(0);
+    const walk = siblingCalls().find((c) => c.startsWith('confirm-alarm-subscription.sh'))!;
+    expect(walk).toMatch(/^confirm-alarm-subscription\.sh --target staging \| stdin=$/);
+
+    rmSync(join(state, 'siblings.log'));
+    writeFileSync(join(state, 'exit', 'confirm-alarm-subscription.sh'), '3');
+    const pending = runTty(['--target', 'staging']);
+    expect(pending.status, pending.out).toBe(0);
+    expect(pending.out).toMatch(/alarm email subscriptions still waiting for confirmation/);
+    expect(pending.out).toMatch(/The host is bootstrapped/);
+
+    writeFileSync(join(state, 'exit', 'confirm-alarm-subscription.sh'), '1');
+    const failed = runTty(['--target', 'staging']);
+    expect(failed.status).toBe(1);
+    expect(failed.out).toMatch(/the alarm email confirmation did not finish/);
   });
 
   it('names the gate script for the login alarm and the status view for the other alarm steps, never a values-file edit', () => {

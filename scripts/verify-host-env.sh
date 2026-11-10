@@ -489,13 +489,11 @@ else
 fi
 
 # Arming switches. Deploy-synced from the SSM app/* parameters on every
-# deploy; a host missing them predates the sync and needs a redeploy.
+# deploy; a host missing them predates the sync and needs a redeploy. Below
+# production these two are inert, since staging keeps its stub adapters
+# whatever they say, so either value is right there.
 check_matches "PAYMENTS_ARMED" '^(armed|dark)$' "payments arming switch (deploy-synced from SSM app/payments_armed)"
 check_matches "EMAIL_SEND_ARMED" '^(armed|dark)$' "email arming switch (deploy-synced from SSM app/email_send_armed)"
-if [[ "$TARGET" == "staging" ]]; then
-  check_equals "PAYMENTS_ARMED" "armed" "payments arming switch (staging seeds 'armed'; inert below production)"
-  check_equals "EMAIL_SEND_ARMED" "armed" "email arming switch (staging seeds 'armed'; inert below production)"
-fi
 
 # The two link-protection switches, deploy-synced the same way. Unlike the pair
 # above they are not inert below production: screening and probing a submitted

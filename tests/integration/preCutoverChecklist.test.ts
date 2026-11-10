@@ -416,6 +416,15 @@ describe.runIf(TOOLS_PRESENT)('pre-cutover checklist orchestrator', () => {
     expect(r.stderr).toMatch(/--target must be 'staging' or 'production'/);
   });
 
+  // Defect caught: a staging run sending its rollback snapshot to a
+  // disaster-recovery bucket staging does not have, failing part-way at AWS
+  // after the host work began.
+  it('refuses a staging snapshot up front, since staging has no disaster-recovery snapshot bucket', () => {
+    const r = runChecklist(dbPath, snapshotDir, ['--target', 'staging'], { FOOTBAG_PRECUTOVER_MOCK_AWS: '0' });
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/staging has no disaster-recovery snapshot bucket.*--no-snapshot/s);
+  });
+
   it('refuses --no-snapshot without a target, since there is no host to read', () => {
     const r = runChecklist(dbPath, snapshotDir, ['--no-snapshot']);
     expect(r.status).toBe(2);

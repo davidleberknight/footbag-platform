@@ -25,11 +25,15 @@
 #            compared after it.
 #   blocked  work not yet scriptable; it stops the run, so the pass cannot read
 #            as done. Blocked steps come last, so nothing runnable waits on them.
+#   mailwalk the alarm-mail confirmation walk, at the terminal. Every
+#            subscription confirmed is ok; a topic the operator leaves pending
+#            (its exit 3) is recorded as deferred and the run carries on, since
+#            alarm mail must not block the pass; any other failure stops it.
 # A kind ending in "+mail" needs a confirmed alarm-mail subscription (a test
-# alarm, a drill or proof that asks whether its email arrived). Confirming the
-# subscriptions is done outside this pass; until the environment's subscription
-# status reads clean, such a step is recorded as deferred and the run carries
-# on, and the closing report lists it as not proven.
+# alarm, a drill or proof that asks whether its email arrived). Each target's
+# mailwalk step comes before its first such step; until the environment's
+# subscription status reads clean, such a step is recorded as deferred and the
+# run carries on, and the closing report lists it as not proven.
 #
 # THE CREDENTIAL. The host sudo password arrives once, on stdin, from the file
 # the environment's alias selects. It goes on stdin to exactly the steps that
@@ -121,6 +125,7 @@ SECTION='## 9. Production-readiness sitting'
 #   {SNAPSHOT}, {SNAPSHOT>id}  the newest routine backup key (newer than <id>)
 #   {SINCE<id>}                the UTC time step <id> started
 #   {MIGRATION}                a probe migration made fresh for this run
+#   {PROBE_CLEANUP<id>}        a migration removing step <id>'s probe table
 # fallback: offered, when the step fails, as one more command to finish it.
 
 STAGING_STEPS=(
@@ -128,6 +133,7 @@ STAGING_STEPS=(
   's01b|idem|tty|rerun|scripts/apply-account-baseline.sh --enable-guardduty'
   's01c|idem|tty|rerun|scripts/terraform-apply-all.sh --target staging'
   's02|idem|cred|cred:0=scripts/bootstrap-host.sh --target staging --status|scripts/bootstrap-host.sh --target staging'
+  's03|mailwalk|tty|log|scripts/confirm-alarm-subscription.sh --target staging'
   's04a|once+mail|tty|log|scripts/send-test-alarm.sh --target staging --region us-west-2 --alarm footbag-staging-media-replication-backlog'
   's04b|ask+mail|-|log|Did the test alarm email arrive, and does /admin/alarms on staging show nothing active now that it has cleared?'
   's05a|ask|-|log|Durability check (1 of 2). In a browser signed in as a staging admin, change one small thing now (for example, add a word to a gallery'"'"'s description under /admin/curator/galleries) and note what you changed. Next, the tables are snapshotted, a throwaway migration is deployed, and you are asked whether your change survived. Made the change?'
@@ -139,17 +145,15 @@ STAGING_STEPS=(
   's07a|ask|-|log|Session check (1 of 2). Sign in to staging as a member in a browser now and stay signed in; the next steps rotate the signing key and the session secret and redeploy. Signed in?'
   's07b|once|cred|log|scripts/rotate-jwt-signing-key.sh --target staging'
   's07c|once|tty|log|scripts/provision-ssm-secret.sh --target staging --secret session_secret store'
-  's07d|once|tty|log|deploy_to_aws.sh --target staging'
+  's07d|once|cred|log|scripts/deploy-migrate.sh --target staging --migration {PROBE_CLEANUP<s05c}'
   's07e|ask|-|log|Session check (2 of 2). Reload the page in that browser. Were you signed out, and can you sign in again?'
   's08a|read|tty|-|scripts/arming.sh --target staging --status'
   's08b|idem|tty|rerun|scripts/arming.sh --target staging --state dark'
   's08c|read|tty|-|scripts/arming.sh --target staging --status'
   's08d|idem|tty|rerun|scripts/arming.sh --target staging --state armed'
   's08e|read|tty|-|scripts/arming.sh --target staging --status'
-  's09a|ask|-|log|Is the first admin registered on staging as an ordinary member?'
-  's09b|once|tty|log|scripts/admin-bootstrap-token.sh --target staging provision'
-  's09c|ask|-|log|Did the claim at /admin/bootstrap-claim on staging succeed?'
-  's09d|read|tty|stdout=^ABSENT:|scripts/admin-bootstrap-token.sh --target staging status'
+  's09e|idem|tty|rerun|scripts/admin-bootstrap-token.sh --target staging cleanup'
+  's09f|read|tty|stdout=^ABSENT:|scripts/admin-bootstrap-token.sh --target staging status'
   's10a|ask|-|log|Has every staging alarm watcher been told that staging alarms will fire during the drill?'
   's10b|ask|-|log|Was the incident drill walked as the DevOps guide gives it, and its write-up committed under evidence/postmortems/?'
   's99|blocked|-|-|The incident drill walked by a second operator from their own workstation'
@@ -191,6 +195,7 @@ PRODUCTION_STEPS=(
   'p10c|ask|-|log|Did the claim at /admin/bootstrap-claim on production succeed?'
   'p10d|read|tty|stdout=^ABSENT:|scripts/admin-bootstrap-token.sh --target production --profile footbag-operator status'
   'p10e|ask|-|log|Is one throwaway member registered on production, and did the admin-loss warning stop?'
+  'p10f|mailwalk|tty|log|scripts/confirm-alarm-subscription.sh --target production'
   'p11a|once+mail|tty|log|scripts/host-break-glass.sh --drill --target staging'
   'p11b|read+mail|tty|-|scripts/list-host-access-mints.sh --since {SINCE<p11a}'
   'p12a|ask|-|log|Session check (1 of 2). Sign in to production as a member in a browser now and stay signed in; the next steps rotate the signing key and the session secret and redeploy. Signed in?'
@@ -360,13 +365,13 @@ log_row() {
   printf '%s\n' "$row" >> "$LOG"
 }
 
-# The last row of this pass's section for a step: started, finished, result.
+# The last row of this pass's section for a step: started, finished, result, command.
 log_last() {
   local id="$1"
   awk -v sec="$SECTION" '$0 == sec { on = 1; next } /^## / { on = 0 } on' "$LOG" \
     | sed 's/\\|/\x01/g' \
     | awk -F'|' -v t="$TARGET" -v id="$1" '{ for (i = 1; i <= NF; i++) gsub(/^ +| +$/, "", $i) }
-        $4 == t && $5 == id { line = $2 "\t" $3 "\t" $7 } END { if (line != "") print line }'
+        $4 == t && $5 == id { line = $2 "\t" $3 "\t" $7 "\t" $6 } END { if (line != "") print line }'
 }
 
 # The UTC time a step started or finished, from this run or the log.
@@ -388,9 +393,31 @@ resolve_word() {
       if [[ -z "$MIGRATION_FILE" ]]; then
         local stamp; stamp="$(date -u +%Y%m%d%H%M%S)"
         MIGRATION_FILE="${SCRATCH}/sitting_durability_${stamp}.sql"
-        printf 'CREATE TABLE sitting_durability_%s (id INTEGER PRIMARY KEY);\n' "$stamp" > "$MIGRATION_FILE"
+        # A real migration the host records, which leaves the schema as it
+        # found it: a probe table left behind would make every later code-only
+        # deploy see the deployed schema differ from schema.sql and refuse.
+        printf 'CREATE TABLE sitting_durability_%s (id INTEGER PRIMARY KEY);\nDROP TABLE sitting_durability_%s;\n' "$stamp" "$stamp" > "$MIGRATION_FILE"
       fi
       printf '%s' "$MIGRATION_FILE" ;;
+    '{PROBE_CLEANUP<'*'}')
+      # Removes the probe table step <ref> created. The probe drops its own
+      # table, so this is normally a no-op the host still records; it is what
+      # clears a table a probe left behind, which a restore of a backup taken
+      # after the probe also brings back.
+      ref="${word#'{PROBE_CLEANUP<'}"; ref="${ref%'}'}"
+      local stamp=""
+      if [[ -n "$MIGRATION_FILE" ]]; then
+        stamp="${MIGRATION_FILE##*sitting_durability_}"
+      else
+        line="$(log_last "$ref")"
+        [[ -n "$line" && "$(cut -f3 <<<"$line")" == ok* ]] || { echo "step ${ref} has no ok row, so there is no probe table to remove" >&2; return 1; }
+        stamp="$(cut -f4 <<<"$line")"; stamp="${stamp##*sitting_durability_}"
+      fi
+      stamp="${stamp%.sql}"
+      [[ "$stamp" =~ ^[0-9]{14}$ ]] || { echo "step ${ref}'s probe migration name gives no timestamp ('${stamp}')" >&2; return 1; }
+      key="${SCRATCH}/sitting_durability_cleanup_${stamp}.sql"
+      printf 'DROP TABLE IF EXISTS sitting_durability_%s;\n' "$stamp" > "$key"
+      printf '%s' "$key" ;;
     '{SINCE<'*'}')
       ref="${word#'{SINCE<'}"; ref="${ref%'}'}"
       when="$(step_time started "$ref")" || { echo "no start time recorded for step ${ref}" >&2; return 1; }
@@ -521,7 +548,9 @@ MAIL_STATE=""
 mail_confirmed() {
   if [[ -z "$MAIL_STATE" ]]; then
     MAIL_STATE=pending
-    proof_passes "tty:0=scripts/reconfirm-alarm-subscriptions.sh --target ${TARGET} --status" && MAIL_STATE=confirmed
+    # 0: every subscription confirmed; 4: confirmed, some by clicking the
+    # email link, which receives alarm mail all the same.
+    proof_passes "tty:0,4=scripts/reconfirm-alarm-subscriptions.sh --target ${TARGET} --status" && MAIL_STATE=confirmed
   fi
   [[ "$MAIL_STATE" == confirmed ]]
 }
@@ -663,6 +692,21 @@ for (( i = FIRST; i <= LAST; i++ )); do
   report="$(new_report)"
   rc=0; run_child "$S_STDIN" "$report" "$out" "${CMD_WORDS[@]}" || rc=$?
   failed=""
+
+  # The confirmation walk: a topic left pending defers, never stops; what it
+  # confirmed is read afresh by the next step that needs mail.
+  if [[ "$S_KIND" == mailwalk ]]; then
+    MAIL_STATE=""
+    if (( rc == 3 )); then
+      hand_on "$report" warn
+      rm -f -- "$report"
+      log_row "$S_ID" "$started" "$CURRENT_CMD" "deferred (alarm mail not confirmed)"
+      cr_unproved "deferred until alarm mail is confirmed: ${S_ID}"
+      echo "Deferred: ${S_ID} left a subscription pending; run it again with --from-step ${S_ID} once the emails are to hand."
+      CURRENT=""
+      continue
+    fi
+  fi
   (( rc == 0 )) || failed="exit ${rc}"
 
   if [[ -z "$failed" ]]; then

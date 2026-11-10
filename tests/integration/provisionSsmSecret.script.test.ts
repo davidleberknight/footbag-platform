@@ -216,11 +216,14 @@ describe('provision-ssm-secret.sh — storing and rotating', () => {
     expect(readFileSync(valueFile, 'utf8')).toBe(REAL);
   });
 
-  it('rotates a real value once ROTATE is typed at the terminal', () => {
+  it('rotates a real value once APPLY is typed at the terminal', () => {
     writeFileSync(valueFile, REAL);
-    const r = runAtTerminal('ROTATE');
+    const r = runAtTerminal('APPLY');
 
     expect(r.status, r.out).toBe(0);
+    // The operator is told nothing is to be kept: the value goes to Parameter
+    // Store only, so no vault entry follows a rotation.
+    expect(r.out).toMatch(/Nothing goes in the vault/);
     const stored = readFileSync(valueFile, 'utf8');
     expect(stored).toMatch(/^[0-9a-f]{64}$/);
     expect(stored).not.toBe(REAL);
@@ -230,7 +233,7 @@ describe('provision-ssm-secret.sh — storing and rotating', () => {
     // Defect caught: a prompt that accepts a near miss, or treats an empty
     // answer as consent.
     writeFileSync(valueFile, REAL);
-    const r = runAtTerminal('rotate');
+    const r = runAtTerminal('ROTATE');
 
     expect(r.status).toBe(1);
     expect(r.out).toContain('Aborted');

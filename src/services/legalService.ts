@@ -49,7 +49,7 @@ export interface LegalContent {
 // Static content
 // ---------------------------------------------------------------------------
 
-const LAST_UPDATED = '2026-10-08';
+const LAST_UPDATED = '2026-11-10';
 
 const PRIVACY_SECTION: LegalSection = {
   id: 'privacy',
@@ -63,7 +63,7 @@ const PRIVACY_SECTION: LegalSection = {
     {
       subheading: 'What we collect',
       body: prose(
-        'When you register an account we collect your name, email address, and a password, which is stored only as a cryptographic hash. You may optionally add profile information such as location, bio, and competition history. When you upload photos, images are re-encoded and stored on our image server; metadata such as EXIF and GPS information is stripped at upload.'),
+        'When you register we collect your name, email address and a password, stored only as a cryptographic hash. We also ask your city, country and date of birth, which we use to find any records of yours on the old footbag.org, and your gender, which decides which competition divisions you can enter. You may add a phone or WhatsApp number, shown only to signed-in members and only if you choose, a bio, profile links, a profile photo and your competition history. If you claim an account from the old footbag.org, we carry over what it held, which can include a street address and postal code. Payments and donations are processed by Stripe; card details never reach us, and we keep a record of each payment and any comment you add to a donation. Uploaded photos are re-encoded and stripped of EXIF and GPS metadata. We do not collect health, biometric or other sensitive categories of data; please keep such details out of your bio and other free text.'),
     },
     {
       subheading: 'Cookies',

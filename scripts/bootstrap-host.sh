@@ -1166,5 +1166,19 @@ if (( RENDER_PENDING > 0 )); then
 fi
 echo "The host is bootstrapped."
 cr_proved "every bootstrap step reads done on ${ALIAS}"
+
+# The alarm email subscriptions Terraform made reach no one until each is
+# confirmed from its email, so the walk runs here rather than being left for
+# someone to remember. A subscription left pending does not fail the host,
+# which is done; it is reported, and the walk is the command to finish it.
+echo ""
+echo "== alarm email subscriptions =="
+walk_rc=0
+bash "${BH_SCRIPTS}/confirm-alarm-subscription.sh" --target "$TARGET" </dev/tty || walk_rc=$?
+case "$walk_rc" in
+  0) cr_proved "every alarm email subscription on ${TARGET} is confirmed" ;;
+  3) cr_unproved "alarm email subscriptions still waiting for confirmation on ${TARGET}: bash scripts/confirm-alarm-subscription.sh --target ${TARGET}" ;;
+  *) cr_error "the alarm email confirmation did not finish (exit ${walk_rc}); rerun bash scripts/confirm-alarm-subscription.sh --target ${TARGET}" ;;
+esac
 cr_unproved "the milestone-gated steps named above: each waits on its milestone"
 cr_finish

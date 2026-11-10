@@ -224,9 +224,11 @@ do_store() {
         echo "the rotation, and the host serves the old value until a deploy runs."
         ;;
     esac
-    printf 'Type ROTATE to continue, anything else to abort: ' > /dev/tty
+    echo "Nothing goes in the vault: the new value is generated here and kept only"
+    echo "in Parameter Store, and a lost one is replaced by storing a fresh one."
+    printf "Type 'APPLY' to rotate it, anything else to abort: " > /dev/tty
     IFS= read -r typed < /dev/tty
-    if [[ "$typed" != "ROTATE" ]]; then
+    if [[ "$typed" != "APPLY" ]]; then
       echo "Aborted. Nothing was generated and nothing was written."
       exit 1
     fi

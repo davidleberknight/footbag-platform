@@ -187,15 +187,15 @@ describe('bringup-status.sh — alarm gates, alarm subscriptions and GuardDuty',
     expect(rowsFor('production', [])).toMatch(/11\. Alarm gates\s+UNKNOWN/);
   });
 
-  it('holds a click-confirmed or unconfirmed subscription pending with its command', () => {
-    // Defects caught: a subscription an unsubscribe link can remove, or one that
-    // receives nothing, reads as alarm mail that will arrive.
+  it('reads a click-confirmed subscription done and an unconfirmed one pending with its command', () => {
+    // Defects caught: a subscription that receives nothing reads as alarm mail
+    // that will arrive; or one confirmed by a click, which receives alarm mail,
+    // held pending so the operator is asked to confirm it again.
     const clicked = rowsFor('staging', ['SUBS_STATE=click', 'SUBS_DETAIL=footbag-staging-alarms: ops@example.test (clicked)']);
-    expect(clicked).toMatch(/12\. Alarm subscriptions\s+PENDING\s+confirmed by a click.*footbag-staging-alarms/);
-    expect(clicked).toMatch(/reconfirm-alarm-subscriptions\.sh --target staging/);
+    expect(clicked).toMatch(/12\. Alarm subscriptions\s+DONE\s+confirmed.*footbag-staging-alarms/);
     const pending = rowsFor('staging', ['SUBS_STATE=pending']);
     expect(pending).toMatch(/12\. Alarm subscriptions\s+PENDING\s+awaiting confirmation/);
-    expect(pending).toMatch(/confirm-alarm-subscription\.sh --target staging/);
+    expect(pending).toMatch(/Confirm subscription/);
     expect(rowsFor('staging', ['SUBS_STATE=confirmed'])).toMatch(/12\. Alarm subscriptions\s+DONE/);
   });
 
@@ -276,7 +276,7 @@ describe('bringup-status.sh — alarm gates, alarm subscriptions and GuardDuty',
     // unconfirmed subscriptions read done; or a run that failed part-way, with
     // no proven line, reads as every subscription confirmed.
     const clicked = liveAwsProbe('staging', 'ENABLED', SUBS_CAPTURED_STAGING);
-    expect(clicked).toMatch(/12\. Alarm subscriptions\s+PENDING\s+confirmed by a click.*footbag-staging-alarms: ops@example\.test \(clicked\); footbag-staging-alarms-usw2: ops@example\.test \(clicked\)/);
+    expect(clicked).toMatch(/12\. Alarm subscriptions\s+DONE\s+confirmed.*footbag-staging-alarms: ops@example\.test \(clicked\); footbag-staging-alarms-usw2: ops@example\.test \(clicked\)/);
     const pending = liveAwsProbe('production', 'ENABLED', SUBS_CAPTURED_PENDING);
     expect(pending).toMatch(/12\. Alarm subscriptions\s+PENDING\s+awaiting confirmation: footbag-production-alarms-usw2: ops@example\.test \(pending\)/);
     const allConfirmed = SUBS_CAPTURED_PENDING.split('\n').filter(l => !l.startsWith('WARNING')).join('\n');
