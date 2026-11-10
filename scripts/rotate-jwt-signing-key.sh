@@ -172,10 +172,13 @@ done
 (( ok )) || die "the site does not answer through CloudFront (${PROBE_URL}) after the restart. A container that cannot load the new key fails its readiness check; read its logs, then resume with --from-step 2."
 
 echo ""
-echo "The new key is live. What this script cannot see is the other half of the"
-echo "rotation: a session signed in before step 1 must now be signed out. Check it"
-echo "in a browser that was signed in before the rotation."
-confirm_from_tty "Type 'APPLY' to confirm an earlier session is signed out: " "APPLY" \
+echo "The new signing key is live. One thing this script cannot see: whether a member"
+echo "who was signed in before the rotation has now been signed out, as they must be."
+echo "  1. Go to the browser where you signed in to https://${CF_DOMAIN} before this run."
+echo "  2. Reload the page."
+echo "  3. If it now shows you signed out, type APPLY. If you are still signed in,"
+echo "     type anything else: the rotation has not taken effect."
+confirm_from_tty "Signed out? Type 'APPLY' to confirm: " "APPLY" \
   || die "not confirmed. The key is rotated and the site answers; confirm the earlier session is refused, then re-run with --from-step 3."
 
 echo ""

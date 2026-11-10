@@ -96,7 +96,10 @@ fi
 for cmd in unzip openssl; do
   command -v "$cmd" >/dev/null 2>&1 || { echo "ERROR: ${cmd} is required." >&2; exit 1; }
 done
-if [[ -z "${FOOTBAG_BUILD_SQLITE_DOCKER:-}" ]] && ! timeout 10 docker info >/dev/null 2>&1; then
+# A freshly started CI runner's daemon can be slow to answer its first call,
+# so the wait is long enough not to call a slow start a stopped daemon, and
+# still bounded so a missing one fails rather than hangs.
+if [[ -z "${FOOTBAG_BUILD_SQLITE_DOCKER:-}" ]] && ! timeout 60 docker info >/dev/null 2>&1; then
   echo "ERROR: docker is not running; the build compiles inside the image container's pinned base." >&2
   exit 1
 fi
