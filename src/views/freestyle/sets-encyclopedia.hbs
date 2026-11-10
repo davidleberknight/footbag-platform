@@ -22,15 +22,12 @@
 <div class="wrapper">
 
   {{#if content.contents.length}}
-  {{! One anchor per section, in render order. Reuses the shared
-      .glossary-mini-toc styling. }}
-  <nav class="glossary-mini-toc" aria-label="In this encyclopedia">
-    <span class="glossary-mini-toc-label">In this encyclopedia:</span>
-    <ol class="glossary-mini-toc-list">
-      {{#each content.contents}}
-      <li><a href="#{{anchorId}}">{{label}}</a></li>
-      {{/each}}
-    </ol>
+  {{! One anchor per section, in render order. }}
+  <nav class="jump-bar" aria-label="In this encyclopedia">
+    <span class="jump-bar-label">In this encyclopedia:</span>
+    {{#each content.contents}}
+      <a href="#{{anchorId}}">{{label}}</a>{{#unless @last}} <span class="jump-bar-sep">·</span> {{/unless}}
+    {{/each}}
   </nav>
   {{/if}}
 
@@ -77,12 +74,10 @@
       that grammar.
     </p>
 
-    <figure class="compositional-sets-canonical-formula">
-      <code>{{content.howSetsAreBuilt.canonicalFormula}}</code>
-      <figcaption>The canonical base shape.</figcaption>
-    </figure>
+    <p><code>{{content.howSetsAreBuilt.canonicalFormula}}</code></p>
+    <p class="fs-sm">The canonical base shape.</p>
 
-    <p class="compositional-sets-softener">{{content.howSetsAreBuilt.softenerNote}}</p>
+    <p>{{content.howSetsAreBuilt.softenerNote}}</p>
 
     <p>
       Each set prefix describes the arc of the bag from plant to catch. The notation uses four
@@ -96,7 +91,7 @@
       side inward arc.
     </p>
 
-    <p class="compositional-sets-premise-bridge">
+    <p>
       Within that scope, several named "sets" turn out to be recognizable
       trick structures under a different reading: blurry reads as stepping
       with a paradox second dex. Miraging is retained as descriptive
@@ -108,7 +103,7 @@
 
   <section class="content-section" id="{{content.sectionIds.uptime}}" aria-label="Uptime Reinterpretation">
     <div class="section-heading"><h2>Uptime Reinterpretation</h2></div>
-    <p class="compositional-sets-ladders-intro">
+    <p>
       Several named sets read as trick structures performed uptime. The
       ladders below show the relationship between a set and its
       trick-structural source. Where the historical compilation and later
@@ -116,23 +111,16 @@
     </p>
 
     {{#each content.ladders}}
-      <article
-        id="{{this.anchorId}}"
-        class="compositional-ladder{{#if this.conflictNote}} compositional-ladder--conflict{{/if}}"
-      >
-        <header class="compositional-ladder-header">
-          <p class="compositional-ladder-set-name">{{this.setName}}</p>
-          <code class="compositional-ladder-set-notation">{{this.setNotation}}</code>
-        </header>
-        <p class="compositional-ladder-reinterpretation">&rarr; {{this.reinterpretation}}</p>
-        <ol class="compositional-ladder-steps">
-          {{#each this.steps}}
-            <li class="compositional-ladder-step"><code>{{this}}</code></li>
-          {{/each}}
-        </ol>
-        <p class="compositional-ladder-source"><span class="compositional-ladder-source-label">Source:</span> {{this.sourceCitation}}</p>
+      <article id="{{this.anchorId}}" class="card card-static">
+        <p class="card-title">{{this.setName}}</p>
+        <p><code>{{this.setNotation}}</code></p>
+        <p>&rarr; {{this.reinterpretation}}</p>
+        {{#each this.steps}}
+          <p><code>{{this}}</code></p>
+        {{/each}}
+        <div class="card-meta">Source: {{this.sourceCitation}}</div>
         {{#if this.conflictNote}}
-          <p class="compositional-ladder-conflict">{{this.conflictNote}}</p>
+          <p>{{this.conflictNote}}</p>
         {{/if}}
       </article>
     {{/each}}

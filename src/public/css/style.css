@@ -4169,130 +4169,6 @@ a.hashtag--media:hover {
    keeps a linked move readable at 4.5:1 or better. */
 .moves-tag a { color: var(--primary-ink-dk); }
 
-/* ─────────────────────────────────────────────────────────────────────
-   Set Encyclopedia: how sets are built, and the uptime-reinterpretation
-   ladders.
-   ───────────────────────────────────────────────────────────────────── */
-.compositional-sets-canonical-formula code {
-  font-size: 1rem;
-  color: var(--slate-800);
-  letter-spacing: 0.01em;
-}
-.compositional-sets-canonical-formula figcaption {
-  margin-top: var(--space-sm);
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  font-style: italic;
-}
-
-.compositional-sets-softener {
-  margin: var(--space-md) 0;
-  padding: var(--space-md) var(--space-lg);
-  border-left: 3px solid var(--border);
-  color: var(--text-muted);
-  font-size: 1rem;
-}
-
-.compositional-sets-premise-bridge {
-  margin: var(--space-sm) 0 var(--space-md);
-}
-
-/* Uptime-reinterpretation ladders: visual hierarchy with step indent. */
-.compositional-sets-ladders-intro {
-  max-width: 720px;
-  margin: 0 0 var(--space-lg);
-  color: var(--text-muted);
-}
-.compositional-ladder {
-  margin: var(--space-lg) 0;
-  padding: var(--space-lg);
-  background: var(--white);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--secondary);
-  border-radius: var(--radius-xs);
-}
-.compositional-ladder--conflict {
-  border-left-color: var(--slate-400);
-  border-left-style: dashed;
-}
-.compositional-ladder-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-md);
-  margin-bottom: var(--space-sm);
-}
-.compositional-ladder-set-name {
-  margin: 0;
-  font-weight: 600;
-  font-size: 1rem;
-  color: var(--slate-800);
-}
-.compositional-ladder-set-notation {
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  padding: var(--space-xs) var(--space-sm);
-  background: var(--slate-50);
-  border-radius: var(--radius-2xs);
-}
-.compositional-ladder-reinterpretation {
-  margin: var(--space-sm) 0 var(--space-md);
-  font-size: 1rem;
-  color: var(--slate-800);
-  font-style: italic;
-}
-.compositional-ladder-steps {
-  margin: 0 0 var(--space-sm);
-  padding-left: var(--space-xl);
-  list-style: none;
-}
-.compositional-ladder-step {
-  position: relative;
-  margin: var(--space-xs) 0;
-  padding: var(--space-xs) var(--space-sm);
-  background: var(--slate-50);
-  border-radius: var(--radius-2xs);
-  font-size: 0.9rem;
-}
-.compositional-ladder-step::before {
-  content: '·';
-  position: absolute;
-  left: -1.2rem;
-  color: var(--text-muted);
-  font-weight: 600;
-}
-.compositional-ladder-step code {
-  background: transparent;
-  padding: 0;
-  color: var(--text-muted);
-}
-.compositional-ladder-source {
-  margin: var(--space-sm) 0 0;
-  font-size: 0.9rem;
-  color: var(--text-muted);
-}
-.compositional-ladder-source-label {
-  font-weight: 600;
-  margin-right: var(--space-xs);
-}
-.compositional-ladder-conflict {
-  margin: var(--space-sm) 0 0;
-  padding: var(--space-sm) var(--space-md);
-  background: var(--slate-100);
-  border-left: 2px dashed var(--slate-400);
-  border-radius: var(--radius-2xs);
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  font-style: italic;
-}
-
-@media (max-width: 480px) {
-  .compositional-ladder-header {
-    flex-direction: column;
-    gap: var(--space-xs);
-  }
-}
-
 .col-year {
   width: 4rem;
   white-space: nowrap;
@@ -8156,57 +8032,12 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   Glossary structural refinements: intro card, tier-break rulers, §7 mini-TOC,
+   Glossary structural refinements: intro card, tier-break rulers,
    §7 operational-notation collapsible details. Pure structural polish; no
    new ontology surfaces. Anchors preserved.
    ───────────────────────────────────────────────────────────────────────── */
 
 /* Intro card: onboarding orientation block above §1 Movement Basics */
-/* §7 mini-TOC: inline pill row beneath the Notation H2 */
-.glossary-mini-toc {
-  margin: var(--space-xs) 0 var(--space-lg);
-  padding: var(--space-sm) var(--space-md);
-  background: var(--parch-75);
-  border: 1px solid var(--parch-300);
-  border-radius: var(--radius-xs);
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-sm) var(--space-md);
-  font-size: 0.9rem;
-}
-.glossary-mini-toc-label {
-  font-weight: 600;
-  color: var(--earth-750);
-  margin-right: var(--space-xs);
-}
-.glossary-mini-toc-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-xs) var(--space-sm);
-}
-.glossary-mini-toc-list li {
-  display: inline-flex;
-  align-items: center;
-}
-.glossary-mini-toc-list li:not(:last-child)::after {
-  content: "·";
-  margin-left: var(--space-sm);
-  color: var(--text-muted);
-}
-.glossary-mini-toc-list a {
-  text-decoration: none;
-  color: var(--primary-ink);
-  font-weight: 500;
-}
-.glossary-mini-toc-list a:hover,
-.glossary-mini-toc-list a:focus {
-  text-decoration: underline;
-}
-
 /* §7 Operational notation: collapsible reference subsection */
 .glossary-operational-details {
   margin: var(--space-xl) 0 var(--space-sm);

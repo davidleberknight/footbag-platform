@@ -10,6 +10,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
+import Handlebars from 'handlebars';
 import { cachedGet } from '../fixtures/cachedGet';
 
 import {
@@ -132,7 +133,12 @@ describe('GET /freestyle/sets — the sections below the list', () => {
   it('records both readings where Holden and the platform disagree, rather than picking one', async () => {
     // Defect caught: a documented disagreement silently normalized to one reading.
     const res = await page('/freestyle/sets');
-    expect(res.text).toContain('compositional-ladder--conflict');
+    const { UPTIME_REINTERPRETATION_LADDERS } = await import('../../src/content/freestyleCompositionalSets');
+    const disputed = UPTIME_REINTERPRETATION_LADDERS.filter(ladder => ladder.conflictNote !== null);
+    expect(disputed.length).toBeGreaterThan(0);
+    for (const ladder of disputed) {
+      expect(res.text, ladder.setName).toContain(Handlebars.escapeExpression(ladder.conflictNote!));
+    }
   });
 
   it('does not present the older Furious three-dex reading as current structure', async () => {
