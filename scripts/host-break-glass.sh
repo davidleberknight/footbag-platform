@@ -509,6 +509,18 @@ if [[ "$MODE" == drill ]]; then
 
   # Delivery to a mailbox and what the admin dashboard showed are outside AWS's
   # reach from here, so the operator attests to them.
+  if [[ "$ASSUME_YES" != "yes" ]] && terminal_present; then
+    {
+      echo ""
+      echo "This drill raised ${ALARM_NAME}, the account-wide break-glass alarm that"
+      echo "production's alarm topic carries, whichever host was drilled. Check the"
+      echo "operations mailbox: AWS Notifications sends two emails, one with a subject"
+      echo "starting 'ALARM: \"${ALARM_NAME}\"' and, once it clears, one starting"
+      echo "'OK: \"${ALARM_NAME}\"'. Then open production's /admin/alarms, signed in"
+      echo "as an admin: it lists the alarm while it fires and nothing once it clears."
+      echo "A no to either is recorded as an error in this run's report."
+    } > /dev/tty
+  fi
   for question in \
       "the alarm email for ${ALARM_NAME} arrive" \
       "production's admin dashboard (/admin/alarms) raise and then clear the platform alarm"; do

@@ -65,15 +65,37 @@ describe('reconfirm-alarm-subscriptions.sh --status', () => {
     expect(r.stderr).not.toMatch(/ WARN/);
   });
 
-  // Defect caught: a subscription confirmed by a click, which any unsubscribe
-  // link in an alarm email can remove, reported as fine.
+  // Defect caught: the shared group's subscription confirmed by a click, which
+  // any member clicking an unsubscribe link removes for everyone, reported as
+  // fine. The group is the address on the critical-alarms topic, and its
+  // us-west-2 subscription is the group's too.
   // A caller that loops on this status (the readiness sitting) reads the exit
   // code: 4 for clicked only must not read as clean, nor as pending.
-  it('warns on a click-confirmed subscription, naming the recreation, and exits 4', () => {
-    const r = run(['--status'], { SUBS_footbag_staging_alarms_usw2: 'sub-2\\tops@example.invalid\\n', AUTH_2: 'false' });
+  it('warns on the group address confirmed by a click, naming the recreation, and exits 4', () => {
+    const r = run(['--status'], {
+      SUBS_footbag_staging_alarms_critical: 'sub-3\\tgroup@example.invalid\\n',
+      SUBS_footbag_staging_alarms_usw2: 'sub-2\\tgroup@example.invalid\\n',
+      AUTH_2: 'false',
+    });
     expect(r.status, r.stderr).toBe(4);
-    expect(r.stderr).toMatch(/footbag-staging-alarms-usw2: ops@example\.invalid was confirmed by a click/);
+    expect(r.stderr).toMatch(/footbag-staging-alarms-usw2: group@example\.invalid was confirmed by a click/);
     expect(r.stderr).toMatch(/reconfirm-alarm-subscriptions\.sh --target staging/);
+  });
+
+  // Defect caught: the operations mailbox, whose click confirmation counts as
+  // confirmed, reported as a warning to recreate, so every clean run tells the
+  // operator to undo a confirmation that is in order.
+  it('reads the operations mailbox confirmed by a click as confirmed, with no warning, and exits 4', () => {
+    const r = run(['--status'], {
+      SUBS_footbag_staging_alarms: 'sub-1\\tops@example.invalid\\n',
+      SUBS_footbag_staging_alarms_usw2: 'sub-2\\tops@example.invalid\\n',
+      AUTH_1: 'false',
+      AUTH_2: 'false',
+    });
+    expect(r.status, r.stderr).toBe(4);
+    expect(r.stdout).toMatch(/footbag-staging-alarms: ops@example\.invalid confirmed by a click, which counts for the operations mailbox/);
+    expect(r.stdout).toMatch(/footbag-staging-alarms-usw2: ops@example\.invalid confirmed by a click/);
+    expect(r.stderr).not.toMatch(/WARNING/);
   });
 
   // Defect caught: a caller told "clean" while an address still waits for its
@@ -88,7 +110,7 @@ describe('reconfirm-alarm-subscriptions.sh --status', () => {
   it('exits 3 when one subscription is pending and another clicked', () => {
     const r = run(['--status'], { ...SUBS, AUTH_2: 'false' });
     expect(r.status, r.stderr).toBe(3);
-    expect(r.stderr).toMatch(/was confirmed by a click/);
+    expect(r.stdout).toMatch(/ops@example\.invalid confirmed by a click/);
   });
 
   // Defect caught: a failed read reported as pending, so a caller would loop

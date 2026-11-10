@@ -235,7 +235,9 @@ for alarm in "${ALARMS[@]}"; do
 done
 
 echo ""
-echo "Sent. Each watcher confirms two mails from the notification service for each alarm"
-echo "  above: one reporting ALARM, then one reporting OK. Record who received both in the cutover log."
+echo "Sent. For each alarm above, every watcher should receive two emails from AWS"
+echo "  Notifications (no-reply@sns.amazonaws.com): a subject starting ALARM: and then"
+echo "  one starting OK:, each followed by the alarm's name. They can take a few minutes."
+echo "  Record who received both in the cutover log."
 cr_unproved "that each watcher received both mails for each alarm: only the watchers can confirm that"
 cr_finish

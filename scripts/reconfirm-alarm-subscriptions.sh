@@ -15,8 +15,11 @@
 #   --status   Read-only. Lists every email subscription on this environment's
 #              three alarm topics (main and critical in us-east-1, the Health
 #              topic in us-west-2) and reports each as authenticated, clicked or
-#              pending. A clicked or pending one is a warning in the closing
-#              report.
+#              pending. A pending one is a warning in the closing report, and so
+#              is a clicked one on the shared group's address: any member of the
+#              group can remove it for everyone. The group is the address on the
+#              critical topic, which only the group subscribes to. A click on the
+#              operations mailbox counts as confirmed and is listed, not warned.
 #   (default)  Raises alarm_email_subscription_generation by one in the
 #              environment's values file, shown as a diff and confirmed with a
 #              typed APPLY, then applies the tree. Every alarm email
@@ -89,6 +92,9 @@ if (( STATUS )); then
   topics_read=0
   pending=0
   clicked=0
+  # The critical topic is read before the us-west-2 one, so the group's
+  # address is known by the time its us-west-2 subscription is judged.
+  group_addresses=" "
   for spec in "us-east-1 footbag-${TARGET}-alarms" "us-east-1 footbag-${TARGET}-alarms-critical" "us-west-2 footbag-${TARGET}-alarms-usw2"; do
     read -r region name <<<"$spec"
     if ! topic_arns="$("$AWS_BIN" sns list-topics --region "$region" --query 'Topics[].TopicArn' --output text 2>&1)"; then
@@ -109,6 +115,7 @@ if (( STATUS )); then
     [[ -n "$subs" ]] || { echo "  ${name}: no email subscriptions"; continue; }
     while read -r sub_arn endpoint; do
       [[ -n "$sub_arn" ]] || continue
+      [[ "$name" == "footbag-${TARGET}-alarms-critical" ]] && group_addresses+="${endpoint} "
       if [[ "$sub_arn" == "PendingConfirmation" ]]; then
         cr_warn "${name}: ${endpoint} is pending confirmation; confirm its link with bash scripts/confirm-alarm-subscription.sh --target ${TARGET}"
         pending=$(( pending + 1 ))
@@ -121,8 +128,11 @@ if (( STATUS )); then
       fi
       if [[ "$authenticated" == "true" ]]; then
         echo "  ${name}: ${endpoint} authenticated"
-      else
+      elif [[ "$group_addresses" == *" ${endpoint} "* ]]; then
         cr_warn "${name}: ${endpoint} was confirmed by a click, so an unsubscribe link can remove it; recreate it with bash scripts/reconfirm-alarm-subscriptions.sh --target ${TARGET}"
+        clicked=$(( clicked + 1 ))
+      else
+        echo "  ${name}: ${endpoint} confirmed by a click, which counts for the operations mailbox"
         clicked=$(( clicked + 1 ))
       fi
     done <<<"$subs"

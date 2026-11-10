@@ -240,7 +240,7 @@ describe('a full staging run', () => {
   // Defect caught: steps run out of the order their dependencies need, run
   // twice, or a step skipped silently.
   it('runs every step once, in order, and stops at the blocked step', () => {
-    const r = sit(['--target', 'staging'], YES(9));
+    const r = sit(['--target', 'staging'], YES(7));
     expect(r.status, r.out).toBe(3);
     expect(r.out).toMatch(/VERDICT: BLOCKED AT s99/);
     const ids = rows().map((c) => c[3]);
@@ -268,9 +268,12 @@ describe('a full staging run', () => {
   // Defect caught: the password reaching a step that reads its stdin as an
   // answer or a link, or missing from one that needs it, or put in argv.
   it('gives the password on stdin to exactly the steps that take it', () => {
-    sit(['--target', 'staging', '--to-step', 's07e'], YES(6));
-    const takesIt = /^scripts\/(bootstrap-host|deploy-migrate|restore-db|rotate-jwt-signing-key)\.sh /;
+    sit(['--target', 'staging'], YES(7));
+    const takesIt = /^scripts\/(bootstrap-host|deploy-migrate|restore-db|rotate-jwt-signing-key|incident-drill)\.sh /;
     expect(calls().length).toBeGreaterThan(10);
+    // The drill stops and restarts the host, so it needs the password; a table
+    // that dropped it, or ran it as an ask, would leave the drill unwalked.
+    expect(calls().some((c) => /^scripts\/incident-drill\.sh --target staging$/.test(c.call) && c.line === PASSWORD)).toBe(true);
     for (const c of calls()) {
       expect(c.call, c.call).not.toContain(PASSWORD);
       if (takesIt.test(c.call)) {
@@ -287,7 +290,7 @@ describe('stopping', () => {
   // saying what did not run and how to resume.
   it('stops at the first failed step, names what did not run and how to resume', () => {
     writeRules([{ match: 'scripts/send-test-alarm.sh *', codes: [1] }]);
-    const r = sit(['--target', 'staging'], YES(9));
+    const r = sit(['--target', 'staging'], YES(7));
     expect(r.status).toBe(1);
     expect(r.out).toMatch(/VERDICT: STOPPED AT s04a/);
     expect(r.out).toMatch(/--from-step s04a/);
@@ -584,6 +587,30 @@ describe('the restore fallback and the archive edge wait', () => {
     expect(r.status).toBe(1);
     expect(rows().at(-1)![5]).toMatch(/^failed/);
     expect(r.out).toMatch(/and its fallback exit 2/);
+  });
+
+  // Defect caught: a live endpoint missing events left for the operator to
+  // repair by hand, or a repaired endpoint recorded as still short.
+  it('offers the endpoint repair when the live endpoint check fails, and records it', () => {
+    writeRules([
+      { match: 'scripts/create-stripe-endpoint.sh --target production --mode live --verify', codes: [1] },
+      { match: 'scripts/create-stripe-endpoint.sh --target production --mode live --verify --repair', codes: [0] },
+    ]);
+    const r = sit(['--target', 'production', '--from-step', 'p19b', '--to-step', 'p19b'], ['yes']);
+    expect(r.status, r.out).toBe(0);
+    expect(firstCall(/--verify --repair$/)).toBeGreaterThan(firstCall(/--mode live --verify$/));
+    const row = rows().at(-1)!;
+    expect(row[5]).toBe('ok');
+    expect(row[6]).toMatch(/finished by --repair/);
+  });
+
+  // Defect caught: the archive stage applied to production before the same
+  // stage has proved its already-done path on staging.
+  it('proves the archive stage on staging before it runs on production', () => {
+    sit(['--target', 'production', '--from-step', 'p14c', '--to-step', 'p15a']);
+    const staging = firstCall(/^scripts\/production-cutover\.sh --target staging --stage archive-base$/);
+    expect(staging).toBeGreaterThan(-1);
+    expect(staging).toBeLessThan(firstCall(/^scripts\/production-cutover\.sh --target production --stage archive-base$/));
   });
 
   // Defect caught: the edge log check run before the hour its logs need, or

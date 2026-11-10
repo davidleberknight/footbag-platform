@@ -48,9 +48,10 @@
 #             Required, with no default.
 #   --yes     confirm without the typed prompt.
 #
-# Exits 0 when every subscription it was given is confirmed with authentication
-# required on unsubscribe (including when it already was, and, at a terminal,
-# when nothing was pending), 1 when one could not be confirmed or the read-back
+# Exits 0 when every subscription it was given is confirmed: with authentication
+# required on unsubscribe for a pasted or piped link, or, at a terminal, by a
+# click on the operations mailbox's link (including when it already was, and, at
+# a terminal, when nothing was pending), 1 when one could not be confirmed or the read-back
 # disagrees, 2 on a usage error or a refused piped link, and 3 at a terminal
 # when a subscription is still pending at the end because its link was skipped.
 #
@@ -278,7 +279,14 @@ Each one has its own confirmation email from AWS. To find them:
   2. Paste this into the search box (in Gmail it also searches Spam):
        from:no-reply@sns.amazonaws.com "Subscription Confirmation" in:anywhere newer_than:2d
      Alarm emails come from the same sender; this search shows only the
-     confirmation emails.
+     confirmation emails. Each one's text names its topic ("You have chosen to
+     subscribe to the topic: ...:<topic name>"); match it to the list above.
+     Gmail groups them into one conversation and hides the repeated text,
+     link included. If an email shows no "Confirm subscription" link, delete
+     the older confirmation emails in that conversation (their links no
+     longer work) and reopen it, or open the email's menu (three dots at its
+     top right), choose "Show original" and copy the link that contains
+     ConfirmSubscription.
   3. In each one, click "Confirm subscription", then come back here and press
      Enter: this run reads AWS again and shows what is still waiting. Or, if
      you prefer, right-click "Confirm subscription", choose "Copy link
@@ -294,7 +302,7 @@ EOF
 HAVE="yes"
 if (( ! SENT_FRESH )); then
   echo ""
-  printf 'Do you have these confirmation emails from the last 48 hours? Answer yes to paste their links now, or no to have fresh ones sent first (yes/no): '
+  printf 'Do you have a confirmation email from the last 48 hours for every subscription listed above? yes = confirm them now. no = recreate all %d of them, which makes every confirmation link you already have stop working, and AWS sends new emails within a few minutes (it asks its own APPLY first). (yes/no): ' "${#PENDING[@]}"
   HAVE=""
   IFS= read -r HAVE || true
 fi

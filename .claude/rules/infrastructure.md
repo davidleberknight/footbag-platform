@@ -66,7 +66,7 @@ for an import only for a record Terraform did not create.
 
 ## Lifecycle blocks carry the durability guarantees
 
-Three uses, each deliberate, none decorative. A bucket holding data that cannot
+Each use is deliberate, none decorative. A bucket holding data that cannot
 be regenerated carries `lifecycle { prevent_destroy = true }`. A resource that
 cannot be deleted while something still references it carries
 `create_before_destroy = true`: the ACM certificate a distribution attaches, and
@@ -76,7 +76,11 @@ cannot silently revert a production that has gone live and re-arm the destructiv
 deploy paths. A parameter Terraform is the sole writer of, including the arming
 switches, the identifiers published from the resources they name, and generated
 secrets, deliberately omits `ignore_changes`, so out-of-band drift reverts on the
-next apply and tfvars, SSM, and the host stay in one line of custody. Removing any of these is a durability change, not a cleanup.
+next apply and tfvars, SSM, and the host stay in one line of custody. A sub-setting
+AWS attaches to a resource that the provider cannot declare carries
+`ignore_changes` on that attribute alone, so a plan does not replace what AWS
+adds straight back and an apply can leave the tree clean; the resource's own
+settings stay managed. Removing any of these is a durability change, not a cleanup.
 
 ## Environment-scoped naming
 
