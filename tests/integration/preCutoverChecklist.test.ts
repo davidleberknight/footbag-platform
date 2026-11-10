@@ -348,6 +348,35 @@ describe.runIf(TOOLS_PRESENT)('pre-cutover checklist orchestrator', () => {
     }
   });
 
+  // Defect caught: a pass made before the zone moves either fails on the TTL it
+  // cannot yet observe, so no run can read clean, or leaves the gate out in
+  // silence, so the report reads as though every gate had looked.
+  it('leaves out only the DNS TTL gate with --skip-dns-ttl, and says so as not proven', () => {
+    buildFixtureDb(dbPath);
+    const r = runChecklist(dbPath, snapshotDir, ['--skip-dns-ttl']);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/GATE: DNS-TTL NOT RUN: left out by --skip-dns-ttl/);
+    // The preflight itself never ran, mocked or otherwise.
+    expect(r.stdout).not.toMatch(/--- DNS-TTL \(exit/);
+    // Every other gate still runs.
+    for (const label of ['SNAPSHOT', 'G1', 'G11', 'SHOWCASE-PRESENCE', 'PAYMENTS-BOOT']) {
+      expect(r.stdout).toMatch(new RegExp(`GATE: ${label}[^\\n]*PASS`));
+    }
+    const notProven = r.stderr.slice(r.stderr.search(/^Not proven:$/m));
+    expect(notProven).toContain('- the DNS TTL gate: left out by --skip-dns-ttl');
+    const warnings = r.stderr.slice(r.stderr.search(/^Warnings \(\d+\):$/m), r.stderr.search(/^Proven:$/m));
+    expect(warnings).not.toMatch(/DNS-TTL/);
+  });
+
+  // Defect caught: the flag skipping a gate that failed, so a real failure
+  // elsewhere reads as ready.
+  it('still blocks on another gate\'s failure with --skip-dns-ttl', () => {
+    buildFixtureDb(dbPath, { withNameVariants: false });
+    const r = runChecklist(dbPath, snapshotDir, ['--skip-dns-ttl']);
+    expect(r.status).not.toBe(0);
+    expect(r.stdout).toMatch(/GATE: G11[^\n]*FAIL/);
+  });
+
   // Defect caught: a database the footbag.org export never reached goes into
   // the cutover with its legal-name and honor gates unjudged, and the summary
   // row reads SKIP, so an operator scanning the summary sees no failure.

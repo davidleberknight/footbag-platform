@@ -310,6 +310,8 @@ describe('the record of which migrations have been applied', () => {
 
     expect(res.status, res.stderr).toBe(0);
     expect(res.stdout).toContain('MIGRATION APPLIED');
+    // The marked line the workstation reads to record that the migration ran.
+    expect(res.stdout).toMatch(new RegExp(`^---FOOTBAG-MIGRATION--- APPLIED ${NAMED.name.replace(/\./g, '\\.')}$`, 'm'));
     expect(ledger()).toHaveLength(1);
   });
 
@@ -327,6 +329,10 @@ describe('the record of which migrations have been applied', () => {
     // carries the file would otherwise read as proof the migration works.
     expect(second.stdout).toContain('MIGRATION SKIPPED');
     expect(second.stdout).toContain('already applied');
+    // A skip is marked as a skip, never as applied, so the workstation cannot
+    // record a migration that did not run.
+    expect(second.stdout).toMatch(/^---FOOTBAG-MIGRATION--- SKIPPED /m);
+    expect(second.stdout).not.toMatch(/^---FOOTBAG-MIGRATION--- APPLIED/m);
     expect(ledger()).toHaveLength(1);
   });
 

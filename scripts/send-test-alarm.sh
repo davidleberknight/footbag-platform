@@ -35,13 +35,22 @@
 #                   metrics AWS publishes only there (S3 replication backlog and
 #                   latency), which notify the backup region's alarm topic.
 #   --yes           proceed without the typed prompt.
+#   --status        read the named alarms' states and change nothing: no prompt,
+#                   no state set. Proves an alarm watching its metric reads OK, or
+#                   that a real breach (not a test raise) reached ALARM.
+#   --expect <OK|ALARM>  with --status: every named alarm must read this state.
+#   --wait-minutes <n>   with --expect: read again every minute until every
+#                   alarm reads the state or n minutes pass. Default 0, one read.
 #
 # Whether the mail arrived is checked by the people receiving it; the script says
 # what each should look for. Exits 0 when every state change was accepted, 1 when
-# one was refused, and 2 on a usage error.
+# one was refused, and 2 on a usage error. --status exits 0 when every alarm reads
+# the expected state (or, with no --expect, when every state was read), 3 when
+# one still does not once the wait is over, 1 when a read fails.
 #
-# Test seam: FOOTBAG_AWS_BIN replaces the AWS CLI for the alarm calls. A run using
+# Test seams: FOOTBAG_AWS_BIN replaces the AWS CLI for the alarm calls. A run using
 # it says so on stderr, because a stubbed run proves nothing about the account.
+# FOOTBAG_ALARM_POLL_SECS replaces the minute between --status reads.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -54,6 +63,9 @@ TARGET=""
 NAMES=()
 PREFIXES=()
 REGION_ARGS=()
+STATUS=0
+EXPECT=""
+WAIT_MINUTES=0
 
 usage() {
   sed -n '2,/^set -eu/{/^set -eu/d;p;}' "$0" | sed 's/^# \{0,1\}//'
@@ -73,6 +85,14 @@ while [[ $# -gt 0 ]]; do
                 *) echo "ERROR: --region must be us-east-1 or us-west-2" >&2; exit 2 ;;
               esac ;;
     --yes)    ASSUME_YES="yes"; shift ;;
+    --status) STATUS=1; shift ;;
+    --expect) case "${2:-}" in
+                OK|ALARM) EXPECT="$2"; shift 2 ;;
+                *) echo "ERROR: --expect must be OK or ALARM" >&2; exit 2 ;;
+              esac ;;
+    --wait-minutes)
+              [[ "${2:-}" =~ ^[0-9]+$ ]] || { echo "ERROR: --wait-minutes takes a whole number of minutes" >&2; exit 2; }
+              WAIT_MINUTES="$2"; shift 2 ;;
     -h|--help) usage 0 ;;
     *) echo "ERROR: unknown argument '$1'" >&2; exit 2 ;;
   esac
@@ -89,6 +109,14 @@ for given in "${NAMES[@]+"${NAMES[@]}"}" "${PREFIXES[@]+"${PREFIXES[@]}"}"; do
     exit 2
   fi
 done
+if [[ -n "$EXPECT" ]] && (( ! STATUS )); then
+  echo "ERROR: --expect reads a state, so it needs --status." >&2
+  exit 2
+fi
+if (( WAIT_MINUTES > 0 )) && [[ -z "$EXPECT" ]]; then
+  echo "ERROR: --wait-minutes waits for a state, so it needs --expect." >&2
+  exit 2
+fi
 
 # One closing report from here on. Sourced after the usage checks, so a usage
 # error keeps its plain exit 2.
@@ -138,6 +166,39 @@ for alarm in "${ALARMS[@]}"; do
   [[ "$actions" == *":footbag-${TARGET}-alarms-critical"* || "$actions" == *":footbag-${TARGET}-alarms-usw2"* ]] \
     && REACHES_GROUP["$alarm"]=1
 done
+
+# ── Status: read each alarm's state, changing nothing ───────────────────────
+if (( STATUS )); then
+  POLL_SECS="${FOOTBAG_ALARM_POLL_SECS:-60}"
+  [[ -n "${FOOTBAG_ALARM_POLL_SECS:-}" ]] && echo "NOTE: reading every ${POLL_SECS}s rather than every minute (test seam)." >&2
+  deadline=$(( SECONDS + WAIT_MINUTES * 60 ))
+  while :; do
+    waiting=()
+    for alarm in "${ALARMS[@]}"; do
+      state=""
+      if ! state="$("$AWS_BIN" cloudwatch describe-alarms "${REGION_ARGS[@]+"${REGION_ARGS[@]}"}" --alarm-names "$alarm" \
+            --query 'MetricAlarms[0].StateValue' --output text)"; then
+        cr_die "the state of ${alarm} could not be read; check the identity above"
+      fi
+      echo "  ${alarm}: ${state}"
+      [[ -n "$EXPECT" && "$state" != "$EXPECT" ]] && waiting+=("${alarm} (${state})")
+    done
+    (( ${#waiting[@]} == 0 )) && break
+    (( SECONDS < deadline )) || break
+    echo "  waiting for ${EXPECT}: ${waiting[*]}"
+    sleep "$POLL_SECS"
+  done
+  if (( ${#waiting[@]} )); then
+    cr_unproved "${EXPECT} on every alarm; still not: ${waiting[*]}"
+    cr_finish_with 3 "NOT ${EXPECT}"
+  fi
+  if [[ -n "$EXPECT" ]]; then
+    cr_proved "every named alarm reads ${EXPECT}"
+  else
+    cr_proved "every named alarm's state was read"
+  fi
+  cr_finish
+fi
 
 echo ""
 echo "About to raise ${#ALARMS[@]} ${TARGET} alarm(s), one after another, each to ALARM and then back to OK:"

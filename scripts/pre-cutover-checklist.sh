@@ -60,6 +60,10 @@
 #                  the one it needs.
 #                    < ~/AWS/AWS_OPERATOR_PRODUCTION.txt \
 #                        bash scripts/pre-cutover-checklist.sh --target production
+#   --skip-dns-ttl leave out the DNS TTL gate, for a readiness pass made before
+#                  the zone has moved, when no 60-second TTL can be observed yet.
+#                  The closing report lists the gate as not proved; every other
+#                  gate runs and judges as usual.
 #   --no-snapshot  with --target only: take no snapshot and run the data gates on
 #                  the host against the live database, read-only. For a check
 #                  before cutover day, when writing a rollback artifact into the
@@ -78,6 +82,7 @@ cd "$(dirname "$0")/.."
 MOCK_AWS=0
 SKIP_TESTS=0
 NO_SNAPSHOT=0
+SKIP_DNS_TTL=0
 TARGET=""
 [[ "${FOOTBAG_PRECUTOVER_MOCK_AWS:-0}" == "1" ]] && MOCK_AWS=1
 [[ "${FOOTBAG_PRECUTOVER_SKIP_TESTS:-0}" == "1" ]] && SKIP_TESTS=1
@@ -86,6 +91,7 @@ while [[ $# -gt 0 ]]; do
     --mock-aws)   MOCK_AWS=1 ;;
     --skip-tests) SKIP_TESTS=1 ;;
     --no-snapshot) NO_SNAPSHOT=1 ;;
+    --skip-dns-ttl) SKIP_DNS_TTL=1 ;;
     --target)     shift; TARGET="${1:-}" ;;
     *) echo "unknown arg: ${1}" >&2; exit 2 ;;
   esac
@@ -466,7 +472,12 @@ fi
 #     The flip is operator-executed on Route 53 through Terraform, so this gate is
 #     ours and belongs in the aggregator rather than in anyone's head. It reads
 #     and never writes: Terraform already owns the TTL in both states.
-if [[ "${MOCK_AWS}" -eq 1 ]]; then
+#     Skipped only on request, and then recorded as not proved rather than as a
+#     warning: the operator asked for it, so it is no surprise to act on.
+if [[ "${SKIP_DNS_TTL}" -eq 1 ]]; then
+  results+=("GATE: DNS-TTL NOT RUN: left out by --skip-dns-ttl")
+  cr_unproved "the DNS TTL gate: left out by --skip-dns-ttl"
+elif [[ "${MOCK_AWS}" -eq 1 ]]; then
   run_step "DNS-TTL" bash scripts/dns-ttl-preflight.sh --phase handover --mock
 else
   run_step "DNS-TTL" bash scripts/dns-ttl-preflight.sh --phase handover
@@ -533,7 +544,11 @@ done
 
 if [[ "${fail}" -eq 0 && "${skipped}" -eq 0 ]]; then
   echo "READY: all gates PASS"
-  cr_proved "every gate ran and passed"
+  if [[ "${SKIP_DNS_TTL}" -eq 1 ]]; then
+    cr_proved "every gate but the DNS TTL ran and passed"
+  else
+    cr_proved "every gate ran and passed"
+  fi
 elif [[ "${fail}" -eq 0 ]]; then
   echo "READY WITH GAPS: gates PASS, but ${skipped} did no work (see SKIP lines above)"
   cr_unproved "${skipped} gate(s) did no work"

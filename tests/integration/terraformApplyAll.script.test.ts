@@ -242,3 +242,67 @@ describe('terraform-apply-all.sh: the sweep', () => {
     expect(r.stderr).not.toMatch(/bootstrap-shared-state/);
   });
 });
+
+describe('terraform-apply-all.sh --check: nothing pending, proved without applying', () => {
+  /** A terraform that answers -detailed-exitcode per tree: 0 empty, 2 changes, 1 failure. */
+  function checkStub(codes: Partial<Record<Tree, 0 | 1 | 2>>): string {
+    const path = join(dir, 'terraform-check');
+    writeFileSync(path, [
+      '#!/usr/bin/env bash',
+      `echo "terraform $*" >> "${callLog}"`,
+      'chdir=""; for arg in "$@"; do case "$arg" in -chdir=*) chdir="${arg#-chdir=}" ;; esac; done',
+      'case "$chdir" in',
+      ...(Object.keys(codes) as Tree[]).map((t) =>
+        `  */terraform/${t}) [ ${codes[t]} = 1 ] && echo "Error: no credentials for ${t}" >&2; exit ${codes[t]} ;;`),
+      'esac',
+      'exit 0',
+    ].join('\n') + '\n');
+    chmodSync(path, 0o755);
+    return path;
+  }
+  function check(codes: Partial<Record<Tree, 0 | 1 | 2>>, target: 'staging' | 'production' = 'production') {
+    const r = spawnSync('bash', [SCRIPT, '--target', target, '--check'], {
+      encoding: 'utf-8',
+      env: { ...process.env, ...awsIdentityStubEnv(dir), TERRAFORM_APPLY_BIN: checkStub(codes) },
+      ...SPAWN_GUARD,
+    });
+    const calls = existsSync(callLog) ? readFileSync(callLog, 'utf-8') : '';
+    return { exitCode: r.status ?? -1, stdout: r.stdout ?? '', stderr: r.stderr ?? '', calls };
+  }
+
+  // Defect caught: a check that applies, or takes the state lock an apply in
+  // another terminal needs, when its whole job is to look.
+  it('plans all three trees read-only and never applies', () => {
+    const r = check({ shared: 0, identity: 0, production: 0 });
+    expect(r.exitCode, r.stderr).toBe(0);
+    const plans = r.calls.split('\n').filter((l) => / plan /.test(l));
+    expect(plans.map((l) => l.match(/terraform\/(\w+)/)?.[1])).toEqual(['shared', 'identity', 'production']);
+    for (const l of plans) expect(l).toMatch(/-detailed-exitcode .*-lock=false/);
+    expect(r.calls).not.toMatch(/ apply /);
+  });
+
+  // Defect caught: an account tree left with changes pending reads as clean,
+  // because only the environment tree was asked.
+  it('exits 3 naming every tree with changes pending', () => {
+    const r = check({ shared: 0, identity: 2, staging: 2 }, 'staging');
+    expect(r.exitCode, r.stderr).toBe(3);
+    expect(r.stderr).toMatch(/nothing pending: identity staging still plan changes/);
+  });
+
+  // Defect caught: a plan that could not run (no credentials, say) read as
+  // nothing pending, or as pending, either of which sends the operator the
+  // wrong way.
+  it('exits 1 on a failed plan, carrying terraform\'s error, even beside a pending tree', () => {
+    const r = check({ shared: 2, identity: 1, production: 0 });
+    expect(r.exitCode).toBe(1);
+    expect(r.stderr).toMatch(/terraform\/identity: the plan failed \(exit 1\): Error: no credentials for identity/);
+  });
+
+  it('refuses --check together with --dry-run before planning anything', () => {
+    const r = spawnSync('bash', [SCRIPT, '--target', 'staging', '--check', '--dry-run'], {
+      encoding: 'utf-8', env: { ...process.env, TERRAFORM_APPLY_BIN: checkStub({}) }, ...SPAWN_GUARD,
+    });
+    expect(r.status).toBe(2);
+    expect(existsSync(callLog)).toBe(false);
+  });
+});

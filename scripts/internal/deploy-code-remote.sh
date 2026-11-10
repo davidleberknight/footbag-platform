@@ -1562,6 +1562,7 @@ if [[ -n "${MIGRATION_SQL:-}" ]]; then
         echo "  migrate a host before rebuilding it, not after."
         echo "======================================================================"
         echo ""
+        echo "---FOOTBAG-MIGRATION--- SKIPPED ${MIGRATION_NAME}"
         MIGRATION_SQL=""
       else
         echo "ERROR: ${MIGRATION_NAME} was already applied to this database, but the file has" >&2
@@ -1823,6 +1824,7 @@ if [[ -n "${MIGRATION_SQL:-}" ]]; then
   echo "  Pre-migration copy retained at ${migration_backup}"
   echo "======================================================================"
   echo ""
+  echo "---FOOTBAG-MIGRATION--- APPLIED ${MIGRATION_NAME:-(unnamed)}"
 fi
 
 echo "==> Restarting service (compose up via systemctl, --no-build)..."

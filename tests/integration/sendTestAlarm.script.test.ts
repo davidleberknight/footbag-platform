@@ -59,6 +59,14 @@ beforeEach(() => {
       '    echo "ResourceNotFound" >&2; exit 254',
       '  fi',
       'fi',
+      // A state read answers from FAKE_STATES_FILE, one line per read, the last
+      // line repeating once the queue is used up.
+      'if [[ "$1" == cloudwatch && "$2" == describe-alarms && "$*" == *"StateValue"* ]]; then',
+      '  [[ "${FAKE_STATE_FAILS:-}" == 1 ]] && { echo "AccessDenied" >&2; exit 254; }',
+      '  first="$(head -n 1 "$FAKE_STATES_FILE")"; rest="$(tail -n +2 "$FAKE_STATES_FILE")"',
+      '  [[ -n "$rest" ]] && printf "%s\\n" "$rest" > "$FAKE_STATES_FILE"',
+      '  echo "$first"; exit 0',
+      'fi',
       'if [[ "$1" == cloudwatch && "$2" == describe-alarms && "$*" == *"--alarm-name-prefix"* ]]; then',
       '  printf \'%s\\n\' "${FAKE_PREFIX_NAMES-None}"; exit 0',
       'fi',
@@ -220,5 +228,55 @@ describe('send-test-alarm: refusals', () => {
   it('says on stderr that a stand-in AWS CLI proves nothing about the account', () => {
     const res = run(['--target', 'production', '--alarm', 'footbag-production-5xx-rate', '--yes']);
     expect(res.stderr).toContain('proves nothing about the account');
+  });
+});
+
+describe('send-test-alarm --status: reading alarm state, changing nothing', () => {
+  const ALARM = 'footbag-production-jobs-heartbeat';
+  function status(states: string[], extra: string[], env: Record<string, string> = {}) {
+    const statesFile = path.join(dir, 'states');
+    fs.writeFileSync(statesFile, states.join('\n') + '\n');
+    return run(['--target', 'production', '--alarm', ALARM, '--status', ...extra],
+      { FAKE_STATES_FILE: statesFile, FOOTBAG_ALARM_POLL_SECS: '0', ...env });
+  }
+
+  // Defect caught: a read that raises the alarm it was asked to look at, paging
+  // every watcher, or that stops for a typed confirmation inside a sitting.
+  it('reads the state, sets nothing and asks nothing', () => {
+    const res = status(['OK'], ['--expect', 'OK']);
+    expect(res.status, res.stderr).toBe(0);
+    expect(res.stdout).toContain(`${ALARM}: OK`);
+    expect(calls()).toEqual([]);
+    expect(res.stdout).not.toMatch(/Type 'APPLY'/);
+  });
+
+  // Defect caught: an alarm stuck in INSUFFICIENT_DATA (its metric never
+  // arriving) read as healthy because only ALARM counts as bad.
+  it('exits 3 when the alarm does not read the expected state', () => {
+    const res = status(['INSUFFICIENT_DATA'], ['--expect', 'OK']);
+    expect(res.status, res.stderr).toBe(3);
+    expect(res.stderr).toMatch(/still not: footbag-production-jobs-heartbeat \(INSUFFICIENT_DATA\)/);
+  });
+
+  // Defect caught: the wait for a real breach giving up after the first read,
+  // so an alarm that needs two evaluation periods can never be proved.
+  it('reads again until the expected state arrives within the wait', () => {
+    const res = status(['OK', 'OK', 'ALARM'], ['--expect', 'ALARM', '--wait-minutes', '5']);
+    expect(res.status, res.stderr).toBe(0);
+    expect((res.stdout.match(new RegExp(`${ALARM}: `, 'g')) ?? []).length).toBe(3);
+  });
+
+  // Defect caught: a failed read reported as "not yet", so the caller waits on
+  // an alarm it cannot see.
+  it('fails on a read it could not make', () => {
+    const res = status(['OK'], ['--expect', 'OK'], { FAKE_STATE_FAILS: '1' });
+    expect(res.status).toBe(1);
+    expect(res.stderr).toMatch(/the state of footbag-production-jobs-heartbeat could not be read/);
+  });
+
+  it('refuses --expect without --status, and --wait-minutes without --expect', () => {
+    expect(run(['--target', 'production', '--alarm', ALARM, '--expect', 'OK']).status).toBe(2);
+    expect(run(['--target', 'production', '--alarm', ALARM, '--status', '--wait-minutes', '3']).status).toBe(2);
+    expect(calls()).toEqual([]);
   });
 });

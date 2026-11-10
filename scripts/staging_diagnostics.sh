@@ -835,6 +835,40 @@ console.table(rows);
 JS
 }
 
+# One line per table group: its row count and a hash of every row's contents,
+# so a deploy that must preserve those rows (a migration rehearsal) can be
+# proved to have preserved them by comparing a run before with a run after.
+# Rows are hashed in sorted order, so the digest follows the contents, never the
+# order the database happens to return them in. A table the schema lacks is
+# named in the hash, so a dropped table changes the digest too.
+cmd_table_digests() {
+  banner "Row count and content digest per table group"
+  node_run <<'JS'
+const db = require('better-sqlite3')('/app/db/footbag.db', { readonly: true });
+const crypto = require('crypto');
+const present = new Set(db.prepare(`SELECT name FROM sqlite_master WHERE type='table'`).all().map(r => r.name));
+const groups = {
+  curated_media: ['gallery_external_links', 'media_items', 'media_sources', 'media_tags', 'member_galleries',
+    'member_gallery_exclude_tags', 'member_gallery_tags', 'tags'],
+  email_templates: ['email_templates'],
+  members: ['member_tier_grants', 'members'],
+  freestyle: [...present].filter(t => t.startsWith('freestyle_')).concat(['consecutive_kicks_records']).sort(),
+};
+for (const [group, tables] of Object.entries(groups)) {
+  const hash = crypto.createHash('sha256');
+  let rows = 0;
+  for (const t of tables) {
+    if (!present.has(t)) { hash.update(`${t}:absent\n`); continue; }
+    const lines = db.prepare(`SELECT * FROM "${t}"`).all().map(r => JSON.stringify(r)).sort();
+    rows += lines.length;
+    hash.update(`${t}:${lines.length}\n`);
+    for (const l of lines) hash.update(l + '\n');
+  }
+  console.log(`DIGEST ${group} rows=${rows} sha256=${hash.digest('hex')}`);
+}
+JS
+}
+
 cmd_wal_size() {
   banner "WAL / SHM sizes on host and inside container"
   sudo ls -lh "$DB_HOST_PATH"* 2>/dev/null || echo "(no host DB file)"
@@ -1024,7 +1058,8 @@ staging_diagnostics.sh — subcommands
 
   Performance
     db-sizes                 per-table row counts
-    wal-size                 WAL/SHM sizes (host + container)
+    table-digests            row count + content hash per table group
+    wal-size                WAL/SHM sizes (host + container)
     split-wal-check          compare host vs web vs worker DB views
 
   Production readiness
@@ -1124,6 +1159,7 @@ main() {
 
 
     db-sizes)             cmd_db_sizes ;;
+    table-digests)        cmd_table_digests ;;
     wal-size)             cmd_wal_size ;;
     split-wal-check)      cmd_split_wal_check ;;
 

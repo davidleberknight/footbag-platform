@@ -43,7 +43,8 @@
 #   RECONFIRM_TERRAFORM      replaces scripts/terraform-apply.sh
 #
 # Exit: 0 done (or every subscription authenticated), 1 refused or failed,
-# 2 usage error.
+# 2 usage error; --status also exits 3 while any subscription is pending, else
+# 4 while any was confirmed by a click.
 set -euo pipefail
 
 TARGET=""
@@ -86,6 +87,8 @@ if (( STATUS )); then
     aws_profile_ensure || cr_die "no AWS identity is available for the read"
   fi
   topics_read=0
+  pending=0
+  clicked=0
   for spec in "us-east-1 footbag-${TARGET}-alarms" "us-east-1 footbag-${TARGET}-alarms-critical" "us-west-2 footbag-${TARGET}-alarms-usw2"; do
     read -r region name <<<"$spec"
     if ! topic_arns="$("$AWS_BIN" sns list-topics --region "$region" --query 'Topics[].TopicArn' --output text 2>&1)"; then
@@ -108,6 +111,7 @@ if (( STATUS )); then
       [[ -n "$sub_arn" ]] || continue
       if [[ "$sub_arn" == "PendingConfirmation" ]]; then
         cr_warn "${name}: ${endpoint} is pending confirmation; confirm its link with bash scripts/confirm-alarm-subscription.sh --target ${TARGET}"
+        pending=$(( pending + 1 ))
         continue
       fi
       if ! authenticated="$("$AWS_BIN" sns get-subscription-attributes --region "$region" --subscription-arn "$sub_arn" \
@@ -119,11 +123,18 @@ if (( STATUS )); then
         echo "  ${name}: ${endpoint} authenticated"
       else
         cr_warn "${name}: ${endpoint} was confirmed by a click, so an unsubscribe link can remove it; recreate it with bash scripts/reconfirm-alarm-subscriptions.sh --target ${TARGET}"
+        clicked=$(( clicked + 1 ))
       fi
     done <<<"$subs"
   done
   (( topics_read > 0 )) || cr_error "none of the ${TARGET} alarm topics was found"
   cr_proved "read every email subscription on the ${TARGET} alarm topics found"
+  # A caller branches on these: a failed read stays exit 1, since nothing was
+  # proved; pending outranks clicked, because a pending address gets no alarm
+  # mail at all while a clicked one still does.
+  (( ${#CR_ERRORS[@]} )) && cr_finish
+  (( pending )) && cr_finish_with 3 PENDING
+  (( clicked )) && cr_finish_with 4 CLICKED
   cr_finish
 fi
 

@@ -365,6 +365,8 @@ describe('the deploy leaves record how far the host half got', () => {
       `source ${JSON.stringify(REPORT_LIB)}`,
       ...VERDICT_SETUP,
       'REMOTE=footbag-staging; FOOTBAG_ENV=staging; REMOTE_HALF_ERRORS=ERROR; REMOTE_HALF_WARNINGS=WARNING',
+      // The code deploy reads the half's marked lines from here; empty, as on a code-only deploy.
+      'HALF_MARKS=/dev/null',
       `FIRST_INSTALL=${firstInstall}`,
       half === 'ok' ? 'send_remote_half() { :; }' : 'send_remote_half() { return 4; }',
       stretch(rel, 'cr_fact host-half-started', 'cr_fact release-live'),
@@ -382,6 +384,62 @@ describe('the deploy leaves record how far the host half got', () => {
   // Defect caught: a first install, which leaves nothing serving, recorded as live.
   it('scripts/deploy-code.sh: a first install is installed, not live', () => {
     expect(report(leaf('scripts/deploy-code.sh', 'ok', 1).stderr)).toMatch(/## VERDICT: INSTALLED, NOT YET SERVING/);
+  });
+});
+
+describe('scripts/deploy-code.sh records whether a migration really ran', () => {
+  /**
+   * The shipped stretch from the marks file through the migration facts, the
+   * real send_remote_half included, with ssh standing in for the host: it
+   * prints `hostOut` as the host half would, and exits `code`.
+   */
+  function migrate(hostOut: string, code = 0) {
+    const dir = world();
+    return runScript(dir, [
+      'set -eo pipefail',
+      `source ${JSON.stringify(REPORT_LIB)}`,
+      'REMOTE=footbag-staging; SSH_OPTS=()',
+      'REMOTE_REPORT_LIB=/dev/null; PRUNE_LIB=/dev/null; HOST_TOOL_VERSIONS_LIB=/dev/null; HOST_VALUES_LIB=/dev/null; REMOTE_HALF=/dev/null',
+      `ssh() { cat >/dev/null; printf '%b' ${JSON.stringify(hostOut)}; return ${code}; }`,
+      stretch('scripts/deploy-code.sh', "REMOTE_HALF_ERRORS='", '  cr_fact migration-skipped'),
+      'fi',
+      'cr_has_fact migration-applied && echo FACT=applied',
+      'cr_has_fact migration-skipped && echo FACT=skipped',
+      'cr_finish',
+    ]);
+  }
+  const BANNER = '======\\n  MIGRATION APPLIED: probe.sql\\n======\\n';
+
+  // Defect caught: a durability rehearsal whose migration the host skipped (it
+  // had already applied that file) read as a migration that ran, so the
+  // rehearsal proves nothing and nobody can tell.
+  it('records applied only when the host half marks the migration applied', () => {
+    const applied = migrate(`${BANNER}---FOOTBAG-MIGRATION--- APPLIED probe.sql\\n`);
+    expect(applied.status, applied.stderr).toBe(0);
+    expect(applied.stdout).toMatch(/^FACT=applied$/m);
+    expect(applied.stdout).not.toMatch(/FACT=skipped/);
+
+    const skipped = migrate('  MIGRATION SKIPPED: probe.sql\\n---FOOTBAG-MIGRATION--- SKIPPED probe.sql\\n');
+    expect(skipped.stdout).toMatch(/^FACT=skipped$/m);
+    expect(skipped.stdout).not.toMatch(/FACT=applied/);
+  });
+
+  // Defect caught: the fact read from the banner text, which a code-only deploy
+  // or a person's log paste can carry without any migration running.
+  it('records nothing from a banner alone, or on a code-only deploy', () => {
+    for (const out of [BANNER, 'release live\\n']) {
+      const r = migrate(out);
+      expect(r.status, r.stderr).toBe(0);
+      expect(r.stdout, out).not.toMatch(/FACT=/);
+    }
+  });
+
+  // Defect caught: a host half that failed after marking the migration (the
+  // service then not starting, say) still recorded as a migration applied.
+  it('stops before recording any migration fact when the host half fails', () => {
+    const r = migrate('---FOOTBAG-MIGRATION--- APPLIED probe.sql\\n', 4);
+    expect(r.status).toBe(1);
+    expect(r.stdout).not.toMatch(/FACT=/);
   });
 });
 

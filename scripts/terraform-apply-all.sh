@@ -48,18 +48,24 @@
 #
 #   --target   staging or production. Required, with no default.
 #   --dry-run  states the trees and the order, and plans nothing.
+#   --check    plans every tree, read-only and without taking a state lock, and
+#              applies nothing: the proof that nothing is left pending, after
+#              an apply or before leaving the estate unattended. It needs each
+#              tree initialised, as any earlier apply leaves it.
 #
 # Exits 0 when every tree is applied or had nothing pending; otherwise the exit
-# status of the tree that stopped the run.
+# status of the tree that stopped the run. --check exits 0 only when every tree
+# plans empty, 3 when any has changes pending (each named), 1 when a plan fails.
 #
-# Test seams (CI only; operators never set these): none of its own. The apply
-# wrapper's TERRAFORM_APPLY_BIN and the identity library's stubs pass through,
-# and each announces itself on stderr.
+# Test seams (CI only; operators never set these): TERRAFORM_APPLY_BIN, the apply
+# wrapper's own, also replaces terraform for --check. It and the identity
+# library's stubs each announce themselves on stderr.
 
 set -euo pipefail
 
 TARGET=""
 DRY_RUN=0
+CHECK=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -69,6 +75,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --dry-run)
       DRY_RUN=1
+      shift
+      ;;
+    --check)
+      CHECK=1
       shift
       ;;
     --help|-h)
@@ -105,7 +115,46 @@ cd "$REPO_ROOT"
 # shellcheck source=lib/closing-report.sh
 source "$REPO_ROOT/scripts/lib/closing-report.sh"
 
+if (( DRY_RUN && CHECK )); then
+  echo "ERROR: --dry-run and --check are two different read-only answers; name one." >&2
+  exit 2
+fi
+
 TREES=(shared identity "$TARGET")
+
+# ── Check: plan every tree, apply nothing ────────────────────────────────────
+# A plain read-only plan, the shape the host bring-up's drift probe uses, rather
+# than the apply wrapper: the wrapper's empty-plan mode covers the environment
+# trees only, and this has to answer for all three.
+if (( CHECK )); then
+  TF_BIN="${TERRAFORM_APPLY_BIN:-terraform}"
+  if [[ -n "${TERRAFORM_APPLY_BIN:-}" ]]; then
+    echo "SYNTHETIC: terraform seam '${TF_BIN}' -- this check proves nothing about the estate." >&2
+  else
+    # shellcheck source=lib/aws-profile.sh
+    source "$REPO_ROOT/scripts/lib/aws-profile.sh"
+    aws_profile_ensure || cr_die "no AWS identity could be settled for the plans; nothing was planned"
+  fi
+  pending=()
+  for tree in "${TREES[@]}"; do
+    rc=0
+    out="$("$TF_BIN" -chdir="$REPO_ROOT/terraform/${tree}" plan -detailed-exitcode -input=false -lock=false \
+      -no-color </dev/null 2>&1)" || rc=$?
+    case "$rc" in
+      0) echo "  terraform/${tree}: nothing pending"
+         cr_proved "terraform/${tree} plans empty" ;;
+      2) echo "  terraform/${tree}: changes pending"
+         pending+=("$tree") ;;
+      *) cr_error "terraform/${tree}: the plan failed (exit ${rc}): $(grep -m1 -E 'Error' <<<"$out" || tail -n 1 <<<"$out")" ;;
+    esac
+  done
+  (( ${#CR_ERRORS[@]} )) && cr_finish
+  if (( ${#pending[@]} )); then
+    cr_unproved "nothing pending: ${pending[*]} still plan changes; apply them with bash scripts/terraform-apply-all.sh --target ${TARGET}"
+    cr_finish_with 3 PENDING
+  fi
+  cr_finish
+fi
 
 if (( DRY_RUN )); then
   echo "Would run, in order, stopping at the first tree that does not finish:"

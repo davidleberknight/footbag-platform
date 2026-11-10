@@ -29,7 +29,9 @@ case "$2" in
     var="SUBS_\${topic//-/_}"; printf '%b' "\${!var:-}" ;;
   get-subscription-attributes)
     sub=""; prev=""; for a in "$@"; do [[ "$prev" == --subscription-arn ]] && sub="$a"; prev="$a"; done
-    var="AUTH_\${sub##*-}"; echo "\${!var:-true}" ;;
+    var="AUTH_\${sub##*-}"
+    [[ "\${!var:-}" == FAIL ]] && { echo "An error occurred (Throttling)" >&2; exit 254; }
+    echo "\${!var:-true}" ;;
 esac
 `;
 
@@ -65,15 +67,36 @@ describe('reconfirm-alarm-subscriptions.sh --status', () => {
 
   // Defect caught: a subscription confirmed by a click, which any unsubscribe
   // link in an alarm email can remove, reported as fine.
-  it('warns on a click-confirmed subscription, naming the recreation', () => {
-    const r = run(['--status'], { ...SUBS, AUTH_2: 'false' });
+  // A caller that loops on this status (the readiness sitting) reads the exit
+  // code: 4 for clicked only must not read as clean, nor as pending.
+  it('warns on a click-confirmed subscription, naming the recreation, and exits 4', () => {
+    const r = run(['--status'], { SUBS_footbag_staging_alarms_usw2: 'sub-2\\tops@example.invalid\\n', AUTH_2: 'false' });
+    expect(r.status, r.stderr).toBe(4);
     expect(r.stderr).toMatch(/footbag-staging-alarms-usw2: ops@example\.invalid was confirmed by a click/);
     expect(r.stderr).toMatch(/reconfirm-alarm-subscriptions\.sh --target staging/);
   });
 
-  it('warns on a pending subscription, naming the confirm script', () => {
+  // Defect caught: a caller told "clean" while an address still waits for its
+  // confirmation, so it gets no alarm mail at all.
+  it('warns on a pending subscription, naming the confirm script, and exits 3', () => {
     const r = run(['--status'], SUBS);
+    expect(r.status, r.stderr).toBe(3);
     expect(r.stderr).toMatch(/group@example\.invalid is pending confirmation; confirm its link with bash scripts\/confirm-alarm-subscription\.sh --target staging/);
+  });
+
+  // Pending is the worse state, so a mix of pending and clicked exits 3.
+  it('exits 3 when one subscription is pending and another clicked', () => {
+    const r = run(['--status'], { ...SUBS, AUTH_2: 'false' });
+    expect(r.status, r.stderr).toBe(3);
+    expect(r.stderr).toMatch(/was confirmed by a click/);
+  });
+
+  // Defect caught: a failed read reported as pending, so a caller would loop
+  // asking for confirmation emails when the real problem is the read.
+  it('exits 1 on a failed read even while another subscription is pending', () => {
+    const r = run(['--status'], { ...SUBS, AUTH_2: 'FAIL' });
+    expect(r.status, r.stderr).toBe(1);
+    expect(r.stderr).toMatch(/could not read footbag-staging-alarms-usw2's subscription/);
   });
 });
 

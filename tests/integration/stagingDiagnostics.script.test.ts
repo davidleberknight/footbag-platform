@@ -24,7 +24,10 @@ import { mkdtempSync, rmSync, writeFileSync, chmodSync, readFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import BetterSqlite3 from 'better-sqlite3';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { createTestDb } from '../fixtures/testDb';
+import { insertFreestyleTrick, insertMediaSource, insertMember } from '../fixtures/factories';
 
 const SCRIPT = join(process.cwd(), 'scripts/staging_diagnostics.sh');
 const LIVE_INSTALL = '/srv/footbag';
@@ -134,6 +137,79 @@ describe('the diagnostics run only on a host that records a deployed environment
     const r = runSubcommand('help', '');
     expect(r.status).toBe(0);
     expect(r.stderr).not.toContain('REFUSING');
+  });
+});
+
+describe('table-digests proves a deploy left the preserved rows as they were', () => {
+  let dbPath: string;
+
+  beforeEach(() => {
+    dbPath = join(workDir, 'footbag.db');
+    const db = createTestDb(dbPath);
+    insertMember(db, { slug: 'digest-member' });
+    insertFreestyleTrick(db, { slug: 'digest-trick' });
+    insertMediaSource(db, 'digest-source');
+    db.close();
+  });
+
+  /**
+   * Runs the subcommand with a docker that hands the script's own JavaScript to
+   * node on this machine, pointed at the scratch database instead of the
+   * container's path, so the digest code under test is the shipped code.
+   */
+  function digests(): Record<string, string> {
+    const { path } = stubTools();
+    const docker = join(workDir, 'bin', 'docker');
+    writeFileSync(docker, [
+      '#!/usr/bin/env bash',
+      `sed "s#/app/db/footbag.db#${dbPath}#" | NODE_PATH=${JSON.stringify(join(process.cwd(), 'node_modules'))} node`,
+      '',
+    ].join('\n'));
+    chmodSync(docker, 0o755);
+    const res = spawnSync('bash', [SCRIPT, 'table-digests'], {
+      encoding: 'utf-8', env: { ...process.env, PATH: path, HOME: workDir }, ...SPAWN_GUARD,
+    });
+    expect(res.status, res.stderr).toBe(0);
+    const out: Record<string, string> = {};
+    for (const m of res.stdout.matchAll(/^DIGEST (\S+) (rows=\d+ sha256=[0-9a-f]{64})$/gm)) out[m[1]] = m[2];
+    return out;
+  }
+  const change = (sql: string) => { const db = new BetterSqlite3(dbPath); db.exec(sql); db.close(); };
+
+  // Defect caught: a digest that differs between two reads of the same rows,
+  // so every durability comparison fails and the check is ignored.
+  it('reports the same four digests for the same rows, each counting its rows', () => {
+    const first = digests();
+    expect(Object.keys(first).sort()).toEqual(['curated_media', 'email_templates', 'freestyle', 'members']);
+    expect(first.members).toMatch(/^rows=[1-9]/);
+    expect(first.freestyle).toMatch(/^rows=[1-9]/);
+    expect(digests()).toEqual(first);
+  });
+
+  // Defect caught: a digest of counts only, so a deploy that rewrote a member's
+  // row in place passes as having preserved it.
+  it('changes only the group whose row contents changed, at the same count', () => {
+    const before = digests();
+    change("UPDATE members SET display_name = 'Changed In Place' WHERE slug = 'digest-member'");
+    const after = digests();
+    expect(after.members).not.toEqual(before.members);
+    expect(after.members.split(' ')[0]).toEqual(before.members.split(' ')[0]);
+    for (const g of ['curated_media', 'email_templates', 'freestyle']) expect(after[g], g).toEqual(before[g]);
+  });
+
+  // Defect caught: the rehearsal's own probe table, which every migration run
+  // adds, counted as a change to the preserved rows.
+  it('ignores a table outside the groups, such as a migration probe', () => {
+    const before = digests();
+    change('CREATE TABLE sitting_durability_probe (id INTEGER PRIMARY KEY); INSERT INTO sitting_durability_probe VALUES (1);');
+    expect(digests()).toEqual(before);
+  });
+
+  // Defect caught: a deleted row in the freestyle tables not noticed.
+  it('notices a deleted freestyle row', () => {
+    const before = digests();
+    change("DELETE FROM freestyle_tricks WHERE slug = 'digest-trick'");
+    expect(digests().freestyle).not.toEqual(before.freestyle);
   });
 });
 

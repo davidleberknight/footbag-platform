@@ -640,6 +640,10 @@ echo "==> Running remote-as-root deploy (promote, restart)..."
 # prints in the ERROR: or WARNING: form. Its exit status still stops this run.
 REMOTE_HALF_ERRORS='^[[:space:]]*ERROR:'
 REMOTE_HALF_WARNINGS='^[[:space:]]*WARN(ING)?:'
+# The half's marked lines, kept so the migration outcome below is read from what
+# the host said rather than from a banner a person has to spot.
+HALF_MARKS="$(mktemp)"
+cr_cleanup rm -f -- "$HALF_MARKS"
 send_remote_half() {
 {
   printf '%s\n' "$SUDO_PASS"
@@ -675,13 +679,20 @@ send_remote_half() {
   # report functions throughout, the pruner once the new release reports ready,
   # the catalogue's sync where the parameters land.
   cat "$REMOTE_REPORT_LIB" "$PRUNE_LIB" "$HOST_TOOL_VERSIONS_LIB" "$HOST_VALUES_LIB" "$REMOTE_HALF"
-} | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
+} | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash' | cr_keep_marked "$HALF_MARKS"
 }
 # From here the host can be changed, so the verdict can no longer say that
 # nothing was deployed if the run stops.
 cr_fact host-half-started
 cr_run_marked --errors "$REMOTE_HALF_ERRORS" --warnings "$REMOTE_HALF_WARNINGS" \
   "host half on $REMOTE" -- send_remote_half || exit 1
+# A skipped migration changed nothing yet succeeds, so a caller that must know a
+# migration really ran (a durability rehearsal) tests these facts.
+if grep -q -e '^---FOOTBAG-MIGRATION--- APPLIED' -- "$HALF_MARKS"; then
+  cr_fact migration-applied
+elif grep -q -e '^---FOOTBAG-MIGRATION--- SKIPPED' -- "$HALF_MARKS"; then
+  cr_fact migration-skipped
+fi
 
 # Nothing is serving yet, so there is nothing to smoke-check and the env file is
 # not yet the one a running site reads; the code deploy that follows the restore
