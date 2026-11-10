@@ -8042,13 +8042,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .set-detail {
   margin: var(--space-lg) auto var(--space-2xl);
 }
-.set-detail-section {
-  margin: var(--space-lg) 0;
-}
-.set-detail-section h2 {
-  margin: 0 0 var(--space-sm);
-  font-size: 1.25rem;
-}
 .set-detail-formula {
   display: block;
   font-family: var(--font-body);
@@ -8542,11 +8535,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 }
 
 /* Modifier-cluster jump nav. */
-/* Set-detail example list and its empty state. */
-.set-detail-examples-section {
-  margin-top: var(--space-lg);
-}
-
 /* Prose notes and framing paragraphs. */
 .add-analysis-derivation-line {
   margin: var(--space-sm) 0 0;

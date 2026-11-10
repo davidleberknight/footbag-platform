@@ -35,13 +35,13 @@
         dictionary's By set view, linked from the related section, so it is not
         repeated here. How sets are built in general lives on the Set
         Encyclopedia, so a teaching page explains only its own set. --}}
-  <section class="set-detail-section" aria-label="What it is">
-    <h2>What it is</h2>
+  <section class="content-section" aria-label="What it is">
+    <div class="section-heading"><h2>What it is</h2></div>
     <p>{{content.education.definition}}</p>
   </section>
 
-  <section class="set-detail-section" aria-label="How it launches">
-    <h2>How it launches</h2>
+  <section class="content-section" aria-label="How it launches">
+    <div class="section-heading"><h2>How it launches</h2></div>
     {{#if content.education.howItLaunches}}<p>{{content.education.howItLaunches}}</p>{{/if}}
     {{#if content.education.jobNotation}}<p>{{content.education.jobNotation}}</p>{{/if}}
     {{#if content.education.launchNotes}}<p>{{content.education.launchNotes}}</p>{{/if}}
@@ -50,8 +50,8 @@
     {{/if}}
   </section>
 
-  <section class="set-detail-section symbolic-walking-progression" aria-label="Progression {{content.education.progression.anchorBaseLabel}}">
-    <h2>Progression {{content.education.progression.anchorBaseLabel}}</h2>
+  <section class="content-section symbolic-walking-progression" aria-label="Progression {{content.education.progression.anchorBaseLabel}}">
+    <div class="section-heading"><h2>Progression {{content.education.progression.anchorBaseLabel}}</h2></div>
     <ol class="progression-chain" role="list">
       {{#each content.education.progression.steps}}
       <li class="progression-step{{#if isAnchor}} is-anchor{{/if}}" id="set-step-{{stepNumber}}-{{slug}}">
@@ -67,8 +67,8 @@
     </ol>
   </section>
 
-  <section class="set-detail-section set-detail-examples-section" aria-label="Example tricks">
-    <h2>Example tricks</h2>
+  <section class="content-section" aria-label="Example tricks">
+    <div class="section-heading"><h2>Example tricks</h2></div>
     <ul class="cross-base-list">
       {{#each content.education.representativeTricks.examples}}
       <li>
@@ -82,8 +82,8 @@
   </section>
 
   {{#if content.education.confusions.length}}
-  <section class="set-detail-section" aria-label="Common confusions">
-    <h2>Common confusions</h2>
+  <section class="content-section" aria-label="Common confusions">
+    <div class="section-heading"><h2>Common confusions</h2></div>
     {{#each content.education.confusions}}
     <div class="confusion-card">
       <h3>{{heading}}</h3>
@@ -93,8 +93,8 @@
   </section>
   {{/if}}
 
-  <section class="set-detail-section" aria-label="Related concepts">
-    <h2>Related concepts</h2>
+  <section class="content-section" aria-label="Related concepts">
+    <div class="section-heading"><h2>Related concepts</h2></div>
     {{#if content.education.relatedConcepts.length}}
     <ul class="related-modifiers-list">
       {{#each content.education.relatedConcepts}}
@@ -107,8 +107,8 @@
   {{/if}}
 
   {{#unless content.education}}
-  <section class="set-detail-section" aria-label="About This Set">
-    <h2>About This Set</h2>
+  <section class="content-section" aria-label="About This Set">
+    <div class="section-heading"><h2>About This Set</h2></div>
     <p class="set-detail-movement">{{content.movementExplanation}}</p>
   </section>
 
@@ -117,8 +117,8 @@
 
   {{#unless content.education}}
   {{#if content.relatedSystems.length}}
-  <section class="set-detail-section" aria-label="Related sets">
-    <h2>Related sets</h2>
+  <section class="content-section" aria-label="Related sets">
+    <div class="section-heading"><h2>Related sets</h2></div>
     <ul class="set-detail-link-list">
       {{#each content.relatedSystems}}<li><a href="{{href}}">{{label}}</a></li>{{/each}}
     </ul>
@@ -126,8 +126,8 @@
   {{/if}}
 
   {{#if content.hasExampleTricks}}
-  <section class="set-detail-section set-detail-examples-section" aria-label="Example tricks">
-    <h2>Example tricks</h2>
+  <section class="content-section" aria-label="Example tricks">
+    <div class="section-heading"><h2>Example tricks</h2></div>
     <ul class="set-detail-trick-list">
       {{#each content.exampleTricks}}
       <li class="set-detail-trick">
@@ -139,14 +139,14 @@
     </ul>
   </section>
   {{else}}
-  <section class="set-detail-section set-detail-examples-section" aria-label="Example tricks">
-    <h2>Example tricks</h2>
+  <section class="content-section" aria-label="Example tricks">
+    <div class="section-heading"><h2>Example tricks</h2></div>
     <p class="set-detail-examples-empty">No tricks are linked to this set yet. Some sets are documented before any trick is connected to them.</p>
   </section>
   {{/if}}
 
-  <section class="set-detail-section" aria-label="Cross-references">
-    <h2>Cross-references</h2>
+  <section class="content-section" aria-label="Cross-references">
+    <div class="section-heading"><h2>Cross-references</h2></div>
     {{> set-detail-cross-links}}
   </section>
   {{/unless}}

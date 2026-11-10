@@ -352,7 +352,7 @@ describe('GET /freestyle/sets/:slug — teaching pages stay at six sections', ()
     const definitions: string[] = [];
     for (const slug of TEACHING_SLUGS) {
       const { text } = await page(`/freestyle/sets/${slug}`);
-      const definition = /aria-label="What it is">\s*<h2>What it is<\/h2>\s*<p>([^<]*)<\/p>/.exec(text)?.[1]?.trim() ?? '';
+      const definition = /aria-label="What it is">\s*<div class="section-heading"><h2>What it is<\/h2><\/div>\s*<p>([^<]*)<\/p>/.exec(text)?.[1]?.trim() ?? '';
       if (!definition) problems.push(`${slug}: empty definition`);
       definitions.push(definition);
       const hasConfusion = /<div class="confusion-card">\s*<h3>[^<]+<\/h3>\s*<p>[^<]+<\/p>/.test(text);

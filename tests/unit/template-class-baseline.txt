@@ -739,11 +739,9 @@ set-detail
 set-detail-component-note
 set-detail-cross-links
 set-detail-examples-empty
-set-detail-examples-section
 set-detail-formula
 set-detail-link-list
 set-detail-movement
-set-detail-section
 set-detail-sibling-nav
 set-detail-sibling-nav-label
 set-detail-sibling-nav-name
