@@ -309,7 +309,11 @@ fi
 echo ""
 echo "AWS Notifications (no-reply@sns.amazonaws.com) now emails the operations"
 echo "mailbox, subject starting 'ALARM: \"${ALARM}\"'. It can take a few minutes."
-echo "In Gmail, search:  \"${ALARM}\" in:anywhere newer_than:1d"
+# Search by sender, not by the alarm name: Gmail's search can miss the quoted,
+# hyphenated alarm name while the sender search lists the same message.
+echo "In Gmail, search:  from:no-reply@sns.amazonaws.com in:anywhere newer_than:1d"
+echo "and look in the results for that subject. Gmail can file it inside an"
+echo "older conversation with the same subject, so open the newest one."
 while true; do
   ask_choice "Has that ALARM email arrived? (yes, no, or wait to be asked again in $(( POLL_SECS * 6 )) seconds)" yes no wait
   [[ "$ANSWER" == "wait" ]] || break

@@ -439,12 +439,57 @@ cmd_ses_suppression() {
     || true
 }
 
+# With --since <UTC time>, it is also the proof that the bounce feed works end to
+# end: it exits 3 unless a bounce notification was processed after that time.
+# The feed's own claim row is the proof, not an audit entry, because a bounce
+# for an address no member holds (the provider's bounce simulator) is recorded
+# there and nowhere else: the audit log keeps nothing about such an address.
 cmd_ses_bounces() {
+  if [[ "${1:-}" == --since ]]; then
+    local since="${2:-}"
+    [[ "$since" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] \
+      || { echo "usage: ses-bounces [--since <YYYY-MM-DDTHH:MM:SSZ>]" >&2; exit 2; }
+    banner "SES bounce notifications processed after ${since}"
+    # The time passed the strict pattern above, so it is safe inside the
+    # JavaScript string it is written into.
+    { printf "const SINCE = '%s';\n" "$since"; cat <<'JS'
+const db = require('better-sqlite3')('/app/db/footbag.db', { readonly: true });
+const since = Date.parse(SINCE);
+const rows = db.prepare(`SELECT message_id, processed_at, mail_message_id FROM ses_events WHERE event_type = 'bounce' ORDER BY processed_at DESC LIMIT 50`).all()
+  .filter(r => Date.parse(r.processed_at) > since);
+// The mail id is the provider's id for the bounced message, the MessageId the
+// sender printed, so the operator can tie this row to the probe they sent.
+for (const r of rows) console.log(`BOUNCE ${r.processed_at} ${r.message_id} mail=${r.mail_message_id ?? 'none'}`);
+if (rows.length === 0) {
+  console.log(`NO BOUNCE processed after ${SINCE}: the bounce feed has not delivered it yet, or is broken.`);
+  process.exit(3);
+}
+console.log(`BOUNCE FEED OK: ${rows.length} processed after ${SINCE}`);
+JS
+    } | node_run
+    return
+  fi
   banner "SES bounce/complaint events (ses_events rows written by the feedback webhook)"
   node_run <<'JS'
 const db = require('better-sqlite3')('/app/db/footbag.db', { readonly: true });
 console.log('by type :', db.prepare(`SELECT event_type, COUNT(*) c FROM ses_events GROUP BY event_type`).all());
 console.log(db.prepare(`SELECT message_id, event_type, created_at, processed_at FROM ses_events ORDER BY processed_at DESC LIMIT 50`).all());
+JS
+}
+
+# The alarms the admin alarms page lists as active, unacknowledged. Exits 3 while
+# any is, so a check that the estate is quiet after a test alarm can be a read.
+cmd_active_alarms() {
+  banner "Active alarms (system_alarm_events with status active)"
+  node_run <<'JS'
+const db = require('better-sqlite3')('/app/db/footbag.db', { readonly: true });
+const rows = db.prepare(`SELECT alarm_type, severity, raised_at FROM system_alarm_events WHERE status = 'active' ORDER BY raised_at, alarm_type`).all();
+for (const r of rows) console.log(`ACTIVE ${r.severity} ${r.alarm_type} raised ${r.raised_at}`);
+if (rows.length > 0) {
+  console.log(`${rows.length} alarm(s) active: open /admin/alarms to see and acknowledge them.`);
+  process.exit(3);
+}
+console.log('NO ACTIVE ALARMS');
 JS
 }
 
@@ -1035,7 +1080,9 @@ staging_diagnostics.sh — subcommands
     ses-identity             SES identity verification state
     ses-quota                SES send quota
     ses-suppression <email>  SES suppression check
-    ses-bounces              (stub — requires SNS feedback wiring)
+    ses-bounces [--since t]  bounce/complaint feed rows; with --since, exit 3
+                             unless a bounce was processed after UTC time t
+    active-alarms            alarms /admin/alarms lists as active; exit 3 if any
     kms-probe                minimal KMS Sign call against JWT_KMS_KEY_ID
     jwt-kid                  show JWT_KMS_KEY_ID from env file
 
@@ -1133,7 +1180,8 @@ main() {
     ses-identity)         cmd_ses_identity ;;
     ses-quota)            cmd_ses_quota ;;
     ses-suppression)      cmd_ses_suppression "${1:?usage: ses-suppression <email>}" ;;
-    ses-bounces)          cmd_ses_bounces ;;
+    ses-bounces)          cmd_ses_bounces "$@" ;;
+    active-alarms)        cmd_active_alarms ;;
     kms-probe)            cmd_kms_probe ;;
     jwt-kid)              cmd_jwt_kid ;;
 

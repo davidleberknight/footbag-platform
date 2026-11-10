@@ -14,8 +14,12 @@
 #              or the claim succeeded but the app's self-delete failed (the
 #              admin.bootstrap_token_delete_failed operational alarm fires
 #              in that case; run cleanup). Absent means consumed cleanly or
-#              never provisioned.
-#   cleanup    Delete the parameter. Use after a successful claim whose
+#              never provisioned. With --wait-minutes <n>, it waits for the
+#              claim: while the token is present it says where to submit it
+#              and checks again, and it exits 3 if the token is still present
+#              after n minutes. A successful claim spends the token, so its
+#              absence is the claim's proof.
+#   cleanup   Delete the parameter. Use after a successful claim whose
 #              self-delete failed, or to abort a pending handoff. Asks for
 #              a typed APPLY on a terminal, with no flag to skip it: a
 #              pending token is a live credential someone may be about to
@@ -31,11 +35,17 @@
 # Usage:
 #   scripts/admin-bootstrap-token.sh --target staging --profile <staging-profile> provision
 #   scripts/admin-bootstrap-token.sh --target production --profile <prod-profile> status
+#   scripts/admin-bootstrap-token.sh --target production --profile <prod-profile> \
+#     status --wait-minutes 30
 #   scripts/admin-bootstrap-token.sh --target staging --profile <staging-profile> cleanup
 #
-# Test seam: ADMIN_BOOTSTRAP_AWS_BIN replaces the AWS CLI for the parameter
-# calls. A run using it says so on stderr, because a stubbed run proves nothing
-# about the account.
+# Exit: 0 done (status: read, or with --wait-minutes the token is spent);
+# 1 a refusal or a failed read; 2 usage; 3 (--wait-minutes) still present.
+#
+# Test seams: ADMIN_BOOTSTRAP_AWS_BIN replaces the AWS CLI for the parameter
+# calls, and ADMIN_BOOTSTRAP_POLL_SECS the seconds between checks while waiting
+# (default 15). A run using either says so on stderr, because a stubbed run
+# proves nothing about the account.
 set -euo pipefail
 
 # The AWS identity this run uses, supplied and proved rather than inherited from
@@ -50,6 +60,7 @@ TARGET=""
 AWS_PROFILE_ARG=""
 ACTION=""
 PRINT_TO_STDOUT="no"
+WAIT_MINUTES=""
 
 usage() {
   # Bounded by the first `set -eu` rather than a line number, so editing the
@@ -71,6 +82,10 @@ while [[ $# -gt 0 ]]; do
     --print-to-stdout)
       PRINT_TO_STDOUT="yes"
       shift
+      ;;
+    --wait-minutes)
+      WAIT_MINUTES="${2:-}"
+      shift 2 || { echo "ERROR: --wait-minutes requires an argument" >&2; exit 2; }
       ;;
     provision|status|cleanup)
       ACTION="$1"
@@ -94,6 +109,13 @@ if [[ -z "$ACTION" ]]; then
   echo "ERROR: an action is required: provision | status | cleanup" >&2
   exit 2
 fi
+if [[ -n "$WAIT_MINUTES" ]]; then
+  [[ "$ACTION" == status ]] || { echo "ERROR: --wait-minutes goes with the status action only" >&2; exit 2; }
+  [[ "$WAIT_MINUTES" =~ ^[1-9][0-9]*$ ]] || { echo "ERROR: --wait-minutes takes a whole number of minutes" >&2; exit 2; }
+fi
+POLL_SECS="${ADMIN_BOOTSTRAP_POLL_SECS:-15}"
+[[ -n "${ADMIN_BOOTSTRAP_POLL_SECS:-}" ]] && echo "NOTE: ADMIN_BOOTSTRAP_POLL_SECS='${POLL_SECS}' replaces the wait between checks; this run proves nothing about the account." >&2
+[[ "$POLL_SECS" =~ ^[0-9]+$ ]] || { echo "ERROR: ADMIN_BOOTSTRAP_POLL_SECS must be a whole number" >&2; exit 2; }
 
 PARAM_NAME="/footbag/${TARGET}/app/bootstrap/admin_token"
 AWS_BIN="${ADMIN_BOOTSTRAP_AWS_BIN:-aws}"
@@ -108,8 +130,16 @@ else
   aws_profile_ensure || exit 1
 fi
 
+# True when the parameter exists, false when AWS says it does not. Any other
+# failure stops the run: a read that failed is not an absent token, and taking it
+# as one would report a pending claim as spent.
 param_exists() {
-  "$AWS_BIN" ssm get-parameter --name "$PARAM_NAME" "${AWS_ARGS[@]}" >/dev/null 2>&1
+  local err rc=0
+  err="$("$AWS_BIN" ssm get-parameter --name "$PARAM_NAME" "${AWS_ARGS[@]}" 2>&1 >/dev/null)" || rc=$?
+  (( rc == 0 )) && return 0
+  [[ "$err" == *ParameterNotFound* ]] && return 1
+  echo "ERROR: ${PARAM_NAME} could not be read on ${TARGET}: ${err##*$'\n'}" >&2
+  exit 1
 }
 
 case "$ACTION" in
@@ -157,7 +187,30 @@ case "$ACTION" in
     echo "verify the parameter self-deleted."
     ;;
   status)
+    if [[ -n "$WAIT_MINUTES" ]] && param_exists; then
+      # A count of checks rather than a clock, so the bound is the same however
+      # long each read takes; with no pause between checks it is one per second
+      # of the wait.
+      checks=$(( WAIT_MINUTES * 60 / (POLL_SECS > 0 ? POLL_SECS : 1) ))
+      echo "WAITING: ${PARAM_NAME} is still present on ${TARGET}, so the token is unclaimed."
+      echo "Signed in as the member who is to be the first admin, open"
+      echo "/admin/bootstrap-claim on ${TARGET} and submit the token printed earlier."
+      echo "The claim spends the token; this checks every ${POLL_SECS} seconds for up"
+      echo "to ${WAIT_MINUTES} minutes."
+      while (( checks > 0 )); do
+        sleep "$POLL_SECS"
+        checks=$(( checks - 1 ))
+        param_exists || break
+      done
+    fi
     if param_exists; then
+      if [[ -n "$WAIT_MINUTES" ]]; then
+        echo "PRESENT: ${PARAM_NAME} still exists on ${TARGET} after ${WAIT_MINUTES} minutes."
+        echo "The claim has not spent it. If the claim page reported success, the"
+        echo "app's self-delete failed: verify the grant in the audit ledger, then"
+        echo "run cleanup. Otherwise submit the token and run this again."
+        exit 3
+      fi
       echo "PRESENT: ${PARAM_NAME} exists on ${TARGET}."
       echo "Either the token is not yet claimed, or the claim succeeded but"
       echo "the app's self-delete failed (in that case the"

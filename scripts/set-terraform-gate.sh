@@ -808,7 +808,7 @@ sync_staging_address() {
   tfvars_mask <(grep -E "$pattern" "$TFVARS_PATH" | sed 's/^/-/' || [[ $? == 1 ]])
   tfvars_mask <(sed 's/^/+/' <<<"$new_line")
   echo ""
-  if ! confirm_from_tty "Write this to ${TFVARS_PATH}? (yes/no): " "yes"; then
+  if ! confirm_from_tty "Type APPLY to write this to ${TFVARS_PATH}: " APPLY; then
     cr_error "not confirmed: the values file is unchanged and nothing was applied"
     return 1
   fi
@@ -923,7 +923,7 @@ else
       cr_finish
       ;;
   esac
-  if ! confirm_from_tty "Write this to ${TFVARS_PATH}? (yes/no): " "yes"; then
+  if ! confirm_from_tty "Type APPLY to write this to ${TFVARS_PATH}: " APPLY; then
     cr_die "Aborted: the values file is unchanged and nothing was applied."
   fi
   # Through the link, never mv: the values file is a symlink into the private

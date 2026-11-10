@@ -27,7 +27,9 @@ import { join } from 'node:path';
 import BetterSqlite3 from 'better-sqlite3';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { createTestDb } from '../fixtures/testDb';
-import { insertFreestyleTrick, insertMediaSource, insertMember } from '../fixtures/factories';
+import {
+  insertFreestyleTrick, insertMediaSource, insertMember, insertSesEvent, insertSystemAlarmEvent,
+} from '../fixtures/factories';
 
 const SCRIPT = join(process.cwd(), 'scripts/staging_diagnostics.sh');
 const LIVE_INSTALL = '/srv/footbag';
@@ -210,6 +212,118 @@ describe('table-digests proves a deploy left the preserved rows as they were', (
     const before = digests();
     change("DELETE FROM freestyle_tricks WHERE slug = 'digest-trick'");
     expect(digests().freestyle).not.toEqual(before.freestyle);
+  });
+});
+
+describe('ses-bounces --since proves the bounce feed delivered a notification', () => {
+  let dbPath: string;
+  const PROBE_SENT = '2026-11-12T10:00:00Z';
+
+  beforeEach(() => {
+    dbPath = join(workDir, 'footbag.db');
+    createTestDb(dbPath).close();
+  });
+
+  /** Runs the shipped JavaScript with node on this machine against the scratch
+   *  database, as the digest cases do. */
+  function sinceRun(...args: string[]) {
+    const { path } = stubTools();
+    const docker = join(workDir, 'bin', 'docker');
+    writeFileSync(docker, [
+      '#!/usr/bin/env bash',
+      `sed "s#/app/db/footbag.db#${dbPath}#" | NODE_PATH=${JSON.stringify(join(process.cwd(), 'node_modules'))} node`,
+      '',
+    ].join('\n'));
+    chmodSync(docker, 0o755);
+    const res = spawnSync('bash', [SCRIPT, 'ses-bounces', ...args], {
+      encoding: 'utf-8', env: { ...process.env, PATH: path, HOME: workDir }, ...SPAWN_GUARD,
+    });
+    return { status: res.status, stdout: res.stdout ?? '', stderr: res.stderr ?? '' };
+  }
+  const seed = (o: Parameters<typeof insertSesEvent>[1]) => {
+    const db = new BetterSqlite3(dbPath); const id = insertSesEvent(db, o); db.close(); return id;
+  };
+
+  // Defect caught: the sitting's bounce check passes on a bounce from an earlier
+  // probe, so a feed that broke since then reads as working.
+  it('fails when the only bounce was processed before the probe was sent', () => {
+    seed({ event_type: 'bounce', processed_at: '2026-11-12T09:59:59.000Z' });
+    const r = sinceRun('--since', PROBE_SENT);
+    expect(r.status, r.stderr).toBe(3);
+    expect(r.stdout).not.toMatch(/^BOUNCE 2026/m);
+  });
+
+  // Defect caught: a complaint, which the probe never produces, taken as proof
+  // that the bounce reached the platform.
+  it('fails when only a complaint arrived after the probe', () => {
+    seed({ event_type: 'complaint', processed_at: '2026-11-12T10:03:00.000Z' });
+    expect(sinceRun('--since', PROBE_SENT).status).toBe(3);
+  });
+
+  // Defect caught: the check never passes, so the operator is pushed back to
+  // answering a question by hand.
+  it('passes on a bounce processed after the probe, naming that notification', () => {
+    seed({ event_type: 'bounce', processed_at: '2026-11-12T09:00:00.000Z' });
+    const id = seed({ event_type: 'bounce', processed_at: '2026-11-12T10:02:30.123Z', mail_message_id: 'probe-mail-id' });
+    const r = sinceRun('--since', PROBE_SENT);
+    expect(r.status, r.stderr).toBe(0);
+    // The provider's id for the bounced message, which ties the row to the probe.
+    expect(r.stdout).toContain(`BOUNCE 2026-11-12T10:02:30.123Z ${id} mail=probe-mail-id`);
+  });
+
+  // Defect caught: a malformed time written into the JavaScript the host runs.
+  it('refuses a time that is not a UTC timestamp, before reaching the container', () => {
+    const r = sinceRun('--since', "2026-11-12'; process.exit(0); '");
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain('usage: ses-bounces');
+  });
+});
+
+describe('active-alarms reads what the admin alarms page lists as active', () => {
+  let dbPath: string;
+
+  beforeEach(() => {
+    dbPath = join(workDir, 'footbag.db');
+    createTestDb(dbPath).close();
+  });
+
+  function activeRun() {
+    const { path } = stubTools();
+    const docker = join(workDir, 'bin', 'docker');
+    writeFileSync(docker, [
+      '#!/usr/bin/env bash',
+      `sed "s#/app/db/footbag.db#${dbPath}#" | NODE_PATH=${JSON.stringify(join(process.cwd(), 'node_modules'))} node`,
+      '',
+    ].join('\n'));
+    chmodSync(docker, 0o755);
+    const res = spawnSync('bash', [SCRIPT, 'active-alarms'], {
+      encoding: 'utf-8', env: { ...process.env, PATH: path, HOME: workDir }, ...SPAWN_GUARD,
+    });
+    return { status: res.status, stdout: res.stdout ?? '', stderr: res.stderr ?? '' };
+  }
+  const seed = (o: Parameters<typeof insertSystemAlarmEvent>[1]) => {
+    const db = new BetterSqlite3(dbPath); insertSystemAlarmEvent(db, o); db.close();
+  };
+
+  // Defect caught: the sitting reads the estate as quiet while the page still
+  // shows an alarm nobody has picked up.
+  it('fails while an alarm is active, naming it', () => {
+    seed({ alarm_type: 'footbag-staging-media-replication-backlog', status: 'active' });
+    seed({ alarm_type: 'footbag-staging-old-alarm', status: 'cleared' });
+    const r = activeRun();
+    expect(r.status, r.stderr).toBe(3);
+    expect(r.stdout).toMatch(/^ACTIVE critical footbag-staging-media-replication-backlog /m);
+    expect(r.stdout).not.toContain('footbag-staging-old-alarm');
+  });
+
+  // Defect caught: a cleared or acknowledged alarm, which the page does not
+  // count, holding the check red forever.
+  it('passes when every alarm is cleared or acknowledged', () => {
+    seed({ status: 'cleared' });
+    seed({ status: 'acknowledged' });
+    const r = activeRun();
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toContain('NO ACTIVE ALARMS');
   });
 });
 

@@ -20,7 +20,8 @@
 #   read     a check; run every time, and its exit decides it.
 #   idem     an apply whose re-run is its own proof; run every time.
 #   once     an act that is not repeated; a log row never skips it.
-#   ask      a yes/no question at the terminal; only "yes" passes.
+#   ask      a yes/no question at the terminal; only "yes" passes. One whose
+#            proof is a read is not asked when that read already passes.
 #   digest   the preserved tables' digests, saved before a migration and
 #            compared after it.
 #   blocked  work not yet scriptable; it stops the run, so the pass cannot read
@@ -135,7 +136,9 @@ STAGING_STEPS=(
   's02|idem|cred|cred:0=scripts/bootstrap-host.sh --target staging --status|scripts/bootstrap-host.sh --target staging'
   's03|mailwalk|tty|log|scripts/confirm-alarm-subscription.sh --target staging'
   's04a|once+mail|tty|log|scripts/send-test-alarm.sh --target staging --region us-west-2 --alarm footbag-staging-media-replication-backlog'
-  's04b|ask+mail|-|log|Alarm mail check. s04a raised footbag-staging-media-replication-backlog (us-west-2) to ALARM and back to OK. The operations mailbox should now hold two emails from AWS Notifications, one with a subject starting ALARM: "footbag-staging-media-replication-backlog" and then one starting OK: with the same name (in Gmail, search "footbag-staging-media-replication-backlog" in:anywhere newer_than:1d). Then open /admin/alarms on staging, signed in as an admin: nothing should be listed as active. Did both emails arrive, and is nothing active?'
+  's04b|ask+mail|-|log|Alarm mail check. s04a raised footbag-staging-media-replication-backlog (us-west-2) to ALARM and back to OK. The operations mailbox should now hold two emails from AWS Notifications, one with a subject starting ALARM: "footbag-staging-media-replication-backlog" and then one starting OK: with the same name (in Gmail, search from:no-reply@sns.amazonaws.com in:anywhere newer_than:1d and look for that subject; Gmail can file it inside an older conversation with the same subject). s04c and s04d then read that the alarm is back to OK and that the admin alarms page lists nothing active. Did both emails arrive?'
+  's04c|read+mail|tty|-|scripts/send-test-alarm.sh --target staging --region us-west-2 --status --expect OK --wait-minutes 10 --alarm footbag-staging-media-replication-backlog'
+  's04d|read+mail|tty|-|scripts/host-diagnostics.sh --target staging active-alarms'
   's05a|ask|-|log|Durability check (1 of 2). In a browser signed in as a staging admin, change one small thing now (for example, add a word to a gallery'"'"'s description under /admin/curator/galleries) and note what you changed. Next, the tables are snapshotted, a throwaway migration is deployed, and you are asked whether your change survived. Made the change?'
   's05b|digest|tty|save|scripts/host-diagnostics.sh --target staging table-digests'
   's05c|once|cred|fact=migration-applied|scripts/deploy-migrate.sh --target staging --migration {MIGRATION}'
@@ -184,15 +187,14 @@ PRODUCTION_STEPS=(
   'p07g|read|tty|-|scripts/verify-replication.sh --target production'
   'p08a|read|cred|-|scripts/restore-db.sh --target production --drill'
   'p08b|read|cred|-|scripts/restore-db.sh --target production --drill --bucket footbag-production-db-snapshots-dr'
-  'p08c|read|cred|-|scripts/pre-cutover-checklist.sh --target production --no-snapshot --skip-dns-ttl'
+  'p08c|read|cred|-|scripts/pre-cutover-checklist.sh --target production --no-snapshot --skip-tests --skip-dns-ttl'
   'p08d|once|cred|log|scripts/verify-prod-email.sh --profile footbag-operator --outbox'
   'p08e|once|tty|log|scripts/verify-prod-email.sh --profile footbag-operator --bounce-probe'
-  'p08f|ask|-|log|Bounce check. p08e sent one message to the AWS bounce simulator, which should leave an audit row on production within a few minutes (action email.bounce_recorded, member_matched=false); p08e printed the query that finds it. Is that row there?'
+  'p08f|read|tty|after=p08e+5|scripts/host-diagnostics.sh --target production ses-bounces --since {SINCE<p08e}'
   'p09|once|cred|log|scripts/restore-db.sh --target production --snapshot {SNAPSHOT>p04a}|scripts/restore-db.sh --target production --resume-erasure-replay'
   'p10a|ask|-|log|First admin (1 of 3). In a browser, register the person who will be the first admin on production at /register, as an ordinary member, and verify their email. Next, p10b mints a one-time admin claim token and prints it here. Is that account registered and verified?'
   'p10b|once|tty|log|scripts/admin-bootstrap-token.sh --target production --profile footbag-operator provision'
-  'p10c|ask|-|log|First admin (2 of 3). Signed in as that member, open /admin/bootstrap-claim on production and submit the token p10b printed. The account then becomes an administrator and the token is deleted, which p10d proves next. Did the claim succeed?'
-  'p10d|read|tty|stdout=^ABSENT:|scripts/admin-bootstrap-token.sh --target production --profile footbag-operator status'
+  'p10c|read|tty|stdout=^ABSENT:|scripts/admin-bootstrap-token.sh --target production --profile footbag-operator status --wait-minutes 30'
   'p10e|ask|-|log|First admin (3 of 3). Register one throwaway ordinary member on production at /register, with any address you can read; later steps use it, and the closing rebuild removes it. Is it registered, and has the admin-loss warning stopped now that an administrator exists?'
   'p10f|mailwalk|tty|log|scripts/confirm-alarm-subscription.sh --target production'
   'p11a|once+mail|tty|log|scripts/host-break-glass.sh --drill --target staging'
@@ -205,7 +207,10 @@ PRODUCTION_STEPS=(
   'p13c|once+mail|tty|log|scripts/send-test-alarm.sh --target production --region us-west-2 --alarm footbag-production-snapshots-hourly-replication-stopped'
   'p13d|idem|tty|rerun|scripts/set-terraform-gate.sh --target production --gate enable_container_alarms --state on'
   'p13e|once+mail|tty|log|scripts/send-test-alarm.sh --target production --alarm-prefix footbag-production-container- --alarm-prefix footbag-production-cf-function- --alarm footbag-production-high-cpu --alarm footbag-production-high-memory --alarm footbag-production-rate-limit-refusals --alarm footbag-production-site-unavailable'
-  'p13f|ask+mail|-|log|Alarm mail check. p13c raised footbag-production-snapshots-hourly-replication-stopped (us-west-2), and p13e raised the container, CloudFront function, high CPU, high memory, rate-limit refusals and site-unavailable alarms (us-east-1), each to ALARM and back to OK. For each one the operations mailbox should hold two emails from AWS Notifications, subjects starting ALARM: and then OK: followed by the alarm name (in Gmail, search from:no-reply@sns.amazonaws.com newer_than:1d). Then open /admin/alarms on production, signed in as an admin: nothing should be listed as active. Did every pair arrive, and is nothing active?'
+  'p13f|ask+mail|-|log|Alarm mail check. p13c raised footbag-production-snapshots-hourly-replication-stopped (us-west-2), and p13e raised the container, CloudFront function, high CPU, high memory, rate-limit refusals and site-unavailable alarms (us-east-1), each to ALARM and back to OK. For each one the operations mailbox should hold two emails from AWS Notifications, subjects starting ALARM: and then OK: followed by the alarm name (in Gmail, search from:no-reply@sns.amazonaws.com in:anywhere newer_than:1d; Gmail can file a message inside an older conversation with the same subject). p13f1 to p13f3 then read that every alarm is back to OK and that the admin alarms page lists nothing active. Did every pair arrive?'
+  'p13f1|read+mail|tty|-|scripts/send-test-alarm.sh --target production --region us-west-2 --status --expect OK --wait-minutes 10 --alarm footbag-production-snapshots-hourly-replication-stopped'
+  'p13f2|read+mail|tty|-|scripts/send-test-alarm.sh --target production --status --expect OK --wait-minutes 10 --alarm-prefix footbag-production-container- --alarm-prefix footbag-production-cf-function- --alarm footbag-production-high-cpu --alarm footbag-production-high-memory --alarm footbag-production-rate-limit-refusals --alarm footbag-production-site-unavailable'
+  'p13f3|read+mail|tty|-|scripts/host-diagnostics.sh --target production active-alarms'
   'p13g|idem|tty|rerun|scripts/set-terraform-gate.sh --target production --gate enable_host_key_alarm --state on'
   'p13h|idem|tty|rerun|scripts/set-terraform-gate.sh --target production --gate enable_jobs_heartbeat_alarm --state on'
   'p13i|read|tty|-|scripts/send-test-alarm.sh --target production --status --expect OK --wait-minutes 20 --alarm footbag-production-jobs-missed-run --alarm footbag-production-captcha-unavailable'
@@ -234,7 +239,7 @@ PRODUCTION_STEPS=(
   'p19b|read|tty|-|scripts/create-stripe-endpoint.sh --target production --mode live --verify|scripts/create-stripe-endpoint.sh --target production --mode live --verify --repair'
   'p20a|read|tty|-|scripts/verify-account-baseline.sh --profile footbag-operator'
   'p20b|read|tty|-|scripts/terraform-apply-all.sh --target production --check'
-  'p17a|ask|-|log|Has the clean archive capture finished? It runs by hand, outside this pass: move the old capture aside, run bash legacy_data/legacy_mirror/create_mirror.sh -fresh, then the same with --video-backfill once its queue drains. p17b verifies it next.'
+  'p17a|ask|-|tty:0=legacy_data/legacy_mirror/verify_mirror.sh|Has the clean archive capture finished? It runs by hand, outside this pass: move the old capture aside, run bash legacy_data/legacy_mirror/create_mirror.sh -fresh, then the same with --video-backfill once its queue drains. p17b verifies it next.'
   'p17b|read|tty|-|legacy_data/legacy_mirror/verify_mirror.sh'
   'p17c|once|tty|log|scripts/backup-legacy-mirror.sh --target production'
   'p90|blocked|-|-|The host rebuild drills: the backup and restore change they follow is not yet built and deployed'
@@ -655,6 +660,12 @@ for (( i = FIRST; i <= LAST; i++ )); do
       cr_finish_with 3 BLOCKED
       ;;
     ask)
+      # A question whose answer a read can already prove is not asked.
+      if is_proof_command "$S_PROOF" && proof_passes "$S_PROOF"; then
+        log_row "$S_ID" "$started" "$PROOF_SAID" ok "not asked: proved by ${PROOF_SAID}"
+        cr_proved "${S_ID}: proved by ${PROOF_SAID}, so not asked"
+        continue
+      fi
       if ask_yes "$S_CMD"; then
         log_row "$S_ID" "$started" "-" ok "answered yes: ${S_CMD}"
         cr_proved "${S_ID}: answered yes: ${S_CMD}"

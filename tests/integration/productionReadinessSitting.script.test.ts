@@ -46,7 +46,7 @@ let rulesFile: string;
  */
 interface Rule { match: string; codes?: number[]; stdout?: string; warn?: string; fact?: string }
 const DEFAULT_RULES: Rule[] = [
-  { match: 'scripts/admin-bootstrap-token.sh * status', stdout: 'ABSENT: /footbag/x/admin_bootstrap_token does not exist.' },
+  { match: 'scripts/admin-bootstrap-token.sh * status*', stdout: 'ABSENT: /footbag/x/admin_bootstrap_token does not exist.' },
   { match: 'scripts/host-diagnostics.sh * table-digests', stdout: 'DIGEST members rows=3 sha256=' + 'a'.repeat(64) },
   { match: 'scripts/deploy-migrate.sh *', fact: 'migration-applied' },
 ];
@@ -294,7 +294,7 @@ describe('stopping', () => {
     expect(r.status).toBe(1);
     expect(r.out).toMatch(/VERDICT: STOPPED AT s04a/);
     expect(r.out).toMatch(/--from-step s04a/);
-    expect(r.out).toMatch(/not run: s04b s05a/);
+    expect(r.out).toMatch(/not run: s04b s04c s04d s05a/);
     expect(firstCall(/table-digests|deploy-migrate/)).toBe(-1);
     expect(rows().at(-1)!.slice(3, 6)).toEqual(['s04a', expect.any(String), 'failed (exit 1)']);
   });
@@ -629,6 +629,67 @@ describe('the restore fallback and the archive edge wait', () => {
   });
 });
 
+describe('checks made by a read rather than asked', () => {
+  const at = (msAgo: number) => new Date(Date.now() - msAgo).toISOString().replace(/\.\d{3}Z$/, 'Z');
+
+  // Defect caught: the bounce check reads a bounce older than the probe, or runs
+  // before the feed has had its minutes, or passes when the feed recorded none.
+  it('reads the bounce feed for a bounce newer than the probe, and stops when there is none', () => {
+    const started = at(7 * 60_000);
+    writeFileSync(logReal, log() + [
+      '', '## 9. Production-readiness sitting', '', 'One row per step.', '',
+      '| Started (UTC) | Finished (UTC) | Target | Step | Command | Result | Notes |', '|---|---|---|---|---|---|---|',
+      `| ${started} | ${at(6 * 60_000)} | production | p08e | scripts/verify-prod-email.sh --profile footbag-operator --bounce-probe | ok |  |`,
+      '',
+    ].join('\n'));
+    const ok = sit(['--target', 'production', '--from-step', 'p08f', '--to-step', 'p08f']);
+    expect(ok.status, ok.out).toBe(0);
+    expect(calls().map((c) => c.call)).toContain(
+      `scripts/host-diagnostics.sh --target production ses-bounces --since ${started}`);
+    expect(ok.out).not.toMatch(/\(yes\/no/);
+
+    writeRules([{ match: 'scripts/host-diagnostics.sh * ses-bounces *', codes: [3] }]);
+    const none = sit(['--target', 'production', '--from-step', 'p08f', '--to-step', 'p08f']);
+    expect(none.status).toBe(1);
+    expect(none.out).toMatch(/VERDICT: STOPPED AT p08f/);
+  });
+
+  // Defect caught: the first-admin claim taken on the operator's word, or
+  // passed while the token is still unspent.
+  it('waits for the claim to spend the token instead of asking, and stops while it is present', () => {
+    const ok = sit(['--target', 'production', '--from-step', 'p10c', '--to-step', 'p10c']);
+    expect(ok.status, ok.out).toBe(0);
+    expect(calls().map((c) => c.call)).toContain(
+      'scripts/admin-bootstrap-token.sh --target production --profile footbag-operator status --wait-minutes 30');
+    expect(ok.out).not.toMatch(/\(yes\/no/);
+
+    writeRules([{ match: 'scripts/admin-bootstrap-token.sh * status *', codes: [3], stdout: 'PRESENT: still there' }]);
+    const present = sit(['--target', 'production', '--from-step', 'p10c', '--to-step', 'p10c']);
+    expect(present.status).toBe(1);
+    expect(present.out).toMatch(/VERDICT: STOPPED AT p10c/);
+  });
+
+  // Defect caught: a question asked although a read already proves its answer,
+  // or skipped although the read fails.
+  it('skips the archive-capture question when the verify passes, and asks it when the verify fails', () => {
+    const proved = sit(['--target', 'production', '--from-step', 'p17a', '--to-step', 'p17a']);
+    expect(proved.status, proved.out).toBe(0);
+    expect(proved.out).not.toMatch(/\(yes\/no/);
+    expect(rows().at(-1)!.slice(3, 7)).toEqual(['p17a', 'legacy_data/legacy_mirror/verify_mirror.sh', 'ok', expect.stringMatching(/^not asked: proved by/)]);
+
+    writeRules([{ match: 'legacy_data/legacy_mirror/verify_mirror.sh*', codes: [1, 0] }]);
+    const asked = sit(['--target', 'production', '--from-step', 'p17a', '--to-step', 'p17b'], ['yes']);
+    expect(asked.status, asked.out).toBe(0);
+    expect(asked.out).toMatch(/Has the clean archive capture finished\?.*\(yes\/no/);
+    expect(rows().slice(-2).map((c) => [c[3], c[5]])).toEqual([['p17a', 'ok'], ['p17b', 'ok']]);
+
+    writeRules([{ match: 'legacy_data/legacy_mirror/verify_mirror.sh*', codes: [1] }]);
+    const declined = sit(['--target', 'production', '--from-step', 'p17a', '--to-step', 'p17b'], ['no']);
+    expect(declined.status).toBe(1);
+    expect(declined.out).toMatch(/VERDICT: STOPPED AT p17a/);
+  });
+});
+
 describe('waiting, and an interrupted step', () => {
   // Defect caught: the edge check run inside the hour after the publish, when
   // its logs cannot have arrived; or an interrupt during a step leaving no row,
@@ -713,9 +774,12 @@ describe('steps that need alarm mail', () => {
     expect(rows().map((c) => [c[3], c[5]])).toEqual([
       ['s04a', 'deferred (alarm mail not confirmed)'],
       ['s04b', 'deferred (alarm mail not confirmed)'],
+      ['s04c', 'deferred (alarm mail not confirmed)'],
+      ['s04d', 'deferred (alarm mail not confirmed)'],
       ['s05a', 'ok'],
     ]);
     expect(firstCall(/send-test-alarm/)).toBe(-1);
+    expect(firstCall(/active-alarms/)).toBe(-1);
     expect(r.out).toMatch(/- deferred until alarm mail is confirmed: s04a/);
     // One read of the subscriptions serves the whole run.
     expect(calls().filter((c) => /reconfirm-alarm-subscriptions\.sh .*--status/.test(c.call))).toHaveLength(1);
@@ -762,6 +826,15 @@ describe('steps that need alarm mail', () => {
     expect(stepCalls().filter((c) => /send-test-alarm\.sh(?!.*--status)|host-break-glass|prove-audit-alarms|list-host-access-mints/.test(c.call))).toEqual([]);
     expect(firstCall(/set-terraform-gate\.sh --target production --gate enable_container_alarms --state on/)).toBeGreaterThan(-1);
     expect(firstCall(/send-test-alarm\.sh .*--status --expect OK/)).toBeGreaterThan(-1);
+  });
+
+  // Defect caught: the production data gates run with the local test legs,
+  // which boot a local stack that says nothing about production and can be
+  // killed by the memory guard, failing the step for a reason unrelated to the
+  // data.
+  it('runs the production data gates without the local test legs', () => {
+    const r = spawnSync('bash', [SCRIPT, '--target', 'production', '--dry-run'], { encoding: 'utf-8', ...SPAWN_GUARD });
+    expect(r.stdout).toMatch(/^ {2}p08c +read +\[password on stdin\] scripts\/pre-cutover-checklist\.sh --target production .*--skip-tests/m);
   });
 
   // Defect caught: the dry run hiding which steps wait on alarm mail.

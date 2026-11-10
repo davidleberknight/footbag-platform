@@ -3616,3 +3616,27 @@ describe('deploy-code --first-install: the release installed without starting it
     expect((other.stderr ?? '')).toMatch(/DEPLOY_TARGET names 'footbag-staging', but --target names production/);
   });
 });
+
+describe('a prompt that confirms a change takes the typed word, a question takes yes or no', () => {
+  const wrapperSrc = fs.readFileSync(path.join(REPO_ROOT, 'deploy_to_aws.sh'), 'utf-8');
+
+  // Defect caught: a stray "y" stops the operator's processes, or ships code
+  // onto a database whose schema it does not match.
+  it('confirms stopping the lock holders and a code-only deploy onto drift with APPLY', () => {
+    const lockGate = wrapperSrc.slice(wrapperSrc.indexOf('_do_kill=0'), wrapperSrc.indexOf('if (( _do_kill == 1 ))'));
+    // The shared helper is loaded on each path just before it is called; without
+    // it the prompt is a command-not-found, which no answer can confirm.
+    expect(lockGate).toMatch(/load_confirm\s+confirm_from_tty "[^"]*" APPLY && _do_kill=1/);
+    expect(lockGate).not.toMatch(/\[Yy\]/);
+    const driftGate = wrapperSrc.slice(wrapperSrc.indexOf('Explicit -k: operator deliberately chose code-only'));
+    expect(driftGate.slice(0, driftGate.indexOf('exit 1'))).toMatch(/load_confirm\s+if ! confirm_from_tty "[^"]*" APPLY; then/);
+  });
+
+  // Defect caught: the media question, a genuine choice between two safe
+  // outcomes, turned into a confirmation, or a new y/N confirmation added.
+  it('keeps exactly one y/N prompt, the media question', () => {
+    const yn = wrapperSrc.match(/printf "[^"]*\[y\/N\] "/g) ?? [];
+    expect(yn).toHaveLength(1);
+    expect(yn[0]).toMatch(/Skip the media upload/);
+  });
+});

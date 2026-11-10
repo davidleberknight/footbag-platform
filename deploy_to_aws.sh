@@ -58,6 +58,14 @@ source "${SCRIPT_DIR}/scripts/lib/closing-report.sh"
 source "${SCRIPT_DIR}/scripts/lib/deploy-verdict.sh"
 cr_verdict_with deploy_verdict
 
+# confirm_from_tty, the shared typed confirmation read from the terminal, for
+# the prompts that confirm a change rather than ask a question. Loaded only on
+# the paths that ask, as the production gate's library is.
+load_confirm() {
+  # shellcheck source=scripts/lib/host-env-remote.sh
+  declare -F confirm_from_tty >/dev/null || source "${SCRIPT_DIR}/scripts/lib/host-env-remote.sh"
+}
+
 # -----------------------------------------------------------------------------
 # Which environment. --target names it, as on every operator command, and is
 # staging when omitted: that is the deploy run every day, a forgotten flag lands
@@ -355,6 +363,8 @@ if [[ "${DEPLOY_TARGET:-footbag-staging}" == "footbag-production" ]]; then
     echo "  This rebuild reseeds curated media under new storage keys, so the bytes" >&2
     echo "  need to reach the bucket or the rows it ships point at objects that are" >&2
     echo "  not there. Nothing in the bucket is deleted either way." >&2
+    echo "  y skips the upload and leaves the bucket as it is; anything else uploads" >&2
+    echo "  the media, adding objects and removing none." >&2
     echo "" >&2
     printf "  Skip the media upload, leaving the bucket exactly as it is? [y/N] " >&2
     if ! read -r _media </dev/tty 2>/dev/null; then
@@ -410,6 +420,9 @@ if [[ "${DEPLOY_TARGET:-footbag-staging}" == "footbag-production" ]]; then
   # cost of that choice is real and small: a later preflight refusal wastes a
   # typed password. The terminal test above has already run, so the read below
   # cannot be satisfied by anything but a person.
+  echo "  The production host's sudo password (the vault holds it) runs the deploy's" >&2
+  echo "  steps on the host as root. It is typed, never read from a file, for" >&2
+  echo "  production." >&2
   printf "  Host sudo password for footbag-production: " >&2
   if ! read -rs _PROD_SUDO_PASS </dev/tty 2>/dev/null; then
     echo "" >&2
@@ -540,9 +553,11 @@ if (( (DB_REBUILD_INVOLVED == 1) || (MODE_REUSE == 1) )) && command -v lsof >/de
         echo "  FOOTBAG_AUTO_KILL_DB_LOCK_HOLDERS=1 → auto-killing." >&2
         _do_kill=1
       elif [[ -r /dev/tty ]]; then
-        printf "  Kill the lock holder(s) now and continue? [y/N] " >&2
-        read -r _ans </dev/tty || _ans=""
-        [[ "${_ans:-}" =~ ^[Yy]$ ]] && _do_kill=1
+        echo "  Typing APPLY stops the process(es) listed above (asked first, then forced" >&2
+        echo "  after 5 seconds), removes the database's leftover -wal and -shm files, and" >&2
+        echo "  the deploy carries on. Anything else stops the deploy, changing nothing." >&2
+        load_confirm
+        confirm_from_tty "  Type APPLY to stop them and continue: " APPLY && _do_kill=1
       fi
 
       if (( _do_kill == 1 )); then
@@ -856,9 +871,11 @@ if (( MODE_CODE_ONLY == 1 )) \
       exit 1
     elif [[ -r /dev/tty ]]; then
       # Explicit -k: operator deliberately chose code-only. Confirm, default no.
-      printf "  Proceed with code-only deploy despite schema drift? [y/N] " >&2
-      read -r _ans </dev/tty || _ans=""
-      if ! [[ "${_ans:-}" =~ ^[Yy]$ ]]; then
+      echo "  Typing APPLY ships this code onto the deployed database as it is, whose" >&2
+      echo "  schema differs from schema.sql; the warning above says where that breaks." >&2
+      echo "  Anything else stops the deploy, with nothing deployed." >&2
+      load_confirm
+      if ! confirm_from_tty "  Type APPLY to deploy code only despite the drift: " APPLY; then
         cr_error "a code-only deploy onto a drifted schema was declined; nothing was deployed."
         echo "Aborted. Run a rebuild deploy (bash deploy_to_aws.sh --from-csv, or --public-data" >&2
         echo "  on staging without the private checkout), or set" >&2

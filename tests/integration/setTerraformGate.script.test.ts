@@ -257,6 +257,32 @@ function run(args: string[], env: Record<string, string> = {}) {
   };
 }
 
+/** A run at a real terminal (through `script`), answering each prompt in turn. */
+function atTerminal(args: string[], answers: string[], env: Record<string, string> = {}) {
+  const inner = `bash ${JSON.stringify(join(repo, 'scripts/set-terraform-gate.sh'))} ${args.join(' ')}; echo "EXIT=$?"`;
+  const r = spawnSync('script', ['-qec', inner, '/dev/null'], {
+    cwd: dir,
+    encoding: 'utf-8',
+    input: answers.map((a) => `${a}\n`).join(''),
+    env: {
+      ...process.env,
+      FOOTBAG_CR_REPORT_TO: '',
+      SET_TERRAFORM_GATE_TERRAFORM_BIN: join(dir, 'terraform'),
+      SET_TERRAFORM_GATE_APPLY_CMD: join(dir, 'apply.sh'),
+      SET_TERRAFORM_GATE_AWS_BIN: join(dir, 'aws'),
+      STUB_CALLS: calls,
+      STUB_PRESENT: PRESENT,
+      STUB_SENSITIVE: SENSITIVE,
+      STUB_SENSITIVE_LINE: SENSITIVE_LINE,
+      TMPDIR: join(dir, 'tmp'),
+      ...env,
+    },
+    ...SPAWN_GUARD,
+  });
+  const m = (r.stdout ?? '').match(/EXIT=(\d+)/);
+  return { status: m ? Number(m[1]) : -1, out: r.stdout ?? '' };
+}
+
 const ON_STAGING = ['--target', 'staging', '--gate', 'enable_backup_alarm', '--state', 'on', '--yes'];
 
 describe('set-terraform-gate.sh argument guards, each beside a run it lets through', () => {
@@ -636,6 +662,20 @@ describe('set-terraform-gate.sh end to end against stand-ins', () => {
     expect(r.status).toBe(1);
     expect(values('staging')).toBe(VALUES);
     expect(callLog()).not.toMatch(/^apply /m);
+  });
+
+  // Defect caught: a values-file write confirmed by a bare "yes", the answer to a
+  // question, rather than the typed word every change in the tree takes.
+  it('at a terminal, writes only on a typed APPLY, never on yes', () => {
+    const args = ['--target', 'staging', '--gate', 'enable_backup_alarm', '--state', 'on'];
+    const refused = atTerminal(args, ['yes']);
+    expect(refused.status, refused.out).toBe(1);
+    expect(values('staging')).toBe(VALUES);
+    expect(callLog()).not.toMatch(/^apply /m);
+
+    const written = atTerminal(args, ['APPLY']);
+    expect(written.status, written.out).toBe(0);
+    expect(values('staging')).toMatch(/^enable_backup_alarm\s+= true$/m);
   });
 
   it('dry run shows the diff and writes, plans and applies nothing', () => {
@@ -1061,6 +1101,23 @@ describe('set-terraform-gate.sh arms the host-key alarms only when the trail agr
     expect(r.stdout).toMatch(/\+staging_web_static_ip = "192\.0\.2\.20"/);
     expect(callLog()).toMatch(/^terraform output -raw lightsail_static_ip$/m);
     expect(callLog()).toMatch(/^apply --target production$/m);
+  });
+
+  // Defect caught: the staging-address write into the production values file
+  // confirmed by a bare "yes" rather than the typed word.
+  it('at a terminal, writes the staging address only on a typed APPLY', () => {
+    trail('footbag-production-source-profile', [{ ip: '198.51.100.10' }]);
+    trail('footbag-staging-source-profile', [{ ip: '192.0.2.20' }]);
+    const args = ['--target', 'production', '--gate', 'enable_host_key_alarm', '--state', 'on'];
+    const env = { STUB_TRAIL_DIR: join(dir, 'trail'), STUB_HOST_KEYS: hostKeys('192.0.2.20') };
+    writeProduction(VALUES);
+    const refused = atTerminal(args, ['yes'], env);
+    expect(refused.status, refused.out).toBe(1);
+    expect(values('production')).toBe(VALUES);
+
+    const written = atTerminal(args, ['APPLY', 'APPLY'], env);
+    expect(written.status, written.out).toBe(0);
+    expect(values('production')).toContain('staging_web_static_ip = "192.0.2.20"');
   });
 
   it('rewrites a stale staging address in place, never adding a second line', () => {

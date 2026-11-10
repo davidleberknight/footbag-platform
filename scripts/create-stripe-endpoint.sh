@@ -206,6 +206,10 @@ trap cleanup EXIT INT TERM
 if [[ -n "$SYNTHETIC_KEY" ]]; then
   STRIPE_KEY="$SYNTHETIC_KEY"
 else
+  # Where the key comes from, said before it is asked for, so the operator does
+  # not leave the run to find out.
+  printf 'The key is in the Stripe Dashboard, in %s mode, under Developers, API keys:\n' "$MODE" > /dev/tty
+  printf 'the secret key, starting sk_%s_. Paste it; it is used for this run only.\n' "$MODE" > /dev/tty
   printf 'Stripe secret key for %s mode (input hidden): ' "$MODE" > /dev/tty
   read -rs STRIPE_KEY < /dev/tty
   printf '\n' > /dev/tty

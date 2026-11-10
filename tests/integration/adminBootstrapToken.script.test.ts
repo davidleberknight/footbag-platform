@@ -19,8 +19,12 @@
  * The AWS CLI is replaced through the script's named seam. The stand-in records
  * every argument vector it receives and copies the request file it is handed, so
  * the suite can compare the token in the request with every argument any call
- * carried. Nothing it parses is tool output: the script judges the parameter's
- * existence on the CLI's exit status alone, which is the contracted part.
+ * carried. The one piece of tool output the script reads is the CLI's not-found
+ * error, which it tells apart from every other failed read; the stand-in prints
+ * a copy captured from the real CLI.
+ *
+ * Waiting for the claim, status --wait-minutes reports a token spent only on
+ * AWS's own not-found, and gives up with exit 3 when the token stays.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
@@ -35,6 +39,15 @@ import { requireToolInCI } from '../fixtures/toolAvailability';
 const REPO_ROOT = resolve(__dirname, '..', '..');
 const SCRIPT = join(REPO_ROOT, 'scripts', 'admin-bootstrap-token.sh');
 const PARAM = '/footbag/staging/app/bootstrap/admin_token';
+
+/**
+ * What the AWS CLI prints, with exit 254, for a parameter that does not exist:
+ * captured on 2026-11-11 from `aws ssm get-parameter` on staging's spent token,
+ * with AWS CLI v2. The script tells this apart from every other failed read, so
+ * the stand-in prints exactly this.
+ */
+const NOT_FOUND_STDERR =
+  'aws: [ERROR]: An error occurred (ParameterNotFound) when calling the GetParameter operation:';
 
 /**
  * The no-terminal case has to create its own absence of a terminal. A developer
@@ -87,7 +100,15 @@ function run(
       // argument carrying spaces stays one argument.
       'printf "%s\\x1f" "$@" >> "$STUB_LOG"; printf "\\n" >> "$STUB_LOG"',
       'case "$1 $2" in',
-      '  "ssm get-parameter") [[ -f "$STUB_EXISTS" ]] && exit 0; echo "ParameterNotFound" >&2; exit 254 ;;',
+      '  "ssm get-parameter")',
+      // Any failure but not-found, in the CLI's own shape.
+      '    if [[ -n "${STUB_READ_FAILS:-}" ]]; then echo "aws: [ERROR]: An error occurred (AccessDeniedException) when calling the GetParameter operation:" >&2; exit 254; fi',
+      // The claim spends the token: the parameter goes away on the given read.
+      '    n=$(( $(cat "$STUB_READS" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$STUB_READS"',
+      '    [[ -n "${STUB_SPENT_ON_READ:-}" ]] && (( n >= STUB_SPENT_ON_READ )) && rm -f "$STUB_EXISTS"',
+      '    [[ -f "$STUB_EXISTS" ]] && exit 0',
+      // NOT_FOUND_STDERR, captured from the real CLI.
+      `    printf '%s\\n' ${JSON.stringify(NOT_FOUND_STDERR)} >&2; exit 254 ;;`,
       '  "ssm put-parameter")',
       '    for a in "$@"; do',
       '      if [[ "$a" == file://* ]]; then',
@@ -111,6 +132,7 @@ function run(
     STUB_EXISTS: exists,
     STUB_CAPTURE: capture,
     STUB_CAPTURED_PATH: capturedPath,
+    STUB_READS: join(caseDir, 'reads'),
     ...opts.extraEnv,
   };
   const [command, argv] = opts.noTerminal
@@ -225,5 +247,69 @@ describe('admin-bootstrap-token.sh guards the first-admin credential', () => {
     // real one in a log an operator later trusts.
     const r = run(['--target', 'staging', 'cleanup']);
     expect(r.stderr).toContain('using a stand-in for the AWS CLI');
+  });
+});
+
+describe('admin-bootstrap-token.sh status reads the token strictly and waits for the claim', () => {
+  const NO_PAUSE = { ADMIN_BOOTSTRAP_POLL_SECS: '0' };
+  const reads = (r: Run) => verbs(r).filter((v) => v === 'ssm get-parameter').length;
+
+  // Defect caught: a read that failed (lost network, an expired session, a
+  // missing permission) reported as ABSENT, so the sitting records a first-admin
+  // claim as done when nobody has claimed the token.
+  it('fails on a read AWS refused, never reporting the token absent', () => {
+    const r = run(['--target', 'staging', 'status'], {
+      parameterExists: true, extraEnv: { STUB_READ_FAILS: '1' },
+    });
+    expect(r.status).toBe(1);
+    expect(r.stdout).not.toMatch(/^ABSENT:/m);
+    expect(r.stderr).toContain('AccessDeniedException');
+  });
+
+  // The positive control for the case above: AWS's own not-found is absence.
+  it('reports ABSENT on the not-found AWS returns for a spent token', () => {
+    const r = run(['--target', 'staging', 'status']);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toMatch(/^ABSENT:/m);
+  });
+
+  // Defect caught: the wait reports the claim done before the token is spent,
+  // or never notices that it was.
+  it('waits while the token is present and passes once the claim spends it', () => {
+    const r = run(['--target', 'staging', 'status', '--wait-minutes', '5'], {
+      // Spent on the sixth read, so a wait that stops after one more check while
+      // the token is still there reports it present rather than spent.
+      parameterExists: true, extraEnv: { ...NO_PAUSE, STUB_SPENT_ON_READ: '6' },
+    });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/^WAITING:/m);
+    expect(r.stdout).toMatch(/^ABSENT:/m);
+    expect(reads(r)).toBeGreaterThanOrEqual(6);
+  });
+
+  // Defect caught: a wait with no end, which hangs the sitting, or one that
+  // ends without saying the claim did not happen.
+  it('gives up with exit 3 when the token is still present at the end of the wait', () => {
+    const r = run(['--target', 'staging', 'status', '--wait-minutes', '1'], {
+      parameterExists: true, extraEnv: NO_PAUSE,
+    });
+    expect(r.status).toBe(3);
+    expect(r.stdout).toMatch(/^PRESENT:/m);
+    expect(r.stdout).not.toMatch(/^ABSENT:/m);
+  });
+
+  // Defect caught: a failed read part way through the wait taken as the claim.
+  it('stops with a failure when a read fails during the wait', () => {
+    const r = run(['--target', 'staging', 'status', '--wait-minutes', '5'], {
+      parameterExists: true, extraEnv: { ...NO_PAUSE, STUB_READ_FAILS: '1' },
+    });
+    expect(r.status).toBe(1);
+    expect(r.stdout).not.toMatch(/^ABSENT:/m);
+  });
+
+  // Defect caught: a wait accepted on an action it means nothing for.
+  it('refuses --wait-minutes on any action but status, and a non-number', () => {
+    expect(run(['--target', 'staging', 'cleanup', '--wait-minutes', '5']).status).toBe(2);
+    expect(run(['--target', 'staging', 'status', '--wait-minutes', 'soon']).status).toBe(2);
   });
 });

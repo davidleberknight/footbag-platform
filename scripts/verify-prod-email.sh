@@ -276,16 +276,17 @@ if [[ "$BOUNCE_PROBE" -eq 1 ]]; then
   # Synthetic feedback-loop validation: the bounce simulator generates a
   # reputation-safe permanent bounce, which flows SES -> SNS -> the feedback
   # queue the worker polls. The simulator address matches no member row, so the
-  # app records an email.bounce_recorded audit row with member_matched=false and
-  # no member state changes. Nothing arrives at all where the environment's
-  # feedback queue has not been brought up: the notification is published to a
-  # topic with no subscriber and dropped.
+  # app records the notification's ses_events claim row and nothing else: no
+  # member state changes, and no audit entry, since the audit log keeps nothing
+  # about an address no member holds. Nothing arrives at all where the
+  # environment's feedback queue has not been brought up: the notification is
+  # published to a topic with no subscriber and dropped.
+  probe_sent="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   echo "Sending to bounce simulator ($BOUNCE_SIMULATOR)..."
   echo "  MessageId: $(send_one "$BOUNCE_SIMULATOR")"
-  echo "  Within a few minutes, verify an 'email.bounce_recorded' audit row"
-  echo "  appeared (member_matched=false):"
-  echo "    SELECT created_at, metadata_json FROM audit_entries"
-  echo "    WHERE action_type = 'email.bounce_recorded' ORDER BY created_at DESC LIMIT 3;"
+  echo "  Within a few minutes, the bounce feed should record it. Check with:"
+  echo "    bash scripts/host-diagnostics.sh --target production \\"
+  echo "      ses-bounces --since ${probe_sent}"
 fi
 
 cat <<'EOF'
