@@ -105,6 +105,10 @@ function stageTree(): void {
   }
   writeFileSync(join(root, 'npm'), STUB);
   chmodSync(join(root, 'npm'), 0o755);
+  // Read by the run itself, not listed as a step: the alarm-mail status.
+  const status = join(root, 'scripts', 'reconfirm-alarm-subscriptions.sh');
+  writeFileSync(status, STUB);
+  chmodSync(status, 0o755);
 }
 
 /** The aws stand-in: the routine backups, one modified `offsetSecs` from now. */
@@ -191,6 +195,8 @@ function calls(): Call[] {
   });
 }
 const firstCall = (re: RegExp) => calls().findIndex((c) => re.test(c.call));
+/** The steps' own calls, without the once-per-run alarm-mail status read. */
+const stepCalls = () => calls().filter((c) => !/^scripts\/reconfirm-alarm-subscriptions\.sh --target \S+ --status$/.test(c.call));
 const log = () => readFileSync(logReal, 'utf-8');
 const rows = () => log().split('\n').filter((l) => /^\| \d{4}-/.test(l)).map((l) => l.split(' | ').map((c) => c.replace(/^\| | \|$/g, '')));
 const YES = (n: number) => Array.from({ length: n }, () => 'yes');
@@ -270,7 +276,7 @@ describe('stopping', () => {
     expect(r.status).toBe(1);
     expect(r.out).toMatch(/VERDICT: STOPPED AT s04b/);
     expect(rows().at(-1)![5]).toBe('declined');
-    expect(calls()).toEqual([]);
+    expect(stepCalls()).toEqual([]);
   });
 
   // Defect caught: resuming at the blocked step reads as done.
@@ -343,19 +349,18 @@ describe('--status', () => {
 });
 
 describe('resuming', () => {
-  // Defect caught: a resume that rewrites earlier rows, or redoes a one-time act
-  // its own proof shows is done.
-  it('runs from --from-step on, keeps earlier log content, and skips a step its proof shows done', () => {
+  // Defect caught: a resume that rewrites earlier rows, or runs steps before
+  // the one it was told to start from.
+  it('runs from --from-step on and keeps earlier log content', () => {
     sit(['--target', 'staging', '--to-step', 's01c']);
     const before = log();
-    writeRules([{ match: 'scripts/reconfirm-alarm-subscriptions.sh --target staging --status', codes: [0] }]);
-    const r = sit(['--target', 'staging', '--from-step', 's03a', '--to-step', 's03a']);
+    const callsBefore = calls().length;
+    const r = sit(['--target', 'staging', '--from-step', 's04a', '--to-step', 's04a']);
     expect(r.status, r.out).toBe(0);
     expect(log().startsWith(before)).toBe(true);
     // Only the step resumed from was run and recorded.
-    expect(rows().map((c) => c[3])).toEqual(['s01a', 's01b', 's01c', 's03a']);
-    expect(rows().at(-1)![5]).toMatch(/^already done \(proved by scripts\/reconfirm-alarm-subscriptions\.sh/);
-    expect(calls().filter((c) => c.call === 'scripts/reconfirm-alarm-subscriptions.sh --target staging')).toEqual([]);
+    expect(rows().map((c) => c[3])).toEqual(['s01a', 's01b', 's01c', 's04a']);
+    expect(calls().slice(callsBefore).map((c) => c.call.split(' ')[0])).not.toContain('scripts/apply-account-baseline.sh');
   });
 });
 
@@ -389,7 +394,7 @@ describe('the cutover log', () => {
 
   // Defect caught: a child's warning shown in the stream and then lost.
   it('carries a child warning into its own closing report', () => {
-    writeRules([{ match: 'scripts/apply-account-baseline.sh --dry-run', warn: 'stand-in baseline drift warning' }]);
+    writeRules([{ match: 'scripts/apply-account-baseline.sh *--dry-run', warn: 'stand-in baseline drift warning' }]);
     const r = sit(['--target', 'staging', '--to-step', 's01a']);
     expect(r.status, r.out).toBe(0);
     expect(r.out).toMatch(/Warnings \(1\):\s+- apply-account-baseline\.sh: stand-in baseline drift warning/);
@@ -435,7 +440,7 @@ describe('derived values', () => {
       '',
     ].join('\n'));
     sit(['--target', 'production', '--from-step', 'p11b', '--to-step', 'p11b']);
-    expect(calls().map((c) => c.call)).toEqual(['scripts/list-host-access-mints.sh --since 2026-11-10T10:00:00Z']);
+    expect(stepCalls().map((c) => c.call)).toEqual(['scripts/list-host-access-mints.sh --since 2026-11-10T10:00:00Z']);
   });
 
   // Defect caught: a durability rehearsal whose migration the host skipped
@@ -532,25 +537,86 @@ describe('waiting, and an interrupted step', () => {
   });
 });
 
-describe('the subscription loop', () => {
-  // Defect caught: one confirmation taken as all of them, or "no more emails"
-  // accepted while an address still waits.
-  it('confirms again while the status reads pending, until it reads clean', () => {
-    writeRules([{ match: 'scripts/reconfirm-alarm-subscriptions.sh --target staging --status', codes: [3, 3, 0] }]);
-    const r = sit(['--target', 'staging', '--from-step', 's03b', '--to-step', 's03b'], ['yes']);
+describe('steps that need alarm mail', () => {
+  const PENDING = { match: 'scripts/reconfirm-alarm-subscriptions.sh --target * --status', codes: [3] };
+
+  // Defect caught: a pass stopped by alarm mail nobody can confirm yet, or a
+  // test alarm sent while nothing can receive it.
+  it('defers them while the subscriptions are pending, and carries on with the rest', () => {
+    writeRules([PENDING]);
+    const r = sit(['--target', 'staging', '--from-step', 's04a', '--to-step', 's05a'], ['yes']);
     expect(r.status, r.out).toBe(0);
-    // Status, confirm, status (pending), confirm, status (clean): the confirm
-    // itself runs again, not the read that judged it.
-    expect(calls().map((c) => c.call.split(' ')[0].replace('scripts/', ''))).toEqual([
-      'reconfirm-alarm-subscriptions.sh', 'confirm-alarm-subscription.sh',
-      'reconfirm-alarm-subscriptions.sh', 'confirm-alarm-subscription.sh', 'reconfirm-alarm-subscriptions.sh',
+    expect(rows().map((c) => [c[3], c[5]])).toEqual([
+      ['s04a', 'deferred (alarm mail not confirmed)'],
+      ['s04b', 'deferred (alarm mail not confirmed)'],
+      ['s05a', 'ok'],
     ]);
+    expect(firstCall(/send-test-alarm/)).toBe(-1);
+    expect(r.out).toMatch(/- deferred until alarm mail is confirmed: s04a/);
+    // One read of the subscriptions serves the whole run.
+    expect(calls().filter((c) => /reconfirm-alarm-subscriptions\.sh .*--status/.test(c.call))).toHaveLength(1);
   });
 
-  it('fails when no more emails are coming and one is still pending', () => {
-    writeRules([{ match: 'scripts/reconfirm-alarm-subscriptions.sh --target staging --status', codes: [3] }]);
-    const r = sit(['--target', 'staging', '--from-step', 's03b', '--to-step', 's03b'], ['no']);
-    expect(r.status).toBe(1);
-    expect(rows().at(-1)![5]).toBe('failed');
+  // Defect caught: the deferral firing on confirmed mail too, so the alarm work
+  // never gets done.
+  it('runs them once the subscriptions read clean', () => {
+    const r = sit(['--target', 'staging', '--from-step', 's04a', '--to-step', 's04b'], ['yes']);
+    expect(r.status, r.out).toBe(0);
+    expect(rows().map((c) => [c[3], c[5]])).toEqual([['s04a', 'ok'], ['s04b', 'ok']]);
+    expect(firstCall(/send-test-alarm\.sh --target staging/)).toBeGreaterThan(-1);
+  });
+
+  // Defect caught: a drill or proof that asks whether its alarm email arrived
+  // run without mail, so it can only fail; its mint listing deferred with it.
+  it('defers the production drills and the audit-alarm proof while mail is pending', () => {
+    writeRules([PENDING]);
+    const r = sit(['--target', 'production', '--from-step', 'p11a', '--to-step', 'p11b']);
+    expect(r.status, r.out).toBe(0);
+    expect(rows().map((c) => c[5])).toEqual(['deferred (alarm mail not confirmed)', 'deferred (alarm mail not confirmed)']);
+    expect(firstCall(/host-break-glass|list-host-access-mints/)).toBe(-1);
+    const audit = sit(['--target', 'production', '--from-step', 'p13k', '--to-step', 'p13k']);
+    expect(audit.status).toBe(0);
+    expect(firstCall(/prove-audit-alarms/)).toBe(-1);
+  });
+
+  // Defect caught: a production test alarm, drill or audit-alarm proof run while
+  // nothing can receive its mail, because its row lost the marker; the alarm
+  // gates and state reads around them, which need no mail, still run.
+  it('defers every production step that sends or awaits alarm mail, across the whole alarm stretch', () => {
+    writeRules([PENDING]);
+    const r = sit(['--target', 'production', '--from-step', 'p11a', '--to-step', 'p14b'], YES(4));
+    expect(r.status, r.out).toBe(0);
+    expect(stepCalls().filter((c) => /send-test-alarm\.sh(?!.*--status)|host-break-glass|prove-audit-alarms|list-host-access-mints/.test(c.call))).toEqual([]);
+    expect(firstCall(/set-terraform-gate\.sh --target production --gate enable_container_alarms --state on/)).toBeGreaterThan(-1);
+    expect(firstCall(/send-test-alarm\.sh .*--status --expect OK/)).toBeGreaterThan(-1);
+  });
+
+  // Defect caught: the dry run hiding which steps wait on alarm mail.
+  it('marks the steps that need alarm mail in the dry run', () => {
+    const r = spawnSync('bash', [SCRIPT, '--target', 'production', '--dry-run'], { encoding: 'utf-8', ...SPAWN_GUARD });
+    expect(r.stdout).toMatch(/^ {2}p13k +once\+mail +scripts\/prove-audit-alarms\.sh$/m);
+    expect(r.stdout).toMatch(/^ {2}p13d +idem +scripts\/set-terraform-gate\.sh/m);
+  });
+
+  // Defect caught: a step that ran once mail worked shown as deferred again
+  // when mail is later pending, so done work reads as outstanding.
+  it('keeps a mail step that already ran as recorded in --status, whatever the mail state now', () => {
+    sit(['--target', 'staging', '--from-step', 's04a', '--to-step', 's04a']);
+    writeRules([PENDING]);
+    const r = sit(['--target', 'staging', '--from-step', 's04a', '--to-step', 's04a', '--status']);
+    expect(r.out).toMatch(/s04a +RECORDED ok at \S+ \(log only\)/);
+  });
+
+  // Defect caught: a deferred step read as done, or forgotten once mail works.
+  it('lists a deferred step as pending in --status, and says to run it once mail is confirmed', () => {
+    writeRules([PENDING]);
+    sit(['--target', 'staging', '--from-step', 's04a', '--to-step', 's04a']);
+    const pending = sit(['--target', 'staging', '--from-step', 's04a', '--to-step', 's04a', '--status']);
+    expect(pending.status).toBe(3);
+    expect(pending.out).toMatch(/s04a +DEFERRED \(alarm mail not confirmed\)/);
+    writeRules([]);
+    const ready = sit(['--target', 'staging', '--from-step', 's04a', '--to-step', 's04a', '--status']);
+    expect(ready.status).toBe(3);
+    expect(ready.out).toMatch(/s04a +NOT RUN \(alarm mail is confirmed now: run it with --from-step s04a\)/);
   });
 });

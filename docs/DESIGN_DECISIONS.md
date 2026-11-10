@@ -4024,7 +4024,7 @@ Trade-offs:
 
 Decision:
 
-All AWS services (S3, SES, Parameter Store, KMS, CloudWatch) are accessed through dedicated adapter modules. No direct AWS SDK calls from business logic.
+All AWS services (S3, SES, SQS, Parameter Store, KMS, CloudWatch) are accessed through dedicated adapter modules. No direct AWS SDK calls from business logic. Every SDK client is built with a connection limit and a socket-inactivity limit, so a silent AWS endpoint ends the call instead of holding it.
 
 Rationale:
 
@@ -5238,7 +5238,7 @@ S3 bucket configuration: point-in-time recovery comes from the snapshots themsel
 
 Container shutdown (SIGTERM): On shutdown signal, the application performs graceful shutdown to prevent data loss: (1) Stop accepting new requests. (2) Wait for in-flight transactions to complete (30-second timeout). (3) Execute PRAGMA wal_checkpoint(TRUNCATE) to commit final transactions. (4) Close database connection cleanly. (5) Exit. Once the containers have stopped, the host's service unit takes one final backup of the quiescent database. This ensures no data loss during planned restarts or deployments.
 
-Backup failure handling: Retry with exponential backoff (3 attempts: 1s, 2s, 4s delays). Alert CRITICAL after 3 consecutive failures. CloudWatch alarm if backup age exceeds 15 minutes. This ensures operators are immediately aware of backup issues.
+Backup failure handling: Retry with exponential backoff (3 attempts: 1s and 2s delays). Alert CRITICAL after 3 consecutive failures. CloudWatch alarm if backup age exceeds 15 minutes. This ensures operators are immediately aware of backup issues.
 
 Recovery procedure: Download the latest S3 snapshot, run PRAGMA integrity_check to validate database integrity, replace local database file, re-apply the recorded erasures while the application is stopped (a replay that does not complete leaves it stopped), restart application containers, verify health endpoints return OK. Target RTO (Recovery Time Objective): ~5 minutes from failure detection to service restoration.
 

@@ -30,6 +30,11 @@ import {
 const MAX_REDIRECTS = 5;
 const TOTAL_BUDGET_MS = 10_000;
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+/**
+ * The most results the cache holds. Every distinct link a member submits adds
+ * one, so without a bound the process's memory grows for as long as it runs.
+ */
+export const REACHABILITY_CACHE_MAX_ENTRIES = 5_000;
 
 export interface ReachabilityResult {
   reachable: boolean;
@@ -76,6 +81,22 @@ export function createLiveHttpReachabilityAdapter(opts: {
   const now = opts.now ?? (() => Date.now());
   const cache = new Map<string, CacheEntry>();
 
+  // At the bound, expired results go first, then the oldest; a Map iterates in
+  // insertion order, and a re-stored key is moved to the end.
+  function remember(key: string, entry: CacheEntry): void {
+    cache.delete(key);
+    if (cache.size >= REACHABILITY_CACHE_MAX_ENTRIES) {
+      const t = now();
+      for (const [k, e] of cache) if (e.expiresAt <= t) cache.delete(k);
+    }
+    while (cache.size >= REACHABILITY_CACHE_MAX_ENTRIES) {
+      const oldest = cache.keys().next().value;
+      if (oldest === undefined) break;
+      cache.delete(oldest);
+    }
+    cache.set(key, entry);
+  }
+
   async function hostIsBlocked(hostname: string): Promise<boolean> {
     const stripped = stripIpv6Brackets(hostname);
     if (isLiteralIp(stripped)) return isBlockedIp(stripped);
@@ -107,7 +128,7 @@ export function createLiveHttpReachabilityAdapter(opts: {
           reachable: false,
           error: 'invalid URL',
         };
-        cache.set(startCacheKey, { result, expiresAt: now() + CACHE_TTL_MS });
+        remember(startCacheKey, { result, expiresAt: now() + CACHE_TTL_MS });
         return result;
       }
 
@@ -186,8 +207,8 @@ export function createLiveHttpReachabilityAdapter(opts: {
 
       const finalKey = result.finalUrl ? hashUrl(result.finalUrl) : startCacheKey;
       const entry: CacheEntry = { result, expiresAt: now() + CACHE_TTL_MS };
-      cache.set(startCacheKey, entry);
-      if (finalKey !== startCacheKey) cache.set(finalKey, entry);
+      remember(startCacheKey, entry);
+      if (finalKey !== startCacheKey) remember(finalKey, entry);
       return result;
     },
   };

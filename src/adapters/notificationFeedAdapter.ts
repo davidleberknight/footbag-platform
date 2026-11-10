@@ -23,6 +23,7 @@ import {
   DeleteMessageCommand,
 } from '@aws-sdk/client-sqs';
 import { config } from '../config/env';
+import { awsRequestHandler, SQS_SOCKET_TIMEOUT_MS } from './awsHttpTimeouts';
 
 export interface FeedMessage {
   /** The queue's own handle for this delivery, used to delete it once handled. */
@@ -62,7 +63,8 @@ export function createLiveNotificationFeedAdapter(deps: {
   region: string | undefined;
   sqsClient?: SQSClient;
 }): NotificationFeedAdapter {
-  const client = deps.sqsClient ?? new SQSClient({ region: deps.region });
+  const client =
+    deps.sqsClient ?? new SQSClient({ region: deps.region, requestHandler: awsRequestHandler(SQS_SOCKET_TIMEOUT_MS) });
 
   return {
     async receive(queueUrl, opts = {}) {

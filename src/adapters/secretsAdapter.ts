@@ -36,6 +36,7 @@ import {
   ParameterNotFound,
 } from '@aws-sdk/client-ssm';
 import { config } from '../config/env';
+import { awsRequestHandler } from './awsHttpTimeouts';
 
 export interface SecretsAdapter {
   /** Returns the secret value, or undefined if the parameter does not exist. */
@@ -81,7 +82,7 @@ export function createLiveSecretsAdapter(opts: {
   ssmPrefix: string;
 }): SecretsAdapter {
   const client: SsmClientLike =
-    opts.ssmClient ?? new SSMClient({ region: config.awsRegion });
+    opts.ssmClient ?? new SSMClient({ region: config.awsRegion, requestHandler: awsRequestHandler() });
   const cache = new Map<string, string | undefined>();
   async function fetchOnce(key: string): Promise<string | undefined> {
     if (cache.has(key)) return cache.get(key);

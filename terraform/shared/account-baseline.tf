@@ -107,6 +107,15 @@ resource "aws_guardduty_detector_feature" "account" {
   detector_id = aws_guardduty_detector.account[0].id
   name        = each.key
   status      = each.value
+
+  # GuardDuty attaches its own sub-settings to some features (agent management
+  # under runtime monitoring, data-risk under RDS login events), some newer than
+  # the provider can declare. Undeclared, each plan would replace the feature to
+  # remove them and GuardDuty would add them straight back, so no apply could
+  # ever leave this tree clean. The feature's own status stays managed here.
+  lifecycle {
+    ignore_changes = [additional_configuration]
+  }
 }
 
 # =============================================================================

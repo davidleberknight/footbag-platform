@@ -13,6 +13,7 @@ import {
   NotFoundException,
 } from '@aws-sdk/client-sesv2';
 import { config } from '../config/env';
+import { awsRequestHandler } from './awsHttpTimeouts';
 
 /**
  * Assembles the RFC 5322 message for a send that carries custom headers. SES's
@@ -105,11 +106,13 @@ export function createLiveSesAdapter(opts: {
   sesv2Client?: SESv2Client;
 }): SesAdapter {
   const client =
-    opts.sesClient ?? new SESClient(opts.region ? { region: opts.region } : {});
+    opts.sesClient ??
+    new SESClient({ ...(opts.region ? { region: opts.region } : {}), requestHandler: awsRequestHandler() });
   // The suppression list exists only in the provider's second API generation;
   // the send calls stay on the first, which the sending stack is built on.
   const v2 =
-    opts.sesv2Client ?? new SESv2Client(opts.region ? { region: opts.region } : {});
+    opts.sesv2Client ??
+    new SESv2Client({ ...(opts.region ? { region: opts.region } : {}), requestHandler: awsRequestHandler() });
   const defaultFrom = opts.fromIdentity;
   return {
     async liftSuppression(address) {

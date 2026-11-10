@@ -222,6 +222,10 @@ else
        && host_env_fetch "$SSH_ALIAS" "$TMP_ENV" "$TMP_REPORT" "$HOST_ENV_PATH"; then
       ENV_RAW="$(cat "$TMP_ENV")"
       REPORT_RAW="$(cat "$TMP_REPORT")"
+    else
+      # Its own lines above say why. Recorded here, so a run whose host probe
+      # failed cannot close as clean while every host row reads UNKNOWN.
+      cr_warn "the remote probe of ${SSH_ALIAS} did not finish, so the host rows read UNKNOWN; its lines above say why"
     fi
     # Each block guards on its own payload, so a probe that came back empty
     # leaves its rows UNKNOWN and the rest of the view still renders.

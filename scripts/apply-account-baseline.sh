@@ -305,8 +305,10 @@ trap cleanup_plan EXIT INT TERM
 echo "-- step 1: the account baseline before the apply --"
 echo ""
 # Findings are expected here and do not stop the run: they are what the apply is
-# for. The report is shown so the before state is on the operator's screen.
-bash "$VERIFIER" || true
+# for. The report is shown so the before state is on the operator's screen. It
+# keeps a report of its own: run under a script that collects its children's
+# problems, it would otherwise list these expected findings there as errors.
+FOOTBAG_CR_REPORT_TO="" bash "$VERIFIER" || true
 echo ""
 
 save_out=""

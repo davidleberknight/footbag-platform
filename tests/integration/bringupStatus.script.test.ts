@@ -904,3 +904,29 @@ describe('bringup-status.sh — one row per host bootstrap step', () => {
     expect(out.split('\n')[i + 1]).toMatch(next);
   });
 });
+
+describe('bringup-status.sh — a host probe that does not finish', () => {
+  // Defect caught: the probe's refusal shown mid-stream and then a clean
+  // "DONE", so an operator reads a dashboard whose host rows were never read
+  // as a healthy one.
+  it('lists a failed host probe as a warning rather than closing clean', () => {
+    const binDir = join(tmpDir, 'probe-fail-bin');
+    mkdirSync(binDir, { recursive: true });
+    // The alias names the account the password is for; nothing connects.
+    writeFileSync(join(binDir, 'ssh'), '#!/usr/bin/env bash\nprintf "hostname 192.0.2.10\\nuser footbag\\n"\n');
+    chmodSync(join(binDir, 'ssh'), 0o755);
+    const run = (args: string[]) => spawnSync('bash', [SCRIPT, '--target', 'production', '--skip-terraform', '--skip-aws', ...args], {
+      env: { ...process.env, ...awsIdentityStubEnv(tmpDir), PATH: `${binDir}:${process.env.PATH ?? ''}`, HOME: tmpDir },
+      encoding: 'utf-8', input: '', ...SPAWN_GUARD,
+    });
+
+    // An empty first line on stdin: the probe refuses, and the report says so.
+    const failed = run([]);
+    expect(failed.stderr).toMatch(/Warnings \(1\):\n {2}- the remote probe of footbag-production did not finish/);
+    expect(failed.stderr).toMatch(/VERDICT: DONE WITH WARNINGS/);
+
+    // Beside it, the same run told to skip the probe closes clean.
+    const skipped = run(['--skip-remote']);
+    expect(skipped.stderr).not.toMatch(/the remote probe of footbag-production did not finish/);
+  });
+});

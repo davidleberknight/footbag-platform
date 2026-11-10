@@ -3,6 +3,7 @@ import {
   createLiveHttpReachabilityAdapter,
   createStubHttpReachabilityAdapter,
   createDisabledHttpReachabilityAdapter,
+  REACHABILITY_CACHE_MAX_ENTRIES,
 } from '../../src/adapters/httpReachabilityAdapter';
 import { logger } from '../../src/config/logger';
 
@@ -172,6 +173,28 @@ describe('LiveHttpReachabilityAdapter', () => {
     await adapter.check('https://example.com/');
     await adapter.check('https://example.com/');
     expect(log.length).toBe(1);
+  });
+
+  // Defect caught: a cache that keeps every link ever checked, so a long-lived
+  // process's memory grows without end; or a bound that drops the newest
+  // result rather than the oldest.
+  it('holds at most its bound, dropping the oldest result first', async () => {
+    const log: string[] = [];
+    const fetchClient = (async (input: string | URL | Request) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      log.push(url);
+      return { status: 200, ok: true, headers: new Headers(), url } as unknown as Response;
+    }) as unknown as typeof fetch;
+    const adapter = createLiveHttpReachabilityAdapter({ fetchClient, lookup: lookupPublic });
+    const url = (n: number) => `https://example.com/page-${n}`;
+    for (let n = 0; n <= REACHABILITY_CACHE_MAX_ENTRIES; n++) await adapter.check(url(n));
+    const fetched = log.length;
+    // The newest result is still held, so no fetch.
+    await adapter.check(url(REACHABILITY_CACHE_MAX_ENTRIES));
+    expect(log.length).toBe(fetched);
+    // The oldest went to make room, so it is fetched again.
+    await adapter.check(url(0));
+    expect(log.length).toBe(fetched + 1);
   });
 
   it('re-fetches after TTL expiry', async () => {

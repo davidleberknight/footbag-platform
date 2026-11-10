@@ -19,15 +19,17 @@
 # its warnings carried into this run's report. Every step is one of:
 #   read     a check; run every time, and its exit decides it.
 #   idem     an apply whose re-run is its own proof; run every time.
-#   once     an act that is not repeated; skipped only when its proof command
-#            passes first, never because the log has a row for it.
+#   once     an act that is not repeated; a log row never skips it.
 #   ask      a yes/no question at the terminal; only "yes" passes.
-#   loop     confirms alarm-subscription links until the status reads clean,
-#            asking between runs whether another email has arrived.
 #   digest   the preserved tables' digests, saved before a migration and
 #            compared after it.
 #   blocked  work not yet scriptable; it stops the run, so the pass cannot read
 #            as done. Blocked steps come last, so nothing runnable waits on them.
+# A kind ending in "+mail" needs a confirmed alarm-mail subscription (a test
+# alarm, a drill or proof that asks whether its email arrived). Confirming the
+# subscriptions is done outside this pass; until the environment's subscription
+# status reads clean, such a step is recorded as deferred and the run carries
+# on, and the closing report lists it as not proven.
 #
 # THE CREDENTIAL. The host sudo password arrives once, on stdin, from the file
 # the environment's alias selects. It goes on stdin to exactly the steps that
@@ -109,7 +111,8 @@ SECTION='## 9. Production-readiness sitting'
 #   -                       nothing beyond the step's own exit
 #   log                     the log row is the record
 #   rerun                   the idempotent re-run is the proof
-#   <stdin>:<codes>=<cmd>   a read whose exit is one of <codes> proves it done
+#   <stdin>:<codes>=<cmd>   a read, run after the step, whose exit is one of
+#                           <codes> confirms it
 #   fact=<name>             the step's report must carry this fact
 #   stdout=<ERE>            the step's output must match
 #   save, match             (digest) save the digests, or compare with the saved
@@ -121,14 +124,12 @@ SECTION='## 9. Production-readiness sitting'
 # fallback: offered, when the step fails, as one more command to finish it.
 
 STAGING_STEPS=(
-  's01a|read|tty|-|scripts/apply-account-baseline.sh --dry-run'
-  's01b|idem|tty|rerun|scripts/apply-account-baseline.sh'
+  's01a|read|tty|-|scripts/apply-account-baseline.sh --enable-guardduty --dry-run'
+  's01b|idem|tty|rerun|scripts/apply-account-baseline.sh --enable-guardduty'
   's01c|idem|tty|rerun|scripts/terraform-apply-all.sh --target staging'
   's02|idem|cred|cred:0=scripts/bootstrap-host.sh --target staging --status|scripts/bootstrap-host.sh --target staging'
-  's03a|once|tty|tty:0,3=scripts/reconfirm-alarm-subscriptions.sh --target staging --status|scripts/reconfirm-alarm-subscriptions.sh --target staging'
-  's03b|loop|tty|tty:0=scripts/reconfirm-alarm-subscriptions.sh --target staging --status|scripts/confirm-alarm-subscription.sh --target staging'
-  's04a|once|tty|log|scripts/send-test-alarm.sh --target staging --region us-west-2 --alarm footbag-staging-media-replication-backlog'
-  's04b|ask|-|log|Did the test alarm email arrive, and does /admin/alarms on staging show nothing active now that it has cleared?'
+  's04a|once+mail|tty|log|scripts/send-test-alarm.sh --target staging --region us-west-2 --alarm footbag-staging-media-replication-backlog'
+  's04b|ask+mail|-|log|Did the test alarm email arrive, and does /admin/alarms on staging show nothing active now that it has cleared?'
   's05a|ask|-|log|Make one admin edit on staging now. Done?'
   's05b|digest|tty|save|scripts/host-diagnostics.sh --target staging table-digests'
   's05c|once|cred|fact=migration-applied|scripts/deploy-migrate.sh --target staging --migration {MIGRATION}'
@@ -190,30 +191,28 @@ PRODUCTION_STEPS=(
   'p10c|ask|-|log|Did the claim at /admin/bootstrap-claim on production succeed?'
   'p10d|read|tty|stdout=^ABSENT:|scripts/admin-bootstrap-token.sh --target production --profile footbag-operator status'
   'p10e|ask|-|log|Is one throwaway member registered on production, and did the admin-loss warning stop?'
-  'p11a|once|tty|log|scripts/host-break-glass.sh --drill --target staging'
-  'p11b|read|tty|-|scripts/list-host-access-mints.sh --since {SINCE<p11a}'
+  'p11a|once+mail|tty|log|scripts/host-break-glass.sh --drill --target staging'
+  'p11b|read+mail|tty|-|scripts/list-host-access-mints.sh --since {SINCE<p11a}'
   'p12a|ask|-|log|Is a member signed in on production in a browser now?'
   'p12b|once|cred|log|scripts/rotate-jwt-signing-key.sh --target production'
   'p12c|once|tty|log|scripts/provision-ssm-secret.sh --target production --secret session_secret store'
   'p12d|once|tty|log|deploy_to_aws.sh --target production'
   'p12e|ask|-|log|Was the member signed out, and could they sign in again?'
-  'p13a|once|tty|tty:0,3=scripts/reconfirm-alarm-subscriptions.sh --target production --status|scripts/reconfirm-alarm-subscriptions.sh --target production'
-  'p13b|loop|tty|tty:0=scripts/reconfirm-alarm-subscriptions.sh --target production --status|scripts/confirm-alarm-subscription.sh --target production'
-  'p13c|once|tty|log|scripts/send-test-alarm.sh --target production --region us-west-2 --alarm footbag-production-snapshots-hourly-replication-stopped'
+  'p13c|once+mail|tty|log|scripts/send-test-alarm.sh --target production --region us-west-2 --alarm footbag-production-snapshots-hourly-replication-stopped'
   'p13d|idem|tty|rerun|scripts/set-terraform-gate.sh --target production --gate enable_container_alarms --state on'
-  'p13e|once|tty|log|scripts/send-test-alarm.sh --target production --alarm-prefix footbag-production-container- --alarm-prefix footbag-production-cf-function- --alarm footbag-production-high-cpu --alarm footbag-production-high-memory --alarm footbag-production-rate-limit-refusals --alarm footbag-production-site-unavailable'
-  'p13f|ask|-|log|Did each test alarm email arrive, and does /admin/alarms on production show nothing active now the queue has drained?'
+  'p13e|once+mail|tty|log|scripts/send-test-alarm.sh --target production --alarm-prefix footbag-production-container- --alarm-prefix footbag-production-cf-function- --alarm footbag-production-high-cpu --alarm footbag-production-high-memory --alarm footbag-production-rate-limit-refusals --alarm footbag-production-site-unavailable'
+  'p13f|ask+mail|-|log|Did each test alarm email arrive, and does /admin/alarms on production show nothing active now the queue has drained?'
   'p13g|idem|tty|rerun|scripts/set-terraform-gate.sh --target production --gate enable_host_key_alarm --state on'
   'p13h|idem|tty|rerun|scripts/set-terraform-gate.sh --target production --gate enable_jobs_heartbeat_alarm --state on'
   'p13i|read|tty|-|scripts/send-test-alarm.sh --target production --status --expect OK --wait-minutes 20 --alarm footbag-production-jobs-missed-run --alarm footbag-production-captcha-unavailable'
   'p13j|idem|tty|rerun|scripts/apply-account-baseline.sh --enable-guardduty'
-  'p13k|once|tty|log|scripts/prove-audit-alarms.sh'
+  'p13k|once+mail|tty|log|scripts/prove-audit-alarms.sh'
   'p13l|once|tty|log|scripts/rehearse-planned-maintenance.sh --target production'
   'p13m|idem|tty|rerun|scripts/set-terraform-gate.sh --target production --gate enable_cutover_login_alarm --state on'
   'p13n|read|tty|-|scripts/send-test-alarm.sh --target production --status --expect ALARM --wait-minutes 90 --alarm footbag-production-cutover-zero-logins'
   'p13o|idem|tty|rerun|scripts/set-terraform-gate.sh --target production --gate enable_cutover_login_alarm --state off'
-  'p14a|once|tty|log|scripts/host-break-glass.sh --drill --target production'
-  'p14b|read|tty|-|scripts/list-host-access-mints.sh --since {SINCE<p14a}'
+  'p14a|once+mail|tty|log|scripts/host-break-glass.sh --drill --target production'
+  'p14b|read+mail|tty|-|scripts/list-host-access-mints.sh --since {SINCE<p14a}'
   'p15a|idem|tty|rerun|scripts/production-cutover.sh --target production --stage archive-base'
   'p15b|read|tty|-|scripts/publish-archive.sh --target production --dry-run'
   'p15c|once|tty|log|scripts/publish-archive.sh --target production'
@@ -250,9 +249,11 @@ else
 fi
 
 # One record into the step fields.
-S_ID=""; S_KIND=""; S_STDIN=""; S_PROOF=""; S_CMD=""; S_FALLBACK=""
+S_ID=""; S_KIND=""; S_STDIN=""; S_PROOF=""; S_CMD=""; S_FALLBACK=""; S_MAIL=0
 parse_step() {
   IFS='|' read -r S_ID S_KIND S_STDIN S_PROOF S_CMD S_FALLBACK <<<"$1"
+  S_MAIL=0
+  if [[ "$S_KIND" == *+mail ]]; then S_KIND="${S_KIND%+mail}"; S_MAIL=1; fi
 }
 
 index_of() {
@@ -282,10 +283,10 @@ if [[ "$MODE" == dry ]]; then
   echo "The ${TARGET} pass, in order (nothing is run, read or written):"
   for (( i = FIRST; i <= LAST; i++ )); do
     parse_step "${STEPS[$i]}"
+    kind="$S_KIND"; (( S_MAIL )) && kind+="+mail"
     case "$S_KIND" in
-      ask) printf '  %-5s ask      %s\n' "$S_ID" "$S_CMD" ;;
-      blocked) printf '  %-5s blocked  %s\n' "$S_ID" "$S_CMD" ;;
-      *) printf '  %-5s %-8s %s%s\n' "$S_ID" "$S_KIND" "$([[ "$S_STDIN" == cred ]] && echo '[password on stdin] ' || true)" "$S_CMD" ;;
+      ask|blocked) printf '  %-5s %-9s %s\n' "$S_ID" "$kind" "$S_CMD" ;;
+      *) printf '  %-5s %-9s %s%s\n' "$S_ID" "$kind" "$([[ "$S_STDIN" == cred ]] && echo '[password on stdin] ' || true)" "$S_CMD" ;;
     esac
   done
   cr_unproved "every step (a dry run runs nothing)"
@@ -487,7 +488,8 @@ proof_passes() {
   stdin="${proof%%:*}"; codes="${proof#*:}"; codes="${codes%%=*}"; cmd="${proof#*=}"
   PROOF_SAID="$cmd"
   if [[ "$stdin" == cred ]] && (( ! HAVE_CRED )); then return 2; fi
-  # The step's own words are kept: a loop runs its command again after this.
+  # The step's own words are kept, so a read made between preparing a step and
+  # running it cannot replace them.
   local -a step_words=("${CMD_WORDS[@]+"${CMD_WORDS[@]}"}")
   resolve_command "$cmd" || { CMD_WORDS=("${step_words[@]+"${step_words[@]}"}"); return 1; }
   report="$(new_report)"
@@ -506,6 +508,18 @@ ask_yes() {
 
 is_proof_command() { [[ "$1" =~ ^(cred|tty):[0-9,]+= ]]; }
 
+# Whether this environment's alarm-mail subscriptions are all confirmed, read
+# once per run: the steps that need alarm mail wait on it, and confirming the
+# subscriptions is done outside this pass.
+MAIL_STATE=""
+mail_confirmed() {
+  if [[ -z "$MAIL_STATE" ]]; then
+    MAIL_STATE=pending
+    proof_passes "tty:0=scripts/reconfirm-alarm-subscriptions.sh --target ${TARGET} --status" && MAIL_STATE=confirmed
+  fi
+  [[ "$MAIL_STATE" == confirmed ]]
+}
+
 # ── Status: proofs and the log, nothing run that changes anything ───────────
 if [[ "$MODE" == status ]]; then
   pending=0
@@ -516,6 +530,10 @@ if [[ "$MODE" == status ]]; then
     state=""
     if [[ "$S_KIND" == blocked ]]; then
       state="BLOCKED: ${S_CMD}"; pending=1
+    elif (( S_MAIL )) && [[ "$r_result" != ok* ]]; then
+      if mail_confirmed; then state="NOT RUN (alarm mail is confirmed now: run it with --from-step ${S_ID})"
+      else state="DEFERRED (alarm mail not confirmed)"; fi
+      pending=1
     elif is_proof_command "$S_PROOF"; then
       rc=0; proof_passes "$S_PROOF" || rc=$?
       case "$rc" in
@@ -525,7 +543,7 @@ if [[ "$MODE" == status ]]; then
       esac
     elif [[ -z "$row" ]]; then
       state="NOT RUN"; pending=1
-    elif [[ "$r_result" == ok* || "$r_result" == "already done"* ]]; then
+    elif [[ "$r_result" == ok* ]]; then
       if [[ "$S_KIND" == ask ]]; then state="ATTESTED at ${r_start} (log only)"
       elif [[ "$S_PROOF" == rerun ]]; then state="RE-RUN PROVES; recorded ok at ${r_start}"
       else state="RECORDED ok at ${r_start} (log only)"; fi
@@ -583,6 +601,14 @@ for (( i = FIRST; i <= LAST; i++ )); do
   STARTED["$S_ID"]="$started"
   CURRENT="$S_ID"; CURRENT_START="$started"; CURRENT_CMD="$S_CMD"
 
+  if (( S_MAIL )) && ! mail_confirmed; then
+    log_row "$S_ID" "$started" "$S_CMD" "deferred (alarm mail not confirmed)"
+    cr_unproved "deferred until alarm mail is confirmed: ${S_ID}"
+    echo "Deferred: ${S_ID} needs a confirmed alarm-mail subscription; run it with --from-step once confirmed."
+    CURRENT=""
+    continue
+  fi
+
   case "$S_KIND" in
     blocked)
       rest="$(not_run_after "$i")"
@@ -605,15 +631,6 @@ for (( i = FIRST; i <= LAST; i++ )); do
       ;;
   esac
 
-  # Already done, by its proof and never by a log row.
-  if [[ "$S_KIND" == once || "$S_KIND" == loop ]] && is_proof_command "$S_PROOF"; then
-    if proof_passes "$S_PROOF"; then
-      log_row "$S_ID" "$started" "$S_CMD" "already done (proved by ${PROOF_SAID})"
-      cr_proved "${S_ID}: already done (proved by ${PROOF_SAID})"
-      continue
-    fi
-  fi
-
   if [[ "$S_KIND" == read && "$S_PROOF" == after=* ]]; then
     ref="${S_PROOF#after=}"; minutes="${ref#*+}"; ref="${ref%%+*}"
     if when="$(step_time finished "$ref")"; then
@@ -634,23 +651,6 @@ for (( i = FIRST; i <= LAST; i++ )); do
   fi
   CURRENT_CMD="${CMD_WORDS[*]}"
   notes=""
-
-  if [[ "$S_KIND" == loop ]]; then
-    while :; do
-      report="$(new_report)"
-      rc=0; run_child "$S_STDIN" "$report" "" "${CMD_WORDS[@]}" || rc=$?
-      hand_on "$report" warn
-      rm -f -- "$report"
-      proof_passes "$S_PROOF" && break
-      if ! ask_yes "Has another confirmation email arrived?"; then
-        log_row "$S_ID" "$started" "$CURRENT_CMD" failed "a subscription is still pending"
-        stop_at "$i" STOPPED "left a subscription pending"
-      fi
-    done
-    log_row "$S_ID" "$started" "$CURRENT_CMD" ok "proved by ${PROOF_SAID}"
-    cr_proved "${S_ID}: ${PROOF_SAID} reads clean"
-    continue
-  fi
 
   out=""
   [[ "$S_KIND" == digest || "$S_PROOF" == stdout=* ]] && out="${SCRATCH}/${S_ID}.out"

@@ -90,6 +90,7 @@ function verifierStub({
     [
       '#!/usr/bin/env bash',
       `printf '%s\\n' "report $*" >> ${JSON.stringify(verifierLog())}`,
+      `printf '%s\\n' "\${FOOTBAG_CR_REPORT_TO:-none}" >> ${JSON.stringify(join(stubDir, 'report-to.log'))}`,
       'case "${1:-}" in',
       '  --save)',
       `    [ ${saveRc} -eq 0 ] || { echo "ERROR: stub save refused" >&2; exit ${saveRc}; }`,
@@ -305,6 +306,23 @@ describe('apply-account-baseline.sh — the proof', () => {
       `report --compare ${join(stubDir, 'baseline-stub.txt')}`,
     ]);
     expect(r.stdout).toMatch(/^Done\./m);
+  });
+
+  // Defect caught: run under a script that collects its children's problems,
+  // the findings the before-report exists to show reach that script's report
+  // as errors, so a baseline apply that succeeded reads as a failure there.
+  // The after-report keeps reporting to it, because its findings are real.
+  it('keeps the expected before-findings out of a calling run\'s report, and the after-report in it', () => {
+    const parentReport = join(stubDir, 'parent-report');
+    writeFileSync(parentReport, '');
+    const r = run(['--yes'], plan(BASELINE_CREATES), {}, undefined, BOTH_ROUTES, { FOOTBAG_CR_REPORT_TO: parentReport });
+    expect(r.exitCode, r.stderr).toBe(0);
+    const reportTo = readFileSync(join(stubDir, 'report-to.log'), 'utf-8').trim().split('\n');
+    const calls = r.verifier.trim().split('\n');
+    expect(calls[0]).toBe('report ');
+    expect(reportTo[0]).not.toBe(parentReport);
+    expect(calls[2]).toBe('report ');
+    expect(reportTo[2]).toBe(parentReport);
   });
 
   // Re-running after a completed apply must finish the job, not apply again.

@@ -15,6 +15,7 @@ import {
   GetPublicKeyCommand,
 } from '@aws-sdk/client-kms';
 import { config } from '../config/env';
+import { awsRequestHandler } from './awsHttpTimeouts';
 
 export interface JwtClaims {
   sub: string;
@@ -182,7 +183,7 @@ export function createKmsJwtAdapter(opts: {
 }): JwtSigningAdapter {
   const client =
     opts.kmsClient ??
-    new KMSClient(opts.region ? { region: opts.region } : {});
+    new KMSClient({ ...(opts.region ? { region: opts.region } : {}), requestHandler: awsRequestHandler() });
   const kid = opts.keyId;
 
   let cachedPem: string | null = null;

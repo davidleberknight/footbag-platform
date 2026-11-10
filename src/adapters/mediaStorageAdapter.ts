@@ -29,6 +29,7 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { config } from '../config/env';
+import { awsRequestHandler } from './awsHttpTimeouts';
 
 export interface MediaStorageAdapter {
   /**
@@ -200,6 +201,7 @@ export function createS3MediaStorageAdapter(opts: {
     new S3Client({
       ...(opts.region ? { region: opts.region } : {}),
       requestChecksumCalculation: 'WHEN_REQUIRED',
+      requestHandler: awsRequestHandler(),
     });
   const bucket = opts.bucket;
   return {

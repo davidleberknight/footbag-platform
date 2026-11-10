@@ -6,6 +6,8 @@
 //     the CloudWatch pipeline and the test logger.error guard)
 //   - unused variables/imports
 //   - loose equality
+//   - code built from strings at run time (eval, implied eval, new Function),
+//     which would run whatever text reached it
 // Scope is src/ TypeScript only. Browser scripts in src/public/js have no
 // logger to route through, and tests are governed by the testing rules.
 import tseslint from 'typescript-eslint';
@@ -20,12 +22,17 @@ export default [
       parser: tseslint.parser,
       ecmaVersion: 2022,
       sourceType: 'module',
+      // Declared so no-implied-eval can see a string handed to a timer.
+      globals: { setTimeout: 'readonly', setInterval: 'readonly', setImmediate: 'readonly' },
     },
     plugins: { '@typescript-eslint': tseslint.plugin },
     rules: {
       'no-console': 'error',
       eqeqeq: ['error', 'smart'],
       'no-var': 'error',
+      'no-eval': 'error',
+      'no-implied-eval': 'error',
+      'no-new-func': 'error',
       '@typescript-eslint/no-unused-vars': [
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'none' },
