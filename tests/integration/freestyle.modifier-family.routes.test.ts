@@ -185,16 +185,14 @@ describe('GET /freestyle/modifier/:slug — every teaching page shows its own co
   });
 
   // Defect caught: a step or example whose slug no longer resolves turning from a
-  // link into plain text, steps misnumbered, or the anchor on the wrong step.
-  it('numbers the progression from an anchor on step 1 and links every step and example', async () => {
+  // link into plain text, or steps misnumbered.
+  it('numbers the progression from step 1 and links every step and example', async () => {
     const problems: string[] = [];
     for (const slug of TEACHING_SLUGS) {
       const { text } = await page(`/freestyle/modifier/${slug}`);
-      const steps = [...text.matchAll(/<li class="progression-step( is-anchor)?" id="modifier-step-(\d+)-/g)];
-      const numbers = steps.map(m => Number(m[2]));
+      const steps = [...text.matchAll(/<li id="modifier-step-(\d+)-/g)];
+      const numbers = steps.map(m => Number(m[1]));
       if (numbers.length === 0 || numbers.some((n, i) => n !== i + 1)) problems.push(`${slug}: steps numbered ${numbers.join(',')}`);
-      const anchors = steps.filter(m => m[1]).map(m => m[2]);
-      if (anchors.join() !== '1') problems.push(`${slug}: anchor on step ${anchors.join(',')}`);
       if (!text.includes('<a class="step-name" href') || text.includes('<span class="step-name"')) problems.push(`${slug}: unlinked step`);
       if (!text.includes('<a class="cross-base-name" href') || text.includes('<span class="cross-base-name"')) problems.push(`${slug}: unlinked example`);
     }

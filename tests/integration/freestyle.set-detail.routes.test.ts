@@ -400,13 +400,11 @@ describe('GET /freestyle/sets/stepping — set-page educational reference implem
     expect(res.text).not.toContain('<h2>About This Set</h2>');
   });
 
-  it('renders progression with anchor on butterfly, landing on its named trick (clickable underscore slugs)', async () => {
+  it('renders progression from butterfly, landing on its named trick (clickable underscore slugs)', async () => {
     const res = await page('/freestyle/sets/stepping');
     expect(res.text).toContain('set-step-1-butterfly');
     expect(res.text).toContain('set-step-2-ripwalk');
     expect(res.text).toContain('href="/freestyle/tricks/ripwalk"');
-    const anchorMatches = res.text.match(/is-anchor/g) ?? [];
-    expect(anchorMatches.length).toBe(1);
   });
 
   it('renders example tricks as clickable links', async () => {

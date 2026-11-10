@@ -5987,16 +5987,6 @@ a.hashtag--media:hover {
   flex-direction: column;
   gap: var(--space-lg);
 }
-.symbolic-walking-progression .progression-step {
-  background: var(--bg-light);
-  border-left: 3px solid var(--border);
-  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
-  padding: var(--space-lg);
-  position: relative;
-}
-.symbolic-walking-progression .progression-step.is-anchor {
-  border-left-color: var(--secondary);
-}
 .symbolic-walking-progression .step-header {
   display: flex;
   align-items: baseline;
@@ -6045,9 +6035,6 @@ a.hashtag--media:hover {
     flex-direction: column;
     align-items: flex-start;
     gap: var(--space-xs);
-  }
-  .symbolic-walking-progression .progression-step {
-    padding: var(--space-md) var(--space-lg);
   }
 }
 

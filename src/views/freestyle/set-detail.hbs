@@ -54,7 +54,7 @@
     <div class="section-heading"><h2>Progression {{content.education.progression.anchorBaseLabel}}</h2></div>
     <ol class="progression-chain" role="list">
       {{#each content.education.progression.steps}}
-      <li class="progression-step{{#if isAnchor}} is-anchor{{/if}}" id="set-step-{{stepNumber}}-{{slug}}">
+      <li id="set-step-{{stepNumber}}-{{slug}}">
         <div class="step-header">
           <span class="step-number" aria-hidden="true">{{stepNumber}}</span>
           {{#if isPilot}}<a class="step-name" href="{{detailHref}}">{{canonicalName}}</a>{{else}}<span class="step-name">{{canonicalName}}</span>{{/if}}

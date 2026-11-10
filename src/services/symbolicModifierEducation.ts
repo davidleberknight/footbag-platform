@@ -85,7 +85,6 @@ export interface ModifierProgressionStepResolved extends ModifierProgressionStep
   canonicalName: string;
   adds:          string | null;
   detailHref:    string;
-  isAnchor:      boolean;
   stepNumber:    number;
   isPilot:       boolean;
 }
@@ -943,7 +942,6 @@ export function buildModifierFamilyPage(
       canonicalName: row?.canonical_name ?? step.slug,
       adds:          row?.adds ?? null,
       detailHref:    `/freestyle/tricks/${step.slug}`,
-      isAnchor:      idx === 0,
       stepNumber:    idx + 1,
       isPilot:       !!row,   // pilot rendering decision deferred to template
     };
