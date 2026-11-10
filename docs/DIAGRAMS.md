@@ -65,8 +65,21 @@ Visual aids for understanding the system design. Six diagrams cover production i
 │    footbag-production-media-dr         replica (no lock, erasure)   │
 │    footbag-production-archive-dr       replica (no lock, erasure)   │
 │    footbag-production-maintenance-page CloudFront error page        │
-│    footbag-production-aws-health-usw2  Health rule (backup copy) →  │
-│    footbag-production-alarms-usw2      alarm email, us-east-1 down  │
+└─────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│ Alarm topics (SNS):                                                 │
+│  us-east-1 footbag-production-alarms → alarm mailbox                │
+│      ← CloudWatch alarms · Health rule · GuardDuty and Access       │
+│        Analyzer findings                                            │
+│  us-east-1 footbag-production-alarms-critical → ops-alert group     │
+│      ← critical alarms (also sent to the main topic)                │
+│  us-west-2 footbag-production-alarms-usw2 → alarm mailbox and       │
+│            ops-alert group                                          │
+│      ← Health rule (backup copy of every other Region's events)     │
+│      ← replication backlog and stopped alarms (S3 publishes their   │
+│        metrics only in the destination region)                      │
+│      ← Access Analyzer findings for us-west-2                       │
+│  The main and us-west-2 topics also feed the admin alarm queue.     │
 └─────────────────────────────────────────────────────────────────────┘
 ┌─────────────────────────────────────────────────────────────────────┐
 │ Audit and access logs (us-east-1):                                  │
@@ -82,12 +95,14 @@ Visual aids for understanding the system design. Six diagrams cover production i
 │  AWS KMS         JWT signing (asymmetric) · ballot encryption       │
 │  Parameter Store Stripe API keys · webhook secrets (not JWT)        │
 │  CloudWatch      Logs · metrics · backup-age alarm (>15 min)        │
-│  CloudTrail      AWS API record · ten audit alarms                  │
+│  CloudTrail      AWS API record · twelve audit alarms               │
 │  GuardDuty       Threat findings (S3 protection) → alarm email      │
+│  Access Analyzer External-access findings, us-east-1 and us-west-2  │
+│                  → alarm email                                      │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-**Caption:** The main site is served by one CloudFront distribution with different cache behaviors per path: dynamic HTML and static assets both route to the Lightsail origin (static assets cache-busted by a content-hash version token in the query string); the legacy archive is served by a separate CloudFront distribution backed by its own S3 bucket and protected by signed cookies (DD §6.4). The Lightsail instance runs four Docker containers sharing a local SQLite database file. The worker and web containers both access `footbag.db` directly; the image container is isolated with no database access. Photos live in a dedicated S3 bucket and are never stored in SQLite. The maintenance page CloudFront serves when the origin fails lives in an S3 bucket in us-west-2, and a second AWS Health rule there emails the backup copy of Health events AWS delivers to that region, so both the fallback page and notice of an AWS-side problem keep working when us-east-1 is down; the platform itself runs only in us-east-1, with no standby in the second region. Runtime AWS service integrations use IAM roles with no hardcoded secrets. Host shell access uses hardened SSH: administrators to the shared `footbag` account with their own keys, dev-and-testers to their own named staging accounts.
+**Caption:** The main site is served by one CloudFront distribution with different cache behaviors per path: dynamic HTML and static assets both route to the Lightsail origin (static assets cache-busted by a content-hash version token in the query string); the legacy archive is served by a separate CloudFront distribution backed by its own S3 bucket and protected by signed cookies (DD §6.4). The Lightsail instance runs four Docker containers sharing a local SQLite database file. The worker and web containers both access `footbag.db` directly; the image container is isolated with no database access. Photos live in a dedicated S3 bucket and are never stored in SQLite. The maintenance page CloudFront serves when the origin fails lives in an S3 bucket in us-west-2, and a second AWS Health rule there emails the backup copy of Health events AWS delivers to that region, so both the fallback page and notice of an AWS-side problem keep working when us-east-1 is down; the platform itself runs only in us-east-1, with no standby in the second region. The us-west-2 alarm topic also carries the alarms on the replication backlog and latency of the backup buckets, metrics S3 publishes only in the destination bucket's region, and the findings of a second Access Analyzer that watches the policies on those buckets; like the main topic, it emails the alarm mailbox and feeds the admin alarm queue. Runtime AWS service integrations use IAM roles with no hardcoded secrets. Host shell access uses hardened SSH: administrators to the shared `footbag` account with their own keys, dev-and-testers to their own named staging accounts.
 
 ---
 

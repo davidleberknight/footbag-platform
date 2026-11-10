@@ -148,6 +148,81 @@ describe.each(TREES)('%s alarms', (tree) => {
     const policy = blocks[tree].find((b) => b.type === 'aws_sns_topic_policy' && b.name === 'alarms_critical');
     expect(policy!.body).toMatch(/Principal = \{ Service = "cloudwatch\.amazonaws\.com" \}/);
   });
+
+  it('puts each replication-progress alarm in the backup region, where S3 publishes its metric', () => {
+    // Defect caught: an alarm in us-east-1 on a metric S3 publishes only in
+    // the destination bucket's region, which sees no data at all: the backlog
+    // alarm can never fire, and the stopped alarm, which treats silence as
+    // breaching, fires for ever.
+    const DESTINATION_REGION_METRICS = ['"ReplicationLatency"', '"OperationsPendingReplication"', '"BytesPendingReplication"'];
+    const progress = blocks[tree].filter((b) => b.type === 'aws_cloudwatch_metric_alarm'
+      && DESTINATION_REGION_METRICS.includes(attr(b, 'metric_name') ?? ''));
+    expect(progress.length, 'no replication-progress alarm found').toBeGreaterThan(0);
+    for (const b of progress) expect(onProvider(b, 'aws.us_west_2'), b.name).toBe(true);
+  });
+
+  it('sends each alarm in the backup region to that region\'s topic', () => {
+    // Defect caught: an alarm notifying a topic in another region, or none,
+    // so its state change reaches neither the mailbox nor the admin feed.
+    const west = blocks[tree].filter((b) => b.type === 'aws_cloudwatch_metric_alarm' && onProvider(b, 'aws.us_west_2'));
+    expect(west.length, 'no alarm in the backup region').toBeGreaterThan(0);
+    for (const b of west) {
+      for (const key of ['alarm_actions', 'ok_actions']) {
+        expect(attr(b, key), `${b.name} ${key}`).toBe('[aws_sns_topic.alarms_us_west_2.arn]');
+      }
+    }
+  });
+
+  it('routes the backup region\'s analyzer findings to that region\'s topic', () => {
+    // Defect caught: the us-west-2 analyzer publishes only to its own
+    // region's event bus, so a rule in us-east-1 never sees a finding on the
+    // disaster-recovery buckets and nobody is told.
+    const rule = blocks[tree].find((b) => b.type === 'aws_cloudwatch_event_rule'
+      && onProvider(b, 'aws.us_west_2') && b.body.includes('"aws.access-analyzer"'));
+    expect(rule, 'no analyzer findings rule in us-west-2').toBeDefined();
+    const target = blocks[tree].find((b) => b.type === 'aws_cloudwatch_event_target'
+      && b.body.includes(`aws_cloudwatch_event_rule.${rule!.name}.name`));
+    expect(target, 'the us-west-2 findings rule has no target').toBeDefined();
+    expect(onProvider(target!, 'aws.us_west_2')).toBe(true);
+    expect(attr(target!, 'arn')).toBe('aws_sns_topic.alarms_us_west_2.arn');
+  });
+
+  it('lets CloudWatch publish to every topic an alarm names directly', () => {
+    // Defect caught: a topic policy without the monitoring service's grant,
+    // which AWS never adds by default, so the alarm changes state and its
+    // notice is refused with no error anyone sees.
+    const named = new Set<string>();
+    for (const b of blocks[tree].filter((x) => x.type === 'aws_cloudwatch_metric_alarm')) {
+      for (const m of b.body.matchAll(/aws_sns_topic\.([a-z0-9_]+)\.arn/g)) named.add(m[1]);
+    }
+    expect(named.has('alarms_us_west_2'), 'the sweep reached no backup-region topic').toBe(true);
+    for (const topic of named) {
+      const policy = blocks[tree].find((b) => b.type === 'aws_sns_topic_policy'
+        && new RegExp(`^\\s*arn\\s*=\\s*aws_sns_topic\\.${topic}\\.arn`, 'm').test(b.body));
+      expect(policy, `${topic} has no topic policy`).toBeDefined();
+      const start = policy!.body.indexOf('Sid       = "AllowCloudWatchPublish"');
+      expect(start, `${topic} grants CloudWatch nothing`).toBeGreaterThan(-1);
+      const next = policy!.body.indexOf('Sid ', start + 4);
+      const grant = policy!.body.slice(start, next === -1 ? undefined : next);
+      expect(grant, topic).toMatch(/Effect\s*=\s*"Allow"/);
+      expect(grant, topic).toMatch(/Principal\s*=\s*\{\s*Service\s*=\s*"cloudwatch\.amazonaws\.com"\s*\}/);
+      expect(grant, topic).toMatch(new RegExp(`Resource\\s*=\\s*aws_sns_topic\\.${topic}\\.arn`));
+    }
+  });
+});
+
+describe('account controls in both regions', () => {
+  it('declares an external-access analyzer in the account region and in us-west-2', () => {
+    // Defect caught: an analyzer sees only its own region, so with one in
+    // us-east-1 alone the policies on the disaster-recovery buckets are
+    // never analysed.
+    const dir = resolve(__dirname, '../../terraform/shared');
+    const shared = readdirSync(dir).filter((f) => f.endsWith('.tf'))
+      .flatMap((f) => hclBlocks(readFileSync(resolve(dir, f), 'utf8'), 'resource'));
+    const analyzers = shared.filter((b) => b.type === 'aws_accessanalyzer_analyzer' && attr(b, 'type') === '"ACCOUNT"');
+    expect(analyzers.filter((b) => !/^\s*provider\s*=/m.test(b.body)), 'none in the account region').toHaveLength(1);
+    expect(analyzers.filter((b) => onProvider(b, 'aws.us_west_2')), 'none in us-west-2').toHaveLength(1);
+  });
 });
 
 describe('production-only routing', () => {
@@ -172,6 +247,101 @@ describe('production-only routing', () => {
     }
     expect(tf).toMatch(/user = "footbag-staging-source-profile"/);
     expect(tf).toMatch(/user = "footbag-staging-cwagent-publisher"/);
+  });
+
+  describe('the audit alarm on backup-bucket protection', () => {
+    const tf = readFileSync(resolve(__dirname, '../../terraform/production/cloudtrail.tf'), 'utf8');
+    const localList = (name: string) => tf.match(new RegExp(`^\\s*${name}\\s*=\\s*(?:concat\\()?([\\s\\S]*?)^\\s*[\\])]\\s*$`, 'm'))?.[1] ?? '';
+    const bucketsExpr = localList('backup_protection_buckets');
+    const eventList = (name: string) => [...localList(name).matchAll(/"([A-Za-z]+)"/g)].map((m) => m[1]);
+    // Each audit alarm over the backup buckets, with the events local it reads.
+    const ALARM_LISTS = [
+      { key: 'backup-protection-changed', local: 'backup_protection_events' },
+      { key: 'backup-access-changed', local: 'backup_access_events' },
+    ];
+    const events = ALARM_LISTS.flatMap((a) => eventList(a.local));
+    const entryOf = (key: string) => tf.match(new RegExp(`^\\s*${key} = \\{([\\s\\S]*?)^\\s*\\}`, 'm'))?.[1] ?? '';
+    const s3 = blocks.production.filter((b) => b.type === 'aws_s3_bucket');
+
+    it('watches every disaster-recovery bucket and every bucket replicating into one', () => {
+      // Defect caught: a backup bucket, or the bucket it copies, left out of
+      // the filter, so a lifecycle rule or policy that quietly empties it
+      // raises nothing. The set is read from the replication configurations
+      // and the -dr buckets, so a backup bucket added later without the
+      // alarm fails here.
+      const watched = new Set<string>();
+      for (const b of s3.filter((x) => /-dr"$/.test(attr(x, 'bucket') ?? ''))) watched.add(b.name);
+      const replications = blocks.production.filter((b) => b.type === 'aws_s3_bucket_replication_configuration');
+      expect(replications.length, 'no replication configuration found').toBeGreaterThanOrEqual(3);
+      for (const r of replications) {
+        const source = r.body.match(/^\s*bucket\s*=\s*aws_s3_bucket\.([a-z0-9_]+)(?:\[0\])?\.id/m)?.[1];
+        expect(source, `${r.name} has no source bucket`).toBeDefined();
+        watched.add(source!);
+        for (const m of r.body.matchAll(/aws_s3_bucket\.([a-z0-9_]+)(?:\[0\])?\.arn/g)) watched.add(m[1]);
+      }
+      expect(watched.size, 'the sweep found no backup bucket').toBeGreaterThanOrEqual(6);
+      for (const name of watched) {
+        expect(bucketsExpr, name).toMatch(new RegExp(`aws_s3_bucket\\.${name}(\\[0\\])?\\.bucket\\b`));
+      }
+    });
+
+    it('fires on each S3 call that could empty a backup or stop it filling, by CloudTrail\'s own event names', () => {
+      // Defect caught: a protective setting the filter does not watch, or an
+      // API name CloudTrail never records (it records PutBucketLifecycleConfiguration
+      // as PutBucketLifecycle), so the alarm can never fire on that change.
+      // A bucket deleted, opened by an ACL or re-keyed is as much a lost backup
+      // as one whose lifecycle empties it.
+      const REQUIRED = [
+        'PutBucketPolicy', 'DeleteBucketPolicy', 'PutBucketLifecycle', 'DeleteBucketLifecycle',
+        'PutBucketVersioning', 'PutBucketObjectLockConfiguration', 'PutBucketPublicAccessBlock',
+        'DeleteBucketPublicAccessBlock', 'PutBucketReplication', 'DeleteBucketReplication',
+        'DeleteBucket', 'PutBucketAcl', 'PutBucketEncryption',
+      ];
+      expect([...events].sort()).toEqual([...REQUIRED].sort());
+      for (const apiOnly of ['PutBucketLifecycleConfiguration', 'PutObjectLockConfiguration', 'DeletePublicAccessBlock']) {
+        expect(events, apiOnly).not.toContain(apiOnly);
+      }
+    });
+
+    it('watches the legacy-mirror backup bucket once its gate is on', () => {
+      // Defect caught: the only cold copy of the legacy site crawl deleted, or
+      // its policy loosened, with no alarm, because its bucket sits outside
+      // the replication sweep that finds the other backup buckets.
+      expect(bucketsExpr).toMatch(
+        /var\.enable_legacy_mirror_backup \? \[aws_s3_bucket\.legacy_mirror_backup\[0\]\.bucket\] : \[\]/,
+      );
+    });
+
+    it('requires an S3 call, a watched bucket and a watched event together, within the pattern size limit', () => {
+      // Defect caught: an "or" where an "and" belongs, so every S3 call in the
+      // account, or every call on these buckets, raises the alarm; or a
+      // pattern over the 1024 characters CloudWatch Logs accepts, which fails
+      // the apply. The pattern is rendered here as Terraform renders it, with
+      // every gated bucket on.
+      const bucketJoin = 'join(" || ", [for b in local.backup_protection_buckets : "$.requestParameters.bucketName = \\"${b}\\""])';
+      const names = [...bucketsExpr.matchAll(/aws_s3_bucket\.([a-z0-9_]+)/g)].map((m) => {
+        const raw = attr(s3.find((b) => b.name === m[1])!, 'bucket')!;
+        return raw.replace(/^"|"$/g, '').replace('${local.prefix}', 'footbag-production');
+      });
+      expect(names).toContain('footbag-production-legacy-mirror-backup');
+      for (const a of ALARM_LISTS) {
+        const pattern = entryOf(a.key).match(/^\s*pattern\s*=\s*(.+)$/m)?.[1] ?? '';
+        const eventJoin = `join(" || ", [for e in local.${a.local} : "$.eventName = \\"\${e}\\""])`;
+        expect(pattern, a.key).toBe(`"{ $.eventSource = \\"s3.amazonaws.com\\" && (\${${bucketJoin}}) && (\${${eventJoin}}) }"`);
+        const rendered = `{ $.eventSource = "s3.amazonaws.com" && (${names.map((n) => `$.requestParameters.bucketName = "${n}"`).join(' || ')}) && (${eventList(a.local).map((e) => `$.eventName = "${e}"`).join(' || ')}) }`;
+        expect(rendered.length, `${a.key}: ${rendered}`).toBeLessThanOrEqual(1024);
+      }
+      // The plan refuses an oversized pattern rather than the apply failing midway.
+      const filter = blocks.production.find((b) => b.type === 'aws_cloudwatch_log_metric_filter' && b.name === 'audit')!;
+      expect(filter.body).toMatch(/condition\s*=\s*length\(each\.value\.pattern\) <= 1024/);
+    });
+
+    it('raises the alerting-disabled alarm when an Access Analyzer is deleted', () => {
+      // Defect caught: deleting either region's analyzer silences its findings
+      // with no notice, as deleting the GuardDuty detector would.
+      const alerting = tf.match(/^\s*alerting-disabled = \{([\s\S]*?)^\s*\}/m)?.[1] ?? '';
+      expect(alerting).toMatch(/\(\$\.eventSource = \\"access-analyzer\.amazonaws\.com\\" && \$\.eventName = \\"DeleteAnalyzer\\"\)/);
+    });
   });
 
   it('leaves the account alternate contacts to the shared tree alone', () => {

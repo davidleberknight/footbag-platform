@@ -48,6 +48,7 @@ flowchart TB
     CF -->|dynamic HTML, static assets| N
     CF -->|/media-store/*| S3M[(S3 media)]
     CF -->|archive subdomain, signed cookies| S3A[(S3 legacy archive)]
+    CF -.origin down.-> MP[(S3 maintenance page, us-west-2)]
     subgraph LS [AWS Lightsail - four Docker containers]
         N[nginx] --> W[web: Express controllers and services]
         WK[worker: email outbox, daily jobs]
@@ -56,8 +57,10 @@ flowchart TB
         WK --> DB
     end
     W -.IAM roles, no hardcoded secrets.-> AWS[SES - KMS - Parameter Store - CloudWatch]
-    DB -->|snapshots every 5 min| S3B[(S3 snapshots, cross-region WORM DR)]
+    DB -->|snapshots every 5 min| S3B[(S3 snapshots)]
     IMG -->|photo variants| S3M
+    S3B -->|hourly and daily, Object Lock| DR[(us-west-2 DR copies)]
+    S3M -->|replicated| DR
 ```
 
 

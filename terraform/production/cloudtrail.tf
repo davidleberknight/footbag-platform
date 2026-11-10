@@ -457,8 +457,57 @@ resource "aws_cloudwatch_metric_alarm" "console_auth_failure" {
 # Changes to the trail, its bucket, its log group and the alarm path each raise
 # an alarm on the first matching call, denied attempts included, and the email
 # reaches a mailbox outside AWS. Matching denied attempts is what lets a denied
-# call from a staging principal prove each alarm. All five are threshold zero
+# call from a staging principal prove each alarm. All of them are threshold zero
 # and share one shape, so they are declared from one map.
+#
+# The backup buckets are watched the same way, the legacy-mirror backup among
+# them once its gate is on. A mistaken lifecycle rule, policy, ACL, encryption,
+# versioning change or replication change, or a bucket deletion, on a
+# disaster-recovery bucket or on the bucket it copies could quietly empty the
+# backup or stop it filling,
+# and nothing else would say so until a restore found it missing. Each of those
+# is a management event the multi-region trail already records, in us-west-2 as
+# in us-east-1, so one filter over this log group sees every one. The names are
+# CloudTrail's event names, which differ from some API names:
+# PutBucketLifecycleConfiguration is recorded as PutBucketLifecycle,
+# PutObjectLockConfiguration as PutBucketObjectLockConfiguration, and
+# DeletePublicAccessBlock as DeleteBucketPublicAccessBlock. A filter pattern is
+# held to 1024 characters, which the metric filter's precondition checks.
+locals {
+  backup_protection_buckets = concat(
+    [
+      aws_s3_bucket.snapshots.bucket,
+      aws_s3_bucket.dr.bucket,
+      aws_s3_bucket.media.bucket,
+      aws_s3_bucket.media_dr.bucket,
+    ],
+    var.enable_archive ? [aws_s3_bucket.archive[0].bucket, aws_s3_bucket.archive_dr[0].bucket] : [],
+    var.enable_legacy_mirror_backup ? [aws_s3_bucket.legacy_mirror_backup[0].bucket] : [],
+  )
+  # Two lists, two alarms of one shape: every bucket against every event in one
+  # pattern renders past the 1024-character limit.
+  # What keeps a backup's copies: retention and replication.
+  backup_protection_events = [
+    "PutBucketLifecycle",
+    "DeleteBucketLifecycle",
+    "PutBucketVersioning",
+    "PutBucketObjectLockConfiguration",
+    "PutBucketReplication",
+    "DeleteBucketReplication",
+  ]
+  # Who may reach a backup and whether it exists: policy, ACL, public access
+  # block, encryption and the bucket itself.
+  backup_access_events = [
+    "PutBucketPolicy",
+    "DeleteBucketPolicy",
+    "PutBucketAcl",
+    "PutBucketPublicAccessBlock",
+    "DeleteBucketPublicAccessBlock",
+    "PutBucketEncryption",
+    "DeleteBucket",
+  ]
+}
+
 locals {
   audit_alarms = {
     audit-trail-tampered = {
@@ -472,8 +521,18 @@ locals {
     }
     alerting-disabled = {
       metric      = "AlertingDisabled"
-      pattern     = "{ ($.eventSource = \"monitoring.amazonaws.com\" && ($.eventName = \"DeleteAlarms\" || $.eventName = \"DisableAlarmActions\")) || ($.eventSource = \"sns.amazonaws.com\" && ($.eventName = \"DeleteTopic\" || $.eventName = \"Unsubscribe\")) || ($.eventSource = \"guardduty.amazonaws.com\" && ($.eventName = \"DeleteDetector\" || $.eventName = \"UpdateDetector\")) }"
-      description = "The alarm path was changed or a change was attempted: alarms deleted or their actions disabled, a topic deleted or unsubscribed, or the GuardDuty detector deleted or updated. Expected only during a deliberate Terraform apply that replaces an alarm or topic."
+      pattern     = "{ ($.eventSource = \"monitoring.amazonaws.com\" && ($.eventName = \"DeleteAlarms\" || $.eventName = \"DisableAlarmActions\")) || ($.eventSource = \"sns.amazonaws.com\" && ($.eventName = \"DeleteTopic\" || $.eventName = \"Unsubscribe\")) || ($.eventSource = \"guardduty.amazonaws.com\" && ($.eventName = \"DeleteDetector\" || $.eventName = \"UpdateDetector\")) || ($.eventSource = \"access-analyzer.amazonaws.com\" && $.eventName = \"DeleteAnalyzer\") }"
+      description = "The alarm path was changed or a change was attempted: alarms deleted or their actions disabled, a topic deleted or unsubscribed, the GuardDuty detector deleted or updated, or an Access Analyzer deleted in either region. Expected only during a deliberate Terraform apply that replaces an alarm or topic."
+    }
+    backup-protection-changed = {
+      metric      = "BackupProtectionChanged"
+      pattern     = "{ $.eventSource = \"s3.amazonaws.com\" && (${join(" || ", [for b in local.backup_protection_buckets : "$.requestParameters.bucketName = \"${b}\""])}) && (${join(" || ", [for e in local.backup_protection_events : "$.eventName = \"${e}\""])}) }"
+      description = "The lifecycle, versioning, object lock or replication of a backup bucket or the bucket it copies was changed, or a change was attempted. A mistaken change there could quietly empty a backup or stop it filling. Expected only during a deliberate Terraform apply of those buckets."
+    }
+    backup-access-changed = {
+      metric      = "BackupAccessChanged"
+      pattern     = "{ $.eventSource = \"s3.amazonaws.com\" && (${join(" || ", [for b in local.backup_protection_buckets : "$.requestParameters.bucketName = \"${b}\""])}) && (${join(" || ", [for e in local.backup_access_events : "$.eventName = \"${e}\""])}) }"
+      description = "The policy, ACL, public access block or encryption of a backup bucket or the bucket it copies was changed, or the bucket deleted, or one of those was attempted. A mistaken change there could expose a backup, lock its owner out of it or remove it. Expected only during a deliberate Terraform apply of those buckets."
     }
     iam-write = {
       metric      = "IamWrite"
@@ -503,6 +562,13 @@ resource "aws_cloudwatch_log_metric_filter" "audit" {
     name          = each.value.metric
     value         = "1"
     default_value = "0"
+  }
+
+  lifecycle {
+    precondition {
+      condition     = length(each.value.pattern) <= 1024
+      error_message = "The ${each.key} filter pattern is longer than the 1024 characters CloudWatch Logs accepts; split it into two alarms."
+    }
   }
 }
 

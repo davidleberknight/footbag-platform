@@ -15,8 +15,11 @@ import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 import { chmodSync, mkdirSync, mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createHash } from 'node:crypto';
 
 const SCRIPT = join(process.cwd(), 'scripts/bringup-status.sh');
+// The checksum a rebuild records for the schema file this release carries.
+const SCHEMA_SHA = createHash('sha256').update(readFileSync(join(process.cwd(), 'database/schema.sql'))).digest('hex');
 
 interface RunResult {
   exitCode: number;
@@ -118,11 +121,30 @@ describe('bringup-status.sh — fully provisioned production', () => {
     expect(flowing.stdout).toMatch(/8\. Deployed runtime\s+DONE.*container monitor heartbeat: flowing/);
   });
 
-  it('an absent bootstrap token reads as claimed-or-unprovisioned, never DONE', () => {
+  it('an absent token with the administrators uncounted reads unknown, never DONE, and names no raw parameter write', () => {
+    // Defects caught: a self-deleted token, which reads the same before
+    // provisioning and after a claim, is reported as an administrator; or the
+    // operator is told to hand-type a SecureString write instead of the script.
     const probe = writeProbeFile(ALL_DONE_PRODUCTION);
     const result = runScript(['--target', 'production', '--probe-file', probe]);
-    expect(result.stdout).toMatch(/6\. First admin\s+UNKNOWN\s+no bootstrap token parameter/);
-    expect(result.stdout).toMatch(/aws ssm put-parameter --name \/footbag\/production\/app\/bootstrap\/admin_token/);
+    expect(result.stdout).toMatch(/6\. First admin\s+UNKNOWN/);
+    expect(result.stdout).not.toMatch(/aws ssm put-parameter/);
+  });
+
+  it('decides the first-admin row on the host database count of administrators', () => {
+    // Defects caught: a production with a claimed administrator still reads
+    // unknown, so the step is never seen done; or a production with none reads
+    // anything but pending with the provisioning script named.
+    const withAdmins = (n: string) => runScript(['--target', 'production', '--probe-file', writeProbeFile([...ALL_DONE_PRODUCTION, `DB_ADMINS=${n}`])]);
+    expect(withAdmins('1').stdout).toMatch(/6\. First admin\s+DONE\s+1 administrator/);
+    const none = withAdmins('0').stdout;
+    expect(none).toMatch(/6\. First admin\s+PENDING\s+no administrator/);
+    expect(none).toMatch(/admin-bootstrap-token\.sh --target production --profile <profile> provision/);
+    const waiting = runScript(['--target', 'production', '--probe-file', writeProbeFile([
+      ...ALL_DONE_PRODUCTION.map(l => l.replace('SSM_BOOTSTRAP_TOKEN=absent', 'SSM_BOOTSTRAP_TOKEN=present')), 'DB_ADMINS=0',
+    ])]);
+    expect(waiting.stdout).toMatch(/6\. First admin\s+PENDING\s+bootstrap token provisioned, awaiting claim/);
+    expect(waiting.stdout).not.toMatch(/admin-bootstrap-token\.sh .* provision/);
   });
 
   it('a provisioned bootstrap token reads as awaiting claim', () => {
@@ -146,6 +168,255 @@ describe('bringup-status.sh — fully provisioned production', () => {
     // The way off is the gate script, never a values-file edit and an apply.
     expect(on.stdout).toMatch(/set-terraform-gate\.sh --target production --gate enable_cutover_login_alarm --state off/);
     expect(on.stdout).not.toMatch(/enable_cutover_login_alarm = (true|false), apply/);
+  });
+});
+
+describe('bringup-status.sh — alarm gates, alarm subscriptions and GuardDuty', () => {
+  const rowsFor = (target: string, extra: string[]) =>
+    runScript(['--target', target, '--probe-file', writeProbeFile([...ALL_DONE_PRODUCTION, ...extra])]).stdout;
+
+  it('names each gate still off with the script that owns it, and reads done when none is', () => {
+    // Defects caught: a gate left off in the values file reads as ready, so its
+    // alarm never exists; or the next step is a values-file edit that skips the
+    // gate script's metric check, arming an alarm that pages at once.
+    const off = rowsFor('production', ['GATES_OFF=enable_container_alarms enable_cwagent_alarms']);
+    expect(off).toMatch(/11\. Alarm gates\s+PENDING\s+off in the values file: enable_container_alarms enable_cwagent_alarms/);
+    expect(off).toMatch(/set-terraform-gate\.sh --target production --gate enable_container_alarms --state on/);
+    expect(off).toMatch(/arm-cwagent-alarms\.sh --target production/);
+    expect(rowsFor('production', ['GATES_OFF=none'])).toMatch(/11\. Alarm gates\s+DONE/);
+    expect(rowsFor('production', [])).toMatch(/11\. Alarm gates\s+UNKNOWN/);
+  });
+
+  it('holds a click-confirmed or unconfirmed subscription pending with its command', () => {
+    // Defects caught: a subscription an unsubscribe link can remove, or one that
+    // receives nothing, reads as alarm mail that will arrive.
+    const clicked = rowsFor('staging', ['SUBS_STATE=click', 'SUBS_DETAIL=footbag-staging-alarms: ops@example.test (clicked)']);
+    expect(clicked).toMatch(/12\. Alarm subscriptions\s+PENDING\s+confirmed by a click.*footbag-staging-alarms/);
+    expect(clicked).toMatch(/reconfirm-alarm-subscriptions\.sh --target staging/);
+    const pending = rowsFor('staging', ['SUBS_STATE=pending']);
+    expect(pending).toMatch(/12\. Alarm subscriptions\s+PENDING\s+awaiting confirmation/);
+    expect(pending).toMatch(/confirm-alarm-subscription\.sh --target staging/);
+    expect(rowsFor('staging', ['SUBS_STATE=confirmed'])).toMatch(/12\. Alarm subscriptions\s+DONE/);
+  });
+
+  it('reports GuardDuty on production only, pending with the baseline script when off', () => {
+    // Defect caught: an account with no enabled detector reads ready, or the
+    // account-wide row is repeated per environment.
+    const off = rowsFor('production', ['GUARDDUTY=off']);
+    expect(off).toMatch(/13\. GuardDuty\s+PENDING/);
+    expect(off).toMatch(/apply-account-baseline\.sh --enable-guardduty/);
+    expect(rowsFor('production', ['GUARDDUTY=on'])).toMatch(/13\. GuardDuty\s+DONE/);
+    expect(rowsFor('staging', ['GUARDDUTY=off'])).toMatch(/13\. GuardDuty\s+N-A/);
+  });
+
+  /**
+   * What reconfirm-alarm-subscriptions.sh --status printed, captured from real
+   * runs on 2026-11-09 (staging, then production), with the account id and the
+   * mailbox address replaced by documentation values. Only the warnings and the
+   * proven line are parsed; the rest is kept as the tool printed it.
+   */
+  const SUBS_CAPTURED_STAGING = [
+    '==> AWS identity: taken from your environment, not from this script.',
+    '    arn:aws:iam::111122223333:user/footbag-operator',
+    'WARNING: footbag-staging-alarms: ops@example.test was confirmed by a click, so an unsubscribe link can remove it; recreate it with bash scripts/reconfirm-alarm-subscriptions.sh --target staging',
+    '  footbag-staging-alarms-critical: no email subscriptions',
+    'WARNING: footbag-staging-alarms-usw2: ops@example.test was confirmed by a click, so an unsubscribe link can remove it; recreate it with bash scripts/reconfirm-alarm-subscriptions.sh --target staging',
+    '',
+    '==== Closing report: reconfirm-alarm-subscriptions.sh ====',
+    'Warnings (2):',
+    '  - footbag-staging-alarms: ops@example.test was confirmed by a click, so an unsubscribe link can remove it; recreate it with bash scripts/reconfirm-alarm-subscriptions.sh --target staging',
+    '  - footbag-staging-alarms-usw2: ops@example.test was confirmed by a click, so an unsubscribe link can remove it; recreate it with bash scripts/reconfirm-alarm-subscriptions.sh --target staging',
+    'Proven:',
+    '  - read every email subscription on the staging alarm topics found',
+  ].join('\n');
+  const SUBS_CAPTURED_PENDING = [
+    '==> AWS identity: taken from your environment, not from this script.',
+    '    arn:aws:iam::111122223333:user/footbag-operator',
+    '  footbag-production-alarms-critical (us-east-1): no such topic',
+    'WARNING: footbag-production-alarms-usw2: ops@example.test is pending confirmation; confirm its link with bash scripts/confirm-alarm-subscription.sh --target production',
+    '',
+    '==== Closing report: reconfirm-alarm-subscriptions.sh ====',
+    'Proven:',
+    '  - read every email subscription on the production alarm topics found',
+  ].join('\n');
+
+  /** A run through the real aws probe: a stand-in aws answering only the
+   *  GuardDuty reads, and a stand-in subscription script printing `subs`. */
+  function liveAwsProbe(target: string, detectorStatus: string | null, subs: string, subsRc = 0) {
+    const root = join(tmpDir, `aws-probe-${++fileCounter}`);
+    const bin = join(root, 'bin');
+    mkdirSync(bin, { recursive: true });
+    writeFileSync(join(bin, 'aws'), [
+      '#!/usr/bin/env bash',
+      '[[ "$1 $2" == "guardduty list-detectors" ]] && { ' + (detectorStatus === null ? 'echo None' : 'echo 12abc34d567e8fa901bc2d34e56789f0') + '; exit 0; }',
+      `[[ "$1 $2" == "guardduty get-detector" ]] && { echo ${JSON.stringify(detectorStatus ?? '')}; exit 0; }`,
+      'exit 255',
+    ].join('\n') + '\n');
+    chmodSync(join(bin, 'aws'), 0o755);
+    const subsFile = join(root, 'subs.txt');
+    writeFileSync(subsFile, subs + '\n');
+    writeFileSync(join(root, 'reconfirm.sh'), `cat ${JSON.stringify(subsFile)}\nexit ${subsRc}\n`);
+    return runScript(['--target', target, '--skip-remote', '--skip-terraform', '--profile', 'stub-profile'], {
+      ...process.env,
+      PATH: `${bin}:${process.env.PATH ?? ''}`,
+      BRINGUP_STATUS_RECONFIRM_CMD: join(root, 'reconfirm.sh'),
+    }).stdout;
+  }
+
+  it('reads GuardDuty from the detector\'s own status, so a suspended detector is not on', () => {
+    // Defect caught: a detector that exists but is suspended, which detects
+    // nothing, read as the account's threat detection being on.
+    expect(liveAwsProbe('production', 'ENABLED', SUBS_CAPTURED_STAGING)).toMatch(/13\. GuardDuty\s+DONE/);
+    expect(liveAwsProbe('production', 'SUSPENDED', SUBS_CAPTURED_STAGING)).toMatch(/13\. GuardDuty\s+PENDING/);
+    expect(liveAwsProbe('production', null, SUBS_CAPTURED_STAGING)).toMatch(/13\. GuardDuty\s+PENDING/);
+  });
+
+  it('parses the subscription script\'s real output into the row, and reads a failed run as unknown', () => {
+    // Defects caught: the captured warning shapes match nothing, so clicked or
+    // unconfirmed subscriptions read done; or a run that failed part-way, with
+    // no proven line, reads as every subscription confirmed.
+    const clicked = liveAwsProbe('staging', 'ENABLED', SUBS_CAPTURED_STAGING);
+    expect(clicked).toMatch(/12\. Alarm subscriptions\s+PENDING\s+confirmed by a click.*footbag-staging-alarms: ops@example\.test \(clicked\); footbag-staging-alarms-usw2: ops@example\.test \(clicked\)/);
+    const pending = liveAwsProbe('production', 'ENABLED', SUBS_CAPTURED_PENDING);
+    expect(pending).toMatch(/12\. Alarm subscriptions\s+PENDING\s+awaiting confirmation: footbag-production-alarms-usw2: ops@example\.test \(pending\)/);
+    const allConfirmed = SUBS_CAPTURED_PENDING.split('\n').filter(l => !l.startsWith('WARNING')).join('\n');
+    expect(liveAwsProbe('production', 'ENABLED', allConfirmed)).toMatch(/12\. Alarm subscriptions\s+DONE/);
+    expect(liveAwsProbe('production', 'ENABLED', SUBS_CAPTURED_STAGING, 1)).toMatch(/12\. Alarm subscriptions\s+UNKNOWN/);
+    const noProof = SUBS_CAPTURED_PENDING.split('\n').filter(l => !l.startsWith('WARNING') && !l.includes('read every')).join('\n');
+    expect(liveAwsProbe('production', 'ENABLED', noProof)).toMatch(/12\. Alarm subscriptions\s+UNKNOWN/);
+  });
+
+  it('reads the gates off the environment values file, skipping the window-scoped login alarm', () => {
+    // Defects caught: a gate set true reads as off, a gate absent from the file
+    // (so at its false default) reads as on, a variable that is not an alarm
+    // gate is reported, or the cutover login alarm, off outside its window by
+    // design, is reported as pending work. Driven through the real terraform
+    // probe against a tree the test builds, so the values-file read itself runs.
+    const root = join(tmpDir, `tf-root-${++fileCounter}`);
+    const tree = join(root, 'production');
+    mkdirSync(tree, { recursive: true });
+    writeFileSync(join(tree, 'variables.tf'), [
+      'variable "enable_backup_alarm" {', '  type    = bool', '  default = false', '}',
+      'variable "enable_container_alarms" {', '  type    = bool', '  default = false', '}',
+      'variable "enable_host_key_alarm" {', '  type    = bool', '  default = false', '}',
+      'variable "enable_cutover_login_alarm" {', '  type    = bool', '  default = false', '}',
+      'variable "enable_archive" {', '  type    = bool', '  default = false', '}',
+    ].join('\n') + '\n');
+    writeFileSync(join(tree, 'terraform.tfvars'), [
+      'enable_backup_alarm     = true',
+      'enable_container_alarms = false',
+      'enable_archive          = false',
+    ].join('\n') + '\n');
+    const tf = join(root, 'bin');
+    mkdirSync(tf, { recursive: true });
+    writeFileSync(join(tf, 'terraform'), '#!/usr/bin/env bash\nexit 0\n');
+    chmodSync(join(tf, 'terraform'), 0o755);
+    const result = runScript(['--target', 'production', '--skip-remote', '--skip-aws'], {
+      ...process.env,
+      ...awsIdentityStubEnv(root),
+      BRINGUP_STATUS_TF_ROOT: root,
+      PATH: `${tf}:${process.env.PATH ?? ''}`,
+    });
+    expect(result.stderr).toMatch(/SYNTHETIC: terraform root/);
+    const line = result.stdout.split('\n').find(l => /11\. Alarm gates/.test(l)) ?? '';
+    expect(line).toMatch(/Alarm gates\s+PENDING\s+off in the values file: enable_container_alarms enable_host_key_alarm$/);
+  });
+
+  it('reports UNKNOWN, never DONE, when the tree declares no alarm gate to read', () => {
+    // Defect caught: a tree whose gate variables could not be found (renamed,
+    // moved, or the wrong directory read) reported as every alarm armed, so
+    // the bring-up is signed off with its alarms off.
+    const root = join(tmpDir, `tf-root-${++fileCounter}`);
+    const tree = join(root, 'production');
+    mkdirSync(tree, { recursive: true });
+    writeFileSync(join(tree, 'variables.tf'), [
+      'variable "enable_cutover_login_alarm" {', '  type    = bool', '  default = false', '}',
+      'variable "enable_archive" {', '  type    = bool', '  default = false', '}',
+    ].join('\n') + '\n');
+    writeFileSync(join(tree, 'terraform.tfvars'), 'enable_archive = true\n');
+    const tf = join(root, 'bin');
+    mkdirSync(tf, { recursive: true });
+    writeFileSync(join(tf, 'terraform'), '#!/usr/bin/env bash\nexit 0\n');
+    chmodSync(join(tf, 'terraform'), 0o755);
+    const result = runScript(['--target', 'production', '--skip-remote', '--skip-aws'], {
+      ...process.env,
+      ...awsIdentityStubEnv(root),
+      BRINGUP_STATUS_TF_ROOT: root,
+      PATH: `${tf}:${process.env.PATH ?? ''}`,
+    });
+    const line = result.stdout.split('\n').find(l => /11\. Alarm gates/.test(l)) ?? '';
+    expect(line).toMatch(/Alarm gates\s+UNKNOWN\s+no enable_\*alarm or enable_\*alarms variable was found/);
+  });
+});
+
+describe('bringup-status.sh — the encryption keys row', () => {
+  const rowFor = (extra: string[]) => {
+    const out = runScript(['--target', 'staging', '--probe-file', writeProbeFile([...ALL_DONE_PRODUCTION, ...extra])]).stdout;
+    const lines = out.split('\n');
+    const i = lines.findIndex((l) => /14\. Encryption keys/.test(l));
+    return { row: lines[i] ?? '', next: lines[i + 1] ?? '', out };
+  };
+
+  it('reads done only when both keys are Enabled', () => {
+    // Defect caught: a dashboard reading the keys ready while one is not, or
+    // never reading them ready at all.
+    expect(rowFor(['KMS_MAIN=Enabled', 'KMS_JWT=Enabled']).row).toMatch(/Encryption keys\s+DONE/);
+  });
+
+  it('holds a key scheduled for deletion or disabled pending, naming the recovery command', () => {
+    // Defect caught: a key counting down to permanent deletion, which takes
+    // every secret or every sign-in with it, reads as done or as unknown.
+    for (const [main, jwt, named] of [
+      ['PendingDeletion', 'Enabled', /application key PendingDeletion/],
+      ['Enabled', 'Disabled', /session signing key Disabled/],
+    ] as const) {
+      const r = rowFor([`KMS_MAIN=${main}`, `KMS_JWT=${jwt}`]);
+      expect(r.row, `${main}/${jwt}`).toMatch(/Encryption keys\s+PENDING/);
+      expect(r.row, `${main}/${jwt}`).toMatch(named);
+      expect(r.next, `${main}/${jwt}`).toMatch(/kms-key-status\.sh --target staging --cancel-deletion/);
+    }
+  });
+
+  it('a pending deletion outranks a key it could not read, and an unread key is unknown, never done', () => {
+    // Defect caught: one unreadable key hiding the other's scheduled deletion,
+    // or an unprobed run reading as both keys enabled.
+    expect(rowFor(['KMS_MAIN=PendingDeletion']).row).toMatch(/Encryption keys\s+PENDING/);
+    expect(rowFor(['KMS_MAIN=Enabled']).row).toMatch(/Encryption keys\s+UNKNOWN\s+not read: session signing key/);
+  });
+
+  it('sits before the host bootstrap rows, which start at 15', () => {
+    // Defect caught: the new row colliding with the first bootstrap row's number.
+    const { out } = rowFor(['KMS_MAIN=Enabled', 'KMS_JWT=Enabled']);
+    const boot = out.split('-- host bootstrap')[1].split('\n').filter((l) => /^\s*\d+\.\s/.test(l));
+    expect(boot[0]).toMatch(/^\s*15\.\s/);
+    expect(out.indexOf('14. Encryption keys')).toBeLessThan(out.indexOf('-- host bootstrap'));
+  });
+
+  it('reads each key through its own alias with the live aws probe', () => {
+    // Defect caught: the probe asking the wrong alias, or reading the one key's
+    // state for both, so a scheduled signing-key deletion reads done.
+    const root = join(tmpDir, `kms-probe-${++fileCounter}`);
+    const bin = join(root, 'bin');
+    mkdirSync(bin, { recursive: true });
+    writeFileSync(join(bin, 'aws'), [
+      '#!/usr/bin/env bash',
+      'if [[ "$1 $2" == "kms describe-key" ]]; then',
+      '  case "$*" in',
+      '    *alias/footbag-staging-jwt*) echo PendingDeletion; exit 0 ;;',
+      '    *alias/footbag-staging\\ *) echo Enabled; exit 0 ;;',
+      '  esac',
+      'fi',
+      'exit 255',
+    ].join('\n') + '\n');
+    chmodSync(join(bin, 'aws'), 0o755);
+    writeFileSync(join(root, 'reconfirm.sh'), 'exit 1\n');
+    const out = runScript(['--target', 'staging', '--skip-remote', '--skip-terraform', '--profile', 'stub-profile'], {
+      ...process.env,
+      PATH: `${bin}:${process.env.PATH ?? ''}`,
+      BRINGUP_STATUS_RECONFIRM_CMD: join(root, 'reconfirm.sh'),
+    }).stdout;
+    const row = out.split('\n').find((l) => /14\. Encryption keys/.test(l)) ?? '';
+    expect(row).toMatch(/PENDING\s+session signing key PendingDeletion$/);
   });
 });
 
@@ -218,7 +489,10 @@ describe('bringup-status.sh — pending steps name their next command', () => {
     expect(result.stdout).toMatch(/4\. Backup pipeline\s+PENDING/);
     expect(result.stdout).toMatch(/scripts\/install-backup-timer\.sh --target staging/);
     expect(result.stdout).toMatch(/5\. SES feedback\s+PENDING/);
-    expect(result.stdout).toMatch(/enable_feed_queues/);
+    // The feeds are turned on by the script that also puts the queue addresses
+    // on the host, never by a values-file edit and an apply.
+    expect(result.stdout).toMatch(/activate-notification-feeds\.sh --target staging --state on/);
+    expect(result.stdout).not.toMatch(/tfvars and apply/);
     expect(result.stdout).toMatch(/verify-prod-email\.sh/);
     expect(result.stdout).toMatch(/8\. Deployed runtime\s+PENDING/);
     expect(result.stdout).toMatch(/\.\/deploy_to_aws\.sh/);
@@ -566,6 +840,7 @@ describe('bringup-status.sh — one row per host bootstrap step', () => {
     'TIMER_ENABLED=enabled', 'ZRAM_ACTIVE=yes', 'ZRAM_SUPPRESSED=no', 'SWAPFILE=yes',
     'REBOOT_NEEDED=no', 'REBOOT_NEEDED_SAID=',
     'SSHD_LISTEN=22 2222', 'DB_FILE=present', 'REPLAY_PENDING=no', 'FEED_SES_QUEUE=set', 'FEED_ALARM_QUEUE=set',
+    `DB_SCHEMA_BASELINE=${SCHEMA_SHA}`, 'DB_ADMINS=1',
     'HOST_ENV_VERIFY=ok',
     'PIN=current', 'IAM_SRC_KEYS=AKIAEXAMPLEEXAMPLE01', 'IAM_CW_KEYS=AKIAEXAMPLEEXAMPLE01', 'CW_METRICS=ok',
     'SNAPSHOT=ok', 'FEEDS_FLAG=false', 'MARKER=false',

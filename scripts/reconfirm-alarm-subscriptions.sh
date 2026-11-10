@@ -163,7 +163,15 @@ if [[ -n "$line" ]]; then
   sed -E "0,/^[[:space:]]*alarm_email_subscription_generation[[:space:]]*=/s/^([[:space:]]*alarm_email_subscription_generation[[:space:]]*=[[:space:]]*)[0-9]+/\\1${next}/" \
     "$TFVARS_PATH" > "$TFVARS_TMP"
 else
-  { cat "$TFVARS_PATH"; printf 'alarm_email_subscription_generation = %s\n' "$next"; } > "$TFVARS_TMP"
+  # The added line goes after a blank line, so terraform fmt treats it as a
+  # group of its own rather than aligning it with whatever the file ends on;
+  # otherwise the values file fails the fmt check.
+  last_line="$(tail -n 1 "$TFVARS_PATH")"
+  {
+    cat "$TFVARS_PATH"
+    if [[ -n "$last_line" ]]; then printf '\n'; fi
+    printf 'alarm_email_subscription_generation = %s\n' "$next"
+  } > "$TFVARS_TMP"
 fi
 
 echo ""

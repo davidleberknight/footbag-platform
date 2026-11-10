@@ -297,6 +297,12 @@ enable_archive_custom_domain = false
 #   -----END PUBLIC KEY-----
 # EOT
 
+# The cold copy of the whole legacy site crawl, in a private us-west-2 bucket.
+# Turn on once the crawl on the operator workstation is complete, apply, then
+# run scripts/backup-legacy-mirror.sh --target production, and again after every
+# change to the crawl. The bucket cannot be destroyed by a later apply.
+enable_legacy_mirror_backup = false
+
 # ── Arming switches ───────────────────────────────────────────────────────────
 # Production starts dark on both sides (the variable defaults): stub adapters,
 # staging-like, no real mail and no real money. Arm a side by setting its

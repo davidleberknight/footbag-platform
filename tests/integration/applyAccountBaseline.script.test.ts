@@ -21,6 +21,7 @@ import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
+import { hclBlocks } from '../fixtures/hclBlocks';
 
 const SCRIPT = join(process.cwd(), 'scripts/apply-account-baseline.sh');
 
@@ -257,6 +258,21 @@ describe('apply-account-baseline.sh — the plan scope gate', () => {
     expect(r.exitCode).not.toBe(0);
     expect(r.stderr).toMatch(/aws_accessanalyzer_analyzer\.account \(delete,create\)/);
     expect(r.tf).not.toMatch(/\bapply\b/);
+  });
+
+  // Read from the Terraform, so a baseline resource added to the shared tree
+  // without a line in the script fails here rather than at the operator's
+  // apply, where the scope gate would refuse the whole baseline.
+  it('lets through a create of every ungated resource the baseline file declares', () => {
+    const tf = readFileSync(join(process.cwd(), 'terraform/shared/account-baseline.tf'), 'utf8');
+    const ungated = hclBlocks(tf, 'resource')
+      .filter((b) => !/^\s*(count|for_each)\s*=/m.test(b.body))
+      .map((b) => `${b.type}.${b.name}`);
+    expect(ungated).toContain('aws_accessanalyzer_analyzer.account_us_west_2');
+    const r = run(['--yes'], plan(ungated.map((a) => change(a, ['create']))));
+    expect(r.exitCode, r.stderr).toBe(0);
+    expect(r.stderr).not.toMatch(/carries changes beyond the account baseline/);
+    expect(r.tf).toMatch(/\bapply\b/);
   });
 
   // An unreadable plan must not read as an empty one: empty means "already

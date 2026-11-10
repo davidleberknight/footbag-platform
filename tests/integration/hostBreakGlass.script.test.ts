@@ -501,7 +501,11 @@ describe('host-break-glass.sh: the drill is judged by the alarm\'s own history',
     expect(r.status, r.out).toBe(0);
     const report = closingReport(r.stderr);
     expect(report).toMatch(/Not proven:[\s\S]*alarm email for footbag-production-break-glass-host-access arrive \(not asked: no terminal\)/);
-    expect(report).toMatch(/dashboard raise and then clear the platform alarm \(not asked: no terminal\)/);
+    expect(report).toMatch(/dashboard \(\/admin\/alarms\) raise and then clear the platform alarm \(not asked: no terminal\)/);
+    // The alarm feeds production's topic whatever the target, so a staging
+    // drill's question must send the operator to production's dashboard, never
+    // staging's, which never shows it.
+    expect(report).toMatch(/did production's admin dashboard/);
   });
 
   it.skipIf(!HAS_SCRIPT)('asks both questions at a terminal and fails on a no', () => {
@@ -510,6 +514,6 @@ describe('host-break-glass.sh: the drill is judged by the alarm\'s own history',
     expect(yes.status, yes.out).toBe(0);
     const no = atTerminal(['APPLY', 'yes', 'no'], {}, {}, args);
     expect(no.status, no.out).not.toBe(0);
-    expect(closingReport(no.out)).toMatch(/did not confirm: did the admin dashboard raise/);
+    expect(closingReport(no.out)).toMatch(/did not confirm: did production's admin dashboard \(\/admin\/alarms\) raise/);
   });
 });

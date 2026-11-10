@@ -81,9 +81,11 @@ resource "aws_sns_topic_policy" "alarms" {
 # every other standard region and delivers each us-east-1 event to as well, so
 # the warning still arrives while us-east-1 is impaired. An EventBridge rule
 # reaches another region only through an event bus, so it publishes to its own
-# topic there, emailing the same destinations as the primary topic. Like the
-# us-east-1 certificate topic, it uses no customer-managed key: it carries only
-# notices AWS generates.
+# topic there, emailing the same destinations as the primary topic. The same
+# topic carries the alarms on metrics AWS publishes only in this region (S3
+# replication backlog and latency). Like the us-east-1 certificate topic, it
+# uses no customer-managed key: it carries AWS notices and alarm state changes,
+# never site data.
 #
 # Each us-east-1 regional event therefore emails twice. AWS's answer is to
 # de-duplicate on the event's communication id, which an email subscription
@@ -128,6 +130,21 @@ resource "aws_sns_topic_policy" "alarms_us_west_2" {
         Principal = { AWS = "arn:aws:iam::${var.aws_account_id}:root" }
         Action    = local.sns_owner_actions
         Resource  = aws_sns_topic.alarms_us_west_2.arn
+      },
+      {
+        # The alarms on metrics AWS publishes only in this region (the
+        # replication backlog and stopped alarms) notify through this topic,
+        # and a topic policy grants no service anything by default.
+        Sid       = "AllowCloudWatchPublish"
+        Effect    = "Allow"
+        Principal = { Service = "cloudwatch.amazonaws.com" }
+        Action    = "SNS:Publish"
+        Resource  = aws_sns_topic.alarms_us_west_2.arn
+        Condition = {
+          StringEquals = {
+            "AWS:SourceAccount" = var.aws_account_id
+          }
+        }
       },
       {
         Sid       = "AllowEventBridgePublish"
@@ -227,6 +244,27 @@ resource "aws_cloudwatch_event_target" "access_analyzer_findings_to_alarms" {
   rule      = aws_cloudwatch_event_rule.access_analyzer_findings.name
   target_id = "alarms-topic"
   arn       = aws_sns_topic.alarms.arn
+}
+
+# The backup region's analyzer publishes its findings to that region's event
+# bus only, so its rule sits there and delivers to that region's topic.
+resource "aws_cloudwatch_event_rule" "access_analyzer_findings_us_west_2" {
+  provider    = aws.us_west_2
+  name        = "${local.prefix}-access-analyzer-findings-usw2"
+  description = "Active Access Analyzer findings in the backup region, delivered to its alarm topic"
+
+  event_pattern = jsonencode({
+    source        = ["aws.access-analyzer"]
+    "detail-type" = ["Access Analyzer Finding"]
+    detail        = { status = ["ACTIVE"] }
+  })
+}
+
+resource "aws_cloudwatch_event_target" "access_analyzer_findings_us_west_2_to_alarms" {
+  provider  = aws.us_west_2
+  rule      = aws_cloudwatch_event_rule.access_analyzer_findings_us_west_2.name
+  target_id = "alarms-usw2-topic"
+  arn       = aws_sns_topic.alarms_us_west_2.arn
 }
 
 resource "aws_sns_topic_subscription" "alarm_email" {

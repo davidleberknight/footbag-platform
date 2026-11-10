@@ -74,8 +74,12 @@ interface AwsStubOptions {
   replication: 'scoped' | 'unfiltered' | 'none' | 'scoped-disabled';
   /** 'daily-disabled' is a rule that exists and expires nothing. */
   generationRules: 'all' | 'missing-daily' | 'daily-disabled';
-  /** 'unreadable' is a describe-alarms the credential cannot make, not an empty one. */
-  alarms: 'present' | 'none' | 'unreadable';
+  /**
+   * 'unreadable' is a describe-alarms the credential cannot make, not an empty
+   * one. 'east-only' is the failed alarm in the source region with nothing in
+   * us-west-2, where the stopped alarm's metric is published.
+   */
+  alarms: 'present' | 'none' | 'unreadable' | 'east-only';
   /** 'unreadable' is a listing the credential cannot read, not an absent one. */
   drLifecycle: 'present' | 'unreadable';
 }
@@ -157,11 +161,16 @@ function writeAwsStub(hourly: number, daily: number, opts: Partial<AwsStubOption
       // which this does not reproduce. That is safe because the script only
       // tests the result for emptiness and then prints it verbatim; it never
       // reads a field or a name. If it ever parses one, capture the real rows.
+      // The failed alarm answers in the source region and the stopped alarm
+      // only in us-west-2, as the estate holds them.
       ...(o.alarms === 'present'
-        ? ['    printf "footbag-production-snapshots-replication-failed\\tINSUFFICIENT_DATA\\n" ;;']
-        : o.alarms === 'unreadable'
-          ? ['    echo "aws-stub: describe-alarms refused for this case" >&2; exit 254 ;;']
-          : ['    echo "" ;;']),
+        ? ['    if [[ " $* " == *" --region us-west-2 "* ]]; then printf "footbag-production-snapshots-hourly-replication-stopped\\tINSUFFICIENT_DATA\\n";',
+          '    else printf "footbag-production-snapshots-replication-failed\\tINSUFFICIENT_DATA\\n"; fi ;;']
+        : o.alarms === 'east-only'
+          ? ['    [[ " $* " == *" --region us-west-2 "* ]] || printf "footbag-production-snapshots-replication-failed\\tINSUFFICIENT_DATA\\n" ;;']
+          : o.alarms === 'unreadable'
+            ? ['    echo "aws-stub: describe-alarms refused for this case" >&2; exit 254 ;;']
+            : ['    echo "" ;;']),
       '  *) echo "" ;;',
       'esac',
       'exit 0',
@@ -562,6 +571,23 @@ describe('apply-snapshot-retention.sh: verification', () => {
     const res = run(['--target', 'production', '--verify']);
     expect(res.exitCode).toBe(1);
     expect(res.stdout).toMatch(/enable_replication_alarm = true, so an alarm should/);
+  });
+
+  it('reads the alarms in both regions and fails when the stopped alarm is not in us-west-2', () => {
+    // Defect caught: the failed alarm in the source region makes the list
+    // non-empty, so a run that looks only there passes while the stopped
+    // alarm, whose metric S3 publishes only in the backup region, is missing.
+    writeAwsStub(2, 2, { alarms: 'east-only' });
+    writeTerraformStub(false, true);
+    const missing = run(['--target', 'production', '--verify']);
+    expect(missing.exitCode).toBe(1);
+    expect(missing.stdout).toContain('MISSING: footbag-production-snapshots-hourly-replication-stopped in us-west-2');
+    writeAwsStub(2, 2);
+    const found = run(['--target', 'production', '--verify']);
+    expect(found.exitCode, found.stdout).toBe(0);
+    expect(found.stdout).toContain('us-west-2  footbag-production-snapshots-hourly-replication-stopped');
+    expect(found.stdout).not.toContain('MISSING:');
+    writeTerraformStub();
   });
 
   it('passes when no alarm exists and the environment declares none', () => {

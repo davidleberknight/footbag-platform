@@ -105,6 +105,21 @@ resource "aws_sns_topic_policy" "alarms_us_west_2" {
         Resource  = aws_sns_topic.alarms_us_west_2.arn
       },
       {
+        # The alarm on a metric AWS publishes only in this region (the
+        # replication backlog) notifies through this topic, and a topic policy
+        # grants no service anything by default.
+        Sid       = "AllowCloudWatchPublish"
+        Effect    = "Allow"
+        Principal = { Service = "cloudwatch.amazonaws.com" }
+        Action    = "SNS:Publish"
+        Resource  = aws_sns_topic.alarms_us_west_2.arn
+        Condition = {
+          StringEquals = {
+            "AWS:SourceAccount" = var.aws_account_id
+          }
+        }
+      },
+      {
         Sid       = "AllowEventBridgePublish"
         Effect    = "Allow"
         Principal = { Service = "events.amazonaws.com" }
@@ -201,6 +216,27 @@ resource "aws_cloudwatch_event_target" "access_analyzer_findings_to_alarms" {
   rule      = aws_cloudwatch_event_rule.access_analyzer_findings.name
   target_id = "alarms-topic"
   arn       = aws_sns_topic.alarms.arn
+}
+
+# The backup region's analyzer publishes its findings to that region's event
+# bus only, so its rule sits there and delivers to that region's topic.
+resource "aws_cloudwatch_event_rule" "access_analyzer_findings_us_west_2" {
+  provider    = aws.us_west_2
+  name        = "${local.prefix}-access-analyzer-findings-usw2"
+  description = "Active Access Analyzer findings in the backup region, delivered to its alarm topic"
+
+  event_pattern = jsonencode({
+    source        = ["aws.access-analyzer"]
+    "detail-type" = ["Access Analyzer Finding"]
+    detail        = { status = ["ACTIVE"] }
+  })
+}
+
+resource "aws_cloudwatch_event_target" "access_analyzer_findings_us_west_2_to_alarms" {
+  provider  = aws.us_west_2
+  rule      = aws_cloudwatch_event_rule.access_analyzer_findings_us_west_2.name
+  target_id = "alarms-usw2-topic"
+  arn       = aws_sns_topic.alarms_us_west_2.arn
 }
 
 resource "aws_sns_topic_subscription" "alarm_email" {

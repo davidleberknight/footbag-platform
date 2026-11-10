@@ -26,7 +26,7 @@ merge. Everything else is a technical matter for the maintainer.
 
 ## Pull requests
 
-1. Fork and branch from `main`. A pull request is recommended; collaborators may also push to `main` directly.
+1. Fork and branch from `main`. Until the platform launches, collaborators may also push to `main` directly; from launch, every change reaches `main` through a pull request.
 2. Keep commits small. Use conventional prefixes: `feat:`, `fix:`, `docs:`, `chore:`.
 3. Sign off every commit: `git commit -s`
 4. Fill in the PR template completely.

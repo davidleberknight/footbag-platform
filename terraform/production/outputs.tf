@@ -27,6 +27,11 @@ output "snapshots_bucket_name" {
   value       = aws_s3_bucket.snapshots.bucket
 }
 
+output "cloudtrail_bucket_name" {
+  description = "S3 bucket the account-wide CloudTrail trail writes its log files to, versioned so a deleted log file is restored from its earlier version; null while the trail is off."
+  value       = var.enable_cloudtrail ? aws_s3_bucket.cloudtrail[0].bucket : null
+}
+
 output "dr_bucket_name" {
   description = "Cross-region DR bucket for SQLite DB snapshots"
   value       = aws_s3_bucket.dr.bucket

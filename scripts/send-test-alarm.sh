@@ -30,6 +30,10 @@
 #   --alarm         a CloudWatch alarm to raise. Repeatable.
 #   --alarm-prefix  raise every alarm whose name starts with this. Repeatable.
 #                   At least one --alarm or --alarm-prefix is required.
+#   --region        us-east-1 or us-west-2: where the alarms live. Default the
+#                   identity's own region. The backup region holds the alarms on
+#                   metrics AWS publishes only there (S3 replication backlog and
+#                   latency), which notify the backup region's alarm topic.
 #   --yes           proceed without the typed prompt.
 #
 # Whether the mail arrived is checked by the people receiving it; the script says
@@ -49,6 +53,7 @@ source "${REPO_ROOT}/scripts/lib/aws-profile.sh"
 TARGET=""
 NAMES=()
 PREFIXES=()
+REGION_ARGS=()
 
 usage() {
   sed -n '2,/^set -eu/{/^set -eu/d;p;}' "$0" | sed 's/^# \{0,1\}//'
@@ -63,6 +68,10 @@ while [[ $# -gt 0 ]]; do
     --alarm-prefix)
               [[ -n "${2:-}" ]] || { echo "ERROR: --alarm-prefix requires an argument" >&2; exit 2; }
               PREFIXES+=("$2"); shift 2 ;;
+    --region) case "${2:-}" in
+                us-east-1|us-west-2) REGION_ARGS=(--region "$2"); shift 2 ;;
+                *) echo "ERROR: --region must be us-east-1 or us-west-2" >&2; exit 2 ;;
+              esac ;;
     --yes)    ASSUME_YES="yes"; shift ;;
     -h|--help) usage 0 ;;
     *) echo "ERROR: unknown argument '$1'" >&2; exit 2 ;;
@@ -96,7 +105,7 @@ aws_profile_ensure || cr_die "the AWS identity for this run could not be settled
 ALARMS=()
 for prefix in "${PREFIXES[@]+"${PREFIXES[@]}"}"; do
   matched=""
-  if ! matched="$("$AWS_BIN" cloudwatch describe-alarms --alarm-name-prefix "$prefix" \
+  if ! matched="$("$AWS_BIN" cloudwatch describe-alarms "${REGION_ARGS[@]+"${REGION_ARGS[@]}"}" --alarm-name-prefix "$prefix" \
         --query 'MetricAlarms[].AlarmName' --output text)"; then
     cr_die "the alarms under ${prefix} could not be listed; check the identity above. Nothing was changed."
   fi
@@ -116,7 +125,7 @@ mapfile -t ALARMS < <(printf '%s\n' "${ALARMS[@]}" | awk 'NF && !seen[$0]++')
 declare -A REACHES_GROUP=()
 for alarm in "${ALARMS[@]}"; do
   actions=""
-  if ! actions="$("$AWS_BIN" cloudwatch describe-alarms --alarm-names "$alarm" \
+  if ! actions="$("$AWS_BIN" cloudwatch describe-alarms "${REGION_ARGS[@]+"${REGION_ARGS[@]}"}" --alarm-names "$alarm" \
         --query 'MetricAlarms[0].AlarmActions' --output text)"; then
     cr_die "the alarm ${alarm} could not be read; check the name and the identity above. Nothing was changed."
   fi
@@ -124,7 +133,10 @@ for alarm in "${ALARMS[@]}"; do
     cr_die "${TARGET} has no alarm named ${alarm}. Nothing was changed."
   fi
   REACHES_GROUP["$alarm"]=0
-  [[ "$actions" == *":footbag-${TARGET}-alarms-critical"* ]] && REACHES_GROUP["$alarm"]=1
+  # The backup region's topic carries the watch group's subscription as the
+  # critical topic does.
+  [[ "$actions" == *":footbag-${TARGET}-alarms-critical"* || "$actions" == *":footbag-${TARGET}-alarms-usw2"* ]] \
+    && REACHES_GROUP["$alarm"]=1
 done
 
 echo ""
@@ -150,11 +162,11 @@ if ! confirm_from_tty "Type 'APPLY' to send the test alarms: " "APPLY"; then
 fi
 
 for alarm in "${ALARMS[@]}"; do
-  if ! "$AWS_BIN" cloudwatch set-alarm-state --alarm-name "$alarm" \
+  if ! "$AWS_BIN" cloudwatch set-alarm-state "${REGION_ARGS[@]+"${REGION_ARGS[@]}"}" --alarm-name "$alarm" \
         --state-value ALARM --state-reason "Operator test of alarm mail delivery"; then
     cr_die "${alarm} could not be raised; check the name and the identity above. The alarms after it were not touched."
   fi
-  if ! "$AWS_BIN" cloudwatch set-alarm-state --alarm-name "$alarm" \
+  if ! "$AWS_BIN" cloudwatch set-alarm-state "${REGION_ARGS[@]+"${REGION_ARGS[@]}"}" --alarm-name "$alarm" \
         --state-value OK --state-reason "Operator test of alarm mail delivery complete"; then
     cr_die "${alarm} was raised but could not be set back to OK; its next evaluation restores the true state. The alarms after it were not touched."
   fi

@@ -465,14 +465,21 @@ fi
 # analyzer reports unused roles and permissions, which is useful and is not
 # external access. Passing on any active analyzer would report the control as in
 # place while the class of mistake it exists to catch went unwatched.
-if ! aws_read ANALYZERS - "the Access Analyzer list" accessanalyzer list-analyzers \
+#
+# An analyzer sees only its own region, so it is checked in the account's
+# region and in us-west-2, where the disaster-recovery buckets live.
+check_analyzers() {
+  local where="$1"; shift
+  local region_args=("$@")
+if ! aws_read ANALYZERS - "the Access Analyzer list (${where})" accessanalyzer list-analyzers \
+  "${region_args[@]+"${region_args[@]}"}" \
   --query 'analyzers[?status==`ACTIVE` && (type==`ACCOUNT` || type==`ORGANIZATION`)].name' \
   --output text; then
   note "the read did not answer, so the analyzers were not checked rather than found absent"
 elif [[ -n "$ANALYZERS" ]]; then
-  pass "Access Analyzer active for external access: ${ANALYZERS}"
+  pass "Access Analyzer active for external access (${where}): ${ANALYZERS}"
 else
-  fail "no active IAM Access Analyzer of an external-access type"
+  fail "no active IAM Access Analyzer of an external-access type (${where})"
   note "it finds resource policies granting access outside the account; an"
   note "unused-access analyzer is a different tool and does not cover this"
 fi
@@ -481,23 +488,27 @@ fi
 # an active finding is a resource policy granting an outsider access right now.
 # Each external-access analyzer's active findings are counted, and any is a
 # finding here, so this run cannot pass while the account is exposed.
-if aws_read ANALYZER_ARNS - "the Access Analyzer ARNs" accessanalyzer list-analyzers \
+if aws_read ANALYZER_ARNS - "the Access Analyzer ARNs (${where})" accessanalyzer list-analyzers \
+  "${region_args[@]+"${region_args[@]}"}" \
   --query 'analyzers[?status==`ACTIVE` && (type==`ACCOUNT` || type==`ORGANIZATION`)].arn' \
   --output text && [[ -n "$ANALYZER_ARNS" && "$ANALYZER_ARNS" != "None" ]]; then
   for analyzer_arn in $ANALYZER_ARNS; do
-    if ! aws_read ACTIVE_FINDINGS - "the active Access Analyzer findings" \
-      accessanalyzer list-findings --analyzer-arn "$analyzer_arn" \
+    if ! aws_read ACTIVE_FINDINGS - "the active Access Analyzer findings (${where})" \
+      accessanalyzer list-findings "${region_args[@]+"${region_args[@]}"}" --analyzer-arn "$analyzer_arn" \
       --filter '{"status":{"eq":["ACTIVE"]}}' --query 'length(findings)' --output text; then
       note "the read did not answer, so active findings were not counted"
     elif [[ "$ACTIVE_FINDINGS" == "0" ]]; then
-      pass "Access Analyzer reports no active finding: ${analyzer_arn##*/}"
+      pass "Access Analyzer reports no active finding (${where}): ${analyzer_arn##*/}"
     else
-      fail "Access Analyzer reports ${ACTIVE_FINDINGS} active finding(s): ${analyzer_arn##*/}"
+      fail "Access Analyzer reports ${ACTIVE_FINDINGS} active finding(s) (${where}): ${analyzer_arn##*/}"
       note "each is a resource policy granting access outside the account; resolve"
       note "the policy, or archive the finding only if the access is intended"
     fi
   done
 fi
+}
+check_analyzers "account region"
+check_analyzers "us-west-2" --region us-west-2
 
 # ── 3a. GuardDuty ────────────────────────────────────────────────────────────
 #

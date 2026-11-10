@@ -65,6 +65,9 @@ case "$1" in
     done
     rc=0
     [[ -n "\${STUB_OTHER_PENDING:-}" ]] && rc=2
+    # The staging address the state holds: a values file naming another one
+    # has that change pending.
+    if [[ -n "\${STUB_STATE_ADDRESS:-}" && "$(file_value staging_web_static_ip)" != "\\"$STUB_STATE_ADDRESS\\"" ]]; then rc=2; fi
     if [[ -n "\${STUB_GATE_STATE:-}" ]]; then
       gname="\${STUB_GATE_STATE%%=*}"
       gstate="\${STUB_GATE_STATE#*=}"
@@ -98,6 +101,11 @@ case "$1" in
     if [[ -n "\${STUB_CONSOLE_RC:-}" || "$name" == "\${STUB_CONSOLE_FAIL_VAR:-}" ]]; then printf 'Error: stub console failure\\n\\n  on terraform.tfvars line 3:\\n   3: %s\\n' "$STUB_SENSITIVE_LINE" >&2; exit "\${STUB_CONSOLE_RC:-1}"; fi
     if [[ -n "\${STUB_CONSOLE_VALUE:-}" ]]; then echo "$STUB_CONSOLE_VALUE"; exit 0; fi
     file_value "$name"
+    ;;
+  output)
+    # The staging tree's static address, read by the production host-key gate.
+    if [[ -n "\${STUB_OUTPUT_RC:-}" ]]; then echo "Error: stub output failure" >&2; exit "$STUB_OUTPUT_RC"; fi
+    printf '%s' "\${STUB_STAGING_IP:-192.0.2.20}"
     ;;
 esac
 `;
@@ -986,9 +994,15 @@ describe('set-terraform-gate.sh arms the host-key alarms only when the trail agr
       sourceIPAddress: e.ip,
     }))));
   };
-  const arm = (env: Record<string, string> = {}) =>
-    run(['--target', 'production', '--gate', 'enable_host_key_alarm', '--state', 'on', '--yes'],
+  /** A production values file already carrying the staging address the staging
+   *  tree reports, so the address sync has nothing to write. */
+  const WITH_ADDRESS = `${VALUES}staging_web_static_ip      = "192.0.2.20"\n`;
+  const writeProduction = (content: string) => writeFileSync(join(dir, 'private', 'production.tfvars'), content, 'utf-8');
+  const arm = (env: Record<string, string> = {}, content = WITH_ADDRESS) => {
+    writeProduction(content);
+    return run(['--target', 'production', '--gate', 'enable_host_key_alarm', '--state', 'on', '--yes'],
       { STUB_TRAIL_DIR: join(dir, 'trail'), STUB_HOST_KEYS: hostKeys('192.0.2.20'), ...env });
+  };
 
   it('arms when every call each key signed came from its host, services on its behalf aside', () => {
     // Defect caught: a check that reads the wrong user or ignores the trail,
@@ -1020,7 +1034,7 @@ describe('set-terraform-gate.sh arms the host-key alarms only when the trail agr
     expect(r.status).toBe(1);
     expect(r.report).toContain('2001:db8::7');
     expect(r.report).toContain('198.51.100.10');
-    expect(values('production')).toBe(VALUES);
+    expect(values('production')).toBe(WITH_ADDRESS);
     expect(callLog()).not.toMatch(/^apply /m);
   });
 
@@ -1029,8 +1043,83 @@ describe('set-terraform-gate.sh arms the host-key alarms only when the trail agr
     // matches every call the key ever makes.
     const r = arm({ STUB_HOST_KEYS: hostKeys('') });
     expect(r.status).toBe(1);
-    expect(r.report).toContain('staging_web_static_ip');
+    expect(r.report).toContain('no address is set for footbag-staging-source-profile');
     expect(callLog()).not.toMatch(/^apply /m);
+  });
+
+  it('writes the staging address from the staging tree when the values file lacks it, then arms', () => {
+    // Defect caught: arming refused until someone hand-types the staging host's
+    // address into the production values file, the step no script owned.
+    trail('footbag-production-source-profile', [{ ip: '198.51.100.10' }]);
+    trail('footbag-staging-source-profile', [{ ip: '192.0.2.20' }]);
+    const r = arm({}, VALUES);
+    expect(r.status, r.stderr).toBe(0);
+    expect(values('production')).toContain('staging_web_static_ip = "192.0.2.20"');
+    // Every other line kept: the operator address beside it is the only copy
+    // outside the vault.
+    expect(values('production')).toContain(SENSITIVE_LINE);
+    expect(r.stdout).toMatch(/\+staging_web_static_ip = "192\.0\.2\.20"/);
+    expect(callLog()).toMatch(/^terraform output -raw lightsail_static_ip$/m);
+    expect(callLog()).toMatch(/^apply --target production$/m);
+  });
+
+  it('rewrites a stale staging address in place, never adding a second line', () => {
+    // Defect caught: a value typed once and left stale after staging's address
+    // changed, holding the host-key alarm in ALARM; or a second assignment
+    // appended below the first, leaving terraform reading whichever is last.
+    trail('footbag-production-source-profile', [{ ip: '198.51.100.10' }]);
+    trail('footbag-staging-source-profile', [{ ip: '192.0.2.20' }]);
+    const r = arm({}, `${VALUES}staging_web_static_ip      = "192.0.2.99"\n`);
+    expect(r.status, r.stderr).toBe(0);
+    expect(values('production')).toContain('staging_web_static_ip      = "192.0.2.20"');
+    expect(values('production').match(/staging_web_static_ip/g)).toHaveLength(1);
+  });
+
+  it('leaves a matching staging address alone and reads no plan for it', () => {
+    // Defect caught: a values file rewritten, and the operator asked to confirm,
+    // on every arming when nothing changed.
+    trail('footbag-production-source-profile', [{ ip: '198.51.100.10' }]);
+    trail('footbag-staging-source-profile', [{ ip: '192.0.2.20' }]);
+    const r = arm();
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toContain('already matches the staging tree');
+    expect(r.stdout).not.toMatch(/\+staging_web_static_ip/);
+  });
+
+  it('refuses to write the address while another change is pending, leaving the file as found', () => {
+    // Defect caught: the address written, and a later apply carrying unrelated
+    // pending changes under this gate's name.
+    const r = arm({ STUB_OTHER_PENDING: '1' }, VALUES);
+    expect(r.status).toBe(1);
+    expect(r.report).toMatch(/other changes are pending/);
+    expect(values('production')).toBe(VALUES);
+    expect(callLog()).not.toMatch(/^apply /m);
+  });
+
+  it('refuses when the staging tree\'s address cannot be read, leaving the file as found', () => {
+    // Defect caught: a failed read written into the values file as an empty or
+    // garbled address.
+    const failed = arm({ STUB_OUTPUT_RC: '1' }, VALUES);
+    expect(failed.status).toBe(1);
+    expect(failed.report).toContain('stub output failure');
+    expect(values('production')).toBe(VALUES);
+    const garbled = arm({ STUB_STAGING_IP: 'not-an-address' }, VALUES);
+    expect(garbled.status).toBe(1);
+    expect(garbled.report).toMatch(/did not read back as an IPv4 address/);
+    expect(values('production')).toBe(VALUES);
+    expect(callLog()).not.toMatch(/^apply /m);
+  });
+
+  it('applies a corrected address when the gate is already on, the address being the one change', () => {
+    // Defect caught: a stale address on an armed alarm reported as nothing to do
+    // or refused as "other changes pending", so the alarm stays held in ALARM.
+    trail('footbag-production-source-profile', [{ ip: '198.51.100.10' }]);
+    trail('footbag-staging-source-profile', [{ ip: '192.0.2.20' }]);
+    const armed = `${VALUES}enable_host_key_alarm      = true\nstaging_web_static_ip      = "192.0.2.99"\n`;
+    const r = arm({ STUB_STATE_ADDRESS: '192.0.2.99' }, armed);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toContain('Only staging_web_static_ip is pending');
+    expect(callLog()).toMatch(/^apply --target production$/m);
   });
 
   it('treats a failed trail read as an error carrying AWS\'s message', () => {
@@ -1044,5 +1133,36 @@ describe('set-terraform-gate.sh arms the host-key alarms only when the trail agr
     const r = run(['--target', 'staging', '--gate', 'enable_host_key_alarm', '--state', 'on', '--yes']);
     expect(r.status).toBe(2);
     expect(r.report).toContain('not declared in terraform/staging');
+  });
+});
+
+describe('set-terraform-gate.sh sets the legacy-mirror backup gate on, and never off', () => {
+  const GATE = 'enable_legacy_mirror_backup';
+
+  it('turns it on with no metric to look for, applies it and proves it', () => {
+    // Defect caught: the backup bucket's gate on the allowlist but refused at
+    // arming time for want of a metric check, so the bucket is created by a
+    // hand-typed values edit instead.
+    const r = run(['--target', 'production', '--gate', GATE, '--state', 'on', '--yes']);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toContain(`metric check: none for ${GATE}`);
+    expect(callLog()).not.toMatch(/^aws /m);
+    expect(values('production')).toMatch(new RegExp(`^${GATE} = true$`, 'm'));
+    expect(callLog()).toMatch(/^apply --target production$/m);
+    expect(r.report).toMatch(new RegExp(`Proven:\\n {2}- ${GATE} = true on production: applied`));
+  });
+
+  it('refuses it off before any plan or write, because its bucket cannot be destroyed', () => {
+    // Defect caught: an off run whose apply fails on prevent_destroy after the
+    // values file was written, leaving the file saying off while the bucket
+    // stands, so every later apply of the tree tries to destroy it again.
+    const content = `${VALUES}${GATE} = true\n`;
+    writeFileSync(join(dir, 'private', 'production.tfvars'), content, 'utf-8');
+    const r = run(['--target', 'production', '--gate', GATE, '--state', 'off', '--yes']);
+    expect(r.status).toBe(2);
+    expect(r.report).toContain('prevent_destroy');
+    expect(values('production')).toBe(content);
+    expect(callLog()).not.toMatch(/^terraform plan /m);
+    expect(callLog()).not.toMatch(/^apply /m);
   });
 });

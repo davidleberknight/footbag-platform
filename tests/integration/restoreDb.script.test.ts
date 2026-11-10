@@ -105,9 +105,11 @@ beforeEach(() => {
   writeFileSync(join(binDir, 'aws'), [
     '#!/usr/bin/env bash',
     `echo "aws $*" >> ${JSON.stringify(callLog)}`,
+    // The source and destination are the last two arguments, so a --region
+    // ahead of them leaves the copy working as the CLI's does.
     'if [[ "$1" == "s3" && "$2" == "cp" ]]; then',
-    `  path="\${3#s3://}"`,
-    `  cp ${JSON.stringify(s3Dir)}/"\${path}" "$4" || exit 1`,
+    `  src="\${@: -2:1}"; path="\${src#s3://}"`,
+    `  cp ${JSON.stringify(s3Dir)}/"\${path}" "\${@: -1}" || exit 1`,
     'fi',
     'exit 0',
   ].join('\n'));
@@ -449,11 +451,14 @@ describe('restoring a snapshot onto a host', () => {
       { bucket: DR },
     );
 
-    const res = runRemote(key, DR);
+    const res = runRemote(key, DR, { BUCKET_REGION: 'us-west-2' });
 
     expect(res.status).toBe(0);
     expect(calls()).toContain(`s3://${DR}/`);
     expect(calls()).not.toContain(`s3://${HOST_BUCKET}/`);
+    // Defect caught: the backup copy fetched through the host's own region,
+    // the one a regional outage takes away, rather than where it lives.
+    expect(calls()).toContain(`s3 cp --region us-west-2 s3://${DR}/`);
     expect(memberIds(dbPath)).toEqual(['from-dr']);
   });
 
@@ -1289,6 +1294,7 @@ describe('the operator-facing restore script', () => {
     const stub = join(workDir, 'search-aws');
     writeFileSync(stub, [
       '#!/usr/bin/env bash',
+      `echo "$*" >> ${JSON.stringify(join(workDir, 'search-calls.log'))}`,
       'if [[ "$1" == "s3" && "$2" == "ls" ]]; then',
       '  [[ -n "${LS_OUTPUT:-}" ]] && printf "%s\\n" "$LS_OUTPUT"',
       '  [[ -n "${LS_ERROR:-}" ]] && printf "%s\\n" "$LS_ERROR" >&2',
@@ -1328,6 +1334,31 @@ describe('the operator-facing restore script', () => {
     expect(res.status).toBe(1);
     expect(res.stderr).toMatch(/Errors \(\d+\):[\s\S]*AccessDenied/);
     expect(res.stderr).not.toContain('no pre-cutover snapshot');
+  });
+
+  it('searches a backup bucket in us-west-2 by name, and the primary bucket without one', () => {
+    // Defect caught: the backup copy, which exists to outlive us-east-1, read
+    // through a redirect from us-east-1; or the primary bucket sent to the
+    // backup region, where it does not exist.
+    // A pull to the workstation is the path that searches without a host, and
+    // only a staging snapshot may take it; the region follows from the
+    // bucket's name, so a -dr name on that path exercises the rule.
+    const listing = '2026-09-04 00:00:00 100 pre-flip/footbag-20260904T000000Z.db.gz';
+    const log = join(workDir, 'search-calls.log');
+    runOperator(['--to-local', join(workDir, 'dr.db'), '--source', 'staging', '--pre-flip',
+      '--bucket', 'footbag-staging-snapshots-dr'], {
+      ...process.env, RESTORE_DB_AWS_BIN: searchStub(), LS_OUTPUT: listing,
+    });
+    const dr = readFileSync(log, 'utf8').split('\n').filter((l) => / ?s3 (ls|cp) /.test(` ${l}`));
+    expect(dr.length, 'the backup bucket was never searched or fetched').toBeGreaterThan(0);
+    for (const call of dr) expect(call, call).toContain('--region us-west-2');
+    rmSync(log);
+    runOperator(['--to-local', join(workDir, 'primary.db'), '--source', 'staging', '--pre-flip'], {
+      ...process.env, RESTORE_DB_AWS_BIN: searchStub(), LS_OUTPUT: listing,
+    });
+    const primary = readFileSync(log, 'utf8');
+    expect(primary).toContain('s3 ls s3://footbag-staging-snapshots/');
+    expect(primary).not.toContain('--region');
   });
 
   it('finds the rollback artifact through the same seam when the prefix holds one', () => {

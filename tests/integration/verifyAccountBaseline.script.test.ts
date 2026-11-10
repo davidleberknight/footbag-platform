@@ -30,6 +30,8 @@ interface Estate {
   publicAccessBlock?: string | null;
   passwordPolicy?: { min: number; reuse: number } | null;
   analyzers?: string | null;
+  /** The analyzers listed in us-west-2, where the disaster-recovery buckets live. */
+  analyzersWest?: string | null;
   alternateContact?: string | null;
   /** The BILLING contact alone; unset (null) unless a case sets one. */
   billingContact?: string | null;
@@ -141,6 +143,7 @@ const HEALTHY: Required<Estate> = {
   publicAccessBlock: 'True\tTrue\tTrue\tTrue',
   passwordPolicy: { min: 14, reuse: 5 },
   analyzers: 'footbag-account-analyzer',
+  analyzersWest: 'footbag-account-analyzer',
   alternateContact: 'ops@example.invalid',
   billingContact: null,
   rootMfa: '1',
@@ -201,9 +204,13 @@ function awsStub(estate: Estate): string {
       '  get-account-password-policy)',
       pwPolicy,
       '    ;;',
-      `  list-analyzers) ${
+      // Each region answers with its own analyzers, as AWS's regional
+      // analyzers do.
+      `  list-analyzers) if [[ " $* " == *" --region us-west-2 "* ]]; then ${
+        e.analyzersWest === null ? 'exit 1' : `printf '%s\\n' ${JSON.stringify(e.analyzersWest)}`
+      }; else ${
         e.analyzers === null ? 'exit 1' : `printf '%s\\n' ${JSON.stringify(e.analyzers)}`
-      } ;;`,
+      }; fi ;;`,
       '  get-alternate-contact)',
       `    if [[ " $* " == *" BILLING "* ]]; then ${
         e.billingContact == null ? awsError('ResourceNotFoundException', 'GetAlternateContact') : `printf '%s\\n' ${JSON.stringify(e.billingContact)}`
@@ -381,6 +388,16 @@ describe('verify-account-baseline.sh — each control is genuinely checked', () 
     const r = run({ analyzers: '' });
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/no active IAM Access Analyzer/);
+  });
+
+  it('fails when the backup region has no analyzer, though the account region does', () => {
+    // Defect caught: an analyzer sees only its own region, so the policies on
+    // the disaster-recovery buckets in us-west-2 go unwatched while the run
+    // reports the control in place.
+    const r = run({ analyzersWest: '' });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/no active IAM Access Analyzer of an external-access type \(us-west-2\)/);
+    expect(r.stdout + r.stderr).toMatch(/Access Analyzer active for external access \(account region\)/);
   });
 
   it('fails while the analyzer reports an active finding', () => {

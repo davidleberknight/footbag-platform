@@ -728,10 +728,29 @@ bh_verdict() {
           || missing+="${svc} shipping logs to CloudWatch; "
       done
       [[ "${P[SERVICE_ENABLED]:-}" == "enabled" ]] || missing+="footbag.service enabled at boot; "
-      if [[ -z "$missing" ]]; then
-        BH_STATE=DONE; BH_DETAIL="web, worker, image and nginx healthy; logs shipping; the service starts at boot"
-      else
+      if [[ -n "$missing" ]]; then
         BH_STATE=PENDING; BH_DETAIL="not yet: ${missing%; }"
+        return 0
+      fi
+      BH_STATE=DONE; BH_DETAIL="web, worker, image and nginx healthy; logs shipping; the service starts at boot"
+      # A healthy runtime on a database built from another schema file is a
+      # release whose code will meet tables it does not expect, because a
+      # code-only deploy never reapplies the schema. While the environment's
+      # database is still rebuilt rather than migrated (staging always,
+      # production until it goes live) the cure is the rebuild the first deploy
+      # already is, so the step is not done. A live production takes schema
+      # changes by migration instead, which the deploy's own drift check owns.
+      if [[ "$t" == "staging" || "${P[MARKER]:-unknown}" == "false" ]]; then
+        local want_schema have_schema="${P[DB_SCHEMA_BASELINE]:-unread}"
+        want_schema="$(sha256sum "${BH_REPO_ROOT}/database/schema.sql" 2>/dev/null | cut -d' ' -f1)"
+        if [[ -z "$want_schema" || "$have_schema" == "unread" ]]; then
+          BH_STATE=UNKNOWN
+          BH_DETAIL="containers healthy, but which database/schema.sql the deployed database was built from could not be compared"
+          BH_NEXT="< ${cred} $self --status   (re-read; the closing report names the read that failed)"
+        elif [[ "$have_schema" != "$want_schema" ]]; then
+          BH_STATE=PENDING
+          BH_DETAIL="containers healthy, but the deployed database was built from a different database/schema.sql; the rebuild replaces every account on it, a first administrator included"
+        fi
       fi
       ;;
 
@@ -875,11 +894,8 @@ bh_milestones() {
     echo "    production steps; staging runs the stub payment adapter and takes its"
     echo "    administrators from the dev bootstrap."
   fi
-  echo "  - the alarms, once the metrics each watches are arriving (arming earlier"
-  echo "    pages at once, since their missing data counts as breaching):"
-  echo "      bash scripts/arm-cwagent-alarms.sh --target ${t}"
-  echo "      bash scripts/set-terraform-gate.sh --target ${t} --gate enable_backup_alarm --state on"
-  echo "      bash scripts/set-terraform-gate.sh --target ${t} --gate enable_container_alarms --state on"
-  echo "  - each alarm email subscription, once its confirmation email has arrived:"
-  echo "      bash scripts/confirm-alarm-subscription.sh --target ${t}"
+  echo "  - each alarm gate still off (once the metric it watches is arriving: arming"
+  echo "    earlier pages at once), each alarm email subscription not confirmed by"
+  echo "    its link, and GuardDuty: their rows, each with its command, are in"
+  echo "      < ${BH_CRED:-<credential file>} bash scripts/bringup-status.sh --target ${t} --profile <profile>"
 }

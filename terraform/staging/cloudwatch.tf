@@ -345,7 +345,13 @@ resource "aws_cloudwatch_metric_alarm" "replication_failed" {
   }
 }
 
-resource "aws_cloudwatch_metric_alarm" "replication_backlog" {
+# S3 publishes the pending-operations metric in the destination bucket's
+# region, not the source's (only the failed-operations count is published at
+# the source). This alarm therefore lives in the backup region and notifies its
+# alarm topic, which feeds the same mailbox and the admin dashboard queue;
+# created in the source region it would watch a metric that never arrives.
+resource "aws_cloudwatch_metric_alarm" "replication_backlog_us_west_2" {
+  provider            = aws.us_west_2
   for_each            = local.replicated_buckets
   alarm_name          = "${local.prefix}-${each.key}-replication-backlog"
   comparison_operator = "GreaterThanThreshold"
@@ -357,8 +363,8 @@ resource "aws_cloudwatch_metric_alarm" "replication_backlog" {
   threshold           = 0
   treat_missing_data  = "notBreaching"
   alarm_description   = "S3 replication for ${each.key} has been backlogged for 45 minutes; the DR copy is behind"
-  alarm_actions       = [aws_sns_topic.alarms.arn]
-  ok_actions          = [aws_sns_topic.alarms.arn]
+  alarm_actions       = [aws_sns_topic.alarms_us_west_2.arn]
+  ok_actions          = [aws_sns_topic.alarms_us_west_2.arn]
 
   dimensions = {
     SourceBucket      = each.value.source
@@ -712,7 +718,14 @@ resource "aws_cloudwatch_metric_alarm" "origin_spike" {
 # account-global and production's alarms read its log group, so a call made
 # against staging raises them there. They are proved on staging by
 # staging-origin triggers: scripts/prove-audit-alarms.sh, and
-# scripts/host-break-glass.sh --drill --target staging.
+# scripts/host-break-glass.sh --drill --target staging. The exceptions are
+# the two backup alarms, backup-protection-changed and backup-access-changed,
+# which name production's backup buckets and their sources only: staging's
+# buckets hold rebuildable test data, and every staging apply that touches
+# them would otherwise raise them. prove-audit-alarms.sh proves them by
+# re-setting production's media backup bucket's versioning to the Enabled it
+# already reads and its public access block to the four blocks it already
+# reads.
 
 # ── Dashboard ─────────────────────────────────────────────────────────────────
 

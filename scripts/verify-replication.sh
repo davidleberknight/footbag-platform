@@ -25,14 +25,15 @@
 #   staging      the media bucket and the archive bucket
 #
 # The archive bucket exists only while the archive stack is enabled. Where its
-# Terraform output is null the archive is reported as SKIP, by name, on its own
-# line; a skip is never counted as a pass.
+# Terraform output is null, which Terraform records by leaving it out of the
+# state, the archive is reported as SKIP, by name, on its own line; a skip is
+# never counted as a pass.
 #
 # What it refuses or fails on:
 #   - a target it was not given; there is no default
-#   - a Terraform output it could not read, including the archive's: an
-#     unreadable output could be hiding an archive that exists and is not
-#     replicating
+#   - a Terraform output it could not read, or a state whose outputs it could
+#     not read: an unreadable state could be hiding an archive that exists and
+#     is not replicating
 #   - a source bucket with no enabled replication rule
 #   - no object old enough to have replicated, because a check with nothing to
 #     look at proves nothing and must not report success
@@ -106,11 +107,17 @@ fi
 # should be.
 MIN_LOCK_DAYS=60
 
-# Read as JSON rather than raw, because null (the archive stack is off) and an
-# empty string are different answers and only JSON tells them apart.
+# Read every output as JSON, then pick the archive's. Terraform keeps no null
+# output in its state, so while the archive stack is off the name is absent and
+# asking for it alone fails exactly as an unreadable state does. Reading the
+# whole set tells the two apart: a failed read refuses, an absent name is the
+# stack off. JSON also keeps an empty string distinct from absent.
 skipped=""
-archive_json="$("$TF_BIN" -chdir="terraform/${TARGET}" output -json archive_bucket_name </dev/null 2>/dev/null)" \
-  || die "could not read terraform/${TARGET} output archive_bucket_name"
+all_outputs="$("$TF_BIN" -chdir="terraform/${TARGET}" output -json </dev/null 2>/dev/null)" \
+  || die "could not read terraform/${TARGET} outputs"
+archive_json="$(jq -c 'if type == "object" then (.archive_bucket_name.value // null) else error("not an object") end' \
+  <<<"$all_outputs" 2>/dev/null)" \
+  || die "terraform/${TARGET} outputs are not a JSON object of outputs"
 if [[ "$archive_json" == "null" ]]; then
   skipped="archive"
 elif [[ "$archive_json" =~ ^\"([a-z0-9][a-z0-9.-]*)\"$ ]]; then
@@ -166,7 +173,17 @@ for check in "${CHECKS[@]}"; do
     --query ReplicationStatus --output text </dev/null 2>/dev/null)" || status=""
   [[ "$status" == "COMPLETED" ]] || fail "${key} in ${src} reports replication status '${status:-none}', not COMPLETED"
 
-  if "$AWS_BIN" s3api head-object --bucket "$dest" --key "$key" </dev/null >/dev/null 2>&1; then
+  # The copy is read in its own bucket's region, asked of AWS, so the read
+  # never rides a redirect through the source region the copy exists to
+  # outlive. us-east-1 answers as None.
+  dest_region="$("$AWS_BIN" s3api get-bucket-location --bucket "$dest" \
+    --query LocationConstraint --output text </dev/null 2>/dev/null)" || dest_region=""
+  [[ "$dest_region" == "None" ]] && dest_region="us-east-1"
+  if [[ ! "$dest_region" =~ ^[a-z]{2}-[a-z]+-[0-9]$ ]]; then
+    fail "the region of ${dest} could not be read, so its copy of ${key} cannot be checked"
+    continue
+  fi
+  if "$AWS_BIN" s3api head-object --region "$dest_region" --bucket "$dest" --key "$key" </dev/null >/dev/null 2>&1; then
     echo "    present in ${dest}"
   else
     fail "${key} is missing from ${dest}"
@@ -174,7 +191,7 @@ for check in "${CHECKS[@]}"; do
   fi
 
   [[ "$lock" == "locked" ]] || continue
-  retention="$("$AWS_BIN" s3api get-object-retention --bucket "$dest" --key "$key" \
+  retention="$("$AWS_BIN" s3api get-object-retention --region "$dest_region" --bucket "$dest" --key "$key" \
     --query 'Retention.[Mode,RetainUntilDate]' --output text </dev/null 2>/dev/null)" || retention=""
   read -r lock_mode lock_until <<<"$retention"
   if [[ "${lock_mode:-}" != "GOVERNANCE" && "${lock_mode:-}" != "COMPLIANCE" ]]; then
@@ -189,11 +206,12 @@ done
 # The alarm that fires when hourly snapshot replication goes silent exists on
 # production only, the one environment whose snapshots replicate. A copy check
 # can pass on an object replicated before the rule stopped, so the alarm's own
-# state is read as well: it must exist and must not be firing.
+# state is read as well: it must exist and must not be firing. It lives in the
+# backup region, because S3 publishes the latency metric it watches there.
 if [[ "$TARGET" == "production" ]]; then
   stopped_alarm="footbag-production-snapshots-hourly-replication-stopped"
-  echo "==> alarm ${stopped_alarm}"
-  alarm_state="$("$AWS_BIN" cloudwatch describe-alarms --alarm-names "$stopped_alarm" \
+  echo "==> alarm ${stopped_alarm} (us-west-2)"
+  alarm_state="$("$AWS_BIN" cloudwatch describe-alarms --region us-west-2 --alarm-names "$stopped_alarm" \
     --query 'MetricAlarms[0].StateValue' --output text </dev/null 2>/dev/null)" || alarm_state=""
   case "$alarm_state" in
     OK|INSUFFICIENT_DATA) echo "    state ${alarm_state}" ;;

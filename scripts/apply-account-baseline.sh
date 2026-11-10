@@ -3,7 +3,8 @@
 #
 # Applies the account baseline declared in terraform/shared/account-baseline.tf
 # (the account-level public-access block, the IAM password policy, the
-# external-access Access Analyzer and, behind enable_guardduty, the GuardDuty
+# external-access Access Analyzers in the account region and in us-west-2,
+# and, behind enable_guardduty, the GuardDuty
 # detector) and proves the outcome, as one operation.
 #
 # WHY THIS HAS ITS OWN SCRIPT.
@@ -88,6 +89,7 @@ ALLOWED_CREATES=(
   "aws_s3_account_public_access_block.account"
   "aws_iam_account_password_policy.account"
   "aws_accessanalyzer_analyzer.account"
+  "aws_accessanalyzer_analyzer.account_us_west_2"
   "aws_guardduty_detector.account[0]"
   'aws_guardduty_detector_feature.account["S3_DATA_EVENTS"]'
   'aws_guardduty_detector_feature.account["EKS_AUDIT_LOGS"]'

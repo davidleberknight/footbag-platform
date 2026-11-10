@@ -30,6 +30,7 @@ import {
   chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { createHash } from 'node:crypto';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { createScratchDir } from '../fixtures/scratchDir';
@@ -54,6 +55,10 @@ const DIGEST = 'a'.repeat(64);
 const SQLITE_PIN = '3.51.2';
 const DOCKER_PIN = '25.0.16-1.amzn2023.0.5';
 const AL_PIN = '2023.12.20261021';
+// The checksum a rebuild records for the schema file this release carries, the
+// value the deploy step compares the host's database against.
+const SCHEMA_SHA = createHash('sha256').update(readFileSync(join(process.cwd(), 'database/schema.sql'))).digest('hex');
+const OTHER_SCHEMA_SHA = 'b'.repeat(64);
 
 /** A host every bootstrap step has finished on, as the status body reports it. */
 function finishedHost(target: 'staging' | 'production'): Record<string, string> {
@@ -82,6 +87,8 @@ function finishedHost(target: 'staging' | 'production'): Record<string, string> 
     FOOTBAG_ENV: target,
     DB_FILE: 'present',
     REPLAY_PENDING: 'no',
+    DB_SCHEMA_BASELINE: SCHEMA_SHA,
+    DB_ADMINS: '1',
     FEED_SES_QUEUE: 'set',
     FEED_ALARM_QUEUE: 'set',
     CRED_CHAIN: 'ok',
@@ -337,6 +344,11 @@ beforeEach(() => {
     '  grep -qx "DB_FILE=present" "$STATE/host.status" || { echo "deploy stand-in: the stack did not report ready" >&2; exit 1; }',
     `  printf '%s\\n' SERVICE_ENABLED=enabled ${JSON.stringify(`CONTAINERS=${HEALTHY_CONTAINERS}`)} > "$STATE/fix/$ev"`,
     'fi',
+    // A rebuild ships a database built from the release's schema file, which
+    // records that file's checksum.
+    'if [[ "$*" == *--all-data* || "$*" == *--from-csv* ]]; then',
+    `  printf '%s\\n' DB_FILE=present DB_SCHEMA_BASELINE=${SCHEMA_SHA} SERVICE_ENABLED=enabled ${JSON.stringify(`CONTAINERS=${HEALTHY_CONTAINERS}`)} > "$STATE/fix/$ev"`,
+    'fi',
   ]);
   writeFileSync(join(state, 'backup-age'), '60');
 
@@ -548,6 +560,8 @@ describe('bootstrap-host.sh --status: a finished host, then each step taken away
     { step: 'a healthy worker', title: 'Deployed runtime', next: /deploy_to_aws\.sh --target staging --from-csv/, take: () => writeHost({ ...finishedHost('staging'), CONTAINERS: finishedHost('staging').CONTAINERS.replace('worker-1 Up 2 hours (healthy)', 'worker-1 Up 2 hours (unhealthy)') }) },
     { step: 'log shipping', title: 'Deployed runtime', next: /deploy_to_aws\.sh/, take: () => writeHost({ ...finishedHost('staging'), LOG_DRIVERS: 'footbag-web-1:json-file footbag-worker-1:awslogs footbag-nginx-1:awslogs' }) },
     { step: 'the service at boot', title: 'Deployed runtime', next: /deploy_to_aws\.sh/, take: () => writeHost({ ...finishedHost('staging'), SERVICE_ENABLED: 'disabled' }) },
+    { step: 'a database built from the schema file this release carries', title: 'Deployed runtime', next: /deploy_to_aws\.sh --target staging --from-csv/, take: () => writeHost({ ...finishedHost('staging'), DB_SCHEMA_BASELINE: OTHER_SCHEMA_SHA }) },
+    { step: 'a database with a recorded schema baseline', title: 'Deployed runtime', next: /deploy_to_aws\.sh --target staging --from-csv/, take: () => writeHost({ ...finishedHost('staging'), DB_SCHEMA_BASELINE: 'none' }) },
     { step: 'the backup timer', title: 'Backup timer', next: /install-backup-timer\.sh --target staging/, take: () => writeHost({ ...finishedHost('staging'), TIMER_ACTIVE: 'inactive' }) },
     { step: 'the feeds the values file turns on', title: 'Notification feeds', next: /activate-notification-feeds\.sh --target staging --state on/, take: () => { writeFileSync(join(work, 'tfvars'), 'enable_feed_queues = true\n'); writeFileSync(join(state, 'tfstate'), 'aws_sqs_queue.other\n'); } },
     { step: 'the sshd posture', title: 'sshd posture', next: /harden-sshd\.sh --target staging --apply/, take: () => writeHost({ ...finishedHost('staging'), SSHD_PASSWORD: 'yes' }) },
@@ -624,6 +638,30 @@ describe('bootstrap-host.sh --status: a finished host, then each step taken away
     expect(next).toMatch(/bootstrap-host\.sh --target production/);
     expect(next).toMatch(/restore-db\.sh --onto-empty/);
     expect(next).not.toMatch(/--all-data/);
+  });
+
+  it('holds a pre-live production on another schema pending for the rebuild, and leaves a live one to its migrations', () => {
+    // Defects caught: a production not yet live keeps serving a release whose
+    // code expects tables its database lacks, because the step reads done on
+    // healthy containers; or a live production, whose schema changes go by
+    // migration, is told to take the rebuild that would replace its members.
+    writeHost({ ...finishedHost('production'), DB_SCHEMA_BASELINE: OTHER_SCHEMA_SHA });
+    const pre = run(['--target', 'production', '--status']);
+    const preRow = rowFor(pre.stdout, 'Deployed runtime');
+    expect(preRow.line).toMatch(/\sPENDING\s.*different database\/schema\.sql.*first administrator/);
+    expect(preRow.next).toMatch(/deploy_to_aws\.sh --target production --all-data -W/);
+    writeFileSync(join(state, 'marker'), 'true\n');
+    const live = run(['--target', 'production', '--status']);
+    expect(rowFor(live.stdout, 'Deployed runtime').line).toMatch(/\sDONE\s/);
+  });
+
+  it('reads a database whose schema could not be read as unknown, never done', () => {
+    // Defect caught: a failed read on the host passes the step, so a release on
+    // the wrong schema reads ready.
+    writeHost({ ...finishedHost('staging'), DB_SCHEMA_BASELINE: 'unread' });
+    const r = run(['--target', 'staging', '--status']);
+    expect(r.status).toBe(1);
+    expect(rowFor(r.stdout, 'Deployed runtime').line).toMatch(/\sUNKNOWN\s/);
   });
 
   it('keeps compressed swap on production without asking for a reboot', () => {
@@ -711,20 +749,38 @@ describe('bootstrap-host.sh: the bootstrap', () => {
     expect(r.out).toMatch(/The host is bootstrapped/);
   });
 
-  it('names the script for every alarm gate and subscription it stops before, never a values-file edit', () => {
-    // Defect caught: a closing list telling the operator to edit the values file
+  it('names the gate script for the login alarm and the status view for the other alarm steps, never a values-file edit', () => {
+    // Defects caught: a closing list telling the operator to edit the values file
     // and apply by hand, which skips the gate script's own guards (the
-    // cutover-login alarm is refused outside pass 1) and its read-back.
+    // cutover-login alarm is refused outside pass 1) and its read-back; or one
+    // that drops the alarm gates and subscriptions with nothing pointing at the
+    // rows that now name each of their commands.
     writeHost(finishedHost('production'));
     const r = runTty(['--target', 'production']);
     expect(r.status, r.out).toBe(0);
     expect(r.out).toMatch(/set-terraform-gate\.sh --target production \\/);
     expect(r.out).toMatch(/--gate enable_cutover_login_alarm --state on/);
-    expect(r.out).toMatch(/arm-cwagent-alarms\.sh --target production/);
-    expect(r.out).toMatch(/--gate enable_backup_alarm --state on/);
-    expect(r.out).toMatch(/--gate enable_container_alarms --state on/);
-    expect(r.out).toMatch(/confirm-alarm-subscription\.sh --target production/);
+    expect(r.out).toMatch(/bringup-status\.sh --target production --profile/);
     expect(r.out).not.toMatch(/= true in the values file, then/);
+  });
+
+  it('rebuilds a staging host whose database was built from another schema file', () => {
+    // Defect caught: the bootstrap proves the deploy done on healthy containers
+    // and leaves the release running against tables its code does not expect.
+    writeHost({ ...finishedHost('staging'), DB_SCHEMA_BASELINE: OTHER_SCHEMA_SHA });
+    const r = runTty(['--target', 'staging']);
+    expect(r.status, r.out).toBe(0);
+    expect(siblingCalls().some((c) => c.startsWith('deploy_to_aws.sh --target staging --from-csv'))).toBe(true);
+  });
+
+  it('refuses to rebuild a host whose database schema could not be read', () => {
+    // Defect caught: a failed read on the host is taken as a schema change, and
+    // the bootstrap replaces the database on the strength of it.
+    writeHost({ ...finishedHost('staging'), DB_SCHEMA_BASELINE: 'unread' });
+    const r = runTty(['--target', 'staging']);
+    expect(r.status).not.toBe(0);
+    expect(r.out).toMatch(/Nothing was deployed/);
+    expect(siblingCalls().some((c) => c.startsWith('deploy_to_aws.sh'))).toBe(false);
   });
 
   it('lists a problem the status body marked in the closing report, once however often the host is read', () => {
@@ -1934,6 +1990,69 @@ describe('bootstrap-host remote halves, against stand-in host tools', () => {
       const ok = runHalf(STATUS_HALF, '');
       expect(ok.out).not.toMatch(/---FOOTBAG-PROBLEM---/);
       expect(ok.out).toMatch(/^LOG_DRIVERS=footbag-web-1:awslogs$/m);
+    });
+
+    describe('the database facts', () => {
+      // A stand-in sqlite3 answers the two read-only queries the body asks,
+      // from files a case writes, and records how it was opened.
+      function dbTools(baseline: string | null, admins: string | null): string {
+        for (const t of ['sshd', 'systemctl', 'docker', 'aws', 'swapon', 'ss', 'dnf']) tool(t, ['exit 1']);
+        tool('sqlite3', [
+          `echo "sqlite3 $*" >> ${JSON.stringify(log)}`,
+          '[[ "$1" == -readonly ]] || { echo "stand-in: opened writable" >&2; exit 1; }',
+          'case "$3" in',
+          `  *schema_migrations*) ${baseline === null ? 'echo "Error: stand-in database is locked" >&2; exit 1' : `printf '%s\\n' ${JSON.stringify(baseline)}`} ;;`,
+          `  *members_active*) ${admins === null ? 'echo "Error: stand-in no such table: members_active" >&2; exit 1' : `printf '%s\\n' ${JSON.stringify(admins)}`} ;;`,
+          'esac',
+        ]);
+        const dbDir = join(work, 'db');
+        mkdirSync(dbDir, { recursive: true });
+        writeFileSync(join(dbDir, 'footbag.db'), '');
+        return dbDir;
+      }
+
+      it('reports the schema checksum and the administrator count, opened read-only', () => {
+        // Defects caught: the facts the deploy step and the first-admin row are
+        // judged on never reach them, or the live database is opened writable.
+        const dbDir = dbTools(SCHEMA_SHA, '2');
+        const r = runHalf(STATUS_HALF, '', { FOOTBAG_TEST_DB_DIR: dbDir });
+        expect(r.out).toMatch(new RegExp(`^DB_SCHEMA_BASELINE=${SCHEMA_SHA}$`, 'm'));
+        expect(r.out).toMatch(/^DB_ADMINS=2$/m);
+        expect(r.out).not.toMatch(/---FOOTBAG-PROBLEM--- WARN sqlite3/);
+        expect(logged()).toMatch(/^sqlite3 -readonly /m);
+      });
+
+      it('reports a failed read as unread with the tool\'s reason, never as zero or none', () => {
+        // Defects caught: a count that failed reported as no administrator, which
+        // sends the operator to mint a second claim token, or a baseline read
+        // that failed reported as a different schema, which offers a rebuild.
+        const dbDir = dbTools(null, null);
+        const r = runHalf(STATUS_HALF, '', { FOOTBAG_TEST_DB_DIR: dbDir });
+        expect(r.out).toMatch(/^DB_SCHEMA_BASELINE=unread$/m);
+        expect(r.out).toMatch(/^DB_ADMINS=unread$/m);
+        expect(r.out).toMatch(/^---FOOTBAG-PROBLEM--- WARN sqlite3 could not read the schema baseline .*stand-in database is locked$/m);
+        expect(r.out).toMatch(/^---FOOTBAG-PROBLEM--- WARN sqlite3 could not count the administrators .*no such table: members_active$/m);
+      });
+
+      it('reports none, not unread, for a database with no baseline row, and a non-number count as unread', () => {
+        // Defects caught: a database built before the baseline row existed reads
+        // as a failed read, so the step stays unknown and never offers the
+        // rebuild; or a count answering something other than a number is
+        // trusted as one.
+        const dbDir = dbTools('', 'not a number');
+        const r = runHalf(STATUS_HALF, '', { FOOTBAG_TEST_DB_DIR: dbDir });
+        expect(r.out).toMatch(/^DB_SCHEMA_BASELINE=none$/m);
+        expect(r.out).toMatch(/^DB_ADMINS=unread$/m);
+      });
+
+      it('reports none for both on a host with no database, opening nothing', () => {
+        for (const t of ['sshd', 'systemctl', 'docker', 'aws', 'swapon', 'ss', 'dnf', 'sqlite3']) tool(t, ['exit 1']);
+        const empty = join(work, 'no-db');
+        mkdirSync(empty, { recursive: true });
+        const r = runHalf(STATUS_HALF, '', { FOOTBAG_TEST_DB_DIR: empty });
+        expect(r.out).toMatch(/^DB_SCHEMA_BASELINE=none$/m);
+        expect(r.out).toMatch(/^DB_ADMINS=none$/m);
+      });
     });
   });
 

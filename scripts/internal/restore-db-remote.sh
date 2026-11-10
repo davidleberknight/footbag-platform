@@ -36,6 +36,9 @@
 #                  BACKUP_S3_BUCKET. The caller passes it for a cutover
 #                  rollback, whose artifact is in the DR bucket rather than
 #                  the one this host is configured with.
+#   BUCKET_REGION  the region that bucket lives in, passed for a backup bucket
+#                  in us-west-2 so the fetch is made there by name. Empty, the
+#                  host's own region applies.
 #   DRILL          1 for the restore drill: restore into the scratch directory,
 #                  validate the data, report, and stop there. The live database,
 #                  the backup timer and the service are never touched. A drill
@@ -270,6 +273,8 @@ command -v aws     >/dev/null 2>&1 || { crr_error "aws CLI not installed on this
 # accepted, printed, and then dropped before the wire.
 BUCKET="${BUCKET:-${BACKUP_S3_BUCKET:-}}"
 [[ -n "$BUCKET" ]] || { crr_error "no bucket: pass --bucket, or set BACKUP_S3_BUCKET in $ENV_PATH."; exit 1; }
+S3_REGION_ARGS=()
+[[ -n "${BUCKET_REGION:-}" ]] && S3_REGION_ARGS=(--region "$BUCKET_REGION")
 # A host with no database is restored onto only when the operator said so, and a
 # host with one never takes that path: --onto-empty must not be able to stand in
 # for the ordinary restore and skip the copy-aside of a real database. The
@@ -318,7 +323,7 @@ umask 077
 work="$(mktemp -d)"
 
 echo "==> Fetching s3://${BUCKET}/${SNAPSHOT_KEY}"
-aws s3 cp "s3://${BUCKET}/${SNAPSHOT_KEY}" "${work}/snapshot.fetched" >/dev/null \
+aws s3 cp "${S3_REGION_ARGS[@]+"${S3_REGION_ARGS[@]}"}" "s3://${BUCKET}/${SNAPSHOT_KEY}" "${work}/snapshot.fetched" >/dev/null \
   || { crr_error "could not download the snapshot; nothing was changed."; exit 1; }
 
 # Detect compression rather than assume it, matching the local half. This is the

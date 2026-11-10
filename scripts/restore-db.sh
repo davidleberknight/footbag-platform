@@ -388,6 +388,14 @@ else
   aws_profile_ensure || die "no AWS identity is available for the snapshot search"
 fi
 
+# Every backup bucket, the one whose name ends in -dr, is created in us-west-2
+# by the Terraform trees, so the copy that outlives the primary region is read
+# there by name, on both halves, rather than through a redirect from the region
+# it exists to outlive.
+BUCKET_REGION=""
+[[ "$BUCKET" == *-dr ]] && BUCKET_REGION="us-west-2"
+[[ -n "$BUCKET_REGION" ]] && AWS_ARGS+=(--region "$BUCKET_REGION")
+
 # The two artifact classes are never mixed in a search. The cutover rollback
 # lives under pre-flip/; the five-minute stream lives under routine/. Both are
 # replicated to the DR bucket, so a search across both there is a search over
@@ -632,7 +640,7 @@ restore_status=0
 run_label="restore on ${SSH_ALIAS}"
 (( DRILL )) && run_label="restore drill on ${SSH_ALIAS}"
 cr_run_marked "$run_label" -- \
-  send_to_host "SNAPSHOT_KEY=${SNAPSHOT_KEY}" "BUCKET=${BUCKET}" "DRILL=${DRILL}" "ONTO_EMPTY=${ONTO_EMPTY}" \
+  send_to_host "SNAPSHOT_KEY=${SNAPSHOT_KEY}" "BUCKET=${BUCKET}" "BUCKET_REGION=${BUCKET_REGION}" "DRILL=${DRILL}" "ONTO_EMPTY=${ONTO_EMPTY}" \
   || restore_status=$?
 # Judged by the errors the host marked as well as by its exit, so a half that
 # marked an error and still exited 0 is never followed by a success line.

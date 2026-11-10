@@ -85,10 +85,20 @@ describe('reconfirm-alarm-subscriptions.sh, recreating the subscriptions', () =>
     expect(readFileSync(tfvars, 'utf8')).toBe('alarm_email = "x"\nalarm_email_subscription_generation = 4   # bumped on resend\nenable_cloudfront = true\n');
   });
 
-  it('adds the line at 1 when the file has none', () => {
-    writeFileSync(tfvars, 'alarm_email = "x"\n');
+  it('adds the line at 1 when the file has none, after a blank line', () => {
+    // terraform fmt aligns the = signs of consecutive lines, so a line added
+    // straight after the file's last setting leaves the operator's values file
+    // failing the fmt check the full gate runs. A blank line makes it a group
+    // of its own, which fmt leaves alone.
+    writeFileSync(tfvars, 'enable_container_alarms = true\n');
     run(['--tfvars', tfvars, '--yes']);
-    expect(readFileSync(tfvars, 'utf8')).toBe('alarm_email = "x"\nalarm_email_subscription_generation = 1\n');
+    expect(readFileSync(tfvars, 'utf8')).toBe('enable_container_alarms = true\n\nalarm_email_subscription_generation = 1\n');
+  });
+
+  it('adds no second blank line to a file that already ends with one', () => {
+    writeFileSync(tfvars, 'alarm_email = "x"\n\n');
+    run(['--tfvars', tfvars, '--yes']);
+    expect(readFileSync(tfvars, 'utf8')).toBe('alarm_email = "x"\n\nalarm_email_subscription_generation = 1\n');
   });
 
   it('refuses a generation that is not a whole number, changing nothing', () => {

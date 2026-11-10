@@ -116,6 +116,11 @@ function writeTerraformStub(
      * a gate that treats it as one cannot be applied around.
      */
     showWarnsOnStderr?: string;
+    /**
+     * Make `terraform show -json <plan>` succeed while printing nothing, so the
+     * checks that need the plan fall back to reading its text.
+     */
+    showEmpty?: boolean;
     /** The plan's input variables, as `show -json` reports them. */
     planVariables?: Record<string, { value: unknown }>;
     /**
@@ -233,6 +238,7 @@ function writeTerraformStub(
       ...(opts.showWarnsOnStderr
         ? [`      echo ${JSON.stringify(opts.showWarnsOnStderr)} >&2`]
         : []),
+      ...(opts.showEmpty ? ['      exit 0'] : []),
       ...(opts.secondPlanResourceChanges
         ? [
             `      if [ -e "${showMarker}" ]; then`,
@@ -1284,6 +1290,76 @@ describe('terraform-apply.sh: replacing one listed resource', () => {
     expect(res.exitCode).toBe(1);
     expect(res.stderr).toMatch(/no terminal to confirm on/);
     expect(calls()).not.toMatch(/\sapply\s/);
+  });
+});
+
+describe('terraform-apply.sh: the production-live marker is created once', () => {
+  // Terraform creates the marker holding "false", the pre-live value that
+  // permits the data-replacing deploys, and never writes it again. A later plan
+  // that creates it means the marker or its state entry has gone, and applying
+  // it would mark a live production pre-live again.
+  const MARKER = 'aws_ssm_parameter.app_production_live';
+
+  it('refuses a production plan that creates or replaces the marker, before the confirmation', () => {
+    // Defect caught: a restored or damaged state recreating the marker as
+    // "false" on a live production, re-opening the database-replacing deploy.
+    for (const actions of [['create'], ['delete', 'create']]) {
+      writeTerraformStub({ planResourceChanges: [{ type: 'aws_ssm_parameter', address: MARKER, actions }] });
+      const res = run(['--target', 'production']);
+      expect(res.exitCode, actions.join('+')).toBe(1);
+      expect(res.stderr, actions.join('+')).toMatch(/would create aws_ssm_parameter\.app_production_live/);
+      expect(res.stderr, actions.join('+')).not.toMatch(/no terminal to confirm on/);
+      expect(calls()).not.toMatch(/\sapply\s/);
+    }
+  });
+
+  it('refuses the same create when only the plan text can be read', () => {
+    // Defect caught: a guard that reads only the JSON plan and so passes, as
+    // "no create", a plan it never actually read.
+    for (const line of [
+      `  # ${MARKER} will be created`,
+      `  # ${MARKER} must be replaced`,
+    ]) {
+      writeTerraformStub({ showEmpty: true, planPrints: [line] });
+      const res = run(['--target', 'production']);
+      expect(res.exitCode, line).toBe(1);
+      expect(res.stderr, line).toMatch(/would create aws_ssm_parameter\.app_production_live/);
+      expect(calls()).not.toMatch(/\sapply\s/);
+    }
+  });
+
+  it('lets the first apply create it with --allow-marker-create, on to the typed confirmation', () => {
+    // Defect caught: a guard with no way through, so production's first apply
+    // could never create the marker the deploy guards require.
+    writeTerraformStub({ planResourceChanges: [{ type: 'aws_ssm_parameter', address: MARKER, actions: ['create'] }] });
+    const res = run(['--target', 'production', '--allow-marker-create']);
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).not.toMatch(/would create aws_ssm_parameter\.app_production_live/);
+    expect(res.stderr).toMatch(/no terminal to confirm on/);
+  });
+
+  it('passes a production plan that leaves the marker alone', () => {
+    // Defect caught: a guard matching any SSM parameter, which blocks every
+    // ordinary production apply that publishes a host value.
+    writeTerraformStub({
+      planResourceChanges: [
+        { type: 'aws_ssm_parameter', address: 'aws_ssm_parameter.app_media_bucket', actions: ['create'] },
+        { type: 'aws_ssm_parameter', address: MARKER, actions: ['no-op'] },
+      ],
+    });
+    const res = run(['--target', 'production']);
+    expect(res.stderr).not.toMatch(/would create aws_ssm_parameter\.app_production_live/);
+    expect(res.stderr).toMatch(/no terminal to confirm on/);
+  });
+
+  it('refuses --allow-marker-create on any tree but production, before terraform runs', () => {
+    // Defect caught: the flag accepted where no marker exists, teaching it as a
+    // harmless habit to pass.
+    writeTerraformStub();
+    const res = run(['--target', 'staging', '--allow-marker-create']);
+    expect(res.exitCode).toBe(2);
+    expect(res.stderr).toMatch(/production only/);
+    expect(calls()).not.toMatch(/ plan /);
   });
 });
 

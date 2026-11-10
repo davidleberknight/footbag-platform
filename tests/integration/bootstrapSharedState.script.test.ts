@@ -24,8 +24,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { requireToolInCI } from '../fixtures/toolAvailability';
 
 const SCRIPT = join(process.cwd(), 'scripts/bootstrap-shared-state.sh');
+const HAS_SCRIPT = requireToolInCI('script', '--version');
 const OPERATOR_ARN = 'arn:aws:iam::000000000000:user/footbag-operator';
 
 let root: string;
@@ -48,22 +50,34 @@ function keepLocalState() {
   writeFileSync(join(workRoot, 'shared', 'terraform.tfstate'), '{"version":4}');
 }
 
+function env() {
+  return {
+    ...process.env,
+    PATH: `${stubs}:${process.env.PATH ?? ''}`,
+    AWS_PROFILE_BIN: join(stubs, 'aws'),
+    AWS_IDENTITY_BIN: join(stubs, 'aws'),
+    BOOTSTRAP_STATE_AWS_BIN: join(stubs, 'aws'),
+    BOOTSTRAP_STATE_TF_BIN: join(stubs, 'terraform'),
+    BOOTSTRAP_STATE_WORK_ROOT: workRoot,
+  };
+}
+
 function run(args: string[]) {
-  const res = spawnSync('bash', [SCRIPT, ...args], {
+  const res = spawnSync('bash', [SCRIPT, ...args], { encoding: 'utf-8', input: '', env: env(), ...SPAWN_GUARD });
+  return { status: res.status, stdout: res.stdout ?? '', stderr: res.stderr ?? '' };
+}
+
+/** A run at a terminal, typing the answer to the prompt; both streams arrive as one. */
+function atTerminal(args: string[], typed: string) {
+  const inner = `bash ${[SCRIPT, ...args].map((a) => JSON.stringify(a)).join(' ')} </dev/null; echo "EXIT=$?"`;
+  const res = spawnSync('script', ['-qec', inner, '/dev/null'], {
     encoding: 'utf-8',
-    input: '',
-    env: {
-      ...process.env,
-      PATH: `${stubs}:${process.env.PATH ?? ''}`,
-      AWS_PROFILE_BIN: join(stubs, 'aws'),
-      AWS_IDENTITY_BIN: join(stubs, 'aws'),
-      BOOTSTRAP_STATE_AWS_BIN: join(stubs, 'aws'),
-      BOOTSTRAP_STATE_TF_BIN: join(stubs, 'terraform'),
-      BOOTSTRAP_STATE_WORK_ROOT: workRoot,
-    },
+    input: `${typed}\n`,
+    env: env(),
     ...SPAWN_GUARD,
   });
-  return { status: res.status, stdout: res.stdout ?? '', stderr: res.stderr ?? '' };
+  const out = res.stdout ?? '';
+  return { status: Number(out.match(/EXIT=(\d+)/)?.[1] ?? -1), stdout: out, stderr: out };
 }
 
 function calls(): string {
@@ -274,6 +288,65 @@ describe('bootstrap-shared-state.sh — restoring lost state from a bucket versi
     expect(calls()).toContain('versionId=v-new');
     expect(calls()).toMatch(/plan -input=false -detailed-exitcode/);
     expect(r.stdout).toContain('plans with no changes');
+  });
+
+  it('restores another tree\'s state from its own key, and proves it with that tree\'s plan', () => {
+    // Defect caught: a lost production, staging or identity state with no
+    // scripted recovery, so the rebuild the state exists for is done by hand;
+    // or the shared key restored, and the shared tree planned, under another
+    // tree's name. The key is read from the tree's own backend file, as the
+    // script reads it.
+    versioned([['v-1', '2026-10-01T00:00:00+00:00', STATE(4)]]);
+    // Production and identity take the typed APPLY at a terminal; staging may
+    // be confirmed with --yes.
+    const trees: string[] = HAS_SCRIPT ? ['identity', 'staging', 'production'] : ['staging'];
+    for (const tree of trees) {
+      // Each tree's object starts lost; the stand-in's one bucket would
+      // otherwise hold the previous tree's restore as current.
+      rmSync(join(world, 'object'), { force: true });
+      writeFileSync(callLog, '');
+      const backend = readFileSync(join(__dirname, `../../terraform/${tree}/backend.tf`), 'utf-8');
+      const key = backend.match(/^\s*key\s*=\s*"([^"]+)"/m)![1];
+      const r =
+        tree === 'staging'
+          ? run(['--restore-state', '--tree', tree, '--yes'])
+          : atTerminal(['--restore-state', '--tree', tree], 'APPLY');
+      expect(r.status, `${tree}: ${r.stderr}`).toBe(0);
+      expect(calls(), tree).toContain(`--copy-source footbag-terraform-state-a1b2c3d4e5/${key}?versionId=v-1`);
+      expect(calls(), tree).not.toContain('shared/terraform.tfstate');
+      expect(calls(), tree).toContain(`-chdir=terraform/${tree} plan`);
+      expect(r.stdout, tree).toContain(`current state of the ${tree} tree and it plans with no changes`);
+    }
+  });
+
+  it('refuses --yes for a production or identity rollback, beside staging where it carries', () => {
+    // Defect caught: production's or the identity roster's state rolled back
+    // to an older version with nothing typed by anyone, because a flag passed
+    // in advance answered the confirmation an apply of those trees never lets
+    // a flag answer.
+    versioned([['v-1', '2026-10-01T00:00:00+00:00', STATE(4)]]);
+    for (const tree of ['production', 'identity']) {
+      const r = run(['--restore-state', '--tree', tree, '--yes']);
+      expect(r.status, tree).toBe(2);
+      expect(r.stderr, tree).toContain(`--yes does not carry restoring the ${tree} tree's state`);
+      expect(r.stderr, tree).toContain('typed APPLY');
+    }
+    expect(calls()).not.toContain('copy-object');
+    const staging = run(['--restore-state', '--tree', 'staging', '--yes']);
+    expect(staging.status, staging.stderr).toBe(0);
+    expect(calls()).toContain('copy-object');
+  });
+
+  it('refuses a tree it does not know, and --tree outside a restore', () => {
+    // Defect caught: a typo restoring nothing while reporting a tree, or a
+    // bootstrap run that silently ignores the tree it was given.
+    const bad = run(['--restore-state', '--tree', 'prod', '--yes']);
+    expect(bad.status).toBe(2);
+    expect(bad.stderr).toContain('--tree must be shared, identity, staging or production');
+    const outside = run(['--tree', 'production']);
+    expect(outside.status).toBe(2);
+    expect(outside.stderr).toContain('--tree is for --restore-state');
+    expect(calls()).not.toContain('copy-object');
   });
 
   it('changes nothing without a confirmation', () => {

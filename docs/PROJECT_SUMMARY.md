@@ -417,7 +417,7 @@ The platform could run on any cloud provider (Azure, Google Cloud, DigitalOcean)
 - AWS SES: Email delivery with authentication (SPF, DKIM, DMARC) and bounce handling.
 - AWS Parameter Store: Stores webhook/Stripe secrets and non-key config. JWT tokens are signed with an AWS KMS asymmetric key; signing keys are not stored in Parameter Store. SecureString secrets (organized hierarchically under /footbag/ namespace with /production/, /staging/, /development/ environment subpaths) can hold sensitive configuration details that must not be checked into source control.
 - AWS CloudWatch: Unified monitoring service for logs, metrics, and alarms.
-- AWS CloudTrail and GuardDuty: one multi-region trail records every action on the AWS account, kept for a year and watched by alarms; GuardDuty raises threat findings, delivered by email.
+- AWS CloudTrail, GuardDuty and IAM Access Analyzer: one multi-region trail records every action on the AWS account, kept for a year and watched by alarms; GuardDuty raises threat findings, and an Access Analyzer in each region the platform uses reports any resource policy granting access outside the account, both delivered by email.
 - AWS Route 53: DNS service routing traffic to CloudFront distributions.
 
 **IAM Security Approach:**

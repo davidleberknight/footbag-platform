@@ -66,6 +66,16 @@ resource "aws_accessanalyzer_analyzer" "account" {
   type          = "ACCOUNT"
 }
 
+# An analyzer sees only its own region's resources, so the disaster-recovery
+# buckets in the backup region, whose policies guard the copies that outlive
+# us-east-1, need their own. Each environment tree routes its findings to that
+# region's alarm topic.
+resource "aws_accessanalyzer_analyzer" "account_us_west_2" {
+  provider      = aws.us_west_2
+  analyzer_name = "footbag-account-external-access"
+  type          = "ACCOUNT"
+}
+
 # Threat detection over the account's own records: the trail's management
 # events, VPC flow and DNS logs, and, with S3 protection on, object-level S3
 # events the trail deliberately does not store. It also reports a stopped or

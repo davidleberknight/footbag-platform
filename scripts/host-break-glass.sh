@@ -37,8 +37,9 @@
 # Drill mode (--drill) does steps 1, 2, 4, 5 and 7, then waits for the alarm's
 # own history, since this run began, to show ALARM and then OK; waits for the
 # listing to show this run's mint under its application id; and asks whether
-# the alarm email arrived and whether the admin dashboard raised and then
-# cleared the platform alarm.
+# the alarm email arrived and whether production's admin dashboard raised and
+# then cleared the platform alarm: the alarm feeds production's alarm topic
+# whichever host the drill targets, so staging's dashboard never shows it.
 #
 # The alarm is footbag-production-break-glass-host-access in us-east-1. It is a
 # production alarm even when the target is staging, because the trail it reads
@@ -510,7 +511,7 @@ if [[ "$MODE" == drill ]]; then
   # reach from here, so the operator attests to them.
   for question in \
       "the alarm email for ${ALARM_NAME} arrive" \
-      "the admin dashboard raise and then clear the platform alarm"; do
+      "production's admin dashboard (/admin/alarms) raise and then clear the platform alarm"; do
     if [[ "$ASSUME_YES" == "yes" ]] || ! terminal_present; then
       cr_unproved "did ${question} (not asked: no terminal)"
       continue

@@ -16,7 +16,9 @@
 # script owns the whole operation, so a runbook step names it rather than
 # saying "set the variable and apply".
 #
-# It sets alarm gates only. No DNS record and no mail setting changes through
+# It sets alarm gates, and one gate that is not an alarm:
+# enable_legacy_mirror_backup, which creates the legacy-mirror backup bucket
+# and is turned on only. No DNS record and no mail setting changes through
 # it: each of those belongs to an apply that changes several values together,
 # and every one of them is refused by name below.
 #
@@ -64,6 +66,10 @@
 #   - enable_archive, by name, either direction: the archive bring-up sets
 #     several values together (the flag, the signing key, the platform
 #     address), and turning it off is refused by Terraform's prevent_destroy.
+#   - enable_legacy_mirror_backup turned off: its bucket carries
+#     prevent_destroy, so the apply would fail and leave the values file
+#     saying off while the bucket stands. Turning it on looks for no metric,
+#     since it creates a bucket, not an alarm.
 #   - Arming an alarm over nothing. Before a gate is turned on, what its alarm
 #     reads is looked for: BackupAgeMinutes published in the last three hours
 #     for the backup alarms, a jobs.heartbeat line in the app log group in the
@@ -120,7 +126,11 @@
 # Before arming, enable_container_alarms needs the container monitor's
 # heartbeat flowing, and enable_host_key_alarm (production only, where the
 # trail lives) needs the trail's last week to show every call by each host key
-# from that host's address; each is checked, and refused otherwise.
+# from that host's address; each is checked, and refused otherwise. Arming the
+# host-key alarm first brings staging_web_static_ip in the production values
+# file to the staging tree's lightsail_static_ip output, writing that one line,
+# shown and confirmed, when it is empty or different, and only while nothing
+# else is pending.
 #
 # Flags:
 #   --target staging|production  Environment (required, no default).
@@ -161,6 +171,7 @@ ALLOWED_GATES=(
   enable_cutover_login_alarm
   enable_container_alarms
   enable_host_key_alarm
+  enable_legacy_mirror_backup
 )
 
 TARGET=""
@@ -246,6 +257,14 @@ if [[ "$STATE" != "on" && "$STATE" != "off" ]]; then
 fi
 WANTED="false"
 [[ "$STATE" == "on" ]] && WANTED="true"
+
+# The legacy-mirror backup bucket carries prevent_destroy, so an apply turning
+# its gate off fails, and the values file would be left saying off while the
+# bucket stands.
+if [[ "$GATE" == enable_legacy_mirror_backup && "$WANTED" == "false" ]]; then
+  cr_error "enable_legacy_mirror_backup cannot be turned off here: its bucket carries prevent_destroy, so the apply would fail and leave the values file saying off while the bucket stands; this script refuses it"
+  exit 2
+fi
 
 TF_DIR="${REPO_ROOT}/terraform/${TARGET}"
 
@@ -403,6 +422,10 @@ if (( DRY_RUN )); then
     echo "     (saved plan shown, typed APPLY on production, plan shredded)"
   fi
   echo "  then read var.${GATE} back from terraform console and require ${WANTED}."
+  if [[ "$GATE" == enable_host_key_alarm && "$TARGET" == production && "$WANTED" == true ]]; then
+    echo "Before the metric check, it would bring staging_web_static_ip to the staging tree's"
+    echo "  lightsail_static_ip output, writing that one line (confirmed) if it differs."
+  fi
   cr_unproved "anything: a dry run changes and checks nothing"
   cr_finish
 fi
@@ -602,7 +625,7 @@ host_key_precheck() {
   while read -r key user ip; do
     [[ -n "$key" ]] || continue
     if [[ -z "$ip" ]]; then
-      cr_error "refusing to arm ${GATE}: no address is set for ${user} (set staging_web_static_ip in the values file first)"
+      cr_error "refusing to arm ${GATE}: no address is set for ${user}"
       return 1
     fi
     rc=0
@@ -675,6 +698,12 @@ metric_precheck() {
       echo "metric check: none for ${GATE}; it is armed in pass 1 to fire on missing data."
       return 0
       ;;
+    enable_legacy_mirror_backup)
+      # A backup bucket, not an alarm: it reads no metric, so there is
+      # nothing to look for before it is created.
+      echo "metric check: none for ${GATE}"
+      return 0
+      ;;
     enable_container_alarms)
       read_region || return 1
       # The container monitor's heartbeat, which the heartbeat alarm treats as
@@ -708,14 +737,106 @@ if ! freeze_window_check; then
   cr_finish
 fi
 
+# The production tree cannot read the staging tree's state, so the staging
+# host's address its host-key filters expect is a value in the production values
+# file, and a value typed by hand goes stale when staging's address changes,
+# which holds the alarm in ALARM. Arming the host-key alarm therefore first
+# brings that value to the staging tree's own output: read, compared, and when
+# empty or different written as one line, shown and confirmed, through the link.
+# Nothing else may be pending when it is written, so the apply below carries the
+# address and the gate and nothing else. While the gate is off the address feeds
+# no resource, so a run refused after the write leaves a correct value that
+# changes nothing.
+ADDRESS_WRITTEN=0
+STAGING_ADDRESS_VAR="staging_web_static_ip"
+sync_staging_address() {
+  [[ "$GATE" == enable_host_key_alarm && "$TARGET" == production && "$WANTED" == true ]] || return 0
+  local out rc=0 want have pattern new_content new_line before after
+  out="$("$TF_BIN" -chdir="${REPO_ROOT}/terraform/staging" output -raw lightsail_static_ip 2>&1)" || rc=$?
+  if [[ "$rc" != 0 ]]; then
+    cr_error "the read of the staging tree's lightsail_static_ip output failed (exit ${rc}): $(error_titles <<<"$out")"
+    return 1
+  fi
+  want="$(console_value <<<"$out" | tr -d '[:space:]"')"
+  if [[ ! "$want" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+    cr_error "the staging tree's lightsail_static_ip output did not read back as an IPv4 address"
+    return 1
+  fi
+  pattern="^[[:space:]]*${STAGING_ADDRESS_VAR}[[:space:]]*="
+  have="$(grep -E "$pattern" "$TFVARS_PATH" | tail -n 1 \
+    | sed -E 's/^[^=]*=[[:space:]]*"?([0-9.]*)"?.*/\1/' || [[ $? == 1 ]])"
+  if [[ "$have" == "$want" ]]; then
+    echo "staging address: ${STAGING_ADDRESS_VAR} already matches the staging tree's output."
+    return 0
+  fi
+  echo "staging address: ${STAGING_ADDRESS_VAR} reads '${have:-<absent>}', the staging tree's output is ${want}."
+  plan_tree -lock=false
+  case "$PLAN_RC" in
+    0) ;;
+    2) refuse_other_pending ;;
+    *)
+      cr_error "the read-only plan of ${TARGET} at its current values failed (exit ${PLAN_RC}); the values file is unchanged and nothing was applied"
+      return 1
+      ;;
+  esac
+  new_content="$(VAR_NAME="$STAGING_ADDRESS_VAR" VAR_VALUE="\"${want}\"" awk '
+    BEGIN { pattern = "^[ \t]*" ENVIRON["VAR_NAME"] "[ \t]*="; seen = 0 }
+    $0 ~ pattern {
+      if (!seen) {
+        match($0, pattern "[ \t]*")
+        printf "%s%s\n", substr($0, 1, RLENGTH), ENVIRON["VAR_VALUE"]
+        seen = 1
+      }
+      next
+    }
+    { print; last = $0 }
+    END {
+      if (!seen) {
+        if (NR > 0 && last != "") print ""
+        printf "%s = %s\n", ENVIRON["VAR_NAME"], ENVIRON["VAR_VALUE"]
+      }
+    }
+  ' "$TFVARS_PATH")"
+  new_line="$(grep -E "$pattern" <<<"$new_content")"
+  before="$(grep -cvE "${pattern}|^[[:space:]]*$" "$TFVARS_PATH" || [[ $? == 1 ]])"
+  after="$(grep -cvE "${pattern}|^[[:space:]]*$" <<<"$new_content" || [[ $? == 1 ]])"
+  if [[ "$before" != "$after" || "$new_line" != *"\"${want}\"" ]] || [[ "$(grep -cE "$pattern" <<<"$new_content")" != 1 ]]; then
+    cr_error "the rewrite of ${STAGING_ADDRESS_VAR} did not come out as one changed line; the values file is unchanged"
+    return 1
+  fi
+  echo "Values-file change in ${TFVARS_PATH} (the ${STAGING_ADDRESS_VAR} line only):"
+  tfvars_mask <(grep -E "$pattern" "$TFVARS_PATH" | sed 's/^/-/' || [[ $? == 1 ]])
+  tfvars_mask <(sed 's/^/+/' <<<"$new_line")
+  echo ""
+  if ! confirm_from_tty "Write this to ${TFVARS_PATH}? (yes/no): " "yes"; then
+    cr_error "not confirmed: the values file is unchanged and nothing was applied"
+    return 1
+  fi
+  printf '%s\n' "$new_content" > "$TFVARS_PATH"
+  echo "  ${STAGING_ADDRESS_VAR} = \"${want}\" written."
+  echo ""
+  ADDRESS_WRITTEN=1
+}
+
+if ! sync_staging_address; then
+  cr_unproved "${GATE} = ${WANTED} on ${TARGET}: refused before the gate was written"
+  cr_finish
+fi
+
 if ! metric_precheck; then
-  cr_unproved "${GATE} = ${WANTED} on ${TARGET}: refused before any plan or write; the values file is unchanged"
+  if (( ADDRESS_WRITTEN )); then
+    cr_unproved "${GATE} = ${WANTED} on ${TARGET}: refused before the gate was written; the values file holds the corrected ${STAGING_ADDRESS_VAR}, which feeds nothing while the gate is off"
+  else
+    cr_unproved "${GATE} = ${WANTED} on ${TARGET}: refused before any plan or write; the values file is unchanged"
+  fi
   cr_finish
 fi
 
 # What the closing report cannot claim even when the read-back holds.
 not_proved_by_readback() {
-  if [[ "$WANTED" == "true" ]]; then
+  if [[ "$GATE" == enable_legacy_mirror_backup ]]; then
+    cr_unproved "that the backup bucket exists in AWS: the read-back proves var.${GATE} = true and the apply ran, not the resource"
+  elif [[ "$WANTED" == "true" ]]; then
     cr_unproved "that the alarm pages: the read-back proves var.${GATE} = true and the apply ran, not that the alarm fires"
   else
     cr_unproved "that the alarm is gone from CloudWatch: the read-back proves var.${GATE} = false, not the resource"
@@ -737,6 +858,12 @@ if (( FILE_AT_STATE )); then
       cr_finish
       ;;
     2)
+      if (( ADDRESS_WRITTEN )); then
+        # The plan before the address was written was clean, so the address
+        # this run wrote is the one change pending.
+        echo "Only ${STAGING_ADDRESS_VAR} is pending, written above; applying it."
+        echo ""
+      else
       # Here the current-values plan and the plan with the gate at the wanted
       # value are one plan, so it cannot tell a stopped run's unfinished gate
       # from some other change. A plan with the gate at its other value can: it
@@ -758,6 +885,7 @@ if (( FILE_AT_STATE )); then
           cr_finish
           ;;
       esac
+      fi
       ;;
     *)
       cr_error "the read-only plan of ${TARGET} failed (exit ${PLAN_RC}); nothing was applied"

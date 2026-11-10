@@ -58,6 +58,14 @@
 #   scripts/terraform-apply.sh --target production --dns-records-only
 #   scripts/terraform-apply.sh --target shared --init --skip-empty-plan
 #   scripts/terraform-apply.sh --target production --replace random_id.origin_verify_secret
+#   scripts/terraform-apply.sh --target production --allow-marker-create
+#
+# --allow-marker-create, production only, lets the plan create the
+# production-live marker parameter. Terraform creates it holding "false", the
+# pre-live value, so that is right only on the tree's first apply; every other
+# production plan that would create it is refused, since it means the marker or
+# its state entry has gone and recreating it would mark a live production
+# pre-live again.
 #
 # --replace plans with Terraform's -replace for one resource address, through
 # the same saved plan, confirmation and shred as any other run. It takes only the
@@ -65,7 +73,9 @@
 # general passthrough would let any resource be destroyed and recreated by a
 # flag. Each address has one caller that owns the steps and the proof around the
 # replacement: scripts/rotate-origin-verify-secret.sh for the origin-verify
-# secret, scripts/rotate-jwt-signing-key.sh for the JWT signing key, and
+# secret, scripts/rotate-jwt-signing-key.sh for the JWT signing key,
+# scripts/relink-operator-trust.sh for the runtime role whose trust names
+# footbag-operator (its fallback, when a plain apply leaves that trust broken), and
 # scripts/bootstrap-host.sh --replace-instance for the web instance, which also
 # passes --instance-snapshot <name>: the snapshot it took first, which this
 # script proves complete, recent and of the running instance before it plans.
@@ -176,9 +186,13 @@ SKIP_EMPTY=0
 # The resource addresses --replace may name, and the only list of them. Each is
 # a value whose rotation is a Terraform replacement by design: the origin-verify
 # secret, and the JWT signing key, which the design rotates as a whole new key.
+# The runtime role is the third, as a fallback only: after footbag-operator is
+# re-created, AWS holds the trust with the deleted user's principal ID, so a
+# plain plan already shows an in-place update of the trust and a plain apply
+# re-saves it; replacing the role is for a trust that apply leaves broken.
 # Anything else rotates by its own script or not by replacement at all.
 REPLACE_ADDR=""
-REPLACEABLE_ADDRESSES=("random_id.origin_verify_secret" "aws_kms_key.jwt_signing")
+REPLACEABLE_ADDRESSES=("random_id.origin_verify_secret" "aws_kms_key.jwt_signing" "aws_iam_role.app_runtime")
 # The web instance holds the only copy of everything on its disk that a backup
 # does not carry, and the member database between backups, so it is replaced by
 # one route only: scripts/bootstrap-host.sh --replace-instance, which takes a
@@ -196,6 +210,12 @@ INSTANCE_SNAPSHOT=""
 INSTANCE_SNAPSHOT_MAX_AGE_SECS=7200
 # The one resource a dev-and-tester address change may touch.
 FIREWALL_ADDRESS="aws_lightsail_instance_public_ports.web"
+# The production-live marker. Terraform creates it holding "false", the pre-live
+# value that permits the data-replacing deploys, and never writes it again, so a
+# plan that creates it is only right on the tree's first apply. Set by
+# --allow-marker-create; see "The production-live marker is created once" below.
+MARKER_ADDRESS="aws_ssm_parameter.app_production_live"
+ALLOW_MARKER_CREATE=0
 # Set when the plan replaces the firewall and the replacement is instead written
 # in place before the apply; see "The firewall, written in place" below.
 FW_INPLACE=0
@@ -394,6 +414,10 @@ while [[ $# -gt 0 ]]; do
       REPLACE_ADDR="${2:-}"
       shift 2 || { echo "ERROR: --replace requires a resource address" >&2; exit 2; }
       ;;
+    --allow-marker-create)
+      ALLOW_MARKER_CREATE=1
+      shift
+      ;;
     --instance-snapshot)
       INSTANCE_SNAPSHOT="${2:-}"
       shift 2 || { echo "ERROR: --instance-snapshot requires a snapshot name" >&2; exit 2; }
@@ -471,6 +495,12 @@ if [[ -n "$REPLACE_ADDR" ]]; then
     exit 2
   fi
   PLAN_EXTRA_ARGS=("-replace=${REPLACE_ADDR}")
+fi
+
+# Only production's tree declares the marker.
+if (( ALLOW_MARKER_CREATE )) && [[ "$TARGET" != "production" ]]; then
+  echo "ERROR: --allow-marker-create applies to production only, the one tree with a production-live marker." >&2
+  exit 2
 fi
 
 # The firewall shape is staging-only: the dev-and-tester address path exists on
@@ -1176,6 +1206,59 @@ if [[ -n "$INSTANCE_DELETES" ]]; then
     echo "       The replacement route replaces the instance; it never removes it." >&2
     echo "       Nothing has been applied." >&2
     exit 1
+  fi
+fi
+
+# ── The production-live marker is created once ───────────────────────────────
+#
+# Terraform creates the marker holding "false", the pre-live value under which
+# the data-replacing deploys and test-mode payment keys are allowed, and from
+# then on ignores its value, because going live flips it out of band and for
+# good. So a plan that creates it is right exactly once, on the tree's first
+# apply. Any later create means the parameter or its state entry has gone (a
+# state restored from an older copy, a parameter deleted by hand), and applying
+# it would quietly write "false" over a production that may already be live.
+# While the marker is missing the deploy paths that read it refuse, so leaving
+# it missing is safe; recreating it as pre-live is not. Refused unless the
+# operator says, with --allow-marker-create, that this is the first apply and
+# production has not gone live. Failing closed like the reads above: a plan that
+# cannot be read is refused.
+if [[ "$TARGET" == "production" ]]; then
+  MARKER_CREATES=""
+  if command -v jq >/dev/null 2>&1 && [[ -n "${PLAN_JSON:-}" ]]; then
+    if ! MARKER_CREATES="$(printf '%s' "$PLAN_JSON" | jq -r --arg a "$MARKER_ADDRESS" '
+        .resource_changes[]?
+        | select(.address == $a and ((.change.actions // []) | index("create")))
+        | (.change.actions | join("+"))
+      ')"; then
+      cr_error "could not read the saved plan to check it for a create of ${MARKER_ADDRESS}."
+      echo "       Nothing has been applied." >&2
+      exit 1
+    fi
+  else
+    MARKER_GREP_STATUS=0
+    MARKER_CREATES="$(grep -E "^[[:space:]]*# ${MARKER_ADDRESS//./\\.} (will be created|must be replaced)" "$TF_PLAN_LOG")" \
+      || MARKER_GREP_STATUS=$?
+    if (( MARKER_GREP_STATUS > 1 )); then
+      cr_error "could not read the plan text to check it for a create of ${MARKER_ADDRESS}."
+      echo "       Nothing has been applied." >&2
+      exit 1
+    fi
+  fi
+  if [[ -n "$MARKER_CREATES" ]] && (( ! ALLOW_MARKER_CREATE )); then
+    cr_error "this plan would create ${MARKER_ADDRESS} holding \"false\", the pre-live value."
+    echo "       That is right only on production's first apply. On any later apply it" >&2
+    echo "       means the marker or its state entry has gone, and writing \"false\" would" >&2
+    echo "       re-open the data-replacing deploys on a production that may be live." >&2
+    echo "       While the marker is missing those deploys refuse, so nothing is at risk" >&2
+    echo "       until it is recreated. If this is the first apply and production has" >&2
+    echo "       not gone live, re-run with --allow-marker-create. Otherwise find out" >&2
+    echo "       what removed it before applying anything. Nothing has been applied." >&2
+    exit 1
+  fi
+  if [[ -n "$MARKER_CREATES" ]]; then
+    echo "NOTE: this plan creates ${MARKER_ADDRESS} as \"false\"; allowed by --allow-marker-create"
+    echo "      on the operator's word that this is production's first apply."
   fi
 fi
 

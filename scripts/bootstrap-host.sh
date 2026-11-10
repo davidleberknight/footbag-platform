@@ -60,7 +60,11 @@
 #    9  install-cwagent-<target>.sh: --upgrade when only the pinned version
 #       moved, keeping the agent's key; --rotate when the host holds none of the
 #       publisher's keys; its metrics proved, then the same retirement.
-#   10  the first deploy. On production after go-live, which refuses the
+#   10  the first deploy, and again on staging or a production not yet live
+#       whose database was built from a schema file other than the one this
+#       release carries, since a code-only deploy never reapplies the schema; a
+#       host whose database could not be compared is refused, never rebuilt.
+#       On production after go-live, which refuses the
 #       rebuild deploy for good, the database comes back by restore and the
 #       erasure replay runs before the site serves: deploy-code.sh
 #       --first-install promotes the release, loads the images and installs the
@@ -979,6 +983,10 @@ require_boot_secrets() {
 refresh_host
 if verdict_is_done deploy; then
   proved "deployed runtime: ${BH_DETAIL}"
+elif [[ "$BH_STATE" == "UNKNOWN" && "${P[DB_FILE]:-}" == "present" ]]; then
+  # The deploy below replaces the database, so a host whose database could not
+  # be compared is never rebuilt on the strength of a read that failed.
+  cr_die "${BH_DETAIL}. Nothing was deployed."
 else
   require_boot_secrets
   confirm_identity

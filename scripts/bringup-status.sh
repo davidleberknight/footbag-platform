@@ -31,7 +31,8 @@
 #              values file (scripts/internal/bootstrap-host-steps.sh)
 #   aws        with --profile: Stripe key parameter mode (placeholder, test
 #              or live; the value itself is never printed), first-admin
-#              bootstrap-token presence, BackupAgeMinutes datapoint recency
+#              bootstrap-token presence, BackupAgeMinutes datapoint recency,
+#              and the state of the environment's two encryption keys
 #
 # Usage (the remote probe reads the sudo password from stdin, line 1).
 #
@@ -51,6 +52,9 @@
 # Synthetic mode (CI tests only; operators never use this):
 #   --probe-file <path> supplies every probe result as KEY=VALUE lines and
 #   skips ssh, terraform, and aws entirely.
+#   BRINGUP_STATUS_TF_ROOT replaces the terraform/ directory the terraform
+#   probe reads, and BRINGUP_STATUS_RECONFIRM_CMD the subscription status
+#   script the aws probe runs; each is announced on stderr.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -156,9 +160,16 @@ declare -A P=(
   [TF_SES_SUBSCRIPTION]=unknown
   [SSM_STRIPE_KEY]=unknown
   [SSM_BOOTSTRAP_TOKEN]=unknown
+  [DB_ADMINS]=unknown
   [CW_BACKUP_METRIC]=unknown
   [CW_MONITOR_HEARTBEAT]=unknown
   [ORIGIN_HOP]=unknown
+  [GATES_OFF]=unknown
+  [SUBS_STATE]=unknown
+  [SUBS_DETAIL]=""
+  [GUARDDUTY]=unknown
+  [KMS_MAIN]=unknown
+  [KMS_JWT]=unknown
 )
 
 if [[ -n "$PROBE_FILE" ]]; then
@@ -262,6 +273,10 @@ else
     # Anchored on this script, so a run started outside the repository root
     # still reads the trees rather than reporting every one as unknown.
     TF_ROOT="$SCRIPT_DIR/../terraform"
+    if [[ -n "${BRINGUP_STATUS_TF_ROOT:-}" ]]; then
+      TF_ROOT="$BRINGUP_STATUS_TF_ROOT"
+      echo "SYNTHETIC: terraform root '${TF_ROOT}' -- this run proves nothing about the estate." >&2
+    fi
     TF_DIR="$TF_ROOT/$TARGET"
     # The environment stands on the two account trees as well as its own: the
     # shared tree holds every tree's state, and staging's runtime trust names the
@@ -292,6 +307,25 @@ else
         grep -q 'aws_sns_topic_subscription\.ses_feedback_feed' <<< "$STATE_LIST" \
           && P[TF_SES_SUBSCRIPTION]=present || P[TF_SES_SUBSCRIPTION]=absent
       fi
+    fi
+    # The alarm gates the environment's tree declares, each read from the values
+    # file terraform applies. A gate that is on there is carried by every apply,
+    # so the values file is the steady state; one still off is pending work. The
+    # cutover login alarm is window-scoped and has its own row.
+    if [[ -e "$TF_DIR/terraform.tfvars" ]]; then
+      gates_off=""
+      gates_seen=0
+      for gate in $(cat "$TF_DIR"/*.tf | grep -oE '^variable "enable_[a-z_]*alarms?"' | cut -d'"' -f2 | sort -u); do
+        [[ "$gate" == enable_cutover_login_alarm ]] && continue
+        gates_seen=$((gates_seen + 1))
+        value="$(grep -E "^[[:space:]]*${gate}[[:space:]]*=" "$TF_DIR/terraform.tfvars" | tail -n 1 \
+          | sed -E 's/^[^=]*=[[:space:]]*"?([a-z]+)"?.*/\1/' || [[ $? == 1 ]])"
+        [[ "$value" == "true" ]] || gates_off+="${gate} "
+      done
+      P[GATES_OFF]="${gates_off% }"
+      [[ -n "${P[GATES_OFF]}" ]] || P[GATES_OFF]=none
+      # Finding no gate at all is a failed read of the tree, never "all on".
+      (( gates_seen > 0 )) || P[GATES_OFF]=no-gates
     fi
   fi
 
@@ -377,6 +411,64 @@ else
       if [[ "$HEARTBEATS" =~ ^[0-9]+$ ]]; then
         (( HEARTBEATS > 0 )) && P[CW_MONITOR_HEARTBEAT]=flowing || P[CW_MONITOR_HEARTBEAT]=missing
       fi
+
+      # Alarm email subscriptions, judged by the script that recreates them, in
+      # its read-only mode. Its findings decide this row and are not this run's
+      # problems, so its report goes to a private file. A subscription confirmed
+      # by a click carries an unsubscribe link that removes it, and one still
+      # pending receives nothing.
+      SUBS_REPORT="$(mktemp "$(_cr_tmp)/subs.XXXXXX")"
+      SUBS_CMD="${SCRIPT_DIR}/reconfirm-alarm-subscriptions.sh"
+      if [[ -n "${BRINGUP_STATUS_RECONFIRM_CMD:-}" ]]; then
+        SUBS_CMD="$BRINGUP_STATUS_RECONFIRM_CMD"
+        echo "SYNTHETIC: subscriptions read by '${SUBS_CMD}' -- this run proves nothing about the estate." >&2
+      fi
+      SUBS_RC=0
+      SUBS_OUT="$(AWS_PROFILE="$AWS_PROFILE_ARG" FOOTBAG_CR_REPORT_TO="$SUBS_REPORT" \
+        bash "$SUBS_CMD" --target "$TARGET" --status </dev/null 2>&1)" || SUBS_RC=$?
+      if (( SUBS_RC == 0 )) && grep -q 'read every email subscription' <<< "$SUBS_OUT"; then
+        if grep -q 'was confirmed by a click' <<< "$SUBS_OUT"; then
+          P[SUBS_STATE]=click
+        elif grep -q 'is pending confirmation' <<< "$SUBS_OUT"; then
+          P[SUBS_STATE]=pending
+        else
+          P[SUBS_STATE]=confirmed
+        fi
+        P[SUBS_DETAIL]="$(grep -oE '^WARNING: [^:]+: [^ ]+ (was confirmed by a click|is pending confirmation)' <<< "$SUBS_OUT" \
+          | sed -E 's/^WARNING: //; s/ was confirmed by a click/ (clicked)/; s/ is pending confirmation/ (pending)/' \
+          | paste -sd ';' - | sed 's/;/; /g' || [[ $? == 1 ]])"
+      fi
+
+      # GuardDuty, the account's threat detection, read in the region its
+      # detector lives in. One account serves both environments, so the row is
+      # production's.
+      if [[ "$TARGET" == "production" ]]; then
+        # A detector that exists can still be suspended, so its own status is
+        # what is read.
+        GD_RC=0
+        GD_ID="$(aws guardduty list-detectors --region us-east-1 --profile "$AWS_PROFILE_ARG" \
+          --query 'DetectorIds[0]' --output text 2>/dev/null)" || GD_RC=$?
+        if (( GD_RC == 0 )); then
+          if [[ "$GD_ID" == "None" || -z "$GD_ID" ]]; then
+            P[GUARDDUTY]=off
+          elif GD_STATUS="$(aws guardduty get-detector --region us-east-1 --profile "$AWS_PROFILE_ARG" \
+                 --detector-id "$GD_ID" --query Status --output text 2>/dev/null)"; then
+            [[ "$GD_STATUS" == "ENABLED" ]] && P[GUARDDUTY]=on || P[GUARDDUTY]=off
+          fi
+        fi
+      fi
+
+      # The environment's two keys, through the aliases the platform reaches
+      # them by. A key scheduled for deletion is disabled at once, and every
+      # secret or every sign-in stops with it.
+      for kms_key in MAIN JWT; do
+        kms_alias="alias/footbag-${TARGET}"
+        [[ "$kms_key" == JWT ]] && kms_alias+="-jwt"
+        if KMS_STATE="$(aws kms describe-key --key-id "$kms_alias" --profile "$AWS_PROFILE_ARG" \
+             --query KeyMetadata.KeyState --output text 2>/dev/null)" && [[ -n "$KMS_STATE" ]]; then
+          P[KMS_$kms_key]="$KMS_STATE"
+        fi
+      done
 
       # Origin hop: read from the live distribution by the same check that
       # refuses going live and a live Stripe key while the hop is plaintext.
@@ -521,7 +613,7 @@ case "${P[TF_SES_SUBSCRIPTION]}" in
     ;;
   absent)
     row 5 "SES feedback" PENDING "no queue subscribed to the feedback topic in terraform state"
-    next_cmd "set enable_feed_queues = true in this environment's tfvars and apply, which creates the queue, subscribes it and publishes its URL; then redeploy, which syncs SES_FEEDBACK_QUEUE_URL onto the host so the worker polls it, and prove it with scripts/verify-prod-email.sh --profile <profile> --bounce-probe"
+    next_cmd "< $(operator_cred_file) bash scripts/activate-notification-feeds.sh --target $TARGET --state on   (creates and subscribes the queues and puts their addresses on the host), then prove it with scripts/verify-prod-email.sh --profile <profile> --bounce-probe"
     ;;
   *)
     row 5 "SES feedback" UNKNOWN "terraform state unavailable"
@@ -532,18 +624,24 @@ esac
 if [[ "$TARGET" != "production" ]]; then
   row 6 "First admin" N-A "staging admins come from the dev-bootstrap allowlist"
 else
-  case "${P[SSM_BOOTSTRAP_TOKEN]}" in
-    present)
-      row 6 "First admin" PENDING "bootstrap token provisioned, awaiting claim at /admin/bootstrap-claim"
-      ;;
-    absent)
-      row 6 "First admin" UNKNOWN "no bootstrap token parameter: either already claimed (token self-deletes) or not yet provisioned"
-      next_cmd "if no admin exists yet: aws ssm put-parameter --name /footbag/production/app/bootstrap/admin_token --type SecureString --value <token> --profile <profile>"
-      ;;
-    *)
-      row 6 "First admin" UNKNOWN "SSM not probed (pass --profile)"
-      ;;
-  esac
+  # The host's own count of administrators who can sign in and act decides the
+  # row; the token parameter only says whether a claim is waiting, because the
+  # token deletes itself when claimed and so reads the same before provisioning
+  # and after a claim.
+  PROVISION_CMD="bash scripts/admin-bootstrap-token.sh --target production --profile <profile> provision   (then claim it at /admin/bootstrap-claim)"
+  if [[ "${P[DB_ADMINS]}" =~ ^[1-9][0-9]*$ ]]; then
+    row 6 "First admin" DONE "${P[DB_ADMINS]} administrator(s) on the host database can sign in and act"
+  elif [[ "${P[SSM_BOOTSTRAP_TOKEN]}" == "present" ]]; then
+    row 6 "First admin" PENDING "bootstrap token provisioned, awaiting claim at /admin/bootstrap-claim"
+  elif [[ "${P[DB_ADMINS]}" == "0" || "${P[DB_ADMINS]}" == "none" ]]; then
+    row 6 "First admin" PENDING "no administrator on the host database can sign in, and no claim is waiting"
+    next_cmd "$PROVISION_CMD"
+  elif [[ "${P[SSM_BOOTSTRAP_TOKEN]}" == "absent" ]]; then
+    row 6 "First admin" UNKNOWN "no bootstrap token waiting, and the host database's administrators were not counted"
+    next_cmd "< $(operator_cred_file) bash scripts/bringup-status.sh --target production --profile <profile>   (the remote probe counts them)"
+  else
+    row 6 "First admin" UNKNOWN "neither the host database nor the token parameter was read (pass the credential and --profile)"
+  fi
 fi
 
 # 7. Cutover login alarm (window-scoped: on for the cutover window, off after)
@@ -627,13 +725,92 @@ else
   esac
 fi
 
-# 11 onward. The host bootstrap's steps, one row each, judged by the same
+# 11. Alarm gates. Each is turned on once by the script that owns it, after
+# which every apply carries it, so the bootstrap names the command and never
+# runs it: a gate armed before its metric arrives pages at once.
+gate_cmd() {
+  case "$1" in
+    enable_cwagent_alarms) echo "bash scripts/arm-cwagent-alarms.sh --target $TARGET --profile <profile>" ;;
+    enable_replication_alarm) echo "no script sets enable_replication_alarm yet; it is set with the snapshot replication change" ;;
+    *) echo "bash scripts/set-terraform-gate.sh --target $TARGET --gate $1 --state on   (refuses until what the alarm reads is arriving)" ;;
+  esac
+}
+case "${P[GATES_OFF]}" in
+  none) row 11 "Alarm gates" DONE "every alarm gate the $TARGET tree declares is on in its values file" ;;
+  unknown) row 11 "Alarm gates" UNKNOWN "the $TARGET values file was not read" ;;
+  no-gates) row 11 "Alarm gates" UNKNOWN "no enable_*alarm or enable_*alarms variable was found in terraform/$TARGET, so no gate could be checked" ;;
+  *)
+    row 11 "Alarm gates" PENDING "off in the values file: ${P[GATES_OFF]}"
+    for gate in ${P[GATES_OFF]}; do
+      next_cmd "$(gate_cmd "$gate")"
+    done
+    ;;
+esac
+
+# 12. Alarm email subscriptions. Recreating one pauses alarm mail until its
+# link is confirmed, so a recovery never does it unasked; the row names it.
+case "${P[SUBS_STATE]}" in
+  confirmed) row 12 "Alarm subscriptions" DONE "every email subscription on the $TARGET alarm topics is confirmed by its link" ;;
+  click)
+    row 12 "Alarm subscriptions" PENDING "confirmed by a click, so an unsubscribe link can remove it: ${P[SUBS_DETAIL]}"
+    next_cmd "bash scripts/reconfirm-alarm-subscriptions.sh --target $TARGET   (pauses alarm mail to the address until confirmed), then bash scripts/confirm-alarm-subscription.sh --target $TARGET once per email"
+    ;;
+  pending)
+    row 12 "Alarm subscriptions" PENDING "awaiting confirmation: ${P[SUBS_DETAIL]}"
+    next_cmd "bash scripts/confirm-alarm-subscription.sh --target $TARGET   (paste the link from the email; never click it)"
+    ;;
+  *) row 12 "Alarm subscriptions" UNKNOWN "not read (pass --profile)" ;;
+esac
+
+# 13. Account threat detection, one per account, so production's row.
+if [[ "$TARGET" != "production" ]]; then
+  row 13 "GuardDuty" N-A "one account serves both environments; production's row reports it"
+else
+  case "${P[GUARDDUTY]}" in
+    on) row 13 "GuardDuty" DONE "the account's detector is enabled" ;;
+    off)
+      row 13 "GuardDuty" PENDING "no enabled detector in us-east-1"
+      next_cmd "bash scripts/apply-account-baseline.sh --enable-guardduty   (refuses until both environments' finding rules exist)"
+      ;;
+    *) row 13 "GuardDuty" UNKNOWN "not read (pass --profile)" ;;
+  esac
+fi
+
+# 14. The environment's encryption keys: the application key and the session
+# signing key. Either one disabled or scheduled for deletion stops the site, and
+# the script named below cancels the deletion and re-enables it.
+KMS_FIXABLE=""
+KMS_OTHER=""
+KMS_UNREAD=""
+for kms_key in MAIN JWT; do
+  kms_label="application key"
+  [[ "$kms_key" == JWT ]] && kms_label="session signing key"
+  case "${P[KMS_$kms_key]}" in
+    Enabled) ;;
+    PendingDeletion|Disabled) KMS_FIXABLE+="${kms_label} ${P[KMS_$kms_key]}; " ;;
+    unknown|"") KMS_UNREAD+="${kms_label}; " ;;
+    *) KMS_OTHER+="${kms_label} ${P[KMS_$kms_key]}; " ;;
+  esac
+done
+if [[ -n "$KMS_FIXABLE" ]]; then
+  row 14 "Encryption keys" PENDING "${KMS_FIXABLE%; }${KMS_OTHER:+; ${KMS_OTHER%; }}"
+  next_cmd "bash scripts/kms-key-status.sh --target $TARGET --cancel-deletion   (cancels the deletion and re-enables, after APPLY)"
+elif [[ -n "$KMS_OTHER" ]]; then
+  row 14 "Encryption keys" PENDING "${KMS_OTHER%; }"
+  next_cmd "bash scripts/kms-key-status.sh --target $TARGET"
+elif [[ -n "$KMS_UNREAD" ]]; then
+  row 14 "Encryption keys" UNKNOWN "not read: ${KMS_UNREAD%; } (pass --profile)"
+else
+  row 14 "Encryption keys" DONE "the application key and the session signing key are Enabled"
+fi
+
+# 15 onward. The host bootstrap's steps, one row each, judged by the same
 # verdicts scripts/bootstrap-host.sh skips on. Terraform, the backup timer and
 # the feeds have their rows above; the rest are here, so a host missing any
 # bootstrap step shows it pending with the command that finishes it.
 echo ""
 echo "-- host bootstrap (bash scripts/bootstrap-host.sh --target $TARGET runs these in order) --"
-BOOT_ROW=11
+BOOT_ROW=15
 for step in pin account packages layout envrecord dbdir credentials cwagent deploy sshd swap operatorkeys snapshot; do
   bh_verdict "$step"
   row "$BOOT_ROW" "$BH_TITLE" "$BH_STATE" "$BH_DETAIL"

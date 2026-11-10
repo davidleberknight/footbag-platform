@@ -49,6 +49,10 @@ interface Bucket {
 
 /** The archive's bucket name as `terraform output -json` prints it. */
 const ARCHIVE_OUTPUT = '"footbag-env-archive"';
+/** The archive stack off: Terraform leaves the null output out of its state. */
+const ABSENT = 'absent';
+/** A state read that exits 0 but prints no JSON object of outputs. */
+const NOT_JSON = 'not-json';
 
 const HOURLY_KEY = 'hourly/2026/10/07/footbag-20261007T070000Z.db.gz';
 const DAILY_KEY = 'daily/2026/10/07/footbag-20261007T000000Z.db.gz';
@@ -65,9 +69,10 @@ function run(
   /** Keys present in each destination bucket. */
   present: Record<string, string[]>,
   /**
-   * What `terraform output -json archive_bucket_name` prints: the bucket name
-   * as a JSON string, `null` while the archive stack is off, or `false` for a
-   * read that fails.
+   * The archive's value in what `terraform output -json` prints: the bucket
+   * name as a JSON string, `ABSENT` while the archive stack is off (Terraform
+   * stores no null output), any other JSON text as its value, or `false` for a
+   * state read that fails.
    */
   archiveOutput: string | false = ARCHIVE_OUTPUT,
   /**
@@ -100,10 +105,13 @@ function run(
     }
   }
   lines.push('    exit 0 ;;');
+  // Every backup bucket lives in us-west-2; FAKE_NO_LOCATION makes the
+  // location read fail.
+  lines.push('  get-bucket-location) [[ -n "${FAKE_NO_LOCATION:-}" ]] && exit 254; echo us-west-2; exit 0 ;;');
   lines.push('  get-object-retention)');
   for (const [k, r] of Object.entries(retention)) {
     const [mode, until] = r.split('\t');
-    lines.push(`    [[ "$key" == ${JSON.stringify(k)} ]] && { printf '%s\\t%s\\n' ${JSON.stringify(mode)} ${JSON.stringify(until)}; exit 0; }`);
+    lines.push(`    [[ "$key" == ${JSON.stringify(k)} && " $* " == *" --region us-west-2 "* ]] && { printf '%s\\t%s\\n' ${JSON.stringify(mode)} ${JSON.stringify(until)}; exit 0; }`);
   }
   lines.push('    echo "An error occurred (NoSuchObjectLockConfiguration)" >&2; exit 254 ;;');
   lines.push('  head-object)');
@@ -115,11 +123,15 @@ function run(
   }
   for (const [name, keys] of Object.entries(present)) {
     for (const k of keys) {
-      lines.push(`    [[ "$bucket" == ${JSON.stringify(name)} && "$key" == ${JSON.stringify(k)} ]] && { echo "{}"; exit 0; }`);
+      // A copy answers only in its bucket's region, us-west-2 for every
+      // backup bucket.
+      lines.push(`    [[ "$bucket" == ${JSON.stringify(name)} && "$key" == ${JSON.stringify(k)} && " $* " == *" --region us-west-2 "* ]] && { echo "{}"; exit 0; }`);
     }
   }
   lines.push('    exit 254 ;;');
-  lines.push(`  describe-alarms) echo ${JSON.stringify(alarmState)}; exit 0 ;;`);
+  // The stopped alarm lives in the backup region, where S3 publishes the
+  // latency metric it watches; asked for anywhere else, AWS has no such alarm.
+  lines.push(`  describe-alarms) [[ " $* " == *" --region us-west-2 "* ]] || { echo None; exit 0; }; echo ${JSON.stringify(alarmState)}; exit 0 ;;`);
   lines.push('esac', 'exit 64');
   writeFileSync(fixtures, lines.join('\n'));
   chmodSync(fixtures, 0o755);
@@ -130,9 +142,16 @@ function run(
     'case "$*" in',
     '  *media_bucket_name*) echo footbag-env-media ;;',
     '  *snapshots_bucket_name*) echo footbag-env-db-snapshots ;;',
+    // Live Terraform keeps no null output in its state, so the archive off is
+    // a name absent from the map, and asking for the name alone fails.
+    '  *"-json archive_bucket_name"*) echo "Error: Output \\"archive_bucket_name\\" not found" >&2; exit 1 ;;',
     archiveOutput === false
-      ? '  *archive_bucket_name*) echo "Error: No outputs found" >&2; exit 1 ;;'
-      : `  *"-json archive_bucket_name"*) echo ${JSON.stringify(archiveOutput)} ;;`,
+      ? '  *"output -json") echo "Error: Failed to load state" >&2; exit 1 ;;'
+      : `  *"output -json") echo ${JSON.stringify(
+        archiveOutput === NOT_JSON ? 'Warning: state is outdated' : archiveOutput === ABSENT
+          ? '{"media_bucket_name":{"sensitive":false,"type":"string","value":"footbag-env-media"}}'
+          : `{"media_bucket_name":{"sensitive":false,"type":"string","value":"footbag-env-media"},"archive_bucket_name":{"sensitive":false,"type":"string","value":${archiveOutput}}}`,
+      )} ;;`,
     '  *) exit 1 ;;',
     'esac',
   ].join('\n'));
@@ -274,9 +293,13 @@ describe('verifying replication', () => {
     // Defect caught: a null output read as a pass would print "proven" over an
     // environment where nothing about the archive was looked at; read as a
     // failure, every environment without the archive would fail forever.
+    // Live Terraform records the null output by leaving it out of the state,
+    // so the stack off is the name absent; asking for that name alone fails
+    // (the stand-in refuses it as live Terraform does), which is the defect
+    // this case also catches.
     const { buckets, present } = healthyProduction();
     delete buckets['footbag-env-archive'];
-    const res = run('production', buckets, present, 'null');
+    const res = run('production', buckets, present, ABSENT);
     expect(res.status, res.stderr).toBe(0);
     expect(res.stdout).toContain('SKIP: archive bucket not checked');
     expect(res.stdout).toContain('SKIPPED: archive');
@@ -284,20 +307,47 @@ describe('verifying replication', () => {
     expect(calls()).not.toContain('archive');
   });
 
-  it('fails, before any AWS call, when the archive output cannot be read', () => {
-    // Defect caught: an unreadable output treated like a null one would skip an
-    // archive that exists and may not be replicating.
+  it('fails, before any AWS call, when the state\'s outputs cannot be read', () => {
+    // Defect caught: an unreadable state treated like an absent output would
+    // skip an archive that exists and may not be replicating.
     const { buckets, present } = healthyProduction();
     const res = run('production', buckets, present, false);
     expect(res.status).toBe(1);
-    expect(res.stderr).toContain('could not read terraform/production output archive_bucket_name');
+    expect(res.stderr).toContain('could not read terraform/production outputs');
     expect(res.stdout).not.toContain('SKIP');
     expect(calls()).toBe('');
   });
 
+  it('fails, before any AWS call, when the state read prints no object of outputs', () => {
+    // Defect caught: text that is not an object of outputs, read as one with
+    // no archive in it, would skip an archive that may exist.
+    const { buckets, present } = healthyProduction();
+    const res = run('production', buckets, present, NOT_JSON);
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('outputs are not a JSON object of outputs');
+    expect(res.stdout).not.toContain('SKIP');
+    expect(calls()).toBe('');
+  });
+
+  it('fails, rather than reading the copy elsewhere, when its bucket\'s region cannot be read', () => {
+    // Defect caught: a copy read in a guessed region rides the source region,
+    // the one a regional outage takes away, or is reported missing for the
+    // wrong reason.
+    const { buckets, present } = healthyProduction();
+    process.env.FAKE_NO_LOCATION = '1';
+    try {
+      const res = run('production', buckets, present);
+      expect(res.status).toBe(1);
+      expect(res.stderr).toContain('the region of footbag-env-media-dr could not be read');
+      expect(res.stderr).not.toContain('is missing from');
+    } finally {
+      delete process.env.FAKE_NO_LOCATION;
+    }
+  });
+
   it('fails when the archive output is neither null nor a bucket name', () => {
     const { buckets, present } = healthyProduction();
-    for (const bad of ['""', '"footbag-env-archive" junk']) {
+    for (const bad of ['""', '42']) {
       const res = run('production', buckets, present, bad);
       expect(res.status, bad).toBe(1);
       expect(res.stderr, bad).toContain('neither null nor a bucket name');

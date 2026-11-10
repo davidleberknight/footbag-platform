@@ -48,6 +48,12 @@ beforeEach(() => {
     [
       '#!/usr/bin/env bash',
       'printf \'%s\\n\' "$*" >> "$FAKE_AWS_LOG"',
+      // An alarm held in one region only, as the backup region\'s are: asked
+      // anywhere else, AWS knows no such alarm.
+      'if [[ -n "${FAKE_REGION:-}" && " $* " != *" --region ${FAKE_REGION} "* ]]; then',
+      '  [[ "$2" == describe-alarms ]] && { echo None; exit 0; }',
+      '  echo "ResourceNotFound" >&2; exit 254',
+      'fi',
       'if [[ -n "${FAKE_REFUSE_STATE:-}" && "$*" == *"--state-value ${FAKE_REFUSE_STATE}"* ]]; then',
       '  if [[ -z "${FAKE_REFUSE_ALARM:-}" || "$*" == *"--alarm-name ${FAKE_REFUSE_ALARM} "* ]]; then',
       '    echo "ResourceNotFound" >&2; exit 254',
@@ -174,6 +180,34 @@ describe('send-test-alarm: refusals', () => {
     });
     expect(warning.status).toBe(0);
     expect(warning.stdout).toContain('the watch group does not receive it');
+  });
+
+  it('raises an alarm in the backup region when asked, with every call made there', () => {
+    // Defect caught: the alarms on metrics AWS publishes only in us-west-2
+    // can never be fire-tested, so a broken path from them to the mailbox
+    // and the admin feed is never seen; or the lookup is made there and the
+    // raise in the default region, failing after the confirmation.
+    const env = {
+      FAKE_REGION: 'us-west-2',
+      FAKE_ACTIONS: 'arn:aws:sns:us-west-2:000000000000:footbag-production-alarms-usw2',
+    };
+    const alarm = 'footbag-production-snapshots-hourly-replication-stopped';
+    const unseen = run(['--target', 'production', '--alarm', alarm, '--yes'], env);
+    expect(unseen.status).toBe(1);
+    expect(unseen.stderr).toContain('has no alarm named');
+    expect(calls()).toHaveLength(0);
+    const res = run(['--target', 'production', '--region', 'us-west-2', '--alarm', alarm, '--yes'], env);
+    expect(res.status, res.stderr).toBe(0);
+    expect(calls()).toHaveLength(2);
+    for (const c of calls()) expect(c).toContain('--region us-west-2');
+    expect(res.stdout).toContain('the watch group receives both mails as well');
+  });
+
+  it('refuses a region the estate does not use', () => {
+    const res = run(['--target', 'production', '--region', 'eu-west-1', '--alarm', 'footbag-production-site-unavailable', '--yes']);
+    expect(res.status).toBe(2);
+    expect(res.stderr).toContain('--region must be us-east-1 or us-west-2');
+    expect(calls()).toHaveLength(0);
   });
 
   it('refuses a name that is not one of the environment\'s alarms, changing nothing', () => {

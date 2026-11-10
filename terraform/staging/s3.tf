@@ -305,7 +305,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "media_dr" {
 }
 
 # ── Cross-region replication: media → media_dr ───────────────────────────────
-# Continuous, RPO < 15 min. ONEZONE_IA destination storage class for cost
+# Continuous, typically within minutes; Replication Time Control is off, so no
+# replication time is promised. ONEZONE_IA destination storage class for cost
 # savings on DR. Delete markers are replicated so account-erasure deletions
 # propagate.
 

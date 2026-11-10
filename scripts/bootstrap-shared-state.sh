@@ -63,15 +63,23 @@
 #   bash scripts/bootstrap-shared-state.sh --check
 #   bash scripts/bootstrap-shared-state.sh --restore-state
 #   bash scripts/bootstrap-shared-state.sh --restore-state --version-id <id>
+#   bash scripts/bootstrap-shared-state.sh --restore-state --tree production
 #
 # Flags:
 #   --check          Report where the account stands and what would run; change
 #                    nothing. Exits 0 when already bootstrapped, 1 otherwise.
 #   --restore-state  Restore an earlier version of the shared state object.
+#   --tree <name>    With --restore-state, the tree whose state to restore:
+#                    shared (the default), identity, staging or production.
+#                    Every tree keeps its state in the same versioned bucket,
+#                    so recovering any of them is the same restore, read from
+#                    that tree's backend file and proved by that tree's plan.
 #   --version-id     With --restore-state, the version to restore. Required when
 #                    a current state object exists, since then the newest version
 #                    is the one in place.
-#   --yes            Accept the typed confirmation in advance.
+#   --yes            Accept the typed confirmation in advance. Refused with
+#                    --tree production or --tree identity: a state rollback
+#                    there always takes the typed APPLY.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -90,11 +98,13 @@ source "${REPO_ROOT}/scripts/lib/aws-profile.sh"
 CHECK_ONLY=0
 RESTORE=0
 VERSION_ID=""
+TREE_NAME=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --check) CHECK_ONLY=1; shift ;;
     --restore-state) RESTORE=1; shift ;;
     --version-id) VERSION_ID="${2:-}"; shift 2 || { echo "ERROR: --version-id requires a version" >&2; exit 2; } ;;
+    --tree) TREE_NAME="${2:-}"; shift 2 || { echo "ERROR: --tree requires a tree name" >&2; exit 2; } ;;
     --yes) ASSUME_YES="yes"; shift ;;
     -h|--help) usage 0 ;;
     *) echo "ERROR: unknown argument '$1'" >&2; usage 2 >&2 ;;
@@ -111,7 +121,24 @@ for seam in BOOTSTRAP_STATE_TF_BIN BOOTSTRAP_STATE_AWS_BIN BOOTSTRAP_STATE_WORK_
   [[ -n "${!seam:-}" ]] && echo "SYNTHETIC: ${seam} is set -- this run proves nothing about the account." >&2
 done
 
-TREE="terraform/shared"
+if [[ " shared identity staging production " != *" ${TREE_NAME:-shared} "* ]]; then
+  echo "ERROR: --tree must be shared, identity, staging or production" >&2
+  exit 2
+fi
+if [[ -n "$TREE_NAME" ]] && (( ! RESTORE )); then
+  echo "ERROR: --tree is for --restore-state; bootstrapping makes the shared tree only." >&2
+  exit 2
+fi
+TREE_NAME="${TREE_NAME:-shared}"
+# A rollback of production's or the identity roster's state is confirmed by a
+# person reading what is about to become current, as an apply of those trees
+# is, so --yes does not carry it.
+if [[ "$TREE_NAME" == "production" || "$TREE_NAME" == "identity" ]] && [[ "$ASSUME_YES" == "yes" ]]; then
+  echo "ERROR: --yes does not carry restoring the ${TREE_NAME} tree's state. A state rollback" >&2
+  echo "       there always takes the typed APPLY. Re-run without --yes. Nothing changed." >&2
+  exit 2
+fi
+TREE="terraform/${TREE_NAME}"
 WORK="${WORK_ROOT}/shared"
 
 backend_value() {
@@ -158,7 +185,7 @@ if (( RESTORE && CHECK_ONLY )); then
   exit 2
 fi
 
-echo "Shared Terraform state for s3://${BUCKET}/${KEY} (${REGION})"
+echo "Terraform state of the ${TREE_NAME} tree: s3://${BUCKET}/${KEY} (${REGION})"
 
 if (( RESTORE )); then
   bucket_exists || {
@@ -182,7 +209,7 @@ if (( RESTORE )); then
   versions="$(printf '%s\n' "$versions" | sed '/^$/d;/^None$/d' | sort -t$'\t' -k2,2r)"
   if [[ -z "$versions" ]]; then
     echo "REFUSING: no earlier version of s3://${BUCKET}/${KEY} exists to restore from. Recovering" >&2
-    echo "         the shared tree without one is a rebuild for a person to decide. Nothing changed." >&2
+    echo "         the ${TREE_NAME} tree without one is a rebuild for a person to decide. Nothing changed." >&2
     exit 1
   fi
   if [[ -z "$VERSION_ID" ]]; then
@@ -210,7 +237,7 @@ if (( RESTORE )); then
   resources="$(jq -r '.resources | length' "$STATE_COPY")"
 
   echo ""
-  echo "About to make version ${VERSION_ID} the current shared state."
+  echo "About to make version ${VERSION_ID} the current state of the ${TREE_NAME} tree."
   echo "  written:   ${version_date}"
   echo "  serial:    ${serial}"
   echo "  resources: ${resources}"
@@ -230,22 +257,22 @@ if (( RESTORE )); then
     || { echo "ERROR: could not read the current state back after the copy." >&2; exit 1; }
   if ! cmp -s "$STATE_COPY" "$CURRENT_COPY"; then
     echo "ERROR: the current state object is not the version restored. Check the bucket by hand" >&2
-    echo "       before any apply of the shared tree." >&2
+    echo "       before any apply of the ${TREE_NAME} tree." >&2
     exit 1
   fi
-  echo "==> Restored. Planning the shared tree against it."
+  echo "==> Restored. Planning the ${TREE_NAME} tree against it."
   VAR_ARGS=(-var-file="${REPO_ROOT}/${TREE}/terraform.tfvars")
   [[ -e "${TREE}/secrets.auto.tfvars" ]] && VAR_ARGS+=(-var-file="${REPO_ROOT}/${TREE}/secrets.auto.tfvars")
   "$TF_BIN" -chdir="$TREE" init -input=false >/dev/null
   plan_status=0
   "$TF_BIN" -chdir="$TREE" plan -input=false -detailed-exitcode "${VAR_ARGS[@]}" || plan_status=$?
   case "$plan_status" in
-    0) echo "Restored: version ${VERSION_ID} is the current shared state and the tree plans with no changes." ;;
-    2) echo "WARNING: the state is restored, but the shared tree plans changes against it: the resources" >&2
+    0) echo "Restored: version ${VERSION_ID} is the current state of the ${TREE_NAME} tree and it plans with no changes." ;;
+    2) echo "WARNING: the state is restored, but the ${TREE_NAME} tree plans changes against it: the resources" >&2
        echo "         moved on after this version was written. Read the plan above, then reconcile through" >&2
-       echo "         scripts/terraform-apply.sh --target shared." >&2
+       echo "         scripts/terraform-apply.sh --target ${TREE_NAME}." >&2
        exit 1 ;;
-    *) echo "ERROR: the state is restored, but the shared tree did not plan. Fix that before any apply." >&2
+    *) echo "ERROR: the state is restored, but the ${TREE_NAME} tree did not plan. Fix that before any apply." >&2
        exit 1 ;;
   esac
   exit 0

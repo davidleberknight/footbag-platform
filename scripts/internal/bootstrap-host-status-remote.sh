@@ -27,7 +27,8 @@
 # Nothing secret crosses the wire. The env file is read for the environment
 # record and the database directory, and for whether the two queue addresses are
 # set, never their values; the credential files only for their key ids, which
-# are identifiers. It changes nothing and writes no file.
+# are identifiers; the database, opened read-only, only for its schema checksum
+# and a count of administrators. It changes nothing and writes no file.
 
 set -uo pipefail
 
@@ -120,9 +121,36 @@ emit FOOTBAG_ENV "$env_record"
 # its database back by restore, never by a rebuild, and these say which of the
 # restore's steps the host has reached.
 db_dir="$(env_value FOOTBAG_DB_DIR)"
-db_dir="${db_dir:-/srv/footbag/db}"
+# FOOTBAG_TEST_DB_DIR is a test seam only: the session this body runs in on a
+# host carries no such variable, so the host's own directory always applies.
+db_dir="${db_dir:-${FOOTBAG_TEST_DB_DIR:-/srv/footbag/db}}"
 emit DB_FILE "$([[ -f "${db_dir}/footbag.db" ]] && echo present || echo absent)"
 emit REPLAY_PENDING "$([[ -e "${db_dir}/.erasure-replay-pending" ]] && echo yes || echo no)"
+
+# Two facts from inside the database, opened read-only. The schema baseline is
+# the checksum of the database/schema.sql the database was built from, recorded
+# by every rebuild, so a release whose schema file differs is visible before a
+# code-only deploy runs new code against old tables. The administrator count is
+# the condition the first-admin claim tests: an administrator who can sign in and
+# act. "none" is a database with no such row; a read that failed is "unread" with
+# a marked warning, never a count of zero.
+db_baseline="none"
+db_admins="none"
+if [[ -f "${db_dir}/footbag.db" ]]; then
+  db_file="${db_dir}/footbag.db"
+  if ! db_baseline="$(sqlite3 -readonly "$db_file" "SELECT checksum FROM schema_migrations WHERE filename = 'baseline:schema.sql';" 2>&1)"; then
+    crr_warn "sqlite3 could not read the schema baseline from ${db_dir}/footbag.db: $(tail -n 1 <<< "$db_baseline")"
+    db_baseline="unread"
+  fi
+  [[ -n "$db_baseline" ]] || db_baseline="none"
+  if ! db_admins="$(sqlite3 -readonly "$db_file" "SELECT COUNT(*) FROM members_active WHERE is_admin = 1 AND is_deceased = 0;" 2>&1)" \
+     || [[ ! "$db_admins" =~ ^[0-9]+$ ]]; then
+    crr_warn "sqlite3 could not count the administrators in ${db_dir}/footbag.db: $(tail -n 1 <<< "$db_admins")"
+    db_admins="unread"
+  fi
+fi
+emit DB_SCHEMA_BASELINE "$db_baseline"
+emit DB_ADMINS "$db_admins"
 
 # Whether the host holds the notification queues' addresses, by presence only.
 # Subscribed in Terraform is not polled: the worker reads only these.

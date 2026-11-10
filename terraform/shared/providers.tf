@@ -32,3 +32,19 @@ provider "aws" {
     }
   }
 }
+
+# The backup region, where the disaster-recovery buckets live. A regional
+# account control (the external-access analyzer) is declared once per region
+# that holds resources it must watch.
+provider "aws" {
+  alias  = "us_west_2"
+  region = "us-west-2"
+
+  default_tags {
+    tags = {
+      Project     = "footbag-platform"
+      Environment = "shared"
+      ManagedBy   = "terraform"
+    }
+  }
+}

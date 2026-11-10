@@ -369,7 +369,14 @@ resource "aws_cloudwatch_metric_alarm" "replication_failed" {
   }
 }
 
-resource "aws_cloudwatch_metric_alarm" "replication_backlog" {
+# S3 publishes the pending-operations and latency metrics in the destination
+# bucket's region, not the source's (only the failed-operations count is
+# published at the source). These two alarms therefore live in the backup
+# region and notify its alarm topic, which feeds the same mailbox and the admin
+# dashboard queue; created in the source region they would watch a metric that
+# never arrives.
+resource "aws_cloudwatch_metric_alarm" "replication_backlog_us_west_2" {
+  provider            = aws.us_west_2
   for_each            = local.replicated_buckets
   alarm_name          = "${local.prefix}-${each.key}-replication-backlog"
   comparison_operator = "GreaterThanThreshold"
@@ -381,8 +388,8 @@ resource "aws_cloudwatch_metric_alarm" "replication_backlog" {
   threshold           = 0
   treat_missing_data  = "notBreaching"
   alarm_description   = "S3 replication for ${each.key} has been backlogged for 45 minutes; the DR copy is behind"
-  alarm_actions       = [aws_sns_topic.alarms.arn]
-  ok_actions          = [aws_sns_topic.alarms.arn]
+  alarm_actions       = [aws_sns_topic.alarms_us_west_2.arn]
+  ok_actions          = [aws_sns_topic.alarms_us_west_2.arn]
 
   dimensions = {
     SourceBucket      = each.value.source
@@ -398,8 +405,10 @@ resource "aws_cloudwatch_metric_alarm" "replication_backlog" {
 # lands every hour, and each one replicated reports a latency. Three hours with
 # no report is treated as breaching, so silence on this one rule is the alarm.
 # Photos, the daily tier and the archive replicate only when something is
-# written, so silence there is normal and they carry no such alarm.
-resource "aws_cloudwatch_metric_alarm" "snapshot_replication_stopped" {
+# written, so silence there is normal and they carry no such alarm. In the
+# backup region, beside the backlog alarms, for the reason given above them.
+resource "aws_cloudwatch_metric_alarm" "snapshot_replication_stopped_us_west_2" {
+  provider            = aws.us_west_2
   count               = var.enable_replication_alarm ? 1 : 0
   alarm_name          = "${local.prefix}-snapshots-hourly-replication-stopped"
   comparison_operator = "LessThanThreshold"
@@ -411,8 +420,8 @@ resource "aws_cloudwatch_metric_alarm" "snapshot_replication_stopped" {
   threshold           = 1
   treat_missing_data  = "breaching"
   alarm_description   = "No hourly database backup has replicated to the DR bucket for three hours; the DR copy is going stale. Check the snapshot bucket's replication rule and the hourly promotion."
-  alarm_actions       = [aws_sns_topic.alarms.arn]
-  ok_actions          = [aws_sns_topic.alarms.arn]
+  alarm_actions       = [aws_sns_topic.alarms_us_west_2.arn]
+  ok_actions          = [aws_sns_topic.alarms_us_west_2.arn]
 
   dimensions = {
     SourceBucket      = aws_s3_bucket.snapshots.id

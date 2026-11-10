@@ -603,10 +603,32 @@ echo "Replication alarm states:"
 # A prefix listing has no not-found of its own: an estate without the alarms
 # answers with an empty list. Any failure is therefore this run being unable to
 # look, never "no alarm", and it fails the verification with the CLI's reason.
+#
+# Two regions. The failed-replication alarms live with the source buckets; the
+# backlog and stopped alarms live in us-west-2, because S3 publishes the metrics
+# they watch only in the destination bucket's region. Each row names its region.
+replication_alarms_in() {
+  "$AWS_BIN" cloudwatch describe-alarms --alarm-name-prefix "footbag-${TARGET}-" \
+    --query "MetricAlarms[?contains(AlarmName, 'replication')].[AlarmName,StateValue]" \
+    --output text --profile "$AWS_PROFILE_ARG" --region "$1"
+}
 ALARMS_RC=0
-ALARMS="$(aws_read cloudwatch describe-alarms --alarm-name-prefix "footbag-${TARGET}-" \
-  --query "MetricAlarms[?contains(AlarmName, 'replication')].[AlarmName,StateValue]" \
-  --output text 2>&1)" || ALARMS_RC=$?
+EAST_ALARMS="$(replication_alarms_in "$AWS_REGION_ARG" 2>&1)" || ALARMS_RC=$?
+WEST_ALARMS=""
+if (( ALARMS_RC == 0 )); then
+  WEST_ALARMS="$(replication_alarms_in us-west-2 2>&1)" || ALARMS_RC=$?
+fi
+if (( ALARMS_RC )); then
+  ALARMS="${EAST_ALARMS}${WEST_ALARMS}"
+else
+  ALARMS=""
+  if [[ -n "$EAST_ALARMS" ]]; then
+    ALARMS="$(printf '%s\n' "$EAST_ALARMS" | sed "s/^/${AWS_REGION_ARG}  /")"
+  fi
+  if [[ -n "$WEST_ALARMS" ]]; then
+    ALARMS="${ALARMS:+${ALARMS}$'\n'}$(printf '%s\n' "$WEST_ALARMS" | sed 's/^/us-west-2  /')"
+  fi
+fi
 if (( ALARMS_RC )); then
   echo "  <unreadable>"
   echo ""
@@ -648,6 +670,17 @@ elif [[ -z "$ALARMS" ]]; then
 else
   printf '%s\n' "$ALARMS" | sed 's/^/  /'
   echo ""
+  # The failed alarms alone would make this list non-empty, so the stopped
+  # alarm is looked for by name, in the region its metric is published in.
+  if (( SNAPSHOT_REPLICATION )) && [[ "$(replication_alarm_declared)" == "yes" ]] \
+    && ! grep -q "^us-west-2  footbag-${TARGET}-snapshots-hourly-replication-stopped[[:space:]]" <<<"$ALARMS"; then
+    echo "  MISSING: footbag-${TARGET}-snapshots-hourly-replication-stopped in us-west-2."
+    echo "  terraform/$TARGET sets enable_replication_alarm = true, and S3 publishes the"
+    echo "  latency metric this alarm watches only in the backup region, so it must be"
+    echo "  there. The apply did not land."
+    echo ""
+    VERIFY_FAIL=1
+  fi
   echo "  Straight after an apply, INSUFFICIENT_DATA is correct: the metrics these read are"
   echo "  published by the replication rules and do not exist until those rules have moved"
   echo "  something. Re-run --verify once traffic has flowed, and read the two kinds apart."
