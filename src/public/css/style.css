@@ -6080,23 +6080,6 @@ a.hashtag--media:hover {
   margin: var(--space-xs) 0 var(--space-xl) 0;
   line-height: 1.5;
 }
-.confusion-card {
-  background: var(--parch-50);
-  border-left: 3px solid var(--border);
-  padding: var(--space-md) var(--space-lg);
-  margin-bottom: var(--space-md);
-  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
-}
-.confusion-card h3 {
-  margin-top: 0;
-  margin-bottom: var(--space-xs);
-}
-.confusion-card p {
-  font-size: 0.9rem;
-  line-height: 1.5;
-  color: var(--earth-700);
-  margin: 0;
-}
 .symbolic-modifier-family .cross-base-list {
   list-style: none;
   padding: 0;
@@ -7966,10 +7949,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   font-size: 0.9rem;
   color: var(--secondary);
   margin-left: var(--space-xs);
-}
-.set-detail-examples-empty {
-  font-style: italic;
-  margin: 0;
 }
 .set-detail-component-note {
   font-size: 0.9rem;

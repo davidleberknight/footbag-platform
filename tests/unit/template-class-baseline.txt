@@ -165,7 +165,6 @@ combo-analysis-example-why-heading
 combo-analysis-topology-list
 combo-analysis-worked-example
 combo-analysis-worked-examples
-confusion-card
 contact-pending
 content-section
 content-subheading
@@ -722,7 +721,6 @@ semantic-notation-pending
 set-detail
 set-detail-component-note
 set-detail-cross-links
-set-detail-examples-empty
 set-detail-formula
 set-detail-link-list
 set-detail-movement

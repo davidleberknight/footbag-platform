@@ -147,7 +147,7 @@ describe('GET /freestyle/sets/:slug — set detail page', () => {
 
   it('renders example-tricks empty state for holden-only sets with no linked tricks', async () => {
     const res = await page('/freestyle/sets/bubba');
-    expect(res.text).toContain('class="set-detail-examples-empty"');
+    expect(res.text).toContain('class="empty-state"');
   });
 
   it('links no retired page from a set page', async () => {
@@ -355,7 +355,8 @@ describe('GET /freestyle/sets/:slug — teaching pages stay at six sections', ()
       const definition = /aria-label="What it is">\s*<div class="section-heading"><h2>What it is<\/h2><\/div>\s*<p>([^<]*)<\/p>/.exec(text)?.[1]?.trim() ?? '';
       if (!definition) problems.push(`${slug}: empty definition`);
       definitions.push(definition);
-      const hasConfusion = /<div class="confusion-card">\s*<h3>[^<]+<\/h3>\s*<p>[^<]+<\/p>/.test(text);
+      const confusions = /aria-label="Common confusions">[\s\S]*?<\/section>/.exec(text)?.[0] ?? '';
+      const hasConfusion = /<h3>[^<]+<\/h3>\s*<p>[^<]+<\/p>/.test(confusions);
       if (!hasConfusion && !TEACHING_SLUGS_WITHOUT_CONFUSIONS.includes(slug)) {
         problems.push(`${slug}: no common confusion`);
       }

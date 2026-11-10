@@ -85,10 +85,8 @@
   <section class="content-section" aria-label="Common confusions">
     <div class="section-heading"><h2>Common confusions</h2></div>
     {{#each content.education.confusions}}
-    <div class="confusion-card">
-      <h3>{{heading}}</h3>
-      <p>{{prose}}</p>
-    </div>
+    <h3>{{heading}}</h3>
+    <p>{{prose}}</p>
     {{/each}}
   </section>
   {{/if}}
@@ -141,7 +139,7 @@
   {{else}}
   <section class="content-section" aria-label="Example tricks">
     <div class="section-heading"><h2>Example tricks</h2></div>
-    <p class="set-detail-examples-empty">No tricks are linked to this set yet. Some sets are documented before any trick is connected to them.</p>
+    <p class="empty-state">No tricks are linked to this set yet. Some sets are documented before any trick is connected to them.</p>
   </section>
   {{/if}}
 
