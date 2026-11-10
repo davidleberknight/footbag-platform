@@ -411,6 +411,21 @@ describe('derived values', () => {
     expect(restore.call).toBe('scripts/restore-db.sh --target production --snapshot routine/2026/11/10/footbag-20261110T120000Z.db.gz');
   });
 
+  // Defect caught: the backup search reading a bucket that does not exist in
+  // one environment, so the restore drill stops before it starts. The two
+  // environments' snapshot buckets are not named alike: staging's has no db-.
+  it('searches each environment\'s own snapshot bucket', () => {
+    const bucketsListed = () => readFileSync(stubLog, 'utf-8').split('\n')
+      .filter((l) => l.startsWith('aws s3api list-objects-v2 '))
+      .map((l) => l.match(/--bucket (\S+)/)?.[1]);
+    sit(['--target', 'staging', '--from-step', 's06', '--to-step', 's06']);
+    expect(bucketsListed()).toEqual(['footbag-staging-snapshots']);
+    writeFileSync(stubLog, '');
+    sit(['--target', 'production', '--from-step', 'p04a', '--to-step', 'p04a']);
+    sit(['--target', 'production', '--from-step', 'p09', '--to-step', 'p09']);
+    expect(bucketsListed()).toEqual(['footbag-production-db-snapshots']);
+  });
+
   it('stops the restore when no backup is newer than the deploy', () => {
     sit(['--target', 'production', '--from-step', 'p04a', '--to-step', 'p04a']);
     const r = sit(['--target', 'production', '--from-step', 'p09', '--to-step', 'p09'], [], { env: { SITTING_AWS_BIN: awsStub(-600) } });

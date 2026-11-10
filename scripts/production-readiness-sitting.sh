@@ -130,17 +130,17 @@ STAGING_STEPS=(
   's02|idem|cred|cred:0=scripts/bootstrap-host.sh --target staging --status|scripts/bootstrap-host.sh --target staging'
   's04a|once+mail|tty|log|scripts/send-test-alarm.sh --target staging --region us-west-2 --alarm footbag-staging-media-replication-backlog'
   's04b|ask+mail|-|log|Did the test alarm email arrive, and does /admin/alarms on staging show nothing active now that it has cleared?'
-  's05a|ask|-|log|Make one admin edit on staging now. Done?'
+  's05a|ask|-|log|Durability check (1 of 2). In a browser signed in as a staging admin, change one small thing now (for example, add a word to a gallery'"'"'s description under /admin/curator/galleries) and note what you changed. Next, the tables are snapshotted, a throwaway migration is deployed, and you are asked whether your change survived. Made the change?'
   's05b|digest|tty|save|scripts/host-diagnostics.sh --target staging table-digests'
   's05c|once|cred|fact=migration-applied|scripts/deploy-migrate.sh --target staging --migration {MIGRATION}'
-  's05d|ask|-|log|Does the admin edit still show on staging?'
+  's05d|ask|-|log|Durability check (2 of 2). Reload what you changed at s05a. Does your change still show?'
   's05e|digest|tty|match|scripts/host-diagnostics.sh --target staging table-digests'
   's06|once|cred|log|scripts/restore-db.sh --target staging --snapshot {SNAPSHOT}|scripts/restore-db.sh --target staging --resume-erasure-replay'
-  's07a|ask|-|log|Is a member signed in on staging in a browser now?'
+  's07a|ask|-|log|Session check (1 of 2). Sign in to staging as a member in a browser now and stay signed in; the next steps rotate the signing key and the session secret and redeploy. Signed in?'
   's07b|once|cred|log|scripts/rotate-jwt-signing-key.sh --target staging'
   's07c|once|tty|log|scripts/provision-ssm-secret.sh --target staging --secret session_secret store'
   's07d|once|tty|log|deploy_to_aws.sh --target staging'
-  's07e|ask|-|log|Was the member signed out, and could they sign in again?'
+  's07e|ask|-|log|Session check (2 of 2). Reload the page in that browser. Were you signed out, and can you sign in again?'
   's08a|read|tty|-|scripts/arming.sh --target staging --status'
   's08b|idem|tty|rerun|scripts/arming.sh --target staging --state dark'
   's08c|read|tty|-|scripts/arming.sh --target staging --status'
@@ -193,11 +193,11 @@ PRODUCTION_STEPS=(
   'p10e|ask|-|log|Is one throwaway member registered on production, and did the admin-loss warning stop?'
   'p11a|once+mail|tty|log|scripts/host-break-glass.sh --drill --target staging'
   'p11b|read+mail|tty|-|scripts/list-host-access-mints.sh --since {SINCE<p11a}'
-  'p12a|ask|-|log|Is a member signed in on production in a browser now?'
+  'p12a|ask|-|log|Session check (1 of 2). Sign in to production as a member in a browser now and stay signed in; the next steps rotate the signing key and the session secret and redeploy. Signed in?'
   'p12b|once|cred|log|scripts/rotate-jwt-signing-key.sh --target production'
   'p12c|once|tty|log|scripts/provision-ssm-secret.sh --target production --secret session_secret store'
   'p12d|once|tty|log|deploy_to_aws.sh --target production'
-  'p12e|ask|-|log|Was the member signed out, and could they sign in again?'
+  'p12e|ask|-|log|Session check (2 of 2). Reload the page in that browser. Were you signed out, and can you sign in again?'
   'p13c|once+mail|tty|log|scripts/send-test-alarm.sh --target production --region us-west-2 --alarm footbag-production-snapshots-hourly-replication-stopped'
   'p13d|idem|tty|rerun|scripts/set-terraform-gate.sh --target production --gate enable_container_alarms --state on'
   'p13e|once+mail|tty|log|scripts/send-test-alarm.sh --target production --alarm-prefix footbag-production-container- --alarm-prefix footbag-production-cf-function- --alarm footbag-production-high-cpu --alarm footbag-production-high-memory --alarm footbag-production-rate-limit-refusals --alarm footbag-production-site-unavailable'
@@ -399,8 +399,14 @@ resolve_word() {
     '{SNAPSHOT}'|'{SNAPSHOT>'*'}')
       ref=""
       [[ "$word" == '{SNAPSHOT>'* ]] && { ref="${word#'{SNAPSHOT>'}"; ref="${ref%'}'}"; }
-      local listing
-      listing="$("$AWS_BIN" s3api list-objects-v2 --bucket "footbag-${TARGET}-db-snapshots" --prefix routine/ \
+      # The two snapshot buckets are not named alike: production's carries a
+      # db- infix and staging's does not, as restore-db.sh reads them.
+      local listing bucket
+      case "$TARGET" in
+        production) bucket="footbag-production-db-snapshots" ;;
+        staging)    bucket="footbag-staging-snapshots" ;;
+      esac
+      listing="$("$AWS_BIN" s3api list-objects-v2 --bucket "$bucket" --prefix routine/ \
         --query 'Contents[].[LastModified,Key]' --output text 2>&1)" \
         || { echo "the routine backups could not be listed: ${listing##*$'\n'}" >&2; return 1; }
       epoch_after=0
@@ -416,7 +422,7 @@ resolve_word() {
       done <<<"$listing"
       if [[ -z "$key" ]]; then
         if [[ -n "$ref" ]]; then echo "no routine backup is newer than step ${ref}: wait for the next routine backup" >&2
-        else echo "no routine backup was found in footbag-${TARGET}-db-snapshots" >&2; fi
+        else echo "no routine backup was found in ${bucket}" >&2; fi
         return 1
       fi
       printf '%s' "$key" ;;

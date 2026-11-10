@@ -32,6 +32,7 @@ jobs:
   typecheck:
     name: Type-check
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -58,6 +59,7 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -79,6 +81,7 @@ jobs:
   dependency-audit:
     name: Dependency audit
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -108,6 +111,7 @@ jobs:
     name: Dependency review
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -124,6 +128,7 @@ jobs:
   secret-scan:
     name: Secret scan
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -152,6 +157,7 @@ jobs:
   conventions:
     name: Convention gate
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -175,6 +181,7 @@ jobs:
   harness:
     name: Harness self-check
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -201,6 +208,7 @@ jobs:
   coverage:
     name: Coverage thresholds
     runs-on: ubuntu-24.04
+    timeout-minutes: 60
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -267,6 +275,7 @@ jobs:
   e2e:
     name: E2E click-through
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -313,6 +322,7 @@ jobs:
   rendered-style:
     name: Rendered-style check
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -357,6 +367,7 @@ jobs:
   security-probes:
     name: Staging-safe security probes
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -409,6 +420,7 @@ jobs:
   codeql:
     name: CodeQL static analysis
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
 
     # CodeQL uploads its findings to the code-scanning API; that single write
     # scope is the one job that needs more than the workflow-wide read-only
@@ -436,6 +448,7 @@ jobs:
     name: Type-check and test
     needs: [typecheck, lint, dependency-audit, dependency-review, secret-scan, conventions, harness, coverage, e2e, rendered-style, security-probes, codeql, terraform]
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     if: always()
 
     steps:
@@ -483,6 +496,7 @@ jobs:
   terraform:
     name: Terraform fmt / validate
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
