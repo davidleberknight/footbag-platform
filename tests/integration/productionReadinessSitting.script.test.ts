@@ -518,8 +518,11 @@ describe('waiting, and an interrupted step', () => {
       `| ${now} | ${now} | production | p15c | scripts/publish-archive.sh --target production | ok |  |`,
       '',
     ].join('\n'));
-    // The wait is an hour long, so the interrupt always lands inside it.
-    const r = sit(['--target', 'production', '--from-step', 'p15d', '--to-step', 'p15d'], [], { wrap: 'timeout --preserve-status -s INT 3' });
+    // The wait is an hour long, so the interrupt always lands inside it. The
+    // pause between checks is long too, so it lands in the pause: bash can lose
+    // an interrupt that arrives while it is reading the clock, and with no pause
+    // the script does little else.
+    const r = sit(['--target', 'production', '--from-step', 'p15d', '--to-step', 'p15d'], [], { wrap: 'timeout --preserve-status -s INT 3', env: { SITTING_POLL_SECS: '30' } });
     expect(r.out).toMatch(/p15d runs no sooner than \d{2}:\d{2}:\d{2}Z \(60 minutes after p15c\)/);
     expect(r.status).toBe(130);
     expect(firstCall(/verify-archive-edge/)).toBe(-1);
