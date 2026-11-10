@@ -4431,7 +4431,7 @@ Rationale:
 
 - Implements the Legacy Independence at Go-Live decision (§6.12): DNS is one of the functions that may not remain dependent on legacy infrastructure.
 - Keeping legacy infrastructure out of the live path entirely means no legacy TLS certificate to maintain, no critical-path dependency on legacy hardware, and CloudFront seeing client IPs directly — the proxy chain stays CloudFront then nginx, two hops, with no third front-door hop at any milestone.
-- Holding the zone under IFPA-controlled access removes the last infrastructure dependency on the legacy operator: the apex is served as a free ALIAS record (no CNAME-at-apex limitation, no Anycast fee, no redirector instance to run), and any emergency DNS change is operator-executed rather than resting on one person's availability.
+- Holding the zone under IFPA-controlled access removes the last infrastructure dependency on the legacy operator: the apex is served as a free ALIAS record (no CNAME-at-apex limitation, no Anycast fee, no redirector instance to run), and any emergency DNS change is operator-executed.
 - The simplest recovery is platform-side: fix-forward or a restore; when a DNS change is needed, a low-TTL zone converges in minutes.
 - Mail is decoupled from the web records in mechanism: MX routing is independent of A/AAAA changes, and the web path never touches MX, so either is changed without the other. It is not decoupled in requirement. The site needs both to be fully functional, the zone for the certificates and authenticated sending and the apex mail records for the addresses it publishes to receive on, so neither alone is a testable system.
 - Outbound authentication starts permissive and tightens on evidence: the apex SPF authorizes the platform's own senders (SES for outbound, Google for mail sent from a hosted role mailbox), starting softfail with DMARC in monitor-only mode and tightening only after clean aggregate reports prove no legitimate mail would be quarantined.
@@ -4489,7 +4489,7 @@ Decision:
 
 From go-live, every name under `footbag.org` is operated by IFPA, and the platform's served set is exactly the apex, `www.footbag.org`, and `archive.footbag.org`: no pre-cutover name and no mirrored legacy name survives the go-live cutover. The Workspace tenant's own prefix domain and its aliases are IFPA's own infrastructure rather than a third party's, and their records are served from this zone rather than delegated. No Workspace function needs a DNS record under them: sign-in, administration and account recovery do not use DNS, so those records carry only mail addressed at those names. The records leave the zone once every account and group has been renamed onto `footbag.org`, at a time the IFPA secretary decides, by default at the go-live cutover. No subzone is delegated to a third party past go-live, and no name under the domain resolves to infrastructure IFPA does not control. A name IFPA wishes to retire is retired; a party wanting a name of their own is directed to a domain they hold.
 
-Retaining any name or mailbox under the domain past go-live requires two things together, and neither alone suffices: a written technical justification, weighed against the reasons below; and written approval by both the CTO and the IFPA secretary, given with those risks stated to the retaining party. Prior arrangement, convenience, or long tenure is not a justification.
+Retaining any name or mailbox under the domain past go-live requires two things together, and neither alone suffices: a written technical justification, weighed against the reasons below; and written approval by both the CTO and the IFPA secretary, given with those risks stated to the retaining party. Convenience is not a justification.
 
 Where a name under the domain resolves to infrastructure IFPA does not control, two things together bound the risk and neither is sufficient alone. The apex certificate-authorisation record permits only the authority the platform's own certificates come from, which stops any other authority issuing for a name under the domain. That authority also accepts proof of control by mail to a fixed set of system addresses at the domain, so the second half of the bound is that IFPA receives all of them: `administrator@`, `hostmaster@`, `postmaster@`, `webmaster@` and `admin@`. A name whose operator receives any one of them can obtain a certificate the record permits.
 
@@ -4512,7 +4512,7 @@ Requirements:
 
 Trade-offs:
 
-- IFPA cannot offer a subdomain as a courtesy to a community project, a sponsor, or an outgoing operator, and the alternative offered is a name on a domain that party controls. This is a real cost to goodwill and is accepted.
+- IFPA cannot offer a subdomain as a courtesy to a community project or a sponsor, and the alternative offered is a name on a domain that party controls.
 - Any future use of the domain by a partner requires IFPA to operate the name itself, including its certificate and its content.
 
 Impact:

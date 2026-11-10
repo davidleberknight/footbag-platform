@@ -411,6 +411,83 @@ describe('create-stripe-endpoint.sh --repair', () => {
     expect(result.curlCalls.filter((c) => c.includes('-d '))).toHaveLength(0);
   });
 
+  // The live endpoint's real shape: this environment's URL, disabled, still on
+  // the thirteen events it was created with.
+  const disabledLive = () => [
+    endpoint({
+      status: 'disabled',
+      events: REQUIRED_EVENTS.filter((e) => !ADDED_AFTER_LIVE_ENDPOINT.includes(e)),
+    }),
+  ];
+
+  // Defect caught: an endpoint Stripe switched off reported only as "nothing is
+  // receiving events", with no way through the script to switch it back on.
+  it('reports a disabled endpoint at this environment\'s URL and points at --repair, writing nothing', () => {
+    const result = runScript(['--target', 'production', '--mode', 'live', '--verify'], { list: disabledLive() });
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toMatch(/DISABLED/);
+    expect(result.stderr).toMatch(/--repair to re-enable it/);
+    for (const event of ADDED_AFTER_LIVE_ENDPOINT) expect(result.stderr).toContain(event);
+    expect(result.curlCalls.filter((c) => c.includes('-d '))).toHaveLength(0);
+  });
+
+  // Defect caught: a repair that sets the events but leaves the endpoint off, or
+  // re-enables it without the events the dispatcher needs.
+  it('re-enables a disabled endpoint and sets its events in one write, then proves both by re-reading', () => {
+    const result = runScript(
+      ['--target', 'production', '--mode', 'live', '--verify', '--repair', '--yes'],
+      { list: disabledLive(), single: endpoint() },
+    );
+    expect(result.exitCode, result.stderr).toBe(0);
+    expect(result.stdout).toMatch(/Repaired/);
+    expect(result.curlCalls).toHaveLength(3);
+    expect(result.curlCalls[1]).toContain('disabled=false');
+    for (const event of REQUIRED_EVENTS) expect(result.curlCalls[1]).toContain(`enabled_events[]=${event}`);
+    expect(result.curlCalls[2]).not.toMatch(/-d /);
+  });
+
+  // Defect caught: a write Stripe accepted but did not act on, reported as a
+  // repair while the endpoint still receives nothing.
+  it('fails when the endpoint still reads as disabled after the write', () => {
+    const result = runScript(
+      ['--target', 'production', '--mode', 'live', '--verify', '--repair', '--yes'],
+      { list: disabledLive(), single: endpoint({ status: 'disabled' }) },
+    );
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toMatch(/not enabled/);
+  });
+
+  // Defect caught: a disabled endpoint somewhere else, or one of two disabled
+  // here, switched on by guesswork.
+  it('re-enables nothing that is not exactly one disabled endpoint at this environment\'s URL', () => {
+    const elsewhere = runScript(
+      ['--target', 'production', '--mode', 'live', '--verify', '--repair', '--yes'],
+      { list: [endpoint({ status: 'disabled', url: 'https://stale.example.net/payments/webhook' })] },
+    );
+    expect(elsewhere.exitCode).toBe(1);
+    expect(elsewhere.stderr).toMatch(/no enabled webhook endpoint/);
+    expect(elsewhere.stderr).toContain('stale.example.net');
+    expect(elsewhere.curlCalls.filter((c) => c.includes('-d '))).toHaveLength(0);
+
+    const two = runScript(
+      ['--target', 'production', '--mode', 'live', '--verify', '--repair', '--yes'],
+      { list: [endpoint({ id: 'we_a', status: 'disabled' }), endpoint({ id: 'we_b', status: 'disabled' })] },
+    );
+    expect(two.exitCode).toBe(1);
+    expect(two.curlCalls.filter((c) => c.includes('-d '))).toHaveLength(0);
+  });
+
+  // Defect caught: a repair of an enabled endpoint sending a field it has no
+  // reason to touch.
+  it('sends no disabled field when repairing an endpoint that is already enabled', () => {
+    const result = runScript(
+      ['--target', 'production', '--mode', 'live', '--verify', '--repair', '--yes'],
+      { list: drifted(), single: endpoint() },
+    );
+    expect(result.exitCode).toBe(0);
+    expect(result.curlCalls[1]).not.toContain('disabled=');
+  });
+
   it('refuses to repair around a URL it does not change', () => {
     const result = runScript(
       ['--target', 'production', '--mode', 'live', '--verify', '--repair', '--yes'],

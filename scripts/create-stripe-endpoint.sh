@@ -28,7 +28,8 @@
 # --verify reads the endpoint that actually exists and diffs that.
 #
 # --repair corrects a short event set through this script rather than by hand,
-# so the fix is a tested path with the correction proved by re-reading the
+# and re-enables the endpoint when Stripe has disabled it (it does so by itself
+# after deliveries keep failing), so the fix is a tested path with the correction proved by re-reading the
 # endpoint afterwards instead of trusting the write. It refuses to touch an
 # endpoint whose API version disagrees with the pin: payload shapes are
 # version-specific, so that disagreement is a decision, not a repair.
@@ -243,19 +244,31 @@ fi
 
 if (( VERIFY )); then
   ENABLED_COUNT="$(jq -r '[.data[] | select(.status=="enabled")] | length' "$WORK/existing.json")"
+  EP_DISABLED=0
   if [[ "$ENABLED_COUNT" == "0" ]]; then
-    echo "FAIL: no enabled webhook endpoint exists in this account." >&2
-    echo "      Nothing is receiving events at all." >&2
-    exit 1
-  fi
-  if [[ "$ENABLED_COUNT" != "1" ]]; then
+    # Stripe switches an endpoint off by itself after its deliveries keep
+    # failing, and one switched off at this environment's own address is still
+    # this environment's webhook: reported as such, and re-enabled by --repair.
+    # Any other disabled endpoint, or more than one here, is not guessed at.
+    jq -r --arg u "$URL" --arg c "$CANONICAL_URL" \
+      '[.data[] | select(.status=="disabled" and (.url==$u or ($c != "" and .url==$c)))]' \
+      "$WORK/existing.json" > "$WORK/disabled_here.json"
+    if [[ "$(jq -r 'length' "$WORK/disabled_here.json")" != "1" ]]; then
+      echo "FAIL: no enabled webhook endpoint exists in this account." >&2
+      echo "      Nothing is receiving events at all." >&2
+      jq -r '.data[] | select(.status=="disabled") | "  disabled: \(.id)  \(.url)"' "$WORK/existing.json" >&2
+      exit 1
+    fi
+    jq -r '.[0]' "$WORK/disabled_here.json" > "$WORK/endpoint.json"
+    EP_DISABLED=1
+  elif [[ "$ENABLED_COUNT" != "1" ]]; then
     echo "FAIL: $ENABLED_COUNT enabled endpoints exist; exactly one is expected." >&2
     jq -r '.data[] | select(.status=="enabled") | "  \(.id)  \(.url)"' "$WORK/existing.json" >&2
     echo "      Every enabled endpoint receives a copy; disable the extras first." >&2
     exit 1
+  else
+    jq -r '[.data[] | select(.status=="enabled")][0]' "$WORK/existing.json" > "$WORK/endpoint.json"
   fi
-
-  jq -r '[.data[] | select(.status=="enabled")][0]' "$WORK/existing.json" > "$WORK/endpoint.json"
   EP_ID="$(jq -r '.id' "$WORK/endpoint.json")"
   EP_URL="$(jq -r '.url' "$WORK/endpoint.json")"
   EP_VERSION="$(jq -r '.api_version // "unset"' "$WORK/endpoint.json")"
@@ -268,6 +281,11 @@ if (( VERIFY )); then
   echo ""
 
   FAILED=0
+
+  if (( EP_DISABLED )); then
+    echo "  DISABLED: Stripe delivers nothing to this endpoint until it is re-enabled." >&2
+    FAILED=1
+  fi
 
   # Compared rather than assumed: an endpoint pointing at a stale distribution
   # receives nothing and still reads as healthy from the account's own list.
@@ -319,7 +337,11 @@ if (( VERIFY )); then
 
   if (( ! REPAIR )); then
     echo "" >&2
-    echo "Re-run with --repair to set the event list to the dispatcher's." >&2
+    if (( EP_DISABLED )); then
+      echo "Re-run with --repair to re-enable it and set the event list to the dispatcher's." >&2
+    else
+      echo "Re-run with --repair to set the event list to the dispatcher's." >&2
+    fi
     exit 1
   fi
 
@@ -340,7 +362,12 @@ if (( VERIFY )); then
   fi
 
   echo ""
-  echo "--repair replaces this endpoint's whole event list with the dispatcher's"
+  if (( EP_DISABLED )); then
+    echo "--repair re-enables this endpoint, so Stripe delivers to it again, and in the"
+    echo "same update replaces its whole event list with the dispatcher's"
+  else
+    echo "--repair replaces this endpoint's whole event list with the dispatcher's"
+  fi
   echo "$(printf '%s\n' $EVENTS | wc -l) events, so anything listed as unexpected above is removed too."
   if ! confirm_from_tty "Type 'APPLY' to continue: " "APPLY"; then
     echo "Not confirmed; nothing was changed." >&2
@@ -348,6 +375,7 @@ if (( VERIFY )); then
   fi
 
   CURL_ARGS=()
+  (( EP_DISABLED )) && CURL_ARGS+=(-d "disabled=false")
   for evt in $EVENTS; do CURL_ARGS+=(-d "enabled_events[]=$evt"); done
   "$CURL_BIN" -s --config "$WORK/curlrc" \
     "https://api.stripe.com/v1/webhook_endpoints/$EP_ID" \
@@ -366,6 +394,10 @@ if (( VERIFY )); then
     -o "$WORK/reread.json"
   jq -r '.enabled_events[]' "$WORK/reread.json" | sort > "$WORK/after"
   echo ""
+  if [[ "$(jq -r '.status' "$WORK/reread.json")" != "enabled" ]]; then
+    echo "ERROR: the endpoint reads as '$(jq -r '.status' "$WORK/reread.json")' after the update, not enabled." >&2
+    exit 1
+  fi
   if diff "$WORK/want" "$WORK/after"; then
     echo "Repaired: the endpoint now carries the dispatcher's event set ($(wc -l < "$WORK/after") events)."
     exit 0
