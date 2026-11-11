@@ -953,6 +953,31 @@ describe('the production steps around email, the zero-logins gate and the archiv
     expect(dry()).toMatch(/^ {2}p13q +read +scripts\/send-test-alarm\.sh --target production --status --metric LoginSuccessCount --wait-minutes \d+$/m);
   });
 
+  // Defect caught: a question declined by a line already waiting in the
+  // terminal reads to the operator exactly like a no they never typed.
+  it('says what it read when a question is declined', () => {
+    const declined = sit(['--target', 'production', '--from-step', 'p10a', '--to-step', 'p10a'], ['CRED=x']);
+    expect(declined.status).toBe(1);
+    expect(declined.out).toContain('Read CRED=x, which is not yes.');
+    const accepted = sit(['--target', 'production', '--from-step', 'p10a', '--to-step', 'p10a'], ['yes']);
+    expect(accepted.status).toBe(0);
+    expect(accepted.out).not.toContain('which is not yes');
+  });
+
+  // Defect caught: a question sends the operator to a step the table no longer
+  // has, so they do work nothing later reads, or cannot do what it asks.
+  it('names only steps that exist in its questions and commands', () => {
+    for (const target of ['production', 'staging']) {
+      const out = spawnSync('bash', [SCRIPT, '--target', target, '--dry-run'], { encoding: 'utf-8', ...SPAWN_GUARD }).stdout;
+      const ids = new Set([...out.matchAll(/^ {2}([ps]\d+[a-z]?\d*) /gm)].map((m) => m[1]));
+      expect(ids.size).toBeGreaterThan(10);
+      const named = [...out.matchAll(/^ {2}[ps]\d+[a-z]?\d* +.*$/gm)]
+        .flatMap((m) => [...m[0].slice(2).replace(/^\S+/, '').matchAll(/\b([ps]\d{2}[a-z]?\d*)\b/g)].map((n) => n[1]));
+      expect(named.length).toBeGreaterThan(0);
+      expect(named.filter((n) => !ids.has(n))).toEqual([]);
+    }
+  });
+
   // Defect caught: the archive published before its capture is checked, so a
   // failing capture is found only after it is live.
   it('checks the capture before the archive publish', () => {

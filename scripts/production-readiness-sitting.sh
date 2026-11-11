@@ -203,11 +203,10 @@ PRODUCTION_STEPS=(
   'p08e|once|tty|log|scripts/verify-prod-email.sh --profile footbag-production-runtime --bounce-probe'
   'p08f|read|tty|after=p08e+5|scripts/host-diagnostics.sh --target production ses-bounces --since {SINCE<p08e}'
   'p09|once|cred|log|scripts/restore-db.sh --target production --snapshot {SNAPSHOT>p04a}|scripts/restore-db.sh --target production --resume-erasure-replay'
-  'p10a|ask|-|log|First admin (1 of 2). In a browser on the production cloudfront.net address, register the person who will be the first admin at /register as an ordinary member, verify their email, and finish the sign-up wizard: the claim page sends anyone mid-wizard back to it. Next, p10b mints a one-time admin claim token and prints it here; paste it at /admin/bootstrap-claim rather than typing it, since five wrong tries lock the claim for an hour. Is that account registered, verified and through the wizard?'
+  'p10a|ask|-|log|First admin. In a browser on the production cloudfront.net address, register the person who will be the first admin at /register as an ordinary member, verify their email, and finish the sign-up wizard: the claim page sends anyone mid-wizard back to it. Next, p10b mints a one-time admin claim token and prints it here; paste it at /admin/bootstrap-claim rather than typing it, since five wrong tries lock the claim for an hour. Is that account registered, verified and through the wizard?'
   'p10b|once|tty|log|scripts/admin-bootstrap-token.sh --target production --profile footbag-operator provision'
   'p10c|read|tty|stdout=^ABSENT:|scripts/admin-bootstrap-token.sh --target production --profile footbag-operator status --wait-minutes 30'
   'p10d|read|cred|stdout=6\. First admin +DONE|scripts/bringup-status.sh --target production --profile footbag-operator'
-  'p10e|ask|-|log|First admin (2 of 2). Register one throwaway ordinary member on production at /register, with any address you can read; later steps use it, and the closing rebuild removes it. Is it registered?'
   'p10f|mailwalk|tty|log|scripts/confirm-alarm-subscription.sh --target production'
   'p10g|ask+mail|-|log|Break-glass operator check. The next two steps, p11a and p11b, run the staging break-glass drill and record whoever runs it as the second operator; Julie runs them from her own workstation in her remote session. Is Julie the one at this keyboard now? If not, answer no: this run stops here, and you resume with --from-step p12a.'
   'p11a|once+mail|tty|log|scripts/host-break-glass.sh --drill --target staging'
@@ -233,7 +232,7 @@ PRODUCTION_STEPS=(
   'p13m|idem|tty|rerun|scripts/set-terraform-gate.sh --target production --gate enable_cutover_login_alarm --state on'
   'p13n|read|tty|-|scripts/send-test-alarm.sh --target production --status --expect ALARM --wait-minutes 180 --alarm footbag-production-cutover-zero-logins'
   'p13o|idem|tty|rerun|scripts/set-terraform-gate.sh --target production --gate enable_cutover_login_alarm --state off'
-  'p13p|ask|-|log|Login count check (1 of 2). Sign in to production at /login now as the throwaway member registered at p10e. The next step reads that CloudWatch counted the sign-in, which proves the login filter the zero-logins alarm rests on matches a real sign-in. Signed in?'
+  'p13p|ask|-|log|Login count check (1 of 2). Sign out of production, then sign in again at /login with your own password: only the /login form counts as a sign-in, so the session the email-verification link opened does not. The next step reads that CloudWatch counted the sign-in, which proves the login filter the zero-logins alarm rests on matches a real sign-in. Signed in?'
   'p13q|read|tty|-|scripts/send-test-alarm.sh --target production --status --metric LoginSuccessCount --wait-minutes 10'
   'p14a|once+mail|tty|log|scripts/host-break-glass.sh --drill --target production'
   'p14b|read+mail|tty|-|scripts/list-host-access-mints.sh --since {SINCE<p14a}'
@@ -568,7 +567,12 @@ ask_yes() {
   local answer=""
   printf '%s (yes/no; anything but yes stops the run here): ' "$1" > /dev/tty
   read -r answer < /dev/tty || answer=""
-  [[ "$answer" == yes ]]
+  [[ "$answer" == yes ]] && return 0
+  # Says what was read, quoted, so a line pasted or typed before the question
+  # appeared shows as itself: a decline the operator never typed is otherwise
+  # indistinguishable from a no.
+  printf 'Read %q, which is not yes.\n' "${answer:0:60}" > /dev/tty
+  return 1
 }
 
 is_proof_command() { [[ "$1" =~ ^(cred|tty):[0-9,]+= ]]; }
