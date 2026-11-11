@@ -27,6 +27,7 @@ import {
   insertFreestyleTrickModifier,
   insertFreestyleTrickModifierLink,
 } from '../fixtures/factories';
+import { STAGED_CURATOR_CONTENT } from '../../freestyle/loaders/28a_seed_curator_content';
 
 const { dbPath } = setTestEnv('3561');
 
@@ -53,8 +54,12 @@ beforeAll(async () => {
     t('blurry-mirage', 'mirage'),
   ]) insertFreestyleTrick(db, r);
 
-  // paradox: classified under the Entry Topologies axis, with a composition gloss.
-  insertFreestyleTrickModifier(db, { slug: 'paradox', modifier_name: 'Paradox', modifier_type: 'body' });
+  // paradox: classified under the Entry Topologies axis, with the composition
+  // gloss the rebuild seeds for it.
+  insertFreestyleTrickModifier(db, {
+    slug: 'paradox', modifier_name: 'Paradox', modifier_type: 'body',
+    composition_gloss: STAGED_CURATOR_CONTENT.compositionGlosses.get('paradox') ?? null,
+  });
   insertFreestyleTrickModifierLink(db, 'paradox-whirl', 'paradox');
   // blurry: a registered modifier with no Movement System axis and no gloss.
   insertFreestyleTrickModifier(db, { slug: 'blurry', modifier_name: 'Blurry', modifier_type: 'body' });

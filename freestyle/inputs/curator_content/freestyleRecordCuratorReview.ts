@@ -1,3 +1,6 @@
+// Staged curator content: loader 28a seeds these notes into
+// freestyle_records.curator_review_note on every rebuild, and the app reads the
+// column, edited in the record editor. Deleted with the pipeline at cutover.
 /**
  * freestyleRecordCuratorReview.ts
  * ================================

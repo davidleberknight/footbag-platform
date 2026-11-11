@@ -21,6 +21,7 @@ import {
   insertFreestyleTrickModifier,
   insertFreestyleTrickModifierLink,
 } from '../fixtures/factories';
+import { STAGED_CURATOR_CONTENT } from '../../freestyle/loaders/28a_seed_curator_content';
 
 const { dbPath } = setTestEnv('3571');
 let createApp: Awaited<ReturnType<typeof importApp>>;
@@ -51,7 +52,10 @@ beforeAll(async () => {
     // A trick carrying the gyro modifier, to exercise the composition gloss.
     t('gyro_clipper', 'clipper_stall', '2'),
   ]) insertFreestyleTrick(db, r);
-  insertFreestyleTrickModifier(db, { slug: 'gyro', modifier_name: 'Gyro', modifier_type: 'body' });
+  insertFreestyleTrickModifier(db, {
+    slug: 'gyro', modifier_name: 'Gyro', modifier_type: 'body',
+    composition_gloss: STAGED_CURATOR_CONTENT.compositionGlosses.get('gyro') ?? null,
+  });
   insertFreestyleTrickModifierLink(db, 'gyro_clipper', 'gyro');
   db.close();
   createApp = await importApp();

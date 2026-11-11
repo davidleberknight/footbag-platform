@@ -32,6 +32,7 @@ import {
   insertFreestyleTrickModifier,
   insertFreestyleTrickModifierLink,
 } from '../fixtures/factories';
+import { STAGED_CURATOR_CONTENT } from '../../freestyle/loaders/28a_seed_curator_content';
 
 const { dbPath } = setTestEnv('3166');
 
@@ -41,13 +42,16 @@ const page = cachedGet(() => createApp());
 beforeAll(async () => {
   const db = createTestDb(dbPath);
 
-  // Modifier table for paradox-mirage (the non-anchor control).
+  // Modifier table for paradox-mirage (the non-anchor control), each carrying
+  // the beginner note the rebuild seeds for it.
   insertFreestyleTrickModifier(db, {
     slug: 'paradox', add_bonus: 1, add_bonus_rotational: 1, modifier_type: 'body',
+    beginner_note: STAGED_CURATOR_CONTENT.beginnerNotes.get('paradox') ?? null,
   });
   // atomic supports the operator-fallback case (atom-smasher has no DB link).
   insertFreestyleTrickModifier(db, {
     slug: 'atomic', add_bonus: 1, add_bonus_rotational: 2, modifier_type: 'set',
+    beginner_note: STAGED_CURATOR_CONTENT.beginnerNotes.get('atomic') ?? null,
   });
   // Folk-named compound with NO modifier link in the DB. Its modifiers must be
   // recovered from the RESOLVED_FORMULAS operator ('atomic + x-dex').

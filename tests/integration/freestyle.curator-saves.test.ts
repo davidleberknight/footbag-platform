@@ -19,6 +19,7 @@ import { spawnSync } from 'node:child_process';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember } from '../fixtures/factories';
+import { seedCuratorContent, STAGED_CURATOR_CONTENT } from '../../freestyle/loaders/28a_seed_curator_content';
 
 const { dbPath } = setTestEnv('4142');
 const savesDir = process.env.CURATOR_SAVES_DIR!;
@@ -28,6 +29,8 @@ const reportPath = path.join(scratch, 'overrides.csv');
 
 const ADMIN_ID = 'aaaaaaaa-0000-0000-0000-000000saves1';
 const SAVED_TEXT = 'Saved by a curator through the trick editor.';
+const SAVED_BEGINNER_NOTE = 'Saved by a curator through the modifier editor.';
+const SAVED_REVIEW_NOTE = 'Saved by a curator through the record editor.';
 // Four scoring brackets, so the published trick asserts 4 ADD.
 const PUBLISHED_NOTATION = 'CLIP > OP IN [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]';
 
@@ -54,6 +57,13 @@ function rebuild(db: string): void {
   for (const [name, args] of REBUILD) {
     const r = loader(name, ['--db', db, ...args]);
     if (r.status !== 0) throw new Error(`${name} failed: ${r.stderr}`);
+  }
+  // Loader 28a, the staged curator content, runs between 28 and the save loader.
+  const conn = new BetterSqlite3(db);
+  try {
+    seedCuratorContent(conn);
+  } finally {
+    conn.close();
   }
 }
 
@@ -139,6 +149,8 @@ let recordService: typeof import('../../src/services/freestyleRecordCurationServ
 let consecutiveService: typeof import('../../src/services/consecutiveKicksCurationService').consecutiveKicksCurationService;
 let editedRecordId = '';
 let createdRecordId = '';
+let reviewedRecordId = '';
+let seededReviewNote = '';
 let editedRowId = '';
 let swappedRowId = '';
 let deletedRowId = '';
@@ -241,8 +253,11 @@ beforeAll(async () => {
     slug: 'saved_modifier', modifierName: 'Saved Modifier', addBonus: '2', modifierType: 'set', notes: '',
   }, ADMIN_ID);
   service.attachModifier(editedSlug, { modifierSlug: 'saved_modifier', applyOrder: '8' }, ADMIN_ID);
+  // Paradox carries a seeded beginner note and gloss, so the save overrides one
+  // and clears the other over the staged curator content.
   service.updateModifier('paradox', {
     modifierName: 'paradox', addBonus: '1', modifierType: 'body', notes: 'Saved modifier note.',
+    beginnerNote: SAVED_BEGINNER_NOTE, compositionGloss: '',
   }, ADMIN_ID, { confirmed: false });
 
   // Records and consecutive rows, including what the loaders alone cannot express:
@@ -255,6 +270,12 @@ beforeAll(async () => {
   editedRecordId = (data.prepare(
     "SELECT id FROM freestyle_records WHERE confidence = 'probable' AND date_precision = 'day' AND value_numeric IS NOT NULL ORDER BY id LIMIT 1",
   ).get() as { id: string }).id;
+  // A record the staged curator content puts under review.
+  const reviewed = data.prepare(
+    'SELECT * FROM freestyle_records WHERE curator_review_note IS NOT NULL ORDER BY id LIMIT 1',
+  ).get() as Record<string, string | number | null>;
+  reviewedRecordId = String(reviewed.id);
+  seededReviewNote = String(reviewed.curator_review_note);
   const editedRecord = data.prepare('SELECT * FROM freestyle_records WHERE id = ?').get(editedRecordId) as Record<string, string | number | null>;
   const firstThree = data.prepare(
     'SELECT * FROM consecutive_kicks_records ORDER BY sort_order LIMIT 3',
@@ -271,6 +292,9 @@ beforeAll(async () => {
   });
   recordService.updateRecord(editedRecordId, recordForm(editedRecord, {
     valueText: 'saved text value', source: 'saved-source-label', achievedDate: '2010-01-01', datePrecision: 'year',
+  }), ADMIN_ID);
+  recordService.updateRecord(reviewedRecordId, recordForm(reviewed, {
+    curatorReviewNote: SAVED_REVIEW_NOTE,
   }), ADMIN_ID);
   createdRecordId = recordService.createRecord(recordForm(editedRecord, {
     displayName: 'Saved Holder', personId: '', trickName: 'Saved Record Trick', sortName: '', valueNumeric: '',
@@ -467,6 +491,12 @@ describe('a rebuild', () => {
       [baseSourceLink.trick_slug, baseSourceLink.source_id])).toBe(1);
     expect(rowCount(rebuildPath, 'freestyle_trick_modifier_links', 'trick_slug = ? AND modifier_slug = ? AND apply_order = ?',
       [baseModifierLink.trick_slug, baseModifierLink.modifier_slug, baseModifierLink.apply_order])).toBe(1);
+    // The staged curator content is seeded, so the save cases below override a
+    // real seeded value rather than an empty column.
+    expect(rowCount(rebuildPath, 'freestyle_trick_modifiers', "slug = 'paradox' AND beginner_note = ? AND composition_gloss = ?",
+      [STAGED_CURATOR_CONTENT.beginnerNotes.get('paradox'), STAGED_CURATOR_CONTENT.compositionGlosses.get('paradox')])).toBe(1);
+    expect(rowCount(rebuildPath, 'freestyle_records', 'id = ? AND curator_review_note = ?',
+      [reviewedRecordId, seededReviewNote])).toBe(1);
   });
 
   it('reloads a saved value and a cleared field, and reports what it overrode', () => {
@@ -482,6 +512,16 @@ describe('a rebuild', () => {
     expect(report).toContain(`${editedSlug},description,`);
     expect(report).toContain(baseDescription.split(',')[0]);
     expect(r.stdout).toContain(`${editedSlug}.description`);
+  });
+
+  it('keeps a saved modifier note, a cleared gloss and a saved review note over the seeded content', () => {
+    // Defect: the staged curator content runs after the save loader, or the save
+    // body omits a column, so a curator's edit to a seeded note is undone at the
+    // next rebuild. Reads the saves the case above applied.
+    expect(rowCount(rebuildPath, 'freestyle_trick_modifiers',
+      "slug = 'paradox' AND beginner_note = ? AND composition_gloss IS NULL", [SAVED_BEGINNER_NOTE])).toBe(1);
+    expect(rowCount(rebuildPath, 'freestyle_records', 'id = ? AND curator_review_note = ?',
+      [reviewedRecordId, SAVED_REVIEW_NOTE])).toBe(1);
   });
 
   it('brings back every saved source, alias and link, and keeps removed ones gone', () => {

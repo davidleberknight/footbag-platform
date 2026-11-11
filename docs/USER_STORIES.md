@@ -3329,7 +3329,7 @@ Story: As an admin, I can create a freestyle modifier and edit an existing one, 
 
 Success Criteria, Fields:
 
-- Create takes the slug, the display name, the ADD bonus, the modifier type and notes; edit changes every field but the slug. The rotational ADD bonus is always saved equal to the ADD bonus.
+- Create takes the slug, the display name, the ADD bonus, the modifier type, notes, a beginner note and a composition gloss; edit changes every field but the slug. The rotational ADD bonus is always saved equal to the ADD bonus.
 - The modifier registry is the single home of a modifier's ADD: computed ADD, first-class status and every public surface read it from there.
 
 Success Criteria, Validation (a save that fails any check is rejected with a clear message and the submitted values preserved):
@@ -3462,7 +3462,7 @@ Success Criteria, Listing:
 
 Success Criteria, Row fields:
 
-- Editable fields are the record type, the record holder (either a linked historical person or a free-text display name), the trick name, the structured sort name, the adds count, the numeric or text value, the achieved date and its date precision, the source, the confidence rating, the video link and timecode, and the notes, plus the superseded-by pointer to the record that later beat this one.
+- Editable fields are the record type, the record holder (either a linked historical person or a free-text display name), the trick name, the structured sort name, the adds count, the numeric or text value, the achieved date and its date precision, the source, the confidence rating, the video link and timecode, the notes, and a curator review note (shown on the public records page, which then links the record to no trick), plus the superseded-by pointer to the record that later beat this one.
 - The record id and the created and updated timestamps are read-only; the timestamps are stamped on write.
 - A save that passes validation writes the record row through a prepared statement; the database write is the contract.
 

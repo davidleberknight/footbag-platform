@@ -183,8 +183,8 @@ export const COPY_COLUMN_REGISTER: Readonly<Record<string, TableClassification>>
   freestyle_records: {
     keep: ['id', 'record_type', 'person_id', 'display_name', 'trick_name', 'sort_name',
       'adds_count', 'value_numeric', 'value_text', 'achieved_date', 'date_precision', 'source',
-      'confidence', 'video_url', 'video_timecode', 'notes', 'superseded_by', 'created_at',
-      'updated_at'],
+      'confidence', 'video_url', 'video_timecode', 'notes', 'curator_review_note', 'superseded_by',
+      'created_at', 'updated_at'],
   },
   freestyle_trick_aliases: {
     keep: ['alias_slug', 'alias_text', 'trick_slug', 'alias_type', 'alias_display', 'source_id',
@@ -195,7 +195,7 @@ export const COPY_COLUMN_REGISTER: Readonly<Record<string, TableClassification>>
   },
   freestyle_trick_modifiers: {
     keep: ['slug', 'modifier_name', 'add_bonus', 'add_bonus_rotational', 'modifier_type', 'notes',
-      'loaded_at'],
+      'beginner_note', 'composition_gloss', 'loaded_at'],
   },
   freestyle_trick_source_links: {
     keep: ['trick_slug', 'source_id', 'external_ref', 'external_url', 'asserted_adds',

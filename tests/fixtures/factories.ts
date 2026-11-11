@@ -796,6 +796,9 @@ export interface FreestyleRecordOverrides {
   video_url?: string | null;
   video_timecode?: string | null;
   notes?: string | null;
+  /** Set only for the few records whose canonical trick is under curator review;
+   *  the pipeline leaves every other row NULL. */
+  curator_review_note?: string | null;
   superseded_by?: string | null;
 }
 
@@ -810,9 +813,9 @@ export function insertFreestyleRecord(
       trick_name, sort_name, adds_count,
       value_numeric, achieved_date, date_precision,
       source, confidence,
-      video_url, video_timecode, notes,
+      video_url, video_timecode, notes, curator_review_note,
       superseded_by, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
     o.record_type    ?? 'trick_consecutive',
@@ -829,6 +832,7 @@ export function insertFreestyleRecord(
     o.video_url      ?? null,
     o.video_timecode ?? null,
     o.notes          ?? null,
+    o.curator_review_note ?? null,
     o.superseded_by  ?? null,
     nowIso(), nowIso(),
   );
@@ -1421,6 +1425,10 @@ export interface FreestyleTrickModifierOverrides {
   add_bonus?:           number;
   add_bonus_rotational?: number;
   notes?:               string | null;
+  /** The pipeline seeds these for the modifiers the staged curator content
+   *  covers and leaves the rest NULL. */
+  beginner_note?:       string | null;
+  composition_gloss?:   string | null;
 }
 
 export function insertFreestyleTrickModifier(
@@ -1429,8 +1437,9 @@ export function insertFreestyleTrickModifier(
 ): void {
   db.prepare(`
     INSERT INTO freestyle_trick_modifiers
-      (slug, modifier_name, add_bonus, add_bonus_rotational, modifier_type, notes, loaded_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+      (slug, modifier_name, add_bonus, add_bonus_rotational, modifier_type, notes,
+       beginner_note, composition_gloss, loaded_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     o.slug,
     o.modifier_name ?? o.slug,
@@ -1438,6 +1447,8 @@ export function insertFreestyleTrickModifier(
     o.add_bonus_rotational ?? 1,
     o.modifier_type ?? 'body',
     o.notes ?? null,
+    o.beginner_note ?? null,
+    o.composition_gloss ?? null,
     nowIso(),
   );
 }

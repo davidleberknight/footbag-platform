@@ -7,9 +7,9 @@
  * rebuild then reported complete over is the defect this suite pins.
  *
  * The script runs from a scratch tree holding a copy of itself and the shared
- * libraries. The dev-database guard is a stand-in that passes, and PYTHON is a
- * stand-in that answers for each loader as the case says, so no database is
- * opened and no table is touched.
+ * libraries. The dev-database guard is a stand-in that passes, and PYTHON and
+ * TSX are one stand-in that answers for each loader as the case says, so no
+ * database is opened and no table is touched.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
@@ -60,7 +60,7 @@ afterEach(() => {
 function run(env: Record<string, string> = {}) {
   const res = spawnSync('bash', [join(scratch, 'freestyle/run_freestyle.sh')], {
     encoding: 'utf-8',
-    env: { ...process.env, PYTHON: join(scratch, 'python'), ...env },
+    env: { ...process.env, PYTHON: join(scratch, 'python'), TSX: join(scratch, 'python'), ...env },
     ...SPAWN_GUARD,
   });
   const stderr = res.stderr ?? '';
@@ -73,6 +73,10 @@ describe('run_freestyle.sh — the closing report', () => {
     const r = run();
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).toContain('ran 25_qc_media_tag_invariant.py');
+    // The staged curator content runs between the rulings and the curator saves.
+    const seeded = r.stdout.indexOf('ran 28a_seed_curator_content.ts');
+    expect(seeded).toBeGreaterThan(r.stdout.indexOf('ran 28_load_ev_adjudications.py'));
+    expect(r.stdout.indexOf('ran 29_apply_curator_saves.py')).toBeGreaterThan(seeded);
     expect(r.report).toContain('No errors or warnings.');
   });
 

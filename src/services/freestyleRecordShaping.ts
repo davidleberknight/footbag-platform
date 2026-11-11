@@ -5,7 +5,6 @@ import {
   modifierHashtagRole,
   type HashtagRole,
 } from '../content/freestyleHashtagRoles';
-import { recordCuratorReviewNote } from '../content/freestyleRecordCuratorReview';
 
 export function trickNameToSlug(name: string): string {
   // The slug is the lexical form of the name only: lowercase, non-alphanumeric
@@ -185,7 +184,7 @@ export function shapeFreestyleRecord(
   const placeholderDate = dateIsPlaceholder(row.achieved_date);
   // A record under curator review must not link to a speculative canonical
   // trick, even if its name happens to slugify onto one.
-  const reviewNote = recordCuratorReviewNote(row.trick_name);
+  const reviewNote = row.curator_review_note?.trim() || null;
   return {
     id:              row.id,
     holderName:      row.holder_name,

@@ -4916,6 +4916,10 @@ CREATE TABLE freestyle_records (
   video_url       TEXT,
   video_timecode  TEXT,    -- e.g. "1:43" timestamp within the video
   notes           TEXT,
+  -- Curator review: set while the record name's canonical trick identity is an
+  -- open question. The records page shows it as a "Needs curator review" status
+  -- and links the record to no trick while it is set. NULL = not under review.
+  curator_review_note TEXT,
   superseded_by   TEXT REFERENCES freestyle_records(id),
   created_at      TEXT NOT NULL,
   updated_at      TEXT NOT NULL,
@@ -5104,6 +5108,8 @@ CREATE TABLE freestyle_trick_modifiers (
   add_bonus_rotational  INTEGER NOT NULL,          -- historical rotational column; currently equal to add_bonus for every modifier
   modifier_type         TEXT NOT NULL,             -- 'body' | 'set' | 'rotational-qualifier' (no CHECK; v2.1 expanded for Gyro)
   notes                 TEXT,
+  beginner_note         TEXT,                      -- one plain-English sentence shown beside the modifier in a trick page's facts block; NULL = none shown
+  composition_gloss     TEXT,                      -- one-line compositional reading shown in a trick page's "Modifiers on this trick" rows; NULL = none shown
   loaded_at             TEXT NOT NULL
 );
 

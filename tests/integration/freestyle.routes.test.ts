@@ -246,13 +246,13 @@ beforeAll(async () => {
   // ── Seeds for CANONICAL-SURFACE-REALIGNMENT-1 S2 + S3 tests ──────────
   // S2: canon-locked compound rows for ≡ chain readings (torque, blender,
   //     drifter all in freestyleSymbolicEquivalences.ts after S2).
-  // S3: around-the-world + 'atw' alias to verify allow-list rendering as
-  //     'ATW' (uppercase displayAs per freestyleAliasGovernance.ts).
+  // S3: around-the-world + its 'atw' shorthand, held out of display as the
+  //     committed alias overrides hold it (a technical alias, search only).
   insertFreestyleTrick(db, { slug: 'torque',   canonical_name: 'torque',   adds: '4', notation: 'TORQUE'   });
   insertFreestyleTrick(db, { slug: 'blender',  canonical_name: 'blender',  adds: '4', notation: 'BLENDER'  });
   insertFreestyleTrick(db, { slug: 'drifter',  canonical_name: 'drifter',  adds: '3', notation: 'DRIFTER'  });
   insertFreestyleTrick(db, { slug: 'around_the_world', canonical_name: 'around the world', adds: '2', notation: 'ATW' });
-  insertFreestyleTrickAlias(db, 'atw', 'around_the_world', 'atw');
+  insertFreestyleTrickAlias(db, 'atw', 'around_the_world', 'atw', { alias_type: 'technical', alias_display: 0 });
 
   db.close();
   createApp = await importApp();

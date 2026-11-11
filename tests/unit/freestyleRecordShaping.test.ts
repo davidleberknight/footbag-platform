@@ -8,7 +8,6 @@ import {
   modifierSurfaceHashtag,
 } from '../../src/services/freestyleRecordShaping';
 import type { FreestyleRecordRow } from '../../src/db/db';
-import { recordCuratorReviewNote } from '../../src/content/freestyleRecordCuratorReview';
 
 function makeRow(overrides: Partial<FreestyleRecordRow> = {}): FreestyleRecordRow {
   return {
@@ -27,6 +26,7 @@ function makeRow(overrides: Partial<FreestyleRecordRow> = {}): FreestyleRecordRo
     video_url:          null,
     video_timecode:     null,
     notes:              null,
+    curator_review_note: null,
     superseded_by:      null,
     ...overrides,
   };
@@ -211,19 +211,25 @@ describe('record curator-review status', () => {
     expect(vm.trickHref).toBe('/freestyle/tricks/mirage');
   });
 
+  // Defect caught: a record under review linking a visitor to a speculative trick.
   it('flags a review record and suppresses its link even when the slug resolves', () => {
     // 'double_dyno' resolves here, yet the review record must not link.
-    const vm = shapeFreestyleRecord(makeRow({ trick_name: 'Double Dyno' }), s => (s === 'double_dyno' ? s : null));
-    expect(vm.reviewNote).toMatch(/reversed Blender \/ Dyno structure/);
+    const note = 'Its canonical identity is not yet settled.';
+    const vm = shapeFreestyleRecord(
+      makeRow({ trick_name: 'Double Dyno', curator_review_note: note }),
+      s => (s === 'double_dyno' ? s : null),
+    );
+    expect(vm.reviewNote).toBe(note);
     expect(vm.trickHref).toBeNull();
   });
 
-  it('resolves review notes only for the exact five record names', () => {
-    for (const name of ['Double Dyno', 'Double Whip', 'Solestice', 'Stepping Ducking Blurry Whirl', 'Toe Spinning Toe']) {
-      expect(recordCuratorReviewNote(name), name).not.toBeNull();
-    }
-    expect(recordCuratorReviewNote('Blink')).toBeNull();
-    expect(recordCuratorReviewNote('Mirage')).toBeNull();
-    expect(recordCuratorReviewNote(null)).toBeNull();
+  // Defect caught: a cleared note left as blank text hiding a record's trick link.
+  it('treats a blank review note as no review', () => {
+    const vm = shapeFreestyleRecord(
+      makeRow({ trick_name: 'Mirage', curator_review_note: '   ' }),
+      s => (s === 'mirage' ? s : null),
+    );
+    expect(vm.reviewNote).toBeNull();
+    expect(vm.trickHref).toBe('/freestyle/tricks/mirage');
   });
 });

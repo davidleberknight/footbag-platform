@@ -55,8 +55,11 @@ beforeAll(async () => {
   });
 
   // Infinity and far butterfly are aliases of butterfly. Far Butterfly has NO
-  // canonical row of its own.
-  insertFreestyleTrickAlias(db, 'infinity', 'butterfly', 'infinity');
+  // canonical row of its own. Infinity is held out of display, as the committed
+  // alias overrides hold it, with the reason they record.
+  insertFreestyleTrickAlias(db, 'infinity', 'butterfly', 'infinity', {
+    alias_display: 0, display_reason: 'Infinity names the clipper-set Butterfly, not an exact alias.',
+  });
   insertFreestyleTrickAlias(db, 'far_butterfly', 'butterfly', 'far butterfly');
 
   db.close();

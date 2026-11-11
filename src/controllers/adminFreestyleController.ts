@@ -787,6 +787,8 @@ function modifierInputFromBody(body: Record<string, unknown>): FreestyleModifier
     addBonus:     str(body.addBonus),
     modifierType: str(body.modifierType),
     notes:        str(body.notes),
+    beginnerNote: str(body.beginnerNote),
+    compositionGloss: str(body.compositionGloss),
   };
 }
 
@@ -807,6 +809,7 @@ function recordInputFromBody(body: Record<string, unknown>): FreestyleRecordScal
     videoUrl:      str(body.videoUrl),
     videoTimecode: str(body.videoTimecode),
     notes:         str(body.notes),
+    curatorReviewNote: str(body.curatorReviewNote),
     supersededBy:  str(body.supersededBy),
   };
 }

@@ -17,6 +17,7 @@ import { cachedGet } from '../fixtures/cachedGet';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertFreestyleRecord, insertFreestyleTrick } from '../fixtures/factories';
+import { STAGED_CURATOR_CONTENT } from '../../freestyle/loaders/28a_seed_curator_content';
 
 const { dbPath } = setTestEnv('3651');
 
@@ -41,9 +42,12 @@ beforeAll(async () => {
   // Blink links to its now-canonical trick.
   insertFreestyleRecord(db, { trick_name: 'Blink', value_numeric: 10, adds_count: 2, sort_name: 'Swirling Toe (op) (rev)', display_name: 'Nick Polini' });
 
-  // Double Dyno is on the curator-review list: it must not link even though a
-  // 'double_dyno' trick exists in this fixture.
-  insertFreestyleRecord(db, { trick_name: 'Double Dyno', value_numeric: 5, adds_count: 5, display_name: 'Pawel Nowak' });
+  // Double Dyno is under curator review, carrying the note the rebuild seeds for
+  // it: it must not link even though a 'double_dyno' trick exists in this fixture.
+  insertFreestyleRecord(db, {
+    trick_name: 'Double Dyno', value_numeric: 5, adds_count: 5, display_name: 'Pawel Nowak',
+    curator_review_note: STAGED_CURATOR_CONTENT.recordReviews.get('Double Dyno') ?? null,
+  });
 
   // A non-trick record category in its own group.
   insertFreestyleRecord(db, { record_type: 'trick_consecutive_dex', trick_name: 'Unique Fearless', value_numeric: 25, adds_count: 5, display_name: 'Jim Penske' });

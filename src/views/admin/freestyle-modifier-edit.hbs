@@ -30,6 +30,16 @@
         <label for="modifier-notes">Notes (optional)</label>
         <textarea id="modifier-notes" name="notes" rows="3">{{content.submitted.notes}}</textarea>
       </div>
+      <div class="form-field">
+        <label for="modifier-beginnerNote">Beginner note (optional)</label>
+        <input type="text" id="modifier-beginnerNote" name="beginnerNote" value="{{content.submitted.beginnerNote}}" aria-describedby="modifier-beginnerNote-hint" />
+        <small class="form-hint" id="modifier-beginnerNote-hint">One plain sentence, shown beside this modifier on every trick page that uses it.</small>
+      </div>
+      <div class="form-field">
+        <label for="modifier-compositionGloss">Composition gloss (optional)</label>
+        <input type="text" id="modifier-compositionGloss" name="compositionGloss" value="{{content.submitted.compositionGloss}}" aria-describedby="modifier-compositionGloss-hint" />
+        <small class="form-hint" id="modifier-compositionGloss-hint">One line, shown in the "Modifiers on this trick" rows of every trick page that uses it.</small>
+      </div>
       <div class="form-actions">
         <button type="submit" class="btn btn-primary btn-sm">Save Modifier</button>
         <a href="{{content.cancelHref}}" class="btn btn-outline btn-sm">Cancel</a>

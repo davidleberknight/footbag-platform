@@ -11,6 +11,8 @@
  * statuses, the field display, the persisted save with its one audit row, the
  * validation rules, and the persona guard.
  */
+import fs from 'node:fs';
+import path from 'node:path';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import request from '../fixtures/supertestWithOrigin';
@@ -101,6 +103,11 @@ beforeAll(async () => {
   insertFreestyleRecord(db, {
     id: 'rec_clean', record_type: 'trick_consecutive', display_name: 'Clean Holder',
     trick_name: 'Clean Trick', value_numeric: 7, confidence: 'probable',
+  });
+  // The row the curator-review-note case sets and then clears.
+  insertFreestyleRecord(db, {
+    id: 'rec_review', record_type: 'trick_consecutive', display_name: 'Review Holder',
+    trick_name: 'Review Trick', value_numeric: 8, confidence: 'probable',
   });
   // Notes stored before cleaning existed: a run of spaces the cleaner collapses.
   insertFreestyleRecord(db, {
@@ -268,6 +275,31 @@ describe('POST /admin/freestyle/records/:id/edit — successful save', () => {
     const bare = await get('/admin/freestyle/records/rec_save_ok/edit?saved=1', admin());
     expect(bare.status).toBe(200);
     expect(bare.text).not.toContain('form-success-banner');
+  });
+
+  // Defect caught: a review note set in the editor reaching the database only, so
+  // the next rebuild puts the seeded note back or loses it, or a cleared note
+  // left behind hiding the record's trick link.
+  it('saves a curator review note to the row and its save file, and clears it again', async () => {
+    const reviewNote = () => (db.prepare('SELECT curator_review_note AS v FROM freestyle_records WHERE id = ?')
+      .get('rec_review') as { v: string | null }).v;
+    const saveBody = () => JSON.parse(fs.readFileSync(
+      path.join(process.env.CURATOR_SAVES_DIR!, 'records', 'rec_review.json'), 'utf8')) as Record<string, unknown>;
+
+    const set = await post('/admin/freestyle/records/rec_review/edit', admin(),
+      validBody({ trickName: 'Review Trick', curatorReviewNote: 'Identity not yet settled.' }));
+    expect(set.status).toBe(303);
+    expect(reviewNote()).toBe('Identity not yet settled.');
+    expect(saveBody().curator_review_note).toBe('Identity not yet settled.');
+    expect(auditRows('rec_review').at(-1)!.metadata_json).toContain('curator_review_note');
+    const page = await get('/admin/freestyle/records/rec_review/edit', admin());
+    expect(page.text).toContain('>Identity not yet settled.</textarea>');
+
+    const cleared = await post('/admin/freestyle/records/rec_review/edit', admin(),
+      validBody({ trickName: 'Review Trick', curatorReviewNote: '' }));
+    expect(cleared.status).toBe(303);
+    expect(reviewNote()).toBeNull();
+    expect(saveBody().curator_review_note).toBeNull();
   });
 
   it('accepts a valid linked person id and clears the display name', async () => {

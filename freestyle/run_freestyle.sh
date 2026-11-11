@@ -98,6 +98,21 @@ echo "→ Rebuilding freestyle tables into ${DB}"
 # targets are rows 17, 19 and 21 create.
 "${PY}" "${L}/28_load_ev_adjudications.py"          --db "${DB}"
 
+# Staged curator content: the record review notes and modifier notes moved out of
+# the app into freestyle/inputs/curator_content/. TypeScript, because the staged
+# modules are; it reads them unchanged. After the record and dictionary loaders,
+# whose rows it annotates, and before the curator saves, so a save made in the
+# admin editors still wins over the seeded value.
+# TSX names the TypeScript runner, as PYTHON names the interpreter, so a test can
+# answer for this stage the way it answers for the Python loaders.
+if [[ -n "${TSX:-}" ]]; then
+  cr_run --warnings "$LOADER_WARNINGS" "28a_seed_curator_content.ts" -- \
+    "${TSX}" "${L}/28a_seed_curator_content.ts" --db "${DB}"
+else
+  cr_run --warnings "$LOADER_WARNINGS" "28a_seed_curator_content.ts" -- \
+    npx tsx "${L}/28a_seed_curator_content.ts" --db "${DB}"
+fi
+
 # Curator saves: what the admin screens wrote to committed files on a developer
 # machine. Last of the content writers, so a save wins over every base input.
 "${PY}" "${L}/29_apply_curator_saves.py"            --db "${DB}"

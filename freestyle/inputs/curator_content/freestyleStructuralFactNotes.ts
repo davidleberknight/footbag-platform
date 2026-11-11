@@ -1,3 +1,6 @@
+// Staged curator content: loader 28a seeds these notes into
+// freestyle_trick_modifiers.beginner_note on every rebuild, and the app reads
+// the column, edited in the modifier editor. Deleted with the pipeline at cutover.
 /**
  * Beginner-facing one-line notes for the structural-fact block on trick-detail
  * pages (the "Modifier(s)" row). Plain English, glossary-tooltip brevity: one
@@ -35,7 +38,6 @@ export const MODIFIER_BEGINNER_NOTES: ReadonlyMap<string, string> = new Map([
   ['diving',     'The upper body dives over the bag and back during the trick.'],
   ['swirling',   'Inserts the swirl-cell dexterity, a same-side out dex, ahead of the base (+1).'],
   ['inspinning', 'A forward body turn carried through the middle of the trick.'],
-  ['miraging',   'Descriptive mirage-family language for the inward standalone movement that adds one inward dexterity before the base (+1). Quantum is the same inward movement realized with a set role; miraging is not a launch set or a Quantum equivalent.'],
   ['whirling',   'A rotation modifier: a rotational opening run before the base (whirling osis is the blender).'],
   ['tapping',    'Adds a quick extra dexterity tap before the base.'],
   ['sailing',    'A compound set that runs two set treatments before the base.'],

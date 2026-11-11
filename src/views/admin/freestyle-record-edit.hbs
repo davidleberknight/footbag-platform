@@ -86,6 +86,11 @@
           <textarea id="record-notes" name="notes" rows="2">{{content.fields.notes}}</textarea>
         </div>
         <div class="form-field">
+          <label for="record-curatorReviewNote">Curator review note</label>
+          <textarea id="record-curatorReviewNote" name="curatorReviewNote" rows="2" aria-describedby="record-curatorReviewNote-hint">{{content.fields.curatorReviewNote}}</textarea>
+          <small class="form-hint" id="record-curatorReviewNote-hint">Shown on the records page; the record's trick link is hidden while a note is set.</small>
+        </div>
+        <div class="form-field">
           <label for="record-supersededBy">Superseded by (record id of the newer record, optional)</label>
           <input type="text" id="record-supersededBy" name="supersededBy" value="{{content.fields.supersededBy}}" />
         </div>

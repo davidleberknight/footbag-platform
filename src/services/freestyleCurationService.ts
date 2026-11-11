@@ -23,6 +23,8 @@
  *     confirmed, after a confirm page lists every linked trick whose stored ADD
  *     matches its computed ADD now and would not after; a trick's own ADD is
  *     never rewritten. The rotational bonus is always saved equal to the ADD.
+ *     The editor also owns each modifier's beginner note and composition gloss,
+ *     the one-line texts trick pages show beside it.
  *     Each create and edit writes its save file first and appends one
  *     `freestyle.modifier.created` or `freestyle.modifier.updated` audit row in
  *     the same transaction as the row.
@@ -2962,6 +2964,8 @@ export const freestyleCurationService = {
       addBonus:     String(row.add_bonus),
       modifierType: row.modifier_type,
       notes:        row.notes ?? '',
+      beginnerNote: row.beginner_note ?? '',
+      compositionGloss: row.composition_gloss ?? '',
     };
     return {
       seo:  { title: `Edit Modifier ${row.modifier_name}` },
@@ -3014,7 +3018,8 @@ export const freestyleCurationService = {
         () => getCuratedAuthoringAdapter().saveItem('modifiers', slug, modifierSaveBody(slug, fields)),
         () => transaction(() => {
           freestyleTrickModifiers.insert.run(
-            slug, fields.name, fields.addBonus, fields.addBonus, fields.type, fields.notes, new Date().toISOString(),
+            slug, fields.name, fields.addBonus, fields.addBonus, fields.type, fields.notes,
+            fields.beginnerNote, fields.compositionGloss, new Date().toISOString(),
           );
           appendAuditEntry({
             actionType:    'freestyle.modifier.created',
@@ -3052,6 +3057,8 @@ export const freestyleCurationService = {
     if (fields.addBonus !== current.add_bonus) changed.push('add_bonus');
     if (fields.type !== current.modifier_type) changed.push('modifier_type');
     if (fields.notes !== (current.notes ?? null)) changed.push('notes');
+    if (fields.beginnerNote !== (current.beginner_note ?? null)) changed.push('beginner_note');
+    if (fields.compositionGloss !== (current.composition_gloss ?? null)) changed.push('composition_gloss');
     if (changed.length === 0) return { status: 'unchanged' };
 
     const addChanged = changed.includes('add_bonus');
@@ -3064,7 +3071,10 @@ export const freestyleCurationService = {
     writeFileThenCommit(
       () => getCuratedAuthoringAdapter().saveItem('modifiers', slug, modifierSaveBody(slug, fields)),
       () => transaction(() => {
-        freestyleTrickModifiers.update.run(fields.name, fields.addBonus, fields.addBonus, fields.type, fields.notes, slug);
+        freestyleTrickModifiers.update.run(
+          fields.name, fields.addBonus, fields.addBonus, fields.type, fields.notes,
+          fields.beginnerNote, fields.compositionGloss, slug,
+        );
         appendAuditEntry({
           actionType:    'freestyle.modifier.updated',
           actorType:     'admin',
@@ -3089,6 +3099,8 @@ export interface FreestyleModifierInput {
   addBonus?:     string;
   modifierType?: string;
   notes?:        string;
+  beginnerNote?: string;
+  compositionGloss?: string;
 }
 
 // The types the registry carries; the schema's comment names the same three.
@@ -3096,6 +3108,8 @@ export const MODIFIER_TYPES = ['body', 'set', 'rotational-qualifier'] as const;
 const MODIFIER_SLUG_PATTERN = /^[a-z][a-z0-9_]*$/;
 const MODIFIER_NAME_MAX = 80;
 const MODIFIER_NOTES_MAX = 2000;
+// The beginner note and the composition gloss are single lines on a trick page.
+const MODIFIER_LINE_MAX = 400;
 // No modifier adds more than a handful; a larger number is a typing slip.
 const MODIFIER_ADD_MAX = 9;
 
@@ -3106,6 +3120,8 @@ interface ModifierDbRow {
   add_bonus_rotational: number;
   modifier_type: string;
   notes: string | null;
+  beginner_note: string | null;
+  composition_gloss: string | null;
 }
 
 interface ModifierFields {
@@ -3113,6 +3129,8 @@ interface ModifierFields {
   addBonus: number;
   type: string;
   notes: string | null;
+  beginnerNote: string | null;
+  compositionGloss: string | null;
 }
 
 export interface FreestyleModifierRegistryRow {
@@ -3187,7 +3205,18 @@ function validateModifierFields(input: FreestyleModifierInput): ModifierFields {
   if (notes.length > MODIFIER_NOTES_MAX) {
     throw new ValidationError(`Notes must be ${MODIFIER_NOTES_MAX} characters or fewer.`);
   }
-  return { name, addBonus: Number(addRaw), type, notes: nullIfEmpty(notes) };
+  const beginnerNote = cleanUserText(input.beginnerNote ?? '', 'single_line', 'beginnerNote');
+  if (beginnerNote.length > MODIFIER_LINE_MAX) {
+    throw new ValidationError(`Beginner note must be ${MODIFIER_LINE_MAX} characters or fewer.`);
+  }
+  const compositionGloss = cleanUserText(input.compositionGloss ?? '', 'single_line', 'compositionGloss');
+  if (compositionGloss.length > MODIFIER_LINE_MAX) {
+    throw new ValidationError(`Composition gloss must be ${MODIFIER_LINE_MAX} characters or fewer.`);
+  }
+  return {
+    name, addBonus: Number(addRaw), type, notes: nullIfEmpty(notes),
+    beginnerNote: nullIfEmpty(beginnerNote), compositionGloss: nullIfEmpty(compositionGloss),
+  };
 }
 
 function modifierSaveBody(slug: string, fields: ModifierFields): Record<string, string | number | null> {
@@ -3198,6 +3227,8 @@ function modifierSaveBody(slug: string, fields: ModifierFields): Record<string, 
     add_bonus_rotational: fields.addBonus,
     modifier_type: fields.type,
     notes: fields.notes,
+    beginner_note: fields.beginnerNote,
+    composition_gloss: fields.compositionGloss,
   };
 }
 
@@ -3269,6 +3300,8 @@ function modifierConfirmPage(
         addBonus:     input.addBonus ?? '',
         modifierType: input.modifierType ?? '',
         notes:        input.notes ?? '',
+        beginnerNote: input.beginnerNote ?? '',
+        compositionGloss: input.compositionGloss ?? '',
       },
     },
   };

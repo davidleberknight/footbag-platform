@@ -7,6 +7,6 @@
     "moduleResolution": "Bundler",
     "types": ["node", "vite/client"]
   },
-  "include": ["src/**/*", "tests/**/*"],
+  "include": ["src/**/*", "tests/**/*", "freestyle/inputs/curator_content/**/*.ts", "freestyle/loaders/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

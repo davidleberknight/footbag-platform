@@ -28,7 +28,8 @@
  * adds count an integer or empty, numeric value a number or empty, and a
  * superseded-by that references a real record other than the row itself). Every
  * free-text field (holder name, trick and sort names, value text, source, video
- * timecode, notes) is cleaned with the shared write-time text sanitizer before those
+ * timecode, notes, curator review note) is cleaned with the shared write-time text
+ * sanitizer before those
  * checks run, and the changed-field list and the own-repeat check compare cleaned
  * values. The
  * update and its one audit entry commit together in a single transaction; the record
@@ -109,6 +110,7 @@ export interface FreestyleRecordEditFields {
   videoUrl: string;
   videoTimecode: string;
   notes: string;
+  curatorReviewNote: string;
   supersededBy: string;
 }
 
@@ -145,6 +147,7 @@ export interface FreestyleRecordScalarInput {
   videoUrl?: string;
   videoTimecode?: string;
   notes?: string;
+  curatorReviewNote?: string;
   supersededBy?: string;
 }
 
@@ -172,6 +175,7 @@ interface RecordCurationDbRow {
   video_url: string | null;
   video_timecode: string | null;
   notes: string | null;
+  curator_review_note: string | null;
   superseded_by: string | null;
 }
 interface RecordBrowseDbRow {
@@ -362,6 +366,7 @@ export const freestyleRecordCurationService = {
       videoUrl:      sub ? (sub.videoUrl ?? '') : (row.video_url ?? ''),
       videoTimecode: sub ? (sub.videoTimecode ?? '') : (row.video_timecode ?? ''),
       notes:         sub ? (sub.notes ?? '') : (row.notes ?? ''),
+      curatorReviewNote: sub ? (sub.curatorReviewNote ?? '') : (row.curator_review_note ?? ''),
       supersededBy:  sub ? (sub.supersededBy ?? '') : (row.superseded_by ?? ''),
     };
 
@@ -415,6 +420,7 @@ export const freestyleRecordCurationService = {
       videoUrl:      sub?.videoUrl ?? '',
       videoTimecode: sub?.videoTimecode ?? '',
       notes:         sub?.notes ?? '',
+      curatorReviewNote: sub?.curatorReviewNote ?? '',
       supersededBy:  sub?.supersededBy ?? '',
     };
 
@@ -471,13 +477,14 @@ export const freestyleRecordCurationService = {
     mark(v.videoUrl !== (current.video_url ?? null), 'video_url');
     mark(v.videoTimecode !== comparableStored(current.video_timecode, 'single_line'), 'video_timecode');
     mark(v.notes !== comparableStored(current.notes, 'multi_line'), 'notes');
+    mark(v.curatorReviewNote !== comparableStored(current.curator_review_note, 'multi_line'), 'curator_review_note');
     mark(v.supersededBy !== (current.superseded_by ?? null), 'superseded_by');
 
     writeFileThenCommit(changedFields.length > 0 ? saveRecordFile(id, v) : null, () => transaction(() => {
       freestyleRecords.updateForCuration.run(
         v.recordType, v.personId, v.displayName, v.trickName, v.sortName, v.addsCount,
         v.valueNumeric, v.valueText, v.achievedDate, v.datePrecision, v.source, v.confidence,
-        v.videoUrl, v.videoTimecode, v.notes, v.supersededBy, id,
+        v.videoUrl, v.videoTimecode, v.notes, v.curatorReviewNote, v.supersededBy, id,
       );
       appendAuditEntry({
         actionType:    'freestyle.record.updated',
@@ -507,7 +514,7 @@ export const freestyleRecordCurationService = {
       freestyleRecords.insertForCuration.run(
         id, v.recordType, v.personId, v.displayName, v.trickName, v.sortName, v.addsCount,
         v.valueNumeric, v.valueText, v.achievedDate, v.datePrecision, v.source, v.confidence,
-        v.videoUrl, v.videoTimecode, v.notes, v.supersededBy,
+        v.videoUrl, v.videoTimecode, v.notes, v.curatorReviewNote, v.supersededBy,
       );
       appendAuditEntry({
         actionType:    'freestyle.record.created',
@@ -531,7 +538,7 @@ function saveRecordFile(id: string, v: ValidatedRecord): () => CuratedSaveReceip
     value_numeric: v.valueNumeric, value_text: v.valueText, achieved_date: v.achievedDate,
     date_precision: v.datePrecision, source: v.source, confidence: v.confidence,
     video_url: v.videoUrl, video_timecode: v.videoTimecode, notes: v.notes,
-    superseded_by: v.supersededBy,
+    curator_review_note: v.curatorReviewNote, superseded_by: v.supersededBy,
   });
 }
 
@@ -541,7 +548,7 @@ function ownIdenticalCreatedRecordId(v: ValidatedRecord, actorMemberId: string):
   const matches = freestyleRecords.findIdenticalForCuration.all(
     v.recordType, v.personId, v.displayName, v.trickName, v.sortName, v.addsCount,
     v.valueNumeric, v.valueText, v.achievedDate, v.datePrecision, v.source, v.confidence,
-    v.videoUrl, v.videoTimecode, v.notes, v.supersededBy,
+    v.videoUrl, v.videoTimecode, v.notes, v.curatorReviewNote, v.supersededBy,
   ) as { id: string }[];
   for (const match of matches) {
     if (findOwnLatestAudit(actorMemberId, 'freestyle.record.created', 'freestyle_record', match.id)) {
@@ -567,6 +574,7 @@ interface ValidatedRecord {
   videoUrl: string | null;
   videoTimecode: string | null;
   notes: string | null;
+  curatorReviewNote: string | null;
   supersededBy: string | null;
 }
 
@@ -596,6 +604,7 @@ function validateRecordInput(input: FreestyleRecordScalarInput, selfId: string):
   const valueText     = text(input.valueText, 'single_line', 'valueText');
   const videoTimecode = text(input.videoTimecode, 'single_line', 'videoTimecode');
   const notes         = text(input.notes, 'multi_line', 'notes');
+  const curatorReviewNote = text(input.curatorReviewNote, 'multi_line', 'curatorReviewNote');
 
   if (!source && !fieldErrors.source) fieldErrors.source = 'Source is required.';
 
@@ -665,6 +674,7 @@ function validateRecordInput(input: FreestyleRecordScalarInput, selfId: string):
     videoUrl:      emptyToNull(input.videoUrl),
     videoTimecode,
     notes,
+    curatorReviewNote,
     supersededBy,
   };
 }

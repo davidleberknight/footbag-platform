@@ -20,10 +20,9 @@ disagrees with its home is a bug, not an alternative reading.
 | Operational (execution) notation | `freestyle_tricks.operational_notation` (database) | `freestyleResolvedFormulas.ts` `operationalNotation` is a **fallback only**, used when the database column is empty; it never shadows a populated row. The 12 core atoms are the one exception: `CORE_TRICK_SPEC` owns their notation |
 | JOB notation form (`freestyle_tricks.notation`) | `freestyle/doctrine/JOB_NOTATION.md` (the semantic-label form: decomposition vs name) | this document continues to govern source priority and operational-notation truth; `JOB_NOTATION.md` governs only the label's form |
 | Aliases (folk / historical / spelling) | `freestyle_trick_aliases` table (from `red_additions` aliases column + `trick_aliases.csv`) | every rendering surface reads this table; the `aliases_json` column is deprecated and used only as a fallback for rows the table does not yet cover |
-| Operator / modifier ADD, structure, X-Dex | `src/content/freestyleOperatorReference.ts` | `freestyleMovementSystems.ts`, `freestyleStructuralFactNotes.ts`, `freestyleOperatorGrammar.ts`, the `freestyle_trick_modifiers` registry, and the glossary operator text |
+| Operator / modifier ADD, structure, X-Dex | `src/content/freestyleOperatorReference.ts` | `freestyleOperatorGrammar.ts`, the `freestyle_trick_modifiers` registry (its beginner notes and composition glosses included), and the glossary operator text |
 | Family classification | `freestyle_tricks.trick_family` (database) | the public display roster in `freestylePublicFamilies.ts` / `freestyleFamilyTiers.ts` is display-only and never changes the canonical column |
-| ADD-analysis prose (component table, notes, discrepancy cases) | `src/content/freestyleAddAnalysisContent.ts` | the ADD-analysis template renders it verbatim |
-| External-source ADD divergences (PassBack) | `src/content/freestyleAddDisagreements.ts` | rendered on the ADD-analysis page |
+| ADD-analysis prose (component table, notes, worked examples, disagreement reasons) | `src/content/freestyleAddAnalysisContent.ts` | the ADD-analysis template renders it verbatim |
 | Doctrine rulings (Red / curator) | `freestyle/doctrine/RED_RULINGS.md` and the rest of this directory | per-row CSV provenance cites, never restates, a ruling |
 
 ## The ADD-authority order (arithmetic-closes policy)

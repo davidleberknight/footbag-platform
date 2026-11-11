@@ -70,14 +70,6 @@ describe('GET /freestyle/tricks/:slug — Miraging pages drop the stale set-upti
     expect(text).not.toContain('Set / Uptime Systems');
   });
 
-  it('miraging pages still carry the corrected Miraging modifier row (descriptive standalone movement, not a launch set)', async () => {
-    for (const slug of ['miraging_pickup', 'miraging_eclipse']) {
-      const { text } = await trick(slug);
-      expect(text, slug).toMatch(/mirage-family language/i);
-      expect(text, slug).toMatch(/not a launch set/i);
-    }
-  });
-
   it('a confirmed-set (atomic) trick lists its set as a modifier and renders no movement-system row', async () => {
     // Trick pages carry no movement-system row at all, since the dictionary
     // has no movement-system view; the set still appears as a modifier, linked

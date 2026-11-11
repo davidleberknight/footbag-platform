@@ -1,3 +1,6 @@
+// Staged curator content: loader 28a seeds these glosses into
+// freestyle_trick_modifiers.composition_gloss on every rebuild, and the app reads
+// the column, edited in the modifier editor. Deleted with the pipeline at cutover.
 /**
  * freestyleMovementSystems.ts
  * ============================
@@ -74,11 +77,6 @@ export const MODIFIER_COMPOSITION_GLOSSES: ReadonlyMap<string, string> = new Map
   ['diving',
     'DIVE + base: the upper body dives over the bag and back during the dex; the bag falls to the same side. ' +
     'Compounds: DIVE + CLIPPER, DIVE + MIRAGE.',
-  ],
-  ['miraging',
-    'MIRAGING + base: a historical mirage-family nickname for a single inward dex ' +
-    '(SET > OP IN [DEX]) at the front of the base trick. Descriptive standalone ' +
-    'language, not a launch set; specific compound decompositions are held for curator review.',
   ],
   ['whirling',
     'WHIRLING + base: a whirl dex during uptime before the bag peaks, ' +

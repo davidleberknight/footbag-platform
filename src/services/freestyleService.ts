@@ -148,10 +148,6 @@ import {
   getSymbolicEquivalenceChain,
 } from '../content/freestyleSymbolicEquivalences';
 import {
-  filterAliasesForBrowse,
-  getAliasGovernanceEntry,
-} from '../content/freestyleAliasGovernance';
-import {
   FreestyleTrickKind,
   resolveTrickKind,
 } from '../content/freestyleTrickKindOverrides';
@@ -163,8 +159,6 @@ import {
   resolveFamilyDisplayName,
   resolveFamilyDualMemberships,
 } from '../content/freestyleFamilyOverrides';
-import { resolveModifierCompositionGloss } from '../content/freestyleMovementSystems';
-import { resolveModifierBeginnerNote } from '../content/freestyleStructuralFactNotes';
 import {
   PUBLIC_DISPLAY_FAMILIES,
   resolveDisplayFamily,
@@ -5109,11 +5103,8 @@ function byCanonicalNameAlpha(a: { canonicalName: string }, b: { canonicalName: 
 // Symbolic-equivalence layer (Canonical-Surface-Realignment S1+S3):
 //   - Compound tricks: readings come from freestyleSymbolicEquivalences.ts
 //     (curator-authored multi-reading chains; stopping-depth-aware).
-//   - Atom-level canonical aliases: readings come from the allow-list in
-//     freestyleAliasGovernance.ts (restraint-first; only entries explicitly
-//     approved for browse surface).
-//   - The two sources are merged. Empty result → template suppresses the
-//     ≡ row entirely.
+//   - An alias is never a reading: aliases render only on the "Also called"
+//     line below, gated by their own display flag.
 //
 // `commonAliases` is a separate layer: the folk names / spelling variants for
 // the "Also called:" line, distinct from the ≡ readings above it. See its
@@ -5199,17 +5190,16 @@ function shapeDictionaryTrickCard(
   const chainReadings        = chainReadingsRaw.filter(
     r => r.toLowerCase().trim() !== canonicalLowerForFilter,
   );
-  const browseSafeAliases    = filterAliasesForBrowse(indexRow.slug, indexRow.aliases);
-  const symbolicEquivalences = [...chainReadings, ...browseSafeAliases];
+  const symbolicEquivalences = chainReadings;
 
   // "Also called" — folk names, spelling variants, and common aliases for the
   // card's second info line, kept separate from the structural ≡ readings above
-  // so the two never blur together. Sourced from the full alias set, then pruned
-  // so a name never appears twice and noise stays out: drop anything already
-  // shown as a ≡ reading, parenthetical notes, an alias that merely re-states the
-  // trick's own name with different spacing or hyphenation (orthographic noise),
-  // and any alias the governance layer marks as not-for-browse. Genuine spelling
-  // variants (e.g. a diacritic form) survive. De-duped case-insensitively.
+  // so the two never blur together. Sourced from the displayed alias set (an
+  // alias held out of display never reaches it), then pruned so a name never
+  // appears twice and noise stays out: drop anything already shown as a ≡
+  // reading, parenthetical notes, and an alias that merely re-states the trick's
+  // own name with different spacing or hyphenation (orthographic noise). Genuine
+  // spelling variants (e.g. a diacritic form) survive. De-duped case-insensitively.
   const equivReadingsLower = new Set(symbolicEquivalences.map(e => e.toLowerCase().trim()));
   const stripOrthographic  = (s: string) => s.toLowerCase().replace(/[\s\-_]+/g, '');
   const canonicalStripped  = stripOrthographic(indexRow.canonicalName);
@@ -5223,8 +5213,6 @@ function shapeDictionaryTrickCard(
     if (equivReadingsLower.has(norm)) continue;
     const stripped = stripOrthographic(alias);
     if (stripped === canonicalStripped || stripped === slugStripped) continue;
-    const gov = getAliasGovernanceEntry(indexRow.slug, alias);
-    if (gov && gov.surfaceOnBrowse === false) continue;
     alsoCalledSeen.add(norm);
     alsoCalled.push(alias);
   }
@@ -5710,21 +5698,13 @@ function shapeDictEntry(
   // back to the deprecated aliases_json column only for rows the table does not
   // cover at all. A trick whose aliases are all curated out of display has an
   // empty list by intent, and falling back there would put every name a
-  // curator just hid straight back on the page.
-  // Aliases the governance layer marks not-for-surface (surfaceOnBrowse:false)
-  // are held out of the visible alias set on the detail page too, matching the
-  // browse "Also called" line, so a name the site does not present as an exact
-  // alias (e.g. Infinity on Butterfly) never renders here.
-  let aliases: string[] = [...aliasesFromTable].filter(a => {
-    const gov = getAliasGovernanceEntry(row.slug, a);
-    return !(gov && gov.surfaceOnBrowse === false);
-  });
+  // curator just hid straight back on the page. A name the site does not present
+  // as an exact alias (e.g. Infinity on Butterfly) is held out by its row's
+  // display gate, the same gate the browse "Also called" line reads.
+  let aliases: string[] = [...aliasesFromTable];
   if (aliases.length === 0 && !tableCoversTrick && row.aliases_json) {
     try {
-      aliases = (JSON.parse(row.aliases_json) as string[]).filter(a => {
-        const gov = getAliasGovernanceEntry(row.slug, a);
-        return !(gov && gov.surfaceOnBrowse === false);
-      });
+      aliases = JSON.parse(row.aliases_json) as string[];
     } catch { /* ignore malformed JSON */ }
   }
 
@@ -6052,6 +6032,7 @@ function buildStructuralFacts(
   isBase: boolean,
   modifierLinks: ModifierLinkInfo[],
   canonicalNameOf: (slug: string) => string | null,
+  beginnerNoteOf: (modifierSlug: string) => string | null,
 ): TrickStructuralFacts {
   // Family base — the family root; suppressed on the base's own page so it
   // does not point at itself. Named by the root trick's own canonical name, so
@@ -6078,7 +6059,7 @@ function buildStructuralFacts(
       name: operatorTitleCase(link.slug),
       slug: link.slug,
       href: modifierPageHref(link.slug),
-      note: resolveModifierBeginnerNote(link.slug),
+      note: beginnerNoteOf(link.slug),
     });
   }
 
@@ -6869,7 +6850,7 @@ export const freestyleService = {
             out.push({
               name:         link.modifier_name,
               clusterLabel: clusterLabelForModifier(ms),
-              gloss:        resolveModifierCompositionGloss(ms),
+              gloss:        link.composition_gloss,
             });
           }
           return out;
@@ -7121,6 +7102,7 @@ export const freestyleService = {
               dictEntry?.isBase ?? false,
               modsForFacts,
               s => allDictRows.find(r => r.slug === s)?.canonical_name ?? null,
+              ms => allModifierRows.find(r => r.slug === ms)?.beginner_note ?? null,
             );
             return facts.hasAny ? facts : null;
           })(),

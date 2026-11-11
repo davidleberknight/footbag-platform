@@ -2231,6 +2231,8 @@ export interface FreestyleRecordRow {
   video_url: string | null;
   video_timecode: string | null;
   notes: string | null;
+  // Set while the record name's canonical trick is under curator review.
+  curator_review_note: string | null;
   superseded_by?: string | null;
 }
 
@@ -2251,7 +2253,8 @@ export const freestyleRecords = {
       fr.confidence,
       fr.video_url,
       fr.video_timecode,
-      fr.notes
+      fr.notes,
+      fr.curator_review_note
     FROM freestyle_records AS fr
     LEFT JOIN historical_persons AS hp
       ON hp.person_id = fr.person_id
@@ -2292,7 +2295,8 @@ export const freestyleRecords = {
       fr.confidence,
       fr.video_url,
       fr.video_timecode,
-      fr.notes
+      fr.notes,
+      fr.curator_review_note
     FROM freestyle_records AS fr
     LEFT JOIN historical_persons AS hp
       ON hp.person_id = fr.person_id
@@ -2349,7 +2353,8 @@ export const freestyleRecords = {
       fr.confidence,
       fr.video_url,
       fr.video_timecode,
-      fr.notes
+      fr.notes,
+      fr.curator_review_note
     FROM freestyle_records AS fr
     LEFT JOIN historical_persons AS hp
       ON hp.person_id = fr.person_id
@@ -2380,6 +2385,7 @@ export const freestyleRecords = {
       fr.video_url,
       fr.video_timecode,
       fr.notes,
+      fr.curator_review_note,
       fr.superseded_by
     FROM freestyle_records AS fr
     LEFT JOIN historical_persons AS hp
@@ -2414,6 +2420,7 @@ export const freestyleRecords = {
       fr.video_url,
       fr.video_timecode,
       fr.notes,
+      fr.curator_review_note,
       fr.superseded_by
     FROM freestyle_records AS fr
     LEFT JOIN historical_persons AS hp
@@ -2442,7 +2449,8 @@ export const freestyleRecords = {
       fr.confidence,
       fr.video_url,
       fr.video_timecode,
-      fr.notes
+      fr.notes,
+      fr.curator_review_note
     FROM freestyle_records AS fr
     LEFT JOIN historical_persons AS hp
       ON hp.person_id = fr.person_id
@@ -2479,7 +2487,8 @@ export const freestyleRecords = {
   get getForCurationById() { return db.prepare(`
     SELECT id, record_type, person_id, display_name, trick_name, sort_name,
            adds_count, value_numeric, value_text, achieved_date, date_precision,
-           source, confidence, video_url, video_timecode, notes, superseded_by
+           source, confidence, video_url, video_timecode, notes, curator_review_note,
+           superseded_by
     FROM freestyle_records
     WHERE id = ?
   `); },
@@ -2499,7 +2508,7 @@ export const freestyleRecords = {
     SET record_type = ?, person_id = ?, display_name = ?, trick_name = ?,
         sort_name = ?, adds_count = ?, value_numeric = ?, value_text = ?,
         achieved_date = ?, date_precision = ?, source = ?, confidence = ?,
-        video_url = ?, video_timecode = ?, notes = ?, superseded_by = ?,
+        video_url = ?, video_timecode = ?, notes = ?, curator_review_note = ?, superseded_by = ?,
         updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
     WHERE id = ?
   `); },
@@ -2510,8 +2519,8 @@ export const freestyleRecords = {
     INSERT INTO freestyle_records
       (id, record_type, person_id, display_name, trick_name, sort_name, adds_count,
        value_numeric, value_text, achieved_date, date_precision, source, confidence,
-       video_url, video_timecode, notes, superseded_by, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+       video_url, video_timecode, notes, curator_review_note, superseded_by, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
             strftime('%Y-%m-%dT%H:%M:%fZ','now'), strftime('%Y-%m-%dT%H:%M:%fZ','now'))
   `); },
 
@@ -2525,7 +2534,7 @@ export const freestyleRecords = {
        AND value_numeric IS ? AND value_text IS ? AND achieved_date IS ?
        AND date_precision IS ? AND source IS ? AND confidence IS ?
        AND video_url IS ? AND video_timecode IS ? AND notes IS ?
-       AND superseded_by IS ?
+       AND curator_review_note IS ? AND superseded_by IS ?
   `); },
 };
 
@@ -2611,6 +2620,8 @@ export interface FreestyleTrickModifierRow {
   add_bonus_rotational: number;
   modifier_type:        string;
   notes:                string | null;
+  beginner_note:        string | null;
+  composition_gloss:    string | null;
 }
 
 // Flat row from freestyleTrickModifiers.listTricksByModifier — one row per
@@ -2636,6 +2647,8 @@ export interface FreestyleTrickModifierLinkDetailRow {
   add_bonus:            number;
   add_bonus_rotational: number;
   modifier_notes:       string | null;
+  beginner_note:        string | null;
+  composition_gloss:    string | null;
   apply_order:          number;
 }
 
@@ -3268,13 +3281,15 @@ export interface FreestyleMediaCoveredSourceRow {
 
 export const freestyleTrickModifiers = {
   get listAll() { return db.prepare(`
-    SELECT slug, modifier_name, add_bonus, add_bonus_rotational, modifier_type, notes
+    SELECT slug, modifier_name, add_bonus, add_bonus_rotational, modifier_type, notes,
+           beginner_note, composition_gloss
     FROM freestyle_trick_modifiers
     ORDER BY modifier_type ASC, modifier_name ASC
   `); },
 
   get getBySlug() { return db.prepare(`
-    SELECT slug, modifier_name, add_bonus, add_bonus_rotational, modifier_type, notes
+    SELECT slug, modifier_name, add_bonus, add_bonus_rotational, modifier_type, notes,
+           beginner_note, composition_gloss
     FROM freestyle_trick_modifiers
     WHERE slug = ?
   `); },
@@ -3283,13 +3298,15 @@ export const freestyleTrickModifiers = {
   // carries its load time rather than the per-row audit stamps.
   get insert() { return db.prepare(`
     INSERT INTO freestyle_trick_modifiers
-      (slug, modifier_name, add_bonus, add_bonus_rotational, modifier_type, notes, loaded_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+      (slug, modifier_name, add_bonus, add_bonus_rotational, modifier_type, notes,
+       beginner_note, composition_gloss, loaded_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `); },
 
   get update() { return db.prepare(`
     UPDATE freestyle_trick_modifiers
-    SET modifier_name = ?, add_bonus = ?, add_bonus_rotational = ?, modifier_type = ?, notes = ?
+    SET modifier_name = ?, add_bonus = ?, add_bonus_rotational = ?, modifier_type = ?, notes = ?,
+        beginner_note = ?, composition_gloss = ?
     WHERE slug = ?
   `); },
 
@@ -3348,6 +3365,8 @@ export const freestyleTrickModifiers = {
       m.add_bonus             AS add_bonus,
       m.add_bonus_rotational  AS add_bonus_rotational,
       m.notes                 AS modifier_notes,
+      m.beginner_note         AS beginner_note,
+      m.composition_gloss     AS composition_gloss,
       l.apply_order           AS apply_order
     FROM freestyle_trick_modifier_links l
     INNER JOIN freestyle_trick_modifiers m ON m.slug = l.modifier_slug
