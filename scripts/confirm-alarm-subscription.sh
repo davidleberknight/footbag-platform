@@ -15,7 +15,9 @@
 # the operator has to open each confirmation email. Run at a terminal, the
 # script reads which subscriptions are still pending, says which inbox to open
 # and gives the exact search that finds the emails among the alarm mail, and
-# offers to send fresh ones. The operator then either clicks each email's link
+# offers to send fresh ones, recreating only the pending subscriptions; only a
+# typed yes or no answers that question, and the end of input sends nothing.
+# The operator then either clicks each email's link
 # and presses Enter, and the script reads AWS again, or pastes the links in any
 # order. A clicked link confirms the operations mailbox's subscription, which
 # then receives alarm mail; a pasted one is confirmed with authentication
@@ -53,7 +55,8 @@
 # click on the operations mailbox's link (including when it already was, and, at
 # a terminal, when nothing was pending), 1 when one could not be confirmed or the read-back
 # disagrees, 2 on a usage error or a refused piped link, and 3 at a terminal
-# when a subscription is still pending at the end because its link was skipped.
+# when a subscription is still pending at the end because its link was skipped
+# or the fresh emails were declined at the resend's APPLY.
 #
 # Test seam: FOOTBAG_AWS_BIN replaces the AWS CLI for the subscription calls. A
 # run using it says so on stderr, because a stubbed run proves nothing about the
@@ -148,7 +151,7 @@ confirm_parsed() {
         --topic-arn "$TOPIC_ARN" --token "$TOKEN" \
         --authenticate-on-unsubscribe true \
         --query SubscriptionArn --output text)"; then
-    cr_error "the service refused the confirmation for ${topic_name}. AWS deletes an unconfirmed subscription 48 hours after sending its email, and a link from an older email no longer works: bash scripts/reconfirm-alarm-subscriptions.sh --target ${TARGET} recreates the subscriptions and sends a fresh confirmation email."
+    cr_error "the service refused the confirmation for ${topic_name}. AWS deletes an unconfirmed subscription 48 hours after sending its email, and a link from an older email no longer works: bash scripts/reconfirm-alarm-subscriptions.sh --target ${TARGET} --only-pending recreates the pending subscriptions and sends each a fresh confirmation email."
     return 1
   fi
   # The outcome is what the service now holds, not what the call returned.
@@ -251,7 +254,6 @@ read_pending() {
   return 0
 }
 read_pending
-SENT_FRESH=0
 
 # A subscription confirmed by clicking its email link receives alarm mail, so it
 # is confirmed; an unsubscribe click would remove it, and the status read then
@@ -282,11 +284,9 @@ Each one has its own confirmation email from AWS. To find them:
      confirmation emails. Each one's text names its topic ("You have chosen to
      subscribe to the topic: ...:<topic name>"); match it to the list above.
      Gmail groups them into one conversation and hides the repeated text,
-     link included. If an email shows no "Confirm subscription" link, delete
-     the older confirmation emails in that conversation (their links no
-     longer work) and reopen it, or open the email's menu (three dots at its
-     top right), choose "Show original" and copy the link that contains
-     ConfirmSubscription.
+     link included. If an email shows no "Confirm subscription" link, open
+     the email's menu (three dots at its top right), choose "Show original"
+     and copy the link that contains ConfirmSubscription.
   3. In each one, click "Confirm subscription", then come back here and press
      Enter: this run reads AWS again and shows what is still waiting. Or, if
      you prefer, right-click "Confirm subscription", choose "Copy link
@@ -296,21 +296,39 @@ Each one has its own confirmation email from AWS. To find them:
 AWS deletes an unconfirmed subscription 48 hours after sending its email, so
 an older email's link no longer works, and a deleted email cannot be sent again.
 If you do not have every one of these emails from the last 48 hours, this run
-can send fresh ones first: it recreates the subscriptions, which asks its own
-APPLY, and AWS emails each address again within a few minutes.
+can send fresh ones first: it recreates only the pending subscriptions, which
+asks its own APPLY, and AWS emails each address again within a few minutes.
 EOF
-HAVE="yes"
-if (( ! SENT_FRESH )); then
+# Only an exact yes or no answers the question; anything else asks again, and
+# the end of input changes nothing, since "no" recreates subscriptions.
+echo ""
+printf 'Do you have a confirmation email from the last 48 hours for every subscription listed above? yes = confirm them now. no = send fresh emails for these %d only: it recreates just these pending subscriptions, so any confirmation link you already have for them stops working, and leaves every confirmed one as it is (it asks its own APPLY first). (yes/no): ' "${#PENDING[@]}"
+HAVE=""
+while true; do
+  if ! IFS= read -r HAVE; then
+    # The input has closed, so nothing more can be asked or pasted.
+    echo ""
+    echo "No answer; nothing was changed, and ${#PENDING[@]} subscription(s) stay pending."
+    cr_unproved "no answer to the fresh-email question, so nothing was sent and ${#PENDING[@]} subscription(s) on ${TARGET} stay pending; run bash scripts/confirm-alarm-subscription.sh --target ${TARGET} again"
+    cr_finish_with 3 PENDING
+  fi
+  [[ "$HAVE" == yes || "$HAVE" == no ]] && break
+  printf 'Answer yes or no. (yes/no): '
+done
+if [[ "$HAVE" == no ]]; then
   echo ""
-  printf 'Do you have a confirmation email from the last 48 hours for every subscription listed above? yes = confirm them now. no = recreate all %d of them, which makes every confirmation link you already have stop working, and AWS sends new emails within a few minutes (it asks its own APPLY first). (yes/no): ' "${#PENDING[@]}"
-  HAVE=""
-  IFS= read -r HAVE || true
-fi
-if [[ "$HAVE" != "yes" ]]; then
-  echo ""
-  echo "Sending fresh confirmation emails for ${TARGET}."
-  if ! bash "$RECONFIRM_BIN" --target "$TARGET"; then
-    cr_die "the fresh confirmation emails were not sent (the resend above stopped); nothing was confirmed"
+  echo "Sending fresh confirmation emails for the pending subscriptions on ${TARGET}."
+  resend_rc=0
+  bash "$RECONFIRM_BIN" --target "$TARGET" --only-pending || resend_rc=$?
+  if (( resend_rc == 3 )); then
+    # The resend's APPLY was not given: nothing changed, and the
+    # subscriptions are pending exactly as before.
+    echo "Not resent; the subscriptions stay pending."
+    cr_unproved "fresh confirmation emails: not sent, so ${#PENDING[@]} subscription(s) on ${TARGET} stay pending; run bash scripts/confirm-alarm-subscription.sh --target ${TARGET} again to send them"
+    cr_finish_with 3 PENDING
+  fi
+  if (( resend_rc != 0 )); then
+    cr_die "the fresh confirmation emails were not sent (the resend above stopped, exit ${resend_rc}); nothing was confirmed"
   fi
   read_pending
   if (( ${#PENDING[@]} == 0 )); then
@@ -389,10 +407,10 @@ for w in "${WAITING[@]}"; do STILL_PENDING+=("$(cut -d' ' -f2 <<<"$w")"); done
 if (( ${#STILL_PENDING[@]} )); then
   echo ""
   echo "Still pending: ${STILL_PENDING[*]}."
-  echo "To get fresh confirmation emails, run"
-  echo "  bash scripts/reconfirm-alarm-subscriptions.sh --target ${TARGET}"
+  echo "To get fresh confirmation emails for only these, run"
+  echo "  bash scripts/reconfirm-alarm-subscriptions.sh --target ${TARGET} --only-pending"
   echo "and then this script again within 48 hours."
-  cr_unproved "still pending: ${STILL_PENDING[*]}; fresh emails come from bash scripts/reconfirm-alarm-subscriptions.sh --target ${TARGET}"
+  cr_unproved "still pending: ${STILL_PENDING[*]}; fresh emails come from bash scripts/reconfirm-alarm-subscriptions.sh --target ${TARGET} --only-pending"
   (( ${#CR_ERRORS[@]} )) && cr_finish
   cr_finish_with 3 PENDING
 fi

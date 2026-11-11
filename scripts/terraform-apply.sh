@@ -190,9 +190,15 @@ SKIP_EMPTY=0
 # re-created, AWS holds the trust with the deleted user's principal ID, so a
 # plain plan already shows an in-place update of the trust and a plain apply
 # re-saves it; replacing the role is for a trust that apply leaves broken.
+# The four alarm email subscriptions follow: recreating a pending one is the
+# only way to have AWS send it a fresh confirmation email, and
+# scripts/reconfirm-alarm-subscriptions.sh --only-pending recreates just those,
+# leaving the confirmed ones alone.
 # Anything else rotates by its own script or not by replacement at all.
 REPLACE_ADDR=""
-REPLACEABLE_ADDRESSES=("random_id.origin_verify_secret" "aws_kms_key.jwt_signing" "aws_iam_role.app_runtime")
+REPLACEABLE_ADDRESSES=("random_id.origin_verify_secret" "aws_kms_key.jwt_signing" "aws_iam_role.app_runtime"
+  "aws_sns_topic_subscription.alarm_email" "aws_sns_topic_subscription.alarm_email_us_west_2"
+  "aws_sns_topic_subscription.alarm_ops_alert[0]" "aws_sns_topic_subscription.alarm_ops_alert_us_west_2[0]")
 # The web instance holds the only copy of everything on its disk that a backup
 # does not carry, and the member database between backups, so it is replaced by
 # one route only: scripts/bootstrap-host.sh --replace-instance, which takes a

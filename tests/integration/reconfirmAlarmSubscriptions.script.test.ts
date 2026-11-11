@@ -59,10 +59,36 @@ describe('reconfirm-alarm-subscriptions.sh --status', () => {
   };
 
   it('reports an authenticated subscription as safe and passes', () => {
-    const r = run(['--status'], { SUBS_footbag_staging_alarms: 'sub-1\\tops@example.invalid\\n' });
+    const r = run(['--status'], {
+      SUBS_footbag_staging_alarms: 'sub-1\\tops@example.invalid\\n',
+      SUBS_footbag_staging_alarms_usw2: 'sub-2\\tops@example.invalid\\n',
+    });
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).toMatch(/footbag-staging-alarms: ops@example\.invalid authenticated/);
     expect(r.stderr).not.toMatch(/ WARN/);
+  });
+
+  // Defect caught: the operations mailbox gone from the main topic (an
+  // unsubscribe click removes it) read as clean, so the sitting runs the steps
+  // that need alarm mail while no alarm reaches anyone.
+  it('fails when the main topic has no subscription for the operations mailbox', () => {
+    const r = run(['--status'], { SUBS_footbag_staging_alarms_usw2: 'sub-2\\tops@example.invalid\\n' });
+    expect(r.status, r.stderr).toBe(1);
+    expect(r.stderr).toMatch(/footbag-staging-alarms has no email subscription for the operations mailbox/);
+    expect(r.stderr).toMatch(/terraform-apply\.sh --target staging/);
+  });
+
+  // Defect caught: the operations mailbox gone from the us-west-2 topic read as
+  // clean, so AWS Health notices and the backup region's alarms reach no one.
+  // The group's subscription there does not stand in for the mailbox's.
+  it('fails when the us-west-2 topic has no subscription for the operations mailbox', () => {
+    const r = run(['--status'], {
+      SUBS_footbag_staging_alarms: 'sub-1\\tops@example.invalid\\n',
+      SUBS_footbag_staging_alarms_critical: 'sub-3\\tgroup@example.invalid\\n',
+      SUBS_footbag_staging_alarms_usw2: 'sub-2\\tgroup@example.invalid\\n',
+    });
+    expect(r.status, r.stderr).toBe(1);
+    expect(r.stderr).toMatch(/footbag-staging-alarms-usw2 has no subscription for the operations mailbox ops@example\.invalid/);
   });
 
   // Defect caught: the shared group's subscription confirmed by a click, which
@@ -73,8 +99,9 @@ describe('reconfirm-alarm-subscriptions.sh --status', () => {
   // code: 4 for clicked only must not read as clean, nor as pending.
   it('warns on the group address confirmed by a click, naming the recreation, and exits 4', () => {
     const r = run(['--status'], {
+      SUBS_footbag_staging_alarms: 'sub-1\\tops@example.invalid\\n',
       SUBS_footbag_staging_alarms_critical: 'sub-3\\tgroup@example.invalid\\n',
-      SUBS_footbag_staging_alarms_usw2: 'sub-2\\tgroup@example.invalid\\n',
+      SUBS_footbag_staging_alarms_usw2: 'sub-4\\tops@example.invalid\\nsub-2\\tgroup@example.invalid\\n',
       AUTH_2: 'false',
     });
     expect(r.status, r.stderr).toBe(4);
@@ -180,5 +207,104 @@ describe('reconfirm-alarm-subscriptions.sh, recreating the subscriptions', () =>
     const r = run(['--tfvars', tfvars, '--yes'], { RECONFIRM_TERRAFORM: tf });
     expect(r.status).not.toBe(0);
     expect(readFileSync(tfvars, 'utf8')).toBe('alarm_email_subscription_generation = 1\n');
+  });
+});
+
+describe('reconfirm-alarm-subscriptions.sh --only-pending', () => {
+  let tf: string;
+  let tfLog: string;
+
+  beforeEach(() => {
+    tf = join(dir, 'terraform-apply.sh');
+    tfLog = join(dir, 'tf.log');
+    writeFileSync(tfLog, '');
+    writeFileSync(
+      tf,
+      `#!/usr/bin/env bash\nprintf '%s\\n' "$*" >> ${JSON.stringify(tfLog)}\n` +
+        `[[ -n "\${TF_FAIL:-}" ]] && { echo "Error: creating SNS subscription" >&2; exit 1; }\nexit 0\n`,
+    );
+    chmodSync(tf, 0o755);
+  });
+
+  const applies = (): string[] => readFileSync(tfLog, 'utf8').split('\n').filter(Boolean);
+
+  // The operations mailbox's main subscription confirmed, its us-west-2 one
+  // pending: the state the targeted resend exists for.
+  const WEST_PENDING = {
+    SUBS_footbag_staging_alarms: 'sub-1\\tops@example.invalid\\n',
+    SUBS_footbag_staging_alarms_usw2: 'PendingConfirmation\\tops@example.invalid\\n',
+  };
+
+  // Defect caught: every subscription recreated to resend one email, so a
+  // confirmed address stops receiving alarm mail and needs confirming again.
+  it('recreates only the pending subscription, by its own address, and leaves the confirmed ones', () => {
+    writeFileSync(tfvars, 'alarm_email_subscription_generation = 2\n');
+    const r = run(['--only-pending', '--yes'], { ...WEST_PENDING, RECONFIRM_TERRAFORM: tf });
+    expect(r.status, r.stderr).toBe(0);
+    expect(applies()).toEqual(['--target staging --replace aws_sns_topic_subscription.alarm_email_us_west_2']);
+    expect(readFileSync(tfvars, 'utf8')).toBe('alarm_email_subscription_generation = 2\n');
+  });
+
+  // Defect caught: a pending subscription mapped to the wrong Terraform
+  // address, so the apply recreates a confirmed one and the pending one never
+  // gets its email. Each topic and address pairing has its own resource.
+  it('maps each pending subscription to its own resource', () => {
+    const r = run(['--only-pending', '--yes'], {
+      SUBS_footbag_staging_alarms: 'PendingConfirmation\\tops@example.invalid\\n',
+      SUBS_footbag_staging_alarms_critical: 'PendingConfirmation\\tgroup@example.invalid\\n',
+      SUBS_footbag_staging_alarms_usw2:
+        'PendingConfirmation\\tops@example.invalid\\nPendingConfirmation\\tgroup@example.invalid\\n',
+      RECONFIRM_TERRAFORM: tf,
+    });
+    expect(r.status, r.stderr).toBe(0);
+    const replaced = applies().map((a) => a.replace('--target staging --replace ', ''));
+    expect(replaced.sort()).toEqual([
+      'aws_sns_topic_subscription.alarm_email',
+      'aws_sns_topic_subscription.alarm_email_us_west_2',
+      'aws_sns_topic_subscription.alarm_ops_alert[0]',
+      'aws_sns_topic_subscription.alarm_ops_alert_us_west_2[0]',
+    ]);
+  });
+
+  // Defect caught: an apply run when nothing waits, recreating confirmed
+  // subscriptions for no reason.
+  it('applies nothing and passes when nothing is pending', () => {
+    const r = run(['--only-pending', '--yes'], {
+      SUBS_footbag_staging_alarms: 'sub-1\\tops@example.invalid\\n',
+      SUBS_footbag_staging_alarms_usw2: 'sub-2\\tops@example.invalid\\n',
+      RECONFIRM_TERRAFORM: tf,
+    });
+    expect(r.status, r.stderr).toBe(0);
+    expect(applies()).toEqual([]);
+  });
+
+  // Defect caught: an operator's "not now" at the confirmation reported as a
+  // failure, which stops the alarm-mail walk and fails the bootstrap step; the
+  // subscriptions are still pending and nothing changed, which is exit 3.
+  it('changes nothing without the typed confirmation, records no error, and exits 3', () => {
+    const r = run(['--only-pending'], { ...WEST_PENDING, RECONFIRM_TERRAFORM: tf });
+    expect(r.status, r.stderr).toBe(3);
+    expect(applies()).toEqual([]);
+    expect(r.stderr).not.toMatch(/Errors \(/);
+  });
+
+  // Defect caught: a failed apply read as "still pending", so the walk asks for
+  // emails that were never sent instead of stopping on the failure.
+  it('fails when the apply fails', () => {
+    const r = run(['--only-pending', '--yes'], { ...WEST_PENDING, RECONFIRM_TERRAFORM: tf, TF_FAIL: '1' });
+    expect(r.status, r.stderr).toBe(1);
+  });
+
+  // Defect caught: a us-west-2 subscription for an address on neither the main
+  // nor the critical topic guessed onto a resource, recreating the wrong one.
+  it('refuses a pending subscription it cannot match to a resource, applying nothing', () => {
+    const r = run(['--only-pending', '--yes'], {
+      SUBS_footbag_staging_alarms: 'sub-1\\tops@example.invalid\\n',
+      SUBS_footbag_staging_alarms_usw2: 'sub-2\\tops@example.invalid\\nPendingConfirmation\\tstranger@example.invalid\\n',
+      RECONFIRM_TERRAFORM: tf,
+    });
+    expect(r.status, r.stderr).toBe(1);
+    expect(r.stderr).toMatch(/stranger@example\.invalid/);
+    expect(applies()).toEqual([]);
   });
 });

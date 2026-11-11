@@ -1255,6 +1255,28 @@ describe('terraform-apply.sh: replacing one listed resource', () => {
     expect(plan).not.toContain('-replace=random_id.origin_verify_secret');
   });
 
+  // Defect caught: the targeted resend of one pending alarm subscription refused,
+  // leaving recreating every subscription as the only way to get a fresh
+  // confirmation email; the topic itself stays off the list, since replacing it
+  // drops every subscription and alarm action on it.
+  it('replaces each alarm email subscription, and refuses the alarm topic itself', () => {
+    writeTerraformStub();
+    const subscriptions = [
+      'aws_sns_topic_subscription.alarm_email',
+      'aws_sns_topic_subscription.alarm_email_us_west_2',
+      'aws_sns_topic_subscription.alarm_ops_alert[0]',
+      'aws_sns_topic_subscription.alarm_ops_alert_us_west_2[0]',
+    ];
+    for (const addr of subscriptions) {
+      const res = run(['--target', 'staging', '--replace', addr]);
+      expect(res.exitCode, `${addr}: ${res.stderr}`).toBe(0);
+      expect(calls(), addr).toContain(`-replace=${addr}`);
+    }
+    const topic = run(['--target', 'staging', '--replace', 'aws_sns_topic.alarms']);
+    expect(topic.exitCode).toBe(2);
+    expect(topic.stderr).toContain('--replace takes only');
+  });
+
   it('refuses any address not on the list, before terraform runs', () => {
     // Defect caught: a general passthrough lets one flag destroy and recreate
     // a bucket or a key pair.

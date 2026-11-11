@@ -11,7 +11,7 @@
 # for every alarm email subscription when alarm_email_subscription_generation is
 # raised, and each fresh confirmation link is then confirmed through that script.
 #
-# Two modes:
+# Three modes:
 #   --status   Read-only. Lists every email subscription on this environment's
 #              three alarm topics (main and critical in us-east-1, the Health
 #              topic in us-west-2) and reports each as authenticated, clicked or
@@ -20,6 +20,20 @@
 #              group can remove it for everyone. The group is the address on the
 #              critical topic, which only the group subscribes to. A click on the
 #              operations mailbox counts as confirmed and is listed, not warned.
+#              The operations mailbox is the address on the main topic; a main
+#              topic with no email subscription, or a us-west-2 topic without
+#              that address, is an error, because no alarm there reaches anyone.
+#              The critical topic has no subscriber until the group exists.
+#   --only-pending
+#              Recreates only the subscriptions still pending, each by its own
+#              Terraform address through scripts/terraform-apply.sh --replace,
+#              so AWS sends each a fresh confirmation email while the confirmed
+#              ones keep receiving alarm mail. One typed APPLY covers them all;
+#              a production apply then shows its plan and asks again. The
+#              values file is not touched. A pending subscription on the
+#              us-west-2 topic belongs to the operations mailbox when its
+#              address is the main topic's, and to the group when it is the
+#              critical topic's; any other address is refused.
 #   (default)  Raises alarm_email_subscription_generation by one in the
 #              environment's values file, shown as a diff and confirmed with a
 #              typed APPLY, then applies the tree. Every alarm email
@@ -32,11 +46,13 @@
 #
 # Usage:
 #   bash scripts/reconfirm-alarm-subscriptions.sh --target staging --status
+#   bash scripts/reconfirm-alarm-subscriptions.sh --target production --only-pending
 #   bash scripts/reconfirm-alarm-subscriptions.sh --target production
 #
 # Flags:
 #   --target staging|production  Required, no default.
 #   --status                     The read-only report above.
+#   --only-pending               Recreate only the pending subscriptions.
 #   --yes                        Accept the APPLY confirmation without asking.
 #   --tfvars <path>              CI only; a scratch values file, stopping before
 #                                the apply.
@@ -47,11 +63,13 @@
 #
 # Exit: 0 done (or every subscription authenticated), 1 refused or failed,
 # 2 usage error; --status also exits 3 while any subscription is pending, else
-# 4 while any was confirmed by a click.
+# 4 while any was confirmed by a click; --only-pending exits 3 when its APPLY
+# is not given, since nothing changed and the subscriptions are still pending.
 set -euo pipefail
 
 TARGET=""
 STATUS=0
+ONLY_PENDING=0
 TFVARS_OVERRIDE=""
 WANT_ASSUME_YES=0
 
@@ -59,6 +77,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --target) TARGET="${2:-}"; shift 2 || { echo "ERROR: --target requires an argument" >&2; exit 2; } ;;
     --status) STATUS=1; shift ;;
+    --only-pending) ONLY_PENDING=1; shift ;;
     --tfvars) TFVARS_OVERRIDE="${2:-}"; shift 2 || { echo "ERROR: --tfvars requires an argument" >&2; exit 2; } ;;
     --yes) WANT_ASSUME_YES=1; shift ;;
     --help|-h) sed -n '2,/^set -eu/{/^set -eu/d;p;}' "$0"; exit 0 ;;
@@ -82,20 +101,25 @@ AWS_BIN="${RECONFIRM_AWS_BIN:-aws}"
 TERRAFORM_CMD="${RECONFIRM_TERRAFORM:-${SCRIPT_DIR}/terraform-apply.sh}"
 [[ -n "${RECONFIRM_TERRAFORM:-}" ]] && echo "SYNTHETIC: terraform seam '${TERRAFORM_CMD}' -- no estate is reached." >&2
 
-# ── Status: read every email subscription on the three alarm topics ──────────
-if (( STATUS )); then
-  if [[ -z "${RECONFIRM_AWS_BIN:-}" ]]; then
-    # shellcheck source=lib/aws-profile.sh
-    source "${SCRIPT_DIR}/lib/aws-profile.sh"
-    aws_profile_ensure || cr_die "no AWS identity is available for the read"
-  fi
-  topics_read=0
-  pending=0
-  clicked=0
-  # The critical topic is read before the us-west-2 one, so the group's
-  # address is known by the time its us-west-2 subscription is judged.
-  group_addresses=" "
-  for spec in "us-east-1 footbag-${TARGET}-alarms" "us-east-1 footbag-${TARGET}-alarms-critical" "us-west-2 footbag-${TARGET}-alarms-usw2"; do
+(( STATUS + ONLY_PENDING < 2 )) || { echo "ERROR: --status and --only-pending are separate modes" >&2; exit 2; }
+(( ONLY_PENDING )) && [[ -n "$TFVARS_OVERRIDE" ]] && { echo "ERROR: --only-pending touches no values file, so it takes no --tfvars" >&2; exit 2; }
+
+MAIN_TOPIC="footbag-${TARGET}-alarms"
+CRITICAL_TOPIC="footbag-${TARGET}-alarms-critical"
+WEST_TOPIC="footbag-${TARGET}-alarms-usw2"
+
+# read_subscriptions: fills SUB_ROWS with one "<topic> <region> <state>
+# <address>" per email subscription on the three alarm topics, where state is
+# pending, authenticated or clicked; prints a line for a topic that is missing
+# or has none; and counts the topics found in TOPICS_READ. A failed read is an
+# error, never an empty topic. The topics are read main, critical, then
+# us-west-2, so the main and critical addresses are known by the time a
+# us-west-2 subscription is judged.
+SUB_ROWS=()
+TOPICS_READ=0
+read_subscriptions() {
+  local spec region name topic_arns topic_arn subs sub_arn endpoint authenticated state
+  for spec in "us-east-1 ${MAIN_TOPIC}" "us-east-1 ${CRITICAL_TOPIC}" "us-west-2 ${WEST_TOPIC}"; do
     read -r region name <<<"$spec"
     if ! topic_arns="$("$AWS_BIN" sns list-topics --region "$region" --query 'Topics[].TopicArn' --output text 2>&1)"; then
       cr_error "could not list the ${region} topics: ${topic_arns##*$'\n'}"
@@ -106,7 +130,7 @@ if (( STATUS )); then
       echo "  ${name} (${region}): no such topic"
       continue
     fi
-    topics_read=$(( topics_read + 1 ))
+    TOPICS_READ=$(( TOPICS_READ + 1 ))
     if ! subs="$("$AWS_BIN" sns list-subscriptions-by-topic --region "$region" --topic-arn "$topic_arn" \
           --query 'Subscriptions[?Protocol==`email`].[SubscriptionArn,Endpoint]' --output text 2>&1)"; then
       cr_error "could not list the subscriptions of ${name}: ${subs##*$'\n'}"
@@ -115,10 +139,8 @@ if (( STATUS )); then
     [[ -n "$subs" ]] || { echo "  ${name}: no email subscriptions"; continue; }
     while read -r sub_arn endpoint; do
       [[ -n "$sub_arn" ]] || continue
-      [[ "$name" == "footbag-${TARGET}-alarms-critical" ]] && group_addresses+="${endpoint} "
       if [[ "$sub_arn" == "PendingConfirmation" ]]; then
-        cr_warn "${name}: ${endpoint} is pending confirmation; confirm its link with bash scripts/confirm-alarm-subscription.sh --target ${TARGET}"
-        pending=$(( pending + 1 ))
+        SUB_ROWS+=("${name} ${region} pending ${endpoint}")
         continue
       fi
       if ! authenticated="$("$AWS_BIN" sns get-subscription-attributes --region "$region" --subscription-arn "$sub_arn" \
@@ -126,18 +148,144 @@ if (( STATUS )); then
         cr_error "could not read ${name}'s subscription for ${endpoint}: ${authenticated##*$'\n'}"
         continue
       fi
-      if [[ "$authenticated" == "true" ]]; then
-        echo "  ${name}: ${endpoint} authenticated"
-      elif [[ "$group_addresses" == *" ${endpoint} "* ]]; then
-        cr_warn "${name}: ${endpoint} was confirmed by a click, so an unsubscribe link can remove it; recreate it with bash scripts/reconfirm-alarm-subscriptions.sh --target ${TARGET}"
-        clicked=$(( clicked + 1 ))
-      else
-        echo "  ${name}: ${endpoint} confirmed by a click, which counts for the operations mailbox"
-        clicked=$(( clicked + 1 ))
-      fi
+      state=clicked
+      [[ "$authenticated" == "true" ]] && state=authenticated
+      SUB_ROWS+=("${name} ${region} ${state} ${endpoint}")
     done <<<"$subs"
   done
-  (( topics_read > 0 )) || cr_error "none of the ${TARGET} alarm topics was found"
+}
+
+# address_on <topic>: the first email address subscribed to that topic, or
+# nothing. On the main topic it is the operations mailbox.
+address_on() {
+  local row r_name r_endpoint
+  for row in "${SUB_ROWS[@]+"${SUB_ROWS[@]}"}"; do
+    read -r r_name _ _ r_endpoint <<<"$row"
+    [[ "$r_name" == "$1" ]] && { printf '%s\n' "$r_endpoint"; return 0; }
+  done
+  return 0
+}
+
+# has_subscription <topic> <address>
+has_subscription() {
+  local row r_name r_endpoint
+  for row in "${SUB_ROWS[@]+"${SUB_ROWS[@]}"}"; do
+    read -r r_name _ _ r_endpoint <<<"$row"
+    [[ "$r_name" == "$1" && "$r_endpoint" == "$2" ]] && return 0
+  done
+  return 1
+}
+
+if (( STATUS || ONLY_PENDING )) && [[ -z "${RECONFIRM_AWS_BIN:-}" ]]; then
+  # shellcheck source=lib/aws-profile.sh
+  source "${SCRIPT_DIR}/lib/aws-profile.sh"
+  aws_profile_ensure || cr_die "no AWS identity is available for the read"
+fi
+
+# ── Recreate only the pending subscriptions ─────────────────────────────────
+if (( ONLY_PENDING )); then
+  read_subscriptions
+  (( ${#CR_ERRORS[@]} )) && cr_die "the ${TARGET} alarm subscriptions could not be read; nothing was changed"
+  mailbox="$(address_on "$MAIN_TOPIC")"
+  group="$(address_on "$CRITICAL_TOPIC")"
+  ADDRS=()
+  DESCS=()
+  for row in "${SUB_ROWS[@]+"${SUB_ROWS[@]}"}"; do
+    read -r name region state endpoint <<<"$row"
+    [[ "$state" == pending ]] || continue
+    case "$name" in
+      "$MAIN_TOPIC") addr="aws_sns_topic_subscription.alarm_email" ;;
+      "$CRITICAL_TOPIC") addr="aws_sns_topic_subscription.alarm_ops_alert[0]" ;;
+      *)
+        if [[ -n "$mailbox" && "$endpoint" == "$mailbox" ]]; then
+          addr="aws_sns_topic_subscription.alarm_email_us_west_2"
+        elif [[ -n "$group" && "$endpoint" == "$group" ]]; then
+          addr="aws_sns_topic_subscription.alarm_ops_alert_us_west_2[0]"
+        else
+          cr_die "the pending subscription for ${endpoint} on ${name} matches neither the main topic's address nor the critical topic's, so which resource it belongs to is unknown; nothing was changed"
+        fi
+        ;;
+    esac
+    ADDRS+=("$addr")
+    DESCS+=("${name} (${region}) for ${endpoint}")
+  done
+
+  if (( ${#ADDRS[@]} == 0 )); then
+    echo "No alarm email subscription on ${TARGET} is pending, so none is recreated."
+    cr_proved "no alarm email subscription on ${TARGET} is pending; none was recreated"
+    cr_finish
+  fi
+
+  echo ""
+  echo "These alarm email subscriptions on ${TARGET} are pending and will be recreated:"
+  printf '  %s\n' "${DESCS[@]}"
+  echo ""
+  echo "AWS sends each a fresh confirmation email within a few minutes. Any"
+  echo "confirmation link you already have for them stops working. Every"
+  echo "confirmed subscription is left as it is and keeps receiving alarm mail."
+  [[ "$TARGET" == production ]] && echo "Each production apply then shows its plan and asks for APPLY again."
+  if ! confirm_from_tty "Type 'APPLY' to recreate the ${#ADDRS[@]} pending subscription(s): " "APPLY"; then
+    echo "Not recreated; the subscriptions stay pending and nothing was changed."
+    cr_unproved "the resend: not confirmed, so nothing was recreated and ${#ADDRS[@]} subscription(s) on ${TARGET} stay pending"
+    cr_finish_with 3 PENDING
+  fi
+
+  # Each apply runs at the terminal, outside cr_run: it shows a plan and, on
+  # production, asks for its own APPLY.
+  for addr in "${ADDRS[@]}"; do
+    bash "$TERRAFORM_CMD" --target "$TARGET" --replace "$addr" \
+      || cr_die "the ${TARGET} apply replacing ${addr} did not succeed; any subscription it reached may already be recreated, which the walk reads again"
+  done
+  cr_proved "recreated the pending ${TARGET} alarm subscriptions, and only those: ${ADDRS[*]}"
+  cr_unproved "the confirmations: each address now holds a fresh confirmation email"
+  echo ""
+  echo "Fresh confirmation emails are on their way. Confirm them with:"
+  echo "  bash scripts/confirm-alarm-subscription.sh --target ${TARGET}"
+  cr_finish
+fi
+
+# ── Status: read every email subscription on the three alarm topics ──────────
+if (( STATUS )); then
+  read_subscriptions
+  pending=0
+  clicked=0
+  group_addresses=" "
+  for row in "${SUB_ROWS[@]+"${SUB_ROWS[@]}"}"; do
+    read -r name _ _ endpoint <<<"$row"
+    [[ "$name" == "$CRITICAL_TOPIC" ]] && group_addresses+="${endpoint} "
+  done
+  for row in "${SUB_ROWS[@]+"${SUB_ROWS[@]}"}"; do
+    read -r name _ state endpoint <<<"$row"
+    case "$state" in
+      pending)
+        cr_warn "${name}: ${endpoint} is pending confirmation; confirm its link with bash scripts/confirm-alarm-subscription.sh --target ${TARGET}"
+        pending=$(( pending + 1 ))
+        ;;
+      authenticated)
+        echo "  ${name}: ${endpoint} authenticated"
+        ;;
+      *)
+        if [[ "$group_addresses" == *" ${endpoint} "* ]]; then
+          cr_warn "${name}: ${endpoint} was confirmed by a click, so an unsubscribe link can remove it; recreate it with bash scripts/reconfirm-alarm-subscriptions.sh --target ${TARGET}"
+        else
+          echo "  ${name}: ${endpoint} confirmed by a click, which counts for the operations mailbox"
+        fi
+        clicked=$(( clicked + 1 ))
+        ;;
+    esac
+  done
+  (( TOPICS_READ > 0 )) || cr_error "none of the ${TARGET} alarm topics was found"
+  # The operations mailbox must be on the main topic and the us-west-2 one: an
+  # unsubscribe click removes a clicked subscription silently, and a missing
+  # one is a topic whose alarms reach no one. Judged only on a complete read.
+  if (( ${#CR_ERRORS[@]} == 0 )); then
+    mailbox="$(address_on "$MAIN_TOPIC")"
+    if [[ -z "$mailbox" ]]; then
+      cr_error "${MAIN_TOPIC} has no email subscription for the operations mailbox, so its alarms reach no one; bash scripts/terraform-apply.sh --target ${TARGET} recreates it"
+    elif ! has_subscription "$WEST_TOPIC" "$mailbox"; then
+      cr_error "${WEST_TOPIC} has no subscription for the operations mailbox ${mailbox}, so its alarms reach no one there; bash scripts/terraform-apply.sh --target ${TARGET} recreates it"
+    fi
+  fi
   cr_proved "read every email subscription on the ${TARGET} alarm topics found"
   # A caller branches on these: a failed read stays exit 1, since nothing was
   # proved; pending outranks clicked, because a pending address gets no alarm

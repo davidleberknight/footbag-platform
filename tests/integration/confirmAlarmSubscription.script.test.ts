@@ -278,12 +278,70 @@ describe('confirm-alarm-subscription: the walk at a terminal', () => {
     const r = walk(['no', MAIN, 'APPLY'], ['footbag-staging-alarms'], { CONFIRM_RECONFIRM_BIN: resend });
     expect(r.status, r.out).toBe(0);
     const log = fs.readFileSync(awsLog, 'utf8');
-    expect(log).toContain('reconfirm --target staging');
+    // Only the pending subscriptions are recreated: a resend of every one
+    // would undo the confirmations already made.
+    expect(log).toContain('reconfirm --target staging --only-pending');
     expect(log.indexOf('reconfirm --target staging')).toBeLessThan(log.indexOf('confirm-subscription'));
     // The operator is told when the fresh emails went out, so the older ones,
     // whose links point at deleted subscriptions, can be told apart.
     expect(r.out).toMatch(/Fresh confirmation emails were sent at \d{2}:\d{2} your time \(\d{2}:\d{2} UTC\)/);
     expect(confirmCalls()).toHaveLength(1);
+  });
+
+  function resendStub(exitCode = 0): string {
+    const resend = path.join(dir, 'reconfirm');
+    fs.writeFileSync(
+      resend,
+      `#!/usr/bin/env bash\necho "reconfirm $*" >> ${JSON.stringify(awsLog)}\nexit ${exitCode}\n`,
+      { mode: 0o755 },
+    );
+    return resend;
+  }
+
+  // Defect caught: a bare Enter, or any answer but yes, taken as "no", which
+  // recreates the subscriptions and voids every confirmation link the operator
+  // already holds.
+  it('asks again on anything but yes or no, and sends nothing on a later yes', () => {
+    const r = walk(['', 'maybe', 'yes', MAIN, 'APPLY'], ['footbag-staging-alarms'], { CONFIRM_RECONFIRM_BIN: resendStub() });
+    expect(r.status, r.out).toBe(0);
+    expect(r.out.match(/Answer yes or no\./g)).toHaveLength(2);
+    expect(fs.readFileSync(awsLog, 'utf8')).not.toContain('reconfirm');
+    expect(confirmCalls()).toHaveLength(1);
+  });
+
+  // Defect caught: the end of input at the question read as "no", so a walk
+  // whose terminal closed recreates the subscriptions unasked.
+  it('sends nothing at the end of input and leaves the subscriptions pending', () => {
+    const r = walk([], ['footbag-staging-alarms'], { CONFIRM_RECONFIRM_BIN: resendStub() });
+    expect(r.status, r.out).toBe(3);
+    expect(fs.readFileSync(awsLog, 'utf8')).not.toContain('reconfirm');
+  });
+
+  // Defect caught: an operator declining the resend's own confirmation treated
+  // as a failure, which fails the readiness step and the bootstrap run, when
+  // nothing changed and the subscriptions are simply still pending.
+  it('leaves the subscriptions pending with no error when the resend is declined', () => {
+    const r = walk(['no'], ['footbag-staging-alarms'], { CONFIRM_RECONFIRM_BIN: resendStub(3) });
+    expect(r.status, r.out).toBe(3);
+    expect(r.out).not.toMatch(/Errors \(/);
+    expect(confirmCalls()).toHaveLength(0);
+  });
+
+  it('fails when the resend itself fails', () => {
+    const r = walk(['no'], ['footbag-staging-alarms'], { CONFIRM_RECONFIRM_BIN: resendStub(1) });
+    expect(r.status, r.out).toBe(1);
+  });
+
+  // Defect caught: the operator told to delete older confirmation emails, whose
+  // links may be the only working ones; the email's original source is where a
+  // hidden link is found.
+  it('points to the email source for a hidden link and never says to delete emails', () => {
+    const r = walk(['yes', MAIN, 'APPLY'], ['footbag-staging-alarms']);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toContain('Show original');
+    // An imperative "delete"; the walk's own "AWS deletes an unconfirmed
+    // subscription" is a fact, not advice.
+    expect(r.out).not.toMatch(/\bdelete\b/i);
   });
 
   it('sends nothing when the operator has the emails', () => {
