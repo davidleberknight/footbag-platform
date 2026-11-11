@@ -153,7 +153,7 @@ import {
 } from '../db/db';
 import { appendAuditEntry, findStandingOwnAct, type AuditActorType } from './auditService';
 import { emailService } from './emailService';
-import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
+import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from './serviceErrors';
 import { endOnTier3Grant, endOnTierUpgrade } from './activePlayerService';
 import { workQueueService, ADMIN_LOSS_TASK_TYPE } from './workQueueService';
 import { readIntConfig } from './configReader';
@@ -920,6 +920,12 @@ export function revokeAdminRole(
 
   const now = new Date().toISOString();
   transaction(() => {
+    // The actor's role is read again here, inside the write: a request is
+    // authorised when it starts, so two administrators revoking each other at
+    // once would otherwise both succeed and leave no administrator at all.
+    if (!isAdminMember(adminMemberId)) {
+      throw new ForbiddenError('Only an administrator can revoke an admin role.');
+    }
     adminRole.setAdminFlag.run(0, now, 'admin_role_revoke', targetMemberId);
     unsubscribeAdminAlertsInTx(targetMemberId, now, 'admin_role_revoke');
     const auditId = audit({

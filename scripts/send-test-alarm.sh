@@ -41,6 +41,16 @@
 #   --expect <OK|ALARM>  with --status: every named alarm must read this state.
 #   --wait-minutes <n>   with --expect: read again every minute until every
 #                   alarm reads the state or n minutes pass. Default 0, one read.
+#   --metric <name> with --status, instead of alarm names: read the
+#                   environment's own metric (namespace Footbag/<target>) and
+#                   pass once it has counted anything above zero in the last
+#                   fifteen minutes, reading again every minute for up to
+#                   --wait-minutes. Proves a metric filter matches a real event,
+#                   such as a sign-in counted by LoginSuccessCount.
+#
+# Test alarms are raised one after another with a second's pause between them:
+# the email service suspends a subscription that receives more than ten
+# messages a second, for 30 days.
 #
 # Whether the mail arrived is checked by the people receiving it; the script says
 # what each should look for. Exits 0 when every state change was accepted, 1 when
@@ -66,6 +76,7 @@ REGION_ARGS=()
 STATUS=0
 EXPECT=""
 WAIT_MINUTES=0
+METRIC=""
 
 usage() {
   sed -n '2,/^set -eu/{/^set -eu/d;p;}' "$0" | sed 's/^# \{0,1\}//'
@@ -93,12 +104,59 @@ while [[ $# -gt 0 ]]; do
     --wait-minutes)
               [[ "${2:-}" =~ ^[0-9]+$ ]] || { echo "ERROR: --wait-minutes takes a whole number of minutes" >&2; exit 2; }
               WAIT_MINUTES="$2"; shift 2 ;;
+    --metric) [[ "${2:-}" =~ ^[A-Za-z0-9]+$ ]] || { echo "ERROR: --metric takes a metric name of letters and digits" >&2; exit 2; }
+              METRIC="$2"; shift 2 ;;
     -h|--help) usage 0 ;;
     *) echo "ERROR: unknown argument '$1'" >&2; exit 2 ;;
   esac
 done
 
 require_target "$TARGET" staging production || exit 2
+
+# ── Metric read: has the environment's metric counted anything lately ────────
+if [[ -n "$METRIC" ]]; then
+  (( STATUS )) || { echo "ERROR: --metric reads a metric, so it needs --status." >&2; exit 2; }
+  if (( ${#NAMES[@]} + ${#PREFIXES[@]} )) || [[ -n "$EXPECT" ]]; then
+    echo "ERROR: --metric reads a metric, not alarms; it takes no --alarm, --alarm-prefix or --expect." >&2
+    exit 2
+  fi
+  # shellcheck source=lib/closing-report.sh
+  source "${REPO_ROOT}/scripts/lib/closing-report.sh"
+  AWS_BIN="${FOOTBAG_AWS_BIN:-aws}"
+  [[ -n "${FOOTBAG_AWS_BIN:-}" ]] && echo "NOTE: using a stand-in for the AWS CLI; this run proves nothing about the account." >&2
+  aws_profile_ensure || cr_die "the AWS identity for this run could not be settled; nothing was read"
+  POLL_SECS="${FOOTBAG_ALARM_POLL_SECS:-60}"
+  [[ -n "${FOOTBAG_ALARM_POLL_SECS:-}" ]] && echo "NOTE: reading every ${POLL_SECS}s rather than every minute (test seam)." >&2
+  namespace="Footbag/${TARGET}"
+  deadline=$(( SECONDS + WAIT_MINUTES * 60 ))
+  counted=0
+  while :; do
+    start="$(date -u -d '-15 minutes' +%Y-%m-%dT%H:%M:%SZ)"
+    end="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    sums=""
+    if ! sums="$("$AWS_BIN" cloudwatch get-metric-statistics "${REGION_ARGS[@]+"${REGION_ARGS[@]}"}" \
+          --namespace "$namespace" --metric-name "$METRIC" --statistics Sum --period 60 \
+          --start-time "$start" --end-time "$end" --query 'Datapoints[].Sum' --output text)"; then
+      cr_die "${namespace} ${METRIC} could not be read; check the identity above"
+    fi
+    echo "  ${namespace} ${METRIC}, last 15 minutes: ${sums:-None}"
+    # A sum is a non-negative number; anything but zero counts.
+    for s in $sums; do
+      [[ "$s" =~ ^[0-9]+(\.[0-9]+)?$ && ! "$s" =~ ^0+(\.0+)?$ ]] && counted=1
+    done
+    (( counted )) && break
+    (( SECONDS < deadline )) || break
+    echo "  waiting for ${METRIC} to count something"
+    sleep "$POLL_SECS"
+  done
+  if (( ! counted )); then
+    cr_unproved "${namespace} ${METRIC} counted nothing in the last 15 minutes"
+    cr_finish_with 3 "NOT COUNTED"
+  fi
+  cr_proved "${namespace} ${METRIC} counted an event in the last 15 minutes"
+  cr_finish
+fi
+
 if (( ${#NAMES[@]} + ${#PREFIXES[@]} == 0 )); then
   echo "ERROR: --alarm or --alarm-prefix is required (the CloudWatch alarms to raise)." >&2
   exit 2
@@ -222,7 +280,12 @@ if ! confirm_from_tty "Type 'APPLY' to send the test alarms: " "APPLY"; then
   cr_finish_with 1 ABORTED
 fi
 
+raised=0
 for alarm in "${ALARMS[@]}"; do
+  # A second between alarms keeps each subscriber well under the email
+  # service's ten messages a second, above which it suspends the subscription.
+  (( raised )) && sleep 1
+  raised=1
   if ! "$AWS_BIN" cloudwatch set-alarm-state "${REGION_ARGS[@]+"${REGION_ARGS[@]}"}" --alarm-name "$alarm" \
         --state-value ALARM --state-reason "Operator test of alarm mail delivery"; then
     cr_die "${alarm} could not be raised; check the name and the identity above. The alarms after it were not touched."

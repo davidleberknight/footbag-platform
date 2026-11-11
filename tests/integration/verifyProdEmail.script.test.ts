@@ -140,6 +140,61 @@ afterEach(() => {
   removeScratch(dir);
 });
 
+describe('verify-prod-email.sh --inbox-from-tty', () => {
+  /** At a terminal, typing `typed` when the script asks for the inbox. */
+  function atTerminal(args: string[], typed: string, stdin = '') {
+    const inner = `bash ${JSON.stringify(SCRIPT)} ${args.join(' ')} ${stdin}; echo "EXIT=$?"`;
+    const r = spawnSync('script', ['-qec', inner, '/dev/null'], {
+      encoding: 'utf8',
+      input: `${typed}\n`,
+      env: {
+        ...process.env,
+        ...awsIdentityStubEnv(dir),
+        TF_OUTPUT_BIN: writeFakeTerraform('noreply@footbag.org'),
+        PATH: `${fakeBin}:${process.env.PATH ?? ''}`,
+      },
+      ...SPAWN_GUARD,
+    });
+    const out = r.stdout ?? '';
+    return { status: Number(out.match(/EXIT=(\d+)/)?.[1] ?? -1), out };
+  }
+
+  // Defect caught: the readiness step's outbox check sending only to the
+  // simulator, so nobody sees the message arrive, because the inbox address is
+  // vault material that cannot be written into the step; typed at the terminal
+  // instead, it reaches the operator's real mailbox.
+  it('asks for the inbox at the terminal and sends to the address typed', () => {
+    const r = atTerminal(['--profile', 'footbag-production-runtime', '--yes', '--inbox-from-tty'], 'ops@example.invalid');
+    expect(r.status, r.out).toBe(0);
+    expect(sends().some((s) => s.includes('ops@example.invalid'))).toBe(true);
+  });
+
+  // Defect caught: the inbox read from stdin, which on the outbox leg carries
+  // the host password, so the password is taken as the address (and sent to)
+  // and nothing the operator types is used.
+  it('reads the inbox from the terminal, not from stdin', () => {
+    const r = atTerminal(['--profile', 'footbag-production-runtime', '--yes', '--inbox-from-tty'], 'ops@example.invalid', '< /dev/null');
+    expect(r.status, r.out).toBe(0);
+    expect(sends().some((s) => s.includes('ops@example.invalid'))).toBe(true);
+  });
+
+  // Defect caught: an empty answer read as "no inbox", so the check passes on
+  // the simulator alone and the arrival is never proved.
+  it('refuses an empty answer and sends nothing', () => {
+    const r = atTerminal(['--profile', 'footbag-production-runtime', '--yes', '--inbox-from-tty'], '');
+    expect(r.status).toBe(2);
+    expect(sends()).toEqual([]);
+  });
+
+  it('refuses with no terminal to ask on, and beside --inbox', () => {
+    const none = run(['--profile', 'footbag-production-runtime', '--yes', '--inbox-from-tty']);
+    expect(none.status).toBe(2);
+    const both = run(['--profile', 'footbag-production-runtime', '--yes', '--inbox', 'a@example.invalid', '--inbox-from-tty']);
+    expect(both.status).toBe(2);
+    expect(sends()).toEqual([]);
+  });
+});
+
 describe('verify-prod-email.sh refusals', () => {
   it('refuses without a profile, rather than picking one up from the environment', () => {
     const r = run(['--yes']);

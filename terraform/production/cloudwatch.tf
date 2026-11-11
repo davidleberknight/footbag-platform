@@ -1022,8 +1022,10 @@ resource "aws_cloudwatch_metric_alarm" "cutover_zero_logins" {
   threshold           = 0
   treat_missing_data  = "breaching"
   alarm_description   = "Zero successful logins for 2+ hours during the cutover window"
-  alarm_actions       = [aws_sns_topic.alarms.arn]
-  ok_actions          = [aws_sns_topic.alarms.arn]
+  # A wake-up alarm for the watch after launch, so it reaches the whole watch
+  # group as well as the account mailbox.
+  alarm_actions = local.critical_alarm_actions
+  ok_actions    = local.critical_alarm_actions
 }
 
 # ── TLS certificate expiry ────────────────────────────────────────────────────

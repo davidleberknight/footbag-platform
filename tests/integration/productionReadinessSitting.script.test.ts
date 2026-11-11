@@ -239,17 +239,17 @@ describe('the dry run', () => {
 describe('a full staging run', () => {
   // Defect caught: steps run out of the order their dependencies need, run
   // twice, or a step skipped silently.
-  it('runs every step once, in order, and stops at the blocked step', () => {
-    const r = sit(['--target', 'staging'], YES(7));
-    expect(r.status, r.out).toBe(3);
-    expect(r.out).toMatch(/VERDICT: BLOCKED AT s99/);
+  it('runs every step once, in order, to the end', () => {
+    const r = sit(['--target', 'staging'], YES(8));
+    expect(r.status, r.out).toBe(0);
     const ids = rows().map((c) => c[3]);
     const dryIds = [...spawnSync('bash', [SCRIPT, '--target', 'staging', '--dry-run'], { encoding: 'utf-8', ...SPAWN_GUARD })
       .stdout.matchAll(/^ {2}(s\d+[a-z]?) /gm)].map((m) => m[1]);
     expect(ids).toEqual(dryIds);
     expect(new Set(ids).size).toBe(ids.length);
-    const blocked = rows().find((c) => c[3] === 's99')!;
-    expect(blocked[5]).toBe('blocked');
+    // The second operator's drill is a step that can be recorded done, not a
+    // blocked placeholder that keeps the pass from ever reading complete.
+    expect(rows().find((c) => c[3] === 's99')![5]).toBe('ok');
     // The orders a person would otherwise have to hold in their head.
     const digest = (n: number) => calls().map((c, i) => [c, i] as const).filter(([c]) => /table-digests/.test(c.call))[n][1];
     expect(digest(0)).toBeLessThan(firstCall(/deploy-migrate\.sh/));
@@ -308,11 +308,26 @@ describe('stopping', () => {
     expect(stepCalls()).toEqual([]);
   });
 
-  // Defect caught: resuming at the blocked step reads as done.
-  it('stays blocked when resumed at the blocked step', () => {
-    const r = sit(['--target', 'staging', '--from-step', 's99']);
+  // Defect caught: resuming at a blocked step reads as done.
+  it('stays blocked when resumed at a blocked step', () => {
+    const r = sit(['--target', 'production', '--from-step', 'p90', '--to-step', 'p90']);
     expect(r.status).toBe(3);
-    expect(r.out).toMatch(/VERDICT: BLOCKED AT s99/);
+    expect(r.out).toMatch(/VERDICT: BLOCKED AT p90/);
+  });
+
+  // Defect caught: the second operator's drill recorded under whoever happens to
+  // be at the keyboard, or run with no credential, so the drill proves nothing
+  // about the second operator.
+  it('asks who is at the keyboard before the second operator\'s drill, then runs it with the credential', () => {
+    const declined = sit(['--target', 'staging', '--from-step', 's98', '--to-step', 's99'], ['no']);
+    expect(declined.status).toBe(1);
+    expect(declined.out).toMatch(/VERDICT: STOPPED AT s98/);
+    expect(firstCall(/incident-drill/)).toBe(-1);
+
+    const ran = sit(['--target', 'staging', '--from-step', 's98', '--to-step', 's99'], ['yes']);
+    expect(ran.status, ran.out).toBe(0);
+    const drill = stepCalls().find((c) => /incident-drill\.sh --target staging/.test(c.call))!;
+    expect(drill.line).toBe(PASSWORD);
   });
 });
 
@@ -404,13 +419,16 @@ describe('the cutover log', () => {
     expect(lstatSync(join(root, 'footbag_private_repo', 'cutover', 'CUTOVER_LOG.md')).isSymbolicLink()).toBe(true);
   });
 
-  it('refuses when its section is not the last one, writing nothing', () => {
+  // Defect caught: a later section (another pass's records) either blocking the
+  // run or receiving its rows.
+  it('keeps writing under its own section when a later section follows it', () => {
     sit(['--target', 'staging', '--to-step', 's01a']);
     writeFileSync(logReal, log() + '\n## 10. Something later\n');
-    const before = log();
     const r = sit(['--target', 'staging', '--from-step', 's01b', '--to-step', 's01b']);
-    expect(r.status).toBe(1);
-    expect(log()).toBe(before);
+    expect(r.status, r.out).toBe(0);
+    const text = log();
+    expect(text.indexOf('| staging | s01b |')).toBeLessThan(text.indexOf('## 10. Something later'));
+    expect(text.trimEnd().endsWith('## 10. Something later')).toBe(true);
   });
 
   it('refuses a missing log', () => {
@@ -680,7 +698,7 @@ describe('checks made by a read rather than asked', () => {
     writeRules([{ match: 'legacy_data/legacy_mirror/verify_mirror.sh*', codes: [1, 0] }]);
     const asked = sit(['--target', 'production', '--from-step', 'p17a', '--to-step', 'p17b'], ['yes']);
     expect(asked.status, asked.out).toBe(0);
-    expect(asked.out).toMatch(/Has the clean archive capture finished\?.*\(yes\/no/);
+    expect(asked.out).toMatch(/The archive capture does not verify\..*Has that finished\?.*\(yes\/no/s);
     expect(rows().slice(-2).map((c) => [c[3], c[5]])).toEqual([['p17a', 'ok'], ['p17b', 'ok']]);
 
     writeRules([{ match: 'legacy_data/legacy_mirror/verify_mirror.sh*', codes: [1] }]);
@@ -864,5 +882,165 @@ describe('steps that need alarm mail', () => {
     const ready = sit(['--target', 'staging', '--from-step', 's04a', '--to-step', 's04a', '--status']);
     expect(ready.status).toBe(3);
     expect(ready.out).toMatch(/s04a +NOT RUN \(alarm mail is confirmed now: run it with --from-step s04a\)/);
+  });
+});
+
+describe('the production steps around email, the zero-logins gate and the archive', () => {
+  const dry = () => spawnSync('bash', [SCRIPT, '--target', 'production', '--dry-run'], { encoding: 'utf-8', ...SPAWN_GUARD }).stdout;
+  const order = (out: string) => [...out.matchAll(/^ {2}(p\d+[a-z]\d*|p\d+) /gm)].map((m) => m[1]);
+
+  // Defect caught: the email checks run as the operator account, which the
+  // email script refuses outright, so the outbox and bounce steps can only
+  // fail; or the outbox check mails only the simulator, so nobody sees the
+  // message arrive.
+  it('runs both email checks as the production runtime role, with the inbox typed at the terminal', () => {
+    const out = dry();
+    const email = out.split('\n').filter((l) => /verify-prod-email\.sh/.test(l));
+    expect(email.length).toBe(2);
+    for (const l of email) {
+      expect(l).toMatch(/--profile footbag-production-runtime/);
+      expect(l).not.toMatch(/--profile footbag-operator/);
+    }
+    expect(out).toMatch(/^ {2}p08d +once +\[password on stdin\] scripts\/verify-prod-email\.sh --profile footbag-production-runtime --outbox --inbox-from-tty$/m);
+    expect(order(out).indexOf('p08d1')).toBe(order(out).indexOf('p08d') + 1);
+  });
+
+  // Defect caught: the outbox message's arrival taken on faith.
+  it('asks whether the outbox message arrived signed, and stops on a no', () => {
+    const r = sit(['--target', 'production', '--from-step', 'p08d1', '--to-step', 'p08d1'], ['no']);
+    expect(r.out).toMatch(/DKIM.*\(yes\/no/s);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/VERDICT: STOPPED AT p08d1/);
+  });
+
+  // Defect caught: a run that stops while the zero-logins gate is on leaves an
+  // alarm armed that exists only for this fire test.
+  it('offers to turn the zero-logins gate off when the run stops before p13o', () => {
+    writeRules([{ match: 'scripts/send-test-alarm.sh --target production --status --expect ALARM *', codes: [3] }]);
+    const r = sit(['--target', 'production', '--from-step', 'p13m', '--to-step', 'p13o'], ['yes']);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/VERDICT: STOPPED AT p13n/);
+    const gateOff = 'scripts/set-terraform-gate.sh --target production --gate enable_cutover_login_alarm --state off';
+    expect(calls().map((c) => c.call)).toContain(gateOff);
+    // The step stays failed: turning the gate off proves nothing about the alarm.
+    expect(rows().find((c) => c[3] === 'p13n')![5]).toMatch(/^failed/);
+  });
+
+  it('leaves the gate alone when the operator declines, and when the gate was never turned on', () => {
+    writeRules([{ match: 'scripts/send-test-alarm.sh --target production --status --expect ALARM *', codes: [3] }]);
+    sit(['--target', 'production', '--from-step', 'p13m', '--to-step', 'p13o'], ['no']);
+    expect(calls().some((c) => /--gate enable_cutover_login_alarm --state off/.test(c.call))).toBe(false);
+    // A log with no p13m row: the gate was never turned on by this pass.
+    rmSync(stubLog, { force: true });
+    writeFileSync(logReal, LOG_HEAD);
+    sit(['--target', 'production', '--from-step', 'p13n', '--to-step', 'p13o'], ['yes']);
+    expect(calls().some((c) => /--gate enable_cutover_login_alarm --state off/.test(c.call))).toBe(false);
+  });
+
+  // Defect caught: the zero-logins wait shorter than the alarm's two clean
+  // hours after the sign-in a few steps earlier, so the step times out on a
+  // healthy alarm.
+  it('waits long enough for two clean hours after the session check', () => {
+    const line = dry().split('\n').find((l) => /^ {2}p13n /.test(l))!;
+    expect(Number(line.match(/--wait-minutes (\d+)/)![1])).toBeGreaterThanOrEqual(180);
+  });
+
+  // Defect caught: the zero-logins alarm proved only by going off on an idle
+  // host, which it does whether or not its filter matches a real sign-in.
+  it('proves a real sign-in is counted, after the gate is off again', () => {
+    const ids = order(dry());
+    expect(ids.indexOf('p13p')).toBeGreaterThan(ids.indexOf('p13o'));
+    expect(dry()).toMatch(/^ {2}p13q +read +scripts\/send-test-alarm\.sh --target production --status --metric LoginSuccessCount --wait-minutes \d+$/m);
+  });
+
+  // Defect caught: the archive published before its capture is checked, so a
+  // failing capture is found only after it is live.
+  it('checks the capture before the archive publish', () => {
+    const ids = order(dry());
+    expect(ids.indexOf('p17b')).toBeGreaterThan(-1);
+    expect(ids.indexOf('p17b')).toBeLessThan(ids.indexOf('p15b'));
+    expect(ids).not.toContain('p17c');
+  });
+
+  // Defect caught: a production run without --to-step running Julie's drill
+  // and recording whoever is at the keyboard as the second operator.
+  it('asks who is at the keyboard before the break-glass drill, and stops on a no', () => {
+    const ids = order(dry());
+    expect(ids.indexOf('p10g')).toBe(ids.indexOf('p11a') - 1);
+    const r = sit(['--target', 'production', '--from-step', 'p10g', '--to-step', 'p11a'], ['no']);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/VERDICT: STOPPED AT p10g/);
+    expect(firstCall(/host-break-glass/)).toBe(-1);
+  });
+
+  // Defect caught: the operator check asked while alarm mail is pending, when
+  // the drill it guards is deferred anyway, so the question stops a run for
+  // nothing.
+  it('defers the operator check with the drill while alarm mail is pending', () => {
+    writeRules([{ match: 'scripts/reconfirm-alarm-subscriptions.sh --target * --status', codes: [3] }]);
+    const r = sit(['--target', 'production', '--from-step', 'p10g', '--to-step', 'p11a']);
+    expect(r.status, r.out).toBe(0);
+    // Not asked: the log row names the step, so the question's mark is what shows a prompt.
+    expect(r.out).not.toMatch(/\(yes\/no/);
+    expect(rows().map((c) => [c[3], c[5]])).toEqual([
+      ['p10g', 'deferred (alarm mail not confirmed)'],
+      ['p11a', 'deferred (alarm mail not confirmed)'],
+    ]);
+  });
+
+  // Defect caught: the first admin taken on the operator's word that a warning
+  // stopped, which nothing shows minutes after the claim; the host database's
+  // own count of administrators is the proof.
+  it('reads that an administrator now exists after the claim, and stops when none does', () => {
+    const ids = order(dry());
+    expect(ids.indexOf('p10d')).toBe(ids.indexOf('p10c') + 1);
+    writeRules([{ match: 'scripts/bringup-status.sh *', stdout: ' 6. First admin               DONE     1 administrator(s) on the host database can sign in and act' }]);
+    const ok = sit(['--target', 'production', '--from-step', 'p10d', '--to-step', 'p10d']);
+    expect(ok.status, ok.out).toBe(0);
+    writeRules([{ match: 'scripts/bringup-status.sh *', stdout: ' 6. First admin               PENDING  no administrator on the host database can sign in' }]);
+    const none = sit(['--target', 'production', '--from-step', 'p10d', '--to-step', 'p10d']);
+    expect(none.status).toBe(1);
+    expect(none.out).toMatch(/VERDICT: STOPPED AT p10d/);
+  });
+
+  // Defect caught: section 1's reads attested by a question and never run.
+  it('runs the section-1 reads as steps, each with the stdin its script takes', () => {
+    const out = dry();
+    for (const [id, cred, cmd] of [
+      ['p07h', false, 'scripts/apply-snapshot-retention.sh --target production --verify --profile footbag-operator'],
+      ['p07i', false, 'scripts/apply-bucket-tls-baseline.sh --verify-only --profile footbag-operator'],
+      ['p07j', true, 'scripts/diagnose-cwagent.sh --target production'],
+      ['p07k', false, 'scripts/provision-ssm-secret.sh --target production --secret session_secret status --profile footbag-operator'],
+      ['p07l', false, 'scripts/verify-cutover-notice.sh --function --expect-live --profile footbag-operator'],
+      ['p07m', true, 'scripts/activate-notification-feeds.sh --target production --status --profile footbag-operator'],
+      ['p07n', true, 'scripts/payments-pause.sh --target production --status'],
+      // Gate OR4: the dev-and-tester role's denials, proved against the live account.
+      ['p07o', false, 'scripts/verify-dev-tester-role-denials.sh --profile footbag-operator'],
+    ] as const) {
+      const line = out.split('\n').find((l) => l.startsWith(`  ${id} `));
+      expect(line, id).toBeDefined();
+      expect(line, id).toContain(cmd);
+      expect(line!.includes('[password on stdin]'), id).toBe(cred);
+    }
+  });
+});
+
+describe('the cutover log', () => {
+  // Defect caught: a section added after the sitting's (pass 2's records)
+  // refusing every later pass-1 run, or a row landing under the wrong heading.
+  it('writes a row inside the sitting section when a later section follows it', () => {
+    writeFileSync(logReal, LOG_HEAD + [
+      '', '## 9. Production-readiness sitting', '', 'One row per step.', '',
+      '| Started (UTC) | Finished (UTC) | Target | Step | Command | Result | Notes |', '|---|---|---|---|---|---|---|',
+      // A later pass keeps its own table, so a row must not land in it.
+      '', '## 10. Pass 2', '', 'Later records.', '',
+      '| Started (UTC) | Step | Result |', '|---|---|---|', '| 2026-12-01T00:00:00Z | P2-1 | ok |', '',
+    ].join('\n'));
+    const r = sit(['--target', 'production', '--from-step', 'p02a', '--to-step', 'p02a']);
+    expect(r.status, r.out).toBe(0);
+    const text = log();
+    const rowAt = text.indexOf('| production | p02a |');
+    expect(rowAt).toBeGreaterThan(text.indexOf('## 9. Production-readiness sitting'));
+    expect(rowAt).toBeLessThan(text.indexOf('## 10. Pass 2'));
   });
 });

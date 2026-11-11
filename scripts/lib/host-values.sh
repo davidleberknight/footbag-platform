@@ -39,8 +39,9 @@
 #   sent       The deploy writes it from a value the workstation sends.
 #   compose    Not held on a host at all: the compose files supply the value, and
 #              the line exists only for a workstation's own run.
-#   unowned    Declared here so it is not forgotten, with the card that owns
-#              closing it named in the reason.
+#   unowned    Declared here so it is not forgotten; the reason says what the
+#              missing owner is, and the work is tracked in the maintainers'
+#              private tracker, never named here by number.
 #
 # required is "required" or "optional". An optional param whose parameter does
 # not exist is cleared from the host rather than left at a stale value.
@@ -119,11 +120,11 @@ HOST_VALUES=(
   "INCLUDE_DEV_SHORTCUTS|compose|compose|optional||development shortcuts, refused on a host"
   "VIDEO_MAX_BYTES|compose|compose|optional||the accepted upload size, at its built-in default"
 
-  # Not yet owned. The publisher is on card #158, and two of the three cannot
+  # Not yet owned. Their publisher is not built yet, and two of the three cannot
   # have a value before the archive's custom domain exists.
-  "ARCHIVE_COOKIE_SIGNER|unowned|card 158|optional||how archive cookies are signed; the publisher is tracked on card 158"
-  "ARCHIVE_KEY_PAIR_ID|unowned|card 158|optional||the CloudFront key pair archive cookies name; tracked on card 158"
-  "ARCHIVE_COOKIE_DOMAIN|unowned|card 158|optional||the parent domain archive cookies are set on; needs the archive custom domain, tracked on card 158"
+  "ARCHIVE_COOKIE_SIGNER|unowned|private tracker|optional||how archive cookies are signed; their publisher is not built yet"
+  "ARCHIVE_KEY_PAIR_ID|unowned|private tracker|optional||the CloudFront key pair archive cookies name; their publisher is not built yet"
+  "ARCHIVE_COOKIE_DOMAIN|unowned|private tracker|optional||the parent domain archive cookies are set on; needs the archive custom domain, and their publisher is not built yet"
 )
 
 # host_values_keys [class]

@@ -10,7 +10,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, createTestSessionJwt } from '../fixtures/factories';
+import { insertMember, insertMemberTierGrant, createTestSessionJwt } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3085');
 
@@ -144,5 +144,37 @@ describe('bootstrap claim', () => {
 
     const granted = db.prepare('SELECT is_admin FROM members WHERE id = ?').get('boot-third') as Record<string, unknown>;
     expect(granted.is_admin).toBe(1);
+  });
+
+  // Defect caught: a claimant who already holds Tier 2 (a Hall of Fame or Big
+  // Add Posse member, or a paid Tier 2) made administrator with no audit row,
+  // because the tier grant it rode on had nothing to grant.
+  it('writes the bootstrap audit row for a claimant already at Tier 2', async () => {
+    // A total admin loss, so the bootstrap is open again.
+    db.prepare('UPDATE members SET is_admin = 0').run();
+    insertMember(db, { id: 'boot-tier2', slug: 'boot_tier2', login_email: 'boot-tier2@example.com' });
+    insertMemberTierGrant(db, { member_id: 'boot-tier2', old_tier_status: 'tier0', new_tier_status: 'tier2', reason_code: 'honor.hof_tier2_grant' });
+    stub().setSecret(TOKEN_PARAM, 'one-shot-bootstrap-token');
+
+    const res = await request(createApp())
+      .post('/admin/bootstrap-claim')
+      .set('Cookie', cookieFor('boot-tier2'))
+      .type('form')
+      .send({ token: 'one-shot-bootstrap-token' });
+    expect(res.status).toBe(200);
+
+    const m = db.prepare('SELECT is_admin FROM members WHERE id = ?').get('boot-tier2') as Record<string, unknown>;
+    expect(m.is_admin).toBe(1);
+    const rows = db.prepare(
+      `SELECT metadata_json FROM audit_entries WHERE entity_id = 'boot-tier2' AND action_type = 'admin.bootstrap_grant'`,
+    ).all() as { metadata_json: string }[];
+    expect(rows).toHaveLength(1);
+    // The row says the tier was already held, so it does not claim a grant.
+    expect(JSON.parse(rows[0].metadata_json)).toMatchObject({ from: 'tier2', tier2_granted: false });
+    // No second Tier 2 ledger row was written for a member who held it.
+    const grants = db.prepare(
+      `SELECT COUNT(*) AS n FROM member_tier_grants WHERE member_id = 'boot-tier2' AND reason_code = 'admin_bootstrap.admin_tier2'`,
+    ).get() as { n: number };
+    expect(grants.n).toBe(0);
   });
 });

@@ -46,7 +46,8 @@
 #   - A real run with a terminal on stdin (the credential file is named), or
 #     with no terminal to ask on.
 #   - Any AWS identity but the footbag-operator IAM user.
-#   - A cutover log that is missing, or whose last section is not this pass's.
+#   - A cutover log that is missing. Each row goes at the end of this pass's
+#     own section, so a section added after it is left where it is.
 #   - A --from-step or --to-step naming no step of the target's list.
 #
 # Usage:
@@ -158,7 +159,8 @@ STAGING_STEPS=(
   's09e|idem|tty|rerun|scripts/admin-bootstrap-token.sh --target staging cleanup'
   's09f|read|tty|stdout=^ABSENT:|scripts/admin-bootstrap-token.sh --target staging status'
   's10a|once+mail|cred|log|scripts/incident-drill.sh --target staging'
-  's99|blocked|-|-|The incident drill walked by a second operator from their own workstation'
+  's98|ask+mail|-|log|Second-operator check. The next step, s99, runs the staging incident drill again and records whoever runs it as the second operator; the second operator runs it from their own workstation, with their own credential, in their remote session. Is the second operator the one at this keyboard now, on their own workstation? If not, answer no: this run stops here.'
+  's99|once+mail|cred|log|scripts/incident-drill.sh --target staging'
 )
 
 PRODUCTION_STEPS=(
@@ -178,7 +180,7 @@ PRODUCTION_STEPS=(
   'p06b|read|tty|-|scripts/verify-cwagent-metrics.sh --target production --profile footbag-operator'
   'p06c|read|tty|-|scripts/verify-cwagent-metrics.sh --target production --profile footbag-operator --containers'
   'p06d|read|tty|-|scripts/verify-host-snapshots.sh --target production'
-  'p07a|ask|-|log|Open PRODUCTION_READINESS_RUNBOOK.md in the private checkout (footbag_private_repo/) and read its first section: what this pass changes on production and what to have ready. Read it?'
+  'p07a|ask|-|log|Open PRODUCTION_READINESS_RUNBOOK.md in the private checkout (footbag_private_repo/) and read its opening and its section 1, Reads: what this pass changes on production, what to have ready, and what to look for in each read. p07h to p07n run those reads later in this pass. Read it?'
   'p07b|read|tty|-|scripts/arming.sh --target production --status --profile footbag-operator'
   'p07c|read|tty|-|scripts/production-live-marker.sh --status --profile footbag-operator'
   'p07d|read|tty|-|scripts/production-live-marker.sh --set live --dry-run --profile footbag-operator'
@@ -188,15 +190,26 @@ PRODUCTION_STEPS=(
   'p08a|read|cred|-|scripts/restore-db.sh --target production --drill'
   'p08b|read|cred|-|scripts/restore-db.sh --target production --drill --bucket footbag-production-db-snapshots-dr'
   'p08c|read|cred|-|scripts/pre-cutover-checklist.sh --target production --no-snapshot --skip-tests --skip-dns-ttl'
-  'p08d|once|cred|log|scripts/verify-prod-email.sh --profile footbag-operator --outbox'
-  'p08e|once|tty|log|scripts/verify-prod-email.sh --profile footbag-operator --bounce-probe'
+  'p07h|read|tty|-|scripts/apply-snapshot-retention.sh --target production --verify --profile footbag-operator'
+  'p07i|read|tty|-|scripts/apply-bucket-tls-baseline.sh --verify-only --profile footbag-operator'
+  'p07j|read|cred|-|scripts/diagnose-cwagent.sh --target production'
+  'p07k|read|tty|-|scripts/provision-ssm-secret.sh --target production --secret session_secret status --profile footbag-operator'
+  'p07l|read|tty|-|scripts/verify-cutover-notice.sh --function --expect-live --profile footbag-operator'
+  'p07m|read|cred|-|scripts/activate-notification-feeds.sh --target production --status --profile footbag-operator'
+  'p07n|read|cred|-|scripts/payments-pause.sh --target production --status'
+  'p07o|read|tty|-|scripts/verify-dev-tester-role-denials.sh --profile footbag-operator'
+  'p08d|once|cred|log|scripts/verify-prod-email.sh --profile footbag-production-runtime --outbox --inbox-from-tty'
+  'p08d1|ask|-|log|Outbox mail check. p08d sent one message through the production outbox to the inbox you typed. Open that inbox. Did the message arrive, and does its original source (in Gmail: the three-dot menu, Show original) show DKIM: PASS? Answer yes only if both are true.'
+  'p08e|once|tty|log|scripts/verify-prod-email.sh --profile footbag-production-runtime --bounce-probe'
   'p08f|read|tty|after=p08e+5|scripts/host-diagnostics.sh --target production ses-bounces --since {SINCE<p08e}'
   'p09|once|cred|log|scripts/restore-db.sh --target production --snapshot {SNAPSHOT>p04a}|scripts/restore-db.sh --target production --resume-erasure-replay'
-  'p10a|ask|-|log|First admin (1 of 3). In a browser, register the person who will be the first admin on production at /register, as an ordinary member, and verify their email. Next, p10b mints a one-time admin claim token and prints it here. Is that account registered and verified?'
+  'p10a|ask|-|log|First admin (1 of 2). In a browser on the production cloudfront.net address, register the person who will be the first admin at /register as an ordinary member, verify their email, and finish the sign-up wizard: the claim page sends anyone mid-wizard back to it. Next, p10b mints a one-time admin claim token and prints it here; paste it at /admin/bootstrap-claim rather than typing it, since five wrong tries lock the claim for an hour. Is that account registered, verified and through the wizard?'
   'p10b|once|tty|log|scripts/admin-bootstrap-token.sh --target production --profile footbag-operator provision'
   'p10c|read|tty|stdout=^ABSENT:|scripts/admin-bootstrap-token.sh --target production --profile footbag-operator status --wait-minutes 30'
-  'p10e|ask|-|log|First admin (3 of 3). Register one throwaway ordinary member on production at /register, with any address you can read; later steps use it, and the closing rebuild removes it. Is it registered, and has the admin-loss warning stopped now that an administrator exists?'
+  'p10d|read|cred|stdout=6\. First admin +DONE|scripts/bringup-status.sh --target production --profile footbag-operator'
+  'p10e|ask|-|log|First admin (2 of 2). Register one throwaway ordinary member on production at /register, with any address you can read; later steps use it, and the closing rebuild removes it. Is it registered?'
   'p10f|mailwalk|tty|log|scripts/confirm-alarm-subscription.sh --target production'
+  'p10g|ask+mail|-|log|Break-glass operator check. The next two steps, p11a and p11b, run the staging break-glass drill and record whoever runs it as the second operator; Julie runs them from her own workstation in her remote session. Is Julie the one at this keyboard now? If not, answer no: this run stops here, and you resume with --from-step p12a.'
   'p11a|once+mail|tty|log|scripts/host-break-glass.sh --drill --target staging'
   'p11b|read+mail|tty|-|scripts/list-host-access-mints.sh --since {SINCE<p11a}'
   'p12a|ask|-|log|Session check (1 of 2). In a browser, sign in to production as a member now and leave that tab open. The next steps rotate the signing key and the session secret and redeploy, which should sign you out. Signed in?'
@@ -218,12 +231,16 @@ PRODUCTION_STEPS=(
   'p13k|once+mail|tty|log|scripts/prove-audit-alarms.sh'
   'p13l|once|tty|log|scripts/rehearse-planned-maintenance.sh --target production'
   'p13m|idem|tty|rerun|scripts/set-terraform-gate.sh --target production --gate enable_cutover_login_alarm --state on'
-  'p13n|read|tty|-|scripts/send-test-alarm.sh --target production --status --expect ALARM --wait-minutes 90 --alarm footbag-production-cutover-zero-logins'
+  'p13n|read|tty|-|scripts/send-test-alarm.sh --target production --status --expect ALARM --wait-minutes 180 --alarm footbag-production-cutover-zero-logins'
   'p13o|idem|tty|rerun|scripts/set-terraform-gate.sh --target production --gate enable_cutover_login_alarm --state off'
+  'p13p|ask|-|log|Login count check (1 of 2). Sign in to production at /login now as the throwaway member registered at p10e. The next step reads that CloudWatch counted the sign-in, which proves the login filter the zero-logins alarm rests on matches a real sign-in. Signed in?'
+  'p13q|read|tty|-|scripts/send-test-alarm.sh --target production --status --metric LoginSuccessCount --wait-minutes 10'
   'p14a|once+mail|tty|log|scripts/host-break-glass.sh --drill --target production'
   'p14b|read+mail|tty|-|scripts/list-host-access-mints.sh --since {SINCE<p14a}'
   'p14c|idem|tty|rerun|scripts/production-cutover.sh --target staging --stage archive-base'
   'p15a|idem|tty|rerun|scripts/production-cutover.sh --target production --stage archive-base'
+  'p17a|ask|-|tty:0=legacy_data/legacy_mirror/verify_mirror.sh|The archive capture does not verify. Fix it before the publish: move the old capture aside, run bash legacy_data/legacy_mirror/create_mirror.sh -fresh, then the same with --video-backfill once its queue drains. Has that finished? p17b verifies it next.'
+  'p17b|read|tty|-|legacy_data/legacy_mirror/verify_mirror.sh'
   'p15b|read|tty|-|scripts/publish-archive.sh --target production --dry-run'
   'p15c|once|tty|log|scripts/publish-archive.sh --target production'
   'p16a|idem|tty|rerun|scripts/set-terraform-gate.sh --target production --gate enable_legacy_mirror_backup --state on'
@@ -235,13 +252,10 @@ PRODUCTION_STEPS=(
   'p18c|read|tty|-|scripts/provision-url-screening-key.sh --target both status'
   'p18d|read|tty|-|npm run verify:seed-urls -- --galleries-only --safe-browsing-key-from production'
   'p18e|ask|-|log|Have you reviewed the gallery link verdicts p18d wrote to curated/galleries/url_verdicts.json, and dealt with every link it flagged? This run does not commit that file; the maintainer does.'
-  'p19a|ask|-|log|Stripe live settings. In the Stripe Dashboard with Test mode off, are steps 1 to 7a of the live dashboard configuration card in the maintainers'"'"' private tracker done? Next, p19b checks the live webhook endpoint and asks for the live secret key (input hidden).'
+  'p19a|ask|-|log|Stripe live settings. In the Stripe Dashboard with Test mode off, are steps 1 to 7a of the live dashboard configuration card in the maintainers'"'"' private tracker done? Next, p19b checks the live webhook endpoint and asks for the live secret key, from the credential vault'"'"'s Stripe entry (input hidden).'
   'p19b|read|tty|-|scripts/create-stripe-endpoint.sh --target production --mode live --verify|scripts/create-stripe-endpoint.sh --target production --mode live --verify --repair'
   'p20a|read|tty|-|scripts/verify-account-baseline.sh --profile footbag-operator'
   'p20b|read|tty|-|scripts/terraform-apply-all.sh --target production --check'
-  'p17a|ask|-|tty:0=legacy_data/legacy_mirror/verify_mirror.sh|Has the clean archive capture finished? It runs by hand, outside this pass: move the old capture aside, run bash legacy_data/legacy_mirror/create_mirror.sh -fresh, then the same with --video-backfill once its queue drains. p17b verifies it next.'
-  'p17b|read|tty|-|legacy_data/legacy_mirror/verify_mirror.sh'
-  'p17c|once|tty|log|scripts/backup-legacy-mirror.sh --target production'
   'p90|blocked|-|-|The host rebuild drills: the backup and restore change they follow is not yet built and deployed'
   'p91|blocked|-|-|The migration case matrix on production: deploy-migrate.sh has no one-off production mode yet'
   'p92|blocked|-|-|The video-curation walk on production: it follows the curation walk on staging'
@@ -332,10 +346,6 @@ aws_profile_ensure || cr_die "no AWS identity could be settled; nothing was run"
 aws_identity_require_direct_user footbag-operator || cr_die "this pass runs only as the footbag-operator IAM user"
 
 [[ -f "$LOG" ]] || cr_die "no cutover log at ${LOG}: the private operations checkout is missing"
-last_section="$(grep -E '^## ' "$LOG" | tail -n 1 || [[ $? == 1 ]])"
-if grep -qxF -- "$SECTION" "$LOG" && [[ "$last_section" != "$SECTION" ]]; then
-  cr_die "the cutover log's last section is '${last_section}', not '${SECTION}': rows would land under the wrong heading"
-fi
 
 SCRATCH="$(mktemp -d)"
 cr_cleanup rm -rf -- "$SCRATCH"
@@ -367,7 +377,24 @@ log_row() {
   FINISHED["$id"]="$finished"
   row="| ${started} | ${finished} | ${TARGET} | ${id} | $(cell "$command") | ${result} | $(cell "$notes") |"
   echo "LOG: ${row}"
-  printf '%s\n' "$row" >> "$LOG"
+  # The row goes at the end of this pass's section, after its last table row,
+  # so a section added after it (a later pass's records) stays where it is.
+  # Written through the symlink with cat, never moved, so the link into the
+  # private checkout survives.
+  local at tmp
+  at="$(awk -v sec="$SECTION" '
+    $0 == sec { on = 1; at = NR; next }
+    on && /^## / { on = 0 }
+    on && /^\|/ { at = NR }
+    END { print at + 0 }' "$LOG")"
+  if (( at == 0 )); then
+    printf '%s\n' "$row" >> "$LOG"
+    return 0
+  fi
+  tmp="$(mktemp "${SCRATCH}/log.XXXXXX")"
+  ROW="$row" awk -v at="$at" '{ print } NR == at { print ENVIRON["ROW"] }' "$LOG" > "$tmp"
+  cat "$tmp" > "$LOG"
+  rm -f -- "$tmp"
 }
 
 # The last row of this pass's section for a step: started, finished, result, command.
@@ -623,12 +650,54 @@ stop_at() {
   rest="$(not_run_after $(( i + 1 )))"
   cr_error "step ${S_ID} ${why}"
   [[ -n "$rest" ]] && cr_unproved "not run: ${rest}"
+  # The offer reads other steps, so this step is parsed again after it.
+  offer_gate_off
+  parse_step "${STEPS[$i]}"
   echo "" >&2
   echo "Stopped at ${S_ID}. Resume with:" >&2
   echo "  < <credential file> bash scripts/production-readiness-sitting.sh --target ${TARGET} --from-step ${S_ID}" >&2
   SITTING_VERDICT="${word} AT ${S_ID}"
   CURRENT=""
   cr_finish_with 1 "${word} AT ${S_ID}"
+}
+
+# offer_gate_off: on production, when the log shows p13m turned the zero-logins
+# gate on and no p13o has turned it off since, the stop offers to run p13o. The
+# gate arms an alarm that exists only for the fire test, so a run that stops
+# between the two would otherwise leave it on. The stopped step keeps its own
+# failure: turning the gate off proves nothing about the alarm.
+offer_gate_off() {
+  [[ "$TARGET" == production ]] || return 0
+  local on off on_done off_done k gate_cmd="" report rc=0
+  on="$(log_last p13m)"
+  [[ "$(cut -f3 <<<"$on")" == ok* ]] || return 0
+  on_done="$(cut -f2 <<<"$on")"
+  off="$(log_last p13o)"
+  if [[ -n "$off" && "$(cut -f3 <<<"$off")" == ok* ]]; then
+    off_done="$(cut -f2 <<<"$off")"
+    [[ "$off_done" < "$on_done" ]] || return 0
+  fi
+  for k in "${!STEPS[@]}"; do
+    parse_step "${STEPS[$k]}"
+    [[ "$S_ID" == p13o ]] && { gate_cmd="$S_CMD"; break; }
+  done
+  [[ -n "$gate_cmd" ]] || return 0
+  echo "" >&2
+  echo "The zero-logins gate is still on: p13m turned it on and p13o has not turned it off." >&2
+  if ask_yes "Turn it off now with ${gate_cmd}?"; then
+    resolve_command "$gate_cmd" || { cr_error "the gate-off command could not be prepared; run it by hand: ${gate_cmd}"; return 0; }
+    report="$(new_report)"
+    run_child tty "$report" "" "${CMD_WORDS[@]}" || rc=$?
+    hand_on "$report"
+    rm -f -- "$report"
+    if (( rc == 0 )); then
+      log_row p13o "$(now_utc)" "$gate_cmd" ok "offered by the stop"
+    else
+      cr_error "the zero-logins gate is still on: ${gate_cmd} exited ${rc}"
+    fi
+  else
+    cr_error "the zero-logins gate is still on; turn it off with ${gate_cmd}"
+  fi
 }
 
 declare -A DIGESTS=()

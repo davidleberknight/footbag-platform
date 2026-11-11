@@ -192,11 +192,16 @@ case "$ACTION" in
       # long each read takes; with no pause between checks it is one per second
       # of the wait.
       checks=$(( WAIT_MINUTES * 60 / (POLL_SECS > 0 ? POLL_SECS : 1) ))
-      echo "WAITING: ${PARAM_NAME} is still present on ${TARGET}, so the token is unclaimed."
-      echo "Signed in as the member who is to be the first admin, open"
-      echo "/admin/bootstrap-claim on ${TARGET} and submit the token printed earlier."
-      echo "The claim spends the token; this checks every ${POLL_SECS} seconds for up"
-      echo "to ${WAIT_MINUTES} minutes."
+      # The guidance goes to stderr: a caller that keeps stdout until the step
+      # ends (the readiness sitting) would otherwise hide it for the whole wait.
+      # The verdict line stays on stdout, where callers read it.
+      {
+        echo "WAITING: ${PARAM_NAME} is still present on ${TARGET}, so the token is unclaimed."
+        echo "Signed in as the member who is to be the first admin, open"
+        echo "/admin/bootstrap-claim on ${TARGET} and submit the token printed earlier."
+        echo "The claim spends the token; this checks every ${POLL_SECS} seconds for up"
+        echo "to ${WAIT_MINUTES} minutes."
+      } >&2
       while (( checks > 0 )); do
         sleep "$POLL_SECS"
         checks=$(( checks - 1 ))

@@ -553,6 +553,26 @@ describe('admin-role notices', () => {
     expect(notices.map((m) => m.idempotency_key).sort())
       .toEqual(acts.map((a) => `admin_role_change:${a.id}:${id}`).sort());
   });
+
+  // Defect caught: two administrators each revoking the other at the same
+  // moment both succeed, because each request was authorised before the
+  // other's revoke landed, leaving no administrator at all.
+  it('refuses a revoke from an actor who is no longer an administrator, changing nothing', () => {
+    const a = freshMember();
+    const b = freshMember();
+    mts.grantAdminRole(ADMIN_ID, a, 'Joining the team.');
+    mts.grantAdminRole(ADMIN_ID, b, 'Joining the team.');
+    mts.revokeAdminRole(a, b, 'Stepping back.');
+    // b was authorised before a's revoke landed; b's revoke of a must now fail.
+    let thrown: unknown;
+    try { mts.revokeAdminRole(b, a, 'Stepping back.'); } catch (err) { thrown = err; }
+    expect((thrown as Error | undefined)?.name).toBe('ForbiddenError');
+    expect(auditRowsFor(a, 'admin.role_revoked')).toHaveLength(0);
+    const rdb = new BetterSqlite3(dbPath, { readonly: true });
+    const row = rdb.prepare('SELECT is_admin FROM members WHERE id = ?').get(a) as { is_admin: number };
+    rdb.close();
+    expect(row.is_admin).toBe(1);
+  });
 });
 
 describe('board standing tells the member their tier changed', () => {

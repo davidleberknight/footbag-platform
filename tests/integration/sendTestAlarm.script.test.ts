@@ -280,3 +280,73 @@ describe('send-test-alarm --status: reading alarm state, changing nothing', () =
     expect(calls()).toEqual([]);
   });
 });
+
+describe('send-test-alarm: reading a metric', () => {
+  /** A stand-in that answers metric reads with one line per read from FAKE_SUMS_FILE. */
+  function metricAws(): string {
+    const p = path.join(dir, 'aws-metric');
+    fs.writeFileSync(p, [
+      '#!/usr/bin/env bash',
+      'printf \'%s\\n\' "$*" >> "$FAKE_AWS_LOG"',
+      'if [[ "$2" == get-metric-statistics ]]; then',
+      '  [[ "${FAKE_METRIC_FAILS:-}" == 1 ]] && { echo "AccessDenied" >&2; exit 254; }',
+      '  first="$(head -n 1 "$FAKE_SUMS_FILE")"; rest="$(tail -n +2 "$FAKE_SUMS_FILE")"',
+      '  [[ -n "$rest" ]] && printf "%s\\n" "$rest" > "$FAKE_SUMS_FILE"',
+      '  echo "$first"; exit 0',
+      'fi',
+      '',
+    ].join('\n'), { mode: 0o755 });
+    return p;
+  }
+  function metric(sums: string[], extra: string[] = [], env: Record<string, string> = {}) {
+    const f = path.join(dir, 'sums');
+    fs.writeFileSync(f, sums.join('\n') + '\n');
+    return run(['--target', 'production', '--status', '--metric', 'LoginSuccessCount', ...extra],
+      { FOOTBAG_AWS_BIN: metricAws(), FAKE_SUMS_FILE: f, FOOTBAG_ALARM_POLL_SECS: '0', ...env });
+  }
+
+  // Defect caught: the zero-logins alarm trusted although its filter never
+  // matches a real sign-in; a counted sign-in is the only proof it watches one.
+  it('passes once the metric counts something in the window, reading the environment\'s namespace', () => {
+    const res = metric(['0.0', '0.0\t1.0'], ['--wait-minutes', '5']);
+    expect(res.status, res.stderr).toBe(0);
+    const reads = fs.readFileSync(awsLog, 'utf8').split('\n').filter((l) => l.includes('get-metric-statistics'));
+    expect(reads.length).toBe(2);
+    expect(reads[0]).toContain('--namespace Footbag/production');
+    expect(reads[0]).toContain('--metric-name LoginSuccessCount');
+    expect(reads[0]).toContain('--statistics Sum');
+  });
+
+  // Defect caught: an empty window, or one holding only zeros, read as counted.
+  it('exits 3 when nothing is counted within the wait', () => {
+    // One read each: with no pause between reads a wait would spin for its
+    // whole length, and the verdict is the same.
+    expect(metric(['None']).status).toBe(3);
+    expect(metric(['0.0\t0.0']).status).toBe(3);
+  });
+
+  it('fails on a read it could not make, and refuses beside an alarm name or without --status', () => {
+    expect(metric(['1.0'], [], { FAKE_METRIC_FAILS: '1' }).status).toBe(1);
+    expect(run(['--target', 'production', '--metric', 'LoginSuccessCount']).status).toBe(2);
+    expect(run(['--target', 'production', '--status', '--metric', 'LoginSuccessCount', '--alarm', 'footbag-production-high-cpu']).status).toBe(2);
+    expect(run(['--target', 'production', '--status', '--metric', 'bad name']).status).toBe(2);
+  });
+});
+
+describe('send-test-alarm: pacing', () => {
+  // Defect caught: a batch of test alarms published faster than the email
+  // service allows one subscription (ten messages a second), which suspends
+  // the subscription for 30 days, so alarm mail stops with no error.
+  it('pauses between alarms, and not after the last', () => {
+    const bin = path.join(dir, 'bin');
+    fs.mkdirSync(bin, { recursive: true });
+    const sleepLog = path.join(dir, 'sleep.log');
+    fs.writeFileSync(path.join(bin, 'sleep'), `#!/usr/bin/env bash\necho "$*" >> ${JSON.stringify(sleepLog)}\n`, { mode: 0o755 });
+    const res = run(
+      ['--target', 'production', '--alarm', 'footbag-production-high-cpu', '--alarm', 'footbag-production-high-memory', '--yes'],
+      { PATH: `${bin}:${process.env.PATH ?? ''}` },
+    );
+    expect(res.status, res.stderr).toBe(0);
+    expect(fs.readFileSync(sleepLog, 'utf8').trim().split('\n')).toEqual(['1']);
+  });
+});

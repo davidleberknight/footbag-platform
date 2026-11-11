@@ -24,6 +24,12 @@
 #   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/verify-prod-email.sh \
 #       --profile <p> --outbox --inbox <addr>
 #
+# --inbox-from-tty asks for the inbox at the terminal instead of taking it as an
+# argument, for a caller (the readiness sitting) whose commands are committed:
+# the operations mailbox is vault material, so it is typed, never written into a
+# command. An empty answer is refused, since the check would then prove arrival
+# nowhere.
+#
 # This sends REAL email via the production SES identity. It refuses to run
 # without an explicit production profile, and before the first send it states
 # what it is about to send and asks for a typed APPLY on the terminal. --yes
@@ -47,6 +53,7 @@ REGION="us-east-1"             # SES identity region
 SIMULATOR="success@simulator.amazonses.com"
 BOUNCE_SIMULATOR="bounce@simulator.amazonses.com"
 INBOX=""
+INBOX_FROM_TTY=0
 PROFILE=""
 BOUNCE_PROBE=0
 OUTBOX=0
@@ -56,7 +63,7 @@ OUTBOX_TIMEOUT_SECONDS=""
 HOST_ALIAS="footbag-production"
 
 usage() {
-  echo "Usage: $0 --profile <aws-profile> [--sender <address>] [--inbox <address>] [--bounce-probe] [--outbox [--outbox-timeout-seconds <n>]] [--yes]" >&2
+  echo "Usage: $0 --profile <aws-profile> [--sender <address>] [--inbox <address> | --inbox-from-tty] [--bounce-probe] [--outbox [--outbox-timeout-seconds <n>]] [--yes]" >&2
 }
 
 while [[ $# -gt 0 ]]; do
@@ -64,6 +71,7 @@ while [[ $# -gt 0 ]]; do
     --profile) PROFILE="$2"; shift 2 ;;
     --sender) SENDER="$2"; shift 2 ;;
     --inbox) INBOX="$2"; shift 2 ;;
+    --inbox-from-tty) INBOX_FROM_TTY=1; shift ;;
     --yes) ASSUME_YES="yes"; shift ;;
     --bounce-probe) BOUNCE_PROBE=1; shift ;;
     --outbox) OUTBOX=1; shift ;;
@@ -75,6 +83,23 @@ done
 
 if [[ -z "$PROFILE" ]]; then
   echo "ERROR: --profile <production-runtime-profile> is required" >&2; exit 2
+fi
+
+if (( INBOX_FROM_TTY )); then
+  if [[ -n "$INBOX" ]]; then
+    echo "ERROR: --inbox and --inbox-from-tty both name the inbox; give one" >&2; exit 2
+  fi
+  # Read from the terminal device, never stdin, which may carry the host
+  # credential for the outbox leg.
+  if ! terminal_present; then
+    echo "ERROR: --inbox-from-tty needs a terminal to ask on" >&2; exit 2
+  fi
+  printf 'Inbox to send the check to (an address you can open now): ' > /dev/tty
+  IFS= read -r INBOX < /dev/tty || INBOX=""
+  INBOX="${INBOX//[[:space:]]/}"
+  if [[ -z "$INBOX" ]]; then
+    echo "ERROR: no inbox was given; nothing was sent" >&2; exit 2
+  fi
 fi
 
 if [[ -z "$SENDER" ]]; then

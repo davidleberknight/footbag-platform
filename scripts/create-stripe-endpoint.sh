@@ -208,9 +208,17 @@ if [[ -n "$SYNTHETIC_KEY" ]]; then
   STRIPE_KEY="$SYNTHETIC_KEY"
 else
   # Where the key comes from, said before it is asked for, so the operator does
-  # not leave the run to find out.
-  printf 'The key is in the Stripe Dashboard, in %s mode, under Developers, API keys:\n' "$MODE" > /dev/tty
-  printf 'the secret key, starting sk_%s_. Paste it; it is used for this run only.\n' "$MODE" > /dev/tty
+  # not leave the run to find out. A live secret key is shown once when it is
+  # created and cannot be revealed again, so the credential vault's Stripe entry
+  # holds it; a sandbox key stays visible in the Dashboard.
+  if [[ "$MODE" == live ]]; then
+    printf 'The live secret key, starting sk_live_, is in the credential vault'"'"'s Stripe entry:\n' > /dev/tty
+    printf 'Stripe shows a live secret key only once, so the Dashboard cannot display it again.\n' > /dev/tty
+  else
+    printf 'The test secret key, starting sk_test_, is in the Stripe Dashboard, in the sandbox,\n' > /dev/tty
+    printf 'under Developers, API keys.\n' > /dev/tty
+  fi
+  printf 'Paste it; it is used for this run only.\n' > /dev/tty
   printf 'Stripe secret key for %s mode (input hidden): ' "$MODE" > /dev/tty
   read -rs STRIPE_KEY < /dev/tty
   printf '\n' > /dev/tty

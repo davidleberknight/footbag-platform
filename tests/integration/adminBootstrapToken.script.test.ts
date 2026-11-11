@@ -282,7 +282,11 @@ describe('admin-bootstrap-token.sh status reads the token strictly and waits for
       parameterExists: true, extraEnv: { ...NO_PAUSE, STUB_SPENT_ON_READ: '6' },
     });
     expect(r.status, r.stderr).toBe(0);
-    expect(r.stdout).toMatch(/^WAITING:/m);
+    // The guidance goes to stderr: a caller that holds stdout until the step
+    // ends (the readiness sitting) would otherwise keep the operator from it
+    // for the whole wait. The verdict stays on stdout, where callers read it.
+    expect(r.stderr).toMatch(/^WAITING:/m);
+    expect(r.stdout).not.toMatch(/^WAITING:/m);
     expect(r.stdout).toMatch(/^ABSENT:/m);
     expect(reads(r)).toBeGreaterThanOrEqual(6);
   });
