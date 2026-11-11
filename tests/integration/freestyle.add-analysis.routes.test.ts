@@ -1,14 +1,19 @@
 /**
  * Integration tests for GET /freestyle/add-analysis.
  *
+ * The page teaches how to read an ADD formula: what ADD is, how the brackets
+ * count, the scoring components, a few worked examples, one caveat about
+ * incompleteness, and why sources sometimes disagree. The dictionary and the
+ * trick pages own the formulas themselves, so the page carries no formula
+ * table, case catalogue or outside-source reconciliation.
+ *
  * Verifies:
- *   - Route returns 200
- *   - All 4 main section headings render in order
- *   - All 8 worked examples render with their trick links
- *   - All 10 discrepancy case anchors render
- *   - 2 edge-case brief mentions render
- *   - Philosophy paragraph + editorial-truth rule render
- *   - Cross-links to /freestyle/tricks + /freestyle/concepts + /freestyle/history present
+ *   - Route returns 200 with its three sections in order, and none of the
+ *     reference blocks that belong elsewhere
+ *   - Every component row and worked example the content defines renders, in
+ *     order, with its trick link, ADD label and additive breakdown
+ *   - The X-Dex and spin notes point to the pages that own the detail
+ *   - Exactly one callout: the incompleteness caveat
  *   - Wording lexicon: no "{source} is wrong" framing
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -28,31 +33,26 @@ const { dbPath } = setTestEnv('3110');
 let createApp: Awaited<ReturnType<typeof importApp>>;
 const page = cachedGet(() => createApp());
 
-// Names this suite requires to render as plain text (no trick page); every
-// other content-referenced slug is seeded active so its link resolves.
-const UNSEEDED_PLAIN_TEXT_SLUGS = new Set([
-  'foot_stall', 'paradox_osis', 'paradox_legover', 'symposium_osis',
-]);
+const c = FREESTYLE_ADD_ANALYSIS_CONTENT;
+
+// Handlebars escapes these characters in {{ }} output; the content strings are
+// compared against the page in their rendered form.
+function escapeHbs(s: string): string {
+  return s
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#x27;').replace(/`/g, '&#x60;')
+    .replace(/=/g, '&#x3D;');
+}
 
 beforeAll(async () => {
-  // The page is curator-authored content whose trick links resolve against the
-  // dictionary: a referenced name links only when its trick row is active (or
-  // its name is an alias of an active trick). Seed every slug the content
-  // references as an active trick, so the link assertions below exercise real
-  // resolution; the plain-text set above stays unseeded and must render as text.
+  // Seed every worked-example slug as an active trick, so each example's link
+  // resolves; link resolution for inactive and unknown names is covered by the
+  // link-resolution suite.
   const db = createTestDb(dbPath);
-  const c = FREESTYLE_ADD_ANALYSIS_CONTENT;
-  const referenced = new Set<string>();
-  for (const r of c.workedExamples)           if (r.trickSlug) referenced.add(r.trickSlug);
-  for (const r of c.osisBranch)               if (r.trickSlug) referenced.add(r.trickSlug);
-  for (const r of c.discrepancyCases)         if (r.trickSlug) referenced.add(r.trickSlug);
-  for (const r of c.edgeCases)                if (r.trickSlug) referenced.add(r.trickSlug);
-  for (const r of c.passbackAddDisagreements) if (r.ifpaSlug) referenced.add(r.ifpaSlug);
-  for (const r of c.resolvedFormulas)         if (r.slug) referenced.add(r.slug);
-  for (const slug of referenced) {
-    if (UNSEEDED_PLAIN_TEXT_SLUGS.has(slug)) continue;
+  for (const r of c.workedExamples) {
+    if (!r.trickSlug) continue;
     insertFreestyleTrick(db, {
-      slug, canonical_name: slug.replace(/_/g, ' '), adds: '3',
+      slug: r.trickSlug, canonical_name: r.trickSlug.replace(/_/g, ' '), adds: '3',
       trick_family: 'butterfly', category: 'compound', is_active: 1,
     });
   }
@@ -62,412 +62,148 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('GET /freestyle/add-analysis — route + page structure', () => {
-  it('renders the page title + intro', async () => {
+describe('GET /freestyle/add-analysis — page structure', () => {
+  // Defect caught: a section lost, reordered, or a reference block that belongs
+  // on the dictionary or the trick pages (formula table, case catalogue,
+  // outside-source table, branch ladder) creeping back onto the teaching page.
+  it('renders its three sections in order and none of the relocated reference blocks', async () => {
     const res = await page('/freestyle/add-analysis');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('ADD Analysis');
-    expect(res.text).toMatch(/How freestyle players describe trick difficulty/);
-  });
-
-  it('renders the philosophy paragraph', async () => {
-    const res = await page('/freestyle/add-analysis');
-    expect(res.text).toMatch(/structural reading for every accepted trick/);
-    expect(res.text).toMatch(/movement language explainable/);
-  });
-
-  it('renders all 4 section anchors in canonical order', async () => {
-    const res = await page('/freestyle/add-analysis');
-    const sections = [
-      'id="how-add-is-built"',
-      'id="worked-examples"',
-      'id="discrepancies"',
-      'id="interpretation-notes"',
-    ];
+    const sections = ['id="how-add-is-built"', 'id="worked-examples"', 'id="discrepancies"'];
     let lastIdx = -1;
-    for (const heading of sections) {
-      const idx = res.text.indexOf(heading);
-      expect(idx, `Missing heading: ${heading}`).toBeGreaterThan(lastIdx);
+    for (const id of sections) {
+      const idx = res.text.indexOf(id);
+      expect(idx, `Missing or out of order: ${id}`).toBeGreaterThan(lastIdx);
       lastIdx = idx;
     }
+    for (const id of ['osis-branch', 'resolved-formulas', 'interpretation-notes', 'passback-add-framing', 'edge-cases']) {
+      expect(res.text, `Relocated block back on the page: ${id}`).not.toContain(`id="${id}"`);
+    }
+    expect(res.text).not.toMatch(/id="case-DC-\d\d"/);
   });
 
-  it('exposes anchor ids for the 4 main sections (deep-link contract)', async () => {
+  // Defect caught: the caveat losing its callout, or ordinary notes boxed again.
+  it('keeps exactly one callout, the incompleteness caveat', async () => {
     const res = await page('/freestyle/add-analysis');
-    expect(res.text).toContain('id="how-add-is-built"');
-    expect(res.text).toContain('id="worked-examples"');
-    expect(res.text).toContain('id="discrepancies"');
-    expect(res.text).toContain('id="interpretation-notes"');
-  });
-
-  it('renders the editorial-truth rule + incompleteness callouts', async () => {
-    const res = await page('/freestyle/add-analysis');
-    expect(res.text).toMatch(/editorial-truth rule/i);
-    expect(res.text).toMatch(/stated value is the official one/);
-    expect(res.text).toMatch(/Honest incompleteness/i);
-    expect(res.text).toMatch(/pending breakdown refinement/);
+    const callouts = res.text.match(/<p class="add-analysis-callout">[\s\S]*?<\/p>/g) ?? [];
+    expect(callouts).toHaveLength(1);
+    expect(callouts[0]).toContain(escapeHbs(c.incompletenessNote));
   });
 
   it('states the bracket-count rule that ties notation to the published ADD', async () => {
     const res = await page('/freestyle/add-analysis');
-    expect(res.text).toMatch(/bracket-count rule/i);
-    expect(res.text).toMatch(/number of scoring brackets equals its published ADD/);
-  });
-
-  it('enumerates the X-Dex triggers and receivers', async () => {
-    const res = await page('/freestyle/add-analysis');
-    expect(res.text).toMatch(/The X-Dex/);
-    // the settled triggering sets and the receiving bases, so a reader can predict
-    // where the extra point applies rather than memorising worked examples
-    expect(res.text).toMatch(/Three settled sets can trigger it: Atomic, Quantum and Sailing/);
-    expect(res.text).not.toMatch(/frantic/i);
-    expect(res.text).toMatch(/mirage, illusion, whirl, torque, or drifter/);
-  });
-
-  it('explains stalls, including the multiple-stall jump class', async () => {
-    const res = await page('/freestyle/add-analysis');
-    expect(res.text).toMatch(/A stall is a controlled catch/);
-    // The bracket abbreviates the older word for the same catch, so the page
-    // accounts for the mismatch between what it says and what it writes.
-    expect(res.text).toMatch(/\[DEL\], from delay/);
-    expect(res.text).toMatch(/two \[DEL\] brackets/);
-  });
-
-  it('explains composite operators as the sum of their parts', async () => {
-    const res = await page('/freestyle/add-analysis');
-    expect(res.text).toMatch(/Composite operators/);
-    expect(res.text).toMatch(/Surging is spinning plus stepping/);
+    expect(res.text).toContain(escapeHbs(c.bracketRuleNote));
   });
 });
 
 describe('GET /freestyle/add-analysis — component-contribution table', () => {
-  it('renders all 9 component classes (5 atomic-flag primitives + 4 operator-board axes)', async () => {
-    // The table keeps atomic-flag primitives separate from
-    // operator/modifier contributions: the operator rows are four
-    // axis-aligned rows (Set / Entry / Midtime / Positional)
-    // labeled as a pedagogical organizing convention — NOT canonical
-    // taxonomy — mirroring the operator-board grouping in the Freestyle
-    // Concepts modifier reference chapter.
+  // Defect caught: a component row dropped or rendered without its score or example.
+  it('renders every component row with its contribution and example', async () => {
     const res = await page('/freestyle/add-analysis');
-    const components = [
-      // 5 atomic-flag primitives
-      'Stall',
-      'Dexterity (dex)',
-      'Cross-body traversal (xbody)',
-      'Spin flag',
-      'Unusual surface',
-      // 4 operator-board axes (pedagogical organizing convention)
-      'Set / Uptime modifiers',
-      'Entry and side relationship:',
-      'Midtime body modifiers',
-      'Positional / directional cues',
-    ];
-    for (const c of components) {
-      expect(res.text, `Missing component: ${c}`).toContain(c);
+    const start = res.text.indexOf('id="how-add-is-built"');
+    const end = res.text.indexOf('id="worked-examples"');
+    const region = res.text.slice(start, end);
+    for (const row of c.componentClasses) {
+      expect(region, `Missing component: ${row.componentClass}`).toContain(`<td>${escapeHbs(row.componentClass)}</td>`);
+      expect(region, `Missing contribution for: ${row.componentClass}`).toContain(`<td>${escapeHbs(row.contribution)}</td>`);
+      expect(region, `Missing example for: ${row.componentClass}`).toContain(`<td>${escapeHbs(row.example)}</td>`);
     }
+  });
+
+  // Defect caught: blurry presented as a fixed universal weight again.
+  it('blurry reads as scored per trick, never a fixed universal weight', async () => {
+    const res = await page('/freestyle/add-analysis');
+    expect(res.text).toMatch(/blurry is scored per trick/i);
+    expect(res.text).not.toMatch(/blurry \+1 \(implies stepping\)/i);
+  });
+});
+
+describe('GET /freestyle/add-analysis — notes beneath the table', () => {
+  // Defect caught: the page restating X-Dex trigger conditions that the notation
+  // now decides, contradicting the X-Dex entry in Freestyle Concepts.
+  it('states the X-Dex as notation-decided and links to its Concepts entry', async () => {
+    const res = await page('/freestyle/add-analysis');
+    expect(res.text).toContain(escapeHbs(c.xdexNote));
+    expect(res.text).toContain('href="/freestyle/concepts#term-x-dex"');
+    expect(res.text).not.toMatch(/can trigger it/i);
+  });
+
+  // Defect caught: the spin note losing its way to the page that owns the operator.
+  it('links the spin note to the spinning modifier page', async () => {
+    const res = await page('/freestyle/add-analysis');
+    expect(res.text).toContain(escapeHbs(c.spinNote));
+    expect(res.text).toContain('href="/freestyle/modifier/spinning"');
+  });
+
+  it('explains stalls, including the multiple-stall jump class', async () => {
+    const res = await page('/freestyle/add-analysis');
+    expect(res.text).toContain(escapeHbs(c.delayNote));
+    expect(res.text).toMatch(/\[DEL\], from delay/);
+    expect(res.text).toMatch(/two \[DEL\] brackets/);
+  });
+
+  // Defect caught: internal contract language returning to the visitor-facing rule.
+  it('states the published-ADD rule without internal contract language', async () => {
+    const res = await page('/freestyle/add-analysis');
+    expect(res.text).toContain(escapeHbs(c.editorialTruthRule));
+    expect(res.text).not.toMatch(/editorial contract/i);
   });
 });
 
 describe('GET /freestyle/add-analysis — worked examples', () => {
-  it('renders foundational atoms first, then compounds, with explicit ADD ordering', async () => {
+  // Defect caught: an example dropped, reordered, unlinked, or rendered without
+  // its ADD label or additive breakdown.
+  it('renders every worked example in order with its link, ADD label and breakdown', async () => {
     const res = await page('/freestyle/add-analysis');
-    // The 17 worked examples cover every 1-3 ADD foundational atom
-    // plus the 4-5 ADD compound flagships. Order is ascending ADD,
-    // with foundational atoms grouped by ADD value then compounds.
-    //
-    // Pattern note: trick names appear in two contexts — the example
-    // heading (canonical, linked) and in some whyNote prose (e.g. Osis
-    // mentions "Torque" as a derivative compound). Search using the
-    // anchor-tag closing form `>Name</a>` so we hit only the heading.
-    // The "Cross-body traversal (xbody primitive)" entry carries a
-    // null trickSlug: it illustrates the xbody accounting primitive
-    // and makes no canonical-trick claim. All other worked examples
-    // carry trick links via the `>${name}</a>` anchor closing pattern.
-    const linkedExamples = [
-      // 1 ADD
-      'Toe-stall',
-      // 2 ADD foundational atoms
-      'Clipper-stall',
-      'Mirage',
-      'Legover',
-      'Pickup',
-      'Illusion',
-      'Around the World',
-      // 3 ADD foundational atoms
-      'Whirl',
-      'Swirl',
-      'Butterfly',
-      'Osis',
-      // operator visibility (3 ADD)
-      'Paradox Mirage',
-      // 4-5 ADD compounds
-      'Torque',
-      'Atom Smasher',
-      'Blurry Whirl',
-      'Mobius',
-    ];
+    const start = res.text.indexOf('id="worked-examples"');
+    const end = res.text.indexOf('id="discrepancies"');
+    const region = res.text.slice(start, end);
     let lastIdx = -1;
-    const sectionStart = res.text.indexOf('id="worked-examples"');
-    const sectionEnd = res.text.indexOf('id="discrepancies"');
-    const slice = res.text.substring(sectionStart, sectionEnd);
-    // The xbody-primitive entry appears second (after Toe-stall, before
-    // Clipper-stall) without a trick-detail link. Pin its position +
-    // unlinked rendering.
-    const xbodyIdx = slice.indexOf('Cross-body traversal (xbody primitive)');
-    const toeIdx = slice.indexOf('>Toe-stall</a>');
-    const clipperStallIdx = slice.indexOf('>Clipper-stall</a>');
-    expect(xbodyIdx).toBeGreaterThan(toeIdx);
-    expect(clipperStallIdx).toBeGreaterThan(xbodyIdx);
-    for (const e of linkedExamples) {
-      const idx = slice.indexOf(`>${e}</a>`);
-      expect(idx, `Worked example ${e} heading not found or out of order`).toBeGreaterThan(lastIdx);
+    for (const ex of c.workedExamples) {
+      const heading = `href="/freestyle/tricks/${ex.trickSlug}">${escapeHbs(ex.trickName)}</a>`;
+      const idx = region.indexOf(heading);
+      expect(idx, `Worked example ${ex.trickName} missing, unlinked or out of order`).toBeGreaterThan(lastIdx);
       lastIdx = idx;
+      const entry = region.slice(idx, idx + 2000);
+      expect(entry, `${ex.trickName} ADD label`).toContain(`&middot; ${ex.addLabel}`);
+      expect(entry, `${ex.trickName} breakdown`).toContain(`<code>${escapeHbs(ex.derivation)}</code>`);
     }
   });
 
-  it('worked examples link to the trick-detail page when slug is known', async () => {
-    const res = await page('/freestyle/add-analysis');
-    // The xbody-primitive entry has trickSlug: null — it is an
-    // illustration of the accounting primitive, not a canonical-trick
-    // claim, so no 'clipper' link renders.
-    const expectedLinks = [
-      'href="/freestyle/tricks/toe_stall"',
-      'href="/freestyle/tricks/clipper_stall"',
-      'href="/freestyle/tricks/mirage"',
-      'href="/freestyle/tricks/legover"',
-      'href="/freestyle/tricks/pickup"',
-      'href="/freestyle/tricks/illusion"',
-      'href="/freestyle/tricks/around_the_world"',
-      'href="/freestyle/tricks/whirl"',
-      'href="/freestyle/tricks/swirl"',
-      'href="/freestyle/tricks/butterfly"',
-      'href="/freestyle/tricks/osis"',
-      'href="/freestyle/tricks/torque"',
-      'href="/freestyle/tricks/atom_smasher"',
-      'href="/freestyle/tricks/blurry_whirl"',
-      'href="/freestyle/tricks/mobius"',
-    ];
-    for (const link of expectedLinks) {
-      expect(res.text, `Missing cross-link: ${link}`).toContain(link);
-    }
-  });
-
-  it('worked examples carry their ADD label', async () => {
-    const res = await page('/freestyle/add-analysis');
-    expect(res.text).toMatch(/Toe-stall<\/a>[\s\S]{0,200}1 ADD/);
-    expect(res.text).toMatch(/Mirage<\/a>[\s\S]{0,200}2 ADD/);
-    expect(res.text).toMatch(/Whirl<\/a>[\s\S]{0,200}3 ADD/);
-    expect(res.text).toMatch(/Mobius<\/a>[\s\S]{0,200}5 ADD/);
-  });
-
-  it('worked examples render explicit additive derivations using stall/dex/xbody/spin primitives', async () => {
-    // Central pedagogical contract: every foundational worked example
-    // carries an explicit additive derivation string that names which
-    // primitives contribute each ADD. Pin a sample across the four
-    // primitives.
-    //
-    // Note: Handlebars HTML-escapes `=` to `&#x3D;` in the rendered
-    // <code> block. Assert against the encoded form (what users see in
-    // page source); the visible rendered character is still `=`.
-    const res = await page('/freestyle/add-analysis');
-    const derivations = [
-      'stall(1) &#x3D; 1 ADD',
-      'xbody(1) &#x3D; 1 ADD',
-      'xbody(1) + stall(1) &#x3D; 2 ADD',
-      'dex(1) + stall(1) &#x3D; 2 ADD',
-      'xbody(1) + dex(1) + stall(1) &#x3D; 3 ADD',
-      'dex(1) + xbody(1) + stall(1) &#x3D; 3 ADD',
-      'spin(1) + xbody(1) + stall(1) &#x3D; 3 ADD',
-      'paradox(+1) + mirage(2) &#x3D; 3 ADD',
-      'quantum(+1) + osis(3) &#x3D; 4 ADD',
-      'atomic(+1) + mirage(2) + xdex(+1) &#x3D; 4 ADD',
-      'stepping(+1) + paradox(+1) + whirl(3) &#x3D; 5 ADD',
-      'gyro(+1) + torque(4) &#x3D; 5 ADD',
-    ];
-    for (const d of derivations) {
-      expect(res.text, `Missing derivation: ${d}`).toContain(d);
-    }
-  });
-
-  it('component-classes table introduces xbody and spin-flag primitives', async () => {
-    const res = await page('/freestyle/add-analysis');
-    expect(res.text).toContain('Cross-body traversal (xbody)');
-    expect(res.text).toContain('Spin flag');
-  });
-});
-
-describe('GET /freestyle/add-analysis', () => {
-  it('a dedicated callout disambiguates spin flag vs spinning operator vs rotational character', async () => {
-    const res = await page('/freestyle/add-analysis');
-    expect(res.text).toContain('add-analysis-callout--spin');
-    expect(res.text).toMatch(/spin flag is a rotational/i);
-    expect(res.text).toMatch(/spinning operator is a body modifier/i);
-    expect(res.text).toMatch(/rotational character describes moves/i);
-    expect(res.text).toMatch(/atomic is \+1 on every base/i);
-  });
-
-  it('operator-axis rows are labeled as a pedagogical organizing convention, not an official grouping', async () => {
-    const res = await page('/freestyle/add-analysis');
-    // The four-axis grouping must be flagged as pedagogical, not official.
-    expect(res.text).toMatch(/pedagogical axis, not an official grouping/i);
-  });
-
+  // Defect caught: mirage described as rotational again.
   it('Mirage worked-example does not describe mirage as "rotational"', async () => {
     const res = await page('/freestyle/add-analysis');
     const sliceStart = res.text.indexOf('>Mirage</a>');
-    const sliceEnd = res.text.indexOf('>Legover</a>');
+    const sliceEnd = res.text.indexOf('>Whirl</a>');
     expect(sliceStart).toBeGreaterThan(0);
     const region = res.text.slice(sliceStart, sliceEnd);
     expect(region).not.toMatch(/rotational anchor/i);
     expect(region).toMatch(/foundational dexterity primitive/i);
   });
 
-  it('xbody-primitive entry replaces the prior Clipper(kick) framing', async () => {
+  // Defect caught: whirl landing on the wrong clipper side in its operational chain.
+  it('Whirl worked example lands on the opposite-side clipper', async () => {
     const res = await page('/freestyle/add-analysis');
-    expect(res.text).toContain('Cross-body traversal (xbody primitive)');
-    // The accounting-primitive framing prose must be present.
-    expect(res.text).toMatch(/accounting primitive illustrated via clipper motion/i);
-    expect(res.text).toMatch(/not an official named trick/i);
-    // The xbody insight remains: clipper-stall still exists below as a
-    // canonical trick + xbody is still a recognized accounting primitive.
-    expect(res.text).toContain('href="/freestyle/tricks/clipper_stall"');
-  });
-
-  it('Around the World worked-example surfaces its operational chain and reads as dex + stall', async () => {
-    const res = await page('/freestyle/add-analysis');
-    const start = res.text.indexOf('Around the World');
-    expect(start).toBeGreaterThan(0);
-    const region = res.text.slice(start, start + 900);
-    expect(region).toMatch(/toe &gt; ss in dex &gt; ss toe/);
-    expect(region).toMatch(/dex\(1\) \+ stall\(1\) &#x3D; 2 ADD/);
-    // The worked example uses the standard dex primitive, not a one-off "full-orbit dex".
-    expect(region).not.toContain('full-orbit');
-  });
-
-  it('Whirl / Butterfly / Osis worked examples carry their operational chains', async () => {
-    const res = await page('/freestyle/add-analysis');
-    // From ATOMIC_FLAG_DECOMPOSITIONS — surfacing chains on this page
-    // gives parity with the trick-detail first-class Notation summary.
-    // Whirl lands on the opposite-side clipper (OP CLIP in its notation).
     expect(res.text).toMatch(/leggy in dex &gt; op clipper/);
-    expect(res.text).toMatch(/hippy out dex &gt; ss clipper/);
-    expect(res.text).toMatch(/\(downtime\) spin &gt; ss clipper/);
-  });
-
-  it('blurry reads as scored per trick, never a fixed universal weight', async () => {
-    const res = await page('/freestyle/add-analysis');
-    // blurry is folk shorthand governed by each trick's notation, not a flat value
-    expect(res.text).toMatch(/blurry is scored per trick/i);
-    // the stale fixed +1-stepping-only claim must not reappear
-    expect(res.text).not.toMatch(/blurry \+1 \(implies stepping\)/i);
-    // the per-trick reading includes the paradox second dex where the notation carries it
-    expect(res.text).toMatch(/paradox second dex/i);
-  });
-
-  it('Furious surfaces as the two-dex Set/Uptime modifier with weight 2; barraging is a legacy name for it', async () => {
-    const res = await page('/freestyle/add-analysis');
-    expect(res.text).toMatch(/furious \+2/i);
-    expect(res.text).toMatch(/two-dex.*set/i);
-    // barraging is retired as a scored operator; it survives only as a legacy name for the Furious set
-    expect(res.text).toMatch(/barraging is a legacy name/i);
-  });
-
-  it('Philosophy paragraph elevates stopping-depth equivalence as foundational', async () => {
-    const res = await page('/freestyle/add-analysis');
-    expect(res.text).toMatch(/multiple valid structural readings at different stopping depths/i);
-    expect(res.text).toMatch(/stopping-depth equivalence is a foundational property/i);
-  });
-
-  it('Section 3 intro reframes compression cases as the movement structure working as intended, not real disagreements', async () => {
-    const res = await page('/freestyle/add-analysis');
-    const startIdx = res.text.indexOf('id="discrepancies"');
-    const endIdx = res.text.indexOf('class="add-analysis-discrepancy-cases"', startIdx);
-    const region = res.text.slice(startIdx, endIdx);
-    expect(region).toMatch(/Multi-depth readings are not real disagreements/i);
-    expect(region).toMatch(/movement structure[\s\S]{0,40}working as intended/i);
-    expect(region).toMatch(/Stopping-depth equivalence is foundational/i);
-  });
-
-  it('no curator-internal language appears in the §1 component-table region', async () => {
-    // Scope: §1 component-class table. A separate page-wide test guards
-    // against provenance jargon ("pt##" / ruling citations) anywhere on
-    // the page.
-    const res = await page('/freestyle/add-analysis');
-    const sectionStart = res.text.indexOf('id="how-add-is-built"');
-    const sectionEnd = res.text.indexOf('id="worked-examples"');
-    const region = res.text.slice(sectionStart, sectionEnd);
-    expect(region).not.toMatch(/curatorConfirmPending/i);
-    expect(region).not.toMatch(/Slice [A-Z]\b/);
-    expect(region).not.toMatch(/Sprint\b/i);
-    expect(region).not.toMatch(/COMPOSITE_DERIVATIONS/);
   });
 });
 
-describe('GET /freestyle/add-analysis — discrepancy case studies', () => {
-  it('renders all 10 case anchor ids (DC-01..DC-10)', async () => {
+describe('GET /freestyle/add-analysis — why sources disagree + cross-links', () => {
+  // Defect caught: the recurring reasons dropped from the discrepancy section.
+  it('renders the recurring disagreement reasons inside the discrepancy section', async () => {
     const res = await page('/freestyle/add-analysis');
-    for (let i = 1; i <= 10; i++) {
-      const id = `id="case-DC-${String(i).padStart(2, '0')}"`;
-      expect(res.text, `Missing case anchor: ${id}`).toContain(id);
+    const region = /id="discrepancies"[\s\S]*?<\/section>/.exec(res.text)?.[0] ?? '';
+    expect(c.closingParagraphs.length).toBeGreaterThan(0);
+    for (const p of c.closingParagraphs) {
+      expect(region, `Missing reason: ${p}`).toContain(`<p>${escapeHbs(p)}</p>`);
     }
-  });
-
-  it('renders each case trick name', async () => {
-    const res = await page('/freestyle/add-analysis');
-    const cases = [
-      'Hurl',
-      'Barfry',
-      'Godzilla',
-      'Blurry Whirl',
-      'Blurry Torque',
-      'Food Processor',
-      'Mobius',
-      'Atom Smasher',
-      'Baroque',
-      'Bladerunner',
-    ];
-    for (const c of cases) {
-      expect(res.text, `Missing case: ${c}`).toContain(c);
-    }
-  });
-
-  it('renders IFPA status lines carrying the substantive note but no individual / date / ruling-number attribution', async () => {
-    const res = await page('/freestyle/add-analysis');
-    expect(res.text).toContain('settled (X-dex carry from a toe)');
-    expect(res.text).toContain('settled (Baroque named ruling)');
-    // The public status lines never name an individual, carry a date, or cite a ruling number.
-    expect(res.text).not.toMatch(/settled by Red/);
-    expect(res.text).not.toMatch(/settled by pt[0-9]/);
-    expect(res.text).not.toMatch(/settled by Wave/);
-  });
-
-  it('renders the 2 edge-case brief mentions', async () => {
-    const res = await page('/freestyle/add-analysis');
-    expect(res.text).toContain('Sumo');
-    expect(res.text).toContain('Genesis');
-    // Sumo's mention is now notation-authoritative; Genesis keeps the retired
-    // rotational-escalation only as a historical, external-source note.
-    expect(res.text).toMatch(/\[XDEX\] flag in its operational notation/);
-    expect(res.text).toMatch(/rotational-escalation/);
-  });
-});
-
-describe('GET /freestyle/add-analysis — interpretation notes + cross-links', () => {
-  it('renders the 3 disagreement patterns in §4', async () => {
-    const res = await page('/freestyle/add-analysis');
-    expect(res.text).toMatch(/Positional vs additive/);
-    expect(res.text).toMatch(/Compression vs expansion/);
-    expect(res.text).toMatch(/Historical evolution/);
   });
 
   it('renders the cross-links inventory', async () => {
     const res = await page('/freestyle/add-analysis');
-    expect(res.text).toContain('href="/freestyle/tricks"');
-    // Both Freestyle Concepts cross-links must target anchors that exist on
-    // the Concepts page: the notation section and the ADD Accounting heading.
-    expect(res.text).toContain('href="/freestyle/concepts#section-notation"');
-    expect(res.text).toContain('href="/freestyle/concepts#traditional-reference"');
-    expect(res.text).toContain('href="/freestyle/history"');
+    for (const link of c.crossLinks) {
+      expect(res.text, `Missing cross-link: ${link.href}`).toContain(`href="${link.href}"`);
+    }
   });
 });
 
@@ -488,259 +224,25 @@ describe('ADD Analysis discoverability — inbound links', () => {
   });
 });
 
-describe('GET /freestyle/add-analysis — resolved compound formulas (§2b reference table)', () => {
-  // The table publishes 15 pure +1-stack compositions where both
-  // operator and base are Red-settled; 7 rows across a wider pattern
-  // set — pt-ruled compounds (eggbeater), positional modifiers
-  // (rev-whirl, reverse-around-the-world), folk-name resolutions
-  // (dimwalk), and a multi-operator chain (paradox-symposium-whirl);
-  // and 2 targeted folk-name resolutions (smear, ripwalk). Compact
-  // reference table between worked examples (§2) and discrepancy
-  // cases (§3).
-
-  it('renders the §2b section heading + anchor', async () => {
-    const res = await page('/freestyle/add-analysis');
-    expect(res.text).toContain('id="resolved-formulas"');
-    expect(res.text).toMatch(/Common formula patterns/);
-  });
-
-  it('renders the framing prose', async () => {
-    const res = await page('/freestyle/add-analysis');
-    expect(res.text).toMatch(/Mechanically-derivable compound formulas/);
-    expect(res.text).toMatch(/settled scoring rule/i);
-  });
-
-  it('renders all 24 resolved-formula rows with trick-detail links', async () => {
-    // rev-up is not canonical (is_active=0): it is structurally
-    // distinct from rev-whirl but lacks an authored structural
-    // decomposition, so the public table carries no row for it.
-    const res = await page('/freestyle/add-analysis');
-    const expectedSlugs = [
-      // pure +1 stacks (15 rows)
-      'paradox_mirage', 'symposium_mirage',
-      'atomic_butterfly', 'ducking_butterfly', 'ducking_osis', 'ducking_whirl',
-      'spinning_butterfly', 'spinning_osis',
-      'stepping_osis', 'stepping_whirl', 'symposium_whirl', 'whirling_swirl',
-      'paradox_blender', 'paradox_torque', 'spinning_torque',
-      // pt-ruled / positional / multi-op / folk-name (7 rows)
-      'eggbeater', 'ducking_clipper', 'spinning_clipper',
-      'rev_whirl', 'orbit',
-      'paradox_symposium_whirl', 'dimwalk',
-      // targeted folk-name resolutions (2 rows)
-      'smear', 'ripwalk',
-    ];
-    for (const slug of expectedSlugs) {
-      expect(res.text, `missing resolved-compound row: ${slug}`)
-        .toContain(`href="/freestyle/tricks/${slug}"`);
-    }
-  });
-
-  it('renders the +1-stack derivations', async () => {
-    const res = await page('/freestyle/add-analysis');
-    // Handlebars HTML-escapes `=` to `&#x3D;` in <code> blocks
-    const eq = '(?:=|&#x3D;)';
-    expect(res.text).toMatch(new RegExp(`paradox\\(\\+1\\)\\s*\\+\\s*mirage\\(2\\)\\s*${eq}\\s*3 ADD`));
-    expect(res.text).toMatch(new RegExp(`spinning\\(\\+1\\)\\s*\\+\\s*osis\\(3\\)\\s*${eq}\\s*4 ADD`));
-    expect(res.text).toMatch(new RegExp(`paradox\\(\\+1\\)\\s*\\+\\s*torque\\(4\\)\\s*${eq}\\s*5 ADD`));
-    expect(res.text).toMatch(new RegExp(`whirling\\(\\+1\\)\\s*\\+\\s*swirl\\(3\\)\\s*${eq}\\s*4 ADD`));
-  });
-
-  it('renders derivations across the expanded pattern set', async () => {
-    const res = await page('/freestyle/add-analysis');
-    const eq = '(?:=|&#x3D;)';
-    // pt-ruled: eggbeater = atomic legover
-    expect(res.text).toMatch(new RegExp(`atomic\\(\\+1\\)\\s*\\+\\s*legover\\(2\\)\\s*${eq}\\s*3 ADD`));
-    // rev-whirl publishes the structural derivation
-    // (xbody+dex+stall). The reverse(+0) reading lives in the ALT row
-    // on /freestyle/tricks/rev-whirl, not on /freestyle/add-analysis.
-    expect(res.text).toMatch(/xbody\(1\)\s*\+\s*dex\(1\)\s*\+\s*stall\(1\)\s*(?:=|&#x3D;)\s*3 ADD/);
-    // orbit still publishes the reverse(+0) reading.
-    expect(res.text).toMatch(new RegExp(`reverse\\(\\+0\\)\\s*\\+\\s*around-the-world\\(2\\)\\s*${eq}\\s*2 ADD`));
-    // multi-operator chain
-    expect(res.text).toMatch(new RegExp(`paradox\\(\\+1\\)\\s*\\+\\s*symposium\\(\\+1\\)\\s*\\+\\s*whirl\\(3\\)\\s*${eq}\\s*5 ADD`));
-    // folk-name resolution: dimwalk = pixie butterfly
-    expect(res.text).toMatch(new RegExp(`pixie\\(\\+1\\)\\s*\\+\\s*butterfly\\(3\\)\\s*${eq}\\s*4 ADD`));
-  });
-
-  it('renders the folk-name resolutions (smear / ripwalk)', async () => {
-    // rev-up is not canonical (is_active=0): it is structurally
-    // distinct from rev-whirl without an authored decomposition, so
-    // RESOLVED_ADD_FORMULAS carries no entry for it and the table
-    // publishes 2 folk-name resolutions.
-    const res = await page('/freestyle/add-analysis');
-    const eq = '(?:=|&#x3D;)';
-    expect(res.text).toMatch(new RegExp(`pixie\\(\\+1\\)\\s*\\+\\s*mirage\\(2\\)\\s*${eq}\\s*3 ADD`));
-    expect(res.text).toMatch(new RegExp(`stepping\\(\\+1\\)\\s*\\+\\s*butterfly\\(3\\)\\s*${eq}\\s*4 ADD`));
-    // rev-whirl publishes the structural form.
-    expect(res.text).toMatch(/xbody\(1\) \+ dex\(1\) \+ stall\(1\) &#x3D; 3 ADD/);
-    // The reverse(+0) reading is not in the /freestyle/add-analysis
-    // table for rev-up (rev-up is demoted) or rev-whirl (structural form).
-  });
-
-  it('resolved-formulas section sits between worked examples (§2) and discrepancies (§3)', async () => {
-    const res = await page('/freestyle/add-analysis');
-    const workedExamplesIdx = res.text.indexOf('id="worked-examples"');
-    const resolvedFormulasIdx = res.text.indexOf('id="resolved-formulas"');
-    const discrepanciesIdx = res.text.indexOf('id="discrepancies"');
-    expect(workedExamplesIdx).toBeGreaterThan(0);
-    expect(resolvedFormulasIdx).toBeGreaterThan(workedExamplesIdx);
-    expect(discrepanciesIdx).toBeGreaterThan(resolvedFormulasIdx);
-  });
-
-  it('resolved-formulas section stays within the lexicon — no forbidden phrases', async () => {
-    const res = await page('/freestyle/add-analysis');
-    const sectionMatch = res.text.match(/id="resolved-formulas"[\s\S]*?<\/section>/);
-    expect(sectionMatch).not.toBeNull();
-    const section = sectionMatch![0].toLowerCase();
-    for (const phrase of ['is wrong', 'incorrect', 'the correct add', 'should be', 'outdated']) {
-      expect(section.includes(phrase), `Forbidden in pilot-compounds section: "${phrase}"`).toBe(false);
-    }
-  });
-});
-
-describe('GET /freestyle/add-analysis — outside-source ADD framing subsection', () => {
-  // External-source ADD reconciliation: name-matched rows where an outside
-  // source's dex_count diverges from IFPA structural ADD. Surfaces the framing
-  // explicitly so the divergence reads as a structural reconciliation
-  // (the outside source counts dexes; IFPA counts ADD) rather than a true conflict.
-
-  it('renders the §3c framing heading + anchor', async () => {
-    const res = await page('/freestyle/add-analysis');
-    expect(res.text).toContain('id="passback-add-framing"');
-    expect(res.text).toMatch(/External-source ADD framings/);
-  });
-
-  it('renders the outside-source-vs-IFPA counting framing prose', async () => {
-    const res = await page('/freestyle/add-analysis');
-    expect(res.text).toContain('class="passback-add-framing-prose"');
-    expect(res.text).toMatch(/dex_count/);
-    expect(res.text).toMatch(/canonical ADD/);
-    expect(res.text).toMatch(/different things/);
-  });
-
-  it('renders a <details> disclosure with the 68 disagreement rows', async () => {
-    const res = await page('/freestyle/add-analysis');
-    expect(res.text).toContain('class="passback-add-disagreement-details"');
-    expect(res.text).toContain('aria-labelledby="passback-add-framing"');
-    // Spot-check representative rows by IFPA trick name
-    for (const trick of ['butterfly', 'mirage', 'whirl', 'osis', 'eggbeater', 'mobius']) {
-      expect(res.text, `missing PB-disagreement row for: ${trick}`)
-        .toMatch(new RegExp(`href="/freestyle/tricks/${trick}"`));
-    }
-  });
-
-  it('every disagreement row carries an outside-source dex_count value, and IFPA names link only when resolvable', async () => {
-    const res = await page('/freestyle/add-analysis');
-    // Pull the table region
-    const tableMatch = res.text.match(/aria-labelledby="passback-add-framing">[\s\S]*?<\/table>/);
-    expect(tableMatch).not.toBeNull();
-    const table = tableMatch![0];
-    // Every row carries a PB-claim cell (one per row, whether or not the IFPA
-    // name links).
-    const claimCells = table.match(/<td class="col-num">/g) ?? [];
-    expect(claimCells.length).toBeGreaterThanOrEqual(60); // ~68 disagreement rows
-    // IFPA names link only for slugs with a resolvable trick page. The fixture
-    // seeds butterfly, so at least one row links; unresolvable slugs render as
-    // plain text rather than a dead link.
-    const rowLinks = table.match(/<a href="\/freestyle\/tricks\/[a-z_]+"/g) ?? [];
-    expect(rowLinks.length).toBeGreaterThanOrEqual(1);
-    expect(rowLinks.length).toBeLessThanOrEqual(claimCells.length);
-  });
-
-  it('framing prose stays within the lexicon — no forbidden phrases', async () => {
-    // Belt-and-suspenders: re-asserts the lexicon test against the new
-    // subsection specifically, so future curator edits don't silently
-    // introduce "is wrong" / "incorrect" framing here.
-    const res = await page('/freestyle/add-analysis');
-    const sectionMatch = res.text.match(/id="passback-add-framing"[\s\S]*?<\/section>/);
-    expect(sectionMatch).not.toBeNull();
-    const section = sectionMatch![0].toLowerCase();
-    for (const phrase of ['is wrong', 'incorrect', 'the correct add', 'should be', 'outdated']) {
-      expect(section.includes(phrase), `Forbidden in PB framing: "${phrase}"`).toBe(false);
-    }
-  });
-});
-
-describe('GET /freestyle/add-analysis — wording lexicon discipline', () => {
+describe('GET /freestyle/add-analysis — wording discipline', () => {
   it('never uses "is wrong" / "incorrect" framing on external sources', async () => {
     const res = await page('/freestyle/add-analysis');
-    // Hard never-ship phrases: external sources are never framed as wrong
-    const forbidden = [
-      'is wrong',
-      'incorrect',
-      'the correct ADD',
-      'should be',
-      'outdated',
-    ];
-    for (const phrase of forbidden) {
-      // Allow inside script/style/title attributes? Not on this page — there are none.
-      // Match case-insensitively.
+    for (const phrase of ['is wrong', 'incorrect', 'the correct ADD', 'should be', 'outdated']) {
       expect(
         res.text.toLowerCase().includes(phrase.toLowerCase()),
         `Forbidden phrase appeared: "${phrase}"`,
       ).toBe(false);
     }
   });
-});
 
-describe('GET /freestyle/add-analysis — public pedagogy cleanup', () => {
-  it('renders the Osis-family compositional ladder', async () => {
+  // Defect caught: internal governance citations or code symbols reaching visitors.
+  it('carries no internal governance citations or code symbols', async () => {
     const res = await page('/freestyle/add-analysis');
-    expect(res.text).toContain('id="osis-branch"');
-    expect(res.text).toMatch(/Reading a branch: the Osis family/);
-    // The three operator steps, in order.
-    expect(res.text).toMatch(/quantum Osis/);
-    expect(res.text).toMatch(/whirling Osis/);
-    expect(res.text).toMatch(/gyro Torque/);
-    for (const slug of ['osis', 'torque', 'blender', 'mobius']) {
-      expect(res.text, `ladder link ${slug}`).toContain(`href="/freestyle/tricks/${slug}"`);
-    }
-  });
-
-  it('strips internal governance citations from the whole page (incl. the dropped provenance column)', async () => {
-    // The formula-table Provenance column was removed (its strings were internal
-    // audit notes saturated with code symbols, file names, and ruling labels). The
-    // clean ADD math stays in the Breakdown column. The page must now carry no such
-    // internal jargon anywhere.
-    const res = await page('/freestyle/add-analysis');
-    expect(res.text).not.toMatch(/TBD pending Wave 2/);
-    expect(res.text).not.toMatch(/prior paradox-implication retired/);
-    expect(res.text).not.toMatch(/prior paradox-atomic reading retired/);
-    expect(res.text).not.toMatch(/Settled by pt11\./);
-    expect(res.text).not.toMatch(/Settled by Red 2026-05-15:/);
-    // Provenance-column leakage is gone page-wide: no ruling labels, sprint/pt tags,
-    // code-symbol names, or source-file references reach the rendered page.
     expect(res.text).not.toMatch(/Red ruling/i);
     expect(res.text).not.toMatch(/per Red\b/);
     expect(res.text).not.toMatch(/\bpt\d+\b/);
+    expect(res.text).not.toMatch(/working rulings adopted by this encyclopedia/i);
     expect(res.text).not.toContain('COMPOSITE_DERIVATIONS');
     expect(res.text).not.toContain('FIRST_CLASS_ROTATIONAL_BASES');
-    expect(res.text).not.toMatch(/freestyleSymbolicEquivalences\.ts/);
-    expect(res.text).not.toContain('resolved-formula-provenance');
-  });
-
-  it('renames internal-sounding section titles', async () => {
-    const res = await page('/freestyle/add-analysis');
-    expect(res.text).toContain('Common formula patterns');
-    expect(res.text).not.toContain('Settled compound formula reference');
-    expect(res.text).toContain('>Edge cases</h3>');
-    expect(res.text).not.toContain('Edge cases mentioned briefly');
-  });
-});
-
-describe('GET /freestyle/add-analysis — PassBack disagreement links gate on trick resolvability', () => {
-  it('links a disagreement row whose IFPA slug resolves to a trick page', async () => {
-    const res = await page('/freestyle/add-analysis');
-    expect(res.text).toContain('href="/freestyle/tricks/butterfly"');
-  });
-
-  it('renders IFPA names with no canonical trick page as plain text, never a dead link', async () => {
-    const res = await page('/freestyle/add-analysis');
-    for (const slug of ['foot_stall', 'paradox_osis', 'paradox_legover', 'symposium_osis']) {
-      expect(res.text, `dead link for ${slug}`).not.toContain(`href="/freestyle/tricks/${slug}"`);
-    }
-    // The names themselves still appear in the table.
-    expect(res.text).toContain('foot stall');
-    expect(res.text).toContain('paradox osis');
   });
 });

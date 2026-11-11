@@ -31,6 +31,7 @@ import {
   insertFreestyleTrickAlias,
   insertTtLesson,
 } from '../fixtures/factories';
+import { FREESTYLE_ADD_ANALYSIS_CONTENT } from '../../src/content/freestyleAddAnalysisContent';
 
 const { dbPath } = setTestEnv('3080');
 
@@ -1666,24 +1667,19 @@ describe('Formula accountability contracts', () => {
     // Handlebars escapes `=` to `&#x3D;` by default, so regex patterns
     // accept either form across the derivation strings.
     //
-    // The 17 worked examples give full coverage of foundational atoms
-    // plus the compound flagships. The 1- and 2-ADD atoms use the
-    // explicit primitive-decomposition style (stall / dex / xbody /
-    // spin), so spot-checks assert the primitive forms, not shorthand
-    // like "clipper(1) = 1 ADD" or "mirage(2) = 2 ADD".
+    // The foundational examples use the explicit primitive-decomposition
+    // style (stall / dex / xbody), so spot-checks assert the primitive
+    // forms, not shorthand like "mirage(2) = 2 ADD".
     const eq = '(?:=|&#x3D;)';
     const res = await page('/freestyle/add-analysis');
     expect(res.status).toBe(200);
     const derivationMatches = res.text.match(/class="add-analysis-derivation-line"/g) ?? [];
-    expect(derivationMatches.length).toBe(17);  // 17 worked examples
+    expect(derivationMatches.length).toBe(FREESTYLE_ADD_ANALYSIS_CONTENT.workedExamples.length);
     // Spot-check the formulaic content (entity-tolerant).
     expect(res.text).toMatch(new RegExp(`stall\\(1\\)\\s*${eq}\\s*1 ADD`));         // toe-stall
-    expect(res.text).toMatch(new RegExp(`xbody\\(1\\)\\s*${eq}\\s*1 ADD`));        // clipper (kick)
-    expect(res.text).toMatch(new RegExp(`dex\\(1\\)\\s*\\+\\s*stall\\(1\\)\\s*${eq}\\s*2 ADD`));    // mirage / illusion / pickup / legover
-    expect(res.text).toMatch(new RegExp(`xbody\\(1\\)\\s*\\+\\s*dex\\(1\\)\\s*\\+\\s*stall\\(1\\)\\s*${eq}\\s*3 ADD`)); // whirl / swirl
-    expect(res.text).toMatch(new RegExp(`spin\\(1\\)\\s*\\+\\s*xbody\\(1\\)\\s*\\+\\s*stall\\(1\\)\\s*${eq}\\s*3 ADD`));// osis
-    expect(res.text).toMatch(new RegExp(`quantum\\(\\+1\\)\\s*\\+\\s*osis\\(3\\)\\s*${eq}\\s*4 ADD`));
-    expect(res.text).toMatch(new RegExp(`stepping\\(\\+1\\)\\s*\\+\\s*paradox\\(\\+1\\)\\s*\\+\\s*whirl\\(3\\)\\s*${eq}\\s*5 ADD`));
+    expect(res.text).toMatch(new RegExp(`dex\\(1\\)\\s*\\+\\s*stall\\(1\\)\\s*${eq}\\s*2 ADD`));    // mirage
+    expect(res.text).toMatch(new RegExp(`xbody\\(1\\)\\s*\\+\\s*dex\\(1\\)\\s*\\+\\s*stall\\(1\\)\\s*${eq}\\s*3 ADD`)); // whirl
+    expect(res.text).toMatch(new RegExp(`atomic\\(\\+1\\)\\s*\\+\\s*mirage\\(2\\)\\s*\\+\\s*xdex\\(\\+1\\)\\s*${eq}\\s*4 ADD`));
     expect(res.text).toMatch(new RegExp(`gyro\\(\\+1\\)\\s*\\+\\s*torque\\(4\\)\\s*${eq}\\s*5 ADD`));
   });
 
@@ -1705,8 +1701,8 @@ describe('Formula accountability contracts', () => {
     const res = await page('/freestyle/add-analysis');
     // CLIP > OP IN [DEX] is still surfaced, but framed as paradox's entry case
     // (a side-switch that can also occur mid-trick), not paradox in every form.
-    expect(res.text).toMatch(/CLIP &gt; OP IN \[DEX\]/);
-    expect(res.text).toMatch(/entry.topology/i);
+    expect(res.text).toMatch(/as an entry it reads CLIP &gt; OP IN \[DEX\]/);
+    expect(res.text).toMatch(/later mid-trick \[PDX\] dex/);
     expect(res.text).not.toContain('Paradox itself reads as PDX');
   });
 

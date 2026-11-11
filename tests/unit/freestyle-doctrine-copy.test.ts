@@ -90,10 +90,8 @@ describe('near and far are other names for SAME and OP on every surface that def
   const add = read('src/content/freestyleAddAnalysisContent.ts');
   const terms = read('src/content/freestyleGlossaryTerms.ts');
 
-  it('the ADD-analysis entry line is component-relative and equates near/far with SAME/OP', () => {
-    const line = lineWith(add, 'Entry and side relationship');
-    expect(line).toMatch(/SAME\/OP leg relation/);
-    expect(line).toMatch(/most recent side-bearing component/);
+  it('the ADD-analysis positional-cues line equates near/far with SAME/OP', () => {
+    const line = lineWith(add, 'Positional cues, not difficulty contributions');
     expect(line).toMatch(/near and far are other names for SAME and OP/);
     expect(line).not.toMatch(/separate near\/far/);
     expect(line).not.toMatch(/relative to the plant foot/);
@@ -192,16 +190,8 @@ describe('Tapping preserves base identity and re-authors the base side coordinat
   });
 });
 
-describe('ADD analysis: settled X-Dex triggers and Atom Smasher scoring', () => {
-  const add = read('src/content/freestyleAddAnalysisContent.ts');
+describe('ADD analysis: Atom Smasher scoring', () => {
   const resolved = read('src/content/freestyleResolvedFormulas.ts');
-
-  it('the settled X-Dex trigger list is Atomic/Quantum/Sailing and omits Frantic', () => {
-    // The note is authored as concatenated source lines; assert the fragments.
-    expect(add).toMatch(/Three settled sets can trigger it: Atomic, Quantum/);
-    expect(add).toMatch(/and Sailing\. It applies to the dexterity that follows the set/);
-    expect(add).not.toMatch(/frantic/i);
-  });
 
   it('Atom Smasher scores xdex(+1), independent of paradox, never "paradox-like"', () => {
     const start = resolved.indexOf('Atomic-specific x-dex contribution');

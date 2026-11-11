@@ -1,9 +1,10 @@
 {{!--
   /freestyle/add-analysis — ADD Accounting & Analysis.
 
-  Educational page explaining how ADD values are constructed mechanically,
-  with worked examples and discrepancy case studies. Pure curator content
-  via FREESTYLE_ADD_ANALYSIS_CONTENT; logic-light template; no client JS.
+  Educational page explaining how ADD values are constructed mechanically:
+  how brackets count, the scoring components, a few worked examples, and why
+  sources sometimes disagree. Pure curator content via
+  FREESTYLE_ADD_ANALYSIS_CONTENT; logic-light template; no client JS.
 --}}
 
 <div class="hero hero-sm">
@@ -34,7 +35,7 @@
       </p>
     </div>
 
-    <p class="add-analysis-callout"><strong>The bracket-count rule.</strong> {{content.bracketRuleNote}}</p>
+    <p><strong>The bracket-count rule.</strong> {{content.bracketRuleNote}}</p>
 
     <div class="records-table-wrap" tabindex="0" role="region" aria-label="How ADD is built">
     <table class="data-table">
@@ -57,12 +58,12 @@
     </table>
     </div>
 
-    <p class="add-analysis-callout add-analysis-callout--spin"><strong>What &ldquo;spin&rdquo; means.</strong> {{content.spinNote}}</p>
-    <p class="add-analysis-callout"><strong>Stalls.</strong> {{content.delayNote}}</p>
-    <p class="add-analysis-callout"><strong>The X-Dex.</strong> {{content.xdexNote}}</p>
-    <p class="add-analysis-callout"><strong>Composite operators.</strong> {{content.compositeNote}}</p>
-    <p class="add-analysis-callout"><strong>The editorial-truth rule.</strong> {{content.editorialTruthRule}}</p>
-    <p class="add-analysis-callout add-analysis-callout--incompleteness"><strong>Honest incompleteness.</strong> {{content.incompletenessNote}}</p>
+    <p><strong>What &ldquo;spin&rdquo; means.</strong> {{content.spinNote}} <a href="/freestyle/modifier/spinning">See the spinning modifier page.</a></p>
+    <p><strong>Stalls.</strong> {{content.delayNote}}</p>
+    <p><strong>The X-Dex.</strong> {{content.xdexNote}} <a href="/freestyle/concepts#term-x-dex">See X-Dex in Freestyle Concepts.</a></p>
+    <p><strong>Composite operators.</strong> {{content.compositeNote}}</p>
+    <p><strong>Published ADD comes first.</strong> {{content.editorialTruthRule}}</p>
+    <p class="add-analysis-callout"><strong>Honest incompleteness.</strong> {{content.incompletenessNote}}</p>
   </section>
 
   <section id="worked-examples" class="content-section">
@@ -86,160 +87,14 @@
     </ol>
   </section>
 
-  {{#if content.osisBranch.length}}
-  <section id="osis-branch" class="content-section">
-    <div class="section-heading">
-      <h2>Reading a branch: the Osis family</h2>
-      <p class="section-intro">{{content.osisBranchFraming}}</p>
-    </div>
-    <ol class="add-analysis-osis-branch">
-      {{#each content.osisBranch}}
-      <li class="add-analysis-branch-step">
-        {{#if trickSlug}}<a class="add-analysis-branch-name" href="/freestyle/tricks/{{trickSlug}}">{{trickName}}</a>{{else}}<span class="add-analysis-branch-name">{{trickName}}</span>{{/if}}
-        <span class="add-analysis-branch-eq">=</span>
-        <code class="add-analysis-branch-reading">{{reading}}</code>
-        <span class="add-analysis-branch-total">{{total}}</span>
-      </li>
-      {{/each}}
-    </ol>
-  </section>
-  {{/if}}
-
-  {{!-- Compact reference table of mechanical +1-stack compositions; not a
-       worked-examples expansion. --}}
-  {{#if content.resolvedFormulas.length}}
-  <section id="resolved-formulas" class="content-section">
-    <div class="section-heading">
-      <h2>Common formula patterns</h2>
-      <p class="section-intro">{{content.resolvedFormulasFraming}}</p>
-    </div>
-    <div class="records-table-wrap" tabindex="0" role="region" aria-label="Common formula patterns">
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th scope="col">Trick</th>
-          <th scope="col">Breakdown</th>
-          <th scope="col" class="col-num">ADD</th>
-        </tr>
-      </thead>
-      <tbody>
-        {{#each content.resolvedFormulas}}
-        <tr>
-          <td>{{#if slug}}<a href="/freestyle/tricks/{{slug}}">{{name}}</a>{{else}}{{name}}{{/if}}</td>
-          <td><code class="resolved-formula-derivation">{{derivation}}</code></td>
-          <td class="col-num">{{totalAdd}}</td>
-        </tr>
-        {{/each}}
-      </tbody>
-    </table>
-    </div>
-  </section>
-  {{/if}}
-
   <section id="discrepancies" class="content-section">
     <div class="section-heading">
       <h2>ADD discrepancies: why they happen</h2>
       <p class="section-intro">
-        Different sources count the same trick differently. The reasons fall
-        into a small number of recognizable patterns. Below are real cases:
-        each with the IFPA reading, the external reading, and the
-        mechanical interpretation that changes the count. None of these mean
-        any source is &ldquo;wrong&rdquo;; they are differing
-        interpretations or structural assumptions.
+        Different sources count the same trick differently. None of these mean
+        any source is &ldquo;wrong&rdquo;; they are differing interpretations
+        or structural assumptions.
       </p>
-      <p class="section-intro">
-        <strong>Multi-depth readings are not real disagreements.</strong>
-        Cases DC-04 through DC-07 below are not discrepancies in the
-        differing-source sense; they are the movement structure
-        working as intended. A compressed folk name (<em>blurry whirl</em>,
-        <em>food processor</em>, <em>mobius</em>) and one or more deeper
-        expansions (<em>stepping paradox whirl</em>, <em>spinning ss
-        quantum osis</em>) both reach the same ADD via different stopping
-        depths. Stopping-depth equivalence is foundational to how the
-        movement language compresses; the cases below catalogue the
-        recognizable patterns so readers can identify them in any source.
-      </p>
-    </div>
-
-    <ol class="add-analysis-discrepancy-cases">
-      {{#each content.discrepancyCases}}
-      <li class="add-analysis-case" id="case-{{caseId}}">
-        <h3 class="add-analysis-case-heading">
-          {{#if trickSlug}}<a href="/freestyle/tricks/{{trickSlug}}">{{trickName}}</a>{{else}}{{trickName}}{{/if}}
-          {{#if delta}}<span class="add-analysis-delta">&middot; &Delta; {{delta}}</span>{{/if}}
-        </h3>
-        <dl class="add-analysis-case-detail">
-          <dt>IFPA</dt>
-          <dd>{{ifpaAdd}} ADD</dd>
-          <dt>{{externalSourceLabel}}</dt>
-          <dd>{{externalAdd}} ADD</dd>
-          <dt>Breakdown difference</dt>
-          <dd>{{decompositionDifference}}</dd>
-          <dt>Pattern</dt>
-          <dd>{{pattern}}</dd>
-          <dt>IFPA status</dt>
-          <dd>{{ifpaStatusLine}}</dd>
-        </dl>
-      </li>
-      {{/each}}
-    </ol>
-
-    {{#if content.edgeCases.length}}
-    <h3 id="edge-cases" class="add-analysis-subheading">Edge cases</h3>
-    <ul class="add-analysis-edge-cases">
-      {{#each content.edgeCases}}
-      <li>
-        <strong>{{#if trickSlug}}<a href="/freestyle/tricks/{{trickSlug}}">{{trickName}}</a>{{else}}{{trickName}}{{/if}}</strong>:
-        {{ifpaAdd}} ADD. {{briefNote}}
-      </li>
-      {{/each}}
-    </ul>
-    {{/if}}
-
-    {{!-- PassBack-vs-IFPA ADD counting reconciliation (Batch C of the
-         PassBack-first ingestion sequence). 68 name-matched rows where
-         the PB ADD claim differs from IFPA canonical; framing makes
-         the structural reconciliation explicit. --}}
-    {{#if content.passbackAddDisagreements.length}}
-    <h3 id="passback-add-framing" class="add-analysis-subheading">
-      External-source ADD framings: outside source vs IFPA counting
-    </h3>
-    <p class="passback-add-framing-prose">{{content.passbackAddFraming}}</p>
-    <details class="passback-add-disagreement-details">
-      <summary>
-        <strong>{{content.passbackAddDisagreements.length}}</strong>
-        rows with name-matched ADD divergence
-        <span class="passback-add-disagreement-hint">(click to expand)</span>
-      </summary>
-      <div class="records-table-wrap" tabindex="0" role="region" aria-labelledby="passback-add-framing">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th scope="col">IFPA trick</th>
-            <th scope="col">IFPA structural reading</th>
-            <th scope="col" class="col-num">Outside-source dex count</th>
-            <th scope="col">Note</th>
-          </tr>
-        </thead>
-        <tbody>
-          {{#each content.passbackAddDisagreements}}
-          <tr>
-            <td>{{#if ifpaSlug}}<a href="/freestyle/tricks/{{ifpaSlug}}">{{ifpaName}}</a>{{else}}{{ifpaName}}{{/if}}</td>
-            <td>{{#if ifpaFormula}}<code>{{ifpaFormula}}</code>{{else}}<em class="passback-add-no-formula">&mdash;</em>{{/if}}</td>
-            <td class="col-num">{{passbackAdd}}</td>
-            <td>{{#if curatorNote}}{{curatorNote}}{{else}}<em class="passback-add-no-note">Outside-source dex count; IFPA structural ADD per reviewed row</em>{{/if}}</td>
-          </tr>
-          {{/each}}
-        </tbody>
-      </table>
-      </div>
-    </details>
-    {{/if}}
-  </section>
-
-  <section id="interpretation-notes" class="content-section">
-    <div class="section-heading">
-      <h2>Interpretation notes</h2>
     </div>
 
     {{#each content.closingParagraphs}}

@@ -423,7 +423,7 @@ main :where(legend) { margin-bottom: var(--space-xs); }
 /* Classed lists that stack their items one under another take the same
    list-item step; a list laid out as a row or a grid spaces items by gap. */
 :is(.dev-persona-coverage, .dict-trick-row-stack, .glossary-equivalence-worked-example,
-  .profile-account-list, .glossary-family-tree-members, .add-analysis-edge-cases, .club-list,
+  .profile-account-list, .glossary-family-tree-members, .club-list,
   .cross-base-list, .related-modifiers-list) > li + li,
 .register-form .card > ul > li + li {
   margin-top: var(--space-xs);
@@ -6475,52 +6475,6 @@ a.hashtag--media:hover {
   .observed-fulllist-grid { columns: 1; }
 }
 
-/* PassBack-vs-IFPA ADD framing: §3c subsection on /freestyle/add-analysis */
-.passback-add-framing-prose {
-  margin: var(--space-sm) 0 var(--space-lg) 0;
-  padding: var(--space-md) var(--space-lg);
-  background: var(--parch-100);
-  border-left: 3px solid var(--warn-strong);
-  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
-  font-size: 0.9rem;
-  line-height: 1.55;
-  color: var(--earth-650);
-}
-.passback-add-disagreement-details {
-  margin: var(--space-md) 0 var(--space-sm) 0;
-}
-.passback-add-disagreement-details summary {
-  cursor: pointer;
-  padding: var(--space-sm) var(--space-md);
-  background: var(--parch-50);
-  border: 1px solid var(--parch-400);
-  border-radius: var(--radius-xs);
-  font-size: 0.9rem;
-  color: var(--earth-700);
-}
-.passback-add-disagreement-details summary:hover {
-  background: var(--parch-100);
-}
-.passback-add-disagreement-hint {
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  margin-left: var(--space-xs);
-}
-.passback-add-no-formula,
-.passback-add-no-note {
-  color: var(--text-muted);
-  font-style: italic;
-  font-size: 0.9rem;
-}
-
-/* Canonical formula resolution: settled +1-stack reference */
-.resolved-formula-derivation {
-  background: var(--bg-light);
-  padding: var(--space-xs) var(--space-sm);
-  border-radius: var(--radius-2xs);
-  font-size: 0.9rem;
-}
-
 /* Glossary §3: Intermediate-operator reference.
  * Renders the 9 compound / quantifier operator entries. Inherits the
  * <dl> structure of the existing glossary-modifier-reference block; adds
@@ -7507,108 +7461,36 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .add-analysis-callout {
   margin: var(--space-md) 0;
   padding: var(--space-md) var(--space-lg);
-  background: var(--parch-50);
-  border-left: 3px solid var(--border);
+  background: var(--bg-light);
+  border-left: 3px solid var(--warn-strong);
   border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
-  font-size: 0.9rem;
   line-height: 1.55;
 }
-.add-analysis-callout--incompleteness {
-  border-left-color: var(--warn-strong);
-}
-.add-analysis-callout--spin {
-  border-left-color: var(--secondary);
-}
 
-/* Osis-family compositional-grammar ladder: one atom, three operators. */
-.add-analysis-osis-branch {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-}
-.add-analysis-branch-step {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-sm) var(--space-md);
-}
-.add-analysis-branch-name {
-  font-weight: 600;
-  min-width: 5rem;
-}
-.add-analysis-branch-eq { color: var(--text-muted); }
-.add-analysis-branch-reading {
-  font-family: var(--font-body);
-  font-weight: 600;
-  font-size: 0.9rem;
-  color: var(--secondary);
-}
-.add-analysis-branch-total {
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  margin-left: auto;
-}
-.add-analysis-worked-examples,
-.add-analysis-discrepancy-cases {
+.add-analysis-worked-examples {
   list-style: none;
   padding: 0;
   margin: 0;
 }
-.add-analysis-worked-example,
-.add-analysis-case {
+.add-analysis-worked-example {
   margin: var(--space-lg) 0;
   padding: var(--space-md) 0 0 0;
   border-top: 1px solid var(--parch-150);
 }
-.add-analysis-worked-example:first-child,
-.add-analysis-case:first-child {
+.add-analysis-worked-example:first-child {
   border-top: none;
   padding-top: 0;
 }
-.add-analysis-example-heading,
-.add-analysis-case-heading {
+.add-analysis-example-heading {
   margin: 0 0 var(--space-sm) 0;
-  font-size: 1rem;
-  font-weight: 600;
 }
-.add-analysis-add-label,
-.add-analysis-delta {
+.add-analysis-add-label {
   font-weight: 400;
   color: var(--text-muted);
 }
 .add-analysis-components-line,
 .add-analysis-why-line {
   margin: var(--space-xs) 0;
-  font-size: 0.9rem;
-  line-height: 1.55;
-}
-.add-analysis-case-detail {
-  margin: var(--space-sm) 0 0 0;
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  column-gap: var(--space-md);
-  row-gap: var(--space-xs);
-  font-size: 0.9rem;
-  line-height: 1.5;
-}
-.add-analysis-case-detail dt {
-  font-weight: 600;
-  color: var(--text);
-}
-.add-analysis-case-detail dd {
-  margin: 0;
-}
-.add-analysis-subheading {
-  margin-top: var(--space-xl);
-  font-size: 1rem;
-  font-weight: 600;
-}
-.add-analysis-edge-cases {
-  margin: var(--space-sm) 0 0 0;
-  padding-left: var(--space-xl);
   font-size: 0.9rem;
   line-height: 1.55;
 }
@@ -7621,22 +7503,11 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 }
 .add-analysis-cross-links h3 {
   margin: 0 0 var(--space-sm) 0;
-  font-size: 1rem;
-  font-weight: 600;
 }
 .add-analysis-cross-links ul {
   margin: 0;
   padding-left: var(--space-xl);
   font-size: 0.9rem;
-}
-@media (max-width: 480px) {
-  .add-analysis-case-detail {
-    grid-template-columns: 1fr;
-    row-gap: var(--space-xs);
-  }
-  .add-analysis-case-detail dt {
-    margin-top: var(--space-sm);
-  }
 }
 
 /* ────────────────────────────────────────────────────────────────────────

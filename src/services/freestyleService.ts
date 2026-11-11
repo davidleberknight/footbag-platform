@@ -8439,25 +8439,6 @@ export const freestyleService = {
       workedExamples: FREESTYLE_ADD_ANALYSIS_CONTENT.workedExamples.map(r => ({
         ...r, trickSlug: resolveSlug(r.trickSlug),
       })),
-      osisBranch: FREESTYLE_ADD_ANALYSIS_CONTENT.osisBranch.map(r => ({
-        ...r, trickSlug: resolveSlug(r.trickSlug),
-      })),
-      discrepancyCases: FREESTYLE_ADD_ANALYSIS_CONTENT.discrepancyCases.map(r => ({
-        ...r, trickSlug: resolveSlug(r.trickSlug),
-      })),
-      edgeCases: FREESTYLE_ADD_ANALYSIS_CONTENT.edgeCases.map(r => ({
-        ...r, trickSlug: resolveSlug(r.trickSlug),
-      })),
-      passbackAddDisagreements: FREESTYLE_ADD_ANALYSIS_CONTENT.passbackAddDisagreements.map(r => ({
-        ...r, ifpaSlug: resolveSlug(r.ifpaSlug),
-      })),
-      // Compounds whose earlier derivation scored a "miraging(+1)" component are
-      // dropped from the public resolved-formula table: miraging is retired as a
-      // scored, formula-bearing operator, so its decomposition stays out of the
-      // teaching surface and the bare ADD from the notation is what publishes.
-      resolvedFormulas: FREESTYLE_ADD_ANALYSIS_CONTENT.resolvedFormulas
-        .filter(r => !(r.slug && MIRAGING_NON_OPERATOR_FORMULA_SLUGS.has(r.slug)))
-        .map(r => ({ ...r, slug: resolveSlug(r.slug) })),
     };
     return {
       seo: {

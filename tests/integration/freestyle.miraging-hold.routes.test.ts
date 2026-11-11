@@ -68,7 +68,7 @@ describe('miraging is never a public scored / decomposition / equivalence label'
     }
   });
 
-  it('the ADD-analysis resolved-formula table scores no miraging component', async () => {
+  it('the ADD-analysis page scores no miraging component', async () => {
     const res = await page('/freestyle/add-analysis');
     expect(res.status).toBe(200);
     expect(res.text).not.toMatch(/miraging\(\+?1\)/);

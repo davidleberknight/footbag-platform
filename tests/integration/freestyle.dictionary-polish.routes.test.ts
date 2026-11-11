@@ -86,13 +86,12 @@ describe('Torque teaches the canonical set as its scoring label, not the nicknam
     const res = await request(await createApp()).get('/freestyle/add-analysis');
     expect(res.status).toBe(200);
     const html = res.text;
-    // Component + breakdown + branch reading all use the canonical set.
+    // The component table's example reads Torque from the canonical set.
     // (Handlebars escapes '=' to &#x3D;, so match the pre-'=' substring.)
-    expect(html).toContain('quantum(+1) + osis(3)');
-    expect(html).toContain('quantum Osis');
+    expect(html).toContain('quantum + osis &#x3D; torque');
     // The nickname is never the scored component.
+    expect(html).not.toContain('miraging + osis');
     expect(html).not.toContain('miraging(+1) + osis(3)');
-    expect(html).not.toContain('miraging Osis');
   });
 
   it('Freestyle Concepts compression table reads Torque as Quantum Osis', async () => {
