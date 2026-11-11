@@ -788,7 +788,6 @@ function modifierInputFromBody(body: Record<string, unknown>): FreestyleModifier
     modifierType: str(body.modifierType),
     notes:        str(body.notes),
     beginnerNote: str(body.beginnerNote),
-    compositionGloss: str(body.compositionGloss),
   };
 }
 

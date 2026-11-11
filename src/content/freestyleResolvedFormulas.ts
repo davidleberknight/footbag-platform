@@ -1685,8 +1685,7 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
   //     tricks). Three siblings: double-over-down + down-double-down
   //     (distinct toe-set vs clipper-set chassis at 4 ADD); down-diver
   //     (5 ADD = diving(+1) + double-over-down chassis). All three JOBs
-  //     FB.org-confirmed verbatim. Diving is a body-modifier per the
-  //     freestyleTrickIntuition mobius/osis ontology notes (four-way
+  //     FB.org-confirmed verbatim. Diving is a body-modifier (four-way
   //     ducking/diving/weaving/zulu family).
 
   {

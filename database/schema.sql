@@ -5109,7 +5109,6 @@ CREATE TABLE freestyle_trick_modifiers (
   modifier_type         TEXT NOT NULL,             -- 'body' | 'set' | 'rotational-qualifier' (no CHECK; v2.1 expanded for Gyro)
   notes                 TEXT,
   beginner_note         TEXT,                      -- one plain-English sentence shown beside the modifier in a trick page's facts block; NULL = none shown
-  composition_gloss     TEXT,                      -- one-line compositional reading shown in a trick page's "Modifiers on this trick" rows; NULL = none shown
   loaded_at             TEXT NOT NULL
 );
 

@@ -5,7 +5,7 @@
  * into database columns, seeded from the staged modules. The pages must show
  * each staged entry exactly where they showed it before: a record under review
  * carries its note and links to no trick, and a trick page shows each linked
- * modifier's beginner note and composition gloss. The expected text is read
+ * modifier's beginner note. The expected text is read
  * from the staged modules, so the check follows the content, not a copy of it.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -27,8 +27,8 @@ const page = cachedGet(() => createApp());
 const content = STAGED_CURATOR_CONTENT;
 const TRICK = 'zz_parity_trick';
 const PLAIN_MODIFIER = 'zz_plain_modifier';
-// Modifiers carrying both staged texts, linked to the one trick page.
-const noted = [...content.beginnerNotes.keys()].filter(s => content.compositionGlosses.has(s)).slice(0, 3);
+// Modifiers carrying a staged note, linked to the one trick page.
+const noted = [...content.beginnerNotes.keys()].slice(0, 3);
 
 function escapeHbs(s: string): string {
   return s
@@ -45,7 +45,7 @@ beforeAll(async () => {
     insertFreestyleTrick(db, { slug: trickNameToSlug(name), canonical_name: name });
     insertFreestyleRecord(db, { trick_name: name, display_name: 'Parity Holder', confidence: 'verified' });
   }
-  const modifierSlugs = new Set([...content.beginnerNotes.keys(), ...content.compositionGlosses.keys(), PLAIN_MODIFIER]);
+  const modifierSlugs = new Set([...content.beginnerNotes.keys(), PLAIN_MODIFIER]);
   for (const slug of modifierSlugs) insertFreestyleTrickModifier(db, { slug });
   insertFreestyleTrick(db, { slug: TRICK, canonical_name: 'zz parity trick', adds: '6' });
   [...noted, PLAIN_MODIFIER].forEach((slug, i) => insertFreestyleTrickModifierLink(db, TRICK, slug, i + 1));
@@ -73,20 +73,17 @@ describe('records under curator review', () => {
 });
 
 describe('modifier notes on a trick page', () => {
-  // Defect caught: the facts block or the modifier rows losing a modifier's note
-  // or gloss once it comes from the registry row.
-  it('shows each linked modifier beginner note and composition gloss', async () => {
+  // Defect caught: the facts block losing a modifier's note once it comes from
+  // the registry row.
+  it('shows each linked modifier beginner note', async () => {
     const res = await page(`/freestyle/tricks/${TRICK}`);
     expect(res.status).toBe(200);
     expect(noted.length).toBeGreaterThan(0);
     for (const slug of noted) {
       expect(res.text, slug).toContain(`<span class="structural-fact-note">${escapeHbs(content.beginnerNotes.get(slug)!)}</span>`);
-      expect(res.text, slug).toContain(`<p class="trick-modifier-gloss">${escapeHbs(content.compositionGlosses.get(slug)!)}</p>`);
     }
-    // A modifier with no staged text renders without a note or gloss.
+    // A modifier with no staged text renders without a note.
     const notes = res.text.match(/class="structural-fact-note"/g) ?? [];
-    const glosses = res.text.match(/class="trick-modifier-gloss"/g) ?? [];
     expect(notes).toHaveLength(noted.length);
-    expect(glosses).toHaveLength(noted.length);
   });
 });

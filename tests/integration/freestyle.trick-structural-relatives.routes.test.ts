@@ -3,8 +3,8 @@
  * family ladder.
  *
  * A trick page carries same-family progression in its family ladder and
- * structural neighbours in their own section; the two are distinct sections
- * that do not duplicate one another. Seeded here: a trick in the whirl family,
+ * structural neighbours in Related Tricks; the two sections do not duplicate
+ * one another. Seeded here: a trick in the whirl family,
  * a family peer sharing its operators (which the ranking would otherwise list),
  * and a neighbour in another family sharing the same operators.
  */
@@ -53,6 +53,12 @@ const sectionOf = (html: string, opener: RegExp): string | null => {
   return m ? m[1]! : null;
 };
 
+// The structurally related group sits inside Related Tricks, closed by its div.
+const similarGroupOf = (html: string): string | null => {
+  const m = /<div class="related-group" data-section="similar-tricks">([\s\S]*?)<\/div>/.exec(html);
+  return m ? m[1]! : null;
+};
+
 describe('structurally related tricks on a trick page', () => {
   // Defect caught: a visitor sees the same trick twice on one page, once on the
   // family ladder and again as a "structurally related" trick, so the section
@@ -61,7 +67,7 @@ describe('structurally related tricks on a trick page', () => {
     const res = await page(`/freestyle/tricks/${CURRENT}`);
     expect(res.status).toBe(200);
     const ladder = sectionOf(res.text, /<section class="content-section trick-family-lineage">/);
-    const similar = sectionOf(res.text, /<section class="content-section" data-section="similar-tricks">/);
+    const similar = similarGroupOf(res.text);
     expect(ladder, 'family ladder').not.toBeNull();
     expect(ladder!).toContain(`/freestyle/tricks/${PEER}`);
     expect(similar, 'structurally related section').not.toBeNull();

@@ -80,79 +80,66 @@ afterAll(() => cleanupTestDb(dbPath));
 // 2. Trick-page educational CTAs
 // ─────────────────────────────────────────────────────────────────────────
 
-describe('trick-page educational CTAs — butterfly-wing-topology members', () => {
-  const BUTTERFLY_SLUGS = ['butterfly', 'ripwalk', 'sidewalk', 'dimwalk', 'matador', 'phoenix'];
+// The teaching-page links a trick page closes Related Tricks with, each a
+// paragraph holding one link. A trick page also links to the spinning modifier
+// from its structural facts, inside a definition list, so matching the
+// paragraph-wrapped link keeps that one out.
+const BUTTERFLY_LINK = '<p><a href="/freestyle/families/butterfly">';
+const SPINNING_LINK  = '<p><a href="/freestyle/modifier/spinning">';
+const countOf = (html: string, needle: string): number => html.split(needle).length - 1;
 
-  for (const slug of BUTTERFLY_SLUGS) {
-    it(`/freestyle/tricks/${slug} renders the Butterfly family CTA`, async () => {
+describe('trick-page educational links — butterfly-based tricks', () => {
+  // Defect caught: a trick built on the butterfly offering no way to the
+  // walking-family teaching page.
+  it('every butterfly-based trick links to the Butterfly family page', async () => {
+    for (const slug of ['butterfly', 'ripwalk', 'sidewalk', 'dimwalk', 'matador', 'phoenix']) {
       const res = await page(`/freestyle/tricks/${slug}`);
-      expect(res.status).toBe(200);
-      expect(res.text).toContain('symbolic-trick-ctas-block');
-      expect(ctaBlock(res.text)).toContain('href="/freestyle/families/butterfly"');
-      expect(res.text).toMatch(/Butterfly family: how the walking tricks branch/);
-    });
-  }
+      expect(res.status, slug).toBe(200);
+      expect(countOf(res.text, BUTTERFLY_LINK), slug).toBe(1);
+    }
+  });
 });
 
-describe('trick-page educational CTAs — spinning/whirl-rotational members', () => {
-  const SPINNING_SLUGS = ['spinning-whirl', 'montage'];
-
-  for (const slug of SPINNING_SLUGS) {
-    it(`/freestyle/tricks/${slug} renders the spinning-modifier CTA`, async () => {
+describe('trick-page educational links — spinning and whirl-based tricks', () => {
+  it('a whirl-based or spinning trick links to the spinning modifier page', async () => {
+    for (const slug of ['spinning-whirl', 'montage']) {
       const res = await page(`/freestyle/tricks/${slug}`);
-      expect(res.status).toBe(200);
-      expect(res.text).toContain('symbolic-trick-ctas-block');
-      expect(res.text).toContain('href="/freestyle/modifier/spinning"');
-      expect(res.text).toMatch(/Spinning modifier educational page/);
-    });
-  }
+      expect(res.status, slug).toBe(200);
+      expect(countOf(res.text, SPINNING_LINK), slug).toBeGreaterThan(0);
+    }
+  });
 
-  it('a trick belonging to BOTH spinning-family and whirl-rotational-topology emits the spinning CTA once (de-duped by href)', async () => {
-    // montage is in both groups; the CTA href should appear in the CTA list once.
+  it('a trick earning the spinning link twice shows it once (de-duped by href)', async () => {
+    // montage is whirl-based and carries the spinning modifier.
     const res = await page('/freestyle/tricks/montage');
     expect(res.status).toBe(200);
-    const ctaBlockStart = res.text.indexOf('symbolic-trick-ctas-block');
-    expect(ctaBlockStart).toBeGreaterThan(-1);
-    const ctaBlockEnd = res.text.indexOf('</aside>', ctaBlockStart);
-    expect(ctaBlockEnd).toBeGreaterThan(ctaBlockStart);
-    const ctaBlock = res.text.substring(ctaBlockStart, ctaBlockEnd);
-    const matches = ctaBlock.match(/\/freestyle\/modifier\/spinning/g) ?? [];
-    expect(matches.length).toBe(1);
+    expect(countOf(res.text, SPINNING_LINK)).toBe(1);
   });
 });
 
-describe('trick-page educational CTAs — non-triggering tricks', () => {
-  it('/freestyle/tricks/mirage does NOT render any CTA block', async () => {
+describe('trick-page educational links — non-triggering tricks', () => {
+  it('/freestyle/tricks/mirage renders no educational link', async () => {
     const res = await page('/freestyle/tricks/mirage');
     expect(res.status).toBe(200);
-    expect(res.text).not.toContain('symbolic-trick-ctas-block');
+    expect(countOf(res.text, BUTTERFLY_LINK)).toBe(0);
+    expect(countOf(res.text, SPINNING_LINK)).toBe(0);
   });
 });
 
-// The educational links block alone, or '' when the page has none. A trick page
-// also links to the spinning modifier from its modifier list, so a whole-page
-// match could not tell an educational link from that one.
-function ctaBlock(html: string): string {
-  const start = html.indexOf('symbolic-trick-ctas-block');
-  if (start === -1) return '';
-  return html.substring(start, html.indexOf('</aside>', start));
-}
-
-describe('trick-page educational CTAs follow the trick, not a stored grouping', () => {
+describe('trick-page educational links follow the trick, not a stored grouping', () => {
   it('a trick no grouping has heard of gets the Butterfly family link from its butterfly base', async () => {
     // A trick published in the application has no stored grouping row, and
     // without this it would never be pointed at the family it belongs to.
     const res = await page('/freestyle/tricks/fresh_walk');
     expect(res.status).toBe(200);
-    expect(ctaBlock(res.text)).toContain('href="/freestyle/families/butterfly"');
+    expect(countOf(res.text, BUTTERFLY_LINK)).toBe(1);
   });
 
   it('the spinning modifier alone earns the spinning link, on a base that is not the whirl', async () => {
     const res = await page('/freestyle/tricks/spinning_mirage');
     expect(res.status).toBe(200);
-    const block = ctaBlock(res.text);
-    expect(block).toContain('href="/freestyle/modifier/spinning"');
-    expect(block).not.toContain('href="/freestyle/families/butterfly"');
+    expect(countOf(res.text, SPINNING_LINK)).toBe(1);
+    expect(countOf(res.text, BUTTERFLY_LINK)).toBe(0);
   });
 
   it('a trick with no modifier link rows takes its modifiers from the curated formula, as its Structural Facts do', async () => {
@@ -160,7 +147,7 @@ describe('trick-page educational CTAs follow the trick, not a stored grouping', 
     // no link to the spinning modifier's teaching page.
     const res = await page('/freestyle/tricks/scorpions_tail');
     expect(res.status).toBe(200);
-    expect(ctaBlock(res.text)).toContain('href="/freestyle/modifier/spinning"');
+    expect(countOf(res.text, SPINNING_LINK)).toBe(1);
   });
 
   it('a trick moved off the butterfly loses the walking-family link the stored grouping still gives it', async () => {
@@ -168,7 +155,7 @@ describe('trick-page educational CTAs follow the trick, not a stored grouping', 
     // grouping would keep pointing a mirage-based trick at the walking family.
     const res = await page('/freestyle/tricks/bigwalk');
     expect(res.status).toBe(200);
-    expect(res.text).not.toContain('symbolic-trick-ctas-block');
+    expect(countOf(res.text, BUTTERFLY_LINK)).toBe(0);
   });
 });
 

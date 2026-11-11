@@ -1425,10 +1425,9 @@ export interface FreestyleTrickModifierOverrides {
   add_bonus?:           number;
   add_bonus_rotational?: number;
   notes?:               string | null;
-  /** The pipeline seeds these for the modifiers the staged curator content
+  /** The pipeline seeds this for the modifiers the staged curator content
    *  covers and leaves the rest NULL. */
   beginner_note?:       string | null;
-  composition_gloss?:   string | null;
 }
 
 export function insertFreestyleTrickModifier(
@@ -1438,8 +1437,8 @@ export function insertFreestyleTrickModifier(
   db.prepare(`
     INSERT INTO freestyle_trick_modifiers
       (slug, modifier_name, add_bonus, add_bonus_rotational, modifier_type, notes,
-       beginner_note, composition_gloss, loaded_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       beginner_note, loaded_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     o.slug,
     o.modifier_name ?? o.slug,
@@ -1448,7 +1447,6 @@ export function insertFreestyleTrickModifier(
     o.modifier_type ?? 'body',
     o.notes ?? null,
     o.beginner_note ?? null,
-    o.composition_gloss ?? null,
     nowIso(),
   );
 }

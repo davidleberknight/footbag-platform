@@ -1,14 +1,10 @@
 {{!--
-  About-this-trick section. Renders description + ADD composition + aliases + family note.
-  Section header is sentence case (convention for all detail-page section headings).
-  The section is omitted whole when none of its rows has anything to show
-  (content.aboutHasContent), so no page carries an empty heading.
+  The page's plain-words opening, under the hero with no heading of its own:
+  description + build path + aliases + family note. Omitted whole when none of
+  its rows has anything to show (content.aboutHasContent).
 --}}
 {{#if content.aboutHasContent}}
-<section class="content-section">
-  <div class="section-heading">
-    <h2>About this trick</h2>
-  </div>
+<section class="content-section" aria-label="About this trick">
 
   {{#if content.dictEntry.description}}
     {{!--
@@ -70,19 +66,22 @@
 
   </dl>
 
+  {{!-- Curator naming note: explains a community name the alias line leaves
+       out because it names a narrower form than this trick. --}}
+  {{#if content.aboutNamingNote}}
+  <p data-about-naming-note>{{content.aboutNamingNote}}</p>
+  {{/if}}
+
   {{!-- Curator derivatives note: a concise line pointing at major higher-ADD
        derivatives, placed right after the build chain. --}}
   {{#if content.aboutDerivatives}}
   <p data-about-derivatives>{{content.aboutDerivatives}}</p>
   {{/if}}
 
-  {{!-- Parent-delta line for tricks with no physical intuition prose: it would
-       stand alone under a Movement intuition heading otherwise, so it lives here
-       beside the build path. Tricks with prose render the delta in Movement
-       intuition instead. --}}
-  {{#if content.intuitionDelta}}{{#unless content.intuition}}
+  {{!-- Parent-delta line, beside the build path it qualifies. --}}
+  {{#if content.intuitionDelta}}
   <p data-intuition-delta>{{content.intuitionDelta}}</p>
-  {{/unless}}{{/if}}
+  {{/if}}
 
   {{#if content.dictEntry.familyNote}}
   <p>{{content.dictEntry.familyNote}}</p>

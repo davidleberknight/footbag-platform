@@ -33,14 +33,3 @@ export const TERMINAL_DERIVED_COHORTS: ReadonlyMap<string, readonly string[]> =
       'blender', 'dyno', 'atomic_butterfly',
     ]],
   ]);
-
-/** Reverse index: a cohort member slug -> its terminal atom slug (for the
- *  reciprocal "Lands in" backlink). A trick finishes on one surface, so a member
- *  belongs to at most one cohort. */
-export const TERMINAL_OF_MEMBER: ReadonlyMap<string, string> = (() => {
-  const m = new Map<string, string>();
-  for (const [terminal, members] of TERMINAL_DERIVED_COHORTS) {
-    for (const slug of members) m.set(slug, terminal);
-  }
-  return m;
-})();

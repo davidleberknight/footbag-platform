@@ -224,25 +224,6 @@ beforeAll(async () => {
     adds: '3',
     base_trick: 'mirage',
   });
-  // Synthetic test fixture: non-core with a resolvable base and
-  // intentionally NO chain entry — tests Layer 3 lineage rendering.
-  // A synthetic slug (rather than a real trick such as parkwalk, which
-  // carries a chain entry: FM+PB agree on 'pixie butterfly') can never
-  // collide with chain-registry growth, matching the nf2b-gap
-  // convention used for the Layer-5b fixture below.
-  insertFreestyleTrick(db, {
-    slug: 'nf3-layer3-fixture',
-    canonical_name: 'nf3 layer3 fixture',
-    adds: '4',
-    base_trick: 'butterfly',
-  });
-  // nf2b-gap is non-core with no notation, no base, no chain; tests Layer 5b.
-  insertFreestyleTrick(db, {
-    slug: 'nf2b-gap',
-    canonical_name: 'nf2b gap',
-    adds: '4',
-  });
-
   // ── Seeds for CANONICAL-SURFACE-REALIGNMENT-1 S2 + S3 tests ──────────
   // S2: canon-locked compound rows for ≡ chain readings (torque, blender,
   //     drifter all in freestyleSymbolicEquivalences.ts after S2).
@@ -1193,96 +1174,6 @@ describe('GET /freestyle/tricks/:slug — operational notation block (O1a)', () 
 
 // ---------------------------------------------------------------------------
 
-describe('GET /freestyle/tricks/:slug — semantic-notation fallback ladder', () => {
-  it('Layer 2: renders the curated equivalence chain for a trick with an authored chain (mobius)', async () => {
-    const res = await page('/freestyle/tricks/mobius');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('class="equivalent-readings');
-    expect(res.text).toContain('Equivalent readings');
-    // Tokens for each reading are span-wrapped; assert their text presence.
-    // The S5 tokenizer expands
-    // `ss → same-side` and `op → opposite` at render time so the
-    // chain reading vocabulary matches the JOB notation register. The
-    // underlying chain data still stores the short forms; only the
-    // rendered text changes.
-    expect(res.text).toMatch(/>gyro<\/span>\s*<span[^>]*>torque</);            // reading 0 (no abbreviations)
-    expect(res.text).toMatch(/>spinning<\/span>\s*<span[^>]*>same-side</);     // reading 1 (ss → same-side)
-    // quantum is a registered operator, so it auto-links like atomic.
-    expect(res.text).toMatch(/>quantum<\/a>\s*<span[^>]*>opposite</);          // reading 2 (op → opposite)
-    // Last reading: tokenized; osis is a CORE atom → auto-linked
-    expect(res.text).toMatch(/href="\/freestyle\/concepts#term-osis"[^>]*>osis</);
-    // Ordering: depth-0 before depth-1 before depth-2
-    const d0 = res.text.indexOf('equivalent-reading-depth-0');
-    const d1 = res.text.indexOf('equivalent-reading-depth-1');
-    const d2 = res.text.indexOf('equivalent-reading-depth-2');
-    expect(d1).toBeGreaterThan(d0);
-    expect(d2).toBeGreaterThan(d1);
-  });
-
-  it('Layer 1 + Layer 2 coexistence: mobius renders both Notation and Equivalent readings sections', async () => {
-    const res = await page('/freestyle/tricks/mobius');
-    expect(res.status).toBe(200);
-    // Both sections present and Notation precedes Equivalent readings.
-    const notationIdx   = res.text.indexOf('notation-display-tokens');
-    const equivalentIdx = res.text.indexOf('class="equivalent-readings');
-    expect(notationIdx).toBeGreaterThan(0);
-    expect(equivalentIdx).toBeGreaterThan(notationIdx);
-  });
-
-  it('Mobius equivalence chain shows the curator-confirmed status (no pending flag)', async () => {
-    const res = await page('/freestyle/tricks/mobius');
-    // Within the Equivalent readings section, no pending flag.
-    const sectionStart = res.text.indexOf('class="equivalent-readings');
-    const sectionEnd   = res.text.indexOf('</section>', sectionStart);
-    const sectionText  = res.text.slice(sectionStart, sectionEnd);
-    expect(sectionText).not.toContain('equivalent-readings-pending-flag');
-  });
-
-  it('Layer 3: renders "Built on <base>" for a non-core trick with resolvable base_trick and no chain (nf3-layer3-fixture)', async () => {
-    // Synthetic test fixture used in place of parkwalk, whose
-    // curator-confirm-pending chain entry would defeat the no-chain
-    // condition. The fixture matches the same conditions:
-    // non-core slug, resolvable base_trick=butterfly, no chain, no
-    // operational_notation.
-    const res = await page('/freestyle/tricks/nf3-layer3-fixture');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('class="semantic-base-lineage');
-    expect(res.text).toMatch(/Built on <a href="\/freestyle\/tricks\/butterfly">butterfly<\/a>/);
-    // No equivalence-chain section for this trick.
-    expect(res.text).not.toContain('class="equivalent-readings');
-  });
-
-  it('Layer 4: a core atom with no notation and no chain renders no semantic-notation block (butterfly)', async () => {
-    const res = await page('/freestyle/tricks/butterfly');
-    expect(res.status).toBe(200);
-    expect(res.text).not.toContain('class="equivalent-readings');
-    expect(res.text).not.toContain('class="semantic-base-lineage');
-    expect(res.text).not.toContain('class="semantic-notation-pending"');
-  });
-
-  it('Layer 5b: a non-core trick with no notation, no base, no chain renders the pending-curation cue (nf2b-gap)', async () => {
-    const res = await page('/freestyle/tricks/nf2b-gap');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('class="semantic-notation-pending"');
-    expect(res.text).toContain('Compositional reading pending curation.');
-  });
-
-  it('auto-link restraint: only CORE_TRICKS / operator-reference tokens become links; other tokens stay plain', async () => {
-    const res = await page('/freestyle/tricks/mobius');
-    // 'osis' is a CORE atom → linked
-    expect(res.text).toMatch(/href="\/freestyle\/concepts#term-osis"/);
-    // 'gyro' is a Tier-1 operator-board primitive but NOT in
-    // OPERATOR_REFERENCE_ENTRIES → must stay plain
-    expect(res.text).not.toMatch(/href="\/freestyle\/concepts#term-gyro"/);
-    // 'spinning' is operator-board Tier-1 (not operator-reference) → plain
-    expect(res.text).not.toMatch(/href="\/freestyle\/concepts#term-spinning"/);
-    // 'ss' is operational notation → plain
-    expect(res.text).not.toMatch(/href="\/freestyle\/concepts#term-ss"/);
-  });
-});
-
-// ---------------------------------------------------------------------------
-
 // ─────────────────────────────────────────────────────────────────────────
 // Operational notation subsection on /freestyle/concepts: an "Operational
 // Notation" reference with per-token anchor IDs for deep-linking from the
@@ -2188,37 +2079,15 @@ describe('Freestyle dictionary — S1+S3: ≡ equivalence rendering on dict card
     expect(res.text).not.toMatch(/<span class="dict-card-aliases-label">/);
   });
 
-  it('renders ≡ readings sourced from the curator chain registry', async () => {
-    // A reading is structural content and reads on the trick's own page, in
-    // its Equivalent readings section; no browse row carries one.
-    const trickPage = await page('/freestyle/tricks/torque');
-    expect(trickPage.status).toBe(200);
-    expect(trickPage.text).toMatch(/class="content-section equivalent-readings"/);
-
+  it('no browse row carries a ≡ chain reading', async () => {
     const res = await page('/freestyle/tricks?view=add');
+    expect(res.text).toContain('data-trick-slug="torque"');
     expect(res.text).not.toMatch(/class="dict-trick-row-interpretation"/);
     expect(res.text).not.toMatch(/class="core-trick-equiv-sigil"/);
   });
 });
 
-describe('Freestyle dictionary — S2: canon-locked chain readings (torque/blender/drifter)', () => {
-  it('renders torque as ≡ quantum osis', async () => {
-    // Tokenized rendering wraps each operator in its own span; match each word
-    // independently allowing intervening markup. The reading reads on the
-    // trick's page, where its structural content belongs.
-    const res = await page('/freestyle/tricks/torque');
-    expect(res.status).toBe(200);
-    const readings = res.text.match(/<ol class="equivalent-readings-list">[\s\S]*?<\/ol>/)?.[0] ?? '';
-    expect(readings).toMatch(/quantum[\s\S]*?osis/i);
-  });
-
-  it('renders blender as ≡ whirling osis', async () => {
-    const res = await page('/freestyle/tricks/blender');
-    expect(res.status).toBe(200);
-    const readings = res.text.match(/<ol class="equivalent-readings-list">[\s\S]*?<\/ol>/)?.[0] ?? '';
-    expect(readings).toMatch(/whirling[\s\S]*?osis/i);
-  });
-
+describe('Freestyle dictionary — S2: held chain readings (drifter)', () => {
   it('holds drifter\'s decomposition: no miraging reading rendered', async () => {
     // "miraging clipper" is legacy mirage-family shorthand held for curator
     // review; drifter renders no ≡ reading rather than teach the nickname.

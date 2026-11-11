@@ -10,12 +10,9 @@
  * Contract under test:
  *   - whirl, butterfly, mirage, osis trick-detail pages all render the
  *     family-anchor callout
- *   - Callout names the trick + family + conserved terminal mechanic
  *   - Cross-link points to /freestyle/tricks?view=family#family-{slug}
  *   - Each page's existing first-class Notation summary still renders
  *     (regression on FIRST_CLASS_TIER_1 + ATOMIC_FLAG_DECOMPOSITIONS)
- *   - The operational chain text matches the family invariant in
- *     spirit (both reference the same terminal mechanic)
  *   - A non-anchor trick (paradox-mirage) does NOT render the callout
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -116,31 +113,16 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('family-anchor callout on flagship trick-detail pages', () => {
-  it.each([
-    { slug: 'whirl',     family: 'whirl',     invariant: 'leggy in dex &gt; ss clipper' },
-    { slug: 'butterfly', family: 'butterfly', invariant: 'hippy out dex &gt; ss clipper' },
-    { slug: 'mirage',    family: 'mirage',    invariant: 'hippy in dex &gt; op toe' },
-    { slug: 'osis',      family: 'osis',      invariant: 'spin &gt; ss clipper' },
-  ])('$slug page renders the family-anchor callout with the family invariant', async ({ slug, family, invariant }) => {
-    const res = await page(`/freestyle/tricks/${slug}`);
-    expect(res.status).toBe(200);
-    expect(res.text).toMatch(/class="trick-family-anchor-callout"/);
-    expect(res.text).toMatch(/family-anchor trick/i);
-    expect(res.text).toContain(invariant);
-    // Cross-link to family-browse view at the #family-{slug} anchor.
-    // Handlebars escapes '=' to '&#x3D;' inside href attributes; assert
-    // the escaped form that actually appears in the HTTP response body.
-    expect(res.text).toContain(`/freestyle/tricks?view&#x3D;family#family-${family}`);
-  });
-
-  it.each([
-    { slug: 'whirl',     name: 'whirl' },
-    { slug: 'butterfly', name: 'butterfly' },
-    { slug: 'mirage',    name: 'mirage' },
-    { slug: 'osis',      name: 'osis' },
-  ])('$slug callout names "Conserved terminal mechanic" as the labeled invariant', async ({ slug }) => {
-    const res = await page(`/freestyle/tricks/${slug}`);
-    expect(res.text).toMatch(/Conserved terminal mechanic/i);
+  it('each flagship page renders the family-anchor callout linking to its family', async () => {
+    for (const slug of ['whirl', 'butterfly', 'mirage', 'osis']) {
+      const res = await page(`/freestyle/tricks/${slug}`);
+      expect(res.status, slug).toBe(200);
+      expect(res.text, slug).toMatch(/class="trick-family-anchor-callout"/);
+      // Cross-link to family-browse view at the #family-{slug} anchor.
+      // Handlebars escapes '=' to '&#x3D;' inside href attributes; assert
+      // the escaped form that actually appears in the HTTP response body.
+      expect(res.text, slug).toContain(`/freestyle/tricks?view&#x3D;family#family-${slug}`);
+    }
   });
 });
 

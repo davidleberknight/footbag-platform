@@ -80,7 +80,7 @@ import {
 import { modifierHashtagRole } from '../content/freestyleHashtagRoles';
 import { GENUINE_HYPHEN_TOKENS } from '../content/freestyleDisplayNameExceptions';
 import { toTitleCase } from '../lib/titleCase';
-import { getResolvableTrickSlugs, buildActiveTrickSlugResolver } from './freestyleResolvableSlugs';
+import { buildActiveTrickSlugResolver } from './freestyleResolvableSlugs';
 import {
   NotationDisplay,
   shapeNotationDisplay,
@@ -133,17 +133,13 @@ import {
   CORE_TRICK_SPEC,
 } from '../content/freestyleLandingContent';
 import { HISTORY_NARRATIVE, type HistoryNarrative } from '../content/freestyleHistoryNarrative';
-import { TERMINAL_DERIVED_COHORTS, TERMINAL_OF_MEMBER } from '../content/freestyleTerminalCohorts';
+import { TERMINAL_DERIVED_COHORTS } from '../content/freestyleTerminalCohorts';
 import { loadSiteVideo, loadSiteVideoMedia } from './siteMediaService';
 import {
   CORE_ATOM_EDUCATIONAL,
-  isCoreAtom,
 } from '../content/freestyleCoreAtomEducational';
 import { GLOSSARY_CORE_CONCEPTS_BY_KEY } from '../content/freestyleGlossaryCoreConcepts';
 import { GLOSSARY_TERMS, type GlossaryTerm } from '../content/freestyleGlossaryTerms';
-import {
-  getDoctrineDivergence,
-} from '../content/freestyleTrickDoctrine';
 import {
   getSymbolicEquivalenceChain,
 } from '../content/freestyleSymbolicEquivalences';
@@ -178,7 +174,7 @@ import {
 import { JOBS_NOTATION_ARTICLE, JOBS_NOTATION_ARTICLE_TITLE } from '../content/jobsNotationArticle';
 import { LEGACY_PANEL_TARGETS } from './conceptsAnchors';
 import { TERMINAL_SURFACES, type TopologyHistogramRow } from '../content/freestyleTopologyHistograms';
-import { MODIFIER_CLUSTERS, FIRST_CLASS_BROWSE_MODIFIERS, clusterForModifier, clusterLabelForModifier } from '../content/freestyleModifierClusters';
+import { MODIFIER_CLUSTERS, FIRST_CLASS_BROWSE_MODIFIERS, clusterForModifier } from '../content/freestyleModifierClusters';
 import { quantityLadderFor } from '../content/freestyleQuantityLadders';
 import {
   CANONICAL_SETS,
@@ -195,32 +191,8 @@ import {
   getReversePairTransform,
   REV_ZERO_EXPLAINER,
 } from '../content/freestyleSemanticOverrides';
-import {
-  getTrickIntuition,
-} from '../content/freestyleTrickIntuition';
-import {
-  getTrickInterpretation,
-} from '../content/freestyleTrickInterpretations';
 import { getSectionSubtitles, type DetailSectionKey } from '../content/freestyleSectionSubtitles';
-import { getAboutDerivatives } from '../content/freestyleAboutDerivatives';
-import {
-  resolveTrickTier,
-} from '../content/freestyleTrickTier';
-import {
-  getTrickMechanicalDelta,
-} from '../content/freestyleTrickMechanicalDelta';
-import {
-  getTrickOntologyRole,
-} from '../content/freestyleTrickOntologyRole';
-import {
-  getTrickProductivity,
-} from '../content/freestyleTrickProductivity';
-import {
-  getTrickFamilyEvolution,
-} from '../content/freestyleTrickFamilyEvolution';
-import {
-  getTrickProgressiveReadings,
-} from '../content/freestyleTrickProgressiveReadings';
+import { getAboutDerivatives, getAboutNamingNote } from '../content/freestyleAboutDerivatives';
 import {
   FREESTYLE_ADD_ANALYSIS_CONTENT,
   type AddAnalysisContent,
@@ -270,10 +242,6 @@ import {
 } from '../content/freestyleObservationalUniverse';
 import { EV_REVIEW_HELD_NAMES } from '../content/freestyleEvReviewHold';
 import {
-  DERIVATION_PILOT_ENTRIES,
-  type DerivationPanelEntry,
-} from '../content/freestyleDerivationPilot';
-import {
   ROOT_TERMINAL_FAMILIES,
   BRANCH_FAMILIES,
   type GlossaryFamilyCard,
@@ -282,11 +250,6 @@ import {
   ADD_WORKED_EXAMPLES,
   type GlossaryAddExample,
 } from '../content/freestyleGlossaryAddExamples';
-import {
-  getEquivalenceTopologyFor,
-  type EquivalenceTopologyEntry,
-} from '../content/freestyleEquivalenceTopology';
-import { CORE_TRICKS, isCoreTrick } from './coreTrickRegistry';
 import { personLocation } from './countryUtils';
 import { START_NEXT_STEPS, START_NEXT_STEPS_INTRO, type StartNextStep } from '../content/freestyleStartNextSteps';
 import { mediaService } from './mediaService';
@@ -856,91 +819,6 @@ interface TrickRefMediaRow {
   source_id: string | null;
 }
 
-// ── Semantic-notation fallback ladder (NF-2B) ────────────────────────────
-// Per-trick semantic-notation rendering. Picks one of four layers:
-//   layer='equivalence'   — curator-authored chain from freestyleSymbolicEquivalences
-//   layer='base-lineage'  — "Built on {base}" derived from row.base_trick
-//   layer='curation-gap'  — "Compositional reading pending curation." cue
-//   (null)                — no semantic-notation block (Layer 1 alone, or core atom silence)
-// Reads ONLY: row.slug, row.notation, row.base_trick, plus dictBySlug for base
-// resolution and the two registries (CORE_TRICKS + OPERATOR_REFERENCE_ENTRIES) for
-// shallow token recognition. Never tokenizes canonical_name; never recurses;
-// never auto-generates chain content.
-
-export interface SemanticNotationToken {
-  kind: 'link' | 'plain';
-  text: string;
-  href: string | null;
-}
-export interface SemanticNotationReading {
-  tokens:     SemanticNotationToken[];
-  depthIndex: number;   // 0 = primary; later indices visually descend (100/92/86% scale)
-}
-export interface SemanticNotation {
-  layer:                 'equivalence' | 'base-lineage' | 'curation-gap';
-  // Pre-shaped layer booleans; templates branch on these, never on the
-  // raw layer code.
-  isEquivalenceLayer:    boolean;
-  isBaseLineageLayer:    boolean;
-  isCurationGapLayer:    boolean;
-  // Equivalence layer fields:
-  readings:              SemanticNotationReading[];
-  curatorConfirmPending: boolean;
-  // Base-lineage layer fields:
-  baseSlug:              string | null;
-  baseName:              string | null;
-  // Source attribution (const literal)
-  sourceLabel:           'editorial';
-}
-
-// Equivalence-topology view. Service-boundary shape for the alternate-
-// derivations disclosure on trick-detail: each derivation row carries
-// pre-shaped chip/badge labels so the template never renders the raw
-// role/source codes as visible text (the codes remain available for
-// CSS-class modifiers only).
-export interface EquivalenceTopologyDerivationView {
-  reading:       string;
-  addBreakdown:  string | null;
-  role:          string;   // CSS-class modifier only
-  source:        string;   // CSS-class modifier only
-  roleLabel:     string;   // visible badge text, e.g. 'alternate equivalent'
-  sourceLabel:   string;   // visible chip text, e.g. 'curator derived'
-  showRoleBadge: boolean;  // false for the canonical-primary row
-}
-export interface EquivalenceTopologyView {
-  summary:     string;
-  derivations: EquivalenceTopologyDerivationView[];
-}
-
-const DERIVATION_ROLE_LABELS: Record<string, string> = {
-  'canonical-primary':         'canonical',
-  'alternate-equivalent':      'alternate equivalent',
-  'historical':                'historical',
-  'doctrine-locked-alternate': 'doctrine-locked alternate',
-  'deprecated':                'deprecated',
-};
-const DERIVATION_SOURCE_LABELS: Record<string, string> = {
-  'curator-derived': 'curator derived',
-  'historical':      'historical',
-  'community':       'community',
-  'structural':      'structural',
-};
-
-function shapeEquivalenceTopologyView(entry: EquivalenceTopologyEntry): EquivalenceTopologyView {
-  return {
-    summary: entry.summary,
-    derivations: entry.derivations.map((d) => ({
-      reading:       d.reading,
-      addBreakdown:  d.addBreakdown ?? null,
-      role:          d.role,
-      source:        d.source,
-      roleLabel:     DERIVATION_ROLE_LABELS[d.role] ?? d.role.replace(/-/g, ' '),
-      sourceLabel:   DERIVATION_SOURCE_LABELS[d.source] ?? d.source.replace(/-/g, ' '),
-      showRoleBadge: d.role !== 'canonical-primary',
-    })),
-  };
-}
-
 // Cross-link surface for /freestyle/sets. Each row carries the
 // display label, its set/operational notation (or null for variant-tag list
 // items that have no notation column), a stable anchor id, and an optional
@@ -1299,104 +1177,6 @@ function shapeFamilyTrees(trickRows: readonly FreestyleTrickRow[]): FreestyleFam
   return trees;
 }
 
-// Pathway-block shaping for the trick detail page. Bundles three pre-shaped
-// summaries so the template renders without any business logic. Every string
-// the template will display is built here; href anchors point at existing
-// detail-page sections.
-function shapeTrickPathways(args: {
-  tutorialCount: number;
-  demoCount: number;
-  recordCount: number;
-  topRecordHolder: string | null;
-  topRecordValue: number;
-  familyName: string | null;
-  // Where the family link goes and how many other tricks that destination
-  // lists, counted from the destination's own membership; null when the trick
-  // has no family.
-  familyLink: { href: string; siblingCount: number } | null;
-}): TrickPathways {
-  const { tutorialCount, demoCount, recordCount, topRecordHolder, topRecordValue,
-          familyName, familyLink } = args;
-
-  // Learn pathway. Tutorial- and demo-tier counts surface separately so the
-  // wording cannot conflate them. When only demos exist the user
-  // can still learn-by-watching, so the link to Reference Media still renders.
-  const learnTotal = tutorialCount + demoCount;
-  const tutorialFragment = `${tutorialCount} tutorial${tutorialCount === 1 ? '' : 's'}`;
-  const demoFragment     = `${demoCount} demonstration${demoCount === 1 ? '' : 's'}`;
-  let learnPrimaryText: string;
-  if (tutorialCount > 0 && demoCount > 0) {
-    learnPrimaryText = `${tutorialFragment} and ${demoFragment} available`;
-  } else if (tutorialCount > 0) {
-    learnPrimaryText = `${tutorialFragment} available`;
-  } else if (demoCount > 0) {
-    learnPrimaryText = `${demoFragment} available`;
-  } else {
-    learnPrimaryText = 'No tutorials yet';
-  }
-  const learn: TrickPathwaySummary = learnTotal > 0
-    ? {
-        available: true,
-        count: learnTotal,
-        primaryText: learnPrimaryText,
-        secondaryText: null,
-        href: '#media',
-        hrefLabel: 'Jump to Media',
-      }
-    : {
-        available: false,
-        count: 0,
-        primaryText: learnPrimaryText,
-        secondaryText: null,
-        href: null,
-        hrefLabel: null,
-      };
-
-  // Watch pathway — driven by passback record count (rendered in the records
-  // table further down the page), not by record-tier media items
-  const watch: TrickPathwaySummary = recordCount > 0
-    ? {
-        available: true,
-        count: recordCount,
-        primaryText: `${recordCount} record${recordCount === 1 ? '' : 's'}`,
-        secondaryText: topRecordHolder
-          ? `Top: ${topRecordHolder} (${topRecordValue} kicks)`
-          : null,
-        href: '#passback-records',
-        hrefLabel: 'Jump to Records',
-      }
-    : {
-        available: false,
-        count: 0,
-        primaryText: 'No records yet',
-        secondaryText: null,
-        href: null,
-        hrefLabel: null,
-      };
-
-  // Family pathway. Surfaces only when the destination lists at least one other
-  // trick, and quotes the count that destination itself shows.
-  const family: TrickPathwaySummary = familyName && familyLink && familyLink.siblingCount > 0
-    ? {
-        available: true,
-        count: familyLink.siblingCount,
-        primaryText: `Family: ${familyName}`,
-        secondaryText: `${familyLink.siblingCount} related trick${familyLink.siblingCount === 1 ? '' : 's'}`,
-        href: familyLink.href,
-        hrefLabel: `Browse ${familyName} family`,
-      }
-    : {
-        available: false,
-        count: 0,
-        primaryText: 'This trick is not part of a named family.',
-        secondaryText: null,
-        href: null,
-        hrefLabel: null,
-      };
-
-  return { learn, watch, family };
-}
-
 export interface FreestyleRelatedGroup {
   key:       string;            // the underlying relating rule
   label:     string;            // group heading (e.g. "Same family", "Swing elements")
@@ -1417,18 +1197,11 @@ export interface FreestyleQuantityLadderView {
   }[];
 }
 
-export interface FreestyleTrickModifierMembership {
-  name:        string;          // modifier display name (e.g. "Paradox")
-  clusterLabel: string;         // "By modifier" browse-cluster label
-  gloss:       string | null;   // one-line composition gloss, null when none authored
+// Terminal-derived relationship view-model: the curated "what lands here"
+// cohort on a terminal atom's page.
+export interface TerminalDerivedView {
+  tricks: { canonicalName: string; detailHref: string; addLabel: string }[];
 }
-
-// Terminal-derived relationship view-model. Two modes: the curated "what lands
-// here" cohort on a terminal atom's page, or the reciprocal "lands in" backlink
-// on a cohort member's page.
-export type TerminalDerivedView =
-  | { mode: 'cohort'; tricks: { canonicalName: string; detailHref: string; addLabel: string }[] }
-  | { mode: 'backlink'; terminalName: string; terminalHref: string };
 
 /** Who is reading a trick-detail page.
  *
@@ -1488,27 +1261,26 @@ export interface FreestyleTrickContent {
   // of a group spanning at least two distinct sides. Carries a glossary
   // deep-link to the SAME / OP explainer. Display projection, not a family.
   relativeSideVariants: FreestyleRelativeSideVariants | null;
-  // Ranked "Similar tricks": structural relatives of this trick (same base, same
-  // family or terminal, established-operator overlap, or a one-operator delta),
-  // each with a plain-words reason. A minimum-relationship threshold applies, so
-  // the list may be short or empty rather than padded; a structurally exceptional
-  // page may pin curated relatives. Excludes self, aliases, and non-trick rows.
+  // Ranked structural relatives of this trick (same base, same family or
+  // terminal, established-operator overlap, or a one-operator delta), rendered
+  // inside Related Tricks. A minimum-relationship threshold applies, so the list
+  // may be short or empty rather than padded; a structurally exceptional page may
+  // pin curated relatives. Excludes self, aliases, and non-trick rows.
   similarTricks: FreestyleStructuralRelative[];
   // Clearly-labelled outside-source names cited as relatives of this trick that
-  // the platform records under a different canonical reading. Rendered as context,
-  // never as a canonical link. Empty for most pages.
+  // the platform records under a different canonical reading. Rendered inside
+  // Related Tricks as context, never as a canonical link. Empty for most pages.
   observationalNotes: FreestyleObservationalNote[];
   // Terminal-derived cohort. On a terminal-stall atom that is not a public family
   // (toe_stall, clipper_stall), the curated cross-family list of recognizable
-  // tricks that finish on this surface. On a cohort member's page, the reciprocal
-  // backlink to its terminal atom. Null otherwise. Distinct from the Family ladder
-  // (which owns terminals that ARE families, e.g. inside_stall) so nothing is
-  // shown twice.
+  // tricks that finish on this surface; null otherwise. Distinct from the Family
+  // ladder (which owns terminals that ARE families, e.g. inside_stall) so nothing
+  // is shown twice.
   terminalDerived: TerminalDerivedView | null;
   // Derived one-line relocations of the retired Mechanical Delta and Progressive
-  // Readings sections. intuitionDelta ("Compared with X, this adds Y") renders in
-  // Movement Intuition; buildPath ("Built from A -> B -> + mod = this") renders in
-  // About. Null when the trick is not a modifier-composed compound.
+  // Readings sections, both rendered in the opening: intuitionDelta ("Compared
+  // with X, this adds Y") and buildPath ("Built from A -> B -> + mod = this").
+  // Null when the trick is not a modifier-composed compound.
   intuitionDelta: string | null;
   buildPath:      string | null;
   // Conservative structural About fallback (base + terminal + the single most-
@@ -1520,21 +1292,19 @@ export interface FreestyleTrickContent {
   // count) — a cross-family relationship, NOT a family. Null when not a ladder
   // member. A ladder member slug absent from the dictionary renders missing.
   quantityLadder: FreestyleQuantityLadderView | null;
-  // "Modifiers on this trick" — one row per modifier link, carrying its
-  // browse-cluster label and optional composition gloss. Always shaped from the trick's modifier
-  // links, independent of the modifier-layering panel's >=3-link gate. Empty
-  // when the trick carries no modifier links.
-  modifierMemberships: FreestyleTrickModifierMembership[];
   // Families this trick belongs to beyond its primary family: the parent root
   // of a branch family (branch->root containment) plus any curator
   // dual-memberships. The template builds the `?family=` href from `slug`
   // (single-variable URL). Empty for root-family and route-out tricks.
   additionalFamilies: { label: string; slug: string; isMinorLineage: boolean; href: string }[];
-  // Observational educational CTAs. Trick-membership-driven; empty array when
-  // no symbolic surface is relevant for this slug. Renders subordinate to the
-  // canonical Related Tricks list. Currently triggers: butterfly-wing-topology → walking progression;
+  // Links to the teaching pages a trick's base or modifiers point at, rendered as
+  // the last lines of Related Tricks. Empty when none is relevant. Currently
+  // triggers: butterfly-wing-topology → walking progression;
   // spinning-family / whirl-rotational-topology → spinning modifier page.
   symbolicEducationCtas: SymbolicEducationCta[];
+  // True when Related Tricks has any row to show: a relationship group, a
+  // structural relative, an outside-source note or a teaching-page link.
+  hasRelatedSection: boolean;
   // Reference Media — split by source tier:
   // - tutorialMedia: instructional sources (TT, AnzTrikz, FootbagSpot,
   //   Shred Global, Polini Pointers, Footbag Foundations, Everything Footbag)
@@ -1551,10 +1321,6 @@ export interface FreestyleTrickContent {
   // Label of the gallery link beside the hashtag in the page's media line.
   // Null exactly when referenceGalleryHref is.
   referenceGalleryLabel: string | null;
-  // Pathways block: pre-shaped summary of Learn / Watch / Family availability
-  // for the new "What you can do with this trick" panel near the top of the
-  // detail page. All anchor hrefs are pre-built so templates render only.
-  pathways: TrickPathways;
   // Structural panel (read-only surface). Curator material, not teaching
   // material: it reports the asserted ADD beside the editorial lineage, which can
   // disagree with the published value while the row is correct, and a reader has
@@ -1572,10 +1338,9 @@ export interface FreestyleTrickContent {
   // Curator-authored "About" derivatives line, rendered after the build chain;
   // null when no entry. Source: freestyleAboutDerivatives.ts.
   aboutDerivatives: string | null;
-  // NF-2B semantic-notation fallback ladder. Coexists with notationDisplay
-  // (Layer 1); the ladder picks layer='equivalence' / 'base-lineage' /
-  // 'curation-gap' or returns null (Layer 4 silence). See shapeSemanticNotation.
-  semanticNotation: SemanticNotation | null;
+  // Curator naming note for a community name the alias line leaves out; null
+  // when no entry. Same source as aboutDerivatives.
+  aboutNamingNote: string | null;
   // Operational notation block. Renders in the
   // "Set notation (operational)" section between semantic notation and
   // editorial decomposition. Null when the row has no operational_notation
@@ -1659,43 +1424,17 @@ export interface FreestyleTrickContent {
   // the First-Class ADD Convergence Rule AND appears in the pilot
   // allow-list. Drives first-class-only surfaces elsewhere on the page.
   isFirstClass: boolean;
-  // Equivalence-topology view: alternate-derivation paths for tricks
-  // whose canonical reading admits a structurally distinct path that
-  // converges arithmetically. Null when no entry is authored OR when
-  // the entry is curator-confirm-pending (filtered at service layer
-  // so pending entries never surface publicly). Renders inside a
-  // collapsed <details> advanced panel below the ADD-derivation
-  // disclosure on trick-detail. Additive observational layer; never
-  // overrides the canonical published reading.
-  equivalenceTopology: EquivalenceTopologyView | null;
   // Family-anchor context. Populated
   // only when the current trick IS the family-anchor (slug ===
   // trick_family) AND the family carries a curator-authored invariant
   // (DP-1's six: whirl, rev-whirl, butterfly, mirage, osis, swirl).
   // Null for every other trick. Drives the family-anchor callout in
   // the trick-family section header; teaches readers that the page
-  // they're on is itself the productive root of a family. Reuses the
-  // FAMILY_INVARIANTS data already authored for the dictionary's
-  // family view — single source of truth across surfaces.
+  // they're on is itself the productive root of a family. A family counts as
+  // confirmed when FAMILY_INVARIANTS carries its invariant.
   familyAnchorContext: {
-    invariant:         string;       // e.g. "leggy in dex > ss clipper"
     familyName:        string;       // e.g. "Whirl"
     familyBrowseHref:  string;       // /freestyle/tricks?view=family#family-{slug}
-  } | null;
-  // Doctrine-divergence scoring note. Populated from
-  // DOCTRINE_DIVERGENCE_REGISTRY when the slug carries documented
-  // divergence between IFPA-grammar derivation and a community/
-  // external source. Renders
-  // on trick-detail ONLY (NEVER on browse cards); tone is factual +
-  // source-attributed + brief. Null when no public-facing divergence
-  // applies (~99% of canonical slugs).
-  scoringNote: {
-    category:        'historical-divergence' | 'doctrine-sensitive' | 'alternate-accounting';
-    sourceSystem:    string | null;
-    sourceClaim:     number | null;
-    canonicalValue:  number;
-    provenanceNote:  string;
-    isAdvanced:      boolean;  // true: collapsed behind a disclosure; false: always visible
   } | null;
   // Reverse-pair transform overlay.
   // Populated only for the five curator-locked reverse-direction
@@ -1717,86 +1456,6 @@ export interface FreestyleTrickContent {
     totalAdd:      number;  // rev(0) is +0, so totalAdd == baseAdd
     rev0Explainer: string;  // shared rev(0) operator explainer
   } | null;
-  // Movement-intuition prose.
-  // Populated only for curator-locked flagship pages. Renders as a
-  // "Movement intuition" section between trick-about and trick-notation
-  // so the page reads movement-first → structure-second.
-  //
-  // Layer separation: prose only; never replaces notation, ADD
-  // accounting, or any ontology field.
-  intuition: {
-    prose:       string;
-    attribution: string;
-  } | null;
-  // "Compressed from" / "Compressed reading" pedagogy line.
-  // Strict allowlist of famous structural
-  // compressions only: smear, ripwalk, atom-smasher, eggbeater, mobius.
-  // Reinforces the glossary §composition "Structural compression"
-  // concept directly on the flagship detail pages. Reads from existing
-  // freestyleSymbolicEquivalences.ts data (readings[0] is the compact
-  // reading). Null for every non-allowlisted slug; suppresses cleanly
-  // when no data. NOT a general equivalence-expansion surface; this is
-  // pedagogy reinforcement, not ontology.
-  compressedFrom: {
-    label:   'Compressed from' | 'Compressed reading';
-    reading: string;
-  } | null;
-  // Naming & interpretation overlay. Populated only when the slug has a
-  // curator-authored entry in freestyleTrickInterpretations.ts. Surfaces a
-  // canonical reading + one or more historical readings + structural
-  // notes that frame the layer separation ("both readings describe the
-  // same trick; the historical reading does not imply a productive
-  // modifier family"). Distinct from the alias slot and from the S5
-  // primary-readings slot — see the module's layer-separation doctrine.
-  interpretation: {
-    canonicalReading:   string;
-    historicalReadings: string[];
-    structuralNotes:    string[];
-  } | null;
-  // Trick tier (trick-detail ontology doctrine).
-  // 'A' = flagship ontology exemplar (renders L1-L6 layers when authored).
-  // 'B' = secondary, renders L1 + L5 only when authored.
-  // 'C' = default — renders the universal shell exactly as today.
-  trickTier: 'A' | 'B' | 'C';
-  // L2: mechanical-delta layer. The deepest ontology-work locus —
-  // where paradox / x-dex / nuclear / blurry / furious / rotational /
-  // hidden-topology distinctions become understandable. Populated for
-  // Tier A slugs with curator-authored entries; null otherwise.
-  mechanicalDelta: {
-    parentLinks:        { slug: string; label: string; href: string }[];
-    prose:              string;
-    topologyKind:       string;
-    topologyLabel:      string;          // pre-shaped UI label
-    interpretiveTraditions: { reading: string; citation: string }[];
-    hasInterpretiveTraditions: boolean;
-  } | null;
-  // L3: ontology-role layer. Names what ontology concept this trick
-  // exemplifies; renders as an eyebrow + prose pair.
-  ontologyRole: {
-    role:  string;
-    prose: string;
-  } | null;
-  // L4: productivity narrative. Why this trick became generative +
-  // curator-authored productive-descendant cross-links.
-  productivity: {
-    prose:                  string;
-    productiveDescendants:  { slug: string; label: string; href: string; note?: string }[];
-  } | null;
-  // L5: family-evolution narrative. Branching steps, each with axis +
-  // prose + exemplar links. NOT a list — a movement-language history.
-  familyEvolution: {
-    steps: {
-      branchAxis:    string;
-      prose:         string;
-      exemplarLinks: { slug: string; label: string; href: string | null }[];
-    }[];
-  } | null;
-  // L6: progressive-reading staircase. simple parent → topology
-  // transformation → compositional extension → compressed shorthand →
-  // descendant systems.
-  progressiveReadings: {
-    stages: { stage: string; reading: string; citation?: string }[];
-  } | null;
   // Placeholder-description suppression. True
   // when the DB `description` matches a known placeholder pattern
   // (X-modified Y / X-and-Y modified Z / "Popular freestyle trick.").
@@ -1808,11 +1467,6 @@ export interface FreestyleTrickContent {
   // omitted otherwise.
   aboutHasContent: boolean;
 }
-
-// Re-export the equivalence-topology entry type so consumers of the
-// trick-detail view-model can type their handlers without depending on
-// the content module directly.
-export type { EquivalenceTopologyEntry } from '../content/freestyleEquivalenceTopology';
 
 /** Curator-published ADD derivation surfaced under a collapsed disclosure
  *  on the trick-detail page. Only `derivation` + `totalAdd` are
@@ -1849,20 +1503,6 @@ export interface OperationalNotation {
   sourceNote: string | null;                     // O1d: free-form curator-authored provenance/citation; null when absent
 }
 
-export interface TrickPathwaySummary {
-  available: boolean;            // gates the block's "no X yet" fallback rendering
-  count: number;                 // pre-formatted into pre-shaped strings; raw count for tests
-  primaryText: string;           // pre-shaped main-line text; e.g. "3 tutorials available"
-  secondaryText: string | null;  // optional second line; e.g. "Top: Jim Penske (47 kicks)"
-  href: string | null;           // jump-link target ('#media', '#passback-records', or family filter)
-  hrefLabel: string | null;      // pre-shaped CTA text; e.g. "Jump to Media"
-}
-
-export interface TrickPathways {
-  learn: TrickPathwaySummary;
-  watch: TrickPathwaySummary;
-  family: TrickPathwaySummary;
-}
 
 export interface TrickReferenceMediaItem {
   mediaId: string;
@@ -2139,136 +1779,6 @@ function shapeEditorialDecomposition(
     matchesAsserted,
     derivationText,
     sourceLabel: 'editorial',
-  };
-}
-
-// ── Semantic-notation fallback ladder (NF-2B) ────────────────────────────
-// Compose a `SemanticNotation` for a trick row. Layer selection:
-//   1. Curated equivalence chain (Layer 2) — if authored in
-//      freestyleSymbolicEquivalences.ts. Coexists with Layer 1 (curator notation
-//      in `row.notation`); both render as distinct sections.
-//   2. Base-lineage phrase (Layer 3) — if `row.base_trick` resolves and isn't
-//      a self-reference, AND no curator notation exists, AND no chain.
-//   3. Layer 4 (true atom silence) — if slug is in CORE_TRICKS and no data:
-//      return null (no semantic-notation block).
-//   4. Layer 5b (non-core curation gap) — non-core, no curator notation, no
-//      base lineage: surface "Compositional reading pending curation." cue.
-//
-// Editorial-layer rules preserved:
-//   - Reads only slug / notation / base_trick + dictBySlug for base resolution.
-//   - Never tokenizes canonical_name; never recurses.
-//   - Auto-link tokens only resolve to CORE_TRICKS or OPERATOR_REFERENCE_ENTRIES.
-//   - sourceLabel='editorial' const literal.
-const RECOGNIZED_LINK_SLUGS: ReadonlySet<string> = (() => {
-  const s = new Set<string>();
-  for (const slug of CORE_TRICKS) s.add(slug);
-  for (const entry of OPERATOR_REFERENCE_ENTRIES) s.add(entry.slug);
-  return s;
-})();
-
-/**
- * Render-time abbreviation expansion for S5 chain readings.
- * Eliminates the visible inconsistency where
- * S5 readings use lowercase abbreviations (`ss`, `op`) while JOB
- * tokens on the same page use uppercase spelled-out forms (`SAME`,
- * `OP`). Expanding to lowercase prose (`same-side`, `opposite`) keeps
- * the readings reading as compositional name phrases without
- * shouting all-caps.
- *
- * Map is intentionally small and curator-locked — only the two
- * abbreviations that recur frequently enough to confuse readers.
- * Future additions one-at-a-time by explicit curator decision.
- */
-const S5_TOKEN_EXPANSIONS: ReadonlyMap<string, string> = new Map([
-  ['ss', 'same-side'],
-  ['op', 'opposite'],
-]);
-
-function expandS5Abbreviation(token: string): string {
-  return S5_TOKEN_EXPANSIONS.get(token.toLowerCase()) ?? token;
-}
-
-function tokenizeEquivalenceReading(reading: string): SemanticNotationToken[] {
-  return reading
-    .split(/\s+/)
-    .filter(t => t.length > 0)
-    .map((token): SemanticNotationToken => {
-      const expanded = expandS5Abbreviation(token);
-      const normalized = expanded.toLowerCase();
-      if (RECOGNIZED_LINK_SLUGS.has(normalized)) {
-        return { kind: 'link', text: expanded, href: `/freestyle/concepts#term-${normalized}` };
-      }
-      return { kind: 'plain', text: expanded, href: null };
-    });
-}
-
-function shapeSemanticNotation(
-  row: FreestyleTrickDetailRow,
-  dictBySlug: Map<string, FreestyleTrickRow>,
-): SemanticNotation | null {
-  const slug = row.slug;
-
-  // Layer 2: curated equivalence chain. Renders alongside Layer 1 when both
-  // exist — does NOT suppress curator notation.
-  const chain = getSymbolicEquivalenceChain(slug);
-  if (chain) {
-    return {
-      layer:    'equivalence',
-      isEquivalenceLayer:  true,
-      isBaseLineageLayer:  false,
-      isCurationGapLayer:  false,
-      readings: chain.readings.map((reading, depthIndex) => ({
-        tokens: tokenizeEquivalenceReading(reading),
-        depthIndex,
-      })),
-      curatorConfirmPending: chain.curatorConfirmPending,
-      baseSlug:              null,
-      baseName:              null,
-      sourceLabel:           'editorial',
-    };
-  }
-
-  // No chain. If curator notation exists (Layer 1), it handles rendering;
-  // no semantic-notation block needed.
-  const hasCuratorNotation =
-    typeof row.notation === 'string' && row.notation.trim().length > 0;
-  if (hasCuratorNotation) return null;
-
-  // Layer 3: base lineage. Resolves when base_trick is set, not self-ref,
-  // and present in the dictionary.
-  const baseSlugRaw = row.base_trick;
-  if (baseSlugRaw && baseSlugRaw.trim().length > 0) {
-    const baseSlug = baseSlugRaw.trim();
-    if (baseSlug !== slug) {
-      const baseRow = dictBySlug.get(baseSlug);
-      if (baseRow) {
-        return {
-          layer:                 'base-lineage',
-          isEquivalenceLayer:    false,
-          isBaseLineageLayer:    true,
-          isCurationGapLayer:    false,
-          readings:              [],
-          curatorConfirmPending: false,
-          baseSlug,
-          baseName:              baseRow.canonical_name || baseSlug,
-          sourceLabel:           'editorial',
-        };
-      }
-    }
-  }
-
-  // No structural data. Layer 4 (core atom) vs Layer 5b (non-core gap).
-  if (isCoreTrick(slug)) return null;   // Layer 4 silence
-  return {
-    layer:                 'curation-gap',
-    isEquivalenceLayer:    false,
-    isBaseLineageLayer:    false,
-    isCurationGapLayer:    true,
-    readings:              [],
-    curatorConfirmPending: false,
-    baseSlug:              null,
-    baseName:              null,
-    sourceLabel:           'editorial',
   };
 }
 
@@ -3504,12 +3014,6 @@ export interface FreestyleConceptsContent {
   // shaped at this boundary with a visible statusLabel so the template
   // never renders the raw status code as text.
   addWorkedExamples:    ReadonlyArray<GlossaryAddExample & { statusLabel: string }>;
-  // §1 Derivation atlas — five canonical entries rendered through the
-  // derivation-first compositional-atlas primitives (derivation panel,
-  // semantic-depth ladder, ADD breakdown, equivalence chain, doctrine
-  // note). Demonstrates the compositional system upfront, before the
-  // reference content begins.
-  derivationAtlas:      readonly DerivationPanelEntry[];
   // The twelve foundational moves of Movement Basics: each card is a
   // "Movement:" line plus titled collapsible panels, a beginner-facing layer
   // above the structural reference content. Sourced from
@@ -4437,52 +3941,6 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   // ── Quantum-symposium-mirage ('toe X → quantum X' retirement; FB.org-confirmed JOB):
   'quantum_symposium_mirage',    // quantum(+1) + symposium-mirage(3) = 4 ADD ([DEX] + [BOD] + [DEX] + [DEL]); folk-name alias "Backside Symposium Toe Blur"
 ]);
-
-// "Compressed from" detail-page surface.
-// Strict allowlist of famous/foundational structural compressions that
-// reinforce the glossary §composition "Structural compression" concept
-// directly on the flagship detail pages.
-//
-// DOCTRINE (curator-locked):
-//   - NEVER add slugs to this map for ontology-expansion reasons. This
-//     is pedagogy reinforcement of the glossary concept, not a general
-//     equivalence-spam surface. The user-curator decides additions one
-//     compression at a time.
-//   - The label for each slug is curator-authored. "Compressed from"
-//     reads the slug as the compressed form of a longer compositional
-//     reading (smear ← pixie mirage). "Compressed reading" reads the
-//     slug as the compact name with the reading as one expansion
-//     (mobius has multiple compression depths).
-//   - Reads readings[0] from freestyleSymbolicEquivalences.ts. The slug
-//     MUST have an entry there; null is returned otherwise (clean
-//     suppression).
-//   - blur and barrage were considered but lack symbolic-equivalences
-//     entries; deferred pending curator authoring.
-//   - ripwalk and atom-smasher carry curatorConfirmPending=true on
-//     their semantic-notation chains, but the allowlist membership IS
-//     the curator approval for this specific lightweight surface (the
-//     curator explicitly listed both in the slice brief).
-const FAMOUS_COMPRESSION_SLUGS: ReadonlyMap<string, 'Compressed from' | 'Compressed reading'> = new Map([
-  ['smear',        'Compressed from'   as const],
-  ['ripwalk',      'Compressed from'   as const],
-  ['atom_smasher', 'Compressed from'   as const],
-  ['eggbeater',    'Compressed from'   as const],
-  ['mobius',       'Compressed reading' as const],
-]);
-
-/**
- * Shape the "Compressed from" / "Compressed reading" view-model field.
- * Returns null when the slug is NOT in the famous-compression allowlist
- * OR when no symbolic-equivalence chain exists for the slug. The label
- * for mobius is "Compressed reading"; all others use "Compressed from".
- */
-function shapeCompressedFrom(slug: string): { label: 'Compressed from' | 'Compressed reading'; reading: string } | null {
-  const label = FAMOUS_COMPRESSION_SLUGS.get(slug);
-  if (label === undefined) return null;
-  const chain = getSymbolicEquivalenceChain(slug);
-  if (chain === null || chain.readings.length === 0) return null;
-  return { label, reading: chain.readings[0]! };
-}
 
 // Sui-generis primitives whose curator-locked JOB notation IS the
 // canonical name itself (no decomposable set + terminator chain).
@@ -5520,33 +4978,6 @@ function buildFamilyMembershipMap<T extends { slug: string; trick_family: string
   return familyMap;
 }
 
-// The trick page's family link. Family pages own same-family progression, so
-// the link goes to the family page when one exists and quotes that page's own
-// membership; otherwise it goes to the family-filtered dictionary and quotes
-// what that filter lists. Either way the count excludes the current trick, so
-// it never promises a number the destination does not show.
-function familyPathwayLink(
-  familySlug: string,
-  currentSlug: string,
-  activeRows: FreestyleTrickRow[],
-): { href: string; siblingCount: number } {
-  if (hasFamilyPage(familySlug)) {
-    const { cardSlugs } = familyPageMembership(familySlug, buildFamilyMembershipMap(activeRows));
-    return {
-      href: `/freestyle/families/${familySlug}`,
-      siblingCount: cardSlugs.filter(s => s !== currentSlug).length,
-    };
-  }
-  const { activeFamily, rows } = applyDictionaryFamilyFilter(activeRows, familySlug);
-  const listed = activeFamily
-    ? rows.filter(r => resolveTrickKind(r.slug) === 'trick' && r.slug !== currentSlug)
-    : [];
-  return {
-    href: `/freestyle/tricks?family=${encodeURIComponent(familySlug)}`,
-    siblingCount: listed.length,
-  };
-}
-
 // True when a family has a page of its own at /freestyle/families/:slug.
 function hasFamilyPage(familySlug: string): boolean {
   return isOfficialFamilyParent(familySlug) && PUBLIC_FAMILY_LABEL.has(familySlug);
@@ -6505,13 +5936,12 @@ export const freestyleService = {
    * Build the trick-detail page view-model.
    *
    * Relationship sections follow a single-owner rule, so no trick appears in two
-   * relationship sections: the Family ladder owns same-family progression;
-   * Related Tricks owns conceptual movement-neighbour / swing-element links only;
-   * Structurally related tricks owns cross-base composition (the same operators
-   * on another base, plus same-structure twins). There is no standalone Mechanical
-   * Delta or Progressive Readings section: their useful content is relocated to
-   * two derived one-liners, `intuitionDelta` (rendered in Movement Intuition) and
-   * `buildPath` (rendered in About), both null for atoms and link-less tricks.
+   * relationship sections: the Family ladder owns same-family progression, and
+   * Related Tricks owns every other neighbour: conceptual movement-neighbour /
+   * swing-element links and, as its structurally related group, cross-base
+   * composition (the same operators on another base, plus same-structure twins).
+   * The page's opening carries two derived one-liners, `intuitionDelta` and
+   * `buildPath`, both null for atoms and link-less tricks.
    *
    * Notation placement: every trick renders one universal notation card
    * (`trick-notation`) reading Movement notation -> Execution notation -> ADD,
@@ -6825,37 +6255,6 @@ export const freestyleService = {
              ?? resolveFamilyDisplayName(familySlug)
              ?? (familySlug.charAt(0).toUpperCase() + familySlug.slice(1).replace(/[-_]/g, ' ')))
           : null;
-        // Pathway "Learn this trick" surfaces tutorial- and demo-tier counts
-        // separately — wording must not conflate them.
-        const pathways = shapeTrickPathways({
-          tutorialCount: tutorialMedia.length,
-          demoCount:     demoMedia.length,
-          recordCount: currentRows.length,
-          topRecordHolder: currentRows[0]?.holder_name ?? null,
-          topRecordValue: topValue,
-          familyName,
-          familyLink: familySlug ? familyPathwayLink(familySlug, slug, allDictRows) : null,
-        });
-
-        // "Modifiers on this trick" rows (one per distinct modifier link):
-        // browse-cluster label + optional composition gloss. Always shaped,
-        // independent of the >=3-link modifier-layering panel below it.
-        const modifierMemberships: FreestyleTrickModifierMembership[] = (() => {
-          const seen = new Set<string>();
-          const out: FreestyleTrickModifierMembership[] = [];
-          for (const link of modifierLinks) {
-            const ms = link.modifier_slug;
-            if (seen.has(ms)) continue;
-            seen.add(ms);
-            out.push({
-              name:         link.modifier_name,
-              clusterLabel: clusterLabelForModifier(ms),
-              gloss:        link.composition_gloss,
-            });
-          }
-          return out;
-        })();
-
         // Families beyond the primary one: branch->root containment (a branch
         // family's parent root, via familyWithAncestors) plus curator
         // dual-memberships. Lets a multi-family trick (e.g. a torque-family
@@ -6942,13 +6341,13 @@ export const freestyleService = {
         })();
 
         // Derived relocations of the retired Mechanical Delta + Progressive
-        // Readings sections: a compact parent-delta line (rendered in Movement
-        // Intuition) and a base-chain build path (rendered in About). Both are
-        // derived from base_trick + modifier links, so they cover every
-        // modifier-composed compound, not only curated flagship pages.
-        const { derivedDelta, derivedBuildPath, derivedBuildPathTokens, derivedStructuralAbout } = ((): { derivedDelta: string | null; derivedBuildPath: string | null; derivedBuildPathTokens: string[]; derivedStructuralAbout: string | null } => {
+        // A compact parent-delta line and a base-chain build path, both rendered
+        // in the page's opening. Both are derived from base_trick + modifier
+        // links, so they cover every modifier-composed compound, not only
+        // curated flagship pages.
+        const { derivedDelta, derivedBuildPath, derivedStructuralAbout } = ((): { derivedDelta: string | null; derivedBuildPath: string | null; derivedStructuralAbout: string | null } => {
           if (!dictRow || !dictRow.base_trick || dictRow.base_trick === dictRow.slug) {
-            return { derivedDelta: null, derivedBuildPath: null, derivedBuildPathTokens: [], derivedStructuralAbout: null };
+            return { derivedDelta: null, derivedBuildPath: null, derivedStructuralAbout: null };
           }
           const rowBySlug = new Map(allDictRows.map(r => [r.slug, r] as const));
           const modsBySlug = new Map<string, string[]>();
@@ -6979,7 +6378,6 @@ export const freestyleService = {
           }
           const thisName = dictRow.canonical_name;
           const hasBuildPath = !!(thisMods.length && ancestors.length);
-          const tokenize = (s: string): string[] => s.toLowerCase().split(/[\s_-]+/).filter(Boolean);
           // High-confidence structural About fallback (base + terminal + the
           // single added operator), rendered only for confidently-known
           // single-operator compounds; everything else stays silent. The doctrine
@@ -7000,12 +6398,6 @@ export const freestyleService = {
             derivedBuildPath: hasBuildPath
               ? `${ancestors.map(cap).join(' → ')} → + ${thisMods.join(' + ')} = ${cap(thisName)}`
               : null,
-            // Significant tokens the build path expresses (ancestor names +
-            // modifiers + this trick's name), for the single-equivalence-reading
-            // redundancy check on the Equivalent readings section.
-            derivedBuildPathTokens: hasBuildPath
-              ? [...ancestors.flatMap(tokenize), ...thisMods.flatMap(tokenize), ...tokenize(thisName)]
-              : [],
           };
         })();
 
@@ -7048,35 +6440,26 @@ export const freestyleService = {
           relativeSideVariants: dictRow ? buildRelativeSideVariants(dictRow, allDictRows) : null,
           similarTricks:      dictRow ? buildStructuralRelatives(dictRow, allDictRows, allModifierLinks) : [],
           observationalNotes: [...observationalNotesFor(slug)],
-          // Terminal-derived cohort (curated). On a terminal atom that is not a
-          // public family, the cross-family "what lands here" list; on a cohort
-          // member, the reciprocal "lands in" backlink. The Family ladder owns
-          // terminals that ARE families, so the two never overlap.
+          // Terminal-derived cohort (curated): on a terminal atom that is not a
+          // public family, the cross-family "what lands here" list. The Family
+          // ladder owns terminals that ARE families, so the two never overlap.
           terminalDerived: ((): TerminalDerivedView | null => {
             // allDictRows (listAll) is already is_active = 1, so a slug match is
             // enough; an inactive or absent member simply drops out.
             const cohort = TERMINAL_DERIVED_COHORTS.get(slug);
-            if (cohort) {
-              const tricks = cohort.flatMap(s => {
-                const r = allDictRows.find(row => row.slug === s);
-                return r
-                  ? [{ canonicalName: r.canonical_name, detailHref: `/freestyle/tricks/${r.slug}`, addLabel: `${r.adds} ADD` }]
-                  : [];
-              });
-              return tricks.length ? { mode: 'cohort', tricks } : null;
-            }
-            const terminal = TERMINAL_OF_MEMBER.get(slug);
-            if (terminal) {
-              const trow = allDictRows.find(row => row.slug === terminal);
-              if (trow) return { mode: 'backlink', terminalName: trow.canonical_name, terminalHref: `/freestyle/tricks/${terminal}` };
-            }
-            return null;
+            if (!cohort) return null;
+            const tricks = cohort.flatMap(s => {
+              const r = allDictRows.find(row => row.slug === s);
+              return r
+                ? [{ canonicalName: r.canonical_name, detailHref: `/freestyle/tricks/${r.slug}`, addLabel: `${r.adds} ADD` }]
+                : [];
+            });
+            return tricks.length ? { tricks } : null;
           })(),
           intuitionDelta: derivedDelta,
           buildPath:      derivedBuildPath,
           structuralAbout: derivedStructuralAbout,
           quantityLadder,
-          modifierMemberships,
           // The same modifiers the Structural Facts block shows: the trick's own
           // links, or the curator-published operator when it has none, so the
           // two never disagree about whether a trick carries a modifier.
@@ -7111,7 +6494,6 @@ export const freestyleService = {
           hasReferenceMedia,
           referenceGalleryHref,
           referenceGalleryLabel: referenceGalleryHref ? 'View Trick Gallery' : null,
-          pathways,
           notationGrammar: viewer.isMaintainer && dictRow
             ? shapeNotationGrammar(
                 dictRow,
@@ -7121,6 +6503,7 @@ export const freestyleService = {
             : null,
           sectionSubtitles: getSectionSubtitles(slug),
           aboutDerivatives: getAboutDerivatives(slug),
+          aboutNamingNote:  getAboutNamingNote(slug),
           notationDisplay: (() => {
             if (!dictRow) return null;
             // Rendering hygiene: when the Movement (JOB) string is byte-identical
@@ -7149,24 +6532,6 @@ export const freestyleService = {
                 ),
               ),
             );
-          })(),
-          semanticNotation: (() => {
-            if (!dictRow) return null;
-            const sn = shapeSemanticNotation(dictRow, new Map(allDictRows.map(r => [r.slug, r])));
-            // Suppress an Equivalent readings section that holds a single reading
-            // the About build path already fully expresses (every reading token
-            // appears among the build-path components). Multi-step reading chains
-            // are always preserved.
-            if (sn && sn.isEquivalenceLayer && sn.readings.length === 1 && derivedBuildPathTokens.length) {
-              const pathTokens = new Set(derivedBuildPathTokens);
-              const readingTokens = sn.readings[0]!.tokens
-                .flatMap(t => t.text.toLowerCase().split(/[\s_-]+/))
-                .filter(Boolean);
-              if (readingTokens.length && readingTokens.every(tk => pathTokens.has(tk))) {
-                return { ...sn, isEquivalenceLayer: false };
-              }
-            }
-            return sn;
           })(),
           operationalNotation: (() => {
             // O1a/O1b/O1d: shape into role-classified tokens for the trick-
@@ -7320,24 +6685,6 @@ export const freestyleService = {
               addAnalysis,
             };
           })(),
-          equivalenceTopology: (() => {
-            // Surfaces an
-            // alternate-derivation entry inside an [advanced] expandable
-            // when authored AND ratified. curatorConfirmPending entries
-            // are filtered here so pending entries never reach the
-            // template — the publication-semantics gate lives at this
-            // seam.
-            //
-            // Core-atom suppression rule:
-            // atoms cannot carry an alternate-derivation entry; the
-            // "alternate" frame presupposes a primary decomposition,
-            // which atoms (by definition) lack.
-            if (isCoreAtom(slug)) return null;
-            const entry = getEquivalenceTopologyFor(slug);
-            return entry && !entry.curatorConfirmPending
-              ? shapeEquivalenceTopologyView(entry)
-              : null;
-          })(),
           transform: (() => {
             // Reverse-pair transform overlay. Populated only for the
             // five curator-locked
@@ -7354,139 +6701,6 @@ export const freestyleService = {
               baseAdd:       entry.baseAdd,
               totalAdd:      entry.baseAdd,  // rev(0) is +0 ADD
               rev0Explainer: REV_ZERO_EXPLAINER,
-            };
-          })(),
-          intuition: (() => {
-            // Movement-intuition prose. Curator-locked flagship enrichments only;
-            // see freestyleTrickIntuition.ts for the authorship
-            // discipline locked in the JSDoc there. Initial set: the
-            // five core-atom flagships (mirage, whirl, butterfly, osis,
-            // illusion) and one compound flagship (mobius).
-            const entry = getTrickIntuition(slug);
-            if (entry === null) return null;
-            return {
-              prose:       entry.prose,
-              attribution: entry.attribution,
-            };
-          })(),
-          // "Compressed from" / "Compressed reading" pedagogy line.
-          // Strict allowlist of famous
-          // structural compressions (smear, ripwalk, atom-smasher,
-          // eggbeater, mobius). See FAMOUS_COMPRESSION_SLUGS doctrine.
-          compressedFrom: shapeCompressedFrom(slug),
-          interpretation: (() => {
-            // Naming & interpretation overlay — opt-in, curator-locked.
-            // Surfaces canonical + historical readings for tricks where
-            // multiple naming traditions describe the same movement
-            // (seed entry: eggbeater = atomic legover ≡ illusion + legover).
-            // Layer separation enforced: alias slot, S5 primary-readings,
-            // ADD math, and modifier families are all untouched. The
-            // structural notes carry the "historical reading does not
-            // imply a productive modifier family" framing explicitly so
-            // it stays consistent across entries.
-            const entry = getTrickInterpretation(slug);
-            if (entry === null) return null;
-            return {
-              canonicalReading:   entry.canonicalReading,
-              historicalReadings: [...entry.historicalReadings],
-              structuralNotes:    [...entry.structuralNotes],
-            };
-          })(),
-          // ── Trick-detail ontology doctrine ─────────────────────────────
-          // L1-L6 layered ontology fields. Universal grammar:
-          // any trick with curated content renders the
-          // relevant sections. Tier is an authoring priority signal
-          // (TIER_A_SLUGS / TIER_B_SLUGS in freestyleTrickTier.ts), NOT
-          // a structural gate; suppression is content-driven (entry null
-          // → section suppresses).
-          trickTier:        resolveTrickTier(slug),
-          mechanicalDelta:  (() => {
-            // L2 — mechanical delta. The deepest ontology layer per the
-            // doctrine; where paradox / x-dex / nuclear / rotational /
-            // hidden-topology distinctions become understandable.
-            const entry = getTrickMechanicalDelta(slug);
-            if (entry === null) return null;
-            const topologyLabelMap: Record<string, string> = {
-              'atom':              'Atom: defining mechanical pattern',
-              'paradox':           'Paradox topology',
-              'x-dex':             'X-dex escalation',
-              'rotational':        'Rotational',
-              'no-plant':          'Suspension / no-plant',
-              'cross-body':        'Cross-body',
-              'compound':          'Compound-of-canonicals',
-              'hidden-topology':   'Hidden topology',
-            };
-            return {
-              parentLinks: entry.parentSlugs.map(s => ({
-                slug:  s,
-                label: s.replace(/[-_]/g, ' '),
-                href:  `/freestyle/tricks/${s}`,
-              })),
-              prose:                     entry.prose,
-              topologyKind:              entry.topologyKind,
-              topologyLabel:             topologyLabelMap[entry.topologyKind] ?? entry.topologyKind,
-              interpretiveTraditions:    [...(entry.interpretiveTraditions ?? [])],
-              hasInterpretiveTraditions: (entry.interpretiveTraditions ?? []).length > 0,
-            };
-          })(),
-          ontologyRole: (() => {
-            // L3 — ontology role. May overlap with L4 (productivity) on
-            // some slugs; curator picks which slot carries the prose.
-            const entry = getTrickOntologyRole(slug);
-            if (entry === null) return null;
-            return {
-              role:  entry.role,
-              prose: entry.prose,
-            };
-          })(),
-          productivity: (() => {
-            // L4 — productivity narrative. Curator-authored descendant
-            // slugs (no NLP) so cross-references stay stable.
-            const entry = getTrickProductivity(slug);
-            if (entry === null) return null;
-            return {
-              prose: entry.prose,
-              productiveDescendants: entry.productiveDescendants.map(d => ({
-                slug:  d.slug,
-                label: d.label,
-                href:  `/freestyle/tricks/${d.slug}`,
-                note:  d.note,
-              })),
-            };
-          })(),
-          familyEvolution: (() => {
-            // L5 — family evolution narrative. Branching steps with
-            // axis + prose + exemplar links. Renders as the
-            // movement-language-history surface; NOT a list.
-            const entry = getTrickFamilyEvolution(slug);
-            if (entry === null) return null;
-            // An exemplar slug that has no resolvable trick page renders as
-            // plain text rather than a dead link.
-            const resolvable = getResolvableTrickSlugs();
-            return {
-              steps: entry.narrativeSteps.map(s => ({
-                branchAxis: s.branchAxis,
-                prose:      s.prose,
-                exemplarLinks: s.exemplarSlugs.map(es => ({
-                  slug:  es,
-                  label: es.replace(/[-_]/g, ' '),
-                  href:  resolvable.has(es) ? `/freestyle/tricks/${es}` : null,
-                })),
-              })),
-            };
-          })(),
-          progressiveReadings: (() => {
-            // L6 — progressive equivalence unfolding. simple parent →
-            // topology transformation → compositional extension →
-            // compressed shorthand → descendant systems.
-            const entry = getTrickProgressiveReadings(slug);
-            if (entry === null) return null;
-            return {
-              stages: entry.stages.map(s => ({
-                stage:    s.stage,
-                reading:  s.reading,
-                citation: s.citation,
-              })),
             };
           })(),
           // Suppress a structural-placeholder description (a formula-embedded
@@ -7509,37 +6723,16 @@ export const freestyleService = {
             // actually renders.
             if (!dictRow || !effectiveFamilySlug) return null;
             if (effectiveFamilySlug !== dictRow.slug) return null;
-            const invariant = getFamilyInvariant(effectiveFamilySlug);
-            if (!invariant) return null;
+            // A family with a curator-authored invariant is a confirmed
+            // terminal family; only its anchor carries the callout.
+            if (!getFamilyInvariant(effectiveFamilySlug)) return null;
             const familyName = PUBLIC_FAMILY_LABEL.get(effectiveFamilySlug)
               ?? resolveFamilyDisplayName(effectiveFamilySlug)
               ?? (effectiveFamilySlug.charAt(0).toUpperCase()
                   + effectiveFamilySlug.slice(1).replace(/[-_]/g, ' '));
             return {
-              invariant,
               familyName,
               familyBrowseHref: `/freestyle/tricks?view=family#family-${effectiveFamilySlug}`,
-            };
-          })(),
-          scoringNote: (() => {
-            // Doctrine-divergence rendering. Consult the
-            // DOCTRINE_DIVERGENCE_REGISTRY for documented divergence
-            // between the IFPA-grammar-derived ADD and a community/
-            // external source. Renders on trick-detail ONLY per the
-            // framework's placement policy (browse cards stay clean).
-            const entry = getDoctrineDivergence(slug);
-            if (!entry) return null;
-            if (entry.status !== 'published') return null;
-            if (entry.noteVisibility === 'curator-only') return null;
-            return {
-              category:       entry.category,
-              sourceSystem:   entry.sourceSystem,
-              sourceClaim:    entry.sourceClaim,
-              canonicalValue: entry.canonicalValue,
-              provenanceNote: entry.provenanceNote,
-              // An advanced note folds away behind a disclosure; a public one
-              // shows under its own heading.
-              isAdvanced:     entry.noteVisibility === 'advanced',
             };
           })(),
         };
@@ -7556,11 +6749,18 @@ export const freestyleService = {
           || (!!d.baseTrick && !shaped.modifierLayering)
           || d.aliases.length > 0
           || !!shaped.aboutDerivatives
-          || (!!shaped.intuitionDelta && !shaped.intuition)
+          || !!shaped.aboutNamingNote
+          || !!shaped.intuitionDelta
           || !!d.familyNote
           || !!shaped.relatedOperator
         );
-        return { ...shaped, aboutHasContent };
+        // The one Related Tricks section holds every relationship but the
+        // family ladder, so it renders when any of its parts has rows.
+        const hasRelatedSection = shaped.relatedGroups.length > 0
+          || shaped.similarTricks.length > 0
+          || shaped.observationalNotes.length > 0
+          || shaped.symbolicEducationCtas.length > 0;
+        return { ...shaped, aboutHasContent, hasRelatedSection };
       })(),
     };
   },
@@ -8699,7 +7899,6 @@ export const freestyleService = {
             : ex.status === 'doctrine-locked' ? 'settled'
             : ex.status,
         })),
-        derivationAtlas:   DERIVATION_PILOT_ENTRIES,
         // The twelve foundational moves: the Movement line is always visible and
         // each titled panel renders as its own collapsible. Sourced from
         // CORE_ATOM_EDUCATIONAL; href maps to canonical trick-detail.

@@ -183,33 +183,31 @@ describe('POST /admin/freestyle/modifiers/:slug/edit', () => {
     expect(modifier('edited_mod')!.notes).toBe('A curator note.');
   });
 
-  // Defect caught: a beginner note or gloss edit reaching the database only, so the
+  // Defect caught: a beginner note edit reaching the database only, so the
   // next rebuild puts the seeded text back, or the audit row not naming it.
-  it('saves the beginner note and composition gloss to the row, its save file and the audit row', async () => {
+  it('saves the beginner note to the row, its save file and the audit row', async () => {
     const res = await edit(fields({
-      addBonus: '2', notes: 'A curator note.', beginnerNote: 'A beginner note.', compositionGloss: 'A gloss.',
+      addBonus: '2', notes: 'A curator note.', beginnerNote: 'A beginner note.',
     }));
     expect(res.status).toBe(303);
-    expect(query<{ beginner_note: string; composition_gloss: string }>(
-      'SELECT beginner_note, composition_gloss FROM freestyle_trick_modifiers WHERE slug = ?', 'edited_mod',
-    )).toEqual({ beginner_note: 'A beginner note.', composition_gloss: 'A gloss.' });
+    expect(query<{ beginner_note: string }>(
+      'SELECT beginner_note FROM freestyle_trick_modifiers WHERE slug = ?', 'edited_mod',
+    )).toEqual({ beginner_note: 'A beginner note.' });
     expect(JSON.parse(fs.readFileSync(saveFile('edited_mod'), 'utf8')))
-      .toMatchObject({ beginner_note: 'A beginner note.', composition_gloss: 'A gloss.' });
+      .toMatchObject({ beginner_note: 'A beginner note.' });
     const latest = query<{ metadata_json: string }>(
       "SELECT metadata_json FROM audit_entries WHERE entity_id = 'edited_mod' AND action_type = 'freestyle.modifier.updated' ORDER BY rowid DESC LIMIT 1")!;
-    expect(JSON.parse(latest.metadata_json).changedFields).toEqual(['beginner_note', 'composition_gloss']);
-    // The edit form shows the saved values back.
+    expect(JSON.parse(latest.metadata_json).changedFields).toEqual(['beginner_note']);
+    // The edit form shows the saved value back.
     const page = await request(await app()).get('/admin/freestyle/modifiers/edited_mod/edit').set('Cookie', admin());
     expect(page.text).toContain('name="beginnerNote" value="A beginner note."');
-    expect(page.text).toContain('name="compositionGloss" value="A gloss."');
   });
 
   // Defect caught: confirming an ADD change drops the notes submitted with it.
   it('carries the notes through the ADD confirm page', async () => {
-    const res = await edit(fields({ addBonus: '3', beginnerNote: 'Kept through confirm.', compositionGloss: 'A gloss.' }));
+    const res = await edit(fields({ addBonus: '3', beginnerNote: 'Kept through confirm.' }));
     expect(res.status).toBe(200);
     expect(res.text).toContain('name="beginnerNote" value="Kept through confirm."');
-    expect(res.text).toContain('name="compositionGloss" value="A gloss."');
   });
 
   // Defect caught: a paragraph pasted into a one-line note breaks the trick page

@@ -3617,42 +3617,6 @@ a.hashtag--media:hover {
   color: var(--text);
 }
 
-/* ── Trick detail: pathways cross-link block ──────────────────────────── */
-.trick-pathway-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: var(--space-md);
-}
-/* Pathway panels render as plain content, not boxes: the pathway kind is
-   named in each panel's heading, and the site standard separates sections
-   with space and rules, not card chrome. The kind modifiers stay as semantic
-   identifiers on the markup and take the same treatment; the kind is carried
-   by the heading, never by a colour a reader cannot decode. */
-.trick-pathway,
-.trick-pathway--learn,
-.trick-pathway--watch,
-.trick-pathway--family {
-  padding: 0;
-}
-.trick-pathway-title {
-  font-weight: 600;
-  margin: 0 0 var(--space-xs);
-  color: var(--text);
-}
-.trick-pathway-primary {
-  margin: 0;
-  font-size: 0.9rem;
-  color: var(--text);
-}
-.trick-pathway-secondary {
-  margin: var(--space-xs) 0 0;
-  font-size: 0.9rem;
-  color: var(--text-muted);
-}
-
 /* ── Glossary: inline notation examples (reuses .notation-token + role classes) */
 .glossary-inline-notation {
   display: inline-block;
@@ -3893,8 +3857,7 @@ a.hashtag--media:hover {
   text-underline-offset: 2px;
 }
 
-.related-tricks-list,
-.similar-tricks-list {
+.related-tricks-list {
   list-style: none;
   padding: 0;
   margin: 0;
@@ -3902,19 +3865,16 @@ a.hashtag--media:hover {
   flex-wrap: wrap;
   gap: var(--space-sm) var(--space-lg);
 }
-.related-tricks-list li,
-.similar-tricks-list li {
+.related-tricks-list li {
   display: flex;
   flex-direction: column;
 }
-.related-tricks-list li > a,
-.similar-tricks-list li > a { font-weight: 500; }
+.related-tricks-list li > a { font-weight: 500; }
 
 /* Labeled relationship groups (Same family / Shares a modifier / Movement
    neighbours or Swing elements / Built on / Structural ancestor). */
 .related-group { margin-bottom: var(--space-lg); }
 .related-group-label {
-  font-size: 1rem;
   font-weight: 600;
   color: var(--secondary);
   margin: 0 0 var(--space-xs);
@@ -3948,42 +3908,6 @@ a.hashtag--media:hover {
 .ladder-step-add { font-size: 0.9rem; color: var(--text-muted); }
 .ladder-step-missing { color: var(--text-muted); }
 .ladder-step-missing-label { font-style: italic; }
-
-/* "Modifiers on this trick" block: one row per modifier link with its
-   browse-cluster label and optional gloss. */
-.trick-modifiers .trick-modifier-list { margin-top: var(--space-sm); }
-.trick-modifier-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-}
-.trick-modifier-item {
-  padding-left: var(--space-md);
-  border-left: 2px solid var(--border);
-}
-.trick-modifier-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-sm);
-}
-.trick-modifier-name {
-  font-weight: 600;
-  color: var(--secondary);
-}
-.trick-modifier-cluster {
-  font-size: 0.9rem;
-  color: var(--text-muted);
-}
-.trick-modifier-gloss {
-  margin: var(--space-xs) 0 0;
-  font-size: 0.9rem;
-  font-style: italic;
-  color: var(--text-muted);
-}
 
 /* Additional-family chips: branch->root containment + curator dual-memberships. */
 .trick-also-family {
@@ -4244,8 +4168,7 @@ a.hashtag--media:hover {
 .format-card { display: flex; flex-direction: column; }
 .format-card .card-actions { margin-top: auto; }
 /* A link on its own line under a line of text sits at the label step. */
-.dict-trick-row-notation > .action-link,
-.trick-pathway > .action-link { margin-top: var(--space-xs); }
+.dict-trick-row-notation > .action-link { margin-top: var(--space-xs); }
 
 /* Ambient demo clip shown under the intro heading on portal landing pages */
 /* The margins are deliberately larger than the gap between the paragraphs
@@ -4697,100 +4620,6 @@ a.hashtag--media:hover {
   color: var(--text-muted);
 }
 
-/* Equivalence-topology doctrine footer. Appears inside the expanded
-   <details> panel after the derivation list. Explains why the
-   foundational moves do not carry alternate derivations. */
-.trick-equivalence-topology-doctrine-note {
-  margin: var(--space-md) var(--space-lg) var(--space-lg) var(--space-lg);
-  padding-top: var(--space-md);
-  border-top: 1px dashed var(--border);
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  line-height: 1.5;
-}
-.trick-equivalence-topology-doctrine-link {
-  margin-left: var(--space-xs);
-  white-space: nowrap;
-}
-
-/* Movement-intuition prose section, a trick-detail enrichment.
-   Curator-locked flagship enrichments only. Reads as
-   the page's "feel" section between the compositional About block
-   and the symbolic Notation block. Restrained typography; the prose
-   is the visual lead, the attribution is a small muted line.
-   Movement-first design philosophy. */
-.trick-intuition .section-heading h2 {
-  margin: 0 0 var(--space-sm);
-}
-.trick-intuition-prose {
-  margin: var(--space-sm) 0 var(--space-md);
-  font-size: 1rem;
-  line-height: 1.6;
-  color: var(--slate-800);
-}
-.trick-intuition-attribution {
-  margin: 0;
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  font-style: italic;
-}
-
-/* Naming & interpretation overlay. Compact card; visually modest;
-   never more prominent than JOB/ADD notation: a small bordered block
-   with an accent border-left, so the editorial overlays feel like one
-   design family.
-   Curator-locked per freestyleTrickInterpretations.ts. */
-.trick-interpretation {
-  background: var(--white);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--secondary);
-  border-radius: var(--radius-xs);
-  padding: var(--space-md) var(--space-lg);
-  margin: var(--space-md) 0;
-  max-width: 720px;
-}
-.trick-interpretation .section-heading h2 {
-  margin: 0 0 var(--space-sm);
-  font-size: 1.5rem;
-  color: var(--slate-800);
-  letter-spacing: 0.01em;
-}
-.trick-interpretation-readings {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  column-gap: var(--space-md);
-  row-gap: var(--space-xs);
-  margin: 0 0 var(--space-md);
-  font-size: 0.9rem;
-  line-height: 1.5;
-}
-.trick-interpretation-reading-label {
-  grid-column: 1;
-  margin: 0;
-  font-weight: 600;
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-.trick-interpretation-reading-value {
-  grid-column: 2;
-  margin: 0;
-  color: var(--slate-800);
-}
-.trick-interpretation-reading-value--historical {
-  color: var(--text-muted);
-  font-style: italic;
-}
-.trick-interpretation-notes {
-  margin: 0;
-  padding-left: var(--space-lg);
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  line-height: 1.5;
-}
-.trick-interpretation-notes li {
-  margin: var(--space-xs) 0;
-}
-
 /* Reverse-pair transform overlay.
    Renders below the canonical JOB notation on 5 curator-locked trick
    pages (illusion / pickup / rev-whirl / rev-swirl / orbit). Compact,
@@ -4814,95 +4643,6 @@ a.hashtag--media:hover {
   color: var(--text);
   line-height: 1.45;
 }
-
-/* Equivalence-topology disclosure on trick-detail. Same collapsed-
-   <details> aesthetic as the ADD-analysis block above; renders only
-   when the service-layer gate (curatorConfirmPending: false) admits
-   the entry. Each derivation path renders as a single row with a
-   source-label chip + optional ADD breakdown + optional role badge. */
-.trick-equivalence-topology-disclosure {
-  background: var(--white);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 0;
-}
-.trick-equivalence-topology-summary {
-  cursor: pointer;
-  padding: var(--space-md) var(--space-lg);
-}
-.trick-equivalence-topology-disclosure[open] .trick-equivalence-topology-summary {
-  border-bottom: 1px solid var(--border);
-}
-.trick-equivalence-topology-summary-title {
-  font-weight: 600;
-  font-size: 1rem;
-  display: inline;
-}
-.trick-equivalence-topology-summary-hint {
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  padding-left: var(--space-xl);
-}
-.trick-equivalence-topology-context {
-  margin: 0;
-  padding: var(--space-lg) var(--space-lg) var(--space-sm) var(--space-lg);
-  font-size: 0.9rem;
-  color: var(--text);
-}
-.trick-equivalence-topology-list {
-  list-style: none;
-  margin: 0;
-  padding: var(--space-xs) var(--space-lg) var(--space-lg) var(--space-lg);
-}
-.trick-equivalence-topology-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-sm);
-  padding: var(--space-sm) 0;
-  font-size: 1rem;
-}
-.trick-equivalence-topology-row + .trick-equivalence-topology-row {
-  border-top: 1px dashed var(--border);
-}
-.trick-equivalence-topology-glyph {
-  color: var(--text-muted);
-  font-weight: 600;
-}
-.trick-equivalence-topology-reading {
-  font-weight: 500;
-}
-.trick-equivalence-topology-source-chip {
-  display: inline-block;
-  font-size: 0.9rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: var(--space-xs) var(--space-sm);
-  border-radius: var(--radius-2xs);
-  background: var(--parch-100);
-  color: var(--text-muted);
-}
-.trick-equivalence-topology-source-chip--historical    { background: var(--parch-350); }
-.trick-equivalence-topology-source-chip--curator-derived { background: var(--fern-100); }
-.trick-equivalence-topology-source-chip--structural    { background: var(--slate-200); }
-.trick-equivalence-topology-breakdown {
-  background: var(--parch-100);
-  padding: var(--space-xs) var(--space-sm);
-  border-radius: var(--radius-2xs);
-  font-size: 0.9em;
-}
-.trick-equivalence-topology-role-badge {
-  display: inline-block;
-  font-size: 0.9rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: var(--space-xs) var(--space-sm);
-  border-radius: var(--radius-2xs);
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-}
-.trick-equivalence-topology-role-badge--historical { border-color: var(--historical-umber); color: var(--historical-umber-strong); }
 
 /* ── Compact content section ──────────────────────────────────────────────
    The dense variant of the content-section primitive. A page that stacks
@@ -4958,23 +4698,6 @@ a.hashtag--media:hover {
    gap for both. */
 .section-heading .section-intro { margin-bottom: 0; }
 
-
-/* "Compressed from" / "Compressed reading" pedagogy line, a
-   glossary follow-on. Single line; visually subordinate, sitting near the
-   top of the trick-detail page above the notation card. */
-.trick-compressed-from {
-  margin: var(--space-xs) 0 var(--space-md);
-  font-size: 0.9em;
-  color: var(--text-muted);
-  line-height: 1.4;
-}
-.trick-compressed-from-label {
-  font-weight: 600;
-  color: var(--text);
-}
-.trick-compressed-from-reading {
-  font-style: italic;
-}
 
 /* ─────────────────────────────────────────────────────────────────────────
    ADD-tiered family lineage. Tier-grouped rows: numeric ADD tiers ascending,
@@ -5396,48 +5119,6 @@ a.hashtag--media:hover {
   font-size: 0.9rem;
   color: var(--text-muted);
 }
-/* ── Trick-detail scoring notes ────────────
-   Where competition doctrine diverges, the note stays factual, brief, and
-   muted; rendered on trick-detail ONLY (browse
-   cards / glossary / landing never carry this surface). */
-.trick-scoring-notes {
-  border-left: 3px solid var(--border);
-  background: var(--gray-100);
-  padding: var(--space-md) var(--space-lg);
-  margin-top: var(--space-lg);
-  margin-bottom: var(--space-lg);
-}
-.trick-scoring-notes-heading {
-  font-size: 1.25rem;
-  font-weight: 600;
-  margin: 0 0 var(--space-sm) 0;
-  color: var(--text);
-}
-.trick-scoring-notes-prose {
-  margin: 0 0 var(--space-sm) 0;
-  font-size: 0.9rem;
-  line-height: 1.5;
-  color: var(--text);
-}
-.trick-scoring-notes-claim {
-  margin: var(--space-sm) 0 0 0;
-  font-size: 0.9rem;
-  font-style: italic;
-}
-.trick-scoring-notes-details {
-  cursor: pointer;
-}
-.trick-scoring-notes-summary {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  cursor: pointer;
-  user-select: none;
-}
-.trick-scoring-notes-body {
-  margin-top: var(--space-sm);
-}
-
 /* ── Glossary §1 core trick atoms band ─────────────────────────────────
    Pedagogical onboarding cards (curator-authored). Twelve foundational
    atoms with movement-physical leads + foundational/cultural notes +
@@ -5772,7 +5453,6 @@ a.hashtag--media:hover {
 /* Label-and-value grids stack on a phone, the way .trick-structural-facts-list
    does, so a value never squeezes into the column left beside its label. */
 @media (max-width: 480px) {
-  .trick-interpretation-readings,
   .glossary-family-card-fields,
   .glossary-add-example-fields {
     grid-template-columns: 1fr;
@@ -6128,52 +5808,7 @@ a.hashtag--media:hover {
   margin-bottom: var(--space-lg);
 }
 
-/* Trick-page educational CTAs (DISCOVERABILITY phase). Small subordinate
- * affordances rendered before the Related Topology panel for trick slugs
- * that belong to butterfly-wing-topology or spinning/whirl-rotational. */
-.symbolic-trick-ctas-block {
-  margin-top: var(--space-md);
-  padding: var(--space-sm) var(--space-md);
-  background: var(--parch-50);
-  border-left: 2px solid var(--parch-350);
-  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
-}
-.symbolic-trick-ctas-label {
-  font-size: 0.9rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
-  margin-bottom: var(--space-xs);
-  display: block;
-}
-.symbolic-trick-ctas {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-}
-.symbolic-trick-ctas li { font-size: 0.9rem; }
-
-/* ─── Semantic-notation ladder (NF-2B) ──────────────────────────────────
- * Layer 2 (equivalence chain): editorial palette, subtle progressive
- *   typography (100 / 92 / 86%), recognized-token links use a quiet
- *   underline-on-hover, ≡ delimiter pseudo-element before each non-first
- *   reading. Visually distinct from Layer 1's canonical notation block.
- * Layer 3 (base-lineage): one-line prose. No section heading.
- * Layer 5b (curation-gap): single muted italic line. No ornament.
- */
-.equivalent-readings {
-  margin-top: var(--space-sm);
-}
-.equivalent-readings .section-intro {
-  color: var(--gray-700);
-  font-style: italic;
-}
-/* One pending marker, two surfaces: an equivalent reading awaiting review and
-   an operator entry awaiting adjudication say the same thing to a reader. */
-.equivalent-readings-pending-flag,
+/* The pending marker on an operator entry awaiting adjudication. */
 .glossary-operator-pending-flag {
   display: inline-block;
   margin-left: var(--space-sm);
@@ -6188,51 +5823,6 @@ a.hashtag--media:hover {
   font-weight: 500;
   vertical-align: 0.1em;
 }
-.equivalent-readings-list {
-  list-style: none;
-  padding: 0;
-  margin: var(--space-lg) 0 var(--space-md) 0;
-}
-.equivalent-reading {
-  font-family: var(--font-body);
-  font-style: italic;
-  color: var(--steel-700);
-  line-height: 1.65;
-  padding: var(--space-xs) 0;
-}
-.equivalent-reading-depth-0 { font-size: 1rem;    /* 100%: primary */    }
-.equivalent-reading-depth-1 { font-size: 0.9rem; /* 92%:  secondary */  color: var(--steel-600); }
-.equivalent-reading-depth-2 { font-size: 0.9rem; /* 86%:  tertiary */   color: var(--steel-550); }
-.equivalent-reading + .equivalent-reading::before {
-  content: '\2261\00a0';   /* ≡ with non-breaking space */
-  color: var(--text-muted);
-  font-style: normal;
-  margin-right: var(--space-xs);
-}
-.equivalent-reading-token {
-  /* Plain tokens render as the surrounding italic-serif span (no extra style). */
-}
-
-.semantic-base-lineage {
-  padding: 0;
-  border: none;
-  background: transparent;
-}
-.semantic-base-lineage-phrase {
-  font-size: 0.9rem;
-  font-style: italic;
-  color: var(--gray-700);
-  margin: var(--space-xs) 0;
-}
-
-.semantic-notation-pending {
-  font-size: 0.9rem;
-  font-style: italic;
-  color: var(--text-muted);
-  margin: var(--space-sm) 0;
-  letter-spacing: 0.01em;
-}
-
 /* /freestyle/observational: observational-layer cards.
  * Visually distinct from a canonical dictionary row to make the layer
  * separation immediately legible. To keep observational entries from
@@ -7223,16 +6813,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .trick-family-anchor-callout p + p {
   margin-top: var(--space-sm);
 }
-.trick-family-anchor-invariant {
-  font-size: 0.9rem;
-  color: var(--text-muted);
-}
-.trick-family-anchor-invariant code {
-  background: var(--glossary-inline-notation-bg);
-  padding: var(--space-xs) var(--space-sm);
-  border-radius: var(--radius-2xs);
-  font-size: 1em;
-}
 @media (max-width: 480px) {
   .trick-family-anchor-callout {
     font-size: 0.9rem;
@@ -8136,9 +7716,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
    rules give each a defining selector on the shared design tokens. */
 
 /* Deep-linkable trick-detail content sub-sections clear the sticky header. */
-.trick-pathways,
 .trick-add-analysis,
-.trick-equivalence-topology,
 .notation-grammar-panel {
   scroll-margin-top: var(--anchor-offset);
 }

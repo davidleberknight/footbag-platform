@@ -75,13 +75,14 @@ describe('GET /freestyle/tricks/:slug — empty state (no records, no media)', (
   });
 
   // Defect caught: a trick with nothing to say about itself still renders an
-  // "About this trick" heading over an empty section.
+  // empty opening section.
   it('omits the About section when none of its rows has anything to show', async () => {
+    const about = /<section class="content-section" aria-label="About this trick">/;
     const withAbout = await page('/freestyle/tricks/whirl');
     expect(withAbout.status).toBe(200);
-    expect(withAbout.text).toContain('<h2>About this trick</h2>');
+    expect(withAbout.text).toMatch(about);
     const bare = await page('/freestyle/tricks/bare_stall');
     expect(bare.status).toBe(200);
-    expect(bare.text).not.toContain('<h2>About this trick</h2>');
+    expect(bare.text).not.toMatch(about);
   });
 });

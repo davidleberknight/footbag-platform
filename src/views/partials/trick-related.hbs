@@ -1,11 +1,15 @@
 {{!--
-  Related tricks, split into labeled relationship groups (Same family / Shares a
+  Related tricks: every relationship except same-family progression, which the
+  Family ladder owns. Labeled relationship groups (Same family / Shares a
   modifier / Movement neighbours or Swing elements / Built on / Structural
-  ancestor). Partitioned in the service by each row's relating rule; the group
-  label replaces the former per-row reason.
+  ancestor), partitioned in the service by each row's relating rule; then the
+  ranked structural relatives; then outside-source names recorded under another
+  canonical reading, which never become links; then links to the teaching pages
+  the trick's base or modifiers point at. content.hasRelatedSection is true when
+  any of these has something to show.
 --}}
-{{#if content.relatedGroups.length}}
-<section class="content-section">
+{{#if content.hasRelatedSection}}
+<section class="content-section" data-section="related-tricks">
   <div class="section-heading">
     <h2>Related Tricks</h2>
   </div>
@@ -26,6 +30,29 @@
       {{/each}}
     </ul>
   </div>
+  {{/each}}
+  {{#if content.similarTricks.length}}
+  <div class="related-group" data-section="similar-tricks">
+    <h3 class="related-group-label">Structurally related tricks</h3>
+    <ul class="related-tricks-list">
+      {{#each content.similarTricks}}
+      <li><a href="{{detailHref}}">{{canonicalName}}</a>{{#if adds}} <span class="text-muted fs-sm">({{adds}})</span>{{/if}}</li>
+      {{/each}}
+    </ul>
+  </div>
+  {{/if}}
+  {{#if content.observationalNotes.length}}
+  <div class="related-group">
+    <h3 class="related-group-label">Related outside-source names</h3>
+    <ul class="related-tricks-list">
+      {{#each content.observationalNotes}}
+      <li><span class="fw-600">{{name}}</span>: <span class="fs-sm">{{note}}</span></li>
+      {{/each}}
+    </ul>
+  </div>
+  {{/if}}
+  {{#each content.symbolicEducationCtas}}
+  <p><a href="{{href}}">{{label}}</a></p>
   {{/each}}
 </section>
 {{/if}}

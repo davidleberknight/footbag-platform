@@ -6,9 +6,6 @@
  *     (spelling variants, historical naming, regional shorthand)
  *   - S5 (SYMBOLIC_EQUIVALENCE_CHAINS) → structural compressions only,
  *     atom-level primary reading preferred
- *   - S8 (FAMOUS_COMPRESSION_SLUGS) → curator-locked allowlist for
- *     pedagogical "Compressed from" surface
- *   - S9 (EQUIVALENCE_TOPOLOGY) → equivalent-derivation paths only
  *
  * This suite asserts the migrated state (post-cleanup) on a subset of
  * exemplar slugs. Adding pure-alias content to S5, structural
@@ -22,30 +19,8 @@ import { describe, it, expect } from 'vitest';
 
 import {
   SYMBOLIC_EQUIVALENCE_CHAINS,
-  PEDAGOGICAL_COMPRESSION_EXEMPLARS,
-  isPedagogicalCompressionExemplar,
   getSymbolicEquivalenceChain,
 } from '../../src/content/freestyleSymbolicEquivalences';
-
-describe('S3/S5 slot governance — slot ownership invariants', () => {
-  it('PEDAGOGICAL_COMPRESSION_EXEMPLARS contains exactly the curator-approved cohort', () => {
-    const expected = new Set([
-      'mobius',
-      'ripwalk',
-      'atom_smasher',
-      'blur',
-      'barrage',
-      'paradox_mirage',
-    ]);
-    expect(PEDAGOGICAL_COMPRESSION_EXEMPLARS).toEqual(expected);
-  });
-
-  it('isPedagogicalCompressionExemplar normalizes slug input', () => {
-    expect(isPedagogicalCompressionExemplar('mobius')).toBe(true);
-    expect(isPedagogicalCompressionExemplar('  MOBIUS  ')).toBe(true);
-    expect(isPedagogicalCompressionExemplar('not-a-slug')).toBe(false);
-  });
-});
 
 describe('S5 — entries that must not be chain-rendered', () => {
   // These three slugs must carry no SE chain entry: their content is owned
@@ -56,11 +31,11 @@ describe('S5 — entries that must not be chain-rendered', () => {
     expect(getSymbolicEquivalenceChain('toe_blur')).toBeNull();
   });
 
-  it('flurry SE chain removed (equivalent-derivation case; S9 sole owner)', () => {
+  it('flurry carries no SE chain (two equivalent derivation paths)', () => {
     expect(getSymbolicEquivalenceChain('flurry')).toBeNull();
   });
 
-  it('witchdoctor SE chain removed (historical-reading case; S9 sole owner)', () => {
+  it('witchdoctor carries no SE chain (its reading is historical)', () => {
     expect(getSymbolicEquivalenceChain('witchdoctor')).toBeNull();
   });
 });
@@ -156,7 +131,7 @@ describe('S3/S5 separation rule — no aliases_json contains structural compress
     { slug: 'eggbeater',     banned: 'atomic legover' },
   ];
 
-  it('the migrated slugs do not duplicate S5/S9 readings in S3 aliases (curator-locked invariant)', () => {
+  it('the migrated slugs do not duplicate S5 readings in S3 aliases (curator-locked invariant)', () => {
     // Each banned reading is asserted absent from the SE chain's "readings"
     // is OUT of scope here; we test the invariant against the data file
     // structure via getSymbolicEquivalenceChain reflection where applicable.

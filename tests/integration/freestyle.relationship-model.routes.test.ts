@@ -9,8 +9,7 @@
  *   3. Related tricks split into labeled relationship groups (group label, not
  *      per-row reason).
  *   4. Orphan-neighbour overlays: double_kick / miraging_kick / toe_clipper
- *      surface their curated movement neighbours, and modifier composition
- *      glosses render inline.
+ *      surface their curated movement neighbours.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { cachedGet } from '../fixtures/cachedGet';
@@ -18,10 +17,7 @@ import { cachedGet } from '../fixtures/cachedGet';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import {
   insertFreestyleTrick,
-  insertFreestyleTrickModifier,
-  insertFreestyleTrickModifierLink,
 } from '../fixtures/factories';
-import { STAGED_CURATOR_CONTENT } from '../../freestyle/loaders/28a_seed_curator_content';
 
 const { dbPath } = setTestEnv('3571');
 let createApp: Awaited<ReturnType<typeof importApp>>;
@@ -49,14 +45,7 @@ beforeAll(async () => {
     t('flying_outside', 'clipper', '2'),
     t('flying_clipper', 'clipper', '2'),
     t('mirage', 'mirage', '2', 'dex'),
-    // A trick carrying the gyro modifier, to exercise the composition gloss.
-    t('gyro_clipper', 'clipper_stall', '2'),
   ]) insertFreestyleTrick(db, r);
-  insertFreestyleTrickModifier(db, {
-    slug: 'gyro', modifier_name: 'Gyro', modifier_type: 'body',
-    composition_gloss: STAGED_CURATOR_CONTENT.compositionGlosses.get('gyro') ?? null,
-  });
-  insertFreestyleTrickModifierLink(db, 'gyro_clipper', 'gyro');
   db.close();
   createApp = await importApp();
 });
@@ -120,9 +109,5 @@ describe('Orphan-neighbour overlays + modifier glosses', () => {
   it('miraging_kick relates to mirage; toe_clipper to flying_clipper', async () => {
     expect(await page('miraging_kick')).toContain('/freestyle/tricks/mirage');
     expect(await page('toe_clipper')).toContain('/freestyle/tricks/flying_clipper');
-  });
-  it('renders the gyro modifier composition gloss inline', async () => {
-    const html = await page('gyro_clipper');
-    expect(html).toContain('GYRO + base');
   });
 });

@@ -253,11 +253,11 @@ beforeAll(async () => {
     slug: 'saved_modifier', modifierName: 'Saved Modifier', addBonus: '2', modifierType: 'set', notes: '',
   }, ADMIN_ID);
   service.attachModifier(editedSlug, { modifierSlug: 'saved_modifier', applyOrder: '8' }, ADMIN_ID);
-  // Paradox carries a seeded beginner note and gloss, so the save overrides one
-  // and clears the other over the staged curator content.
+  // Paradox carries a seeded beginner note, so the save overrides it over the
+  // staged curator content.
   service.updateModifier('paradox', {
     modifierName: 'paradox', addBonus: '1', modifierType: 'body', notes: 'Saved modifier note.',
-    beginnerNote: SAVED_BEGINNER_NOTE, compositionGloss: '',
+    beginnerNote: SAVED_BEGINNER_NOTE,
   }, ADMIN_ID, { confirmed: false });
 
   // Records and consecutive rows, including what the loaders alone cannot express:
@@ -493,8 +493,8 @@ describe('a rebuild', () => {
       [baseModifierLink.trick_slug, baseModifierLink.modifier_slug, baseModifierLink.apply_order])).toBe(1);
     // The staged curator content is seeded, so the save cases below override a
     // real seeded value rather than an empty column.
-    expect(rowCount(rebuildPath, 'freestyle_trick_modifiers', "slug = 'paradox' AND beginner_note = ? AND composition_gloss = ?",
-      [STAGED_CURATOR_CONTENT.beginnerNotes.get('paradox'), STAGED_CURATOR_CONTENT.compositionGlosses.get('paradox')])).toBe(1);
+    expect(rowCount(rebuildPath, 'freestyle_trick_modifiers', "slug = 'paradox' AND beginner_note = ?",
+      [STAGED_CURATOR_CONTENT.beginnerNotes.get('paradox')])).toBe(1);
     expect(rowCount(rebuildPath, 'freestyle_records', 'id = ? AND curator_review_note = ?',
       [reviewedRecordId, seededReviewNote])).toBe(1);
   });
@@ -514,12 +514,12 @@ describe('a rebuild', () => {
     expect(r.stdout).toContain(`${editedSlug}.description`);
   });
 
-  it('keeps a saved modifier note, a cleared gloss and a saved review note over the seeded content', () => {
+  it('keeps a saved modifier note and a saved review note over the seeded content', () => {
     // Defect: the staged curator content runs after the save loader, or the save
     // body omits a column, so a curator's edit to a seeded note is undone at the
     // next rebuild. Reads the saves the case above applied.
     expect(rowCount(rebuildPath, 'freestyle_trick_modifiers',
-      "slug = 'paradox' AND beginner_note = ? AND composition_gloss IS NULL", [SAVED_BEGINNER_NOTE])).toBe(1);
+      "slug = 'paradox' AND beginner_note = ?", [SAVED_BEGINNER_NOTE])).toBe(1);
     expect(rowCount(rebuildPath, 'freestyle_records', 'id = ? AND curator_review_note = ?',
       [reviewedRecordId, SAVED_REVIEW_NOTE])).toBe(1);
   });

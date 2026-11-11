@@ -15,8 +15,6 @@ import { OPERATOR_REFERENCE_ENTRIES } from '../../src/content/freestyleOperatorR
 import { COMPOUND_SEMANTIC_DESCRIPTIONS } from '../../src/content/freestyleSemanticOverrides';
 import { MODIFIER_BEGINNER_NOTES } from '../../freestyle/inputs/curator_content/freestyleStructuralFactNotes';
 import { GLOSSARY_CORE_CONCEPTS } from '../../src/content/freestyleGlossaryCoreConcepts';
-import { TRICK_INTUITION_ENTRIES } from '../../src/content/freestyleTrickIntuition';
-import { TRICK_MECHANICAL_DELTA_ENTRIES } from '../../src/content/freestyleTrickMechanicalDelta';
 
 const cardBySlug = new Map(
   [...ROOT_TERMINAL_FAMILIES, ...BRANCH_FAMILIES].map(c => [c.slug, c]),
@@ -69,23 +67,6 @@ describe('furious is not presented as the same thing as barraging', () => {
     const joined = GLOSSARY_CORE_CONCEPTS.map(c => c.relates).join(' ').toLowerCase();
     expect(joined).not.toContain('named twice');
     expect(joined).not.toContain('same two-dex structure');
-  });
-  it('no mechanical-delta prose calls furious the barraging pattern', () => {
-    const joined = TRICK_MECHANICAL_DELTA_ENTRIES.map(e => e.prose).join(' ').toLowerCase();
-    expect(joined).not.toContain('barraging pattern');
-  });
-});
-
-describe('around-the-world is inward-only and orbit is its reverse', () => {
-  const intuition = (slug: string) =>
-    (TRICK_INTUITION_ENTRIES.find(e => e.slug === slug)?.prose ?? '').toLowerCase();
-  it('the around-the-world prose does not claim both directions are around the world', () => {
-    expect(intuition('around_the_world')).not.toContain('both directions');
-  });
-  it('the orbit prose does not claim orbit and around-the-world are the same movement', () => {
-    const orbit = intuition('orbit');
-    expect(orbit).not.toContain('same movement');
-    expect(orbit).not.toContain('describe the same');
   });
 });
 

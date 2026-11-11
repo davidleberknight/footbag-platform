@@ -49,9 +49,7 @@ beforeAll(async () => {
   insertFreestyleTrickModifier(db, { slug: 'pixie',    modifier_name: 'pixie',    modifier_type: 'set'  });
   insertFreestyleTrickModifier(db, { slug: 'spinning', modifier_name: 'spinning', modifier_type: 'body' });
   insertFreestyleTrickModifier(db, { slug: 'atomic',   modifier_name: 'atomic',   modifier_type: 'set'  });
-  // weaving is in the Midtime Body axis but has NO entry in
-  // MODIFIER_COMPOSITION_GLOSSES; its group is the canary that the gloss row
-  // is suppressed for un-glossed modifiers.
+  // weaving is in the Midtime Body axis.
   insertFreestyleTrickModifier(db, { slug: 'weaving',  modifier_name: 'weaving',  modifier_type: 'body' });
 
   // ── Osis row (single member; osis family does not render on its own here) ─
@@ -93,8 +91,7 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'surgery',    canonical_name: 'surgery',    adds: '6', base_trick: 'rev_whirl', trick_family: 'rev_whirl', category: 'compound' });
   // reaper is also unresolved + already inserted above.
 
-  // Atomic-axis fixture (so the atomic group renders — needed by the
-  // un-glossed-modifier suppression test).
+  // Atomic-axis fixture, so the atomic group renders.
   insertFreestyleTrick(db, { slug: 'atom_smasher', canonical_name: 'atom smasher', adds: '4', base_trick: 'mirage', trick_family: 'mirage', category: 'compound' });
 
   // ── Modifier links ─────────────────────────────────────────────────────

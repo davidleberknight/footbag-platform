@@ -510,117 +510,25 @@ describe('GET /freestyle/tricks?family=… — hashtag filter', () => {
   });
 });
 
-describe('GET /freestyle/tricks/:slug — pathways cross-link block', () => {
-  it('renders the pathways that lead somewhere on the detail page', async () => {
-    const res = await page('/freestyle/tricks/whirl');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('class="content-section trick-pathways"');
-    expect(res.text).toContain('What you can do with this trick');
-    // whirl carries records and family siblings, so those pathways render.
-    expect(res.text).toContain('class="trick-pathway trick-pathway--watch');
-    expect(res.text).toContain('class="trick-pathway trick-pathway--family');
-    expect(res.text).toContain('Watch records');
-    expect(res.text).toContain('Related families');
-  });
-
-  it('Watch pathway shows record count + top holder when records exist', async () => {
-    // 'whirl' has at least one fixture record (Stefan, etc. depending on seed).
-    const res = await page('/freestyle/tricks/whirl');
-    expect(res.text).toContain('class="trick-pathway trick-pathway--watch');
-    // Pathway text references "record" or "records" — pluralization handled in service.
-    expect(res.text).toMatch(/trick-pathway--watch[^"]*"[\s\S]*?\d+ record/);
-  });
-
-  it('Watch pathway links to the in-page consecutive-records anchor', async () => {
-    const res = await page('/freestyle/tricks/whirl');
-    // When records exist, the link target is #passback-records (the
-    // anchor id is preserved for URL stability).
-    expect(res.text).toMatch(/href="#passback-records"/);
-    // The Consecutive Records section carries the matching id anchor.
-    expect(res.text).toMatch(/<section id="passback-records"/);
-  });
-
-  it('Family pathway links to the family page when the family has one and siblings', async () => {
-    const res = await page('/freestyle/tricks/whirl');
-    // Whirl family has siblings (spinning-whirl in fixtures) and a family page of
-    // its own, which owns same-family progression, so the link goes there.
-    expect(res.text).toMatch(/trick-pathway--family[^"]*"[\s\S]*?href="\/freestyle\/families\/whirl"/);
-  });
-
-  it('a pathway with nothing behind it is omitted rather than announcing its own emptiness', async () => {
-    // legover in the fixture has no family siblings (per existing test seeds).
-    const res = await page('/freestyle/tricks/legover');
-    // The family pathway leads nowhere, so it does not render at all: a
-    // heading and a sentence about an absence is worse than silence.
-    expect(res.text).not.toContain('class="trick-pathway trick-pathway--family');
-    expect(res.text).not.toContain('This trick is not part of a named family.');
-    expect(res.text).not.toContain('attribution yet');
-  });
-});
-
 // ─────────────────────────────────────────────────────────────────────────
 // Media visibility: trick-detail wording must distinguish tutorials from
 // demonstrations, never conflate them. Three states: tutorial-only,
 // demo-only, and mixed.
 // ─────────────────────────────────────────────────────────────────────────
 
-describe('GET /freestyle/tricks/:slug — Media section + Learn-pathway counts', () => {
-  it('tutorial-only trick: Media section links to the gallery; Learn pathway counts only tutorials', async () => {
-    // 'refmedia-tutorial-only' has one tt_youtube curator-tagged clip and no
-    // demo-tier coverage.
-    const res = await page('/freestyle/tricks/refmedia-tutorial-only');
-    expect(res.status).toBe(200);
-    // The media line links to the trick gallery, and the Learn pathway's jump
-    // link lands on it; clips are watched in the gallery, not embedded inline,
-    // so there are no per-tier subsections.
-    expect(res.text).toContain('<p class="media-line" id="media">');
-    expect(res.text).toContain('href="/media/browse?context&#x3D;refmedia-tutorial-only"');
-    expect(res.text).not.toMatch(/<h2>\s*Reference Media\s*<\/h2>/);
-    expect(res.text).not.toContain('reference-media-subsection');
-    // Learn pathway counts ONLY tutorials. Anchor on the pathway li.
-    const learnIdx = res.text.indexOf('trick-pathway--learn');
-    expect(learnIdx).toBeGreaterThan(0);
-    const learnEnd = res.text.indexOf('</li>', learnIdx);
-    const learnSlice = res.text.slice(learnIdx, learnEnd);
-    expect(learnSlice).toMatch(/\d+ tutorials? available/);
-    expect(learnSlice).not.toMatch(/demonstrations? available/);
-  });
-
-  it('demo-only trick: Media section links to the gallery; Learn pathway counts only demos', async () => {
-    // 'refmedia-demo-only' has one footbag_finland curator-tagged clip and no
-    // tutorial-tier coverage.
-    const res = await page('/freestyle/tricks/refmedia-demo-only');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('<p class="media-line" id="media">');
-    expect(res.text).toContain('href="/media/browse?context&#x3D;refmedia-demo-only"');
-    expect(res.text).not.toMatch(/<h2>\s*Reference Media\s*<\/h2>/);
-    expect(res.text).not.toContain('reference-media-subsection');
-    // Learn pathway counts ONLY demos. The legacy "X tutorials available"
-    // wording must NOT render here — that was the tutorial/demo conflation bug.
-    const learnIdx = res.text.indexOf('trick-pathway--learn');
-    expect(learnIdx).toBeGreaterThan(0);
-    const learnEnd = res.text.indexOf('</li>', learnIdx);
-    const learnSlice = res.text.slice(learnIdx, learnEnd);
-    expect(learnSlice).toMatch(/\d+ demonstrations? available/);
-    expect(learnSlice).not.toMatch(/tutorials? available/);
-    expect(learnSlice).not.toContain('No tutorials yet');
-  });
-
-  it('mixed-tier trick: Media section links to the gallery; Learn pathway counts both separately', async () => {
-    // 'refmedia-mixed-media' has BOTH a tt_youtube and a footbag_finland clip
-    // in the curator-tagged channel.
-    const res = await page('/freestyle/tricks/refmedia-mixed-media');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('<p class="media-line" id="media">');
-    expect(res.text).toContain('href="/media/browse?context&#x3D;refmedia-mixed-media"');
-    expect(res.text).not.toMatch(/<h2>\s*Reference Media\s*<\/h2>/);
-    expect(res.text).not.toContain('reference-media-subsection');
-    // Learn pathway carries BOTH counts in distinct fragments — no conflation.
-    const learnIdx = res.text.indexOf('trick-pathway--learn');
-    expect(learnIdx).toBeGreaterThan(0);
-    const learnEnd = res.text.indexOf('</li>', learnIdx);
-    const learnSlice = res.text.slice(learnIdx, learnEnd);
-    expect(learnSlice).toMatch(/\d+ tutorials? and \d+ demonstrations? available/);
+describe('GET /freestyle/tricks/:slug — Media line', () => {
+  // Defect caught: a trick with curated clips of any tier offering no way to the
+  // gallery, or embedding per-tier subsections the gallery already owns.
+  it('links every media-bearing trick to its gallery, whatever its clip tiers', async () => {
+    // tutorial-only (tt_youtube), demo-only (footbag_finland) and mixed fixtures.
+    for (const slug of ['refmedia-tutorial-only', 'refmedia-demo-only', 'refmedia-mixed-media']) {
+      const res = await page(`/freestyle/tricks/${slug}`);
+      expect(res.status, slug).toBe(200);
+      expect(res.text, slug).toContain('<p class="media-line" id="media">');
+      expect(res.text, slug).toContain(`href="/media/browse?context&#x3D;${slug}"`);
+      expect(res.text, slug).not.toMatch(/<h2>\s*Reference Media\s*<\/h2>/);
+      expect(res.text, slug).not.toContain('reference-media-subsection');
+    }
   });
 });
 
@@ -683,13 +591,16 @@ describe('GET /freestyle/tricks/:slug — no Previous/Next Tricks sections', () 
 });
 
 describe('GET /freestyle/tricks/:slug — Related Tricks section narrowed', () => {
-  it('does not surface same-family peers as a Related Tricks section', async () => {
+  // Defect caught: a visitor meets the same family peer twice, on the Family
+  // ladder and again under Related Tricks.
+  it('does not surface same-family peers in Related Tricks', async () => {
     const res = await page('/freestyle/tricks/whirl');
     expect(res.status).toBe(200);
-    // Same-family relating is owned by the Family ladder; the whirl page no
-    // longer renders a family-peer Related Tricks section.
-    expect(res.text).not.toContain('Related Tricks');
-    expect(res.text).not.toContain('related-tricks-list');
+    const ladder = (res.text.split('content-section trick-family-lineage')[1] ?? '').split('</section>')[0]!;
+    expect(ladder).toContain('/freestyle/tricks/spinning-whirl');
+    const relatedStart = res.text.indexOf('data-section="related-tricks"');
+    const related = relatedStart < 0 ? '' : res.text.slice(relatedStart, res.text.indexOf('</section>', relatedStart));
+    expect(related).not.toContain('/freestyle/tricks/spinning-whirl');
   });
 
   it('Related Tricks section is omitted when no conceptual neighbours exist', async () => {

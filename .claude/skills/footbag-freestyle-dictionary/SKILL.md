@@ -127,7 +127,7 @@ Public-facing descriptions are neutral and instructional. No reviewer names ("pe
 
 ## 2. Modifier Layer
 
-**Single-authority rule (operator / modifier doctrine).** `src/content/freestyleOperatorReference.ts` is the CANONICAL source for every operator / modifier's ADD value, structure, and X-Dex behavior. All other operator/modifier-describing surfaces are SECONDARY and must stay consistent with it: `freestyleMovementSystems.ts`, `freestyleStructuralFactNotes.ts`, the DB `freestyle_trick_modifiers` registry, and the public glossary operator text. When operator doctrine changes, edit `operatorReference.ts` first, then bring the secondary surfaces into line; never let a secondary surface assert a contradicting value. Drift between them is a bug.
+**Single-authority rule (operator / modifier doctrine).** `src/content/freestyleOperatorReference.ts` is the CANONICAL source for every operator / modifier's ADD value, structure, and X-Dex behavior. All other operator/modifier-describing surfaces are SECONDARY and must stay consistent with it: `freestyleStructuralFactNotes.ts`, the DB `freestyle_trick_modifiers` registry, and the public glossary operator text. When operator doctrine changes, edit `operatorReference.ts` first, then bring the secondary surfaces into line; never let a secondary surface assert a contradicting value. Drift between them is a bug.
 
 Use the modifier system for structural components that alter tricks (atomic, paradox, gyro, spinning, stepping, symposium, pogo).
 
@@ -191,7 +191,7 @@ Do not build new curated media on the legacy `freestyle_media_*` tables; the uni
 
 ## 5c. Navigation Layer (trick detail page)
 
-The trick detail page ships the family ladder plus the Related Tricks and Related Topology sections, driven by the active dictionary alone. Helpers live in `src/services/freestyleRelatedTricks.ts`; all exclude `category='modifier'` and the current trick. Display order: **Trick Family ladder → Related Tricks → Related Topology.** Same-family navigation by ADD, higher and lower alike, is owned by the family ladder rather than by sections of its own. Helper internals (the buildRelatedTricks specification) are in `REFERENCE.md`.
+The trick detail page ships the family ladder plus the Related Tricks section, driven by the active dictionary alone. Helpers live in `src/services/freestyleRelatedTricks.ts`; all exclude `category='modifier'` and the current trick. Display order: **Trick Family ladder → Related Tricks.** Same-family navigation by ADD, higher and lower alike, is owned by the family ladder rather than by sections of its own. Helper internals (the buildRelatedTricks specification) are in `REFERENCE.md`.
 
 ### Hashtag, trick name, and family navigation (load-bearing UX rule)
 

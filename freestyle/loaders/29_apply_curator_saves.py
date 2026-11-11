@@ -55,7 +55,7 @@ RECORD_KINDS = (
      ("source_type", "source_label", "source_url", "retrieved_at", "notes")),
     ("modifiers", "freestyle_trick_modifiers", ("slug",),
      ("modifier_name", "add_bonus", "add_bonus_rotational", "modifier_type", "notes",
-      "beginner_note", "composition_gloss")),
+      "beginner_note")),
     ("published_tricks", "freestyle_tricks", ("slug",),
      ("canonical_name", "adds", "base_trick", "trick_family", "category", "description",
       "operational_notation", "operational_notation_source", "notation_evidence_basis",

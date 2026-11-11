@@ -19,10 +19,10 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { getAboutNamingNote } from '../../src/content/freestyleAboutDerivatives';
 
 const REPO_ROOT = join(__dirname, '..', '..');
 const OVERRIDES = join(REPO_ROOT, 'freestyle', 'inputs', 'base_dictionary', 'alias_overrides.csv');
-const INTERPRETATIONS = join(REPO_ROOT, 'src', 'content', 'freestyleTrickInterpretations.ts');
 
 /** The publication state a class implies when nobody has ruled otherwise. */
 const NICKNAME_CLASS = 'common';
@@ -121,8 +121,8 @@ describe('the name that points at a narrower move than its trick', () => {
     // The ruling's other half. Hiding the alias is only defensible because the
     // page says what the name means instead; if this prose goes, the hiding
     // becomes an unexplained omission.
-    const prose = readFileSync(INTERPRETATIONS, 'utf8');
-    expect(prose).toContain('Infinity');
-    expect(prose).toContain('clipper-set butterfly');
+    const note = getAboutNamingNote('butterfly') ?? '';
+    expect(note).toContain('Infinity');
+    expect(note).toContain('clipper-set butterfly');
   });
 });

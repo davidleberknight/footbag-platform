@@ -2621,7 +2621,6 @@ export interface FreestyleTrickModifierRow {
   modifier_type:        string;
   notes:                string | null;
   beginner_note:        string | null;
-  composition_gloss:    string | null;
 }
 
 // Flat row from freestyleTrickModifiers.listTricksByModifier — one row per
@@ -2648,7 +2647,6 @@ export interface FreestyleTrickModifierLinkDetailRow {
   add_bonus_rotational: number;
   modifier_notes:       string | null;
   beginner_note:        string | null;
-  composition_gloss:    string | null;
   apply_order:          number;
 }
 
@@ -3282,14 +3280,14 @@ export interface FreestyleMediaCoveredSourceRow {
 export const freestyleTrickModifiers = {
   get listAll() { return db.prepare(`
     SELECT slug, modifier_name, add_bonus, add_bonus_rotational, modifier_type, notes,
-           beginner_note, composition_gloss
+           beginner_note
     FROM freestyle_trick_modifiers
     ORDER BY modifier_type ASC, modifier_name ASC
   `); },
 
   get getBySlug() { return db.prepare(`
     SELECT slug, modifier_name, add_bonus, add_bonus_rotational, modifier_type, notes,
-           beginner_note, composition_gloss
+           beginner_note
     FROM freestyle_trick_modifiers
     WHERE slug = ?
   `); },
@@ -3299,14 +3297,14 @@ export const freestyleTrickModifiers = {
   get insert() { return db.prepare(`
     INSERT INTO freestyle_trick_modifiers
       (slug, modifier_name, add_bonus, add_bonus_rotational, modifier_type, notes,
-       beginner_note, composition_gloss, loaded_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       beginner_note, loaded_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `); },
 
   get update() { return db.prepare(`
     UPDATE freestyle_trick_modifiers
     SET modifier_name = ?, add_bonus = ?, add_bonus_rotational = ?, modifier_type = ?, notes = ?,
-        beginner_note = ?, composition_gloss = ?
+        beginner_note = ?
     WHERE slug = ?
   `); },
 
@@ -3366,7 +3364,6 @@ export const freestyleTrickModifiers = {
       m.add_bonus_rotational  AS add_bonus_rotational,
       m.notes                 AS modifier_notes,
       m.beginner_note         AS beginner_note,
-      m.composition_gloss     AS composition_gloss,
       l.apply_order           AS apply_order
     FROM freestyle_trick_modifier_links l
     INNER JOIN freestyle_trick_modifiers m ON m.slug = l.modifier_slug

@@ -5,16 +5,8 @@
  *   - DOCTRINE_DIVERGENCE_REGISTRY ingests cleanly; the three pilot
  *     rows (blurrage / predator / schmoe) are present with
  *     historical-divergence category and Q7 Red linkage.
- *   - Trick-detail page for a registered slug renders the "Scoring
- *     notes" section with the provenance prose AND the source-claim
- *     vs canonical-value line.
- *   - Trick-detail page for a NON-registered slug (mirage) does NOT
- *     render the section.
- *   - Browse cards (/freestyle/tricks?view=add) NEVER render the
- *     scoring-notes section, even for registered slugs.
- *   - Glossary surface NEVER renders per-trick scoring notes.
- *   - The `curator-only` visibility level (when used) is gated at
- *     the service layer; partial never sees it.
+ *   - A registered slug's trick page shows the canonical ADD, never the
+ *     outside source's claim.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { cachedGet } from '../fixtures/cachedGet';
@@ -117,74 +109,12 @@ describe('Doctrine-divergence registry — ingestion', () => {
   });
 });
 
-describe('Doctrine-divergence rendering — trick-detail surface', () => {
-  it('renders the scoring-notes section on a registered slug', async () => {
-    const res = await page('/freestyle/tricks/blurrage');
-    expect(res.status).toBe(200);
-    // Section wrapper present with stable test class.
-    expect(res.text).toContain('class="content-section trick-scoring-notes"');
-    // Heading present, and a public note is never folded behind the disclosure
-    // reserved for advanced notes.
-    expect(res.text).toMatch(/<h2 class="trick-scoring-notes-heading">Scoring notes<\/h2>/);
-    expect(res.text).not.toContain('trick-scoring-notes-details');
-    // Provenance prose present (substring; just enough to anchor).
-    expect(res.text).toContain('An outside source historically lists blurrage at 3 ADD');
-    // Canonical value rendered.
-    expect(res.text).toContain('4 ADD');
-  });
-
-  it('surfaces the source-claim vs canonical-value comparison line', async () => {
-    const res = await page('/freestyle/tricks/predator');
-    expect(res.status).toBe(200);
-    // Source claim line should render explicitly.
-    expect(res.text).toMatch(/Source claim \(an outside source\): 3 ADD/);
-    expect(res.text).toMatch(/Published canonical value: 4 ADD/);
-  });
-
-  it('does NOT render scoring-notes for a non-registered slug', async () => {
-    const res = await page('/freestyle/tricks/mirage');
-    expect(res.status).toBe(200);
-    // Section class must be absent for unregistered slugs.
-    expect(res.text).not.toContain('trick-scoring-notes');
-  });
-});
-
-describe('Doctrine-divergence rendering — surface placement guardrails', () => {
-  it('does NOT render scoring-notes on /freestyle/tricks?view=add (browse cards)', async () => {
-    const res = await page('/freestyle/tricks?view=add');
-    expect(res.status).toBe(200);
-    // Browse cards must stay clean regardless of registry membership.
-    expect(res.text).not.toContain('trick-scoring-notes');
-  });
-
-  it('does NOT render scoring-notes on /freestyle/tricks?view=family (browse cards)', async () => {
-    const res = await page('/freestyle/tricks?view=family');
-    expect(res.status).toBe(200);
-    expect(res.text).not.toContain('trick-scoring-notes');
-  });
-
-  it('does NOT render scoring-notes on /freestyle/glossary', async () => {
-    const res = await page('/freestyle/glossary');
-    expect(res.status).toBe(200);
-    // Glossary discusses divergence as a concept (future §8 addition);
-    // per-trick scoring notes never appear here.
-    expect(res.text).not.toContain('class="content-section trick-scoring-notes"');
-  });
-
-  it('does NOT render scoring-notes on /freestyle (landing)', async () => {
-    const res = await page('/freestyle');
-    expect(res.status).toBe(200);
-    expect(res.text).not.toContain('trick-scoring-notes');
-  });
-});
-
-describe('Doctrine-divergence rendering — zero-mismatch invariant preserved', () => {
+describe('Doctrine-divergence — the displayed ADD stays canonical', () => {
   it('canonical ADD chip on registered slugs shows the IFPA-derived value, not the source-claim', async () => {
     const res = await page('/freestyle/tricks/blurrage');
     expect(res.status).toBe(200);
-    // The hero / canonical ADD chip must show "4 ADD" (IFPA-derived),
-    // never "3 ADD" (PB source-claim). The scoring-notes section
-    // contextualizes; it does NOT undermine the displayed canonical.
+    // The ADD chip must show "4 ADD" (IFPA-derived), never the outside
+    // source's 3 ADD claim.
     expect(res.text).toMatch(/4 ADD/);
   });
 });

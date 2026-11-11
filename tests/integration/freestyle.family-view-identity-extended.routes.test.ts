@@ -40,7 +40,7 @@ interface Pilot {
   name:        string;
   adds:        string;
   family:      string;
-  firstReadingTokens: string[];   // each token must appear with the sem-token class
+  firstReadingTokens: string[];   // the chain's first reading; non-empty marks a chained pilot
 }
 
 const BUTTERFLY_PILOTS: Pilot[] = [
@@ -187,25 +187,7 @@ describe('Family View — butterfly / mirage / osis / torque pilot families rend
   }
 });
 
-describe('Chain entries surface as visible formulas', () => {
-  it('renders the first-reading tokens for each chained pilot on its trick page', async () => {
-    // A chain reading is structural content: it reads on the trick's own page,
-    // either as its own section or, when the About build path already says the
-    // same thing, through that line. Browse rows carry identity and notation.
-    for (const pilot of PILOTS_WITH_CHAINS) {
-      const trickPage = await page(`/freestyle/tricks/${pilot.slug}`);
-      expect(trickPage.status, `${pilot.slug} page must render`).toBe(200);
-      const readings = trickPage.text.match(/<ol class="equivalent-readings-list">[\s\S]*?<\/ol>/)?.[0] ?? '';
-      const buildPath = trickPage.text.match(/<dd data-build-path>([\s\S]*?)<\/dd>/)?.[1] ?? '';
-      for (const token of pilot.firstReadingTokens) {
-        expect(
-          readings + buildPath,
-          `${pilot.slug} page missing token '${token}'`,
-        ).toMatch(new RegExp(token, 'i'));
-      }
-    }
-  });
-
+describe('Chain entries never fall back to a pending notation', () => {
   it('does NOT render "Notation pending" for any chained pilot', async () => {
     const res = await page('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
@@ -223,12 +205,12 @@ describe('Chain entries surface as visible formulas', () => {
   });
 });
 
-describe('ADD View and Family View — shared two-line row contract, shared first reading', () => {
+describe('ADD View and Family View — shared two-line row contract', () => {
   // Both ADD and Family render the same generalized two-line
   // dict-trick-row contract; only the grouping differs. Shared across both:
-  // data-trick-slug, the dict-trick-row-title detail link, the ADD value on
-  // the line-2 ADD slot, and the first-reading ≡ tokens in the line-1
-  // interpretation slot. One representative non-first-class pilot per family.
+  // data-trick-slug, the dict-trick-row-title detail link and the ADD value on
+  // the line-2 ADD slot; neither carries a ≡ reading. One representative
+  // non-first-class pilot per family.
   const IDENTITY_PILOTS = [
     'tripwalk',         // butterfly family, "stepping quantum butterfly" — 3-token reading
     'sidewalk',         // butterfly family, "stepping near butterfly" — uses SIDE_POSITIONAL token
@@ -265,16 +247,7 @@ describe('ADD View and Family View — shared two-line row contract, shared firs
       expect(addRegion![0]).not.toMatch(/class="dict-card-add[ "]/);
       expect(familyRegion![0]).not.toMatch(/class="dict-card-add[ "]/);
 
-      // The trick's first reading is structural content and reads on its own
-      // page; no row in either view carries it.
-      const trickPage = await page(`/freestyle/tricks/${slug}`);
-      expect(trickPage.status).toBe(200);
-      const readings = trickPage.text.match(/<ol class="equivalent-readings-list">[\s\S]*?<\/ol>/)?.[0] ?? '';
-      const buildPath = trickPage.text.match(/<dd data-build-path>([\s\S]*?)<\/dd>/)?.[1] ?? '';
-      for (const token of pilot.firstReadingTokens) {
-        expect(readings + buildPath, `${slug} page missing first-reading token '${token}'`)
-          .toMatch(new RegExp(token, 'i'));
-      }
+      // No row in either view carries the trick's chain reading.
       expect(addRegion![0], `ADD row for ${slug} carries a reading`).not.toMatch(/&equiv;/);
       expect(familyRegion![0], `Family row for ${slug} carries a reading`).not.toMatch(/&equiv;/);
     });

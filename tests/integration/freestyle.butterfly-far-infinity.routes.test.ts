@@ -78,9 +78,11 @@ describe('GET /freestyle/tricks/:slug — Butterfly cluster after the safe clean
   it('butterfly surfaces Infinity as a clipper-set naming note, not as a plain alias', async () => {
     const res = await page('/freestyle/tricks/butterfly');
     expect(res.status).toBe(200);
-    // The naming note explains the folk name to a visitor who searched "infinity".
-    expect(res.text).toContain('Naming &amp; interpretation');
-    expect(res.text).toContain('Infinity is a community name for the clipper-set butterfly');
+    // The naming note in the page's opening explains the folk name to a visitor
+    // who searched "infinity".
+    const note = res.text.match(/<p data-about-naming-note>([\s\S]*?)<\/p>/);
+    expect(note, 'butterfly naming note').not.toBeNull();
+    expect(note![1].toLowerCase()).toContain('infinity');
     // But Infinity is still not listed on the "Also known as" alias line: it
     // names the clipper-set form, not a plain alias of the general butterfly.
     const aliasLine = res.text.match(/Also known as<\/dt>\s*<dd>([\s\S]*?)<\/dd>/);

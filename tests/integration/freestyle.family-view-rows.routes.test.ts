@@ -11,7 +11,6 @@
  * ordering. The shared dict-card / green ADD chip do NOT appear on rows.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
 import { cachedGet } from '../fixtures/cachedGet';
 
 import {
@@ -126,25 +125,11 @@ describe('Family view — two-line row contract', () => {
     }
   });
 
-  it('a family compound reads its ≡ interpretation on its own page, not on the row', async () => {
-    const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks?view=family');
-    // smear ≡ pixie mirage, magellan ≡ pixie legover, torque ≡ quantum osis
-    const cases: Array<[string, RegExp]> = [
-      ['smear', /mirage/i],
-      ['magellan', /legover/i],
-      ['torque', /osis/i],
-    ];
-    for (const [slug, readingToken] of cases) {
-      const page = await request(app).get(`/freestyle/tricks/${slug}`);
-      expect(page.status).toBe(200);
-      // The reading reaches the reader either as its own section or, when the
-      // About build path already says the same thing, through that line; a
-      // page never states one compositional reading twice.
-      const readings = page.text.match(/<ol class="equivalent-readings-list">[\s\S]*?<\/ol>/)?.[0] ?? '';
-      const buildPath = page.text.match(/<dd data-build-path>([\s\S]*?)<\/dd>/)?.[1] ?? '';
-      expect(readings + buildPath, `${slug} missing its reading`).toMatch(readingToken);
-      // The row keeps to identity and notation; the reading is not on it.
+  it('a family compound row keeps to identity and notation, carrying no ≡ reading', async () => {
+    const res = await getPage('/freestyle/tricks?view=family');
+    // Each of these has an authored equivalence chain, so a reading leaking
+    // onto the row would show here.
+    for (const slug of ['smear', 'magellan', 'torque']) {
       const row = rowFor(res.text, slug);
       expect(row, `${slug} row carries a reading`).not.toMatch(/&equiv;/);
       expect(row).toMatch(/class="dict-trick-row-notation-value"/);

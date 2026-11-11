@@ -230,16 +230,16 @@ describe('trick-detail — component-memberships panel retired', () => {
     expect(res.text).not.toContain('Component memberships');
   });
 
-  it('ducking-whirl renders no Component-memberships panel; modifiers owned by the Modifiers section', async () => {
+  it('ducking-whirl renders no Component-memberships panel; modifiers owned by the structural-facts block', async () => {
     const res = await page('/freestyle/tricks/ducking-whirl');
     expect(res.text).not.toContain('Component memberships');
-    expect(res.text).toContain('Modifiers on this trick');
+    expect(res.text).toContain('trick-structural-facts-list');
   });
 
-  it('phoenix renders no Component-memberships panel; modifiers owned by the Modifiers section', async () => {
+  it('phoenix renders no Component-memberships panel; modifiers owned by the structural-facts block', async () => {
     const res = await page('/freestyle/tricks/phoenix');
     expect(res.text).not.toContain('Component memberships');
-    expect(res.text).toContain('Modifiers on this trick');
+    expect(res.text).toContain('trick-structural-facts-list');
   });
 });
 

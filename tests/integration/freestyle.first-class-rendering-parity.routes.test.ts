@@ -321,18 +321,6 @@ describe('First-class rendering parity — tautological-chain suppression', () =
   });
 });
 
-describe('First-class rendering parity — informative chain preserved', () => {
-  it('ripwalk preserves its non-tautological folk-name chain (stepping butterfly)', async () => {
-    const html = await pageFor('ripwalk');
-    // Folk-name resolution is legitimate: canonical "ripwalk" ≢ structural
-    // form "stepping butterfly", so the reading carries information the
-    // title does not and reads in the trick's equivalent-readings section.
-    const readings = html.match(/<ol class="equivalent-readings-list">[\s\S]*?<\/ol>/)?.[0] ?? '';
-    expect(readings).toMatch(/stepping/);
-    expect(readings).toMatch(/butterfly/);
-  });
-});
-
 describe('First-class rendering parity — honest incomplete-state', () => {
   // Bucket A backfill:
   // symposium-mirage and ripwalk were promoted out of the JOB-pending
@@ -455,13 +443,8 @@ describe('First-class cohort expansion — Tier 2 new promotions', () => {
     expect(executionNotation(html)).toBeNull();
   });
 
-  it('eggbeater renders its folk-name chain (≡ atomic legover) plus ADD breakdown', async () => {
+  it('eggbeater renders its ADD breakdown', async () => {
     const html = await pageFor('eggbeater');
-    // Folk-name chain reading is non-tautological ("atomic legover" ≢
-    // "eggbeater") so it survives the first-class tautological filter.
-    const readings = html.match(/<ol class="equivalent-readings-list">[\s\S]*?<\/ol>/)?.[0] ?? '';
-    expect(readings).toMatch(/atomic/);
-    expect(readings).toMatch(/legover/);
     // ADD breakdown wires through; the execution chain is unauthored.
     expect(addDerivation(html)).toContain('atomic(+1) + legover(2)');
     expect(executionNotation(html)).toBeNull();

@@ -147,14 +147,11 @@ describe('JOB-block rendering across browse views (no raw operational notation o
     expectJobBlockRender(modRes.text, 'spinning_paradox_mirage');
   });
 
-  it('a trick with BOTH an equivalence reading AND operational notation renders BOTH (no either/or)', async () => {
-    // mobius carries a tokenizedEquivalence (≡ gyro-torque chain) AND has
-    // operational notation. The two are independent: neither suppresses the
-    // other. Both are structural, so both read on the trick's page; the browse
-    // row carries the trick's notation and says nothing about readings.
+  it('a trick with an equivalence chain still shows its operational notation on its page and its row', async () => {
+    // mobius carries an equivalence chain AND operational notation; the chain
+    // never suppresses the notation, on the trick's page or on its browse row.
     const page = await getPage('/freestyle/tricks/mobius');
     expect(page.status).toBe(200);
-    expect(page.text).toMatch(/class="content-section equivalent-readings"/);
     expect(page.text).toMatch(/class="operational-notation-tokens"/);
 
     const res = await getPage('/freestyle/tricks?view=add');

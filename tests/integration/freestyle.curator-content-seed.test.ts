@@ -22,7 +22,7 @@ import {
 
 const { dbPath } = setTestEnv('4148');
 const content = STAGED_CURATOR_CONTENT;
-const modifierSlugs = [...new Set([...content.beginnerNotes.keys(), ...content.compositionGlosses.keys()])];
+const modifierSlugs = [...content.beginnerNotes.keys()];
 const EXTRA_MODIFIER = 'zz_unstaged_modifier';
 const EXTRA_RECORD = 'Zz Unstaged Record';
 
@@ -63,14 +63,10 @@ describe('seeding the staged curator content', () => {
     for (const [slug, note] of content.beginnerNotes) {
       expect(value('SELECT beginner_note AS v FROM freestyle_trick_modifiers WHERE slug = ?', slug), slug).toBe(note);
     }
-    for (const [slug, gloss] of content.compositionGlosses) {
-      expect(value('SELECT composition_gloss AS v FROM freestyle_trick_modifiers WHERE slug = ?', slug), slug).toBe(gloss);
-    }
     // The counts are what the rows say, not a tally of the attempts.
     expect(counts).toEqual({
       recordsUnderReview: content.recordReviews.size,
       beginnerNotes:      content.beginnerNotes.size,
-      compositionGlosses: content.compositionGlosses.size,
     });
     // Rows the content does not name stay empty.
     expect(value('SELECT beginner_note AS v FROM freestyle_trick_modifiers WHERE slug = ?', EXTRA_MODIFIER)).toBeNull();
@@ -80,12 +76,11 @@ describe('seeding the staged curator content', () => {
   // Defect caught: an entry removed from a staged module living on in the
   // database after the next refresh.
   it('clears a value no staged entry supplies any more', () => {
-    db.prepare('UPDATE freestyle_trick_modifiers SET beginner_note = ?, composition_gloss = ? WHERE slug = ?')
-      .run('stale', 'stale', EXTRA_MODIFIER);
+    db.prepare('UPDATE freestyle_trick_modifiers SET beginner_note = ? WHERE slug = ?')
+      .run('stale', EXTRA_MODIFIER);
     db.prepare('UPDATE freestyle_records SET curator_review_note = ? WHERE trick_name = ?').run('stale', EXTRA_RECORD);
     seedCuratorContent(db);
     expect(value('SELECT beginner_note AS v FROM freestyle_trick_modifiers WHERE slug = ?', EXTRA_MODIFIER)).toBeNull();
-    expect(value('SELECT composition_gloss AS v FROM freestyle_trick_modifiers WHERE slug = ?', EXTRA_MODIFIER)).toBeNull();
     expect(value('SELECT curator_review_note AS v FROM freestyle_records WHERE trick_name = ?', EXTRA_RECORD)).toBeNull();
   });
 });
@@ -101,9 +96,6 @@ describe('refusing content the database cannot take', () => {
     ['a beginner note for a modifier the registry does not hold', withExtra({
       beginnerNotes: new Map([...content.beginnerNotes, ['no_such_modifier', 'A note.']]),
     }), /no_such_modifier/],
-    ['a gloss for a modifier the registry does not hold', withExtra({
-      compositionGlosses: new Map([...content.compositionGlosses, ['no_such_gloss_modifier', 'A gloss.']]),
-    }), /no_such_gloss_modifier/],
     ['a record name no record carries', withExtra({
       recordReviews: new Map([...content.recordReviews, ['No Such Record', 'A note.']]),
     }), /No Such Record/],

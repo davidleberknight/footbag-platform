@@ -2,9 +2,8 @@
  * Integration tests for symbolic enrichment & notation precedence.
  *
  * Scope verified:
- *   - The four chain entries (paradox_blender, food_processor,
- *     spender, paradox_drifter) render the curator-authored symbolic
- *     equivalences instead of falling through to operational notation.
+ *   - Chain entries (paradox_blender, paradox_drifter) keep their
+ *     operational notation on the browse row and never carry a reading.
  *   - Symbolic-first / op-notation-fallback precedence holds — rows with
  *     no chain entry but with operational_notation still render the
  *     operational tokens.
@@ -85,51 +84,24 @@ afterAll(() => cleanupTestDb(dbPath));
 // 1. New chain entries render symbolically (not via op-notation fallback)
 // ─────────────────────────────────────────────────────────────────────────
 
-// A chain reading is structural content, so it reads in the trick's own
-// Equivalent readings section; the browse row carries the trick's notation and
-// never a reading. Each test below therefore checks the reading on the page and
-// the notation on the row.
-describe('branch-family chain additions render symbolically', () => {
+// The browse row carries the trick's notation and never a chain reading.
+describe('branch-family chain additions', () => {
   function rowFor(html: string, slug: string): string {
     const idx = html.indexOf(`data-trick-slug="${slug}"`);
     expect(idx, `row for ${slug} not found`).toBeGreaterThan(-1);
     const next = html.indexOf('data-trick-slug=', idx + 1);
     return html.substring(idx, next > -1 ? next : idx + 4000);
   }
-  function readings(html: string): string {
-    return html.match(/<ol class="equivalent-readings-list">[\s\S]*?<\/ol>/)?.[0] ?? '';
-  }
 
-  it('paradox_blender renders its chain reading on the page and its notation on the row', async () => {
-    const page = await getPage('/freestyle/tricks/paradox_blender');
-    expect(page.status).toBe(200);
-    expect(readings(page.text)).toBeTruthy();
-
+  it('paradox_blender keeps its notation on the row', async () => {
     const res = await getPage('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     expect(rowFor(res.text, 'paradox_blender')).toMatch(/class="dict-trick-row-notation-value">/);
   });
 
-  it('food_processor surfaces the Red-locked Blurry-Blender reading', async () => {
-    const page = await getPage('/freestyle/tricks/food_processor');
-    expect(page.status).toBe(200);
-    expect(readings(page.text)).toMatch(/blurry[\s\S]{0,300}blender/i);
-  });
-
-  it('spender surfaces the curator-prose-confirmed reading', async () => {
-    const page = await getPage('/freestyle/tricks/spender');
-    expect(page.status).toBe(200);
-    expect(readings(page.text)).toMatch(/spinning[\s\S]{0,300}paradox[\s\S]{0,300}blender/i);
-  });
-
-  it('paradox_drifter: the held miraging reading never surfaces, on the page or the row', async () => {
+  it('paradox_drifter: the held miraging reading never surfaces on the row', async () => {
     // The deeper 'paradox miraging clipper' reading is held with drifter's own
-    // decomposition, and 'paradox drifter' echoes the canonical name. Neither
-    // the page nor the row may show the miraging nickname.
-    const page = await getPage('/freestyle/tricks/paradox_drifter');
-    expect(page.status).toBe(200);
-    expect(readings(page.text)).not.toMatch(/miraging/);
-
+    // decomposition, so the row may not show the miraging nickname.
     const res = await getPage('/freestyle/tricks?view=add');
     const row = rowFor(res.text, 'paradox_drifter');
     expect(row).not.toMatch(/miraging/);

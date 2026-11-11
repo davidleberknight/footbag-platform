@@ -195,7 +195,7 @@ export const COPY_COLUMN_REGISTER: Readonly<Record<string, TableClassification>>
   },
   freestyle_trick_modifiers: {
     keep: ['slug', 'modifier_name', 'add_bonus', 'add_bonus_rotational', 'modifier_type', 'notes',
-      'beginner_note', 'composition_gloss', 'loaded_at'],
+      'beginner_note', 'loaded_at'],
   },
   freestyle_trick_source_links: {
     keep: ['trick_slug', 'source_id', 'external_ref', 'external_url', 'asserted_adds',

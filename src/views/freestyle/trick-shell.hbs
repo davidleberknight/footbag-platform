@@ -19,18 +19,13 @@
   {{> media-line id="media" display=content.trickTag galleryHref=content.referenceGalleryHref galleryLabel=content.referenceGalleryLabel}}
   {{/if}}
 
-  {{> trick-compressed-from}}
-
   {{!--
-    Trick-detail architecture: one universal shell with variable depth,
-    movement-language-first → structure-second. Curated movement-language
-    prose suppresses cleanly when unauthored. Relationship sections follow
-    a single-owner rule so nothing is shown twice: the Family ladder owns
-    same-family progression, Related Tricks owns conceptual movement
-    neighbours, and Structurally related tricks owns cross-base composition.
-    The parent-delta line lives in Movement Intuition and the build path in
-    About, so no standalone mechanical-delta or progressive-readings
-    section is needed.
+    Trick-detail architecture: one universal shell with variable depth. A
+    section that only repeats another is not drawn: the opening carries the
+    build path and the parent delta, Structure at a glance is the one modifier
+    block, Technique Notes are the one teaching surface, and two relationship
+    sections own the rest: the Family ladder owns same-family progression, and
+    Related Tricks owns every other neighbour, structural relatives included.
   --}}
   {{!-- Above the fold, in the order a detail page orients: plain words saying
        what the trick is, then the taxonomy chips that classify it, then the
@@ -66,26 +61,9 @@
 
   {{> trick-structural-facts}}
 
-  {{!-- Wayfinding summary: jump-links to learn / watch / family. --}}
-  {{> trick-pathways}}
-
-  {{!-- Below the fold: reference depth, progressive disclosure. Movement
-       intuition and Equivalent readings lead the deeper layer. --}}
-  {{> trick-intuition}}
-
-  {{> trick-equivalent-readings}}
-
-  {{> trick-interpretation}}
-
   {{> trick-transform}}
 
-  {{> trick-modifiers}}
-
   {{> trick-modifier-layering}}
-
-  {{> trick-scoring-notes}}
-
-  {{> trick-equivalence-topology}}
 
   {{!-- Technique Notes: execution, learning, and prerequisites grouped into one
        compact disclosure, collapsed by default so the page does not grow. Sits
@@ -123,14 +101,9 @@
   </section>
   {{/if}}
 
-  {{!-- Structurally related tricks: the single ranked relatives section (same
-       base, same family or terminal, operator overlap, curated), covering
-       operator kin and twins. The full family browser below is secondary. --}}
-  {{> trick-similar}}
-
   {{!-- Terminal-derived "what lands here" cohort for non-family terminal atoms
-       (toe_stall / clipper_stall); a reciprocal "lands in" backlink on cohort
-       members. Suppressed where the Family ladder already owns the terminal. --}}
+       (toe_stall / clipper_stall). Suppressed where the Family ladder already
+       owns the terminal. --}}
   {{> trick-terminal-derived}}
 
   {{> trick-family}}
@@ -138,8 +111,6 @@
   {{> trick-quantity-ladder}}
 
   {{> trick-related}}
-
-  {{> symbolic-related-topology}}
 
   {{> trick-records}}
 

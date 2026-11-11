@@ -653,7 +653,7 @@ Success Criteria:
 - An operator or modifier slug permanently redirects to its modifier detail page at `/freestyle/modifier/{slug}`; a slug for a set that migrated out of the trick corpus permanently redirects to its set detail page; an unknown slug returns 404.
 - The page opens by orienting the reader: what the trick is, in plain words a beginner can read, before any notation or taxonomy. It then presents the trick's identity (canonical name, hashtag, ADD), its notation, its ADD derivation (the scoring-component breakdown), and its structural facts (family base, modifiers, and dex count). That structural material is always present and never gated; its placement is below the plain-words opening, not above it.
 - Known aliases in community use are listed on the page. Search resolves every alias; display surfaces the helpful ones.
-- Relationship blocks have strict ownership: same-family progression, conceptual related tricks, and structural neighbors are distinct sections that do not duplicate one another, and each entry links to a canonical trick page that renders (never an alias URL, never a dead link).
+- Relationship blocks have strict ownership: the same-family progression and the related tricks (conceptual and structural neighbours together) are two sections that do not duplicate one another, and each entry links to a canonical trick page that renders (never an alias URL, never a dead link).
 - Freestyle world records set on the trick render on the page.
 - Technique Notes, the trick's curated coaching (cues, common mistakes and drills, written in the site's own voice), are the page's single teaching surface and render in their own section.
 - The Media section and the browser-tab title follow V_View_Trick_Reference_Videos.
@@ -3329,7 +3329,7 @@ Story: As an admin, I can create a freestyle modifier and edit an existing one, 
 
 Success Criteria, Fields:
 
-- Create takes the slug, the display name, the ADD bonus, the modifier type, notes, a beginner note and a composition gloss; edit changes every field but the slug. The rotational ADD bonus is always saved equal to the ADD bonus.
+- Create takes the slug, the display name, the ADD bonus, the modifier type, notes and a beginner note; edit changes every field but the slug. The rotational ADD bonus is always saved equal to the ADD bonus.
 - The modifier registry is the single home of a modifier's ADD: computed ADD, first-class status and every public surface read it from there.
 
 Success Criteria, Validation (a save that fails any check is rejected with a clear message and the submitted values preserved):

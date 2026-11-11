@@ -3,15 +3,15 @@
  *
  * A terminal-stall atom that is not a public family (toe_stall, clipper_stall)
  * renders a curated, cross-family list of recognizable tricks that finish on its
- * surface. A cohort member renders the reciprocal "lands in" backlink. A terminal
- * that IS a public family (inside_stall) renders NO terminal cohort, because the
- * Family ladder already owns what lands there.
+ * surface. A cohort member carries no backlink. A terminal that IS a public
+ * family (inside_stall) renders NO terminal cohort, because the Family ladder
+ * already owns what lands there.
  *
  * Behaviors pinned:
  *   1. toe_stall renders the cohort (Barrage in, the swapped-out Eggbeater out).
  *   2. clipper_stall renders its cohort.
  *   3. inside_stall renders NO terminal cohort (family ladder owns the guay lineage).
- *   4. A cohort member (whirl) renders the reciprocal "Lands in" backlink.
+ *   4. A cohort member (whirl) renders no backlink.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -87,11 +87,12 @@ describe('GET /freestyle/tricks/:slug — terminal-derived cohort', () => {
     expect(res.text).not.toContain('Tricks that land here');
   });
 
-  it('a cohort member (whirl) renders the reciprocal "lands in" backlink', async () => {
+  // Defect caught: a cohort member's page repeating where it lands, which its
+  // notation and the stall's own cohort list already say.
+  it('a cohort member (whirl) renders no backlink and no cohort of its own', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/whirl');
     expect(res.status).toBe(200);
-    const sec = sectionSlice(res.text, 'terminal-backlink');
-    expect(sec).toContain('Lands in:');
-    expect(sec).toContain('/freestyle/tricks/clipper_stall"');
+    expect(res.text).not.toContain('data-section="terminal-backlink"');
+    expect(res.text).not.toContain('data-section="terminal-derived"');
   });
 });

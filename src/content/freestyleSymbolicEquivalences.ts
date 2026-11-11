@@ -31,19 +31,18 @@
  *     trick / stable atoms / explicit operator stack. Avoid: stopping
  *     at "blurry X" when "stepping paradox X" is the cleaner
  *     expansion; stopping at "ps X" when "paradox symposium X" is
- *     cleaner. Exception: depth ladders for pedagogical exemplars
- *     (PEDAGOGICAL_COMPRESSION_EXEMPLARS below) may include intermediate-
- *     compression depths above the atom-level reading (e.g. mobius
- *     shows gyro torque → spinning ss torque → atom-level osis-base).
+ *     cleaner. Exception: a curator-authored depth ladder may include
+ *     intermediate-compression depths above the atom-level reading
+ *     (e.g. mobius shows gyro torque → spinning ss torque → atom-level
+ *     osis-base).
  *   - S3/S5 SEPARATION RULE:
  *     S5 chains own structural compressions only: the compositional
  *     readings the canonical name compresses. They never overlap with
- *     S3 (aliases_json, pure spelling/historical aliases) or S9
- *     (equivalence-topology, alternate derivation paths). If a reading
- *     is an alternate-derivation path with a different ADD breakdown,
- *     it belongs in S9 only and the SE chain for that slug should be
- *     omitted. If a reading is a pure spelling variant of the canonical
- *     name, it belongs in S3 only.
+ *     S3 (aliases_json, pure spelling/historical aliases) and never
+ *     carry an alternate derivation path. If a reading is an
+ *     alternate-derivation path with a different ADD breakdown, the SE
+ *     chain for that slug is omitted. If a reading is a pure spelling
+ *     variant of the canonical name, it belongs in S3 only.
  *   - sourceLabel rendering is 'editorial' const literal; never claims parser
  *     provenance.
  *   - curatorConfirmPending=true entries ship with the rendered pending flag
@@ -200,9 +199,8 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   },
   // flurry has no chain entry: it is an equivalent-derivation case (two
   // valid structural paths converging on 4 ADD: furious legover vs
-  // paradox paradox-legover). S9
-  // (EQUIVALENCE_TOPOLOGY) is the sole owner of the both-paths rendering;
-  // S5 would duplicate one path and obscure the other.
+  // paradox paradox-legover). A chain would state one path and obscure
+  // the other.
   // double-leg-over is described directly from its notation, two dexes into a toe
   // (SET > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]). "Miraging legover" is
   // legacy shorthand only; miraging is retired as a scored, formula-bearing
@@ -510,13 +508,11 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   {
     slug:     'tomahawk',
     readings: ['ducking paradox whirl'],
-    curatorConfirmPending: false,   // FM 'Ducking Paradox Whirl' + PB 'Clipper Ducking far Whirl' agree; row removed from UNRESOLVED_COMPOUNDS in this sweep
+    curatorConfirmPending: false,   // FM 'Ducking Paradox Whirl' + PB 'Clipper Ducking far Whirl' agree
   },
   // witchdoctor has no chain entry: "atomic symposium mirage" is a
-  // historical reading preserved in S9 (EQUIVALENCE_TOPOLOGY) with
-  // role='historical'. S5 would compete with S9 for the same reading and
-  // confuse the canonical-primary ("atom-smasher + symposium") vs
-  // historical-context relationship.
+  // historical reading, and a chain would confuse the canonical-primary
+  // ("atom-smasher + symposium") vs historical-context relationship.
   // ── Additional chain entries ──────────────────────────────────────────
   // Chain entries for existing IFPA rows lacking chains. All structurally
   // clean (operators in IFPA registry; bases in IFPA core ontology; math
@@ -709,48 +705,6 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     curatorConfirmPending: false,
   },
 ];
-
-/**
- * PEDAGOGICAL_COMPRESSION_EXEMPLARS: slugs eligible for multi-depth
- * S5 ladder treatment + new SE chain authoring. Membership is
- * curator-locked; additions one-at-a-time by explicit curator decision.
- *
- * Criteria (any one qualifies):
- *   - historically important compression that taught a generation
- *   - unusually educational reading-depth ladder
- *   - flagship structural-compression exemplar in glossary §composition
- *
- * Two distinct cohorts overlap with this set but serve different
- * surfaces:
- *   - FAMOUS_COMPRESSION_SLUGS (in freestyleService.ts) gates the
- *     lightweight S8 "Compressed from" line on detail pages
- *   - PEDAGOGICAL_COMPRESSION_EXEMPLARS (this set) gates S5 depth-
- *     ladder authoring permission
- * Some slugs are in both (mobius, ripwalk, atom-smasher); some only
- * in this set (blur, barrage, paradox-mirage); some only in FAMOUS
- * (smear, eggbeater: they don't need ladder depth beyond a single
- * compositional reading).
- *
- * Curator-locked: do NOT expand this set for ontology-completeness
- * reasons. This is pedagogy, not enumeration.
- */
-export const PEDAGOGICAL_COMPRESSION_EXEMPLARS: ReadonlySet<string> = new Set([
-  'mobius',          // 3-depth ladder authored; flagship glossary example
-  'ripwalk',         // single-depth today; depth expansion deferred
-  'atom_smasher',    // single-depth today; depth expansion deferred
-  'blur',            // single-depth at atom level (stepping paradox mirage)
-  'barrage',         // no chain yet; reserved for future curator authoring
-  'paradox_mirage',  // tautological entry today; depth-ladder authoring deferred
-]);
-
-/**
- * Returns true when the slug is curator-approved for multi-depth S5
- * ladder treatment. Used by future depth-expansion slices to gate
- * chain edits that add depths > 1.
- */
-export function isPedagogicalCompressionExemplar(slug: string): boolean {
-  return PEDAGOGICAL_COMPRESSION_EXEMPLARS.has(slug.trim().toLowerCase());
-}
 
 /**
  * Look up a chain by canonical slug. O(n) is fine at this corpus size.
