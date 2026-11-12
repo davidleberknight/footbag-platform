@@ -30,10 +30,10 @@ import {
   importApp,
 } from '../fixtures/testDb';
 import {
-  insertFreestyleTrick,
   insertFreestyleTrickModifier,
   insertFreestyleTrickModifierLink,
 } from '../fixtures/factories';
+import { insertTrickAsRebuilt } from '../fixtures/stagedFormula';
 
 const { dbPath } = setTestEnv('3150');
 
@@ -64,52 +64,52 @@ beforeAll(async () => {
   });
 
   // ── Base atoms ──
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'mirage', canonical_name: 'mirage',
     trick_family: 'mirage', category: 'dex', adds: '2', is_active: 1,
     notation: 'MIRAGE',
   });
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'butterfly', canonical_name: 'butterfly',
     trick_family: 'butterfly', category: 'dex', adds: '3', is_active: 1,
     notation: 'BUTTERFLY',
   });
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'torque', canonical_name: 'torque',
     trick_family: 'torque', category: 'dex', adds: '4', is_active: 1,
     notation: 'TORQUE',
   });
 
   // ── Pilot atomic singleton: osis (has ATOMIC_FLAG_DECOMPOSITIONS entry) ──
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'osis', canonical_name: 'osis', base_trick: 'osis',
     trick_family: 'osis', category: 'bod', adds: '3', is_active: 1,
     notation: 'OSIS',
   });
 
   // ── Pilot compounds (published derivations) ──
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'paradox_mirage', canonical_name: 'paradox mirage', base_trick: 'mirage',
     trick_family: 'mirage', category: 'compound', adds: '3', is_active: 1,
     notation: 'PARADOX MIRAGE',
   });
   insertFreestyleTrickModifierLink(db, 'paradox_mirage', 'paradox', 1);
 
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'symposium_mirage', canonical_name: 'symposium mirage', base_trick: 'mirage',
     trick_family: 'mirage', category: 'compound', adds: '3', is_active: 1,
     notation: 'SYMPOSIUM MIRAGE',
   });
   insertFreestyleTrickModifierLink(db, 'symposium_mirage', 'symposium', 1);
 
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'atomic_butterfly', canonical_name: 'atomic butterfly', base_trick: 'butterfly',
     trick_family: 'butterfly', category: 'compound', adds: '4', is_active: 1,
     notation: 'ATOMIC BUTTERFLY',
   });
   insertFreestyleTrickModifierLink(db, 'atomic_butterfly', 'atomic', 1);
 
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'ripwalk', canonical_name: 'ripwalk', base_trick: 'butterfly',
     trick_family: 'butterfly', category: 'compound', adds: '4', is_active: 1,
     notation: 'STEPPING BUTTERFLY',
@@ -118,15 +118,15 @@ beforeAll(async () => {
 
   // ── Control: mobius — fails H6 convergence (gyro(+2) + torque(4) = 6
   // computed != 5 official; the gyro-on-rotational doctrine question) ──
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'mobius', canonical_name: 'mobius', base_trick: 'torque',
     trick_family: 'torque', category: 'compound', adds: '5', is_active: 1,
     notation: 'MOBIUS',
   });
   insertFreestyleTrickModifierLink(db, 'mobius', 'gyro', 1);
 
-  // ── Control: blur — fails H4 (not in RESOLVED_ADD_FORMULAS) ──
-  insertFreestyleTrick(db, {
+  // ── Control: blur — not in a first-class cohort ──
+  insertTrickAsRebuilt(db, {
     slug: 'blur', canonical_name: 'blur', base_trick: 'mirage',
     trick_family: 'mirage', category: 'compound', adds: '4', is_active: 1,
     notation: 'STEPPING PARADOX MIRAGE',

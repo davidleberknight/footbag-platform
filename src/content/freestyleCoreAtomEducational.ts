@@ -16,15 +16,12 @@
  * composition belong to their own chapters; a card keeps only a short example.
  *
  * The reader-facing text says "move", never "atom": Atomic is a set name, and
- * the metaphor collides with it. The exported names below keep their historical
- * identifiers because services and tests key on them.
+ * the metaphor collides with it. The exported names below keep their
+ * identifiers because the concepts page service keys on them.
  *
  * Visitor-facing copy: no em dashes. Ordering is pedagogical (the two stalls,
  * the two full circles, the four one-dex toe moves, then the four clipper
- * landings), not the structural CORE_TRICK_SPEC order. The twelve slugs are the
- * canonical set behind CORE_ATOM_SLUGS / isCoreAtom below, which service-layer
- * rendering uses to gate compound-shaped trick-detail partials; keep the slug
- * list stable.
+ * landings), not the structural CORE_TRICK_SPEC order.
  *
  * To revise: edit a record below. Reversible TS content module.
  */
@@ -201,33 +198,3 @@ export const CORE_ATOM_EDUCATIONAL: readonly CoreAtomEducationalCard[] = [
     ],
   },
 ];
-
-/** Convenience map for slug-keyed lookup. */
-export const CORE_ATOM_EDUCATIONAL_BY_SLUG: ReadonlyMap<string, CoreAtomEducationalCard> = (() => {
-  const m = new Map<string, CoreAtomEducationalCard>();
-  for (const c of CORE_ATOM_EDUCATIONAL) m.set(c.slug, c);
-  return m;
-})();
-
-/**
- * Canonical core-atom slug set: single source of truth derived from
- * CORE_ATOM_EDUCATIONAL. Service-layer rendering uses this set to
- * suppress compound-shaped trick-detail partials (addAnalysis,
- * equivalenceTopology) on atom pages. Atoms are the floor of
- * decomposition; rendering compound-shaped sections on them produces
- * placeholder content or false structural claims.
- *
- * See isCoreAtom() helper for the canonical membership predicate.
- */
-export const CORE_ATOM_SLUGS: ReadonlySet<string> = new Set(
-  CORE_ATOM_EDUCATIONAL.map(c => c.slug),
-);
-
-/**
- * Returns true when the slug is one of the 12 curator-locked core
- * atoms. Use in service-layer rendering decisions; do NOT branch in
- * templates on atom-vs-compound directly.
- */
-export function isCoreAtom(slug: string): boolean {
-  return CORE_ATOM_SLUGS.has(slug);
-}

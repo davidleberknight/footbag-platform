@@ -21,8 +21,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import { insertFreestyleTrick } from '../fixtures/factories';
-import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormulas';
+import { insertTrickAsRebuilt } from '../fixtures/stagedFormula';
 
 const { dbPath } = setTestEnv('3178');
 
@@ -30,20 +29,20 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'avalanche',
+    operational_notation: 'CLIP > OP IN [DEX] > DUCK [BOD] > SAME OUT [PDX] [DEX] > OP TOE [DEL]',
     canonical_name: 'avalanche',
     adds: '5', base_trick: 'paradox-illusion', trick_family: 'paradox-illusion',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
-    operational_notation: null,
     aliases_json: '["stepping ducking paradox illusion"]',
   });
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'spike_hammer',
+    operational_notation: 'CLIP > OP IN [DEX] > DUCK [BOD] > OP IN [PDX] [DEX] > OP TOE [DEL]',
     canonical_name: 'spike hammer',
     adds: '5', base_trick: 'paradox-mirage', trick_family: 'paradox-mirage',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
-    operational_notation: null,
     aliases_json: '["stepping ducking paradox mirage"]',
   });
   db.close();
@@ -52,40 +51,6 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('RESOLVED_ADD_FORMULAS — avalanche + spike-hammer entries', () => {
-  it('avalanche carries the canonical JOB with SAME OUT [PDX] [DEX] (illusion base)', () => {
-    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'avalanche');
-    expect(entry).toBeDefined();
-    expect(entry?.totalAdd).toBe(5);
-    expect(entry?.base).toBe('paradox-illusion');
-    expect(entry?.operationalNotation).toBe('CLIP > OP IN [DEX] > DUCK [BOD] > SAME OUT [PDX] [DEX] > OP TOE [DEL]');
-    expect(entry?.provenance ?? '').toMatch(/FB\.org-confirmed/i);
-    expect(entry?.provenance ?? '').toMatch(/Stepping Ducking Paradox Illusion/i);
-    expect(entry?.provenance ?? '').toMatch(/structural\s+twin\s+of\s+spike-hammer/i);
-  });
-
-  it('spike-hammer carries FB.org-confirmed JOB with OP IN [PDX] [DEX] (mirage base)', () => {
-    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'spike_hammer');
-    expect(entry?.totalAdd).toBe(5);
-    expect(entry?.base).toBe('paradox-mirage');
-    expect(entry?.operationalNotation).toBe('CLIP > OP IN [DEX] > DUCK [BOD] > OP IN [PDX] [DEX] > OP TOE [DEL]');
-    expect(entry?.provenance ?? '').toMatch(/structural\s+twin\s+of\s+avalanche/i);
-  });
-
-  it('both entries share an identical modifier stack and differ only in the paradox dex coordinate', () => {
-    const av = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'avalanche');
-    const sh = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'spike_hammer');
-    expect(av?.totalAdd).toBe(sh?.totalAdd);
-    // Both share "OP IN [DEX] > DUCK [BOD]" prefix and "OP TOE [DEL]" tail.
-    expect(av?.operationalNotation ?? '').toContain('OP IN [DEX] > DUCK [BOD]');
-    expect(sh?.operationalNotation ?? '').toContain('OP IN [DEX] > DUCK [BOD]');
-    expect(av?.operationalNotation ?? '').toContain('OP TOE [DEL]');
-    expect(sh?.operationalNotation ?? '').toContain('OP TOE [DEL]');
-    // Difference at the paradox dex coordinate: SAME OUT (avalanche/illusion) vs OP IN (spike-hammer/mirage).
-    expect(av?.operationalNotation ?? '').toContain('SAME OUT [PDX]');
-    expect(sh?.operationalNotation ?? '').toContain('OP IN [PDX]');
-  });
-});
 
 describe('Avalanche + spike-hammer detail pages — first-class JOB + ADD', () => {
   it('/freestyle/tricks/avalanche renders 5 ADD + full token set + folk-name alias', async () => {

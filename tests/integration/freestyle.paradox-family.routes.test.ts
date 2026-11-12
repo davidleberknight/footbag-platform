@@ -19,8 +19,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import { insertFreestyleTrick } from '../fixtures/factories';
-import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormulas';
+import { insertTrickAsRebuilt } from '../fixtures/stagedFormula';
 
 const { dbPath } = setTestEnv('3170');
 
@@ -28,19 +27,19 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'paradox_da_da_curve',
+    operational_notation: 'CLIP > SAME IN [PDX] [DEX] > (no plant while) OP OUT [DEX] > OP CLIP [XBD] [DEL]',
     canonical_name: 'paradox da-da curve',
     adds: '5', base_trick: 'dada_curve', trick_family: 'dada_curve',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
-    operational_notation: null,
   });
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'paradox_whirling_swirl',
+    operational_notation: 'CLIP > SAME IN [PDX] [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]',
     canonical_name: 'paradox whirling swirl',
     adds: '5', base_trick: 'whirling_swirl', trick_family: 'whirling_swirl',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
-    operational_notation: null,
   });
   db.close();
   createApp = await importApp();
@@ -48,34 +47,9 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('RESOLVED_ADD_FORMULAS — paradox family entries', () => {
-  it('paradox-da-da-curve overlay carries FB.org-confirmed JOB', () => {
-    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'paradox_da_da_curve');
-    expect(entry).toBeDefined();
-    expect(entry?.totalAdd).toBe(5);
-    expect(entry?.baseAdd).toBe(4);
-    expect(entry?.operator).toBe('paradox');
-    expect(entry?.base).toBe('dada-curve');
-    expect(entry?.operationalNotation).toBe('CLIP > SAME IN [PDX] [DEX] > (NO PLANT WHILE) OP OUT [DEX] > OP CLIP [XBD] [DEL]');
-    expect(entry?.provenance ?? '').toMatch(/FB\.org-confirmed/i);
-  });
-
-  it('paradox-whirling-swirl overlay carries FB.org-confirmed JOB (preserves the out second dex + SAME CLIP)', () => {
-    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'paradox_whirling_swirl');
-    expect(entry?.totalAdd).toBe(5);
-    expect(entry?.operationalNotation).toBe('CLIP > SAME IN [PDX] [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]');
-  });
-
-  it('both paradox compounds use the standard paradox-prefix pattern SAME IN [PDX] [DEX]', () => {
-    for (const slug of ['paradox_da_da_curve', 'paradox_whirling_swirl']) {
-      const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === slug);
-      expect(entry?.operationalNotation ?? '').toMatch(/SAME IN \[PDX\] \[DEX\]/);
-    }
-  });
-});
 
 describe('Paradox-family detail pages — first-class JOB + ADD', () => {
-  it('/freestyle/tricks/paradox_da_da_curve renders 5 ADD + [PDX] token + (NO PLANT WHILE) pre-state', async () => {
+  it('/freestyle/tricks/paradox_da_da_curve renders 5 ADD + [PDX] token + (no plant while) pre-state', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/paradox_da_da_curve');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">5 ADD<\/span>/);
@@ -85,8 +59,8 @@ describe('Paradox-family detail pages — first-class JOB + ADD', () => {
       const pattern = new RegExp(`class="op-token[^"]*"[^>]*>${escaped}<`);
       expect(res.text).toMatch(pattern);
     }
-    // (NO PLANT WHILE) pre-state flag
-    expect(res.text).toMatch(/class="op-token[^"]*"[^>]*>\(NO PLANT WHILE\)</);
+    // (no plant while) pre-state flag
+    expect(res.text).toMatch(/class="op-token[^"]*"[^>]*>\(no plant while\)</);
   });
 
   it('/freestyle/tricks/paradox_whirling_swirl renders 5 ADD with the ordinary IN/OUT vocabulary, no retired swirl token', async () => {

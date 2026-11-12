@@ -45,7 +45,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import { insertFreestyleTrick } from '../fixtures/factories';
+import { insertTrickAsRebuilt } from '../fixtures/stagedFormula';
 
 const { dbPath } = setTestEnv('3157');
 
@@ -59,166 +59,166 @@ beforeAll(async () => {
   // 11 atom singletons (ATOMIC_FLAG_DECOMPOSITIONS provides both
   // operationalChain + decomposition). All have base_trick === slug
   // which the renderer requires for atomic-decomposition lookup.
-  insertFreestyleTrick(db, { slug: 'osis',             canonical_name: 'osis',             adds: '3', base_trick: 'osis',             trick_family: 'osis',             category: 'compound', notation: 'OSIS' });
-  insertFreestyleTrick(db, { slug: 'toe_stall',        canonical_name: 'toe stall',        adds: '1', base_trick: 'toe_stall',        trick_family: 'toe_stall',        category: 'compound', notation: 'TOE STALL' });
-  insertFreestyleTrick(db, { slug: 'clipper_stall',    canonical_name: 'clipper stall',    adds: '2', base_trick: 'clipper_stall',    trick_family: 'clipper_stall',    category: 'compound', notation: 'CLIPPER STALL' });
-  insertFreestyleTrick(db, { slug: 'mirage',           canonical_name: 'mirage',           adds: '2', base_trick: 'mirage',           trick_family: 'mirage',           category: 'compound', notation: 'MIRAGE' });
-  insertFreestyleTrick(db, { slug: 'whirl',            canonical_name: 'whirl',            adds: '3', base_trick: 'whirl',            trick_family: 'whirl',            category: 'compound', notation: 'WHIRL' });
-  insertFreestyleTrick(db, { slug: 'butterfly',        canonical_name: 'butterfly',        adds: '3', base_trick: 'butterfly',        trick_family: 'butterfly',        category: 'compound', notation: 'BUTTERFLY' });
-  insertFreestyleTrick(db, { slug: 'swirl',            canonical_name: 'swirl',            adds: '3', base_trick: 'swirl',            trick_family: 'swirl',            category: 'compound', notation: 'SWIRL' });
-  insertFreestyleTrick(db, { slug: 'legover',          canonical_name: 'legover',          adds: '2', base_trick: 'legover',          trick_family: 'legover',          category: 'compound', notation: 'LEGOVER' });
-  insertFreestyleTrick(db, { slug: 'pickup',           canonical_name: 'pickup',           adds: '2', base_trick: 'pickup',           trick_family: 'pickup',           category: 'compound', notation: 'PICKUP' });
-  insertFreestyleTrick(db, { slug: 'illusion',         canonical_name: 'illusion',         adds: '2', base_trick: 'illusion',         trick_family: 'illusion',         category: 'compound', notation: 'ILLUSION' });
-  insertFreestyleTrick(db, { slug: 'around_the_world', canonical_name: 'around the world', adds: '2', base_trick: 'around_the_world', trick_family: 'around_the_world', category: 'compound', notation: 'AROUND THE WORLD' });
+  insertTrickAsRebuilt(db, { slug: 'osis',             canonical_name: 'osis',             adds: '3', base_trick: 'osis',             trick_family: 'osis',             category: 'compound', notation: 'OSIS' });
+  insertTrickAsRebuilt(db, { slug: 'toe_stall',        canonical_name: 'toe stall',        adds: '1', base_trick: 'toe_stall',        trick_family: 'toe_stall',        category: 'compound', notation: 'TOE STALL' });
+  insertTrickAsRebuilt(db, { slug: 'clipper_stall',    canonical_name: 'clipper stall',    adds: '2', base_trick: 'clipper_stall',    trick_family: 'clipper_stall',    category: 'compound', notation: 'CLIPPER STALL' });
+  insertTrickAsRebuilt(db, { slug: 'mirage',           canonical_name: 'mirage',           adds: '2', base_trick: 'mirage',           trick_family: 'mirage',           category: 'compound', notation: 'MIRAGE' });
+  insertTrickAsRebuilt(db, { slug: 'whirl',            canonical_name: 'whirl',            adds: '3', base_trick: 'whirl',            trick_family: 'whirl',            category: 'compound', notation: 'WHIRL' });
+  insertTrickAsRebuilt(db, { slug: 'butterfly',        canonical_name: 'butterfly',        adds: '3', base_trick: 'butterfly',        trick_family: 'butterfly',        category: 'compound', notation: 'BUTTERFLY' });
+  insertTrickAsRebuilt(db, { slug: 'swirl',            canonical_name: 'swirl',            adds: '3', base_trick: 'swirl',            trick_family: 'swirl',            category: 'compound', notation: 'SWIRL' });
+  insertTrickAsRebuilt(db, { slug: 'legover',          canonical_name: 'legover',          adds: '2', base_trick: 'legover',          trick_family: 'legover',          category: 'compound', notation: 'LEGOVER' });
+  insertTrickAsRebuilt(db, { slug: 'pickup',           canonical_name: 'pickup',           adds: '2', base_trick: 'pickup',           trick_family: 'pickup',           category: 'compound', notation: 'PICKUP' });
+  insertTrickAsRebuilt(db, { slug: 'illusion',         canonical_name: 'illusion',         adds: '2', base_trick: 'illusion',         trick_family: 'illusion',         category: 'compound', notation: 'ILLUSION' });
+  insertTrickAsRebuilt(db, { slug: 'around_the_world', canonical_name: 'around the world', adds: '2', base_trick: 'around_the_world', trick_family: 'around_the_world', category: 'compound', notation: 'AROUND THE WORLD' });
   // Tier 1 compound — pendulum is the only first-class compound with
   // curator-authored operational_notation AND a resolved-formula entry.
-  insertFreestyleTrick(db, { slug: 'pendulum',         canonical_name: 'pendulum',         adds: '2', base_trick: 'pendulum',         trick_family: 'pendulum',         category: 'compound', notation: 'PENDULUM', operational_notation: '[DEL] [DEX]' });
+  insertTrickAsRebuilt(db, { slug: 'pendulum',         canonical_name: 'pendulum',         adds: '2', base_trick: 'pendulum',         trick_family: 'pendulum',         category: 'compound', notation: 'PENDULUM', operational_notation: '[DEL] [DEX]' });
 
   // ─── Tier 2: ADD-complete, JOB-pending ───────────────────────────────
   // Compounds with curator-published ADD derivation but no curator
   // operational_notation. Render the ADD breakdown + honest "JOB:
   // canonical decomposition pending" line.
-  insertFreestyleTrick(db, { slug: 'paradox_mirage',          canonical_name: 'paradox mirage',          adds: '3', base_trick: 'mirage',     trick_family: 'mirage',    category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'symposium_mirage',        canonical_name: 'symposium mirage',        adds: '3', base_trick: 'mirage',     trick_family: 'mirage',    category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'atomic_butterfly',        canonical_name: 'atomic butterfly',        adds: '4', base_trick: 'butterfly',  trick_family: 'butterfly', category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'ripwalk',                 canonical_name: 'ripwalk',                 adds: '4', base_trick: 'butterfly',  trick_family: 'butterfly', category: 'compound', notation: 'STEPPING BUTTERFLY' });
-  insertFreestyleTrick(db, { slug: 'ducking_butterfly',       canonical_name: 'ducking butterfly',       adds: '4', base_trick: 'butterfly',  trick_family: 'butterfly', category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'spinning_butterfly',      canonical_name: 'spinning butterfly',      adds: '4', base_trick: 'butterfly',  trick_family: 'butterfly', category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'stepping_osis',           canonical_name: 'stepping osis',           adds: '4', base_trick: 'osis',       trick_family: 'osis',      category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'eggbeater',               canonical_name: 'eggbeater',               adds: '3', base_trick: 'legover',    trick_family: 'legover',   category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'paradox_symposium_whirl', canonical_name: 'paradox symposium whirl', adds: '5', base_trick: 'whirl',      trick_family: 'whirl',     category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'paradox_mirage',          canonical_name: 'paradox mirage',          adds: '3', base_trick: 'mirage',     trick_family: 'mirage',    category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'symposium_mirage',        canonical_name: 'symposium mirage',        adds: '3', base_trick: 'mirage',     trick_family: 'mirage',    category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'atomic_butterfly',        canonical_name: 'atomic butterfly',        adds: '4', base_trick: 'butterfly',  trick_family: 'butterfly', category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'ripwalk',                 canonical_name: 'ripwalk',                 adds: '4', base_trick: 'butterfly',  trick_family: 'butterfly', category: 'compound', notation: 'STEPPING BUTTERFLY' });
+  insertTrickAsRebuilt(db, { slug: 'ducking_butterfly',       canonical_name: 'ducking butterfly',       adds: '4', base_trick: 'butterfly',  trick_family: 'butterfly', category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'spinning_butterfly',      canonical_name: 'spinning butterfly',      adds: '4', base_trick: 'butterfly',  trick_family: 'butterfly', category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'stepping_osis',           canonical_name: 'stepping osis',           adds: '4', base_trick: 'osis',       trick_family: 'osis',      category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'eggbeater',               canonical_name: 'eggbeater',               adds: '3', base_trick: 'legover',    trick_family: 'legover',   category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'paradox_symposium_whirl', canonical_name: 'paradox symposium whirl', adds: '5', base_trick: 'whirl',      trick_family: 'whirl',     category: 'compound' });
 
   // ─── Tier 2: audit-derived promotions ────────────────────────────────
-  // Mechanical modifier × base derivations; ADD curator-locked via
-  // RESOLVED_ADD_FORMULAS, JOB chain pending upstream.
-  insertFreestyleTrick(db, { slug: 'atomic_torque',   canonical_name: 'atomic torque',   adds: '6', base_trick: 'torque',  trick_family: 'torque',  category: 'compound', notation: 'ATOMIC TORQUE' });
-  insertFreestyleTrick(db, { slug: 'ducking_mirage',  canonical_name: 'ducking mirage',  adds: '3', base_trick: 'mirage',  trick_family: 'mirage',  category: 'compound', notation: 'DUCKING MIRAGE' });
-  insertFreestyleTrick(db, { slug: 'paradox_drifter', canonical_name: 'paradox drifter', adds: '4', base_trick: 'drifter', trick_family: 'drifter', category: 'compound', notation: 'PARADOX DRIFTER' });
-  insertFreestyleTrick(db, { slug: 'spinning_pickup', canonical_name: 'spinning pickup', adds: '3', base_trick: 'pickup',  trick_family: 'pickup',  category: 'compound', notation: 'SPINNING PICKUP' });
-  insertFreestyleTrick(db, { slug: 'tapping_whirl',   canonical_name: 'tapping whirl',   adds: '4', base_trick: 'whirl',   trick_family: 'whirl',   category: 'compound', notation: 'TAPPING WHIRL' });
+  // Mechanical modifier × base derivations; ADD curator-locked by the
+  // row's curator formula, JOB chain pending upstream.
+  insertTrickAsRebuilt(db, { slug: 'atomic_torque',   canonical_name: 'atomic torque',   adds: '6', base_trick: 'torque',  trick_family: 'torque',  category: 'compound', notation: 'ATOMIC TORQUE' });
+  insertTrickAsRebuilt(db, { slug: 'ducking_mirage',  canonical_name: 'ducking mirage',  adds: '3', base_trick: 'mirage',  trick_family: 'mirage',  category: 'compound', notation: 'DUCKING MIRAGE' });
+  insertTrickAsRebuilt(db, { slug: 'paradox_drifter', canonical_name: 'paradox drifter', adds: '4', base_trick: 'drifter', trick_family: 'drifter', category: 'compound', notation: 'PARADOX DRIFTER' });
+  insertTrickAsRebuilt(db, { slug: 'spinning_pickup', canonical_name: 'spinning pickup', adds: '3', base_trick: 'pickup',  trick_family: 'pickup',  category: 'compound', notation: 'SPINNING PICKUP' });
+  insertTrickAsRebuilt(db, { slug: 'tapping_whirl',   canonical_name: 'tapping whirl',   adds: '4', base_trick: 'whirl',   trick_family: 'whirl',   category: 'compound', notation: 'TAPPING WHIRL' });
 
   // ─── Tier 2: RESOLVED_FORMULAS promotions. 19 slugs already carrying
   // curator-published derivations; promotion is mechanical (set membership).
-  insertFreestyleTrick(db, { slug: 'atom_smasher',     canonical_name: 'atom smasher',     adds: '4', base_trick: 'mirage',          trick_family: 'mirage',          category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'dimwalk',          canonical_name: 'dimwalk',          adds: '4', base_trick: 'butterfly',       trick_family: 'butterfly',       category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'ducking_clipper',  canonical_name: 'ducking clipper',  adds: '3', base_trick: 'clipper_stall',   trick_family: 'clipper_stall',   category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'ducking_osis',     canonical_name: 'ducking osis',     adds: '4', base_trick: 'osis',            trick_family: 'osis',            category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'ducking_whirl',    canonical_name: 'ducking whirl',    adds: '4', base_trick: 'whirl',           trick_family: 'whirl',           category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'fog',              canonical_name: 'fog',              adds: '5', base_trick: 'double_leg_over', trick_family: 'double_leg_over', category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'orbit',            canonical_name: 'orbit',            adds: '2', base_trick: 'orbit',           trick_family: 'orbit',           category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'paradox_blender',  canonical_name: 'paradox blender',  adds: '5', base_trick: 'blender',         trick_family: 'blender',         category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'paradox_torque',   canonical_name: 'paradox torque',   adds: '5', base_trick: 'torque',          trick_family: 'torque',          category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'rake',             canonical_name: 'rake',             adds: '2', base_trick: 'rake',            trick_family: 'rake',            category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'rev_up',           canonical_name: 'rev up',           adds: '3', base_trick: 'whirl',           trick_family: 'whirl',           category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'rev_whirl',        canonical_name: 'rev whirl',        adds: '3', base_trick: 'whirl',           trick_family: 'whirl',           category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'smear',            canonical_name: 'smear',            adds: '3', base_trick: 'mirage',          trick_family: 'mirage',          category: 'compound', notation: 'PIXIE MIRAGE' });
-  insertFreestyleTrick(db, { slug: 'spinning_clipper', canonical_name: 'spinning clipper', adds: '3', base_trick: 'clipper_stall',   trick_family: 'clipper_stall',   category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'spinning_osis',    canonical_name: 'spinning osis',    adds: '4', base_trick: 'osis',            trick_family: 'osis',            category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'spinning_torque',  canonical_name: 'spinning torque',  adds: '5', base_trick: 'torque',          trick_family: 'torque',          category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'stepping_whirl',   canonical_name: 'stepping whirl',   adds: '4', base_trick: 'whirl',           trick_family: 'whirl',           category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'symposium_whirl',  canonical_name: 'symposium whirl',  adds: '4', base_trick: 'whirl',           trick_family: 'whirl',           category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'whirling_swirl',   canonical_name: 'whirling swirl',   adds: '4', base_trick: 'swirl',           trick_family: 'swirl',           category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'atom_smasher',     canonical_name: 'atom smasher',     adds: '4', base_trick: 'mirage',          trick_family: 'mirage',          category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'dimwalk',          canonical_name: 'dimwalk',          adds: '4', base_trick: 'butterfly',       trick_family: 'butterfly',       category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'ducking_clipper',  canonical_name: 'ducking clipper',  adds: '3', base_trick: 'clipper_stall',   trick_family: 'clipper_stall',   category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'ducking_osis',     canonical_name: 'ducking osis',     adds: '4', base_trick: 'osis',            trick_family: 'osis',            category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'ducking_whirl',    canonical_name: 'ducking whirl',    adds: '4', base_trick: 'whirl',           trick_family: 'whirl',           category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'fog',              canonical_name: 'fog',              adds: '5', base_trick: 'double_leg_over', trick_family: 'double_leg_over', category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'orbit',            canonical_name: 'orbit',            adds: '2', base_trick: 'orbit',           trick_family: 'orbit',           category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'paradox_blender',  canonical_name: 'paradox blender',  adds: '5', base_trick: 'blender',         trick_family: 'blender',         category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'paradox_torque',   canonical_name: 'paradox torque',   adds: '5', base_trick: 'torque',          trick_family: 'torque',          category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'rake',             canonical_name: 'rake',             adds: '2', base_trick: 'rake',            trick_family: 'rake',            category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'rev_up',           canonical_name: 'rev up',           adds: '3', base_trick: 'whirl',           trick_family: 'whirl',           category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'rev_whirl',        canonical_name: 'rev whirl',        adds: '3', base_trick: 'whirl',           trick_family: 'whirl',           category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'smear',            canonical_name: 'smear',            adds: '3', base_trick: 'mirage',          trick_family: 'mirage',          category: 'compound', notation: 'PIXIE MIRAGE' });
+  insertTrickAsRebuilt(db, { slug: 'spinning_clipper', canonical_name: 'spinning clipper', adds: '3', base_trick: 'clipper_stall',   trick_family: 'clipper_stall',   category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'spinning_osis',    canonical_name: 'spinning osis',    adds: '4', base_trick: 'osis',            trick_family: 'osis',            category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'spinning_torque',  canonical_name: 'spinning torque',  adds: '5', base_trick: 'torque',          trick_family: 'torque',          category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'stepping_whirl',   canonical_name: 'stepping whirl',   adds: '4', base_trick: 'whirl',           trick_family: 'whirl',           category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'symposium_whirl',  canonical_name: 'symposium whirl',  adds: '4', base_trick: 'whirl',           trick_family: 'whirl',           category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'whirling_swirl',   canonical_name: 'whirling swirl',   adds: '4', base_trick: 'swirl',           trick_family: 'swirl',           category: 'compound' });
 
   // ─── Tier 2: 28 audit-validated promotions ───────────────────────────
   // 6 via ATAM bracket-flag decomposition; 22 via parser-derived
   // modifier × base (including composite witchdoctor). All converge
   // with official ADD.
-  insertFreestyleTrick(db, { slug: 'squeeze',                  canonical_name: 'squeeze',                  adds: '2', base_trick: 'squeeze',                  trick_family: 'squeeze',                  category: 'compound', notation: 'SQUEEZE',                          operational_notation: '[UNS] [DEL]' });
-  insertFreestyleTrick(db, { slug: 'barrage',                  canonical_name: 'barrage',                  adds: '3', base_trick: 'barrage',                  trick_family: 'barrage',                  category: 'compound', operational_notation: 'CLIP > SAME IN [DEX] > SAME IN [DEX] > OP TOE [DEL]' });
-  insertFreestyleTrick(db, { slug: 'barfly',                   canonical_name: 'barfly',                   adds: '4', base_trick: 'barfly',                   trick_family: 'barfly',                   category: 'compound', notation: 'BARFLY',                           operational_notation: 'CLIP >> SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [DEL] [XBD]' });
-  insertFreestyleTrick(db, { slug: 'high_plains_drifter',      canonical_name: 'high-plains-drifter',      adds: '4', base_trick: 'clipper_stall',            trick_family: 'clipper_stall',            category: 'compound', operational_notation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > SAME CLIP [XBD] [DEL]' });
-  insertFreestyleTrick(db, { slug: 'paradon',                  canonical_name: 'paradon',                  adds: '4', base_trick: 'paradon',                  trick_family: 'paradon',                  category: 'compound', operational_notation: 'TOE > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]' });
-  insertFreestyleTrick(db, { slug: 'furious_osis',           canonical_name: 'furious osis',           adds: '5', base_trick: 'osis',                     trick_family: 'osis',                     category: 'compound', operational_notation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]' });
-  insertFreestyleTrick(db, { slug: 'cross_body_sole_stall',    canonical_name: 'cross-body sole stall',    adds: '3', base_trick: 'cross_body_sole_stall',    trick_family: 'cross_body_sole_stall',    category: 'compound', notation: 'CROSS-BODY SOLE STALL',            operational_notation: '[set] > sole [xbd]' });
-  insertFreestyleTrick(db, { slug: 'legeater',                 canonical_name: 'legeater',                 adds: '3', base_trick: 'pickup',                   trick_family: 'pickup',                   category: 'compound', notation: 'QUANTUM PICKUP' });
-  insertFreestyleTrick(db, { slug: 'paste',                    canonical_name: 'paste',                    adds: '3', base_trick: 'pickup',                   trick_family: 'pickup',                   category: 'compound', notation: 'PIXIE PICKUP' });
-  insertFreestyleTrick(db, { slug: 'reverse_drifter',          canonical_name: 'reverse-drifter',          adds: '3', base_trick: 'reverse_drifter',          trick_family: 'reverse_drifter',          category: 'compound', notation: 'REV DRIFTER' });
-  insertFreestyleTrick(db, { slug: 'scrambled_eggbeater',      canonical_name: 'scrambled eggbeater',      adds: '3', base_trick: 'pickup',                   trick_family: 'pickup',                   category: 'compound', notation: 'ATOMIC PICKUP' });
-  insertFreestyleTrick(db, { slug: 'tap',                      canonical_name: 'tap',                      adds: '3', base_trick: 'mirage',                   trick_family: 'mirage',                   category: 'compound', notation: 'TAPPING MIRAGE' });
-  insertFreestyleTrick(db, { slug: 'blur',                     canonical_name: 'blur',                     adds: '4', base_trick: 'mirage',                   trick_family: 'mirage',                   category: 'compound', notation: 'STEPPING PARADOX MIRAGE' });
-  insertFreestyleTrick(db, { slug: 'hatchet',                  canonical_name: 'hatchet',                  adds: '4', base_trick: 'whirl',                    trick_family: 'whirl',                    category: 'compound', notation: 'DIVING WHIRL' });
-  insertFreestyleTrick(db, { slug: 'paradox_whirl',            canonical_name: 'paradox whirl',            adds: '4', base_trick: 'whirl',                    trick_family: 'whirl',                    category: 'compound', notation: 'PARADOX WHIRL' });
-  insertFreestyleTrick(db, { slug: 'pigbeater',                canonical_name: 'pigbeater',                adds: '4', base_trick: 'eggbeater',                trick_family: 'eggbeater',                category: 'compound', notation: 'PIXIE EGGBEATER' });
-  insertFreestyleTrick(db, { slug: 'spinning_whirl',           canonical_name: 'spinning whirl',           adds: '4', base_trick: 'whirl',                    trick_family: 'whirl',                    category: 'compound', notation: 'SPINNING WHIRL' });
-  insertFreestyleTrick(db, { slug: 'tripwalk',                 canonical_name: 'tripwalk',                 adds: '4', base_trick: 'butterfly',                trick_family: 'butterfly',                category: 'compound', notation: 'QUANTUM BUTTERFLY' });
-  insertFreestyleTrick(db, { slug: 'matador',                  canonical_name: 'matador',                  adds: '5', base_trick: 'butterfly',                trick_family: 'butterfly',                category: 'compound', notation: 'NUCLEAR BUTTERFLY' });
-  insertFreestyleTrick(db, { slug: 'phoenix',                  canonical_name: 'phoenix',                  adds: '5', base_trick: 'butterfly',                trick_family: 'butterfly',                category: 'compound', notation: 'PIXIE DUCKING BUTTERFLY' });
-  insertFreestyleTrick(db, { slug: 'spinal_tap',               canonical_name: 'spinal tap',               adds: '5', base_trick: 'torque',                   trick_family: 'torque',                   category: 'compound', notation: 'TAPPING TORQUE' });
-  insertFreestyleTrick(db, { slug: 'spinning_symposium_whirl', canonical_name: 'spinning symposium whirl', adds: '5', base_trick: 'whirl',                    trick_family: 'whirl',                    category: 'compound', notation: 'SPINNING SYMPOSIUM WHIRL' });
-  insertFreestyleTrick(db, { slug: 'witchdoctor',              canonical_name: 'witchdoctor',              adds: '5', base_trick: 'mirage',                   trick_family: 'mirage',                   category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'mind_bender',              canonical_name: 'mind bender',              adds: '6', base_trick: 'blender',                  trick_family: 'blender',                  category: 'compound', notation: 'DUCKING PARADOX BLENDER' });
-  insertFreestyleTrick(db, { slug: 'mullet',                   canonical_name: 'mullet',                   adds: '6', base_trick: 'whirl',                    trick_family: 'whirl',                    category: 'compound', notation: 'DUCKING PARADOX SYMPOSIUM WHIRL' });
-  insertFreestyleTrick(db, { slug: 'spender',                  canonical_name: 'spender',                  adds: '6', base_trick: 'blender',                  trick_family: 'blender',                  category: 'compound', notation: 'SPINNING PARADOX BLENDER' });
-  insertFreestyleTrick(db, { slug: 'gauntlet',                 canonical_name: 'gauntlet',                 adds: '7', base_trick: 'torque',                   trick_family: 'torque',                   category: 'compound', notation: 'STEPPING DUCKING PARADOX TORQUE' });
-  insertFreestyleTrick(db, { slug: 'montage',                  canonical_name: 'montage',                  adds: '7', base_trick: 'whirl',                    trick_family: 'whirl',                    category: 'compound', notation: 'SPINNING DUCKING PARADOX SYMPOSIUM WHIRL' });
+  insertTrickAsRebuilt(db, { slug: 'squeeze',                  canonical_name: 'squeeze',                  adds: '2', base_trick: 'squeeze',                  trick_family: 'squeeze',                  category: 'compound', notation: 'SQUEEZE',                          operational_notation: '[UNS] [DEL]' });
+  insertTrickAsRebuilt(db, { slug: 'barrage',                  canonical_name: 'barrage',                  adds: '3', base_trick: 'barrage',                  trick_family: 'barrage',                  category: 'compound', operational_notation: 'CLIP > SAME IN [DEX] > SAME IN [DEX] > OP TOE [DEL]' });
+  insertTrickAsRebuilt(db, { slug: 'barfly',                   canonical_name: 'barfly',                   adds: '4', base_trick: 'barfly',                   trick_family: 'barfly',                   category: 'compound', notation: 'BARFLY',                           operational_notation: 'CLIP >> SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [DEL] [XBD]' });
+  insertTrickAsRebuilt(db, { slug: 'high_plains_drifter',      canonical_name: 'high-plains-drifter',      adds: '4', base_trick: 'clipper_stall',            trick_family: 'clipper_stall',            category: 'compound', operational_notation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > SAME CLIP [XBD] [DEL]' });
+  insertTrickAsRebuilt(db, { slug: 'paradon',                  canonical_name: 'paradon',                  adds: '4', base_trick: 'paradon',                  trick_family: 'paradon',                  category: 'compound', operational_notation: 'TOE > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]' });
+  insertTrickAsRebuilt(db, { slug: 'furious_osis',           canonical_name: 'furious osis',           adds: '5', base_trick: 'osis',                     trick_family: 'osis',                     category: 'compound', operational_notation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]' });
+  insertTrickAsRebuilt(db, { slug: 'cross_body_sole_stall',    canonical_name: 'cross-body sole stall',    adds: '3', base_trick: 'cross_body_sole_stall',    trick_family: 'cross_body_sole_stall',    category: 'compound', notation: 'CROSS-BODY SOLE STALL',            operational_notation: '[set] > sole [xbd]' });
+  insertTrickAsRebuilt(db, { slug: 'legeater',                 canonical_name: 'legeater',                 adds: '3', base_trick: 'pickup',                   trick_family: 'pickup',                   category: 'compound', notation: 'QUANTUM PICKUP' });
+  insertTrickAsRebuilt(db, { slug: 'paste',                    canonical_name: 'paste',                    adds: '3', base_trick: 'pickup',                   trick_family: 'pickup',                   category: 'compound', notation: 'PIXIE PICKUP' });
+  insertTrickAsRebuilt(db, { slug: 'reverse_drifter',          canonical_name: 'reverse-drifter',          adds: '3', base_trick: 'reverse_drifter',          trick_family: 'reverse_drifter',          category: 'compound', notation: 'REV DRIFTER' });
+  insertTrickAsRebuilt(db, { slug: 'scrambled_eggbeater',      canonical_name: 'scrambled eggbeater',      adds: '3', base_trick: 'pickup',                   trick_family: 'pickup',                   category: 'compound', notation: 'ATOMIC PICKUP' });
+  insertTrickAsRebuilt(db, { slug: 'tap',                      canonical_name: 'tap',                      adds: '3', base_trick: 'mirage',                   trick_family: 'mirage',                   category: 'compound', notation: 'TAPPING MIRAGE' });
+  insertTrickAsRebuilt(db, { slug: 'blur',                     canonical_name: 'blur',                     adds: '4', base_trick: 'mirage',                   trick_family: 'mirage',                   category: 'compound', notation: 'STEPPING PARADOX MIRAGE' });
+  insertTrickAsRebuilt(db, { slug: 'hatchet',                  canonical_name: 'hatchet',                  adds: '4', base_trick: 'whirl',                    trick_family: 'whirl',                    category: 'compound', notation: 'DIVING WHIRL' });
+  insertTrickAsRebuilt(db, { slug: 'paradox_whirl',            canonical_name: 'paradox whirl',            adds: '4', base_trick: 'whirl',                    trick_family: 'whirl',                    category: 'compound', notation: 'PARADOX WHIRL' });
+  insertTrickAsRebuilt(db, { slug: 'pigbeater',                canonical_name: 'pigbeater',                adds: '4', base_trick: 'eggbeater',                trick_family: 'eggbeater',                category: 'compound', notation: 'PIXIE EGGBEATER' });
+  insertTrickAsRebuilt(db, { slug: 'spinning_whirl',           canonical_name: 'spinning whirl',           adds: '4', base_trick: 'whirl',                    trick_family: 'whirl',                    category: 'compound', notation: 'SPINNING WHIRL' });
+  insertTrickAsRebuilt(db, { slug: 'tripwalk',                 canonical_name: 'tripwalk',                 adds: '4', base_trick: 'butterfly',                trick_family: 'butterfly',                category: 'compound', notation: 'QUANTUM BUTTERFLY' });
+  insertTrickAsRebuilt(db, { slug: 'matador',                  canonical_name: 'matador',                  adds: '5', base_trick: 'butterfly',                trick_family: 'butterfly',                category: 'compound', notation: 'NUCLEAR BUTTERFLY' });
+  insertTrickAsRebuilt(db, { slug: 'phoenix',                  canonical_name: 'phoenix',                  adds: '5', base_trick: 'butterfly',                trick_family: 'butterfly',                category: 'compound', notation: 'PIXIE DUCKING BUTTERFLY' });
+  insertTrickAsRebuilt(db, { slug: 'spinal_tap',               canonical_name: 'spinal tap',               adds: '5', base_trick: 'torque',                   trick_family: 'torque',                   category: 'compound', notation: 'TAPPING TORQUE' });
+  insertTrickAsRebuilt(db, { slug: 'spinning_symposium_whirl', canonical_name: 'spinning symposium whirl', adds: '5', base_trick: 'whirl',                    trick_family: 'whirl',                    category: 'compound', notation: 'SPINNING SYMPOSIUM WHIRL' });
+  insertTrickAsRebuilt(db, { slug: 'witchdoctor',              canonical_name: 'witchdoctor',              adds: '5', base_trick: 'mirage',                   trick_family: 'mirage',                   category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'mind_bender',              canonical_name: 'mind bender',              adds: '6', base_trick: 'blender',                  trick_family: 'blender',                  category: 'compound', notation: 'DUCKING PARADOX BLENDER' });
+  insertTrickAsRebuilt(db, { slug: 'mullet',                   canonical_name: 'mullet',                   adds: '6', base_trick: 'whirl',                    trick_family: 'whirl',                    category: 'compound', notation: 'DUCKING PARADOX SYMPOSIUM WHIRL' });
+  insertTrickAsRebuilt(db, { slug: 'spender',                  canonical_name: 'spender',                  adds: '6', base_trick: 'blender',                  trick_family: 'blender',                  category: 'compound', notation: 'SPINNING PARADOX BLENDER' });
+  insertTrickAsRebuilt(db, { slug: 'gauntlet',                 canonical_name: 'gauntlet',                 adds: '7', base_trick: 'torque',                   trick_family: 'torque',                   category: 'compound', notation: 'STEPPING DUCKING PARADOX TORQUE' });
+  insertTrickAsRebuilt(db, { slug: 'montage',                  canonical_name: 'montage',                  adds: '7', base_trick: 'whirl',                    trick_family: 'whirl',                    category: 'compound', notation: 'SPINNING DUCKING PARADOX SYMPOSIUM WHIRL' });
 
   // ─── Tier 2: mechanical notation back-fill promotions. 18 ordinary
   // modifier+base compounds + 1 foundational primitive (sole-stall via
   // ATOMIC). All derive cleanly via standard modifier × base ADD math;
   // the notation column is populated.
-  insertFreestyleTrick(db, { slug: 'flail',        canonical_name: 'flail',        adds: '3', base_trick: 'illusion',        trick_family: 'illusion',        category: 'compound', notation: 'SYMPOSIUM ILLUSION' });
-  insertFreestyleTrick(db, { slug: 'magellan',     canonical_name: 'magellan',     adds: '3', base_trick: 'legover',         trick_family: 'legover',         category: 'compound', notation: 'PIXIE LEGOVER' });
-  insertFreestyleTrick(db, { slug: 'merkon',       canonical_name: 'merkon',       adds: '3', base_trick: 'legover',         trick_family: 'legover',         category: 'compound', notation: 'SPINNING LEGOVER' });
-  insertFreestyleTrick(db, { slug: 'smudge',       canonical_name: 'smudge',       adds: '3', base_trick: 'illusion',        trick_family: 'illusion',        category: 'compound', notation: 'PIXIE ILLUSION' });
-  insertFreestyleTrick(db, { slug: 'assassin',     canonical_name: 'assassin',     adds: '4', base_trick: 'mirage',          trick_family: 'mirage',          category: 'compound', notation: 'PIXIE DUCKING MIRAGE' });
-  insertFreestyleTrick(db, { slug: 'haze',         canonical_name: 'haze',         adds: '4', base_trick: 'double_leg_over', trick_family: 'double_leg_over', category: 'compound', notation: 'STEPPING DLO' });
-  insertFreestyleTrick(db, { slug: 'mantis',       canonical_name: 'mantis',       adds: '4', base_trick: 'eggbeater',       trick_family: 'eggbeater',       category: 'compound', notation: 'GYRO EGGBEATER' });
-  insertFreestyleTrick(db, { slug: 'nova',         canonical_name: 'nova',         adds: '4', base_trick: 'double_leg_over', trick_family: 'double_leg_over', category: 'compound', notation: 'SYMPOSIUM DLO' });
-  insertFreestyleTrick(db, { slug: 'parkwalk',     canonical_name: 'parkwalk',     adds: '4', base_trick: 'butterfly',       trick_family: 'butterfly',       category: 'compound', notation: 'PIXIE BUTTERFLY' });
-  insertFreestyleTrick(db, { slug: 'royale',       canonical_name: 'royale',       adds: '4', base_trick: 'reverse_drifter', trick_family: 'reverse_drifter', category: 'compound', notation: 'PARADOX REVERSE DRIFTER' });
-  insertFreestyleTrick(db, { slug: 'smog',         canonical_name: 'smog',         adds: '4', base_trick: 'double_leg_over', trick_family: 'double_leg_over', category: 'compound', notation: 'PIXIE DLO' });
-  insertFreestyleTrick(db, { slug: 'smoke',        canonical_name: 'smoke',        adds: '4', base_trick: 'drifter',         trick_family: 'drifter',         category: 'compound', notation: 'PIXIE DRIFTER' });
-  insertFreestyleTrick(db, { slug: 'tapdown',      canonical_name: 'tapdown',      adds: '4', base_trick: 'butterfly',       trick_family: 'butterfly',       category: 'compound', notation: 'TAPPING BUTTERFLY' });
-  insertFreestyleTrick(db, { slug: 'tombstone',    canonical_name: 'tombstone',    adds: '4', base_trick: 'drifter',         trick_family: 'drifter',         category: 'compound', notation: 'STEPPING DRIFTER' });
-  insertFreestyleTrick(db, { slug: 'blurriest',    canonical_name: 'blurriest',    adds: '5', base_trick: 'barfly',          trick_family: 'barfly',          category: 'compound', notation: 'BLURRY BARFLY' });
-  insertFreestyleTrick(db, { slug: 'grave_digger', canonical_name: 'grave digger', adds: '5', base_trick: 'torque',          trick_family: 'torque',          category: 'compound', notation: 'STEPPING TORQUE' });
-  insertFreestyleTrick(db, { slug: 'tomahawk',     canonical_name: 'tomahawk',     adds: '5', base_trick: 'whirl',           trick_family: 'whirl',           category: 'compound', notation: 'DUCKING PARADOX WHIRL' });
-  insertFreestyleTrick(db, { slug: 'big_apple',    canonical_name: 'big apple',    adds: '6', base_trick: 'torque',          trick_family: 'torque',          category: 'compound', notation: 'GYRO SYMPOSIUM TORQUE' });
-  insertFreestyleTrick(db, { slug: 'sole_stall',   canonical_name: 'sole stall',   adds: '2', base_trick: 'sole_stall',      trick_family: 'sole_stall',      category: 'surface',  notation: 'SOLE STALL', operational_notation: '[set] > sole' });
+  insertTrickAsRebuilt(db, { slug: 'flail',        canonical_name: 'flail',        adds: '3', base_trick: 'illusion',        trick_family: 'illusion',        category: 'compound', notation: 'SYMPOSIUM ILLUSION' });
+  insertTrickAsRebuilt(db, { slug: 'magellan',     canonical_name: 'magellan',     adds: '3', base_trick: 'legover',         trick_family: 'legover',         category: 'compound', notation: 'PIXIE LEGOVER' });
+  insertTrickAsRebuilt(db, { slug: 'merkon',       canonical_name: 'merkon',       adds: '3', base_trick: 'legover',         trick_family: 'legover',         category: 'compound', notation: 'SPINNING LEGOVER' });
+  insertTrickAsRebuilt(db, { slug: 'smudge',       canonical_name: 'smudge',       adds: '3', base_trick: 'illusion',        trick_family: 'illusion',        category: 'compound', notation: 'PIXIE ILLUSION' });
+  insertTrickAsRebuilt(db, { slug: 'assassin',     canonical_name: 'assassin',     adds: '4', base_trick: 'mirage',          trick_family: 'mirage',          category: 'compound', notation: 'PIXIE DUCKING MIRAGE' });
+  insertTrickAsRebuilt(db, { slug: 'haze',         canonical_name: 'haze',         adds: '4', base_trick: 'double_leg_over', trick_family: 'double_leg_over', category: 'compound', notation: 'STEPPING DLO' });
+  insertTrickAsRebuilt(db, { slug: 'mantis',       canonical_name: 'mantis',       adds: '4', base_trick: 'eggbeater',       trick_family: 'eggbeater',       category: 'compound', notation: 'GYRO EGGBEATER' });
+  insertTrickAsRebuilt(db, { slug: 'nova',         canonical_name: 'nova',         adds: '4', base_trick: 'double_leg_over', trick_family: 'double_leg_over', category: 'compound', notation: 'SYMPOSIUM DLO' });
+  insertTrickAsRebuilt(db, { slug: 'parkwalk',     canonical_name: 'parkwalk',     adds: '4', base_trick: 'butterfly',       trick_family: 'butterfly',       category: 'compound', notation: 'PIXIE BUTTERFLY' });
+  insertTrickAsRebuilt(db, { slug: 'royale',       canonical_name: 'royale',       adds: '4', base_trick: 'reverse_drifter', trick_family: 'reverse_drifter', category: 'compound', notation: 'PARADOX REVERSE DRIFTER' });
+  insertTrickAsRebuilt(db, { slug: 'smog',         canonical_name: 'smog',         adds: '4', base_trick: 'double_leg_over', trick_family: 'double_leg_over', category: 'compound', notation: 'PIXIE DLO' });
+  insertTrickAsRebuilt(db, { slug: 'smoke',        canonical_name: 'smoke',        adds: '4', base_trick: 'drifter',         trick_family: 'drifter',         category: 'compound', notation: 'PIXIE DRIFTER' });
+  insertTrickAsRebuilt(db, { slug: 'tapdown',      canonical_name: 'tapdown',      adds: '4', base_trick: 'butterfly',       trick_family: 'butterfly',       category: 'compound', notation: 'TAPPING BUTTERFLY' });
+  insertTrickAsRebuilt(db, { slug: 'tombstone',    canonical_name: 'tombstone',    adds: '4', base_trick: 'drifter',         trick_family: 'drifter',         category: 'compound', notation: 'STEPPING DRIFTER' });
+  insertTrickAsRebuilt(db, { slug: 'blurriest',    canonical_name: 'blurriest',    adds: '5', base_trick: 'barfly',          trick_family: 'barfly',          category: 'compound', notation: 'BLURRY BARFLY' });
+  insertTrickAsRebuilt(db, { slug: 'grave_digger', canonical_name: 'grave digger', adds: '5', base_trick: 'torque',          trick_family: 'torque',          category: 'compound', notation: 'STEPPING TORQUE' });
+  insertTrickAsRebuilt(db, { slug: 'tomahawk',     canonical_name: 'tomahawk',     adds: '5', base_trick: 'whirl',           trick_family: 'whirl',           category: 'compound', notation: 'DUCKING PARADOX WHIRL' });
+  insertTrickAsRebuilt(db, { slug: 'big_apple',    canonical_name: 'big apple',    adds: '6', base_trick: 'torque',          trick_family: 'torque',          category: 'compound', notation: 'GYRO SYMPOSIUM TORQUE' });
+  insertTrickAsRebuilt(db, { slug: 'sole_stall',   canonical_name: 'sole stall',   adds: '2', base_trick: 'sole_stall',      trick_family: 'sole_stall',      category: 'surface',  notation: 'SOLE STALL', operational_notation: '[set] > sole' });
 
   // ─── Tier 2: observational→canonical promotions. 4 PB + 9 FB.org direct
   // + 1 stepwise FB.org (paradox-blizzard via blizzard).
-  insertFreestyleTrick(db, { slug: 'blizzard',                         canonical_name: 'blizzard',                         adds: '3', base_trick: 'illusion',            trick_family: 'illusion',            category: 'compound', notation: 'STEPPING ILLUSION' });
-  insertFreestyleTrick(db, { slug: 'blaze',                            canonical_name: 'blaze',                            adds: '3', base_trick: 'mirage',              trick_family: 'mirage',              category: 'compound', notation: 'WHIRLING MIRAGE' });
-  insertFreestyleTrick(db, { slug: 'bedwetter',                        canonical_name: 'bedwetter',                        adds: '4', base_trick: 'eggbeater',           trick_family: 'eggbeater',           category: 'compound', notation: 'STEPPING EGGBEATER' });
-  insertFreestyleTrick(db, { slug: 'sole_survivor',                    canonical_name: 'sole survivor',                    adds: '5', base_trick: 'whirl',               trick_family: 'whirl',               category: 'compound', notation: 'SPINNING SYMPOSIUM WHIRL' });
-  insertFreestyleTrick(db, { slug: 'spinning_paradox_mirage',          canonical_name: 'spinning paradox mirage',          adds: '4', base_trick: 'mirage',              trick_family: 'mirage',              category: 'compound', notation: 'SPINNING PARADOX MIRAGE' });
-  insertFreestyleTrick(db, { slug: 'spinning_paradox_illusion',        canonical_name: 'spinning paradox illusion',        adds: '4', base_trick: 'illusion',            trick_family: 'illusion',            category: 'compound', notation: 'SPINNING PARADOX ILLUSION' });
-  insertFreestyleTrick(db, { slug: 'spinning_paradox_whirl',           canonical_name: 'spinning paradox whirl',           adds: '5', base_trick: 'whirl',               trick_family: 'whirl',               category: 'compound', notation: 'SPINNING PARADOX WHIRL' });
-  insertFreestyleTrick(db, { slug: 'paradox_double_leg_over',          canonical_name: 'paradox double leg over',          adds: '4', base_trick: 'double_leg_over',     trick_family: 'double_leg_over',     category: 'compound', notation: 'PARADOX DLO' });
-  insertFreestyleTrick(db, { slug: 'paradox_barrage',                  canonical_name: 'paradox barrage',                  adds: '4', base_trick: 'barrage',             trick_family: 'barrage',             category: 'compound', notation: 'PARADOX BARRAGE' });
-  insertFreestyleTrick(db, { slug: 'paradox_symposium_mirage',         canonical_name: 'paradox symposium mirage',         adds: '4', base_trick: 'mirage',              trick_family: 'mirage',              category: 'compound', notation: 'PARADOX SYMPOSIUM MIRAGE' });
-  insertFreestyleTrick(db, { slug: 'paradox_high_plains_drifter',      canonical_name: 'paradox high-plains-drifter',      adds: '5', base_trick: 'high_plains_drifter', trick_family: 'high_plains_drifter', category: 'compound', notation: 'PARADOX HIGH-PLAINS-DRIFTER' });
-  insertFreestyleTrick(db, { slug: 'spinning_paradox_blender',         canonical_name: 'spinning paradox blender',         adds: '6', base_trick: 'blender',             trick_family: 'blender',             category: 'compound', notation: 'SPINNING PARADOX BLENDER' });
-  insertFreestyleTrick(db, { slug: 'stepping_ducking_paradox_blender', canonical_name: 'stepping ducking paradox blender', adds: '7', base_trick: 'blender',             trick_family: 'blender',             category: 'compound', notation: 'STEPPING DUCKING PARADOX BLENDER' });
-  insertFreestyleTrick(db, { slug: 'paradox_blizzard',                 canonical_name: 'paradox blizzard',                 adds: '4', base_trick: 'blizzard',            trick_family: 'blizzard',            category: 'compound', notation: 'PARADOX BLIZZARD' });
+  insertTrickAsRebuilt(db, { slug: 'blizzard',                         canonical_name: 'blizzard',                         adds: '3', base_trick: 'illusion',            trick_family: 'illusion',            category: 'compound', notation: 'STEPPING ILLUSION' });
+  insertTrickAsRebuilt(db, { slug: 'blaze',                            canonical_name: 'blaze',                            adds: '3', base_trick: 'mirage',              trick_family: 'mirage',              category: 'compound', notation: 'WHIRLING MIRAGE' });
+  insertTrickAsRebuilt(db, { slug: 'bedwetter',                        canonical_name: 'bedwetter',                        adds: '4', base_trick: 'eggbeater',           trick_family: 'eggbeater',           category: 'compound', notation: 'STEPPING EGGBEATER' });
+  insertTrickAsRebuilt(db, { slug: 'sole_survivor',                    canonical_name: 'sole survivor',                    adds: '5', base_trick: 'whirl',               trick_family: 'whirl',               category: 'compound', notation: 'SPINNING SYMPOSIUM WHIRL' });
+  insertTrickAsRebuilt(db, { slug: 'spinning_paradox_mirage',          canonical_name: 'spinning paradox mirage',          adds: '4', base_trick: 'mirage',              trick_family: 'mirage',              category: 'compound', notation: 'SPINNING PARADOX MIRAGE' });
+  insertTrickAsRebuilt(db, { slug: 'spinning_paradox_illusion',        canonical_name: 'spinning paradox illusion',        adds: '4', base_trick: 'illusion',            trick_family: 'illusion',            category: 'compound', notation: 'SPINNING PARADOX ILLUSION' });
+  insertTrickAsRebuilt(db, { slug: 'spinning_paradox_whirl',           canonical_name: 'spinning paradox whirl',           adds: '5', base_trick: 'whirl',               trick_family: 'whirl',               category: 'compound', notation: 'SPINNING PARADOX WHIRL' });
+  insertTrickAsRebuilt(db, { slug: 'paradox_double_leg_over',          canonical_name: 'paradox double leg over',          adds: '4', base_trick: 'double_leg_over',     trick_family: 'double_leg_over',     category: 'compound', notation: 'PARADOX DLO' });
+  insertTrickAsRebuilt(db, { slug: 'paradox_barrage',                  canonical_name: 'paradox barrage',                  adds: '4', base_trick: 'barrage',             trick_family: 'barrage',             category: 'compound', notation: 'PARADOX BARRAGE' });
+  insertTrickAsRebuilt(db, { slug: 'paradox_symposium_mirage',         canonical_name: 'paradox symposium mirage',         adds: '4', base_trick: 'mirage',              trick_family: 'mirage',              category: 'compound', notation: 'PARADOX SYMPOSIUM MIRAGE' });
+  insertTrickAsRebuilt(db, { slug: 'paradox_high_plains_drifter',      canonical_name: 'paradox high-plains-drifter',      adds: '5', base_trick: 'high_plains_drifter', trick_family: 'high_plains_drifter', category: 'compound', notation: 'PARADOX HIGH-PLAINS-DRIFTER' });
+  insertTrickAsRebuilt(db, { slug: 'spinning_paradox_blender',         canonical_name: 'spinning paradox blender',         adds: '6', base_trick: 'blender',             trick_family: 'blender',             category: 'compound', notation: 'SPINNING PARADOX BLENDER' });
+  insertTrickAsRebuilt(db, { slug: 'stepping_ducking_paradox_blender', canonical_name: 'stepping ducking paradox blender', adds: '7', base_trick: 'blender',             trick_family: 'blender',             category: 'compound', notation: 'STEPPING DUCKING PARADOX BLENDER' });
+  insertTrickAsRebuilt(db, { slug: 'paradox_blizzard',                 canonical_name: 'paradox blizzard',                 adds: '4', base_trick: 'blizzard',            trick_family: 'blizzard',            category: 'compound', notation: 'PARADOX BLIZZARD' });
 
   // ─── Tier 2: doctrine-divergence pilot.
   // Three rows with PB-vs-IFPA gap=1; published with IFPA-canonical
-  // ADD; divergence documented in DOCTRINE_DIVERGENCE_REGISTRY.
-  insertFreestyleTrick(db, { slug: 'blurrage', canonical_name: 'blurrage', adds: '4', base_trick: 'barrage',         trick_family: 'barrage',         category: 'compound', notation: 'STEPPING BARRAGE' });
-  insertFreestyleTrick(db, { slug: 'predator', canonical_name: 'predator', adds: '4', base_trick: 'double_leg_over', trick_family: 'double_leg_over', category: 'compound', notation: 'ATOMIC DLO' });
-  insertFreestyleTrick(db, { slug: 'schmoe',   canonical_name: 'schmoe',   adds: '3', base_trick: 'legover',         trick_family: 'legover',         category: 'compound', notation: 'STEPPING LEGOVER' });
+  // ADD.
+  insertTrickAsRebuilt(db, { slug: 'blurrage', canonical_name: 'blurrage', adds: '4', base_trick: 'barrage',         trick_family: 'barrage',         category: 'compound', notation: 'STEPPING BARRAGE' });
+  insertTrickAsRebuilt(db, { slug: 'predator', canonical_name: 'predator', adds: '4', base_trick: 'double_leg_over', trick_family: 'double_leg_over', category: 'compound', notation: 'ATOMIC DLO' });
+  insertTrickAsRebuilt(db, { slug: 'schmoe',   canonical_name: 'schmoe',   adds: '3', base_trick: 'legover',         trick_family: 'legover',         category: 'compound', notation: 'STEPPING LEGOVER' });
 
   // ─── Tier 1: foundational 1-ADD vocabulary ───────────────────────────
   // Anatomical surface stalls + unusual-surface kicks + folk-name surface +
   // flying-operator primitives. Each carries an ATOMIC_FLAG_DECOMPOSITIONS
   // entry (provides chain + ADD breakdown) and curator-locked notation
   // (passes H2 + H4 of assertFirstClassConvergence).
-  insertFreestyleTrick(db, { slug: 'heel_stall',     canonical_name: 'heel stall',     adds: '1', base_trick: 'heel_stall',     trick_family: 'heel_stall',     category: 'surface', notation: 'HEEL STALL',     operational_notation: '[set] > heel' });
-  insertFreestyleTrick(db, { slug: 'inside_stall',   canonical_name: 'inside stall',   adds: '1', base_trick: 'inside_stall',   trick_family: 'inside_stall',   category: 'surface', notation: 'INSIDE STALL',   operational_notation: '[set] > inside' });
-  insertFreestyleTrick(db, { slug: 'outside_stall',  canonical_name: 'outside stall',  adds: '1', base_trick: 'outside_stall',  trick_family: 'outside_stall',  category: 'surface', notation: 'OUTSIDE STALL',  operational_notation: '[set] > outside' });
-  insertFreestyleTrick(db, { slug: 'head_stall',     canonical_name: 'head stall',     adds: '1', base_trick: 'head_stall',     trick_family: 'head_stall',     category: 'surface', notation: 'HEAD STALL',     operational_notation: '[set] > head' });
-  insertFreestyleTrick(db, { slug: 'forehead_stall', canonical_name: 'forehead stall', adds: '1', base_trick: 'forehead_stall', trick_family: 'forehead_stall', category: 'surface', notation: 'FOREHEAD STALL', operational_notation: '[set] > forehead' });
-  insertFreestyleTrick(db, { slug: 'neck_stall',     canonical_name: 'neck stall',     adds: '1', base_trick: 'neck_stall',     trick_family: 'neck_stall',     category: 'surface', notation: 'NECK STALL',     operational_notation: '[set] > neck' });
-  insertFreestyleTrick(db, { slug: 'knee_stall',     canonical_name: 'knee stall',     adds: '1', base_trick: 'knee_stall',     trick_family: 'knee_stall',     category: 'surface', notation: 'KNEE STALL',     operational_notation: '[set] > knee' });
-  insertFreestyleTrick(db, { slug: 'shoulder_stall', canonical_name: 'shoulder stall', adds: '1', base_trick: 'shoulder_stall', trick_family: 'shoulder_stall', category: 'surface', notation: 'SHOULDER STALL', operational_notation: '[set] > shoulder' });
-  insertFreestyleTrick(db, { slug: 'sole_kick',      canonical_name: 'sole kick',      adds: '1', base_trick: 'sole_kick',      trick_family: 'sole_kick',      category: 'body',    notation: 'SOLE KICK',      operational_notation: '[set] > sole kick' });
-  insertFreestyleTrick(db, { slug: 'cloud_kick',     canonical_name: 'cloud kick',     adds: '1', base_trick: 'cloud_kick',     trick_family: 'cloud_kick',     category: 'body',    notation: 'CLOUD KICK',     operational_notation: '[set] > cloud kick' });
-  insertFreestyleTrick(db, { slug: 'peak_stall',     canonical_name: 'peak stall',     adds: '1', base_trick: 'peak_stall',     trick_family: 'peak_stall',     category: 'surface', notation: 'PEAK STALL',     operational_notation: '[set] > peak' });
-  insertFreestyleTrick(db, { slug: 'flying_inside',  canonical_name: 'flying inside',  adds: '1', base_trick: 'flying_inside',  trick_family: 'flying_inside',  category: 'body',    notation: 'FLYING INSIDE',  operational_notation: 'flying > inside' });
-  insertFreestyleTrick(db, { slug: 'flying_outside', canonical_name: 'flying outside', adds: '1', base_trick: 'flying_outside', trick_family: 'flying_outside', category: 'body',    notation: 'FLYING OUTSIDE', operational_notation: 'flying > outside' });
-  insertFreestyleTrick(db, { slug: 'double_knee',    canonical_name: 'double knee',    adds: '1', base_trick: 'double_knee',    trick_family: 'double_knee',    category: 'body',    notation: 'DOUBLE KNEE',    operational_notation: 'double knee' });
+  insertTrickAsRebuilt(db, { slug: 'heel_stall',     canonical_name: 'heel stall',     adds: '1', base_trick: 'heel_stall',     trick_family: 'heel_stall',     category: 'surface', notation: 'HEEL STALL',     operational_notation: '[set] > heel' });
+  insertTrickAsRebuilt(db, { slug: 'inside_stall',   canonical_name: 'inside stall',   adds: '1', base_trick: 'inside_stall',   trick_family: 'inside_stall',   category: 'surface', notation: 'INSIDE STALL',   operational_notation: '[set] > inside' });
+  insertTrickAsRebuilt(db, { slug: 'outside_stall',  canonical_name: 'outside stall',  adds: '1', base_trick: 'outside_stall',  trick_family: 'outside_stall',  category: 'surface', notation: 'OUTSIDE STALL',  operational_notation: '[set] > outside' });
+  insertTrickAsRebuilt(db, { slug: 'head_stall',     canonical_name: 'head stall',     adds: '1', base_trick: 'head_stall',     trick_family: 'head_stall',     category: 'surface', notation: 'HEAD STALL',     operational_notation: '[set] > head' });
+  insertTrickAsRebuilt(db, { slug: 'forehead_stall', canonical_name: 'forehead stall', adds: '1', base_trick: 'forehead_stall', trick_family: 'forehead_stall', category: 'surface', notation: 'FOREHEAD STALL', operational_notation: '[set] > forehead' });
+  insertTrickAsRebuilt(db, { slug: 'neck_stall',     canonical_name: 'neck stall',     adds: '1', base_trick: 'neck_stall',     trick_family: 'neck_stall',     category: 'surface', notation: 'NECK STALL',     operational_notation: '[set] > neck' });
+  insertTrickAsRebuilt(db, { slug: 'knee_stall',     canonical_name: 'knee stall',     adds: '1', base_trick: 'knee_stall',     trick_family: 'knee_stall',     category: 'surface', notation: 'KNEE STALL',     operational_notation: '[set] > knee' });
+  insertTrickAsRebuilt(db, { slug: 'shoulder_stall', canonical_name: 'shoulder stall', adds: '1', base_trick: 'shoulder_stall', trick_family: 'shoulder_stall', category: 'surface', notation: 'SHOULDER STALL', operational_notation: '[set] > shoulder' });
+  insertTrickAsRebuilt(db, { slug: 'sole_kick',      canonical_name: 'sole kick',      adds: '1', base_trick: 'sole_kick',      trick_family: 'sole_kick',      category: 'body',    notation: 'SOLE KICK',      operational_notation: '[set] > sole kick' });
+  insertTrickAsRebuilt(db, { slug: 'cloud_kick',     canonical_name: 'cloud kick',     adds: '1', base_trick: 'cloud_kick',     trick_family: 'cloud_kick',     category: 'body',    notation: 'CLOUD KICK',     operational_notation: '[set] > cloud kick' });
+  insertTrickAsRebuilt(db, { slug: 'peak_stall',     canonical_name: 'peak stall',     adds: '1', base_trick: 'peak_stall',     trick_family: 'peak_stall',     category: 'surface', notation: 'PEAK STALL',     operational_notation: '[set] > peak' });
+  insertTrickAsRebuilt(db, { slug: 'flying_inside',  canonical_name: 'flying inside',  adds: '1', base_trick: 'flying_inside',  trick_family: 'flying_inside',  category: 'body',    notation: 'FLYING INSIDE',  operational_notation: 'flying > inside' });
+  insertTrickAsRebuilt(db, { slug: 'flying_outside', canonical_name: 'flying outside', adds: '1', base_trick: 'flying_outside', trick_family: 'flying_outside', category: 'body',    notation: 'FLYING OUTSIDE', operational_notation: 'flying > outside' });
+  insertTrickAsRebuilt(db, { slug: 'double_knee',    canonical_name: 'double knee',    adds: '1', base_trick: 'double_knee',    trick_family: 'double_knee',    category: 'body',    notation: 'DOUBLE KNEE',    operational_notation: 'double knee' });
 
   // ─── Tier 1: foundational 2-ADD primitives ──────────────────────────
   // Extend the foundational band upward to expose the unusual-surface,
@@ -227,16 +227,16 @@ beforeAll(async () => {
   // the convergence-rule isAtomic gate; card-level first-class rendering
   // is via slug-keyed ATOMIC_FLAG_DECOMPOSITIONS lookup and works
   // regardless.
-  insertFreestyleTrick(db, { slug: 'cloud_stall',    canonical_name: 'cloud stall',    adds: '2', base_trick: 'cloud_stall',    trick_family: 'cloud_stall',    category: 'surface', notation: 'CLOUD STALL',    operational_notation: '[set] > cloud' });
-  insertFreestyleTrick(db, { slug: 'dragonfly_kick', canonical_name: 'dragonfly kick', adds: '2', base_trick: 'dragonfly_kick', trick_family: 'dragonfly_kick', category: 'body',    notation: 'DRAGONFLY KICK', operational_notation: 'flying > dragonfly' });
-  insertFreestyleTrick(db, { slug: 'flying_clipper', canonical_name: 'flying clipper', adds: '2', base_trick: 'clipper',        trick_family: 'clipper',        category: 'body',    notation: 'FLYING CLIPPER', operational_notation: 'flying > clipper' });
+  insertTrickAsRebuilt(db, { slug: 'cloud_stall',    canonical_name: 'cloud stall',    adds: '2', base_trick: 'cloud_stall',    trick_family: 'cloud_stall',    category: 'surface', notation: 'CLOUD STALL',    operational_notation: '[set] > cloud' });
+  insertTrickAsRebuilt(db, { slug: 'dragonfly_kick', canonical_name: 'dragonfly kick', adds: '2', base_trick: 'dragonfly_kick', trick_family: 'dragonfly_kick', category: 'body',    notation: 'DRAGONFLY KICK', operational_notation: 'flying > dragonfly' });
+  insertTrickAsRebuilt(db, { slug: 'flying_clipper', canonical_name: 'flying clipper', adds: '2', base_trick: 'clipper',        trick_family: 'clipper',        category: 'body',    notation: 'FLYING CLIPPER', operational_notation: 'flying > clipper' });
   // Folk-name resolution: knee-clipper is NOT a literal clipper-surface
   // stall (per curator); it's a flying dex knee kick.
   // bod(1) + xbody(1) = 2 ADD via ATOMIC_FLAG_DECOMPOSITIONS.
-  insertFreestyleTrick(db, { slug: 'knee_clipper',  canonical_name: 'knee-clipper',   adds: '2', base_trick: 'knee_clipper',   trick_family: 'knee_clipper',   category: 'body',    notation: 'KNEE-CLIPPER STALL', operational_notation: '[set] > knee-clipper' });
+  insertTrickAsRebuilt(db, { slug: 'knee_clipper',  canonical_name: 'knee-clipper',   adds: '2', base_trick: 'knee_clipper',   trick_family: 'knee_clipper',   category: 'body',    notation: 'KNEE-CLIPPER STALL', operational_notation: '[set] > knee-clipper' });
   // Doctrine-hold release: guay is resolved as a pickup-pattern
   // dex primitive ending in inside-stall. dex(1) + stall(1) = 2 ADD.
-  insertFreestyleTrick(db, { slug: 'guay',          canonical_name: 'guay',           adds: '2', base_trick: 'guay',           trick_family: 'guay',           category: 'dex',     notation: 'GUAY',                operational_notation: '[set] > leggy in dex > ss inside' });
+  insertTrickAsRebuilt(db, { slug: 'guay',          canonical_name: 'guay',           adds: '2', base_trick: 'guay',           trick_family: 'guay',           category: 'dex',     notation: 'GUAY',                operational_notation: '[set] > leggy in dex > ss inside' });
 
   db.close();
   createApp = await importApp();
@@ -323,10 +323,8 @@ describe('First-class rendering parity — tautological-chain suppression', () =
 
 describe('First-class rendering parity — honest incomplete-state', () => {
   // Bucket A backfill:
-  // symposium-mirage and ripwalk were promoted out of the JOB-pending
-  // state when their operationalNotation field was added to
-  // RESOLVED_ADD_FORMULAS. Only paradox-mirage and atomic-butterfly
-  // remain JOB-pending in this cohort.
+  // symposium-mirage and ripwalk carry an execution notation; only
+  // paradox-mirage and atomic-butterfly are JOB-pending in this cohort.
   it.each([
     // The `= N ADD` terminator is not rendered on browse + detail
     // breakdowns; the hero/registry ADD chip carries the total.

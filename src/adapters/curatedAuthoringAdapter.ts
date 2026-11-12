@@ -56,6 +56,11 @@ export const TRICK_SAVE_FIELDS = [
   'trick_kind',
   'terminal_cohort',
   'terminal_cohort_position',
+  'add_derivation',
+  'formula_operator',
+  'expanded_notation',
+  'movement_notation_subtitle',
+  'execution_notation_subtitle',
 ] as const;
 
 export type TrickSaveField = (typeof TRICK_SAVE_FIELDS)[number];

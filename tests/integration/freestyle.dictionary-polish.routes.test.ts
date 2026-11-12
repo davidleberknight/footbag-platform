@@ -17,7 +17,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import { insertFreestyleTrick } from '../fixtures/factories';
+import { insertTrickAsRebuilt } from '../fixtures/stagedFormula';
 
 const { dbPath } = setTestEnv('3184');
 
@@ -27,12 +27,12 @@ beforeAll(async () => {
   const db = createTestDb(dbPath);
 
   // Torque + its osis base so the ADD-view card renders the resolved formula.
-  insertFreestyleTrick(db, { slug: 'osis',   canonical_name: 'osis',   adds: '3', base_trick: 'osis',   trick_family: 'osis',   category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'torque', canonical_name: 'torque', adds: '4', base_trick: 'osis',   trick_family: 'osis',   category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'osis',   canonical_name: 'osis',   adds: '3', base_trick: 'osis',   trick_family: 'osis',   category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'torque', canonical_name: 'torque', adds: '4', base_trick: 'osis',   trick_family: 'osis',   category: 'compound' });
 
   // Two same-tier tricks whose alphabetical order is unambiguous.
-  insertFreestyleTrick(db, { slug: 'alpha-aaa', canonical_name: 'Alpha Aaa', adds: '2', base_trick: 'alpha-aaa', trick_family: 'mirage', category: 'dex' });
-  insertFreestyleTrick(db, { slug: 'zulu-zzz',  canonical_name: 'Zulu Zzz',  adds: '2', base_trick: 'zulu-zzz',  trick_family: 'whirl',  category: 'dex' });
+  insertTrickAsRebuilt(db, { slug: 'alpha-aaa', canonical_name: 'Alpha Aaa', adds: '2', base_trick: 'alpha-aaa', trick_family: 'mirage', category: 'dex' });
+  insertTrickAsRebuilt(db, { slug: 'zulu-zzz',  canonical_name: 'Zulu Zzz',  adds: '2', base_trick: 'zulu-zzz',  trick_family: 'whirl',  category: 'dex' });
 
   createApp = await importApp();
 });

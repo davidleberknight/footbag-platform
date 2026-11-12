@@ -425,8 +425,15 @@ def load_symbolic_equivalences() -> dict[str, list[str]]:
 
 def load_resolved_formulas() -> dict[str, dict]:
     """Slug → {derivation, totalAdd, baseAdd, operator, base}. From all sprints."""
-    text = RESOLVED_FORMULAS_PATH.read_text(encoding="utf-8")
     result: dict[str, dict] = {}
+    # The formula module moved into the database; the workbook then carries no
+    # formula columns rather than stopping.
+    if not RESOLVED_FORMULAS_PATH.exists():
+        print(f"WARNING: {RESOLVED_FORMULAS_PATH} not found; curator formulas "
+              "are read from freestyle_tricks.add_derivation now, so the "
+              "workbook carries no formula columns.", file=sys.stderr)
+        return result
+    text = RESOLVED_FORMULAS_PATH.read_text(encoding="utf-8")
     # Each formula block spans multiple lines; capture each field.
     pattern = re.compile(
         r"\{\s*"

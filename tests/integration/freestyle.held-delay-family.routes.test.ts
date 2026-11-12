@@ -5,13 +5,13 @@
  * Three concerns under test:
  *
  * 1. Held-delay leg-over family — hop-over / walk-over / wrap:
- *    each renders with the curator-overlay JOB on its detail page; the
+ *    each renders with its stored JOB on its detail page; the
  *    three are sibling-not-merge (distinct event signatures); wrap
  *    is now a canonical row (was observational).
  *
  * 2. Butterfly-kick correction — was 3 ADD with terminal [XBD]; the
  *    user-confirmed reading is 2 ADD per fb.org [dex] [bod]. DB row
- *    updated via red_corrections; overlay carries the resolved formula.
+ *    updated via red_corrections.
  *
  * 3. First-class browse-card rendering — the three ATW-family promotions
  *    (around-the-world-kick / triple-around-the-world /
@@ -30,7 +30,6 @@ import {
   importApp,
 } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
-import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormulas';
 
 const { dbPath } = setTestEnv('3163');
 
@@ -40,18 +39,17 @@ beforeAll(async () => {
   const db = createTestDb(dbPath);
 
   // Seed the held-delay leg-over family + butterfly-kick + ATW-family
-  // promotions. None of these need operational_notation in the DB
-  // (overlay supplies the JOB); butterfly-kick is seeded with its
-  // CORRECTED 2-ADD shape post-loader-19.
-  insertFreestyleTrick(db, { slug: 'hop_over',  canonical_name: 'hop over',  adds: '2', base_trick: 'hop-over',  trick_family: 'hop-over',  category: 'body',     review_status: 'expert_reviewed', is_active: 1 });
-  insertFreestyleTrick(db, { slug: 'walk_over', canonical_name: 'walk over', adds: '2', base_trick: 'walk-over', trick_family: 'walk-over', category: 'body',     review_status: 'expert_reviewed', is_active: 1 });
-  insertFreestyleTrick(db, { slug: 'wrap',      canonical_name: 'wrap',      adds: '2', base_trick: 'wrap',      trick_family: 'wrap',      category: 'compound', review_status: 'expert_reviewed', is_active: 1 });
+  // promotions, each with the execution notation the rebuilt database holds;
+  // butterfly-kick is seeded with its CORRECTED 2-ADD shape post-loader-19.
+  insertFreestyleTrick(db, { slug: 'hop_over',  canonical_name: 'hop over',  adds: '2', base_trick: 'hop-over',  trick_family: 'hop-over',  category: 'body',     review_status: 'expert_reviewed', is_active: 1, operational_notation: 'SET > JUMP [BOD] > SAME/OP INSIDE [DEL] > (land)' });
+  insertFreestyleTrick(db, { slug: 'walk_over', canonical_name: 'walk over', adds: '2', base_trick: 'walk-over', trick_family: 'walk-over', category: 'body',     review_status: 'expert_reviewed', is_active: 1, operational_notation: 'SET > SAME INSIDE [DEL] > (plant foot) > OP OUT [DEX] > (into clipper)' });
+  insertFreestyleTrick(db, { slug: 'wrap',      canonical_name: 'wrap',      adds: '2', base_trick: 'wrap',      trick_family: 'wrap',      category: 'compound', review_status: 'expert_reviewed', is_active: 1, operational_notation: 'SET > SAME INSIDE [DEL] > OP OUT [DEX] > (into clipper)' });
   insertFreestyleTrick(db, { slug: 'butterfly_kick',     canonical_name: 'butterfly-kick',     adds: '2', base_trick: 'butterfly',     trick_family: 'butterfly',     category: 'body',     review_status: 'expert_reviewed', is_active: 1, operational_notation: 'SET > JUMP [BOD] > SAME or OP OUT [DEX]' });
 
-  // ATW-family promotions — DB op_notation empty; overlay supplies JOB.
-  insertFreestyleTrick(db, { slug: 'around_the_world_kick',        canonical_name: 'around the world kick',        adds: '1', base_trick: 'around-the-world',        trick_family: 'around-the-world',        category: 'dex',      review_status: 'expert_reviewed', is_active: 1 });
-  insertFreestyleTrick(db, { slug: 'triple_around_the_world',      canonical_name: 'triple around the world',      adds: '4', base_trick: 'around-the-world',        trick_family: 'around-the-world',        category: 'compound', review_status: 'expert_reviewed', is_active: 1 });
-  insertFreestyleTrick(db, { slug: 'double_around_the_world_heel', canonical_name: 'double around the world heel', adds: '3', base_trick: 'double-around-the-world', trick_family: 'double-around-the-world', category: 'compound', review_status: 'expert_reviewed', is_active: 1 });
+  // ATW-family promotions.
+  insertFreestyleTrick(db, { slug: 'around_the_world_kick',        canonical_name: 'around the world kick',        adds: '1', base_trick: 'around-the-world',        trick_family: 'around-the-world',        category: 'dex',      review_status: 'expert_reviewed', is_active: 1, operational_notation: 'TOE > SAME IN [DEX] > SAME [KICK]' });
+  insertFreestyleTrick(db, { slug: 'triple_around_the_world',      canonical_name: 'triple around the world',      adds: '4', base_trick: 'around-the-world',        trick_family: 'around-the-world',        category: 'compound', review_status: 'expert_reviewed', is_active: 1, operational_notation: 'TOE > SAME IN [DEX] > SAME IN [DEX] > SAME IN [DEX] > SAME TOE [DEL]' });
+  insertFreestyleTrick(db, { slug: 'double_around_the_world_heel', canonical_name: 'double around the world heel', adds: '3', base_trick: 'double-around-the-world', trick_family: 'double-around-the-world', category: 'compound', review_status: 'expert_reviewed', is_active: 1, operational_notation: 'TOE > SAME IN [DEX] > SAME IN [DEX] > SAME HEEL [UNS] [DEL]' });
 
   // Parent bases.
   insertFreestyleTrick(db, { slug: 'around_the_world',        canonical_name: 'around the world',        adds: '2', base_trick: 'around-the-world',        trick_family: 'around-the-world',        category: 'dex' });
@@ -73,51 +71,7 @@ function cardFor(slug: string, html: string): string {
   return html.slice(articleOpen, articleClose + '</article>'.length);
 }
 
-describe('Held-delay leg-over family — RESOLVED_FORMULAS overlay carries each slug', () => {
-  it.each([['hop_over'], ['walk_over'], ['wrap']] as const)(
-    '%s has a curator-overlay operationalNotation in RESOLVED_ADD_FORMULAS',
-    (slug) => {
-      const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === slug);
-      expect(entry).toBeDefined();
-      expect(entry?.operationalNotation).toBeTruthy();
-      expect(entry?.totalAdd).toBe(2);
-      expect(entry?.provenance ?? '').toMatch(/Held-delay leg-over family/);
-      expect(entry?.provenance ?? '').toMatch(/not Red-confirmed/i);
-    },
-  );
-
-  it('hop-over JOB carries [BOD] + [DEL] tags (fb.org body-over-delay signature)', () => {
-    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'hop_over');
-    expect(entry?.operationalNotation).toMatch(/\[DEL\]/);
-    expect(entry?.operationalNotation).toMatch(/\[BOD\]/);
-  });
-
-  it('walk-over JOB carries [DEL] + [DEX] tags (fb.org step-over signature)', () => {
-    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'walk_over');
-    expect(entry?.operationalNotation).toMatch(/\[DEL\]/);
-    expect(entry?.operationalNotation).toMatch(/\[DEX\]/);
-  });
-
-  it('wrap JOB carries [DEL] + [DEX] tags (fb.org wrap-around signature)', () => {
-    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'wrap');
-    expect(entry?.operationalNotation).toMatch(/\[DEL\]/);
-    expect(entry?.operationalNotation).toMatch(/\[DEX\]/);
-  });
-});
-
 describe('Butterfly-kick correction — 2 ADD with [dex] [bod] reading', () => {
-  it('RESOLVED_FORMULAS entry for butterfly-kick is 2 ADD with no terminal [XBD]', () => {
-    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'butterfly_kick');
-    expect(entry).toBeDefined();
-    expect(entry?.totalAdd).toBe(2);
-    expect(entry?.operationalNotation).toMatch(/\[BOD\]/);
-    expect(entry?.operationalNotation).toMatch(/\[DEX\]/);
-    // The terminal [XBD] that prior IFPA DB row carried is dropped.
-    expect(entry?.operationalNotation).not.toMatch(/\[XBD\]/);
-    expect(entry?.provenance ?? '').toMatch(/Curator ruling: butterfly-kick = 2 ADD/);
-    expect(entry?.provenance ?? '').toMatch(/Resolves Red Q K-1/);
-  });
-
   it('trick-detail page for butterfly-kick renders 2 ADD (not 3)', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/butterfly_kick');
     expect(res.status).toBe(200);

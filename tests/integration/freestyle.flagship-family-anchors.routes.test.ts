@@ -25,10 +25,10 @@ import {
   importApp,
 } from '../fixtures/testDb';
 import {
-  insertFreestyleTrick,
   insertFreestyleTrickModifier,
   insertFreestyleTrickModifierLink,
 } from '../fixtures/factories';
+import { insertTrickAsRebuilt } from '../fixtures/stagedFormula';
 import { STAGED_CURATOR_CONTENT } from '../../freestyle/loaders/28a_seed_curator_content';
 
 const { dbPath } = setTestEnv('3166');
@@ -52,7 +52,7 @@ beforeAll(async () => {
   });
   // Folk-named compound with NO modifier link in the DB. Its modifiers must be
   // recovered from the RESOLVED_FORMULAS operator ('atomic + x-dex').
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'atom_smasher', canonical_name: 'atom smasher', base_trick: 'mirage',
     trick_family: 'mirage', category: 'compound', adds: '4', is_active: 1,
     notation: 'ATOM SMASHER',
@@ -61,22 +61,22 @@ beforeAll(async () => {
   // Anchor tricks: each is its own family. The slug-equals-family
   // condition activates familyAnchorContext when the family carries
   // an entry in FAMILY_INVARIANTS (DP-1's six terminal families).
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'whirl', canonical_name: 'whirl', base_trick: 'whirl',
     trick_family: 'whirl', category: 'dex', adds: '3', is_active: 1,
     notation: 'WHIRL',
   });
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'butterfly', canonical_name: 'butterfly', base_trick: 'butterfly',
     trick_family: 'butterfly', category: 'dex', adds: '3', is_active: 1,
     notation: 'BUTTERFLY',
   });
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'mirage', canonical_name: 'mirage', base_trick: 'mirage',
     trick_family: 'mirage', category: 'dex', adds: '2', is_active: 1,
     notation: 'MIRAGE',
   });
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'osis', canonical_name: 'osis', base_trick: 'osis',
     trick_family: 'osis', category: 'bod', adds: '3', is_active: 1,
     notation: 'OSIS',
@@ -84,23 +84,23 @@ beforeAll(async () => {
 
   // Family descendants so hasFamilyMembers is true (trick-family
   // section renders only when length > 1).
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'paradox_whirl', canonical_name: 'paradox whirl', base_trick: 'whirl',
     trick_family: 'whirl', category: 'compound', adds: '4', is_active: 1,
     notation: 'PARADOX WHIRL',
   });
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'ripwalk', canonical_name: 'ripwalk', base_trick: 'butterfly',
     trick_family: 'butterfly', category: 'compound', adds: '4', is_active: 1,
     notation: 'STEPPING BUTTERFLY',
   });
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'paradox_mirage', canonical_name: 'paradox mirage', base_trick: 'mirage',
     trick_family: 'mirage', category: 'compound', adds: '3', is_active: 1,
     notation: 'PARADOX MIRAGE',
   });
   insertFreestyleTrickModifierLink(db, 'paradox_mirage', 'paradox', 1);
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'spinning_osis', canonical_name: 'spinning osis', base_trick: 'osis',
     trick_family: 'osis', category: 'compound', adds: '4', is_active: 1,
     notation: 'SPINNING OSIS',

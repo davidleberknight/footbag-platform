@@ -36,8 +36,10 @@ import {
   OPERATOR_REFERENCE_ENTRIES,
   TIER1_OPERATOR_DEFINITIONS,
 } from '../../src/content/freestyleOperatorReference';
-import { CORE_ATOM_EDUCATIONAL_BY_SLUG } from '../../src/content/freestyleCoreAtomEducational';
+import { CORE_ATOM_EDUCATIONAL } from '../../src/content/freestyleCoreAtomEducational';
 import { CORE_TRICK_SPEC } from '../../src/content/freestyleLandingContent';
+
+const CORE_ATOM_EDUCATIONAL_BY_SLUG = new Map(CORE_ATOM_EDUCATIONAL.map((c) => [c.slug, c]));
 
 const ROOT = resolve(__dirname, '../..');
 const read = (p: string) => readFileSync(join(ROOT, p), 'utf8');
@@ -187,21 +189,6 @@ describe('Tapping preserves base identity and re-authors the base side coordinat
     const tappingCards = edu.match(/[^']*re-author a downstream base component[^']*/g) ?? [];
     expect(tappingCards.length).toBeGreaterThanOrEqual(1);
     expect(edu).not.toMatch(/base dexterity then follows unchanged/);
-  });
-});
-
-describe('ADD analysis: Atom Smasher scoring', () => {
-  const resolved = read('src/content/freestyleResolvedFormulas.ts');
-
-  it('Atom Smasher scores xdex(+1), independent of paradox, never "paradox-like"', () => {
-    const start = resolved.indexOf('Atomic-specific x-dex contribution');
-    const anchor = resolved.indexOf("'atom_smasher'");
-    expect(start).toBeGreaterThan(-1);
-    expect(anchor).toBeGreaterThan(start);
-    const block = resolved.slice(start, anchor + 1200);
-    expect(block).toMatch(/atomic\(\+1\) \+ mirage\(2\) \+ xdex\(\+1\) = 4 ADD/);
-    expect(block).toMatch(/independent of \[PDX\]/);
-    expect(block).not.toMatch(/paradox-like/);
   });
 });
 

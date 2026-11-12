@@ -3,7 +3,7 @@
  * Extension of the double-over-down chassis with a third out dex (the
  * swirl-cell dexterity) and a SAME CLIP terminator swap. The canonical
  * notation uses the ordinary IN/OUT vocabulary:
- *   TOE > OP OUT [DEX] > OP OUT [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]
+ *   TOE > SAME OUT [DEX] > SAME OUT [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]
  *
  * ADD breakdown: [DEX] + [DEX] + [DEX] + [XBD] + [DEL] = 5 ADD.
  */
@@ -16,8 +16,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import { insertFreestyleTrick } from '../fixtures/factories';
-import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormulas';
+import { insertTrickAsRebuilt } from '../fixtures/stagedFormula';
 
 const { dbPath } = setTestEnv('3179');
 
@@ -25,12 +24,12 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'double_over_down_swirl',
     canonical_name: 'double-over down swirl',
     adds: '5', base_trick: 'double-over-down', trick_family: 'double-over-down',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
-    operational_notation: null,
+    operational_notation: 'TOE > SAME OUT [DEX] > SAME OUT [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]',
   });
   db.close();
   createApp = await importApp();
@@ -38,26 +37,6 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('RESOLVED_ADD_FORMULAS — double-over-down-swirl entry', () => {
-  it('overlay carries FB.org-confirmed JOB + 5 ADD + double-over-down base extension', () => {
-    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'double_over_down_swirl');
-    expect(entry).toBeDefined();
-    expect(entry?.totalAdd).toBe(5);
-    expect(entry?.baseAdd).toBe(4);
-    expect(entry?.base).toBe('double-over-down');
-    expect(entry?.operationalNotation).toBe('TOE > OP OUT [DEX] > OP OUT [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]');
-    expect(entry?.provenance ?? '').toMatch(/FB\.org-confirmed/i);
-    expect(entry?.provenance ?? '').toMatch(/double-over-down/i);
-  });
-
-  it('preserves the double-over-down chassis prefix (the out-dex pair) and ends with SAME CLIP terminator', () => {
-    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'double_over_down_swirl');
-    expect(entry?.operationalNotation ?? '').toMatch(/TOE > OP OUT \[DEX\] > OP OUT \[DEX\]/);
-    expect(entry?.operationalNotation ?? '').toMatch(/SAME CLIP \[XBD\] \[DEL\]$/);
-    // The third dex is an ordinary out dex; the retired swirl token never reappears.
-    expect(entry?.operationalNotation ?? '').not.toContain('BACK SWIRL');
-  });
-});
 
 describe('double-over-down-swirl detail page — first-class JOB + ADD', () => {
   it('/freestyle/tricks/double-over-down-swirl renders 5 ADD + 3 dex tokens, no retired swirl token', async () => {

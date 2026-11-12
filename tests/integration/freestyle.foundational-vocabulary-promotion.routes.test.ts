@@ -8,9 +8,7 @@
  *   4. double-around-the-world-heel (NEW; 3 ADD; terminal-surface variant)
  *
  * Provenance:
- *   fb.org-derived / sibling-derived; NOT Red-confirmed. Tagged inline
- *   in the RESOLVED_ADD_FORMULAS entries. Surfaces Red questions
- *   K-1..K-3 + B-1.
+ *   fb.org-derived / sibling-derived; NOT Red-confirmed.
  *
  * Contracts under test:
  *   - Each slug renders 200 on its trick-detail page
@@ -18,10 +16,6 @@
  *   - No "JOB: canonical decomposition pending" pill on these cards
  *   - No tautological compound-slot leakage (e.g. "around the world kick"
  *     does not appear as a chain reading row that just echoes the title)
- *   - operationalNotation is reachable via the service overlay even when
- *     the DB row's operational_notation column is empty (i.e. before the
- *     pipeline rebuild that materializes the CSV rows into DB)
- *   - The 4 entries appear in RESOLVED_ADD_FORMULAS
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { cachedGet } from '../fixtures/cachedGet';
@@ -33,7 +27,6 @@ import {
   importApp,
 } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
-import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormulas';
 
 const { dbPath } = setTestEnv('3160');
 
@@ -61,7 +54,7 @@ const PROMOTION_COHORT = [
     adds:        '1',
     base:        'clipper',
     category:    'body',
-    jobTokens:   ['OP', 'CLIP', '[XBD]'],
+    jobTokens:   ['CLIP', '[XBD]', '[KICK]'],
     forbiddenJobTokens: ['[DEL]', '[DEX]'],
   },
   {
@@ -84,12 +77,19 @@ const PROMOTION_COHORT = [
   },
 ] as const;
 
+// The execution notation the rebuilt database holds for each promoted slug.
+const STORED_NOTATION: Record<(typeof PROMOTION_COHORT)[number]['slug'], string> = {
+  around_the_world_kick:        'TOE > SAME IN [DEX] > SAME [KICK]',
+  clipper:                      'CLIP [XBD] [KICK]',
+  triple_around_the_world:      'TOE > SAME IN [DEX] > SAME IN [DEX] > SAME IN [DEX] > SAME TOE [DEL]',
+  double_around_the_world_heel: 'TOE > SAME IN [DEX] > SAME IN [DEX] > SAME HEEL [UNS] [DEL]',
+};
+
 beforeAll(async () => {
   const db = createTestDb(dbPath);
 
-  // Seed each promoted slug in the test DB WITHOUT operational_notation.
-  // The rendered JOB must come from the RESOLVED_FORMULAS overlay
-  // (resolveOperationalNotationRaw → resolved.operationalNotation).
+  // Seed each promoted slug with the execution notation the rebuilt database
+  // carries for it; the page renders the row's own operational_notation.
   for (const row of PROMOTION_COHORT) {
     insertFreestyleTrick(db, {
       slug:           row.slug,
@@ -100,6 +100,7 @@ beforeAll(async () => {
       category:       row.category,
       review_status:  'expert_reviewed',
       is_active:      1,
+      operational_notation: STORED_NOTATION[row.slug],
     });
   }
 
@@ -112,18 +113,6 @@ beforeAll(async () => {
 });
 
 afterAll(() => cleanupTestDb(dbPath));
-
-describe('Foundational-vocabulary promotion — RESOLVED_FORMULAS overlay carries each slug', () => {
-  it.each(PROMOTION_COHORT.map(r => [r.slug] as const))(
-    '%s is present in RESOLVED_ADD_FORMULAS with non-empty operationalNotation',
-    (slug) => {
-      const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === slug);
-      expect(entry).toBeDefined();
-      expect(entry?.operationalNotation).toBeTruthy();
-      expect((entry?.operationalNotation ?? '').length).toBeGreaterThan(0);
-    },
-  );
-});
 
 describe('Foundational-vocabulary promotion — JOB renders via tokenized op-notation partial', () => {
   it.each(PROMOTION_COHORT.map(r => [r.slug, r.jobTokens, r.forbiddenJobTokens] as const))(
@@ -193,18 +182,6 @@ describe('Foundational-vocabulary promotion — no tautological compound-slot le
   it('triple-around-the-world does NOT echo its own canonical name in a chain row', async () => {
     const res = await page('/freestyle/tricks/triple_around_the_world');
     expect(res.text).not.toMatch(/<a[^>]*data-token-slug="triple_around_the_world"/);
-  });
-});
-
-describe('Foundational-vocabulary promotion — provenance is visible, not silently curator-authored', () => {
-  it('the RESOLVED_FORMULAS entries carry the foundational-vocabulary provenance marker in their provenance field', () => {
-    for (const row of PROMOTION_COHORT) {
-      const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === row.slug);
-      expect(entry).toBeDefined();
-      expect(entry?.provenance ?? '').toMatch(/Foundational-vocabulary/);
-      // None of the four are Red-confirmed; verify the provenance says so.
-      expect(entry?.provenance ?? '').toMatch(/not Red-confirmed/);
-    }
   });
 });
 

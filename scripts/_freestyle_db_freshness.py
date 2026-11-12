@@ -57,6 +57,8 @@ TRICK_SAVE_FIELDS = frozenset({
     "pronunciation", "operational_notation_source",
     "about_derivatives", "about_naming_note", "reverse_pair_base", "family_override",
     "trick_kind", "terminal_cohort", "terminal_cohort_position",
+    "add_derivation", "formula_operator", "expanded_notation",
+    "movement_notation_subtitle", "execution_notation_subtitle",
 })
 
 # A new_value of \N clears the column to SQL NULL. The loader's rule; restated

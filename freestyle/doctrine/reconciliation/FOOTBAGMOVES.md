@@ -46,10 +46,9 @@ not from memory:
 - `exploration/symbolic-master/comprehensive_symbolic_trick_corpus_2026-05-23.csv`
   — filtered to true FootbagMoves rows to surface divergences not recorded in any
   registry.
-- The platform's own divergence surfaces: the operator-weight divergence policy
-  and the per-trick divergence registry in
-  `src/content/freestyleTrickDoctrine.ts`, and the in-row provenance strings in
-  `src/content/freestyleResolvedFormulas.ts`.
+- The platform's own divergence record: each affected trick's FootbagMoves
+  source-link row in `freestyle_trick_source_links`, whose `asserted_adds` holds
+  the FootbagMoves value and whose `notes` hold the reason and provenance.
 - `database/footbag.db` — every platform ADD quoted below was verified against the
   live dictionary as it ships, not inferred.
 
@@ -82,7 +81,7 @@ modifier, a recursive set expansion, a cross-dex bonus — that the platform's
 grammar treats as already contained in the base or as non-qualifying. It runs +1 to
 +2 high. Two of its sub-cohorts are formally registered:
 
-- **Furious cohort** (`freestyleTrickDoctrine.ts`, `OPERATOR_WEIGHT_DIVERGENCE_POLICY['furious']`).
+- **Furious cohort** (recorded on each member trick's FootbagMoves source-link row).
   Anchor: Fury (Furious Paradox Mirage) is a settled 5 ADD, so furious = 5 − paradox(1)
   − mirage(2) = 2. FootbagMoves scores furious as a rotational +3-class operator and
   runs the cohort high.
@@ -124,19 +123,19 @@ contested value.
 | Nebula | 7 | **5** | Platform | same |
 
 **Source:** FootbagMoves is the sole source of the 7-readings; the platform value
-is anchored on the settled Fury decomposition and recorded in
-`OPERATOR_WEIGHT_DIVERGENCE_POLICY['furious']`.
+is anchored on the settled Fury decomposition and recorded on each trick's
+FootbagMoves source-link row.
 
 ### A.2 Railing cohort (registered)
 
 | Trick | FootbagMoves | Platform | Adopted | Why |
 |---|---|---|---|---|
-| Dorshanatrix | 7 | **5** | Platform | railing = 2 (rooted 0 + sailing 2), not FM's higher weight; registered in the railing divergence policy |
+| Dorshanatrix | 7 | **5** | Platform | railing = 2 (rooted 0 + sailing 2), not FM's higher weight; recorded on its FootbagMoves source-link row |
 | Flying Fish | 7 | **5** | Platform | same railing over-count |
 | Rail Warrior | 7 | **6** | Platform | same, +1 here |
 
-**Source:** FootbagMoves sole source; platform value registered in
-`OPERATOR_WEIGHT_DIVERGENCE_POLICY['railing']`.
+**Source:** FootbagMoves sole source; platform value recorded on each trick's
+FootbagMoves source-link row.
 
 ### A.3 Single-source structural promotions (in-row provenance)
 
@@ -159,8 +158,8 @@ promotion.
 | Atom Smasher | 3 | **4** | Platform | the one over-direction inversion here: FM *collapses* an atomic-specific X-Dex/paradox term the platform scores; platform reads atomic(1) + mirage(2) + [XDEX](1) = 4 |
 
 **Source:** FootbagMoves sole source for each; platform values grounded in the
-X-Dex rule and the composite-operator decompositions, recorded in
-`freestyleResolvedFormulas.ts` provenance.
+X-Dex rule and the composite-operator decompositions, recorded in each trick's
+FootbagMoves source-link notes.
 
 ### A.4 Implicit-paradox cohort (doctrine-sensitive)
 
@@ -351,10 +350,10 @@ since been resolved; it is kept here for the record.
 
 | Category | Where the divergence lives today |
 |---|---|
-| Furious cohort (Genesis, Clown Face, Rage, Nebula) | Registered — `freestyleTrickDoctrine.ts`, furious policy |
-| Railing cohort (Dorshanatrix, Flying Fish, Rail Warrior) | Registered — same file, railing policy |
-| ~10 single-source structural promotions (A.3) | In-row provenance — `freestyleResolvedFormulas.ts` |
-| Implicit-paradox pair (A.4) | In-row provenance; resolution gated on the paradox predicate |
+| Furious cohort (Genesis, Clown Face, Rage, Nebula) | Each trick's FootbagMoves source-link row |
+| Railing cohort (Dorshanatrix, Flying Fish, Rail Warrior) | Each trick's FootbagMoves source-link row |
+| ~10 single-source structural promotions (A.3) | Each trick's FootbagMoves source-link notes |
+| Implicit-paradox pair (A.4) | Source-link notes; resolution gated on the paradox predicate |
 | Same-side cohort (Hurl, Barfry, Godzilla) | `red_additions` rows for the two promoted; Godzilla folk-only |
 | First-recorded cohort (Section C, 9 tricks) | **This document** — not previously in any registry |
 | Bladerunner | Resolved to 4 — the `[XDEX]` could not fire on a legover-family receiver |

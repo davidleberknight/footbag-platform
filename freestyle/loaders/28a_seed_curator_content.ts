@@ -14,14 +14,22 @@
  *   trick kinds                → freestyle_tricks.trick_kind
  *   terminal cohorts           → freestyle_tricks.terminal_cohort and
  *                                terminal_cohort_position
+ *   resolved formulas          → freestyle_tricks.add_derivation (without its
+ *                                "= N ADD" ending), formula_operator and
+ *                                expanded_notation; a formula's execution
+ *                                notation fills operational_notation only
+ *                                where the dictionary left it empty
+ *   notation subtitles         → freestyle_tricks.movement_notation_subtitle and
+ *                                execution_notation_subtitle
  *
  * It runs after loader 28 and before loader 29, so a curator's save applied by 29
  * still wins over the seeded value. Before go-live the curator columns are wholly
  * derived from the staged modules plus the curator saves, so each run first
  * resets them and then writes every staged entry: an entry removed from a module
- * leaves no stale value behind. The description column is the exception: the
- * dictionary load fills it for every trick, so only the staged descriptions are
- * written and nothing is reset.
+ * leaves no stale value behind. The description and operational_notation
+ * columns are the exception: the dictionary load fills them, so only staged
+ * values are written and nothing is reset, and a formula's notation never
+ * replaces one the dictionary already holds.
  *
  * Refuses, writing nothing, when an entry names a record, modifier or trick the
  * database does not hold, or a family override names a family that is not on the
@@ -43,7 +51,18 @@ import {
 import { FAMILY_OVERRIDES } from '../inputs/curator_content/freestyleFamilyOverrides';
 import { TRICK_KIND_OVERRIDES, type FreestyleTrickKind } from '../inputs/curator_content/freestyleTrickKindOverrides';
 import { TERMINAL_DERIVED_COHORTS } from '../inputs/curator_content/freestyleTerminalCohorts';
+import { RESOLVED_ADD_FORMULAS, type ResolvedFormula } from '../inputs/curator_content/freestyleResolvedFormulas';
+import {
+  MOVEMENT_NOTATION_SUBTITLES,
+  EXECUTION_NOTATION_SUBTITLES,
+} from '../inputs/curator_content/freestyleSectionSubtitles';
 import { PUBLIC_DISPLAY_FAMILIES } from '../../src/content/freestylePublicFamilies';
+
+/** The breakdown the trick page shows: the derivation without a final "= N ADD",
+ *  because the total beside it is the row's adds. A note after the total stays. */
+export function derivationBreakdown(derivation: string): string {
+  return derivation.replace(/\s*=\s*\d+\s*ADD\s*$/, '');
+}
 
 export interface CuratorContent {
   recordReviews: ReadonlyMap<string, string>;
@@ -56,6 +75,9 @@ export interface CuratorContent {
   trickKinds: ReadonlyMap<string, FreestyleTrickKind>;
   /** Terminal trick slug to the tricks that land on it, in display order. */
   terminalCohorts: ReadonlyMap<string, readonly string[]>;
+  formulas: readonly ResolvedFormula[];
+  movementNotationSubtitles: ReadonlyMap<string, string>;
+  executionNotationSubtitles: ReadonlyMap<string, string>;
 }
 
 export const STAGED_CURATOR_CONTENT: CuratorContent = {
@@ -68,6 +90,9 @@ export const STAGED_CURATOR_CONTENT: CuratorContent = {
   familyOverrides: FAMILY_OVERRIDES,
   trickKinds: TRICK_KIND_OVERRIDES,
   terminalCohorts: TERMINAL_DERIVED_COHORTS,
+  formulas: RESOLVED_ADD_FORMULAS,
+  movementNotationSubtitles: MOVEMENT_NOTATION_SUBTITLES,
+  executionNotationSubtitles: EXECUTION_NOTATION_SUBTITLES,
 };
 
 /** Every trick slug the content names, as a key or as a target. */
@@ -81,6 +106,9 @@ export function trickSlugsNamedBy(content: CuratorContent): Set<string> {
     ...content.familyOverrides.keys(),
     ...content.trickKinds.keys(),
     ...content.terminalCohorts.keys(),
+    ...content.formulas.map((f) => f.slug),
+    ...content.movementNotationSubtitles.keys(),
+    ...content.executionNotationSubtitles.keys(),
   ]);
   for (const members of content.terminalCohorts.values()) for (const m of members) slugs.add(m);
   return slugs;
@@ -96,6 +124,11 @@ export interface SeedCounts {
   familyOverrides: number;
   trickKinds: number;
   terminalCohortMembers: number;
+  formulas: number;
+  expandedNotations: number;
+  formulaNotations: number;
+  movementNotationSubtitles: number;
+  executionNotationSubtitles: number;
 }
 
 export class CuratorContentRefusal extends Error {
@@ -147,6 +180,14 @@ export function seedCuratorContent(
     }
   }
 
+  // A trick has one formula: a second entry for a slug would leave which one the
+  // page shows to the order of the module.
+  const formulaSlugs = new Set<string>();
+  for (const f of content.formulas) {
+    if (formulaSlugs.has(f.slug)) problems.push(`trick "${f.slug}" has more than one formula`);
+    formulaSlugs.add(f.slug);
+  }
+
   if (problems.length > 0) throw new CuratorContentRefusal(problems);
 
   const setReview   = db.prepare(`UPDATE freestyle_records SET curator_review_note = ? WHERE trim(trick_name) = ?`);
@@ -171,8 +212,27 @@ export function seedCuratorContent(
       UPDATE freestyle_tricks
       SET about_derivatives = NULL, about_naming_note = NULL, reverse_pair_base = NULL,
           family_override = NULL, trick_kind = NULL,
-          terminal_cohort = NULL, terminal_cohort_position = NULL
+          terminal_cohort = NULL, terminal_cohort_position = NULL,
+          add_derivation = NULL, formula_operator = NULL, expanded_notation = NULL,
+          movement_notation_subtitle = NULL, execution_notation_subtitle = NULL
     `).run();
+
+    const setFormula = db.prepare(
+      `UPDATE freestyle_tricks SET add_derivation = ?, formula_operator = ? WHERE slug = ?`,
+    );
+    const setExpanded = setTrick('expanded_notation');
+    const fillNotation = db.prepare(`
+      UPDATE freestyle_tricks SET operational_notation = ?
+      WHERE slug = ? AND (operational_notation IS NULL OR trim(operational_notation) = '')
+    `);
+    let formulas = 0;
+    let expandedNotations = 0;
+    let formulaNotations = 0;
+    for (const f of content.formulas) {
+      formulas += setFormula.run(derivationBreakdown(f.derivation), f.operator, f.slug).changes;
+      if (f.expandedNotation) expandedNotations += setExpanded.run(f.expandedNotation, f.slug).changes;
+      if (f.operationalNotation) formulaNotations += fillNotation.run(f.operationalNotation, f.slug).changes;
+    }
 
     let recordsUnderReview = 0;
     for (const [name, note] of content.recordReviews) {
@@ -196,6 +256,11 @@ export function seedCuratorContent(
       familyOverrides:      apply(content.familyOverrides, 'family_override'),
       trickKinds:           apply(content.trickKinds, 'trick_kind'),
       terminalCohortMembers,
+      formulas,
+      expandedNotations,
+      formulaNotations,
+      movementNotationSubtitles:  apply(content.movementNotationSubtitles, 'movement_notation_subtitle'),
+      executionNotationSubtitles: apply(content.executionNotationSubtitles, 'execution_notation_subtitle'),
     };
   })();
 }
@@ -216,7 +281,10 @@ function main(argv: readonly string[]): number {
       `${c.aboutDerivatives} derivatives notes, ${c.aboutNamingNotes} naming notes, ` +
       `${c.semanticDescriptions} descriptions, ${c.reversePairBases} reverse pairs, ` +
       `${c.familyOverrides} family overrides, ${c.trickKinds} trick kinds, ` +
-      `${c.terminalCohortMembers} terminal cohort members.`,
+      `${c.terminalCohortMembers} terminal cohort members, ` +
+      `${c.formulas} formulas, ${c.expandedNotations} expanded notations, ` +
+      `${c.formulaNotations} formula notations, ` +
+      `${c.movementNotationSubtitles + c.executionNotationSubtitles} notation subtitles.`,
     );
     return 0;
   } catch (err) {

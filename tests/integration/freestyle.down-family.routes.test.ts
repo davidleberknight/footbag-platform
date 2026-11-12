@@ -24,7 +24,6 @@ import {
   importApp,
 } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
-import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormulas';
 
 const { dbPath } = setTestEnv('3169');
 
@@ -38,21 +37,21 @@ beforeAll(async () => {
     canonical_name: 'double-over down',
     adds: '4', base_trick: 'double-over-down', trick_family: 'double-over-down',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
-    operational_notation: null,
+    operational_notation: 'TOE > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]',
   });
   insertFreestyleTrick(db, {
     slug: 'down_double_down',
     canonical_name: 'down double-down',
     adds: '4', base_trick: 'down-double-down', trick_family: 'down-double-down',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
-    operational_notation: null,
+    operational_notation: 'CLIP >> OP OUT [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]',
   });
   insertFreestyleTrick(db, {
     slug: 'down_diver',
     canonical_name: 'down diver',
     adds: '5', base_trick: 'double-over-down', trick_family: 'double-over-down',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
-    operational_notation: null,
+    operational_notation: 'TOE > DIVE [BOD] > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]',
     aliases_json: '["diving down double-down"]',
   });
   // Down umbrella fixture: two members per variant label (a family section
@@ -116,43 +115,6 @@ beforeAll(async () => {
 });
 
 afterAll(() => cleanupTestDb(dbPath));
-
-describe('RESOLVED_ADD_FORMULAS — down family entries', () => {
-  it('double-over-down overlay carries FB.org-confirmed JOB (TOE-set chassis)', () => {
-    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'double_over_down');
-    expect(entry).toBeDefined();
-    expect(entry?.totalAdd).toBe(4);
-    expect(entry?.operationalNotation).toBe('TOE > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]');
-    expect(entry?.provenance ?? '').toMatch(/FB\.org-confirmed/i);
-    expect(entry?.provenance ?? '').toMatch(/Red pt7/i);
-  });
-
-  it('down-double-down overlay carries FB.org-confirmed JOB (CLIP-set chassis)', () => {
-    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'down_double_down');
-    expect(entry?.totalAdd).toBe(4);
-    expect(entry?.operationalNotation).toBe('CLIP > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]');
-    expect(entry?.provenance ?? '').toMatch(/distinct chassis/i);
-  });
-
-  it('down-diver overlay carries FB.org-confirmed JOB (diving on double-over-down chassis)', () => {
-    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'down_diver');
-    expect(entry?.totalAdd).toBe(5);
-    expect(entry?.baseAdd).toBe(4);
-    expect(entry?.operator).toBe('diving');
-    expect(entry?.base).toBe('double-over-down');
-    expect(entry?.operationalNotation).toBe('TOE > DIVE [BOD] > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]');
-    expect(entry?.provenance ?? '').toMatch(/FB\.org-confirmed/i);
-  });
-
-  it('double-over-down and down-double-down have distinct chassis (TOE vs CLIP starting set)', () => {
-    const dod = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'double_over_down');
-    const ddd = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'down_double_down');
-    expect(dod?.operationalNotation ?? '').toMatch(/^TOE >/);
-    expect(ddd?.operationalNotation ?? '').toMatch(/^CLIP >/);
-    // Both have 4 tokens (same ADD math via different chassis)
-    expect(dod?.totalAdd).toBe(ddd?.totalAdd);
-  });
-});
 
 describe('Down-family detail pages — first-class JOB + ADD', () => {
   it('/freestyle/tricks/double-over-down renders 4 ADD + TOE-set tokens', async () => {

@@ -33,11 +33,11 @@ import {
   importApp,
 } from '../fixtures/testDb';
 import {
-  insertFreestyleTrick,
   insertFreestyleTrickAlias,
   insertFreestyleTrickModifier,
   insertFreestyleTrickModifierLink,
 } from '../fixtures/factories';
+import { insertTrickAsRebuilt } from '../fixtures/stagedFormula';
 
 const { dbPath } = setTestEnv('3095');
 
@@ -48,18 +48,18 @@ beforeAll(async () => {
   const db = createTestDb(dbPath);
 
   // Toe Stall — sparse base trick; minimal notation; no aliases
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug:                 'toe_stall',
     canonical_name:       'toe stall',
     adds:                 '1',
     base_trick:           'toe-stall',
     trick_family:         'toe-stall',
     category:             'base',
-    operational_notation: '[toe] > toe',
+    operational_notation: 'SET > SAME TOE [DEL]',
   });
 
   // Mirage — base trick; classic in-to-out hippy-dex
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug:                 'mirage',
     canonical_name:       'mirage',
     adds:                 '2',
@@ -70,7 +70,7 @@ beforeAll(async () => {
   });
 
   // Butterfly — base trick (family anchor; slug === trick_family)
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug:                 'butterfly',
     canonical_name:       'butterfly',
     adds:                 '3',
@@ -81,7 +81,7 @@ beforeAll(async () => {
   });
 
   // Ripwalk — compound; aliases populated; full operational
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug:                 'ripwalk',
     canonical_name:       'ripwalk',
     adds:                 '4',
@@ -95,7 +95,7 @@ beforeAll(async () => {
 
   // Third butterfly member so the family clears the family-view three-member
   // minimum and renders as its own section.
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug:                 'parkwalk',
     canonical_name:       'parkwalk',
     adds:                 '5',
@@ -106,7 +106,7 @@ beforeAll(async () => {
   });
 
   // Mobius — folk-name alias is the trick's semantic compressed form
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug:                 'mobius',
     canonical_name:       'mobius',
     adds:                 '5',
@@ -118,7 +118,7 @@ beforeAll(async () => {
   insertFreestyleTrickAlias(db, 'gyro_torque', 'mobius', 'gyro torque');
 
   // Montage — flagship deep compound; no alias
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug:                 'montage',
     canonical_name:       'montage',
     adds:                 '7',
@@ -129,7 +129,7 @@ beforeAll(async () => {
   });
 
   // A trick WITHOUT operational notation — pending state branch
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug:                 'somenewtrick',
     canonical_name:       'somenewtrick',
     adds:                 '3',
@@ -141,7 +141,7 @@ beforeAll(async () => {
 
   // Fixture: a trick with NULL operational notation. Its row must render
   // without the "Notation pending" placeholder.
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug:                 'torque',
     canonical_name:       'torque',
     adds:                 '4',

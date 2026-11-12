@@ -39,7 +39,13 @@ const TRICK_COLUMNS: Array<[column: string, map: ReadonlyMap<string, string>]> =
   ['reverse_pair_base', content.reversePairBases],
   ['family_override',   content.familyOverrides],
   ['trick_kind',        content.trickKinds],
+  ['movement_notation_subtitle',  content.movementNotationSubtitles],
+  ['execution_notation_subtitle', content.executionNotationSubtitles],
 ];
+const EXTRA_NOTATION = 'SET > SAME TOE [DEL]';
+// The trick page shows a formula's breakdown without its closing "= N ADD".
+const breakdownOf = (derivation: string): string => derivation.replace(/\s*=\s*\d+\s*ADD\s*$/, '');
+const FORMULA_NOTATION_SLUGS = content.formulas.filter((f) => f.operationalNotation).map((f) => f.slug);
 
 let db: BetterSqlite3.Database;
 
@@ -51,7 +57,7 @@ function build(): BetterSqlite3.Database {
   for (const name of [...content.recordReviews.keys(), EXTRA_RECORD]) insertFreestyleRecord(conn, { trick_name: name });
   for (const slug of [...modifierSlugs, EXTRA_MODIFIER]) insertFreestyleTrickModifier(conn, { slug });
   for (const slug of trickSlugs) insertFreestyleTrick(conn, { slug });
-  insertFreestyleTrick(conn, { slug: EXTRA_TRICK, description: EXTRA_DESCRIPTION });
+  insertFreestyleTrick(conn, { slug: EXTRA_TRICK, description: EXTRA_DESCRIPTION, operational_notation: EXTRA_NOTATION });
   return conn;
 }
 
@@ -85,6 +91,18 @@ describe('seeding the staged curator content', () => {
         expect(value(`SELECT ${column} AS v FROM freestyle_tricks WHERE slug = ?`, slug), `${column} ${slug}`).toBe(v);
       }
     }
+    for (const f of content.formulas) {
+      expect(db.prepare(`
+        SELECT add_derivation AS d, formula_operator AS o, expanded_notation AS e
+        FROM freestyle_tricks WHERE slug = ?`).get(f.slug), f.slug)
+        .toEqual({ d: breakdownOf(f.derivation), o: f.operator, e: f.expandedNotation ?? null });
+    }
+    // A formula's execution notation fills a column the dictionary left empty.
+    expect(FORMULA_NOTATION_SLUGS.length).toBeGreaterThan(0);
+    for (const slug of FORMULA_NOTATION_SLUGS) {
+      expect(value('SELECT operational_notation AS v FROM freestyle_tricks WHERE slug = ?', slug), slug)
+        .toBe(content.formulas.find((f) => f.slug === slug)!.operationalNotation);
+    }
     let cohortMembers = 0;
     for (const [terminal, members] of content.terminalCohorts) {
       members.forEach((m, i) => {
@@ -104,19 +122,57 @@ describe('seeding the staged curator content', () => {
       familyOverrides:       content.familyOverrides.size,
       trickKinds:            content.trickKinds.size,
       terminalCohortMembers: cohortMembers,
+      formulas:              content.formulas.length,
+      expandedNotations:     content.formulas.filter((f) => f.expandedNotation).length,
+      formulaNotations:      FORMULA_NOTATION_SLUGS.length,
+      movementNotationSubtitles:  content.movementNotationSubtitles.size,
+      executionNotationSubtitles: content.executionNotationSubtitles.size,
     });
     // Rows the content does not name stay empty, and a description it does not
     // name keeps what the dictionary load wrote.
     expect(value('SELECT beginner_note AS v FROM freestyle_trick_modifiers WHERE slug = ?', EXTRA_MODIFIER)).toBeNull();
     expect(value('SELECT curator_review_note AS v FROM freestyle_records WHERE trick_name = ?', EXTRA_RECORD)).toBeNull();
     expect(db.prepare(`
-      SELECT description, about_derivatives, about_naming_note, reverse_pair_base, family_override,
-             trick_kind, terminal_cohort, terminal_cohort_position
+      SELECT description, operational_notation, about_derivatives, about_naming_note,
+             reverse_pair_base, family_override, trick_kind, terminal_cohort, terminal_cohort_position,
+             add_derivation, formula_operator, expanded_notation,
+             movement_notation_subtitle, execution_notation_subtitle
       FROM freestyle_tricks WHERE slug = ?`).get(EXTRA_TRICK)).toEqual({
-      description: EXTRA_DESCRIPTION, about_derivatives: null, about_naming_note: null,
+      description: EXTRA_DESCRIPTION, operational_notation: EXTRA_NOTATION,
+      about_derivatives: null, about_naming_note: null,
       reverse_pair_base: null, family_override: null, trick_kind: null,
       terminal_cohort: null, terminal_cohort_position: null,
+      add_derivation: null, formula_operator: null, expanded_notation: null,
+      movement_notation_subtitle: null, execution_notation_subtitle: null,
     });
+  });
+
+  // Defect caught: commentary appended to a formula reaching the trick page's
+  // Difficulty line, which shows the seeded breakdown verbatim. Semicolons and
+  // em/en dashes separate math from appended prose; a slug's hyphen is not one.
+  it('seeds every breakdown as structural math only', () => {
+    seedCuratorContent(db);
+    const offenders = (db.prepare(
+      'SELECT slug, add_derivation AS d FROM freestyle_tricks WHERE add_derivation IS NOT NULL',
+    ).all() as { slug: string; d: string }[])
+      .filter((r) => /[;—–]/.test(r.d))
+      .map((r) => `${r.slug}: ${r.d}`);
+    expect(value('SELECT COUNT(*) AS v FROM freestyle_tricks WHERE add_derivation IS NOT NULL'))
+      .toBe(content.formulas.length);
+    expect(offenders).toEqual([]);
+  });
+
+  // Defect caught: a formula's execution notation overwriting one the
+  // dictionary load wrote, so the stored notation silently changes on refresh.
+  it('never replaces an execution notation the dictionary already holds', () => {
+    for (const slug of FORMULA_NOTATION_SLUGS) {
+      db.prepare('UPDATE freestyle_tricks SET operational_notation = ? WHERE slug = ?').run(EXTRA_NOTATION, slug);
+    }
+    const counts = seedCuratorContent(db);
+    for (const slug of FORMULA_NOTATION_SLUGS) {
+      expect(value('SELECT operational_notation AS v FROM freestyle_tricks WHERE slug = ?', slug), slug).toBe(EXTRA_NOTATION);
+    }
+    expect(counts.formulaNotations).toBe(0);
   });
 
   // Defect caught: an entry removed from a staged module living on in the
@@ -129,17 +185,23 @@ describe('seeding the staged curator content', () => {
       UPDATE freestyle_tricks
       SET about_derivatives = 'stale', about_naming_note = 'stale', reverse_pair_base = 'stale',
           family_override = 'stale', trick_kind = 'modifier',
-          terminal_cohort = 'stale', terminal_cohort_position = 1
+          terminal_cohort = 'stale', terminal_cohort_position = 1,
+          add_derivation = 'stale', formula_operator = 'stale', expanded_notation = 'stale',
+          movement_notation_subtitle = 'stale', execution_notation_subtitle = 'stale'
       WHERE slug = ?`).run(EXTRA_TRICK);
     seedCuratorContent(db);
     expect(value('SELECT beginner_note AS v FROM freestyle_trick_modifiers WHERE slug = ?', EXTRA_MODIFIER)).toBeNull();
     expect(value('SELECT curator_review_note AS v FROM freestyle_records WHERE trick_name = ?', EXTRA_RECORD)).toBeNull();
     expect(db.prepare(`
       SELECT about_derivatives, about_naming_note, reverse_pair_base, family_override,
-             trick_kind, terminal_cohort, terminal_cohort_position
+             trick_kind, terminal_cohort, terminal_cohort_position,
+             add_derivation, formula_operator, expanded_notation,
+             movement_notation_subtitle, execution_notation_subtitle
       FROM freestyle_tricks WHERE slug = ?`).get(EXTRA_TRICK)).toEqual({
       about_derivatives: null, about_naming_note: null, reverse_pair_base: null,
       family_override: null, trick_kind: null, terminal_cohort: null, terminal_cohort_position: null,
+      add_derivation: null, formula_operator: null, expanded_notation: null,
+      movement_notation_subtitle: null, execution_notation_subtitle: null,
     });
   });
 });
@@ -173,6 +235,15 @@ describe('refusing content the database cannot take', () => {
     ['a trick listed under two terminals', withExtra({
       terminalCohorts: new Map([...content.terminalCohorts, [EXTRA_TRICK, [[...content.terminalCohorts.values()][0]![0]!]]]),
     }), /listed under both/],
+    ['a formula for a trick the dictionary does not hold', withExtra({
+      formulas: [...content.formulas, { slug: 'no_such_formula_trick', derivation: 'dex(1) = 1 ADD', operator: 'dex' }],
+    }), /no_such_formula_trick/],
+    ['a second formula for one trick', withExtra({
+      formulas: [...content.formulas, { ...content.formulas[0]!, derivation: 'dex(1) = 1 ADD' }],
+    }), /more than one formula/],
+    ['a notation subtitle for a trick the dictionary does not hold', withExtra({
+      executionNotationSubtitles: new Map([...content.executionNotationSubtitles, ['no_such_subtitle_trick', 'A line.']]),
+    }), /no_such_subtitle_trick/],
   ])('%s', (_label, bad, message) => {
     db.prepare('UPDATE freestyle_trick_modifiers SET beginner_note = ? WHERE slug = ?').run('kept', EXTRA_MODIFIER);
     db.prepare('UPDATE freestyle_tricks SET family_override = ? WHERE slug = ?').run('kept', EXTRA_TRICK);
@@ -207,6 +278,7 @@ describe('the rebuild stage', () => {
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).toContain(`${content.beginnerNotes.size} modifier beginner notes`);
     expect(r.stdout).toContain(`${content.familyOverrides.size} family overrides`);
+    expect(r.stdout).toContain(`${content.formulas.length} formulas`);
     db = new BetterSqlite3(dbPath);
     expect(value('SELECT COUNT(*) AS v FROM freestyle_trick_modifiers WHERE beginner_note IS NOT NULL'))
       .toBe(content.beginnerNotes.size);

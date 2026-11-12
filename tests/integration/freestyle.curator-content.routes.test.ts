@@ -51,6 +51,33 @@ const OVERRIDDEN: Array<{ slug: string; structural: string }> = [
 ];
 const NOT_TRICKS = ['spyro', 'surging'];
 
+// Formula rows. A row's own adds is the total the Difficulty line shows, so each
+// sampled formula row carries an adds its formula does not end in.
+const formulaOf = new Map(content.formulas.map((f) => [f.slug, f]));
+const EXPANDED = content.formulas.filter((f) => f.expandedNotation).map((f) => f.slug);
+const FORMULA_NOTATION = content.formulas.filter((f) => f.operationalNotation).map((f) => f.slug);
+const FORMULA_SAMPLE = [...new Set(['atom_smasher', 'bedwetter', 'torque', ...EXPANDED, ...FORMULA_NOTATION])];
+const ROW_ADDS = '9';
+// The operators bedwetter's formula names; with no modifier links, the page
+// lists these registered modifiers from the formula.
+const OPERATOR_TRICK = 'bedwetter';
+const OPERATOR_MODIFIERS = ['stepping', 'paradox'];
+// A foundational move whose stored notation differs from the landing page's
+// copy of it, so the page can only show the stored one.
+const FOUNDATION = 'osis';
+const FOUNDATION_NOTATION = 'CLIP > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]';
+// Rows the notation subtitles need: a movement notation that says something the
+// name does not, and an execution notation for the execution heading.
+const ROW_OVERRIDES: Record<string, FreestyleTrickOverrides> = {
+  bubba: { notation: 'CLIP > SAME OUT [DEX] > OP TOE [DEL]' },
+  spin: { operational_notation: 'SET > (back) SPIN [BOD] [KICK]' },
+  miraging_kick: { operational_notation: 'SET > OP IN [DEX] [KICK]' },
+  [FOUNDATION]: { adds: '3', operational_notation: FOUNDATION_NOTATION },
+};
+// Each expanded-notation row carries a shorthand execution notation for the
+// expanded line to spell out.
+for (const slug of EXPANDED) ROW_OVERRIDES[slug] = { operational_notation: 'TOE > (railing set) > OP TOE [DEL]' };
+
 function escapeHbs(s: string): string {
   return s
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -72,6 +99,10 @@ beforeAll(async () => {
     addTrick({ slug, canonical_name: slug, trick_family: structural });
   }
   addTrick({ slug: TRICK, canonical_name: 'zz parity trick', adds: '6', trick_family: 'whirl' });
+  for (const slug of FORMULA_SAMPLE) {
+    addTrick({ slug, canonical_name: slug.replace(/_/g, ' '), adds: ROW_ADDS, ...ROW_OVERRIDES[slug] });
+  }
+  for (const [slug, o] of Object.entries(ROW_OVERRIDES)) addTrick({ slug, canonical_name: slug.replace(/_/g, ' '), ...o });
   // Every trick the staged content names exists, as the seeder requires.
   for (const slug of trickSlugsNamedBy(content)) addTrick({ slug, canonical_name: slug.replace(/_/g, ' ') });
 
@@ -81,7 +112,7 @@ beforeAll(async () => {
     addTrick({ slug: trickNameToSlug(name), canonical_name: name });
     insertFreestyleRecord(db, { trick_name: name, display_name: 'Parity Holder', confidence: 'verified' });
   }
-  const modifierSlugs = new Set([...content.beginnerNotes.keys(), PLAIN_MODIFIER]);
+  const modifierSlugs = new Set([...content.beginnerNotes.keys(), PLAIN_MODIFIER, ...OPERATOR_MODIFIERS]);
   for (const slug of modifierSlugs) insertFreestyleTrickModifier(db, { slug });
   [...noted, PLAIN_MODIFIER].forEach((slug, i) => insertFreestyleTrickModifierLink(db, TRICK, slug, i + 1));
   // A base carrying a displayed alias, so the check that the reversed trick is
@@ -220,6 +251,87 @@ describe('a trick sits in its public family', () => {
     }
     const control = await page(`/freestyle/tricks/${TRICK}`);
     expect(control.text).toMatch(/trick-hero-meta-chip-family[^"]*" href="\/freestyle\/tricks\?family=whirl"/);
+  });
+});
+
+describe('a trick page shows its curator formula', () => {
+  // Defect caught: the Difficulty line lost, or showing a total other than the
+  // trick's own ADD, once the breakdown is read from add_derivation.
+  it('shows each sampled breakdown beside the row\'s own ADD', async () => {
+    for (const slug of FORMULA_SAMPLE) {
+      const formula = formulaOf.get(slug)!;
+      const breakdown = formula.derivation.replace(/\s*=\s*\d+\s*ADD\s*$/, '');
+      const res = await page(`/freestyle/tricks/${slug}`);
+      expect(res.text, slug).toContain(`<span class="trick-add-analysis-total">${ROW_ADDS} ADD</span>`);
+      expect(res.text, slug).toContain(`<code class="trick-add-analysis-derivation">${escapeHbs(breakdown)}</code>`);
+    }
+    // A trick with no formula shows no curator breakdown.
+    const control = await page(`/freestyle/tricks/${TRICK}`);
+    expect(control.text).not.toContain('class="trick-add-analysis-derivation"');
+  });
+
+  // Defect caught: a trick with no modifier links losing the modifiers its
+  // formula names once the operators are read from formula_operator.
+  it('lists the registered modifiers its formula names when it has no links', async () => {
+    const res = await page(`/freestyle/tricks/${OPERATOR_TRICK}`);
+    expect(formulaOf.get(OPERATOR_TRICK)!.operator).toBe(OPERATOR_MODIFIERS.join(' + '));
+    for (const modifier of OPERATOR_MODIFIERS) {
+      expect(res.text, modifier).toMatch(new RegExp(`class="structural-fact"><a href="[^"]*/${modifier}"`));
+    }
+  });
+
+  // Defect caught: the spelled-out execution notation dropped once it is read
+  // from expanded_notation.
+  it('spells out each expanded execution notation under the shorthand', async () => {
+    expect(EXPANDED.length).toBeGreaterThan(0);
+    for (const slug of EXPANDED) {
+      const res = await page(`/freestyle/tricks/${slug}`);
+      expect(res.text, slug).toContain(
+        `<span class="operational-notation-expanded-label">Expanded</span> <code>${escapeHbs(formulaOf.get(slug)!.expandedNotation!)}</code>`,
+      );
+    }
+    const control = await page(`/freestyle/tricks/${TRICK}`);
+    expect(control.text).not.toContain('operational-notation-expanded');
+  });
+
+  // Defect caught: a trick the dictionary left without an execution notation
+  // showing none, once the formula's notation fills the empty column instead
+  // of standing in for it at render time.
+  it('shows the formula\'s execution notation for a trick the dictionary left without one', async () => {
+    expect(FORMULA_NOTATION.length).toBeGreaterThan(0);
+    for (const slug of FORMULA_NOTATION) {
+      const res = await page(`/freestyle/tricks/${slug}`);
+      expect(res.text, slug).toContain('class="operational-notation-tokens"');
+    }
+  });
+});
+
+describe('a foundational move shows its stored notation', () => {
+  // Defect caught: the landing page's copy of a foundational move's notation
+  // shadowing the stored one, so an edit to the trick never shows.
+  it('renders the row\'s own execution notation', async () => {
+    const res = await page(`/freestyle/tricks/${FOUNDATION}`);
+    const code = /<code class="operational-notation-tokens">([\s\S]*?)<\/code>/.exec(res.text)?.[1] ?? '';
+    const text = code.replace(/<[^>]+>/g, '').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim();
+    expect(text).toBe(FOUNDATION_NOTATION);
+  });
+});
+
+describe('the notation headings carry their curator subtitle', () => {
+  // Defect caught: a notation subtitle dropped, or shown under the wrong
+  // heading, once it is read from the trick's own row.
+  it('shows each staged subtitle under its own heading only', async () => {
+    const headings: Array<[heading: string, map: ReadonlyMap<string, string>]> = [
+      ['Movement notation', content.movementNotationSubtitles],
+      ['Execution notation', content.executionNotationSubtitles],
+    ];
+    for (const [heading, map] of headings) {
+      expect(map.size).toBeGreaterThan(0);
+      for (const [slug, subtitle] of map) {
+        const res = await page(`/freestyle/tricks/${slug}`);
+        expect(res.text, slug).toMatch(new RegExp(`<h2>${heading}</h2>\\s*<p class="section-intro">${escapeHbs(subtitle).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}</p>`));
+      }
+    }
   });
 });
 

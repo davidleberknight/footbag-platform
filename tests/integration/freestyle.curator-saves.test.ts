@@ -36,6 +36,10 @@ const SAVED_DERIVATIVES = 'Saved by a curator over the seeded derivatives note.'
 // derivatives note, the other has its seeded public family cleared.
 const DERIVATIVES_SLUG = [...STAGED_CURATOR_CONTENT.aboutDerivatives.keys()][0]!;
 const FAMILY_SLUG = 'hatchet';
+// A seeded formula a save replaces, and a seeded expanded notation a save clears.
+const SAVED_DERIVATION = 'saved(+1) + by(1) + a(1) + curator(1)';
+const FORMULA_SLUG = 'mullet';
+const EXPANDED_SLUG = STAGED_CURATOR_CONTENT.formulas.find((f) => f.expandedNotation)!.slug;
 // Four scoring brackets, so the published trick asserts 4 ADD.
 const PUBLISHED_NOTATION = 'CLIP > OP IN [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]';
 
@@ -86,6 +90,8 @@ interface TrickRow {
   about_derivatives: string | null; about_naming_note: string | null; reverse_pair_base: string | null;
   family_override: string | null; trick_kind: string | null;
   terminal_cohort: string | null; terminal_cohort_position: number | null;
+  add_derivation: string | null; formula_operator: string | null; expanded_notation: string | null;
+  movement_notation_subtitle: string | null; execution_notation_subtitle: string | null;
 }
 
 function readTrick(db: string, slug: string): TrickRow {
@@ -122,6 +128,10 @@ function formFor(row: TrickRow, changes: Record<string, string | boolean>) {
     reversePairBase: row.reverse_pair_base ?? '', familyOverride: row.family_override ?? '',
     trickKind: row.trick_kind ?? '', terminalCohort: row.terminal_cohort ?? '',
     terminalCohortPosition: row.terminal_cohort_position === null ? '' : String(row.terminal_cohort_position),
+    addDerivation: row.add_derivation ?? '', formulaOperator: row.formula_operator ?? '',
+    expandedNotation: row.expanded_notation ?? '',
+    movementNotationSubtitle: row.movement_notation_subtitle ?? '',
+    executionNotationSubtitle: row.execution_notation_subtitle ?? '',
     ...changes,
   };
 }
@@ -215,6 +225,10 @@ beforeAll(async () => {
   service.updateTrickScalars(DERIVATIVES_SLUG,
     formFor(readTrick(dbPath, DERIVATIVES_SLUG), { aboutDerivatives: SAVED_DERIVATIVES }), ADMIN_ID);
   service.updateTrickScalars(FAMILY_SLUG, formFor(readTrick(dbPath, FAMILY_SLUG), { familyOverride: '' }), ADMIN_ID);
+  service.updateTrickScalars(FORMULA_SLUG,
+    formFor(readTrick(dbPath, FORMULA_SLUG), { addDerivation: SAVED_DERIVATION }), ADMIN_ID);
+  service.updateTrickScalars(EXPANDED_SLUG,
+    formFor(readTrick(dbPath, EXPANDED_SLUG), { expandedNotation: '' }), ADMIN_ID);
 
   // One save of every record kind, each against base rows a rebuild would bring
   // back, so the rebuild below proves the save beat the base input.
@@ -516,6 +530,9 @@ describe('a rebuild', () => {
       .toBe(STAGED_CURATOR_CONTENT.aboutDerivatives.get(DERIVATIVES_SLUG));
     expect(readTrick(rebuildPath, FAMILY_SLUG).family_override)
       .toBe(STAGED_CURATOR_CONTENT.familyOverrides.get(FAMILY_SLUG));
+    expect(readTrick(rebuildPath, FORMULA_SLUG).add_derivation).toBeTruthy();
+    expect(readTrick(rebuildPath, FORMULA_SLUG).add_derivation).not.toBe(SAVED_DERIVATION);
+    expect(readTrick(rebuildPath, EXPANDED_SLUG).expanded_notation).toBeTruthy();
   });
 
   it('reloads a saved value and a cleared field, and reports what it overrode', () => {
@@ -549,6 +566,15 @@ describe('a rebuild', () => {
     // the new columns. Reads the saves the reload case applied.
     expect(readTrick(rebuildPath, DERIVATIVES_SLUG).about_derivatives).toBe(SAVED_DERIVATIVES);
     expect(readTrick(rebuildPath, FAMILY_SLUG).family_override).toBeNull();
+  });
+
+  it('keeps a saved and a cleared trick formula field over the seeded content', () => {
+    // Defect: a curator's edit to a seeded formula breakdown or expanded notation
+    // is undone at the next rebuild, because the seeder ran after the saves or
+    // the save loader refused the new columns. Reads the saves the reload case
+    // applied.
+    expect(readTrick(rebuildPath, FORMULA_SLUG).add_derivation).toBe(SAVED_DERIVATION);
+    expect(readTrick(rebuildPath, EXPANDED_SLUG).expanded_notation).toBeNull();
   });
 
   it('brings back every saved source, alias and link, and keeps removed ones gone', () => {

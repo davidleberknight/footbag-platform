@@ -19,8 +19,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import { insertFreestyleTrick } from '../fixtures/factories';
-import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormulas';
+import { insertTrickAsRebuilt } from '../fixtures/stagedFormula';
 
 const { dbPath } = setTestEnv('3172');
 
@@ -28,12 +27,12 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'ricochet',
     canonical_name: 'ricochet',
     adds: '5', base_trick: 'cross-body-sole-stall', trick_family: 'cross-body-sole-stall',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
-    operational_notation: null,
+    operational_notation: 'TOE > OP OUT [DEX] > SAME OUT [DEX] > OP SOLE [XBD] [UNS] [DEL]',
   });
   db.close();
   createApp = await importApp();
@@ -41,18 +40,6 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('RESOLVED_ADD_FORMULAS — ricochet entry', () => {
-  it('overlay carries FB.org-confirmed JOB + 5 ADD + cross-body-sole-stall base', () => {
-    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'ricochet');
-    expect(entry).toBeDefined();
-    expect(entry?.totalAdd).toBe(5);
-    expect(entry?.baseAdd).toBe(3);
-    expect(entry?.base).toBe('cross-body-sole-stall');
-    expect(entry?.operationalNotation).toBe('TOE > OP OUT [DEX] > SAME OUT [DEX] > OP SOLE [XBD] [UNS] [DEL]');
-    expect(entry?.provenance ?? '').toMatch(/FB\.org-confirmed/i);
-    expect(entry?.provenance ?? '').toMatch(/flapper/i);
-  });
-});
 
 describe('ricochet detail page — first-class JOB + ADD', () => {
   it('/freestyle/tricks/ricochet renders 5 ADD + [UNS] unusual-surface token + flapper-terminator tokens', async () => {

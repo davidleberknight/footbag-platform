@@ -27,7 +27,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import { insertFreestyleTrick } from '../fixtures/factories';
+import { insertTrickAsRebuilt } from '../fixtures/stagedFormula';
 
 const { dbPath } = setTestEnv('3177');
 
@@ -42,32 +42,33 @@ beforeAll(async () => {
   // Atom + folk-name fixtures used by the hero-formula + chip suppression
   // assertions. Each row carries notation, operational_notation, and
   // base_trick = self so the convergence rule fires.
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'cloud_kick', canonical_name: 'cloud kick', adds: '1',
     base_trick: 'cloud_kick', trick_family: 'cloud_kick', category: 'body',
     notation: 'CLOUD KICK', operational_notation: '[set] > cloud kick',
     description: 'Kick off the back of the shin.',
     review_status: 'expert_reviewed', is_active: 1,
   });
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'flying_inside', canonical_name: 'flying inside', adds: '1',
     base_trick: 'flying_inside', trick_family: 'flying_inside', category: 'body',
     notation: 'FLYING INSIDE', operational_notation: 'flying > inside',
     review_status: 'expert_reviewed', is_active: 1,
   });
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'rake', canonical_name: 'rake', adds: '2',
     base_trick: 'toe_stall', trick_family: 'rake', category: 'compound',
+    operational_notation: 'SET > SWING [DEX] > SAME TOE [DEL]',
     review_status: 'expert_reviewed', is_active: 1,
   });
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'pendulum', canonical_name: 'pendulum', adds: '2',
     base_trick: 'pendulum', trick_family: 'pendulum', category: 'compound',
     notation: 'PENDULUM',
     operational_notation: 'TOE SWING (SET) > (contact)',
     review_status: 'expert_reviewed', is_active: 1,
   });
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'toe_stall', canonical_name: 'toe stall', adds: '1',
     base_trick: 'toe_stall', trick_family: 'toe_stall', category: 'surface',
     review_status: 'expert_reviewed', is_active: 1,
@@ -76,7 +77,7 @@ beforeAll(async () => {
   // DATW + DLO: first-class promotion targets. notation + op_notation
   // backfilled; base_trick = self so isAtomic gate fires for the
   // ATOMIC_FLAG path in the service.
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'double_around_the_world', canonical_name: 'double around the world',
     adds: '3', base_trick: 'double_around_the_world', trick_family: 'atw',
     category: 'compound',
@@ -84,7 +85,7 @@ beforeAll(async () => {
     operational_notation: 'TOE > SAME IN [DEX] > SAME IN [DEX] > SAME TOE [DEL]',
     review_status: 'expert_reviewed', is_active: 1,
   });
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'double_leg_over', canonical_name: 'double leg over',
     adds: '3', base_trick: 'double_leg_over', trick_family: 'legover',
     category: 'compound',
@@ -96,14 +97,14 @@ beforeAll(async () => {
   // rev_whirl: notation + op_notation backfilled; the JOB row carries
   // the canonical bracket form, the ALT row carries the reverse-pair
   // reading.
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'rev_whirl', canonical_name: 'rev whirl', adds: '3',
     base_trick: 'whirl', trick_family: 'whirl', category: 'compound',
     notation: 'REV WHIRL',
     operational_notation: 'CLIP > OP OUT [DEX] > OP CLIP [XBD] [DEL]',
     review_status: 'expert_reviewed', is_active: 1, reverse_pair_base: 'whirl',
   });
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'whirl', canonical_name: 'whirl', adds: '3',
     base_trick: 'whirl', trick_family: 'whirl', category: 'dex',
     review_status: 'expert_reviewed', is_active: 1,
@@ -196,7 +197,7 @@ describe('rake + pendulum: no reading echoes the execution notation', () => {
     expect(page.status).toBe(200);
     // ≡ "swing toe" was just the lowercase execution-form echo; the audit
     // listed it as leakage. The execution chain already reads
-    // "SET > SWING TOE [DEL]", so a reading on top would only repeat it.
+    // "SET > SWING [DEX] > SAME TOE [DEL]", so a reading on top would only repeat it.
     const readings = page.text.match(/<ol class="equivalent-readings-list">[\s\S]*?<\/ol>/)?.[0] ?? '';
     expect(readings).not.toMatch(/swing[\s\S]*?toe/i);
     // The execution chain still carries the canonical bracket form. The chain

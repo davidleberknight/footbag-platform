@@ -121,6 +121,7 @@ describe('assertFirstClassConvergence — flat derivation path', () => {
         adds: 3,
         base_trick: 'mirage',
         notation: 'PARADOX MIRAGE',
+        add_derivation: 'paradox(+1) + mirage(2)',
       },
       ['paradox'],
       modifierTable,
@@ -167,6 +168,7 @@ describe('assertFirstClassConvergence — flat derivation path', () => {
         adds: 3,
         base_trick: 'mirage',
         notation: 'PARADOX MIRAGE',
+        add_derivation: 'paradox(+1) + mirage(2)',
       },
       ['paradox'],
       modifierTable,
@@ -186,6 +188,7 @@ describe('assertFirstClassConvergence — flat derivation path', () => {
         adds: 999,                       // bogus
         base_trick: 'mirage',
         notation: 'PARADOX MIRAGE',
+        add_derivation: 'paradox(+1) + mirage(2)',
       },
       ['paradox'],
       modifierTable,
@@ -337,7 +340,7 @@ describe('assertFirstClassConvergence — legacy atomic-rotational path is retir
   it('scores paradox on the rotational base mirage by its flat +1, keeping paradox-mirage convergent', () => {
     const result = assertFirstClassConvergence(
       'paradox_mirage',
-      { canonical_name: 'paradox mirage', adds: 3, base_trick: 'mirage', notation: 'PARADOX MIRAGE' },
+      { canonical_name: 'paradox mirage', adds: 3, base_trick: 'mirage', notation: 'PARADOX MIRAGE', add_derivation: 'paradox(+1) + mirage(2)' },
       ['paradox'],
       divergentParadox,
       2,

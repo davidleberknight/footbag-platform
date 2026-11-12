@@ -14,8 +14,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import { insertFreestyleTrick } from '../fixtures/factories';
-import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormulas';
+import { insertTrickAsRebuilt } from '../fixtures/stagedFormula';
 
 const { dbPath } = setTestEnv('3174');
 
@@ -23,12 +22,12 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'pixie_swirl',
     canonical_name: 'pixie swirl',
     adds: '4', base_trick: 'swirl', trick_family: 'swirl',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
-    operational_notation: null,
+    operational_notation: 'TOE > SAME IN [DEX] > SAME/OP OUT [DEX] > SAME CLIP [XBD] [DEL]',
   });
   db.close();
   createApp = await importApp();
@@ -36,19 +35,6 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('RESOLVED_ADD_FORMULAS — pixie_swirl entry', () => {
-  it('overlay carries FB.org-confirmed JOB + 4 ADD + pixie/swirl derivation', () => {
-    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'pixie_swirl');
-    expect(entry).toBeDefined();
-    expect(entry?.totalAdd).toBe(4);
-    expect(entry?.baseAdd).toBe(3);
-    expect(entry?.operator).toBe('pixie');
-    expect(entry?.base).toBe('swirl');
-    expect(entry?.operationalNotation).toBe('TOE > SAME IN [DEX] > SAME/OP OUT [DEX] > SAME CLIP [XBD] [DEL]');
-    expect(entry?.provenance ?? '').toMatch(/FB\.org-confirmed/i);
-    expect(entry?.provenance ?? '').toMatch(/SAME\/OP variant/i);
-  });
-});
 
 describe('pixie_swirl detail page — first-class JOB + ADD', () => {
   it('/freestyle/tricks/pixie_swirl renders 4 ADD + SAME IN [DEX] prefix, no retired swirl token', async () => {

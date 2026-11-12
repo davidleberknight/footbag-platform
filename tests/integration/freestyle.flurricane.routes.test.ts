@@ -20,8 +20,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import { insertFreestyleTrick } from '../fixtures/factories';
-import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormulas';
+import { insertTrickAsRebuilt } from '../fixtures/stagedFormula';
 
 const { dbPath } = setTestEnv('3173');
 
@@ -30,12 +29,12 @@ const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'flurricane',
     canonical_name: 'flurricane',
     adds: '5', base_trick: 'flurry', trick_family: 'flurry',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
-    operational_notation: null,
+    operational_notation: 'CLIP > (back) SPIN [BOD] > SAME IN [DEX] > SAME IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]',
     aliases_json: '["gyro flurry"]',
   });
   db.close();
@@ -44,20 +43,6 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('RESOLVED_ADD_FORMULAS — flurricane entry', () => {
-  it('overlay carries FB.org-confirmed CLIP-set JOB + 5 ADD + gyro/flurry derivation', () => {
-    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'flurricane');
-    expect(entry).toBeDefined();
-    expect(entry?.totalAdd).toBe(5);
-    expect(entry?.baseAdd).toBe(4);
-    expect(entry?.operator).toBe('gyro');
-    expect(entry?.base).toBe('flurry');
-    expect(entry?.operationalNotation).toBe('CLIP > (back) SPIN [BOD] > SAME IN [DEX] > SAME IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]');
-    expect(entry?.provenance ?? '').toMatch(/FB\.org-confirmed/i);
-    expect(entry?.provenance ?? '').toMatch(/Gyro Flurry/i);
-    expect(entry?.provenance ?? '').toMatch(/TOE-set variant/i);
-  });
-});
 
 describe('flurricane detail page — first-class JOB + ADD', () => {
   it('/freestyle/tricks/flurricane renders 5 ADD + (back) pre-state + SPIN [BOD] + 3 dex tokens', async () => {

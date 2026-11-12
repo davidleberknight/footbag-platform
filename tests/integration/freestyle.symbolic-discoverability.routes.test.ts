@@ -19,10 +19,10 @@ import {
   importApp,
 } from '../fixtures/testDb';
 import {
-  insertFreestyleTrick,
   insertFreestyleTrickModifier,
   insertFreestyleTrickModifierLink,
 } from '../fixtures/factories';
+import { insertTrickAsRebuilt } from '../fixtures/stagedFormula';
 
 const { dbPath } = setTestEnv('3093');
 
@@ -33,21 +33,21 @@ beforeAll(async () => {
   const db = createTestDb(dbPath);
 
   // butterfly-wing-topology members
-  insertFreestyleTrick(db, { slug: 'butterfly',  canonical_name: 'butterfly',  adds: '3', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'ripwalk',    canonical_name: 'ripwalk',    adds: '4', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'sidewalk',   canonical_name: 'sidewalk',   adds: '4', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'dimwalk',    canonical_name: 'dimwalk',    adds: '4', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'matador',    canonical_name: 'matador',    adds: '5', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'phoenix',    canonical_name: 'phoenix',    adds: '5', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'dada_curve', canonical_name: 'dada curve', adds: '4', base_trick: null,        trick_family: 'dada_curve', category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'butterfly',  canonical_name: 'butterfly',  adds: '3', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'ripwalk',    canonical_name: 'ripwalk',    adds: '4', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'sidewalk',   canonical_name: 'sidewalk',   adds: '4', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'dimwalk',    canonical_name: 'dimwalk',    adds: '4', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'matador',    canonical_name: 'matador',    adds: '5', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'phoenix',    canonical_name: 'phoenix',    adds: '5', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'dada_curve', canonical_name: 'dada curve', adds: '4', base_trick: null,        trick_family: 'dada_curve', category: 'compound' });
 
   // whirl-rotational-topology + spinning-family members
-  insertFreestyleTrick(db, { slug: 'whirl',          canonical_name: 'whirl',          adds: '3', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'spinning-whirl', canonical_name: 'spinning whirl', adds: '4', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'montage',        canonical_name: 'montage',        adds: '7', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'whirl',          canonical_name: 'whirl',          adds: '3', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'spinning-whirl', canonical_name: 'spinning whirl', adds: '4', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'montage',        canonical_name: 'montage',        adds: '7', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });
 
   // A trick OUTSIDE both topologies — used to verify CTAs are NOT injected.
-  insertFreestyleTrick(db, { slug: 'mirage', canonical_name: 'mirage', adds: '2', base_trick: 'mirage', trick_family: 'mirage', category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'mirage', canonical_name: 'mirage', adds: '2', base_trick: 'mirage', trick_family: 'mirage', category: 'compound' });
 
   // montage carries the spinning modifier as well as its whirl base, so two
   // conditions fire the same link.
@@ -57,18 +57,18 @@ beforeAll(async () => {
   // Tricks no stored grouping knows about: one published on the butterfly, one
   // built on the mirage but carrying the spinning modifier. Their links can come
   // only from their own structure.
-  insertFreestyleTrick(db, { slug: 'fresh_walk',      canonical_name: 'fresh walk',      adds: '4', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'spinning_mirage', canonical_name: 'spinning mirage', adds: '3', base_trick: 'mirage',    trick_family: 'mirage',    category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'fresh_walk',      canonical_name: 'fresh walk',      adds: '4', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'spinning_mirage', canonical_name: 'spinning mirage', adds: '3', base_trick: 'mirage',    trick_family: 'mirage',    category: 'compound' });
   insertFreestyleTrickModifierLink(db, 'spinning_mirage', 'spinning');
 
   // bigwalk is filed under the butterfly in the stored grouping every test
   // database is seeded with; here it sits on a different base, so the page must
   // follow the row, not the stale grouping.
-  insertFreestyleTrick(db, { slug: 'bigwalk', canonical_name: 'bigwalk', adds: '5', base_trick: 'mirage', trick_family: 'mirage', category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'bigwalk', canonical_name: 'bigwalk', adds: '5', base_trick: 'mirage', trick_family: 'mirage', category: 'compound' });
 
   // scorpions_tail has no modifier link rows; its curator-published formula
   // names the spinning operator, which the Structural Facts block shows.
-  insertFreestyleTrick(db, { slug: 'scorpions_tail', canonical_name: "scorpion's tail", adds: '5', base_trick: 'down_double_down', trick_family: 'down_double_down', category: 'compound' });
+  insertTrickAsRebuilt(db, { slug: 'scorpions_tail', canonical_name: "scorpion's tail", adds: '5', base_trick: 'down_double_down', trick_family: 'down_double_down', category: 'compound' });
 
   db.close();
   createApp = await importApp();

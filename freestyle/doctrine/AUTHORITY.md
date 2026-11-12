@@ -16,8 +16,8 @@ disagrees with its home is a bug, not an alternative reading.
 
 | Concept | Authoritative home | Secondary surfaces (must stay consistent) |
 |---|---|---|
-| Trick ADD value | `freestyle_tricks.adds` (database, loaded from the curator CSVs) | worked examples and derivations in `freestyleResolvedFormulas.ts`; the ADD-analysis page |
-| Operational (execution) notation | `freestyle_tricks.operational_notation` (database) | `freestyleResolvedFormulas.ts` `operationalNotation` is a **fallback only**, used when the database column is empty; it never shadows a populated row. The 12 core atoms are the one exception: `CORE_TRICK_SPEC` owns their notation |
+| Trick ADD value | `freestyle_tricks.adds` (database, loaded from the curator CSVs) | the per-trick breakdown in `freestyle_tricks.add_derivation`, whose total is always `adds`; the ADD-analysis page |
+| Operational (execution) notation | `freestyle_tricks.operational_notation` (database) | none: the database column is the only source, for the 12 foundational moves too; `freestyle_tricks.expanded_notation` only spells a shorthand out beneath it |
 | JOB notation form (`freestyle_tricks.notation`) | `freestyle/doctrine/JOB_NOTATION.md` (the semantic-label form: decomposition vs name) | this document continues to govern source priority and operational-notation truth; `JOB_NOTATION.md` governs only the label's form |
 | Aliases (folk / historical / spelling) | `freestyle_trick_aliases` table (from `red_additions` aliases column + `trick_aliases.csv`) | every rendering surface reads this table; the `aliases_json` column is deprecated and used only as a fallback for rows the table does not yet cover |
 | Operator / modifier ADD, structure, X-Dex | `src/content/freestyleOperatorReference.ts` | `freestyleOperatorGrammar.ts`, the `freestyle_trick_modifiers` registry (its beginner notes included), and the glossary operator text |
@@ -39,9 +39,10 @@ number do not all agree, they are reconciled in this order:
    `[set]`-shorthand notation that is intentionally not bracket-counted.)
 3. **An outside source's number is recorded, not adopted.** Where FootbagMoves or
    PassBack scores a trick differently, the platform publishes its structural
-   value and records the divergence in the row's provenance (single-trick cases)
-   or in `OPERATOR_WEIGHT_DIVERGENCE_POLICY` / `DOCTRINE_DIVERGENCE_REGISTRY`
-   (cohort and per-trick cases). Frequency is evidence, never authority.
+   value and records the divergence on the affected trick's source-link row in
+   `freestyle_trick_source_links`: that source's `asserted_adds`, with the reason
+   and any provenance in its `notes`. A cohort case is recorded on each member
+   trick's row. Frequency is evidence, never authority.
 
 The same selective-incorporation rule governs every ontology-coupled field: an
 outside corpus (FootbagMoves, PassBack, footbag.org) may contribute observational

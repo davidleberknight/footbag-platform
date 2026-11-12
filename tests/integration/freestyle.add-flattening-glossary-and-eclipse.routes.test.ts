@@ -23,7 +23,6 @@ import {
   importApp,
 } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
-import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormulas';
 
 const { dbPath } = setTestEnv('3164');
 
@@ -112,15 +111,6 @@ describe('Freestyle Concepts ADD Accounting — ADD-flattening note', () => {
 });
 
 describe('Eclipse — curator-supplied operational notation', () => {
-  it('RESOLVED_ADD_FORMULAS carries an eclipse entry with the airborne-hop-over JOB', () => {
-    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'eclipse');
-    expect(entry).toBeDefined();
-    expect(entry?.totalAdd).toBe(3);
-    expect(entry?.operationalNotation).toBe('SET > (jump) [BOD] > SAME or OP INSIDE [DEL] > OP OUT [DEX] > (land)');
-    expect(entry?.provenance ?? '').toMatch(/airborne[\s\S]*hop-over topology/i);
-    expect(entry?.derivation ?? '').toMatch(/bod\(1\)[^=]*\+[^=]*stall\(1\)[^=]*\+[^=]*dex\(1\)[^=]*=[^=]*3 ADD/);
-  });
-
   it('/freestyle/tricks/eclipse renders the curator-supplied op-notation tokens', async () => {
     const res = await page('/freestyle/tricks/eclipse');
     expect(res.status).toBe(200);

@@ -115,7 +115,16 @@ def extract_doctrine_divergence_slugs(content: str) -> set:
 
 def load_ts_state() -> dict:
     fs = FREESTYLE_SERVICE_TS.read_text(encoding="utf-8")
-    rf = RESOLVED_FORMULAS_TS.read_text(encoding="utf-8")
+    # Curator formulas now live in freestyle_tricks.add_derivation, so the module
+    # this audit used to read is gone; without it the audit has no published
+    # formula totals to compare, and says so rather than stopping.
+    rf = ""
+    if RESOLVED_FORMULAS_TS.exists():
+        rf = RESOLVED_FORMULAS_TS.read_text(encoding="utf-8")
+    else:
+        print(f"WARNING: {RESOLVED_FORMULAS_TS} not found; curator formulas are "
+              "read from freestyle_tricks.add_derivation now, so this audit "
+              "compares no published formula totals.", file=sys.stderr)
     # Trick kinds now live in the freestyle_tricks.trick_kind column, so the
     # module this audit used to read is gone; without it every row counts as a
     # trick, and the audit says so rather than stopping.

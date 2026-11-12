@@ -23,7 +23,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import { insertFreestyleTrick } from '../fixtures/factories';
+import { insertTrickAsRebuilt } from '../fixtures/stagedFormula';
 import type { GlossaryTerm } from '../../src/content/freestyleGlossaryTerms';
 
 const { dbPath } = setTestEnv('4044');
@@ -44,7 +44,7 @@ beforeAll(async () => {
     ['legover', '2'], ['pickup', '2'], ['mirage', '2'], ['illusion', '2'],
     ['butterfly', '3'], ['osis', '3'], ['whirl', '3'], ['swirl', '3'],
   ] as const) {
-    insertFreestyleTrick(db, { slug, canonical_name: slug.replace(/_/g, ' '), adds, base_trick: slug, trick_family: slug, category: 'dex', is_active: 1 });
+    insertTrickAsRebuilt(db, { slug, canonical_name: slug.replace(/_/g, ' '), adds, base_trick: slug, trick_family: slug, category: 'dex', is_active: 1 });
   }
   db.close();
   createApp = await importApp();

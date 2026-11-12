@@ -15,8 +15,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import { insertFreestyleTrick } from '../fixtures/factories';
-import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormulas';
+import { insertTrickAsRebuilt } from '../fixtures/stagedFormula';
 
 const { dbPath } = setTestEnv('3171');
 
@@ -24,12 +23,12 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'symposium_pixie',
     canonical_name: 'symposium pixie',
     adds: '3', base_trick: 'pixie', trick_family: 'pixie',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
-    operational_notation: null,
+    operational_notation: 'TOE > (no plant while) SAME IN [BOD] [DEX] > OP TOE [DEL]',
   });
   db.close();
   createApp = await importApp();
@@ -37,20 +36,6 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('RESOLVED_ADD_FORMULAS — symposium_pixie entry', () => {
-  it('overlay carries sibling-derived JOB + 3 ADD + symposium-prefix derivation provenance', () => {
-    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'symposium_pixie');
-    expect(entry).toBeDefined();
-    expect(entry?.totalAdd).toBe(3);
-    expect(entry?.baseAdd).toBe(2);
-    expect(entry?.operator).toBe('symposium');
-    expect(entry?.base).toBe('pixie');
-    expect(entry?.operationalNotation).toBe('TOE > (no plant while) SAME IN [BOD] [DEX] > OP TOE [DEL]');
-    expect(entry?.provenance ?? '').toMatch(/sibling-derived/i);
-    expect(entry?.provenance ?? '').toMatch(/pixie-symposium-mirage/i);
-    expect(entry?.provenance ?? '').toMatch(/not Red-confirmed/i);
-  });
-});
 
 describe('symposium_pixie detail page — first-class JOB + ADD', () => {
   it('/freestyle/tricks/symposium_pixie renders 3 ADD + (no plant while) pre-state + [BOD] fusion', async () => {

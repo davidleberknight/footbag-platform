@@ -249,6 +249,11 @@ export const adminFreestyleController = {
       trickKind:                 str(req.body.trickKind),
       terminalCohort:            str(req.body.terminalCohort),
       terminalCohortPosition:    str(req.body.terminalCohortPosition),
+      addDerivation:             str(req.body.addDerivation),
+      formulaOperator:           str(req.body.formulaOperator),
+      expandedNotation:          str(req.body.expandedNotation),
+      movementNotationSubtitle:  str(req.body.movementNotationSubtitle),
+      executionNotationSubtitle: str(req.body.executionNotationSubtitle),
     };
 
     try {

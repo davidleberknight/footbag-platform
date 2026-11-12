@@ -179,15 +179,10 @@ import {
   isDescriptionStructuralPlaceholder,
   REV_ZERO_EXPLAINER,
 } from '../content/freestyleSemanticOverrides';
-import { getSectionSubtitles, type DetailSectionKey } from '../content/freestyleSectionSubtitles';
 import {
   FREESTYLE_ADD_ANALYSIS_CONTENT,
   type AddAnalysisContent,
 } from '../content/freestyleAddAnalysisContent';
-import {
-  RESOLVED_ADD_FORMULAS,
-  type ResolvedFormula,
-} from '../content/freestyleResolvedFormulas';
 import {
   FREESTYLE_COMBO_ANALYSIS_CONTENT,
   RUN_QUALITY_ENTRIES,
@@ -606,7 +601,7 @@ function isDexlessBodyAtom(r: { category: string | null; base_trick: string | nu
 function countNotatedDexes(r: {
   slug: string; category: string | null; base_trick: string | null; operational_notation: string | null;
 }): number | null {
-  const op = resolveOperationalNotationRaw(r.slug, r.operational_notation);
+  const op = resolveOperationalNotationRaw(r.operational_notation);
   if (!op || !op.trim()) return isDexlessBodyAtom(r) ? 0 : null;
   return (op.match(/\[DEX\]/g) ?? []).length;
 }
@@ -1318,10 +1313,10 @@ export interface FreestyleTrickContent {
   // classification + educational tooltip text. Null when notation is empty.
   // Display-only; never affects ADD math.
   notationDisplay: NotationDisplay | null;
-  // Curator-authored one-line subtitle per detail-page section; each value is
-  // null when no entry exists (the heading then stands alone, never generic
-  // filler). Source: freestyleSectionSubtitles.ts.
-  sectionSubtitles: Record<DetailSectionKey, string | null>;
+  // Curator-authored one-line subtitle under each notation heading; null when
+  // the trick's column is empty (the heading then stands alone, never generic
+  // filler).
+  sectionSubtitles: { movementNotation: string | null; executionNotation: string | null };
   // Curator-authored "About" derivatives line, rendered after the build chain;
   // null when the trick's about_derivatives column is empty.
   aboutDerivatives: string | null;
@@ -3363,71 +3358,18 @@ const FAMILY_NOTES: Record<string, string> = {
     'and food processor (blurry blender).',
 };
 
-// Slug-keyed lookup for trick-detail Tier-4 disclosure. Built once at
-// module load from the curator-published resolved-formulas content
-// module. Missing slugs return null → silent suppression (Tier-3 absence
-// on the trick-detail page), preserving the test-pinned 4-tier
-// rendering hierarchy contract.
-// Compounds whose earlier published derivation scored a "miraging(+1)" component.
-// Miraging is retired as a scored, formula-bearing operator: it is historical
-// mirage-family terminology for a single inward dex, which scores as a dex from the
-// notation, not as a miraging operator. So these compounds carry no operator-scored
-// resolved formula, and every formula consumer (ADD-view chip, trick-detail
-// disclosure, operator-derived modifier links) falls back to the bare ADD read from
-// the notation rather than presenting the nickname as a scored component. The trick
-// name, the DB notation, and the bare ADD (the notation bracket count) are unchanged.
-const MIRAGING_NON_OPERATOR_FORMULA_SLUGS: ReadonlySet<string> = new Set([
-  'big_apple_sauce',
-  'spinning_miraging_symposium_torque',
-  'symposium_miraging_mirage',
-  'miraging_symposium_butterfly',
-  'miraging_symposium_whirl',
-]);
-
-const RESOLVED_FORMULAS_BY_SLUG: ReadonlyMap<string, ResolvedFormula> = (() => {
-  const map = new Map<string, ResolvedFormula>();
-  for (const formula of RESOLVED_ADD_FORMULAS) {
-    if (MIRAGING_NON_OPERATOR_FORMULA_SLUGS.has(formula.slug)) continue;
-    map.set(formula.slug, formula);
-  }
-  return map;
-})();
-
-/** Resolve the curator-authored JOB operational notation for a slug.
- *  Lookup order: CoreTrickSpec (12 atoms) → RESOLVED_ADD_FORMULAS
- *  (curator-published compounds carrying operationalNotation) → DB row's
- *  operational_notation column. Returns null when no source has a value.
- *
- *  This is the single source-of-truth path for JOB notation shaping.
- *  Both shapeDictionaryTrickCard (browse) and the trick-detail builder
- *  consult it so card + detail page stay in sync. */
-function resolveOperationalNotationRaw(
-  slug: string,
-  dbRaw: string | null | undefined,
-): string | null {
-  const coreAtomSpec = CORE_TRICK_SPEC.find(s => s.slug === slug);
-  if (coreAtomSpec?.operationalNotation) return coreAtomSpec.operationalNotation;
-  // The database operational_notation is the single source of truth for a trick's
-  // execution notation: it is loaded from the curator CSVs and carries the migrated
-  // bracket form, so it always bracket-matches the published ADD. The resolved-formula
-  // module supplies notation only as a fallback for the few rows whose DB notation is
-  // not yet filled; it is never allowed to shadow a populated DB row.
-  if (dbRaw) return dbRaw;
-  const resolved = RESOLVED_FORMULAS_BY_SLUG.get(slug);
-  return resolved?.operationalNotation ?? null;
+/** A trick's execution notation: the database operational_notation column,
+ *  the single source of truth, or null when the row has none. Both
+ *  shapeDictionaryTrickCard (browse) and the trick-detail builder read it
+ *  through here so card and detail page stay in sync. */
+function resolveOperationalNotationRaw(dbRaw: string | null | undefined): string | null {
+  return dbRaw ? dbRaw : null;
 }
 
-/** Resolve the Tier-4 ADD-analysis disclosure for a trick slug. Returns
- *  null when the slug has no curator-published resolved formula —
- *  trick-detail then silently omits the disclosure section. Provenance
- *  is intentionally NOT included in the disclosure (curator-internal
- *  language; see [[feedback_public_facing_prose]]). */
-/** Strip the trailing `= N ADD` from a curator-published
- *  derivation string. The hero ADD chip (`{adds} ADD`) is the authoritative
- *  ADD display on trick-detail + first-class browse cards; the breakdown row
- *  carries the operator-by-operator math without restating the total. The
- *  /freestyle/add-analysis worked-examples and glossary §formulas
- *  intentionally keep the terminator (teaching surfaces; out of scope). */
+/** Strip the trailing `= N ADD` from a derivation string. The hero ADD chip
+ *  (`{adds} ADD`) is the authoritative ADD display on trick-detail and
+ *  first-class browse cards; the breakdown row carries the operator-by-operator
+ *  math without restating the total. */
 function stripDerivationAddTerminator(s: string): string {
   return s.replace(/\s*=\s*\d+\s*ADD\s*$/, '');
 }
@@ -3442,20 +3384,25 @@ interface ModifierLinkDerivationInput {
   links:           Array<{ name: string; addBonus: number }>;
 }
 
+/** The trick page's Difficulty line. A curator formula wins: its breakdown is
+ *  stored without the total, which is the row's own adds, so the line can never
+ *  show a total that disagrees with the ADD the rest of the site shows. */
 function shapeTrickAddAnalysis(
-  slug: string,
+  row: { slug: string; adds: string | null; add_derivation: string | null } | null | undefined,
   isAtomic = false,
   modifierLinkDerivation?: ModifierLinkDerivationInput,
 ): TrickAddAnalysisDisclosure | null {
-  const formula = RESOLVED_FORMULAS_BY_SLUG.get(slug);
-  if (formula) {
+  const slug = row?.slug ?? '';
+  const breakdown = row?.add_derivation?.trim() ?? '';
+  const rowAdds = row?.adds != null && row.adds !== '' ? Number(row.adds) : NaN;
+  if (breakdown && !Number.isNaN(rowAdds)) {
     return {
-      derivation:      stripDerivationAddTerminator(formula.derivation),
-      totalAdd:        formula.totalAdd,
+      derivation:      breakdown,
+      totalAdd:        rowAdds,
     };
   }
   // Atomic base trick (no modifiers): its ADD breakdown lives in the atomic
-  // flag-decomposition registry rather than RESOLVED_FORMULAS, so the unified
+  // flag-decomposition registry rather than a curator formula, so the unified
   // notation card can still render an ADD line for it.
   if (isAtomic) {
     const atomic = ATOMIC_FLAG_DECOMPOSITIONS.get(slug);
@@ -3519,11 +3466,11 @@ function shapeTrickAddAnalysis(
 //   Tier 1 — JOB + ADD both curator-locked. Atoms with
 //     ATOMIC_FLAG_DECOMPOSITIONS entries (providing operationalChain +
 //     decomposition strings), or compounds with both curator-authored
-//     operational_notation AND a RESOLVED_ADD_FORMULAS entry.
+//     operational_notation AND a curator formula (add_derivation).
 //     Cards render at full osis-grade parity (both first-class rows
 //     populated, no incomplete-state line).
 //   Tier 2 — ADD curator-locked; Job notation genuinely absent upstream.
-//     RESOLVED_ADD_FORMULAS entries whose operational_notation
+//     Rows with a curator formula whose operational_notation
 //     column is empty. Cards render the ADD breakdown plus the honest
 //     "JOB: notation pending" incomplete-state line.
 //
@@ -3750,7 +3697,7 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'spinning_pickup',         // spinning(+1) + pickup(2) = 3 ADD
   'tapping_whirl',           // tapping(+1) + whirl(3) = 4 ADD
   // ── Promotions: 19 slugs already carrying
-  //    curator-published derivations in RESOLVED_ADD_FORMULAS
+  //    curator-published derivations (add_derivation)
   //    but never explicitly added to a tier set. Each row's derivation
   //    is settled; promotion is mechanical (set membership only).
   'atom_smasher',            // atomic(+1) + mirage(2) + symposium(+1) = 4 ADD (composite via base-mirage)
@@ -3864,20 +3811,17 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'spinning_paradox_blender', // spinning(+1) + paradox(+1) + blender(4) = 6 ADD (FB.org)
   'stepping_ducking_paradox_blender', // stepping(+1) + ducking(+1) + paradox(+1) + blender(4) = 7 ADD (FB.org)
   'paradox_blizzard',        // paradox(+1) + blizzard(3) = 4 ADD (FB.org; stepwise via blizzard)
-  // ── Doctrine-divergence pilot batch. First
-  //    registered rows of DOCTRINE_DIVERGENCE_REGISTRY. Each carries a
-  //    +1 gap between IFPA-grammar derivation (canonical) and PassBack
-  //    source claim; documented as historical-divergence with public
-  //    scoring-notes rendering on trick-detail pages.
+  // ── Doctrine-divergence pilot batch. Each carries a +1 gap between
+  //    IFPA-grammar derivation (canonical) and the PassBack source claim;
+  //    the canonical value is published.
   'blurrage',                // stepping(+1) + barrage(3) = 4 ADD (PB-source: 3)
   'predator',                // atomic(+1) + dlo(3) = 4 ADD (PB-source: 3)
   'schmoe',                  // stepping(+1) + legover(2) = 3 ADD (PB-source: 2)
   // ── Polish promotions: three ATW-family promoted
   //    rows + three held-stall leg-over family rows + butterfly-kick
-  //    correction. Each has operationalNotation populated via the
-  //    RESOLVED_FORMULAS overlay; promotion to FIRST_CLASS_TIER_2 here
-  //    surfaces the JOB+ADD browse-card row (was: bare op-notation
-  //    display only on trick-detail pages).
+  //    correction. Each has its operational notation populated;
+  //    membership in FIRST_CLASS_TIER_2 surfaces the JOB+ADD browse-card
+  //    row.
   'around_the_world_kick',       // around-the-world chain without the terminal (ss toe) stall = 1 ADD
   'triple_around_the_world',     // dex(3) + stall(1) = 4 ADD
   'double_around_the_world_heel', // dex(2) + unusual-surface(1) + heel-stall(1) = 4 ADD
@@ -4396,7 +4340,8 @@ export function assertFirstClassConvergence(
   slug: string,
   dictRow: { canonical_name?: string; adds?: string | number | null;
              notation?: string | null; base_trick?: string | null;
-             operational_notation?: string | null } | null,
+             operational_notation?: string | null;
+             add_derivation?: string | null } | null,
   modifierSlugs: readonly string[],
   modifierTable: Map<string, { add_bonus: number; add_bonus_rotational: number }>,
   baseAdd: number | null,
@@ -4429,7 +4374,9 @@ export function assertFirstClassConvergence(
   // is the curator-canonical interpretation (e.g. witchdoctor reads as
   // atom-smasher + symposium, not as flat atomic + symposium + mirage).
   const composite = COMPOSITE_DERIVATIONS.get(slug);
-  const publishedFormula = RESOLVED_FORMULAS_BY_SLUG.get(slug);
+  // A published formula's total is the row's own adds, so it always agrees with
+  // the official ADD; only its presence decides H4.
+  const publishedFormula = !!dictRow.add_derivation?.trim();
   const isAtomic = dictRow.base_trick === slug && modifierSlugs.length === 0;
   const atomicDecomp = isAtomic ? ATOMIC_FLAG_DECOMPOSITIONS.get(slug) : undefined;
   if (!composite && !publishedFormula && !atomicDecomp) {
@@ -4457,9 +4404,6 @@ export function assertFirstClassConvergence(
   }
   if (composite && composite.totalAdd !== officialAdd) {
     return { status: 'governance-blocked', diagnostic: `composite-derivation total ${composite.totalAdd} != official ${officialAdd}` };
-  }
-  if (publishedFormula && publishedFormula.totalAdd !== officialAdd) {
-    return { status: 'governance-blocked', diagnostic: `derivation total ${publishedFormula.totalAdd} != official ${officialAdd}` };
   }
   if (atomicDecomp && atomicDecomp.totalAdd !== officialAdd) {
     return { status: 'governance-blocked', diagnostic: `atomic decomp total ${atomicDecomp.totalAdd} != official ${officialAdd}` };
@@ -4543,8 +4487,7 @@ function byCanonicalNameAlpha(a: { canonicalName: string }, b: { canonicalName: 
 // "Also called:" line, gated by each alias's own display flag. See its
 // derivation below for the prune rules.
 // ─────────────────────────────────────────────────────────────────────────
-// ADD-view line-2 formula derivation. Priority: curator RESOLVED_FORMULAS
-// → atomic flag decomposition → mechanical modifier-link derivation
+// ADD-view line-2 formula derivation. Priority: atomic flag decomposition → mechanical modifier-link derivation
 // (sum-verified against canonical adds) → null (caller renders bare "ADD: N").
 // Never fabricates: the modifier-link branch only emits when the component
 // sum equals the row's canonical ADD, guarding against drift.
@@ -4574,18 +4517,11 @@ function shapeDictionaryTrickCard(
   row: FreestyleTrickRowWithStatus,
   indexRow: FreestyleTrickIndexRow,
 ): DictionaryTrickCard {
-  // When the row is one of
-  // the 12 curator-authoritative core atoms, source operational notation
-  // from CoreTrickSpec.operationalNotation (TS content module, the same
-  // single source the landing Core Tricks grid reads from).
-  // This propagates the curator-authored atom notation to dictionary
-  // browse cards (ADD / family / set / modifier views), so atoms like mirage / whirl / butterfly / ATW no longer
-  // render blank or with alias-only readings. Alias-governance entries
-  // ('≡ ATW', etc.) are suppressed on browse cards for atoms so the
-  // operational notation takes the visible slot; aliases remain
-  // accessible on the trick-detail page + glossary.
+  // The card's operational notation is the row's own stored column. For the
+  // 12 core atoms the source-note line is left off, because their notation is
+  // the curator-locked core chain rather than a cited source reading.
   const coreAtomSpec = CORE_TRICK_SPEC.find(s => s.slug === indexRow.slug);
-  const opNotationRaw = resolveOperationalNotationRaw(indexRow.slug, row.operational_notation);
+  const opNotationRaw = resolveOperationalNotationRaw(row.operational_notation);
   const opDisplay = shapeOperationalNotationDisplay(opNotationRaw);
   const dbSourceNote = (!coreAtomSpec && row.operational_notation_source && row.operational_notation_source.trim())
     ? row.operational_notation_source.trim()
@@ -5442,15 +5378,15 @@ function buildStructuralFacts(
 
 // Fallback modifier links for the structural-fact block when a trick has no DB
 // modifier links (folk-named compounds, curated-base rows). Recovers the
-// operators from the curator-published RESOLVED_FORMULAS operator string: split
-// on '+', and keep only tokens that are registered modifiers. Descriptive
-// operator notes (e.g. 'atomic + x-dex', 'kick (terminal stall removed)') thus
-// self-filter to their real modifiers (atomic) or to nothing.
+// operators from the row's curator formula_operator string: split on '+', and
+// keep only tokens that are registered modifiers. Descriptive operator notes
+// (e.g. 'atomic + x-dex', 'kick (terminal stall removed)') thus self-filter to
+// their real modifiers (atomic) or to nothing.
 function deriveModifierLinksFromOperator(
-  slug: string,
+  formulaOperator: string | null | undefined,
   modifierRows: readonly FreestyleTrickModifierRow[],
 ): ModifierLinkInfo[] {
-  const operator = RESOLVED_FORMULAS_BY_SLUG.get(slug)?.operator ?? '';
+  const operator = formulaOperator ?? '';
   if (!operator) return [];
   const bySlug = new Map(modifierRows.map(r => [r.slug, r]));
   const out: ModifierLinkInfo[] = [];
@@ -6395,7 +6331,7 @@ export const freestyleService = {
                 baseTrick:     dictRow.base_trick,
                 modifierSlugs: (currentTrickMods.length > 0
                   ? currentTrickMods
-                  : deriveModifierLinksFromOperator(dictRow.slug, allModifierRows)
+                  : deriveModifierLinksFromOperator(dictRow.formula_operator, allModifierRows)
                 ).map(m => m.slug),
               })
             : [],
@@ -6405,7 +6341,7 @@ export const freestyleService = {
             // curator-published operator so the block still shows their modifiers.
             const modsForFacts = currentTrickMods.length > 0
               ? currentTrickMods
-              : deriveModifierLinksFromOperator(dictRow.slug, allModifierRows);
+              : deriveModifierLinksFromOperator(dictRow.formula_operator, allModifierRows);
             const facts = buildStructuralFacts(
               { slug: dictRow.slug, base_trick: dictRow.base_trick, trick_family: dictRow.trick_family, category: dictRow.category, operational_notation: dictRow.operational_notation },
               dictEntry?.isBase ?? false,
@@ -6427,7 +6363,10 @@ export const freestyleService = {
                 modifierLinks,
               )
             : null,
-          sectionSubtitles: getSectionSubtitles(slug),
+          sectionSubtitles: {
+            movementNotation:  dictRow?.movement_notation_subtitle ?? null,
+            executionNotation: dictRow?.execution_notation_subtitle ?? null,
+          },
           aboutDerivatives: dictRow?.about_derivatives ?? null,
           aboutNamingNote:  dictRow?.about_naming_note ?? null,
           notationDisplay: (() => {
@@ -6437,9 +6376,7 @@ export const freestyleService = {
             // render the same tokens. Suppress the Movement block; the Execution
             // block carries the notation. The underlying data is left untouched.
             const movementRaw = (dictRow.notation ?? '').trim();
-            const execRaw = (resolveOperationalNotationRaw(
-              slug, dictRow.operational_notation ?? null,
-            ) ?? '').trim();
+            const execRaw = (resolveOperationalNotationRaw(dictRow.operational_notation) ?? '').trim();
             if (movementRaw && execRaw && movementRaw === execRaw) return null;
             // The same hygiene against the far more common tautology: for most
             // tricks the stored Movement string is the trick's own name, so the
@@ -6460,19 +6397,13 @@ export const freestyleService = {
             );
           })(),
           operationalNotation: (() => {
-            // O1a/O1b/O1d: shape into role-classified tokens for the trick-
-            // detail template. Null when no source carries operational
-            // notation; section omits entirely. Lookup chain: CoreTrickSpec
-            // (12 atoms) → RESOLVED_ADD_FORMULAS (curator-published
-            // compound JOB overrides) → DB operational_notation column.
-            // shapeOperationalNotationDisplay handles null/empty/whitespace-
-            // only input safely. The optional curator-authored sourceNote
-            // (provenance/citation line) renders only when the
-            // operational_notation_source column is populated.
-            const opNotationRaw = resolveOperationalNotationRaw(
-              slug,
-              dictRow?.operational_notation ?? null,
-            );
+            // Shape into role-classified tokens for the trick-detail template.
+            // Null when the row carries no operational notation; the section
+            // then omits entirely. shapeOperationalNotationDisplay handles
+            // null/empty/whitespace-only input safely. The optional
+            // curator-authored sourceNote (provenance/citation line) renders
+            // only when the operational_notation_source column is populated.
+            const opNotationRaw = resolveOperationalNotationRaw(dictRow?.operational_notation);
             const display = shapeOperationalNotationDisplay(opNotationRaw);
             if (!display) return null;
             const rawSource = dictRow?.operational_notation_source;
@@ -6490,12 +6421,9 @@ export const freestyleService = {
           // the trick page below the shorthand tokens; null when absent or
           // identical to the displayed form.
           executionExpanded: (() => {
-            const published = RESOLVED_FORMULAS_BY_SLUG.get(slug);
-            const expanded = (published?.expandedNotation ?? '').trim();
+            const expanded = (dictRow?.expanded_notation ?? '').trim();
             if (!expanded) return null;
-            const opRaw = (resolveOperationalNotationRaw(
-              slug, dictRow?.operational_notation ?? null,
-            ) ?? '').trim();
+            const opRaw = (resolveOperationalNotationRaw(dictRow?.operational_notation) ?? '').trim();
             return expanded === opRaw ? null : expanded;
           })(),
           ux2Pilot: shapeUx2PilotFromRow(dictRow, currentRows.length),
@@ -6605,7 +6533,7 @@ export const freestyleService = {
                 })),
               }
               : undefined;
-            const addAnalysis = shapeTrickAddAnalysis(slug, isAtomicTrick, linkDerivation);
+            const addAnalysis = shapeTrickAddAnalysis(dictRow ?? { slug, adds: null, add_derivation: null }, isAtomicTrick, linkDerivation);
             return {
               isFirstClass: firstClassPasses,
               addAnalysis,

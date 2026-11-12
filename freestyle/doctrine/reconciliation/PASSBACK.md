@@ -36,8 +36,8 @@ are the real disagreements, and they are handled in Section B.
   name-matched rows where the PassBack ADD claim differs from the canonical ADD,
   sourced from `passback_formula_disagreements.csv` and surfaced on
   `/freestyle/add-analysis` as the external-source framing subsection.
-- `src/content/freestyleTrickDoctrine.ts` — the per-trick divergence registry
-  (`DOCTRINE_DIVERGENCE_REGISTRY`), which holds the three genuine structural-claim
+- `freestyle_trick_source_links` — each affected trick's PassBack source-link row,
+  whose `asserted_adds` and `notes` record the three genuine structural-claim
   divergences.
 - `database/footbag.db` — every platform ADD quoted below was verified against the
   live dictionary.
@@ -202,7 +202,7 @@ difference of Section A — recorded, explained, and not a conflict to resolve.
 | Category | Count | Nature | Where it lives |
 |---|---|---|---|
 | Measurement-frame difference | 65 | Not a rival claim; PassBack counts dexes, platform counts structure | `freestyleAddDisagreements.ts`, surfaced on the ADD-analysis page |
-| Genuine structural-claim divergence | 3 | Real +1 disagreement, Q7-gated | `DOCTRINE_DIVERGENCE_REGISTRY` |
+| Genuine structural-claim divergence | 3 | Real +1 disagreement, Q7-gated | each trick's PassBack source-link row |
 | Open (Q7, sumo X-Dex) | — | Live questions, platform value ships provisionally | Red queue / Scoring paper |
 
 The single sentence of this reconciliation: **PassBack is mostly a different

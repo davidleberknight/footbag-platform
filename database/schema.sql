@@ -5051,6 +5051,16 @@ CREATE TABLE freestyle_tricks (
   -- not derived. NULL = not in such a list.
   terminal_cohort          TEXT,
   terminal_cohort_position INTEGER CHECK (terminal_cohort_position IS NULL OR terminal_cohort_position >= 1),
+  -- The trick page's Difficulty breakdown, operator by operator, without its
+  -- total: the total shown beside it is this row's adds. NULL = no breakdown.
+  add_derivation       TEXT,
+  -- The operators the trick is built with, as written ("pixie + symposium"). The
+  -- page reads it only when the trick has no modifier links, keeping the names
+  -- that are registered modifiers. NULL = no fallback modifiers.
+  formula_operator     TEXT,
+  expanded_notation    TEXT,                       -- the execution notation written out in full, shown under it when it differs; NULL = none
+  movement_notation_subtitle  TEXT,                -- a line under the movement notation heading; NULL = none
+  execution_notation_subtitle TEXT,                -- a line under the execution notation heading; NULL = none
 
   -- ── How this row's execution notation was arrived at ─────────────────────
   -- Copied from the ruling the trick was published from, so the claim travels

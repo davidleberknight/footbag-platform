@@ -19,8 +19,8 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import { insertFreestyleTrick, insertFreestyleTrickAlias } from '../fixtures/factories';
-import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormulas';
+import { insertFreestyleTrickAlias } from '../fixtures/factories';
+import { insertTrickAsRebuilt } from '../fixtures/stagedFormula';
 
 const { dbPath } = setTestEnv('3180');
 
@@ -29,12 +29,12 @@ const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'quantum_symposium_mirage',
     canonical_name: 'quantum symposium mirage',
     adds: '4', base_trick: 'mirage', trick_family: 'mirage',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
-    operational_notation: null,
+    operational_notation: 'TOE > OP IN [DEX] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL]',
     aliases_json: '["backside symposium toe blur"]',
   });
   // Mirror loader 19's alias-table side effect
@@ -49,19 +49,6 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('RESOLVED_ADD_FORMULAS — quantum-symposium-mirage entry', () => {
-  it('overlay carries FB.org-confirmed JOB + 4 ADD + quantum-symposium derivation', () => {
-    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'quantum_symposium_mirage');
-    expect(entry).toBeDefined();
-    expect(entry?.totalAdd).toBe(4);
-    expect(entry?.baseAdd).toBe(2);
-    expect(entry?.base).toBe('mirage');
-    expect(entry?.operationalNotation).toBe('TOE > OP IN [DEX] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL]');
-    expect(entry?.provenance ?? '').toMatch(/FB\.org-confirmed/i);
-    expect(entry?.provenance ?? '').toMatch(/Backside Symposium Toe Blur/i);
-    expect(entry?.provenance ?? '').toMatch(/Red pt2/i);
-  });
-});
 
 describe('quantum-symposium-mirage detail page — first-class JOB + ADD', () => {
   it('/freestyle/tricks/quantum_symposium_mirage renders 4 ADD + (no plant while) pre-state + symposium body fusion', async () => {

@@ -3,8 +3,8 @@
  * pages (/freestyle/tricks/:slug).
  *
  * Contract:
- *   - The disclosure renders only for slugs in
- *     src/content/freestyleResolvedFormulas.ts (RESOLVED_ADD_FORMULAS).
+ *   - The disclosure renders only for a trick whose row carries a curator
+ *     formula breakdown.
  *   - Slugs without a curator-published resolved formula render the
  *     detail page silently (no disclosure section). This is the
  *     Tier-3 silent-absence contract.
@@ -26,7 +26,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import { insertFreestyleTrick } from '../fixtures/factories';
+import { insertTrickAsRebuilt } from '../fixtures/stagedFormula';
 
 const { dbPath } = setTestEnv('3140');
 
@@ -36,10 +36,10 @@ const page = cachedGet(() => createApp());
 beforeAll(async () => {
   const db = createTestDb(dbPath);
 
-  // paradox_mirage: in RESOLVED_ADD_FORMULAS with derivation
-  // 'paradox(+1) + mirage(2) = 3 ADD'. Trick-detail must render the
-  // Tier-4 disclosure.
-  insertFreestyleTrick(db, {
+  // paradox_mirage: a curator formula with breakdown
+  // 'paradox(+1) + mirage(2)'. Trick-detail must render the Tier-4
+  // disclosure.
+  insertTrickAsRebuilt(db, {
     slug: 'paradox_mirage',
     canonical_name: 'paradox mirage',
     trick_family: 'mirage',
@@ -51,7 +51,7 @@ beforeAll(async () => {
   // mirage: NOT in resolved-formulas (it is the 2-ADD core atom, not a
   // compound). Trick-detail must render WITHOUT the disclosure
   // (Tier-3 silent suppression).
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'mirage',
     canonical_name: 'mirage',
     trick_family: 'mirage',
@@ -61,7 +61,7 @@ beforeAll(async () => {
   });
 
   // whirl: NOT in resolved-formulas. Same Tier-3 silent contract.
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'whirl',
     canonical_name: 'whirl',
     trick_family: 'whirl',

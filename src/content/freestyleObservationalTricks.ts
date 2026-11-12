@@ -141,8 +141,7 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
   // 'bling-blang' is omitted: now canonical in freestyle_tricks.
   // 'blurrage' is omitted: promoted to canonical via the
   // doctrine-divergence pilot. IFPA-derived ADD 4 (stepping + barrage);
-  // the PB-source claim of 3 is documented as historical-divergence in
-  // DOCTRINE_DIVERGENCE_REGISTRY (linked to Red Q7).
+  // the PB-source claim of 3 is a historical divergence (linked to Red Q7).
   {
     folkSlug:           'blurrier',
     displayName:        'Blurrier',

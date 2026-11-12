@@ -19,8 +19,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import { insertFreestyleTrick } from '../fixtures/factories';
-import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormulas';
+import { insertTrickAsRebuilt } from '../fixtures/stagedFormula';
 
 const { dbPath } = setTestEnv('3168');
 
@@ -28,26 +27,26 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'inspinning_butterfly',
+    operational_notation: 'CLIP > (front) SPIN [BOD] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]',
     canonical_name: 'inspinning butterfly',
     adds: '4', base_trick: 'butterfly', trick_family: 'butterfly',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
-    operational_notation: null,
   });
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'inspinning_paradox_illusion',
+    operational_notation: 'CLIP > (front) SPIN [BOD] > SAME OUT [PDX] [DEX] > OP TOE [DEL]',
     canonical_name: 'inspinning paradox illusion',
     adds: '4', base_trick: 'illusion', trick_family: 'illusion',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
-    operational_notation: null,
   });
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'inspinning_paradox_mirage',
+    operational_notation: 'CLIP > (front) SPIN [BOD] > SAME IN [PDX] [DEX] > OP TOE [DEL]',
     canonical_name: 'inspinning paradox mirage',
     adds: '4', base_trick: 'mirage', trick_family: 'mirage',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
-    operational_notation: null,
   });
   db.close();
   createApp = await importApp();
@@ -55,42 +54,6 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('RESOLVED_ADD_FORMULAS — inspinning family entries', () => {
-  it('inspinning-butterfly overlay carries FB.org-confirmed JOB', () => {
-    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'inspinning_butterfly');
-    expect(entry).toBeDefined();
-    expect(entry?.totalAdd).toBe(4);
-    expect(entry?.baseAdd).toBe(3);
-    expect(entry?.operator).toBe('inspinning');
-    expect(entry?.base).toBe('butterfly');
-    expect(entry?.operationalNotation).toBe('CLIP > (front) SPIN [BOD] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]');
-    expect(entry?.provenance ?? '').toMatch(/FB\.org-confirmed/i);
-    expect(entry?.provenance ?? '').toMatch(/Red pt7/i);
-    expect(entry?.provenance ?? '').toMatch(/direction-flip rule/i);
-  });
-
-  it('inspinning-paradox-illusion overlay applies the direction-flip rule', () => {
-    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'inspinning_paradox_illusion');
-    expect(entry?.totalAdd).toBe(4);
-    expect(entry?.operationalNotation).toBe('CLIP > (front) SPIN [BOD] > SAME OUT [PDX] [DEX] > OP TOE [DEL]');
-  });
-
-  it('inspinning-paradox-mirage overlay applies the direction-flip rule', () => {
-    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'inspinning_paradox_mirage');
-    expect(entry?.totalAdd).toBe(4);
-    expect(entry?.operationalNotation).toBe('CLIP > (front) SPIN [BOD] > SAME IN [PDX] [DEX] > OP TOE [DEL]');
-  });
-
-  it('all three inspinning JOBs use (front) SPIN and SAME-side dex (not OP like spinning)', () => {
-    const slugs = ['inspinning_butterfly', 'inspinning_paradox_illusion', 'inspinning_paradox_mirage'];
-    for (const slug of slugs) {
-      const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === slug);
-      expect(entry?.operationalNotation ?? '').toContain('(front) SPIN [BOD]');
-      expect(entry?.operationalNotation ?? '').toMatch(/SAME (OUT|IN)/);
-      expect(entry?.operationalNotation ?? '').not.toMatch(/\(back\) SPIN/);
-    }
-  });
-});
 
 describe('Inspinning detail pages — first-class JOB + ADD', () => {
   it('/freestyle/tricks/inspinning-butterfly renders 4 ADD hero chip + (front) SPIN token', async () => {

@@ -21,8 +21,8 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import { insertFreestyleTrick, insertFreestyleTrickAlias } from '../fixtures/factories';
-import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormulas';
+import { insertFreestyleTrickAlias } from '../fixtures/factories';
+import { insertTrickAsRebuilt } from '../fixtures/stagedFormula';
 
 const { dbPath } = setTestEnv('3165');
 
@@ -32,7 +32,7 @@ const page = cachedGet(() => createApp());
 beforeAll(async () => {
   const db = createTestDb(dbPath);
   // Two new pixie-family canonical rows (post-loader-19 state).
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug:                'pixie_opposite_clipper',
     canonical_name:      'pixie opposite clipper',
     adds:                '3',
@@ -41,9 +41,9 @@ beforeAll(async () => {
     category:            'compound',
     review_status:       'expert_reviewed',
     is_active:           1,
-    operational_notation: null,  // overlay provides the JOB at shape time
+    operational_notation: 'TOE > SAME IN [DEX] > OP CLIP [XBD] [DEL]',
   });
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug:                'pixie_same_clipper',
     canonical_name:      'pixie same clipper',
     adds:                '3',
@@ -52,12 +52,12 @@ beforeAll(async () => {
     category:            'compound',
     review_status:       'expert_reviewed',
     is_active:           1,
-    operational_notation: null,
+    operational_notation: 'TOE > SAME IN [DEX] > SAME CLIP [XBD] [DEL]',
   });
   // Quantum-illusion canonical row already in DB; seed with aliases_json
   // matching loader 19's post-state (aliases column on csv → aliases_json
   // populated; table row inserted separately below).
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug:                'quantum_illusion',
     canonical_name:      'quantum illusion',
     adds:                '3',
@@ -81,36 +81,6 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('RESOLVED_ADD_FORMULAS — pixie-clipper entries', () => {
-  it('pixie-opposite-clipper overlay carries JOB + 3 ADD + sibling-derivation provenance', () => {
-    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'pixie_opposite_clipper');
-    expect(entry).toBeDefined();
-    expect(entry?.totalAdd).toBe(3);
-    expect(entry?.baseAdd).toBe(2);
-    expect(entry?.operator).toBe('pixie');
-    expect(entry?.base).toBe('clipper-stall');
-    expect(entry?.operationalNotation).toBe('TOE > SAME IN [DEX] > OP CLIP [XBD] [DEL]');
-    expect(entry?.derivation ?? '').toMatch(/pixie\(\+1\).*clipper-stall\(2\).*3 ADD/);
-    expect(entry?.provenance ?? '').toMatch(/sibling.*drifter.*fairy-clipper.*spinning-clipper/i);
-    expect(entry?.provenance ?? '').toMatch(/not Red-confirmed/i);
-  });
-
-  it('pixie-same-clipper overlay carries JOB + 3 ADD + sibling-derivation provenance', () => {
-    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'pixie_same_clipper');
-    expect(entry).toBeDefined();
-    expect(entry?.totalAdd).toBe(3);
-    expect(entry?.operationalNotation).toBe('TOE > SAME IN [DEX] > SAME CLIP [XBD] [DEL]');
-    expect(entry?.provenance ?? '').toMatch(/not Red-confirmed/i);
-  });
-
-  it('pixie-opposite-clipper and pixie-same-clipper differ only in clipper side label (OP vs SAME)', () => {
-    const opp  = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'pixie_opposite_clipper');
-    const same = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'pixie_same_clipper');
-    expect(opp?.totalAdd).toBe(same?.totalAdd);
-    expect(opp?.operationalNotation).toMatch(/OP CLIP/);
-    expect(same?.operationalNotation).toMatch(/SAME CLIP/);
-  });
-});
 
 describe('Pixie-clipper detail pages — first-class JOB + ADD', () => {
   it('/freestyle/tricks/pixie_opposite_clipper renders 3 ADD hero chip + JOB tokens', async () => {

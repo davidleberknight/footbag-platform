@@ -284,6 +284,28 @@ beforeAll(async () => {
     review_status: 'curated', is_active: 1, family_override: 'rev_whirl',
   });
 
+  // Formula and notation-subtitle coverage: formula_host carries every field
+  // (the display test and the clear target), formula_save is the write target,
+  // and formula_guard proves a refused save writes nothing.
+  insertFreestyleTrick(db, {
+    slug: 'formula_host', canonical_name: 'Formula Host',
+    adds: '2', trick_family: 'whirl', base_trick: 'whirl', category: 'compound',
+    review_status: 'curated', is_active: 1,
+    add_derivation: 'seedmod(+1) + whirl(1)', formula_operator: 'seedmod',
+    expanded_notation: 'SET > SEED [DEX] > OP CLIP [XBD] [DEL]',
+    movement_notation_subtitle: 'Seed movement line.', execution_notation_subtitle: 'Seed execution line.',
+  });
+  insertFreestyleTrick(db, {
+    slug: 'formula_save', canonical_name: 'Formula Save',
+    adds: '2', trick_family: 'whirl', base_trick: 'whirl', category: 'compound',
+    review_status: 'curated', is_active: 1,
+  });
+  insertFreestyleTrick(db, {
+    slug: 'formula_guard', canonical_name: 'Formula Guard',
+    adds: '2', trick_family: 'whirl', base_trick: 'whirl', category: 'compound',
+    review_status: 'curated', is_active: 1, add_derivation: 'kept(+1) + whirl(1)',
+  });
+
   // Editorial-prose edit coverage: prose_host is seeded with values (the display
   // test), prose_save is the write target, and prose_clear is seeded with a
   // description to prove an empty submit clears it to null.
@@ -967,6 +989,89 @@ describe('POST/GET /admin/freestyle/tricks/:slug/edit — curator page and brows
       validBody({ canonicalName: 'Facts Guard', familyOverride: 'whirl' }));
     expect(res.status).toBe(303);
     expect(factsRow('facts_guard').family_override).toBe('whirl');
+  });
+});
+
+describe('POST/GET /admin/freestyle/tricks/:slug/edit — formula and notation subtitles', () => {
+  function formulaRow(slug: string) {
+    return db.prepare(
+      `SELECT add_derivation, formula_operator, expanded_notation,
+              movement_notation_subtitle, execution_notation_subtitle
+       FROM freestyle_tricks WHERE slug = ?`,
+    ).get(slug) as Record<string, string | null>;
+  }
+  function saveBodyOf(slug: string): { slug: string; fields: Record<string, unknown> } {
+    return JSON.parse(fs.readFileSync(path.join(process.env.CURATOR_SAVES_DIR!, 'tricks', `${slug}.json`), 'utf8'));
+  }
+  const FORMULA_COLUMNS = [
+    'add_derivation', 'formula_operator', 'expanded_notation',
+    'movement_notation_subtitle', 'execution_notation_subtitle',
+  ];
+
+  // Defect caught: a curator cannot see the stored formula or subtitle, so the
+  // next save of the form would silently clear it.
+  it('displays every stored field for editing', async () => {
+    const res = await get('/admin/freestyle/tricks/formula_host/edit', admin());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('name="addDerivation" value="seedmod(+1) + whirl(1)"');
+    expect(res.text).toContain('name="formulaOperator" value="seedmod"');
+    expect(res.text).toContain('name="expandedNotation" value="SET &gt; SEED [DEX] &gt; OP CLIP [XBD] [DEL]"');
+    expect(res.text).toContain('name="movementNotationSubtitle" value="Seed movement line."');
+    expect(res.text).toContain('name="executionNotationSubtitle" value="Seed execution line."');
+  });
+
+  // Defect caught: a field saved to the database but not to the save file, or
+  // not named in the audit row, so the next rebuild loses it or nobody can tell
+  // who changed it.
+  it('saves every field, names each in the audit row, and writes each to the save file', async () => {
+    const res = await post('/admin/freestyle/tricks/formula_save/edit', admin(), validBody({
+      canonicalName: 'Formula Save',
+      addDerivation: 'newmod(+1) + whirl(1)', formulaOperator: 'newmod + othermod',
+      expandedNotation: 'SET > NEW [DEX] > OP CLIP [XBD] [DEL]',
+      movementNotationSubtitle: 'New movement line.', executionNotationSubtitle: 'New execution line.',
+    }));
+    expect(res.status).toBe(303);
+    const expected = {
+      add_derivation: 'newmod(+1) + whirl(1)', formula_operator: 'newmod + othermod',
+      expanded_notation: 'SET > NEW [DEX] > OP CLIP [XBD] [DEL]',
+      movement_notation_subtitle: 'New movement line.', execution_notation_subtitle: 'New execution line.',
+    };
+    expect(formulaRow('formula_save')).toEqual(expected);
+    const audits = auditRows('formula_save');
+    expect(audits).toHaveLength(1);
+    const changed = JSON.parse(audits[0]!.metadata_json).changedFields as string[];
+    for (const column of FORMULA_COLUMNS) expect(changed, column).toContain(column);
+    expect(saveBodyOf('formula_save').fields).toMatchObject(expected);
+  });
+
+  // Defect caught: an emptied field leaving the old formula on the page, or a
+  // clear lost at the next rebuild because the save file does not record it.
+  it('clears every field to null when submitted empty, and records the clears', async () => {
+    const res = await post('/admin/freestyle/tricks/formula_host/edit', admin(), validBody({
+      canonicalName: 'Formula Host',
+      addDerivation: '', formulaOperator: '', expandedNotation: '',
+      movementNotationSubtitle: '', executionNotationSubtitle: '',
+    }));
+    expect(res.status).toBe(303);
+    const cleared = Object.fromEntries(FORMULA_COLUMNS.map((c) => [c, null]));
+    expect(formulaRow('formula_host')).toEqual(cleared);
+    expect(saveBodyOf('formula_host').fields).toMatchObject(cleared);
+  });
+
+  // Defect caught: a pasted document stored as a one-line field, swamping the
+  // trick page; the boundary is the 500-character notation-line cap.
+  it.each([
+    ['addDerivation'], ['formulaOperator'], ['expandedNotation'],
+    ['movementNotationSubtitle'], ['executionNotationSubtitle'],
+  ])('refuses a %s over 500 characters with 422 and writes nothing', async (field) => {
+    const accepted = await post('/admin/freestyle/tricks/formula_guard/edit', admin(),
+      validBody({ canonicalName: 'Formula Guard', addDerivation: 'kept(+1) + whirl(1)', [field]: 'x'.repeat(500) }));
+    expect(accepted.status).toBe(303);
+    const refused = await post('/admin/freestyle/tricks/formula_guard/edit', admin(),
+      validBody({ canonicalName: 'Formula Guard', addDerivation: 'kept(+1) + whirl(1)', [field]: 'y'.repeat(501) }));
+    expect(refused.status).toBe(422);
+    expect(refused.text).toContain('500 characters or fewer');
+    expect(Object.values(formulaRow('formula_guard'))).not.toContain('y'.repeat(501));
   });
 });
 

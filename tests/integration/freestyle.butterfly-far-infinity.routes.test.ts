@@ -28,7 +28,8 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import { insertFreestyleTrick, insertFreestyleTrickAlias } from '../fixtures/factories';
+import { insertFreestyleTrickAlias } from '../fixtures/factories';
+import { insertTrickAsRebuilt } from '../fixtures/stagedFormula';
 import { ROOT_TERMINAL_FAMILIES, BRANCH_FAMILIES } from '../../src/content/freestyleGlossaryFamilyCards';
 import { STAGED_CURATOR_CONTENT } from '../../freestyle/loaders/28a_seed_curator_content';
 
@@ -41,15 +42,15 @@ beforeAll(async () => {
   const db = createTestDb(dbPath);
 
   // Base Butterfly: the side-either row (notation unchanged in this slice).
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'butterfly', canonical_name: 'butterfly', adds: '3',
     base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound',
-    operational_notation: 'SET > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]',
+    operational_notation: 'SET > OP OUT [DEX] > OP CLIP [XBD] [DEL]',
     description: 'Compound dex; base for ripwalk, dimwalk, and parkwalk.',
     review_status: 'curated', is_active: 1,
     about_naming_note: STAGED_CURATOR_CONTENT.aboutNamingNotes.get('butterfly') ?? null,
   });
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'butterfly_same_side', canonical_name: 'Butterfly Same Side', adds: '3',
     base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound',
     operational_notation: 'SET > SAME OUT [DEX] > OP CLIP [XBD] [DEL]',

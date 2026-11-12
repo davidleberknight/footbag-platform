@@ -9,8 +9,10 @@
  *     and its attached aliases, sources, and modifier links, saving edits to the
  *     trick row's structural and editorial prose fields and its curator-set page
  *     and browse facts (the derivatives and naming notes, the trick it reverses,
- *     its public family override, its kind, and its place in a terminal's
- *     "Tricks that land here" list), so no database-backed field freezes once
+ *     its public family override, its kind, its place in a terminal's
+ *     "Tricks that land here" list, its curator formula breakdown, fallback
+ *     operators and expanded notation, and the lines under its two notation
+ *     headings), so no database-backed field freezes once
  *     the live database is the source of truth, adding,
  *     reclassifying, or removing the trick's aliases,
  *     attaching or detaching links to the existing registry sources, and attaching
@@ -355,6 +357,11 @@ export interface FreestyleTrickEditFields {
   trickKind: string;
   terminalCohort: string;
   terminalCohortPosition: string;
+  addDerivation: string;
+  formulaOperator: string;
+  expandedNotation: string;
+  movementNotationSubtitle: string;
+  executionNotationSubtitle: string;
 }
 
 /** One kind of record that needs a trick to stay active, and where to resolve it. */
@@ -477,6 +484,11 @@ export interface FreestyleTrickScalarInput {
   trickKind?: string;
   terminalCohort?: string;
   terminalCohortPosition?: string;
+  addDerivation?: string;
+  formulaOperator?: string;
+  expandedNotation?: string;
+  movementNotationSubtitle?: string;
+  executionNotationSubtitle?: string;
 }
 
 /**
@@ -545,6 +557,11 @@ interface CurationEditDbRow {
   trick_kind: string | null;
   terminal_cohort: string | null;
   terminal_cohort_position: number | null;
+  add_derivation: string | null;
+  formula_operator: string | null;
+  expanded_notation: string | null;
+  movement_notation_subtitle: string | null;
+  execution_notation_subtitle: string | null;
 }
 interface AliasDbRow {
   alias_slug: string;
@@ -2113,6 +2130,11 @@ export const freestyleCurationService = {
       terminalCohortPosition:    sub
         ? (sub.terminalCohortPosition ?? '')
         : (row.terminal_cohort_position === null ? '' : String(row.terminal_cohort_position)),
+      addDerivation:             sub ? (sub.addDerivation ?? '') : (row.add_derivation ?? ''),
+      formulaOperator:           sub ? (sub.formulaOperator ?? '') : (row.formula_operator ?? ''),
+      expandedNotation:          sub ? (sub.expandedNotation ?? '') : (row.expanded_notation ?? ''),
+      movementNotationSubtitle:  sub ? (sub.movementNotationSubtitle ?? '') : (row.movement_notation_subtitle ?? ''),
+      executionNotationSubtitle: sub ? (sub.executionNotationSubtitle ?? '') : (row.execution_notation_subtitle ?? ''),
     };
     const trickKindOptions: FilterOption[] = ['', ...TRICK_KIND_VALUES]
       .map((v) => ({ value: v, label: TRICK_KIND_LABELS[v] ?? v, selected: v === fields.trickKind }));
@@ -2318,6 +2340,30 @@ export const freestyleCurationService = {
       fieldErrors.trickKind = 'Kind must be trick, modifier, operator, surface, or pending review.';
     }
 
+    // The formula and the notation-heading subtitles are single lines. The
+    // breakdown and the operators keep their brackets and plus signs, and the
+    // expanded notation is notation, so none is cleaned as markup. Each is capped
+    // like a notation line, to refuse a pasted document.
+    const line = (raw: string | undefined, field: string): string | null =>
+      nullIfEmpty(cleanField(raw, 'notation', field, fieldErrors));
+    const addDerivation             = line(input.addDerivation, 'addDerivation');
+    const formulaOperator           = line(input.formulaOperator, 'formulaOperator');
+    const expandedNotation          = line(input.expandedNotation, 'expandedNotation');
+    const movementNotationSubtitle  = nullIfEmpty(cleanField(input.movementNotationSubtitle, 'single_line', 'movementNotationSubtitle', fieldErrors));
+    const executionNotationSubtitle = nullIfEmpty(cleanField(input.executionNotationSubtitle, 'single_line', 'executionNotationSubtitle', fieldErrors));
+    const lineFields: Array<[keyof FreestyleTrickScalarInput, string | null, string]> = [
+      ['addDerivation', addDerivation, 'Difficulty breakdown'],
+      ['formulaOperator', formulaOperator, 'Fallback operators'],
+      ['expandedNotation', expandedNotation, 'Expanded notation'],
+      ['movementNotationSubtitle', movementNotationSubtitle, 'Movement-notation subtitle'],
+      ['executionNotationSubtitle', executionNotationSubtitle, 'Execution-notation subtitle'],
+    ];
+    for (const [key, value, label] of lineFields) {
+      if (value !== null && value.length > NOTATION_MAX) {
+        fieldErrors[key] = `${label} must be ${NOTATION_MAX} characters or fewer.`;
+      }
+    }
+
     // Editorial prose fields are free text; the only row-shape rule is a length
     // cap that rejects an oversized payload. Empty clears the field to null.
     const prose = (raw: string | undefined, field: string): string | null =>
@@ -2407,6 +2453,11 @@ export const freestyleCurationService = {
     if (trickKind !== (current.trick_kind ?? null))                changedFields.push('trick_kind');
     if (terminalCohort !== (current.terminal_cohort ?? null))      changedFields.push('terminal_cohort');
     if (terminalCohortPosition !== (current.terminal_cohort_position ?? null)) changedFields.push('terminal_cohort_position');
+    if (addDerivation !== comparableStored(current.add_derivation, 'notation'))       changedFields.push('add_derivation');
+    if (formulaOperator !== comparableStored(current.formula_operator, 'notation'))   changedFields.push('formula_operator');
+    if (expandedNotation !== comparableStored(current.expanded_notation, 'notation')) changedFields.push('expanded_notation');
+    if (movementNotationSubtitle !== comparableStored(current.movement_notation_subtitle, 'single_line')) changedFields.push('movement_notation_subtitle');
+    if (executionNotationSubtitle !== comparableStored(current.execution_notation_subtitle, 'single_line')) changedFields.push('execution_notation_subtitle');
 
     // The row leaving the held-out candidate set is publication, and the ruling
     // for the name resolves with it. Both writes and the audit entry commit
@@ -2428,6 +2479,10 @@ export const freestyleCurationService = {
       about_derivatives: aboutDerivatives, about_naming_note: aboutNamingNote,
       reverse_pair_base: reversePairBase, family_override: familyOverride, trick_kind: trickKind,
       terminal_cohort: terminalCohort, terminal_cohort_position: terminalCohortPosition,
+      add_derivation: addDerivation, formula_operator: formulaOperator,
+      expanded_notation: expandedNotation,
+      movement_notation_subtitle: movementNotationSubtitle,
+      execution_notation_subtitle: executionNotationSubtitle,
     };
     const savedFields = Object.fromEntries(changedFields.map((field) => [field, submitted[field] ?? null]));
 
@@ -2450,7 +2505,9 @@ export const freestyleCurationService = {
             description, shortDescription, executionSummary, learningNotes,
             prerequisiteNotes, pronunciation, operationalNotationSource,
             aboutDerivatives, aboutNamingNote, reversePairBase,
-            familyOverride, trickKind, terminalCohort, terminalCohortPosition, slug,
+            familyOverride, trickKind, terminalCohort, terminalCohortPosition,
+            addDerivation, formulaOperator, expandedNotation,
+            movementNotationSubtitle, executionNotationSubtitle, slug,
           );
           const resolvedAdjudication = publishing
             ? resolveAdjudicationOnPublication(slug, canonicalName, actorMemberId)

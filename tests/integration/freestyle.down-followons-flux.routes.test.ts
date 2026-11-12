@@ -9,12 +9,11 @@
  *
  *   - scorpions-tail (5 ADD = spinning(+1) + down-double-down(4))
  *     Spinning modifier on the just-shipped down-double-down chassis.
- *     FB.org alias "Spinning Down Double-Down" wired. JOB uses
- *     lowercase [bod] per fb.org source (most siblings use [BOD]).
+ *     FB.org alias "Spinning Down Double-Down" wired.
  *
  *   - flux (4 ADD = atomic(+1) + osis(3))
  *     Simple atomic-osis compound. FB.org alias "Atomic Osis" wired.
- *     Atomic prefix manifests as (FRONT) SPIN [BOD] mid-trick rather
+ *     Atomic prefix manifests as (front) SPIN [BOD] mid-trick rather
  *     than at the front.
  *
  * All JOBs FB.org-confirmed verbatim.
@@ -28,8 +27,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import { insertFreestyleTrick } from '../fixtures/factories';
-import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormulas';
+import { insertTrickAsRebuilt } from '../fixtures/stagedFormula';
 
 const { dbPath } = setTestEnv('3177');
 
@@ -38,27 +36,27 @@ const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'pixie_double_over_down',
     canonical_name: 'pixie double-over down',
     adds: '5', base_trick: 'double-over-down', trick_family: 'double-over-down',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
-    operational_notation: null,
+    operational_notation: 'TOE > SAME IN [DEX] (plant) > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]',
   });
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'scorpions_tail',
     canonical_name: "Scorpion's Tail",
     adds: '5', base_trick: 'down-double-down', trick_family: 'down-double-down',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
-    operational_notation: null,
+    operational_notation: 'CLIP > (back) SPIN [BOD] > OP OUT [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]',
     aliases_json: '["spinning down double-down"]',
   });
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug: 'flux',
     canonical_name: 'flux',
     adds: '4', base_trick: 'osis', trick_family: 'osis',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
-    operational_notation: null,
+    operational_notation: 'TOE > OP OUT [DEX] > (front) SPIN [BOD] > OP CLIP [XBD] [DEL]',
     aliases_json: '["atomic osis"]',
   });
   db.close();
@@ -67,38 +65,6 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('RESOLVED_ADD_FORMULAS — down-family follow-ons + flux entries', () => {
-  it('pixie-double-over-down carries FB.org-confirmed JOB with (plant) pre-state', () => {
-    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'pixie_double_over_down');
-    expect(entry).toBeDefined();
-    expect(entry?.totalAdd).toBe(5);
-    expect(entry?.baseAdd).toBe(4);
-    expect(entry?.operator).toBe('pixie');
-    expect(entry?.base).toBe('double-over-down');
-    expect(entry?.operationalNotation).toBe('TOE > SAME IN [DEX] (plant) > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]');
-    expect(entry?.provenance ?? '').toMatch(/FB\.org-confirmed/i);
-    expect(entry?.provenance ?? '').toMatch(/\(plant\) pre-state/i);
-  });
-
-  it("scorpions-tail carries FB.org-confirmed JOB with lowercase [bod] preserved verbatim", () => {
-    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'scorpions_tail');
-    expect(entry?.totalAdd).toBe(5);
-    expect(entry?.operator).toBe('spinning');
-    expect(entry?.base).toBe('down-double-down');
-    expect(entry?.operationalNotation).toBe('CLIP > (back) SPIN [bod] > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]');
-    expect(entry?.provenance ?? '').toMatch(/lowercase \[bod\]/i);
-    expect(entry?.provenance ?? '').toMatch(/Spinning Down Double-Down/i);
-  });
-
-  it('flux carries FB.org-confirmed JOB with mid-trick (FRONT) SPIN [BOD]', () => {
-    const entry = RESOLVED_ADD_FORMULAS.find(e => e.slug === 'flux');
-    expect(entry?.totalAdd).toBe(4);
-    expect(entry?.operator).toBe('atomic');
-    expect(entry?.base).toBe('osis');
-    expect(entry?.operationalNotation).toBe('TOE > OP OUT [DEX] > (FRONT) SPIN [BOD] > OP CLIP [XBD] [DEL]');
-    expect(entry?.provenance ?? '').toMatch(/Atomic Osis/i);
-  });
-});
 
 describe('Down-family follow-ons + flux detail pages — first-class JOB + ADD', () => {
   it('/freestyle/tricks/pixie-double-over-down renders 5 ADD + (plant) pre-state', async () => {
@@ -114,14 +80,14 @@ describe('Down-family follow-ons + flux detail pages — first-class JOB + ADD',
     }
   });
 
-  it('/freestyle/tricks/scorpions-tail renders 5 ADD + SPIN body action + lowercase [bod]', async () => {
+  it('/freestyle/tricks/scorpions-tail renders 5 ADD + SPIN body action + [BOD]', async () => {
     const res = await page('/freestyle/tricks/scorpions_tail');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">5 ADD<\/span>/);
-    // (back) pre-state + SPIN body action + [bod] component (lowercase)
+    // (back) pre-state + SPIN body action + [BOD] component
     expect(res.text).toMatch(/class="op-token[^"]*"[^>]*>\(back\)</);
     expect(res.text).toMatch(/class="op-token[^"]*body-action[^"]*"[^>]*>SPIN</);
-    expect(res.text).toMatch(/class="op-token[^"]*"[^>]*>\[bod\]</);
+    expect(res.text).toMatch(/class="op-token[^"]*"[^>]*>\[BOD\]</);
   });
 
   it("scorpions-tail surfaces 'spinning down double-down' alias", async () => {
@@ -129,11 +95,11 @@ describe('Down-family follow-ons + flux detail pages — first-class JOB + ADD',
     expect(res.text).toMatch(/spinning down double-down/i);
   });
 
-  it('/freestyle/tricks/flux renders 4 ADD + (FRONT) pre-state + atomic-osis chain', async () => {
+  it('/freestyle/tricks/flux renders 4 ADD + (front) pre-state + atomic-osis chain', async () => {
     const res = await page('/freestyle/tricks/flux');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">4 ADD<\/span>/);
-    expect(res.text).toMatch(/class="op-token[^"]*pre-state[^"]*"[^>]*>\(FRONT\)</);
+    expect(res.text).toMatch(/class="op-token[^"]*pre-state[^"]*"[^>]*>\(front\)</);
     for (const token of ['TOE', 'OP', 'OUT', '[DEX]', 'SPIN', '[BOD]', 'CLIP', '[XBD]', '[DEL]']) {
       const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const pattern = new RegExp(`class="op-token[^"]*"[^>]*>${escaped}<`);

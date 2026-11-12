@@ -13,8 +13,6 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import path from 'path';
 
-import { RESOLVED_ADD_FORMULAS } from '../../src/content/freestyleResolvedFormulas';
-
 const REPO = path.resolve(__dirname, '..', '..');
 const CORRECTIONS = readFileSync(
   path.join(REPO, 'freestyle', 'inputs', 'curated', 'tricks', 'red_corrections_2026_04_20.csv'),
@@ -51,24 +49,6 @@ describe('curated corrections carry the settled OP OUT butterfly dex', () => {
       }
     });
   }
-});
-
-describe('the resolved-formula content module carries the settled coordinate', () => {
-  it('whirling_butterfly notation has OP OUT for the butterfly dex, no placeholder', () => {
-    const entry = RESOLVED_ADD_FORMULAS.find(f => f.slug === 'whirling_butterfly');
-    expect(entry, 'whirling_butterfly missing from resolved formulas').toBeDefined();
-    expect(entry!.operationalNotation).not.toContain('SAME/OP');
-    expect(entry!.operationalNotation).toContain('OP OUT [DEX]');
-    expect(entry!.operationalNotation).toContain('OP CLIP [XBD] [DEL]');
-  });
-
-  it('no resolved-formula entry for the three compounds carries the placeholder', () => {
-    for (const slug of ['fairy_butterfly', 'whirling_butterfly', 'swirling_butterfly']) {
-      for (const f of RESOLVED_ADD_FORMULAS.filter(x => x.slug === slug)) {
-        expect(f.operationalNotation, slug).not.toContain('SAME/OP');
-      }
-    }
-  });
 });
 
 describe('set teaching copy states the authored-in-compound coordinate doctrine', () => {

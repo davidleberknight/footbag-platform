@@ -2604,6 +2604,13 @@ export interface FreestyleTrickDetailRow extends FreestyleTrickRow {
   about_derivatives:           string | null;
   about_naming_note:           string | null;
   reverse_pair_base:           string | null;
+  // The curator formula behind the Difficulty line, the expanded execution
+  // notation, and the lines under the two notation headings.
+  add_derivation:              string | null;
+  formula_operator:            string | null;
+  expanded_notation:           string | null;
+  movement_notation_subtitle:  string | null;
+  execution_notation_subtitle: string | null;
 }
 
 // Extension of FreestyleTrickRow returned by listAllWithPending; carries the
@@ -2716,7 +2723,9 @@ export const freestyleTricks = {
            short_description, execution_summary, learning_notes,
            prerequisite_notes, pronunciation,
            family_override, trick_kind, terminal_cohort, terminal_cohort_position,
-           about_derivatives, about_naming_note, reverse_pair_base
+           about_derivatives, about_naming_note, reverse_pair_base,
+           add_derivation, formula_operator, expanded_notation,
+           movement_notation_subtitle, execution_notation_subtitle
     FROM freestyle_tricks
     WHERE slug = ? AND is_active = 1
   `); },
@@ -2775,7 +2784,9 @@ export const freestyleTricks = {
            description, short_description, execution_summary, learning_notes,
            prerequisite_notes, pronunciation, operational_notation_source,
            about_derivatives, about_naming_note, reverse_pair_base,
-           family_override, trick_kind, terminal_cohort, terminal_cohort_position
+           family_override, trick_kind, terminal_cohort, terminal_cohort_position,
+           add_derivation, formula_operator, expanded_notation,
+           movement_notation_subtitle, execution_notation_subtitle
     FROM freestyle_tricks
     WHERE slug = ?
   `); },
@@ -2842,6 +2853,8 @@ export const freestyleTricks = {
         about_derivatives = ?, about_naming_note = ?, reverse_pair_base = ?,
         family_override = ?, trick_kind = ?,
         terminal_cohort = ?, terminal_cohort_position = ?,
+        add_derivation = ?, formula_operator = ?, expanded_notation = ?,
+        movement_notation_subtitle = ?, execution_notation_subtitle = ?,
         updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
     WHERE slug = ?
   `); },

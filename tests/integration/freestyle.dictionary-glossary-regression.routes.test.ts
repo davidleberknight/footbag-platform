@@ -20,7 +20,7 @@
  *   6. The notation card reads Execution notation (the operational JOB
  *      chain) then ADD derivation; the rev(0) reading lives in the ALT
  *      transform row (not in the ADD calculation).
- *   7. Rake renders curator-locked JOB notation `SET > SWING TOE [DEL]`
+ *   7. Rake renders curator-locked JOB notation `SET > SWING [DEX] > SAME TOE [DEL]`
  *      and is not labelled "canonical decomposition pending".
  *   8. "unusual surface" does not appear in ADD-accounting displays;
  *      `UNS(1)` is the bucket token. Freestyle Concepts explains UNS.
@@ -43,9 +43,9 @@ import {
 } from '../fixtures/testDb';
 import {
   insertMember,
-  insertFreestyleTrick,
   insertMemberGallery,
 } from '../fixtures/factories';
+import { insertTrickAsRebuilt } from '../fixtures/stagedFormula';
 
 const { dbPath } = setTestEnv('3175');
 
@@ -77,7 +77,7 @@ beforeAll(async () => {
 
   // Atomic-ish trick used by items 5+6+8 (compound-description slot,
   // formula row order, UNS rendering).
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug:                 'cloud_kick',
     canonical_name:       'cloud kick',
     adds:                 '1',
@@ -92,7 +92,7 @@ beforeAll(async () => {
   });
 
   // Rake is the JOB-notation completion target for item 7.
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug:                 'rake',
     canonical_name:       'rake',
     adds:                 '2',
@@ -101,14 +101,14 @@ beforeAll(async () => {
     category:             'compound',
     description:          'Rake trick.',
     notation:             null,
-    operational_notation: null,
+    operational_notation: 'SET > SWING [DEX] > SAME TOE [DEL]',
     review_status:        'expert_reviewed',
     is_active:            1,
   });
 
   // Bases referenced by toe_stall + clipper FK targets for the
   // compound rows below. Minimal rows; not under direct assertion.
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug:                 'toe_stall',
     canonical_name:       'toe stall',
     adds:                 '1',
@@ -118,7 +118,7 @@ beforeAll(async () => {
     review_status:        'expert_reviewed',
     is_active:            1,
   });
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug:                 'clipper',
     canonical_name:       'clipper',
     adds:                 '1',
@@ -128,7 +128,7 @@ beforeAll(async () => {
     review_status:        'expert_reviewed',
     is_active:            1,
   });
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug:                 'around_the_world',
     canonical_name:       'around the world',
     adds:                 '2',
@@ -138,7 +138,7 @@ beforeAll(async () => {
     review_status:        'expert_reviewed',
     is_active:            1,
   });
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug:                 'legover',
     canonical_name:       'legover',
     adds:                 '2',
@@ -149,10 +149,9 @@ beforeAll(async () => {
     is_active:            1,
   });
 
-  // Item 9 — DATW + DLO base rows. Resolved-formulas content module
-  // overrides operational_notation at shape time, but the row must
-  // exist for the trick-detail route to render at all.
-  insertFreestyleTrick(db, {
+  // Item 9 — DATW + DLO rows, each with the execution notation the rebuilt
+  // database holds and its curator formula.
+  insertTrickAsRebuilt(db, {
     slug:                 'double_around_the_world',
     canonical_name:       'double around the world',
     adds:                 '3',
@@ -160,11 +159,11 @@ beforeAll(async () => {
     trick_family:         'around_the_world',
     category:             'compound',
     description:          'two consecutive full leg circles',
-    operational_notation: null,
+    operational_notation: 'TOE > SAME IN [DEX] > SAME IN [DEX] > SAME TOE [DEL]',
     review_status:        'expert_reviewed',
     is_active:            1,
   });
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug:                 'double_leg_over',
     canonical_name:       'double leg over',
     adds:                 '3',
@@ -172,13 +171,13 @@ beforeAll(async () => {
     trick_family:         'legover',
     category:             'compound',
     description:          'two consecutive leg-over events',
-    operational_notation: null,
+    operational_notation: 'SET > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]',
     review_status:        'expert_reviewed',
     is_active:            1,
   });
 
   // Item 10 — flying_clipper for BOD(1) accounting.
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug:                 'flying_clipper',
     canonical_name:       'flying clipper',
     adds:                 '2',
@@ -195,7 +194,7 @@ beforeAll(async () => {
   // Item 6 — illusion, a rev(0) entry: it reverses mirage, whose own ADD the
   // ALT row shows. Seeded here rather than inside its case, so every page this
   // file reads through the shared cache sees the same rows.
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug:                 'mirage',
     canonical_name:       'mirage',
     adds:                 '2',
@@ -205,7 +204,7 @@ beforeAll(async () => {
     review_status:        'expert_reviewed',
     is_active:            1,
   });
-  insertFreestyleTrick(db, {
+  insertTrickAsRebuilt(db, {
     slug:                 'illusion',
     canonical_name:       'illusion',
     adds:                 '2',
@@ -335,13 +334,13 @@ describe('Item 6: ALT row appears after ADD on rev(0) entries', () => {
 
 // ── Item 7 — rake JOB notation ───────────────────────────────────────────
 describe('Item 7: rake has curator-locked JOB notation', () => {
-  it('renders SET > SWING TOE [DEL] on the rake detail page', async () => {
+  it('renders SET > SWING ... TOE [DEL] on the rake detail page', async () => {
     const res = await page('/freestyle/tricks/rake');
     expect(res.status).toBe(200);
-    // The resolved-formulas operationalNotation override flows through
+    // The stored operational notation flows through
     // shapeOperationalNotationDisplay → tokenized inline; assert the
     // chain text appears in the rendered HTML.
-    // Rake's JOB row carries `SET > SWING TOE [DEL]`. For first-class
+    // Rake's JOB row carries `SET > SWING [DEX] > SAME TOE [DEL]`. For first-class
     // tricks the notation summary card renders it as plain text inside
     // <code>; for non-first-class fallthrough it would tokenize. Match
     // either layout.
@@ -371,7 +370,7 @@ describe('Item 8: Freestyle Concepts explains the UNS abbreviation', () => {
 
 // ── Item 9 — DATW + DLO formulas ─────────────────────────────────────────
 describe('Item 9: double_around_the_world + double_leg_over formula rows', () => {
-  it('double_around_the_world renders JOB + ADD formulas from the resolved-formulas override', async () => {
+  it('double_around_the_world renders its JOB and ADD formula', async () => {
     const res = await page('/freestyle/tricks/double_around_the_world');
     expect(res.status).toBe(200);
     // Tokens render as separate spans with attribute markup between;
@@ -383,7 +382,7 @@ describe('Item 9: double_around_the_world + double_leg_over formula rows', () =>
     expect(res.text).toMatch(/dex\(2\)\s*\+\s*stall\(1\)/);
   });
 
-  it('double_leg_over renders JOB + ADD formulas from the resolved-formulas override', async () => {
+  it('double_leg_over renders its JOB and ADD formula', async () => {
     const res = await page('/freestyle/tricks/double_leg_over');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/>SET<[\s\S]+?>OP<[\s\S]+?>IN<[\s\S]+?>\[DEX\]<[\s\S]+?>OP<[\s\S]+?>OUT<[\s\S]+?>\[DEX\]<[\s\S]+?>SAME<[\s\S]+?>TOE<[\s\S]+?>\[DEL\]</);

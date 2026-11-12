@@ -140,6 +140,31 @@
           <input type="text" id="trick-terminalCohortPosition" name="terminalCohortPosition" value="{{content.fields.terminalCohortPosition}}" aria-describedby="trick-terminalCohortPosition-hint" />
           <small id="trick-terminalCohortPosition-hint" class="form-hint">A whole number from 1, set together with the terminal trick.</small>
         </div>
+        <div class="form-field">
+          <label for="trick-addDerivation">Difficulty breakdown</label>
+          <input type="text" id="trick-addDerivation" name="addDerivation" value="{{content.fields.addDerivation}}" aria-describedby="trick-addDerivation-hint" />
+          <small id="trick-addDerivation-hint" class="form-hint">The ADD worked out operator by operator, such as quantum(+1) + guay(2). The total shown beside it is the ADD above. Leave empty for none.</small>
+        </div>
+        <div class="form-field">
+          <label for="trick-formulaOperator">Fallback operators</label>
+          <input type="text" id="trick-formulaOperator" name="formulaOperator" value="{{content.fields.formulaOperator}}" aria-describedby="trick-formulaOperator-hint" />
+          <small id="trick-formulaOperator-hint" class="form-hint">The operators joined by +, such as pixie + symposium. Used only when the trick has no modifier links; names that are not registered modifiers are ignored.</small>
+        </div>
+        <div class="form-field">
+          <label for="trick-expandedNotation">Expanded notation</label>
+          <input type="text" id="trick-expandedNotation" name="expandedNotation" value="{{content.fields.expandedNotation}}" aria-describedby="trick-expandedNotation-hint" />
+          <small id="trick-expandedNotation-hint" class="form-hint">The execution notation written out in full, shown under it when the execution notation uses a shorthand. Leave empty for none.</small>
+        </div>
+        <div class="form-field">
+          <label for="trick-movementNotationSubtitle">Movement-notation subtitle</label>
+          <input type="text" id="trick-movementNotationSubtitle" name="movementNotationSubtitle" value="{{content.fields.movementNotationSubtitle}}" aria-describedby="trick-movementNotationSubtitle-hint" />
+          <small id="trick-movementNotationSubtitle-hint" class="form-hint">One line under the movement notation heading. Leave empty for none.</small>
+        </div>
+        <div class="form-field">
+          <label for="trick-executionNotationSubtitle">Execution-notation subtitle</label>
+          <input type="text" id="trick-executionNotationSubtitle" name="executionNotationSubtitle" value="{{content.fields.executionNotationSubtitle}}" aria-describedby="trick-executionNotationSubtitle-hint" />
+          <small id="trick-executionNotationSubtitle-hint" class="form-hint">One line under the execution notation heading. Leave empty for none.</small>
+        </div>
       </fieldset>
       <div class="form-actions">
         <button type="submit" class="btn btn-primary btn-sm">Save</button>
