@@ -55,8 +55,7 @@ const NOT_TRICKS = ['spyro', 'surging'];
 // sampled formula row carries an adds its formula does not end in.
 const formulaOf = new Map(content.formulas.map((f) => [f.slug, f]));
 const EXPANDED = content.formulas.filter((f) => f.expandedNotation).map((f) => f.slug);
-const FORMULA_NOTATION = content.formulas.filter((f) => f.operationalNotation).map((f) => f.slug);
-const FORMULA_SAMPLE = [...new Set(['atom_smasher', 'bedwetter', 'torque', ...EXPANDED, ...FORMULA_NOTATION])];
+const FORMULA_SAMPLE = [...new Set(['atom_smasher', 'bedwetter', 'torque', ...EXPANDED])];
 const ROW_ADDS = '9';
 // The operators bedwetter's formula names; with no modifier links, the page
 // lists these registered modifiers from the formula.
@@ -292,17 +291,6 @@ describe('a trick page shows its curator formula', () => {
     }
     const control = await page(`/freestyle/tricks/${TRICK}`);
     expect(control.text).not.toContain('operational-notation-expanded');
-  });
-
-  // Defect caught: a trick the dictionary left without an execution notation
-  // showing none, once the formula's notation fills the empty column instead
-  // of standing in for it at render time.
-  it('shows the formula\'s execution notation for a trick the dictionary left without one', async () => {
-    expect(FORMULA_NOTATION.length).toBeGreaterThan(0);
-    for (const slug of FORMULA_NOTATION) {
-      const res = await page(`/freestyle/tricks/${slug}`);
-      expect(res.text, slug).toContain('class="operational-notation-tokens"');
-    }
   });
 });
 

@@ -7,7 +7,6 @@
  *   derivation          → add_derivation, without its "= N ADD" ending
  *   operator            → formula_operator
  *   expandedNotation    → expanded_notation
- *   operationalNotation → operational_notation, only where that column is empty
  *
  * The trick page shows the derivation as its Difficulty breakdown beside the
  * row's adds, and reads the operator only for a trick with no modifier links.
@@ -23,7 +22,6 @@ export interface ResolvedFormula {
   /** The operators the trick is built with, as written. */
   readonly operator: string;
   readonly expandedNotation?: string;
-  readonly operationalNotation?: string;
 }
 
 export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
@@ -41,7 +39,7 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
   { slug: 'big_apple', derivation: 'gyro(+1) + symposium(+1) + torque(4) = 6 ADD', operator: 'gyro + symposium' },
   { slug: 'big_papa_smurf', derivation: 'surfing(3) + blender(4) = 7 ADD', operator: 'surfing' },
   { slug: 'bigwalk', derivation: 'surging(+2) + butterfly(3) = 5 ADD', operator: 'surging' },
-  { slug: 'bill_ted_s_excellent_adventure', derivation: 'flailing(2) + eggbeater(3) = 5 ADD', operator: 'flailing', operationalNotation: '(flailing set) >> TOE >> OP OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL]' },
+  { slug: 'bill_ted_s_excellent_adventure', derivation: 'flailing(2) + eggbeater(3) = 5 ADD', operator: 'flailing' },
   { slug: 'blaze', derivation: 'whirling(+1) + mirage(2) = 3 ADD', operator: 'whirling' },
   { slug: 'blizzard', derivation: 'stepping(+1) + illusion(2) = 3 ADD', operator: 'stepping' },
   { slug: 'blur', derivation: 'stepping(+1) + paradox(+1) + mirage(2) = 4 ADD', operator: 'stepping + paradox' },

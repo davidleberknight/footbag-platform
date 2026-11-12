@@ -45,7 +45,6 @@ const TRICK_COLUMNS: Array<[column: string, map: ReadonlyMap<string, string>]> =
 const EXTRA_NOTATION = 'SET > SAME TOE [DEL]';
 // The trick page shows a formula's breakdown without its closing "= N ADD".
 const breakdownOf = (derivation: string): string => derivation.replace(/\s*=\s*\d+\s*ADD\s*$/, '');
-const FORMULA_NOTATION_SLUGS = content.formulas.filter((f) => f.operationalNotation).map((f) => f.slug);
 
 let db: BetterSqlite3.Database;
 
@@ -97,12 +96,6 @@ describe('seeding the staged curator content', () => {
         FROM freestyle_tricks WHERE slug = ?`).get(f.slug), f.slug)
         .toEqual({ d: breakdownOf(f.derivation), o: f.operator, e: f.expandedNotation ?? null });
     }
-    // A formula's execution notation fills a column the dictionary left empty.
-    expect(FORMULA_NOTATION_SLUGS.length).toBeGreaterThan(0);
-    for (const slug of FORMULA_NOTATION_SLUGS) {
-      expect(value('SELECT operational_notation AS v FROM freestyle_tricks WHERE slug = ?', slug), slug)
-        .toBe(content.formulas.find((f) => f.slug === slug)!.operationalNotation);
-    }
     let cohortMembers = 0;
     for (const [terminal, members] of content.terminalCohorts) {
       members.forEach((m, i) => {
@@ -124,7 +117,6 @@ describe('seeding the staged curator content', () => {
       terminalCohortMembers: cohortMembers,
       formulas:              content.formulas.length,
       expandedNotations:     content.formulas.filter((f) => f.expandedNotation).length,
-      formulaNotations:      FORMULA_NOTATION_SLUGS.length,
       movementNotationSubtitles:  content.movementNotationSubtitles.size,
       executionNotationSubtitles: content.executionNotationSubtitles.size,
     });
@@ -160,19 +152,6 @@ describe('seeding the staged curator content', () => {
     expect(value('SELECT COUNT(*) AS v FROM freestyle_tricks WHERE add_derivation IS NOT NULL'))
       .toBe(content.formulas.length);
     expect(offenders).toEqual([]);
-  });
-
-  // Defect caught: a formula's execution notation overwriting one the
-  // dictionary load wrote, so the stored notation silently changes on refresh.
-  it('never replaces an execution notation the dictionary already holds', () => {
-    for (const slug of FORMULA_NOTATION_SLUGS) {
-      db.prepare('UPDATE freestyle_tricks SET operational_notation = ? WHERE slug = ?').run(EXTRA_NOTATION, slug);
-    }
-    const counts = seedCuratorContent(db);
-    for (const slug of FORMULA_NOTATION_SLUGS) {
-      expect(value('SELECT operational_notation AS v FROM freestyle_tricks WHERE slug = ?', slug), slug).toBe(EXTRA_NOTATION);
-    }
-    expect(counts.formulaNotations).toBe(0);
   });
 
   // Defect caught: an entry removed from a staged module living on in the

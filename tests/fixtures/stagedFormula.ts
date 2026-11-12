@@ -8,9 +8,7 @@
  *   - the staged formula's breakdown, operators and expanded notation, shaped by
  *     the seeder's own breakdown rule;
  *   - a foundational move's execution notation, which the dictionary load
- *     stores and the landing page's core-trick list repeats;
- *   - a formula's execution notation, which the seeder writes only where the
- *     dictionary left the column empty, as it is in a fixture row.
+ *     stores and the landing page's core-trick list repeats.
  */
 import type BetterSqlite3 from 'better-sqlite3';
 import { RESOLVED_ADD_FORMULAS } from '../../freestyle/inputs/curator_content/freestyleResolvedFormulas';
@@ -44,7 +42,7 @@ export function pipelineColumns(slug: string): {
 } {
   const formula = RESOLVED_ADD_FORMULAS.find((f) => f.slug === slug);
   const foundation = CORE_TRICK_SPEC.find((s) => s.slug === slug);
-  const notation = foundation?.operationalNotation ?? formula?.operationalNotation;
+  const notation = foundation?.operationalNotation;
   return {
     ...(formula ? stagedFormulaColumns(slug) : {}),
     ...(notation ? { operational_notation: notation } : {}),

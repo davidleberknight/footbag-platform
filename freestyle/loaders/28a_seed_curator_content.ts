@@ -16,9 +16,7 @@
  *                                terminal_cohort_position
  *   resolved formulas          → freestyle_tricks.add_derivation (without its
  *                                "= N ADD" ending), formula_operator and
- *                                expanded_notation; a formula's execution
- *                                notation fills operational_notation only
- *                                where the dictionary left it empty
+ *                                expanded_notation
  *   notation subtitles         → freestyle_tricks.movement_notation_subtitle and
  *                                execution_notation_subtitle
  *
@@ -26,10 +24,9 @@
  * still wins over the seeded value. Before go-live the curator columns are wholly
  * derived from the staged modules plus the curator saves, so each run first
  * resets them and then writes every staged entry: an entry removed from a module
- * leaves no stale value behind. The description and operational_notation
- * columns are the exception: the dictionary load fills them, so only staged
- * values are written and nothing is reset, and a formula's notation never
- * replaces one the dictionary already holds.
+ * leaves no stale value behind. The description column is the exception: the
+ * dictionary load fills it, so only staged values are written and nothing is
+ * reset.
  *
  * Refuses, writing nothing, when an entry names a record, modifier or trick the
  * database does not hold, or a family override names a family that is not on the
@@ -126,7 +123,6 @@ export interface SeedCounts {
   terminalCohortMembers: number;
   formulas: number;
   expandedNotations: number;
-  formulaNotations: number;
   movementNotationSubtitles: number;
   executionNotationSubtitles: number;
 }
@@ -221,17 +217,11 @@ export function seedCuratorContent(
       `UPDATE freestyle_tricks SET add_derivation = ?, formula_operator = ? WHERE slug = ?`,
     );
     const setExpanded = setTrick('expanded_notation');
-    const fillNotation = db.prepare(`
-      UPDATE freestyle_tricks SET operational_notation = ?
-      WHERE slug = ? AND (operational_notation IS NULL OR trim(operational_notation) = '')
-    `);
     let formulas = 0;
     let expandedNotations = 0;
-    let formulaNotations = 0;
     for (const f of content.formulas) {
       formulas += setFormula.run(derivationBreakdown(f.derivation), f.operator, f.slug).changes;
       if (f.expandedNotation) expandedNotations += setExpanded.run(f.expandedNotation, f.slug).changes;
-      if (f.operationalNotation) formulaNotations += fillNotation.run(f.operationalNotation, f.slug).changes;
     }
 
     let recordsUnderReview = 0;
@@ -258,7 +248,6 @@ export function seedCuratorContent(
       terminalCohortMembers,
       formulas,
       expandedNotations,
-      formulaNotations,
       movementNotationSubtitles:  apply(content.movementNotationSubtitles, 'movement_notation_subtitle'),
       executionNotationSubtitles: apply(content.executionNotationSubtitles, 'execution_notation_subtitle'),
     };
@@ -283,7 +272,6 @@ function main(argv: readonly string[]): number {
       `${c.familyOverrides} family overrides, ${c.trickKinds} trick kinds, ` +
       `${c.terminalCohortMembers} terminal cohort members, ` +
       `${c.formulas} formulas, ${c.expandedNotations} expanded notations, ` +
-      `${c.formulaNotations} formula notations, ` +
       `${c.movementNotationSubtitles + c.executionNotationSubtitles} notation subtitles.`,
     );
     return 0;
