@@ -12,6 +12,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { cachedGet } from '../fixtures/cachedGet';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 import {
   insertFreestyleTrick,
   insertFreestyleTrickModifier,
@@ -28,6 +29,7 @@ const NEIGHBOUR = 'relatives_neighbour';
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
+  seedStagedFamilies(db);
   const trick = (slug: string, family: string, base: string, adds: string) =>
     insertFreestyleTrick(db, {
       slug, canonical_name: slug.replace(/_/g, ' '), trick_family: family,

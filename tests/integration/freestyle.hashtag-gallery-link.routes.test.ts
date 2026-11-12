@@ -8,6 +8,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { cachedGet } from '../fixtures/cachedGet';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 import {
   insertMember,
   insertFreestyleTrick,
@@ -48,6 +49,7 @@ function clipTagged(db: BetterSqlite3.Database, display: string, moderation: 'ac
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
+  seedStagedFamilies(db);
   insertMember(db, { id: UPLOADER, slug: 'hashtag_link_uploader', display_name: 'Hashtag Link Uploader' });
   insertFreestyleTrick(db, { slug: 'whirl', canonical_name: 'whirl', adds: '3', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });
   insertFreestyleTrick(db, { slug: 'spinning-whirl', canonical_name: 'spinning whirl', adds: '4', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });

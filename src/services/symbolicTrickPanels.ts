@@ -7,6 +7,8 @@
  * Consumes:
  *   - the trick's own base trick and modifier links, as the trick page already
  *     loads them
+ *   - the family-page resolver, so a link to a family page appears only while
+ *     that family has a page
  *
  * Produces:
  *   - SymbolicEducationCta[] — the "Educational" links for one trick
@@ -31,6 +33,8 @@ export interface SymbolicEducationInput {
   slug:          string;
   baseTrick:     string | null;
   modifierSlugs: readonly string[];
+  /** A family's page link, or null when the family has no page. */
+  familyPageHrefOf: (familySlug: string) => string | null;
 }
 
 // A trick with no recorded base is its own base, so the butterfly and the whirl
@@ -44,22 +48,22 @@ function effectiveBase(t: SymbolicEducationInput): string {
 // the spinning modifier, belongs with the spinning modifier's teaching page.
 const CTA_DEFINITIONS: readonly {
   label:   string;
-  href:    string;
+  href:    (trick: SymbolicEducationInput) => string | null;
   applies: (trick: SymbolicEducationInput) => boolean;
 }[] = [
   {
     label:   'Butterfly family: how the walking tricks branch',
-    href:    '/freestyle/families/butterfly',
+    href:    (t) => t.familyPageHrefOf('butterfly'),
     applies: (t) => effectiveBase(t) === 'butterfly',
   },
   {
     label:   'Spinning modifier educational page',
-    href:    '/freestyle/modifier/spinning',
+    href:    () => '/freestyle/modifier/spinning',
     applies: (t) => t.modifierSlugs.includes('spinning'),
   },
   {
     label:   'Spinning modifier educational page',
-    href:    '/freestyle/modifier/spinning',
+    href:    () => '/freestyle/modifier/spinning',
     applies: (t) => effectiveBase(t) === 'whirl',
   },
 ];
@@ -70,18 +74,20 @@ const CTA_DEFINITIONS: readonly {
  *
  * Several conditions may hold at once; the result is de-duplicated by href, so a
  * whirl-based trick that also carries the spinning modifier gets the spinning
- * link once. Returns [] when no condition holds.
+ * link once. A link whose page does not exist is left out. Returns [] when no
+ * condition holds.
  */
 export function buildSymbolicEducationCtas(trick: SymbolicEducationInput): SymbolicEducationCta[] {
   const ctas: SymbolicEducationCta[] = [];
   const seenHrefs = new Set<string>();
   for (const def of CTA_DEFINITIONS) {
     if (!def.applies(trick)) continue;
-    if (seenHrefs.has(def.href)) continue;
-    seenHrefs.add(def.href);
+    const href = def.href(trick);
+    if (href === null || seenHrefs.has(href)) continue;
+    seenHrefs.add(href);
     ctas.push({
       label:       def.label,
-      href:        def.href,
+      href,
       layerSource: 'observational',
     });
   }

@@ -7,7 +7,9 @@ per saved item under freestyle/inputs/curator_saves/. Those files are committed,
 so a rebuild reproduces the save. A trick's file names its target and only the
 fields a curator overrode, with a null field marking a deliberate clear. Sources,
 modifiers, aliases and links are saved as whole records, and removed: true marks one taken
-away, since a rebuild would otherwise bring it back from a base input. Running last
+away, since a rebuild would otherwise bring it back from a base input. A family is saved
+whole too, with the trick family labels that fold into it, but only ever edited: a family
+save naming a family the committed inputs do not produce stops the rebuild. Running last
 makes the precedence plain: base inputs first, curator saves on top.
 
 Because a save overrides a value someone could still read in an older CSV, this
@@ -47,6 +49,16 @@ RULING_SAVE_FIELDS = frozenset({
     "notation_convention_id", "notation_provenance_note", "ev_state", "hold_kind",
     "match_type", "final_disposition", "matched_existing_object", "published_trick_slug",
 })
+
+# A family save: every column the family editor writes, the two lists as JSON
+# arrays, and the trick family labels that fold into the family.
+FAMILY_SAVE_COLUMNS = (
+    "display_name", "parent_slug", "tier", "sort_order", "hook", "description",
+    "plain_language_reading", "importance", "shared_structure", "trick_page_note",
+)
+FAMILY_SAVE_LISTS = {"how_to_recognize": "how_to_recognize_json",
+                     "related_family_slugs": "related_family_slugs_json"}
+FAMILY_SAVE_FIELDS = frozenset({"slug", "folded_labels", *FAMILY_SAVE_COLUMNS, *FAMILY_SAVE_LISTS})
 
 # (folder, table, key columns, value columns). Applied in this order after the
 # tricks, because aliases and links reference sources and tricks by foreign key.
@@ -108,6 +120,76 @@ def apply_trick_saves(conn, saves, overrides):
             f"UPDATE freestyle_tricks SET {assignments} WHERE slug = ?",
             [fields[column] for column in columns] + [slug],
         )
+
+
+def apply_family_saves(conn, saves_dir, overrides):
+    """Apply family edits, each with the trick family labels that fold into it.
+
+    A family is only ever edited, never created by a save: one naming a family the
+    committed inputs do not produce is a decision for somebody, not something a
+    rebuild may add. Only a real change bumps the row's version.
+    """
+    applied = 0
+    for path in sorted((saves_dir / "families").glob("*.json")):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except ValueError as err:
+            raise ValueError(f"{path} is not valid JSON: {err}") from err
+        if not isinstance(data, dict) or data.get("slug") != path.stem:
+            raise ValueError(f"{path} must name its own family as slug")
+        unknown = sorted(set(data) - FAMILY_SAVE_FIELDS)
+        if unknown:
+            raise ValueError(f"{path} carries fields a save may not set: {', '.join(unknown)}")
+        absent = sorted(FAMILY_SAVE_FIELDS - set(data))
+        if absent:
+            raise ValueError(f"{path} is missing {', '.join(absent)}")
+        slug = data["slug"]
+        columns = list(FAMILY_SAVE_COLUMNS) + list(FAMILY_SAVE_LISTS.values())
+        values = [data[c] for c in FAMILY_SAVE_COLUMNS] + [
+            json.dumps(data[k], ensure_ascii=False, separators=(",", ":")) for k in FAMILY_SAVE_LISTS
+        ]
+        base = conn.execute(
+            f"SELECT {', '.join(columns)} FROM freestyle_families WHERE slug = ?", (slug,)
+        ).fetchone()
+        if base is None:
+            raise ValueError(
+                f"the curator save for family {slug} names a family the committed inputs no "
+                f"longer produce. Decide which is right: restore the family, or delete "
+                f"families/{slug}.json from the saves folder."
+            )
+        base_labels = [row[0] for row in conn.execute(
+            "SELECT label FROM freestyle_family_sublabels WHERE family_slug = ? ORDER BY label", (slug,)
+        )]
+        saved_labels = sorted(data["folded_labels"])
+        changed = [c for c, b, v in zip(columns, base, values) if b != v]
+        for column, base_value, saved in zip(columns, base, values):
+            if base_value != saved:
+                overrides.append((f"families:{slug}", column, base_value, saved))
+        if base_labels != saved_labels:
+            overrides.append((f"families:{slug}", "folded_labels", base_labels, saved_labels))
+        if not changed and base_labels == saved_labels:
+            continue
+        try:
+            if changed:
+                assignments = ", ".join(f"{c} = ?" for c in columns)
+                conn.execute(
+                    f"UPDATE freestyle_families SET {assignments}, updated_at = ?, updated_by = ?, "
+                    "version = version + 1 WHERE slug = ?",
+                    values + [LOADED_AT, "curator-save", slug],
+                )
+            if base_labels != saved_labels:
+                conn.execute("DELETE FROM freestyle_family_sublabels WHERE family_slug = ?", (slug,))
+                for label in saved_labels:
+                    conn.execute(
+                        "INSERT INTO freestyle_family_sublabels "
+                        "(label, family_slug, created_at, created_by, updated_at, updated_by, version) "
+                        "VALUES (?, ?, ?, ?, ?, ?, 1)",
+                        (label, slug, LOADED_AT, "curator-save", LOADED_AT, "curator-save"),
+                    )
+        except sqlite3.IntegrityError as err:
+            raise ValueError(f"{path} could not be applied: {err}") from err
+        applied += 1
+    return applied
 
 
 def apply_ruling_saves(conn, saves_dir, overrides):
@@ -263,6 +345,8 @@ def main() -> int:
                 for path in sorted((saves_dir / kind).glob("*.json")):
                     apply_record(conn, path, kind, table, keys, values, overrides)
                     applied += 1
+            # Families before the tricks, whose family override names a family.
+            applied += apply_family_saves(conn, saves_dir, overrides)
             apply_trick_saves(conn, saves, overrides)
             for kind, table, keys, values in RECORD_KINDS[2:]:
                 for path in sorted((saves_dir / kind).glob("*.json")):

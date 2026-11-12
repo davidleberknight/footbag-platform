@@ -17,6 +17,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
+import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 import {
   insertFreestyleTrick,
   insertFreestyleTrickModifier,
@@ -30,7 +31,7 @@ const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-
+  seedStagedFamilies(db);
   // Two active tricks at different ADD values + one modifier. Both carry
   // operational notation so the dex-count view (which renders only
   // dex-countable tricks) has real buckets to group and jump into.

@@ -1,0 +1,92 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{> admin-instructions}}
+  <section>
+    {{#if content.saved}}
+    {{> outcome-notice text="Saved." tone='ok'}}
+    {{/if}}
+    {{> outcome-notice lines=content.errors tone='no'}}
+
+    <form method="POST" action="{{content.formAction}}" class="form-block">
+      <div class="form-field">
+        <label for="family-displayName">Display name</label>
+        <input type="text" id="family-displayName" name="displayName" value="{{content.submitted.displayName}}" />
+      </div>
+      <div class="form-field">
+        <label for="family-parentSlug">Parent family</label>
+        <select id="family-parentSlug" name="parentSlug" aria-describedby="family-parentSlug-hint">
+          {{#each content.parentOptions}}
+            <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+          {{/each}}
+        </select>
+        <small class="form-hint" id="family-parentSlug-hint">A branch's parent is a root family with its own page.</small>
+      </div>
+      <div class="form-field">
+        <label for="family-tier">Tier</label>
+        <select id="family-tier" name="tier" aria-describedby="family-tier-hint">
+          {{#each content.tierOptions}}
+            <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+          {{/each}}
+        </select>
+        <small class="form-hint" id="family-tier-hint">A family parent has its own page; a minor lineage is grouped in the dictionary only.</small>
+      </div>
+      <div class="form-field">
+        <label for="family-sortOrder">Display order</label>
+        <input type="text" id="family-sortOrder" name="sortOrder" inputmode="numeric" value="{{content.submitted.sortOrder}}" aria-describedby="family-sortOrder-hint" />
+        <small class="form-hint" id="family-sortOrder-hint">A whole number; lower numbers come first in the dictionary's family view.</small>
+      </div>
+      <div class="form-field">
+        <label for="family-hook">Hook (optional)</label>
+        <input type="text" id="family-hook" name="hook" value="{{content.submitted.hook}}" aria-describedby="family-hook-hint" />
+        <small class="form-hint" id="family-hook-hint">One sentence under the family page's title.</small>
+      </div>
+      <div class="form-field">
+        <label for="family-description">What the family is (optional)</label>
+        <textarea id="family-description" name="description" rows="4">{{content.submitted.description}}</textarea>
+      </div>
+      <div class="form-field">
+        <label for="family-plainLanguageReading">Plain-language reading (optional)</label>
+        <input type="text" id="family-plainLanguageReading" name="plainLanguageReading" value="{{content.submitted.plainLanguageReading}}" aria-describedby="family-plainLanguageReading-hint" />
+        <small class="form-hint" id="family-plainLanguageReading-hint">One line shown above the description.</small>
+      </div>
+      <div class="form-field">
+        <label for="family-importance">Why it matters (optional)</label>
+        <textarea id="family-importance" name="importance" rows="4">{{content.submitted.importance}}</textarea>
+      </div>
+      <div class="form-field">
+        <label for="family-howToRecognize">How to recognize one (optional)</label>
+        <textarea id="family-howToRecognize" name="howToRecognize" rows="4" aria-describedby="family-howToRecognize-hint">{{content.submitted.howToRecognize}}</textarea>
+        <small class="form-hint" id="family-howToRecognize-hint">One cue per line, in order.</small>
+      </div>
+      <div class="form-field">
+        <label for="family-relatedFamilySlugs">Related families (optional)</label>
+        <textarea id="family-relatedFamilySlugs" name="relatedFamilySlugs" rows="3" aria-describedby="family-relatedFamilySlugs-hint">{{content.submitted.relatedFamilySlugs}}</textarea>
+        <small class="form-hint" id="family-relatedFamilySlugs-hint">One family slug per line, in order.</small>
+      </div>
+      <div class="form-field">
+        <label for="family-sharedStructure">Shared structure (optional)</label>
+        <input type="text" id="family-sharedStructure" name="sharedStructure" value="{{content.submitted.sharedStructure}}" aria-describedby="family-sharedStructure-hint" />
+        <small class="form-hint" id="family-sharedStructure-hint">The structure every member keeps, shown in the dictionary's family view and on the anchor trick's page.</small>
+      </div>
+      <div class="form-field">
+        <label for="family-trickPageNote">Trick-page note (optional)</label>
+        <textarea id="family-trickPageNote" name="trickPageNote" rows="3" aria-describedby="family-trickPageNote-hint">{{content.submitted.trickPageNote}}</textarea>
+        <small class="form-hint" id="family-trickPageNote-hint">Shown on the page of the trick this family is named for.</small>
+      </div>
+      <div class="form-field">
+        <label for="family-foldedLabels">Folded family labels (optional)</label>
+        <textarea id="family-foldedLabels" name="foldedLabels" rows="3" aria-describedby="family-foldedLabels-hint">{{content.submitted.foldedLabels}}</textarea>
+        <small class="form-hint" id="family-foldedLabels-hint">One trick family label per line; tricks filed under it show under this family.</small>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary btn-sm">Save Family</button>
+        <a href="{{content.cancelHref}}" class="btn btn-outline btn-sm">Cancel</a>
+      </div>
+    </form>
+  </section>
+</div>

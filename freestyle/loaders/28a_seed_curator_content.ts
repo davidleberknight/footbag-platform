@@ -19,6 +19,9 @@
  *                                expanded_notation
  *   notation subtitles         → freestyle_tricks.movement_notation_subtitle and
  *                                execution_notation_subtitle
+ *   the family roster          → freestyle_families, one row per family, and
+ *                                freestyle_family_sublabels, one row per folded
+ *                                trick family label
  *
  * It runs after loader 28 and before loader 29, so a curator's save applied by 29
  * still wins over the seeded value. Before go-live the curator columns are wholly
@@ -26,12 +29,14 @@
  * resets them and then writes every staged entry: an entry removed from a module
  * leaves no stale value behind. The description column is the exception: the
  * dictionary load fills it, so only staged values are written and nothing is
- * reset.
+ * reset. The two family tables are wholly curator content, so they are emptied
+ * and re-inserted.
  *
  * Refuses, writing nothing, when an entry names a record, modifier or trick the
- * database does not hold, or a family override names a family that is not on the
- * public family list: a silently skipped entry would drop curator content from
- * the site unnoticed.
+ * database does not hold, a family override names a family that is not on the
+ * staged roster, or the roster breaks a family rule (the same rules the family
+ * editor applies): a silently skipped entry would drop curator content from the
+ * site unnoticed.
  *
  * Deleted with the pipeline at cutover, together with the staged modules.
  *
@@ -53,7 +58,15 @@ import {
   MOVEMENT_NOTATION_SUBTITLES,
   EXECUTION_NOTATION_SUBTITLES,
 } from '../inputs/curator_content/freestyleSectionSubtitles';
-import { PUBLIC_DISPLAY_FAMILIES } from '../../src/content/freestylePublicFamilies';
+import {
+  STAGED_FAMILIES,
+  STAGED_FAMILY_SUBLABELS,
+  type StagedFamily,
+} from '../inputs/curator_content/freestyleFamilies';
+import { familyRosterProblems } from '../../src/services/freestyleFamilyRules';
+
+/** The actor the seeded family rows are stamped with. */
+export const FAMILY_SEED_ACTOR = 'curator-content-seed';
 
 /** The breakdown the trick page shows: the derivation without a final "= N ADD",
  *  because the total beside it is the row's adds. A note after the total stays. */
@@ -75,6 +88,10 @@ export interface CuratorContent {
   formulas: readonly ResolvedFormula[];
   movementNotationSubtitles: ReadonlyMap<string, string>;
   executionNotationSubtitles: ReadonlyMap<string, string>;
+  /** The family roster, in display order. */
+  families: readonly StagedFamily[];
+  /** Trick family label to the family it folds into. */
+  familySublabels: ReadonlyMap<string, string>;
 }
 
 export const STAGED_CURATOR_CONTENT: CuratorContent = {
@@ -90,6 +107,8 @@ export const STAGED_CURATOR_CONTENT: CuratorContent = {
   formulas: RESOLVED_ADD_FORMULAS,
   movementNotationSubtitles: MOVEMENT_NOTATION_SUBTITLES,
   executionNotationSubtitles: EXECUTION_NOTATION_SUBTITLES,
+  families: STAGED_FAMILIES,
+  familySublabels: STAGED_FAMILY_SUBLABELS,
 };
 
 /** Every trick slug the content names, as a key or as a target. */
@@ -125,6 +144,8 @@ export interface SeedCounts {
   expandedNotations: number;
   movementNotationSubtitles: number;
   executionNotationSubtitles: number;
+  families: number;
+  familySublabels: number;
 }
 
 export class CuratorContentRefusal extends Error {
@@ -158,11 +179,36 @@ export function seedCuratorContent(
     if (!trickExists.get(slug)) problems.push(`curator content names trick "${slug}", which the dictionary does not hold`);
   }
 
-  const publicFamilies = new Set(PUBLIC_DISPLAY_FAMILIES.map((f) => f.slug));
+  const publicFamilies = new Set(content.families.map((f) => f.slug));
   for (const [slug, family] of content.familyOverrides) {
     if (!publicFamilies.has(family)) {
       problems.push(`family override for "${slug}" names "${family}", which is not on the public family list`);
     }
+  }
+
+  // The roster meets the family rules the editor applies, and no family appears
+  // twice.
+  const seenFamilies = new Set<string>();
+  for (const f of content.families) {
+    if (seenFamilies.has(f.slug)) problems.push(`family "${f.slug}" is listed more than once`);
+    seenFamilies.add(f.slug);
+  }
+  for (const [label, family] of content.familySublabels) {
+    if (!publicFamilies.has(family)) problems.push(`folded label "${label}" names "${family}", which is not a family`);
+  }
+  const foldedBy = new Map<string, string[]>();
+  for (const [label, family] of content.familySublabels) {
+    foldedBy.set(family, [...(foldedBy.get(family) ?? []), label]);
+  }
+  for (const p of familyRosterProblems(content.families.map((f) => ({
+    slug:               f.slug,
+    parentSlug:         f.parentSlug,
+    tier:               f.tier,
+    sortOrder:          f.sortOrder,
+    relatedFamilySlugs: f.relatedFamilySlugs,
+    foldedLabels:       foldedBy.get(f.slug) ?? [],
+  })))) {
+    problems.push(`family "${p.slug}": ${p.message}`);
   }
 
   // A trick sits in at most one "Tricks that land here" list, because the row
@@ -236,6 +282,40 @@ export function seedCuratorContent(
       members.forEach((m, i) => { terminalCohortMembers += setCohort.run(terminal, i + 1, m).changes; });
     }
 
+    // The family tables: emptied and re-inserted, roots before branches so each
+    // branch's parent row exists when it is written.
+    db.prepare(`DELETE FROM freestyle_family_sublabels`).run();
+    db.prepare(`DELETE FROM freestyle_families`).run();
+    const now = new Date().toISOString();
+    const insertFamily = db.prepare(`
+      INSERT INTO freestyle_families
+        (slug, display_name, parent_slug, tier, sort_order, hook, description,
+         plain_language_reading, importance, how_to_recognize_json,
+         related_family_slugs_json, shared_structure, trick_page_note,
+         created_at, created_by, updated_at, updated_by, version)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    `);
+    let families = 0;
+    const rootsFirst = [...content.families].sort((a, b) =>
+      Number(a.parentSlug !== null) - Number(b.parentSlug !== null));
+    for (const f of rootsFirst) {
+      families += insertFamily.run(
+        f.slug, f.displayName, f.parentSlug, f.tier, f.sortOrder, f.hook, f.description,
+        f.plainLanguageReading, f.importance, JSON.stringify(f.howToRecognize),
+        JSON.stringify(f.relatedFamilySlugs), f.sharedStructure, f.trickPageNote,
+        now, FAMILY_SEED_ACTOR, now, FAMILY_SEED_ACTOR,
+      ).changes;
+    }
+    const insertSublabel = db.prepare(`
+      INSERT INTO freestyle_family_sublabels
+        (label, family_slug, created_at, created_by, updated_at, updated_by, version)
+      VALUES (?, ?, ?, ?, ?, ?, 1)
+    `);
+    let familySublabels = 0;
+    for (const [label, family] of content.familySublabels) {
+      familySublabels += insertSublabel.run(label, family, now, FAMILY_SEED_ACTOR, now, FAMILY_SEED_ACTOR).changes;
+    }
+
     return {
       recordsUnderReview,
       beginnerNotes,
@@ -250,6 +330,8 @@ export function seedCuratorContent(
       expandedNotations,
       movementNotationSubtitles:  apply(content.movementNotationSubtitles, 'movement_notation_subtitle'),
       executionNotationSubtitles: apply(content.executionNotationSubtitles, 'execution_notation_subtitle'),
+      families,
+      familySublabels,
     };
   })();
 }
@@ -272,7 +354,8 @@ function main(argv: readonly string[]): number {
       `${c.familyOverrides} family overrides, ${c.trickKinds} trick kinds, ` +
       `${c.terminalCohortMembers} terminal cohort members, ` +
       `${c.formulas} formulas, ${c.expandedNotations} expanded notations, ` +
-      `${c.movementNotationSubtitles + c.executionNotationSubtitles} notation subtitles.`,
+      `${c.movementNotationSubtitles + c.executionNotationSubtitles} notation subtitles, ` +
+      `${c.families} families, ${c.familySublabels} folded family labels.`,
     );
     return 0;
   } catch (err) {

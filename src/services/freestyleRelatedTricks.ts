@@ -1,6 +1,11 @@
 import { FreestyleTrickRow } from '../db/db';
 import { slugToHashtag } from './freestyleRecordShaping';
-import { resolveDisplayFamily } from '../content/freestylePublicFamilies';
+import { resolveDisplayFamily } from './freestyleFamilyRegistry';
+
+/** Folds a raw trick_family label to the public family it shows under, or null.
+ *  The helpers below take one so they can run against any roster; the app passes
+ *  the family registry's. */
+export type FamilyResolver = (label: string) => string | null;
 
 /**
  * What a dictionary row is. Only a 'trick' lists in the trick browse; the rest
@@ -568,9 +573,12 @@ function humanizeSlug(slug: string): string {
  * a public family. This is the resolution the trick page's family ladder and the
  * family browse use, so a raw sub-label never splits a family in two.
  */
-export function effectiveFamilyOf(row: { trick_family: string | null; family_override: string | null }): string | null {
+export function effectiveFamilyOf(
+  row: { trick_family: string | null; family_override: string | null },
+  resolve: FamilyResolver = resolveDisplayFamily,
+): string | null {
   const raw = rawFamilyOf(row);
-  return raw ? resolveDisplayFamily(raw) : null;
+  return raw ? resolve(raw) : null;
 }
 
 /**
@@ -582,14 +590,15 @@ export function effectiveFamilyOf(row: { trick_family: string | null; family_ove
 export function familyLadderSlugs(
   current: { trick_family: string | null; family_override: string | null },
   allRows: readonly FreestyleTrickRow[],
+  resolve: FamilyResolver = resolveDisplayFamily,
 ): Set<string> {
-  const family = effectiveFamilyOf(current);
+  const family = effectiveFamilyOf(current, resolve);
   if (!family) return new Set();
   return new Set(
     allRows
       .filter(r =>
         r.category !== 'modifier' && r.category !== 'set' && r.category !== 'operator'
-        && effectiveFamilyOf(r) === family,
+        && effectiveFamilyOf(r, resolve) === family,
       )
       .map(r => r.slug),
   );
@@ -612,12 +621,14 @@ export function familyLadderSlugs(
  * the ladder, and the two sections do not repeat one another.
  *
  * `modifierLinks` are the (trick_slug, modifier_slug) rows for the whole
- * dictionary; the operator multiset per trick is derived from them.
+ * dictionary; the operator multiset per trick is derived from them. `resolve`
+ * folds a family label to its public family.
  */
 export function buildStructuralRelatives(
   current: FreestyleTrickRow,
   allRows: readonly FreestyleTrickRow[],
   modifierLinks: readonly { trick_slug: string; modifier_slug: string }[],
+  resolve: FamilyResolver = resolveDisplayFamily,
 ): FreestyleStructuralRelative[] {
   const rowBySlug = new Map(allRows.map(r => [r.slug, r] as const));
   const nameOf = (slug: string | null): string =>
@@ -632,7 +643,7 @@ export function buildStructuralRelatives(
     reason,
   });
 
-  const onLadder = familyLadderSlugs(current, allRows);
+  const onLadder = familyLadderSlugs(current, allRows, resolve);
 
   // Curated override wins: pin the editorial relatives, dropping any whose target
   // is not an active canonical row or is already on the family ladder.

@@ -3358,13 +3358,17 @@ Story: As an admin, I can edit a freestyle family, with validation and an audit 
 
 Success Criteria, Fields:
 
-- Editable fields are the display name, the parent family (empty for a root family), the display tier (family parent or minor lineage), the plain-language description of what the family is, why it matters, and how to recognize one. The slug is never edited.
+- Editable fields are the display name, the parent family (empty for a root family), the display tier (family parent or minor lineage), the display order, the hook shown under the family page's title, the plain-language description of what the family is, an optional plain-language reading, why it matters, how to recognize one, the related families, the shared-structure line shown on the By-family browse and on its anchor trick's page, the family note on its anchor trick's page, and the other family labels that fold into it. The slug is never edited.
 - Which tricks belong to a family is set on each trick (A_Edit_Freestyle_Trick); member lists, member counts and example tricks are computed when read.
 
 Success Criteria, Validation (a save that fails any check is rejected with a clear message and the submitted values preserved):
 
-- A non-empty parent names another family, and a save that would make a family its own ancestor is refused.
+- A non-empty parent names a root family (one with no parent of its own), so a family is never its own ancestor.
+- A non-empty parent is also a family parent, so every branch's parent has a page; a family parent that any branch names cannot be moved to minor lineage while that branch names it.
 - The tier is one the roster allows, and a universal catch surface (toe stall, clipper stall) cannot become a family parent.
+- Each related family names another family, never the family itself.
+- A folded label is a trick family label, not the slug of a family, and no label folds into two families.
+- The display order is a whole number that orders families on the By-family browse; it never identifies a family.
 
 Success Criteria, Display:
 

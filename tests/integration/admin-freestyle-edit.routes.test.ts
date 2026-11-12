@@ -21,6 +21,7 @@ import request from '../fixtures/supertestWithOrigin';
 import { flashCookieOf } from '../fixtures/flashCookie';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 import {
   insertMember,
   insertFreestyleTrick,
@@ -74,6 +75,7 @@ function validBody(overrides: Record<string, string> = {}): Record<string, strin
 
 beforeAll(async () => {
   db = createTestDb(dbPath);
+  seedStagedFamilies(db);
   insertMember(db, { id: ADMIN_ID, slug: 'fse_admin', display_name: 'FSE Admin', login_email: 'fse-admin@example.com', is_admin: 1 });
   insertMember(db, { id: MEMBER_ID, slug: 'fse_member', display_name: 'FSE Member', login_email: 'fse-member@example.com' });
   // A seeded-persona admin (id carries the persona prefix): a real admin by role,

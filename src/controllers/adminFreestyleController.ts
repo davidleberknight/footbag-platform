@@ -9,6 +9,8 @@ import {
   FreestyleSourceInput,
   FreestyleModifierInput,
   FreestyleTrickPublicationInput,
+  FamilyValidationError,
+  type FreestyleFamilyInput,
   type CurationLinkOutcome,
 } from '../services/freestyleCurationService';
 import {
@@ -790,7 +792,74 @@ export const adminFreestyleController = {
       next(err);
     }
   },
+
+  /** GET /admin/freestyle/families */
+  families(_req: Request, res: Response, next: NextFunction): void {
+    try {
+      res.render('admin/freestyle-families', freestyleCurationService.getFamilyListPage());
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /** GET /admin/freestyle/families/:slug/edit */
+  editFamily(req: Request, res: Response, next: NextFunction): void {
+    const slug = str(req.params.slug);
+    const editPath = `/admin/freestyle/families/${slug}/edit`;
+    try {
+      res.render('admin/freestyle-family-edit',
+        freestyleCurationService.getFamilyEditPage(slug, { saved: savedHere(req, res, editPath) }));
+    } catch (err) {
+      if (err instanceof NotFoundError) {
+        renderNotFound(res);
+        return;
+      }
+      next(err);
+    }
+  },
+
+  // Save one family's edit. Success, or an unchanged submit, returns to the edit
+  // page; a refusal re-renders it (422) with the submitted values and every reason.
+  updateFamily(req: Request, res: Response, next: NextFunction): void {
+    const slug = str(req.params.slug);
+    const input = familyInputFromBody(req.body);
+    try {
+      const result = freestyleCurationService.updateFamily(slug, input, req.user!.userId);
+      const editPath = `/admin/freestyle/families/${slug}/edit`;
+      if (result.status === 'saved') redirectSaved(req, res, editPath);
+      else res.redirect(303, editPath);
+    } catch (err) {
+      if (err instanceof FamilyValidationError) {
+        res.status(422).render('admin/freestyle-family-edit',
+          freestyleCurationService.getFamilyEditPage(slug, { submitted: input, errors: [...err.reasons] }));
+        return;
+      }
+      if (err instanceof NotFoundError) {
+        renderNotFound(res);
+        return;
+      }
+      next(err);
+    }
+  },
 };
+
+function familyInputFromBody(body: Record<string, unknown>): FreestyleFamilyInput {
+  return {
+    displayName:          str(body.displayName),
+    parentSlug:           str(body.parentSlug),
+    tier:                 str(body.tier),
+    sortOrder:            str(body.sortOrder),
+    hook:                 str(body.hook),
+    description:          str(body.description),
+    plainLanguageReading: str(body.plainLanguageReading),
+    importance:           str(body.importance),
+    howToRecognize:       str(body.howToRecognize),
+    relatedFamilySlugs:   str(body.relatedFamilySlugs),
+    sharedStructure:      str(body.sharedStructure),
+    trickPageNote:        str(body.trickPageNote),
+    foldedLabels:         str(body.foldedLabels),
+  };
+}
 
 function modifierInputFromBody(body: Record<string, unknown>): FreestyleModifierInput {
   return {

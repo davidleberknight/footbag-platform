@@ -28,6 +28,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
+import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 import { insertFreestyleTrick } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3532');
@@ -43,6 +44,7 @@ const t = (
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
+  seedStagedFamilies(db);
   const rows = [
     // Osis family + native member
     t('osis', 'osis', 'dex'),

@@ -180,6 +180,15 @@ export const COPY_COLUMN_REGISTER: Readonly<Record<string, TableClassification>>
       'notation_convention_id', 'notation_provenance_note', 'notation_authored_at',
       'notation_authored_by'],
   },
+  freestyle_families: {
+    keep: ['slug', 'display_name', 'parent_slug', 'tier', 'sort_order', 'hook', 'description',
+      'plain_language_reading', 'importance', 'how_to_recognize_json', 'related_family_slugs_json',
+      'shared_structure', 'trick_page_note', 'created_at', 'created_by', 'updated_at', 'updated_by',
+      'version'],
+  },
+  freestyle_family_sublabels: {
+    keep: ['label', 'family_slug', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version'],
+  },
   freestyle_records: {
     keep: ['id', 'record_type', 'person_id', 'display_name', 'trick_name', 'sort_name',
       'adds_count', 'value_numeric', 'value_text', 'achieved_date', 'date_precision', 'source',

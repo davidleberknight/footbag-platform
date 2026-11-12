@@ -15,6 +15,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 import { insertFreestyleTrick } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3621');
@@ -22,6 +23,7 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
+  seedStagedFamilies(db);
   // All seeded at 4 ADD (test data only; does not change real ADD values).
   const t = (slug: string, family: string, name?: string, family_override?: string) =>
     insertFreestyleTrick(db, {

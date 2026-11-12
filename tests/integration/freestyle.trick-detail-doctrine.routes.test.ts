@@ -22,6 +22,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
+import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 import {
   insertFreestyleTrick,
   insertFreestyleTrickModifier,
@@ -39,7 +40,7 @@ const ABOUT = 'aria-label="About this trick"';
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-
+  seedStagedFamilies(db);
   insertFreestyleTrick(db, {
     slug: 'mirage', canonical_name: 'mirage', adds: '2',
     base_trick: 'mirage', trick_family: 'mirage', category: 'dex',

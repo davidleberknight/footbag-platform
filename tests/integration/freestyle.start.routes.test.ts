@@ -20,7 +20,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { cachedGet } from '../fixtures/cachedGet';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-
+import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 const { dbPath } = setTestEnv('3663');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
@@ -28,6 +28,7 @@ const getPage = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
+  seedStagedFamilies(db);
   db.close();
   createApp = await importApp();
 });

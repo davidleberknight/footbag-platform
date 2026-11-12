@@ -3312,6 +3312,80 @@ export interface FreestyleMediaCoveredSourceRow {
 }
 
 
+export interface FreestyleFamilyRow {
+  slug:                      string;
+  display_name:              string;
+  parent_slug:               string | null;
+  tier:                      'family_parent' | 'minor_lineage';
+  sort_order:                number;
+  hook:                      string | null;
+  description:               string | null;
+  plain_language_reading:    string | null;
+  importance:                string | null;
+  how_to_recognize_json:     string;
+  related_family_slugs_json: string;
+  shared_structure:          string | null;
+  trick_page_note:           string | null;
+}
+
+export interface FreestyleFamilySublabelRow {
+  label:       string;
+  family_slug: string;
+}
+
+// The family roster and its folded labels. Read whole: the roster is a few dozen
+// rows that nearly every freestyle page consults, so the service caches it and
+// re-reads when the fingerprint below changes.
+export const freestyleFamilies = {
+  get listAll() { return db.prepare(`
+    SELECT slug, display_name, parent_slug, tier, sort_order, hook, description,
+           plain_language_reading, importance, how_to_recognize_json,
+           related_family_slugs_json, shared_structure, trick_page_note
+    FROM freestyle_families
+    ORDER BY sort_order ASC, slug ASC
+  `); },
+
+  get listSublabels() { return db.prepare(`
+    SELECT label, family_slug FROM freestyle_family_sublabels ORDER BY label ASC
+  `); },
+
+  // Changes whenever a family or folded-label row is added, removed or edited:
+  // every edit bumps version, and an add or remove changes a count.
+  get fingerprint() { return db.prepare(`
+    SELECT (SELECT COUNT(*) || ':' || COALESCE(SUM(version), 0) || ':' || COALESCE(MAX(updated_at), '')
+            FROM freestyle_families)
+        || '|' ||
+           (SELECT COUNT(*) || ':' || COALESCE(SUM(version), 0) || ':' || COALESCE(MAX(updated_at), '')
+            FROM freestyle_family_sublabels) AS fp
+  `); },
+
+  // Whether any trick, active or held, carries this trick_family label; a label
+  // folds into a family only if some trick is filed under it.
+  get trickFamilyLabelExists() { return db.prepare(`
+    SELECT 1 FROM freestyle_tricks WHERE trick_family = ? LIMIT 1
+  `); },
+
+  // The family editor's writes.
+  get update() { return db.prepare(`
+    UPDATE freestyle_families
+    SET display_name = ?, parent_slug = ?, tier = ?, sort_order = ?, hook = ?, description = ?,
+        plain_language_reading = ?, importance = ?, how_to_recognize_json = ?,
+        related_family_slugs_json = ?, shared_structure = ?, trick_page_note = ?,
+        updated_at = ?, updated_by = ?, version = version + 1
+    WHERE slug = ?
+  `); },
+
+  get deleteSublabelsOfFamily() { return db.prepare(`
+    DELETE FROM freestyle_family_sublabels WHERE family_slug = ?
+  `); },
+
+  get insertSublabel() { return db.prepare(`
+    INSERT INTO freestyle_family_sublabels
+      (label, family_slug, created_at, created_by, updated_at, updated_by, version)
+    VALUES (?, ?, ?, ?, ?, ?, 1)
+  `); },
+};
+
 export const freestyleTrickModifiers = {
   get listAll() { return db.prepare(`
     SELECT slug, modifier_name, add_bonus, add_bonus_rotational, modifier_type, notes,

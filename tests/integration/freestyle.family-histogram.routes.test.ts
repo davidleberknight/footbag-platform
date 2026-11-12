@@ -15,6 +15,7 @@ import BetterSqlite3 from 'better-sqlite3';
 import request from 'supertest';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 import { insertFreestyleTrick } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3221');
@@ -30,6 +31,7 @@ function seedTrick(db: BetterSqlite3.Database, slug: string, family: string): vo
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
+  seedStagedFamilies(db);
   // Osis is a root family and Torque a branch nested under it: three Osis
   // tricks and two Torque tricks make Osis five strong once its branch folds in,
   // and leave Torque one short of the floor.

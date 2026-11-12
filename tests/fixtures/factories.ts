@@ -1354,6 +1354,65 @@ export function insertFreestyleTrickModifier(
   );
 }
 
+export interface FreestyleFamilyOverrides {
+  slug: string;
+  display_name?: string;
+  parent_slug?: string | null;
+  tier?: 'family_parent' | 'minor_lineage';
+  sort_order?: number;
+  hook?: string | null;
+  description?: string | null;
+  plain_language_reading?: string | null;
+  importance?: string | null;
+  how_to_recognize?: readonly string[];
+  related_family_slugs?: readonly string[];
+  shared_structure?: string | null;
+  trick_page_note?: string | null;
+}
+
+/** One freestyle family row, stamped as the rebuild seeder stamps it. Defaults to
+ *  a root family parent with no teaching text. */
+export function insertFreestyleFamily(db: BetterSqlite3.Database, o: FreestyleFamilyOverrides): void {
+  const now = nowIso();
+  db.prepare(`
+    INSERT INTO freestyle_families
+      (slug, display_name, parent_slug, tier, sort_order, hook, description,
+       plain_language_reading, importance, how_to_recognize_json, related_family_slugs_json,
+       shared_structure, trick_page_note, created_at, created_by, updated_at, updated_by, version)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'curator-content-seed', ?, 'curator-content-seed', 1)
+  `).run(
+    o.slug,
+    o.display_name ?? o.slug.charAt(0).toUpperCase() + o.slug.slice(1).replace(/_/g, ' '),
+    o.parent_slug ?? null,
+    o.tier ?? 'family_parent',
+    o.sort_order ?? 0,
+    o.hook ?? null,
+    o.description ?? null,
+    o.plain_language_reading ?? null,
+    o.importance ?? null,
+    JSON.stringify(o.how_to_recognize ?? []),
+    JSON.stringify(o.related_family_slugs ?? []),
+    o.shared_structure ?? null,
+    o.trick_page_note ?? null,
+    now,
+    now,
+  );
+}
+
+/** One trick family label folding into a family. */
+export function insertFreestyleFamilySublabel(
+  db: BetterSqlite3.Database,
+  label: string,
+  family_slug: string,
+): void {
+  const now = nowIso();
+  db.prepare(`
+    INSERT INTO freestyle_family_sublabels
+      (label, family_slug, created_at, created_by, updated_at, updated_by, version)
+    VALUES (?, ?, ?, 'curator-content-seed', ?, 'curator-content-seed', 1)
+  `).run(label, family_slug, now, now);
+}
+
 export function insertFreestyleTrickModifierLink(
   db: BetterSqlite3.Database,
   trick_slug: string,

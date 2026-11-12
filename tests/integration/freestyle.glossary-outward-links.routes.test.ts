@@ -37,7 +37,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-
+import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 const { dbPath } = setTestEnv('3164');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
@@ -45,6 +45,7 @@ const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
+  seedStagedFamilies(db);
   db.close();
   createApp = await importApp();
 });

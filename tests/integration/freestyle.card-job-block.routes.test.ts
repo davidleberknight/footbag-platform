@@ -28,6 +28,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
+import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 import {
   insertFreestyleTrick,
   insertFreestyleTrickModifier,
@@ -41,7 +42,7 @@ const getPage = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-
+  seedStagedFamilies(db);
   // Modifier registry (enough to drive the modifier and set view sections)
   const bodyModifiers = ['paradox', 'spinning', 'ducking'];
   const setModifiers  = ['fairy', 'pixie', 'quantum', 'stepping'];

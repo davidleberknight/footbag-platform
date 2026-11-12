@@ -21,6 +21,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
+import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 import {
   insertFreestyleTrick,
   insertFreestyleTrickModifier,
@@ -43,7 +44,7 @@ const WITNESS: Record<string, string> = { modifier: 'blur' };
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-
+  seedStagedFamilies(db);
   // The adversarial seed: quantum ACTIVE and fully notated, as a set row. If
   // the kind guard ever regressed, this row would qualify for every browse
   // bucket (it has an ADD, a family, and a countable dex notation).

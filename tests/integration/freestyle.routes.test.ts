@@ -23,6 +23,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
+import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 import {
   insertHistoricalPerson,
   insertFreestyleRecord,
@@ -44,7 +45,7 @@ const FREESTYLE_PLAYER_ID = 'person-freestyle-player-001';
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-
+  seedStagedFamilies(db);
   // A canonical person whose records should link to /history/:personId
   insertHistoricalPerson(db, {
     person_id:    PERSON_ID,

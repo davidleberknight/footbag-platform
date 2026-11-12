@@ -10,6 +10,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { cachedGet } from '../fixtures/cachedGet';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 import {
   insertHistoricalPerson,
   insertFreestyleRecord,
@@ -31,7 +32,7 @@ const PERSON_ID = 'person-tricks-test-001';
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-
+  seedStagedFamilies(db);
   insertHistoricalPerson(db, {
     person_id:    PERSON_ID,
     person_name:  'Claire Dex',

@@ -28,6 +28,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
+import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 import { insertFreestyleTrickAlias } from '../fixtures/factories';
 import { insertTrickAsRebuilt } from '../fixtures/stagedFormula';
 import { ROOT_TERMINAL_FAMILIES, BRANCH_FAMILIES } from '../../src/content/freestyleGlossaryFamilyCards';
@@ -40,7 +41,7 @@ const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-
+  seedStagedFamilies(db);
   // Base Butterfly: the side-either row (notation unchanged in this slice).
   insertTrickAsRebuilt(db, {
     slug: 'butterfly', canonical_name: 'butterfly', adds: '3',
@@ -138,7 +139,6 @@ describe('freestyle glossary family cards — butterfly base reconciled, compoun
     expect(butterfly).toBeDefined();
     expect(butterfly!.canonicalFormula).toBe('SET > OP OUT [DEX] > OP CLIP [XBD] [DEL]');
     expect(butterfly!.canonicalFormula).not.toContain('SAME/OP');
-    expect(butterfly!.teaching!.notationIntro).not.toContain('SAME/OP');
   });
 
   it('the butterfly-family compound cards keep their existing notation (migration held)', () => {

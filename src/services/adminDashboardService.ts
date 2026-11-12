@@ -150,6 +150,7 @@ const TOOL_GROUPS: DashboardLinkGroup[] = [
       { label: 'Consecutive Records', href: '/admin/freestyle/consecutive-records' },
       { label: 'Freestyle Sources', href: '/admin/freestyle/sources' },
       { label: 'Freestyle Modifiers', href: '/admin/freestyle/modifiers' },
+      { label: 'Freestyle Families', href: '/admin/freestyle/families' },
       { label: 'Emerging Vocabulary', href: '/admin/freestyle/emerging-vocabulary' },
       { label: 'Notation Backlog', href: '/admin/freestyle/notation-backlog' },
     ],

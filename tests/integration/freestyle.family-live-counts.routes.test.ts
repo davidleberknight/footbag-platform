@@ -9,6 +9,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 import { insertFreestyleTrick } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3531');
@@ -17,6 +18,7 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
+  seedStagedFamilies(db);
   const rows: Array<Parameters<typeof insertFreestyleTrick>[1]> = [
     // drifter: a first-class family with exactly 4 live members
     { slug: 'drifter',           canonical_name: 'drifter',           adds: '2', base_trick: 'drifter',           trick_family: 'drifter',           category: 'dex',      review_status: 'expert_reviewed', is_active: 1 },

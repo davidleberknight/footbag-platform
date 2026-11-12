@@ -33,6 +33,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
+import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 import { insertFreestyleTrick } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3096');
@@ -57,7 +58,7 @@ const ALL_FILTERED_SAMPLES = [
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-
+  seedStagedFamilies(db);
   // Seed one row of each kind. The category column on each row reflects
   // the production DB's classification; the stored kind decides the browse.
   // Each row's `adds` is non-null so the row would otherwise pass

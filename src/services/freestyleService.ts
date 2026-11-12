@@ -135,7 +135,11 @@ import {
 import {
   CORE_TRICK_SPEC,
 } from '../content/freestyleLandingContent';
-import { HISTORY_NARRATIVE, type HistoryNarrative } from '../content/freestyleHistoryNarrative';
+import {
+  HISTORY_NARRATIVE,
+  type HistoryNarrative,
+  type HistoryNarrativeSource,
+} from '../content/freestyleHistoryNarrative';
 import { loadSiteVideo, loadSiteVideoMedia } from './siteMediaService';
 import {
   CORE_ATOM_EDUCATIONAL,
@@ -143,21 +147,23 @@ import {
 import { GLOSSARY_CORE_CONCEPTS_BY_KEY } from '../content/freestyleGlossaryCoreConcepts';
 import { GLOSSARY_TERMS, type GlossaryTerm } from '../content/freestyleGlossaryTerms';
 import {
-  getFamilyInvariant,
-} from '../content/freestyleFamilyInvariants';
-import {
-  PUBLIC_DISPLAY_FAMILIES,
-  resolveDisplayFamily,
-  familyWithAncestors,
-  rawFamilyLabelsUnder,
-  PUBLIC_FAMILY_ORDER,
-  PUBLIC_FAMILY_LABEL,
-  PUBLIC_FAMILY_PARENT_LABEL,
-  PUBLIC_FAMILY_PARENT_OF,
-} from '../content/freestylePublicFamilies';
-import {
+  familyLabels,
+  familyPageHref,
+  familyParentLabels,
+  familyParentOf,
+  familyRecord,
   familyTier,
+  familyTrickPageNote,
+  familyWithAncestors,
+  getFamilyInvariant,
   isOfficialFamilyParent,
+  publicDisplayFamilies,
+  publicFamilyOrder,
+  rawFamilyLabelsUnder,
+  resolveDisplayFamily,
+  type PublicDisplayFamily,
+} from './freestyleFamilyRegistry';
+import {
   FAMILY_TIER_LABEL,
   type FamilyTier,
 } from '../content/freestyleFamilyTiers';
@@ -233,7 +239,12 @@ import {
   type GlossaryAddExample,
 } from '../content/freestyleGlossaryAddExamples';
 import { personLocation } from './countryUtils';
-import { START_NEXT_STEPS, START_NEXT_STEPS_INTRO, type StartNextStep } from '../content/freestyleStartNextSteps';
+import {
+  START_NEXT_STEPS,
+  START_NEXT_STEPS_INTRO,
+  type StartNextStep,
+  type StartNextStepSource,
+} from '../content/freestyleStartNextSteps';
 import { mediaService } from './mediaService';
 
 // A set, family or modifier page's own media line: its hashtag, linked to the
@@ -426,8 +437,11 @@ function foldQueryToSlugForm(s: string): string {
 function searchPublicFamilies(query: string, limit: number): FreestyleFamilySearchResult[] {
   const q = foldSearchSeparators(query);
   if (q.length < TRICK_SEARCH_MIN_LENGTH) return [];
-  return PUBLIC_DISPLAY_FAMILIES
-    .filter(f => isOfficialFamilyParent(f.slug) && PUBLIC_FAMILY_LABEL.has(f.slug))
+  return publicDisplayFamilies()
+    .flatMap(f => {
+      const href = familyPageHref(f.slug);
+      return href === null ? [] : [{ ...f, href }];
+    })
     .filter(f =>
       foldSearchSeparators(f.label).includes(q) || foldSearchSeparators(f.slug).includes(q))
     .sort((a, b) => a.label.length - b.label.length || a.label.localeCompare(b.label))
@@ -436,7 +450,7 @@ function searchPublicFamilies(query: string, limit: number): FreestyleFamilySear
       type: 'family' as const,
       slug: f.slug,
       name: f.label,
-      href: `/freestyle/families/${f.slug}`,
+      href: f.href,
       typeLabel: 'Family' as const,
     }));
 }
@@ -780,14 +794,41 @@ const OPERATOR_BOARD_PROSE: Record<OperatorBoardSurface, { heading: string; lede
 // The six next-step lessons at the end of the getting-started page.
 const START_NEXT_STEPS_HREF = '/freestyle/start#next-steps';
 
-// The Butterfly family page, which owns the walking tricks' progression.
-const BUTTERFLY_FAMILY_HREF = '/freestyle/families/butterfly';
-
 // Getting-started page content: the frame's copy is in the template; the
 // service supplies the six next-step lessons that close it.
 export interface StartPageContent {
   nextStepsIntro: string;
   nextSteps:      readonly StartNextStep[];
+  // The family pages the page's own copy links to; null drops the link and
+  // keeps the words, as for a family that has no page.
+  mirageFamilyHref:    string | null;
+  butterflyFamilyHref: string | null;
+}
+
+// A next-step lesson's link: its own page, or its family's page while that
+// family has one.
+function resolveStartNextStep(step: StartNextStepSource): StartNextStep {
+  return {
+    name:   step.name,
+    lesson: step.lesson,
+    href:   'familySlug' in step ? familyPageHref(step.familySlug) : step.href,
+  };
+}
+
+// The history narrative with each family link resolved; a family link whose
+// family has no page is left out.
+function resolveHistoryNarrative(source: HistoryNarrativeSource): HistoryNarrative {
+  return {
+    ...source,
+    sections: source.sections.map(section => ({
+      ...section,
+      links: section.links?.flatMap(link => {
+        if (!('familySlug' in link)) return [link];
+        const href = familyPageHref(link.familySlug);
+        return href === null ? [] : [{ label: link.label, href }];
+      }),
+    })),
+  };
 }
 
 interface TrickRefMediaRow {
@@ -1413,7 +1454,7 @@ export interface FreestyleTrickContent {
   // Null for every other trick. Drives the family-anchor callout in
   // the trick-family section header; teaches readers that the page
   // they're on is itself the productive root of a family. A family counts as
-  // confirmed when FAMILY_INVARIANTS carries its invariant.
+  // confirmed when the family carries a shared-structure line.
   familyAnchorContext: {
     familyName:        string;       // e.g. "Whirl"
     familyBrowseHref:  string;       // /freestyle/tricks?view=family#family-{slug}
@@ -2302,7 +2343,7 @@ export interface FreestyleFamilyGroup {
   // Family-level shared-terminal-structure
   // invariant. Pedagogical surface rendered as a small subdued line below
   // the section heading. Curator-authored per family slug; null when no
-  // entry exists. See src/content/freestyleFamilyInvariants.ts.
+  // line is authored (the family's shared_structure).
   sharedStructure: string | null;
   // For a derived branch family (torque/blender under osis; double-leg-over/
   // eggbeater under legover), the display name of its parent root family. Null
@@ -2355,37 +2396,29 @@ export interface FamilyDetailMemberLink {
   mediaHref: string | null;
 }
 
-// Reader-facing teaching flow for a family page. Prose fields are authored on
-// the glossary family card.
-export interface FamilyDetailTeaching {
-  hook: string;
-  physicalDescription: string;
-  importance: string;
-  howToRecognize: string[];
-  // A one-line plain reading of the family's shape, opening "What is a ...?".
-  // Null when the card does not author one.
-  plainLanguageReading: string | null;
-}
-
 export interface FreestyleFamilyDetailContent {
   slug: string;
   displayName: string;
   displayArticle: string;          // 'a' | 'an'; shapes the "What is a/an <Name>?" heading
   hashtag: string;                 // '#' + slug
   mediaLine: FreestyleMediaLine;
-  tierLabel: string;               // 'Family Parent'
   // For a derived branch family, the parent family it presents under
   // (barfly and double-over-down present as branches of Down).
   branchParent: { name: string; href: string } | null;
-  orientation: string;             // one-sentence plain-language lead
+  // The family's curator-authored teaching text, each part edited on its own in
+  // the family editor; a part left empty drops its line or section.
+  hook: string | null;             // the line under the page title
+  plainLanguageReading: string | null; // a one-line plain reading above the description
+  // What the family is: the authored description, or a one-sentence generated
+  // lead when none is authored.
+  description: string;
+  importance: string | null;       // "Why the family matters"
+  howToRecognize: string[];        // "How to recognize one"; [] = no section
   // The family's lowest-ADD members, in ADD order: where a newcomer starts.
   exampleTricks: FamilyDetailMemberLink[];
   memberCount: number;             // every member, not only the examples shown
   allTricksHref: string;           // /freestyle/tricks?view=family#family-{slug}
   siblingFamilies: { name: string; href: string }[];
-  // Reader-facing teaching flow; null for a family with no authored teaching,
-  // in which case the page opens with the one-line orientation instead.
-  teaching: FamilyDetailTeaching | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -2737,18 +2770,18 @@ function shapeGlossaryFamilyCard(card: GlossaryFamilyCard): GlossaryFamilyCardVi
   // is no override, so an explicit null parent is not overwritten.
   const parentSlug = override
     ? override.parentSlug
-    : PUBLIC_FAMILY_PARENT_OF.get(card.slug) ?? null;
+    : familyParentOf().get(card.slug) ?? null;
   const tier       = override?.tier ?? familyTier(card.slug);
   const lineageLabel = parentSlug
-    ? `Branch lineage (${PUBLIC_FAMILY_LABEL.get(parentSlug) ?? parentSlug})`
+    ? `Branch lineage (${familyLabels().get(parentSlug) ?? parentSlug})`
     : 'Root lineage';
-  const teachingBrief = card.teaching
+  // The description and hook are the family's own, from the family roster.
+  const record = familyRecord(card.slug);
+  const teachingBrief = record?.description && record.hook
     ? {
-        physicalDescription: card.teaching.physicalDescription,
-        significance:        card.teaching.hook,
-        articleHref: isOfficialFamilyParent(card.slug) && PUBLIC_FAMILY_LABEL.has(card.slug)
-          ? `/freestyle/families/${card.slug}`
-          : null,
+        physicalDescription: record.description,
+        significance:        record.hook,
+        articleHref:         familyPageHref(card.slug),
       }
     : null;
   const legacyAnchorIds = [...LEGACY_PANEL_TARGETS]
@@ -2777,7 +2810,7 @@ export interface FamilyCardTierGroup {
 function familyCardParentSlug(slug: string): string | null {
   const override = CARD_ONLY_FAMILY_LINEAGE[slug];
   if (override) return override.parentSlug;
-  return PUBLIC_FAMILY_PARENT_OF.get(slug) ?? null;
+  return familyParentOf().get(slug) ?? null;
 }
 
 function buildFamilyCardTierGroups(): FamilyCardTierGroup[] {
@@ -2804,7 +2837,7 @@ function buildFamilyCardTierGroups(): FamilyCardTierGroup[] {
       byParent.set(parentSlug, bucket);
     }
     for (const [parentSlug, cards] of byParent) {
-      subGroups.push({ label: `Branches of ${PUBLIC_FAMILY_LABEL.get(parentSlug) ?? parentSlug}`, cards });
+      subGroups.push({ label: `Branches of ${familyLabels().get(parentSlug) ?? parentSlug}`, cards });
     }
     groups.push({ tierKey: key, tierLabel: label, subGroups });
   }
@@ -2922,6 +2955,9 @@ export function shapeGlossaryLetterGroups(
 // Freestyle Concepts (/freestyle/concepts): the chapter-based reference. The
 // section (§) references in the field comments name chapters of that page.
 export interface FreestyleConceptsContent {
+  // The Butterfly family page the chapter's worked example links to; null drops
+  // the link and keeps the words, as for a family that has no page.
+  butterflyFamilyHref: string | null;
   // Operator-board orientation strip embedded in §3 ("How Tricks Are Built").
   // Shared partial with the landing page; surface-specific heading + lede.
   operatorBoard:    OperatorBoardData;
@@ -2976,7 +3012,7 @@ export interface FreestyleConceptsContent {
   // duplicating with the family-card anchors above.
   otherFoundationalAtoms: FreestyleCoreTrickCard[];
   // The ratified first-class family roster, sourced from the same module as
-  // the dictionary's "By family" browse (PUBLIC_DISPLAY_FAMILIES) so the
+  // the dictionary's "By family" browse (the family roster) so the
   // Concepts roster always matches the dictionary's. Not every entry has a
   // rich family card above; uncarded first-class families still appear here.
   // Each href is the family-filtered dictionary.
@@ -3315,48 +3351,6 @@ function shapeLeaders(rows: FreestyleLeaderRow[]): FreestyleLeaderViewModel[] {
 // ---------------------------------------------------------------------------
 // Trick dictionary helpers
 // ---------------------------------------------------------------------------
-
-// Editorial notes for major trick families.
-// These are service-layer constants, not DB-backed, and describe structural
-// significance at the family level rather than individual tricks.
-const FAMILY_NOTES: Record<string, string> = {
-  whirl:
-    'The whirl is the central rotational base in advanced freestyle. More compound tricks ' +
-    'are built on whirl than any other base, ranging from single-modifier entries (paradox ' +
-    'whirl, ducking whirl, blurry whirl) to dense compounds like mullet (3-modifier, 6 ADD) ' +
-    'and montage (4-modifier, 7 ADD).',
-  butterfly:
-    'The butterfly sits at the intersection of dexterity and compound technique. It underlies ' +
-    'ripwalk (Stepping Butterfly) and dimwalk (pixie butterfly), two of the most commonly ' +
-    'performed 4-ADD tricks. Its 3-ADD starting point and moderate complexity make it the ' +
-    'most common entry point into the compound vocabulary.',
-  osis:
-    'The osis spawns two major named sub-families: torque (quantum osis) and blender ' +
-    '(whirling osis). These in turn anchor their own clusters (paradox torque and mobius ' +
-    'on the torque side, paradox blender and spender on the blender side), making the osis ' +
-    'one of the most generative bases in the advanced trick vocabulary.',
-  mirage:
-    'The mirage is the foundational 2-ADD dex base. Compounds include smear (pixie ' +
-    'mirage) and tap (tapping mirage) at 3 ADD; atom smasher (atomic mirage) and blur ' +
-    '(canonically Stepping Paradox Mirage) at 4 ADD.',
-  clipper:
-    'The clipper is a 1-ADD body kick into clipper position. Its primary compound derivative ' +
-    'is flying-clipper. Stall-based compounds (ducking clipper, spinning clipper) are listed ' +
-    'under their modifier in the modifier view; drifter anchors its own branch family.',
-  legover:
-    'The legover base yields a compact family: eggbeater (atomic legover) and flurry ' +
-    '(furious legover) are the primary 3-ADD entries. The family is notable for producing ' +
-    'DLO-style combinations at 5 ADD (fog).',
-  torque:
-    'Torque is the most important intermediate base in advanced freestyle. Canonically ' +
-    'Quantum Osis, it sits at 4 ADD and supports a dense cluster of high-difficulty ' +
-    'derivatives: paradox torque and mobius (Gyro Torque) at 5 ADD, atomic torque ' +
-    'at 6 ADD, and several 6-7 ADD compounds.',
-  blender:
-    'Blender is the other major 4-ADD osis compound (canonically Whirling Osis). ' +
-    'Derivatives include paradox blender (5 ADD), spender (Spinning Paradox Blender, 6 ADD), ' +
-    'and food processor (blurry blender).',
-};
 
 /** A trick's execution notation: the database operational_notation column,
  *  the single source of truth, or null when the row has none. Both
@@ -4844,11 +4838,11 @@ function buildFamilyMembershipMap<T extends {
   // Umbrella aggregation: a roster root with no direct member rows renders as
   // the union of its branches' members, so the one-family bucket exists while
   // every variant keeps its own bucket and label.
-  for (const fam of PUBLIC_DISPLAY_FAMILIES) {
+  for (const fam of publicDisplayFamilies()) {
     if (fam.parent || familyMap.has(fam.slug)) continue;
     const aggregated: T[] = [];
     const seen = new Set<string>();
-    for (const branch of PUBLIC_DISPLAY_FAMILIES) {
+    for (const branch of publicDisplayFamilies()) {
       if (branch.parent !== fam.slug) continue;
       for (const row of familyMap.get(branch.slug) ?? []) {
         if (!seen.has(row.slug)) { seen.add(row.slug); aggregated.push(row); }
@@ -4861,7 +4855,7 @@ function buildFamilyMembershipMap<T extends {
 
 // True when a family has a page of its own at /freestyle/families/:slug.
 function hasFamilyPage(familySlug: string): boolean {
-  return isOfficialFamilyParent(familySlug) && PUBLIC_FAMILY_LABEL.has(familySlug);
+  return familyPageHref(familySlug) !== null;
 }
 
 // The tricks a family page lists, one entry per rendered card. A normal family
@@ -4872,9 +4866,9 @@ function hasFamilyPage(familySlug: string): boolean {
 function familyPageMembership<T extends { slug: string; trick_family: string | null }>(
   familySlug: string,
   familyMap: ReadonlyMap<string, T[]>,
-): { memberRows: T[]; isUmbrella: boolean; variantBranches: typeof PUBLIC_DISPLAY_FAMILIES[number][]; cardSlugs: string[] } {
+): { memberRows: T[]; isUmbrella: boolean; variantBranches: PublicDisplayFamily[]; cardSlugs: string[] } {
   const memberRows = familyMap.get(familySlug) ?? [];
-  const variantBranches = PUBLIC_DISPLAY_FAMILIES.filter(f => f.parent === familySlug);
+  const variantBranches = publicDisplayFamilies().filter(f => f.parent === familySlug);
   const isUmbrella = variantBranches.length > 0
     && !memberRows.some(r => r.trick_family === familySlug);
   const cardSlugs = isUmbrella
@@ -4912,11 +4906,17 @@ function applyDictionaryFamilyFilter<T extends { trick_family: string | null }>(
   };
 }
 
-// Map of family-slug → optional symbolic cross-link. Conservative: only
-// surfaces that have shipped pedagogy / progression pages get a link.
-const FAMILY_CROSS_LINKS: Record<string, { label: string; href: string } | undefined> = {
-  butterfly: { label: 'Butterfly family: how the walking tricks branch', href: BUTTERFLY_FAMILY_HREF },
+// Family-slug → optional cross-link label to the family's own page, which owns
+// the family's progression. Shown only while that family has a page.
+const FAMILY_CROSS_LINK_LABELS: Record<string, string | undefined> = {
+  butterfly: 'Butterfly family: how the walking tricks branch',
 };
+
+function familyCrossLink(familySlug: string): { label: string; href: string } | null {
+  const label = FAMILY_CROSS_LINK_LABELS[familySlug];
+  const href = familyPageHref(familySlug);
+  return label !== undefined && href !== null ? { label, href } : null;
+}
 
 function sortFamilyEntries(
   familySlug: string,
@@ -4952,7 +4952,7 @@ function buildFamilyGroup(
   // Display name resolution: the curated public-family label wins
   // (e.g. 'double-leg-over' → 'Double Legover'); otherwise default capitalize.
   const familyName =
-    PUBLIC_FAMILY_LABEL.get(familySlug)
+    familyLabels().get(familySlug)
     ?? (familySlug.charAt(0).toUpperCase() + familySlug.slice(1));
   // Partition the (already rung-sorted) cards into operator-rung bands.
   // Cards are sorted rung-ascending, so each band is contiguous. The 3+
@@ -4976,11 +4976,8 @@ function buildFamilyGroup(
   // trick's detail page; null when neither resolves, so the sub-label renders the
   // name as plain text rather than a dead link.
   const familyAnchorHref =
-    (isOfficialFamilyParent(familySlug) && PUBLIC_FAMILY_LABEL.has(familySlug))
-      ? `/freestyle/families/${familySlug}`
-      : rows.some(r => r.slug === familySlug)
-        ? `/freestyle/tricks/${familySlug}`
-        : null;
+    familyPageHref(familySlug)
+      ?? (rows.some(r => r.slug === familySlug) ? `/freestyle/tricks/${familySlug}` : null);
   return {
     familySlug,
     familyName,
@@ -4988,9 +4985,9 @@ function buildFamilyGroup(
     familyAnchorHref,
     members,
     cards,
-    crossLink: FAMILY_CROSS_LINKS[familySlug] ?? null,
+    crossLink: familyCrossLink(familySlug),
     sharedStructure: getFamilyInvariant(familySlug),
-    branchParentName: PUBLIC_FAMILY_PARENT_LABEL.get(familySlug) ?? null,
+    branchParentName: familyParentLabels().get(familySlug) ?? null,
     rungGroups,
     showRungLabels: rungGroups.length > 1,
   };
@@ -5094,7 +5091,7 @@ function shapeDictEntry(
     // The generic base-family paragraph belongs on the family-anchor (base)
     // page only, not repeated on every derivative. Derivatives keep their
     // trick-specific About line, build path, and "compared with base" note.
-    familyNote:       (isFamilyDisplayAnchor(row.slug) && row.trick_family && FAMILY_NOTES[row.trick_family]) ? FAMILY_NOTES[row.trick_family] : null,
+    familyNote:       (isFamilyDisplayAnchor(row.slug) && row.trick_family) ? familyTrickPageNote(row.trick_family) : null,
   };
 }
 
@@ -5620,7 +5617,7 @@ function measureFamilyHistogram(): TopologyHistogramRow[] {
   );
   const familyMap = buildFamilyMembershipMap(allRows.filter(r => r.is_active === 1));
   const families: TopologyHistogramRow[] = [];
-  for (const family of PUBLIC_DISPLAY_FAMILIES) {
+  for (const family of publicDisplayFamilies()) {
     const members = familyMap.get(family.slug)?.length ?? 0;
     if (members > 2) families.push({ label: family.label, count: members, tier: 'family' });
   }
@@ -6123,7 +6120,7 @@ export const freestyleService = {
 
         const familySlug = effectiveFamilySlug;
         const familyName = familySlug
-          ? (PUBLIC_FAMILY_LABEL.get(familySlug)
+          ? (familyLabels().get(familySlug)
              ?? (familySlug.charAt(0).toUpperCase() + familySlug.slice(1).replace(/[-_]/g, ' ')))
           : null;
         // Families beyond the primary one: branch->root containment (a branch
@@ -6141,7 +6138,7 @@ export const freestyleService = {
           const extras = new Set<string>(familyWithAncestors(effectiveFamilySlug));
           extras.delete(effectiveFamilySlug);
           return [...extras].map(fam => {
-            const label = PUBLIC_FAMILY_LABEL.get(fam)
+            const label = familyLabels().get(fam)
               ?? (fam.charAt(0).toUpperCase() + fam.slice(1).replace(/[-_]/g, ' '));
             return { label: `${label} family`, slug: fam, isMinorLineage: familyIsMinorLineage(fam), href: `/freestyle/tricks?family=${encodeURIComponent(fam)}` };
           });
@@ -6333,6 +6330,7 @@ export const freestyleService = {
                   ? currentTrickMods
                   : deriveModifierLinksFromOperator(dictRow.formula_operator, allModifierRows)
                 ).map(m => m.slug),
+                familyPageHrefOf: familyPageHref,
               })
             : [],
           structuralFacts: (() => {
@@ -6582,7 +6580,7 @@ export const freestyleService = {
             // A family with a curator-authored invariant is a confirmed
             // terminal family; only its anchor carries the callout.
             if (!getFamilyInvariant(effectiveFamilySlug)) return null;
-            const familyName = PUBLIC_FAMILY_LABEL.get(effectiveFamilySlug)
+            const familyName = familyLabels().get(effectiveFamilySlug)
               ?? (effectiveFamilySlug.charAt(0).toUpperCase()
                   + effectiveFamilySlug.slice(1).replace(/[-_]/g, ' '));
             return {
@@ -6768,7 +6766,7 @@ export const freestyleService = {
       navigation: {
         contextLinks: [{ label: 'Back to Freestyle Footbag', href: '/freestyle' }],
       },
-      content: HISTORY_NARRATIVE,
+      content: resolveHistoryNarrative(HISTORY_NARRATIVE),
     };
   },
 
@@ -6841,7 +6839,7 @@ export const freestyleService = {
     // Section ordering: the 26 public families, the 18 roots first then the 8
     // derived branches. Only these render; any label that is not a family
     // resolved to null above and never entered familyMap.
-    const FAMILY_ORDER = PUBLIC_FAMILY_ORDER;
+    const FAMILY_ORDER = publicFamilyOrder();
 
     // Operator-rung lookup, from the listTricksByModifier rows already loaded.
     const rungOf = buildOperatorRungLookup(addFormulaLinkRows);
@@ -6900,7 +6898,7 @@ export const freestyleService = {
         const raw = (rawFamilyOf(row) ?? '').trim();
         const fam = raw ? resolveDisplayFamily(raw) : null;
         if (!fam) return { slug: 'other', label: 'Other / standalone tricks' };
-        const label = PUBLIC_FAMILY_LABEL.get(fam)
+        const label = familyLabels().get(fam)
           ?? (fam.charAt(0).toUpperCase() + fam.slice(1));
         return { slug: fam, label };
       };
@@ -6917,7 +6915,7 @@ export const freestyleService = {
       // Public families in the canonical display order (NOT by accidental size
       // or source root); the standalone band always last.
       const orderedSlugs = [
-        ...PUBLIC_FAMILY_ORDER.filter(s => bandMap.has(s)),
+        ...publicFamilyOrder().filter(s => bandMap.has(s)),
         ...(bandMap.has('other') ? ['other'] : []),
       ];
       const lineageBands: FreestyleAddLineageBand[] = orderedSlugs.map(slug => {
@@ -7317,7 +7315,7 @@ export const freestyleService = {
     // everyday language that every member shares the same ending while modifiers
     // and difficulty vary. Null unless a family filter is active.
     const activeFamilyName = activeFamily
-      ? (PUBLIC_FAMILY_LABEL.get(activeFamily)
+      ? (familyLabels().get(activeFamily)
           ?? (activeFamily.charAt(0).toUpperCase() + activeFamily.slice(1).replace(/[-_]/g, ' ')))
       : null;
     const familyFilterIntro = activeFamily && activeFamilyName
@@ -7546,8 +7544,10 @@ export const freestyleService = {
         contextLinks: [{ label: 'Back to Freestyle Footbag', href: '/freestyle' }],
       },
       content: {
-        nextStepsIntro: START_NEXT_STEPS_INTRO,
-        nextSteps:      START_NEXT_STEPS,
+        nextStepsIntro:      START_NEXT_STEPS_INTRO,
+        nextSteps:           START_NEXT_STEPS.map(resolveStartNextStep),
+        mirageFamilyHref:    familyPageHref('mirage'),
+        butterflyFamilyHref: familyPageHref('butterfly'),
       },
     };
   },
@@ -7731,17 +7731,17 @@ export const freestyleService = {
           ]);
           return !familySlugs.has(t.slug);
         }),
-        firstClassFamilyRoster: PUBLIC_DISPLAY_FAMILIES
+        firstClassFamilyRoster: publicDisplayFamilies()
           .filter(f => !f.parent && familyTier(f.slug) === 'family-parent')
           .map(root => ({
             slug:  root.slug,
             label: root.label,
             href:  `/freestyle/tricks?family=${encodeURIComponent(root.slug)}`,
-            branches: PUBLIC_DISPLAY_FAMILIES
+            branches: publicDisplayFamilies()
               .filter(b => b.parent === root.slug)
               .map(b => ({ slug: b.slug, label: b.label, href: `/freestyle/tricks?family=${encodeURIComponent(b.slug)}` })),
           })),
-        minorLineageRoster: PUBLIC_DISPLAY_FAMILIES
+        minorLineageRoster: publicDisplayFamilies()
           .filter(f => !f.parent && familyTier(f.slug) === 'minor-lineage')
           .map(f => ({ slug: f.slug, label: f.label, href: `/freestyle/tricks?family=${encodeURIComponent(f.slug)}` })),
         addWorkedExamples: ADD_WORKED_EXAMPLES.map((ex) => ({
@@ -7754,6 +7754,7 @@ export const freestyleService = {
         // The twelve foundational moves: the Movement line is always visible and
         // each titled panel renders as its own collapsible. Sourced from
         // CORE_ATOM_EDUCATIONAL; href maps to canonical trick-detail.
+        butterflyFamilyHref: familyPageHref('butterfly'),
         coreAtomEducationalCards: CORE_ATOM_EDUCATIONAL.map(c => ({
           slug:             c.slug,
           displayName:      c.displayName,
@@ -8353,7 +8354,7 @@ export const freestyleService = {
    * enumeration of family pages, parallel to the set and modifier pages.
    */
   listSitemapFamilySlugs(): string[] {
-    return PUBLIC_DISPLAY_FAMILIES
+    return publicDisplayFamilies()
       .filter((f) => isOfficialFamilyParent(f.slug))
       .map((f) => f.slug);
   },
@@ -8371,7 +8372,7 @@ export const freestyleService = {
     if (!hasFamilyPage(slug)) return null;
 
     const displayName =
-      PUBLIC_FAMILY_LABEL.get(slug)
+      familyLabels().get(slug)
       ?? (slug.charAt(0).toUpperCase() + slug.slice(1));
     // Indefinite article for the "What is a/an <Name>?" heading: vowel-initial
     // family names (Illusion, Osis) read "an", everything else "a".
@@ -8411,38 +8412,23 @@ export const freestyleService = {
       .slice(0, FAMILY_PAGE_EXAMPLE_COUNT)
       .map(memberLinkOf);
 
-    const card = [...ROOT_TERMINAL_FAMILIES, ...BRANCH_FAMILIES]
-      .find(c => c.slug === slug) ?? null;
-
-    const teaching: FamilyDetailTeaching | null = card?.teaching
-      ? {
-          hook:                card.teaching.hook,
-          physicalDescription: card.teaching.physicalDescription,
-          importance:          card.teaching.importance,
-          howToRecognize:      [...card.teaching.howToRecognize],
-          plainLanguageReading: card.teaching.plainLanguageReading ?? null,
-        }
-      : null;
+    const record = familyRecord(slug);
 
     const familyLabelOf = (s: string): string =>
-      PUBLIC_FAMILY_LABEL.get(s)
+      familyLabels().get(s)
       ?? (s.charAt(0).toUpperCase() + s.slice(1).replace(/[-_]/g, ' '));
-    // A sibling that is itself a first-class Family Parent links to its own
-    // page; anything else stays on the family-filtered dictionary.
-    const siblingFamilies = (card?.siblingFamilies ?? []).map(s => ({
+    // A related family with its own page links there; anything else stays on the
+    // family-filtered dictionary.
+    const siblingFamilies = (record?.relatedFamilySlugs ?? []).map(s => ({
       name: familyLabelOf(s),
-      href: isOfficialFamilyParent(s) && PUBLIC_FAMILY_LABEL.has(s)
-        ? `/freestyle/families/${s}`
-        : `/freestyle/tricks?family=${s}`,
+      href: familyPageHref(s) ?? `/freestyle/tricks?family=${s}`,
     }));
 
-    const parentSlug = PUBLIC_FAMILY_PARENT_OF.get(slug) ?? null;
+    const parentSlug = familyParentOf().get(slug) ?? null;
     const branchParent = parentSlug
       ? {
-          name: PUBLIC_FAMILY_PARENT_LABEL.get(slug) ?? familyLabelOf(parentSlug),
-          href: isOfficialFamilyParent(parentSlug)
-            ? `/freestyle/families/${parentSlug}`
-            : `/freestyle/tricks?view=family#family-${parentSlug}`,
+          name: familyParentLabels().get(slug) ?? familyLabelOf(parentSlug),
+          href: familyPageHref(parentSlug) ?? `/freestyle/tricks?view=family#family-${parentSlug}`,
         }
       : null;
 
@@ -8475,14 +8461,16 @@ export const freestyleService = {
         displayArticle,
         hashtag:              hashtagForRole(slug, 'family'),
         mediaLine:            freestyleMediaLine(hashtagForRole(slug, 'family'), 'View Family Gallery'),
-        tierLabel:            FAMILY_TIER_LABEL['family-parent'],
         branchParent,
-        orientation,
+        hook:                 record?.hook ?? null,
+        plainLanguageReading: record?.plainLanguageReading ?? null,
+        description:          record?.description ?? orientation,
+        importance:           record?.importance ?? null,
+        howToRecognize:       [...(record?.howToRecognize ?? [])],
         exampleTricks,
         memberCount:   memberCards.length,
         allTricksHref: `/freestyle/tricks?view=family#family-${slug}`,
         siblingFamilies,
-        teaching,
       },
     };
   },

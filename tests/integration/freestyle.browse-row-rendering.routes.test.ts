@@ -32,6 +32,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
+import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 import {
   insertFreestyleTrickAlias,
   insertFreestyleTrickModifier,
@@ -46,7 +47,7 @@ const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-
+  seedStagedFamilies(db);
   // Toe Stall — sparse base trick; minimal notation; no aliases
   insertTrickAsRebuilt(db, {
     slug:                 'toe_stall',

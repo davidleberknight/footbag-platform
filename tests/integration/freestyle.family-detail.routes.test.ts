@@ -8,8 +8,9 @@
  *   - Detail page renders: family name, tier label, teaching text, and the
  *     lowest-ADD example tricks with a link to the whole family
  *   - The Down family is an umbrella: its examples come from every variant;
- *     the dod raw label folds into the double-over-down variant; minor-tier
- *     variants have no page of their own
+ *     minor-tier variants have no page of their own
+ *   - A trick filed under a folded label (whirling_swirl) shows under the
+ *     family it folds into
  *   - Branch parents (barfly) present as branches of Down with a link
  *   - Route ordering: the family template renders, not the trick shell
  *   - /freestyle/families (bare) has no page and answers not-found
@@ -31,7 +32,7 @@ import {
   insertFreestyleTrickModifier,
   insertFreestyleTrickModifierLink,
 } from '../fixtures/factories';
-import { BRANCH_FAMILIES, ROOT_TERMINAL_FAMILIES } from '../../src/content/freestyleGlossaryFamilyCards';
+import { seedStagedFamilies, stagedFamily } from '../fixtures/stagedFamilies';
 
 const { dbPath } = setTestEnv('4021');
 
@@ -48,6 +49,7 @@ const FIRST_CLASS_FAMILY_SLUGS = [
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
+  seedStagedFamilies(db);
 
   // Whirl family: anchor trick plus a one-operator compound, so the member
   // list spans two operator-rung bands.
@@ -70,21 +72,25 @@ beforeAll(async () => {
     slug: 'blender', canonical_name: 'blender', adds: '4',
     trick_family: 'blender', category: 'compound', is_active: 1,
   });
-  // Swirl family: one member so the swirl family detail page renders its card.
+  // Swirl family: one member so the swirl family detail page renders its card,
+  // and one filed under the whirling_swirl label, which folds into Swirl.
   insertFreestyleTrick(db, {
     slug: 'swirl', canonical_name: 'swirl', adds: '3',
     trick_family: 'swirl', category: 'core', is_active: 1,
   });
+  insertFreestyleTrick(db, {
+    slug: 'whirling_swirl', canonical_name: 'whirling swirl', adds: '4',
+    trick_family: 'whirling_swirl', category: 'compound', is_active: 1,
+  });
 
-  // Down family: one trick per variant cell. fusion carries the raw 'dod'
-  // label, which folds into the double-over-down variant at display time.
+  // Down family: one trick per variant cell.
   insertFreestyleTrick(db, {
     slug: 'barfly', canonical_name: 'barfly', adds: '4',
     trick_family: 'barfly', category: 'core', is_active: 1,
   });
   insertFreestyleTrick(db, {
     slug: 'fusion', canonical_name: 'fusion', adds: '5',
-    trick_family: 'dod', category: 'compound', is_active: 1,
+    trick_family: 'double_over_down', category: 'compound', is_active: 1,
   });
   insertFreestyleTrick(db, {
     slug: 'paradon', canonical_name: 'paradon', adds: '4',
@@ -140,26 +146,21 @@ describe('GET /freestyle/families/:slug — page budget and examples', () => {
   });
 });
 
-describe('GET /freestyle/families/:slug — every family page teaches from its own card', () => {
+describe('GET /freestyle/families/:slug — every family page teaches from its own record', () => {
   // Defect caught: a family page losing a teaching field, or showing another
-  // family's card. Every field is checked against the card read at test time, and
+  // family's text. Every field is checked against the seeded family record, and
   // each miss is named, so one broken field does not hide the others.
   it('renders each family\'s hook, description, importance, first recognition cue and plain reading', async () => {
-    const cards = [...ROOT_TERMINAL_FAMILIES, ...BRANCH_FAMILIES];
     const missing: string[] = [];
     for (const slug of FIRST_CLASS_FAMILY_SLUGS) {
-      const teaching = cards.find(c => c.slug === slug)?.teaching;
-      if (!teaching) {
-        missing.push(`${slug}: no teaching card`);
-        continue;
-      }
+      const f = stagedFamily(slug);
       const { text } = await page(`/freestyle/families/${slug}`);
       const fields = {
-        hook: teaching.hook,
-        physicalDescription: teaching.physicalDescription,
-        importance: teaching.importance,
-        howToRecognize: teaching.howToRecognize[0] ?? '',
-        plainLanguageReading: teaching.plainLanguageReading ?? '',
+        hook: f.hook ?? '',
+        description: f.description ?? '',
+        importance: f.importance ?? '',
+        howToRecognize: f.howToRecognize[0] ?? '',
+        plainLanguageReading: f.plainLanguageReading ?? '',
       };
       for (const [field, value] of Object.entries(fields)) {
         if (!text.includes(Handlebars.escapeExpression(value))) missing.push(`${slug}: ${field}`);
@@ -211,10 +212,19 @@ describe('GET /freestyle/families/:slug — family detail page', () => {
 });
 
 describe('GET /freestyle/families/down — umbrella family draws examples from every variant', () => {
-  it('folds the raw dod label into the double-over-down variant', async () => {
+  // Defect caught: an umbrella family missing a variant's tricks.
+  it('draws the double-over-down variant\'s tricks into Down', async () => {
     const res = await page('/freestyle/families/down');
     expect(res.status).toBe(200);
     expect(res.text).toContain('href="/freestyle/tricks/fusion"');
+  });
+
+  // Defect caught: a trick filed under a folded label missing from the family
+  // it folds into.
+  it('shows a trick filed under a folded label on the family it folds into', async () => {
+    const res = await page('/freestyle/families/swirl');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('href="/freestyle/tricks/whirling_swirl"');
   });
 
   it('keeps minor-tier variant tricks reachable on the down page while their own page 404s', async () => {

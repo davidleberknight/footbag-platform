@@ -19,6 +19,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
+import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 import {
   insertFreestyleTrick,
   insertFreestyleTrickModifier,
@@ -32,7 +33,7 @@ const getPage = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-
+  seedStagedFamilies(db);
   insertFreestyleTrickModifier(db, { slug: 'pixie', modifier_type: 'set', notes: '' });
   insertFreestyleTrickModifier(db, { slug: 'stepping', modifier_type: 'set', notes: '' });
 

@@ -14,7 +14,13 @@ import BetterSqlite3 from 'better-sqlite3';
 import { spawnSync } from 'node:child_process';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
-import { insertFreestyleRecord, insertFreestyleTrick, insertFreestyleTrickModifier } from '../fixtures/factories';
+import {
+  insertFreestyleRecord,
+  insertFreestyleTrick,
+  insertFreestyleTrickModifier,
+  insertFreestyleFamily,
+  insertFreestyleFamilySublabel,
+} from '../fixtures/factories';
 import {
   seedCuratorContent,
   STAGED_CURATOR_CONTENT,
@@ -119,7 +125,25 @@ describe('seeding the staged curator content', () => {
       expandedNotations:     content.formulas.filter((f) => f.expandedNotation).length,
       movementNotationSubtitles:  content.movementNotationSubtitles.size,
       executionNotationSubtitles: content.executionNotationSubtitles.size,
+      families:                   content.families.length,
+      familySublabels:            content.familySublabels.size,
     });
+    // Every staged family lands as authored, its lists as JSON in order, and
+    // every folded label lands under its family.
+    for (const f of content.families) {
+      expect(db.prepare(`
+        SELECT display_name AS n, parent_slug AS p, tier AS t, sort_order AS o, hook AS h,
+               description AS d, importance AS i, how_to_recognize_json AS r,
+               related_family_slugs_json AS s, shared_structure AS ss, trick_page_note AS tn
+        FROM freestyle_families WHERE slug = ?`).get(f.slug), f.slug).toEqual({
+        n: f.displayName, p: f.parentSlug, t: f.tier, o: f.sortOrder, h: f.hook,
+        d: f.description, i: f.importance, r: JSON.stringify(f.howToRecognize),
+        s: JSON.stringify(f.relatedFamilySlugs), ss: f.sharedStructure, tn: f.trickPageNote,
+      });
+    }
+    for (const [label, fam] of content.familySublabels) {
+      expect(value('SELECT family_slug AS v FROM freestyle_family_sublabels WHERE label = ?', label), label).toBe(fam);
+    }
     // Rows the content does not name stay empty, and a description it does not
     // name keeps what the dictionary load wrote.
     expect(value('SELECT beginner_note AS v FROM freestyle_trick_modifiers WHERE slug = ?', EXTRA_MODIFIER)).toBeNull();
@@ -152,6 +176,19 @@ describe('seeding the staged curator content', () => {
     expect(value('SELECT COUNT(*) AS v FROM freestyle_tricks WHERE add_derivation IS NOT NULL'))
       .toBe(content.formulas.length);
     expect(offenders).toEqual([]);
+  });
+
+  // Defect caught: a family or folded label removed from the staged roster
+  // living on in the database after the next refresh, so a dropped family keeps
+  // its page.
+  it('removes a family and a folded label no staged entry supplies any more', () => {
+    seedCuratorContent(db);
+    insertFreestyleFamily(db, { slug: 'zz_stale_family' });
+    insertFreestyleFamilySublabel(db, 'zz_stale_label', 'zz_stale_family');
+    seedCuratorContent(db);
+    expect(value("SELECT COUNT(*) AS v FROM freestyle_families WHERE slug = 'zz_stale_family'")).toBe(0);
+    expect(value("SELECT COUNT(*) AS v FROM freestyle_family_sublabels WHERE label = 'zz_stale_label'")).toBe(0);
+    expect(value('SELECT COUNT(*) AS v FROM freestyle_families')).toBe(content.families.length);
   });
 
   // Defect caught: an entry removed from a staged module living on in the
@@ -223,9 +260,22 @@ describe('refusing content the database cannot take', () => {
     ['a notation subtitle for a trick the dictionary does not hold', withExtra({
       executionNotationSubtitles: new Map([...content.executionNotationSubtitles, ['no_such_subtitle_trick', 'A line.']]),
     }), /no_such_subtitle_trick/],
+    ['a family whose parent is itself a branch', withExtra({
+      families: content.families.map((f) => (f.slug === 'mirage' ? { ...f, parentSlug: 'torque' } : f)),
+    }), /family "mirage"/],
+    ['a family parent demoted under its branches', withExtra({
+      families: content.families.map((f) => (f.slug === 'osis' ? { ...f, tier: 'minor_lineage' as const } : f)),
+    }), /family "osis"/],
+    ['a family listed twice', withExtra({
+      families: [...content.families, content.families[0]!],
+    }), /listed more than once/],
+    ['a folded label naming no family', withExtra({
+      familySublabels: new Map([...content.familySublabels, ['zz_label', 'no_such_family_slug']]),
+    }), /no_such_family_slug/],
   ])('%s', (_label, bad, message) => {
     db.prepare('UPDATE freestyle_trick_modifiers SET beginner_note = ? WHERE slug = ?').run('kept', EXTRA_MODIFIER);
     db.prepare('UPDATE freestyle_tricks SET family_override = ? WHERE slug = ?').run('kept', EXTRA_TRICK);
+    insertFreestyleFamily(db, { slug: 'zz_kept_family' });
     let refusal: unknown;
     try {
       seedCuratorContent(db, bad);
@@ -239,6 +289,7 @@ describe('refusing content the database cannot take', () => {
     expect(value('SELECT COUNT(*) AS v FROM freestyle_trick_modifiers WHERE beginner_note IS NOT NULL')).toBe(1);
     expect(value('SELECT family_override AS v FROM freestyle_tricks WHERE slug = ?', EXTRA_TRICK)).toBe('kept');
     expect(value('SELECT COUNT(*) AS v FROM freestyle_tricks WHERE family_override IS NOT NULL')).toBe(1);
+    expect(value('SELECT COUNT(*) AS v FROM freestyle_families')).toBe(1);
   });
 });
 

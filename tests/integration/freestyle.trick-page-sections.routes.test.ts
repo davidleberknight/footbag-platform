@@ -22,6 +22,7 @@ import {
   insertFreestyleTrickModifierLink,
 } from '../fixtures/factories';
 import { buildSymbolicEducationCtas } from '../../src/services/symbolicTrickPanels';
+import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 
 const { dbPath } = setTestEnv('3587');
 let createApp: Awaited<ReturnType<typeof importApp>>;
@@ -70,6 +71,7 @@ const t = (slug: string, o: Record<string, unknown> = {}) => ({
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
+  seedStagedFamilies(db);
   for (const r of [
     // A walking compound on the butterfly base, with a trick that carries the
     // same operators on another base.
@@ -110,7 +112,10 @@ describe('a modifier compound', () => {
     expect(related).toContain('data-section="similar-tricks"');
     expect(related).toContain('href="/freestyle/tricks/stepping_whirl"');
     // The teaching-page link this trick earns closes Related Tricks.
-    const ctas = buildSymbolicEducationCtas({ slug: 'ripwalk', baseTrick: 'butterfly', modifierSlugs: ['stepping', 'paradox'] });
+    const ctas = buildSymbolicEducationCtas({
+      slug: 'ripwalk', baseTrick: 'butterfly', modifierSlugs: ['stepping', 'paradox'],
+      familyPageHrefOf: (s) => `/freestyle/families/${s}`,
+    });
     expect(ctas.length).toBeGreaterThan(0);
     for (const cta of ctas) expect(related).toContain(`href="${cta.href}"`);
     // The Family ladder still owns same-family progression.

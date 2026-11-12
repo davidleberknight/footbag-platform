@@ -23,6 +23,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
+import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 import { insertFreestyleTrick } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3169');
@@ -32,6 +33,7 @@ const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
+  seedStagedFamilies(db);
   insertFreestyleTrick(db, {
     slug: 'double_over_down',
     canonical_name: 'double-over down',
@@ -55,8 +57,8 @@ beforeAll(async () => {
     aliases_json: '["diving down double-down"]',
   });
   // Down umbrella fixture: two members per variant label (a family section
-  // renders only above one row), covering a variant branch (barfly), the dod
-  // sub-label that folds into the double-over-down branch, and paradon.
+  // renders only above one row), covering a variant branch (barfly), the
+  // double-over-down branch, and paradon.
   insertFreestyleTrick(db, {
     slug: 'barfly', canonical_name: 'barfly',
     adds: '4', base_trick: 'barfly', trick_family: 'barfly',
@@ -76,20 +78,19 @@ beforeAll(async () => {
   });
   insertFreestyleTrick(db, {
     slug: 'fusion', canonical_name: 'fusion',
-    adds: '5', base_trick: 'dod', trick_family: 'dod',
+    adds: '5', base_trick: 'double_over_down', trick_family: 'double_over_down',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
   });
   insertFreestyleTrick(db, {
     slug: 'cold_fusion', canonical_name: 'cold fusion',
-    adds: '6', base_trick: 'fusion', trick_family: 'dod',
+    adds: '6', base_trick: 'fusion', trick_family: 'double_over_down',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
   });
-  // Third dod-labelled member so the Double-Over-Down branch (which the dod
-  // sub-label folds into) clears the three-member minimum and renders as its
-  // own full section.
+  // Third double-over-down member so the Double-Over-Down branch clears the
+  // three-member minimum and renders as its own full section.
   insertFreestyleTrick(db, {
     slug: 'hot_fusion', canonical_name: 'hot fusion',
-    adds: '6', base_trick: 'fusion', trick_family: 'dod',
+    adds: '6', base_trick: 'fusion', trick_family: 'double_over_down',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
   });
   insertFreestyleTrick(db, {
@@ -203,7 +204,7 @@ describe('Down umbrella family (the one ruled structural decomposition)', () => 
     expect(res.text).toMatch(/href="\/freestyle\/tricks\?family=paradon"/);
   });
 
-  it('the dod sub-label folds into the Double-Over-Down branch section', async () => {
+  it('the double-over-down members render in the Double-Over-Down branch section', async () => {
     const res = await page('/freestyle/tricks?view=family');
     const dodIdx = res.text.indexOf('id="family-double_over_down"');
     expect(dodIdx).toBeGreaterThan(-1);

@@ -11,6 +11,7 @@ import { readFileSync } from 'node:fs';
 
 import { CORE_TRICK_SPEC } from '../../src/content/freestyleLandingContent';
 import { ROOT_TERMINAL_FAMILIES, BRANCH_FAMILIES } from '../../src/content/freestyleGlossaryFamilyCards';
+import { STAGED_FAMILIES } from '../../freestyle/inputs/curator_content/freestyleFamilies';
 import { OPERATOR_REFERENCE_ENTRIES } from '../../src/content/freestyleOperatorReference';
 import { COMPOUND_SEMANTIC_DESCRIPTIONS } from '../../freestyle/inputs/curator_content/freestyleSemanticOverridesData';
 import { MODIFIER_BEGINNER_NOTES } from '../../freestyle/inputs/curator_content/freestyleStructuralFactNotes';
@@ -71,7 +72,7 @@ describe('furious is not presented as the same thing as barraging', () => {
 });
 
 describe('whirl, swirl and drifter family cards use entry-generic wording', () => {
-  const teachingText = (slug: string) => JSON.stringify(cardBySlug.get(slug)!.teaching).toLowerCase();
+  const teachingText = (slug: string) => JSON.stringify(STAGED_FAMILIES.find(f => f.slug === slug)).toLowerCase();
   it('the whirl card does not lock the base to clipper-to-clipper', () => {
     expect(teachingText('whirl')).not.toContain('clipper-to-clipper');
   });

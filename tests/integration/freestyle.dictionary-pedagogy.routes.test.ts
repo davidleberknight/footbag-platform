@@ -26,6 +26,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
+import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 import { insertFreestyleTrick } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3165');
@@ -64,6 +65,7 @@ const FAMILY_FIXTURES = [
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
+  seedStagedFamilies(db);
   for (const f of FAMILY_FIXTURES) {
     insertFreestyleTrick(db, {
       slug:           f.slug,

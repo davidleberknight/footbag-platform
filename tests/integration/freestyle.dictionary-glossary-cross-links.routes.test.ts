@@ -31,6 +31,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
+import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 import { insertFreestyleTrick } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3100');
@@ -40,7 +41,7 @@ const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-
+  seedStagedFamilies(db);
   // Seed a whirl-family compound whose chain reading uses modifiers
   // and a base-anchor — the rendered card must wrap both in anchor links.
   // blurry-whirl is the rendering target because it remains non-first-

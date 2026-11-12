@@ -24,6 +24,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
+import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 import {
   insertFreestyleTrickModifier,
   insertFreestyleTrickModifierLink,
@@ -38,7 +39,7 @@ const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-
+  seedStagedFamilies(db);
   // Modifier table for paradox-mirage (the non-anchor control), each carrying
   // the beginner note the rebuild seeds for it.
   insertFreestyleTrickModifier(db, {
@@ -60,7 +61,7 @@ beforeAll(async () => {
 
   // Anchor tricks: each is its own family. The slug-equals-family
   // condition activates familyAnchorContext when the family carries
-  // an entry in FAMILY_INVARIANTS (DP-1's six terminal families).
+  // a shared-structure line (the six terminal families that have one).
   insertTrickAsRebuilt(db, {
     slug: 'whirl', canonical_name: 'whirl', base_trick: 'whirl',
     trick_family: 'whirl', category: 'dex', adds: '3', is_active: 1,
@@ -164,7 +165,7 @@ describe('non-anchor tricks do NOT render the family-anchor callout', () => {
 });
 
 describe('base-family paragraph appears on the family-anchor page only', () => {
-  // The generic base-family prose (FAMILY_NOTES) belongs on the base trick's own
+  // The generic base-family prose (the family's trick-page note) belongs on the base trick's own
   // page, not repeated on every derivative About section.
   it('the mirage base page renders the base-family paragraph', async () => {
     const res = await page('/freestyle/tricks/mirage');

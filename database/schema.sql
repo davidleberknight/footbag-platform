@@ -5133,6 +5133,52 @@ CREATE INDEX idx_freestyle_tricks_family        ON freestyle_tricks(trick_family
 CREATE INDEX idx_freestyle_tricks_is_active     ON freestyle_tricks(is_active);
 CREATE INDEX idx_freestyle_tricks_review_status ON freestyle_tricks(review_status);
 
+-- Public freestyle families: the family roster the dictionary groups tricks under,
+-- each family's tier and the teaching text its page reads. Seeded before go-live
+-- from the staged curator content, then edited in the family editor. Which tricks
+-- belong to a family is not stored here: it is read from each trick's
+-- trick_family (or family_override) when a page is shaped.
+-- Two levels only: a family is a root (parent_slug NULL) or a branch whose parent
+-- is a root family parent. The editor enforces that; the schema keeps the
+-- self-parent case out.
+CREATE TABLE freestyle_families (
+  slug                    TEXT PRIMARY KEY,               -- matches freestyle_tricks.trick_family; never edited
+  display_name            TEXT NOT NULL,                  -- the name every page shows
+  parent_slug             TEXT REFERENCES freestyle_families(slug), -- NULL = a root family
+  tier                    TEXT NOT NULL CHECK (tier IN ('family_parent', 'minor_lineage')),
+                                                          -- family_parent = has its own page; minor_lineage = grouped in the browse only
+  sort_order              INTEGER NOT NULL,               -- order on the By-family browse; never an identity
+  hook                    TEXT,                           -- the line under the family page's title; NULL = none
+  description             TEXT,                           -- what the family is, in plain words; NULL = the page's generated sentence
+  plain_language_reading  TEXT,                           -- optional one-line reading under the description; NULL = none
+  importance              TEXT,                           -- why the family matters; NULL = no section
+  how_to_recognize_json   TEXT NOT NULL DEFAULT '[]',     -- JSON array of recognition cues, in order; [] = no section
+  related_family_slugs_json TEXT NOT NULL DEFAULT '[]',   -- JSON array of other family slugs, in order; [] = no section
+  shared_structure        TEXT,                           -- the structure every member keeps, shown on the By-family browse and the anchor trick's page; NULL = none
+  trick_page_note         TEXT,                           -- the family note on its anchor trick's page; NULL = none
+  created_at              TEXT NOT NULL,
+  created_by              TEXT NOT NULL,
+  updated_at              TEXT NOT NULL,
+  updated_by              TEXT NOT NULL,
+  version                 INTEGER NOT NULL DEFAULT 1,
+  CHECK (parent_slug IS NULL OR parent_slug <> slug)
+);
+
+-- Trick family labels that fold into a family: a trick filed under one of these
+-- labels shows under the named family on every public page. A label is never a
+-- family's own slug, and folds into one family only (the primary key).
+CREATE TABLE freestyle_family_sublabels (
+  label        TEXT PRIMARY KEY,                          -- a freestyle_tricks.trick_family value
+  family_slug  TEXT NOT NULL REFERENCES freestyle_families(slug),
+  created_at   TEXT NOT NULL,
+  created_by   TEXT NOT NULL,
+  updated_at   TEXT NOT NULL,
+  updated_by   TEXT NOT NULL,
+  version      INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE INDEX idx_freestyle_family_sublabels_family ON freestyle_family_sublabels(family_slug);
+
 -- Modifier reference table — loaded from trick_modifiers.csv, and edited in the
 -- modifier editor. It is the single home of each modifier's ADD.
 -- Each modifier applies a flat ADD bonus to any base trick. The

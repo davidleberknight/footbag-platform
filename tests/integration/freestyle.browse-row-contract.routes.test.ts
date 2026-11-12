@@ -20,6 +20,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
+import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 import {
   insertFreestyleTrick,
   insertFreestyleTrickAlias,
@@ -34,7 +35,7 @@ const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-
+  seedStagedFamilies(db);
   // A launch set for By set and two body modifiers for By modifier.
   insertFreestyleTrickModifier(db, { slug: 'pixie', modifier_type: 'set', notes: '' });
   insertFreestyleTrickModifier(db, { slug: 'ducking', modifier_type: 'body', notes: '' });

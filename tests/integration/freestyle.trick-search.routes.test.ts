@@ -16,6 +16,7 @@ import request from 'supertest';
 import { cachedGet } from '../fixtures/cachedGet';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 import { insertFreestyleTrick, insertFreestyleTrickAlias } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3601');
@@ -24,6 +25,7 @@ const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
+  seedStagedFamilies(db);
   insertFreestyleTrick(db, { slug: 'whirl',         canonical_name: 'Whirl',         adds: '3', category: 'dex',      sort_order: 1 });
   insertFreestyleTrick(db, { slug: 'paradox_whirl', canonical_name: 'Paradox Whirl', adds: '4', category: 'compound', sort_order: 2 });
   insertFreestyleTrick(db, { slug: 'mirage',        canonical_name: 'Mirage',        adds: '2', category: 'dex',      sort_order: 3 });

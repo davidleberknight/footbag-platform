@@ -28,6 +28,7 @@ import {
   insertFreestyleTrick,
   insertFreestyleTrickAlias,
   insertFreestyleTrickModifier,
+  insertFreestyleFamily,
   insertFreestyleTrickModifierLink,
   insertFreestyleTrickSource,
   insertFreestyleTrickSourceLink,
@@ -123,9 +124,11 @@ export function seedCrawlWorld(db: BetterSqlite3.Database): PrivateFieldCanaries
   const crawlPersonId = insertHistoricalPerson(db, { person_name: 'Historic Crawler', hof_member: 1 });
 
   // Minimal freestyle corpus so the freestyle surfaces are crawlable. whirl is
-  // an official Family Parent, so the family links its pages render resolve;
+  // an official Family Parent with a family row, so the family links its pages
+  // render resolve and the family editor has a family to open;
   // the compound carries an alias, a modifier link and a source link so those
   // rendered blocks emit their links too.
+  insertFreestyleFamily(db, { slug: 'whirl', display_name: 'Whirl', sort_order: 10 });
   insertFreestyleTrick(db, {
     slug: 'whirl', canonical_name: 'Whirl', adds: '3',
     trick_family: 'whirl', base_trick: 'whirl', category: 'dex',

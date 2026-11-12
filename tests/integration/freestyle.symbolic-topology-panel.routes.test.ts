@@ -23,6 +23,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
+import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 import { insertFreestyleTrick } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3091');
@@ -35,7 +36,7 @@ const page = cachedGet(() => createApp());
 // tricks to list.
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-
+  seedStagedFamilies(db);
   // butterfly-based tricks
   insertFreestyleTrick(db, { slug: 'butterfly',  canonical_name: 'butterfly',   adds: '3', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound' });
   insertFreestyleTrick(db, { slug: 'ripwalk',    canonical_name: 'ripwalk',     adds: '4', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound' });

@@ -243,6 +243,10 @@ adminRouter.get('/freestyle/modifiers',                adminFreestyleController.
 adminRouter.post('/freestyle/modifiers',               adminFreestyleController.createModifier);
 adminRouter.get('/freestyle/modifiers/:slug/edit',     adminFreestyleController.editModifier);
 adminRouter.post('/freestyle/modifiers/:slug/edit',    adminFreestyleController.updateModifier);
+// The family roster: edited, never created or deleted, in the application.
+adminRouter.get('/freestyle/families',                 adminFreestyleController.families);
+adminRouter.get('/freestyle/families/:slug/edit',      adminFreestyleController.editFamily);
+adminRouter.post('/freestyle/families/:slug/edit',     adminFreestyleController.updateFamily);
 adminRouter.get('/freestyle/records',              adminFreestyleController.recordsIndex);
 adminRouter.get('/freestyle/records/new',          adminFreestyleController.recordNew);
 adminRouter.post('/freestyle/records',             adminFreestyleController.recordCreate);

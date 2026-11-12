@@ -27,6 +27,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { cachedGet } from '../fixtures/cachedGet';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 import { insertFreestyleTrick, insertFreestyleTrickAlias } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('4071');
@@ -35,7 +36,7 @@ const getPage = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-
+  seedStagedFamilies(db);
   // The three direction-mirror pairs. Structure, ADD, and family mirror the
   // live rows; only the naming/alias presentation is under test here.
   insertFreestyleTrick(db, {

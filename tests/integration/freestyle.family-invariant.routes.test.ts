@@ -34,9 +34,7 @@ import {
   importApp,
 } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
-import {
-  getFamilyInvariant,
-} from '../../src/content/freestyleFamilyInvariants';
+import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 
 const { dbPath } = setTestEnv('3102');
 
@@ -45,6 +43,7 @@ const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
+  seedStagedFamilies(db);
 
   // Three whirl-family rows so the family-view three-member minimum admits
   // the section.
@@ -81,44 +80,6 @@ beforeAll(async () => {
 });
 
 afterAll(() => cleanupTestDb(dbPath));
-
-describe('Family invariant — content module', () => {
-  it('returns the Whirl invariant text exactly', () => {
-    expect(getFamilyInvariant('whirl')).toBe('leggy in dex > ss clipper');
-  });
-
-  it('returns the Butterfly invariant text exactly', () => {
-    expect(getFamilyInvariant('butterfly')).toBe('hippy out dex > ss clipper');
-  });
-
-  it('returns null for families that remain without a curator entry', () => {
-    // Curator invariant entries cover the six curator-named
-    // terminal-family candidates (whirl, rev-whirl, butterfly, mirage,
-    // osis, swirl). Non-terminal families and branch families remain
-    // without invariants and return null.
-    expect(getFamilyInvariant('torque')).toBeNull();
-    expect(getFamilyInvariant('drifter')).toBeNull();
-  });
-
-  it('returns null for unknown family slugs', () => {
-    expect(getFamilyInvariant('not-a-family-slug')).toBeNull();
-  });
-
-  it('returns null for entry/topology/modifier systems that are NOT terminal families', () => {
-    // Paradox, symposium, spinning, ducking are entry/topology/modifier
-    // systems — not terminal families. The curator distinction says these
-    // do NOT belong here. Verify each returns null.
-    for (const nonTerminalSlug of [
-      'paradox', 'symposium', 'spinning', 'ducking', 'stepping',
-      'pixie', 'fairy', 'atomic',
-    ]) {
-      expect(
-        getFamilyInvariant(nonTerminalSlug),
-        `family invariant must NOT exist for non-terminal '${nonTerminalSlug}'`,
-      ).toBeNull();
-    }
-  });
-});
 
 describe('Family invariant — rendered on Family View', () => {
   it('renders the Whirl family invariant line on /freestyle/tricks?view=family', async () => {

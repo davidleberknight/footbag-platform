@@ -23,9 +23,7 @@ import {
   importApp,
 } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
-import {
-  getFamilyInvariant,
-} from '../../src/content/freestyleFamilyInvariants';
+import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 
 const { dbPath } = setTestEnv('3103');
 
@@ -34,6 +32,7 @@ const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
+  seedStagedFamilies(db);
 
   // Whirl-family-canonical rows that stay in whirl-family (controls).
   insertFreestyleTrick(db, {
@@ -77,16 +76,6 @@ beforeAll(async () => {
 });
 
 afterAll(() => cleanupTestDb(dbPath));
-
-describe('rev_whirl invariant', () => {
-  it('exposes the rev_whirl shared-structure invariant text (mirror form)', () => {
-    // The invariant reads as the mirror of the whirl entry so the pairing
-    // is legible:
-    //   Whirl:     leggy in  dex > ss clipper
-    //   Rev-Whirl: leggy out dex > ss clipper
-    expect(getFamilyInvariant('rev_whirl')).toBe('leggy out dex > ss clipper');
-  });
-});
 
 describe('Family view — rev_whirl is a route-out, not a family', () => {
   it('does NOT render a rev_whirl family section', async () => {

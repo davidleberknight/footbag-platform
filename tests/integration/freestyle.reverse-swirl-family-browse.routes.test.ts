@@ -19,6 +19,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { cachedGet } from '../fixtures/cachedGet';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 import { insertFreestyleTrick } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3121');
@@ -52,6 +53,7 @@ const SWIRL_FAMILY = [
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
+  seedStagedFamilies(db);
   REV_SWIRL_FAMILY.forEach((t, i) => insertFreestyleTrick(db, {
     slug: t.slug, canonical_name: t.name, adds: t.adds, base_trick: t.base,
     trick_family: 'rev_swirl', category: 'compound', sort_order: 10 + i,

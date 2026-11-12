@@ -18,6 +18,13 @@ import {
   observationalNotesFor,
 } from '../../src/services/freestyleRelatedTricks';
 import { COMPOUND_SEMANTIC_DESCRIPTIONS } from '../../freestyle/inputs/curator_content/freestyleSemanticOverridesData';
+import { STAGED_FAMILIES, STAGED_FAMILY_SUBLABELS } from '../../freestyle/inputs/curator_content/freestyleFamilies';
+
+// The family folding the rebuild seeds: a family slug is its own family, a
+// folded label is the family it folds into.
+const STAGED_SLUGS = new Set(STAGED_FAMILIES.map(f => f.slug));
+const stagedResolve = (label: string): string | null =>
+  STAGED_SLUGS.has(label) ? label : (STAGED_FAMILY_SUBLABELS.get(label) ?? null);
 
 const getCompoundSemanticDescription = (slug: string): string | null =>
   COMPOUND_SEMANTIC_DESCRIPTIONS.get(slug) ?? null;
@@ -57,7 +64,7 @@ const ALL = [carousel, pswRake, sdpTorque, bigAppleSauce, smsTorque];
 
 describe('buildStructuralRelatives — curated overrides for frontier compounds', () => {
   it('Carousel receives its curated Rake-terminal and cross-frontier relatives', () => {
-    const rels = buildStructuralRelatives(carousel, ALL, []);
+    const rels = buildStructuralRelatives(carousel, ALL, [], stagedResolve);
     const slugs = rels.map(r => r.slug);
     expect(slugs).toContain('paradox_symposium_whirling_rake');
     expect(slugs).toContain('surging_ducking_paradox_torque');
@@ -76,12 +83,12 @@ describe('buildStructuralRelatives — curated overrides for frontier compounds'
     // the curator family override), so the family ladder on the same page lists
     // them; a curated pin does not repeat them. Carousel above shows a curated
     // pin outside the ladder still renders.
-    expect(buildStructuralRelatives(bigAppleSauce, ALL, [])).toEqual([]);
+    expect(buildStructuralRelatives(bigAppleSauce, ALL, [], stagedResolve)).toEqual([]);
   });
 
   it('drops a curated target that is not an active row rather than fabricating it', () => {
     // Only Carousel + one of its two curated targets are present.
-    const rels = buildStructuralRelatives(carousel, [carousel, pswRake], []);
+    const rels = buildStructuralRelatives(carousel, [carousel, pswRake], [], stagedResolve);
     expect(rels.map(r => r.slug)).toEqual(['paradox_symposium_whirling_rake']);
   });
 
@@ -106,14 +113,14 @@ describe('buildStructuralRelatives — ranked engine for ordinary pages', () => 
   const links = [{ trick_slug: 'spinning_whirl', modifier_slug: 'spinning' }];
 
   it('ranks a same-base sibling with a plain-words reason', () => {
-    const rels = buildStructuralRelatives(current, rows, links);
+    const rels = buildStructuralRelatives(current, rows, links, stagedResolve);
     const gyro = rels.find(r => r.slug === 'gyro_whirl');
     expect(gyro).toBeDefined();
     expect(gyro!.reason).toMatch(/base/i);
   });
 
   it('excludes self, unrelated tricks, modifiers, operators, and pending rows', () => {
-    const slugs = buildStructuralRelatives(current, rows, links).map(r => r.slug);
+    const slugs = buildStructuralRelatives(current, rows, links, stagedResolve).map(r => r.slug);
     expect(slugs).not.toContain('spinning_whirl'); // self
     expect(slugs).not.toContain('head_stall');     // below threshold
     expect(slugs).not.toContain('spinning');       // modifier
@@ -122,13 +129,13 @@ describe('buildStructuralRelatives — ranked engine for ordinary pages', () => 
   });
 
   it('does not pad to a fixed count when only one relative qualifies', () => {
-    const rels = buildStructuralRelatives(current, rows, links);
+    const rels = buildStructuralRelatives(current, rows, links, stagedResolve);
     expect(rels.length).toBe(1);
   });
 
   it('returns an empty list when nothing meets the threshold', () => {
     const lonely = row('sole_stall', '2', 'surface', 'sole_stall', 'sole_stall');
-    const rels = buildStructuralRelatives(lonely, [lonely, unrelated], []);
+    const rels = buildStructuralRelatives(lonely, [lonely, unrelated], [], stagedResolve);
     expect(rels).toEqual([]);
   });
 
@@ -140,7 +147,7 @@ describe('buildStructuralRelatives — ranked engine for ordinary pages', () => 
       { trick_slug: 'a_x', modifier_slug: 'x' },
       { trick_slug: 'b_x', modifier_slug: 'x' },
     ];
-    expect(buildStructuralRelatives(cur, [cur, weak], links)).toEqual([]);
+    expect(buildStructuralRelatives(cur, [cur, weak], links, stagedResolve)).toEqual([]);
   });
 
   it('rejects a spurious one-operator match when the ADD gap is too large for one operator', () => {
@@ -155,7 +162,7 @@ describe('buildStructuralRelatives — ranked engine for ordinary pages', () => 
     ];
     // shared spinning, one extra (pixie) => symDiff 1, but ADD gap 3 => rejected
     // from the one-operator tier; same-family still applies as a weaker reason.
-    const rels = buildStructuralRelatives(cur, [cur, far], links);
+    const rels = buildStructuralRelatives(cur, [cur, far], links, stagedResolve);
     const match = rels.find(r => r.slug === 'pixie_paradon');
     expect(match?.reason ?? '').not.toMatch(/One operator/);
   });
@@ -173,7 +180,7 @@ describe('buildStructuralRelatives — ranked engine for ordinary pages', () => 
       { trick_slug: 'famonly', modifier_slug: 'a' }, { trick_slug: 'famonly', modifier_slug: 'b' }, { trick_slug: 'famonly', modifier_slug: 'c' },
       { trick_slug: 'ovl', modifier_slug: 'p' }, { trick_slug: 'ovl', modifier_slug: 'q' }, { trick_slug: 'ovl', modifier_slug: 'w1' }, { trick_slug: 'ovl', modifier_slug: 'w2' },
     ];
-    const rels = buildStructuralRelatives(cur, [cur, sameBaseOne, sameBaseMany, familyOnly, overlap], links);
+    const rels = buildStructuralRelatives(cur, [cur, sameBaseOne, sameBaseMany, familyOnly, overlap], links, stagedResolve);
     const by = (slug: string) => rels.find(r => r.slug === slug)?.reason ?? '';
     // Same-base relationships never claim "one operator fewer/more". modifier_links
     // is known-incomplete, so even an apparently clean strict-superset delta (sib1
@@ -212,7 +219,7 @@ describe('buildStructuralRelatives — ranked engine for ordinary pages', () => 
     ];
     const all = [duckingLegover, schmoe, flurry, goliath, tapdown, parkwalk, flog, predator, blackula, downDiver, fusion];
     const reasonFor = (cur: FreestyleTrickRow, candSlug: string): string =>
-      buildStructuralRelatives(cur, all, links).find(r => r.slug === candSlug)?.reason ?? '';
+      buildStructuralRelatives(cur, all, links, stagedResolve).find(r => r.slug === candSlug)?.reason ?? '';
 
     const cases: Array<[FreestyleTrickRow, string]> = [
       [duckingLegover, 'schmoe'], [duckingLegover, 'flurry'], [duckingLegover, 'goliath'],
@@ -242,7 +249,7 @@ describe('buildStructuralRelatives — ranked engine for ordinary pages', () => 
       { trick_slug: slug, modifier_slug: 'p' },
       { trick_slug: slug, modifier_slug: 'q' },
     ]);
-    const slugs = buildStructuralRelatives(cur, [cur, sameFamily, folded, neighbour], links).map(r => r.slug);
+    const slugs = buildStructuralRelatives(cur, [cur, sameFamily, folded, neighbour], links, stagedResolve).map(r => r.slug);
     expect(slugs).not.toContain('ladder_peer');
     expect(slugs).not.toContain('ladder_folded');
     expect(slugs).toEqual(['ladder_neighbour']);
@@ -253,7 +260,7 @@ describe('buildStructuralRelatives — ranked engine for ordinary pages', () => 
     const a = row('fa', '2', 'compound', '', '');
     const b = row('fb', '5', 'compound', 'paradon', '');
     const links = [{ trick_slug: 'fa', modifier_slug: 'x' }, { trick_slug: 'fb', modifier_slug: 'y' }];
-    expect(buildStructuralRelatives(a, [a, b], links)).toEqual([]);
+    expect(buildStructuralRelatives(a, [a, b], links, stagedResolve)).toEqual([]);
   });
 });
 

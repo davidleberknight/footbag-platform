@@ -18,6 +18,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
+import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 import {
   insertFreestyleTrick,
   insertFreestyleTrickModifier,
@@ -37,6 +38,7 @@ const t = (
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
+  seedStagedFamilies(db);
   for (const r of [
     // Torque family (branch of osis) + member — drives W1 + W4.
     t('torque', 'torque', 'dex'),

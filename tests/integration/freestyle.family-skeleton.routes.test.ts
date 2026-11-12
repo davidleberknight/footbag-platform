@@ -25,6 +25,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
+import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 import { insertFreestyleTrick } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3531');
@@ -40,7 +41,7 @@ const trick = (
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-
+  seedStagedFamilies(db);
   // Each public family carries at least three members so it clears the
   // family-view three-member minimum.
   const rows = [
@@ -81,7 +82,7 @@ beforeAll(async () => {
     // ── Other public families render as their own sections (≥3 rows) ──
     trick('eclipse', 'eclipse', 'dex'), trick('lunar_eclipse', 'eclipse'), trick('solar_eclipse', 'eclipse'),
     trick('drifter', 'drifter', 'dex'), trick('day_drifter', 'drifter'), trick('night_drifter', 'drifter'),
-    trick('inside_stall', 'inside_stall', 'dex'), trick('guay', 'inside-stall'), trick('inside_stall_two', 'inside_stall'),
+    trick('inside_stall', 'inside_stall', 'dex'), trick('guay', 'inside_stall'), trick('inside_stall_two', 'inside_stall'),
   ];
   for (const r of rows) insertFreestyleTrick(db, r);
 
@@ -116,9 +117,9 @@ describe('Family skeleton — public families render top-level', () => {
 });
 
 describe('Family skeleton — sub-labels fold in, sparse lineages route out', () => {
-  it('renders the guay sub-label rows nested under the inside-stall family', async () => {
+  it('renders guay under the inside-stall family, with no section of its own', async () => {
     const html = await familyView();
-    // guay folds into inside-stall; it has no top-level section of its own.
+    // guay is an inside-stall family member; it has no top-level section of its own.
     expect(html).toContain('id="family-inside_stall"');
     expect(html).not.toContain('id="family-guay"');
     expect(html).toContain('data-trick-slug="guay"');

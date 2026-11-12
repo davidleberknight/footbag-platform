@@ -42,6 +42,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
+import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 import { insertFreestyleTrick } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3097');
@@ -68,7 +69,7 @@ const NON_TRICK_SAMPLES = ['paradox', 'spinning', 'atomic', 'clipper'];
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-
+  seedStagedFamilies(db);
   // Seed all whirl-family pilots as canonical compounds.
   for (const pilot of WHIRL_PILOTS) {
     insertFreestyleTrick(db, {

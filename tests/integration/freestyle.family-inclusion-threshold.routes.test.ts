@@ -15,6 +15,7 @@ import request from 'supertest';
 import { cachedGet } from '../fixtures/cachedGet';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 import { insertFreestyleTrick } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3785');
@@ -42,7 +43,7 @@ function seedFamily(
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-
+  seedStagedFamilies(db);
   // Root families at controlled counts.
   seedFamily(db, 'whirl', 2);                              // 2 members -> excluded
   seedFamily(db, 'butterfly', 3);                          // exactly 3 -> included

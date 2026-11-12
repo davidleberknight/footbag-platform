@@ -21,6 +21,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
+import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 import { insertFreestyleTrick } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3528');
@@ -30,6 +31,7 @@ const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
+  seedStagedFamilies(db);
   insertFreestyleTrick(db, { slug: 'whirl', canonical_name: 'whirl', adds: '3', base_trick: 'whirl', trick_family: 'whirl', category: 'dex', is_active: 1 });
   db.close();
   createApp = await importApp();
@@ -280,7 +282,7 @@ describe('Freestyle Concepts families: parent, child and descendant lineage', ()
     const html = await concepts();
     expect(html).toContain('Family Parents');
     // The ratified roster renders as ?family= links from the same source the
-    // dictionary "By family" browse uses (freestylePublicFamilies.ts).
+    // dictionary "By family" browse uses (the family roster).
     for (const slug of ['mirage', 'whirl', 'drifter', 'butterfly_swirl']) {
       expect(html, `roster link ${slug}`).toContain(`href="/freestyle/tricks?family=${slug}"`);
     }

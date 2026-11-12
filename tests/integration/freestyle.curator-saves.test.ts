@@ -20,6 +20,7 @@ import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember } from '../fixtures/factories';
 import { seedCuratorContent, STAGED_CURATOR_CONTENT } from '../../freestyle/loaders/28a_seed_curator_content';
+import { STAGED_FAMILIES, STAGED_FAMILY_SUBLABELS } from '../../freestyle/inputs/curator_content/freestyleFamilies';
 
 const { dbPath } = setTestEnv('4142');
 const savesDir = process.env.CURATOR_SAVES_DIR!;
@@ -38,6 +39,22 @@ const DERIVATIVES_SLUG = [...STAGED_CURATOR_CONTENT.aboutDerivatives.keys()][0]!
 const FAMILY_SLUG = 'hatchet';
 // A seeded formula a save replaces, and a seeded expanded notation a save clears.
 const SAVED_DERIVATION = 'saved(+1) + by(1) + a(1) + curator(1)';
+const SAVED_FAMILY_HOOK = 'A hook the curator saved.';
+const FAMILY_EDITED = 'swirl';
+
+/** The family edit form as the staged roster fills it. */
+function familyForm(slug: string, overrides: Record<string, string> = {}): Record<string, string> {
+  const f = STAGED_FAMILIES.find((s) => s.slug === slug)!;
+  return {
+    displayName: f.displayName, parentSlug: f.parentSlug ?? '', tier: f.tier, sortOrder: String(f.sortOrder),
+    hook: f.hook ?? '', description: f.description ?? '', plainLanguageReading: f.plainLanguageReading ?? '',
+    importance: f.importance ?? '', howToRecognize: f.howToRecognize.join('\n'),
+    relatedFamilySlugs: f.relatedFamilySlugs.join('\n'), sharedStructure: f.sharedStructure ?? '',
+    trickPageNote: f.trickPageNote ?? '',
+    foldedLabels: [...STAGED_FAMILY_SUBLABELS].filter(([, fam]) => fam === slug).map(([l]) => l).join('\n'),
+    ...overrides,
+  };
+}
 const FORMULA_SLUG = 'mullet';
 const EXPANDED_SLUG = STAGED_CURATOR_CONTENT.formulas.find((f) => f.expandedNotation)!.slug;
 // Four scoring brackets, so the published trick asserts 4 ADD.
@@ -288,6 +305,8 @@ beforeAll(async () => {
     modifierName: 'paradox', addBonus: '1', modifierType: 'body', notes: 'Saved modifier note.',
     beginnerNote: SAVED_BEGINNER_NOTE,
   }, ADMIN_ID, { confirmed: false });
+  // A family edit over the seeded roster.
+  service.updateFamily(FAMILY_EDITED, familyForm(FAMILY_EDITED, { hook: SAVED_FAMILY_HOOK }), ADMIN_ID);
 
   // Records and consecutive rows, including what the loaders alone cannot express:
   // a text value, a year-level date, and a row the records loader would skip.
@@ -568,6 +587,15 @@ describe('a rebuild', () => {
     expect(readTrick(rebuildPath, FAMILY_SLUG).family_override).toBeNull();
   });
 
+  it('keeps a saved family edit over the seeded roster', () => {
+    // Defect: a curator's family edit is undone at the next rebuild, because the
+    // seeder ran after the saves or the save loader never reads family files.
+    // Reads the saves the reload case applied; the seeded hook is the control.
+    expect(STAGED_FAMILIES.find((f) => f.slug === FAMILY_EDITED)!.hook).not.toBe(SAVED_FAMILY_HOOK);
+    expect(rowCount(rebuildPath, 'freestyle_families', 'slug = ? AND hook = ?',
+      [FAMILY_EDITED, SAVED_FAMILY_HOOK])).toBe(1);
+  });
+
   it('keeps a saved and a cleared trick formula field over the seeded content', () => {
     // Defect: a curator's edit to a seeded formula breakdown or expanded notation
     // is undone at the next rebuild, because the seeder ran after the saves or
@@ -707,6 +735,24 @@ describe('the save loader refuses a file it cannot apply', () => {
     expect(r.stderr).toMatch(message);
   });
 
+  // Defect: a family save for a family the inputs no longer produce is quietly
+  // added back as a new family, when families are only ever edited.
+  it('a family the inputs no longer produce', () => {
+    const dir = fs.mkdtempSync(path.join(scratch, 'bad-family-'));
+    fs.mkdirSync(path.join(dir, 'families'), { recursive: true });
+    const body = {
+      slug: 'zz_no_such_family', display_name: 'Nothing', parent_slug: null, tier: 'family_parent',
+      sort_order: 1, hook: null, description: null, plain_language_reading: null, importance: null,
+      how_to_recognize: [], related_family_slugs: [], shared_structure: null, trick_page_note: null,
+      folded_labels: [],
+    };
+    fs.writeFileSync(path.join(dir, 'families', 'zz_no_such_family.json'), JSON.stringify(body));
+    const r = applySaves(rebuildPath, dir);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/zz_no_such_family/);
+    expect(rowCount(rebuildPath, 'freestyle_families', 'slug = ?', ['zz_no_such_family'])).toBe(0);
+  });
+
   it('applies nothing when any one file fails', () => {
     // Defect: a half-applied save set leaves a rebuild reading as some saves
     // landed and others did not, with the failure easy to miss.
@@ -719,6 +765,17 @@ describe('the save loader refuses a file it cannot apply', () => {
 });
 
 describe('the field list', () => {
+  it('names the same whole-record kinds in the adapter and the loader', () => {
+    // Defect: the editor saves a kind of record the loader never reads, so the
+    // save is silently lost at the next rebuild.
+    const loader = fs.readFileSync('freestyle/loaders/29_apply_curator_saves.py', 'utf8');
+    const kinds = loader.match(/RECORD_KINDS = \(([\s\S]*?)\n\)/)![1]!;
+    // Each kind's tuple opens with its folder and then its table.
+    const loaderFolders = [...kinds.matchAll(/^\s+\("([a-z_]+)", "[a-z_]+", \(/gm)].map((m) => m[1]!);
+    const familyFolder = /saves_dir \/ "families"/.test(loader) ? ['families'] : [];
+    expect([...loaderFolders, ...familyFolder].sort()).toEqual([...adapterModule.SAVE_ITEM_KINDS].sort());
+  });
+
   it('is the same in the adapter and the loader', () => {
     // Defect: the editor saves a field the loader refuses, and every rebuild after
     // that save stops.

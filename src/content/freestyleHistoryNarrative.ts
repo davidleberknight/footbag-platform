@@ -16,7 +16,14 @@ export interface HistoryLink {
   external?: boolean;
 }
 
-export interface HistorySection {
+/** A link to a family's page, named by family: the service links it only while
+ *  that family has a page, and leaves it out otherwise. */
+export interface HistoryFamilyLink {
+  label:      string;
+  familySlug: string;
+}
+
+export interface HistorySection<L = HistoryLink | HistoryFamilyLink> {
   id:         string;
   heading:    string;
   /** One-line gist shown on the section's collapsed header. Present on the
@@ -24,10 +31,11 @@ export interface HistorySection {
    *  section without one renders open, as plain always-visible prose. */
   summaryLine?: string;
   paragraphs: readonly string[];
-  links?:     readonly HistoryLink[];
+  links?:     readonly L[];
 }
 
-export interface HistoryNarrative {
+/** The narrative as authored; its section links may name a family. */
+export interface HistoryNarrativeSource {
   thesis:     string;
   intro:      readonly string[];
   sections:   readonly HistorySection[];
@@ -35,7 +43,12 @@ export interface HistoryNarrative {
   whereNext:  readonly HistoryLink[];
 }
 
-export const HISTORY_NARRATIVE: HistoryNarrative = {
+/** The narrative as rendered: every link resolved to an href. */
+export interface HistoryNarrative extends Omit<HistoryNarrativeSource, 'sections'> {
+  sections: readonly HistorySection<HistoryLink>[];
+}
+
+export const HISTORY_NARRATIVE: HistoryNarrativeSource = {
   thesis:
     'Freestyle did not become more difficult simply because players got better. It evolved because each generation introduced new ideas that expanded the shared vocabulary available to everyone who followed.',
   intro: [
@@ -91,7 +104,7 @@ export const HISTORY_NARRATIVE: HistoryNarrative = {
         'The whirl became central not because it is flashy but because it returns a player to a reusable position, so a combination can keep going. A language needs connectors, and freestyle found one. The same is true at the other end of a move: a few endings and a few families came to organize how everything resolves.',
       ],
       links: [
-        { label: 'Whirl', href: '/freestyle/families/whirl' },
+        { label: 'Whirl', familySlug: 'whirl' },
       ],
     },
     {

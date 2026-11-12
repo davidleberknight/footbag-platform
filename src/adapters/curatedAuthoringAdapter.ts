@@ -100,10 +100,12 @@ export interface CuratedSaveReceipt {
  */
 export const SAVE_ITEM_KINDS = [
   'sources', 'modifiers', 'published_tricks', 'aliases', 'source_links', 'modifier_links', 'records',
-  'consecutive_records',
+  'consecutive_records', 'families',
 ] as const;
 export type SaveItemKind = (typeof SAVE_ITEM_KINDS)[number];
-export type SaveItemBody = Record<string, string | number | boolean | null>;
+/** A saved record: scalar fields, plus ordered lists of strings (a family's
+ *  recognition cues, related families and folded labels). */
+export type SaveItemBody = Record<string, string | number | boolean | null | readonly string[]>;
 
 export interface CuratedAuthoringAdapter {
   /** Records these fields for this trick, keeping fields saved earlier. */

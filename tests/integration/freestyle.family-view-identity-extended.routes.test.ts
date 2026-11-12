@@ -24,6 +24,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
+import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 import { insertFreestyleTrick } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3098');
@@ -127,7 +128,7 @@ const PILOTS_WITH_CHAINS = ALL_PILOTS
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-
+  seedStagedFamilies(db);
   for (const pilot of ALL_PILOTS) {
     insertFreestyleTrick(db, {
       slug:           pilot.slug,

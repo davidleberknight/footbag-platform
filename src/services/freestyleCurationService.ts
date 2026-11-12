@@ -33,6 +33,19 @@
  *     Each create and edit writes its save file first and appends one
  *     `freestyle.modifier.created` or `freestyle.modifier.updated` audit row in
  *     the same transaction as the row.
+ *   - The family editor (`freestyle_families`, `freestyle_family_sublabels`):
+ *     listing the roster and editing one family's name, parent, tier, display
+ *     order, teaching text, related families, shared-structure line, trick-page
+ *     note and folded trick family labels. Families are edited, never created
+ *     or deleted, here. A save is refused, with every reason and the submitted
+ *     values kept, when a field fails its own check or the edited roster breaks a
+ *     family rule it did not break before (the rules in freestyleFamilyRules: a
+ *     two-level roster whose branches hang from root family parents, no catch
+ *     surface as a family parent, related families and folded labels that name
+ *     real families and labels). A newly folded label must name a trick family
+ *     label some trick carries. An unchanged submit writes nothing; a save writes
+ *     its save file first, then the row, its folded labels and one
+ *     `freestyle.family.updated` audit row in one transaction.
  *   - The notation authoring funnel: the backlog of Emerging Vocabulary rulings
  *     that still need a movement notation, authoring a notation draft for one
  *     with its provenance, and publishing an authored candidate as a new active
@@ -60,8 +73,8 @@
  * cleared field meaning the unset zero, each
  * editorial prose field within a length cap, a non-empty base trick, reverse-pair
  * base or terminal naming a dictionary row, a terminal and its whole-number
- * position of 1 or more set or cleared together, a family override on the public
- * family list, a kind from the schema's set, and no change to the ADD of a
+ * position of 1 or more set or cleared together, a family override naming a
+ * family on the roster, a kind from the schema's set, and no change to the ADD of a
  * modifier row, whose own ADD
  * changes only in the modifier editor) plus two
  * structural doctrine checks. The core-primitive column is not editable here: the
@@ -151,6 +164,7 @@ import {
   freestyleTrickSourceLinks,
   freestyleTrickModifiers,
   freestyleTrickModifierLinks,
+  freestyleFamilies,
   transaction,
 } from '../db/db';
 import { appendAuditEntry, findStandingOwnAct } from './auditService';
@@ -169,7 +183,8 @@ import {
 // refactor). Target: they are read from the decision-group database table and the module is
 // deleted, in the post-go-live cleanup of the maintainers' private plan.
 import { EMERGING_DECISION_GROUPS } from '../content/freestyleObservationalUniverse';
-import { PUBLIC_DISPLAY_FAMILIES } from '../content/freestylePublicFamilies';
+import { familyRecord, familyRecords, type FamilyRecord } from './freestyleFamilyRegistry';
+import { familyRosterProblems, FAMILY_TIERS, type FamilyRuleInput } from './freestyleFamilyRules';
 import {
   NOTATION_EVIDENCE_BASES,
   NOTATION_DERIVATION_METHODS,
@@ -2331,7 +2346,7 @@ export const freestyleCurationService = {
     // The public family must be one the browse shows; a family that is not on
     // the list would file the trick under nothing.
     const familyOverride = emptyToNull(input.familyOverride);
-    if (familyOverride !== null && !PUBLIC_DISPLAY_FAMILIES.some((f) => f.slug === familyOverride)) {
+    if (familyOverride !== null && familyRecord(familyOverride) === null) {
       fieldErrors.familyOverride = `"${familyOverride}" is not a public family.`;
     }
 
@@ -3250,7 +3265,353 @@ export const freestyleCurationService = {
     );
     return { status: 'saved' };
   },
+
+  // The family roster: every family with its tier and parent, each linking to its
+  // edit form. Families are edited, never created or deleted, here.
+  getFamilyListPage(): PageViewModel<FreestyleFamilyListContent> {
+    const records = familyRecords();
+    const nameOf = new Map(records.map((r) => [r.slug, r.displayName] as const));
+    const rows = records.map((r) => ({
+      slug:        r.slug,
+      name:        r.displayName,
+      tierLabel:   FAMILY_TIER_LABELS[r.tier],
+      parentName:  r.parentSlug === null ? '' : (nameOf.get(r.parentSlug) ?? r.parentSlug),
+      sortOrder:   r.sortOrder,
+      editHref:    `/admin/freestyle/families/${r.slug}/edit`,
+    }));
+    return {
+      seo:  { title: 'Freestyle Families' },
+      page: {
+        sectionKey: 'admin', pageKey: 'admin_freestyle_families', title: 'Freestyle Families',
+        instructions: {
+          what: 'Lists every freestyle trick family with its tier and parent, in display order.',
+          why: 'How families are named, grouped and taught is kept in the running application.',
+          how: 'Open a family to edit it.',
+          headsUp: [
+            'Which tricks belong to a family is set on each trick, not here.',
+            'Editing a family is recorded in the audit log.',
+          ],
+        },
+      },
+      content: { rows, hasRows: rows.length > 0 },
+    };
+  },
+
+  // The edit form for one family. Throws NotFoundError for an unknown slug.
+  getFamilyEditPage(
+    slug: string,
+    opts: { submitted?: FreestyleFamilyInput; errors?: string[]; saved?: boolean } = {},
+  ): PageViewModel<FreestyleFamilyEditContent> {
+    const record = familyRecord(slug);
+    if (!record) throw new NotFoundError(`No freestyle family "${slug}"`);
+    const submitted: FreestyleFamilyInput = opts.submitted ?? familyInputOf(record);
+    const parentOptions: FilterOption[] = [
+      { value: '', label: 'None (a root family)', selected: (submitted.parentSlug ?? '') === '' },
+      ...familyRecords()
+        .filter((r) => r.parentSlug === null && r.tier === 'family_parent' && r.slug !== slug)
+        .map((r) => ({ value: r.slug, label: r.displayName, selected: submitted.parentSlug === r.slug })),
+    ];
+    return {
+      seo:  { title: `Edit Family ${record.displayName}` },
+      page: {
+        sectionKey: 'admin', pageKey: 'admin_freestyle_family_edit', title: `Edit Family ${record.displayName}`,
+        instructions: {
+          what: 'Edits one freestyle family: its name, parent, tier, display order and the teaching text its page shows.',
+          why: 'So how families are named, grouped and taught is kept in the running application.',
+          how: 'Change the fields and save. List fields take one entry per line.',
+          headsUp: [
+            'Moving a family to minor lineage takes down its page and every link to it.',
+            'A family parent that has branches cannot be moved to minor lineage.',
+            'The slug is permanent.',
+          ],
+        },
+      },
+      content: {
+        slug:          record.slug,
+        formAction:    `/admin/freestyle/families/${record.slug}/edit`,
+        cancelHref:    '/admin/freestyle/families',
+        submitted,
+        parentOptions,
+        tierOptions:   FAMILY_TIERS.map((t) => ({ value: t, label: FAMILY_TIER_LABELS[t], selected: submitted.tier === t })),
+        errors:        opts.errors ?? [],
+        hasErrors:     (opts.errors ?? []).length > 0,
+        saved:         opts.saved === true,
+      },
+    };
+  },
+
+  // Edit one family. Every field is validated, and the edited roster must still
+  // meet the family rules; any rule the edit would break refuses the save with
+  // every reason. An unchanged submit writes nothing. The row, its folded labels,
+  // its save file and its audit entry land together behind the persona guard.
+  // Throws NotFoundError for an unknown slug and ValidationError on bad input.
+  updateFamily(slug: string, input: FreestyleFamilyInput, actorMemberId: string): UpdateFamilyResult {
+    const current = familyRecord(slug);
+    if (!current) throw new NotFoundError(`No freestyle family "${slug}"`);
+    const fields = validateFamilyFields(input);
+
+    // The edited roster must meet every family rule the current one meets.
+    const roster = familyRecords();
+    const asRule = (r: FamilyRecord): FamilyRuleInput => ({
+      slug: r.slug, parentSlug: r.parentSlug, tier: r.tier, sortOrder: r.sortOrder,
+      relatedFamilySlugs: r.relatedFamilySlugs, foldedLabels: r.foldedLabels,
+    });
+    const nameOf = (s: string): string => roster.find((r) => r.slug === s)?.displayName ?? s;
+    const before = new Set(familyRosterProblems(roster.map(asRule), nameOf).map((p) => `${p.slug}|${p.message}`));
+    const after = familyRosterProblems(roster.map((r) => (r.slug === slug
+      ? {
+          slug, parentSlug: fields.parentSlug, tier: fields.tier, sortOrder: fields.sortOrder,
+          relatedFamilySlugs: fields.relatedFamilySlugs, foldedLabels: fields.foldedLabels,
+        }
+      : asRule(r))), nameOf);
+    const introduced = after.filter((p) => !before.has(`${p.slug}|${p.message}`));
+    const errors = [
+      ...introduced.map((p) => (p.slug === slug ? p.message : `${nameOf(p.slug)}: ${p.message}`)),
+      // A newly folded label must fold something: some trick is filed under it.
+      ...fields.foldedLabels
+        .filter((label) => !current.foldedLabels.includes(label))
+        .filter((label) => !freestyleFamilies.trickFamilyLabelExists.get(label))
+        .map((label) => `No trick is filed under "${label}", so it has nothing to fold.`),
+    ];
+    if (errors.length > 0) throw new FamilyValidationError(errors);
+
+    const changed: string[] = [];
+    if (fields.displayName !== current.displayName) changed.push('display_name');
+    if (fields.parentSlug !== current.parentSlug) changed.push('parent_slug');
+    if (fields.tier !== current.tier) changed.push('tier');
+    if (fields.sortOrder !== current.sortOrder) changed.push('sort_order');
+    if (fields.hook !== current.hook) changed.push('hook');
+    if (fields.description !== current.description) changed.push('description');
+    if (fields.plainLanguageReading !== current.plainLanguageReading) changed.push('plain_language_reading');
+    if (fields.importance !== current.importance) changed.push('importance');
+    if (!sameList(fields.howToRecognize, current.howToRecognize)) changed.push('how_to_recognize');
+    if (!sameList(fields.relatedFamilySlugs, current.relatedFamilySlugs)) changed.push('related_family_slugs');
+    if (fields.sharedStructure !== current.sharedStructure) changed.push('shared_structure');
+    if (fields.trickPageNote !== current.trickPageNote) changed.push('trick_page_note');
+    if (!sameList(fields.foldedLabels, current.foldedLabels)) changed.push('folded_labels');
+    if (changed.length === 0) return { status: 'unchanged' };
+
+    assertActorMayCurateFreestyle(actorMemberId);
+    const now = new Date().toISOString();
+    writeFileThenCommit(
+      () => getCuratedAuthoringAdapter().saveItem('families', slug, familySaveBody(slug, fields)),
+      () => transaction(() => {
+        freestyleFamilies.update.run(
+          fields.displayName, fields.parentSlug, fields.tier, fields.sortOrder, fields.hook,
+          fields.description, fields.plainLanguageReading, fields.importance,
+          JSON.stringify(fields.howToRecognize), JSON.stringify(fields.relatedFamilySlugs),
+          fields.sharedStructure, fields.trickPageNote, now, actorMemberId, slug,
+        );
+        if (changed.includes('folded_labels')) {
+          freestyleFamilies.deleteSublabelsOfFamily.run(slug);
+          for (const label of fields.foldedLabels) {
+            freestyleFamilies.insertSublabel.run(label, slug, now, actorMemberId, now, actorMemberId);
+          }
+        }
+        appendAuditEntry({
+          actionType:    'freestyle.family.updated',
+          actorType:     'admin',
+          actorMemberId,
+          entityType:    'freestyle_family',
+          entityId:      slug,
+          metadata:      { slug, changedFields: changed },
+        });
+      }),
+    );
+    return { status: 'saved' };
+  },
 };
+
+// ── Family editor ─────────────────────────────────────────────────────────
+
+export interface FreestyleFamilyInput {
+  displayName?:          string;
+  parentSlug?:           string;
+  tier?:                 string;
+  sortOrder?:            string;
+  hook?:                 string;
+  description?:          string;
+  plainLanguageReading?: string;
+  importance?:           string;
+  howToRecognize?:       string;   // one cue per line
+  relatedFamilySlugs?:   string;   // one family slug per line
+  sharedStructure?:      string;
+  trickPageNote?:        string;
+  foldedLabels?:         string;   // one trick family label per line
+}
+
+const FAMILY_TIER_LABELS: Readonly<Record<(typeof FAMILY_TIERS)[number], string>> = {
+  family_parent: 'Family parent',
+  minor_lineage: 'Minor lineage',
+};
+const FAMILY_NAME_MAX = 80;
+// The hook, the plain reading, the shared-structure line and each list entry are
+// single lines on a page.
+const FAMILY_LINE_MAX = 400;
+// No family needs more than a dozen recognition cues, related families or labels.
+const FAMILY_LIST_MAX = 12;
+const FAMILY_SORT_MAX = 100000;
+const FAMILY_SLUG_PATTERN = /^[a-z0-9_-]+$/;
+
+interface FamilyFields {
+  displayName:          string;
+  parentSlug:           string | null;
+  tier:                 (typeof FAMILY_TIERS)[number];
+  sortOrder:            number;
+  hook:                 string | null;
+  description:          string | null;
+  plainLanguageReading: string | null;
+  importance:           string | null;
+  howToRecognize:       string[];
+  relatedFamilySlugs:   string[];
+  sharedStructure:      string | null;
+  trickPageNote:        string | null;
+  foldedLabels:         string[];
+}
+
+/** A family save refused for one or more reasons, each shown to the editor. */
+export class FamilyValidationError extends ValidationError {
+  constructor(readonly reasons: readonly string[]) {
+    super(reasons.join(' '));
+    this.name = 'FamilyValidationError';
+  }
+}
+
+export interface FreestyleFamilyListRow {
+  slug: string;
+  name: string;
+  tierLabel: string;
+  parentName: string;
+  sortOrder: number;
+  editHref: string;
+}
+
+export interface FreestyleFamilyListContent {
+  rows: FreestyleFamilyListRow[];
+  hasRows: boolean;
+}
+
+export interface FreestyleFamilyEditContent {
+  slug: string;
+  formAction: string;
+  cancelHref: string;
+  submitted: FreestyleFamilyInput;
+  parentOptions: FilterOption[];
+  tierOptions: FilterOption[];
+  errors: string[];
+  hasErrors: boolean;
+  saved: boolean;
+}
+
+export type UpdateFamilyResult = { status: 'saved' } | { status: 'unchanged' };
+
+function familyInputOf(r: FamilyRecord): FreestyleFamilyInput {
+  return {
+    displayName:          r.displayName,
+    parentSlug:           r.parentSlug ?? '',
+    tier:                 r.tier,
+    sortOrder:            String(r.sortOrder),
+    hook:                 r.hook ?? '',
+    description:          r.description ?? '',
+    plainLanguageReading: r.plainLanguageReading ?? '',
+    importance:           r.importance ?? '',
+    howToRecognize:       r.howToRecognize.join('\n'),
+    relatedFamilySlugs:   r.relatedFamilySlugs.join('\n'),
+    sharedStructure:      r.sharedStructure ?? '',
+    trickPageNote:        r.trickPageNote ?? '',
+    foldedLabels:         r.foldedLabels.join('\n'),
+  };
+}
+
+function sameList(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((v, i) => v === b[i]);
+}
+
+/** The non-empty lines of a list field, each cleaned as one line. */
+function familyLines(raw: string | undefined, field: string): string[] {
+  return (raw ?? '').split(/\r?\n/)
+    .map((line) => cleanUserText(line, 'single_line', field))
+    .filter((line) => line.length > 0);
+}
+
+// Validates each field on its own; the roster rules are checked by the caller.
+// Collects every problem so the editor sees them all at once.
+function validateFamilyFields(input: FreestyleFamilyInput): FamilyFields {
+  const errors: string[] = [];
+  const displayName = cleanUserText(input.displayName ?? '', 'single_line', 'displayName');
+  if (!displayName) errors.push('Display name is required.');
+  else if (displayName.length > FAMILY_NAME_MAX) errors.push(`Display name must be ${FAMILY_NAME_MAX} characters or fewer.`);
+
+  const tierRaw = (input.tier ?? '').trim();
+  const tier = (FAMILY_TIERS as readonly string[]).includes(tierRaw)
+    ? (tierRaw as (typeof FAMILY_TIERS)[number])
+    : null;
+  if (tier === null) errors.push('Choose a tier from the list.');
+
+  const sortRaw = (input.sortOrder ?? '').trim();
+  if (!/^\d+$/.test(sortRaw) || Number(sortRaw) > FAMILY_SORT_MAX) {
+    errors.push(`Display order must be a whole number from 0 to ${FAMILY_SORT_MAX}.`);
+  }
+
+  const line = (raw: string | undefined, field: string, label: string): string | null => {
+    const v = cleanUserText(raw ?? '', 'single_line', field);
+    if (v.length > FAMILY_LINE_MAX) errors.push(`${label} must be ${FAMILY_LINE_MAX} characters or fewer.`);
+    return nullIfEmpty(v);
+  };
+  const prose = (raw: string | undefined, field: string, label: string): string | null => {
+    const v = cleanUserText(raw ?? '', 'multi_line', field);
+    if (v.length > PROSE_MAX) errors.push(`${label} must be ${PROSE_MAX} characters or fewer.`);
+    return nullIfEmpty(v);
+  };
+  const list = (raw: string | undefined, field: string, label: string, slugs: boolean): string[] => {
+    const lines = familyLines(raw, field);
+    if (lines.length > FAMILY_LIST_MAX) errors.push(`${label} takes at most ${FAMILY_LIST_MAX} entries.`);
+    for (const l of lines) {
+      if (l.length > FAMILY_LINE_MAX) errors.push(`Each entry in ${label.toLowerCase()} must be ${FAMILY_LINE_MAX} characters or fewer.`);
+      if (slugs && !FAMILY_SLUG_PATTERN.test(l)) errors.push(`"${l}" in ${label.toLowerCase()} is not a slug: use lowercase letters, digits, hyphens and underscores.`);
+    }
+    if (new Set(lines).size !== lines.length) errors.push(`${label} lists an entry twice.`);
+    return lines;
+  };
+
+  const parentRaw = (input.parentSlug ?? '').trim();
+  const fields = {
+    displayName,
+    parentSlug:           parentRaw === '' ? null : parentRaw,
+    tier:                 tier ?? 'minor_lineage',
+    sortOrder:            Number(sortRaw),
+    hook:                 line(input.hook, 'hook', 'Hook'),
+    description:          prose(input.description, 'description', 'Description'),
+    plainLanguageReading: line(input.plainLanguageReading, 'plainLanguageReading', 'Plain-language reading'),
+    importance:           prose(input.importance, 'importance', 'Why it matters'),
+    howToRecognize:       list(input.howToRecognize, 'howToRecognize', 'How to recognize one', false),
+    relatedFamilySlugs:   list(input.relatedFamilySlugs, 'relatedFamilySlugs', 'Related families', true),
+    sharedStructure:      line(input.sharedStructure, 'sharedStructure', 'Shared structure'),
+    trickPageNote:        prose(input.trickPageNote, 'trickPageNote', 'Trick-page note'),
+    foldedLabels:         [...list(input.foldedLabels, 'foldedLabels', 'Folded labels', true)].sort(),
+  };
+  if (errors.length > 0) throw new FamilyValidationError(errors);
+  return fields;
+}
+
+function familySaveBody(slug: string, f: FamilyFields): SaveItemBody {
+  return {
+    slug,
+    display_name:           f.displayName,
+    parent_slug:            f.parentSlug,
+    tier:                   f.tier,
+    sort_order:             f.sortOrder,
+    hook:                   f.hook,
+    description:            f.description,
+    plain_language_reading: f.plainLanguageReading,
+    importance:             f.importance,
+    how_to_recognize:       f.howToRecognize,
+    related_family_slugs:   f.relatedFamilySlugs,
+    shared_structure:       f.sharedStructure,
+    trick_page_note:        f.trickPageNote,
+    folded_labels:          f.foldedLabels,
+  };
+}
 
 // ── Modifier registry ─────────────────────────────────────────────────────
 

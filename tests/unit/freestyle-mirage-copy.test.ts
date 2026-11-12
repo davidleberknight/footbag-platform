@@ -26,7 +26,9 @@ const read = (rel: string) => readFileSync(join(process.cwd(), rel), 'utf8');
 
 const START = read('src/views/freestyle/start.hbs');
 const CORE = read('src/content/freestyleCoreAtomEducational.ts');
-const GLOSSARY = read('src/content/freestyleGlossaryFamilyCards.ts');
+// The family text: the concepts cards and the family roster the family pages read.
+const GLOSSARY = read('src/content/freestyleGlossaryFamilyCards.ts')
+  + read('freestyle/inputs/curator_content/freestyleFamilies.ts');
 const RED_CORR = read('freestyle/inputs/curated/tricks/red_corrections_2026_04_20.csv');
 const LANDING = read('src/content/freestyleLandingContent.ts');
 
@@ -163,7 +165,11 @@ describe('compounds that genuinely catch opposite the setting foot keep that wor
 
 // ── Unrelated overclaim guard (Mirage is one of several simple first dexes) ──
 
-const OVERCLAIM_SOURCES = ['src/views/freestyle/start.hbs', 'src/content/freestyleGlossaryFamilyCards.ts'];
+const OVERCLAIM_SOURCES = [
+  'src/views/freestyle/start.hbs',
+  'src/content/freestyleGlossaryFamilyCards.ts',
+  'freestyle/inputs/curator_content/freestyleFamilies.ts',
+];
 
 describe('Mirage teaching copy does not overclaim its position', () => {
   for (const rel of OVERCLAIM_SOURCES) {

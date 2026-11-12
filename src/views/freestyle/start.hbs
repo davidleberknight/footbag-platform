@@ -106,7 +106,7 @@
     </p>
     <p>
       <a href="/media/browse?context=mirage" class="action-link">Watch a Mirage Clip</a>
-      <a href="/freestyle/families/mirage" class="action-link">Read About the Mirage</a>
+      {{#if content.mirageFamilyHref}}<a href="{{siteHref content.mirageFamilyHref}}" class="action-link">Read About the Mirage</a>{{/if}}
     </p>
   </section>
 
@@ -116,7 +116,7 @@
       Many famous tricks end on the clipper, that behind-the-leg use of the
       inside surface. Practice a basic clipper stall next: cross one foot
       behind the other leg and catch the bag flat on its inside surface. Once
-      that feels stable, the <a href="/freestyle/families/butterfly">Butterfly</a>
+      that feels stable, the {{#if content.butterflyFamilyHref}}<a href="{{siteHref content.butterflyFamilyHref}}">Butterfly</a>{{else}}Butterfly{{/if}}
       is a classic example of linking the two skills: a dexterity that flows
       into a clipper catch across the body. It is a real step up from the
       Mirage, so treat it as something to grow into, not your immediate next
@@ -158,7 +158,7 @@
     <p>{{content.nextStepsIntro}}</p>
     <ol>
       {{#each content.nextSteps}}
-      <li><a href="{{href}}">{{name}}</a>: {{lesson}}</li>
+      <li>{{#if href}}<a href="{{siteHref href}}">{{name}}</a>{{else}}{{name}}{{/if}}: {{lesson}}</li>
       {{/each}}
     </ol>
   </section>
