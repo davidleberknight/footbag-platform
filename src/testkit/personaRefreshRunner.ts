@@ -35,7 +35,10 @@
  * divisions, organizers and registrations, the reconciliation issues on any
  * persona payment with their work-queue cards, the reconciliation and digest
  * runs and the digest mail its journey made (found by the journey's pointer
- * row), its money audit rows, and its webhook-health rows. The audit rows the
+ * row), its money audit rows, and its webhook-health rows. After the rebuild
+ * commits, the stand-in payment provider's shared ledger beside the database is
+ * emptied whole, persona records or not: it is development and staging test
+ * tooling, and a reload of persona data starts it over. The audit rows the
  * nightly pass itself wrote when it raised an issue are append-only history
  * written by the system, and stay. Work-queue items a persona RESOLVED about other
  * entities keep their decision history and only lose the resolver reference.
@@ -71,6 +74,7 @@ import {
   PERSONA_SWITCH_AUDIT_ACTION_TYPE,
 } from './personaFactory';
 import type { PersonaSpec } from './personaFactory';
+import { clearStubPaymentLedger, stubPaymentLedgerDirBeside } from '../adapters/stubPaymentLedgerStore';
 import {
   FINANCE_DEMO_EVENT_ID,
   FINANCE_DEMO_EVENT_TAG_ID,
@@ -657,5 +661,9 @@ export function refreshAllPersonas(
     };
   });
 
-  return run();
+  const result = run();
+  // The stand-in provider starts over with the personas, after the rebuild
+  // commits, so no record from an earlier session outlives its test data.
+  if (!db.memory) clearStubPaymentLedger(stubPaymentLedgerDirBeside(db.name));
+  return result;
 }

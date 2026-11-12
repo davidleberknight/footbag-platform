@@ -1277,9 +1277,14 @@ section { margin-top: var(--space-2xl); }
   white-space: nowrap;
 }
 
+/* A suggested hashtag can be longer than a phone is wide (an event's full
+   name as one word), so it breaks inside its chip rather than widening the
+   page. */
 button.tag-suggestion {
   cursor: pointer;
   font-family: inherit;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 /* Editable tag filter: two chip inputs (include / exclude) that defer to one

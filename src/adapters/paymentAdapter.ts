@@ -19,13 +19,13 @@
  * implementations identically.
  */
 import { randomUUID } from 'node:crypto';
-import * as path from 'node:path';
 import Stripe from 'stripe';
 import { config } from '../config/env';
 import { verifyStripeWebhook, signStripeWebhook } from './stripeWebhook';
 import {
   createDirectoryLedgerStore,
   createMemoryLedgerStore,
+  stubPaymentLedgerDirFor,
   tableAsReadonlyMap,
 } from './stubPaymentLedgerStore';
 import {
@@ -2026,12 +2026,10 @@ export function getPaymentAdapter(): PaymentAdapter {
 /**
  * The stub provider's shared ledger sits beside the database, in the directory
  * the web and worker containers both mount, so every process of one stack reads
- * the same provider. Under the test runner each test file owns its stub and
- * starts empty, so the ledger stays in memory there.
+ * the same provider; the test runner and production keep it in memory.
  */
 export function stubPaymentLedgerDir(): string | null {
-  if (config.isTestRunner) return null;
-  return path.join(path.dirname(config.dbPath), 'stub-payment-provider');
+  return stubPaymentLedgerDirFor(config);
 }
 
 /** Exposes the in-memory stub for test inspection. Null unless PAYMENT_ADAPTER=stub. */

@@ -12,6 +12,7 @@ import { CANONICAL_PERSONAS } from './canonicalPersonas';
 import { seedPersona } from './personaFactory';
 import { financeDemoMemberIds } from './financeDemoSeed';
 import { SEEDED_PERSONA_MEMBER_ID_PREFIX } from '../lib/personaGuards';
+import { clearStubPaymentLedger, stubPaymentLedgerDirBeside } from '../adapters/stubPaymentLedgerStore';
 
 /** What one seed pass did, for the caller to report and for tests to assert. */
 export interface SeedPersonasResult {
@@ -143,6 +144,13 @@ export function seedPersonas(
   )
     .filter((r) => !catalogIds.has(r.id))
     .map((r) => r.slug);
+
+  // A seed that loaded personas starts the stand-in provider over with them,
+  // so no record from an earlier session outlives its test data. A seed that
+  // created nothing reloaded nothing, and leaves the provider alone.
+  if (createdSlugs.length > 0 && !db.memory) {
+    clearStubPaymentLedger(stubPaymentLedgerDirBeside(db.name));
+  }
 
   return { created, createdSlugs, healed, skipped, skippedBlocked, orphanSlugs, failedSlugs };
 }

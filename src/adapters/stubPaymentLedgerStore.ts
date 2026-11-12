@@ -14,6 +14,11 @@
  * The memory store serves the test runner, where each test file owns its stub
  * and nothing crosses a process. Both stores keep insertion order and keep a
  * record's place when it is overwritten, as a Map does.
+ *
+ * The shared ledger is test tooling for development and staging. Every reload
+ * of persona data empties it, and production never writes it: there the stub
+ * keeps its records in memory, because a file on a production host would hold
+ * member ids outside the database backup and outside account erasure.
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -125,6 +130,39 @@ export function createDirectoryLedgerStore(dir: string): StubLedgerStore {
       };
     },
   };
+}
+
+/** Where a stack's shared ledger lives: beside its database, in the directory
+ *  the web and worker containers both mount. */
+export function stubPaymentLedgerDirBeside(dbPath: string): string {
+  return path.join(path.dirname(dbPath), 'stub-payment-provider');
+}
+
+/** Whether a process keeps the shared ledger on disk, and where. The test
+ *  runner keeps it in memory, because each test file owns its stand-in.
+ *  Production keeps it in memory too: the ledger is development and staging
+ *  test tooling, and a file on a production host would hold member ids outside
+ *  the database backup and outside account erasure. */
+export function stubPaymentLedgerDirFor(env: {
+  isTestRunner: boolean;
+  footbagEnv: string | undefined;
+  dbPath: string;
+}): string | null {
+  if (env.isTestRunner || env.footbagEnv === 'production') return null;
+  return stubPaymentLedgerDirBeside(env.dbPath);
+}
+
+/** Empties the shared ledger. A reload of persona data starts the stand-in
+ *  provider over, so no record outlives the test data it belonged to. The
+ *  table directories stay: a running web or worker process lists them on every
+ *  read and writes into them, so removing them would break the live stack. */
+export function clearStubPaymentLedger(dir: string): void {
+  if (!fs.existsSync(dir)) return;
+  for (const kind of fs.readdirSync(dir)) {
+    const tableDir = path.join(dir, kind);
+    if (!fs.statSync(tableDir).isDirectory()) continue;
+    for (const name of fs.readdirSync(tableDir)) fs.rmSync(path.join(tableDir, name), { force: true });
+  }
 }
 
 /** A read-only Map view over one table, for callers that read the stub's

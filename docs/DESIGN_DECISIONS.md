@@ -4754,7 +4754,7 @@ Rationale:
 
 - High-fidelity option: Real AWS services validate actual integration behavior, email rendering, and secrets management before staging deployment.
 
-- Flexible development: Contributors choose appropriate testing level based on what they're working on (frontend changes use stubs; payment work uses the programmable in-memory Stripe stub, because the live payment SDK boots only on production).
+- Flexible development: Contributors choose appropriate testing level based on what they're working on (frontend changes use stubs; payment work uses the programmable Stripe stub, whose provider records sit in one ledger beside the database that every process of the stack reads, because the live payment SDK boots only on production).
 
 AWS Credentials:
 
