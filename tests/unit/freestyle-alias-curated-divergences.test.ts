@@ -19,7 +19,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { getAboutNamingNote } from '../../src/content/freestyleAboutDerivatives';
+import { getAboutNamingNote } from '../../freestyle/inputs/curator_content/freestyleAboutDerivatives';
 
 const REPO_ROOT = join(__dirname, '..', '..');
 const OVERRIDES = join(REPO_ROOT, 'freestyle', 'inputs', 'base_dictionary', 'alias_overrides.csv');

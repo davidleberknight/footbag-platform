@@ -57,9 +57,8 @@ beforeAll(async () => {
     { slug: 'ducking_toe_stall', canonical_name: 'ducking toe stall', adds: '2', base_trick: 'toe-stall', trick_family: 'toe-stall', category: 'compound', notation: 'DUCKING TOE STALL', operational_notation: 'TOE > DUCK [BOD] > OP TOE [DEL]', review_status: 'expert_reviewed', is_active: 1 },
     { slug: 'atomic_illusion', canonical_name: 'atomic illusion', adds: '3', base_trick: 'illusion', trick_family: 'illusion', category: 'compound', notation: 'ATOMIC ILLUSION', operational_notation: 'TOE > OP OUT [DEX] > OP OUT [DEX] > OP TOE [DEL]', review_status: 'expert_reviewed', is_active: 1 },
     { slug: 'spinning_paradox_mirage', canonical_name: 'spinning paradox mirage', adds: '4', base_trick: 'mirage', trick_family: 'mirage', category: 'compound', notation: 'SPINNING PARADOX MIRAGE', operational_notation: 'CLIP > (back) SPIN [BOD] > OP IN [PDX] [DEX] > OP TOE [DEL]', review_status: 'expert_reviewed', is_active: 1 },
-    // mobius is in freestyleSymbolicEquivalences.ts → gets a tokenizedEquivalence
-    // (≡) reading AND has operational notation. The normalization contract
-    // requires BOTH to render (not either/or).
+    // mobius has operational notation and displayed nicknames, which must both
+    // render on its row.
     { slug: 'mobius', canonical_name: 'mobius', adds: '5', base_trick: 'mobius', trick_family: 'torque', category: 'compound', notation: 'MOBIUS', operational_notation: 'CLIP >> (back) SPIN [BOD] >> SAME IN [DEX] > (front) SPIN [BOD] > OP CLIP [XBD] [DEL]', aliases_json: '["möbius","moebius","gyro torque","toe mobius"]', review_status: 'expert_reviewed', is_active: 1 },
   ];
   for (const t of tricks) insertFreestyleTrick(db, t);
@@ -237,9 +236,7 @@ describe('/freestyle/observational — Emerging Vocabulary copy + source chips',
 });
 
 // A trick's nicknames ride inline beside its name on the row, each in quotes.
-// An alias that duplicates a ≡ reading is filtered so the same phrase never
-// appears in both places.
-describe('/freestyle/tricks — nicknames beside the name, separate from ≡ readings', () => {
+describe('/freestyle/tricks — nicknames beside the name', () => {
   function mobiusRow(text: string): string {
     const start = text.indexOf('data-trick-slug="mobius"');
     return start === -1 ? '' : text.slice(start, text.indexOf('</article>', start));
@@ -251,15 +248,5 @@ describe('/freestyle/tricks — nicknames beside the name, separate from ≡ rea
     expect(row).toContain('class="dict-trick-row-nicknames"');
     expect(row).toContain('möbius');
     expect(row).toContain('toe mobius');
-  });
-
-  it('omits a nickname that duplicates the ≡ reading (gyro torque)', async () => {
-    const res = await getPage('/freestyle/tricks?view=add');
-    const row = mobiusRow(res.text);
-    // mobius's ≡ reading IS "gyro torque"; the identical alias must not repeat
-    // as a nickname beside the name.
-    const nicknames = row.match(/class="dict-trick-row-nicknames">([\s\S]*?)<\/span>/)?.[1] ?? '';
-    expect(nicknames).toContain('möbius');
-    expect(nicknames).not.toContain('gyro torque');
   });
 });

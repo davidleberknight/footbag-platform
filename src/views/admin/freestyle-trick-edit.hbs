@@ -103,6 +103,43 @@
           <label for="trick-operationalNotationSource">Execution-notation source</label>
           <textarea id="trick-operationalNotationSource" name="operationalNotationSource" rows="2">{{content.fields.operationalNotationSource}}</textarea>
         </div>
+        <div class="form-field">
+          <label for="trick-aboutDerivatives">Derivatives note</label>
+          <textarea id="trick-aboutDerivatives" name="aboutDerivatives" rows="2" aria-describedby="trick-aboutDerivatives-hint">{{content.fields.aboutDerivatives}}</textarea>
+          <small id="trick-aboutDerivatives-hint" class="form-hint">One line naming the trick's major higher-ADD derivatives, shown in the page's opening.</small>
+        </div>
+        <div class="form-field">
+          <label for="trick-aboutNamingNote">Naming note</label>
+          <textarea id="trick-aboutNamingNote" name="aboutNamingNote" rows="2" aria-describedby="trick-aboutNamingNote-hint">{{content.fields.aboutNamingNote}}</textarea>
+          <small id="trick-aboutNamingNote-hint" class="form-hint">Why a community name is kept out of the alias line, shown in the page's opening.</small>
+        </div>
+        <div class="form-field">
+          <label for="trick-reversePairBase">Reverse of</label>
+          <input type="text" id="trick-reversePairBase" name="reversePairBase" value="{{content.fields.reversePairBase}}" aria-describedby="trick-reversePairBase-hint" />
+          <small id="trick-reversePairBase-hint" class="form-hint">The slug of the trick this one reverses. The page then shows the rev(0) formula. Leave empty for none.</small>
+        </div>
+        <div class="form-field">
+          <label for="trick-familyOverride">Public family</label>
+          <input type="text" id="trick-familyOverride" name="familyOverride" value="{{content.fields.familyOverride}}" aria-describedby="trick-familyOverride-hint" />
+          <small id="trick-familyOverride-hint" class="form-hint">The public family slug the browse and the trick page file this trick under, when it differs from the trick family. Leave empty to use the trick family.</small>
+        </div>
+        <div class="form-field">
+          <label for="trick-trickKind">Kind</label>
+          <select id="trick-trickKind" name="trickKind" aria-describedby="trick-trickKind-hint">
+            {{#each content.trickKindOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
+          </select>
+          <small id="trick-trickKind-hint" class="form-hint">Only a trick is listed in the trick browse.</small>
+        </div>
+        <div class="form-field">
+          <label for="trick-terminalCohort">Lands in</label>
+          <input type="text" id="trick-terminalCohort" name="terminalCohort" value="{{content.fields.terminalCohort}}" aria-describedby="trick-terminalCohort-hint" />
+          <small id="trick-terminalCohort-hint" class="form-hint">The slug of the terminal trick whose "Tricks that land here" list names this trick. Leave empty for none.</small>
+        </div>
+        <div class="form-field">
+          <label for="trick-terminalCohortPosition">Position in that list</label>
+          <input type="text" id="trick-terminalCohortPosition" name="terminalCohortPosition" value="{{content.fields.terminalCohortPosition}}" aria-describedby="trick-terminalCohortPosition-hint" />
+          <small id="trick-terminalCohortPosition-hint" class="form-hint">A whole number from 1, set together with the terminal trick.</small>
+        </div>
       </fieldset>
       <div class="form-actions">
         <button type="submit" class="btn btn-primary btn-sm">Save</button>

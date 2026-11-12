@@ -68,11 +68,11 @@ beforeAll(async () => {
 
   // ── Clipper-Stall lineage rows (family retired from the Family View) ───
   insertFreestyleTrick(db, { slug: 'clipper_stall',     canonical_name: 'Clipper Stall',     adds: '2', base_trick: 'clipper_stall', trick_family: 'clipper_stall', category: 'base' });
-  insertFreestyleTrick(db, { slug: 'drifter',           canonical_name: 'drifter',           adds: '3', base_trick: 'clipper_stall', trick_family: 'clipper_stall', category: 'compound', operational_notation: 'CLIP >> OP IN [DEX] > SAME CLIP [XBD] [DEL]' });
+  insertFreestyleTrick(db, { slug: 'drifter',           canonical_name: 'drifter',           adds: '3', base_trick: 'clipper_stall', trick_family: 'clipper_stall', category: 'compound', operational_notation: 'CLIP >> OP IN [DEX] > SAME CLIP [XBD] [DEL]', family_override: 'drifter' });
   insertFreestyleTrick(db, { slug: 'ducking_clipper',   canonical_name: 'ducking clipper',   adds: '3', base_trick: 'clipper_stall', trick_family: 'clipper_stall', category: 'compound' });
   insertFreestyleTrick(db, { slug: 'spinning_clipper',  canonical_name: 'spinning clipper',  adds: '3', base_trick: 'clipper_stall', trick_family: 'clipper_stall', category: 'compound' });
   insertFreestyleTrick(db, { slug: 'reaper',            canonical_name: 'reaper',            adds: '3', base_trick: 'clipper_stall', trick_family: 'clipper_stall', category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'high_plains_drifter', canonical_name: 'high-plains-drifter', adds: '4', base_trick: 'clipper_stall', trick_family: 'clipper_stall', category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'high_plains_drifter', canonical_name: 'high-plains-drifter', adds: '4', base_trick: 'clipper_stall', trick_family: 'clipper_stall', category: 'compound', family_override: 'drifter' });
 
   // ── Drifter-family branch ──────────────────────────────────────────────
   insertFreestyleTrick(db, { slug: 'paradox_drifter', canonical_name: 'paradox drifter', adds: '4', base_trick: 'drifter', trick_family: 'drifter', category: 'compound' });

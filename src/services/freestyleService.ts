@@ -100,6 +100,9 @@ import {
   observationalNotesFor,
   operatorCrossLinkFor,
   baseAtomCrossLinkFor,
+  trickKindOf,
+  rawFamilyOf,
+  effectiveFamilyOf,
 } from './freestyleRelatedTricks';
 import type { FreestyleStructuralRelative, FreestyleObservationalNote } from './freestyleRelatedTricks';
 import { movementNeighborsFor } from './freestyleMovementNeighbors';
@@ -133,7 +136,6 @@ import {
   CORE_TRICK_SPEC,
 } from '../content/freestyleLandingContent';
 import { HISTORY_NARRATIVE, type HistoryNarrative } from '../content/freestyleHistoryNarrative';
-import { TERMINAL_DERIVED_COHORTS } from '../content/freestyleTerminalCohorts';
 import { loadSiteVideo, loadSiteVideoMedia } from './siteMediaService';
 import {
   CORE_ATOM_EDUCATIONAL,
@@ -141,20 +143,8 @@ import {
 import { GLOSSARY_CORE_CONCEPTS_BY_KEY } from '../content/freestyleGlossaryCoreConcepts';
 import { GLOSSARY_TERMS, type GlossaryTerm } from '../content/freestyleGlossaryTerms';
 import {
-  getSymbolicEquivalenceChain,
-} from '../content/freestyleSymbolicEquivalences';
-import {
-  FreestyleTrickKind,
-  resolveTrickKind,
-} from '../content/freestyleTrickKindOverrides';
-import {
   getFamilyInvariant,
 } from '../content/freestyleFamilyInvariants';
-import {
-  resolveFamilyOverride,
-  resolveFamilyDisplayName,
-  resolveFamilyDualMemberships,
-} from '../content/freestyleFamilyOverrides';
 import {
   PUBLIC_DISPLAY_FAMILIES,
   resolveDisplayFamily,
@@ -185,14 +175,11 @@ import {
 import { COMPETITION_FORMATS } from '../content/freestyleCompetitionFormats';
 import { UPTIME_REINTERPRETATION_LADDERS } from '../content/freestyleCompositionalSets';
 import {
-  getCompoundSemanticDescription,
   isDescriptionRedundantWithNotation,
   isDescriptionStructuralPlaceholder,
-  getReversePairTransform,
   REV_ZERO_EXPLAINER,
 } from '../content/freestyleSemanticOverrides';
 import { getSectionSubtitles, type DetailSectionKey } from '../content/freestyleSectionSubtitles';
-import { getAboutDerivatives, getAboutNamingNote } from '../content/freestyleAboutDerivatives';
 import {
   FREESTYLE_ADD_ANALYSIS_CONTENT,
   type AddAnalysisContent,
@@ -601,7 +588,7 @@ const MODIFIER_SET_SYSTEM_SLUGS: ReadonlySet<string> = new Set([
 ]);
 
 // Compute the five histogram cards from the already-loaded trick rows + the
-// modifier-link feed. Trick-kind population only (resolveTrickKind === 'trick'),
+// modifier-link feed. Trick-kind population only (the row's kind is 'trick'),
 // so the counts match the dictionary browse views the cards link into.
 // A body primitive that is its own base (the hop-over) is not a dex sequence, so
 // empty operational_notation means zero dexterity events, not an unknown/pending
@@ -629,7 +616,7 @@ function buildFreestyleByNumbers(
   linkRows: readonly FreestyleTrickModifierLinkRow[],
   familyHistogram: readonly TopologyHistogramRow[],
 ): { cards: FreestyleByNumbersCard[]; note: string } {
-  const tricks = trickRows.filter(r => resolveTrickKind(r.slug) === 'trick');
+  const tricks = trickRows.filter(r => trickKindOf(r) === 'trick');
   const N = Math.max(1, tricks.length);   // uniform denominator: the trick-kind total
   const inc = <K>(m: Map<K, number>, k: K) => m.set(k, (m.get(k) ?? 0) + 1);
 
@@ -1336,10 +1323,10 @@ export interface FreestyleTrickContent {
   // filler). Source: freestyleSectionSubtitles.ts.
   sectionSubtitles: Record<DetailSectionKey, string | null>;
   // Curator-authored "About" derivatives line, rendered after the build chain;
-  // null when no entry. Source: freestyleAboutDerivatives.ts.
+  // null when the trick's about_derivatives column is empty.
   aboutDerivatives: string | null;
   // Curator naming note for a community name the alias line leaves out; null
-  // when no entry. Same source as aboutDerivatives.
+  // when the trick's about_naming_note column is empty.
   aboutNamingNote: string | null;
   // Operational notation block. Renders in the
   // "Set notation (operational)" section between semantic notation and
@@ -1915,12 +1902,6 @@ export interface FreestyleAddLineageBand {
 // ─────────────────────────────────────────────────────────────────────────
 
 export interface DictionaryTrickCard {
-  // Structural-role discriminator. Only `kind === 'trick'` rows appear on
-  // the trick-browse surfaces (ADD / family / category / component /
-  // topology). Modifiers / operators / surfaces have their own homes; never
-  // mixed into the trick-difficulty ladder. Kind overrides live in
-  // freestyleTrickKindOverrides.ts.
-  kind:                       FreestyleTrickKind;
   slug:                       string;
   hashtag:                    string;                        // '#' + slug (underscored)
   // Media-gallery destination for the hashtag, /media/browse?context=<slug>,
@@ -4558,15 +4539,9 @@ function byCanonicalNameAlpha(a: { canonicalName: string }, b: { canonicalName: 
 // data (already loaded by the dictionary builder) and produces the slim
 // card view-model.
 //
-// Symbolic-equivalence layer (Canonical-Surface-Realignment S1+S3):
-//   - Compound tricks: readings come from freestyleSymbolicEquivalences.ts
-//     (curator-authored multi-reading chains; stopping-depth-aware).
-//   - An alias is never a reading: aliases render only on the "Also called"
-//     line below, gated by their own display flag.
-//
-// `commonAliases` is a separate layer: the folk names / spelling variants for
-// the "Also called:" line, distinct from the ≡ readings above it. See its
-// derivation below for the prune rules that keep the two from overlapping.
+// `commonAliases` carries the folk names / spelling variants for the
+// "Also called:" line, gated by each alias's own display flag. See its
+// derivation below for the prune rules.
 // ─────────────────────────────────────────────────────────────────────────
 // ADD-view line-2 formula derivation. Priority: curator RESOLVED_FORMULAS
 // → atomic flag decomposition → mechanical modifier-link derivation
@@ -4629,36 +4604,13 @@ function shapeDictionaryTrickCard(
       }
     : null;
 
-  // Merge equivalence readings from the curator chain registry (compounds)
-  // and the alias-governance allow-list (atoms). Order: compound chains
-  // first (when present), then atom-level allow-listed aliases.
-  //
-  // Tautological-reading filter (universal): drop any reading whose case-insensitive
-  // trimmed form equals the canonical name, regardless of first-class
-  // status. Examples it drops: "double around the
-  // world" ≡ on the DATW card, "reverse whirl" ≡ on rev-whirl. Curator-
-  // locked non-tautological folk-name readings (ripwalk → "stepping
-  // butterfly", torque → "quantum osis") survive this filter unchanged —
-  // they ARE genuine human-readable compound interpretations the user wants
-  // visible. (Drifter and DLO readings are held for curator review, so they
-  // carry no folk-name reading here.)
-  const canonicalLowerForFilter = indexRow.canonicalName.toLowerCase().trim();
-  const chain                = getSymbolicEquivalenceChain(indexRow.slug);
-  const chainReadingsRaw     = chain ? [...chain.readings] : [];
-  const chainReadings        = chainReadingsRaw.filter(
-    r => r.toLowerCase().trim() !== canonicalLowerForFilter,
-  );
-  const symbolicEquivalences = chainReadings;
-
   // "Also called" — folk names, spelling variants, and common aliases for the
-  // card's second info line, kept separate from the structural ≡ readings above
-  // so the two never blur together. Sourced from the displayed alias set (an
-  // alias held out of display never reaches it), then pruned so a name never
-  // appears twice and noise stays out: drop anything already shown as a ≡
-  // reading, parenthetical notes, and an alias that merely re-states the trick's
-  // own name with different spacing or hyphenation (orthographic noise). Genuine
-  // spelling variants (e.g. a diacritic form) survive. De-duped case-insensitively.
-  const equivReadingsLower = new Set(symbolicEquivalences.map(e => e.toLowerCase().trim()));
+  // card's second info line. Sourced from the displayed alias set (an alias held
+  // out of display never reaches it), then pruned so a name never appears twice
+  // and noise stays out: drop parenthetical notes, and an alias that merely
+  // re-states the trick's own name with different spacing or hyphenation
+  // (orthographic noise). Genuine spelling variants (e.g. a diacritic form)
+  // survive. De-duped case-insensitively.
   const stripOrthographic  = (s: string) => s.toLowerCase().replace(/[\s\-_]+/g, '');
   const canonicalStripped  = stripOrthographic(indexRow.canonicalName);
   const slugStripped       = stripOrthographic(indexRow.slug);
@@ -4668,7 +4620,6 @@ function shapeDictionaryTrickCard(
     const norm = alias.toLowerCase().trim();
     if (!norm || alsoCalledSeen.has(norm)) continue;
     if (alias.includes('(') || alias.includes(')')) continue;
-    if (equivReadingsLower.has(norm)) continue;
     const stripped = stripOrthographic(alias);
     if (stripped === canonicalStripped || stripped === slugStripped) continue;
     alsoCalledSeen.add(norm);
@@ -4706,7 +4657,6 @@ function shapeDictionaryTrickCard(
   }
 
   return {
-    kind:                       resolveTrickKind(indexRow.slug),
     slug:                       indexRow.slug,
     hashtag:                    indexRow.hashtag,
     hashtagHref:                hasLinkableMediaCoverage(indexRow.mediaCoverage) ? galleryHrefForTrick(indexRow.slug) : null,
@@ -4921,8 +4871,8 @@ function buildOperatorRungLookup(
 
 // Family-view bucketing, multi-membership-aware. Only `kind === 'trick'`
 // rows enter (modifiers, set operators, and catch surfaces have their own
-// homes). Curator-authored family overrides re-bucket specific rows out of
-// their DB trick_family value (freestyleFamilyOverrides.ts). Resolution maps
+// homes). A curator family override (the family_override column) re-buckets a
+// row out of its trick_family value. Resolution maps
 // each raw label to the public family it renders under: the roster families
 // resolve to themselves; sub-labels fold to the family whose terminal they
 // conserve; everything else (catch surfaces, modifier ecosystems, sparse
@@ -4932,12 +4882,11 @@ function buildOperatorRungLookup(
 // both buckets. A roster root with no direct member rows (the Down family,
 // whose members all carry a variant-branch trick_family) aggregates the
 // union of its branches' members. No trick_family data is overwritten.
-function buildFamilyMembershipMap<T extends { slug: string; trick_family: string | null }>(
+function buildFamilyMembershipMap<T extends {
+  slug: string; trick_family: string | null; family_override: string | null; trick_kind: string | null;
+}>(
   activeRows: T[],
 ): Map<string, T[]> {
-  const familyOf = (row: T): string | null =>
-    resolveFamilyOverride(row.slug) ?? row.trick_family;
-
   const familyMap = new Map<string, T[]>();
   const addMembership = (families: string[], slug: string): void => {
     for (const f of familyWithAncestors(slug)) {
@@ -4945,15 +4894,11 @@ function buildFamilyMembershipMap<T extends { slug: string; trick_family: string
     }
   };
   for (const row of activeRows) {
-    if (resolveTrickKind(row.slug) !== 'trick') continue;
-    const rawFamily = familyOf(row);
+    if (trickKindOf(row) !== 'trick') continue;
+    const rawFamily = rawFamilyOf(row);
     const families: string[] = [];
     const primaryFamily = rawFamily ? resolveDisplayFamily(rawFamily) : null;
     if (primaryFamily) addMembership(families, primaryFamily);
-    for (const extra of resolveFamilyDualMemberships(row.slug)) {
-      const resolved = resolveDisplayFamily(extra);
-      if (resolved) addMembership(families, resolved);
-    }
     for (const fslug of families) {
       const bucket = familyMap.get(fslug) ?? [];
       bucket.push(row);
@@ -5069,11 +5014,9 @@ function buildFamilyGroup(
   // underline at render time).
   const cards   = sorted.map((r, i) => shapeDictionaryTrickCard(r, members[i]!));
   // Display name resolution: the curated public-family label wins
-  // (e.g. 'double-leg-over' → 'Double Legover'); then the curator override;
-  // otherwise default capitalize.
+  // (e.g. 'double-leg-over' → 'Double Legover'); otherwise default capitalize.
   const familyName =
     PUBLIC_FAMILY_LABEL.get(familySlug)
-    ?? resolveFamilyDisplayName(familySlug)
     ?? (familySlug.charAt(0).toUpperCase() + familySlug.slice(1));
   // Partition the (already rung-sorted) cards into operator-rung bands.
   // Cards are sorted rung-ascending, so each band is contiguous. The 3+
@@ -5181,16 +5124,12 @@ function shapeDictEntry(
   const addsNumeric = row.adds ? parseInt(row.adds, 10) : null;
 
   // Part 1 — description refinement.
-  // Three branches, in priority order:
-  //   1. Curator-authored compound semantic description (override) —
-  //      replaces a literal-notation echo with a compositional reading.
-  //   2. Redundant DB description (literal JOB-notation echo) — suppress.
+  // Two branches, in priority order:
+  //   1. Redundant DB description (literal JOB-notation echo) — suppress.
   //      Primitive trick pages stop rendering the "About" prose block
   //      when the description merely repeats the notation below.
-  //   3. Genuine curator prose — pass through unchanged.
+  //   2. Genuine curator prose — pass through unchanged.
   const refinedDescription = (() => {
-    const override = getCompoundSemanticDescription(row.slug);
-    if (override !== null) return override;
     if (isDescriptionRedundantWithNotation(row.description, row.notation)) return null;
     // Suppress structural-placeholder backfills (JOB-notation echoes, bracket
     // tokens, ADD-arithmetic shorthand) that belong in the notation and ADD
@@ -6098,12 +6037,9 @@ export const freestyleService = {
     // family-context block suppresses rather than presenting a misleading
     // "<label> family". The same per-row resolution the browse uses builds the
     // folded-lineage member list, so a family and its folded sub-labels show a
-    // consistent ladder. No trick_family data is overwritten; resolution is the
-    // reversible content map.
-    const familyOfRow = (r: { slug: string; trick_family: string | null }): string | null => {
-      const raw = resolveFamilyOverride(r.slug) ?? r.trick_family;
-      return raw ? resolveDisplayFamily(raw) : null;
-    };
+    // consistent ladder. The family override column takes precedence over
+    // trick_family, which is never overwritten.
+    const familyOfRow = effectiveFamilyOf;
     const effectiveFamilySlug = dictRow ? familyOfRow(dictRow) : null;
 
     // Build family members list for difficulty ladder
@@ -6252,12 +6188,10 @@ export const freestyleService = {
         const familySlug = effectiveFamilySlug;
         const familyName = familySlug
           ? (PUBLIC_FAMILY_LABEL.get(familySlug)
-             ?? resolveFamilyDisplayName(familySlug)
              ?? (familySlug.charAt(0).toUpperCase() + familySlug.slice(1).replace(/[-_]/g, ' ')))
           : null;
         // Families beyond the primary one: branch->root containment (a branch
-        // family's parent root, via familyWithAncestors) plus curator
-        // dual-memberships. Lets a multi-family trick (e.g. a torque-family
+        // family's parent root, via familyWithAncestors). Lets a multi-family trick (e.g. a torque-family
         // trick, also an osis member) echo on its own page what By-family browse
         // already shows.
         // Family display tier (current editorial standard, reversible): a Minor
@@ -6268,14 +6202,10 @@ export const freestyleService = {
 
         const additionalFamilies: { label: string; slug: string; isMinorLineage: boolean; href: string }[] = (() => {
           if (!effectiveFamilySlug) return [];
-          const extras = new Set<string>([
-            ...familyWithAncestors(effectiveFamilySlug),
-            ...resolveFamilyDualMemberships(slug),
-          ]);
+          const extras = new Set<string>(familyWithAncestors(effectiveFamilySlug));
           extras.delete(effectiveFamilySlug);
           return [...extras].map(fam => {
             const label = PUBLIC_FAMILY_LABEL.get(fam)
-              ?? resolveFamilyDisplayName(fam)
               ?? (fam.charAt(0).toUpperCase() + fam.slice(1).replace(/[-_]/g, ' '));
             return { label: `${label} family`, slug: fam, isMinorLineage: familyIsMinorLineage(fam), href: `/freestyle/tricks?family=${encodeURIComponent(fam)}` };
           });
@@ -6444,16 +6374,12 @@ export const freestyleService = {
           // public family, the cross-family "what lands here" list. The Family
           // ladder owns terminals that ARE families, so the two never overlap.
           terminalDerived: ((): TerminalDerivedView | null => {
-            // allDictRows (listAll) is already is_active = 1, so a slug match is
-            // enough; an inactive or absent member simply drops out.
-            const cohort = TERMINAL_DERIVED_COHORTS.get(slug);
-            if (!cohort) return null;
-            const tricks = cohort.flatMap(s => {
-              const r = allDictRows.find(row => row.slug === s);
-              return r
-                ? [{ canonicalName: r.canonical_name, detailHref: `/freestyle/tricks/${r.slug}`, addLabel: `${r.adds} ADD` }]
-                : [];
-            });
+            // allDictRows (listAll) is already is_active = 1, so an inactive
+            // member simply drops out. The curated order is the position column.
+            const tricks = allDictRows
+              .filter(r => r.terminal_cohort === slug)
+              .sort((a, b) => (a.terminal_cohort_position ?? 0) - (b.terminal_cohort_position ?? 0))
+              .map(r => ({ canonicalName: r.canonical_name, detailHref: `/freestyle/tricks/${r.slug}`, addLabel: `${r.adds} ADD` }));
             return tricks.length ? { tricks } : null;
           })(),
           intuitionDelta: derivedDelta,
@@ -6502,8 +6428,8 @@ export const freestyleService = {
               )
             : null,
           sectionSubtitles: getSectionSubtitles(slug),
-          aboutDerivatives: getAboutDerivatives(slug),
-          aboutNamingNote:  getAboutNamingNote(slug),
+          aboutDerivatives: dictRow?.about_derivatives ?? null,
+          aboutNamingNote:  dictRow?.about_naming_note ?? null,
           notationDisplay: (() => {
             if (!dictRow) return null;
             // Rendering hygiene: when the Movement (JOB) string is byte-identical
@@ -6686,20 +6612,22 @@ export const freestyleService = {
             };
           })(),
           transform: (() => {
-            // Reverse-pair transform overlay. Populated only for the
-            // five curator-locked
-            // entries in REVERSE_PAIR_TRANSFORMS (illusion, pickup,
-            // rev-whirl, rev-swirl, orbit). See the content module
-            // for the forever-rule about scope.
-            const entry = getReversePairTransform(slug);
-            if (entry === null) return null;
+            // Reverse-pair formula: populated only for a trick whose curator
+            // has named the trick it reverses (reverse_pair_base). The formula
+            // writes the base in notation form, its slug with hyphens; the link
+            // carries the base's stored name, and the ADD is the base's own.
+            const baseSlug = dictRow?.reverse_pair_base ?? null;
+            if (!baseSlug) return null;
+            const base = allDictRows.find(r => r.slug === baseSlug);
+            const baseAdd = base?.adds != null ? Number.parseInt(base.adds, 10) : NaN;
+            if (!base || !Number.isFinite(baseAdd)) return null;
             return {
-              expression:    entry.expression,
-              baseSlug:      entry.baseSlug,
-              baseName:      entry.baseName,
-              baseHref:      `/freestyle/tricks/${entry.baseSlug}`,
-              baseAdd:       entry.baseAdd,
-              totalAdd:      entry.baseAdd,  // rev(0) is +0 ADD
+              expression:    `rev(0) + ${base.slug.replace(/_/g, '-')}`,
+              baseSlug:      base.slug,
+              baseName:      base.canonical_name,
+              baseHref:      `/freestyle/tricks/${base.slug}`,
+              baseAdd,
+              totalAdd:      baseAdd,  // rev(0) is +0 ADD
               rev0Explainer: REV_ZERO_EXPLAINER,
             };
           })(),
@@ -6727,7 +6655,6 @@ export const freestyleService = {
             // terminal family; only its anchor carries the callout.
             if (!getFamilyInvariant(effectiveFamilySlug)) return null;
             const familyName = PUBLIC_FAMILY_LABEL.get(effectiveFamilySlug)
-              ?? resolveFamilyDisplayName(effectiveFamilySlug)
               ?? (effectiveFamilySlug.charAt(0).toUpperCase()
                   + effectiveFamilySlug.slice(1).replace(/[-_]/g, ' '));
             return {
@@ -6923,7 +6850,7 @@ export const freestyleService = {
    * `view` selects the browse lens (family / category / topology / add / …) and
    * `family` narrows to a single family band. In the ADD view (`?view=add`) each
    * ADD tier sub-groups by the NEAREST public-family anchor — the same model the
-   * family view uses (`resolveFamilyOverride` then `trick_family`, resolved by
+   * family view uses (`family_override` then `trick_family`, resolved by
    * `resolveDisplayFamily`), not the top source-root ancestor — so branch anchors
    * own their tricks and no foundational surface (clipper-stall) or raw root ever
    * becomes a band; bands order by the canonical public-family order, and tricks
@@ -6968,10 +6895,9 @@ export const freestyleService = {
     // Only `kind === 'trick'`
     // rows surface on the five trick-browse views. Modifiers, set operators,
     // catch surfaces, and pending-review rows are routed to their own homes
-    // (operator board, /freestyle/sets, glossary §2). See
-    // src/content/freestyleTrickKindOverrides.ts.
-    const isTrickRow = (row: { slug: string }): boolean =>
-      resolveTrickKind(row.slug) === 'trick';
+    // (operator board, /freestyle/sets, glossary §2), by the row's trick_kind.
+    const isTrickRow = (row: { trick_kind: string | null }): boolean =>
+      trickKindOf(row) === 'trick';
 
     // ---- Family groups (preserved for ?view=family) -------------------
     //
@@ -7036,18 +6962,17 @@ export const freestyleService = {
       const sorted = entries.slice().sort((a, b) => byCanonicalNameAlpha(a.indexRow, b.indexRow));
       const cardOf = (e: AddBucketEntry) => shapeDictionaryTrickCard(e.row, e.indexRow);
       // Group each entry under its NEAREST public family, using the same
-      // nearest-anchor model the Family view uses: FAMILY_OVERRIDES, then the
+      // nearest-anchor model the Family view uses: the family override, then the
       // DB trick_family, resolved by resolveDisplayFamily. NO walk to the root
       // ancestor, so torque/blender band under Torque/Blender (not Osis) and
       // drifter members under Drifter. A trick whose family is not a public
       // parent / minor lineage (e.g. the clipper-stall surface) is not a public
       // group; it collects in a trailing "Other / standalone tricks" band.
       const familyOf = (row: FreestyleTrickRowWithStatus): { slug: string; label: string } => {
-        const raw = (resolveFamilyOverride(row.slug) ?? row.trick_family ?? '').trim();
+        const raw = (rawFamilyOf(row) ?? '').trim();
         const fam = raw ? resolveDisplayFamily(raw) : null;
         if (!fam) return { slug: 'other', label: 'Other / standalone tricks' };
         const label = PUBLIC_FAMILY_LABEL.get(fam)
-          ?? resolveFamilyDisplayName(fam)
           ?? (fam.charAt(0).toUpperCase() + fam.slice(1));
         return { slug: fam, label };
       };
@@ -7465,7 +7390,6 @@ export const freestyleService = {
     // and difficulty vary. Null unless a family filter is active.
     const activeFamilyName = activeFamily
       ? (PUBLIC_FAMILY_LABEL.get(activeFamily)
-          ?? resolveFamilyDisplayName(activeFamily)
           ?? (activeFamily.charAt(0).toUpperCase() + activeFamily.slice(1).replace(/[-_]/g, ' ')))
       : null;
     const familyFilterIntro = activeFamily && activeFamilyName
@@ -8520,7 +8444,6 @@ export const freestyleService = {
 
     const displayName =
       PUBLIC_FAMILY_LABEL.get(slug)
-      ?? resolveFamilyDisplayName(slug)
       ?? (slug.charAt(0).toUpperCase() + slug.slice(1));
     // Indefinite article for the "What is a/an <Name>?" heading: vowel-initial
     // family names (Illusion, Osis) read "an", everything else "a".
@@ -8575,7 +8498,6 @@ export const freestyleService = {
 
     const familyLabelOf = (s: string): string =>
       PUBLIC_FAMILY_LABEL.get(s)
-      ?? resolveFamilyDisplayName(s)
       ?? (s.charAt(0).toUpperCase() + s.slice(1).replace(/[-_]/g, ' '));
     // A sibling that is itself a first-class Family Parent links to its own
     // page; anything else stays on the family-filtered dictionary.

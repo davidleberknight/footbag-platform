@@ -61,14 +61,14 @@ beforeAll(async () => {
     review_status: 'expert_reviewed', is_active: 1,
   });
 
-  // rev-whirl is a curator-locked rev(0)-paired entry — its detail page
-  // renders the ALT row via trick-transform.hbs. Positive-control case.
+  // rev-whirl reverses whirl — its detail page renders the ALT row via
+  // trick-transform.hbs. Positive-control case.
   insertFreestyleTrick(db, {
     slug: 'rev_whirl', canonical_name: 'rev whirl', adds: '3',
     base_trick: 'whirl', trick_family: 'whirl', category: 'compound',
     notation: 'REV WHIRL',
     operational_notation: 'CLIP > OP OUT [DEX] > OP CLIP [XBD] [DEL]',
-    review_status: 'expert_reviewed', is_active: 1,
+    review_status: 'expert_reviewed', is_active: 1, reverse_pair_base: 'whirl',
   });
 
   db.close();

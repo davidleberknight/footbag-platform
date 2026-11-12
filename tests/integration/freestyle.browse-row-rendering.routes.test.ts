@@ -12,7 +12,7 @@
  *   - ripwalk     — compound with aliases
  *   - mobius      — compound with folk-name alias (gyro torque)
  *   - montage     — flagship deep compound
- *   - torque      — null operational notation but present in the equivalence chain registry
+ *   - torque      — null operational notation
  *
  * Invariants verified:
  *   - Every browse view returns 200 and renders the two-line row stack
@@ -139,11 +139,8 @@ beforeAll(async () => {
     operational_notation: null,
   });
 
-  // Fixture: a trick with NULL operational notation but PRESENT in the
-  // chain registry. Must render
-  // the ≡ readings without the "Notation pending" placeholder (the chain
-  // already carries the structural information).
-  // `torque` is in SYMBOLIC_EQUIVALENCE_CHAINS per src/content/freestyleSymbolicEquivalences.ts.
+  // Fixture: a trick with NULL operational notation. Its row must render
+  // without the "Notation pending" placeholder.
   insertFreestyleTrick(db, {
     slug:                 'torque',
     canonical_name:       'torque',

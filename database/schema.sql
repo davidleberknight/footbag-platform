@@ -5027,6 +5027,31 @@ CREATE TABLE freestyle_tricks (
   -- from the legacy footbag.org moves2 Pronunciation field, then curator-expanded.
   pronunciation        TEXT,
 
+  -- ── Curator-set facts that shape the trick page and the browse ────────────
+  -- Each is set by a curator on the trick's edit page; NULL is the ordinary
+  -- state and changes nothing.
+  about_derivatives    TEXT,                       -- one line naming the trick's major higher-ADD derivatives, in the page's opening; NULL = none shown
+  about_naming_note    TEXT,                       -- why a community name is kept out of the alias line, in the page's opening; NULL = none shown
+  -- The trick this one reverses, by slug. The page shows the reverse-pair
+  -- formula, rev(0) plus the base, with the base's own ADD and a link to it.
+  -- NULL = this trick is not shown as the reverse of another.
+  reverse_pair_base    TEXT,
+  -- The public family the browse and the trick page file this trick under,
+  -- when it differs from trick_family. It is a slug on the public family list.
+  -- trick_family keeps the structural grouping the family filter, related
+  -- tricks and family notes read; NULL = the public family is trick_family.
+  family_override      TEXT,
+  -- What the row is, where it is not a trick a browse should list: a modifier,
+  -- an operator, a catch surface, or a row whose role is still under review.
+  -- NULL = a trick, listed in the browse views.
+  trick_kind           TEXT
+    CHECK (trick_kind IS NULL OR trick_kind IN ('modifier', 'operator', 'surface', 'pending-review')),
+  -- The terminal trick whose "Tricks that land here" list names this trick, by
+  -- slug, and this trick's place in that curated list. The order is authored,
+  -- not derived. NULL = not in such a list.
+  terminal_cohort          TEXT,
+  terminal_cohort_position INTEGER CHECK (terminal_cohort_position IS NULL OR terminal_cohort_position >= 1),
+
   -- ── How this row's execution notation was arrived at ─────────────────────
   -- Copied from the ruling the trick was published from, so the claim travels
   -- with the artifact it describes and a published row can be audited without
@@ -5086,7 +5111,10 @@ CREATE TABLE freestyle_tricks (
   CHECK ((COALESCE(notation_derivation_method, '') = 'convention-derivation'
           AND notation_convention_id IS NOT NULL)
          OR (COALESCE(notation_derivation_method, '') <> 'convention-derivation'
-             AND notation_convention_id IS NULL))
+             AND notation_convention_id IS NULL)),
+
+  -- A place in a "Tricks that land here" list means nothing without the list.
+  CHECK ((terminal_cohort IS NULL) = (terminal_cohort_position IS NULL))
 );
 
 CREATE INDEX idx_freestyle_tricks_category      ON freestyle_tricks(category);

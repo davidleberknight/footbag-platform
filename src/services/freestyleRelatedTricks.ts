@@ -1,8 +1,21 @@
 import { FreestyleTrickRow } from '../db/db';
 import { slugToHashtag } from './freestyleRecordShaping';
-import { resolveTrickKind } from '../content/freestyleTrickKindOverrides';
-import { resolveFamilyOverride } from '../content/freestyleFamilyOverrides';
 import { resolveDisplayFamily } from '../content/freestylePublicFamilies';
+
+/**
+ * What a dictionary row is. Only a 'trick' lists in the trick browse; the rest
+ * have their own homes or are held back. A row with no stored kind is a trick.
+ */
+export type FreestyleTrickKind = 'trick' | 'modifier' | 'operator' | 'surface' | 'pending-review';
+
+export function trickKindOf(row: { trick_kind: string | null }): FreestyleTrickKind {
+  return (row.trick_kind as FreestyleTrickKind | null) ?? 'trick';
+}
+
+/** The family a row is filed under before folding: the curator override, else trick_family. */
+export function rawFamilyOf(row: { trick_family: string | null; family_override: string | null }): string | null {
+  return row.family_override ?? row.trick_family;
+}
 
 /**
  * Answers "does this trick have watchable media", for the panels that render a
@@ -460,7 +473,7 @@ export function buildRelativeSideVariants(
 // section to a fixed count. The section may show as few as zero relatives.
 //
 // Exclusions: the trick itself, inactive rows (callers pass the already-active
-// dictionary), operators / modifiers / pending-review rows (resolveTrickKind must
+// dictionary), operators / modifiers / pending-review rows (the row's kind must
 // be 'trick'), and alias objects (aliases are not rows in the trick table, so a
 // row-based ranker never surfaces one). Links are canonical detail URLs only.
 //
@@ -555,8 +568,8 @@ function humanizeSlug(slug: string): string {
  * a public family. This is the resolution the trick page's family ladder and the
  * family browse use, so a raw sub-label never splits a family in two.
  */
-export function effectiveFamilyOf(row: { slug: string; trick_family: string | null }): string | null {
-  const raw = resolveFamilyOverride(row.slug) ?? row.trick_family;
+export function effectiveFamilyOf(row: { trick_family: string | null; family_override: string | null }): string | null {
+  const raw = rawFamilyOf(row);
   return raw ? resolveDisplayFamily(raw) : null;
 }
 
@@ -567,7 +580,7 @@ export function effectiveFamilyOf(row: { slug: string; trick_family: string | nu
  * family, since then no ladder renders.
  */
 export function familyLadderSlugs(
-  current: { slug: string; trick_family: string | null },
+  current: { trick_family: string | null; family_override: string | null },
   allRows: readonly FreestyleTrickRow[],
 ): Set<string> {
   const family = effectiveFamilyOf(current);
@@ -629,7 +642,7 @@ export function buildStructuralRelatives(
     for (const { slug, reason } of curated) {
       const row = rowBySlug.get(slug);
       if (row && row.slug !== current.slug && !onLadder.has(row.slug)
-          && resolveTrickKind(row.slug) === 'trick') {
+          && trickKindOf(row) === 'trick') {
         out.push(shapeRelative(row, reason));
       }
       if (out.length >= STRUCTURAL_RELATIVE_MAX) break;
@@ -647,7 +660,7 @@ export function buildStructuralRelatives(
 
   const eligible = allRows.filter(
     r => r.slug !== current.slug && !onLadder.has(r.slug)
-      && r.category !== 'modifier' && resolveTrickKind(r.slug) === 'trick',
+      && r.category !== 'modifier' && trickKindOf(r) === 'trick',
   );
 
   const curAdd = current.adds == null ? 0 : Number.parseInt(current.adds, 10);

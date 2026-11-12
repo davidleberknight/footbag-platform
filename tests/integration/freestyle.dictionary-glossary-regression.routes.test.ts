@@ -192,9 +192,19 @@ beforeAll(async () => {
     is_active:            1,
   });
 
-  // Item 6 — illusion, a curator-locked rev(0) entry, so its detail page
-  // renders. Seeded here rather than inside its case, so every page this file
-  // reads through the shared cache sees the same rows.
+  // Item 6 — illusion, a rev(0) entry: it reverses mirage, whose own ADD the
+  // ALT row shows. Seeded here rather than inside its case, so every page this
+  // file reads through the shared cache sees the same rows.
+  insertFreestyleTrick(db, {
+    slug:                 'mirage',
+    canonical_name:       'mirage',
+    adds:                 '2',
+    base_trick:           'mirage',
+    trick_family:         'mirage',
+    category:             'dex',
+    review_status:        'expert_reviewed',
+    is_active:            1,
+  });
   insertFreestyleTrick(db, {
     slug:                 'illusion',
     canonical_name:       'illusion',
@@ -206,6 +216,7 @@ beforeAll(async () => {
     operational_notation: '[set] > illusion',
     review_status:        'expert_reviewed',
     is_active:            1,
+    reverse_pair_base:    'mirage',
   });
 
   db.close();
@@ -308,9 +319,8 @@ describe('Items 5 + 6 + 8: cloud_kick formula rows', () => {
 
 // ── Item 6 — ALT row ordering on a rev(0) entry ──────────────────────────
 describe('Item 6: ALT row appears after ADD on rev(0) entries', () => {
-  // illusion is one of the five curator-locked rev(0) entries, seeded in
-  // beforeAll; the ALT row comes from the resolved-formulas and
-  // REVERSE_PAIR_TRANSFORMS content modules.
+  // illusion is a rev(0) entry seeded in beforeAll; the ALT row comes from
+  // its reverse_pair_base and the base trick's own ADD.
   it('rev(0) appears in the ALT row, never in the ADD row', async () => {
     const res = await page('/freestyle/tricks/illusion');
     expect(res.status).toBe(200);

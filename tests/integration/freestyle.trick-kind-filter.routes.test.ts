@@ -5,8 +5,8 @@
  *
  *   freestyle_tricks mixes structural roles: true tricks, modifiers,
  *   set operators, catch surfaces. The four trick-browse surfaces
- *   (ADD / family / set / modifier) must render
- *   ONLY rows whose `resolveTrickKind(slug)` returns 'trick'.
+ *   (ADD / family / set / modifier) must render ONLY rows whose stored
+ *   trick_kind is empty, which is a trick.
  *
  * Why this matters: rows like `atomic`, `quantum`, `paradox` exist in
  * freestyle_tricks but are structurally primitives (set operators /
@@ -20,9 +20,9 @@
  * Tests verify:
  *   1. Each known modifier / operator / surface / pending-review slug
  *      is absent from each of the five views.
- *   2. A control trick (a true `kind === 'trick'` row) appears in the
- *      ADD view.
- *   3. The resolver helper itself returns the documented values.
+ *   2. A control trick (a row with no stored kind) appears in the ADD view,
+ *      and so do the rows whose category alone might look like a non-trick
+ *      (the dual-role sets, the Clipper Kick, a stall).
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { cachedGet } from '../fixtures/cachedGet';
@@ -34,18 +34,13 @@ import {
   importApp,
 } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
-import {
-  resolveTrickKind,
-} from '../../src/content/freestyleTrickKindOverrides';
 
 const { dbPath } = setTestEnv('3096');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 const page = cachedGet(() => createApp());
 
-// One representative slug per kind. Each must already be registered in
-// src/content/freestyleTrickKindOverrides.ts; the tests below treat that
-// module as the source of truth.
+// One representative slug per kind, each seeded with the kind it carries.
 const MODIFIER_SAMPLE   = 'paradox';
 const OPERATOR_SAMPLE   = 'atomic';
 const BODY_KICK_SAMPLE  = 'clipper';        // Clipper Kick: 1-ADD body kick, NOT filtered
@@ -64,8 +59,8 @@ beforeAll(async () => {
   const db = createTestDb(dbPath);
 
   // Seed one row of each kind. The category column on each row reflects
-  // the production DB's classification; the kind discriminator overrides
-  // it. Each row's `adds` is non-null so the row would otherwise pass
+  // the production DB's classification; the stored kind decides the browse.
+  // Each row's `adds` is non-null so the row would otherwise pass
   // through the (legacy) `adds !== 'modifier'` filter.
   insertFreestyleTrick(db, {
     slug:           MODIFIER_SAMPLE,
@@ -73,6 +68,7 @@ beforeAll(async () => {
     category:       'modifier',
     adds:           '1',
     is_active:      1,
+    trick_kind:     'modifier',
   });
   insertFreestyleTrick(db, {
     slug:           OPERATOR_SAMPLE,
@@ -80,6 +76,7 @@ beforeAll(async () => {
     category:       'set',
     adds:           '2',
     is_active:      1,
+    trick_kind:     'operator',
   });
   // Dual-role sets: category='set' like atomic, but each is also a trick in its
   // own right, so the kind layer keeps them in the trick browse.
@@ -116,6 +113,7 @@ beforeAll(async () => {
     category:       'compound',
     adds:           '2',
     is_active:      1,
+    trick_kind:     'pending-review',
   });
 
   // Control: a true trick (compound, ends in bag contact, structural depth).
@@ -154,64 +152,6 @@ beforeAll(async () => {
 });
 
 afterAll(() => cleanupTestDb(dbPath));
-
-describe('resolveTrickKind() — content module discriminator', () => {
-  it('classifies a body modifier as kind=modifier', () => {
-    expect(resolveTrickKind('paradox')).toBe('modifier');
-    expect(resolveTrickKind('spinning')).toBe('modifier');
-    expect(resolveTrickKind('ducking')).toBe('modifier');
-    expect(resolveTrickKind('symposium')).toBe('modifier');
-    // `spyro` (category='body' folk rotational descriptor) is modifier-only.
-    expect(resolveTrickKind('spyro')).toBe('modifier');
-  });
-
-  it('classifies the bare-name spinning kicks as kind=trick (kick-doctrine dual-role)', () => {
-    // #spin / #double-spin are historically-recognized bare-name kicks (kick
-    // implied) and are canonical first-class tricks, findable in the browse
-    // views. The spinning CONCEPT still acts as a modifier inside compounds
-    // via the separate `spinning` slug (asserted above) — dual-role, not a
-    // contradiction.
-    expect(resolveTrickKind('spin')).toBe('trick');
-    expect(resolveTrickKind('double-spin')).toBe('trick');
-  });
-
-  it('classifies set primitives as kind=operator', () => {
-    expect(resolveTrickKind('atomic')).toBe('operator');
-    expect(resolveTrickKind('quantum')).toBe('operator');
-    // 0-ADD set primitives stay operator-kind, not 0-ADD trick.
-    expect(resolveTrickKind('pogo')).toBe('operator');
-    expect(resolveTrickKind('rooted')).toBe('operator');
-  });
-
-  it('hides nothing at the kind layer as a bare surface name', () => {
-    // Surfaces are distinguished by the DB `category` field, not by kind.
-    // `clipper` (the Clipper Kick: category='body', 1 ADD) ends in bag
-    // contact and is a legitimate trick that renders in the ADD ladder.
-    expect(resolveTrickKind('clipper')).toBe('trick');
-  });
-
-  it('classifies legitimate stall primitives as kind=trick (NOT surface)', () => {
-    // Stall primitives end in bag contact; they pass the discriminating
-    // criterion for `kind='trick'` and surface in the ADD ladder as the
-    // simplest tricks. The future isSurface facet will add
-    // the glossary §2 cross-link without conflating with kind.
-    expect(resolveTrickKind('toe-stall')).toBe('trick');
-    expect(resolveTrickKind('clipper-stall')).toBe('trick');
-    expect(resolveTrickKind('cloud-stall')).toBe('trick');
-    expect(resolveTrickKind('inside-stall')).toBe('trick');
-  });
-
-  it('classifies curator-flagged ambiguities as kind=pending-review', () => {
-    expect(resolveTrickKind('surging')).toBe('pending-review');
-  });
-
-  it('defaults unknown slugs to kind=trick', () => {
-    expect(resolveTrickKind('ripwalk')).toBe('trick');
-    expect(resolveTrickKind('mobius')).toBe('trick');
-    expect(resolveTrickKind('whirl')).toBe('trick');
-    expect(resolveTrickKind('a-slug-that-doesnt-exist-anywhere')).toBe('trick');
-  });
-});
 
 describe('Trick-browse view filter — non-trick kinds excluded', () => {
   // The four trick-browse views. Each must omit modifier/operator/surface/

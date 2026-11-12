@@ -7,8 +7,8 @@
  * targets for decomposition and ADD math. Their public homes are the Set
  * Encyclopedia, the operator board, and the glossary; the trick browse views
  * must never present them as tricks, even when such a row is active and fully
- * notated. resolveTrickKind (src/content/freestyleTrickKindOverrides.ts) is
- * the guard; this suite pins it across every browse view so a future
+ * notated. The row's stored trick_kind is the guard; this suite pins it
+ * across every browse view so a future
  * activation of a set row (quantum is the canonical example) cannot leak it
  * into the canonical trick browse.
  */
@@ -51,14 +51,14 @@ beforeAll(async () => {
     slug: 'quantum', canonical_name: 'quantum', adds: '2',
     base_trick: 'quantum', trick_family: 'quantum', category: 'set',
     notation: 'QUANTUM', operational_notation: 'TOE > OP IN [DEX] > OP TOE [DEL]',
-    review_status: 'expert_reviewed', is_active: 1,
+    review_status: 'expert_reviewed', is_active: 1, trick_kind: 'operator',
   });
   // A modifier-kind row, likewise active and notated.
   insertFreestyleTrick(db, {
     slug: 'paradox', canonical_name: 'paradox', adds: '1',
     base_trick: 'paradox', trick_family: 'paradox', category: 'modifier',
     notation: 'PARADOX', operational_notation: 'SET > SAME IN [PDX] [DEX] > OP TOE [DEL]',
-    review_status: 'expert_reviewed', is_active: 1,
+    review_status: 'expert_reviewed', is_active: 1, trick_kind: 'modifier',
   });
   // Real tricks, so every browse view renders content around the guard.
   insertFreestyleTrick(db, {

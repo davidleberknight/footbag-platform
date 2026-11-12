@@ -74,6 +74,7 @@ beforeAll(async () => {
     description:   'positional modifier; requires ducking under the bag',
     aliases_json:  '[]',
     sort_order:    2,
+    trick_kind:    'modifier',
   });
 
   // Trick with aliases

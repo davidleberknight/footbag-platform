@@ -7,8 +7,11 @@
  *     and slug, and filters by active flag and review status.
  *   - The admin edit surface for one trick: rendering its editable row fields
  *     and its attached aliases, sources, and modifier links, saving edits to the
- *     trick row's structural and editorial prose fields (so no database-backed
- *     field freezes once the live database is the source of truth), adding,
+ *     trick row's structural and editorial prose fields and its curator-set page
+ *     and browse facts (the derivatives and naming notes, the trick it reverses,
+ *     its public family override, its kind, and its place in a terminal's
+ *     "Tricks that land here" list), so no database-backed field freezes once
+ *     the live database is the source of truth, adding,
  *     reclassifying, or removing the trick's aliases,
  *     attaching or detaching links to the existing registry sources, and attaching
  *     or detaching links to the existing registry modifiers.
@@ -53,8 +56,11 @@
  * review status within the existing allowed values, the active flag a boolean, the
  * browse sort position a whole number zero or greater with a
  * cleared field meaning the unset zero, each
- * editorial prose field within a length cap, a non-empty base trick naming a
- * dictionary row, and no change to the ADD of a modifier row, whose own ADD
+ * editorial prose field within a length cap, a non-empty base trick, reverse-pair
+ * base or terminal naming a dictionary row, a terminal and its whole-number
+ * position of 1 or more set or cleared together, a family override on the public
+ * family list, a kind from the schema's set, and no change to the ADD of a
+ * modifier row, whose own ADD
  * changes only in the modifier editor) plus two
  * structural doctrine checks. The core-primitive column is not editable here: the
  * loaders write it and nothing reads it. When the ADD is numeric and the execution notation
@@ -161,6 +167,7 @@ import {
 // refactor). Target: they are read from the decision-group database table and the module is
 // deleted, in the post-go-live cleanup of the maintainers' private plan.
 import { EMERGING_DECISION_GROUPS } from '../content/freestyleObservationalUniverse';
+import { PUBLIC_DISPLAY_FAMILIES } from '../content/freestylePublicFamilies';
 import {
   NOTATION_EVIDENCE_BASES,
   NOTATION_DERIVATION_METHODS,
@@ -341,6 +348,13 @@ export interface FreestyleTrickEditFields {
   prerequisiteNotes: string;
   pronunciation: string;
   operationalNotationSource: string;
+  aboutDerivatives: string;
+  aboutNamingNote: string;
+  reversePairBase: string;
+  familyOverride: string;
+  trickKind: string;
+  terminalCohort: string;
+  terminalCohortPosition: string;
 }
 
 /** One kind of record that needs a trick to stay active, and where to resolve it. */
@@ -356,6 +370,7 @@ export interface FreestyleTrickEditContent {
   fields: FreestyleTrickEditFields;
   categoryOptions: FilterOption[];
   reviewStatusOptions: FilterOption[];
+  trickKindOptions: FilterOption[];
   aliases: FreestyleTrickEditAlias[];
   sources: FreestyleTrickEditSource[];
   modifierLinks: FreestyleTrickEditModifierLink[];
@@ -455,6 +470,13 @@ export interface FreestyleTrickScalarInput {
   prerequisiteNotes?: string;
   pronunciation?: string;
   operationalNotationSource?: string;
+  aboutDerivatives?: string;
+  aboutNamingNote?: string;
+  reversePairBase?: string;
+  familyOverride?: string;
+  trickKind?: string;
+  terminalCohort?: string;
+  terminalCohortPosition?: string;
 }
 
 /**
@@ -516,6 +538,13 @@ interface CurationEditDbRow {
   prerequisite_notes: string | null;
   pronunciation: string | null;
   operational_notation_source: string | null;
+  about_derivatives: string | null;
+  about_naming_note: string | null;
+  reverse_pair_base: string | null;
+  family_override: string | null;
+  trick_kind: string | null;
+  terminal_cohort: string | null;
+  terminal_cohort_position: number | null;
 }
 interface AliasDbRow {
   alias_slug: string;
@@ -574,6 +603,17 @@ const REVIEW_STATUS_VALUES = ['curated', 'expert_reviewed', 'pending'];
 // The review statuses the admin surface manages. Deliberately the same three the
 // browse filter offers; the schema's fourth value is not part of this surface.
 const EDITABLE_REVIEW_STATUSES = REVIEW_STATUS_VALUES;
+
+// What a row is when it is not a trick the browse lists. An empty choice stores
+// NULL, which is a trick. The schema CHECK holds the same set.
+const TRICK_KIND_LABELS: Record<string, string> = {
+  '':               'Trick',
+  modifier:         'Modifier',
+  operator:         'Operator',
+  surface:          'Surface',
+  'pending-review': 'Pending review',
+};
+const TRICK_KIND_VALUES = ['modifier', 'operator', 'surface', 'pending-review'];
 
 const CANONICAL_NAME_MAX = 200;
 // Upper bound on each editorial prose field, a safety cap against oversized
@@ -2064,7 +2104,18 @@ export const freestyleCurationService = {
       prerequisiteNotes:         sub ? (sub.prerequisiteNotes ?? '') : (row.prerequisite_notes ?? ''),
       pronunciation:             sub ? (sub.pronunciation ?? '') : (row.pronunciation ?? ''),
       operationalNotationSource: sub ? (sub.operationalNotationSource ?? '') : (row.operational_notation_source ?? ''),
+      aboutDerivatives:          sub ? (sub.aboutDerivatives ?? '') : (row.about_derivatives ?? ''),
+      aboutNamingNote:           sub ? (sub.aboutNamingNote ?? '') : (row.about_naming_note ?? ''),
+      reversePairBase:           sub ? (sub.reversePairBase ?? '') : (row.reverse_pair_base ?? ''),
+      familyOverride:            sub ? (sub.familyOverride ?? '') : (row.family_override ?? ''),
+      trickKind:                 sub ? (sub.trickKind ?? '') : (row.trick_kind ?? ''),
+      terminalCohort:            sub ? (sub.terminalCohort ?? '') : (row.terminal_cohort ?? ''),
+      terminalCohortPosition:    sub
+        ? (sub.terminalCohortPosition ?? '')
+        : (row.terminal_cohort_position === null ? '' : String(row.terminal_cohort_position)),
     };
+    const trickKindOptions: FilterOption[] = ['', ...TRICK_KIND_VALUES]
+      .map((v) => ({ value: v, label: TRICK_KIND_LABELS[v] ?? v, selected: v === fields.trickKind }));
 
     const categoryOptions: FilterOption[] = [
       { value: '', label: '(None)', selected: category === '' },
@@ -2097,6 +2148,7 @@ export const freestyleCurationService = {
         fields,
         categoryOptions,
         reviewStatusOptions,
+        trickKindOptions,
         aliases,
         sources,
         modifierLinks,
@@ -2228,6 +2280,44 @@ export const freestyleCurationService = {
       fieldErrors.baseTrick = `"${baseTrick}" is not a trick in the dictionary.`;
     }
 
+    // The trick this one reverses, and the terminal whose "Tricks that land here"
+    // list names it, each name a dictionary row: the page links to it.
+    const reversePairBase = emptyToNull(input.reversePairBase);
+    if (reversePairBase !== null && !freestyleTricks.getForCurationBySlug.get(reversePairBase)) {
+      fieldErrors.reversePairBase = `"${reversePairBase}" is not a trick in the dictionary.`;
+    }
+    const terminalCohort = emptyToNull(input.terminalCohort);
+    if (terminalCohort !== null && !freestyleTricks.getForCurationBySlug.get(terminalCohort)) {
+      fieldErrors.terminalCohort = `"${terminalCohort}" is not a trick in the dictionary.`;
+    }
+    // A place in that list means nothing without the list, so the two are set
+    // or cleared together.
+    const positionRaw = (input.terminalCohortPosition ?? '').trim();
+    let terminalCohortPosition: number | null = null;
+    if (positionRaw !== '') {
+      if (!/^\d+$/.test(positionRaw) || Number(positionRaw) < 1) {
+        fieldErrors.terminalCohortPosition = 'Position must be a whole number, 1 or greater.';
+      } else if (terminalCohort === null) {
+        fieldErrors.terminalCohortPosition = 'A position needs the terminal trick it is a place under.';
+      } else {
+        terminalCohortPosition = Number(positionRaw);
+      }
+    } else if (terminalCohort !== null) {
+      fieldErrors.terminalCohortPosition = 'Give this trick\'s position in the terminal trick\'s list.';
+    }
+
+    // The public family must be one the browse shows; a family that is not on
+    // the list would file the trick under nothing.
+    const familyOverride = emptyToNull(input.familyOverride);
+    if (familyOverride !== null && !PUBLIC_DISPLAY_FAMILIES.some((f) => f.slug === familyOverride)) {
+      fieldErrors.familyOverride = `"${familyOverride}" is not a public family.`;
+    }
+
+    const trickKind = emptyToNull(input.trickKind);
+    if (trickKind !== null && !TRICK_KIND_VALUES.includes(trickKind)) {
+      fieldErrors.trickKind = 'Kind must be trick, modifier, operator, surface, or pending review.';
+    }
+
     // Editorial prose fields are free text; the only row-shape rule is a length
     // cap that rejects an oversized payload. Empty clears the field to null.
     const prose = (raw: string | undefined, field: string): string | null =>
@@ -2238,6 +2328,8 @@ export const freestyleCurationService = {
     const learningNotes             = prose(input.learningNotes, 'learningNotes');
     const prerequisiteNotes         = prose(input.prerequisiteNotes, 'prerequisiteNotes');
     const pronunciation             = prose(input.pronunciation, 'pronunciation');
+    const aboutDerivatives          = prose(input.aboutDerivatives, 'aboutDerivatives');
+    const aboutNamingNote           = prose(input.aboutNamingNote, 'aboutNamingNote');
     const operationalNotationSource = nullIfEmpty(cleanField(
       input.operationalNotationSource, 'notation', 'operationalNotationSource', fieldErrors));
     const proseFields: Array<[keyof FreestyleTrickScalarInput, string | null, string]> = [
@@ -2248,6 +2340,8 @@ export const freestyleCurationService = {
       ['prerequisiteNotes', prerequisiteNotes, 'Prerequisite notes'],
       ['pronunciation', pronunciation, 'Pronunciation'],
       ['operationalNotationSource', operationalNotationSource, 'Execution-notation source'],
+      ['aboutDerivatives', aboutDerivatives, 'Derivatives note'],
+      ['aboutNamingNote', aboutNamingNote, 'Naming note'],
     ];
     for (const [key, value, label] of proseFields) {
       if (value !== null && value.length > PROSE_MAX) {
@@ -2306,6 +2400,13 @@ export const freestyleCurationService = {
     if (prerequisiteNotes !== comparableStored(current.prerequisite_notes, 'multi_line')) changedFields.push('prerequisite_notes');
     if (pronunciation !== comparableStored(current.pronunciation, 'multi_line')) changedFields.push('pronunciation');
     if (operationalNotationSource !== comparableStored(current.operational_notation_source, 'notation')) changedFields.push('operational_notation_source');
+    if (aboutDerivatives !== comparableStored(current.about_derivatives, 'multi_line')) changedFields.push('about_derivatives');
+    if (aboutNamingNote !== comparableStored(current.about_naming_note, 'multi_line')) changedFields.push('about_naming_note');
+    if (reversePairBase !== (current.reverse_pair_base ?? null))   changedFields.push('reverse_pair_base');
+    if (familyOverride !== (current.family_override ?? null))      changedFields.push('family_override');
+    if (trickKind !== (current.trick_kind ?? null))                changedFields.push('trick_kind');
+    if (terminalCohort !== (current.terminal_cohort ?? null))      changedFields.push('terminal_cohort');
+    if (terminalCohortPosition !== (current.terminal_cohort_position ?? null)) changedFields.push('terminal_cohort_position');
 
     // The row leaving the held-out candidate set is publication, and the ruling
     // for the name resolves with it. Both writes and the audit entry commit
@@ -2324,6 +2425,9 @@ export const freestyleCurationService = {
       description, short_description: shortDescription, execution_summary: executionSummary,
       learning_notes: learningNotes, prerequisite_notes: prerequisiteNotes, pronunciation,
       operational_notation_source: operationalNotationSource,
+      about_derivatives: aboutDerivatives, about_naming_note: aboutNamingNote,
+      reverse_pair_base: reversePairBase, family_override: familyOverride, trick_kind: trickKind,
+      terminal_cohort: terminalCohort, terminal_cohort_position: terminalCohortPosition,
     };
     const savedFields = Object.fromEntries(changedFields.map((field) => [field, submitted[field] ?? null]));
 
@@ -2344,7 +2448,9 @@ export const freestyleCurationService = {
             canonicalName, adds, movementNotation, executionNotation,
             family, baseTrick, category, isActive, sortOrder, reviewStatus,
             description, shortDescription, executionSummary, learningNotes,
-            prerequisiteNotes, pronunciation, operationalNotationSource, slug,
+            prerequisiteNotes, pronunciation, operationalNotationSource,
+            aboutDerivatives, aboutNamingNote, reversePairBase,
+            familyOverride, trickKind, terminalCohort, terminalCohortPosition, slug,
           );
           const resolvedAdjudication = publishing
             ? resolveAdjudicationOnPublication(slug, canonicalName, actorMemberId)

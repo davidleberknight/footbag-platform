@@ -401,8 +401,15 @@ def load_core_trick_spec() -> dict[str, str]:
 
 def load_symbolic_equivalences() -> dict[str, list[str]]:
     """Slug → list of chain readings (compact compositional notation)."""
-    text = SYMBOLIC_EQUIVALENCES_PATH.read_text(encoding="utf-8")
     result: dict[str, list[str]] = {}
+    # The equivalence-chain module was deleted because no page displayed its
+    # readings; the workbook then carries no chain readings rather than stopping.
+    if not SYMBOLIC_EQUIVALENCES_PATH.exists():
+        print(f"WARNING: {SYMBOLIC_EQUIVALENCES_PATH} not found; the symbolic "
+              "equivalence chains were removed, so the workbook carries no "
+              "chain readings.", file=sys.stderr)
+        return result
+    text = SYMBOLIC_EQUIVALENCES_PATH.read_text(encoding="utf-8")
     # Each entry is a multi-line block. Capture slug + readings array.
     pattern = re.compile(
         r"\{\s*slug:\s*'([^']+)',\s*readings:\s*\[([^\]]+)\]",

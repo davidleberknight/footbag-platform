@@ -5,15 +5,12 @@
  *   1. Description column refinement (Part 1):
  *      - Primitive trick whose DB description literally repeats the
  *        operational notation → description suppressed from render.
- *      - Compound trick with curator-authored override → DB
- *        description replaced with the override prose.
  *      - Trick with genuine prose description → passes through
  *        unchanged.
  *
  *   2. Reverse-pair transform overlay (Part 2):
- *      - The five canonical reverse-pair slugs (illusion, pickup,
- *        rev-whirl, rev-swirl, orbit) render the Transform line +
- *        rev(0) explainer + base-trick cross-link.
+ *      - A trick that names the trick it reverses renders the Transform
+ *        line + rev(0) explainer + base-trick cross-link.
  *      - A non-reverse-pair slug does NOT render the section.
  *      - Locked rev(0) explainer wording asserted verbatim (catches
  *        future drift before it ships).
@@ -44,7 +41,7 @@ beforeAll(async () => {
     adds: '2', base_trick: 'illusion', trick_family: 'illusion',
     category: 'compound', notation: '[set] > leggy out dex > op toe',
     description: '[set] > leggy out dex > op toe',
-    is_active: 1,
+    is_active: 1, reverse_pair_base: 'mirage',
   });
 
   // The base trick for illusion's transform cross-link.
@@ -53,16 +50,6 @@ beforeAll(async () => {
     adds: '2', base_trick: 'mirage', trick_family: 'mirage',
     category: 'compound', notation: '[set] > hippy in dex > op toe',
     description: '[set] > hippy in dex > op toe',
-    is_active: 1,
-  });
-
-  // Compound trick with curator-authored override — DB description
-  // should be replaced with the override prose.
-  insertFreestyleTrick(db, {
-    slug: 'double_legover', canonical_name: 'double legover',
-    adds: '3', base_trick: 'legover', trick_family: 'legover',
-    category: 'compound', notation: '[set] > leggy out dex > leggy out dex > ss toe',
-    description: 'two consecutive leggy out dex steps',  // pre-existing DB prose
     is_active: 1,
   });
 
@@ -83,7 +70,7 @@ beforeAll(async () => {
     adds: '2', base_trick: 'around_the_world', trick_family: 'around_the_world',
     category: 'compound', notation: 'toe > ss(midtime) out dex > ss toe',
     description: 'toe > ss(midtime) out dex > ss toe',
-    is_active: 1,
+    is_active: 1, reverse_pair_base: 'around_the_world',
   });
   insertFreestyleTrick(db, {
     slug: 'around_the_world', canonical_name: 'around the world',
@@ -109,15 +96,6 @@ describe('Part 1 — description column refinement', () => {
     // illusion's DB description ('[set] > leggy out dex > op toe') equals
     // its notation; the trick-description <p> should be absent.
     expect(res.text).not.toMatch(/<p class="trick-description">\[set\] &gt; leggy out dex &gt; op toe<\/p>/);
-  });
-
-  it('replaces the description with the curator override on compound tricks', async () => {
-    const res = await page('/freestyle/tricks/double_legover');
-    expect(res.status).toBe(200);
-    // The override prose renders; the pre-existing DB description does NOT.
-    expect(res.text).toMatch(/mirage \+ legover chain/);
-    expect(res.text).toMatch(/two consecutive in-direction dex steps from a single set/);
-    expect(res.text).not.toMatch(/two consecutive leggy out dex steps/);
   });
 
   it('passes genuine prose descriptions through unchanged', async () => {
@@ -165,7 +143,9 @@ describe('Part 2 — reverse-pair transform overlay', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="content-section trick-transform"');
     expect(res.text).toMatch(/rev\(0\) \+ around-the-world/);
-    expect(res.text).toMatch(/<a href="\/freestyle\/tricks\/around_the_world">around-the-world<\/a>/);
+    // The formula writes the base in notation form; the link names it by its
+    // stored name.
+    expect(res.text).toMatch(/<a href="\/freestyle\/tricks\/around_the_world">around the world<\/a>/);
   });
 
   it('does NOT render the transform section on a non-reverse-pair trick (whirl)', async () => {

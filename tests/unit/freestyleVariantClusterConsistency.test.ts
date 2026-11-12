@@ -12,7 +12,7 @@ import { readFileSync } from 'node:fs';
 import { CORE_TRICK_SPEC } from '../../src/content/freestyleLandingContent';
 import { ROOT_TERMINAL_FAMILIES, BRANCH_FAMILIES } from '../../src/content/freestyleGlossaryFamilyCards';
 import { OPERATOR_REFERENCE_ENTRIES } from '../../src/content/freestyleOperatorReference';
-import { COMPOUND_SEMANTIC_DESCRIPTIONS } from '../../src/content/freestyleSemanticOverrides';
+import { COMPOUND_SEMANTIC_DESCRIPTIONS } from '../../freestyle/inputs/curator_content/freestyleSemanticOverridesData';
 import { MODIFIER_BEGINNER_NOTES } from '../../freestyle/inputs/curator_content/freestyleStructuralFactNotes';
 import { GLOSSARY_CORE_CONCEPTS } from '../../src/content/freestyleGlossaryCoreConcepts';
 

@@ -148,6 +148,7 @@ beforeAll(async () => {
     category:       'modifier',
     adds:           '1',
     is_active:      1,
+    trick_kind:     'modifier',
   });
   insertFreestyleTrick(db, {
     slug:           'atomic',
@@ -156,6 +157,7 @@ beforeAll(async () => {
     category:       'set',
     adds:           '2',
     is_active:      1,
+    trick_kind:     'operator',
   });
 
   db.close();

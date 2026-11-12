@@ -875,6 +875,15 @@ export interface FreestyleTrickOverrides {
   execution_summary?:           string | null;
   learning_notes?:              string | null;
   prerequisite_notes?:          string | null;
+  // Curator-set page and browse facts, seeded from the staged curator content.
+  // NULL on every row the content does not name, which is the default here.
+  about_derivatives?:           string | null;
+  about_naming_note?:           string | null;
+  reverse_pair_base?:           string | null;
+  family_override?:             string | null;
+  trick_kind?:                  string | null;
+  terminal_cohort?:             string | null;
+  terminal_cohort_position?:    number | null;
 }
 
 export function insertFreestyleTrick(
@@ -889,9 +898,11 @@ export function insertFreestyleTrick(
        operational_notation, operational_notation_source, pronunciation,
        short_description, execution_summary, learning_notes, prerequisite_notes,
        notation_evidence_basis, notation_derivation_method, notation_convention_id,
-       trick_origin_producer)
+       trick_origin_producer,
+       about_derivatives, about_naming_note, reverse_pair_base, family_override,
+       trick_kind, terminal_cohort, terminal_cohort_position)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-            ?, ?, ?, ?)
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     slug,
     o.canonical_name ?? slug.replace(/-/g, ' '),
@@ -918,6 +929,13 @@ export function insertFreestyleTrick(
     o.notation_derivation_method ?? null,
     o.notation_convention_id     ?? null,
     o.trick_origin_producer      ?? null,
+    o.about_derivatives          ?? null,
+    o.about_naming_note          ?? null,
+    o.reverse_pair_base          ?? null,
+    o.family_override            ?? null,
+    o.trick_kind                 ?? null,
+    o.terminal_cohort            ?? null,
+    o.terminal_cohort_position   ?? null,
   );
   return slug;
 }

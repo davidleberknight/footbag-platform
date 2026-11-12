@@ -48,6 +48,7 @@ import argparse
 import csv
 import re
 import sqlite3
+import sys
 from collections import Counter
 from datetime import date
 from pathlib import Path
@@ -115,7 +116,16 @@ def extract_doctrine_divergence_slugs(content: str) -> set:
 def load_ts_state() -> dict:
     fs = FREESTYLE_SERVICE_TS.read_text(encoding="utf-8")
     rf = RESOLVED_FORMULAS_TS.read_text(encoding="utf-8")
-    ko = KIND_OVERRIDES_TS.read_text(encoding="utf-8")
+    # Trick kinds now live in the freestyle_tricks.trick_kind column, so the
+    # module this audit used to read is gone; without it every row counts as a
+    # trick, and the audit says so rather than stopping.
+    ko = ""
+    if KIND_OVERRIDES_TS.exists():
+        ko = KIND_OVERRIDES_TS.read_text(encoding="utf-8")
+    else:
+        print(f"WARNING: {KIND_OVERRIDES_TS} not found; trick kinds are read "
+              "from freestyle_tricks.trick_kind now, so this audit treats "
+              "every row as a trick.", file=sys.stderr)
     doctrine_published = set()
     if DOCTRINE_TS.exists():
         doctrine_published = extract_doctrine_divergence_slugs(

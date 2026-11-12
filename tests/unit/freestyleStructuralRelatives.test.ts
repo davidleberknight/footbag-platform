@@ -17,7 +17,10 @@ import {
   buildStructuralAbout,
   observationalNotesFor,
 } from '../../src/services/freestyleRelatedTricks';
-import { getCompoundSemanticDescription } from '../../src/content/freestyleSemanticOverrides';
+import { COMPOUND_SEMANTIC_DESCRIPTIONS } from '../../freestyle/inputs/curator_content/freestyleSemanticOverridesData';
+
+const getCompoundSemanticDescription = (slug: string): string | null =>
+  COMPOUND_SEMANTIC_DESCRIPTIONS.get(slug) ?? null;
 
 function row(
   slug: string,
@@ -46,7 +49,9 @@ const carousel      = row(CAROUSEL, '8', 'compound', 'rake', 'rake');
 const pswRake       = row('paradox_symposium_whirling_rake', '5', 'compound', 'rake', 'rake');
 const sdpTorque     = row('surging_ducking_paradox_torque', '8', 'compound', 'torque', 'torque');
 const bigAppleSauce = row('big_apple_sauce', '8', 'compound', 'torque', 'torque');
-const smsTorque     = row('spinning_miraging_symposium_torque', '7', 'compound', 'symposium_torque', 'osis');
+// Carries the osis label and a public family override to Torque, as the real
+// dictionary does.
+const smsTorque     = { ...row('spinning_miraging_symposium_torque', '7', 'compound', 'symposium_torque', 'osis'), family_override: 'torque' };
 
 const ALL = [carousel, pswRake, sdpTorque, bigAppleSauce, smsTorque];
 

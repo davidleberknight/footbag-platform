@@ -3,8 +3,11 @@
  * and the Illusioning set's pointer to the Atomic operator.
  */
 import { describe, it, expect } from 'vitest';
-import { getCompoundSemanticDescription } from '../../src/content/freestyleSemanticOverrides';
+import { COMPOUND_SEMANTIC_DESCRIPTIONS } from '../../freestyle/inputs/curator_content/freestyleSemanticOverridesData';
 import { findCanonicalSetBySlug, resolveCanonicalSetAlias } from '../../src/content/freestyleCanonicalSets';
+
+const getCompoundSemanticDescription = (slug: string): string | null =>
+  COMPOUND_SEMANTIC_DESCRIPTIONS.get(slug) ?? null;
 
 describe('dex-kick description overrides', () => {
   it('Around the World Kick does not claim to be the only 1-ADD dex trick', () => {
@@ -25,12 +28,6 @@ describe('dex-kick description overrides', () => {
     const d = getCompoundSemanticDescription('pixie_kick') ?? '';
     expect(d).toMatch(/shares its notation with Around the World Kick/);
     expect(d).toMatch(/opposite foot/);
-  });
-
-  it('DSO note frames the DATW relationship without an opposite-foot claim', () => {
-    const d = getCompoundSemanticDescription('double_switch_over') ?? '';
-    expect(d).toMatch(/different movement patterns/);
-    expect(d).not.toMatch(/opposite foot/i);
   });
 });
 

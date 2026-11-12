@@ -21,7 +21,7 @@ disagrees with its home is a bug, not an alternative reading.
 | JOB notation form (`freestyle_tricks.notation`) | `freestyle/doctrine/JOB_NOTATION.md` (the semantic-label form: decomposition vs name) | this document continues to govern source priority and operational-notation truth; `JOB_NOTATION.md` governs only the label's form |
 | Aliases (folk / historical / spelling) | `freestyle_trick_aliases` table (from `red_additions` aliases column + `trick_aliases.csv`) | every rendering surface reads this table; the `aliases_json` column is deprecated and used only as a fallback for rows the table does not yet cover |
 | Operator / modifier ADD, structure, X-Dex | `src/content/freestyleOperatorReference.ts` | `freestyleOperatorGrammar.ts`, the `freestyle_trick_modifiers` registry (its beginner notes included), and the glossary operator text |
-| Family classification | `freestyle_tricks.trick_family` (database) | the public display roster in `freestylePublicFamilies.ts` / `freestyleFamilyTiers.ts` is display-only and never changes the canonical column |
+| Family classification | `freestyle_tricks.trick_family` (database) | the public display roster in `freestylePublicFamilies.ts` / `freestyleFamilyTiers.ts` and the per-trick `freestyle_tricks.family_override` column are display-only and never change the canonical column |
 | ADD-analysis prose (component table, notes, worked examples, disagreement reasons) | `src/content/freestyleAddAnalysisContent.ts` | the ADD-analysis template renders it verbatim |
 | Doctrine rulings (Red / curator) | `freestyle/doctrine/RED_RULINGS.md` and the rest of this directory | per-row CSV provenance cites, never restates, a ruling |
 

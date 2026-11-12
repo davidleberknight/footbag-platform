@@ -31,6 +31,11 @@ const ADMIN_ID = 'aaaaaaaa-0000-0000-0000-000000saves1';
 const SAVED_TEXT = 'Saved by a curator through the trick editor.';
 const SAVED_BEGINNER_NOTE = 'Saved by a curator through the modifier editor.';
 const SAVED_REVIEW_NOTE = 'Saved by a curator through the record editor.';
+const SAVED_DERIVATIVES = 'Saved by a curator over the seeded derivatives note.';
+// Seeded tricks whose curator facts a save overrides: one gets a new
+// derivatives note, the other has its seeded public family cleared.
+const DERIVATIVES_SLUG = [...STAGED_CURATOR_CONTENT.aboutDerivatives.keys()][0]!;
+const FAMILY_SLUG = 'hatchet';
 // Four scoring brackets, so the published trick asserts 4 ADD.
 const PUBLISHED_NOTATION = 'CLIP > OP IN [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]';
 
@@ -78,6 +83,9 @@ interface TrickRow {
   description: string | null; short_description: string | null; execution_summary: string | null;
   learning_notes: string | null; prerequisite_notes: string | null; pronunciation: string | null;
   operational_notation_source: string | null;
+  about_derivatives: string | null; about_naming_note: string | null; reverse_pair_base: string | null;
+  family_override: string | null; trick_kind: string | null;
+  terminal_cohort: string | null; terminal_cohort_position: number | null;
 }
 
 function readTrick(db: string, slug: string): TrickRow {
@@ -110,6 +118,10 @@ function formFor(row: TrickRow, changes: Record<string, string | boolean>) {
     shortDescription: row.short_description ?? '', executionSummary: row.execution_summary ?? '',
     learningNotes: row.learning_notes ?? '', prerequisiteNotes: row.prerequisite_notes ?? '',
     pronunciation: row.pronunciation ?? '', operationalNotationSource: row.operational_notation_source ?? '',
+    aboutDerivatives: row.about_derivatives ?? '', aboutNamingNote: row.about_naming_note ?? '',
+    reversePairBase: row.reverse_pair_base ?? '', familyOverride: row.family_override ?? '',
+    trickKind: row.trick_kind ?? '', terminalCohort: row.terminal_cohort ?? '',
+    terminalCohortPosition: row.terminal_cohort_position === null ? '' : String(row.terminal_cohort_position),
     ...changes,
   };
 }
@@ -200,6 +212,9 @@ beforeAll(async () => {
   service.updateTrickScalars(editedSlug, formFor(row, { shortDescription: SAVED_TEXT }), ADMIN_ID);
   const saved = readTrick(dbPath, editedSlug);
   service.updateTrickScalars(editedSlug, formFor(saved, { description: '' }), ADMIN_ID);
+  service.updateTrickScalars(DERIVATIVES_SLUG,
+    formFor(readTrick(dbPath, DERIVATIVES_SLUG), { aboutDerivatives: SAVED_DERIVATIVES }), ADMIN_ID);
+  service.updateTrickScalars(FAMILY_SLUG, formFor(readTrick(dbPath, FAMILY_SLUG), { familyOverride: '' }), ADMIN_ID);
 
   // One save of every record kind, each against base rows a rebuild would bring
   // back, so the rebuild below proves the save beat the base input.
@@ -497,6 +512,10 @@ describe('a rebuild', () => {
       [STAGED_CURATOR_CONTENT.beginnerNotes.get('paradox')])).toBe(1);
     expect(rowCount(rebuildPath, 'freestyle_records', 'id = ? AND curator_review_note = ?',
       [reviewedRecordId, seededReviewNote])).toBe(1);
+    expect(readTrick(rebuildPath, DERIVATIVES_SLUG).about_derivatives)
+      .toBe(STAGED_CURATOR_CONTENT.aboutDerivatives.get(DERIVATIVES_SLUG));
+    expect(readTrick(rebuildPath, FAMILY_SLUG).family_override)
+      .toBe(STAGED_CURATOR_CONTENT.familyOverrides.get(FAMILY_SLUG));
   });
 
   it('reloads a saved value and a cleared field, and reports what it overrode', () => {
@@ -522,6 +541,14 @@ describe('a rebuild', () => {
       "slug = 'paradox' AND beginner_note = ?", [SAVED_BEGINNER_NOTE])).toBe(1);
     expect(rowCount(rebuildPath, 'freestyle_records', 'id = ? AND curator_review_note = ?',
       [reviewedRecordId, SAVED_REVIEW_NOTE])).toBe(1);
+  });
+
+  it('keeps a saved and a cleared trick curator fact over the seeded content', () => {
+    // Defect: a curator's edit to a seeded page or browse fact is undone at the
+    // next rebuild, because the seeder ran after the saves or the loader refused
+    // the new columns. Reads the saves the reload case applied.
+    expect(readTrick(rebuildPath, DERIVATIVES_SLUG).about_derivatives).toBe(SAVED_DERIVATIVES);
+    expect(readTrick(rebuildPath, FAMILY_SLUG).family_override).toBeNull();
   });
 
   it('brings back every saved source, alias and link, and keeps removed ones gone', () => {

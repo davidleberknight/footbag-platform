@@ -1515,9 +1515,8 @@ describe('Formula accountability contracts', () => {
   //   5. Worlds 2023 Team Freestyle attribution
 
   it('dictionary surface does NOT include spyro (Formula Accountability retire)', async () => {
-    // resolveTrickKind now classifies spyro as a modifier, so it's filtered
-    // out of every browse view regardless of which 1-ADD rows the test
-    // fixture happens to seed.
+    // spyro's stored kind is modifier, so it is filtered out of every browse
+    // view regardless of which 1-ADD rows the test fixture happens to seed.
     const res = await page('/freestyle/tricks?view=add');
     expect(res.text).not.toMatch(/data-trick-slug="spyro"/);
     expect(res.text).not.toContain('href="/freestyle/tricks/spyro"');

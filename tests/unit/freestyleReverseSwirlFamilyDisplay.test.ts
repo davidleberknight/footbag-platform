@@ -29,10 +29,7 @@ import {
   familyTier,
   isOfficialFamilyParent,
 } from '../../src/content/freestyleFamilyTiers';
-import {
-  FAMILY_OVERRIDES,
-  resolveFamilyDisplayName,
-} from '../../src/content/freestyleFamilyOverrides';
+import { FAMILY_OVERRIDES } from '../../freestyle/inputs/curator_content/freestyleFamilyOverrides';
 
 const REV_SWIRL = 'rev_swirl';
 
@@ -85,21 +82,13 @@ describe('Reverse Swirl is a Minor Lineage and nothing more', () => {
 });
 
 describe('the family reads as a name wherever it is shown', () => {
-  it('resolves to Reverse Swirl rather than the capitalised slug', () => {
-    expect(resolveFamilyDisplayName(REV_SWIRL)).toBe('Reverse Swirl');
-  });
-
-  it('carries the same label on the registry and in the display-name map', () => {
-    // The chip and the raw filter read the display-name map; the browse reads the
-    // registry. A reader should not see two names for one family.
-    expect(PUBLIC_FAMILY_LABEL.get(REV_SWIRL)).toBe(resolveFamilyDisplayName(REV_SWIRL));
-  });
-
   it('never renders as the abbreviation', () => {
+    // Every family label is read from the registry before the capitalised-slug
+    // fallback, so a registry label is what a reader sees.
     const fallback = REV_SWIRL.charAt(0).toUpperCase()
       + REV_SWIRL.slice(1).replace(/[-_]/g, ' ');
     expect(fallback).toBe('Rev swirl');
-    expect(resolveFamilyDisplayName(REV_SWIRL)).not.toBe(fallback);
+    expect(PUBLIC_FAMILY_LABEL.get(REV_SWIRL)).not.toBe(fallback);
   });
 });
 

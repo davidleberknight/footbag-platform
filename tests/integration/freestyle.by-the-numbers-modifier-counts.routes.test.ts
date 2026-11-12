@@ -40,8 +40,8 @@ beforeAll(async () => {
   insertFreestyleTrickModifier(db, { slug: 'pixie',    modifier_name: 'Pixie',    modifier_type: 'set' });
   insertFreestyleTrickModifier(db, { slug: 'paradox',  modifier_name: 'Paradox',  modifier_type: 'body' });
 
-  // Four public canonical tricks (arbitrary non-operator slugs, so resolveTrickKind
-  // returns 'trick' for each).
+  // Four public canonical tricks (their stored trick_kind is empty, so each is
+  // a trick).
   for (const slug of ['ophist_a', 'ophist_b', 'ophist_c', 'ophist_d']) {
     insertFreestyleTrick(db, { slug, canonical_name: slug, adds: '3', base_trick: 'whirl', trick_family: 'whirl', category: 'compound', is_active: 1 });
   }

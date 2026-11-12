@@ -18,6 +18,7 @@ import request from 'supertest';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
+import { STAGED_CURATOR_CONTENT } from '../../freestyle/loaders/28a_seed_curator_content';
 
 const { dbPath } = setTestEnv('3534');
 
@@ -50,7 +51,19 @@ beforeAll(async () => {
     t('drifter', '3'), t('rev_whirl', '3'), t('rev_swirl', '3'),
     t('blender', '4'), t('dyno', '4'), t('atomic_butterfly', '4'),
   ];
-  for (const r of rows) insertFreestyleTrick(db, r);
+  // Each member carries its terminal and place as the staged lists set them.
+  const placeOf = new Map<string, { terminal: string; position: number }>();
+  for (const [terminal, members] of STAGED_CURATOR_CONTENT.terminalCohorts) {
+    members.forEach((m, i) => placeOf.set(m, { terminal, position: i + 1 }));
+  }
+  for (const r of rows) {
+    const place = placeOf.get(r.slug);
+    insertFreestyleTrick(db, {
+      ...r,
+      terminal_cohort: place?.terminal ?? null,
+      terminal_cohort_position: place?.position ?? null,
+    });
+  }
 
   db.close();
   createApp = await importApp();

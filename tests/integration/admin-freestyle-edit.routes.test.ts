@@ -14,6 +14,8 @@
  * rows with no scoring brackets or a non-numeric ADD skip the check and save.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import BetterSqlite3 from 'better-sqlite3';
 import request from '../fixtures/supertestWithOrigin';
 import { flashCookieOf } from '../fixtures/flashCookie';
@@ -259,6 +261,28 @@ beforeAll(async () => {
     is_active: 1,
   });
   insertFreestyleTrickModifierLink(db, 'mod_host', 'ducking', 2);
+
+  // Curator-fact coverage: facts_host carries every fact (the display test and
+  // the clear target), facts_save is the write target, and facts_guard proves a
+  // refused save writes nothing. The kind select must offer what the column holds.
+  insertFreestyleTrick(db, {
+    slug: 'facts_host', canonical_name: 'Facts Host',
+    adds: '2', trick_family: 'whirl', base_trick: 'whirl', category: 'compound',
+    review_status: 'curated', is_active: 1,
+    about_derivatives: 'Seed derivatives note.', about_naming_note: 'Seed naming note.',
+    reverse_pair_base: 'butterfly', family_override: 'rev_whirl', trick_kind: 'operator',
+    terminal_cohort: 'whirl', terminal_cohort_position: 4,
+  });
+  insertFreestyleTrick(db, {
+    slug: 'facts_save', canonical_name: 'Facts Save',
+    adds: '2', trick_family: 'whirl', base_trick: 'whirl', category: 'compound',
+    review_status: 'curated', is_active: 1,
+  });
+  insertFreestyleTrick(db, {
+    slug: 'facts_guard', canonical_name: 'Facts Guard',
+    adds: '2', trick_family: 'whirl', base_trick: 'whirl', category: 'compound',
+    review_status: 'curated', is_active: 1, family_override: 'rev_whirl',
+  });
 
   // Editorial-prose edit coverage: prose_host is seeded with values (the display
   // test), prose_save is the write target, and prose_clear is seeded with a
@@ -840,6 +864,109 @@ describe('POST/GET /admin/freestyle/tricks/:slug/edit — editorial prose fields
     expect(res.text).toContain('Description must be');
     expect(proseRow('save_guard').description).toBe(before.description);
     expect(auditRows('save_guard')).toHaveLength(0);
+  });
+});
+
+describe('POST/GET /admin/freestyle/tricks/:slug/edit — curator page and browse facts', () => {
+  function factsRow(slug: string) {
+    return db.prepare(
+      `SELECT about_derivatives, about_naming_note, reverse_pair_base, family_override,
+              trick_kind, terminal_cohort, terminal_cohort_position
+       FROM freestyle_tricks WHERE slug = ?`,
+    ).get(slug) as Record<string, string | number | null>;
+  }
+  function saveBodyOf(slug: string): { slug: string; fields: Record<string, unknown> } {
+    return JSON.parse(fs.readFileSync(path.join(process.env.CURATOR_SAVES_DIR!, 'tricks', `${slug}.json`), 'utf8'));
+  }
+  const FACT_COLUMNS = [
+    'about_derivatives', 'about_naming_note', 'reverse_pair_base', 'family_override',
+    'trick_kind', 'terminal_cohort', 'terminal_cohort_position',
+  ];
+
+  // Defect caught: a curator cannot see the stored fact, so the next save of
+  // the form would silently clear it.
+  it('displays every stored fact for editing, with the stored kind selected', async () => {
+    const res = await get('/admin/freestyle/tricks/facts_host/edit', admin());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('>Seed derivatives note.</textarea>');
+    expect(res.text).toContain('>Seed naming note.</textarea>');
+    expect(res.text).toContain('name="reversePairBase" value="butterfly"');
+    expect(res.text).toContain('name="familyOverride" value="rev_whirl"');
+    expect(res.text).toContain('name="terminalCohort" value="whirl"');
+    expect(res.text).toContain('name="terminalCohortPosition" value="4"');
+    expect(res.text).toMatch(/<option value="operator" selected>/);
+    // A stored kind of NULL is a trick, so the select offers the empty choice.
+    expect(res.text).toContain('<option value="" >');
+  });
+
+  // Defect caught: a fact saved to the database but not to the save file, or not
+  // named in the audit row, so the next rebuild loses it or nobody can tell who
+  // changed it.
+  it('saves every fact, names each in the audit row, and writes each to the save file', async () => {
+    const res = await post('/admin/freestyle/tricks/facts_save/edit', admin(), validBody({
+      canonicalName: 'Facts Save',
+      aboutDerivatives: 'New derivatives.', aboutNamingNote: 'New naming.',
+      reversePairBase: 'butterfly', familyOverride: 'rev_whirl', trickKind: 'pending-review',
+      terminalCohort: 'whirl', terminalCohortPosition: '2',
+    }));
+    expect(res.status).toBe(303);
+    const expected = {
+      about_derivatives: 'New derivatives.', about_naming_note: 'New naming.',
+      reverse_pair_base: 'butterfly', family_override: 'rev_whirl', trick_kind: 'pending-review',
+      terminal_cohort: 'whirl', terminal_cohort_position: 2,
+    };
+    expect(factsRow('facts_save')).toEqual(expected);
+    const audits = auditRows('facts_save');
+    expect(audits).toHaveLength(1);
+    const changed = JSON.parse(audits[0]!.metadata_json).changedFields as string[];
+    for (const column of FACT_COLUMNS) expect(changed, column).toContain(column);
+    expect(saveBodyOf('facts_save').fields).toMatchObject(expected);
+  });
+
+  // Defect caught: an emptied field leaving the old fact on the page, or a clear
+  // lost at the next rebuild because the save file does not record it.
+  it('clears every fact to null when submitted empty, and records the clears', async () => {
+    const res = await post('/admin/freestyle/tricks/facts_host/edit', admin(), validBody({
+      canonicalName: 'Facts Host',
+      aboutDerivatives: '', aboutNamingNote: '', reversePairBase: '', familyOverride: '',
+      trickKind: '', terminalCohort: '', terminalCohortPosition: '',
+    }));
+    expect(res.status).toBe(303);
+    const cleared = Object.fromEntries(FACT_COLUMNS.map((c) => [c, null]));
+    expect(factsRow('facts_host')).toEqual(cleared);
+    expect(saveBodyOf('facts_host').fields).toMatchObject(cleared);
+  });
+
+  // Each case: a save the page would then render wrongly, a link to no page, a
+  // family the browse does not show, or a list position with no list.
+  it.each([
+    ['a reverse-pair base that is not a trick', { reversePairBase: 'zz_no_such_trick' }, 'zz_no_such_trick'],
+    ['a terminal that is not a trick', { terminalCohort: 'zz_no_such_trick', terminalCohortPosition: '1' }, 'zz_no_such_trick'],
+    ['a position with no terminal', { terminalCohortPosition: '3' }, 'value="3"'],
+    ['a terminal with no position', { terminalCohort: 'whirl' }, 'name="terminalCohort" value="whirl"'],
+    ['a position below 1', { terminalCohort: 'whirl', terminalCohortPosition: '0' }, 'value="0"'],
+    ['a family that is not on the public family list', { familyOverride: 'zz_no_such_family' }, 'zz_no_such_family'],
+    ['a kind outside the set', { trickKind: 'zz_kind' }, 'name="trickKind"'],
+  ])('refuses %s with 422, keeps the submitted value, and writes nothing', async (_label, change, kept) => {
+    const res = await post('/admin/freestyle/tricks/facts_guard/edit', admin(),
+      validBody({ canonicalName: 'Facts Guard', familyOverride: 'rev_whirl', ...change }));
+    expect(res.status).toBe(422);
+    expect(res.text).toContain(kept);
+    expect(factsRow('facts_guard').family_override).toBe('rev_whirl');
+    expect(auditRows('facts_guard')).toHaveLength(0);
+  });
+
+  // Defect caught: a refused form that offers no way forward, so the curator
+  // cannot correct the one field and save.
+  it('accepts the refused form once the one field is corrected', async () => {
+    const refused = await post('/admin/freestyle/tricks/facts_guard/edit', admin(),
+      validBody({ canonicalName: 'Facts Guard', familyOverride: 'zz_no_such_family' }));
+    expect(refused.status).toBe(422);
+    expect(refused.text).toContain('<select id="trick-trickKind" name="trickKind"');
+    const res = await post('/admin/freestyle/tricks/facts_guard/edit', admin(),
+      validBody({ canonicalName: 'Facts Guard', familyOverride: 'whirl' }));
+    expect(res.status).toBe(303);
+    expect(factsRow('facts_guard').family_override).toBe('whirl');
   });
 });
 

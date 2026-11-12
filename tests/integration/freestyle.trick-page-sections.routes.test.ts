@@ -79,7 +79,7 @@ beforeAll(async () => {
     t('stepping_whirl', { adds: '4', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' }),
     // A family anchor whose family has members, and a terminal atom whose
     // curated cohort includes it.
-    t('mirage', { base_trick: 'mirage', trick_family: 'mirage', category: 'dex' }),
+    t('mirage', { base_trick: 'mirage', trick_family: 'mirage', category: 'dex', terminal_cohort: 'toe_stall', terminal_cohort_position: 1 }),
     t('paradox_mirage', { adds: '3', base_trick: 'mirage', trick_family: 'mirage', category: 'compound' }),
     t('toe_stall', { adds: '1', category: 'base' }),
     t('legover', { trick_family: 'legover', category: 'dex' }),

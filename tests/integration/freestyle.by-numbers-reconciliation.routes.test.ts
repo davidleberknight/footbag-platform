@@ -31,6 +31,7 @@ beforeAll(async () => {
   // A modifier is not a dictionary trick and must not be counted in the total.
   insertFreestyleTrick(db, {
     slug: 'paradox', canonical_name: 'Paradox', category: 'modifier', is_active: 1,
+    trick_kind: 'modifier',
   });
   db.close();
   createApp = await importApp();

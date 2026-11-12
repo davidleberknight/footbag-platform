@@ -56,6 +56,10 @@ function row(
     notation:       null,
     operational_notation: null,
     sort_order:     0,
+    family_override: null,
+    trick_kind:     null,
+    terminal_cohort: null,
+    terminal_cohort_position: null,
   };
 }
 

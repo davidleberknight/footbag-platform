@@ -242,6 +242,13 @@ export const adminFreestyleController = {
       prerequisiteNotes:         str(req.body.prerequisiteNotes),
       pronunciation:             str(req.body.pronunciation),
       operationalNotationSource: str(req.body.operationalNotationSource),
+      aboutDerivatives:          str(req.body.aboutDerivatives),
+      aboutNamingNote:           str(req.body.aboutNamingNote),
+      reversePairBase:           str(req.body.reversePairBase),
+      familyOverride:            str(req.body.familyOverride),
+      trickKind:                 str(req.body.trickKind),
+      terminalCohort:            str(req.body.terminalCohort),
+      terminalCohortPosition:    str(req.body.terminalCohortPosition),
     };
 
     try {

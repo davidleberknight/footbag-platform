@@ -30,6 +30,7 @@ import {
 } from '../fixtures/testDb';
 import { insertFreestyleTrick, insertFreestyleTrickAlias } from '../fixtures/factories';
 import { ROOT_TERMINAL_FAMILIES, BRANCH_FAMILIES } from '../../src/content/freestyleGlossaryFamilyCards';
+import { STAGED_CURATOR_CONTENT } from '../../freestyle/loaders/28a_seed_curator_content';
 
 const { dbPath } = setTestEnv('3618');
 
@@ -46,6 +47,7 @@ beforeAll(async () => {
     operational_notation: 'SET > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]',
     description: 'Compound dex; base for ripwalk, dimwalk, and parkwalk.',
     review_status: 'curated', is_active: 1,
+    about_naming_note: STAGED_CURATOR_CONTENT.aboutNamingNotes.get('butterfly') ?? null,
   });
   insertFreestyleTrick(db, {
     slug: 'butterfly_same_side', canonical_name: 'Butterfly Same Side', adds: '3',

@@ -101,7 +101,7 @@ beforeAll(async () => {
     base_trick: 'whirl', trick_family: 'whirl', category: 'compound',
     notation: 'REV WHIRL',
     operational_notation: 'CLIP > OP OUT [DEX] > OP CLIP [XBD] [DEL]',
-    review_status: 'expert_reviewed', is_active: 1,
+    review_status: 'expert_reviewed', is_active: 1, reverse_pair_base: 'whirl',
   });
   insertFreestyleTrick(db, {
     slug: 'whirl', canonical_name: 'whirl', adds: '3',

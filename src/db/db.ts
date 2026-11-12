@@ -2579,6 +2579,13 @@ export interface FreestyleTrickRow {
   // still have no operational notation populated.
   operational_notation: string | null;
   sort_order:           number;
+  // Curator-set facts every browse reads: the public family when it differs from
+  // trick_family, what the row is when it is not a trick to list, and the
+  // "Tricks that land here" list it sits in.
+  family_override:          string | null;
+  trick_kind:               string | null;
+  terminal_cohort:          string | null;
+  terminal_cohort_position: number | null;
 }
 
 // Extension of FreestyleTrickRow that also carries the operational-notation and
@@ -2593,6 +2600,10 @@ export interface FreestyleTrickDetailRow extends FreestyleTrickRow {
   learning_notes:              string | null;
   prerequisite_notes:          string | null;
   pronunciation:               string | null;
+  // Curator lines for the page's opening, and the trick this one reverses.
+  about_derivatives:           string | null;
+  about_naming_note:           string | null;
+  reverse_pair_base:           string | null;
 }
 
 // Extension of FreestyleTrickRow returned by listAllWithPending; carries the
@@ -2664,7 +2675,8 @@ export interface FreestyleModifierLinkPairRow {
 export const freestyleTricks = {
   get listAll() { return db.prepare(`
     SELECT slug, canonical_name, adds, base_trick, trick_family, category,
-           description, aliases_json, notation, operational_notation, sort_order
+           description, aliases_json, notation, operational_notation, sort_order,
+           family_override, trick_kind, terminal_cohort, terminal_cohort_position
     FROM freestyle_tricks
     WHERE is_active = 1
     ORDER BY sort_order ASC
@@ -2677,7 +2689,8 @@ export const freestyleTricks = {
   get listAllWithPending() { return db.prepare(`
     SELECT slug, canonical_name, adds, base_trick, trick_family, category,
            description, aliases_json, notation, sort_order, is_active,
-           review_status, operational_notation, operational_notation_source
+           review_status, operational_notation, operational_notation_source,
+           family_override, trick_kind, terminal_cohort, terminal_cohort_position
     FROM freestyle_tricks
     WHERE is_active = 1
        OR (is_active = 0 AND review_status = 'pending')
@@ -2701,14 +2714,17 @@ export const freestyleTricks = {
            description, aliases_json, notation, sort_order,
            operational_notation, operational_notation_source,
            short_description, execution_summary, learning_notes,
-           prerequisite_notes, pronunciation
+           prerequisite_notes, pronunciation,
+           family_override, trick_kind, terminal_cohort, terminal_cohort_position,
+           about_derivatives, about_naming_note, reverse_pair_base
     FROM freestyle_tricks
     WHERE slug = ? AND is_active = 1
   `); },
 
   get listByFamily() { return db.prepare(`
     SELECT slug, canonical_name, adds, base_trick, trick_family, category,
-           description, aliases_json, notation, sort_order
+           description, aliases_json, notation, sort_order,
+           family_override, trick_kind, terminal_cohort, terminal_cohort_position
     FROM freestyle_tricks
     WHERE trick_family = ? AND is_active = 1
     ORDER BY sort_order ASC
@@ -2757,7 +2773,9 @@ export const freestyleTricks = {
            trick_family, base_trick, category, is_active, sort_order,
            review_status,
            description, short_description, execution_summary, learning_notes,
-           prerequisite_notes, pronunciation, operational_notation_source
+           prerequisite_notes, pronunciation, operational_notation_source,
+           about_derivatives, about_naming_note, reverse_pair_base,
+           family_override, trick_kind, terminal_cohort, terminal_cohort_position
     FROM freestyle_tricks
     WHERE slug = ?
   `); },
@@ -2802,7 +2820,8 @@ export const freestyleTricks = {
   `); },
 
   // Admin curation scalar edit: update the editable row fields of one trick,
-  // the structural fields plus the editorial prose fields (slug is the identity
+  // the structural fields, the editorial prose fields and the curator-set page
+  // and browse facts (slug is the identity
   // key and stays fixed). The browse sort position is included because no content
   // pipeline sets it once the database is the source of truth, so this is its
   // only write path. Stamps updated_at. Attached aliases,
@@ -2820,6 +2839,9 @@ export const freestyleTricks = {
         review_status = ?, description = ?, short_description = ?,
         execution_summary = ?, learning_notes = ?, prerequisite_notes = ?,
         pronunciation = ?, operational_notation_source = ?,
+        about_derivatives = ?, about_naming_note = ?, reverse_pair_base = ?,
+        family_override = ?, trick_kind = ?,
+        terminal_cohort = ?, terminal_cohort_position = ?,
         updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
     WHERE slug = ?
   `); },

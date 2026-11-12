@@ -211,7 +211,9 @@ export const COPY_COLUMN_REGISTER: Readonly<Record<string, TableClassification>>
       'loaded_at', 'updated_at',
       'short_description', 'execution_summary', 'learning_notes', 'prerequisite_notes',
       'pronunciation', 'notation_evidence_basis', 'notation_derivation_method',
-      'notation_convention_id', 'trick_origin_producer'],
+      'notation_convention_id', 'trick_origin_producer',
+      'about_derivatives', 'about_naming_note', 'reverse_pair_base', 'family_override',
+      'trick_kind', 'terminal_cohort', 'terminal_cohort_position'],
   },
   gallery_external_links: {
     keep: ['id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version', 'gallery_id',

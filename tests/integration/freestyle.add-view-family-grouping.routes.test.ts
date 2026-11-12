@@ -23,18 +23,20 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 beforeAll(async () => {
   const db = createTestDb(dbPath);
   // All seeded at 4 ADD (test data only; does not change real ADD values).
-  const t = (slug: string, family: string, name?: string) =>
+  const t = (slug: string, family: string, name?: string, family_override?: string) =>
     insertFreestyleTrick(db, {
       slug, canonical_name: name ?? slug.replace(/-/g, ' '), adds: '4',
       base_trick: family, trick_family: family, category: 'compound',
-      review_status: 'curated', is_active: 1,
+      review_status: 'curated', is_active: 1, family_override: family_override ?? null,
     });
-  t('torque', 'osis');                       // FAMILY_OVERRIDES -> torque
-  t('blender', 'osis');                      // FAMILY_OVERRIDES -> blender
-  t('double_leg_over', 'legover');           // FAMILY_OVERRIDES -> double-leg-over
-  t('eggbeater', 'legover');                 // FAMILY_OVERRIDES -> eggbeater
+  // Each branch anchor carries the root's structural label and a public family
+  // override, as the real dictionary does.
+  t('torque', 'osis', undefined, 'torque');
+  t('blender', 'osis', undefined, 'blender');
+  t('double_leg_over', 'legover', undefined, 'double_leg_over');
+  t('eggbeater', 'legover', undefined, 'eggbeater');
   t('drifter', 'drifter');                   // public family
-  t('high_plains_drifter', 'clipper_stall'); // FAMILY_OVERRIDES -> drifter (NOT clipper-stall)
+  t('high_plains_drifter', 'clipper_stall', undefined, 'drifter'); // NOT clipper-stall
   t('dada_curve', 'dada_curve', 'Dada Curve');// public family
   t('whirl', 'whirl');                       // ordinary public family
   t('stepping_reaper', 'clipper_stall');     // no override -> Other / standalone

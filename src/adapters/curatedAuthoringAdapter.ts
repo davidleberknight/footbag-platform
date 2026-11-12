@@ -49,6 +49,13 @@ export const TRICK_SAVE_FIELDS = [
   'prerequisite_notes',
   'pronunciation',
   'operational_notation_source',
+  'about_derivatives',
+  'about_naming_note',
+  'reverse_pair_base',
+  'family_override',
+  'trick_kind',
+  'terminal_cohort',
+  'terminal_cohort_position',
 ] as const;
 
 export type TrickSaveField = (typeof TRICK_SAVE_FIELDS)[number];
