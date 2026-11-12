@@ -45,7 +45,8 @@
  *   - outbox enqueue (the deletion confirmation, or the administrator's
  *     deletion notice)
  *   - work-queue insert (an event left without an organizer)
- *   - object-storage deletes (the member's media)
+ *   - object-storage deletes (the member's media), each cleared from the edge
+ *     cache in the same adapter call
  *
  * Service shape: factory function, because the media deletion needs the storage
  * adapter and its failure path is the contract. `getDefaultAccountDeletionService()`
@@ -197,20 +198,21 @@ export function createAccountDeletionService(deps: AccountDeletionServiceDeps) {
       const mediaRows = account.listOwnedMediaForDeletion.all(input.memberId) as DeletionMediaRow[];
       const deletedTagIds: string[] = [];
       let mediaDeleted = 0;
+      // Every file goes in one call, so the edge cache is cleared in a single
+      // request however many photos the member has. Rows go only after the
+      // files are confirmed gone; a failure leaves both, and a retry is safe.
+      const keys = mediaRows.flatMap((item) =>
+        [item.s3_key_thumb, item.s3_key_display].filter((k): k is string => Boolean(k)));
+      try {
+        await storage.deleteMany(keys);
+      } catch (err) {
+        logger.warn('accountDeletionService: storage delete failed, account left intact', {
+          memberId: input.memberId,
+          error:    (err as Error).message,
+        });
+        return { status: 'storage_failed', mediaDeleted, recurringDonationCanceled };
+      }
       for (const item of mediaRows) {
-        const keys = [item.s3_key_thumb, item.s3_key_display].filter((k): k is string => Boolean(k));
-        try {
-          for (const key of keys) {
-            await storage.delete(key);
-          }
-        } catch (err) {
-          logger.warn('accountDeletionService: storage delete failed, account left intact', {
-            memberId: input.memberId,
-            mediaId:  item.id,
-            error:    (err as Error).message,
-          });
-          return { status: 'storage_failed', mediaDeleted, recurringDonationCanceled };
-        }
         const tagIds = (tagStats.listTagIdsByMediaId.all(item.id) as { tag_id: string }[])
           .map((t) => t.tag_id);
         transaction(() => {

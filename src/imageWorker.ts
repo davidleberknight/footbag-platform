@@ -21,7 +21,14 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import { detectImageType, ImageRejectedError, processAvatar, processPhoto, type ProcessedImage } from './lib/imageProcessing';
+import {
+  detectImageType,
+  ImageRejectedError,
+  processAvatar,
+  processPhoto,
+  type ProcessedImage,
+  type ProcessImageResponse,
+} from './lib/imageProcessing';
 import {
   detectVideoFormat,
   detectVideoFormatFile,
@@ -270,12 +277,13 @@ export function createImageWorkerApp(opts: ImageWorkerOptions = {}): express.Exp
 
     try {
       const processed = await impl(buf);
-      res.status(200).json({
+      const reply: ProcessImageResponse = {
         thumb: processed.thumb.toString('base64'),
         display: processed.display.toString('base64'),
         widthPx: processed.widthPx,
         heightPx: processed.heightPx,
-      });
+      };
+      res.status(200).json(reply);
     } catch (err: unknown) {
       // Client-fixable rejections (too small / too large / extreme aspect) are
       // a 400 with a clear message; everything else is a server failure.

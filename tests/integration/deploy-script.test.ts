@@ -1593,6 +1593,9 @@ describe('the deploy leaves resolve everything against their own checkout', () =
     const invocation = block.slice(block.indexOf('MEDIA_CHECK_STATUS=0'));
     expect(invocation).toMatch(/MEDIA_STORAGE_ADAPTER="s3"/);
     expect(invocation).toMatch(/MEDIA_STORAGE_S3_BUCKET="\$MEDIA_BUCKET"/);
+    // The s3 backend also refuses to boot without the distribution it clears
+    // deleted files from.
+    expect(invocation).toMatch(/CLOUDFRONT_DISTRIBUTION_ID="\$MEDIA_DISTRIBUTION_ID"/);
     expect(invocation).toMatch(/AWS_REGION="\$MEDIA_CHECK_REGION"/);
     // And a region it cannot resolve is a refusal before the check runs, not a
     // crash inside it.

@@ -35,19 +35,27 @@ const ITEM_ACTIVE = 'media_ms_active';
 interface StubStorage extends MediaStorageAdapter {
   deleted: string[];
   failOn: Set<string>;
+  batches: string[][];
 }
 
 function stubStorage(): StubStorage {
   const deleted: string[] = [];
   const failOn = new Set<string>();
+  const batches: string[][] = [];
+  async function deleteOne(key: string) {
+    if (failOn.has(key)) throw new Error(`storage refused ${key}`);
+    deleted.push(key);
+  }
   return {
     deleted,
     failOn,
+    batches,
     async put() { /* unused */ },
     async get() { return Buffer.alloc(0); },
-    async delete(key: string) {
-      if (failOn.has(key)) throw new Error(`storage refused ${key}`);
-      deleted.push(key);
+    delete: deleteOne,
+    async deleteMany(keys: readonly string[]) {
+      batches.push([...keys]);
+      for (const key of keys) await deleteOne(key);
     },
     constructURL(key: string) { return `/media-store/${key}`; },
     async exists() { return true; },
@@ -131,6 +139,9 @@ describe('decideDelete — the stored objects', () => {
     expect(result.status).toBe('decided');
     expect(result).toMatchObject({ storageRemoved: true });
     expect(storage.deleted.sort()).toEqual([`${ITEM_OK}/display.jpg`, `${ITEM_OK}/thumb.jpg`]);
+    // One storage call for the item's files, so the CDN clears them in a single
+    // request rather than tripping its one-clear-a-second limit.
+    expect(storage.batches).toHaveLength(1);
     expect(statusOf(ITEM_OK)).toBe('removed_by_admin');
   });
 

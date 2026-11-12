@@ -56,6 +56,14 @@ export const ADAPTER_SITES: AdapterSite[] = [
     status: { swept: SWEEP },
   },
   {
+    file: 'src/services/memberService.ts', getter: 'getPaymentAdapter', operation: 'purgeAccountPII',
+    status: { swept: SWEEP },
+  },
+  {
+    file: 'src/services/memberService.ts', getter: 'getPaymentAdapter', operation: 'scrubDeceasedMemberPII',
+    status: { swept: SWEEP },
+  },
+  {
     file: 'src/services/paymentService.ts', getter: 'getPaymentAdapter', operation: 'reopenCheckout',
     status: { noWriteAfter: 'reads the address of the checkout a repeated purchase or gift returns to; nothing is written on that path' },
   },

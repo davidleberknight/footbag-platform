@@ -346,7 +346,9 @@ export function runDailyPass(opts: RunOpts = {}): RunDailyPassResult {
       // skipped_outside_window counts "we did NOT write expiry AND did NOT
       // enqueue a notice", so those two buckets stay disjoint and each remains
       // independently meaningful when ops reads details_json.
-      if (c.expires_at < nowIso) {
+      // At or before: the status ends at its expiry instant, which is when the
+      // status view stops counting the member as an Active Player.
+      if (c.expires_at <= nowIso) {
         expireWithNotice(c, now, nowIso, result);
         continue;
       }

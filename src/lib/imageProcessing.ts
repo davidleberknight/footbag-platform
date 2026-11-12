@@ -118,6 +118,18 @@ export interface ProcessedImage {
   heightPx: number;
 }
 
+/**
+ * The image worker's success reply on the wire: a processed image with both
+ * renditions base64-encoded, since the reply is JSON. The worker writes it and
+ * the HTTP image adapter reads it, so the one definition is their contract.
+ */
+export interface ProcessImageResponse {
+  thumb: string;
+  display: string;
+  widthPx: number;
+  heightPx: number;
+}
+
 export function detectImageType(data: Buffer): 'image/jpeg' | 'image/png' | null {
   if (data.length < 4) return null;
   if (data.subarray(0, 3).equals(JPEG_MAGIC)) return 'image/jpeg';

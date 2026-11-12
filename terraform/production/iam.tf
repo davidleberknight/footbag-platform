@@ -156,14 +156,16 @@ resource "aws_iam_role_policy" "app_s3_snapshots" {
 # video assets plus pending/ presigned-PUT keys (DD §6.8). GetObject reads
 # pending source bytes back during transcode finalize. ListBucket lets HEAD on
 # missing keys return 404 NoSuchKey rather than 403. CloudFront-OAC remains the
-# sole serving read path for finalized media.
+# sole serving read path for finalized media. CreateInvalidation, on this
+# distribution only, clears a deleted file from the edge cache, where uploads
+# are otherwise served immutable for a year.
 resource "aws_iam_role_policy" "app_s3_media" {
   name = "s3-media"
   role = aws_iam_role.app_runtime.id
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
+    Statement = concat([
       {
         Sid    = "ReadWriteMediaObjects"
         Effect = "Allow"
@@ -180,7 +182,14 @@ resource "aws_iam_role_policy" "app_s3_media" {
         Action   = "s3:ListBucket"
         Resource = aws_s3_bucket.media.arn
       }
-    ]
+      ], var.enable_cloudfront ? [
+      {
+        Sid      = "InvalidateMediaPaths"
+        Effect   = "Allow"
+        Action   = "cloudfront:CreateInvalidation"
+        Resource = aws_cloudfront_distribution.main[0].arn
+      }
+    ] : [])
   })
 }
 

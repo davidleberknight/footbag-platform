@@ -39,7 +39,7 @@
        line at the top of the body, as on the club and event pages. --}}
   <p class="trick-hero-meta-ribbon">
     {{#if content.familyChip}}
-    <a class="trick-hero-meta-chip trick-hero-meta-chip-family{{#if content.familyChip.isMinorLineage}} trick-hero-meta-chip-family--minor{{/if}}" href="{{{content.familyChip.href}}}">{{content.familyChip.label}}{{#if content.familyChip.isMinorLineage}} &middot; minor lineage{{/if}}</a>
+    <a class="trick-hero-meta-chip trick-hero-meta-chip-family{{#if content.familyChip.isMinorLineage}} trick-hero-meta-chip-family--minor{{/if}}" href="{{siteHref content.familyChip.href}}">{{content.familyChip.label}}{{#if content.familyChip.isMinorLineage}} &middot; minor lineage{{/if}}</a>
     {{/if}}
     {{#if content.dictEntry}}
       {{#if content.dictEntry.isModifier}}

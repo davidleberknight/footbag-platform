@@ -254,14 +254,14 @@ describe('the deletion', () => {
       ...realStorage,
       // The administrator's request reaches storage first; the member's own
       // deletion runs to completion inside that await.
-      delete: async (key: string) => {
+      deleteMany: async (keys: readonly string[]) => {
         if (!raced) {
           raced = true;
           await request(createApp()).post(`/members/${slug}/delete`)
             .set('Cookie', `__Host-footbag_session=${createTestSessionJwt({ memberId: id })}`)
             .type('form').send({ confirmed: '1' });
         }
-        await realStorage.delete(key);
+        await realStorage.deleteMany(keys);
       },
     });
     try {

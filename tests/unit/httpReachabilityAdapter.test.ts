@@ -91,6 +91,52 @@ describe('LiveHttpReachabilityAdapter', () => {
     expect(call).toBeGreaterThanOrEqual(2);
   });
 
+  // Defect caught: a name whose lookup fails is treated as safe and handed to
+  // fetch, which resolves it again and may reach an internal address the check
+  // never saw.
+  it('refuses a host whose name does not resolve, without fetching it', async () => {
+    const fetched: string[] = [];
+    const fetchClient = makeFakeFetch(new Map([['https://flaky.example/', { status: 200 }]]), fetched);
+    const lookup = async (_host: string): Promise<{ address: string; family: number }> => {
+      throw Object.assign(new Error('getaddrinfo ENOTFOUND flaky.example'), { code: 'ENOTFOUND' });
+    };
+    const adapter = createLiveHttpReachabilityAdapter({ fetchClient, lookup });
+    const result = await adapter.check('https://flaky.example/');
+    expect(result.reachable).toBe(false);
+    expect(result.error).toBe('host name did not resolve');
+    expect(fetched).toEqual([]);
+  });
+
+  // Defect caught: an address typed as a literal private IP skips the range
+  // check, because only names are looked up, and the request reaches the host's
+  // own network.
+  it('refuses a literal private or loopback address, bracketed IPv6 included, without fetching it', async () => {
+    const fetched: string[] = [];
+    const fetchClient = makeFakeFetch(new Map(), fetched);
+    const lookup = async (host: string): Promise<{ address: string; family: number }> => {
+      throw new Error(`a literal address was looked up: ${host}`);
+    };
+    const adapter = createLiveHttpReachabilityAdapter({ fetchClient, lookup });
+    for (const url of ['http://127.0.0.1/', 'http://169.254.169.254/latest/', 'http://[::1]/']) {
+      const result = await adapter.check(url);
+      expect(result.reachable, url).toBe(false);
+      expect(result.error, url).toBe('redirect to blocked IP range');
+    }
+    expect(fetched).toEqual([]);
+  });
+
+  // Defect caught: a lookup that answers with no address is read as a public
+  // one, and the name is handed to fetch to resolve on its own.
+  it('refuses a host whose lookup answers with no address', async () => {
+    const fetched: string[] = [];
+    const fetchClient = makeFakeFetch(new Map([['https://empty.example/', { status: 200 }]]), fetched);
+    const adapter = createLiveHttpReachabilityAdapter({ fetchClient, lookup: async () => ({ address: '', family: 4 }) });
+    const result = await adapter.check('https://empty.example/');
+    expect(result.reachable).toBe(false);
+    expect(result.error).toBe('host name did not resolve');
+    expect(fetched).toEqual([]);
+  });
+
   it('rejects after exceeding 5 redirects', async () => {
     const responses = new Map<string, { status: number; headers?: Record<string, string> }>();
     for (let i = 0; i < 7; i++) {

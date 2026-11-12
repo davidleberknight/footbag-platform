@@ -106,7 +106,7 @@ The branch owns grouping, headings and prose; the row owns everything inside a r
 {{#each content.{viewModel}}}
 <section class="content-section trick-{view}-group" id="{{anchorId}}">
   <div class="section-heading">
-    <h2><a href="{{{href}}}">{{label}}</a></h2>
+    <h2><a href="{{siteHref href}}">{{label}}</a></h2>
     <span class="section-count">{{countLabel}}</span>
   </div>
   {{#if intro}}
@@ -129,8 +129,8 @@ The branch owns grouping, headings and prose; the row owns everything inside a r
   Never a per-view heading class: a view with its own heading treatment fails uniformity exactly as
   a view with its own row would.
 - **Service-provided hrefs only**, per the view-layer rule "Hashtag and dictionary-filter links".
-  Render a query-string href with triple braces, `{{{href}}}`, so Handlebars does not escape `=` to
-  `&#x3D;`.
+  Render a query-string href through the `siteHref` helper, `{{siteHref href}}`, which
+  leaves `=` as written and escapes what could close the attribute.
 - **Section ID format `{view}-{slug}`.** Anchor IDs are public API. Never rename one without
   updating every cross-link in the same change.
 - **Heading wraps the label in a self-anchored link**, so a reader can copy a deep link to a group.

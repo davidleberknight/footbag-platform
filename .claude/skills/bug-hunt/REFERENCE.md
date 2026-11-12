@@ -67,7 +67,7 @@ Anti-enumeration surfaces include login, password-reset, email-verify, claim-loo
 #### 4.4.8 SQL injection / XSS holes
 
 - All SQL lives in `src/db/db.ts` as named prepared statements. `db.prepare()` outside `db.ts` is forbidden (the conventions gate enforces it); a violation is critical.
-- Handlebars escapes by default; triple-stash bypasses escaping. For each `{{{` in `src/views/`, confirm the value is operator-controlled or sanitized server-side.
+- Handlebars escapes by default; triple-stash bypasses escaping. The conventions gate limits `{{{` to the view-layer allow-list by name; for each `*Html` or `*Json` value, and each link passed to the `siteHref` helper, confirm the service builds it from the site's own routes, committed content or the escaping helper, never from submitted text.
 - Untrusted input concatenated into a regex, a shell command, or a file path is a bug.
 - Any externally hosted asset a template loads must be declared in the `src/app.ts` CSP directives; a template loading an external asset with no matching CSP entry is a bug.
 

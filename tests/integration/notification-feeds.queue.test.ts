@@ -274,6 +274,50 @@ describe('notification feeds read from queues', () => {
     }
   });
 
+  it('hands the shutdown signal to every delete as well as every read', async () => {
+    // Without it a stop waits on a delete the queue never answers, for the
+    // whole socket limit, after the read itself was already ended.
+    const seen: Array<AbortSignal | undefined> = [];
+    const recording: NotificationFeedAdapter = {
+      receive: async (queueUrl) => (queueUrl === SES_QUEUE
+        ? [
+          { receiptHandle: 'rh-ok', body: permanentBounce('sns-signal-ok') },
+          {
+            receiptHandle: 'rh-foreign',
+            body: sesFeedbackEnvelope({
+              notificationType: 'Bounce',
+              bounce: { bounceType: 'Permanent', bouncedRecipients: [{ emailAddress: BOUNCED_EMAIL }] },
+            }, { messageId: 'sns-signal-foreign', topicArn: 'arn:aws:sns:us-east-1:999:someone-elses-topic' }),
+          },
+        ]
+        : []),
+      deleteMessage: async (_queueUrl, _receiptHandle, opts) => {
+        seen.push(opts?.abortSignal);
+      },
+    };
+    feedModule.setNotificationFeedAdapterForTests(recording);
+    const shutdown = new AbortController();
+
+    await operationsPlatformService.runNotificationFeeds({ abortSignal: shutdown.signal });
+
+    expect(seen).toHaveLength(2);
+    for (const signal of seen) expect(signal).toBe(shutdown.signal);
+  });
+
+  it('keeps a message in flight when its delete is refused by a stop already under way', async () => {
+    // The stub refuses as the live queue client does, so a shutdown mid-pass
+    // leaves the message for redelivery rather than reporting it deleted.
+    feed.publishForTests(SES_QUEUE, permanentBounce('sns-stopped'));
+    const [message] = await feed.receive(SES_QUEUE);
+    const shutdown = new AbortController();
+    shutdown.abort();
+
+    await expect(feed.deleteMessage(SES_QUEUE, message.receiptHandle, { abortSignal: shutdown.signal }))
+      .rejects.toMatchObject({ name: 'AbortError' });
+    expect(feed.deleted(SES_QUEUE)).toHaveLength(0);
+    expect(feed.inFlight(SES_QUEUE)).toHaveLength(1);
+  });
+
   it('reads no feed at all when neither queue is configured', async () => {
     // A queue read without the topic to attribute it against would consume
     // messages the platform cannot place, and a consumed message is gone. An

@@ -100,7 +100,7 @@
   <nav class="related-modifier-groups" aria-label="Related set or modifier groups">
     <span class="related-modifier-groups-label">Related set/modifier groups:</span>
     {{#each content.relatedModifierGroups}}
-      <a href="{{{href}}}">{{modifierName}}</a>{{#unless @last}} <span class="related-modifier-group-sep">·</span> {{/unless}}
+      <a href="{{siteHref href}}">{{modifierName}}</a>{{#unless @last}} <span class="related-modifier-group-sep">·</span> {{/unless}}
     {{/each}}
   </nav>
   {{/if}}
@@ -154,20 +154,20 @@
   <nav class="trick-view-toggle" aria-label="Sort within each ADD tier">
     <span class="dict-nav-label">{{content.navSection.sortLabel}}</span>
     {{#if (eq content.addSort "alpha")}}
-      <a href="{{{content.addSortToggle.familyHref}}}">By family</a>
+      <a href="{{siteHref content.addSortToggle.familyHref}}">By family</a>
       <span class="trick-view-toggle-sep" aria-hidden="true">·</span>
       <span aria-current="true" class="trick-view-toggle-active">Alphabetical</span>
     {{else}}
       <span aria-current="true" class="trick-view-toggle-active">By family</span>
       <span class="trick-view-toggle-sep" aria-hidden="true">·</span>
-      <a href="{{{content.addSortToggle.alphaHref}}}">Alphabetical</a>
+      <a href="{{siteHref content.addSortToggle.alphaHref}}">Alphabetical</a>
     {{/if}}
   </nav>
   {{#if content.addJumpChips.length}}
   <nav class="jump-bar" aria-label="Browse by ADD level">
     <span class="jump-bar-label">ADD levels:</span>
     {{#each content.addJumpChips}}
-      <a href="{{{href}}}">{{label}}</a>{{#unless @last}} <span class="jump-bar-sep">·</span> {{/unless}}
+      <a href="{{siteHref href}}">{{label}}</a>{{#unless @last}} <span class="jump-bar-sep">·</span> {{/unless}}
     {{/each}}
   </nav>
   {{/if}}
@@ -245,7 +245,7 @@
     <p class="modifier-cluster-blurb detail-muted">{{blurb}}</p>
     {{#each groups}}
     <section class="trick-modifier-group" id="modifier-{{slug}}">
-      <h3><a href="{{{href}}}">{{name}}</a> <span class="section-count">{{trickCount}}</span></h3>
+      <h3><a href="{{siteHref href}}">{{name}}</a> <span class="section-count">{{trickCount}}</span></h3>
       <ul class="dict-trick-row-stack" role="list">
         {{#each cards}}
           {{> dictionary-trick-row}}
@@ -306,7 +306,7 @@
   {{#each content.setViewGroups}}
   <section class="content-section trick-set-group" id="set-{{slug}}">
     <div class="section-heading">
-      <h2><a href="{{{href}}}">{{label}}</a></h2>
+      <h2><a href="{{siteHref href}}">{{label}}</a></h2>
       <span class="section-count">{{trickCount}}</span>
     </div>
     <ul class="dict-trick-row-stack" role="list">
@@ -364,7 +364,7 @@
   {{#each content.familyGroups}}
   <section class="content-section trick-family-group" id="family-{{familySlug}}">
     <div class="section-heading">
-      <h2><a href="{{{familyHref}}}">{{familyName}} family</a></h2>
+      <h2><a href="{{siteHref familyHref}}">{{familyName}} family</a></h2>
       <span class="section-count">{{cards.length}}</span>
     </div>
     {{#if branchParentName}}
@@ -410,7 +410,7 @@
     <p class="trick-minor-lineage-intro">Additional curated lineages appear in the family view but do not have their own standalone family pages. Their placement is an editorial classification rather than a threshold based on the number of tricks.</p>
     <ul class="trick-minor-lineage-list">
       {{#each content.minorLineages}}
-      <li><a href="{{{href}}}">{{name}}</a> <span class="trick-minor-lineage-count">{{count}}</span></li>
+      <li><a href="{{siteHref href}}">{{name}}</a> <span class="trick-minor-lineage-count">{{count}}</span></li>
       {{/each}}
     </ul>
   </section>

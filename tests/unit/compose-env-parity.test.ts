@@ -272,6 +272,7 @@ const PRODUCTION_FIXTURE: Record<string, string> = {
   IMAGE_MAX_CONCURRENT: '2',
   MEDIA_STORAGE_ADAPTER: 's3',
   MEDIA_STORAGE_S3_BUCKET: 'footbag-production-media',
+  CLOUDFRONT_DISTRIBUTION_ID: 'E2STUBPRODDIST',
   PAYMENT_ADAPTER: 'live',
   // env.ts requires STRIPE_WEBHOOK_SECRET when PAYMENT_ADAPTER=live.
   STRIPE_WEBHOOK_SECRET: 'whsec_live_realvalue',
@@ -486,6 +487,9 @@ describe('compose ↔ env.ts parity (production: base + prod overlay)', () => {
     const env = resolveServiceEnv(merged.services.web, PRODUCTION_FIXTURE);
     expect(env.MEDIA_STORAGE_ADAPTER).toBe('s3');
     expect(env.MEDIA_STORAGE_S3_BUCKET).toBe('footbag-production-media');
+    // Defect: the compose file drops the distribution id, the s3 backend refuses
+    // to boot, and the site does not start after a deploy.
+    expect(env.CLOUDFRONT_DISTRIBUTION_ID).toBe('E2STUBPRODDIST');
   });
 });
 

@@ -506,23 +506,21 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
   }
 
   async function removeStoredObjects(row: ModerationRow): Promise<boolean> {
-    let allRemoved = true;
-    for (const key of storageKeysFor(row)) {
-      try {
-        await storage.delete(key);
-      } catch (err) {
-        allRemoved = false;
-        // Warn rather than error: the item is already hidden from every read, the
-        // administrator is told in the same response, and deciding the item again
-        // retries the removal.
-        logger.warn('mediaModerationService: storage delete failed on takedown', {
-          mediaId: row.id,
-          key,
-          error: (err as Error).message,
-        });
-      }
+    // One call for the item's files, so the edge cache is cleared in a single
+    // request along with the stored objects.
+    try {
+      await storage.deleteMany(storageKeysFor(row));
+      return true;
+    } catch (err) {
+      // Warn rather than error: the item is already hidden from every read, the
+      // administrator is told in the same response, and deciding the item again
+      // retries the removal.
+      logger.warn('mediaModerationService: storage delete failed on takedown', {
+        mediaId: row.id,
+        error: (err as Error).message,
+      });
+      return false;
     }
-    return allRemoved;
   }
 
   /**

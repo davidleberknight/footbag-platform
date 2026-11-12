@@ -37,6 +37,7 @@ const CLEAN_STAGING_ENV = [
   `SES_FROM_IDENTITY=${TF_ENV.TF_SES_SENDER}`,
   'MEDIA_STORAGE_ADAPTER=s3',
   `MEDIA_STORAGE_S3_BUCKET=${TF_ENV.TF_MEDIA_BUCKET}`,
+  'CLOUDFRONT_DISTRIBUTION_ID=E2STAGINGDIST01',
   'AWS_REGION=us-east-1',
   'SAFE_BROWSING_ADAPTER=live',
   'SECRETS_ADAPTER=live',
@@ -218,6 +219,15 @@ describe('verify-host-env.sh — critical invariant FAIL boundaries', () => {
     const result = runScript({ envFilePath: writeEnvFile(env), target: 'production' });
     expect(result.exitCode).toBe(1);
     expect(result.stdout).toMatch(/FAIL +SES sender identity matches terraform/);
+  });
+
+  // Defect caught: a host missing the distribution id passes verification, and
+  // the site then refuses to boot on its next restart.
+  it('an unset CLOUDFRONT_DISTRIBUTION_ID → FAIL', () => {
+    const env = mutate(/CLOUDFRONT_DISTRIBUTION_ID=.+\n/, '');
+    const result = runScript({ envFilePath: writeEnvFile(env) });
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toMatch(/FAIL +media distribution: CLOUDFRONT_DISTRIBUTION_ID is unset/);
   });
 
   it('MEDIA_STORAGE_S3_BUCKET drift from terraform → FAIL', () => {

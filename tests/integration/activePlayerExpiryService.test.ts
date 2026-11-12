@@ -350,6 +350,50 @@ describe('runDailyPass — the day-of ending notice', () => {
   });
 });
 
+describe('runDailyPass — the expiry instant', () => {
+  // The status ends at its expiry instant: the status view already counts a
+  // member as lapsed when the expiry equals now, so the pass must expire them
+  // then too. Each case passes the instant explicitly.
+  const at = (now: Date, deltaMs: number): string => new Date(now.getTime() + deltaMs).toISOString();
+
+  // Defect caught: a member whose expiry is one millisecond away is expired
+  // early and told their status has ended while it is still current.
+  it('one millisecond before the expiry, the status is left current and no notice goes', () => {
+    const now = nextNow();
+    const m = seedMember({ expires_at: at(now, 1) });
+
+    expirySvc.runDailyPass({ now });
+
+    expect(readLatestGrantChangeType(m.id)).toBe('grant');
+    expect(readOutboxForMember(m.id)).toBe(0);
+  });
+
+  // Defect caught: a pass run at the exact expiry instant treats the status as
+  // current, so the member already lacks Tier 1 benefits but gets no expire
+  // row or ending notice from that run.
+  it('at the expiry instant, the status is expired and the ending notice goes', () => {
+    const now = nextNow();
+    const m = seedMember({ expires_at: at(now, 0) });
+
+    expirySvc.runDailyPass({ now });
+
+    expect(readLatestGrantChangeType(m.id)).toBe('expire');
+    expect(readOutboxForMember(m.id)).toBe(1);
+    expect(readReminderLabelsForMember(m.id)).toEqual(['day_of']);
+  });
+
+  // Defect caught: a grant lapsed by a millisecond is not expired.
+  it('one millisecond after the expiry, the status is expired and the ending notice goes', () => {
+    const now = nextNow();
+    const m = seedMember({ expires_at: at(now, -1) });
+
+    expirySvc.runDailyPass({ now });
+
+    expect(readLatestGrantChangeType(m.id)).toBe('expire');
+    expect(readOutboxForMember(m.id)).toBe(1);
+  });
+});
+
 describe('runDailyPass — expiry ledger', () => {
   it('lapsed Tier 0 (T-1) gets an expire ledger row', () => {
     const now = nextNow();

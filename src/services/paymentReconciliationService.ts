@@ -342,6 +342,12 @@ const DIGEST_JOB_NAME = 'SYS_Reconciliation_Digest';
  */
 export const TREASURER_CONTACT_EMAIL = 'ifpa-treasurer@footbag.org';
 
+/** The digest's outbox key: one per UTC day, so a second send the same day is
+ *  refused by the outbox and the Treasurer is never mailed more often. */
+export function reconciliationDigestIdempotencyKey(now: Date): string {
+  return `reconciliation-digest:${now.toISOString().slice(0, 10)}`;
+}
+
 /** Said on every surface that shows a total, because a gross figure summed
  *  against a bank deposit will not reconcile and is not meant to. */
 export const PROVIDER_BOOK_OF_RECORD_LINE =
@@ -945,7 +951,6 @@ export const paymentReconciliationService = {
     ) as CommentedDonationRow[];
 
     const oldest = outstanding[0];
-    const day = now.toISOString().slice(0, 10);
     const lastRun = lastReconciliationReport();
 
     // One copy, to the treasurer contact. A send that is suppressed (the
@@ -971,7 +976,7 @@ export const paymentReconciliationService = {
         },
         recipientEmail: TREASURER_CONTACT_EMAIL,
         recipientMemberId: null,
-        idempotencyKey: `reconciliation-digest:${day}`,
+        idempotencyKey: reconciliationDigestIdempotencyKey(now),
       });
       if (result.status === 'suppressed') {
         logger.warn('reconciliation digest suppressed: the treasurer address is not deliverable', {

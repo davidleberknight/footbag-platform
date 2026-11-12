@@ -525,6 +525,47 @@ if [ -n "$nested_form_hits" ]; then
 fi
 fi
 
+# Rule: a template prints a value unescaped with {{{ }}} only from the view-layer
+# allow-list: a registered helper, the layout body, a JSON data island (a name
+# ending in Json, whose builder escapes "<"), markdown rendered to HTML (a name
+# ending in Html: committed markdown, or site-authored markdown sanitised against
+# an allowlist).
+# Reason: Handlebars escapes {{ }} output, which is the second layer of defence
+# against stored script injection; triple braces switch it off, so a member's
+# text printed that way reaches the page as markup. The names are the contract:
+# a service builds a *Json or *Html value from an escaping builder, never from
+# submitted text. A link is not on the list: escaped output inside an attribute
+# decodes back to the same address, so raw output there gains nothing and gives
+# up the escaping. Helper names are read from the
+# helpers block in src/app.ts, so a helper exists only once it is registered.
+if check "raw {{{ }}} output in src/views/** outside the allow-list" src/views src/app.ts; then
+raw_indent=$(grep -m1 -oE '^ *helpers: \{' src/app.ts | sed -E 's/helpers: \{$//' || [[ $? == 1 ]])
+raw_block=$(sed -n "/^${raw_indent}helpers: {/,/^${raw_indent}}/p" src/app.ts)
+raw_names=$(grep -oE "^${raw_indent}  [A-Za-z_][A-Za-z0-9_]*:" <<<"$raw_block" | tr -d ' :' | tr '\n' ' ' || [[ $? == 1 ]])
+raw_helpers=" ${raw_names} "
+raw_hits=""
+if [ -z "${raw_helpers// /}" ]; then
+  raw_hits="src/app.ts: no registered helper names could be read from the helpers block\n"
+fi
+while IFS= read -r hit; do
+  loc=${hit%%:\{\{\{*}
+  expr=$(sed -E 's/^\{\{\{~? *//; s/ *~?\}\}\}$//' <<<"${hit#"$loc":}")
+  first=${expr%% *}
+  [[ "$raw_helpers" == *" $first "* ]] && continue
+  if [ "$first" = "$expr" ]; then
+    seg=${expr##*.}
+    [ "$expr" = "body" ] && continue
+    case "$seg" in *Json | *Html) continue ;; esac
+  fi
+  raw_hits="${raw_hits}${loc}: {{{${expr}}}}\n"
+done < <(grep -rnoE --include='*.hbs' '\{\{\{[^}]*\}\}\}' src/views | sort || [[ $? == 1 ]])
+if [ -n "$raw_hits" ]; then
+  printf '%b' "$raw_hits" >&2
+  echo "  FAIL: raw {{{ }}} output outside the view-layer allow-list; print it escaped with {{ }} (links included), or shape it in the service as a *Json or *Html value" >&2
+  violations=$((violations + 1))
+fi
+fi
+
 # Rule: every fixture-staging script must declare the real-data guard.
 # Reason: scripts/ci/stage_*.sh files populate paths that on a workstation
 # may hold real data (legacy mirror, canonical CSVs, uploaded media). The

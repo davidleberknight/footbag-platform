@@ -23,7 +23,7 @@
   <section>
     <div class="by-numbers-grid">
       {{#each content.cards}}
-      {{#if href}}<a class="by-numbers-card" href="{{{href}}}">{{else}}<div class="by-numbers-card">{{/if}}
+      {{#if href}}<a class="by-numbers-card" href="{{siteHref href}}">{{else}}<div class="by-numbers-card">{{/if}}
         <span class="by-numbers-eyebrow">{{eyebrow}}</span>
         <span class="by-numbers-title">{{title}}</span>
         {{#if bars.length}}

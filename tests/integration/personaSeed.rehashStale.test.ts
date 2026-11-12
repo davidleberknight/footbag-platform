@@ -10,6 +10,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import * as path from 'node:path';
+import { runPersonaCommand } from '../fixtures/personaCommand';
 
 const PRIOR_FOOTBAG_ENV = process.env.FOOTBAG_ENV;
 process.env.FOOTBAG_ENV = process.env.FOOTBAG_ENV ?? 'development';
@@ -25,7 +26,6 @@ describe('persona seed runner: stale-hash self-heal', () => {
   let dbPath: string;
   let tmpDir: string;
   let personaSlug: string;
-  let priorArgv: string[];
 
   beforeAll(async () => {
     const fs = await import('node:fs');
@@ -69,15 +69,7 @@ describe('persona seed runner: stale-hash self-heal', () => {
     })();
     expect(before.h.startsWith('$argon2id$')).toBe(false);
 
-    const { main } = await import('../../src/testkit/personaSeedRunner');
-    priorArgv = process.argv;
-    process.argv = ['node', 'personaSeedRunner.js', '--db', dbPath];
-    try {
-      const code = await main();
-      expect(code).toBe(0);
-    } finally {
-      process.argv = priorArgv;
-    }
+    expect((await runPersonaCommand('personaSeedRunner', dbPath)).code).toBe(0);
 
     const after = (() => {
       const db = new BetterSqlite3(dbPath, { readonly: true });
@@ -113,14 +105,7 @@ describe('persona seed runner: stale-hash self-heal', () => {
       return row;
     })();
 
-    const { main } = await import('../../src/testkit/personaSeedRunner');
-    priorArgv = process.argv;
-    process.argv = ['node', 'personaSeedRunner.js', '--db', dbPath];
-    try {
-      expect(await main()).toBe(0);
-    } finally {
-      process.argv = priorArgv;
-    }
+    expect((await runPersonaCommand('personaSeedRunner', dbPath)).code).toBe(0);
 
     const second = (() => {
       const db = new BetterSqlite3(dbPath, { readonly: true });

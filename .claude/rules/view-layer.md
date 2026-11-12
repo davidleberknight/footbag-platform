@@ -326,7 +326,8 @@ breakpoints 480 / 768 / 1024, accessible responsive HTML-first design, and the
 stylesheet / template convention gates — colors from `:root` tokens (no colour literal of any
 form in rule bodies), `--radius*` tokens for corners, `--space-*` role tokens for margin, padding
 and gap (the Spacing Rhythm design decision),
-`--font-body` / `--font-mono` only, no inline `style` or `script`, no nested `<form>`, and
+`--font-body` / `--font-mono` only, no inline `style` or `script`, no nested `<form>`, no
+`{{{ }}}` outside the allow-list, and
 template-class-to-`style.css` correspondence. What the browser draws is enforced by the
 rendered-style check (`npm run test:rendered-style`): every page view at 390px and 1280px against
 the measurable parts of this standard, with known findings in a shrink-only baseline.
@@ -399,11 +400,14 @@ render it. Middleware adds the pre-shaped booleans the layout uses (`res.locals.
   or more, and every dictionary filter, view or hashtag link, is a service-shaped `*Href` field.
 - No inline `style="..."`, `<style>` or `<script>` block: the content security policy allows only
   same-origin scripts and styles. The one exception is a non-executable JSON data island,
-  `<script type="application/json" id="...">{{{ jsonViewModel }}}</script>`, parsed by an external
+  `<script type="application/json" id="...">{{{ mapDataJson }}}</script>`, parsed by an external
   script. The convention gate enforces this at merge time.
 - No raw HTML from a service string. Paragraph text renders escaped with `{{ }}`; a link inside it
-  is a service-shaped segment. Triple-stash `{{{ }}}` is for helpers, the layout `body`, JSON data
-  islands, sanitised markdown and service-shaped `*Href` values only.
+  is a service-shaped segment. Triple-stash `{{{ }}}` is for registered helpers, the layout
+  `body`, JSON data islands named `*Json`, markdown HTML named `*Html` (committed markdown, or
+  site-authored markdown sanitised against an allowlist), only. A service-shaped `*Href` renders
+  through the `siteHref` helper (`href="{{siteHref content.browseHref}}"`). The convention gate
+  enforces this by those names.
 - No inline event handlers (`onclick=` and the like); attach handlers from external JS with
   `addEventListener` on a class or `data-*` selector.
 - No nested `<form>`. HTML closes the outer form at the first `</form>`, orphaning every later
@@ -426,6 +430,8 @@ Registered helpers, from `src/app.ts`:
 - `countryFlag(country)`: flag for a country code.
 - `asset(path)`: the versioned static-asset URL the static-asset rule above requires.
 - `externalLink(url, label, class)`: an external `<a>` with `rel="noopener noreferrer"`.
+- `siteHref(href)`: a service-shaped link inside `href="..."`, escaped against
+  attribute breakout and refused unless it is a site path, fragment, query or http(s) link.
 - `formatLocation(city, region, country)`: location parts joined with commas.
 
 A person's country and location are shaped by `personLocation` in

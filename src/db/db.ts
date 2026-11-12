@@ -8613,6 +8613,7 @@ export const memberPurge = {
   get readForPurge() { return db.prepare(`
     SELECT id, slug, is_hof, is_bap, is_deceased, legacy_member_id,
            historical_person_id, personal_data_purged_at,
+           login_email, stripe_customer_id,
            EXISTS (
              SELECT 1 FROM erasure_log el
              WHERE el.entity_type = 'member' AND el.entity_id = members.id

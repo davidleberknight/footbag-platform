@@ -153,7 +153,9 @@ integrity=$(sqlite3 "${SNAP}" "PRAGMA integrity_check;" 2>/dev/null || echo "unr
 gzip -9 "${SNAP}" || record_failure "gzip failed"
 KEY="routine/${DAY_PREFIX}/footbag-${TS}.db.gz"
 
-# 2. Upload with bounded retry and exponential backoff (1s, 2s between tries).
+# 2. Upload with bounded retry and exponential backoff (1s, 2s between tries),
+#    each wait keeping its first half and randomising its second (equal jitter)
+#    so a retry never lines up with another caller that failed at the same time.
 uploaded=0
 for attempt in $(seq 1 "${UPLOAD_MAX_ATTEMPTS}"); do
   if aws s3 cp --only-show-errors "${SNAP}.gz" "s3://${BACKUP_S3_BUCKET}/${KEY}"; then
@@ -161,7 +163,11 @@ for attempt in $(seq 1 "${UPLOAD_MAX_ATTEMPTS}"); do
     break
   fi
   echo "backup-db: upload attempt ${attempt}/${UPLOAD_MAX_ATTEMPTS} failed" >&2
-  (( attempt < UPLOAD_MAX_ATTEMPTS )) && sleep $(( 2 ** (attempt - 1) ))
+  if (( attempt < UPLOAD_MAX_ATTEMPTS )); then
+    step_ms=$(( 1000 * 2 ** (attempt - 1) ))
+    wait_ms=$(( step_ms / 2 + RANDOM % (step_ms / 2 + 1) ))
+    sleep "$(( wait_ms / 1000 )).$(printf '%03d' $(( wait_ms % 1000 )))"
+  fi
 done
 [[ "${uploaded}" -eq 1 ]] || record_failure "S3 upload failed after ${UPLOAD_MAX_ATTEMPTS} attempts"
 

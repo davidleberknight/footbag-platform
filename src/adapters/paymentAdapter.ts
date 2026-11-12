@@ -19,9 +19,15 @@
  * implementations identically.
  */
 import { randomUUID } from 'node:crypto';
+import * as path from 'node:path';
 import Stripe from 'stripe';
 import { config } from '../config/env';
 import { verifyStripeWebhook, signStripeWebhook } from './stripeWebhook';
+import {
+  createDirectoryLedgerStore,
+  createMemoryLedgerStore,
+  tableAsReadonlyMap,
+} from './stubPaymentLedgerStore';
 import {
   type SecretsAdapter,
   getSecretsAdapter,
@@ -250,6 +256,13 @@ export interface PaymentAdapter {
    * credential throws.
    */
   resolveCredentialMode(): Promise<'live' | 'test' | 'unknown'>;
+  /**
+   * Permanently deletes the customer record at the provider: its card details
+   * go and any active subscription ends at once, while the provider keeps the
+   * transaction records the law requires. A customer the provider no longer
+   * holds answers `already_gone`, so a repeat after a restore is a success.
+   */
+  deleteCustomer(stripeCustomerId: string): Promise<{ status: 'deleted' | 'already_gone' }>;
   listPaymentIntents(window: LedgerWindow): Promise<StripePaymentIntentSummary[]>;
   listSubscriptions(): Promise<StripeSubscriptionSummary[]>;
   listInvoices(window: LedgerWindow): Promise<StripeInvoiceSummary[]>;
@@ -396,6 +409,11 @@ export interface StubPaymentAdapter extends PaymentAdapter {
   /** Whether the session was closed or expired, so the simulated checkout page
    *  refuses it as the provider's hosted page does. */
   isSessionClosed(sessionId: string): boolean;
+  /** Whether `deleteCustomer` has deleted this customer. */
+  isCustomerDeleted(stripeCustomerId: string): boolean;
+  /** The next `deleteCustomer` call rejects with this error, as an unreachable
+   *  provider would, and the customer stays undeleted. */
+  failNextCustomerDelete(err: Error): void;
   /** The mode `loadedCredentialMode()` reports; test mode unless a test says
    *  otherwise. `clear()` restores test mode. */
   setLoadedCredentialModeForTests(mode: 'live' | 'test' | 'unknown'): void;
@@ -892,21 +910,36 @@ function buildStubAccountEventObject(
   };
 }
 
-export function createStubPaymentAdapter(): StubPaymentAdapter {
+/**
+ * The stub's provider records live in one store every process reads, because
+ * the provider they stand for is one ledger shared by the web process, the
+ * worker and the testkit (see `stubPaymentLedgerStore.ts`). `ledgerDir` names
+ * that store's directory; without it the records live in this instance's
+ * memory, which is what a test file wants. The test controls below (the next
+ * outcome, the next delete failure, the reported mode) are a test's
+ * instruments, not provider state, so they stay with the instance.
+ */
+export function createStubPaymentAdapter(
+  opts: { ledgerDir?: string | null } = {},
+): StubPaymentAdapter {
   // Resolved once so every signature this adapter produces and every one it
   // verifies use the same secret; a deployment that supplies its own value
   // stops accepting anything signed with the committed constant.
   const stubSecret = config.stripeWebhookSecretStub ?? STUB_WEBHOOK_SECRET;
-  const sessions = new Map<string, StubSessionRecord>();
-  const ledgerIntents = new Map<string, StripePaymentIntentSummary>();
-  const ledgerSubscriptions = new Map<string, StripeSubscriptionSummary>();
-  const ledgerInvoices = new Map<string, StripeInvoiceSummary>();
-  const ledgerRefunds = new Map<string, StripeRefundSummary>();
+  const store = opts.ledgerDir ? createDirectoryLedgerStore(opts.ledgerDir) : createMemoryLedgerStore();
+  const sessions = store.table<StubSessionRecord>('sessions');
+  const sessionsView = tableAsReadonlyMap(sessions);
+  const ledgerIntents = store.table<StripePaymentIntentSummary>('intents');
+  const ledgerSubscriptions = store.table<StripeSubscriptionSummary>('subscriptions');
+  const ledgerInvoices = store.table<StripeInvoiceSummary>('invoices');
+  const ledgerRefunds = store.table<StripeRefundSummary>('refunds');
   // Sessions a buyer walked away from and the caller closed, or that expired.
-  const closedSessions = new Set<string>();
+  const closedSessions = store.table<true>('closed_sessions');
   // Sessions the buyer paid. The provider holds them complete from that moment,
   // whether or not its webhook has been delivered yet.
-  const completedSessions = new Set<string>();
+  const completedSessions = store.table<true>('completed_sessions');
+  const deletedCustomers = store.table<true>('deleted_customers');
+  let nextCustomerDeleteError: Error | null = null;
   let nextOutcome: StubOutcome = 'success';
   let reportedMode: 'live' | 'test' | 'unknown' = 'test';
 
@@ -1040,14 +1073,14 @@ export function createStubPaymentAdapter(): StubPaymentAdapter {
 
   return {
     get sessions() {
-      return sessions;
+      return sessionsView;
     },
     setNextOutcome(outcome) {
       nextOutcome = outcome;
     },
     overrideSessionOutcome(sessionId, outcome) {
       const s = sessions.get(sessionId);
-      if (s) s.outcome = outcome;
+      if (s) sessions.set(sessionId, { ...s, outcome });
     },
     clear() {
       sessions.clear();
@@ -1057,6 +1090,8 @@ export function createStubPaymentAdapter(): StubPaymentAdapter {
       ledgerRefunds.clear();
       closedSessions.clear();
       completedSessions.clear();
+      deletedCustomers.clear();
+      nextCustomerDeleteError = null;
       nextOutcome = 'success';
       reportedMode = 'test';
     },
@@ -1088,16 +1123,16 @@ export function createStubPaymentAdapter(): StubPaymentAdapter {
       ledgerRefunds.delete(id);
     },
     async listPaymentIntents(window) {
-      return [...ledgerIntents.values()].filter((i) => inWindow(i.createdAt, window));
+      return ledgerIntents.values().filter((i) => inWindow(i.createdAt, window));
     },
     async listSubscriptions() {
-      return [...ledgerSubscriptions.values()];
+      return ledgerSubscriptions.values();
     },
     async listInvoices(window) {
-      return [...ledgerInvoices.values()].filter((i) => inWindow(i.createdAt, window));
+      return ledgerInvoices.values().filter((i) => inWindow(i.createdAt, window));
     },
     async listRefunds(window) {
-      return [...ledgerRefunds.values()].filter((r) => inWindow(r.createdAt, window));
+      return ledgerRefunds.values().filter((r) => inWindow(r.createdAt, window));
     },
     async createCheckoutSession(opts) {
       return recordOneTime(opts);
@@ -1136,8 +1171,8 @@ export function createStubPaymentAdapter(): StubPaymentAdapter {
       // whether or not) the webhook is delivered: paid on success, expired on
       // a walk-away. A declined payment leaves the session open, as it does at
       // the provider, so the buyer can try another card.
-      if (session.outcome === 'success') completedSessions.add(sessionId);
-      if (session.outcome === 'cancel') closedSessions.add(sessionId);
+      if (session.outcome === 'success') completedSessions.set(sessionId, true);
+      if (session.outcome === 'cancel') closedSessions.set(sessionId, true);
       const rawBody = JSON.stringify(event);
       const signature = signStripeWebhook(rawBody, stubSecret);
       return { rawBody, signature };
@@ -1193,6 +1228,23 @@ export function createStubPaymentAdapter(): StubPaymentAdapter {
     isSessionClosed(sessionId) {
       return closedSessions.has(sessionId);
     },
+    async deleteCustomer(stripeCustomerId) {
+      if (nextCustomerDeleteError) {
+        const err = nextCustomerDeleteError;
+        nextCustomerDeleteError = null;
+        throw err;
+      }
+      // A repeat answers as the provider does for a customer it no longer holds.
+      if (deletedCustomers.has(stripeCustomerId)) return { status: 'already_gone' as const };
+      deletedCustomers.set(stripeCustomerId, true);
+      return { status: 'deleted' as const };
+    },
+    isCustomerDeleted(stripeCustomerId) {
+      return deletedCustomers.has(stripeCustomerId);
+    },
+    failNextCustomerDelete(err) {
+      nextCustomerDeleteError = err;
+    },
     async openCheckoutUrl(sessionId) {
       // Mirrors the provider: only a session neither paid nor closed can still
       // be completed.
@@ -1205,7 +1257,7 @@ export function createStubPaymentAdapter(): StubPaymentAdapter {
       // as does one the simulation never held; any other session is closed
       // here, and closing one already closed reports it closed.
       if (!sessions.has(sessionId) || completedSessions.has(sessionId)) return false;
-      closedSessions.add(sessionId);
+      closedSessions.set(sessionId, true);
       return true;
     },
   };
@@ -1239,6 +1291,22 @@ export function createStubPaymentAdapter(): StubPaymentAdapter {
  * requirements it prints cannot drift from what the adapter speaks.
  */
 export const STRIPE_API_VERSION = '2026-07-29.dahlia';
+
+/**
+ * Options every Stripe client is built with.
+ *
+ * Without a limit the SDK waits 80 seconds per attempt and retries twice, so a
+ * silent Stripe holds a member's checkout request long after the reverse proxy
+ * in front of the app has given up on it at 30 seconds. Each attempt is bounded
+ * at 10 seconds with one retry, so the worst case ends inside that window. The
+ * SDK sends the same idempotency key on its retry, so a retried create cannot
+ * charge twice.
+ */
+export const STRIPE_CLIENT_OPTIONS = {
+  apiVersion: STRIPE_API_VERSION,
+  timeout: 10_000,
+  maxNetworkRetries: 1,
+} as const;
 
 const STRIPE_SECRET_KEY_NAME = 'stripe_secret_key';
 
@@ -1436,6 +1504,9 @@ export interface StripeClientLike {
   refunds: {
     list(params: StripeListParams): Promise<StripeListPage<StripeRefundLike>>;
   };
+  customers: {
+    del(id: string): Promise<{ id: string; deleted: boolean }>;
+  };
 }
 
 export interface LivePaymentAdapterDeps {
@@ -1450,7 +1521,7 @@ export function createLivePaymentAdapter(deps: LivePaymentAdapterDeps = {}): Pay
   const stripeFactory =
     deps.stripeFactory
     ?? ((apiKey: string) =>
-      new Stripe(apiKey, { apiVersion: STRIPE_API_VERSION }) as unknown as StripeClientLike);
+      new Stripe(apiKey, { ...STRIPE_CLIENT_OPTIONS }) as unknown as StripeClientLike);
 
   // Lazy client: the API key lives in SSM (SecureString) and resolves on the
   // first payment operation, never at construction, so the app boots without
@@ -1747,6 +1818,21 @@ export function createLivePaymentAdapter(deps: LivePaymentAdapterDeps = {}): Pay
       });
     },
 
+    async deleteCustomer(stripeCustomerId) {
+      return withClient(async (stripe) => {
+        try {
+          await stripe.customers.del(stripeCustomerId);
+          return { status: 'deleted' as const };
+        } catch (err) {
+          // The documented answer for a customer the provider no longer holds.
+          if (err instanceof Stripe.errors.StripeInvalidRequestError && err.code === 'resource_missing') {
+            return { status: 'already_gone' as const };
+          }
+          throw err;
+        }
+      });
+    },
+
     async openCheckoutUrl(sessionId) {
       return withClient(async (stripe) => {
         const session = await stripe.checkout.sessions.retrieve(sessionId);
@@ -1931,10 +2017,21 @@ export function getPaymentAdapter(): PaymentAdapter {
     }
     singleton = createLivePaymentAdapter();
   } else {
-    stubSingleton = createStubPaymentAdapter();
+    stubSingleton = createStubPaymentAdapter({ ledgerDir: stubPaymentLedgerDir() });
     singleton = stubSingleton;
   }
   return singleton;
+}
+
+/**
+ * The stub provider's shared ledger sits beside the database, in the directory
+ * the web and worker containers both mount, so every process of one stack reads
+ * the same provider. Under the test runner each test file owns its stub and
+ * starts empty, so the ledger stays in memory there.
+ */
+export function stubPaymentLedgerDir(): string | null {
+  if (config.isTestRunner) return null;
+  return path.join(path.dirname(config.dbPath), 'stub-payment-provider');
 }
 
 /** Exposes the in-memory stub for test inspection. Null unless PAYMENT_ADAPTER=stub. */

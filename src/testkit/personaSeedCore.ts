@@ -10,11 +10,15 @@
 import BetterSqlite3 from 'better-sqlite3';
 import { CANONICAL_PERSONAS } from './canonicalPersonas';
 import { seedPersona } from './personaFactory';
+import { financeDemoMemberIds } from './financeDemoSeed';
 import { SEEDED_PERSONA_MEMBER_ID_PREFIX } from '../lib/personaGuards';
 
 /** What one seed pass did, for the caller to report and for tests to assert. */
 export interface SeedPersonasResult {
   created: number;
+  /** The personas this run created, so a caller can run what follows a
+   *  persona's first seed (the finance persona's journey). */
+  createdSlugs: string[];
   healed: number;
   skipped: number;
   skippedBlocked: number;
@@ -71,6 +75,7 @@ export function seedPersonas(
   const hasStoredHash = (hash: unknown): boolean => typeof hash === 'string' && hash.length > 0;
 
   let created = 0;
+  const createdSlugs: string[] = [];
   let healed = 0;
   let skipped = 0;
   let skippedBlocked = 0;
@@ -110,6 +115,7 @@ export function seedPersonas(
       }
       db.transaction(() => seedPersona(db, spec, { passwordHash }))();
       created += 1;
+      createdSlugs.push(spec.slug);
       console.log(`[persona-seed] seeded persona: ${spec.slug} (${spec.tier})`);
     } catch (err) {
       failedSlugs.push(spec.slug);
@@ -124,7 +130,12 @@ export function seedPersonas(
   // the same reason the lookup above is: a purged persona keeps its id and
   // loses its slug, and reporting it as an orphan on that basis would send an
   // operator hunting for a persona the catalog does describe.
-  const catalogIds = new Set(specs.map((s) => personaId(s.slug)));
+  // The finance persona's fake members are seeded under the persona prefix
+  // too, and belong to the catalog through it.
+  const catalogIds = new Set([
+    ...specs.map((s) => personaId(s.slug)),
+    ...(specs.some((s) => s.financeDemo && !s.blockedBy) ? financeDemoMemberIds() : []),
+  ]);
   const orphanSlugs = (
     db
       .prepare(`SELECT id, slug FROM members WHERE id LIKE ? ORDER BY slug`)
@@ -133,5 +144,5 @@ export function seedPersonas(
     .filter((r) => !catalogIds.has(r.id))
     .map((r) => r.slug);
 
-  return { created, healed, skipped, skippedBlocked, orphanSlugs, failedSlugs };
+  return { created, createdSlugs, healed, skipped, skippedBlocked, orphanSlugs, failedSlugs };
 }

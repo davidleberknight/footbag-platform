@@ -25,6 +25,7 @@ import { renderForbidden, renderNotFound, renderServiceUnavailable } from './lib
 import { assetUrl, renderStylesheet } from './lib/assetVersion';
 import { countryFlag } from './services/countryUtils';
 import { externalLinkHelper } from './web/helpers/externalLink';
+import { siteHrefHelper } from './web/helpers/siteHref';
 import { formatDate, formatDateRange } from './lib/handlebarsHelpers';
 import { ForbiddenError, RateLimitedError, ServiceUnavailableError } from './services/serviceErrors';
 import { onRateLimitRefusal } from './services/rateLimitService';
@@ -348,6 +349,7 @@ export function createApp(): express.Express {
         // `/css/style.css?v=<content-hash>`, so a deploy self-cache-busts.
         asset: (relPath: unknown) => assetUrl(typeof relPath === 'string' ? relPath : ''),
         externalLink: externalLinkHelper,
+        siteHref: siteHrefHelper,
         // Splits curator-authored prose on blank lines into paragraph
         // strings. Used by trick-detail ontology partials (L2-L4) so
         // multi-paragraph entries render as separate <p> blocks.

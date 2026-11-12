@@ -4,7 +4,9 @@
  * Development/staging only: registered on the env-gated /dev mount (app.ts), so
  * the route does not exist in production. It tears down persona-owned rows and
  * re-seeds the canonical catalog via refreshAllPersonas, reusing the app's shared
- * db connection. Post/Redirect/Get back to the listing.
+ * db connection, then runs the finance persona's journey (the real
+ * reconciliation and digest jobs, on demand). Post/Redirect/Get back to the
+ * listing.
  *
  * The persona password literal lives behind personaSecrets' dev/staging import
  * guard. Because devRoutes (and therefore this module) is imported by app.ts
@@ -18,6 +20,7 @@ import { db } from '../db/db';
 import { appendAuditEntry } from '../services/auditService';
 import { refreshAllPersonas } from './personaRefreshRunner';
 import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
+import { runFinanceDemoJourney } from './financeDemoJourney';
 import { PERSONA_REFRESH_AUDIT_ACTION_TYPE, PERSONA_SEED_CREATED_BY } from './personaFactory';
 
 export async function postDevPersonasRefresh(
@@ -39,6 +42,10 @@ export async function postDevPersonasRefresh(
       result.deletedMediaKeys.map((key) => mediaStorage.delete(key).catch(() => undefined)),
     );
 
+    // The finance persona's reports and digest come from the real jobs, run
+    // once the reseed has committed, so they total the money it just wrote.
+    const financeJourney = await runFinanceDemoJourney();
+
     appendAuditEntry({
       actionType: PERSONA_REFRESH_AUDIT_ACTION_TYPE,
       actorType: 'system',
@@ -51,6 +58,7 @@ export async function postDevPersonasRefresh(
         deletedMembers: result.deletedMembers,
         actorGrantRowsRemoved: result.actorGrantRowsRemoved,
         deletedMediaObjects: result.deletedMediaKeys.length,
+        financeJourney: financeJourney.status,
       },
     });
 

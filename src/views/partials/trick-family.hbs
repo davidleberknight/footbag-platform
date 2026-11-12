@@ -26,7 +26,7 @@
   {{#if content.additionalFamilies.length}}
   <p class="trick-also-family">
     Also a member of:
-    {{#each content.additionalFamilies}}<a class="trick-also-family-chip{{#if isMinorLineage}} trick-also-family-chip--minor{{/if}}" href="{{{href}}}">{{label}}{{#if isMinorLineage}} <span class="trick-family-minor-tag">&middot; minor lineage</span>{{/if}}</a>{{#unless @last}} {{/unless}}{{/each}}
+    {{#each content.additionalFamilies}}<a class="trick-also-family-chip{{#if isMinorLineage}} trick-also-family-chip--minor{{/if}}" href="{{siteHref href}}">{{label}}{{#if isMinorLineage}} <span class="trick-family-minor-tag">&middot; minor lineage</span>{{/if}}</a>{{#unless @last}} {{/unless}}{{/each}}
   </p>
   {{/if}}
   <div class="family-lineage">

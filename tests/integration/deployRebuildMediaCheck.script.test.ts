@@ -36,17 +36,26 @@ function gate(): string {
 
 function checker(code: number): string {
   const path = join(scratch, `check-${code}.sh`);
-  writeFileSync(path, `#!/usr/bin/env bash\necho "checked $MEDIA_STORAGE_S3_BUCKET"\nexit ${code}\n`);
+  writeFileSync(
+    path,
+    `#!/usr/bin/env bash\necho "checked $MEDIA_STORAGE_S3_BUCKET via $CLOUDFRONT_DISTRIBUTION_ID"\nexit ${code}\n`,
+  );
   chmodSync(path, 0o755);
   return path;
 }
 
-function runGate(checkCode: number, syncMedia: 'yes' | 'no') {
+function runGate(checkCode: number, syncMedia: 'yes' | 'no', distributionId = 'E2TESTDIST') {
   const script = [
     'set -euo pipefail',
     // The leaf reports through the closing-report library, as it does whole.
     `source ${JSON.stringify(join(process.cwd(), 'scripts/lib/closing-report.sh'))}`,
-    'tf_output_read() { TF_OUTPUT_VALUE=footbag-test-media; }',
+    'tf_output_read() {',
+    '  case "$2" in',
+    '    media_bucket_name) TF_OUTPUT_VALUE=footbag-test-media ;;',
+    `    cloudfront_distribution_id) TF_OUTPUT_VALUE=${JSON.stringify(distributionId)} ;;`,
+    '    *) TF_OUTPUT_VALUE="" ;;',
+    '  esac',
+    '}',
     'tf_output_explain() { :; }',
     'aws_profile_ensure() { :; }',
     gate(),
@@ -83,7 +92,7 @@ describe('the rebuild media gate', () => {
     // Defect: a rebuild without the media sync ships a new clip's row, the gate is
     // skipped, and the live site shows a broken video with the deploy reporting success.
     const r = runGate(1, 'no');
-    expect(r.stdout).toContain('checked footbag-test-media');
+    expect(r.stdout).toContain('checked footbag-test-media via E2TESTDIST');
     expect(r.status).not.toBe(0);
     expect(r.stdout).not.toContain('GATE PASSED');
     expect(r.stderr).toMatch(/did not sync media/);
@@ -104,6 +113,16 @@ describe('the rebuild media gate', () => {
     const r = runGate(1, 'yes');
     expect(r.status).not.toBe(0);
     expect(r.stderr).toMatch(/This deploy synced media/);
+  });
+
+  it('refuses before the check when the distribution id cannot be read', () => {
+    // Defect: the checker boots the s3 backend without the distribution it requires,
+    // fails at start-up, and the deploy reports a crash instead of naming the
+    // Terraform read that is actually missing.
+    const r = runGate(0, 'no', '');
+    expect(r.status).not.toBe(0);
+    expect(r.stdout).not.toContain('checked');
+    expect(r.stderr).toMatch(/could not read cloudfront_distribution_id/);
   });
 
   it('reports a check that never ran as unknown rather than as missing files', () => {

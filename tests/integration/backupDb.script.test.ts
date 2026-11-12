@@ -93,6 +93,16 @@ beforeEach(() => {
     '    echo "aws-stub: upload blocking" >&2',
     '    exec sleep 60',
     '  fi',
+    // Uploads refused a set number of times before one succeeds, counted in a
+    // file beside the bucket, standing in for a brief outage the retry rides out.
+    '  if [[ "$dst" == s3://* && -n "${AWS_STUB_UPLOAD_FAILS:-}" ]]; then',
+    '    n=$(cat "$S3.upload-failures" 2>/dev/null || echo 0)',
+    '    if (( n < AWS_STUB_UPLOAD_FAILS )); then',
+    '      echo $(( n + 1 )) > "$S3.upload-failures"',
+    '      echo "aws-stub: upload refused for this case" >&2',
+    '      exit 1',
+    '    fi',
+    '  fi',
     '  if [[ "$dst" == s3://* ]]; then',
     '    out="$S3/${dst#s3://}"; mkdir -p "$(dirname "$out")"; cp "$src" "$out"; exit $?',
     '  fi',
@@ -470,6 +480,41 @@ describe('taking the copy while the application is using the database', () => {
 
     const snap = rowsAndIntegrity(uploadedSnapshot(), 'filler');
     expect(snap).toEqual({ rows: 60_000, integrity: 'ok' });
+  });
+});
+
+describe('retrying a failed upload', () => {
+  // Defect caught: the waits between upload attempts are fixed (exactly 1s,
+  // then 2s), so callers that failed together retry together; or the random
+  // part shortens a wait below half its step, so a brief outage outlasts every
+  // attempt. A recording stand-in for sleep captures each wait the run asks for.
+  it('waits a jittered half-to-whole step between attempts, then uploads', () => {
+    const sleepBin = join(workDir, 'sleep-bin');
+    const sleepLog = join(workDir, 'sleeps.log');
+    mkdirSync(sleepBin);
+    writeFileSync(join(sleepBin, 'sleep'), [
+      '#!/usr/bin/env bash',
+      `echo "$1" >> ${JSON.stringify(sleepLog)}`,
+    ].join('\n'));
+    chmodSync(join(sleepBin, 'sleep'), 0o755);
+
+    const res = runBackup({
+      AWS_STUB_UPLOAD_FAILS: '2',
+      PATH: `${sleepBin}:${binDir}:${process.env.PATH ?? ''}`,
+    });
+
+    expect(res.status, res.stderr).toBe(0);
+    expect(keysUnder('routine/')).toHaveLength(1);
+    const waits = readFileSync(sleepLog, 'utf8').trim().split('\n');
+    expect(waits).toHaveLength(2);
+    // Millisecond precision is what the random part is drawn at; a whole-second
+    // argument means the wait went back to a fixed step.
+    for (const w of waits) expect(w, `wait ${w}`).toMatch(/^\d+\.\d{3}$/);
+    const [first, second] = waits.map(Number);
+    expect(first).toBeGreaterThanOrEqual(0.5);
+    expect(first).toBeLessThanOrEqual(1);
+    expect(second).toBeGreaterThanOrEqual(1);
+    expect(second).toBeLessThanOrEqual(2);
   });
 });
 

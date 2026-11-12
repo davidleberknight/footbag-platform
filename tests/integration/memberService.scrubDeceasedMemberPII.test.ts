@@ -104,10 +104,10 @@ function seedDeceasedClaimedMember(id: string): { legacyId: string } {
 }
 
 describe('memberService.scrubDeceasedMemberPII', () => {
-  it('clears credentials, contact, private address, and demographics; preserves identity, locale, links, and the claim; deletes anchors', () => {
+  it('clears credentials, contact, private address, and demographics; preserves identity, locale, links, and the claim; deletes anchors', async () => {
     const { legacyId } = seedDeceasedClaimedMember('scrub-full');
 
-    const result = memberService.scrubDeceasedMemberPII('scrub-full');
+    const result = await memberService.scrubDeceasedMemberPII('scrub-full');
     expect(result.status).toBe('scrubbed');
     if (result.status !== 'scrubbed') return;
     expect(result.anchorsDeleted).toBe(2);
@@ -152,15 +152,15 @@ describe('memberService.scrubDeceasedMemberPII', () => {
     expect(erasureKinds('scrub-full')).toEqual(['deceased_contact_scrub']);
   });
 
-  it('rejects living members and unknown ids', () => {
+  it('rejects living members and unknown ids', async () => {
     const d = db();
     insertMember(d, { id: 'scrub-living', slug: 'scrub_living' });
     d.close();
-    expect(memberService.scrubDeceasedMemberPII('scrub-living').status).toBe('not_deceased');
-    expect(memberService.scrubDeceasedMemberPII('no-such-member').status).toBe('not_found');
+    expect((await memberService.scrubDeceasedMemberPII('scrub-living')).status).toBe('not_deceased');
+    expect((await memberService.scrubDeceasedMemberPII('no-such-member')).status).toBe('not_found');
   });
 
-  it('clears the answers an unfinished wizard still holds, and no one else\'s', () => {
+  it('clears the answers an unfinished wizard still holds, and no one else\'s', async () => {
     // Defect caught: a club note the person wrote in the wizard, held until
     // onboarding completes, outlives the scrub meant to clear their own words.
     const d = db();
@@ -174,7 +174,7 @@ describe('memberService.scrubDeceasedMemberPII', () => {
     }
     d.close();
 
-    expect(memberService.scrubDeceasedMemberPII('scrub-held').status).toBe('scrubbed');
+    expect((await memberService.scrubDeceasedMemberPII('scrub-held')).status).toBe('scrubbed');
 
     const r = new BetterSqlite3(dbPath, { readonly: true });
     const answer = (id: string) => (r.prepare(
@@ -187,10 +187,10 @@ describe('memberService.scrubDeceasedMemberPII', () => {
     expect(bystander).toContain('my own words');
   });
 
-  it('is idempotent: a second scrub is a no-op', () => {
+  it('is idempotent: a second scrub is a no-op', async () => {
     seedDeceasedClaimedMember('scrub-idem');
-    expect(memberService.scrubDeceasedMemberPII('scrub-idem').status).toBe('scrubbed');
-    expect(memberService.scrubDeceasedMemberPII('scrub-idem').status).toBe('already_scrubbed');
+    expect((await memberService.scrubDeceasedMemberPII('scrub-idem')).status).toBe('scrubbed');
+    expect((await memberService.scrubDeceasedMemberPII('scrub-idem')).status).toBe('already_scrubbed');
 
     const d = db();
     const audits = d.prepare(`
@@ -202,11 +202,11 @@ describe('memberService.scrubDeceasedMemberPII', () => {
     expect(erasureKinds('scrub-idem')).toEqual(['deceased_contact_scrub']);
   });
 
-  it('a later full purge upgrades a scrubbed row to complete anonymization', () => {
+  it('a later full purge upgrades a scrubbed row to complete anonymization', async () => {
     const { legacyId } = seedDeceasedClaimedMember('scrub-upgrade');
-    expect(memberService.scrubDeceasedMemberPII('scrub-upgrade').status).toBe('scrubbed');
+    expect((await memberService.scrubDeceasedMemberPII('scrub-upgrade')).status).toBe('scrubbed');
 
-    const purge = memberService.purgeAccountPII('scrub-upgrade');
+    const purge = await memberService.purgeAccountPII('scrub-upgrade');
     expect(purge.status).toBe('purged');
     if (purge.status !== 'purged') return;
     expect(purge.clearedLegacyMemberId).toBe(legacyId);
@@ -226,11 +226,11 @@ describe('memberService.scrubDeceasedMemberPII', () => {
     expect(erasureKinds('scrub-upgrade')).toEqual(['account_pii_purge', 'deceased_contact_scrub']);
 
     // Both shapes applied: every further erasure call is a no-op.
-    expect(memberService.purgeAccountPII('scrub-upgrade').status).toBe('already_purged');
-    expect(memberService.scrubDeceasedMemberPII('scrub-upgrade').status).toBe('already_purged');
+    expect((await memberService.purgeAccountPII('scrub-upgrade')).status).toBe('already_purged');
+    expect((await memberService.scrubDeceasedMemberPII('scrub-upgrade')).status).toBe('already_purged');
   });
 
-  it('scrubs their outbound mail but keeps their media, which the record still honors', () => {
+  it('scrubs their outbound mail but keeps their media, which the record still honors', async () => {
     seedDeceasedClaimedMember('scrub-media');
     const d = db();
     insertOutboxEmail(d, {
@@ -241,7 +241,7 @@ describe('memberService.scrubDeceasedMemberPII', () => {
     const photo = insertMediaItem(d, { uploader_member_id: 'scrub-media' });
     d.close();
 
-    expect(memberService.scrubDeceasedMemberPII('scrub-media').status).toBe('scrubbed');
+    expect((await memberService.scrubDeceasedMemberPII('scrub-media')).status).toBe('scrubbed');
 
     const r = db();
     const mail = r.prepare('SELECT * FROM outbox_emails WHERE id = ?').get('ob-deceased') as Record<string, unknown>;
@@ -264,7 +264,7 @@ describe('memberService.scrubDeceasedMemberPII', () => {
   // on honoring what they did. Their giving is part of that record, and so is
   // the dedication they wrote alongside it, which is often the reason the gift
   // was made. Contact data goes; the meaning of the gift stays.
-  it('keeps their donation notes, on the same terms as the gifts themselves', () => {
+  it('keeps their donation notes, on the same terms as the gifts themselves', async () => {
     seedDeceasedClaimedMember('scrub-donation');
     const dedication = 'Happy to support the next generation of players.';
     const d = db();
@@ -283,7 +283,7 @@ describe('memberService.scrubDeceasedMemberPII', () => {
     });
     d.close();
 
-    expect(memberService.scrubDeceasedMemberPII('scrub-donation').status).toBe('scrubbed');
+    expect((await memberService.scrubDeceasedMemberPII('scrub-donation')).status).toBe('scrubbed');
 
     const r = db();
     const oneOff    = r.prepare('SELECT * FROM payments WHERE id = ?').get('pay-scrub-oneoff') as Record<string, unknown>;
@@ -314,9 +314,9 @@ describe('memberService.scrubDeceasedMemberPII', () => {
     expect(Object.keys(meta).filter((k) => k.startsWith('donation_'))).toEqual([]);
   });
 
-  it('leaves the record standing, which is what the preserved fields are for', () => {
+  it('leaves the record standing, which is what the preserved fields are for', async () => {
     seedDeceasedClaimedMember('scrub-standing');
-    expect(memberService.scrubDeceasedMemberPII('scrub-standing').status).toBe('scrubbed');
+    expect((await memberService.scrubDeceasedMemberPII('scrub-standing')).status).toBe('scrubbed');
 
     const d = new BetterSqlite3(dbPath, { readonly: true });
     const standing = d.prepare('SELECT bio, slug FROM members_of_record WHERE id = ?')
@@ -328,5 +328,80 @@ describe('memberService.scrubDeceasedMemberPII', () => {
     expect(standing).toBeDefined();
     expect(standing?.bio).toBe('a bio');
     expect(standing?.slug).toBe('slug_scrub_standing');
+  });
+});
+
+describe('memberService.scrubDeceasedMemberPII: copies held by outside providers', () => {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+  let mail: import('../../src/adapters/sesAdapter').StubSesAdapter;
+  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+  let payments: import('../../src/adapters/paymentAdapter').StubPaymentAdapter;
+
+  beforeAll(async () => {
+    const sesMod = await import('../../src/adapters/sesAdapter');
+    sesMod.getSesAdapter();
+    mail = sesMod.getStubSesAdapterForTests()!;
+    const paymentMod = await import('../../src/adapters/paymentAdapter');
+    paymentMod.getPaymentAdapter();
+    payments = paymentMod.getStubPaymentAdapterForTests()!;
+  });
+
+  function erasedRows(id: string): number {
+    const r = new BetterSqlite3(dbPath, { readonly: true });
+    const n = (r.prepare(
+      "SELECT COUNT(*) AS n FROM erasure_log WHERE entity_id = ? AND erasure_kind = 'deceased_contact_scrub'",
+    ).get(id) as { n: number }).n;
+    r.close();
+    return n;
+  }
+
+  // Defect caught: a deceased member's address stays on the mail provider's
+  // suppression list, or their name, email and card stay on the payment
+  // provider's customer record, after their contact data is cleared
+  // everywhere else.
+  it('lifts their address off the suppression list and deletes their payment customer, and records both', async () => {
+    seedDeceasedClaimedMember('scrub-lift');
+
+    expect((await memberService.scrubDeceasedMemberPII('scrub-lift')).status).toBe('scrubbed');
+
+    expect(mail.liftedAddresses).toContain('scrub-lift@example.com');
+    expect(payments.isCustomerDeleted('cus_scrub-lift')).toBe(true);
+    const r = new BetterSqlite3(dbPath, { readonly: true });
+    const row = r.prepare(`
+      SELECT metadata_json FROM audit_entries
+       WHERE entity_id = 'scrub-lift' AND action_type = 'member.deceased_pii_scrubbed'
+    `).get() as { metadata_json: string };
+    r.close();
+    const meta = JSON.parse(row.metadata_json) as Record<string, unknown>;
+    expect(meta.ses_suppression_lifted).toBe(true);
+    expect(meta.stripe_customer_deleted).toBe(true);
+  });
+
+  // Defect caught: the payment provider is unreachable, the scrub clears the
+  // row anyway, and the customer record at the provider is never deleted.
+  it('scrubs nothing when the payment provider fails, so the next run retries', async () => {
+    seedDeceasedClaimedMember('scrub-pay-down');
+    payments.failNextCustomerDelete(new Error('payment provider unreachable'));
+
+    await expect(memberService.scrubDeceasedMemberPII('scrub-pay-down')).rejects.toThrow('payment provider unreachable');
+    expect(erasedRows('scrub-pay-down')).toBe(0);
+
+    expect((await memberService.scrubDeceasedMemberPII('scrub-pay-down')).status).toBe('scrubbed');
+    expect(payments.isCustomerDeleted('cus_scrub-pay-down')).toBe(true);
+  });
+
+  // Defect caught: the lift fails, the scrub clears the address anyway, and
+  // the suppression entry can never be lifted because nothing holds the
+  // address any more.
+  it('scrubs nothing when the lift fails, so the next run retries', async () => {
+    seedDeceasedClaimedMember('scrub-lift-down');
+    mail.failNextLift(new Error('mail provider unreachable'));
+
+    await expect(memberService.scrubDeceasedMemberPII('scrub-lift-down')).rejects.toThrow('mail provider unreachable');
+    expect(erasedRows('scrub-lift-down')).toBe(0);
+
+    expect((await memberService.scrubDeceasedMemberPII('scrub-lift-down')).status).toBe('scrubbed');
+    expect(erasedRows('scrub-lift-down')).toBe(1);
+    expect(mail.liftedAddresses).toContain('scrub-lift-down@example.com');
   });
 });

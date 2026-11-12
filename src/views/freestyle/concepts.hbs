@@ -849,12 +849,12 @@
       (around-the-world, orbit).
     </p>
     <p class="detail-muted glossary-family-roster">
-      {{#each content.firstClassFamilyRoster}}{{#unless @first}} &middot; {{/unless}}<a href="{{{href}}}">{{label}}</a>{{#if branches.length}} ({{#each branches}}{{#unless @first}}, {{/unless}}<a href="{{{href}}}">{{label}}</a>{{/each}}){{/if}}{{/each}}
+      {{#each content.firstClassFamilyRoster}}{{#unless @first}} &middot; {{/unless}}<a href="{{siteHref href}}">{{label}}</a>{{#if branches.length}} ({{#each branches}}{{#unless @first}}, {{/unless}}<a href="{{siteHref href}}">{{label}}</a>{{/each}}){{/if}}{{/each}}
     </p>
     <p class="detail-muted glossary-family-roster">
       <strong>Minor lineages</strong> ({{content.minorLineageRoster.length}}), browsable
       in the family view without standalone family pages:
-      {{#each content.minorLineageRoster}}{{#unless @first}} &middot; {{/unless}}<a href="{{{href}}}">{{label}}</a>{{/each}}
+      {{#each content.minorLineageRoster}}{{#unless @first}} &middot; {{/unless}}<a href="{{siteHref href}}">{{label}}</a>{{/each}}
     </p>
     <p class="detail-muted">
       Each family below has a card, grouped by tier (Family Parents, then Minor

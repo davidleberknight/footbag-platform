@@ -10,8 +10,11 @@ import { createServer, type Server, type Socket } from 'node:net';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { SQSClient, ListQueuesCommand } from '@aws-sdk/client-sqs';
+import { SESv2Client, GetAccountCommand } from '@aws-sdk/client-sesv2';
+import { S3Client, HeadObjectCommand } from '@aws-sdk/client-s3';
 
 import { awsRequestHandler, SQS_SOCKET_TIMEOUT_MS } from '../../src/adapters/awsHttpTimeouts';
+import { createLiveNotificationFeedAdapter } from '../../src/adapters/notificationFeedAdapter';
 import { listFiles, REPO_ROOT } from '../fixtures/sourceTree';
 
 let server: Server | undefined;
@@ -24,8 +27,8 @@ afterEach(async () => {
 });
 
 /** A peer that accepts the connection and then never answers. */
-async function silentPeer(): Promise<number> {
-  server = createServer((s) => { sockets.push(s); });
+async function silentPeer(onConnect?: () => void): Promise<number> {
+  server = createServer((s) => { sockets.push(s); onConnect?.(); });
   await new Promise<void>((resolve) => server!.listen(0, '127.0.0.1', () => resolve()));
   const addr = server.address();
   if (addr === null || typeof addr === 'string') throw new Error('no port');
@@ -45,6 +48,45 @@ describe('the AWS client limits', () => {
       requestHandler: awsRequestHandler(250),
     });
     await expect(client.send(new ListQueuesCommand({}))).rejects.toMatchObject({ name: 'TimeoutError' });
+    client.destroy();
+  });
+
+  // Defect caught: a mail or storage SDK that reads the handler limits
+  // differently from the queue SDK, so a silent SES holds a send or a silent
+  // S3 holds a page that serves media.
+  it('ends a mail call and a storage call to a silent peer the same way', async () => {
+    const port = await silentPeer();
+    const common = {
+      region: 'us-east-1',
+      endpoint: `http://127.0.0.1:${port}`,
+      credentials: { accessKeyId: 'test', secretAccessKey: 'test' },
+      maxAttempts: 1,
+      requestHandler: awsRequestHandler(250),
+    };
+    const ses = new SESv2Client(common);
+    const s3 = new S3Client({ ...common, forcePathStyle: true });
+    await expect(ses.send(new GetAccountCommand({}))).rejects.toMatchObject({ name: 'TimeoutError' });
+    await expect(s3.send(new HeadObjectCommand({ Bucket: 'b', Key: 'k' }))).rejects.toMatchObject({ name: 'TimeoutError' });
+    ses.destroy();
+    s3.destroy();
+  });
+
+  // Defect caught: the feed's delete ignores the worker's shutdown signal, so a
+  // stop waits out the whole queue socket limit on a silent queue.
+  it('ends a queue delete when the worker shuts down, before the socket limit', async () => {
+    const shutdown = new AbortController();
+    const port = await silentPeer(() => shutdown.abort());
+    const client = new SQSClient({
+      region: 'us-east-1',
+      endpoint: `http://127.0.0.1:${port}`,
+      credentials: { accessKeyId: 'test', secretAccessKey: 'test' },
+      maxAttempts: 1,
+      requestHandler: awsRequestHandler(SQS_SOCKET_TIMEOUT_MS),
+    });
+    const feed = createLiveNotificationFeedAdapter({ region: 'us-east-1', sqsClient: client });
+    await expect(
+      feed.deleteMessage(`http://127.0.0.1:${port}/000000000000/q`, 'rh', { abortSignal: shutdown.signal }),
+    ).rejects.toMatchObject({ name: 'AbortError' });
     client.destroy();
   });
 

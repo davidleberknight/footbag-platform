@@ -14,8 +14,9 @@
  * the offender behind a raw constraint dump nor withholds every persona after
  * it. The run still exits non-zero so a calling script fails.
  */
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import * as path from 'node:path';
+import { runPersonaCommand } from '../fixtures/personaCommand';
 
 const PRIOR_FOOTBAG_ENV = process.env.FOOTBAG_ENV;
 process.env.FOOTBAG_ENV = process.env.FOOTBAG_ENV ?? 'development';
@@ -30,20 +31,7 @@ const RETIRED_SLUG = 'persona_no_longer_in_catalog';
 
 /** Run the seed runner against dbPath, returning its exit code and captured output. */
 async function runSeed(dbPath: string): Promise<{ code: number; out: string }> {
-  const { main } = await import('../../src/testkit/personaSeedRunner');
-  const lines: string[] = [];
-  const log = vi.spyOn(console, 'log').mockImplementation((...a) => void lines.push(a.join(' ')));
-  const err = vi.spyOn(console, 'error').mockImplementation((...a) => void lines.push(a.join(' ')));
-  const priorArgv = process.argv;
-  process.argv = ['node', 'personaSeedRunner.js', '--db', dbPath];
-  try {
-    const code = await main();
-    return { code, out: lines.join('\n') };
-  } finally {
-    process.argv = priorArgv;
-    log.mockRestore();
-    err.mockRestore();
-  }
+  return runPersonaCommand('personaSeedRunner', dbPath);
 }
 
 describe('persona seed runner: drift reporting', () => {

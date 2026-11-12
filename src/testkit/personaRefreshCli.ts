@@ -29,6 +29,11 @@
  * either way. Refresh from the browser route when the media store must come
  * back empty too.
  *
+ * After an applied refresh the finance persona's journey runs (the real
+ * reconciliation and digest jobs, on demand) through the application's own
+ * database connection, so `--apply` is refused, before it writes, unless --db
+ * and FOOTBAG_DB_PATH name the same file.
+ *
  * Env guard: ./personaSecrets throws on import unless FOOTBAG_ENV is
  * 'development' or 'staging'. Production is hard-blocked.
  *
@@ -46,8 +51,14 @@ import { existsSync } from 'node:fs';
 import { TEST_PERSONA_SEED_PASSWORD_LITERAL } from './personaSecrets';
 import { CANONICAL_PERSONAS } from './canonicalPersonas';
 import { refreshAllPersonas } from './personaRefreshRunner';
+import { financeDemoMemberSlugs } from './financeDemoSeed';
 import { SEEDED_PERSONA_MEMBER_ID_PREFIX } from '../lib/personaGuards';
 import { parseDbArg } from './seedCli';
+import {
+  financeDemoJourneyDatabaseMatches,
+  runFinanceDemoJourneyFromCli,
+  closeFinanceDemoJourneyDatabase,
+} from './financeDemoJourneyCli';
 
 export async function main(): Promise<number> {
   const argv = process.argv.slice(2);
@@ -67,6 +78,8 @@ export async function main(): Promise<number> {
   const db = new BetterSqlite3(dbPath);
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
+  const hasFinancePersona = buildable.some((s) => s.financeDemo);
+  let runJourney = false;
 
   try {
     // Read-only diagnostic, printed on both paths so the apply run records what
@@ -74,7 +87,11 @@ export async function main(): Promise<number> {
     const present = db
       .prepare(`SELECT slug FROM members WHERE id LIKE ? ORDER BY slug`)
       .all(`${SEEDED_PERSONA_MEMBER_ID_PREFIX}%`) as { slug: string }[];
-    const catalogSlugs = new Set(specs.map((s) => s.slug));
+    // The finance persona's fake members belong to the catalog through it.
+    const catalogSlugs = new Set([
+      ...specs.map((s) => s.slug),
+      ...(buildable.some((s) => s.financeDemo) ? financeDemoMemberSlugs() : []),
+    ]);
     const orphans = present.map((r) => r.slug).filter((slug) => !catalogSlugs.has(slug));
     const presentSlugs = new Set(present.map((r) => r.slug));
     const missing = buildable.filter((s) => !presentSlugs.has(s.slug)).map((s) => s.slug);
@@ -110,7 +127,19 @@ export async function main(): Promise<number> {
         '[persona-refresh] --apply DELETES persona-owned rows, including anything a' +
           ' tester built while acting as a persona.',
       );
+      if (hasFinancePersona) {
+        console.log(
+          '[persona-refresh] --apply then runs the finance persona\'s journey: the nightly' +
+            ' reconciliation and the Treasurer digest, on demand, through the application database.',
+        );
+      }
       return 0;
+    }
+
+    // The finance persona's journey writes through the application database;
+    // refuse before tearing anything down if that is not the file refreshed here.
+    if (hasFinancePersona && !(await financeDemoJourneyDatabaseMatches(dbPath, 'persona-refresh'))) {
+      return 1;
     }
 
     // Direct argon2 rather than the shared hashPassword helper, for the reason
@@ -133,15 +162,20 @@ export async function main(): Promise<number> {
       console.log(`[persona-refresh] orphaned media object (row deleted, bytes kept): ${key}`);
     }
     console.log('[persona-refresh] this database is CURRENT against the catalog.');
-    return 0;
+    runJourney = hasFinancePersona;
   } finally {
     db.close();
   }
+  // After this command's own handle has closed, through the application's.
+  return runJourney ? runFinanceDemoJourneyFromCli('persona-refresh') : 0;
 }
 
 if (require.main === module) {
   main()
-    .then((code) => process.exit(code))
+    .then((code) => {
+      closeFinanceDemoJourneyDatabase();
+      process.exit(code);
+    })
     .catch((err) => {
       console.error('[persona-refresh] fatal:', err);
       process.exit(1);

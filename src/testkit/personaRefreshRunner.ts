@@ -29,7 +29,15 @@
  * persona record), outbox emails, audit rows the persona acted in, media items,
  * galleries, payments and their status transitions, recurring donations and
  * their transitions, vouches given or received, work-queue items about the
- * persona, media jobs, and expiry-reminder rows. Work-queue items a persona RESOLVED about other
+ * persona, media jobs, expiry-reminder rows, and event registrations with
+ * their entries. The finance persona's synthetic money goes with it: its fake
+ * members (under the persona prefix), its test event and that event's tag,
+ * divisions, organizers and registrations, the reconciliation issues on any
+ * persona payment with their work-queue cards, the reconciliation and digest
+ * runs and the digest mail its journey made (found by the journey's pointer
+ * row), its money audit rows, and its webhook-health rows. The audit rows the
+ * nightly pass itself wrote when it raised an issue are append-only history
+ * written by the system, and stay. Work-queue items a persona RESOLVED about other
  * entities keep their decision history and only lose the resolver reference.
  * Claim flows converge in both directions: a real legacy account a persona
  * claimed is released (claimable again), and a real member who claimed a
@@ -63,6 +71,15 @@ import {
   PERSONA_SWITCH_AUDIT_ACTION_TYPE,
 } from './personaFactory';
 import type { PersonaSpec } from './personaFactory';
+import {
+  FINANCE_DEMO_EVENT_ID,
+  FINANCE_DEMO_EVENT_TAG_ID,
+  FINANCE_DEMO_RUN_MARKER,
+  FINANCE_DEMO_RUN_AUDIT_ACTION_TYPE,
+  FINANCE_DEMO_RECONCILIATION_JOB,
+  FINANCE_DEMO_DIGEST_JOB,
+  type FinanceDemoRunPointer,
+} from './financeDemoSeed';
 
 /**
  * The append-only BEFORE DELETE triggers covering tables a persona writes. These
@@ -432,8 +449,105 @@ export function refreshAllPersonas(
     delIn('active_player_reminder_sent', 'member_id', memberIds); // guard dropped
     delIn('member_tier_grants', 'member_id', memberIds); // guard dropped — removes the stuck upgrade grant
     const tierActorRowsRemoved = delIn('member_tier_grants', 'actor_member_id', memberIds); // counted: reverts other members' tiers
+    // Event registrations a persona holds, and everything the finance persona's
+    // test event carries: entries, registrations, organizers, divisions, the
+    // event and its tag. A registration names its fee payment, so it goes
+    // before the payments.
+    const personaRegistrationIds = unique([
+      ...(memberIds.length
+        ? col(`SELECT id FROM registrations WHERE member_id IN (${placeholders(memberIds.length)})`, memberIds)
+        : []),
+      ...col(`SELECT id FROM registrations WHERE event_id = ?`, [FINANCE_DEMO_EVENT_ID]),
+    ]);
+    delIn('registration_discipline_selections', 'registration_id', personaRegistrationIds);
+    delIn('registrations', 'id', personaRegistrationIds);
+    delIn('event_organizers', 'event_id', [FINANCE_DEMO_EVENT_ID]);
+    delIn('event_disciplines', 'event_id', [FINANCE_DEMO_EVENT_ID]);
+    delIn('events', 'id', [FINANCE_DEMO_EVENT_ID]);
+    delIn('tag_stats', 'tag_id', [FINANCE_DEMO_EVENT_TAG_ID]);
+    delIn('tags', 'id', [FINANCE_DEMO_EVENT_TAG_ID]);
+    // Reconciliation issues about a persona payment or recurring donation, or
+    // resolved by a persona administrator. The nightly pass raises each issue
+    // with a work-queue card (and an administrator may have asked a member
+    // about it), so the card and its messages go with the issue rather than
+    // leaving the dashboard pointing at an issue that no longer exists.
+    const personaIssueIds = memberIds.length
+      ? col(
+          `SELECT id FROM reconciliation_issues
+            WHERE resolved_by_member_id IN (${placeholders(memberIds.length)})
+               OR subscription_record_id IN (
+                    SELECT id FROM recurring_donation_subscriptions
+                     WHERE member_id IN (${placeholders(memberIds.length)}))
+               ${personaPaymentIds.length ? `OR payment_id IN (${placeholders(personaPaymentIds.length)})` : ''}`,
+          [...memberIds, ...memberIds, ...personaPaymentIds],
+        )
+      : [];
+    if (personaIssueIds.length > 0) {
+      db.prepare(
+        `DELETE FROM member_messages
+          WHERE work_queue_item_id IN (
+            SELECT id FROM work_queue_items
+             WHERE entity_type = 'reconciliation_issue' AND entity_id IN (${placeholders(personaIssueIds.length)})
+          )`,
+      ).run(...personaIssueIds);
+      db.prepare(
+        `DELETE FROM work_queue_items
+          WHERE entity_type = 'reconciliation_issue' AND entity_id IN (${placeholders(personaIssueIds.length)})`,
+      ).run(...personaIssueIds);
+    }
+    delIn('reconciliation_issues', 'id', personaIssueIds);
+    // The finance journey's own runs and digest, named by its pointer rows.
+    // Each delete is held to the shape the journey wrote, so a pointer can
+    // never reach a run of another job or a member's mail. With them gone the
+    // worker's own history is the newest again and the schedule is its own.
+    if (memberIds.length > 0) {
+      const pointerRows = db
+        .prepare(
+          `SELECT id, metadata_json FROM audit_entries
+            WHERE action_type = ? AND entity_id IN (${placeholders(memberIds.length)})`,
+        )
+        .all(FINANCE_DEMO_RUN_AUDIT_ACTION_TYPE, ...memberIds) as { id: string; metadata_json: string }[];
+      const runIds: string[] = [];
+      const outboxIds: string[] = [];
+      for (const row of pointerRows) {
+        const p = JSON.parse(row.metadata_json) as Partial<FinanceDemoRunPointer>;
+        if (p.reconciliationRunId) runIds.push(p.reconciliationRunId);
+        if (p.digestRunId) runIds.push(p.digestRunId);
+        if (p.digestOutboxId) outboxIds.push(p.digestOutboxId);
+      }
+      if (runIds.length > 0) {
+        db.prepare(
+          `DELETE FROM system_job_runs
+            WHERE id IN (${placeholders(runIds.length)}) AND job_name IN (?, ?)`,
+        ).run(...runIds, FINANCE_DEMO_RECONCILIATION_JOB, FINANCE_DEMO_DIGEST_JOB);
+      }
+      if (outboxIds.length > 0) {
+        db.prepare(
+          `DELETE FROM outbox_emails
+            WHERE id IN (${placeholders(outboxIds.length)})
+              AND recipient_member_id IS NULL
+              AND idempotency_key GLOB 'reconciliation-digest:*'`,
+        ).run(...outboxIds);
+      }
+      delIn('audit_entries', 'id', pointerRows.map((r) => r.id)); // guard dropped
+    }
+    // Runs an earlier version of the finance seed wrote by hand, marked.
+    db.prepare(`DELETE FROM system_job_runs WHERE json_extract(details_json, '$.seededBy') = ?`)
+      .run(FINANCE_DEMO_RUN_MARKER);
+    if (personaPaymentIds.length > 0) {
+      db.prepare(
+        `DELETE FROM audit_entries
+          WHERE created_by = ? AND entity_id IN (${placeholders(personaPaymentIds.length)})`,
+      ).run(PERSONA_SEED_CREATED_BY, ...personaPaymentIds); // guard dropped; only seed-marked rows
+    }
+    db.prepare(
+      `DELETE FROM audit_entries WHERE created_by = ? AND entity_type = 'stripe_dispute' AND entity_id GLOB 'du_persona_fin_*'`,
+    ).run(PERSONA_SEED_CREATED_BY); // guard dropped; only seed-marked rows
     delIn('payment_status_transitions', 'payment_id', personaPaymentIds); // guard dropped
     delIn('payments', 'member_id', memberIds);
+    // After the payment ledger rows, which name the deliveries they came from.
+    db.prepare(`DELETE FROM stripe_events WHERE event_id GLOB 'evt_persona_fin_*'`).run();
+    db.prepare(`DELETE FROM stripe_webhook_failures WHERE last_event_id GLOB 'evt_persona_fin_*'`).run();
     // A persona's recurring donations, seeded or started by a tester: their
     // transition ledger and any reconciliation issue about them go first.
     const personaSubscriptionIds = memberIds.length

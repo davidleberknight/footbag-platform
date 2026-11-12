@@ -136,6 +136,12 @@ const REASON_REMEDIES: Record<FailureReason, string> = {
  *  not for a slow evening. */
 const WEBHOOK_SILENCE_WARNING_HOURS = 72;
 
+/** The provider dashboard's webhook list, where each endpoint's event
+ *  deliveries show the request and response of every attempt. The dashboard
+ *  opens in whichever mode or sandbox the viewer has selected, so one address
+ *  serves test and live. */
+const PROVIDER_EVENT_DELIVERIES_HREF = 'https://dashboard.stripe.com/webhooks';
+
 interface FailureRow {
   reason: string;
   n: number;
@@ -177,7 +183,9 @@ export interface PaymentsHealthContent {
     failures: FailureViewModel[];
     totalFailures: number;
     hasFailures: boolean;
-    providerLogNote: string;
+    /** Prose with one link: the provider dashboard's per-delivery record of
+     *  each webhook, which this page counts but does not reproduce. */
+    providerLogNote: Array<{ text: string; href?: string }>;
   };
   volume: {
     /** Received, returned and net by category and currency, counted exactly
@@ -358,10 +366,14 @@ export const paymentsHealthService = {
           failures,
           totalFailures,
           hasFailures: totalFailures > 0,
-          providerLogNote:
-            'The provider keeps the request and this platform\'s response for every '
-            + 'individual delivery. Read it in the provider dashboard; it is not '
-            + 'reproduced here.',
+          providerLogNote: [
+            {
+              text: 'The provider keeps the request and this platform\'s response for every '
+                + 'individual delivery. Read it in ',
+            },
+            { text: 'the Stripe Dashboard\'s webhook event deliveries', href: PROVIDER_EVENT_DELIVERIES_HREF },
+            { text: '; it is not reproduced here.' },
+          ],
         },
         volume: {
           rows: volume,

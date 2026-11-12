@@ -10,7 +10,7 @@
 <div class="wrapper">
   <p>{{content.intro}}</p>
 
-  <p><a href="{{{content.shareWithTagsHref}}}" class="action-link">Share Media With These Hashtags</a></p>
+  <p><a href="{{siteHref content.shareWithTagsHref}}" class="action-link">Share Media With These Hashtags</a></p>
 
   {{> gallery-edit-form
       formAction=content.formAction

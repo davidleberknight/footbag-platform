@@ -30,6 +30,17 @@ Affordances under `/dev`:
 - `canonicalPersonas.ts`, `personaFactory.ts`, `personaRowBuilders.ts`, `realClaimJourney.ts` —
   the persona catalog, the row builders (the same builders the test factories re-export), and the
   generic real-flow claim journey the build-claim route runs.
+- `financeDemoSeed.ts` — the synthetic money the finance persona seeds: fake members, every
+  payable kind, a sanctioned test event with paid registrations, and reconciliation issues, so
+  the administrator finance pages show realistic figures on development and staging. It writes
+  no job runs.
+- `financeDemoJourney.ts`, `financeDemoJourneyCli.ts` — the finance persona's journey, run after
+  every persona refresh and after the seed that first creates the persona: it resolves the
+  rehearsal issue as the finance administrator, then runs the real nightly reconciliation and
+  Treasurer digest on demand, so the newest report and the digest carry the seeded money. The
+  command-line helper refuses a `--db` that is not the application's own database.
+- `runRegistryJob.ts` — runs any scheduled job on demand at the current time, through its job
+  registry entry and run recorder; refuses production.
 - `seedCli.ts`, `personaSeedRunner.ts`, `personaRefreshRunner.ts` — seed/build entry points.
 - `personaSeedCore.ts` — the seed pass itself, kept out of the runner so its tests can import it
   without tripping the persona-secret import guard the runner inherits.

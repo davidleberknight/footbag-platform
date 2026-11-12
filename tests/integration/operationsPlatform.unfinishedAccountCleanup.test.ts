@@ -23,6 +23,7 @@ import {
   insertOutboxEmail,
 } from '../fixtures/factories';
 import { isoDaysAgo } from '../fixtures/clock';
+import { expectLoggedError } from '../setup-env';
 
 const { dbPath } = setTestEnv('4734');
 
@@ -196,5 +197,48 @@ describe('what the job keeps', () => {
     expect(result.blockedMemberIds).toEqual([protectedAccount]);
     expect(ownedRowCounts(protectedAccount)).toEqual(EVERY_ROW);
     expect(ownedRowCounts(idle)).toEqual(NO_ROW);
+  });
+});
+
+describe('the copy held by the mail provider', () => {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+  let mail: import('../../src/adapters/sesAdapter').StubSesAdapter;
+
+  beforeAll(async () => {
+    const sesMod = await import('../../src/adapters/sesAdapter');
+    sesMod.getSesAdapter();
+    mail = sesMod.getStubSesAdapterForTests()!;
+  });
+
+  // Defect caught: an account deleted after its verification mail bounced
+  // leaves the address on the mail provider's suppression list, a copy of the
+  // person's data that outlives the account.
+  it('lifts the address off the suppression list when the account goes', async () => {
+    const s = slug('lifted');
+    const idle = seedUnfinishedAccount(s, isoDaysAgo(120));
+
+    const result = await ops.runUnfinishedAccountCleanup();
+
+    expect(result).toMatchObject({ deleted: 1, failed: 0 });
+    expect(ownedRowCounts(idle)).toEqual(NO_ROW);
+    expect(mail.liftedAddresses).toContain(`${s}@example.com`);
+  });
+
+  // Defect caught: the lift fails, the account is deleted anyway, and the
+  // address needed to lift it later is gone with it.
+  it('keeps the account for the next run when the lift fails', async () => {
+    expectLoggedError('SYS_Delete_Unfinished_Accounts: account delete failed');
+    const s = slug('lift_down');
+    const idle = seedUnfinishedAccount(s, isoDaysAgo(120));
+    mail.failNextLift(new Error('mail provider unreachable'));
+
+    const first = await ops.runUnfinishedAccountCleanup();
+    expect(first).toMatchObject({ deleted: 0, failed: 1 });
+    expect(ownedRowCounts(idle)).toEqual(EVERY_ROW);
+
+    const second = await ops.runUnfinishedAccountCleanup();
+    expect(second).toMatchObject({ deleted: 1, failed: 0 });
+    expect(ownedRowCounts(idle)).toEqual(NO_ROW);
+    expect(mail.liftedAddresses).toContain(`${s}@example.com`);
   });
 });

@@ -13,6 +13,7 @@ const { dbPath } = setTestEnv('3088');
 
 process.env.MEDIA_STORAGE_ADAPTER  = 's3';
 process.env.MEDIA_STORAGE_S3_BUCKET = 'footbag-test-media';
+process.env.CLOUDFRONT_DISTRIBUTION_ID = 'E2HEADERSTEST1';
 process.env.AWS_REGION             = 'us-east-1';
 process.env.INTERNAL_EVENT_SECRET  = 'test-internal-event-secret';
 
@@ -28,6 +29,7 @@ afterAll(() => {
   cleanupTestDb(dbPath);
   delete process.env.MEDIA_STORAGE_ADAPTER;
   delete process.env.MEDIA_STORAGE_S3_BUCKET;
+  delete process.env.CLOUDFRONT_DISTRIBUTION_ID;
   delete process.env.AWS_REGION;
   delete process.env.INTERNAL_EVENT_SECRET;
 });

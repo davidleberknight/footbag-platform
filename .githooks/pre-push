@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# Warn, never refuse: list the open high or critical CodeQL alerts on each branch
+# being pushed, so a serious finding is seen in the terminal rather than only on
+# the repository's Security tab.
+#
+# Patching is the maintainer's call, so this always lets the push go ahead: a
+# finding, or an alert list that cannot be read, is a warning and nothing more.
+#
+# CodeQL scans a branch in CI after a push lands, so what this shows is the
+# latest finished scan of that branch; a flaw this push adds appears on the next
+# one. A branch new to the remote has no scan yet and is skipped, as are branch
+# deletions, tags, and a remote that is not on GitHub. The check itself, and the
+# gh CLI it reads the list with, are the shared alert check's.
+set -uo pipefail
+
+remote_url="${2:-}"
+repo="$(printf '%s' "$remote_url" \
+  | sed -nE 's#^(git@github\.com:|ssh://git@github\.com/|https://github\.com/)([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)$#\2#p' \
+  | sed -E 's#\.git$##')"
+
+refs=()
+while read -r _local_ref local_sha remote_ref remote_sha; do
+  [[ "$remote_ref" == refs/heads/* ]] || continue
+  [[ "$local_sha" =~ ^0+$ ]] && continue
+  [[ "$remote_sha" =~ ^0+$ ]] && continue
+  refs+=("$remote_ref")
+done
+
+[[ -n "$repo" && ${#refs[@]} -gt 0 ]] || exit 0
+command -v "${CODEQL_ALERTS_GH_BIN:-gh}" >/dev/null 2>&1 || exit 0
+
+check="$(git rev-parse --show-toplevel)/scripts/ci/check_codeql_alerts.sh"
+# A network that never answers would hold the push; give up after a bounded
+# wait where the platform has the timeout tool.
+bound=()
+command -v timeout >/dev/null 2>&1 && bound=(timeout 30)
+
+for ref in "${refs[@]}"; do
+  if ! ${bound[@]+"${bound[@]}"} bash "$check" --repo "$repo" --ref "$ref" </dev/null; then
+    echo "WARNING: CodeQL alerts on ${ref}, listed above, or the list could not be read. The push continues." >&2
+  fi
+done
+exit 0

@@ -73,6 +73,7 @@ function makeStorage(): MediaStorageAdapter {
     async put(key, data) { contents.set(key, Buffer.from(data)); },
     async get(key) { return contents.get(key) ?? Buffer.alloc(0); },
     async delete(key) { contents.delete(key); },
+    async deleteMany(keys) { for (const key of keys) contents.delete(key); },
     constructURL(key) { return `/media-store/${key}`; },
     async exists(key) { return contents.has(key); },
     async headSize(key) { return contents.get(key)?.length ?? null; },

@@ -49,6 +49,7 @@ function catalogue(): Entry[] {
 /** Every published parameter, as a by-path read returns it for staging. */
 const PUBLISHED: Record<string, string> = {
   'app/media_bucket': 'footbag-staging-media',
+  'app/cloudfront_distribution_id': 'E2STAGINGDIST01',
   'app/jwt_kms_key_id': 'alias/footbag-staging-jwt',
   'app/ses_configuration_set_transactional': 'footbag-staging-transactional',
   'app/ses_configuration_set_bulk': 'footbag-staging-bulk',

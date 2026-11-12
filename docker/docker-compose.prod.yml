@@ -136,6 +136,7 @@ services:
       IMAGE_PROCESSOR_URL: ${IMAGE_PROCESSOR_URL:-http://image:4000}
       MEDIA_STORAGE_ADAPTER: ${MEDIA_STORAGE_ADAPTER:?must be set in /srv/footbag/env (the deploy reconciles it from the committed docker/env/<environment>.env on every run)}
       MEDIA_STORAGE_S3_BUCKET: ${MEDIA_STORAGE_S3_BUCKET:-}
+      CLOUDFRONT_DISTRIBUTION_ID: ${CLOUDFRONT_DISTRIBUTION_ID:-}
       # Curator video limits. Forwarded so an operator override in
       # /srv/footbag/env reaches the process rather than being silently ignored,
       # and so every container that imports config validates the same encoder
@@ -302,6 +303,7 @@ services:
       IMAGE_PROCESSOR_URL: ${IMAGE_PROCESSOR_URL:-http://image:4000}
       MEDIA_STORAGE_ADAPTER: ${MEDIA_STORAGE_ADAPTER:?must be set in /srv/footbag/env (the deploy reconciles it from the committed docker/env/<environment>.env on every run)}
       MEDIA_STORAGE_S3_BUCKET: ${MEDIA_STORAGE_S3_BUCKET:-}
+      CLOUDFRONT_DISTRIBUTION_ID: ${CLOUDFRONT_DISTRIBUTION_ID:-}
       # Curator video limits. Forwarded so an operator override in
       # /srv/footbag/env reaches the process rather than being silently ignored,
       # and so every container that imports config validates the same encoder

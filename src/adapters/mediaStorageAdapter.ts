@@ -7,6 +7,7 @@
  * from `constructURL`. The CloudFront
  * `/media-store/*` cache behavior routes to the S3 bucket via OAC (with a
  * viewer-request function stripping the prefix so S3 sees the bare key).
+ * Deleting an object also clears it from that edge cache.
  * Services call the interface; the getter returns the configured
  * implementation based on `config.mediaStorageAdapter`.
  *
@@ -28,6 +29,8 @@ import {
   HeadObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { CloudFrontClient, CreateInvalidationCommand } from '@aws-sdk/client-cloudfront';
+import { randomUUID } from 'node:crypto';
 import { config } from '../config/env';
 import { awsRequestHandler } from './awsHttpTimeouts';
 
@@ -43,8 +46,23 @@ export interface MediaStorageAdapter {
   /** Read the object at the given storage key into a Buffer. Throws if missing. */
   get(key: string): Promise<Buffer>;
 
-  /** Delete the object at the given storage key. No-op if it does not exist. */
+  /**
+   * Delete the object at the given storage key and clear it from the edge
+   * cache. No-op for a key that does not exist. Same contract as `deleteMany`
+   * with one key.
+   */
   delete(key: string): Promise<void>;
+
+  /**
+   * Delete every object at the given keys, then clear all of them from the
+   * edge cache in one request. Uploads are served `immutable` for a year, so a
+   * deleted file would otherwise keep serving from the CDN long after the
+   * object is gone. One request per act rather than one per file, because the
+   * CDN accepts only about one wildcard clear a second. Resolves only once
+   * every object is deleted and the clear is accepted; any failure rejects, and
+   * a retry is safe because both steps are idempotent.
+   */
+  deleteMany(keys: readonly string[]): Promise<void>;
 
   /** Return a URL suitable for use in templates (e.g. `/media-store/{key}` or a CloudFront URL). */
   constructURL(key: string): string;
@@ -94,7 +112,7 @@ export function createLocalMediaStorageAdapter(opts: {
   fallbackDir?: string;
 }): MediaStorageAdapter {
   const { baseDir, fallbackDir } = opts;
-  return {
+  const adapter: MediaStorageAdapter = {
     async put(key: string, data: Buffer): Promise<void> {
       const filePath = path.join(baseDir, key);
       await mkdir(path.dirname(filePath), { recursive: true });
@@ -122,6 +140,11 @@ export function createLocalMediaStorageAdapter(opts: {
       } catch (err: unknown) {
         if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
       }
+    },
+    // Development serves media straight from disk with no edge cache in front,
+    // so deleting the files is the whole of the contract here.
+    async deleteMany(keys: readonly string[]): Promise<void> {
+      for (const key of keys) await adapter.delete(key);
     },
     constructURL(key: string): string {
       return `/media-store/${key}`;
@@ -182,12 +205,28 @@ export function createLocalMediaStorageAdapter(opts: {
       return `/_local-presigned-get/${key}?${params.toString()}`;
     },
   };
+  return adapter;
+}
+
+/**
+ * The edge-cache paths that clear one stored key. The `/media-store/*` cache
+ * key includes the query string and every emitted URL carries a `?v=` token,
+ * so a trailing wildcard is the only way to reach every cached variant. The
+ * cache behaviour's viewer-request function strips the `/media-store/` prefix,
+ * so the stripped form is cleared as well.
+ */
+function edgePathsForKey(key: string): string[] {
+  const encoded = encodeURI(key);
+  return [`/media-store/${encoded}*`, `/${encoded}*`];
 }
 
 export function createS3MediaStorageAdapter(opts: {
   bucket: string;
+  /** The CloudFront distribution that serves the bucket at `/media-store/*`. */
+  distributionId: string;
   region?: string;
   s3Client?: S3Client;
+  cloudFrontClient?: CloudFrontClient;
 }): MediaStorageAdapter {
   // requestChecksumCalculation: 'WHEN_REQUIRED' suppresses the SDK's default
   // CRC32 of an empty body for presigned PUT URLs. Default 'WHEN_SUPPORTED'
@@ -204,7 +243,14 @@ export function createS3MediaStorageAdapter(opts: {
       requestHandler: awsRequestHandler(),
     });
   const bucket = opts.bucket;
-  return {
+  const distributionId = opts.distributionId;
+  const cloudFront =
+    opts.cloudFrontClient ??
+    new CloudFrontClient({
+      ...(opts.region ? { region: opts.region } : {}),
+      requestHandler: awsRequestHandler(),
+    });
+  const adapter: MediaStorageAdapter = {
     async put(key: string, data: Buffer, contentType = 'image/jpeg'): Promise<void> {
       await client.send(
         new PutObjectCommand({
@@ -228,9 +274,27 @@ export function createS3MediaStorageAdapter(opts: {
       return Buffer.concat(chunks);
     },
     async delete(key: string): Promise<void> {
+      await adapter.deleteMany([key]);
+    },
+    async deleteMany(keys: readonly string[]): Promise<void> {
+      if (keys.length === 0) return;
       // S3 DeleteObject is idempotent: it returns success whether or not the
       // key existed. No special-case for a missing key.
-      await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+      for (const key of keys) {
+        await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+      }
+      const items = keys.flatMap(edgePathsForKey);
+      await cloudFront.send(
+        new CreateInvalidationCommand({
+          DistributionId: distributionId,
+          InvalidationBatch: {
+            // Unique per request: CloudFront treats a repeated reference as
+            // the same invalidation and would not clear the cache again.
+            CallerReference: randomUUID(),
+            Paths: { Quantity: items.length, Items: items },
+          },
+        }),
+      );
     },
     constructURL(key: string): string {
       return `/media-store/${key}`;
@@ -285,6 +349,7 @@ export function createS3MediaStorageAdapter(opts: {
       return getSignedUrl(client, command, { expiresIn: expirationSeconds });
     },
   };
+  return adapter;
 }
 
 let singleton: MediaStorageAdapter | null = null;
@@ -294,6 +359,7 @@ export function getMediaStorageAdapter(): MediaStorageAdapter {
   if (config.mediaStorageAdapter === 's3') {
     singleton = createS3MediaStorageAdapter({
       bucket: config.mediaStorageS3Bucket as string,
+      distributionId: config.cloudFrontDistributionId as string,
       region: config.awsRegion,
     });
   } else {

@@ -162,8 +162,10 @@ test('an administrator asks a member for their date of birth on a link-help requ
 
   // ── The administrator sees the answer where they asked ────────────────────
   await adminPage.goto('/admin/work-queue');
-  await expect(adminPage.getByText(/Corrected the date/i)).toBeVisible();
-  await expect(adminPage.getByText('The old record is the right one.')).toBeVisible();
+  // Within this item's own card: the work queue also lists other members'
+  // answered questions, such as a seeded persona's.
+  await expect(cardFor(adminPage, queueItemId).getByText(/Corrected the date/i)).toBeVisible();
+  await expect(cardFor(adminPage, queueItemId).getByText('The old record is the right one.')).toBeVisible();
   await expect(cardFor(adminPage, queueItemId).getByText(/Waiting on the member since/i)).toHaveCount(0);
 
   await memberCtx.close();

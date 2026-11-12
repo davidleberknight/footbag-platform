@@ -424,12 +424,12 @@ describe('the wrap-up landing collects area knowledge from a member with no card
 });
 
 describe('erasure clears the member\'s words and keeps the evidence row', () => {
-  it('purging the account nulls the note text without deleting the row', () => {
+  it('purging the account nulls the note text without deleting the row', async () => {
     expect(readNotes(MEMBER_PURGE)[0].note_text).toBeTruthy();
 
     testDb.prepare(`UPDATE members SET deleted_at = ? WHERE id = ?`)
       .run(new Date().toISOString(), MEMBER_PURGE);
-    const result = memberSvc.purgeAccountPII(MEMBER_PURGE);
+    const result = await memberSvc.purgeAccountPII(MEMBER_PURGE);
     expect(result.status).toBe('purged');
 
     const notes = readNotes(MEMBER_PURGE);

@@ -97,15 +97,20 @@ export function createLiveHttpReachabilityAdapter(opts: {
     cache.set(key, entry);
   }
 
-  async function hostIsBlocked(hostname: string): Promise<boolean> {
+  // The reason a host is refused before any request reaches it, or null. A name
+  // that does not resolve is refused too: the check cannot say where it points,
+  // so it fails closed rather than handing the name to fetch to resolve again.
+  async function refusalFor(hostname: string): Promise<string | null> {
     const stripped = stripIpv6Brackets(hostname);
-    if (isLiteralIp(stripped)) return isBlockedIp(stripped);
+    if (isLiteralIp(stripped)) return isBlockedIp(stripped) ? 'redirect to blocked IP range' : null;
+    let resolved: { address: string };
     try {
-      const resolved = await lookup(stripped);
-      return Boolean(resolved.address) && isBlockedIp(resolved.address);
+      resolved = await lookup(stripped);
     } catch {
-      return false;
+      return 'host name did not resolve';
     }
+    if (!resolved.address) return 'host name did not resolve';
+    return isBlockedIp(resolved.address) ? 'redirect to blocked IP range' : null;
   }
 
   return {
@@ -138,10 +143,11 @@ export function createLiveHttpReachabilityAdapter(opts: {
         let hops = 0;
         while (true) {
           const parsed = new URL(currentUrl);
-          if (await hostIsBlocked(parsed.hostname)) {
+          const refusal = await refusalFor(parsed.hostname);
+          if (refusal) {
             result = {
               reachable: false,
-              error: 'redirect to blocked IP range',
+              error: refusal,
               finalUrl: currentUrl,
             };
             break;

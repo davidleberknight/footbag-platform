@@ -54,7 +54,7 @@
         {{#each content.freestyleRecords}}
         <tr>
           <td>
-            {{#if trickHref}}<a href="{{{trickHref}}}"><span class="trick-name">{{trickName}}</span></a>{{else}}<span class="trick-name">{{trickName}}</span>{{/if}}
+            {{#if trickHref}}<a href="{{siteHref trickHref}}"><span class="trick-name">{{trickName}}</span></a>{{else}}<span class="trick-name">{{trickName}}</span>{{/if}}
             {{#if sortName}}<span class="trick-sort-name">{{sortName}}</span>{{/if}}
           </td>
           <td class="col-num">{{valueNumeric}}</td>

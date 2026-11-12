@@ -120,21 +120,21 @@ resource "aws_iam_role_policy" "app_s3_snapshots" {
   })
 }
 
-# Media bucket access for the app: PutObject (avatar upload) + DeleteObject
-# (account erasure) + GetObject (required for HeadObject existence check, per
-# AWS docs — there is no separate s3:HeadObject action). ListBucket retained
-# so HEAD on missing keys returns 404 NoSuchKey rather than 403 AccessDenied
-# (better error semantics for callers). Despite the GetObject grant, the app
-# does NOT fetch object bytes — the only call site is adapter.exists() via
-# HeadObject. CloudFront-OAC remains the sole serving read path; code review
-# enforces this (no GetObjectCommand import in src/adapters/photoStorageAdapter.ts).
+# Media bucket access for the app, mirrored in production. Put/Delete write
+# processed photo and video assets plus pending/ presigned-PUT keys. GetObject
+# reads pending source bytes back during transcode finalize and backs the
+# HeadObject existence check (there is no separate s3:HeadObject action).
+# ListBucket lets HEAD on missing keys return 404 NoSuchKey rather than 403.
+# CloudFront-OAC remains the sole serving read path for finalized media.
+# CreateInvalidation, on this distribution only, clears a deleted file from the
+# edge cache, where uploads are otherwise served immutable for a year.
 resource "aws_iam_role_policy" "app_s3_media" {
   name = "s3-media"
   role = aws_iam_role.app_runtime.id
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
+    Statement = concat([
       {
         Sid    = "ReadWriteMediaObjects"
         Effect = "Allow"
@@ -151,7 +151,14 @@ resource "aws_iam_role_policy" "app_s3_media" {
         Action   = "s3:ListBucket"
         Resource = aws_s3_bucket.media.arn
       }
-    ]
+      ], var.enable_cloudfront ? [
+      {
+        Sid      = "InvalidateMediaPaths"
+        Effect   = "Allow"
+        Action   = "cloudfront:CreateInvalidation"
+        Resource = aws_cloudfront_distribution.main[0].arn
+      }
+    ] : [])
   })
 }
 

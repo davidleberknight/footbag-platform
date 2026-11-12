@@ -3080,7 +3080,7 @@ Success Criteria:
 - Admins see Takedown Queue (typically 0 to 10 items).
 - Display flag reasons and sample thumbnails.
 - Visibility into flagging patterns: who flagged what, when, and any relevant aggregate patterns (for example: repeated flagging by the same accounts), without storing IP-derived data.
-- Admin decision buttons: Delete hides immediately and removes origin access immediately; cached CDN copies may persist briefly per TTL/invalidation.
+- Admin decision buttons: Delete hides immediately, removes origin access immediately, and clears the item's cached CDN copies.
 - All actions append to immutable audit log with actor, reason, and affected mediaId.
 - An administrator cannot decide a report against an item they uploaded; the platform refuses and says another administrator must review it. An administrator who reports an item and then decides it is taking the designed moderation path, because the bar is on being the subject, not on having touched the item.
 - A report's reason text is the reporter's own words: an administrator can redact it but does not rewrite it.

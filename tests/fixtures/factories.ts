@@ -11,7 +11,7 @@
 import { randomUUID } from 'node:crypto';
 import BetterSqlite3 from 'better-sqlite3';
 import { signJwtLocalSync } from './signJwt';
-import { DAY_MS, isoDaysFromNow } from './clock';
+import { DAY_MS } from './clock';
 
 // Membership / identity / club row builders are defined once in the
 // testkit subtree (the only src location permitted to compile SQL
@@ -59,6 +59,13 @@ import {
   insertStripeEvent,
   insertStripeWebhookFailure,
   insertClubCleanupResolution,
+  insertEvent,
+  insertDiscipline,
+  insertEventOrganizer,
+  insertRegistration,
+  insertRegistrationDisciplineSelection,
+  insertSystemJobRun,
+  insertReconciliationIssue,
 } from '../../src/testkit/personaRowBuilders';
 
 export {
@@ -102,6 +109,13 @@ export {
   insertStripeEvent,
   insertStripeWebhookFailure,
   insertClubCleanupResolution,
+  insertEvent,
+  insertDiscipline,
+  insertEventOrganizer,
+  insertRegistration,
+  insertRegistrationDisciplineSelection,
+  insertSystemJobRun,
+  insertReconciliationIssue,
 };
 
 export type {
@@ -144,6 +158,13 @@ export type {
   StripeEventOverrides,
   StripeWebhookFailureOverrides,
   ClubCleanupResolutionOverrides,
+  EventOverrides,
+  DisciplineOverrides,
+  EventOrganizerOverrides,
+  RegistrationOverrides,
+  RegistrationDisciplineSelectionOverrides,
+  SystemJobRunOverrides,
+  ReconciliationIssueOverrides,
 } from '../../src/testkit/personaRowBuilders';
 
 // Default timestamps are one second before the insert, read per call, for the
@@ -200,90 +221,6 @@ export function createTestSessionJwt(opts: TestSessionJwtOpts): string {
       ttlSeconds: opts.ttlSeconds,
     },
   );
-}
-
-// ── Event ─────────────────────────────────────────────────────────────────────
-
-export interface EventOverrides {
-  id?: string;
-  hashtag_tag_id?: string;
-  title?: string;
-  description?: string;
-  /** Two months ahead by default, so the default open-registration event is
-   *  upcoming. A test about a past or calendar-specific event passes its dates. */
-  start_date?: string;
-  end_date?: string;
-  city?: string;
-  region?: string | null;
-  country?: string;
-  status?: 'draft' | 'reg_open' | 'closed' | 'completed' | 'canceled';
-  registration_status?: string;
-  sanction_status?: string;
-  /** The club that hosted it, which is what gives a club its event history. */
-  host_club_id?: string | null;
-}
-
-export function insertEvent(db: BetterSqlite3.Database, o: EventOverrides = {}): string {
-  const id        = o.id         ?? `event-test-${uid()}`;
-  const startDate = o.start_date ?? isoDaysFromNow(60).slice(0, 10);
-  // A public event is addressed by event_<year>_<slug>, the year being its
-  // start year, so a default event is reachable at the key its listings link.
-  const tagId = o.hashtag_tag_id
-    ?? insertTag(db, { tag_normalized: `#event_${startDate.slice(0, 4)}_test_${uid()}` });
-  db.prepare(`
-    INSERT INTO events (
-      id, hashtag_tag_id, title, description, start_date, end_date,
-      city, region, country, status, registration_status, sanction_status,
-      host_club_id,
-      payment_enabled, currency,
-      is_attendee_registration_open, is_tshirt_size_collected,
-      created_at, created_by, updated_at, updated_by, version
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'USD', 0, 0, ?, ?, ?, ?, 1)
-  `).run(
-    id, tagId,
-    o.title              ?? 'Test Event',
-    o.description        ?? 'A test event.',
-    startDate,
-    o.end_date           ?? isoDaysFromNow(62).slice(0, 10),
-    o.city               ?? 'Testville',
-    o.region             ?? null,
-    o.country            ?? 'United States',
-    o.status             ?? 'reg_open',
-    o.registration_status ?? 'open',
-    o.sanction_status    ?? 'none',
-    o.host_club_id       !== undefined ? o.host_club_id : null,
-    nowIso(), SYS, nowIso(), SYS,
-  );
-  return id;
-}
-
-// ── event_disciplines row ─────────────────────────────────────────────────────
-
-export interface DisciplineOverrides {
-  id?: string;
-  name?: string;
-  /** null only on a cross-discipline aggregate standing. */
-  discipline_category?: string | null;
-  team_type?: string;
-  sort_order?: number;
-  is_aggregate_standing?: 0 | 1;
-}
-
-export function insertDiscipline(db: BetterSqlite3.Database, eventId: string, o: DisciplineOverrides = {}): string {
-  const id = o.id ?? `disc-test-${uid()}`;
-  db.prepare(`
-    INSERT INTO event_disciplines (id, event_id, name, discipline_category, team_type, sort_order, is_aggregate_standing, created_at, created_by, updated_at, updated_by, version)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-  `).run(
-    id, eventId,
-    o.name                ?? 'Freestyle',
-    o.discipline_category === undefined ? 'freestyle' : o.discipline_category,
-    o.team_type           ?? 'singles',
-    o.sort_order          ?? 1,
-    o.is_aggregate_standing ?? 0,
-    nowIso(), SYS, nowIso(), SYS,
-  );
-  return id;
 }
 
 // ── Results upload ────────────────────────────────────────────────────────────
@@ -1290,23 +1227,6 @@ export function insertCuratorUrlReference(
   return { mediaId, sidecarPath, sidecarFilename };
 }
 
-// ── Event registration ────────────────────────────────────────────────────────
-//
-// Row in the registrations table (event-attendee registration, not member
-// account registration). Required as an FK target for AP grants whose
-// provenance is `official_event_attendance`.
-
-export interface RegistrationOverrides {
-  id?: string;
-  registration_type?: 'competitor' | 'attendee_supporter';
-  status?: 'pending' | 'confirmed' | 'canceled' | 'rejected';
-  attended_at?: string | null;
-  /** The registration-fee payment this registration settles. It is how a payment
-   *  reaches its event on the admin All Payments view, which joins through here
-   *  rather than denormalising an event onto the payment. */
-  payment_id?: string | null;
-}
-
 // Row in account_tokens: a short-lived, single-use security token. Only the
 // hash is ever persisted, so the fixture writes a stand-in hash rather than
 // pretending to be the issuer.
@@ -1345,53 +1265,6 @@ export function insertAccountToken(
     // A day after issue: live until a case asks for an expired token.
     o.expires_at ?? new Date(Date.parse(issuedAt) + DAY_MS).toISOString(),
     o.used_at ?? null,
-  );
-  return id;
-}
-
-// Row in event_organizers: the member or members who run an event. Organizers
-// are equals with no primary, so every row carries the one role the schema
-// allows and an event can take as many as a test needs.
-export interface EventOrganizerOverrides {
-  id?: string;
-}
-
-export function insertEventOrganizer(
-  db: BetterSqlite3.Database,
-  eventId: string,
-  memberId: string,
-  o: EventOrganizerOverrides = {},
-): string {
-  const id = o.id ?? `eorg-test-${uid()}`;
-  db.prepare(`
-    INSERT INTO event_organizers (
-      id, created_at, created_by, updated_at, updated_by, version,
-      event_id, member_id, role, added_at
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
-  `).run(id, nowIso(), SYS, nowIso(), SYS, eventId, memberId, 'organizer', nowIso());
-  return id;
-}
-
-export function insertRegistration(
-  db: BetterSqlite3.Database,
-  eventId: string,
-  memberId: string,
-  o: RegistrationOverrides = {},
-): string {
-  const id = o.id ?? `reg-test-${uid()}`;
-  db.prepare(`
-    INSERT INTO registrations (
-      id, created_at, created_by, updated_at, updated_by, version,
-      event_id, member_id, registered_at, registration_type, status,
-      attended_at, payment_id
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    id, nowIso(), SYS, nowIso(), SYS,
-    eventId, memberId, nowIso(),
-    o.registration_type ?? 'competitor',
-    o.status ?? 'confirmed',
-    o.attended_at ?? null,
-    o.payment_id ?? null,
   );
   return id;
 }
@@ -1724,6 +1597,8 @@ export interface OutboxEmailOverrides {
   /** The identifier the mail provider returned for the send; a later bounce or
    *  complaint names the same value, which is how it finds this row. */
   provider_message_id?: string | null;
+  /** The key a sender enqueues under so a repeat send mails nothing twice. */
+  idempotency_key?: string | null;
 }
 
 export interface MailingListOverrides {
@@ -1792,8 +1667,8 @@ export function insertOutboxEmail(db: BetterSqlite3.Database, o: OutboxEmailOver
       subject, body_text, template_key, status, last_error, sent_at,
       stream, last_attempt_at,
       reviewed_at, reviewed_by_member_id, review_note,
-      provider_message_id
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      provider_message_id, idempotency_key
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id, ts, SYS, ts, SYS,
     recipientEmail,
@@ -1811,6 +1686,7 @@ export function insertOutboxEmail(db: BetterSqlite3.Database, o: OutboxEmailOver
     o.reviewed_by_member_id ?? null,
     o.review_note ?? null,
     o.provider_message_id ?? null,
+    o.idempotency_key ?? null,
   );
   return id;
 }
@@ -1931,46 +1807,6 @@ export function insertEmailTemplate(db: BetterSqlite3.Database, o: EmailTemplate
     o.body_template ?? 'Hello {memberName},\ntest body.',
     o.is_enabled ?? 1,
     o.pii_classification ?? 'internal',
-  );
-  return id;
-}
-
-// ── Scheduled-job run ────────────────────────────────────────────────────────
-//
-// One system_job_runs row. A run that is still in flight has no finished_at,
-// which is the shape the reaper and the health view both have to survive, so
-// finished_at is only defaulted for a terminal status.
-
-export interface SystemJobRunOverrides {
-  id?: string;
-  job_name?: string;
-  started_at?: string;
-  finished_at?: string | null;
-  status?: 'running' | 'succeeded' | 'failed' | 'aborted';
-  details_json?: string;
-  last_error?: string | null;
-}
-
-export function insertSystemJobRun(db: BetterSqlite3.Database, o: SystemJobRunOverrides = {}): string {
-  const id = o.id ?? `jobrun_${uid()}`;
-  const startedAt = o.started_at ?? nowIso();
-  const status = o.status ?? 'succeeded';
-  const finishedAt = o.finished_at !== undefined
-    ? o.finished_at
-    : (status === 'running' ? null : startedAt);
-  db.prepare(`
-    INSERT INTO system_job_runs (
-      id, created_at, created_by, updated_at, updated_by, version,
-      job_name, started_at, finished_at, status, details_json, last_error
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)
-  `).run(
-    id, startedAt, SYS, startedAt, SYS,
-    o.job_name ?? 'SYS_Test_Job',
-    startedAt,
-    finishedAt,
-    status,
-    o.details_json ?? '{}',
-    o.last_error ?? null,
   );
   return id;
 }

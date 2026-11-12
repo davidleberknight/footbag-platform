@@ -84,6 +84,15 @@ resource "aws_ssm_parameter" "app_media_bucket" {
   value = aws_s3_bucket.media.id
 }
 
+# The distribution serving the media bucket, which every media deletion clears
+# the deleted file from. Exists only with the distribution.
+resource "aws_ssm_parameter" "app_cloudfront_distribution_id" {
+  count = var.enable_cloudfront ? 1 : 0
+  name  = "${local.ssm_prefix}/app/cloudfront_distribution_id"
+  type  = "String"
+  value = aws_cloudfront_distribution.main[0].id
+}
+
 resource "aws_ssm_parameter" "app_jwt_kms_key_id" {
   name  = "${local.ssm_prefix}/app/jwt_kms_key_id"
   type  = "String"

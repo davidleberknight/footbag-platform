@@ -25,6 +25,11 @@
  * half-applied with only a raw constraint dump to identify the offender, and
  * hid every later collision behind the first.
  *
+ * When this run creates the finance persona, its journey follows (the real
+ * reconciliation and digest jobs, run on demand), through the application's
+ * own database connection; so the run is refused, before it writes, unless
+ * --db and FOOTBAG_DB_PATH name the same file.
+ *
  * Input: CANONICAL_PERSONAS, the maintainer-curated catalog in code
  * (personaFactory.ts has the full PersonaSpec type; canonicalPersonas.ts has live examples).
  *
@@ -42,6 +47,12 @@ import { TEST_PERSONA_SEED_PASSWORD_LITERAL } from './personaSecrets';
 import { CANONICAL_PERSONAS } from './canonicalPersonas';
 import { seedPersonas, type SeedPersonasResult } from './personaSeedCore';
 import { parseDbArg } from './seedCli';
+import { SEEDED_PERSONA_MEMBER_ID_PREFIX } from '../lib/personaGuards';
+import {
+  financeDemoJourneyDatabaseMatches,
+  runFinanceDemoJourneyFromCli,
+  closeFinanceDemoJourneyDatabase,
+} from './financeDemoJourneyCli';
 
 export async function main(): Promise<number> {
   const { dbPath } = parseDbArg(process.argv.slice(2));
@@ -66,9 +77,25 @@ export async function main(): Promise<number> {
 
   let result: SeedPersonasResult;
   try {
+    // The finance persona's first seed is followed by its journey, which writes
+    // through the application database; refuse before writing anything if that
+    // is not the file this run seeds.
+    const financeSpec = specs.find((s) => s.financeDemo && !s.blockedBy);
+    const financeWillBeCreated = financeSpec !== undefined
+      && db.prepare(`SELECT 1 FROM members WHERE id = ?`)
+        .get(`${SEEDED_PERSONA_MEMBER_ID_PREFIX}${financeSpec.slug}`) === undefined;
+    if (financeWillBeCreated && !(await financeDemoJourneyDatabaseMatches(dbPath, 'persona-seed'))) {
+      return 1;
+    }
     result = seedPersonas(db, specs, passwordHash);
   } finally {
     db.close();
+  }
+
+  // Run after the runner's own handle has closed, through the application's.
+  let journeyExit = 0;
+  if (specs.some((s) => s.financeDemo && result.createdSlugs.includes(s.slug))) {
+    journeyExit = await runFinanceDemoJourneyFromCli('persona-seed');
   }
 
   const { created, healed, skipped, skippedBlocked, orphanSlugs, failedSlugs } = result;
@@ -102,12 +129,15 @@ export async function main(): Promise<number> {
     console.error(`[persona-seed] failed personas: ${failedSlugs.join(', ')}`);
     return 1;
   }
-  return 0;
+  return journeyExit;
 }
 
 if (require.main === module) {
   main()
-    .then((code) => process.exit(code))
+    .then((code) => {
+      closeFinanceDemoJourneyDatabase();
+      process.exit(code);
+    })
     .catch((err) => {
       console.error('[persona-seed] fatal:', err);
       process.exit(1);

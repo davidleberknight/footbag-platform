@@ -389,7 +389,7 @@ Provides abstractions for External Services making them look identical whether r
 - HttpReachabilityAdapter: `LiveHttpReachabilityAdapter` performs outbound HEAD probes with redirect-follow and per-hop SSRF re-check in production; `StubHttpReachabilityAdapter` in dev/test; `DisabledHttpReachabilityAdapter` opts out of all outbound HTTP from the validation path.
 - ImageProcessingAdapter: `HttpImageAdapter` calls the in-cluster image worker container in all environments; tests inject test doubles.
 - VideoTranscodingAdapter: `HttpVideoTranscodingAdapter` calls the in-cluster image worker container in all environments; tests inject test doubles.
-- PaymentAdapter: `createLivePaymentAdapter` (Stripe SDK) in production once payments are armed; `createStubPaymentAdapter`, an in-process Stripe simulation, everywhere else, staging included.
+- PaymentAdapter: `createLivePaymentAdapter` (Stripe SDK) in production once payments are armed; `createStubPaymentAdapter`, a Stripe simulation whose provider records sit in one ledger beside the database that every process of the stack reads, everywhere else, staging included.
 - NotificationFeedAdapter: polls the queues carrying SES bounce, complaint and alarm notifications in staging and production; an in-memory stub in dev and test.
 - BallotEncryptionAdapter: KMS envelope encryption for ballots in staging and production; a locally keyed implementation in dev and test.
 - CaptchaAdapter: `createLiveCaptchaAdapter` verifies Cloudflare Turnstile in production; `createStubCaptchaAdapter` in dev, test, and staging.

@@ -4,8 +4,10 @@
  */
 import { describe, it, expect, beforeAll, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
+import { AccountSendingPausedException, MessageRejected } from '@aws-sdk/client-ses';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 import { insertMember, insertSystemConfig } from '../fixtures/factories';
+import { expectLoggedError } from '../setup-env';
 
 const { dbPath } = setTestEnv('3067');
 
@@ -241,5 +243,129 @@ describe('OperationsPlatformService.runEmailWorker', () => {
     expect(m.attemptCount).toBe(1);
     expect(m.errorClass).toBe('PermanentSendError');
     expect(new Set(Object.keys(m))).toEqual(ALLOWED_META_KEYS_FAILURE);
+  });
+});
+
+describe('outbox drain: provider refusals and retry spacing', () => {
+  function outboxRow(recipientEmail: string): { status: string; retry_count: number } {
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    try {
+      return db
+        .prepare('SELECT status, retry_count FROM outbox_emails WHERE recipient_email = ?')
+        .get(recipientEmail) as { status: string; retry_count: number };
+    } finally {
+      db.close();
+    }
+  }
+
+  it('dead-letters a message SES refuses outright on the first refusal, with attempts left', async () => {
+    // Defect caught: a message SES has refused (a malformed or unverified
+    // recipient) is resent four more times, each refused the same way.
+    expectLoggedError('outbox dead-letter');
+    const errorSpy = vi.spyOn(logger, 'error');
+    enqueueOne(getCommunicationService(), {
+      recipientEmail: 'refused@example.com',
+      recipientMemberId: 'member-log-dead',
+      subject: 'Hi',
+      bodyText: 'x',
+    });
+    getStubSesAdapterForTests()!.failNext(
+      new MessageRejected({ message: 'Email address is not verified.', $metadata: {} }),
+    );
+
+    const result = await operationsPlatformService.runEmailWorker();
+
+    expect(result.deadLettered).toBe(1);
+    expect(outboxRow('refused@example.com').status).toBe('dead_letter');
+    const deadCalls = errorSpy.mock.calls.filter(([msg]) => msg === 'outbox dead-letter');
+    expect(deadCalls).toHaveLength(1);
+    const m = deadCalls[0][1] as Record<string, unknown>;
+    expect(m.attemptCount).toBe(1);
+    expect(m.errorClass).toBe('MessageRejected');
+  });
+
+  it('keeps retrying when SES has paused the account, which is no verdict on the message', async () => {
+    // Defect caught: a paused account dead-letters every queued email at once,
+    // password resets included, instead of waiting out the pause.
+    enqueueOne(getCommunicationService(), {
+      recipientEmail: 'paused-account@example.com',
+      recipientMemberId: 'member-log-retry',
+      subject: 'Hi',
+      bodyText: 'x',
+    });
+    getStubSesAdapterForTests()!.failNext(
+      new AccountSendingPausedException({ message: 'Account sending paused.', $metadata: {} }),
+    );
+
+    await operationsPlatformService.runEmailWorker();
+
+    expect(outboxRow('paused-account@example.com')).toEqual({ status: 'pending', retry_count: 1 });
+  });
+
+  it('spreads the first retry between half and all of the base delay', async () => {
+    // Defect caught: rows that failed together retry in one burst (no jitter),
+    // or jitter shortens a delay below half its step and spends the attempt
+    // budget in minutes.
+    const seen: number[] = [];
+    for (const [i, draw] of [0, 0.999999].entries()) {
+      resetSesAdapterForTests();
+      resetCommunicationServiceForTests();
+      const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(draw);
+      const warnSpy = vi.spyOn(logger, 'warn');
+      enqueueOne(getCommunicationService(), {
+        recipientEmail: `jitter-${i}@example.com`,
+        recipientMemberId: 'member-log-retry',
+        subject: 'Hi',
+        bodyText: 'x',
+      });
+      getStubSesAdapterForTests()!.failNext(new Error('downstream flap'));
+      await operationsPlatformService.runEmailWorker();
+      const retry = warnSpy.mock.calls.find(([msg]) => msg === 'outbox retrying');
+      seen.push((retry![1] as { retryDelaySeconds: number }).retryDelaySeconds);
+      randomSpy.mockRestore();
+      warnSpy.mockRestore();
+    }
+    // The seeded base delay is 60 seconds.
+    expect(seen).toEqual([30, 60]);
+  });
+
+  it('jitters within the one-hour ceiling, not beyond it', async () => {
+    // Defect caught: an email is held back for hours once the exponential
+    // step outgrows the one-hour cap, because the cap is dropped or applied
+    // after the random part instead of before it.
+    const db = new BetterSqlite3(dbPath);
+    insertSystemConfig(db, {
+      config_key: 'outbox_retry_base_seconds',
+      value_json: '7200',
+      created_at: '2026-04-21T00:00:00.000Z',
+      reason_text: 'Base delay above the cap',
+    });
+    db.close();
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    const warnSpy = vi.spyOn(logger, 'warn');
+    enqueueOne(getCommunicationService(), {
+      recipientEmail: 'jitter-cap@example.com',
+      recipientMemberId: 'member-log-retry',
+      subject: 'Hi',
+      bodyText: 'x',
+    });
+    getStubSesAdapterForTests()!.failNext(new Error('downstream flap'));
+
+    try {
+      await operationsPlatformService.runEmailWorker();
+    } finally {
+      const restore = new BetterSqlite3(dbPath);
+      insertSystemConfig(restore, {
+        config_key: 'outbox_retry_base_seconds',
+        value_json: '60',
+        created_at: '2026-04-21T00:00:01.000Z',
+        reason_text: 'Restore default',
+      });
+      restore.close();
+    }
+
+    const retry = warnSpy.mock.calls.find(([msg]) => msg === 'outbox retrying');
+    // Half the 3600-second cap is the floor of the jittered range.
+    expect((retry![1] as { retryDelaySeconds: number }).retryDelaySeconds).toBe(1800);
   });
 });

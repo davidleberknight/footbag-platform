@@ -57,8 +57,6 @@ const UNGUARDED_BY_DESIGN = new Set([
   '/password/reset/:token',
   '/logout',
   'STRIPE_WEBHOOK_PATH',
-  'SES_FEEDBACK_WEBHOOK_PATH',
-  'ALARM_WEBHOOK_PATH',
   // The recipient's mail client posts this from a List-Unsubscribe header,
   // with no session, which is what the header is for. The signed token in the
   // query string names one member and one audience and is verified before any
@@ -83,27 +81,33 @@ function registrations(source: string): Registration[] {
   const lines = source.split('\n');
   const found: Registration[] = [];
   for (let i = 0; i < lines.length; i++) {
-    const opener = lines[i].match(/\b\w*[Rr]outer\.(get|post|put|delete)\(/);
-    if (!opener) continue;
-    let text = '';
-    let depth = 0;
-    let started = false;
-    for (let j = i; j < lines.length; j++) {
-      text += (j > i ? '\n' : '') + lines[j];
-      for (const ch of lines[j]) {
-        if (ch === '(') { depth++; started = true; }
-        else if (ch === ')') depth--;
+    // Every opener on the line, so a second registration sharing a line with
+    // the first is read rather than swallowed into it.
+    for (const opener of lines[i].matchAll(/\b\w*[Rr]outer\.(get|post|put|delete)\(/g)) {
+      let text = '';
+      let depth = 0;
+      let started = false;
+      for (let j = i; j < lines.length; j++) {
+        const part = j === i ? lines[j].slice(opener.index) : lines[j];
+        let end = part.length;
+        for (let k = 0; k < part.length; k++) {
+          const ch = part[k];
+          if (ch === '(') { depth++; started = true; }
+          else if (ch === ')') depth--;
+          if (started && depth <= 0) { end = k + 1; break; }
+        }
+        text += (j > i ? '\n' : '') + part.slice(0, end);
+        if (started && depth <= 0) break;
       }
-      if (started && depth <= 0) break;
+      const quoted = text.match(/\(\s*'([^']+)'/);
+      const ident  = text.match(/\(\s*([A-Z][A-Z0-9_]*)\s*,/);
+      found.push({
+        line: i + 1,
+        method: opener[1],
+        target: quoted?.[1] ?? ident?.[1] ?? '',
+        text,
+      });
     }
-    const quoted = text.match(/\(\s*'([^']+)'/);
-    const ident  = text.match(/\(\s*([A-Z][A-Z0-9_]*)\s*,/);
-    found.push({
-      line: i + 1,
-      method: opener[1],
-      target: quoted?.[1] ?? ident?.[1] ?? '',
-      text,
-    });
   }
   return found;
 }
@@ -122,6 +126,16 @@ describe('membership-authorization route conformance', () => {
     // so pin that it still finds the table it is meant to police.
     expect(publicRegistrations.length).toBeGreaterThan(50);
     expect(publicRegistrations.some((r) => r.target === '/clubs/:key')).toBe(true);
+    // Two registrations written on one line are both read.
+    expect(publicRegistrations.some((r) => r.target === '/rules')).toBe(true);
+    expect(publicRegistrations.some((r) => r.target === '/rules/:categorySlug/:ruleSlug')).toBe(true);
+  });
+
+  it('every unguarded-by-design entry names a route that is still registered', () => {
+    // A stale entry would silently excuse whatever route next took its name.
+    const stale = [...UNGUARDED_BY_DESIGN]
+      .filter((target) => !publicRegistrations.some((r) => r.target === target && r.method !== 'get'));
+    expect(stale, stale.join('\n')).toEqual([]);
   });
 
   it('bare requireAuth appears only on the wizard and claim routes', () => {

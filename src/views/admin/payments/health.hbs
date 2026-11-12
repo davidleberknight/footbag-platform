@@ -53,7 +53,7 @@
 
   <section>
     <div class="section-heading">
-      <h2>Webhook Delivery</h2>
+      <h2 id="webhook-delivery">Webhook Delivery</h2>
       {{#if content.webhooks.hasFailures}}<span class="section-count">{{content.webhooks.totalFailures}} rejected</span>{{/if}}
     </div>
 
@@ -71,34 +71,36 @@
       {{/if}}
     </p>
 
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>Rejected because</th>
-          <th>Count</th>
-          <th>Most recent</th>
-          <th>What clears it</th>
-        </tr>
-      </thead>
-      <tbody>
-        {{#each content.webhooks.failures}}
+    <div class="records-table-wrap" tabindex="0" role="region" aria-labelledby="webhook-delivery">
+      <table class="data-table">
+        <thead>
           <tr>
-            <td>{{this.reasonLabel}}</td>
-            <td>{{#if this.hasFailures}}<span class="badge badge-warn">{{this.count}}</span>{{else}}0{{/if}}</td>
-            <td>
-              {{#if this.hasFailures}}
-                {{this.lastSeenDisplay}}
-                {{#if this.lastEventId}}<br><span class="text-muted fs-sm">{{this.lastEventId}}</span>{{/if}}
-              {{else}}
-                <span class="text-muted">--</span>
-              {{/if}}
-            </td>
-            <td><span class="text-secondary fs-sm">{{this.remedy}}</span></td>
+            <th>Rejected because</th>
+            <th>Count</th>
+            <th>Most recent</th>
+            <th>What clears it</th>
           </tr>
-        {{/each}}
-      </tbody>
-    </table>
-    <p class="fs-sm">{{content.webhooks.providerLogNote}}</p>
+        </thead>
+        <tbody>
+          {{#each content.webhooks.failures}}
+            <tr>
+              <td>{{this.reasonLabel}}</td>
+              <td>{{#if this.hasFailures}}<span class="badge badge-warn">{{this.count}}</span>{{else}}0{{/if}}</td>
+              <td>
+                {{#if this.hasFailures}}
+                  {{this.lastSeenDisplay}}
+                  {{#if this.lastEventId}}<br><span class="text-muted fs-sm">{{this.lastEventId}}</span>{{/if}}
+                {{else}}
+                  <span class="text-muted">--</span>
+                {{/if}}
+              </td>
+              <td><span class="text-secondary fs-sm">{{this.remedy}}</span></td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+    <p class="fs-sm">{{#each content.webhooks.providerLogNote}}{{#if href}}{{{externalLink href label=text noIcon=true}}}{{else}}{{text}}{{/if}}{{/each}}</p>
   </section>
 
   <section>

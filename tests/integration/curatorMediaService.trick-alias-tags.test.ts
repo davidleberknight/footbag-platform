@@ -58,6 +58,7 @@ function storage(): MediaStorageAdapter {
       return data;
     },
     async delete(key) { contents.delete(key); },
+    async deleteMany(keys) { for (const key of keys) contents.delete(key); },
     constructURL(key) { return `/media-store/${key}`; },
     async exists(key) { return contents.has(key); },
     async headSize(key) { return contents.get(key)?.length ?? null; },

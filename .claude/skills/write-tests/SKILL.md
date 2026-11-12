@@ -28,6 +28,7 @@ Read the open issues in the maintainers' private tracker (`gh issue list -R "$FO
 - **Unit** (`tests/unit/`): exported pure functions with no database, such as `slugifyForTag()`, `personHref()`, `groupPlayerResults()` and the `ServiceError` classes. A non-exported function is tested through its integration surface; never widen production exports for a test.
 - **Integration** (`tests/integration/`): routes, database, auth, rendered HTML, and operator scripts (`<script>.script.test.ts`, driven through the script's test seam). Route contracts, auth and ownership gates, privacy boundaries, session edge cases, validation negatives, and business rules through routes.
 - **Browser** (`tests/e2e/`, Playwright): only what a real browser can show: cookie attributes and session behaviour across redirect chains, CSRF-protected form submission where browser semantics matter, the wizard happy paths plus the one negative case per wizard a browser reveals, and upload round-trips. Every business-rule branch belongs in integration. Sessions come from the persona switch (`GET /dev/switch?as=<slug>`).
+- **Story journey**: a deployed story's success criteria, proven from a seeded persona through the real pages, the real job runs and the captured mail, asserting what the user sees and the side effects. A state the persona catalog lacks is added there, never invented as factory rows.
 - **Rendered style and page stability**: a change to a view, stylesheet or layout is checked by the rendered-style check (`npm run test:rendered-style`, limited with `RENDERED_STYLE_VIEWS=<view>,<view>`; `scripts/test-targets.sh` prints the views). What that check cannot see, because it measures settled pages with scripts on, is a browser case: a box that moves while the page loads, or a page drawn with JavaScript off (`javaScriptEnabled: false`), as in `tests/e2e/layout-stability.spec.ts`. Anonymous deployed loads live in `tests/e2e/deployed/`.
 - **Smoke** (`tests/smoke/`): read-only live probes of staging wiring only. Read `SMOKE.md` first.
 - **Real-data leg** (`tests/dev/`): claims one real migrated record per claim shape and walks the surfaces that render it. Extend it only for a surface that renders migrated real-world data, adding the surface's shapes to the leg's shape query.
@@ -46,7 +47,7 @@ Generative sweeps already cover every route, and the cross-cutting rule register
 3. The current method shape in TypeScript.
 4. Nearby tests in the target directory; follow their structure and helpers, not their assertions. An existing test is not evidence of what is correct.
 
-Write each case's expected outcome from the story or decision text before reading the implementation; a case the text does not decide is a question for the maintainer, never a value read off the code. Do not invent behaviour the success criteria do not state. Tests prove the code does what the test expects, not that it is correct, so before finishing re-read the story or decision behind the change, confirm every success criterion is exercised by at least one test, and check the adversarial cases missed no input class the story implies.
+Write each case's expected outcome by hand from the story or decision text and the seeded rows before reading the implementation, and never compute an expected value by calling the code under test; a case the text does not decide is a question for the maintainer, never a value read off the code. Do not invent behaviour the success criteria do not state. Tests prove the code does what the test expects, not that it is correct, so before finishing re-read the story or decision behind the change, confirm every success criterion is exercised by at least one test, and check the adversarial cases missed no input class the story implies.
 
 ## Step 4: Plan the cases
 
@@ -56,6 +57,7 @@ The case floor is the edge-case and adversarial lists in the rule, and its real-
 - A form-bearing page: the primary form is not nested and its submit control posts to the intended handler. A nested `<form>` orphans the submit button and is invisible to a handler-only POST test. Then the real starting state (the testing rule): the controls a first visit renders, the options re-offered after a refusal, and that resubmitting the page as rendered succeeds.
 - A state-changing route on a covered path (an email link, a checkout or payment start, an outward send): a submitted-twice case asserting the same redirect and message and unchanged domain, audit, outbox and rate-limit counts, unless the route carries a named exemption. An own-repeat case gets a sibling proving another actor's act is not treated as this actor's repeat.
 - A stub adapter on the path: the case feeds it an input the live implementation would refuse (a suppressed address, an unsigned payload) and asserts the refusal, because a stub more permissive than live hides the defect below production.
+- A scheduled job: the three layers in the testing rule's Scheduled jobs section, with the outcome case started from a state the running stack is in and the job run through its registry entry.
 
 For the high-risk areas (auth and session, member privacy, payments, identity claim, erasure, and any destructive, irreversible or outward-facing action), also walk the risk classification and STRIDE vocabulary in `docs/TESTING.md`.
 
@@ -65,14 +67,14 @@ State each planned case with the one sentence naming the defect it catches (the 
 
 - Could only a deliberate edit to copy or a table make it fail? Then it is a change-detector; drop it. Does it assert human-edited site wording? Drop it: that wording is its own source of truth and changes only on the maintainer's instruction. A case finds what it checks by the data it seeded, an element id or attribute, a link target, or a constant production code exports, never by that prose; technical text the code composes from data, such as a count or a page position, may be asserted.
 - Does it assert something is absent? The same case shows it present where it should be (a live member beside the deceased one); an absence over an empty fixture passes by construction.
-- Does it hold two lists that must agree (fields a parser reads and a save clears, jobs a gate waits for and its verdict reads)? Derive one from the other in the test and fail on any difference.
+- Does it hold two lists that must agree (fields a parser reads and a save clears, jobs a gate waits for and its verdict reads)? Relate the two declarations in the test and fail on any difference; never derive the expected side by calling the code the case exercises.
 - Does a read-only suite request the same page in several cases? Share one response through `cachedGet` (`tests/fixtures/cachedGet.ts`) and seed in `beforeAll`. Never write inside a case of a `cachedGet` suite: seed both states up front, or put the write-then-read case in its own file with plain requests (or mark the file `cachedGet-writes:` with the reason).
 ## Step 5: Write the tests
 
 Follow the shapes in `EXAMPLES.md`, and these instructions:
 
 - Import `../fixtures/supertestWithOrigin`, not plain `supertest`, whenever the suite issues any POST, PUT, PATCH or DELETE: those verbs are refused with 403 before the controller runs unless they carry a matching `Origin`.
-- Assert on rows the test seeded, not on template copy, so the assertion ties the render to the data.
+- Assert on rows the test seeded, not on template copy, so the assertion ties the render to the data. Prefer figures, counts, order, roles and the presence or absence of a form to wording.
 - `insertMember()` overrides cover member edge cases (`is_hof`, `is_deceased`, `personal_data_purged_at`).
 - A case that deliberately drives a `logger.error()` calls `expectLoggedError(pattern)` before the action, with a pattern naming the expected line.
 
@@ -93,7 +95,7 @@ Where the machine's speed decides between two legitimate outcomes, assert the co
 2. Run that one test file. It must fail, and the failure must name what you broke.
 3. Restore by reversing your own edit exactly, and run it again. It must pass. Never `git checkout` or `git restore` a file to undo it: the tree may carry other people's uncommitted work.
 
-How often, per the rule's demonstrated-failure requirement: once per test for a regression test and for any test on the high-risk areas named in step 4; elsewhere once per distinct branch or behaviour a group of tests covers. On the high-risk areas the reviewer in step 7 adds its own breaks on top of yours. A test that stays green with the code broken is wrong; fix the assertion until it fails for the right reason.
+How often, per the rule's demonstrated-failure requirement: for every new test; a bug-fix test is run red against the unfixed code before the fix goes in. On the high-risk areas the reviewer in step 7 adds its own breaks on top of yours. A test that stays green with the code broken is wrong; fix the assertion until it fails for the right reason.
 
 ## Step 7: Review, run and report
 

@@ -45,6 +45,11 @@
  *     rate-limit hit logs a warning naming the actor member id, never the caller
  *     IP or the query text.
  *   - PII purge runs in one transaction; callable only by OperationsPlatformService.
+ *     Its two provider calls (deleting the payment provider's customer record,
+ *     lifting the mail provider's suppression of the address), made by both the
+ *     purge and the deceased scrub, run before their transaction opens; a failure of either writes nothing, so the row stays
+ *     eligible and the next run retries. Both are idempotent, which is what lets
+ *     an erasure replay after a restore repeat them.
  *   - Every erasure writes an erasure_log row in the same transaction. The
  *     ledger, not personal_data_purged_at, decides which erasure shapes a row
  *     has received (both shapes must set that column to satisfy the members
@@ -138,6 +143,10 @@
  *   - outbox_emails enqueue: the notice telling a member an administrator
  *     corrected their profile, queued best-effort inside the correction's
  *     transaction and carrying what changed and why but never the values
+ *   - on PII purge, the member's customer record deleted at the payment
+ *     provider (PaymentAdapter) and their address lifted off the mail
+ *     provider's suppression list (through the communication service); the
+ *     deceased scrub makes the same two calls
  *
  * Service shape: singleton object. Avatar upload is delegated to the factory
  * `createAvatarService(deps)` in `avatarService.ts` (uses MediaStorageAdapter).
@@ -172,6 +181,8 @@ import { memberActionService, type MemberActions } from './memberActionService';
 import { mayCreateClub, isTier2Plus, hasTier1Benefits } from './tierPredicates';
 import { buildTierBenefitNotice } from './tierBenefitNotice';
 import { paymentService } from './paymentService';
+import { getCommunicationService } from './communicationService';
+import { getPaymentAdapter } from '../adapters/paymentAdapter';
 import { mediaService, type EntityMediaBlock, type ProfileMediaView } from './mediaService';
 import { formatDateDisplay } from './dateFormat';
 import type { OutcomeNoticeView } from '../lib/outcomeNotice';
@@ -1044,6 +1055,8 @@ type ErasureReadRow = {
   legacy_member_id: string | null;
   historical_person_id: string | null;
   personal_data_purged_at: string | null;
+  login_email: string | null;
+  stripe_customer_id: string | null;
   fully_purged: number;
   contact_scrubbed: number;
 };
@@ -1090,14 +1103,29 @@ const ERASED_SUBJECT_PLACEHOLDER = '(subject removed on erasure)';
  *   - one erasure_log row (account_pii_purge) so backup restores re-apply
  *     the erasure
  *
+ * Before that transaction, two copies held by outside providers go: the
+ * member's customer record at the payment provider (the provider keeps the
+ * transaction records the law requires), and their address on the mail
+ * provider's suppression list. A failure of either throws with nothing written,
+ * so the row stays eligible and the next run retries it.
+ *
  * Runs on never-erased rows and on deceased-contact-scrubbed rows (the full
  * purge upgrades a scrub when a scrubbed account is later deleted).
  * Idempotent: a fully purged row returns 'already_purged' without writes.
  */
-function purgeAccountPII(memberId: string): PurgeAccountPIIResult {
+async function purgeAccountPII(memberId: string): Promise<PurgeAccountPIIResult> {
   const row = memberPurge.readForPurge.get(memberId) as ErasureReadRow | undefined;
   if (!row) return { status: 'not_found' };
   if (row.fully_purged) return { status: 'already_purged' };
+
+  const stripeCustomerDeleted = row.stripe_customer_id !== null;
+  if (row.stripe_customer_id) {
+    await getPaymentAdapter().deleteCustomer(row.stripe_customer_id);
+  }
+  const sesSuppressionLifted = row.login_email !== null;
+  if (row.login_email) {
+    await getCommunicationService().liftAddressSuppression(row.login_email);
+  }
 
   const honorsPreserved = Boolean(row.is_hof) || Boolean(row.is_bap);
   const preserveFlag = honorsPreserved ? 1 : 0;
@@ -1177,6 +1205,8 @@ function purgeAccountPII(memberId: string): PurgeAccountPIIResult {
         club_insight_notes_cleared:   insightNotes.changes,
         outbox_rows_scrubbed:         outboxRows.changes,
         email_archives_unlinked:      archivesUnlinked.changes,
+        stripe_customer_deleted:      stripeCustomerDeleted,
+        ses_suppression_lifted:       sesSuppressionLifted,
       },
     });
 
@@ -1208,16 +1238,32 @@ function purgeAccountPII(memberId: string): PurgeAccountPIIResult {
  *   - one erasure_log row (deceased_contact_scrub) so backup restores
  *     re-apply the erasure
  *
+ * Before that transaction, the copies of their contact data held by outside
+ * providers go: their customer record at the payment provider (the provider
+ * keeps the transaction records the law requires, and the deceased marking has
+ * already ended any recurring gift), and their address on the mail provider's
+ * suppression list. A failure of either throws with nothing written, so the
+ * next run retries.
+ *
  * Guarded to is_deceased rows. Idempotent: an already-scrubbed row returns
  * 'already_scrubbed'; a fully purged row returns 'already_purged' because the
  * full purge supersedes the scrub.
  */
-function scrubDeceasedMemberPII(memberId: string): ScrubDeceasedMemberPIIResult {
+async function scrubDeceasedMemberPII(memberId: string): Promise<ScrubDeceasedMemberPIIResult> {
   const row = memberPurge.readForPurge.get(memberId) as ErasureReadRow | undefined;
   if (!row) return { status: 'not_found' };
   if (row.fully_purged) return { status: 'already_purged' };
   if (row.contact_scrubbed) return { status: 'already_scrubbed' };
   if (!row.is_deceased) return { status: 'not_deceased' };
+
+  const stripeCustomerDeleted = row.stripe_customer_id !== null;
+  if (row.stripe_customer_id) {
+    await getPaymentAdapter().deleteCustomer(row.stripe_customer_id);
+  }
+  const sesSuppressionLifted = row.login_email !== null;
+  if (row.login_email) {
+    await getCommunicationService().liftAddressSuppression(row.login_email);
+  }
 
   const now = new Date().toISOString();
   return transaction(() => {
@@ -1255,6 +1301,8 @@ function scrubDeceasedMemberPII(memberId: string): ScrubDeceasedMemberPIIResult 
         anchors_deleted:            anchors.changes,
         club_insight_notes_cleared: insightNotes.changes,
         outbox_rows_scrubbed:       outboxRows.changes,
+        stripe_customer_deleted:    stripeCustomerDeleted,
+        ses_suppression_lifted:     sesSuppressionLifted,
       },
     });
 

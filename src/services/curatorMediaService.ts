@@ -872,15 +872,13 @@ async function compensatingStorageDelete(
   storage: MediaStorageAdapter,
   keys: string[],
 ): Promise<void> {
-  for (const key of keys) {
-    try {
-      await storage.delete(key);
-    } catch (err) {
-      logger.warn('curatorMediaService: compensating storage.delete failed; object orphaned', {
-        key,
-        error: (err as Error).message ?? String(err),
-      });
-    }
+  try {
+    await storage.deleteMany(keys);
+  } catch (err) {
+    logger.warn('curatorMediaService: compensating storage.delete failed; object orphaned', {
+      keys,
+      error: (err as Error).message ?? String(err),
+    });
   }
 }
 
@@ -2196,11 +2194,9 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           });
         });
       } catch (err) {
-        await Promise.all([
-          storage.delete(videoKey).catch(() => undefined),
-          storage.delete(posterDisplayKey).catch(() => undefined),
-          storage.delete(posterThumbKey).catch(() => undefined),
-        ]);
+        await storage
+          .deleteMany([videoKey, posterDisplayKey, posterThumbKey])
+          .catch(() => undefined);
         // Two uploads under one name raced past the sign step's check: the
         // later one is named, not reported as a database error.
         const msg = (err as Error).message ?? '';
@@ -2213,10 +2209,9 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
 
       // Best-effort cleanup of pending sources. S3 lifecycle on the pending/
       // prefix is the safety net if these calls fail.
-      await Promise.all([
-        storage.delete(job.source_video_key).catch(() => undefined),
-        storage.delete(job.source_poster_key).catch(() => undefined),
-      ]);
+      await storage
+        .deleteMany([job.source_video_key, job.source_poster_key])
+        .catch(() => undefined);
 
       return { mediaId, displayUrl: storage.constructURL(posterDisplayKey) };
     },
@@ -2821,18 +2816,13 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         }
       }
 
-      const seen = new Set<string>();
-      for (const key of keysToDelete) {
-        if (seen.has(key)) continue;
-        seen.add(key);
-        try {
-          await storage.delete(key);
-        } catch (err) {
-          logger.warn('curatorMediaService.deleteMedia: storage.delete failed', {
-            key,
-            error: (err as Error).message,
-          });
-        }
+      try {
+        await storage.deleteMany([...new Set(keysToDelete)]);
+      } catch (err) {
+        logger.warn('curatorMediaService.deleteMedia: storage.delete failed', {
+          keys: keysToDelete,
+          error: (err as Error).message,
+        });
       }
 
       return { mediaId: input.mediaId };
@@ -4038,15 +4028,13 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
 
       // Storage cleanup after the DB transaction commits. Best-effort: a
       // failed delete leaves an orphan object but never resurrects the row.
-      for (const key of keysToDelete) {
-        try {
-          await storage.delete(key);
-        } catch (err) {
-          logger.warn('curatorMediaService.deleteMemberMedia: storage.delete failed', {
-            key,
-            error: (err as Error).message,
-          });
-        }
+      try {
+        await storage.deleteMany(keysToDelete);
+      } catch (err) {
+        logger.warn('curatorMediaService.deleteMemberMedia: storage.delete failed', {
+          keys: keysToDelete,
+          error: (err as Error).message,
+        });
       }
 
       return { mediaId: input.mediaId };

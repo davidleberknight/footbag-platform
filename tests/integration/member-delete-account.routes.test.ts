@@ -339,11 +339,11 @@ describe('two overlapping deletion submits', () => {
     const realStorage = storageMod.getMediaStorageAdapter();
     storageMod.setMediaStorageAdapterForTests({
       ...realStorage,
-      delete: async (key: string) => {
+      deleteMany: async (keys: readonly string[]) => {
         arrived += 1;
         if (arrived === 2) releaseAll();
         await bothArrived;
-        await realStorage.delete(key);
+        await realStorage.deleteMany(keys);
       },
     });
 
@@ -370,6 +370,79 @@ describe('two overlapping deletion submits', () => {
       ).get(id) as { n: number };
       expect(audits.n).toBe(1);
     });
+  });
+});
+
+describe('clearing the stored media', () => {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+  let storageMod: typeof import('../../src/adapters/mediaStorageAdapter');
+
+  beforeAll(async () => {
+    storageMod = await import('../../src/adapters/mediaStorageAdapter');
+  });
+
+  afterEach(() => {
+    storageMod.resetMediaStorageAdapterForTests();
+  });
+
+  function storedKeysOf(memberId: string): string[] {
+    return withDb((db) => (db.prepare(
+      'SELECT s3_key_thumb, s3_key_display FROM media_items WHERE uploader_member_id = ?',
+    ).all(memberId) as { s3_key_thumb: string | null; s3_key_display: string | null }[])
+      .flatMap((r) => [r.s3_key_thumb, r.s3_key_display])
+      .filter((k): k is string => Boolean(k)));
+  }
+
+  function mediaCountOf(memberId: string): number {
+    return withDb((db) => (db.prepare('SELECT COUNT(*) AS n FROM media_items WHERE uploader_member_id = ?')
+      .get(memberId) as { n: number }).n);
+  }
+
+  // Defect caught: each photo is cleared from the CDN in its own request, so a
+  // member with several photos trips the CDN's one-clear-a-second limit and
+  // their account cannot be deleted; or a file is left out and goes on serving.
+  it('deletes every file the member stored in one storage call', async () => {
+    const slug = 'del_one_call';
+    const id = makeMember({ slug });
+    withDb((db) => {
+      for (let i = 0; i < 3; i += 1) insertMediaItem(db, { uploader_member_id: id });
+    });
+    const expected = storedKeysOf(id);
+    expect(expected.length).toBeGreaterThanOrEqual(3);
+
+    const calls: string[][] = [];
+    const realStorage = storageMod.getMediaStorageAdapter();
+    storageMod.setMediaStorageAdapterForTests({
+      ...realStorage,
+      deleteMany: async (keys: readonly string[]) => {
+        calls.push([...keys]);
+        await realStorage.deleteMany(keys);
+      },
+    });
+
+    const res = await deleteAccount(slug, id);
+    expect(res.status).toBe(200);
+    expect(calls).toHaveLength(1);
+    expect([...calls[0]].sort()).toEqual([...expected].sort());
+    expect(mediaCountOf(id)).toBe(0);
+  });
+
+  // Defect caught: the CDN refuses the clear, the account is marked deleted
+  // anyway, and the member's photos go on serving with nothing left to retry.
+  it('leaves the account and its media intact when the storage delete fails', async () => {
+    const slug = 'del_storage_down';
+    const id = makeMember({ slug });
+    withDb((db) => insertMediaItem(db, { uploader_member_id: id }));
+    const realStorage = storageMod.getMediaStorageAdapter();
+    storageMod.setMediaStorageAdapterForTests({
+      ...realStorage,
+      deleteMany: async () => { throw new Error('edge clear refused'); },
+    });
+
+    await deleteAccount(slug, id);
+
+    expect(deletedAtOf(id)).toBeNull();
+    expect(mediaCountOf(id)).toBe(1);
   });
 });
 

@@ -9,9 +9,12 @@
  * publishing whatever became of the account; every declared anchor
  * deletes; the purged row satisfies the members credential CHECK; the
  * freed login_email becomes reusable; one audit row records the clearing;
- * a re-run is an 'already_purged' no-op.
+ * a re-run is an 'already_purged' no-op. Before any of it, the member's
+ * customer record at the payment provider is deleted and their address is
+ * lifted off the mail provider's suppression list; a failure of either writes
+ * nothing, so the next run retries.
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 import {
@@ -97,10 +100,10 @@ function seedClaimedMember(id: string, opts: { isHof?: 0 | 1 } = {}): { legacyId
 }
 
 describe('memberService.purgeAccountPII', () => {
-  it('clears credentials, contact, location, legacy metadata; anonymizes identity; severs links; deletes anchors', () => {
+  it('clears credentials, contact, location, legacy metadata; anonymizes identity; severs links; deletes anchors', async () => {
     const { legacyId } = seedClaimedMember('purge-full');
 
-    const result = memberService.purgeAccountPII('purge-full');
+    const result = await memberService.purgeAccountPII('purge-full');
     expect(result.status).toBe('purged');
     if (result.status !== 'purged') return;
     expect(result.clearedLegacyMemberId).toBe(legacyId);
@@ -144,10 +147,10 @@ describe('memberService.purgeAccountPII', () => {
     expect(meta.anchors_deleted).toBe(2);
   });
 
-  it('keeps everything an honoree record publishes, and clears their personal data anyway', () => {
+  it('keeps everything an honoree record publishes, and clears their personal data anyway', async () => {
     const { legacyId } = seedClaimedMember('purge-hof', { isHof: 1 });
 
-    const result = memberService.purgeAccountPII('purge-hof');
+    const result = await memberService.purgeAccountPII('purge-hof');
     expect(result.status).toBe('purged');
     if (result.status !== 'purged') return;
     expect(result.honorsPreserved).toBe(true);
@@ -192,11 +195,11 @@ describe('memberService.purgeAccountPII', () => {
     expect(meta.cleared_historical_person_id).toBeNull();
   });
 
-  it('leaves an erased honoree standing as a record, and an erased member not', () => {
+  it('leaves an erased honoree standing as a record, and an erased member not', async () => {
     seedClaimedMember('purge-standing-hof', { isHof: 1 });
     seedClaimedMember('purge-standing-plain');
-    expect(memberService.purgeAccountPII('purge-standing-hof').status).toBe('purged');
-    expect(memberService.purgeAccountPII('purge-standing-plain').status).toBe('purged');
+    expect((await memberService.purgeAccountPII('purge-standing-hof')).status).toBe('purged');
+    expect((await memberService.purgeAccountPII('purge-standing-plain')).status).toBe('purged');
 
     const d = new BetterSqlite3(dbPath, { readonly: true });
     const standing = d.prepare('SELECT id FROM members_of_record WHERE id = ?');
@@ -207,9 +210,9 @@ describe('memberService.purgeAccountPII', () => {
     expect(plain).toBeUndefined();
   });
 
-  it('frees the login_email for reuse by a new account', () => {
+  it('frees the login_email for reuse by a new account', async () => {
     seedClaimedMember('purge-reuse');
-    expect(memberService.purgeAccountPII('purge-reuse').status).toBe('purged');
+    expect((await memberService.purgeAccountPII('purge-reuse')).status).toBe('purged');
 
     const d = db();
     expect(() =>
@@ -225,7 +228,7 @@ describe('memberService.purgeAccountPII', () => {
   // Defect caught: an erased member's list subscriptions survive, so their
   // bounce and complaint history and their membership of each list outlive the
   // erasure they asked for.
-  it('deletes every mailing-list subscription the member holds, and no one else\'s', () => {
+  it('deletes every mailing-list subscription the member holds, and no one else\'s', async () => {
     seedClaimedMember('purge-lists');
     const d = db();
     insertMember(d, { id: 'purge-lists-other', slug: 'purge_lists_other', login_email: 'other-lists@example.com' });
@@ -234,7 +237,7 @@ describe('memberService.purgeAccountPII', () => {
     insertMailingListSubscription(d, { member_id: 'purge-lists-other', list_slug: 'announce' });
     d.close();
 
-    expect(memberService.purgeAccountPII('purge-lists').status).toBe('purged');
+    expect((await memberService.purgeAccountPII('purge-lists')).status).toBe('purged');
 
     const r = new BetterSqlite3(dbPath, { readonly: true });
     const count = (memberId: string) => (r.prepare(
@@ -245,7 +248,7 @@ describe('memberService.purgeAccountPII', () => {
     r.close();
   });
 
-  it('redacts member contact-request free text in work_queue_items on purge', () => {
+  it('redacts member contact-request free text in work_queue_items on purge', async () => {
     seedClaimedMember('purge-contact');
     const d = db();
     insertWorkQueueItem(d, {
@@ -264,7 +267,7 @@ describe('memberService.purgeAccountPII', () => {
     });
     d.close();
 
-    expect(memberService.purgeAccountPII('purge-contact').status).toBe('purged');
+    expect((await memberService.purgeAccountPII('purge-contact')).status).toBe('purged');
 
     const r = new BetterSqlite3(dbPath, { readonly: true });
     const row = r.prepare('SELECT reason_text, detail_text FROM work_queue_items WHERE id = ?')
@@ -274,7 +277,7 @@ describe('memberService.purgeAccountPII', () => {
     expect(row.reason_text).not.toContain('secret');
   });
 
-  it('redacts what the member wrote reporting other people’s media, keeping the report itself', () => {
+  it('redacts what the member wrote reporting other people’s media, keeping the report itself', async () => {
     seedClaimedMember('purge-reporter');
     seedClaimedMember('purge-media-owner');
     const d = db();
@@ -287,7 +290,7 @@ describe('memberService.purgeAccountPII', () => {
     });
     d.close();
 
-    expect(memberService.purgeAccountPII('purge-reporter').status).toBe('purged');
+    expect((await memberService.purgeAccountPII('purge-reporter')).status).toBe('purged');
 
     const r = new BetterSqlite3(dbPath, { readonly: true });
     const row = r.prepare('SELECT reason_code, reason_text, status, updated_by FROM media_flags WHERE id = ?')
@@ -302,7 +305,7 @@ describe('memberService.purgeAccountPII', () => {
     expect(row.updated_by).toBe('operations_purge');
   });
 
-  it('clears the answers an unfinished wizard still holds, and no one else\'s', () => {
+  it('clears the answers an unfinished wizard still holds, and no one else\'s', async () => {
     // Defect caught: a club note the person wrote in the wizard, held until
     // onboarding completes, outlives the erasure of the account that wrote it.
     const d = db();
@@ -314,7 +317,7 @@ describe('memberService.purgeAccountPII', () => {
     }
     d.close();
 
-    expect(memberService.purgeAccountPII('purge-held').status).toBe('purged');
+    expect((await memberService.purgeAccountPII('purge-held')).status).toBe('purged');
 
     const r = new BetterSqlite3(dbPath, { readonly: true });
     const answer = (id: string) => (r.prepare(
@@ -327,11 +330,11 @@ describe('memberService.purgeAccountPII', () => {
     expect(bystander).toContain('my own words');
   });
 
-  it('is idempotent and anti-revealing on unknown ids', () => {
+  it('is idempotent and anti-revealing on unknown ids', async () => {
     seedClaimedMember('purge-idem');
-    expect(memberService.purgeAccountPII('purge-idem').status).toBe('purged');
-    expect(memberService.purgeAccountPII('purge-idem').status).toBe('already_purged');
-    expect(memberService.purgeAccountPII('no-such-member').status).toBe('not_found');
+    expect((await memberService.purgeAccountPII('purge-idem')).status).toBe('purged');
+    expect((await memberService.purgeAccountPII('purge-idem')).status).toBe('already_purged');
+    expect((await memberService.purgeAccountPII('no-such-member')).status).toBe('not_found');
 
     const d = db();
     const audits = d.prepare(`
@@ -360,7 +363,7 @@ describe('memberService.purgeAccountPII', () => {
       statement: 'I believe record HP-x is mine.',
     });
 
-    expect(memberService.purgeAccountPII('purge-queue').status).toBe('purged');
+    expect((await memberService.purgeAccountPII('purge-queue')).status).toBe('purged');
 
     const d = db();
     const rows = d.prepare(
@@ -380,7 +383,7 @@ describe('memberService.purgeAccountPII', () => {
   // matter: clearing nothing leaves an erased member identifiable as the author
   // of everything they sent, and clearing the words would unwrite a record and
   // a conversation other people took part in.
-  it('unlinks the member from what they broadcast, and leaves the message itself as sent', () => {
+  it('unlinks the member from what they broadcast, and leaves the message itself as sent', async () => {
     seedClaimedMember('purge-archive');
     const d0 = db();
     const other = 'purge-archive-bystander';
@@ -397,7 +400,7 @@ describe('memberService.purgeAccountPII', () => {
     });
     d0.close();
 
-    expect(memberService.purgeAccountPII('purge-archive').status).toBe('purged');
+    expect((await memberService.purgeAccountPII('purge-archive')).status).toBe('purged');
 
     const d = db();
     const erased = d.prepare(
@@ -421,7 +424,7 @@ describe('memberService.purgeAccountPII', () => {
     expect(bystander.sender_member_id).toBe(other);
   });
 
-  it('scrubs every outbound message addressed to the member, keeping only the member link', () => {
+  it('scrubs every outbound message addressed to the member, keeping only the member link', async () => {
     seedClaimedMember('purge-outbox');
     const other = 'purge-outbox-bystander';
     const d = db();
@@ -441,7 +444,7 @@ describe('memberService.purgeAccountPII', () => {
     });
     d.close();
 
-    expect(memberService.purgeAccountPII('purge-outbox').status).toBe('purged');
+    expect((await memberService.purgeAccountPII('purge-outbox')).status).toBe('purged');
 
     const r = db();
     const erased = r.prepare('SELECT * FROM outbox_emails WHERE id = ?').get('ob-erased') as Record<string, unknown>;
@@ -463,7 +466,7 @@ describe('memberService.purgeAccountPII', () => {
   // Leaving a scrubbed row waiting to go out hands the sender a message with no
   // address, which fails every attempt until it dead-letters and lights the
   // operator's attention badge over an erasure that worked as intended.
-  it('settles a message still waiting to go out, so it cannot churn into the dead-letter queue', () => {
+  it('settles a message still waiting to go out, so it cannot churn into the dead-letter queue', async () => {
     seedClaimedMember('purge-pending');
     const d = db();
     insertOutboxEmail(d, {
@@ -478,7 +481,7 @@ describe('memberService.purgeAccountPII', () => {
     });
     d.close();
 
-    expect(memberService.purgeAccountPII('purge-pending').status).toBe('purged');
+    expect((await memberService.purgeAccountPII('purge-pending')).status).toBe('purged');
 
     const r = db();
     const pending = r.prepare('SELECT status, last_error FROM outbox_emails WHERE id = ?')
@@ -499,7 +502,7 @@ describe('memberService.purgeAccountPII', () => {
   // member-authored free-text field the purge leaves standing, so the test
   // asserts the retention on both the payment and the subscription, and asserts
   // that everything the purge is meant to reach still goes.
-  it('keeps the donor note on payments and subscriptions through a full purge', () => {
+  it('keeps the donor note on payments and subscriptions through a full purge', async () => {
     seedClaimedMember('purge-donation');
     const other = 'purge-donation-bystander';
     const d = db();
@@ -534,7 +537,7 @@ describe('memberService.purgeAccountPII', () => {
     });
     d.close();
 
-    expect(memberService.purgeAccountPII('purge-donation').status).toBe('purged');
+    expect((await memberService.purgeAccountPII('purge-donation')).status).toBe('purged');
 
     const r = db();
     const oneOff     = r.prepare('SELECT * FROM payments WHERE id = ?').get('pay-oneoff') as Record<string, unknown>;
@@ -576,7 +579,7 @@ describe('memberService.purgeAccountPII', () => {
   // The ledger row is the account of what the purge did. It must not claim to
   // have cleared donation text, because a reader who believes it would conclude
   // a donor's dedication is gone when it is still on the record.
-  it('records no donation-clearing claim in the purge audit row', () => {
+  it('records no donation-clearing claim in the purge audit row', async () => {
     seedClaimedMember('purge-donation-audit');
     const d = db();
     insertPayment(d, {
@@ -588,7 +591,7 @@ describe('memberService.purgeAccountPII', () => {
     });
     d.close();
 
-    expect(memberService.purgeAccountPII('purge-donation-audit').status).toBe('purged');
+    expect((await memberService.purgeAccountPII('purge-donation-audit')).status).toBe('purged');
 
     const r = db();
     const row = r.prepare(`
@@ -606,4 +609,119 @@ describe('memberService.purgeAccountPII', () => {
     expect(payment.donation_note).toBe('thanks');
   });
 
+});
+
+describe('memberService.purgeAccountPII: copies held by outside providers', () => {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+  let payments: import('../../src/adapters/paymentAdapter').StubPaymentAdapter;
+  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+  let mail: import('../../src/adapters/sesAdapter').StubSesAdapter;
+
+  beforeAll(async () => {
+    const paymentMod = await import('../../src/adapters/paymentAdapter');
+    const sesMod = await import('../../src/adapters/sesAdapter');
+    paymentMod.getPaymentAdapter();
+    sesMod.getSesAdapter();
+    payments = paymentMod.getStubPaymentAdapterForTests()!;
+    mail = sesMod.getStubSesAdapterForTests()!;
+  });
+
+  function withCustomer(id: string, customerId: string): void {
+    seedClaimedMember(id);
+    const d = db();
+    d.prepare('UPDATE members SET stripe_customer_id = ? WHERE id = ?').run(customerId, id);
+    d.close();
+  }
+
+  function purgeAudit(id: string): Record<string, unknown> | undefined {
+    const r = new BetterSqlite3(dbPath, { readonly: true });
+    const row = r.prepare(`
+      SELECT metadata_json FROM audit_entries
+       WHERE action_type = 'member.pii_purged' AND entity_id = ?
+    `).get(id) as { metadata_json: string } | undefined;
+    r.close();
+    return row ? JSON.parse(row.metadata_json) as Record<string, unknown> : undefined;
+  }
+
+  function erasureRows(id: string): number {
+    const r = new BetterSqlite3(dbPath, { readonly: true });
+    const n = (r.prepare(
+      "SELECT COUNT(*) AS n FROM erasure_log WHERE entity_id = ? AND erasure_kind = 'account_pii_purge'",
+    ).get(id) as { n: number }).n;
+    r.close();
+    return n;
+  }
+
+  // Defect caught: an erased member's name, email and card details live on at
+  // the payment provider, and the mail provider keeps their address on its
+  // suppression list, so erasure misses two persistent copies of their data.
+  it('deletes the payment customer and lifts the address suppression, and records both', async () => {
+    withCustomer('purge-provider', 'cus_purge_provider');
+
+    expect((await memberService.purgeAccountPII('purge-provider')).status).toBe('purged');
+
+    expect(payments.isCustomerDeleted('cus_purge_provider')).toBe(true);
+    expect(mail.liftedAddresses).toContain('purge-provider@example.com');
+    const meta = purgeAudit('purge-provider')!;
+    expect(meta.stripe_customer_deleted).toBe(true);
+    expect(meta.ses_suppression_lifted).toBe(true);
+  });
+
+  // Defect caught: the purge asks the payment provider to delete a customer for
+  // a member who never paid, and the provider's refusal of an empty id fails
+  // the erasure of every member without a payment history.
+  it('asks the payment provider nothing for a member with no customer record', async () => {
+    seedClaimedMember('purge-no-customer');
+    const deleteCustomer = vi.spyOn(payments, 'deleteCustomer');
+
+    expect((await memberService.purgeAccountPII('purge-no-customer')).status).toBe('purged');
+
+    expect(deleteCustomer).not.toHaveBeenCalled();
+    deleteCustomer.mockRestore();
+    expect(purgeAudit('purge-no-customer')!.stripe_customer_deleted).toBe(false);
+  });
+
+  // Defect caught: the payment provider is unreachable, the purge erases the row
+  // anyway and records it done, and the customer record at the provider is never
+  // deleted because nothing will ever retry it.
+  it('erases nothing when the payment provider fails, so the next run retries', async () => {
+    withCustomer('purge-pay-down', 'cus_purge_pay_down');
+    payments.failNextCustomerDelete(new Error('payment provider unreachable'));
+
+    await expect(memberService.purgeAccountPII('purge-pay-down')).rejects.toThrow('payment provider unreachable');
+
+    expect(memberRow('purge-pay-down').login_email).toBe('purge-pay-down@example.com');
+    expect(erasureRows('purge-pay-down')).toBe(0);
+    expect(purgeAudit('purge-pay-down')).toBeUndefined();
+
+    expect((await memberService.purgeAccountPII('purge-pay-down')).status).toBe('purged');
+    expect(payments.isCustomerDeleted('cus_purge_pay_down')).toBe(true);
+  });
+
+  // Defect caught: the mail provider refuses the suppression lift, the purge
+  // erases the row anyway, and the address it needed to lift is gone from the
+  // platform, so the suppression entry can never be removed.
+  it('erases nothing when the mail provider fails, so the next run retries', async () => {
+    seedClaimedMember('purge-mail-down');
+    mail.failNextLift(new Error('mail provider unreachable'));
+
+    await expect(memberService.purgeAccountPII('purge-mail-down')).rejects.toThrow('mail provider unreachable');
+
+    expect(memberRow('purge-mail-down').login_email).toBe('purge-mail-down@example.com');
+    expect(erasureRows('purge-mail-down')).toBe(0);
+
+    expect((await memberService.purgeAccountPII('purge-mail-down')).status).toBe('purged');
+    expect(mail.liftedAddresses).toContain('purge-mail-down@example.com');
+  });
+
+  // Defect caught: an erasure replay after a backup restore finds the customer
+  // already deleted at the provider, treats that as a failure, and holds the
+  // restored site down.
+  it('treats a customer the provider already deleted as done', async () => {
+    withCustomer('purge-replay', 'cus_purge_replay');
+    await payments.deleteCustomer('cus_purge_replay');
+
+    expect((await memberService.purgeAccountPII('purge-replay')).status).toBe('purged');
+    expect(erasureRows('purge-replay')).toBe(1);
+  });
 });

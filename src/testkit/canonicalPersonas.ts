@@ -97,6 +97,23 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     coverageNotes: ['second administrator', 'another admin\'s upload job is not found'],
   },
   {
+    slug: 'finance_admin',
+    displayName: 'Tess Treasury',
+    tier: 'tier2',
+    isAdmin: true,
+    dimension: 'Tier ladder & admin',
+    purpose: 'The administrator the finance pages are shown as: seeds sixteen obviously fake members who have paid for everything the site sells, so every finance page shows realistic figures. Dues at both tiers, one-time and yearly recurring donations, competitor and spectator fees for a test World Championships, and one of each thing that goes wrong: a failed, an abandoned and a pending checkout, a full refund, a partial refund, a dispute and a test-mode charge.',
+    testingUsage: 'Open /admin/payments/health: webhook deliveries are arriving, one failure shows for today, and volume is broken down into donations, memberships and event registrations, with one test-mode payment set aside. Open /admin/payments, filter Type to Donation, and open a donation that carries a comment: the comment shows read-only. Open /admin/payments/reports and the newest report: totals by category and currency, the row set aside, and one carried-forward item with its note. Open /admin/payments/reconciliation: one outstanding issue; switch the filter to Resolved to see who resolved the other two, when, and why. Seeding or refreshing the personas runs the nightly reconciliation and sends the treasurer digest at once; /dev/outbox shows it when the worker next delivers mail. If the worker already sent a digest earlier the same day, no second one is sent.',
+    payments: [{ type: 'membership', status: 'succeeded', purchasedTier: 'tier2', amountCents: 5000 }],
+    financeDemo: true,
+    stories: ['A_Reconcile_Payments', 'A_View_Stripe_Config_And_Payments'],
+    coverageNotes: [
+      'administrator, Tier 2',
+      'every payable kind, every unhappy money path, a sanctioned paid event',
+      'a report and a digest from the real nightly jobs, run on seed or refresh; one outstanding and two resolved issues, one of them a test-mode rehearsal charge',
+    ],
+  },
+  {
     slug: 'admin_own_link_help',
     displayName: 'Ida Selfhelp',
     tier: 'tier2',

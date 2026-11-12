@@ -49,6 +49,7 @@
 HOST_VALUES=(
   # Terraform-published identifiers, copied unchanged.
   "MEDIA_STORAGE_S3_BUCKET|param|app/media_bucket|required|^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$|the bucket processed photos and videos are written to and served from"
+  "CLOUDFRONT_DISTRIBUTION_ID|param|app/cloudfront_distribution_id|required|^E[A-Z0-9]{8,20}$|the distribution a deleted media file is cleared from, so it stops serving at the edge"
   "JWT_KMS_KEY_ID|param|app/jwt_kms_key_id|required|^alias/[A-Za-z0-9/_-]+$|stamped into every session token's key-id header; the alias, never the ARN, so the account id is not published"
   "SES_CONFIGURATION_SET_TRANSACTIONAL|param|app/ses_configuration_set_transactional|required|^[A-Za-z0-9_-]+$|keeps password resets on a sending reputation a broadcast cannot damage"
   "SES_CONFIGURATION_SET_BULK|param|app/ses_configuration_set_bulk|required|^[A-Za-z0-9_-]+$|carries broadcast mail on its own reputation"

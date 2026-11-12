@@ -22,8 +22,8 @@
       <ul>
         {{#each content.blockingReferences}}
         <li>
-          {{#if this.resolveHref}}<a href="{{{this.resolveHref}}}">{{this.label}}</a>{{else}}{{this.label}}{{/if}}{{#if this.tricks.length}}:{{/if}}
-          {{#each this.tricks}}<a href="{{{this.editHref}}}">{{this.name}}</a>{{#unless @last}}, {{/unless}}{{/each}}
+          {{#if this.resolveHref}}<a href="{{siteHref this.resolveHref}}">{{this.label}}</a>{{else}}{{this.label}}{{/if}}{{#if this.tricks.length}}:{{/if}}
+          {{#each this.tricks}}<a href="{{siteHref this.editHref}}">{{this.name}}</a>{{#unless @last}}, {{/unless}}{{/each}}
         </li>
         {{/each}}
       </ul>

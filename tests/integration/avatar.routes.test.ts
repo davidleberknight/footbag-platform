@@ -540,6 +540,7 @@ describe('POST /members/:memberKey/avatar -- s3 adapter parity', () => {
       photoMod.createS3MediaStorageAdapter({
         bucket: 'test-bucket',
         s3Client: fakeS3,
+        distributionId: 'E2AVATARTEST01',
       }),
     );
   });

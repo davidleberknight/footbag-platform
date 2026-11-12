@@ -51,6 +51,7 @@ function noopStorage(): MediaStorageAdapter {
     async put() {},
     async get() { throw new Error('not used'); },
     async delete() {},
+    async deleteMany() {},
     constructURL(key) { return `/stub/${key}`; },
     async exists() { return false; },
     async headSize() { return null; },

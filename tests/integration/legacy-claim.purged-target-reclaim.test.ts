@@ -92,10 +92,10 @@ beforeAll(async () => {
   identityAccessService = (await import('../../src/services/identityAccessService')).identityAccessService;
 
   identityAccessService.claimLegacyAccount(MEMBER_A, LEGACY_ID);
-  expect(memberService.purgeAccountPII(MEMBER_A).status).toBe('purged');
+  expect((await memberService.purgeAccountPII(MEMBER_A)).status).toBe('purged');
 
   identityAccessService.claimLegacyAccount(MEMBER_HONOREE, HONOREE_LEGACY_ID);
-  expect(memberService.purgeAccountPII(MEMBER_HONOREE).status).toBe('purged');
+  expect((await memberService.purgeAccountPII(MEMBER_HONOREE)).status).toBe('purged');
 });
 
 afterAll(() => cleanupTestDb(dbPath));

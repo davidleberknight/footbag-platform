@@ -1520,3 +1520,96 @@ describe('the convention gate: where the local runner may reach', () => {
     expectCheckRan(spared, SWEEP_RULE);
   });
 });
+
+describe('the convention gate: unescaped template output stays on the allow-list', () => {
+  const RAW_RULE = 'raw {{{ }}} output in src/views/** outside the allow-list';
+  const RAW_FAIL = 'raw {{{ }}} output outside the view-layer allow-list';
+  const APP = [
+    'app.engine(',
+    '  engine({',
+    '    helpers: {',
+    '      asset: (p: unknown) => String(p),',
+    '      externalLink: (u: unknown) => {',
+    '        const opts = {',
+    '          label: String(u),',
+    '        };',
+    '        return opts.label;',
+    '      },',
+    '    },',
+    '  }),',
+    ');',
+    '',
+  ].join('\n');
+
+  // Defect caught: a member's own text printed with triple braces reaches every
+  // reader's page as live markup, because Handlebars escaping is switched off.
+  it('refuses a plain field printed raw, naming the file and line', () => {
+    const res = inFixtureRepo({
+      'src/app.ts': APP,
+      'src/views/members/profile.hbs': '<h1>{{name}}</h1>\n<p>{{{content.member.bio}}}</p>\n',
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain(RAW_FAIL);
+    expect(res.stderr).toContain('src/views/members/profile.hbs:2: {{{content.member.bio}}}');
+  });
+
+  // Defect caught: any expression written as a call passes, so a built-in such as
+  // lookup prints a submitted value raw while looking like a helper.
+  it('refuses a call to a helper the app does not register, and a nested helper body', () => {
+    const res = inFixtureRepo({
+      'src/app.ts': APP,
+      'src/views/page.hbs': '{{{lookup content.member "bio"}}}\n{{{label}}}\n',
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('src/views/page.hbs:1: {{{lookup content.member "bio"}}}');
+    // `label` is a key inside a helper's body in the fixture, below the helper-name
+    // indent, so reading every key in the block as a helper would wave it through.
+    expect(res.stderr).toContain('src/views/page.hbs:2: {{{label}}}');
+  });
+
+  // Defect caught: the check refuses the safe forms the view-layer rule tells an
+  // author to use, so a correct page fails the build.
+  it('accepts every allowed form, with or without whitespace control', () => {
+    const res = inFixtureRepo({
+      'src/app.ts': APP,
+      'src/views/layouts/main.hbs': '<main>{{{body}}}</main>\n',
+      'src/views/page.hbs': [
+        '<link href="{{{asset \'css/style.css\'}}}">',
+        '{{{externalLink content.club.externalUrl label="website"}}}',
+        '<script type="application/json">{{{content.mapDataJson}}}</script>',
+        '<article>{{{~ content.page.bodyHtml ~}}}</article>',
+        '<a href="{{content.browseHref}}">all</a>',
+        '',
+      ].join('\n'),
+    });
+    expect(res.exitCode, res.stderr).toBe(0);
+    expectCheckRan(res, RAW_RULE);
+  });
+
+  // Defect caught: a link printed raw, which drops the escaping that stops a
+  // quote in the value closing the attribute; escaped, the address is the same.
+  it('refuses a link printed raw, by a named field or a plain href', () => {
+    const res = inFixtureRepo({
+      'src/app.ts': APP,
+      'src/views/page.hbs': [
+        '<a href="{{{content.browseHref}}}">all</a>',
+        '{{#each content.families}}<a href="{{{href}}}">{{label}}</a>{{/each}}',
+        '',
+      ].join('\n'),
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('src/views/page.hbs:1: {{{content.browseHref}}}');
+    expect(res.stderr).toContain('src/views/page.hbs:2: {{{href}}}');
+  });
+
+  // Defect caught: the helpers block moves or is renamed, the gate reads no helper
+  // names, and the reason every raw helper call then fails is never said.
+  it('fails closed, saying why, when no helper names can be read', () => {
+    const res = inFixtureRepo({
+      'src/app.ts': 'export const app = 1;\n',
+      'src/views/page.hbs': '<p>{{name}}</p>\n',
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('no registered helper names could be read');
+  });
+});

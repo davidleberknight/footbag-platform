@@ -1,5 +1,7 @@
 /**
- * Membership / identity / club row-building primitives.
+ * Row-building primitives: members and their identity, clubs, payments and
+ * the money ledgers, events and registrations, scheduled-job runs and
+ * reconciliation issues.
  *
  * Single source for the member-plus-supporting-rows inserts. The test
  * fixtures (tests/fixtures/factories.ts) re-export these, and the persona
@@ -1935,6 +1937,327 @@ export function insertClubCleanupResolution(
     o.resolution ?? 'parked',
     o.parked_by_member_id ?? null,
     o.reason_text ?? null,
+  );
+  return id;
+}
+
+const DAY_MS = 86_400_000;
+
+/** A calendar date the given number of days from now (negative is past). */
+function dateDaysFromNow(days: number): string {
+  return new Date(Date.now() + days * DAY_MS).toISOString().slice(0, 10);
+}
+
+// ── Event ─────────────────────────────────────────────────────────────────────
+
+export interface EventOverrides {
+  id?: string;
+  hashtag_tag_id?: string;
+  title?: string;
+  description?: string;
+  /** Two months ahead by default, so the default open-registration event is
+   *  upcoming. A test about a past or calendar-specific event passes its dates. */
+  start_date?: string;
+  end_date?: string;
+  city?: string;
+  region?: string | null;
+  country?: string;
+  status?: 'draft' | 'pending_approval' | 'reg_open' | 'closed' | 'completed' | 'canceled';
+  registration_status?: string;
+  registration_deadline?: string | null;
+  reg_opened_at?: string | null;
+  sanction_status?: string;
+  /** Who decided the sanction, when, and why. An event the IFPA Board awarded
+   *  is sanctioned by that award, so it carries a decision and no request. */
+  sanction_decided_at?: string | null;
+  sanction_decided_by_member_id?: string | null;
+  sanction_decision_reason?: string | null;
+  /** Paid registration is off by default; a paid event sets the flag, its
+   *  currency and the fees an entrant is charged. */
+  payment_enabled?: 0 | 1;
+  currency?: string;
+  competitor_fee_cents?: number | null;
+  attendee_fee_cents?: number | null;
+  is_attendee_registration_open?: 0 | 1;
+  /** The club that hosted it, which is what gives a club its event history. */
+  host_club_id?: string | null;
+}
+
+export function insertEvent(db: BetterSqlite3.Database, o: EventOverrides = {}): string {
+  const id        = o.id         ?? `event-test-${uid()}`;
+  const startDate = o.start_date ?? dateDaysFromNow(60);
+  // A public event is addressed by event_<year>_<slug>, the year being its
+  // start year, so a default event is reachable at the key its listings link.
+  const tagId = o.hashtag_tag_id
+    ?? insertTag(db, { tag_normalized: `#event_${startDate.slice(0, 4)}_test_${uid()}` });
+  db.prepare(`
+    INSERT INTO events (
+      id, hashtag_tag_id, title, description, start_date, end_date,
+      city, region, country, status, registration_status,
+      registration_deadline, reg_opened_at, sanction_status,
+      sanction_decided_at, sanction_decided_by_member_id, sanction_decision_reason,
+      host_club_id,
+      payment_enabled, currency, competitor_fee_cents, attendee_fee_cents,
+      is_attendee_registration_open, is_tshirt_size_collected,
+      created_at, created_by, updated_at, updated_by, version
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, 1)
+  `).run(
+    id, tagId,
+    o.title              ?? 'Test Event',
+    o.description        ?? 'A test event.',
+    startDate,
+    o.end_date           ?? dateDaysFromNow(62),
+    o.city               ?? 'Testville',
+    o.region             ?? null,
+    o.country            ?? 'United States',
+    o.status             ?? 'reg_open',
+    o.registration_status ?? 'open',
+    o.registration_deadline ?? null,
+    o.reg_opened_at      ?? null,
+    o.sanction_status    ?? 'none',
+    o.sanction_decided_at ?? null,
+    o.sanction_decided_by_member_id ?? null,
+    o.sanction_decision_reason ?? null,
+    o.host_club_id       !== undefined ? o.host_club_id : null,
+    o.payment_enabled    ?? 0,
+    o.currency           ?? 'USD',
+    o.competitor_fee_cents ?? null,
+    o.attendee_fee_cents ?? null,
+    o.is_attendee_registration_open ?? 0,
+    nowIso(), SYS, nowIso(), SYS,
+  );
+  return id;
+}
+
+// ── event_disciplines row ─────────────────────────────────────────────────────
+
+export interface DisciplineOverrides {
+  id?: string;
+  name?: string;
+  /** null only on a cross-discipline aggregate standing. */
+  discipline_category?: string | null;
+  team_type?: string;
+  sort_order?: number;
+  is_aggregate_standing?: 0 | 1;
+}
+
+export function insertDiscipline(db: BetterSqlite3.Database, eventId: string, o: DisciplineOverrides = {}): string {
+  const id = o.id ?? `disc-test-${uid()}`;
+  db.prepare(`
+    INSERT INTO event_disciplines (id, event_id, name, discipline_category, team_type, sort_order, is_aggregate_standing, created_at, created_by, updated_at, updated_by, version)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+  `).run(
+    id, eventId,
+    o.name                ?? 'Freestyle',
+    o.discipline_category === undefined ? 'freestyle' : o.discipline_category,
+    o.team_type           ?? 'singles',
+    o.sort_order          ?? 1,
+    o.is_aggregate_standing ?? 0,
+    nowIso(), SYS, nowIso(), SYS,
+  );
+  return id;
+}
+
+// ── Event organizer ───────────────────────────────────────────────────────────
+//
+// Row in event_organizers: the member or members who run an event. Organizers
+// are equals with no primary, so every row carries the one role the schema
+// allows and an event can take as many as a test needs.
+
+export interface EventOrganizerOverrides {
+  id?: string;
+}
+
+export function insertEventOrganizer(
+  db: BetterSqlite3.Database,
+  eventId: string,
+  memberId: string,
+  o: EventOrganizerOverrides = {},
+): string {
+  const id = o.id ?? `eorg-test-${uid()}`;
+  db.prepare(`
+    INSERT INTO event_organizers (
+      id, created_at, created_by, updated_at, updated_by, version,
+      event_id, member_id, role, added_at
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
+  `).run(id, nowIso(), SYS, nowIso(), SYS, eventId, memberId, 'organizer', nowIso());
+  return id;
+}
+
+// ── Event registration ────────────────────────────────────────────────────────
+//
+// Row in the registrations table (event-attendee registration, not member
+// account registration). Required as an FK target for AP grants whose
+// provenance is `official_event_attendance`.
+
+export interface RegistrationOverrides {
+  id?: string;
+  registration_type?: 'competitor' | 'attendee_supporter';
+  status?: 'pending' | 'confirmed' | 'canceled';
+  /** When the member registered. Now by default; a paid registration is
+   *  stamped with its payment's time, since the two are made together. */
+  registered_at?: string;
+  attended_at?: string | null;
+  /** The registration-fee payment this registration settles. It is how a payment
+   *  reaches its event on the admin All Payments view, which joins through here
+   *  rather than denormalising an event onto the payment. */
+  payment_id?: string | null;
+}
+
+export function insertRegistration(
+  db: BetterSqlite3.Database,
+  eventId: string,
+  memberId: string,
+  o: RegistrationOverrides = {},
+): string {
+  const id = o.id ?? `reg-test-${uid()}`;
+  const registeredAt = o.registered_at ?? nowIso();
+  db.prepare(`
+    INSERT INTO registrations (
+      id, created_at, created_by, updated_at, updated_by, version,
+      event_id, member_id, registered_at, registration_type, status,
+      attended_at, payment_id
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id, registeredAt, SYS, registeredAt, SYS,
+    eventId, memberId, registeredAt,
+    o.registration_type ?? 'competitor',
+    o.status ?? 'confirmed',
+    o.attended_at ?? null,
+    o.payment_id ?? null,
+  );
+  return id;
+}
+
+// ── Registration discipline selection ────────────────────────────────────────
+//
+// One division a competitor entered. A competitor registration is confirmed
+// only with at least one, so a seeded confirmed competitor carries its entries.
+
+export interface RegistrationDisciplineSelectionOverrides {
+  id?: string;
+  partner_member_id?: string | null;
+  partner_display_name?: string | null;
+}
+
+export function insertRegistrationDisciplineSelection(
+  db: BetterSqlite3.Database,
+  registrationId: string,
+  disciplineId: string,
+  o: RegistrationDisciplineSelectionOverrides = {},
+): string {
+  const id = o.id ?? `rds-sel-test-${uid()}`;
+  db.prepare(`
+    INSERT INTO registration_discipline_selections (
+      id, created_at, created_by, updated_at, updated_by, version,
+      registration_id, discipline_id, partner_member_id, partner_display_name
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
+  `).run(
+    id, nowIso(), SYS, nowIso(), SYS,
+    registrationId, disciplineId,
+    o.partner_member_id ?? null,
+    o.partner_display_name ?? null,
+  );
+  return id;
+}
+
+// ── Scheduled-job run ────────────────────────────────────────────────────────
+//
+// One system_job_runs row. A run that is still in flight has no finished_at,
+// which is the shape the reaper and the health view both have to survive, so
+// finished_at is only defaulted for a terminal status.
+
+export interface SystemJobRunOverrides {
+  id?: string;
+  job_name?: string;
+  started_at?: string;
+  finished_at?: string | null;
+  status?: 'running' | 'succeeded' | 'failed' | 'aborted';
+  details_json?: string;
+  last_error?: string | null;
+}
+
+export function insertSystemJobRun(db: BetterSqlite3.Database, o: SystemJobRunOverrides = {}): string {
+  const id = o.id ?? `jobrun_${uid()}`;
+  const startedAt = o.started_at ?? nowIso();
+  const status = o.status ?? 'succeeded';
+  const finishedAt = o.finished_at !== undefined
+    ? o.finished_at
+    : (status === 'running' ? null : startedAt);
+  db.prepare(`
+    INSERT INTO system_job_runs (
+      id, created_at, created_by, updated_at, updated_by, version,
+      job_name, started_at, finished_at, status, details_json, last_error
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id, startedAt, SYS, startedAt, SYS,
+    o.job_name ?? 'SYS_Test_Job',
+    startedAt,
+    finishedAt,
+    status,
+    o.details_json ?? '{}',
+    o.last_error ?? null,
+  );
+  return id;
+}
+
+// ── Reconciliation issue ──────────────────────────────────────────────────────
+//
+// One discrepancy the nightly reconciliation pass recorded. A test of the pass
+// itself drives the pass, which is what raises an issue; this builder is for a
+// reader of issues (the admin views, the digest), which needs one to exist.
+// A resolved issue carries who resolved it, when and why, as the resolve
+// action writes them together.
+
+export interface ReconciliationIssueOverrides {
+  id?: string;
+  issue_type?: string;
+  payment_id?: string | null;
+  stripe_payment_intent_id?: string | null;
+  stripe_subscription_id?: string | null;
+  stripe_invoice_id?: string | null;
+  subscription_record_id?: string | null;
+  status?: 'outstanding' | 'resolved';
+  details_json?: string;
+  created_at?: string;
+  resolved_at?: string | null;
+  resolved_by_member_id?: string | null;
+  resolution_notes?: string | null;
+  /** Ninety days on by default, the retention the purge applies. */
+  expires_at?: string | null;
+}
+
+export function insertReconciliationIssue(
+  db: BetterSqlite3.Database,
+  o: ReconciliationIssueOverrides = {},
+): string {
+  const id = o.id ?? `recon-test-${uid()}`;
+  const createdAt = o.created_at ?? nowIso();
+  const status = o.status ?? 'outstanding';
+  const resolvedAt = o.resolved_at !== undefined
+    ? o.resolved_at
+    : (status === 'resolved' ? nowIso() : null);
+  db.prepare(`
+    INSERT INTO reconciliation_issues (
+      id, created_at, created_by, updated_at, updated_by, version,
+      issue_type, payment_id, stripe_payment_intent_id, stripe_subscription_id,
+      stripe_invoice_id, subscription_record_id, status, details_json,
+      resolved_at, resolved_by_member_id, resolution_notes, expires_at
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id, createdAt, SYS, resolvedAt ?? createdAt, SYS,
+    o.issue_type ?? 'payment_amount_mismatch',
+    o.payment_id ?? null,
+    o.stripe_payment_intent_id ?? null,
+    o.stripe_subscription_id ?? null,
+    o.stripe_invoice_id ?? null,
+    o.subscription_record_id ?? null,
+    status,
+    o.details_json ?? '{}',
+    resolvedAt,
+    o.resolved_by_member_id ?? null,
+    o.resolution_notes ?? null,
+    o.expires_at !== undefined ? o.expires_at : new Date(Date.now() + 90 * DAY_MS).toISOString(),
   );
   return id;
 }

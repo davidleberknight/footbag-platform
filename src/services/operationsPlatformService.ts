@@ -65,7 +65,8 @@
  *   - payments anonymize-write (compliance-retention cleanup)
  *   - audit_entries delete (the retention purge, rows past the window only)
  *   - members hard delete (an unfinished account idle past its period, with
- *     every row it owns)
+ *     every row it owns), after its address is lifted off the mail provider's
+ *     suppression list (through CommunicationService)
  *   - audit_entries append (pii_erasure_failed, payment.compliance_anonymize_failed, and
  *     email.outbox_retention_cleanup_failed operational errors; the per-row
  *     erasure audit rows belong to MemberService)
@@ -256,11 +257,11 @@ export class OperationsPlatformService {
           logger.warn('notification feed: message from an unexpected topic', {
             feed: feed.name,
           });
-          await adapter.deleteMessage(feed.queueUrl, message.receiptHandle);
+          await adapter.deleteMessage(feed.queueUrl, message.receiptHandle, { abortSignal: opts.abortSignal });
           continue;
         }
         feed.handle(message.body);
-        await adapter.deleteMessage(feed.queueUrl, message.receiptHandle);
+        await adapter.deleteMessage(feed.queueUrl, message.receiptHandle, { abortSignal: opts.abortSignal });
         handled += 1;
       }
     }
@@ -608,6 +609,9 @@ export class OperationsPlatformService {
    * declared anchors, subscriptions and links, then the member row. Idleness is
    * re-read inside that transaction before anything is removed, so an account
    * that finished onboarding or came back after the listing keeps every row.
+   * Before the transaction the account's address is lifted off the mail
+   * provider's suppression list; a lift that fails counts the account as
+   * failed and leaves it for the next run.
    *
    * An account holding a row it should not (an audit row, a tier grant) fails
    * the member delete on its foreign key; that account is rolled back whole,
@@ -625,7 +629,7 @@ export class OperationsPlatformService {
     blockedMemberIds: string[];
     failed: number;
   }> {
-    return this.recordJobRun('SYS_Delete_Unfinished_Accounts', () => {
+    return this.recordJobRun('SYS_Delete_Unfinished_Accounts', async () => {
       const now = startTime ?? new Date();
       const idleDays = readIntConfig('unfinished_account_cleanup_days', 90);
       const cutoff = new Date(now.getTime() - idleDays * 86_400_000).toISOString();
@@ -636,6 +640,13 @@ export class OperationsPlatformService {
       };
       for (const memberId of ids) {
         try {
+          // The mail provider's suppression list is the one copy of the address
+          // held outside the platform, so it is lifted before the rows go; a
+          // failed lift leaves the account for the next run. Lifting for an
+          // account that turns out to be back in use removes nothing it needs.
+          const address = (memberPurge.readForPurge.get(memberId) as { login_email: string | null } | undefined)
+            ?.login_email;
+          if (address) await getCommunicationService().liftAddressSuppression(address);
           const removed = transaction(() => {
             if (!unfinishedAccounts.isIdleBefore.get(memberId, cutoff)) return false;
             unfinishedAccounts.deleteOutboxForRecipient.run(memberId);
@@ -741,7 +752,7 @@ export class OperationsPlatformService {
    * different record, names no recipient, and is kept indefinitely.
    */
   async runPiiPurgeScan(opts: { now?: Date } = {}): Promise<PiiPurgeScanResult> {
-    return this.recordJobRun('SYS_Cleanup_Soft_Deleted_Records', () => {
+    return this.recordJobRun('SYS_Cleanup_Soft_Deleted_Records', async () => {
       const now = opts.now ?? new Date();
       const deletedGraceDays  = readIntConfig('member_cleanup_grace_days', 90);
       const deceasedGraceDays = readIntConfig('deceased_cleanup_grace_days', 30);
@@ -755,7 +766,9 @@ export class OperationsPlatformService {
       deleted.eligible = deletedRows.length;
       for (const { id } of deletedRows) {
         try {
-          const res = memberService.purgeAccountPII(id);
+          // Awaited one row at a time: each purge calls the payment and mail
+          // providers before its transaction, and a failure stays with its row.
+          const res = await memberService.purgeAccountPII(id);
           if (res.status === 'purged') {
             deleted.purged += 1;
             if (res.honorsPreserved) deleted.honorsPreserved += 1;
@@ -781,7 +794,7 @@ export class OperationsPlatformService {
       deceased.eligible = deceasedRows.length;
       for (const { id } of deceasedRows) {
         try {
-          const res = memberService.scrubDeceasedMemberPII(id);
+          const res = await memberService.scrubDeceasedMemberPII(id);
           if (res.status === 'scrubbed') {
             deceased.scrubbed += 1;
           } else {

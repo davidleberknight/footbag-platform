@@ -283,6 +283,101 @@ const DRIVERS: Driver[] = [
       return violations;
     },
   },
+  {
+    operation: 'purgeAccountPII',
+    name: 'account erasure after the payment customer is deleted',
+    run: async () => {
+      // The customer is deleted at the provider, then the erasure's own
+      // transaction fails: the retry must still finish the erasure once, and
+      // must not stall on a customer the provider no longer holds.
+      const { stub } = await payments();
+      const { memberService } = await import('../../src/services/memberService');
+      const memberId = freshMember();
+      const customerId = `cus_${memberId}`;
+      const db = openDb();
+      try {
+        db.prepare("UPDATE members SET stripe_customer_id = ?, deleted_at = '2026-01-01T00:00:00.000Z' WHERE id = ?")
+          .run(customerId, memberId);
+      } finally {
+        db.close();
+      }
+      const erased = () => count(
+        "SELECT COUNT(*) AS c FROM erasure_log WHERE entity_id = ? AND erasure_kind = 'account_pii_purge'", memberId,
+      );
+      const purgeAudits = () => count(
+        "SELECT COUNT(*) AS c FROM audit_entries WHERE action_type = 'member.pii_purged' AND entity_id = ?", memberId,
+      );
+      const violations: string[] = [];
+      const fault = armWriteFault(dbPath, {
+        table: 'audit_entries', op: 'INSERT', when: "NEW.action_type = 'member.pii_purged'",
+      });
+      let first;
+      try {
+        first = await attempt(() => memberService.purgeAccountPII(memberId));
+      } finally {
+        fault.disarm();
+      }
+      if (!first.threw) violations.push('reported success although the audit write failed');
+      if (!stub.isCustomerDeleted(customerId)) violations.push('the provider call never happened before the write');
+      if (erased() !== 0) violations.push(`after the failed write: ${erased()} erasure ledger row(s)`);
+      const retry = await attempt(() => memberService.purgeAccountPII(memberId));
+      if (retry.threw) violations.push(`retry refused: ${retry.message}`);
+      if ((retry.value as { status?: string } | undefined)?.status !== 'purged') {
+        violations.push(`retry answered ${JSON.stringify(retry.value)}`);
+      }
+      if (erased() !== 1 || purgeAudits() !== 1) {
+        violations.push(`after the retry: ${erased()} erasure ledger row(s) and ${purgeAudits()} audit row(s)`);
+      }
+      return violations;
+    },
+  },
+  {
+    operation: 'scrubDeceasedMemberPII',
+    name: 'deceased contact scrub after the payment customer is deleted',
+    run: async () => {
+      // The same shape as the full purge: the provider calls succeed, then the
+      // scrub's own transaction fails, and the retry must finish it once.
+      const { stub } = await payments();
+      const { memberService } = await import('../../src/services/memberService');
+      const memberId = freshMember();
+      const customerId = `cus_${memberId}`;
+      const db = openDb();
+      try {
+        db.prepare("UPDATE members SET stripe_customer_id = ?, is_deceased = 1, deceased_at = '2026-01-01T00:00:00.000Z' WHERE id = ?")
+          .run(customerId, memberId);
+      } finally {
+        db.close();
+      }
+      const scrubbed = () => count(
+        "SELECT COUNT(*) AS c FROM erasure_log WHERE entity_id = ? AND erasure_kind = 'deceased_contact_scrub'", memberId,
+      );
+      const scrubAudits = () => count(
+        "SELECT COUNT(*) AS c FROM audit_entries WHERE action_type = 'member.deceased_pii_scrubbed' AND entity_id = ?", memberId,
+      );
+      const violations: string[] = [];
+      const fault = armWriteFault(dbPath, {
+        table: 'audit_entries', op: 'INSERT', when: "NEW.action_type = 'member.deceased_pii_scrubbed'",
+      });
+      let first;
+      try {
+        first = await attempt(() => memberService.scrubDeceasedMemberPII(memberId));
+      } finally {
+        fault.disarm();
+      }
+      if (!first.threw) violations.push('reported success although the audit write failed');
+      if (!stub.isCustomerDeleted(customerId)) violations.push('the provider call never happened before the write');
+      if (scrubbed() !== 0) violations.push(`after the failed write: ${scrubbed()} erasure ledger row(s)`);
+      const retry = await attempt(() => memberService.scrubDeceasedMemberPII(memberId));
+      if (retry.threw) violations.push(`retry refused: ${retry.message}`);
+      if ((retry.value as { status?: string } | undefined)?.status !== 'scrubbed') {
+        violations.push(`retry answered ${JSON.stringify(retry.value)}`);
+      }
+      if (scrubbed() !== 1 || scrubAudits() !== 1) {
+        violations.push(`after the retry: ${scrubbed()} erasure ledger row(s) and ${scrubAudits()} audit row(s)`);
+      }
+      return violations;
+    },
+  },
 ];
 
 /**

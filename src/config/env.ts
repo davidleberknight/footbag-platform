@@ -178,6 +178,7 @@ export interface AppConfig {
   videoTranscodeTimeoutMs: number;
   mediaStorageAdapter: 's3' | 'local';
   mediaStorageS3Bucket: string | undefined;
+  cloudFrontDistributionId: string | undefined;
   // TTL for presigned PUT URLs the browser uses to upload curator video bytes
   // directly to S3. 15 min (900s) gives generous wall-clock for picking files,
   // filling the form, and uploading on a slow link without leaving long-lived
@@ -781,6 +782,15 @@ function loadConfig(): AppConfig {
     );
   }
 
+  // The distribution serving the bucket: every media deletion clears the
+  // deleted file from its edge cache, so the S3 backend cannot run without it.
+  const cloudFrontDistributionId = trimmedEnv('CLOUDFRONT_DISTRIBUTION_ID') || undefined;
+  if (mediaStorageAdapter === 's3' && !cloudFrontDistributionId) {
+    throw new Error(
+      'CLOUDFRONT_DISTRIBUTION_ID is required when MEDIA_STORAGE_ADAPTER=s3',
+    );
+  }
+
   if (
     (jwtSigner === 'kms' ||
       sesAdapter === 'live' ||
@@ -1219,6 +1229,7 @@ function loadConfig(): AppConfig {
     videoTranscodeTimeoutMs,
     mediaStorageAdapter,
     mediaStorageS3Bucket,
+    cloudFrontDistributionId,
     mediaPresignedPutTtlSeconds,
     mediaPendingUploadPrefix,
     workerInternalPort,

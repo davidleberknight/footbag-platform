@@ -766,7 +766,20 @@ if [[ -z "$MEDIA_BUCKET" ]]; then
   echo "" >&2
   echo "       Then re-run the check:" >&2
   echo "         MEDIA_STORAGE_ADAPTER=s3 MEDIA_STORAGE_S3_BUCKET=<bucket> \\" >&2
-  echo "           AWS_REGION=<region> bash $REPO_ROOT/scripts/check-media-integrity.sh" >&2
+  echo "           CLOUDFRONT_DISTRIBUTION_ID=<id> AWS_REGION=<region> \\" >&2
+  echo "           bash $REPO_ROOT/scripts/check-media-integrity.sh" >&2
+  exit 1
+fi
+
+# The S3 backend refuses to boot without the distribution it clears deleted
+# files from. The check only reads, so it never clears anything, but it boots
+# the same backend the site runs.
+tf_output_read "$REPO_ROOT/terraform/$FOOTBAG_ENV" cloudfront_distribution_id || true
+MEDIA_DISTRIBUTION_ID="$TF_OUTPUT_VALUE"
+if [[ -z "$MEDIA_DISTRIBUTION_ID" ]]; then
+  cr_error "could not read cloudfront_distribution_id from terraform/$FOOTBAG_ENV."
+  echo "       The rows this deploy shipped reference objects it cannot verify." >&2
+  tf_output_explain "terraform/$FOOTBAG_ENV" cloudfront_distribution_id
   exit 1
 fi
 
@@ -789,6 +802,7 @@ if [[ -z "$MEDIA_CHECK_REGION" ]]; then
   echo "       then re-run the check against the bucket:" >&2
   echo "         FOOTBAG_DB_PATH=$LOCAL_DB MEDIA_STORAGE_ADAPTER=s3 \\" >&2
   echo "           MEDIA_STORAGE_S3_BUCKET=$MEDIA_BUCKET AWS_REGION=<region> \\" >&2
+  echo "           CLOUDFRONT_DISTRIBUTION_ID=$MEDIA_DISTRIBUTION_ID \\" >&2
   echo "           bash $REPO_ROOT/scripts/check-media-integrity.sh" >&2
   exit 1
 fi
@@ -801,6 +815,7 @@ MEDIA_CHECK_STATUS=0
 FOOTBAG_DB_PATH="$LOCAL_DB" \
   MEDIA_STORAGE_ADAPTER="s3" \
   MEDIA_STORAGE_S3_BUCKET="$MEDIA_BUCKET" \
+  CLOUDFRONT_DISTRIBUTION_ID="$MEDIA_DISTRIBUTION_ID" \
   AWS_REGION="$MEDIA_CHECK_REGION" \
   bash "$MEDIA_CHECK_CMD" || MEDIA_CHECK_STATUS=$?
 if (( MEDIA_CHECK_STATUS == 1 )); then

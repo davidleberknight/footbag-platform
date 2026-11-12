@@ -103,6 +103,9 @@ function makeStubStorage(): StubStorage {
       deletes.push(key);
       contents.delete(key);
     },
+    async deleteMany(keys) {
+      for (const key of keys) await stub.delete(key);
+    },
     constructURL(key) { return `/media-store/${key}`; },
     async exists(key) { return contents.has(key); },
     async headSize(key) { return contents.get(key)?.length ?? null; },

@@ -46,7 +46,13 @@ export interface ReceiveOptions {
 
 export interface NotificationFeedAdapter {
   receive(queueUrl: string, opts?: ReceiveOptions): Promise<FeedMessage[]>;
-  deleteMessage(queueUrl: string, receiptHandle: string): Promise<void>;
+  /**
+   * The abort signal is the same one `receive` takes, so a shutdown ends a
+   * delete still waiting on the queue instead of holding the loop until the
+   * socket limit. An aborted delete leaves the message to be redelivered, which
+   * the feeds already handle exactly once.
+   */
+  deleteMessage(queueUrl: string, receiptHandle: string, opts?: { abortSignal?: AbortSignal }): Promise<void>;
 }
 
 export interface StubNotificationFeedAdapter extends NotificationFeedAdapter {
@@ -84,9 +90,10 @@ export function createLiveNotificationFeedAdapter(deps: {
         .map((m) => ({ receiptHandle: m.ReceiptHandle, body: m.Body }));
     },
 
-    async deleteMessage(queueUrl, receiptHandle) {
+    async deleteMessage(queueUrl, receiptHandle, opts = {}) {
       await client.send(
         new DeleteMessageCommand({ QueueUrl: queueUrl, ReceiptHandle: receiptHandle }),
+        opts.abortSignal ? { abortSignal: opts.abortSignal } : undefined,
       );
     },
   };
@@ -113,7 +120,10 @@ export function createStubNotificationFeedAdapter(): StubNotificationFeedAdapter
       return batch;
     },
 
-    async deleteMessage(queueUrl, receiptHandle) {
+    async deleteMessage(queueUrl, receiptHandle, opts = {}) {
+      // The live client refuses a send whose signal has already fired, so the
+      // stub does too and the message stays in flight for redelivery.
+      opts.abortSignal?.throwIfAborted();
       const held = listFor(outstanding, queueUrl);
       const at = held.findIndex((m) => m.receiptHandle === receiptHandle);
       if (at >= 0) held.splice(at, 1);

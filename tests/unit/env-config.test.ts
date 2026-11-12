@@ -77,6 +77,7 @@ function clearAwsWiring(): void {
   delete process.env.VIDEO_TRANSCODE_TIMEOUT_MS;
   delete process.env.MEDIA_STORAGE_ADAPTER;
   delete process.env.MEDIA_STORAGE_S3_BUCKET;
+  delete process.env.CLOUDFRONT_DISTRIBUTION_ID;
   delete process.env.MEDIA_PRESIGNED_PUT_TTL_SECONDS;
   delete process.env.MEDIA_PENDING_UPLOAD_PREFIX;
   delete process.env.WORKER_INTERNAL_PORT;
@@ -1322,6 +1323,24 @@ describe('env config: MEDIA_STORAGE_*', () => {
     );
   });
 
+  // Defect caught: the site boots on S3 media without the distribution it
+  // clears deleted files from, and every deletion then fails or, worse, leaves
+  // deleted photos serving from the CDN for a year.
+  it('throws when MEDIA_STORAGE_ADAPTER=s3 but CLOUDFRONT_DISTRIBUTION_ID is unset', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.MEDIA_STORAGE_ADAPTER = 's3';
+    process.env.PAYMENT_ADAPTER = 'live';
+    process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test_live_value';
+    process.env.MEDIA_STORAGE_S3_BUCKET = 'media-bucket-1';
+    process.env.AWS_REGION = 'us-east-1';
+    process.env.CLOUDFRONT_DISTRIBUTION_ID = '   ';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /CLOUDFRONT_DISTRIBUTION_ID is required when MEDIA_STORAGE_ADAPTER=s3/,
+    );
+  });
+
   it('throws when MEDIA_STORAGE_ADAPTER=s3 but AWS_REGION is unset', async () => {
     baselineRequired();
     clearAwsWiring();
@@ -1330,6 +1349,7 @@ describe('env config: MEDIA_STORAGE_*', () => {
     process.env.PAYMENT_ADAPTER = 'live';
     process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test_live_value';
     process.env.MEDIA_STORAGE_S3_BUCKET = 'media-bucket-1';
+    process.env.CLOUDFRONT_DISTRIBUTION_ID = 'E2ENVTEST01';
     await expect(import('../../src/config/env')).rejects.toThrow(
       /AWS_REGION is required.*MEDIA_STORAGE_ADAPTER=s3/,
     );
@@ -1361,11 +1381,13 @@ describe('env config: MEDIA_STORAGE_*', () => {
     process.env.PAYMENT_ADAPTER = 'live';
     process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test_live_value';
     process.env.MEDIA_STORAGE_S3_BUCKET = 'footbag-staging-media';
+    process.env.CLOUDFRONT_DISTRIBUTION_ID = 'E2ENVTEST01';
     process.env.AWS_REGION = 'us-east-1';
     process.env.INTERNAL_EVENT_SECRET = 'a'.repeat(48);
     const { config } = await import('../../src/config/env');
     expect(config.mediaStorageAdapter).toBe('s3');
     expect(config.mediaStorageS3Bucket).toBe('footbag-staging-media');
+    expect(config.cloudFrontDistributionId).toBe('E2ENVTEST01');
     expect(config.awsRegion).toBe('us-east-1');
   });
 
@@ -1384,6 +1406,7 @@ describe('env config: MEDIA_STORAGE_*', () => {
     process.env.PAYMENT_ADAPTER = 'live';
     process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test_live_value';
     process.env.MEDIA_STORAGE_S3_BUCKET = 'footbag-staging-media';
+    process.env.CLOUDFRONT_DISTRIBUTION_ID = 'E2ENVTEST01';
     process.env.AWS_REGION = 'us-east-1';
     await expect(import('../../src/config/env')).rejects.toThrow(
       /INTERNAL_EVENT_SECRET is required/,

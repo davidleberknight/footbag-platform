@@ -71,9 +71,11 @@
  *     audience, unless the send is strict. Mail already queued when a member
  *     reaches one of those states is dead-lettered by the service that changes
  *     the state, so the drain does not re-check it.
- *   - Failed attempts back off exponentially via scheduled_for before the
- *     attempt budget dead-letters them; provider throttling and quota
- *     exhaustion wait out a delay WITHOUT consuming an attempt.
+ *   - Failed attempts back off exponentially, with random jitter, via
+ *     scheduled_for before the attempt budget dead-letters them; a message
+ *     the provider refused outright is dead-lettered at once; provider
+ *     throttling and quota exhaustion wait out a delay WITHOUT consuming an
+ *     attempt.
  *   - Ambiguous outcomes never auto-retry: an error that leaves delivery
  *     unknowable (timeout or dropped connection mid-call), or a row
  *     stranded in 'sending' past the lease, parks in 'manual_review',
@@ -399,18 +401,22 @@ export interface CommunicationService {
   liftAddressSuppression(address: string): Promise<void>;
 }
 
-type SendErrorOutcome = 'throttle' | 'ambiguous' | 'failure';
+type SendErrorOutcome = 'throttle' | 'ambiguous' | 'rejected' | 'failure';
 
 /**
- * Sorts a provider send error into the three outcomes the drain handles
+ * Sorts a provider send error into the four outcomes the drain handles
  * differently. Throttle: the provider refused for rate or quota reasons, so
  * the email itself is fine and waits without consuming an attempt. Ambiguous:
  * the connection died in a way that leaves delivery unknowable (the request
- * may have reached the provider), so no automatic retry. Failure: a
- * definitive rejection of this attempt, eligible for backoff retry. Matching
- * is by error name / code shape because the AWS SDK surfaces these as named
- * error classes and node network errors carry syscall codes; anything
- * unrecognized counts as a definitive failure, whose bounded retry budget is
+ * may have reached the provider), so no automatic retry. Rejected: the
+ * provider refused this message itself (a malformed or unverified recipient,
+ * or its content), so sending the same message again earns the same refusal
+ * and it goes straight to dead letter. Failure: anything else, eligible for
+ * backoff retry; this includes a paused account or a missing configuration
+ * set, which are states of the account rather than verdicts on the email.
+ * Matching is by error name / code shape because the AWS SDK surfaces these
+ * as named error classes and node network errors carry syscall codes;
+ * anything unrecognized counts as a failure, whose bounded retry budget is
  * the safe default.
  */
 function classifySendError(err: unknown): SendErrorOutcome {
@@ -429,6 +435,9 @@ function classifySendError(err: unknown): SendErrorOutcome {
     /^(ETIMEDOUT|ECONNRESET|EPIPE|ECONNABORTED)$/.test(codeStr)
   ) {
     return 'ambiguous';
+  }
+  if (name === 'MessageRejected') {
+    return 'rejected';
   }
   return 'failure';
 }
@@ -1064,7 +1073,10 @@ export function createCommunicationService(
             });
           } else {
             const nextRetryCount = row.retry_count + 1;
-            if (nextRetryCount >= maxRetries) {
+            // A message the provider refused outright is dead-lettered on the
+            // first refusal: a resend of the same message is refused the same
+            // way, so retries would only spend the provider's patience.
+            if (outcome === 'rejected' || nextRetryCount >= maxRetries) {
               outbox.markDeadLetter.run(message, new Date().toISOString(), row.id);
               result.deadLettered += 1;
               logger.error('outbox dead-letter', {
@@ -1078,8 +1090,12 @@ export function createCommunicationService(
               // Exponential backoff: 1x, 2x, 4x ... the base delay, capped,
               // so a provider refusing everything is probed at a widening
               // interval instead of burning the attempt budget in minutes.
+              // Equal jitter then keeps the first half of each delay and
+              // randomises the second, so rows that failed together do not
+              // retry together, while no delay falls below half its step.
               const baseSeconds = readIntConfig('outbox_retry_base_seconds', 60);
-              const delaySeconds = Math.min(baseSeconds * 2 ** row.retry_count, 3600);
+              const cappedSeconds = Math.min(baseSeconds * 2 ** row.retry_count, 3600);
+              const delaySeconds = Math.round(cappedSeconds / 2 + Math.random() * (cappedSeconds / 2));
               outbox.markFailedRetry.run(
                 message,
                 new Date(Date.now() + delaySeconds * 1000).toISOString(),

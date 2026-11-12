@@ -37,6 +37,7 @@
 import BetterSqlite3 from 'better-sqlite3';
 import { SEEDED_PERSONA_MEMBER_ID_PREFIX } from '../lib/personaGuards';
 import type { ExpectedAnswerKind } from '../services/memberMessageService';
+import { seedFinanceDemo } from './financeDemoSeed';
 import {
   insertMember,
   insertMemberTierGrant,
@@ -507,6 +508,13 @@ export interface PersonaSpec {
    */
   legacyLeadershipCandidates?: { clubName: string }[];
   mailingList?: PersonaMailingListSpec | PersonaMailingListSpec[];
+  /**
+   * Seeds the synthetic money the administrator finance pages show, around
+   * this persona as the administrator who sanctioned the test event and
+   * resolved the explained reconciliation issue. Only an admin persona may
+   * carry it, and only one, since the rows it seeds have fixed ids.
+   */
+  financeDemo?: true;
   /** Testing dimensions this persona exercises. Must be non-empty. */
   coverageNotes: string[];
 }
@@ -1124,6 +1132,17 @@ export function seedPersona(
       list_slug: 'admin-alerts',
       list_name: 'Admin Alerts',
       status: 'subscribed',
+    });
+  }
+
+  if (spec.financeDemo) {
+    if (isAdmin !== 1) {
+      throw new Error(`persona '${spec.slug}': financeDemo needs an administrator persona`);
+    }
+    seedFinanceDemo(db, memberId, {
+      createdBy: PERSONA_SEED_CREATED_BY,
+      tierReasonCode: PERSONA_SEED_REASON_CODE,
+      tierReasonText: PERSONA_SEED_REASON_TEXT,
     });
   }
 

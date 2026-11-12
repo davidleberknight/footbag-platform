@@ -105,6 +105,8 @@ s3-adapter-local/
 *.db.bak*
 *.sqlite
 *.sqlite3
+# The stub payment provider's shared ledger, kept beside the database it stands in for.
+database/stub-payment-provider/
 
 # SQLite sidecar/journal files
 *.db-wal

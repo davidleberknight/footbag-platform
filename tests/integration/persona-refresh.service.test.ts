@@ -48,6 +48,7 @@ import {
   insertRegistration,
   insertEventOrganizer,
   insertEmailArchive,
+  insertResultsUpload,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3097');
@@ -550,10 +551,10 @@ describe('refreshAllPersonas', () => {
     });
     expect(tierOf(T1)).toBe('tier2');
 
-    // An event registration is a row no tester flow can create yet, so the
+    // A results upload is a row no tester flow can create yet, so the
     // teardown does not own it, and it RESTRICTs the member delete mid-teardown.
     const eventId = insertEvent(db);
-    const registrationId = insertRegistration(db, eventId, T1);
+    const uploadId = insertResultsUpload(db, eventId, T1);
 
     expect(() => refreshAllPersonas(db)).toThrow();
 
@@ -563,13 +564,13 @@ describe('refreshAllPersonas', () => {
          AND name IN ('trg_tier_grants_no_delete','trg_active_player_grants_no_delete','trg_audit_no_delete')`,
     );
     expect(guards).toBe(3);
-    // Pre-refresh state intact: the upgrade grant and the registration both survive.
+    // Pre-refresh state intact: the upgrade grant and the upload both survive.
     expect(tierOf(T1)).toBe('tier2');
-    expect(count(`SELECT COUNT(*) AS n FROM registrations WHERE id = ?`, registrationId)).toBe(1);
+    expect(count(`SELECT COUNT(*) AS n FROM event_results_uploads WHERE id = ?`, uploadId)).toBe(1);
     expect(count(`SELECT COUNT(*) AS n FROM members WHERE id = ?`, T1)).toBe(1);
   });
 
-  it('tears down what a tester mints acting as a persona: vouches, recurring donations, profile links, organizer assignments and sent announcements', () => {
+  it('tears down what a tester mints acting as a persona: vouches, recurring donations, profile links, organizer assignments, event registrations and sent announcements', () => {
     // A vouch between two personas; each side alone would block the member delete.
     insertActivePlayerVouch(db, {
       id: 'apv-persona-1',
@@ -582,9 +583,14 @@ describe('refreshAllPersonas', () => {
     insertMemberLink(db, T1);
     insertEventOrganizer(db, insertEvent(db), T1);
     insertEmailArchive(db, { sender_member_id: T2 });
+    // An event registration, with its paid fee, would block both the payment
+    // and the member delete.
+    const feeId = insertPayment(db, { member_id: T1, payment_type: 'event_registration' });
+    const registrationId = insertRegistration(db, insertEvent(db), T1, { payment_id: feeId });
 
     refreshAllPersonas(db);
 
+    expect(count(`SELECT COUNT(*) AS n FROM registrations WHERE id = ?`, registrationId)).toBe(0);
     expect(count(`SELECT COUNT(*) AS n FROM active_player_vouches WHERE id = 'apv-persona-1'`)).toBe(0);
     expect(count(`SELECT COUNT(*) AS n FROM recurring_donation_subscriptions WHERE id = 'rds-persona-1'`)).toBe(0);
     expect(count(`SELECT COUNT(*) AS n FROM member_links WHERE member_id = ?`, T1)).toBe(0);

@@ -39,6 +39,7 @@
     "prepare": "test ! -f scripts/install-git-hooks.sh || bash scripts/install-git-hooks.sh"
   },
   "dependencies": {
+    "@aws-sdk/client-cloudfront": "3.1031.0",
     "@aws-sdk/client-kms": "3.1031.0",
     "@aws-sdk/client-s3": "3.1031.0",
     "@aws-sdk/client-ses": "3.1031.0",

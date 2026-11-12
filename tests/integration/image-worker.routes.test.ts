@@ -3,13 +3,19 @@
  *
  * Boots the worker Express app via supertest (no real port), exercises the
  * /process/avatar wire format and the /health probe, and verifies the
- * concurrency semaphore returns 503 when the in-flight cap is exhausted.
+ * concurrency semaphore returns 503 when the in-flight cap is exhausted. One
+ * block listens on a real local port instead, so the web app's own image
+ * adapter can call the worker exactly as it does in deployment.
  */
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 import type { MockInstance } from 'vitest';
+import type { Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { once } from 'node:events';
 import request from '../fixtures/supertestWithOrigin';
 import sharp from 'sharp';
 import { createImageWorkerApp } from '../../src/imageWorker';
+import { createHttpImageAdapter, ImageProcessingError } from '../../src/adapters/imageProcessingAdapter';
 import { processAvatar, processPhoto } from '../../src/lib/imageProcessing';
 import {
   FFMPEG_STDERR_PUBLIC_LIMIT_BYTES,
@@ -1310,5 +1316,59 @@ describe('Auth gate (x-internal-secret) on /process/*', () => {
     const res = await request(app).get('/health');
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('ok');
+  });
+});
+
+describe('the web app\'s image adapter against the real worker routes', () => {
+  // Defect caught: the worker and the adapter drift apart on the wire (a
+  // renamed reply field, a moved route, a changed secret header), and every
+  // upload fails in deployment while each side's own tests, written against a
+  // stand-in for the other, stay green.
+  let server: Server;
+  let baseUrl: string;
+
+  beforeAll(async () => {
+    server = createImageWorkerApp({ internalSecret: TEST_SECRET }).listen(0, '127.0.0.1');
+    await once(server, 'listening');
+    baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  });
+
+  afterAll(async () => {
+    server.close();
+    await once(server, 'close');
+  });
+
+  it('returns both renditions at the reported size for an avatar and a photo', async () => {
+    const adapter = createHttpImageAdapter({ baseUrl, internalSecret: TEST_SECRET });
+    const jpeg = await makeJpeg(320, 240);
+
+    for (const [kind, processed] of [
+      ['avatar', await adapter.processAvatar(jpeg)],
+      ['photo', await adapter.processPhoto(jpeg)],
+    ] as const) {
+      expect(processed.widthPx, kind).toBe(320);
+      expect(processed.heightPx, kind).toBe(240);
+      expect((await sharp(processed.thumb).metadata()).format, kind).toBe('jpeg');
+      expect((await sharp(processed.display).metadata()).format, kind).toBe('jpeg');
+    }
+  });
+
+  it('carries the worker\'s own refusal through as a 400 the member can read', async () => {
+    const adapter = createHttpImageAdapter({ baseUrl, internalSecret: TEST_SECRET });
+
+    const err = await adapter.processAvatar(Buffer.from('this is not an image')).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ImageProcessingError);
+    expect((err as ImageProcessingError).status).toBe(400);
+    expect((err as ImageProcessingError).message).toMatch(/unrecognized image type/);
+  });
+
+  it('is refused with the worker\'s 401 when the secret does not match', async () => {
+    const adapter = createHttpImageAdapter({ baseUrl, internalSecret: 'not-the-worker-secret' });
+
+    const err = await adapter.processAvatar(await makeJpeg()).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ImageProcessingError);
+    expect((err as ImageProcessingError).status).toBe(401);
   });
 });

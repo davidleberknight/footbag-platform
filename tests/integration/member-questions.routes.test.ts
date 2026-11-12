@@ -858,7 +858,7 @@ describe('erasure clears the words and keeps the rows', () => {
     conn.prepare('UPDATE members SET deleted_at = ? WHERE id = ?')
       .run('2026-01-01T00:00:00.000Z', MEMBER_ID);
     conn.close();
-    svc.purgeAccountPII(MEMBER_ID);
+    await svc.purgeAccountPII(MEMBER_ID);
 
     const row = messageRow()!;
     expect(row.subject).toBeNull();

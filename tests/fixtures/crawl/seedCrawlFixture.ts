@@ -73,6 +73,12 @@ export async function seedCrawlFixture(env: CrawlEnv): Promise<CrawlFixture> {
   const canaries = seedCrawlWorld(db);
   db.close();
 
+  // The finance persona's journey follows its seed, as the seed command runs
+  // it, so the Financial Reports page has the report the crawl follows.
+  const { runFinanceDemoJourney } = await import('../../../src/testkit/financeDemoJourney');
+  const journey = await runFinanceDemoJourney();
+  if (journey.status !== 'ran') throw new Error(`the finance journey did not run: ${journey.status}`);
+
   // The admin curator pages exercise disk paths at render time; point the
   // curated root at tmp via the service's explicit test seam.
   const svcMod = await import('../../../src/services/curatorMediaService');

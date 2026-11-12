@@ -78,6 +78,7 @@ import {
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
+import { CloudFrontClient, CreateInvalidationCommand } from '@aws-sdk/client-cloudfront';
 import { Readable } from 'node:stream';
 import {
   createLocalMediaStorageAdapter,
@@ -105,6 +106,7 @@ import { spawnSync } from 'node:child_process';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { requireToolInCI } from '../fixtures/toolAvailability';
+import { createDirectoryLedgerStore, createMemoryLedgerStore } from '../../src/adapters/stubPaymentLedgerStore';
 import {
   detectVideoFormat,
   transcodeCuratorVideo,
@@ -126,6 +128,7 @@ function makeFakeMediaStorage(opts: {
     put: async () => {},
     get: async () => Buffer.alloc(0),
     delete: async () => {},
+    deleteMany: async () => {},
     constructURL: (key) => `/media-store/${key}`,
     exists: async () => false,
     headSize: async () => null,
@@ -1223,6 +1226,17 @@ describe('adapter-parity: MediaStorageAdapter contract', () => {
     await expect(adapter.delete('never/written.bin')).resolves.toBeUndefined();
   });
 
+  // Defect caught: the local backend's batch delete leaves a file behind, so
+  // development shows a deleted member's photo that production would not.
+  it('local deleteMany removes every key, skipping missing ones', async () => {
+    const adapter = createLocalMediaStorageAdapter({ baseDir: tmpDir });
+    await adapter.put('m-1/a.jpg', Buffer.from('a'));
+    await adapter.put('m-1/b.jpg', Buffer.from('b'));
+    await adapter.deleteMany(['m-1/a.jpg', 'm-1/never.jpg', 'm-1/b.jpg']);
+    expect(await adapter.exists('m-1/a.jpg')).toBe(false);
+    expect(await adapter.exists('m-1/b.jpg')).toBe(false);
+  });
+
   it('local adapter get round-trips bytes written via put', async () => {
     const adapter = createLocalMediaStorageAdapter({ baseDir: tmpDir });
     const key = 'pending/job1/source.mp4';
@@ -1312,6 +1326,28 @@ describe('local adapter: composite curated fallback lane', () => {
   });
 });
 
+const PARITY_DISTRIBUTION = 'E2PARITYDIST01';
+
+interface FakeCloudFrontState {
+  client: CloudFrontClient;
+  invalidations: CreateInvalidationCommand[];
+}
+
+function makeFakeCloudFrontClient(opts: { fail?: Error } = {}): FakeCloudFrontState {
+  const invalidations: CreateInvalidationCommand[] = [];
+  const fake = {
+    send: async (cmd: unknown): Promise<unknown> => {
+      if (cmd instanceof CreateInvalidationCommand) {
+        if (opts.fail) throw opts.fail;
+        invalidations.push(cmd);
+        return { Invalidation: { Id: 'I-PARITY', Status: 'InProgress' } };
+      }
+      throw new Error('unexpected CloudFront command');
+    },
+  };
+  return { client: fake as unknown as CloudFrontClient, invalidations };
+}
+
 interface FakeS3State {
   client: S3Client;
   puts: PutObjectCommand[];
@@ -1382,6 +1418,8 @@ describe('adapter-parity: MediaStorageAdapter S3 contract', () => {
     const adapter = createS3MediaStorageAdapter({
       bucket: 'parity-bucket',
       s3Client: fake.client,
+      distributionId: PARITY_DISTRIBUTION,
+      cloudFrontClient: makeFakeCloudFrontClient().client,
     });
     const key = 'avatars/m-1/thumb.jpg';
     expect(await adapter.exists(key)).toBe(false);
@@ -1397,9 +1435,91 @@ describe('adapter-parity: MediaStorageAdapter S3 contract', () => {
     const adapter = createS3MediaStorageAdapter({
       bucket: 'parity-bucket',
       s3Client: fake.client,
+      distributionId: PARITY_DISTRIBUTION,
+      cloudFrontClient: makeFakeCloudFrontClient().client,
     });
     await expect(adapter.delete('never/written.bin')).resolves.toBeUndefined();
     expect(fake.deletes).toHaveLength(1);
+  });
+
+  // Defect caught: a deleted photo keeps serving from the CDN for up to a year,
+  // because uploads are cached immutable and nothing clears the edge copy; or
+  // each file is cleared in its own request and an account with several photos
+  // trips the CDN's one-wildcard-a-second limit and fails to delete.
+  it('s3 deleteMany deletes every object, then clears all of them from the edge in one request', async () => {
+    const fake = makeFakeS3Client();
+    const cdn = makeFakeCloudFrontClient();
+    const adapter = createS3MediaStorageAdapter({
+      bucket: 'parity-bucket',
+      s3Client: fake.client,
+      distributionId: PARITY_DISTRIBUTION,
+      cloudFrontClient: cdn.client,
+    });
+    const keys = ['m-1/gallery/p1-thumb.jpg', 'm-1/gallery/p1-display.jpg'];
+    for (const key of keys) await adapter.put(key, Buffer.from('bytes'));
+
+    await adapter.deleteMany(keys);
+
+    for (const key of keys) expect(await adapter.exists(key), key).toBe(false);
+    expect(cdn.invalidations).toHaveLength(1);
+    const batch = cdn.invalidations[0].input;
+    expect(batch.DistributionId).toBe(PARITY_DISTRIBUTION);
+    // The cache key carries the ?v= token, so only a trailing wildcard reaches
+    // every cached copy; the stripped form is what the cache sees after the
+    // viewer-request function removes the prefix.
+    expect(batch.InvalidationBatch?.Paths?.Items).toEqual([
+      '/media-store/m-1/gallery/p1-thumb.jpg*', '/m-1/gallery/p1-thumb.jpg*',
+      '/media-store/m-1/gallery/p1-display.jpg*', '/m-1/gallery/p1-display.jpg*',
+    ]);
+    expect(batch.InvalidationBatch?.Paths?.Quantity).toBe(4);
+  });
+
+  // Defect caught: two deletions reuse one caller reference, CloudFront treats
+  // the second as the first, and the second file is never cleared.
+  it('s3 deleteMany gives every clear its own caller reference', async () => {
+    const cdn = makeFakeCloudFrontClient();
+    const adapter = createS3MediaStorageAdapter({
+      bucket: 'parity-bucket',
+      s3Client: makeFakeS3Client().client,
+      distributionId: PARITY_DISTRIBUTION,
+      cloudFrontClient: cdn.client,
+    });
+    await adapter.delete('a.jpg');
+    await adapter.delete('b.jpg');
+    const refs = cdn.invalidations.map((c) => c.input.InvalidationBatch?.CallerReference);
+    expect(refs).toHaveLength(2);
+    expect(new Set(refs).size).toBe(2);
+  });
+
+  // Defect caught: the edge clear fails, the delete reports success, and the
+  // account deletion that relies on it marks the account deleted while its
+  // photos keep serving.
+  it('s3 deleteMany rejects when the edge clear fails', async () => {
+    const adapter = createS3MediaStorageAdapter({
+      bucket: 'parity-bucket',
+      s3Client: makeFakeS3Client().client,
+      distributionId: PARITY_DISTRIBUTION,
+      cloudFrontClient: makeFakeCloudFrontClient({ fail: new Error('TooManyInvalidationsInProgress') }).client,
+    });
+    await expect(adapter.deleteMany(['a.jpg'])).rejects.toThrow('TooManyInvalidationsInProgress');
+  });
+
+  // Defect caught: an act with nothing to delete still sends an empty clear,
+  // which CloudFront refuses, so deleting an account with no photos fails.
+  it('s3 deleteMany of no keys sends nothing (parity with local)', async () => {
+    const fake = makeFakeS3Client();
+    const cdn = makeFakeCloudFrontClient();
+    const adapter = createS3MediaStorageAdapter({
+      bucket: 'parity-bucket',
+      s3Client: fake.client,
+      distributionId: PARITY_DISTRIBUTION,
+      cloudFrontClient: cdn.client,
+    });
+    const local = createLocalMediaStorageAdapter({ baseDir: '/tmp' });
+    await expect(adapter.deleteMany([])).resolves.toBeUndefined();
+    await expect(local.deleteMany([])).resolves.toBeUndefined();
+    expect(fake.deletes).toHaveLength(0);
+    expect(cdn.invalidations).toHaveLength(0);
   });
 
   it('s3 put sends Cache-Control: immutable + ContentType: image/jpeg', async () => {
@@ -1407,6 +1527,7 @@ describe('adapter-parity: MediaStorageAdapter S3 contract', () => {
     const adapter = createS3MediaStorageAdapter({
       bucket: 'parity-bucket',
       s3Client: fake.client,
+      distributionId: PARITY_DISTRIBUTION,
     });
     await adapter.put('avatars/m-2/display.jpg', Buffer.from('bytes'));
     expect(fake.puts).toHaveLength(1);
@@ -1422,6 +1543,7 @@ describe('adapter-parity: MediaStorageAdapter S3 contract', () => {
     const adapter = createS3MediaStorageAdapter({
       bucket: 'parity-bucket',
       s3Client: fake.client,
+      distributionId: PARITY_DISTRIBUTION,
     });
     await adapter.put(
       'member_fh/detached/abc-video.mp4',
@@ -1437,6 +1559,7 @@ describe('adapter-parity: MediaStorageAdapter S3 contract', () => {
     const adapter = createS3MediaStorageAdapter({
       bucket: 'parity-bucket',
       s3Client: fake.client,
+      distributionId: PARITY_DISTRIBUTION,
     });
     const key = 'pending/job1/source.mp4';
     expect(await adapter.headSize(key)).toBeNull();
@@ -1449,6 +1572,7 @@ describe('adapter-parity: MediaStorageAdapter S3 contract', () => {
     const adapter = createS3MediaStorageAdapter({
       bucket: 'parity-bucket',
       s3Client: fake.client,
+      distributionId: PARITY_DISTRIBUTION,
     });
     expect(await adapter.exists('avatars/missing.jpg')).toBe(false);
     expect(fake.heads).toHaveLength(1);
@@ -1465,6 +1589,7 @@ describe('adapter-parity: MediaStorageAdapter S3 contract', () => {
     const adapter = createS3MediaStorageAdapter({
       bucket: 'parity-bucket',
       s3Client: accessDeniedClient,
+      distributionId: PARITY_DISTRIBUTION,
     });
     await expect(adapter.exists('avatars/x.jpg')).rejects.toMatchObject({
       name: 'AccessDenied',
@@ -1476,6 +1601,7 @@ describe('adapter-parity: MediaStorageAdapter S3 contract', () => {
     const s3Adapter = createS3MediaStorageAdapter({
       bucket: 'parity-bucket',
       s3Client: makeFakeS3Client().client,
+      distributionId: PARITY_DISTRIBUTION,
     });
     const key = 'avatars/m-3/thumb.jpg';
     expect(localAdapter.constructURL(key)).toBe('/media-store/avatars/m-3/thumb.jpg');
@@ -1487,6 +1613,7 @@ describe('adapter-parity: MediaStorageAdapter S3 contract', () => {
     const adapter = createS3MediaStorageAdapter({
       bucket: 'parity-bucket',
       s3Client: fake.client,
+      distributionId: PARITY_DISTRIBUTION,
     });
     const payload = Buffer.from('source-mp4-bytes');
     await adapter.put('pending/job1/source.mp4', payload);
@@ -1512,6 +1639,7 @@ describe('adapter-parity: MediaStorageAdapter S3 contract', () => {
     const adapter = createS3MediaStorageAdapter({
       bucket: 'parity-bucket',
       s3Client: realClient,
+      distributionId: PARITY_DISTRIBUTION,
     });
     const url = await adapter.generatePresignedPutUrl(
       'pending/job1/source.mp4',
@@ -1992,9 +2120,10 @@ describe('adapter-parity: PaymentAdapter (Stub vs. Live interface)', () => {
       sessionOptions: (import('../../src/adapters/paymentAdapter').StripeRequestOptions | undefined)[];
       retrievedSessions: string[];
       expiredSessions: string[];
+      deletedCustomers: string[];
     } = {
       sessions: [], subscriptionUpdates: [], listCalls: [], intentPageIndex: 0,
-      sessionOptions: [], retrievedSessions: [], expiredSessions: [],
+      sessionOptions: [], retrievedSessions: [], expiredSessions: [], deletedCustomers: [],
     };
     const client: import('../../src/adapters/paymentAdapter').StripeClientLike = {
       checkout: {
@@ -2061,6 +2190,12 @@ describe('adapter-parity: PaymentAdapter (Stub vs. Live interface)', () => {
         async list(params) {
           captured.listCalls.push({ endpoint: 'invoices', params });
           return { data: ledger.invoices, has_more: false };
+        },
+      },
+      customers: {
+        async del(id) {
+          captured.deletedCustomers.push(id);
+          return { id, deleted: true };
         },
       },
     };
@@ -2501,6 +2636,54 @@ describe('adapter-parity: PaymentAdapter (Stub vs. Live interface)', () => {
       }),
     });
     await expect(unreadable.cancelSubscriptionAtPeriodEnd('sub_unreadable')).rejects.toBe(codeless);
+  });
+
+  // Defect caught: an erasure replay after a backup restore asks the provider to
+  // delete a customer it already deleted, the provider's not-found answer is
+  // taken as a failure, and the restored site stays down; or the stub answers
+  // differently from the provider, so the replay path is never exercised.
+  it('both implementations delete a customer, and answer already_gone for one the provider no longer holds', async () => {
+    const stub = createStubPaymentAdapter();
+    expect(await stub.deleteCustomer('cus_stub_1')).toEqual({ status: 'deleted' });
+    expect(stub.isCustomerDeleted('cus_stub_1')).toBe(true);
+    expect(await stub.deleteCustomer('cus_stub_1')).toEqual({ status: 'already_gone' });
+
+    const { client, captured } = makeFakeStripe();
+    const secrets = createStubSecretsAdapter();
+    secrets.setSecret('stripe_secret_key', 'sk_test_parity_fake');
+    const live = createLivePaymentAdapter({ secrets, stripeFactory: () => client });
+    expect(await live.deleteCustomer('cus_live_1')).toEqual({ status: 'deleted' });
+    expect(captured.deletedCustomers).toEqual(['cus_live_1']);
+
+    const missing = new Stripe.errors.StripeInvalidRequestError({
+      message: 'No such customer: cus_gone', code: 'resource_missing', type: 'invalid_request_error',
+    });
+    const gone = createLivePaymentAdapter({
+      secrets,
+      stripeFactory: () => ({ ...client, customers: { async del() { throw missing; } } }),
+    });
+    expect(await gone.deleteCustomer('cus_gone')).toEqual({ status: 'already_gone' });
+  });
+
+  // Defect caught: an outage at the provider is read as "already deleted", the
+  // purge records the customer gone, and their card details stay at the provider.
+  it('live deleteCustomer passes any other refusal through, and the stub can fail on demand', async () => {
+    const { client } = makeFakeStripe();
+    const secrets = createStubSecretsAdapter();
+    secrets.setSecret('stripe_secret_key', 'sk_test_parity_fake');
+    const other = new Stripe.errors.StripeAPIError({ message: 'An unknown error occurred', type: 'api_error' });
+    const live = createLivePaymentAdapter({
+      secrets,
+      stripeFactory: () => ({ ...client, customers: { async del() { throw other; } } }),
+    });
+    await expect(live.deleteCustomer('cus_x')).rejects.toBe(other);
+
+    const stub = createStubPaymentAdapter();
+    const outage = new Error('provider unreachable');
+    stub.failNextCustomerDelete(outage);
+    await expect(stub.deleteCustomer('cus_y')).rejects.toBe(outage);
+    expect(stub.isCustomerDeleted('cus_y')).toBe(false);
+    expect(await stub.deleteCustomer('cus_y')).toEqual({ status: 'deleted' });
   });
 
   it('sends an idempotency key on both create calls, so a retry cannot mint a duplicate', async () => {
@@ -3022,6 +3205,120 @@ describe('adapter-parity: PaymentAdapter (Stub vs. Live interface)', () => {
     expect(() => adapter.constructWebhookEvent('{}', 't=1,v1=deadbeef')).toThrow(
       /STRIPE_WEBHOOK_SECRET is not configured/,
     );
+  });
+});
+
+describe('adapter-parity: the stub payment provider is one ledger every process reads', () => {
+  // Real Stripe is one ledger that the web process (checkout, webhooks), the
+  // worker (the nightly comparison, checkout expiry) and the testkit all read.
+  // Each adapter instance below stands for one of those processes: it holds no
+  // provider record of its own, only its own handle on the shared ledger.
+  let dir: string;
+  let ledgerDir: string;
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-stub-ledger-'));
+    ledgerDir = path.join(dir, 'stub-payment-provider');
+  });
+  afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  const WINDOW = { createdAfter: '2000-01-01T00:00:00.000Z', createdBefore: '2999-01-01T00:00:00.000Z' };
+  const OPTS = {
+    memberId: 'm-ledger-1',
+    paymentId: 'pay-ledger-1',
+    amountCents: 4200,
+    currency: 'EUR',
+    descriptor: 'IFPA Donation',
+    paymentType: 'donation' as const,
+    successUrl: 'https://footbag.org/payments/success?session_id={CHECKOUT_SESSION_ID}',
+    cancelUrl: 'https://footbag.org/payments/cancel?session_id={CHECKOUT_SESSION_ID}',
+    metadata: {},
+  };
+
+  it('a checkout paid in one process is held by the provider for another, so the nightly comparison never reports it missing', async () => {
+    const web = createStubPaymentAdapter({ ledgerDir });
+    const worker = createStubPaymentAdapter({ ledgerDir });
+
+    const { sessionId, paymentIntentId } = await web.createCheckoutSession(OPTS);
+    web.buildSignedStubWebhookEvent(sessionId);
+
+    const held = await worker.listPaymentIntents(WINDOW);
+    expect(held.map((i) => [i.id, i.amountCents, i.currency, i.status, i.platformPaymentId]))
+      .toEqual([[paymentIntentId, 4200, 'EUR', 'succeeded', 'pay-ledger-1']]);
+    // Paid at the provider: the worker's checkout expiry finds it standing and
+    // cannot close it, and the session is no longer payable.
+    expect(await worker.closeCheckoutSession(sessionId)).toBe(false);
+    expect(await worker.openCheckoutUrl(sessionId)).toBeNull();
+    expect(worker.sessions.get(sessionId)?.paymentId).toBe('pay-ledger-1');
+  });
+
+  it('a checkout the worker closes is closed for the web process, so it can no longer be paid there', async () => {
+    const web = createStubPaymentAdapter({ ledgerDir });
+    const worker = createStubPaymentAdapter({ ledgerDir });
+
+    const { sessionId } = await web.createCheckoutSession(OPTS);
+    expect(await worker.closeCheckoutSession(sessionId)).toBe(true);
+
+    expect(web.isSessionClosed(sessionId)).toBe(true);
+    expect(await web.openCheckoutUrl(sessionId)).toBeNull();
+  });
+
+  it('the ledger outlives the process that wrote it, as the provider outlives a restart', async () => {
+    const before = createStubPaymentAdapter({ ledgerDir });
+    const { sessionId, paymentIntentId } = await before.createCheckoutSession(OPTS);
+    before.buildSignedStubWebhookEvent(sessionId);
+    await before.deleteCustomer('cus_ledger_1');
+
+    const after = createStubPaymentAdapter({ ledgerDir });
+    expect((await after.listPaymentIntents(WINDOW)).map((i) => i.id)).toEqual([paymentIntentId]);
+    expect(after.isCustomerDeleted('cus_ledger_1')).toBe(true);
+    expect([...after.sessions.keys()]).toEqual([sessionId]);
+  });
+
+  it('an outcome a test sets stays with the process that set it', async () => {
+    // The next-outcome, next-failure and reported-mode controls are a test's
+    // instruments, not provider state: one process setting a decline must not
+    // decline another process's checkout.
+    const web = createStubPaymentAdapter({ ledgerDir });
+    const other = createStubPaymentAdapter({ ledgerDir });
+    other.setNextOutcome('failure');
+
+    const { sessionId } = await web.createCheckoutSession(OPTS);
+    expect(web.sessions.get(sessionId)?.outcome).toBe('success');
+  });
+
+  it('the shared store and the test runner\'s store list records alike, a record keeping its place when it is rewritten', () => {
+    // Defect: a provider record that changes status (paid, refunded) moves in
+    // the shared store's listing but not in the runner's, so the stand-in on a
+    // running stack answers a list read differently from the one the suite tested.
+    const stores = { directory: createDirectoryLedgerStore(ledgerDir), memory: createMemoryLedgerStore() };
+    for (const [name, store] of Object.entries(stores)) {
+      const intents = store.table<{ status: string }>('intents');
+      intents.set('pi_first', { status: 'requires_payment' });
+      intents.set('pi_second', { status: 'requires_payment' });
+      intents.set('pi_third', { status: 'requires_payment' });
+      intents.set('pi_first', { status: 'succeeded' });
+      // ordering-is-the-contract: the order each record was first written.
+      expect(intents.ids(), name).toEqual(['pi_first', 'pi_second', 'pi_third']);
+      expect(intents.values().map((v) => v.status), name).toEqual(['succeeded', 'requires_payment', 'requires_payment']);
+    }
+  });
+
+  it('records written within one millisecond keep the order they were written in, however many there are', () => {
+    // Defect: a burst of provider writes (a persona seed, a busy checkout
+    // minute) lists back out of order, so the stand-in reorders its own history.
+    const frozen = vi.spyOn(Date, 'now').mockReturnValue(Date.UTC(2031, 2, 4, 12));
+    try {
+      const intents = createDirectoryLedgerStore(ledgerDir).table<number>('intents');
+      // Enough writes that any per-millisecond counter of under a thousand places wraps.
+      const written = Array.from({ length: 1200 }, (_, i) => `pi_burst_${String(i).padStart(4, '0')}`);
+      written.forEach((id, i) => intents.set(id, i));
+      // ordering-is-the-contract: the order each record was first written.
+      const listed = intents.ids();
+      const firstOutOfPlace = listed.findIndex((id, i) => id !== written[i]);
+      expect(firstOutOfPlace, `first record out of place: ${listed[firstOutOfPlace]}`).toBe(-1);
+    } finally {
+      frozen.mockRestore();
+    }
   });
 });
 

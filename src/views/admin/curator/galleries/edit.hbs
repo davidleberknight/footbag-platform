@@ -31,7 +31,7 @@
     {{/if}}
 
     {{#if content.uploadWithTagsHref}}
-    <p><a href="{{{content.uploadWithTagsHref}}}" class="action-link">Upload Curated Media With These Hashtags</a></p>
+    <p><a href="{{siteHref content.uploadWithTagsHref}}" class="action-link">Upload Curated Media With These Hashtags</a></p>
     {{/if}}
 
     {{> gallery-edit-form

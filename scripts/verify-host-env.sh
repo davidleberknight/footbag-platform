@@ -541,6 +541,10 @@ fi
 # Media storage.
 check_equals "MEDIA_STORAGE_ADAPTER" "s3" "media storage adapter"
 check_equals "MEDIA_STORAGE_S3_BUCKET" "$TF_MEDIA_BUCKET" "media bucket matches terraform"
+# The s3 backend refuses to boot without it: every media deletion clears the
+# deleted file from this distribution's edge cache. Its value is held against
+# the published parameter with the other Terraform-published identifiers.
+check_set_value "CLOUDFRONT_DISTRIBUTION_ID" "media distribution"
 
 # The host constants: declared in the committed docker/env/<target>.env and
 # applied by every deploy, so the host must hold exactly the committed value. An

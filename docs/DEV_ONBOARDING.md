@@ -200,7 +200,7 @@ which node
 
 `--check` exits 0 and reports nothing to do; `node -v` prints the version in `.nvmrc`; `which node` resolves to a path under `/home/...`, not `/mnt/c/...`. If the script reports something still missing, open a new terminal and run it again.
 
-The git hooks activate on their own: npm's prepare step runs `scripts/install-git-hooks.sh` on every install, and so does every run of `./run_dev.sh` and `./run_all_tests.sh`. Confirm with `git rev-parse --git-path hooks`, which ends in `.githooks`. The pre-commit hook scans your staged changes for secrets with `gitleaks`, natively at the pinned version or through a running Docker; on a machine with neither (a different native version counts as neither) it warns and allows the commit, and CI runs the scan on every push.
+The git hooks activate on their own: npm's prepare step runs `scripts/install-git-hooks.sh` on every install, and so does every run of `./run_dev.sh` and `./run_all_tests.sh`. Confirm with `git rev-parse --git-path hooks`, which ends in `.githooks`. The pre-commit hook scans your staged changes for secrets with `gitleaks`, natively at the pinned version or through a running Docker; on a machine with neither (a different native version counts as neither) it warns and allows the commit, and CI runs the scan on every push. The pre-push hook lists any open high or critical CodeQL alert on the branch you push, read through `gh`, and always lets the push go ahead.
 
 If installing the npm dependencies fails while compiling `better-sqlite3`:
 

@@ -23,6 +23,7 @@ const TEST_CURATED_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-cur
 const { dbPath } = setTestEnv('4207');
 process.env.MEDIA_STORAGE_ADAPTER = 's3';
 process.env.MEDIA_STORAGE_S3_BUCKET = 'footbag-test-media-bucket';
+process.env.CLOUDFRONT_DISTRIBUTION_ID = 'E2CURATORTEST1';
 process.env.AWS_REGION = 'us-east-1';
 process.env.ALLOW_CURATED_SIDECAR_WRITES = '0';
 

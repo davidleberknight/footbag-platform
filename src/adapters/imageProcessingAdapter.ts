@@ -9,7 +9,7 @@
  * staging, and prod.
  */
 import { config } from '../config/env';
-import type { ProcessedImage } from '../lib/imageProcessing';
+import type { ProcessedImage, ProcessImageResponse } from '../lib/imageProcessing';
 
 export interface ImageProcessingAdapter {
   processAvatar(data: Buffer): Promise<ProcessedImage>;
@@ -21,13 +21,6 @@ export class ImageProcessingError extends Error {
     super(message);
     this.name = 'ImageProcessingError';
   }
-}
-
-interface ProcessImageResponse {
-  thumb: string;
-  display: string;
-  widthPx: number;
-  heightPx: number;
 }
 
 export function createHttpImageAdapter(opts: {

@@ -16,6 +16,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import * as path from 'node:path';
+import { runPersonaCommand } from '../fixtures/personaCommand';
 
 const PRIOR_FOOTBAG_ENV = process.env.FOOTBAG_ENV;
 process.env.FOOTBAG_ENV = process.env.FOOTBAG_ENV ?? 'development';
@@ -30,20 +31,7 @@ const RETIRED_SLUG = 'persona_dropped_from_catalog';
 
 /** Run the refresh CLI against dbPath, returning its exit code and captured output. */
 async function runRefresh(dbPath: string, apply: boolean): Promise<{ code: number; out: string }> {
-  const { main } = await import('../../src/testkit/personaRefreshCli');
-  const lines: string[] = [];
-  const log = vi.spyOn(console, 'log').mockImplementation((...a) => void lines.push(a.join(' ')));
-  const err = vi.spyOn(console, 'error').mockImplementation((...a) => void lines.push(a.join(' ')));
-  const priorArgv = process.argv;
-  process.argv = ['node', 'personaRefreshCli.js', '--db', dbPath, ...(apply ? ['--apply'] : [])];
-  try {
-    const code = await main();
-    return { code, out: lines.join('\n') };
-  } finally {
-    process.argv = priorArgv;
-    log.mockRestore();
-    err.mockRestore();
-  }
+  return runPersonaCommand('personaRefreshCli', dbPath, apply ? ['--apply'] : []);
 }
 
 function personaSlugs(dbPath: string, BetterSqlite3: typeof import('better-sqlite3')): string[] {
@@ -116,12 +104,21 @@ describe('persona refresh command line', () => {
 
   it('converges the database on the catalog when applied', async () => {
     const { CANONICAL_PERSONAS } = await import('../../src/testkit/canonicalPersonas');
-    const buildable = CANONICAL_PERSONAS.filter((p) => !p.blockedBy).map((p) => p.slug);
+    const { financeDemoMemberSlugs } = await import('../../src/testkit/financeDemoSeed');
+    // The finance persona seeds its fake members beside it.
+    const buildable = [
+      ...CANONICAL_PERSONAS.filter((p) => !p.blockedBy).map((p) => p.slug),
+      ...financeDemoMemberSlugs(),
+    ];
 
     const { code, out } = await runRefresh(dbPath, true);
 
     expect(code).toBe(0);
     expect(out).toContain('this database is CURRENT against the catalog.');
+    // The finance persona's fake members belong to the catalog through it, so
+    // only the truly retired persona is reported as an orphan.
+    expect(out).toContain(`would drop orphan (no longer in the catalog): ${RETIRED_SLUG}`);
+    expect(out).not.toContain('would drop orphan (no longer in the catalog): fin_demo_');
 
     const after = personaSlugs(dbPath, BetterSqlite3);
     expect(after).not.toContain(RETIRED_SLUG);
