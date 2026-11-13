@@ -15,6 +15,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+import { seedStagedSets } from '../fixtures/stagedSets';
 import { insertFreestyleTrick, insertFreestyleTrickModifier, insertFreestyleTrickModifierLink } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3258');
@@ -40,6 +41,7 @@ const BASES: ReadonlyArray<[string, string, string, string]> = [
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
+  seedStagedSets(db);
 
   for (const setSlug of ['weaving', 'zulu'] as const) {
     insertFreestyleTrickModifier(db, {

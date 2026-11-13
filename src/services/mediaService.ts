@@ -167,7 +167,7 @@ import {
   resolveTrickTags,
 } from '../db/db';
 import { tierBadgeShort } from './membershipTieringService';
-import { CANONICAL_SETS, resolveCanonicalSetAlias } from '../content/freestyleCanonicalSets';
+import { findCanonicalSetBySlug, resolveCanonicalSetAlias } from './freestyleSetRegistry';
 import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { config } from '../config/env';
 import { isSafePath } from '../lib/safePath';
@@ -1047,10 +1047,6 @@ function sanitizePage(raw: unknown): number {
   return Math.floor(n);
 }
 
-// Canonical set slug -> display name, for the set/concept tile cross-link.
-const SET_DISPLAY_BY_SLUG: ReadonlyMap<string, string> =
-  new Map(CANONICAL_SETS.map((s) => [s.slug, s.displayName]));
-
 // Normalize a tag display to its slug body: drop a leading '#', lowercase, and
 // fold hyphens to underscores (media tags and trick slugs are underscore-form).
 function tagBody(display: string): string {
@@ -1066,7 +1062,7 @@ function setDestFromTagBody(body: string): MediaDestination | null {
   else if (body.startsWith('concept_') && body.endsWith('_sets')) slug = body.slice(8, -5);
   if (!slug) return null;
   const canonical = resolveCanonicalSetAlias(slug) ?? slug;
-  const label = SET_DISPLAY_BY_SLUG.get(canonical);
+  const label = findCanonicalSetBySlug(canonical)?.displayName;
   return label ? { kind: 'set', kindLabel: 'Set', label, href: `/freestyle/sets/${canonical}` } : null;
 }
 

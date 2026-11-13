@@ -18,7 +18,7 @@ import {
   insertMemberSubmittedVideo,
 } from '../fixtures/factories';
 import { hashtagForRole, modifierSurfaceHashtag } from '../../src/services/freestyleRecordShaping';
-import { CANONICAL_SETS } from '../../src/content/freestyleCanonicalSets';
+import { seedStagedSets, stagedSet } from '../fixtures/stagedSets';
 
 const { dbPath } = setTestEnv('4393');
 
@@ -26,7 +26,7 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 const page = cachedGet(() => createApp());
 
 const UPLOADER = 'member-hashtag-link-001';
-const setTag = (slug: string): string => CANONICAL_SETS.find((s) => s.slug === slug)!.hashtag;
+const setTag = (slug: string): string => `#set_${stagedSet(slug).slug}`;
 const FAMILY_TAG = hashtagForRole('whirl', 'family');
 const TEACHING_TAG = modifierSurfaceHashtag('spinning', 'body');
 const STUB_TAG = modifierSurfaceHashtag('wbstub', 'body');
@@ -50,6 +50,7 @@ function clipTagged(db: BetterSqlite3.Database, display: string, moderation: 'ac
 beforeAll(async () => {
   const db = createTestDb(dbPath);
   seedStagedFamilies(db);
+  seedStagedSets(db);
   insertMember(db, { id: UPLOADER, slug: 'hashtag_link_uploader', display_name: 'Hashtag Link Uploader' });
   insertFreestyleTrick(db, { slug: 'whirl', canonical_name: 'whirl', adds: '3', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });
   insertFreestyleTrick(db, { slug: 'spinning-whirl', canonical_name: 'spinning whirl', adds: '4', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });

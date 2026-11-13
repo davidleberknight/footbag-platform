@@ -6,9 +6,9 @@
  * contributes to an otherwise-unchanged base dexterity, concept before
  * mechanics.
  *
- * This is the PEDAGOGY layer, deliberately separate from the set ontology in
- * freestyleCanonicalSets.ts: ontology objects carry terse canonical facts
- * (formula, derived systems, provenance), and must not absorb teaching prose.
+ * This is the PEDAGOGY layer, deliberately separate from the set data in the
+ * freestyle_sets table: a set row carries terse facts (name, group, formula,
+ * plain explanation, related sets), and must not absorb teaching prose.
  * The freestyle service resolves the authored content below into a view-model,
  * resolving every progression / representative-trick slug against the
  * dictionary so the links are clickable.

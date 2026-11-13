@@ -151,6 +151,7 @@ const TOOL_GROUPS: DashboardLinkGroup[] = [
       { label: 'Freestyle Sources', href: '/admin/freestyle/sources' },
       { label: 'Freestyle Modifiers', href: '/admin/freestyle/modifiers' },
       { label: 'Freestyle Families', href: '/admin/freestyle/families' },
+      { label: 'Freestyle Sets', href: '/admin/freestyle/sets' },
       { label: 'Emerging Vocabulary', href: '/admin/freestyle/emerging-vocabulary' },
       { label: 'Notation Backlog', href: '/admin/freestyle/notation-backlog' },
     ],

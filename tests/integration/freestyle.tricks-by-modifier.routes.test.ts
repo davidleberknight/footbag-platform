@@ -28,6 +28,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
+import { seedStagedSets } from '../fixtures/stagedSets';
 import {
   insertFreestyleTrick,
   insertFreestyleTrickModifier,
@@ -41,6 +42,7 @@ const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
+  seedStagedSets(db);
 
   // ── Modifier registrations ────────────────────────────────────────
   // Mirror the production registry surface so the modifier-link grouping

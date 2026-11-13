@@ -247,6 +247,12 @@ adminRouter.post('/freestyle/modifiers/:slug/edit',    adminFreestyleController.
 adminRouter.get('/freestyle/families',                 adminFreestyleController.families);
 adminRouter.get('/freestyle/families/:slug/edit',      adminFreestyleController.editFamily);
 adminRouter.post('/freestyle/families/:slug/edit',     adminFreestyleController.updateFamily);
+// The sets: created and edited, never deleted, in the application.
+adminRouter.get('/freestyle/sets',                     adminFreestyleController.sets);
+adminRouter.get('/freestyle/sets/new',                 adminFreestyleController.newSet);
+adminRouter.post('/freestyle/sets',                    adminFreestyleController.createSet);
+adminRouter.get('/freestyle/sets/:slug/edit',          adminFreestyleController.editSet);
+adminRouter.post('/freestyle/sets/:slug/edit',         adminFreestyleController.updateSet);
 adminRouter.get('/freestyle/records',              adminFreestyleController.recordsIndex);
 adminRouter.get('/freestyle/records/new',          adminFreestyleController.recordNew);
 adminRouter.post('/freestyle/records',             adminFreestyleController.recordCreate);

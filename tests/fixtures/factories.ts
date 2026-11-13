@@ -1399,6 +1399,40 @@ export function insertFreestyleFamily(db: BetterSqlite3.Database, o: FreestyleFa
   );
 }
 
+export interface FreestyleSetOverrides {
+  slug: string;
+  display_name?: string;
+  set_group?: string;
+  sort_order?: number;
+  formula?: string;
+  explanation?: string;
+  related_sets?: readonly { slug: string; label: string }[];
+  held_from_list?: 0 | 1;
+}
+
+/** One freestyle set row, stamped as the rebuild seeder stamps it. Defaults to a
+ *  true-core set with a formula, a plain explanation and no related sets. */
+export function insertFreestyleSet(db: BetterSqlite3.Database, o: FreestyleSetOverrides): void {
+  const now = nowIso();
+  db.prepare(`
+    INSERT INTO freestyle_sets
+      (slug, display_name, set_group, sort_order, formula, explanation, related_sets_json,
+       held_from_list, created_at, created_by, updated_at, updated_by, version)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'curator-content-seed', ?, 'curator-content-seed', 1)
+  `).run(
+    o.slug,
+    o.display_name ?? o.slug.charAt(0).toUpperCase() + o.slug.slice(1).replace(/_/g, ' '),
+    o.set_group ?? 'true-core',
+    o.sort_order ?? 0,
+    o.formula ?? 'TOE >',
+    o.explanation ?? `A test set named ${o.slug}.`,
+    JSON.stringify(o.related_sets ?? []),
+    o.held_from_list ?? 0,
+    now,
+    now,
+  );
+}
+
 /** One trick family label folding into a family. */
 export function insertFreestyleFamilySublabel(
   db: BetterSqlite3.Database,

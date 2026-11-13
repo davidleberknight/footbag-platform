@@ -15,6 +15,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
+import { seedStagedSets } from '../fixtures/stagedSets';
 
 const { dbPath } = setTestEnv('3183');
 
@@ -23,6 +24,7 @@ const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
+  seedStagedSets(db);
   db.close();
   createApp = await importApp();
 });

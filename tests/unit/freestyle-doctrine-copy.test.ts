@@ -27,7 +27,10 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
-import { CANONICAL_SETS } from '../../src/content/freestyleCanonicalSets';
+import {
+  STAGED_SETS,
+  COMPILATION_ONLY_SET_SLUGS,
+} from '../../freestyle/inputs/curator_content/freestyleSets';
 import {
   COMPOSITIONAL_SET_FAMILIES,
   COMPOSITIONAL_AUDIT_ENTRIES,
@@ -265,11 +268,11 @@ describe('glossary side section, clipper, XBD labels, and side-variant cards', (
  *  an outside compilation. A source-only entry carries no platform claim, so
  *  none of the checks below applies to one. */
 const PLATFORM_RULED_SETS = new Set(
-  CANONICAL_SETS.filter((s) => s.source !== 'holden-only').map((s) => s.slug),
+  STAGED_SETS.filter((s) => !COMPILATION_ONLY_SET_SLUGS.has(s.slug)).map((s) => s.slug),
 );
 
 const SOURCE_ONLY_SETS = new Set(
-  CANONICAL_SETS.filter((s) => s.source === 'holden-only').map((s) => s.slug),
+  STAGED_SETS.filter((s) => COMPILATION_ONLY_SET_SLUGS.has(s.slug)).map((s) => s.slug),
 );
 
 /** Display name to set slug: drops a parenthetical gloss ("Terraging (Double
@@ -462,12 +465,12 @@ describe('the ruled side relationship is stated, and the source keeps its own cl
   // compilation's own reading stays attributed rather than absorbed, and the two
   // sets stay distinct, because what remains unruled is the kind rather than the
   // side: the compilation reads a whirling variant where the platform reads a set.
-  const setEntry = (slug: string) => CANONICAL_SETS.find((s) => s.slug === slug)!;
+  const setEntry = (slug: string) => STAGED_SETS.find((s) => s.slug === slug)!;
 
   it('the set page states the side relation rather than an open question', () => {
     const blazing = setEntry('blazing');
-    expect(blazing.movementExplanation).toMatch(/side the set originates from/);
-    expect(blazing.movementExplanation).not.toMatch(/not settled/);
+    expect(blazing.explanation).toMatch(/side the set originates from/);
+    expect(blazing.explanation).not.toMatch(/not settled/);
   });
 
   it('the set-education prose does not collapse the set into whirling', () => {
@@ -518,17 +521,17 @@ describe('the ruled side relationship is stated, and the source keeps its own cl
     expect(offenders).toEqual([]);
 
     const blazing = setEntry('blazing');
-    expect(blazing.movementExplanation).toMatch(/whirl forming the set/);
-    expect(blazing.movementExplanation).toMatch(/keeps its own side relations/);
+    expect(blazing.explanation).toMatch(/whirl forming the set/);
+    expect(blazing.explanation).toMatch(/keeps its own side relations/);
   });
 
   it('neither set is cross-referenced as a variant or alias of the other', () => {
     // They stay distinct named sets because what would rank one under the other
     // is the kind question, which is unruled. The side is not the reason, and
     // nothing forbids a side in these labels.
-    const offenders = CANONICAL_SETS
+    const offenders = STAGED_SETS
       .filter((s) => s.slug === 'blazing' || s.slug === 'whirling')
-      .flatMap((s) => s.relatedSystems.map((r) => ({ from: s.slug, to: r.slug, label: r.label })))
+      .flatMap((s) => s.relatedSets.map((r) => ({ from: s.slug, to: r.slug, label: r.label })))
       .filter((r) => r.to === 'blazing' || r.to === 'whirling')
       .filter((r) => /\bvariant\b|\balias\b/i.test(r.label))
       .map((r) => `${r.from} -> ${r.to}: ${r.label}`);

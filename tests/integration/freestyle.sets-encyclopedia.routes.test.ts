@@ -19,6 +19,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
+import { seedStagedSets } from '../fixtures/stagedSets';
 
 const { dbPath } = setTestEnv('3159');
 
@@ -39,9 +40,11 @@ const SUBTYPE_KEYS = [
 ] as const;
 
 beforeAll(async () => {
-  // The set list reads from the CANONICAL_SETS content module, not from
-  // freestyle_tricks, so an empty database renders the whole page.
-  createTestDb(dbPath).close();
+  // The set list reads the sets table, not freestyle_tricks, so a database
+  // holding only the seeded sets renders the whole page.
+  const db = createTestDb(dbPath);
+  seedStagedSets(db);
+  db.close();
   createApp = await importApp();
 });
 

@@ -1,0 +1,38 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{> admin-instructions}}
+  <section>
+    <p><a href="{{siteHref content.newHref}}" class="btn btn-primary">New Set</a></p>
+    {{#if content.hasRows}}
+      <div class="records-table-wrap" tabindex="0" role="region" aria-label="Freestyle sets">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Slug</th>
+            <th>Name</th>
+            <th>Group</th>
+            <th>Encyclopedia list</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.rows}}
+            <tr>
+              <td><a href="{{this.editHref}}"><code>{{this.slug}}</code></a></td>
+              <td>{{this.name}}</td>
+              <td>{{this.groupLabel}}</td>
+              <td>{{this.heldLabel}}</td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+      </div>
+    {{else}}
+      <div class="empty-state"><p>No sets yet.</p></div>
+    {{/if}}
+  </section>
+</div>

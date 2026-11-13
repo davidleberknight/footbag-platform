@@ -19,6 +19,7 @@ import {
   importApp,
 } from '../fixtures/testDb';
 import { seedStagedFamilies } from '../fixtures/stagedFamilies';
+import { seedStagedSets } from '../fixtures/stagedSets';
 import {
   insertMember,
   insertFreestyleTrick,
@@ -34,6 +35,7 @@ const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
+  seedStagedSets(db);
   seedStagedFamilies(db);
   const curator = insertMember(db, { id: 'member-conn-sys', slug: 'conn_system', is_system: 1, display_name: 'Footbag Hacky' });
 

@@ -17,6 +17,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb } from '../testDb';
+import { seedStagedSets } from '../stagedSets';
 import { seedPersona } from '../../../src/testkit/personaFactory';
 import { CANONICAL_PERSONAS } from '../../../src/testkit/canonicalPersonas';
 import {
@@ -129,6 +130,9 @@ export function seedCrawlWorld(db: BetterSqlite3.Database): PrivateFieldCanaries
   // the compound carries an alias, a modifier link and a source link so those
   // rendered blocks emit their links too.
   insertFreestyleFamily(db, { slug: 'whirl', display_name: 'Whirl', sort_order: 10 });
+  // Every set as the rebuild seeds it, so the set pages, the encyclopedia and the
+  // set editor are crawled, and every link between sets resolves.
+  seedStagedSets(db);
   insertFreestyleTrick(db, {
     slug: 'whirl', canonical_name: 'Whirl', adds: '3',
     trick_family: 'whirl', base_trick: 'whirl', category: 'dex',

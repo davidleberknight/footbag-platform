@@ -17,6 +17,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+import { seedStagedSets } from '../fixtures/stagedSets';
 import { insertFreestyleTrick, insertFreestyleTrickModifier } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3129');
@@ -25,6 +26,7 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
+  seedStagedSets(db);
 
   // illusion: its atom-to-operator cross-link targets 'illusioning', which is not
   // a registered modifier (no page), so the cross-link must be suppressed.

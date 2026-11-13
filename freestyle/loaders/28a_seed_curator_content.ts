@@ -22,6 +22,7 @@
  *   the family roster          → freestyle_families, one row per family, and
  *                                freestyle_family_sublabels, one row per folded
  *                                trick family label
+ *   the sets                   → freestyle_sets, one row per set
  *
  * It runs after loader 28 and before loader 29, so a curator's save applied by 29
  * still wins over the seeded value. Before go-live the curator columns are wholly
@@ -29,12 +30,13 @@
  * resets them and then writes every staged entry: an entry removed from a module
  * leaves no stale value behind. The description column is the exception: the
  * dictionary load fills it, so only staged values are written and nothing is
- * reset. The two family tables are wholly curator content, so they are emptied
- * and re-inserted.
+ * reset. The two family tables and the set table are wholly curator content, so
+ * they are emptied and re-inserted.
  *
  * Refuses, writing nothing, when an entry names a record, modifier or trick the
  * database does not hold, a family override names a family that is not on the
- * staged roster, or the roster breaks a family rule (the same rules the family
+ * staged roster, the roster breaks a family rule (the same rules the family
+ * editor applies), or the staged sets break a set rule (the same rules the set
  * editor applies): a silently skipped entry would drop curator content from the
  * site unnoticed.
  *
@@ -64,8 +66,10 @@ import {
   type StagedFamily,
 } from '../inputs/curator_content/freestyleFamilies';
 import { familyRosterProblems } from '../../src/services/freestyleFamilyRules';
+import { STAGED_SETS, type StagedSet } from '../inputs/curator_content/freestyleSets';
+import { setRosterProblems } from '../../src/services/freestyleSetRules';
 
-/** The actor the seeded family rows are stamped with. */
+/** The actor the seeded family and set rows are stamped with. */
 export const FAMILY_SEED_ACTOR = 'curator-content-seed';
 
 /** The breakdown the trick page shows: the derivation without a final "= N ADD",
@@ -92,6 +96,8 @@ export interface CuratorContent {
   families: readonly StagedFamily[];
   /** Trick family label to the family it folds into. */
   familySublabels: ReadonlyMap<string, string>;
+  /** The sets, in display order. */
+  sets: readonly StagedSet[];
 }
 
 export const STAGED_CURATOR_CONTENT: CuratorContent = {
@@ -109,6 +115,7 @@ export const STAGED_CURATOR_CONTENT: CuratorContent = {
   executionNotationSubtitles: EXECUTION_NOTATION_SUBTITLES,
   families: STAGED_FAMILIES,
   familySublabels: STAGED_FAMILY_SUBLABELS,
+  sets: STAGED_SETS,
 };
 
 /** Every trick slug the content names, as a key or as a target. */
@@ -146,6 +153,7 @@ export interface SeedCounts {
   executionNotationSubtitles: number;
   families: number;
   familySublabels: number;
+  sets: number;
 }
 
 export class CuratorContentRefusal extends Error {
@@ -209,6 +217,17 @@ export function seedCuratorContent(
     foldedLabels:       foldedBy.get(f.slug) ?? [],
   })))) {
     problems.push(`family "${p.slug}": ${p.message}`);
+  }
+
+  // The sets meet the set rules the editor applies: one row per slug, a group the
+  // encyclopedia defines, and related sets that name other sets.
+  for (const p of setRosterProblems(content.sets.map((s) => ({
+    slug:            s.slug,
+    setGroup:        s.setGroup,
+    sortOrder:       s.sortOrder,
+    relatedSetSlugs: s.relatedSets.map((r) => r.slug),
+  })))) {
+    problems.push(`set "${p.slug}": ${p.message}`);
   }
 
   // A trick sits in at most one "Tricks that land here" list, because the row
@@ -316,6 +335,25 @@ export function seedCuratorContent(
       familySublabels += insertSublabel.run(label, family, now, FAMILY_SEED_ACTOR, now, FAMILY_SEED_ACTOR).changes;
     }
 
+    // The set table: emptied and re-inserted, so a set removed from the staged
+    // module leaves no page behind. A set the editor created comes back from its
+    // save file in loader 29.
+    db.prepare(`DELETE FROM freestyle_sets`).run();
+    const insertSet = db.prepare(`
+      INSERT INTO freestyle_sets
+        (slug, display_name, set_group, sort_order, formula, explanation, related_sets_json,
+         held_from_list, created_at, created_by, updated_at, updated_by, version)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    `);
+    let sets = 0;
+    for (const s of content.sets) {
+      sets += insertSet.run(
+        s.slug, s.displayName, s.setGroup, s.sortOrder, s.formula, s.explanation,
+        JSON.stringify(s.relatedSets.map((r) => ({ slug: r.slug, label: r.label }))),
+        s.heldFromList ? 1 : 0, now, FAMILY_SEED_ACTOR, now, FAMILY_SEED_ACTOR,
+      ).changes;
+    }
+
     return {
       recordsUnderReview,
       beginnerNotes,
@@ -332,6 +370,7 @@ export function seedCuratorContent(
       executionNotationSubtitles: apply(content.executionNotationSubtitles, 'execution_notation_subtitle'),
       families,
       familySublabels,
+      sets,
     };
   })();
 }
@@ -355,7 +394,7 @@ function main(argv: readonly string[]): number {
       `${c.terminalCohortMembers} terminal cohort members, ` +
       `${c.formulas} formulas, ${c.expandedNotations} expanded notations, ` +
       `${c.movementNotationSubtitles + c.executionNotationSubtitles} notation subtitles, ` +
-      `${c.families} families, ${c.familySublabels} folded family labels.`,
+      `${c.families} families, ${c.familySublabels} folded family labels, ${c.sets} sets.`,
     );
     return 0;
   } catch (err) {

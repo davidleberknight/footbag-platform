@@ -9,7 +9,9 @@ fields a curator overrode, with a null field marking a deliberate clear. Sources
 modifiers, aliases and links are saved as whole records, and removed: true marks one taken
 away, since a rebuild would otherwise bring it back from a base input. A family is saved
 whole too, with the trick family labels that fold into it, but only ever edited: a family
-save naming a family the committed inputs do not produce stops the rebuild. Running last
+save naming a family the committed inputs do not produce stops the rebuild. A set is saved
+whole and may be one the editor created, so a set save the inputs do not produce is added;
+a related set naming no set stops the rebuild. Running last
 makes the precedence plain: base inputs first, curator saves on top.
 
 Because a save overrides a value someone could still read in an older CSV, this
@@ -59,6 +61,11 @@ FAMILY_SAVE_COLUMNS = (
 FAMILY_SAVE_LISTS = {"how_to_recognize": "how_to_recognize_json",
                      "related_family_slugs": "related_family_slugs_json"}
 FAMILY_SAVE_FIELDS = frozenset({"slug", "folded_labels", *FAMILY_SAVE_COLUMNS, *FAMILY_SAVE_LISTS})
+
+# A set save: every column the set editor writes, the related sets as a list of
+# {"slug", "label"} objects and the held flag as a boolean.
+SET_SAVE_COLUMNS = ("display_name", "set_group", "sort_order", "formula", "explanation")
+SET_SAVE_FIELDS = frozenset({"slug", "related_sets", "held_from_list", *SET_SAVE_COLUMNS})
 
 # (folder, table, key columns, value columns). Applied in this order after the
 # tricks, because aliases and links reference sources and tricks by foreign key.
@@ -189,6 +196,85 @@ def apply_family_saves(conn, saves_dir, overrides):
         except sqlite3.IntegrityError as err:
             raise ValueError(f"{path} could not be applied: {err}") from err
         applied += 1
+    return applied
+
+
+def apply_set_saves(conn, saves_dir, overrides):
+    """Apply set creations and edits.
+
+    A set save is the whole set as the curator left it. A set the committed inputs
+    do not produce is one the editor created, so it is inserted; any other is
+    updated, and only a real change bumps the row's version. Once every set save
+    is in, each related set must name a set, or the rebuild stops: a set page
+    would otherwise link to a page that does not exist.
+    """
+    applied = 0
+    for path in sorted((saves_dir / "sets").glob("*.json")):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except ValueError as err:
+            raise ValueError(f"{path} is not valid JSON: {err}") from err
+        if not isinstance(data, dict) or data.get("slug") != path.stem:
+            raise ValueError(f"{path} must name its own set as slug")
+        unknown = sorted(set(data) - SET_SAVE_FIELDS)
+        if unknown:
+            raise ValueError(f"{path} carries fields a save may not set: {', '.join(unknown)}")
+        absent = sorted(SET_SAVE_FIELDS - set(data))
+        if absent:
+            raise ValueError(f"{path} is missing {', '.join(absent)}")
+        related = data["related_sets"]
+        if not isinstance(related, list) or not all(
+            isinstance(r, dict) and set(r) == {"slug", "label"}
+            and isinstance(r["slug"], str) and isinstance(r["label"], str)
+            for r in related
+        ):
+            raise ValueError(f"{path} must list each related set as a slug and a label")
+        if not isinstance(data["held_from_list"], bool):
+            raise ValueError(f"{path} must give held_from_list as true or false")
+        slug = data["slug"]
+        columns = list(SET_SAVE_COLUMNS) + ["related_sets_json", "held_from_list"]
+        values = [data[c] for c in SET_SAVE_COLUMNS] + [
+            json.dumps(related, ensure_ascii=False, separators=(",", ":")),
+            1 if data["held_from_list"] else 0,
+        ]
+        base = conn.execute(
+            f"SELECT {', '.join(columns)} FROM freestyle_sets WHERE slug = ?", (slug,)
+        ).fetchone()
+        try:
+            if base is None:
+                conn.execute(
+                    f"INSERT INTO freestyle_sets (slug, {', '.join(columns)}, created_at, created_by, "
+                    f"updated_at, updated_by, version) VALUES (?, {', '.join('?' for _ in columns)}, "
+                    "?, ?, ?, ?, 1)",
+                    [slug, *values, LOADED_AT, "curator-save", LOADED_AT, "curator-save"],
+                )
+                overrides.append((f"sets:{slug}", "added", None, "present"))
+            else:
+                changed = False
+                for column, base_value, saved in zip(columns, base, values):
+                    if base_value != saved:
+                        overrides.append((f"sets:{slug}", column, base_value, saved))
+                        changed = True
+                if not changed:
+                    continue
+                assignments = ", ".join(f"{c} = ?" for c in columns)
+                conn.execute(
+                    f"UPDATE freestyle_sets SET {assignments}, updated_at = ?, updated_by = ?, "
+                    "version = version + 1 WHERE slug = ?",
+                    values + [LOADED_AT, "curator-save", slug],
+                )
+        except sqlite3.IntegrityError as err:
+            raise ValueError(f"{path} could not be applied: {err}") from err
+        applied += 1
+
+    known = {row[0] for row in conn.execute("SELECT slug FROM freestyle_sets")}
+    for slug, related_json in conn.execute("SELECT slug, related_sets_json FROM freestyle_sets ORDER BY slug"):
+        for r in json.loads(related_json):
+            if r["slug"] not in known:
+                raise ValueError(
+                    f"set {slug} names {r['slug']} as a related set, and no set has that slug. "
+                    f"Decide which is right: restore the set, or edit {slug}'s related sets."
+                )
     return applied
 
 
@@ -347,6 +433,7 @@ def main() -> int:
                     applied += 1
             # Families before the tricks, whose family override names a family.
             applied += apply_family_saves(conn, saves_dir, overrides)
+            applied += apply_set_saves(conn, saves_dir, overrides)
             apply_trick_saves(conn, saves, overrides)
             for kind, table, keys, values in RECORD_KINDS[2:]:
                 for path in sorted((saves_dir / kind).glob("*.json")):

@@ -10,6 +10,8 @@ import {
   FreestyleModifierInput,
   FreestyleTrickPublicationInput,
   FamilyValidationError,
+  SetValidationError,
+  type FreestyleSetInput,
   type FreestyleFamilyInput,
   type CurationLinkOutcome,
 } from '../services/freestyleCurationService';
@@ -841,7 +843,94 @@ export const adminFreestyleController = {
       next(err);
     }
   },
+
+  /** GET /admin/freestyle/sets */
+  sets(_req: Request, res: Response, next: NextFunction): void {
+    try {
+      res.render('admin/freestyle-sets', freestyleCurationService.getSetListPage());
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /** GET /admin/freestyle/sets/new */
+  newSet(_req: Request, res: Response, next: NextFunction): void {
+    try {
+      res.render('admin/freestyle-set-form', freestyleCurationService.getSetNewPage());
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // Create one set. Success lands on the new set's edit page; a refusal
+  // re-renders the create form (422) with the submitted values and every reason.
+  createSet(req: Request, res: Response, next: NextFunction): void {
+    const input = setInputFromBody(req.body, true);
+    try {
+      freestyleCurationService.createSet(input, req.user!.userId);
+      redirectSaved(req, res, `/admin/freestyle/sets/${input.slug}/edit`);
+    } catch (err) {
+      if (err instanceof SetValidationError) {
+        res.status(422).render('admin/freestyle-set-form',
+          freestyleCurationService.getSetNewPage({ submitted: input, errors: [...err.reasons] }));
+        return;
+      }
+      next(err);
+    }
+  },
+
+  /** GET /admin/freestyle/sets/:slug/edit */
+  editSet(req: Request, res: Response, next: NextFunction): void {
+    const slug = str(req.params.slug);
+    const editPath = `/admin/freestyle/sets/${slug}/edit`;
+    try {
+      res.render('admin/freestyle-set-form',
+        freestyleCurationService.getSetEditPage(slug, { saved: savedHere(req, res, editPath) }));
+    } catch (err) {
+      if (err instanceof NotFoundError) {
+        renderNotFound(res);
+        return;
+      }
+      next(err);
+    }
+  },
+
+  // Save one set's edit. Success, or an unchanged submit, returns to the edit
+  // page; a refusal re-renders it (422) with the submitted values and every reason.
+  updateSet(req: Request, res: Response, next: NextFunction): void {
+    const slug = str(req.params.slug);
+    const input = setInputFromBody(req.body, false);
+    try {
+      const result = freestyleCurationService.updateSet(slug, input, req.user!.userId);
+      const editPath = `/admin/freestyle/sets/${slug}/edit`;
+      if (result.status === 'saved') redirectSaved(req, res, editPath);
+      else res.redirect(303, editPath);
+    } catch (err) {
+      if (err instanceof SetValidationError) {
+        res.status(422).render('admin/freestyle-set-form',
+          freestyleCurationService.getSetEditPage(slug, { submitted: input, errors: [...err.reasons] }));
+        return;
+      }
+      if (err instanceof NotFoundError) {
+        renderNotFound(res);
+        return;
+      }
+      next(err);
+    }
+  },
 };
+
+function setInputFromBody(body: Record<string, unknown>, withSlug: boolean): FreestyleSetInput {
+  return {
+    ...(withSlug ? { slug: str(body.slug) } : {}),
+    displayName:  str(body.displayName),
+    setGroup:     str(body.setGroup),
+    formula:      str(body.formula),
+    explanation:  str(body.explanation),
+    relatedSets:  str(body.relatedSets),
+    heldFromList: str(body.heldFromList),
+  };
+}
 
 function familyInputFromBody(body: Record<string, unknown>): FreestyleFamilyInput {
   return {

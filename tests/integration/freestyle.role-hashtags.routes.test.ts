@@ -18,6 +18,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { cachedGet } from '../fixtures/cachedGet';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+import { seedStagedSets } from '../fixtures/stagedSets';
 import { insertFreestyleTrick, insertFreestyleTrickModifier, insertFreestyleTrickModifierLink } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3214');
@@ -27,6 +28,7 @@ const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
+  seedStagedSets(db);
 
   // Modifier registry: two body modifiers (spinning, whirling) and two set
   // primitives (pixie, atomic). These drive the operators-index hashtags.

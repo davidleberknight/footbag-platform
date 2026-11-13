@@ -315,6 +315,11 @@ export const ROUTE_STORIES: Readonly<Record<string, RouteStory>> = {
   'GET /admin/freestyle/families': { stories: ['A_Edit_Freestyle_Family'] },
   'GET /admin/freestyle/families/:slug/edit': { stories: ['A_Edit_Freestyle_Family'] },
   'POST /admin/freestyle/families/:slug/edit': { stories: ['A_Edit_Freestyle_Family'] },
+  'GET /admin/freestyle/sets': { stories: ['A_Edit_Freestyle_Set'] },
+  'GET /admin/freestyle/sets/new': { stories: ['A_Edit_Freestyle_Set'] },
+  'POST /admin/freestyle/sets': { stories: ['A_Edit_Freestyle_Set'] },
+  'GET /admin/freestyle/sets/:slug/edit': { stories: ['A_Edit_Freestyle_Set'] },
+  'POST /admin/freestyle/sets/:slug/edit': { stories: ['A_Edit_Freestyle_Set'] },
   'GET /admin/freestyle/records': { stories: ['A_Edit_Freestyle_Record'] },
   'GET /admin/freestyle/records/new': { stories: ['A_Edit_Freestyle_Record'] },
   'POST /admin/freestyle/records': { stories: ['A_Edit_Freestyle_Record'] },
@@ -447,7 +452,6 @@ export const STORIES_WITHOUT_ROUTE: Readonly<Record<string, { status: StoryWitho
   'A_Create_Vote': { status: 'designed-not-deployed', why: 'Voting is second-version scope and no admin vote route is mounted.' },
   'A_Publish_Vote_Results': { status: 'designed-not-deployed', why: 'Voting is second-version scope and no admin vote route is mounted.' },
   'A_Cancel_Vote': { status: 'designed-not-deployed', why: 'Voting is second-version scope and no admin vote route is mounted.' },
-  'A_Edit_Freestyle_Set': { status: 'designed-not-deployed', why: 'Set content has not moved into the database, so no set editor route is mounted.' },
   'A_Edit_Freestyle_Glossary': { status: 'designed-not-deployed', why: 'Glossary content has not moved into the database, so no glossary editor route is mounted.' },
 
   // Background system jobs

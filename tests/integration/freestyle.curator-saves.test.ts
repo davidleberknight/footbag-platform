@@ -21,6 +21,7 @@ import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/
 import { insertMember } from '../fixtures/factories';
 import { seedCuratorContent, STAGED_CURATOR_CONTENT } from '../../freestyle/loaders/28a_seed_curator_content';
 import { STAGED_FAMILIES, STAGED_FAMILY_SUBLABELS } from '../../freestyle/inputs/curator_content/freestyleFamilies';
+import { STAGED_SETS } from '../../freestyle/inputs/curator_content/freestyleSets';
 
 const { dbPath } = setTestEnv('4142');
 const savesDir = process.env.CURATOR_SAVES_DIR!;
@@ -41,6 +42,9 @@ const FAMILY_SLUG = 'hatchet';
 const SAVED_DERIVATION = 'saved(+1) + by(1) + a(1) + curator(1)';
 const SAVED_FAMILY_HOOK = 'A hook the curator saved.';
 const FAMILY_EDITED = 'swirl';
+const SET_EDITED = 'fairy';
+const SAVED_SET_FORMULA = 'TOE > SAME OUT [DEX] > (saved)';
+const CREATED_SET = 'saved_created_set';
 
 /** The family edit form as the staged roster fills it. */
 function familyForm(slug: string, overrides: Record<string, string> = {}): Record<string, string> {
@@ -307,6 +311,17 @@ beforeAll(async () => {
   }, ADMIN_ID, { confirmed: false });
   // A family edit over the seeded roster.
   service.updateFamily(FAMILY_EDITED, familyForm(FAMILY_EDITED, { hook: SAVED_FAMILY_HOOK }), ADMIN_ID);
+  // A set edit over the seeded sets, and a created set related to it.
+  const edited = STAGED_SETS.find((s) => s.slug === SET_EDITED)!;
+  service.updateSet(SET_EDITED, {
+    displayName: edited.displayName, setGroup: edited.setGroup, formula: SAVED_SET_FORMULA,
+    explanation: edited.explanation,
+    relatedSets: edited.relatedSets.map((r) => (r.label ? `${r.slug} | ${r.label}` : r.slug)).join('\n'),
+  }, ADMIN_ID);
+  service.createSet({
+    slug: CREATED_SET, displayName: 'Saved Created Set', setGroup: 'rotational', formula: '',
+    explanation: 'A set the curator created.', relatedSets: `${SET_EDITED} | Edited, related`,
+  }, ADMIN_ID);
 
   // Records and consecutive rows, including what the loaders alone cannot express:
   // a text value, a year-level date, and a row the records loader would skip.
@@ -596,6 +611,17 @@ describe('a rebuild', () => {
       [FAMILY_EDITED, SAVED_FAMILY_HOOK])).toBe(1);
   });
 
+  it('keeps a created set and a saved set edit over the seeded sets', () => {
+    // Defect: a set created or edited in the set editor is gone or undone at the
+    // next rebuild, because the seeder empties the set table after the saves or
+    // the save loader never reads set files. The staged sets are the control.
+    expect(STAGED_SETS.some((s) => s.slug === CREATED_SET)).toBe(false);
+    expect(STAGED_SETS.find((s) => s.slug === SET_EDITED)!.formula).not.toBe(SAVED_SET_FORMULA);
+    expect(rowCount(rebuildPath, 'freestyle_sets', 'slug = ? AND set_group = ? AND related_sets_json = ?',
+      [CREATED_SET, 'rotational', JSON.stringify([{ slug: SET_EDITED, label: 'Edited, related' }])])).toBe(1);
+    expect(rowCount(rebuildPath, 'freestyle_sets', 'slug = ? AND formula = ?', [SET_EDITED, SAVED_SET_FORMULA])).toBe(1);
+  });
+
   it('keeps a saved and a cleared trick formula field over the seeded content', () => {
     // Defect: a curator's edit to a seeded formula breakdown or expanded notation
     // is undone at the next rebuild, because the seeder ran after the saves or
@@ -753,6 +779,23 @@ describe('the save loader refuses a file it cannot apply', () => {
     expect(rowCount(rebuildPath, 'freestyle_families', 'slug = ?', ['zz_no_such_family'])).toBe(0);
   });
 
+  // Defect: a saved set naming a related set no set has is applied, and its page
+  // links to a page that does not exist.
+  it('a set whose related set names no set', () => {
+    const dir = fs.mkdtempSync(path.join(scratch, 'bad-set-'));
+    fs.mkdirSync(path.join(dir, 'sets'), { recursive: true });
+    const body = {
+      slug: 'zz_dangling_set', display_name: 'Dangling', set_group: 'true-core', sort_order: 99999,
+      formula: '', explanation: 'A set with a dangling related set.',
+      related_sets: [{ slug: 'zz_no_such_set', label: '' }], held_from_list: false,
+    };
+    fs.writeFileSync(path.join(dir, 'sets', 'zz_dangling_set.json'), JSON.stringify(body));
+    const r = applySaves(rebuildPath, dir);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/zz_no_such_set/);
+    expect(rowCount(rebuildPath, 'freestyle_sets', 'slug = ?', ['zz_dangling_set'])).toBe(0);
+  });
+
   it('applies nothing when any one file fails', () => {
     // Defect: a half-applied save set leaves a rebuild reading as some saves
     // landed and others did not, with the failure easy to miss.
@@ -772,8 +815,9 @@ describe('the field list', () => {
     const kinds = loader.match(/RECORD_KINDS = \(([\s\S]*?)\n\)/)![1]!;
     // Each kind's tuple opens with its folder and then its table.
     const loaderFolders = [...kinds.matchAll(/^\s+\("([a-z_]+)", "[a-z_]+", \(/gm)].map((m) => m[1]!);
-    const familyFolder = /saves_dir \/ "families"/.test(loader) ? ['families'] : [];
-    expect([...loaderFolders, ...familyFolder].sort()).toEqual([...adapterModule.SAVE_ITEM_KINDS].sort());
+    // Families and sets are read by functions of their own, each naming its folder.
+    const ownFolders = ['families', 'sets'].filter((k) => new RegExp(`saves_dir / "${k}"`).test(loader));
+    expect([...loaderFolders, ...ownFolders].sort()).toEqual([...adapterModule.SAVE_ITEM_KINDS].sort());
   });
 
   it('is the same in the adapter and the loader', () => {

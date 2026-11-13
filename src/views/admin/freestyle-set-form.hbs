@@ -1,0 +1,60 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{> admin-instructions}}
+  <section>
+    {{#if content.saved}}
+    {{> outcome-notice text="Saved." tone='ok'}}
+    {{/if}}
+    {{> outcome-notice lines=content.errors tone='no'}}
+
+    <form method="POST" action="{{content.formAction}}" class="form-block">
+      {{#if content.isNew}}
+      <div class="form-field">
+        <label for="set-slug">Slug</label>
+        <input type="text" id="set-slug" name="slug" value="{{content.submitted.slug}}" aria-describedby="set-slug-hint" />
+        <small class="form-hint" id="set-slug-hint">Lowercase letters, digits and underscores. It becomes the page address and the #set_ hashtag, and cannot be changed.</small>
+      </div>
+      {{/if}}
+      <div class="form-field">
+        <label for="set-displayName">Display name</label>
+        <input type="text" id="set-displayName" name="displayName" value="{{content.submitted.displayName}}" />
+      </div>
+      <div class="form-field">
+        <label for="set-setGroup">Set group</label>
+        <select id="set-setGroup" name="setGroup" aria-describedby="set-setGroup-hint">
+          {{#each content.groupOptions}}
+            <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+          {{/each}}
+        </select>
+        <small class="form-hint" id="set-setGroup-hint">The group the encyclopedia lists the set under.</small>
+      </div>
+      <div class="form-field">
+        <label for="set-formula">Formula (optional)</label>
+        <input type="text" id="set-formula" name="formula" value="{{content.submitted.formula}}" aria-describedby="set-formula-hint" />
+        <small class="form-hint" id="set-formula-hint">The set's notation. Leave it empty and the set page says its notation is pending.</small>
+      </div>
+      <div class="form-field">
+        <label for="set-explanation">Plain explanation</label>
+        <textarea id="set-explanation" name="explanation" rows="4" aria-describedby="set-explanation-hint">{{content.submitted.explanation}}</textarea>
+        <small class="form-hint" id="set-explanation-hint">What the set is, in plain words. Its first sentence is the line on the encyclopedia list.</small>
+      </div>
+      <div class="form-field">
+        <label for="set-relatedSets">Related sets (optional)</label>
+        <textarea id="set-relatedSets" name="relatedSets" rows="4" aria-describedby="set-relatedSets-hint">{{content.submitted.relatedSets}}</textarea>
+        <small class="form-hint" id="set-relatedSets-hint">One per line, in order: a set slug, optionally followed by " | " and the text its link shows. Without that text the link shows the set's name.</small>
+      </div>
+      <div class="form-field">
+        <label><input type="checkbox" name="heldFromList" value="1" {{#if content.heldChecked}}checked{{/if}} /> Hold off the encyclopedia list</label>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary btn-sm">Save Set</button>
+        <a href="{{content.cancelHref}}" class="btn btn-outline btn-sm">Cancel</a>
+      </div>
+    </form>
+  </section>
+</div>

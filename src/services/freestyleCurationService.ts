@@ -46,6 +46,18 @@
  *     label some trick carries. An unchanged submit writes nothing; a save writes
  *     its save file first, then the row, its folded labels and one
  *     `freestyle.family.updated` audit row in one transaction.
+ *   - The set editor (`freestyle_sets`): listing the sets, creating one, and
+ *     editing one set's name, group, formula, plain explanation, related sets
+ *     (each a set and an optional link label) and whether it is held off the
+ *     encyclopedia list. Sets are never deleted, and a slug is never edited. A
+ *     save is refused, with every reason and the submitted values kept, when a
+ *     field fails its own check or the sets would break a set rule they did not
+ *     break before (the rules in freestyleSetRules: a slug of lowercase letters,
+ *     digits and underscores naming one set, a group the encyclopedia defines,
+ *     related sets naming other sets once each). A new set goes at the end of
+ *     its group. An unchanged submit writes nothing; a save writes its save file
+ *     first, then the row and one `freestyle.set.created` or
+ *     `freestyle.set.updated` audit row in one transaction.
  *   - The notation authoring funnel: the backlog of Emerging Vocabulary rulings
  *     that still need a movement notation, authoring a notation draft for one
  *     with its provenance, and publishing an authored candidate as a new active
@@ -165,6 +177,7 @@ import {
   freestyleTrickModifiers,
   freestyleTrickModifierLinks,
   freestyleFamilies,
+  freestyleSets,
   transaction,
 } from '../db/db';
 import { appendAuditEntry, findStandingOwnAct } from './auditService';
@@ -185,6 +198,9 @@ import {
 import { EMERGING_DECISION_GROUPS } from '../content/freestyleObservationalUniverse';
 import { familyRecord, familyRecords, type FamilyRecord } from './freestyleFamilyRegistry';
 import { familyRosterProblems, FAMILY_TIERS, type FamilyRuleInput } from './freestyleFamilyRules';
+import { canonicalSets, findCanonicalSetBySlug, type SetRecord } from './freestyleSetRegistry';
+import { setRosterProblems, SET_SLUG_PATTERN, type SetRuleInput } from './freestyleSetRules';
+import { SET_SUBTYPE_SPECS } from '../content/freestyleCanonicalSets';
 import {
   NOTATION_EVIDENCE_BASES,
   NOTATION_DERIVATION_METHODS,
@@ -3420,7 +3436,364 @@ export const freestyleCurationService = {
     );
     return { status: 'saved' };
   },
+
+  // Every set, in display order, each linking to its edit form, and the link to
+  // create one. Sets are never deleted here.
+  getSetListPage(): PageViewModel<FreestyleSetListContent> {
+    const rows = canonicalSets().map((s) => ({
+      slug:       s.slug,
+      name:       s.displayName,
+      groupLabel: setGroupLabel(s.subtype),
+      heldLabel:  s.heldFromEncyclopediaList ? 'Held off the list' : '',
+      editHref:   `/admin/freestyle/sets/${s.slug}/edit`,
+    }));
+    return {
+      seo:  { title: 'Freestyle Sets' },
+      page: {
+        sectionKey: 'admin', pageKey: 'admin_freestyle_sets', title: 'Freestyle Sets',
+        instructions: {
+          what: 'Lists every freestyle set with its group, in display order, and creates a new one.',
+          why: 'The set vocabulary is kept in the running application, so a set is added or corrected without a deployment.',
+          how: 'Create a set, or open one below to edit it.',
+          headsUp: [
+            'A new set has its own page, encyclopedia entry and sitemap entry as soon as it is saved.',
+            'A set\'s slug is permanent once it is created, and sets are never deleted here.',
+            'Creating or editing a set is recorded in the audit log.',
+          ],
+        },
+      },
+      content: { rows, hasRows: rows.length > 0, newHref: '/admin/freestyle/sets/new' },
+    };
+  },
+
+  // The form that creates a set. A refused create re-renders it with the
+  // submitted values and every reason.
+  getSetNewPage(
+    opts: { submitted?: FreestyleSetInput; errors?: string[] } = {},
+  ): PageViewModel<FreestyleSetFormContent> {
+    const submitted: FreestyleSetInput = opts.submitted ?? {};
+    return {
+      seo:  { title: 'New Set' },
+      page: {
+        sectionKey: 'admin', pageKey: 'admin_freestyle_set_new', title: 'New Set',
+        instructions: {
+          what: 'Creates a freestyle set: its slug, name, group, formula, plain explanation and related sets.',
+          why: 'So a set missing from the encyclopedia is added in the running application.',
+          how: 'Fill in the set and save. The page shows the standard set layout; a teaching guide is added separately in code.',
+          headsUp: [
+            'The slug is permanent and becomes the page address and the #set_ hashtag.',
+            'The set is live on its page, the encyclopedia list and the sitemap as soon as it is saved.',
+          ],
+        },
+      },
+      content: setFormContent('/admin/freestyle/sets', submitted, opts.errors ?? [], false, true),
+    };
+  },
+
+  // The edit form for one set. Throws NotFoundError for an unknown slug.
+  getSetEditPage(
+    slug: string,
+    opts: { submitted?: FreestyleSetInput; errors?: string[]; saved?: boolean } = {},
+  ): PageViewModel<FreestyleSetFormContent> {
+    const record = findCanonicalSetBySlug(slug);
+    if (!record) throw new NotFoundError(`No freestyle set "${slug}"`);
+    const submitted: FreestyleSetInput = opts.submitted ?? setInputOf(record);
+    return {
+      seo:  { title: `Edit Set ${record.displayName}` },
+      page: {
+        sectionKey: 'admin', pageKey: 'admin_freestyle_set_edit', title: `Edit Set ${record.displayName}`,
+        instructions: {
+          what: 'Edits one freestyle set: its name, group, formula, plain explanation, related sets, and whether it is held off the encyclopedia list.',
+          why: 'So the set vocabulary is kept in the running application.',
+          how: 'Change the fields and save. Related sets take one per line.',
+          headsUp: [
+            'A change shows on the set page, the encyclopedia and every page that names the set as soon as it is saved.',
+            'The slug is permanent.',
+          ],
+        },
+      },
+      content: {
+        ...setFormContent(`/admin/freestyle/sets/${record.slug}/edit`, submitted, opts.errors ?? [], opts.saved === true, false),
+        slug: record.slug,
+      },
+    };
+  },
+
+  // Create one set. The slug is permanent and names one set only; it may equal
+  // a trick or modifier slug, because a name that is both has both pages. The
+  // new set goes at the end of its group. The row, its save file and its audit
+  // entry land together behind the persona guard. Throws SetValidationError on
+  // bad input.
+  createSet(input: FreestyleSetInput, actorMemberId: string): void {
+    const slug = (input.slug ?? '').trim();
+    const errors: string[] = [];
+    if (!slug) errors.push('Slug is required.');
+    else if (!SET_SLUG_PATTERN.test(slug)) errors.push('Slug may use only lowercase letters, digits and underscores.');
+    else if (findCanonicalSetBySlug(slug)) errors.push(`A set "${slug}" already exists.`);
+    let validated: SetFields | null = null;
+    try {
+      validated = validateSetFields(input);
+    } catch (err) {
+      if (!(err instanceof SetValidationError)) throw err;
+      errors.push(...err.reasons);
+    }
+    if (errors.length > 0 || validated === null) throw new SetValidationError(errors);
+    const fields: SetFields = validated;
+
+    const sortOrder = (freestyleSets.maxSortOrder.get() as { max_order: number }).max_order + SET_ORDER_STEP;
+    const introduced = introducedSetProblems(slug, { slug, setGroup: fields.setGroup, sortOrder, relatedSetSlugs: fields.relatedSets.map((r) => r.slug) });
+    if (introduced.length > 0) throw new SetValidationError(introduced);
+
+    assertActorMayCurateFreestyle(actorMemberId);
+    const now = new Date().toISOString();
+    try {
+      writeFileThenCommit(
+        () => getCuratedAuthoringAdapter().saveItem('sets', slug, setSaveBody(slug, sortOrder, fields)),
+        () => transaction(() => {
+          freestyleSets.insert.run(
+            slug, fields.displayName, fields.setGroup, sortOrder, fields.formula, fields.explanation,
+            JSON.stringify(fields.relatedSets), fields.heldFromList ? 1 : 0,
+            now, actorMemberId, now, actorMemberId,
+          );
+          appendAuditEntry({
+            actionType:    'freestyle.set.created',
+            actorType:     'admin',
+            actorMemberId,
+            entityType:    'freestyle_set',
+            entityId:      slug,
+            metadata:      { slug, changedFields: [...SET_FIELD_NAMES] },
+          });
+        }),
+      );
+    } catch (err) {
+      if (isDuplicateKeyError(err)) throw new SetValidationError([`A set "${slug}" already exists.`]);
+      throw err;
+    }
+  },
+
+  // Edit one set. Every field is validated, and the edited sets must still meet
+  // the set rules; any rule the edit would break refuses the save with every
+  // reason. An unchanged submit writes nothing. The row, its save file and its
+  // audit entry land together behind the persona guard. Throws NotFoundError for
+  // an unknown slug and SetValidationError on bad input.
+  updateSet(slug: string, input: FreestyleSetInput, actorMemberId: string): UpdateSetResult {
+    const current = findCanonicalSetBySlug(slug);
+    if (!current) throw new NotFoundError(`No freestyle set "${slug}"`);
+    const fields = validateSetFields(input);
+    const introduced = introducedSetProblems(slug, {
+      slug, setGroup: fields.setGroup, sortOrder: current.sortOrder,
+      relatedSetSlugs: fields.relatedSets.map((r) => r.slug),
+    });
+    if (introduced.length > 0) throw new SetValidationError(introduced);
+
+    const changed: string[] = [];
+    if (fields.displayName !== current.displayName) changed.push('display_name');
+    if (fields.setGroup !== current.subtype) changed.push('set_group');
+    if (fields.formula !== current.formula) changed.push('formula');
+    if (fields.explanation !== current.movementExplanation) changed.push('explanation');
+    if (JSON.stringify(fields.relatedSets) !== JSON.stringify(current.storedRelatedSets)) changed.push('related_sets');
+    if (fields.heldFromList !== current.heldFromEncyclopediaList) changed.push('held_from_list');
+    if (changed.length === 0) return { status: 'unchanged' };
+
+    assertActorMayCurateFreestyle(actorMemberId);
+    const now = new Date().toISOString();
+    writeFileThenCommit(
+      () => getCuratedAuthoringAdapter().saveItem('sets', slug, setSaveBody(slug, current.sortOrder, fields)),
+      () => transaction(() => {
+        freestyleSets.update.run(
+          fields.displayName, fields.setGroup, fields.formula, fields.explanation,
+          JSON.stringify(fields.relatedSets), fields.heldFromList ? 1 : 0, now, actorMemberId, slug,
+        );
+        appendAuditEntry({
+          actionType:    'freestyle.set.updated',
+          actorType:     'admin',
+          actorMemberId,
+          entityType:    'freestyle_set',
+          entityId:      slug,
+          metadata:      { slug, changedFields: changed },
+        });
+      }),
+    );
+    return { status: 'saved' };
+  },
 };
+
+// ── Set editor ────────────────────────────────────────────────────────────
+
+export interface FreestyleSetInput {
+  slug?:         string;   // create only
+  displayName?:  string;
+  setGroup?:     string;
+  formula?:      string;
+  explanation?:  string;
+  relatedSets?:  string;   // one per line: "slug" or "slug | link label"
+  heldFromList?: string;   // "1" when checked
+}
+
+/** A set save refused for one or more reasons, each shown to the editor. */
+export class SetValidationError extends ValidationError {
+  constructor(readonly reasons: readonly string[]) {
+    super(reasons.join(' '));
+    this.name = 'SetValidationError';
+  }
+}
+
+export interface FreestyleSetListRow {
+  slug: string;
+  name: string;
+  groupLabel: string;
+  heldLabel: string;
+  editHref: string;
+}
+
+export interface FreestyleSetListContent {
+  rows: FreestyleSetListRow[];
+  hasRows: boolean;
+  newHref: string;
+}
+
+export interface FreestyleSetFormContent {
+  /** Set on the edit form only; the create form takes the slug as a field. */
+  slug?: string;
+  isNew: boolean;
+  formAction: string;
+  cancelHref: string;
+  submitted: FreestyleSetInput;
+  groupOptions: FilterOption[];
+  heldChecked: boolean;
+  errors: string[];
+  hasErrors: boolean;
+  saved: boolean;
+}
+
+export type UpdateSetResult = { status: 'saved' } | { status: 'unchanged' };
+
+interface SetFields {
+  displayName:  string;
+  setGroup:     string;
+  formula:      string;
+  explanation:  string;
+  relatedSets:  { slug: string; label: string }[];
+  heldFromList: boolean;
+}
+
+/** The fields a create records, named as the audit row names them. */
+const SET_FIELD_NAMES = ['display_name', 'set_group', 'formula', 'explanation', 'related_sets', 'held_from_list'] as const;
+const SET_NAME_MAX = 80;
+// A formula and a related-set label are single lines on a page.
+const SET_LINE_MAX = 400;
+// No set needs more than a dozen related sets.
+const SET_RELATED_MAX = 12;
+// The gap between seeded display orders, so a new set lands after every other.
+const SET_ORDER_STEP = 10;
+
+function setGroupLabel(key: string): string {
+  return SET_SUBTYPE_SPECS.find((s) => s.key === key)?.label ?? key;
+}
+
+function setInputOf(r: SetRecord): FreestyleSetInput {
+  return {
+    displayName:  r.displayName,
+    setGroup:     r.subtype,
+    formula:      r.formula,
+    explanation:  r.movementExplanation,
+    relatedSets:  r.storedRelatedSets.map((s) => (s.label ? `${s.slug} | ${s.label}` : s.slug)).join('\n'),
+    heldFromList: r.heldFromEncyclopediaList ? '1' : '',
+  };
+}
+
+function setFormContent(
+  formAction: string,
+  submitted: FreestyleSetInput,
+  errors: string[],
+  saved: boolean,
+  isNew: boolean,
+): FreestyleSetFormContent {
+  return {
+    isNew,
+    formAction,
+    cancelHref:   '/admin/freestyle/sets',
+    submitted,
+    groupOptions: [
+      ...(isNew && !submitted.setGroup ? [{ value: '', label: 'Choose a group', selected: true }] : []),
+      ...SET_SUBTYPE_SPECS.map((s) => ({ value: s.key, label: s.label, selected: submitted.setGroup === s.key })),
+    ],
+    heldChecked:  submitted.heldFromList === '1',
+    errors,
+    hasErrors:    errors.length > 0,
+    saved,
+  };
+}
+
+/**
+ * The set-rule problems a save would add: the rules run over every set with this
+ * one as submitted, and a problem the sets already had is not this save's to fix.
+ */
+function introducedSetProblems(slug: string, edited: SetRuleInput): string[] {
+  const sets = canonicalSets();
+  const nameOf = (s: string): string => sets.find((r) => r.slug === s)?.displayName ?? s;
+  const asRule = (r: SetRecord): SetRuleInput => ({
+    slug: r.slug, setGroup: r.subtype, sortOrder: r.sortOrder,
+    relatedSetSlugs: r.storedRelatedSets.map((s) => s.slug),
+  });
+  const before = new Set(setRosterProblems(sets.map(asRule), nameOf).map((p) => `${p.slug}|${p.message}`));
+  const roster = sets.some((r) => r.slug === slug)
+    ? sets.map((r) => (r.slug === slug ? edited : asRule(r)))
+    : [...sets.map(asRule), edited];
+  return setRosterProblems(roster, nameOf)
+    .filter((p) => !before.has(`${p.slug}|${p.message}`))
+    .map((p) => (p.slug === slug ? p.message : `${nameOf(p.slug)}: ${p.message}`));
+}
+
+// Validates each field on its own; the set rules are checked by the caller.
+// Collects every problem so the editor sees them all at once.
+function validateSetFields(input: FreestyleSetInput): SetFields {
+  const errors: string[] = [];
+  const displayName = cleanUserText(input.displayName ?? '', 'single_line', 'displayName');
+  if (!displayName) errors.push('Display name is required.');
+  else if (displayName.length > SET_NAME_MAX) errors.push(`Display name must be ${SET_NAME_MAX} characters or fewer.`);
+
+  const setGroup = (input.setGroup ?? '').trim();
+  if (!SET_SUBTYPE_SPECS.some((s) => s.key === setGroup)) errors.push('Choose a set group from the list.');
+
+  const formula = cleanUserText(input.formula ?? '', 'single_line', 'formula');
+  if (formula.length > SET_LINE_MAX) errors.push(`Formula must be ${SET_LINE_MAX} characters or fewer.`);
+
+  const explanation = cleanUserText(input.explanation ?? '', 'multi_line', 'explanation');
+  if (!explanation) errors.push('Plain explanation is required.');
+  else if (explanation.length > PROSE_MAX) errors.push(`Plain explanation must be ${PROSE_MAX} characters or fewer.`);
+
+  const lines = (input.relatedSets ?? '').split(/\r?\n/)
+    .map((line) => cleanUserText(line, 'single_line', 'relatedSets'))
+    .filter((line) => line.length > 0);
+  if (lines.length > SET_RELATED_MAX) errors.push(`Related sets takes at most ${SET_RELATED_MAX} entries.`);
+  const relatedSets = lines.map((line) => {
+    const bar = line.indexOf('|');
+    const slug = (bar === -1 ? line : line.slice(0, bar)).trim();
+    const label = bar === -1 ? '' : line.slice(bar + 1).trim();
+    if (!SET_SLUG_PATTERN.test(slug)) {
+      errors.push(`"${slug}" in related sets is not a set slug: use lowercase letters, digits and underscores.`);
+    }
+    if (label.length > SET_LINE_MAX) errors.push(`Each related-set label must be ${SET_LINE_MAX} characters or fewer.`);
+    return { slug, label };
+  });
+
+  if (errors.length > 0) throw new SetValidationError(errors);
+  return { displayName, setGroup, formula, explanation, relatedSets, heldFromList: input.heldFromList === '1' };
+}
+
+function setSaveBody(slug: string, sortOrder: number, f: SetFields): SaveItemBody {
+  return {
+    slug,
+    display_name:   f.displayName,
+    set_group:      f.setGroup,
+    sort_order:     sortOrder,
+    formula:        f.formula,
+    explanation:    f.explanation,
+    related_sets:   f.relatedSets.map((r) => ({ slug: r.slug, label: r.label })),
+    held_from_list: f.heldFromList,
+  };
+}
 
 // ── Family editor ─────────────────────────────────────────────────────────
 

@@ -3386,6 +3386,57 @@ export const freestyleFamilies = {
   `); },
 };
 
+export interface FreestyleSetRow {
+  slug:              string;
+  display_name:      string;
+  set_group:         string;
+  sort_order:        number;
+  formula:           string;
+  explanation:       string;
+  related_sets_json: string;
+  held_from_list:    number;
+}
+
+// The freestyle sets. Read whole: a few dozen rows that the set pages, the
+// encyclopedia, the operator pages and the media galleries consult, so the
+// service caches them and re-reads when the fingerprint below changes.
+export const freestyleSets = {
+  get listAll() { return db.prepare(`
+    SELECT slug, display_name, set_group, sort_order, formula, explanation,
+           related_sets_json, held_from_list
+    FROM freestyle_sets
+    ORDER BY sort_order ASC, slug ASC
+  `); },
+
+  // Changes whenever a set is added or edited: every edit bumps version, and an
+  // add changes the count.
+  get fingerprint() { return db.prepare(`
+    SELECT COUNT(*) || ':' || COALESCE(SUM(version), 0) || ':' || COALESCE(MAX(updated_at), '') AS fp
+    FROM freestyle_sets
+  `); },
+
+  // The highest display order in use; a new set goes after it, so it lands at
+  // the end of its group.
+  get maxSortOrder() { return db.prepare(`
+    SELECT COALESCE(MAX(sort_order), 0) AS max_order FROM freestyle_sets
+  `); },
+
+  // The set editor's writes.
+  get insert() { return db.prepare(`
+    INSERT INTO freestyle_sets
+      (slug, display_name, set_group, sort_order, formula, explanation, related_sets_json,
+       held_from_list, created_at, created_by, updated_at, updated_by, version)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+  `); },
+
+  get update() { return db.prepare(`
+    UPDATE freestyle_sets
+    SET display_name = ?, set_group = ?, formula = ?, explanation = ?, related_sets_json = ?,
+        held_from_list = ?, updated_at = ?, updated_by = ?, version = version + 1
+    WHERE slug = ?
+  `); },
+};
+
 export const freestyleTrickModifiers = {
   get listAll() { return db.prepare(`
     SELECT slug, modifier_name, add_bonus, add_bonus_rotational, modifier_type, notes,

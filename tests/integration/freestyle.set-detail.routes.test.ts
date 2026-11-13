@@ -31,7 +31,9 @@ import {
   insertMember,
   insertTtLesson,
 } from '../fixtures/factories';
-import { CANONICAL_SETS, SET_SUBTYPE_SPECS } from '../../src/content/freestyleCanonicalSets';
+import { SET_SUBTYPE_SPECS } from '../../src/content/freestyleCanonicalSets';
+import { STAGED_SETS } from '../../freestyle/inputs/curator_content/freestyleSets';
+import { seedStagedSets } from '../fixtures/stagedSets';
 import { buildSetEducationContent, hasSetEducationPage } from '../../src/services/symbolicSetEducation';
 
 const { dbPath } = setTestEnv('3221');
@@ -39,10 +41,13 @@ const { dbPath } = setTestEnv('3221');
 let createApp: Awaited<ReturnType<typeof importApp>>;
 const page = cachedGet(() => createApp());
 
+// The sets as the rebuild seeds them; each case reads its expected values here.
+const CANONICAL_SETS = STAGED_SETS;
 const setNamed = (slug: string) => CANONICAL_SETS.find(s => s.slug === slug)!;
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
+  seedStagedSets(db);
 
   // Seed one canonical trick linked to the pixie modifier so the pixie set
   // detail page renders a populated exampleTricks section in tests.
@@ -115,7 +120,7 @@ describe('GET /freestyle/sets/:slug — set detail page', () => {
     // explanation, or showing another set's.
     const res = await page('/freestyle/sets/blurry');
     const section = /aria-label="What it is">([\s\S]*?)<\/section>/.exec(res.text)?.[1] ?? '';
-    expect(section).toContain(Handlebars.escapeExpression(setNamed('blurry').movementExplanation));
+    expect(section).toContain(Handlebars.escapeExpression(setNamed('blurry').explanation));
   });
 
   it('lists every linked trick, without its notation, on a set page with no teaching content', async () => {
@@ -161,7 +166,7 @@ describe('GET /freestyle/sets/:slug — set detail page', () => {
     // Defect caught: the eyebrow showing a raw subtype key, or one subtype's label on every set.
     for (const slug of ['pixie', 'blurry']) {
       const res = await page(`/freestyle/sets/${slug}`);
-      const label = SET_SUBTYPE_SPECS.find(s => s.key === setNamed(slug).subtype)!.label;
+      const label = SET_SUBTYPE_SPECS.find(s => s.key === setNamed(slug).setGroup)!.label;
       expect(res.text, slug).toContain(`<p class="hero-eyebrow">${Handlebars.escapeExpression(label)}</p>`);
     }
   });
@@ -171,7 +176,7 @@ describe('GET /freestyle/sets/:slug — set detail page', () => {
 // S5 — Subtype-internal sibling navigation (prev/next strip)
 // ─────────────────────────────────────────────────────────────────────────
 //
-// True-core subtype declaration order in CANONICAL_SETS:
+// True-core display order in the seeded sets:
 //   toe → clipper → pixie → fairy → stepping → quantum → atomic → bubba → slapping → tapping
 // First (toe): no prev, next = clipper
 // Middle (stepping): prev = fairy, next = quantum
@@ -295,7 +300,7 @@ describe('GET /freestyle/sets/:slug — one standard set page', () => {
         'Formula',
         ...(guided ? ['Progression'] : []),
         'Example tricks',
-        ...(set.relatedSystems.length > 0 ? ['Related sets'] : []),
+        ...(set.relatedSets.length > 0 ? ['Related sets'] : []),
       ];
       const actual = sectionHeadings(res.text).map(h => (h.startsWith('Progression') ? 'Progression' : h));
       if (actual.join(' | ') !== expected.join(' | ')) {

@@ -25,6 +25,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
+import { seedStagedSets } from '../fixtures/stagedSets';
 import { insertFreestyleTrick, insertFreestyleTrickAlias } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3167');
@@ -33,6 +34,7 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
+  seedStagedSets(db);
 
   // The quantum set primitive: an inactive trick row, as the built dictionary
   // holds it, since quantum lives on its set page rather than as a trick.

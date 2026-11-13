@@ -14,6 +14,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
+import { seedStagedSets } from '../fixtures/stagedSets';
 import {
   insertFreestyleTrick,
   insertFreestyleTrickAlias,
@@ -27,6 +28,7 @@ const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
+  seedStagedSets(db);
   // Furious is the canonical two-dex, +2 set. Seed the modifier and one
   // representative Furious-based trick so the set page renders populated.
   insertFreestyleTrickModifier(db, {

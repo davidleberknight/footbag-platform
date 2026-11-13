@@ -5179,6 +5179,30 @@ CREATE TABLE freestyle_family_sublabels (
 
 CREATE INDEX idx_freestyle_family_sublabels_family ON freestyle_family_sublabels(family_slug);
 
+-- Freestyle sets: the sets that begin tricks, each with its own page at
+-- /freestyle/sets/<slug> and its entry on the Set Encyclopedia list. Seeded before
+-- go-live from the staged curator content, then created and edited in the set
+-- editor. The set groups a set_group names, and their text, are page prose kept in
+-- code; the editor and the seeder refuse any other group. A set's hashtag is always
+-- #set_<slug>, so it is not stored. A set's teaching guide, where it has one, is
+-- code too.
+CREATE TABLE freestyle_sets (
+  slug               TEXT PRIMARY KEY,                    -- lowercase letters, digits, underscores; never edited
+  display_name       TEXT NOT NULL,                       -- the name every page shows
+  set_group          TEXT NOT NULL,                       -- the encyclopedia group the set is listed under
+  sort_order         INTEGER NOT NULL,                    -- order within its group on the list and in sibling navigation; never an identity
+  formula            TEXT NOT NULL DEFAULT '',            -- the set's notation; '' = notation pending
+  explanation        TEXT NOT NULL,                       -- the plain-language explanation of the set
+  related_sets_json  TEXT NOT NULL DEFAULT '[]',          -- JSON array of {"slug","label"} in order; an empty label shows the related set's name
+  held_from_list     INTEGER NOT NULL DEFAULT 0 CHECK (held_from_list IN (0, 1)),
+                                                          -- 1 = kept off the encyclopedia list while its status is undecided; its page still resolves
+  created_at         TEXT NOT NULL,
+  created_by         TEXT NOT NULL,
+  updated_at         TEXT NOT NULL,
+  updated_by         TEXT NOT NULL,
+  version            INTEGER NOT NULL DEFAULT 1
+);
+
 -- Modifier reference table — loaded from trick_modifiers.csv, and edited in the
 -- modifier editor. It is the single home of each modifier's ADD.
 -- Each modifier applies a flat ADD bonus to any base trick. The

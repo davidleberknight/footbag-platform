@@ -189,6 +189,11 @@ export const COPY_COLUMN_REGISTER: Readonly<Record<string, TableClassification>>
   freestyle_family_sublabels: {
     keep: ['label', 'family_slug', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version'],
   },
+  freestyle_sets: {
+    keep: ['slug', 'display_name', 'set_group', 'sort_order', 'formula', 'explanation',
+      'related_sets_json', 'held_from_list', 'created_at', 'created_by', 'updated_at', 'updated_by',
+      'version'],
+  },
   freestyle_records: {
     keep: ['id', 'record_type', 'person_id', 'display_name', 'trick_name', 'sort_name',
       'adds_count', 'value_numeric', 'value_text', 'achieved_date', 'date_precision', 'source',

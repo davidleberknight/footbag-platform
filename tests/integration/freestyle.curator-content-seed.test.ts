@@ -20,6 +20,7 @@ import {
   insertFreestyleTrickModifier,
   insertFreestyleFamily,
   insertFreestyleFamilySublabel,
+  insertFreestyleSet,
 } from '../fixtures/factories';
 import {
   seedCuratorContent,
@@ -127,7 +128,18 @@ describe('seeding the staged curator content', () => {
       executionNotationSubtitles: content.executionNotationSubtitles.size,
       families:                   content.families.length,
       familySublabels:            content.familySublabels.size,
+      sets:                       content.sets.length,
     });
+    // Every staged set lands as authored, its related sets as JSON in order.
+    for (const s of content.sets) {
+      expect(db.prepare(`
+        SELECT display_name AS n, set_group AS g, sort_order AS o, formula AS f, explanation AS e,
+               related_sets_json AS r, held_from_list AS h
+        FROM freestyle_sets WHERE slug = ?`).get(s.slug), s.slug).toEqual({
+        n: s.displayName, g: s.setGroup, o: s.sortOrder, f: s.formula, e: s.explanation,
+        r: JSON.stringify(s.relatedSets), h: s.heldFromList ? 1 : 0,
+      });
+    }
     // Every staged family lands as authored, its lists as JSON in order, and
     // every folded label lands under its family.
     for (const f of content.families) {
@@ -189,6 +201,16 @@ describe('seeding the staged curator content', () => {
     expect(value("SELECT COUNT(*) AS v FROM freestyle_families WHERE slug = 'zz_stale_family'")).toBe(0);
     expect(value("SELECT COUNT(*) AS v FROM freestyle_family_sublabels WHERE label = 'zz_stale_label'")).toBe(0);
     expect(value('SELECT COUNT(*) AS v FROM freestyle_families')).toBe(content.families.length);
+  });
+
+  // Defect caught: a set removed from the staged sets living on in the database
+  // after the next refresh, so a dropped set keeps its page.
+  it('removes a set no staged entry supplies any more', () => {
+    seedCuratorContent(db);
+    insertFreestyleSet(db, { slug: 'zz_stale_set' });
+    seedCuratorContent(db);
+    expect(value("SELECT COUNT(*) AS v FROM freestyle_sets WHERE slug = 'zz_stale_set'")).toBe(0);
+    expect(value('SELECT COUNT(*) AS v FROM freestyle_sets')).toBe(content.sets.length);
   });
 
   // Defect caught: an entry removed from a staged module living on in the
@@ -272,10 +294,22 @@ describe('refusing content the database cannot take', () => {
     ['a folded label naming no family', withExtra({
       familySublabels: new Map([...content.familySublabels, ['zz_label', 'no_such_family_slug']]),
     }), /no_such_family_slug/],
+    // Defect caught: a staged set that would link to a page that does not exist,
+    // or be listed under a group the encyclopedia never shows.
+    ['a set related to a set that does not exist', withExtra({
+      sets: content.sets.map((s) => (s.slug === 'pixie' ? { ...s, relatedSets: [{ slug: 'no_such_set', label: '' }] } : s)),
+    }), /set "pixie"/],
+    ['a set in a group the encyclopedia does not define', withExtra({
+      sets: content.sets.map((s) => (s.slug === 'fairy' ? { ...s, setGroup: 'no-such-group' } : s)),
+    }), /set "fairy"/],
+    ['a set listed twice', withExtra({
+      sets: [...content.sets, content.sets[0]!],
+    }), /already a set/],
   ])('%s', (_label, bad, message) => {
     db.prepare('UPDATE freestyle_trick_modifiers SET beginner_note = ? WHERE slug = ?').run('kept', EXTRA_MODIFIER);
     db.prepare('UPDATE freestyle_tricks SET family_override = ? WHERE slug = ?').run('kept', EXTRA_TRICK);
     insertFreestyleFamily(db, { slug: 'zz_kept_family' });
+    insertFreestyleSet(db, { slug: 'zz_kept_set' });
     let refusal: unknown;
     try {
       seedCuratorContent(db, bad);
@@ -290,6 +324,7 @@ describe('refusing content the database cannot take', () => {
     expect(value('SELECT family_override AS v FROM freestyle_tricks WHERE slug = ?', EXTRA_TRICK)).toBe('kept');
     expect(value('SELECT COUNT(*) AS v FROM freestyle_tricks WHERE family_override IS NOT NULL')).toBe(1);
     expect(value('SELECT COUNT(*) AS v FROM freestyle_families')).toBe(1);
+    expect(value('SELECT COUNT(*) AS v FROM freestyle_sets')).toBe(1);
   });
 });
 

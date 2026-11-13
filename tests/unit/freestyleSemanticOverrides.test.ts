@@ -4,7 +4,10 @@
  */
 import { describe, it, expect } from 'vitest';
 import { COMPOUND_SEMANTIC_DESCRIPTIONS } from '../../freestyle/inputs/curator_content/freestyleSemanticOverridesData';
-import { findCanonicalSetBySlug, resolveCanonicalSetAlias } from '../../src/content/freestyleCanonicalSets';
+import { SET_SLUG_ALIASES } from '../../src/content/freestyleCanonicalSets';
+import { STAGED_SETS } from '../../freestyle/inputs/curator_content/freestyleSets';
+
+const findCanonicalSetBySlug = (slug: string) => STAGED_SETS.find((s) => s.slug === slug) ?? null;
 
 const getCompoundSemanticDescription = (slug: string): string | null =>
   COMPOUND_SEMANTIC_DESCRIPTIONS.get(slug) ?? null;
@@ -39,11 +42,11 @@ describe('Atomic and Illusioning are distinct (no merge)', () => {
   it('the atomic entry does not link to miraging', () => {
     const atomic = findCanonicalSetBySlug('atomic');
     expect(atomic).not.toBeNull();
-    const relatedSlugs = (atomic!.relatedSystems ?? []).map(s => s.slug);
+    const relatedSlugs = atomic!.relatedSets.map(s => s.slug);
     expect(relatedSlugs).not.toContain('miraging');
   });
 
   it('the illusioning slug does not fold to atomic', () => {
-    expect(resolveCanonicalSetAlias('illusioning')).toBeNull();
+    expect(SET_SLUG_ALIASES.get('illusioning')).toBeUndefined();
   });
 });

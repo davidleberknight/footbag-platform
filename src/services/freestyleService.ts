@@ -172,12 +172,13 @@ import { LEGACY_PANEL_TARGETS } from './conceptsAnchors';
 import { TERMINAL_SURFACES, type TopologyHistogramRow } from '../content/freestyleTopologyHistograms';
 import { MODIFIER_CLUSTERS, FIRST_CLASS_BROWSE_MODIFIERS, clusterForModifier } from '../content/freestyleModifierClusters';
 import { quantityLadderFor } from '../content/freestyleQuantityLadders';
+import { SET_SUBTYPE_SPECS } from '../content/freestyleCanonicalSets';
 import {
-  CANONICAL_SETS,
-  SET_SUBTYPE_SPECS,
+  canonicalSets,
   findCanonicalSetBySlug,
   resolveSetRouteRedirect,
-} from '../content/freestyleCanonicalSets';
+  type SetRecord,
+} from './freestyleSetRegistry';
 import { COMPETITION_FORMATS } from '../content/freestyleCompetitionFormats';
 import { UPTIME_REINTERPRETATION_LADDERS } from '../content/freestyleCompositionalSets';
 import {
@@ -1028,7 +1029,7 @@ function operatorFeelCard(slug: string): ModifierFeelCard | undefined {
 // body operator with a Holden-only set reading, so it shows no set formula here.
 function operatorNotation(slug: string, modifierType: string | null | undefined): string | null {
   if (modifierHashtagRole(slug, modifierType) !== 'set') return null;
-  return CANONICAL_SETS.find(s => s.slug === slug)?.formula ?? null;
+  return findCanonicalSetBySlug(slug)?.formula ?? null;
 }
 
 function operatorAddLabel(row: FreestyleTrickModifierRow | undefined): string | null {
@@ -2072,8 +2073,8 @@ export interface FreestyleSetDetailContent {
    *  no section there. */
   setBrowseHref:        string | null;
   /** S5 subtype-internal sibling navigation: previous/next set within
-   *  the same subtype, in CANONICAL_SETS declaration order (the same
-   *  order the encyclopedia card grid uses). Null on the first/last
+   *  the same subtype, in set display order (the same order the
+   *  encyclopedia card grid uses). Null on the first/last
    *  set within the subtype; the sibling-nav strip suppresses entirely
    *  if both are null. */
   previousSet:          SetDetailSibling | null;
@@ -8313,7 +8314,7 @@ export const freestyleService = {
    * freestyle trick pages.
    */
   listSitemapSetSlugs(): string[] {
-    return CANONICAL_SETS.map((s) => s.slug);
+    return canonicalSets().map((s) => s.slug);
   },
 
   /**
@@ -8538,11 +8539,11 @@ export const freestyleService = {
     const education = buildSetEducationContent(set.slug, allActiveRows);
 
     // S5 sibling navigation: previous / next set within the same subtype,
-    // in CANONICAL_SETS declaration order (matches the encyclopedia card
-    // grid order). Null on the first / last set within the subtype.
-    const subtypeSiblings = CANONICAL_SETS.filter(s => s.subtype === set.subtype);
+    // in set display order (matches the encyclopedia card grid order). Null
+    // on the first / last set within the subtype.
+    const subtypeSiblings = canonicalSets().filter(s => s.subtype === set.subtype);
     const siblingIdx = subtypeSiblings.findIndex(s => s.slug === set.slug);
-    const buildSibling = (s: typeof CANONICAL_SETS[number] | undefined): SetDetailSibling | null =>
+    const buildSibling = (s: SetRecord | undefined): SetDetailSibling | null =>
       s ? { slug: s.slug, displayName: s.displayName, href: `/freestyle/sets/${s.slug}` } : null;
     const previousSet = siblingIdx > 0
       ? buildSibling(subtypeSiblings[siblingIdx - 1])
@@ -8616,7 +8617,7 @@ export const freestyleService = {
       return cleaned.slice(0, sentenceBreak + 1);
     };
 
-    const shapeEncyclopediaCard = (s: typeof CANONICAL_SETS[number]): EncyclopediaSetCard => ({
+    const shapeEncyclopediaCard = (s: SetRecord): EncyclopediaSetCard => ({
       slug:            s.slug,
       displayName:     s.displayName,
       compactMovement: compactFirstSentence(s.movementExplanation),
@@ -8629,8 +8630,9 @@ export const freestyleService = {
       'nextSubtypeAnchor' | 'nextSubtypeLabel' | 'nextSubtypeTagline'
     >;
     const rawSections: RawSection[] = SET_SUBTYPE_SPECS.map(spec => {
-      const cards = CANONICAL_SETS
-        .filter(s => s.subtype === spec.key)
+      // A set held off the list while its status is undecided keeps its page.
+      const cards = canonicalSets()
+        .filter(s => s.subtype === spec.key && !s.heldFromEncyclopediaList)
         .map(shapeEncyclopediaCard);
       return {
         key:   spec.key,

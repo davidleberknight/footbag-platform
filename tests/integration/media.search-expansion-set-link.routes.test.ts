@@ -17,6 +17,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import request from 'supertest';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+import { seedStagedSets } from '../fixtures/stagedSets';
 import {
   insertMember,
   insertFreestyleTrick,
@@ -53,6 +54,7 @@ function insertPhoto(db: BetterSqlite3.Database, id: string, caption: string, up
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
+  seedStagedSets(db);
   insertMember(db, { id: SYSTEM_ID, slug: 'media_exp_system', is_system: 1, display_name: 'Footbag Hacky' });
 
   const seed = (norm: string, mediaId: string, caption: string, when: string) => {

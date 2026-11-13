@@ -3390,7 +3390,7 @@ Story: As an admin, I can create a freestyle set and edit an existing one, with 
 
 Success Criteria, Fields:
 
-- Create takes the slug, the display name, the set group, the formula, the plain-language explanation and the related sets; edit changes every field but the slug. The hashtag is always `#set_{slug}`.
+- Create takes the slug, the display name, the set group, the formula, the plain-language explanation and the related sets, each with an optional link label (an empty label shows the related set's name); edit changes every field but the slug. The hashtag is always `#set_{slug}`.
 - The formula may be empty; the set page then says its notation is pending.
 - A set can be held off the encyclopedia list while its status is undecided; its page still resolves.
 
