@@ -13,6 +13,7 @@ import request from 'supertest';
 import { cachedGet } from '../fixtures/cachedGet';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, insertEvent, insertClub, insertTag, insertMemberGallery, insertHistoricalPerson, insertFreestyleTrick, createTestSessionJwt } from '../fixtures/factories';
+import { seedStagedSets } from '../fixtures/stagedSets';
 
 const { dbPath } = setTestEnv('3080');
 const ORIGIN = 'http://localhost:3080';
@@ -41,6 +42,9 @@ beforeAll(async () => {
   // whose trick URL redirects to its modifier page.
   insertFreestyleTrick(db, { slug: 'seo_butterfly', canonical_name: 'seo butterfly', adds: '3', category: 'compound' });
   insertFreestyleTrick(db, { slug: 'spinning', canonical_name: 'spinning', category: 'modifier' });
+
+  // The freestyle sets, so each set's detail URL appears in the sitemap.
+  seedStagedSets(db);
 
   // Historical people covering each answer the detail page gives a signed-out
   // visitor: Hall of Fame and Big Add Posse records are public pages; an

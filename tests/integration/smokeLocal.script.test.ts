@@ -21,6 +21,7 @@ import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 import { insertEvent, insertClub } from '../fixtures/factories';
+import { seedStagedSets } from '../fixtures/stagedSets';
 import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 
@@ -70,6 +71,7 @@ beforeAll(() => {
   const db = createTestDb(dbPath);
   insertEvent(db, { status: 'completed', title: 'Smoke Open', start_date: '2025-06-01', end_date: '2025-06-02' });
   insertClub(db, { name: 'Smoke Club', city: 'Portland', country: 'USA' });
+  seedStagedSets(db);
   db.close();
 });
 
