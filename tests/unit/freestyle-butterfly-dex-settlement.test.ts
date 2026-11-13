@@ -6,8 +6,7 @@
  * either-side placeholder. These tests pin the settled coordinate at every
  * authoritative source so the placeholder cannot return after a rebuild, and
  * keep the dex relation distinct from the separately-authored terminal
- * clipper relation. The set teaching pages state the authored-in-compound
- * coordinate doctrine rather than claiming the base runs unchanged.
+ * clipper relation. No set teaching page claims the base runs unchanged.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
@@ -54,25 +53,5 @@ describe('curated corrections carry the settled OP OUT butterfly dex', () => {
 describe('set teaching copy states the authored-in-compound coordinate doctrine', () => {
   it('no set page claims the base dexterity runs unchanged', () => {
     expect(EDUCATION).not.toMatch(/runs unchanged|then unchanged|base is unchanged/);
-  });
-
-  it('every launch-notes doctrine statement uses the authored-in-compound wording', () => {
-    const doctrine =
-      'authored within the complete compound relative to the most recent preceding side-bearing component';
-    const count = EDUCATION.split(doctrine).length - 1;
-    expect(count).toBeGreaterThanOrEqual(11);
-  });
-
-  it('the settled butterfly examples appear on their set pages', () => {
-    expect(EDUCATION).toContain("Fairy Butterfly retains Butterfly\\'s OP OUT");
-    expect(EDUCATION).toContain("Swirling Butterfly retains Butterfly\\'s OP OUT");
-  });
-
-  it('retained and re-authored examples both appear, so no universal claim is implied', () => {
-    expect(EDUCATION).toContain("Stepping Whirl retains Whirl\\'s OP IN");
-    expect(EDUCATION).toContain("Magellan authors Legover\\'s outward dex as SAME OUT");
-    expect(EDUCATION).toContain("Floatation authors Butterfly\\'s dex as SAME OUT");
-    expect(EDUCATION).toContain("Big Papa Smurf retains Blender\\'s OP IN");
-    expect(EDUCATION).toContain('Tapdown remains the established Tapping re-authoring precedent');
   });
 });

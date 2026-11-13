@@ -692,10 +692,8 @@ section-heading
 section-intro
 set-detail
 set-detail-component-note
-set-detail-cross-links
 set-detail-formula
 set-detail-link-list
-set-detail-movement
 set-detail-sibling-nav
 set-detail-sibling-nav-label
 set-detail-sibling-nav-name

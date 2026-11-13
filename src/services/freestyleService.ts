@@ -2047,10 +2047,9 @@ export interface EncyclopediaCrossLinks {
 }
 
 // Set detail page content.
-// One page per canonical set at /freestyle/sets/<slug>. Mirrors the
-// trick-detail structure: hashtag · plain explanation · formula ·
-// equivalence readings · derived/related systems · example tricks ·
-// cross-links.
+// One page per canonical set at /freestyle/sets/<slug>, every one in the same
+// order: what it is, the formula, a worked example (only where a teaching guide
+// supplies one), example tricks, related sets.
 export interface FreestyleSetDetailContent {
   slug:                 string;
   hashtag:              string;
@@ -2059,19 +2058,19 @@ export interface FreestyleSetDetailContent {
   subtype:              SetSubtypeKey;
   subtypeLabel:         string;
   formula:              string;
-  movementExplanation:  string;
-  // Doctrine-supported alternate / historic set names. Pre-shaped for direct
-  // rendering.
+  /** What it is: the teaching guide's definition where the set has a guide,
+   *  otherwise the set's plain explanation. */
+  whatItIs:             string;
+  /** The guide's notation sentence stating the +N, shown under the formula;
+   *  empty where the set has no guide. */
+  formulaNote:          string;
+  // The other sets this one is related to, pre-shaped as links.
   relatedSystems:       readonly SlugLinkVM[];
   exampleTricks:        readonly SetDetailExampleTrick[];
   hasExampleTricks:     boolean;
-  crossLinks:           SetDetailCrossLinks;
-  componentMechanicsNote: string;
-  /** Notation-authority note rendered on the atomic / quantum / nuclear set pages:
-   *  X-Dex is scored from [XDEX] in the notation. The full rule lives in the glossary
-   *  X-Dex entry; this one-liner keeps the set page from silently omitting
-   *  a rule its scoring depends on. Undefined on every other set. */
-  xDexReceiverNote?:    string;
+  /** This set's section of the dictionary's By set view; null when the set has
+   *  no section there. */
+  setBrowseHref:        string | null;
   /** S5 subtype-internal sibling navigation: previous/next set within
    *  the same subtype, in CANONICAL_SETS declaration order (the same
    *  order the encyclopedia card grid uses). Null on the first/last
@@ -2079,11 +2078,9 @@ export interface FreestyleSetDetailContent {
    *  if both are null. */
   previousSet:          SetDetailSibling | null;
   nextSet:              SetDetailSibling | null;
-  /** Concept-first teaching layer, present only on migrated sets (a set page
-   *  with authored set-education content). The template renders the teaching
-   *  sections above the structural reference sections when this is set, and
-   *  suppresses the thin Formula / Movement sections it absorbs. Null on every
-   *  un-migrated set, which renders the reference-only layout unchanged. */
+  /** The set's teaching guide, present only on a set that has one. It supplies
+   *  the worked example and the annotated example tricks; null on every other
+   *  set, which shows its linked tricks and no worked example. */
   education:            SetEducationContent | null;
 }
 
@@ -2102,14 +2099,6 @@ export interface SetDetailExampleTrick {
   operationalNotation: string;
   // Media-gallery destination for this trick's clips, or null when it has none.
   mediaHref:           string | null;
-}
-
-export interface SetDetailCrossLinks {
-  setEncyclopediaHref:                string;
-  // This set's section in the dictionary's By set view; null when the set has
-  // no section there.
-  setBrowseHref:             string | null;
-  operatorReferenceHref?:    string;
 }
 
 // One row in the ?view=modifier projection. Each set/modifier carries the list
@@ -8543,22 +8532,10 @@ export const freestyleService = {
         mediaHref:           mediaHrefFor(row.slug),
       }));
 
-    // Operator reference is only meaningful when the set has a registered
-    // modifier (pixie/fairy/atomic/miraging/quantum/nuclear/stepping/surging).
-    // Set operators live on their own set pages; the Operators & Modifiers index
-    // covers the body operators only, so a set-named anchor there does not exist.
-    // Omit the cross-link for sets; only the ducking-embedding sets point out, at
-    // the Ducking operator page.
-    const operatorReferenceHref =
-      (set.slug === 'zulu' || set.slug === 'weaving')
-        ? '/freestyle/modifier/ducking'
-        : undefined;
-
-    const crossLinks: SetDetailCrossLinks = {
-      setEncyclopediaHref:             '/freestyle/sets',
-      setBrowseHref:          clusterForModifier(set.slug) === 'set-uptime' ? modifierBrowseHref(set.slug) : null,
-      operatorReferenceHref,
-    };
+    // Only a set with its own section in the dictionary's By set view links to it.
+    const setBrowseHref =
+      clusterForModifier(set.slug) === 'set-uptime' ? modifierBrowseHref(set.slug) : null;
+    const education = buildSetEducationContent(set.slug, allActiveRows);
 
     // S5 sibling navigation: previous / next set within the same subtype,
     // in CANONICAL_SETS declaration order (matches the encyclopedia card
@@ -8579,7 +8556,7 @@ export const freestyleService = {
         title:       `${set.displayName} (set system)`,
         description:
           `${set.displayName} canonical set ontology: formula, movement explanation, ` +
-          `equivalence readings, derived and related systems, and example tricks.`,
+          `related systems, and example tricks.`,
       },
       page: {
         sectionKey: 'freestyle',
@@ -8602,7 +8579,8 @@ export const freestyleService = {
         subtype:               set.subtype,
         subtypeLabel,
         formula:               set.formula,
-        movementExplanation:   set.movementExplanation,
+        whatItIs:              education ? education.definition : set.movementExplanation,
+        formulaNote:           education ? education.jobNotation : '',
         relatedSystems:        set.relatedSystems.map(r => ({
           slug:  r.slug,
           label: r.label,
@@ -8610,23 +8588,10 @@ export const freestyleService = {
         })),
         exampleTricks,
         hasExampleTricks:      exampleTricks.length > 0,
-        crossLinks,
-        componentMechanicsNote:
-          (set.slug === 'zulu' || set.slug === 'weaving')
-            ? 'This is a set defined by its launch mechanism, and that launch incorporates ' +
-              'the ducking body component. Ducking on its own is the body modifier, taught ' +
-              'on the Operators & Modifiers reference.'
-            : 'Component mechanics (ducking, diving, bare spinning, bare inspinning, gyro) ' +
-              'are body modifiers, not sets. See the Operators & Modifiers reference.',
-        xDexReceiverNote:
-          (set.slug === 'atomic' || set.slug === 'quantum' || set.slug === 'nuclear')
-            ? 'A following dex marked [XDEX] in the notation scores a separate +1. ' +
-              'X-Dex is recorded explicitly in the notation, never inferred from the ' +
-              'set or the base.'
-            : undefined,
+        setBrowseHref,
         previousSet,
         nextSet,
-        education: buildSetEducationContent(set.slug, allActiveRows),
+        education,
       },
     };
   },

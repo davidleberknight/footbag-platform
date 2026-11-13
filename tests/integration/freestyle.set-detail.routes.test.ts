@@ -2,16 +2,16 @@
  * /freestyle/sets/:slug — Set detail page.
  *
  * Pins:
- *   - 200 status on known canonical-set slugs (pixie, blurry, surging)
- *   - 404 on unknown slugs (anti-enumeration)
- *   - A set page without teaching content renders: formula, movement
- *     explanation, related systems, every linked trick (empty-state OR
- *     populated) and cross-links
- *   - A teaching page renders at most six sections, states its notation once
- *     under "How it launches", and leaves the full trick list to the
- *     dictionary's By set view
- *   - Cross-links resolve to expected URLs (the Set Encyclopedia, the
- *     dictionary's By set view, the operators page when applicable)
+ *   - 200 status on known canonical-set slugs, 404 on unknown slugs
+ *     (anti-enumeration)
+ *   - Every set page has the same sections in the same order: what it is, the
+ *     formula, a worked example only where a teaching guide supplies one,
+ *     example tricks, and related sets where the set has any
+ *   - Every set page stays under 600 words and six sections
+ *   - The formula shows on every set that has one, with a guide's +N sentence
+ *     under it, and the pending line on a set that has none
+ *   - A set without a guide lists every linked trick; a guided set leaves the
+ *     full list to the dictionary's By set view and links it
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -32,6 +32,7 @@ import {
   insertTtLesson,
 } from '../fixtures/factories';
 import { CANONICAL_SETS, SET_SUBTYPE_SPECS } from '../../src/content/freestyleCanonicalSets';
+import { buildSetEducationContent, hasSetEducationPage } from '../../src/services/symbolicSetEducation';
 
 const { dbPath } = setTestEnv('3221');
 
@@ -101,9 +102,6 @@ describe('GET /freestyle/sets/:slug — set detail page', () => {
     expect(res.status).toBe(404);
   });
 
-  // blurry is a thin set (no authored teaching page), so its Formula and Movement
-  // sections render directly; a migrated set like pixie absorbs them into the
-  // teaching layer.
   it('renders the set\'s own formula as a code block', async () => {
     // Defect caught: the formula block showing the wrong value.
     const res = await page('/freestyle/sets/blurry');
@@ -112,12 +110,12 @@ describe('GET /freestyle/sets/:slug — set detail page', () => {
     expect(res.text).toContain(Handlebars.escapeExpression(setNamed('blurry').formula));
   });
 
-  it('renders the set\'s own movement explanation', async () => {
-    // Defect caught: a set page without teaching content losing its plain explanation.
+  it('shows a set without a guide its own plain explanation under What it is', async () => {
+    // Defect caught: a set page without teaching content losing its plain
+    // explanation, or showing another set's.
     const res = await page('/freestyle/sets/blurry');
-    expect(res.text).toContain(
-      `<p class="set-detail-movement">${Handlebars.escapeExpression(setNamed('blurry').movementExplanation)}</p>`,
-    );
+    const section = /aria-label="What it is">([\s\S]*?)<\/section>/.exec(res.text)?.[1] ?? '';
+    expect(section).toContain(Handlebars.escapeExpression(setNamed('blurry').movementExplanation));
   });
 
   it('lists every linked trick, without its notation, on a set page with no teaching content', async () => {
@@ -157,18 +155,6 @@ describe('GET /freestyle/sets/:slug — set detail page', () => {
     // retired page instead of linking the merged one.
     expect(res.text).not.toContain('href="/freestyle/compositional-sets');
     expect(res.text).not.toContain('href="/freestyle/sets/reference');
-  });
-
-  it('omits the operator-reference cross-link for a set with no operators-page entry', async () => {
-    const res = await page('/freestyle/sets/pixie');
-    // Set operators live on their own set pages, not the body-operator index, so
-    // pixie carries no operators anchor rather than a broken one.
-    expect(res.text).not.toContain('href="/freestyle/operators#pixie"');
-  });
-
-  it('does NOT render the operator-reference cross-link for holden-only sets without a modifier', async () => {
-    const res = await page('/freestyle/sets/bubba');
-    expect(res.text).not.toContain('href="/freestyle/operators#bubba"');
   });
 
   it('uses each set\'s own subtype label as eyebrow text', async () => {
@@ -280,126 +266,86 @@ describe('GET /freestyle/sets/:slug — set vs non-set concepts', () => {
   });
 });
 
-// Section-order parity with the trick-detail shell: the plain explanation first,
-// then the formula, then relationships, examples and cross-links.
-const SET_PARITY_ORDER = [
-  'aria-label="About This Set"',
-  'aria-label="Formula"',
-  'aria-label="Related sets"',
-  'aria-label="Example tricks"',
-  'aria-label="Cross-references"',
-];
+// The teaching guides, read from the module that registers them, so a guide
+// added or retired there moves these checks with it.
+const TEACHING_SLUGS = CANONICAL_SETS.map(s => s.slug).filter(hasSetEducationPage);
 
-function presentSectionsInOrder(text: string): { present: string[]; ascending: boolean } {
-  const present = SET_PARITY_ORDER.filter(m => text.includes(m));
-  const positions = present.map(m => text.indexOf(m));
-  let ascending = true;
-  for (let i = 1; i < positions.length; i++) {
-    if (positions[i] <= positions[i - 1]) ascending = false;
-  }
-  return { present, ascending };
-}
+const sectionHeadings = (html: string): string[] =>
+  [...html.matchAll(/<h2[^>]*>([\s\S]*?)<\/h2>/g)].map(m => m[1]!.replace(/<[^>]+>/g, '').trim());
 
-describe('GET /freestyle/sets/:slug — section order mirrors the trick-detail shell', () => {
-  it('a set page without teaching content renders its sections in trick-detail order', async () => {
-    const res = await page('/freestyle/sets/sailing');
-    const { present, ascending } = presentSectionsInOrder(res.text);
-    expect(present).toEqual(SET_PARITY_ORDER);
-    expect(ascending).toBe(true);
+describe('GET /freestyle/sets/:slug — one standard set page', () => {
+  it('finds a teaching guide for some sets and not for others', () => {
+    // Without both kinds, the shape checks below would cover only one branch.
+    expect(TEACHING_SLUGS.length).toBeGreaterThan(0);
+    expect(TEACHING_SLUGS.length).toBeLessThan(CANONICAL_SETS.length);
   });
-});
 
-const TEACHING_SLUGS = [
-  'stepping', 'pixie', 'fairy', 'swirling', 'floating', 'surfing',
-  'warping', 'atomic', 'quantum', 'nuclear', 'furious',
-];
-// Swirling's page authors no common confusions, so its section is omitted.
-const TEACHING_SLUGS_WITHOUT_CONFUSIONS = ['swirling'];
-
-describe('GET /freestyle/sets/:slug — teaching pages stay at six sections', () => {
-  it.each(TEACHING_SLUGS.map(slug => [slug] as const))(
-    '%s stays within six sections and renders its progression',
-    async (slug) => {
-      // Defect caught: a teaching page growing back past six sections, or
-      // losing the progression its examples build on.
-      const res = await page(`/freestyle/sets/${slug}`);
-      expect(res.status).toBe(200);
-      const headings = [...res.text.matchAll(/<h2[^>]*>([\s\S]*?)<\/h2>/g)]
-        .map(m => m[1]!.replace(/<[^>]+>/g, '').trim());
-      expect(headings.length, `${slug} section count`).toBeLessThanOrEqual(6);
-      const progression = headings.find(h => h.startsWith('Progression'));
-      expect(progression, `${slug} progression`).toBeDefined();
-    },
-  );
-
-  it.each(TEACHING_SLUGS.map(slug => [slug] as const))(
-    '%s states its notation under How it launches',
-    async (slug) => {
-      // Defect caught: a cut that removes a set's formula or decomposition.
-      const res = await page(`/freestyle/sets/${slug}`);
-      const start = res.text.indexOf('aria-label="How it launches"');
-      const section = res.text.slice(start, res.text.indexOf('</section>', start));
-      expect(start).toBeGreaterThan(0);
-      // Handlebars escapes "=" as &#x3D;.
-      expect(section, slug).toMatch(/\(\+\d\) \+ [a-z]+\(\d\) (=|&#x3D;) \d/);
-    },
-  );
-
-  it('gives every teaching page a definition of its own and, where it teaches them, its confusions', async () => {
-    // Defect caught: a teaching page rendering an empty definition or no common
-    // confusions, or every page showing one set's content.
-    const problems: string[] = [];
-    const definitions: string[] = [];
-    for (const slug of TEACHING_SLUGS) {
-      const { text } = await page(`/freestyle/sets/${slug}`);
-      const definition = /aria-label="What it is">\s*<div class="section-heading"><h2>What it is<\/h2><\/div>\s*<p>([^<]*)<\/p>/.exec(text)?.[1]?.trim() ?? '';
-      if (!definition) problems.push(`${slug}: empty definition`);
-      definitions.push(definition);
-      const confusions = /aria-label="Common confusions">[\s\S]*?<\/section>/.exec(text)?.[0] ?? '';
-      const hasConfusion = /<h3>[^<]+<\/h3>\s*<p>[^<]+<\/p>/.test(confusions);
-      if (!hasConfusion && !TEACHING_SLUGS_WITHOUT_CONFUSIONS.includes(slug)) {
-        problems.push(`${slug}: no common confusion`);
+  it('renders every set page in the same order, a worked example only where a guide supplies one', async () => {
+    // Defect caught: the two kinds of set page drifting back into different
+    // section lists, a guided page losing its worked example, or a page without
+    // a guide inventing one.
+    const app = await createApp();
+    const wrong: string[] = [];
+    for (const set of CANONICAL_SETS) {
+      const res = await request(app).get(`/freestyle/sets/${set.slug}`);
+      expect(res.status, set.slug).toBe(200);
+      const guided = TEACHING_SLUGS.includes(set.slug);
+      const expected = [
+        'What it is',
+        'Formula',
+        ...(guided ? ['Progression'] : []),
+        'Example tricks',
+        ...(set.relatedSystems.length > 0 ? ['Related sets'] : []),
+      ];
+      const actual = sectionHeadings(res.text).map(h => (h.startsWith('Progression') ? 'Progression' : h));
+      if (actual.join(' | ') !== expected.join(' | ')) {
+        wrong.push(`${set.slug}: ${actual.join(' | ')}`);
       }
     }
-    expect(problems).toEqual([]);
-    expect(new Set(definitions).size, 'distinct definitions').toBe(TEACHING_SLUGS.length);
+    expect(wrong).toEqual([]);
   });
-});
 
-// Set-detail links are not covered here. The /freestyle/tricks?view=modifier
-// URL answers "which tricks use this set or modifier?" with a modifier-grouped
-// trick list and carries no detail links; the Set Encyclopedia at
-// /freestyle/sets owns them, under its own card class names, and its own suite
-// covers them.
+  it('keeps every set page under 600 words and at most six sections', async () => {
+    // Defect caught: a set page regrowing into the long reference it was cut from.
+    const app = await createApp();
+    for (const set of CANONICAL_SETS) {
+      const res = await request(app).get(`/freestyle/sets/${set.slug}`);
+      const main = res.text.match(/<main[\s\S]*<\/main>/)?.[0] ?? '';
+      expect(main.match(/<h2[\s>]/g)?.length ?? 0, `${set.slug} sections`).toBeLessThanOrEqual(6);
+      const words = main.replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean).length;
+      expect(words, `${set.slug} words`).toBeLessThan(600);
+    }
+  });
 
-describe('Set detail — X-Dex receiver note (atomic / quantum / nuclear only)', () => {
-  for (const slug of ['atomic', 'quantum', 'nuclear']) {
-    it(`renders the X-Dex receiver note under How it launches on ${slug}`, async () => {
+  it.each(TEACHING_SLUGS.map(slug => [slug] as const))(
+    '%s states its +N under the formula, and only there',
+    async (slug) => {
+      // Defect caught: a cut that drops a guided set's decomposition, or a page
+      // stating it twice.
       const res = await page(`/freestyle/sets/${slug}`);
-      expect(res.status).toBe(200);
-      // The note is notation-authoritative: X-Dex is scored from the [XDEX] flag,
-      // not inferred from the set or base. The full rule lives in Freestyle Concepts.
-      const start = res.text.indexOf('aria-label="How it launches"');
-      const section = res.text.slice(start, res.text.indexOf('</section>', start));
-      expect(section).toMatch(/marked \[XDEX\] in the notation/);
-    });
-  }
+      const section = /aria-label="Formula">([\s\S]*?)<\/section>/.exec(res.text)?.[1] ?? '';
+      // Handlebars escapes "=" as &#x3D;.
+      const decomposition = /[a-z]+\(\+\d\) \+ [a-z]+(\([^)]*\))?\(\d\) (=|&#x3D;) \d/;
+      expect(section, slug).toMatch(decomposition);
+      const note = Handlebars.escapeExpression(buildSetEducationContent(slug, [])!.jobNotation);
+      expect(res.text.split(note).length - 1, `${slug} notation sentence count`).toBe(1);
+    },
+  );
 
-  it('omits the X-Dex receiver note on a non-receiver set (pixie)', async () => {
-    const res = await page('/freestyle/sets/pixie');
-    expect(res.status).toBe(200);
-    expect(res.text).not.toMatch(/marked \[XDEX\] in the notation/);
+  it('shows every guided page its own guide definition under What it is', async () => {
+    // Defect caught: a guided page showing the set's plain explanation instead
+    // of its guide's definition, an empty definition, or another set's.
+    for (const slug of TEACHING_SLUGS) {
+      const { text } = await page(`/freestyle/sets/${slug}`);
+      const definition = /aria-label="What it is">[\s\S]*?<p>([^<]*)<\/p>/.exec(text)?.[1]?.trim() ?? '';
+      const expected = Handlebars.escapeExpression(buildSetEducationContent(slug, [])!.definition);
+      expect(definition, slug).not.toBe('');
+      expect(definition, slug).toBe(expected);
+    }
   });
 });
 
 describe('GET /freestyle/sets/stepping — set-page educational reference implementation', () => {
-  it('absorbs the thin Formula / Movement sections into the teaching layer', async () => {
-    const res = await page('/freestyle/sets/stepping');
-    // On a migrated set the teaching layer replaces the bare explanation and formula headings.
-    expect(res.text).not.toContain('<h2>Formula</h2>');
-    expect(res.text).not.toContain('<h2>About This Set</h2>');
-  });
-
   it('renders progression from butterfly, landing on its named trick (clickable underscore slugs)', async () => {
     const res = await page('/freestyle/sets/stepping');
     expect(res.text).toContain('set-step-1-butterfly');
@@ -415,21 +361,10 @@ describe('GET /freestyle/sets/stepping — set-page educational reference implem
   });
 });
 
-describe('GET /freestyle/sets/:slug — migrated set-education pages (pixie / fairy / whirl-family / composite +3)', () => {
-  // Six settled, non-ambiguous platform-canonical sets with teaching pages.
-  // Their content resolves slugs against the test dictionary; unseeded slugs
-  // render as plain text, so these assertions check only the static teaching
-  // layer and the redirect, not link pilots. The six-section structure is
-  // checked for every teaching page above.
+describe('GET /freestyle/modifier/:slug — a set\'s old modifier address', () => {
   const MIGRATED = ['pixie', 'fairy', 'swirling', 'floating', 'surfing', 'warping'];
 
   for (const slug of MIGRATED) {
-    it(`${slug} absorbs the thin Formula/Movement sections into the teaching layer`, async () => {
-      const res = await page(`/freestyle/sets/${slug}`);
-      expect(res.text).not.toContain('<h2>Formula</h2>');
-      expect(res.text).not.toContain('<h2>About This Set</h2>');
-    });
-
     it(`${slug} modifier route redirects to its set page`, async () => {
       const res = await page(`/freestyle/modifier/${slug}`);
       expect(res.status).toBe(301);
@@ -477,31 +412,23 @@ describe('/freestyle/sets/:slug — formula, and what a visitor is not shown', (
     expect(res.text).not.toMatch(/side relation is not settled/);
   });
 
-  it('shows a formula on every set whose formula the derivation supplies', async () => {
-    // Without this, a rendering change that silently dropped every formula would
-    // read as success.
+  it('shows every set its own formula, or the pending line where it has none', async () => {
+    // Defect caught: a set page losing the notation the set encyclopedia story
+    // keeps on the detail page, or a set with no formula showing an empty block.
     const app = await createApp();
     const withFormula = CANONICAL_SETS.filter(s => s.formula.trim().length > 0);
+    const without = CANONICAL_SETS.filter(s => s.formula.trim().length === 0);
     expect(withFormula.length).toBeGreaterThan(0);
-
-    const showing: string[] = [];
-    for (const set of withFormula) {
+    expect(without.length).toBeGreaterThan(0);
+    const wrong: string[] = [];
+    for (const set of CANONICAL_SETS) {
       const res = await request(app).get(`/freestyle/sets/${set.slug}`);
-      if (res.status === 200 && res.text.includes('set-detail-formula')) {
-        showing.push(set.slug);
-      }
+      const body = formulaSection(res.text) ?? '';
+      const hasFormula = set.formula.trim().length > 0;
+      const shown = body.includes(`<code class="set-detail-formula">${Handlebars.escapeExpression(set.formula)}</code>`);
+      const pending = !body.includes('set-detail-formula') && body.includes('set-detail-component-note');
+      if (hasFormula ? !shown : !pending) wrong.push(set.slug);
     }
-    // Not all of them: the sets that teach their notation in prose render no
-    // formula today, which is a content decision and not this test's to make.
-    // What it pins is that the ones that do show one are a real, non-empty set.
-    expect(showing.length).toBeGreaterThan(0);
-  });
-
-  it('prints no bare formula on a page that teaches its notation in prose', async () => {
-    // Defect caught: a teaching page stating its notation twice.
-    const res = await page('/freestyle/sets/swirling');
-    expect(res.status).toBe(200);
-    expect(res.text.indexOf('aria-label="How it launches"')).toBeGreaterThan(0);
-    expect(res.text).not.toContain('set-detail-formula');
+    expect(wrong).toEqual([]);
   });
 });

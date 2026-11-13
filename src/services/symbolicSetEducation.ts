@@ -13,12 +13,18 @@
  * resolving every progression / representative-trick slug against the
  * dictionary so the links are clickable.
  *
- * A set teaching page has at most six sections, with headings identical on
- * every set page (the page title names the set): What it is / How it launches /
- * Progression / Example tricks / Common confusions / Related concepts. "How it
- * launches" carries the launch prose, the notation and the launch notes, each
- * optional, so a page states the formula and the +N once rather than in every
- * slot. General notation is explained once, on the Set Encyclopedia.
+ * Every set page has the same sections (the page title names the set): What it
+ * is / Formula / Worked example / Example tricks / Related sets. A guide supplies
+ * the short definition, the notation sentence that states the +N under
+ * the formula, the worked example (its progression on one anchor trick) and the
+ * example tricks; a set without a guide shows its plain explanation and its
+ * linked tricks instead, and has no worked example. General notation is
+ * explained once, on the Set Encyclopedia.
+ *
+ * Where a set is the uptime form of a trick the reader already knows, the
+ * definition names that trick first, so the reader can picture the set before
+ * reading the notation: Pixie is an uptime Around the World, Fairy an uptime
+ * Orbit, Quantum an uptime Mirage, Atomic an uptime Illusion.
  *
  * Adding a set: register an object in SET_PAGE_CONTENT.
  */
@@ -27,11 +33,6 @@ import type { FreestyleTrickRow } from '../db/db';
 // ─────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────
-
-export interface SetEducationConfusionPair {
-  heading: string;
-  prose:   string;
-}
 
 export interface SetEducationProgressionStep {
   slug:        string;
@@ -45,20 +46,12 @@ export interface SetEducationExample {
   prose:     string;
 }
 
-export interface SetEducationRelatedSystem {
-  name:  string;
-  prose: string;
-}
-
 // Per-set authored content (input shape; static).
 export interface SetEducationInput {
   slug:         string;   // canonical-set slug; matches the /freestyle/sets/:slug param
   displayName:  string;
-  definition:     string; // What it is
-  howItLaunches:  string; // How it launches (launch-first; the base dexterity stays recognizable); '' to omit
-  jobNotation:    string; // The set formula and what the notation records; '' to omit
-  launchNotes:    string; // Objective: the defining launch structure, not coaching; '' to omit
-  confusions:     SetEducationConfusionPair[];
+  definition:     string; // What it is: a few sentences, naming the familiar counterpart trick where there is one
+  jobNotation:    string; // The notation sentence shown under the formula, stating the +N; '' to omit
   progression: {
     anchorBaseLabel: string;
     steps:           SetEducationProgressionStep[];
@@ -66,7 +59,6 @@ export interface SetEducationInput {
   representativeTricks: {
     examples:    SetEducationExample[];
   };
-  relatedConcepts: SetEducationRelatedSystem[];
 }
 
 // Per-set output shape (dictionary-row-resolved view-model).
@@ -89,10 +81,7 @@ export interface SetEducationContent {
   slug:           string;
   displayName:    string;
   definition:     string;
-  howItLaunches:  string;
   jobNotation:    string;
-  launchNotes:    string;
-  confusions:     SetEducationConfusionPair[];
   progression: {
     anchorBaseLabel: string;
     steps:           SetEducationProgressionStepResolved[];
@@ -100,7 +89,6 @@ export interface SetEducationContent {
   representativeTricks: {
     examples:    SetEducationExampleResolved[];
   };
-  relatedConcepts: SetEducationRelatedSystem[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -111,24 +99,9 @@ const STEPPING_SET_CONTENT: SetEducationInput = {
   slug:         'stepping',
   displayName:  'Stepping',
   definition:
-    'Stepping is a launch set: it determines how a trick is opened, rather than adding a movement to the trick itself. The support foot relocates as it opens a clipper-anchored set, delivering the bag into the dexterity from an opposite-side inward set rather than from a stationary toe or clipper set. The dexterity that follows is unchanged; what stepping sets is the launch. In notation the set reads CLIP > OP IN [DEX], and as a set treatment it contributes +1.',
-  howItLaunches: '',
+    'Stepping is a launch set: it determines how a trick is opened, rather than adding a movement to the trick itself. The support foot relocates as it opens a clipper-anchored set, delivering the bag into the dexterity from an opposite-side inward set rather than from a stationary toe or clipper set.',
   jobNotation:
     'Stepping lives in the set portion of the notation, at the front of the chain. So stepping mirage reads CLIP > OP IN [DEX] >> OP IN [DEX] > OP TOE [DEL] and decomposes as stepping(+1) + mirage(2) = 3, where the leading set carries the +1 and the trailing dex and terminal carry the base.',
-  launchNotes:
-    'The base movement identity is retained, but its SAME/OP coordinates are authored within the complete compound relative to the most recent preceding side-bearing component; they are not copied mechanically from the standalone base. Stepping Whirl retains Whirl\'s OP IN.',
-  confusions: [
-    {
-      heading: 'Stepping vs a plain clipper or toe set',
-      prose:
-        'Stepping is not just any clipper set. It is a clipper-anchored set with an opposite-side inward dex, opened by relocating the support foot. A stationary toe or clipper set delivers the bag without that relocation and scores no set bonus; stepping records the foot relocation and scores +1.',
-    },
-    {
-      heading: 'Stepping vs pixie',
-      prose:
-        'Stepping and pixie are both core launch sets, but they are different launches. Pixie is a toe set with a same-side inward dex (TOE > SAME IN [DEX]); stepping is a clipper-anchored set with an opposite-side inward dex (CLIP > OP IN [DEX]). They are separate launch identities, not two names for one launch.',
-    },
-  ],
   progression: {
     anchorBaseLabel: 'on butterfly',
     steps: [
@@ -168,20 +141,6 @@ const STEPPING_SET_CONTENT: SetEducationInput = {
       },
     ],
   },
-  relatedConcepts: [
-    {
-      name:  'Furious',
-      prose: 'the two-dex set historically also called Barraging; Barraging names resolve to Furious.',
-    },
-    {
-      name:  'blurry',
-      prose: 'A set system that decomposes to stepping plus a paradox side-switch; the stepping launch with an added cross-body relationship.',
-    },
-    {
-      name:  'bubba',
-      prose: 'The directional mirror of stepping: the same clipper-anchored launch opened to the opposite side.',
-    },
-  ],
 };
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -192,25 +151,9 @@ const PIXIE_SET_CONTENT: SetEducationInput = {
   slug:         'pixie',
   displayName:  'Pixie',
   definition:
-    'Pixie is a launch set: it determines how a trick is opened, rather than adding a movement to the trick itself. It opens from a toe set with a same-side inward dex, delivering the bag into the dexterity that follows. The dexterity is unchanged; what pixie sets is the launch. In notation the set reads TOE > SAME IN [DEX], and as a set treatment it contributes +1.',
-  howItLaunches:
-    'The toe set opens with a same-side inward dex, and the bag is delivered into whatever dexterity follows, which stays recognizable: a pixie mirage is still a mirage (the named trick smear), a pixie butterfly is still a butterfly (the named trick dimwalk).',
+    'Pixie is a launch set: essentially an uptime Around the World. From a toe set, the bag makes a same-side inward dex before the next part of the trick begins. Because that dex happens during the set, Pixie changes how the bag is delivered into the following movement rather than replacing that movement.',
   jobNotation:
     'Pixie lives in the set portion of the notation, at the front of the chain. So pixie mirage (the named trick smear) decomposes as pixie(+1) + mirage(2) = 3, the leading set carrying the +1 and the trailing dex and terminal carrying the base.',
-  launchNotes:
-    'The base movement identity is retained, but its SAME/OP coordinates are authored within the complete compound relative to the most recent preceding side-bearing component; they are not copied mechanically from the standalone base. Smear retains Mirage\'s OP IN, while Magellan authors Legover\'s outward dex as SAME OUT.',
-  confusions: [
-    {
-      heading: 'Pixie vs fairy',
-      prose:
-        'Pixie and fairy are both toe-anchored core launch sets, but they are different launches. Pixie opens with a same-side inward dex (TOE > SAME IN [DEX]); fairy opens with a same-side outward dex (TOE > SAME OUT [DEX]). They are directional mirrors, separate launch identities, not two names for one launch.',
-    },
-    {
-      heading: 'Pixie vs stepping',
-      prose:
-        'Both are core launch sets, but pixie is toe-anchored with a same-side inward dex, while stepping is clipper-anchored with an opposite-side inward dex (CLIP > OP IN [DEX]). Different anchor, different launch.',
-    },
-  ],
   progression: {
     anchorBaseLabel: 'on butterfly',
     steps: [
@@ -262,41 +205,15 @@ const PIXIE_SET_CONTENT: SetEducationInput = {
       },
     ],
   },
-  relatedConcepts: [
-    {
-      name:  'sailing',
-      prose: 'A set system derived from pixie: sailing reads pixie plus quantum, layering a further set treatment onto the pixie launch.',
-    },
-    {
-      name:  'terraging',
-      prose: 'Another set system built on the pixie launch.',
-    },
-  ],
 };
 
 const FAIRY_SET_CONTENT: SetEducationInput = {
   slug:         'fairy',
   displayName:  'Fairy',
   definition:
-    'Fairy is a launch set: it determines how a trick is opened, rather than adding a movement to the trick itself. It opens from a toe set with a same-side outward dex, delivering the bag into the dexterity that follows. The dexterity is unchanged; what fairy sets is the launch. In notation the set reads TOE > SAME OUT [DEX], and as a set treatment it contributes +1.',
-  howItLaunches:
-    'The toe set opens with a same-side outward dex, and the bag is delivered into whatever dexterity follows, which stays recognizable: a fairy mirage is still a mirage, a fairy butterfly is still a butterfly.',
+    'Fairy is a launch set: essentially an uptime Orbit. From a toe set, the bag makes a same-side outward dex before the next part of the trick begins. Because that dex happens during the set, Fairy changes how the bag is delivered into the following movement rather than replacing that movement.',
   jobNotation:
     'Fairy lives in the set portion of the notation, at the front of the chain. So fairy mirage decomposes as fairy(+1) + mirage(2) = 3, the leading set carrying the +1 and the trailing dex and terminal carrying the base.',
-  launchNotes:
-    'The base movement identity is retained, but its SAME/OP coordinates are authored within the complete compound relative to the most recent preceding side-bearing component; they are not copied mechanically from the standalone base. Fairy Butterfly retains Butterfly\'s OP OUT.',
-  confusions: [
-    {
-      heading: 'Fairy vs pixie',
-      prose:
-        'Fairy and pixie are both toe-anchored core launch sets, but they are different launches. Fairy opens with a same-side outward dex (TOE > SAME OUT [DEX]); pixie opens with a same-side inward dex (TOE > SAME IN [DEX]). They are directional mirrors, separate launch identities, not two names for one launch.',
-    },
-    {
-      heading: 'Fairy vs stepping',
-      prose:
-        'Both are core launch sets, but fairy is toe-anchored with a same-side outward dex, while stepping is clipper-anchored with an opposite-side inward dex. Different anchor, different launch.',
-    },
-  ],
   progression: {
     anchorBaseLabel: 'on mirage',
     steps: [
@@ -348,16 +265,6 @@ const FAIRY_SET_CONTENT: SetEducationInput = {
       },
     ],
   },
-  relatedConcepts: [
-    {
-      name:  'surfing',
-      prose: 'A composite set that opens with the fairy toe-set entry (fairy symposium swirling); useful for seeing how fairy seeds derived systems.',
-    },
-    {
-      name:  'finchy',
-      prose: 'A set system built on the fairy launch.',
-    },
-  ],
 };
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -368,13 +275,9 @@ const SWIRLING_SET_CONTENT: SetEducationInput = {
   slug:         'swirling',
   displayName:  'Swirling',
   definition:
-    'Swirling is a launch set: it determines how a trick is opened, rather than adding a movement to the trick itself. It opens from a clipper-anchored cross-body rotational set carried by an explicit SWIRL dex token, the opening of the whirl and swirl family. The dexterity is unchanged; what swirling sets is the launch. As a set treatment it contributes +1.',
-  howItLaunches: '',
+    'Swirling is a launch set: it determines how a trick is opened, rather than adding a movement to the trick itself. It opens from a clipper-anchored cross-body rotational set carried by an explicit SWIRL dex token, the opening of the whirl and swirl family.',
   jobNotation:
     'Swirling lives in the set portion of the notation, at the front of the chain, reading CLIP > SAME BACK/FRONT SWIRL [DEX] >, the cross-body rotational opening with an explicit SWIRL token; the rest of the chain is the unchanged base. So swirling mirage decomposes as swirling(+1) + mirage(2) = 3, the leading SWIRL set carrying the +1 and the trailing dex and terminal carrying the base.',
-  launchNotes:
-    'The base movement identity is retained, but its SAME/OP coordinates are authored within the complete compound relative to the most recent preceding side-bearing component; they are not copied mechanically from the standalone base. Swirling Butterfly retains Butterfly\'s OP OUT.',
-  confusions: [],
   progression: {
     anchorBaseLabel: 'on mirage',
     steps: [
@@ -420,16 +323,6 @@ const SWIRLING_SET_CONTENT: SetEducationInput = {
       },
     ],
   },
-  relatedConcepts: [
-    {
-      name:  'snapping',
-      prose: 'A set system derived from swirling.',
-    },
-    {
-      name:  'surfing',
-      prose: 'A composite set that carries swirling as its out dex (fairy symposium swirling).',
-    },
-  ],
 };
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -440,24 +333,9 @@ const FLOATING_SET_CONTENT: SetEducationInput = {
   slug:         'floating',
   displayName:  'Floating',
   definition:
-    'Floating is a composite launch set: it determines how a trick is opened by stacking three set events, rather than adding a movement to the trick itself. It reads Quantum Symposium Quantum, a quantum entry, a no-plant symposium event, and a second quantum. The dexterity is unchanged; what floating sets is the launch. As a set treatment it contributes +3.',
-  howItLaunches: '',
+    'Floating is a composite launch set: it determines how a trick is opened by stacking three set events, rather than adding a movement to the trick itself. It reads Quantum Symposium Quantum, a quantum entry, a no-plant symposium event, and a second quantum.',
   jobNotation:
     'Floating lives in the set portion of the notation, at the front of the chain, reading as the Quantum Symposium Quantum stack; the rest of the chain is the unchanged base. So floating butterfly (the named trick floatation) decomposes as floating(+3) + butterfly(3) = 6, the leading composite set carrying the +3 and the trailing base carrying its own count.',
-  launchNotes:
-    'The base movement identity is retained, but its SAME/OP coordinates are authored within the complete compound relative to the most recent preceding side-bearing component; they are not copied mechanically from the standalone base. Floatation authors Butterfly\'s dex as SAME OUT.',
-  confusions: [
-    {
-      heading: 'Floating is one named set, not three separate operators',
-      prose:
-        'Floating reads Quantum Symposium Quantum, but it is taken as a single settled launch set worth +3, not three operators to be re-derived on every trick. Trick cards reference the floating set by shorthand rather than repeating the expansion.',
-    },
-    {
-      heading: 'Floating is a launch, not a body movement',
-      prose:
-        'The symposium event inside floating is part of the launch sequence, not a body operator added to the trick afterward. Floating is scored as a set treatment and written in the set portion of the notation.',
-    },
-  ],
   progression: {
     anchorBaseLabel: 'on butterfly',
     steps: [
@@ -485,44 +363,15 @@ const FLOATING_SET_CONTENT: SetEducationInput = {
       },
     ],
   },
-  relatedConcepts: [
-    {
-      name:  'sailing',
-      prose: 'A sibling composite set; useful for seeing floating as one member of a family of worked-out composite launches.',
-    },
-    {
-      name:  'quantum',
-      prose: 'The set treatment that floating stacks twice (Quantum Symposium Quantum).',
-    },
-    {
-      name:  'symposium',
-      prose: 'The no-plant event in the middle of the floating stack.',
-    },
-  ],
 };
 
 const SURFING_SET_CONTENT: SetEducationInput = {
   slug:         'surfing',
   displayName:  'Surfing',
   definition:
-    'Surfing is a composite launch set: it determines how a trick is opened by stacking three set events, rather than adding a movement to the trick itself. It reads Fairy Symposium Swirling, a fairy toe-set outward dex, a no-plant symposium body, and a back-swirl dex. The dexterity is unchanged; what surfing sets is the launch. As a set treatment it contributes +3.',
-  howItLaunches: '',
+    'Surfing is a composite launch set: it determines how a trick is opened by stacking three set events, rather than adding a movement to the trick itself. It reads Fairy Symposium Swirling, a fairy toe-set outward dex, a no-plant symposium body, and a back-swirl dex.',
   jobNotation:
     'Surfing lives in the set portion of the notation, at the front of the chain, reading TOE > SAME OUT [DEX] > (no plant while) OP IN [BOD] > OP OUT [DEX] >, the Fairy Symposium Swirling stack; the rest of the chain is the unchanged base. So surfing blender (the named trick big papa smurf) decomposes as surfing(+3) + blender(4) = 7, the leading composite set carrying the +3 and the trailing base carrying its own count.',
-  launchNotes:
-    'The base movement identity is retained, but its SAME/OP coordinates are authored within the complete compound relative to the most recent preceding side-bearing component; they are not copied mechanically from the standalone base. Big Papa Smurf retains Blender\'s OP IN.',
-  confusions: [
-    {
-      heading: 'Surfing is one named set, not three separate operators',
-      prose:
-        'Surfing reads Fairy Symposium Swirling, but it is taken as a single settled launch set worth +3, not three operators to be re-derived on every trick. Trick cards reference the surfing set by shorthand rather than repeating the expansion.',
-    },
-    {
-      heading: 'Surfing is a launch, not a body movement',
-      prose:
-        'The symposium body inside surfing is part of the launch sequence, not a body operator added to the trick afterward. Surfing is scored as a set treatment and written in the set portion of the notation.',
-    },
-  ],
   progression: {
     anchorBaseLabel: 'on blender',
     steps: [
@@ -550,44 +399,15 @@ const SURFING_SET_CONTENT: SetEducationInput = {
       },
     ],
   },
-  relatedConcepts: [
-    {
-      name:  'fairy',
-      prose: 'The toe-set outward entry that opens the surfing stack.',
-    },
-    {
-      name:  'swirling',
-      prose: 'The out dex inside the surfing stack.',
-    },
-    {
-      name:  'symposium',
-      prose: 'The no-plant body event in the middle of the surfing stack.',
-    },
-  ],
 };
 
 const WARPING_SET_CONTENT: SetEducationInput = {
   slug:         'warping',
   displayName:  'Warping',
   definition:
-    'Warping is a composite launch set: it determines how a trick is opened by a two-dex set sequence, rather than adding a movement to the trick itself. The first dex opens the set, and the second dex is carried as a no-plant symposium event. The dexterity that follows is unchanged; what warping sets is the launch. As a set treatment it contributes +3.',
-  howItLaunches: '',
+    'Warping is a composite launch set: it determines how a trick is opened by a two-dex set sequence, rather than adding a movement to the trick itself. The first dex opens the set, and the second dex is carried as a no-plant symposium event.',
   jobNotation:
     'Warping lives in the set portion of the notation, at the front of the chain, reading TOE > OP OUT [DEX] > (no plant while) OP OUT [BOD] [DEX], a first dex followed by a second dex carried as a no-plant symposium event; the rest of the chain is the unchanged base. So warping mirage (the named trick warp) decomposes as warping(+3) + mirage(2) = 5, the leading two-dex set carrying the +3 and the trailing base carrying its own count.',
-  launchNotes:
-    'The base movement identity is retained, but its SAME/OP coordinates are authored within the complete compound relative to the most recent preceding side-bearing component; they are not copied mechanically from the standalone base.',
-  confusions: [
-    {
-      heading: 'Warping is one named set, not separate operators',
-      prose:
-        'Warping is a two-dex set whose second dex is a symposium event, but it is taken as a single settled launch set worth +3, not operators to be re-derived on every trick. Trick cards reference the warping set by shorthand rather than repeating the expansion.',
-    },
-    {
-      heading: 'Warping is a launch, not a body movement',
-      prose:
-        'The symposium event inside warping is part of the launch sequence, not a body operator added to the trick afterward. Warping is scored as a set treatment and written in the set portion of the notation.',
-    },
-  ],
   progression: {
     anchorBaseLabel: 'on mirage',
     steps: [
@@ -615,40 +435,15 @@ const WARPING_SET_CONTENT: SetEducationInput = {
       },
     ],
   },
-  relatedConcepts: [
-    {
-      name:  'sailing',
-      prose: 'A sibling composite set; useful for seeing warping as one member of a family of worked-out composite launches.',
-    },
-    {
-      name:  'symposium',
-      prose: 'The no-plant event carried as the second dex of the warping set.',
-    },
-  ],
 };
 
 const ATOMIC_SET_CONTENT: SetEducationInput = {
   slug:         'atomic',
   displayName:  'Atomic',
   definition:
-    'Atomic is a launch set: it determines how a trick is opened, rather than adding a movement to the trick itself. It opens from a toe set with a single opposite-side outward dex, delivering the bag into the dexterity that follows. The dexterity is unchanged; what atomic sets is the launch. In notation the set reads TOE > OP OUT [DEX], and as a set treatment it contributes +1.',
-  howItLaunches: '',
+    'Atomic is a launch set: essentially an uptime Illusion. From a toe set, the bag makes a single opposite-side outward dex before the next part of the trick begins. Because that dex happens during the set, Atomic changes how the bag is delivered into the following movement rather than replacing that movement.',
   jobNotation:
     'Atomic lives in the set portion of the notation, at the front of the chain. So atomic whirl decomposes as atomic(+1) + whirl(3) = 4, the leading set carrying the +1 and the trailing base carrying the rest.',
-  launchNotes:
-    'The base movement identity is retained, but its SAME/OP coordinates are authored within the complete compound relative to the most recent preceding side-bearing component; they are not copied mechanically from the standalone base. Tapdown remains the established Tapping re-authoring precedent.',
-  confusions: [
-    {
-      heading: 'Atomic vs quantum',
-      prose:
-        'Both are toe-anchored launch sets that finish on an opposite-side component, but they open in opposite directions. Atomic opens with an opposite-side outward dex (TOE > OP OUT [DEX]); quantum opens with an opposite-side inward dex (TOE > OP IN [DEX]). Directional counterparts, separate launch identities, not two names for one launch.',
-    },
-    {
-      heading: 'Atomic vs illusioning',
-      prose:
-        'Older sources sometimes used illusioning language for atomic, but current doctrine keeps them distinct: illusioning is the outward dex realized standalone, not another name for atomic, which is that same movement realized with a set role.',
-    },
-  ],
   progression: {
     anchorBaseLabel: 'on whirl',
     steps: [
@@ -700,45 +495,15 @@ const ATOMIC_SET_CONTENT: SetEducationInput = {
       },
     ],
   },
-  relatedConcepts: [
-    {
-      name:  'nuclear',
-      prose: 'A clipper-anchored set that folds a paradox pivot into a downtime illusion dex. A separate launch family, useful to contrast against the single outward uptime dex of atomic.',
-    },
-    {
-      name:  'tapping',
-      prose: 'A toe-anchored set built on the same opening; useful for seeing how atomic seeds derived systems.',
-    },
-  ],
 };
 
 const QUANTUM_SET_CONTENT: SetEducationInput = {
   slug:         'quantum',
   displayName:  'Quantum',
   definition:
-    'Quantum is a launch set: it determines how a trick is opened rather than adding a movement to the trick itself. It opens from a toe set with a single opposite-side inward dex, delivering the bag into the dexterity that follows. The dexterity is unchanged; what quantum sets is the launch. In notation the set reads TOE > OP IN [DEX], and as a set treatment it contributes +1. Its historical name is Toe Blur.',
-  howItLaunches: '',
+    'Quantum is a launch set: essentially an uptime Mirage. From a toe set, the bag makes a single opposite-side inward dex before the next part of the trick begins. Because that dex happens during the set, Quantum changes how the bag is delivered into the following movement rather than replacing that movement.',
   jobNotation:
     'Quantum lives in the set portion of the notation, at the front of the chain. So quantum mirage decomposes as quantum(+1) + mirage(2) = 3.',
-  launchNotes:
-    'The base movement identity is retained, but its SAME/OP coordinates are authored within the complete compound relative to the most recent preceding side-bearing component; they are not copied mechanically from the standalone base.',
-  confusions: [
-    {
-      heading: 'Quantum vs atomic',
-      prose:
-        'Both are toe-anchored launches that finish on an opposite-side component, but they open in opposite directions. Quantum opens inward (TOE > OP IN [DEX]); atomic opens outward (TOE > OP OUT [DEX]). Directional counterparts, separate launch identities.',
-    },
-    {
-      heading: 'Quantum vs Toe Blur',
-      prose:
-        'Toe Blur is the historical name for the quantum launch, most familiar as quantum mirage. Same launch, older name; the dictionary keeps quantum as the current term with Toe Blur preserved as history.',
-    },
-    {
-      heading: 'Quantum vs Miraging',
-      prose:
-        'Miraging is a descriptive mirage-family name for the inward standalone movement; it is a nickname, not a launch set, and not an equivalent term for Quantum. Miraging names may persist for continuity, but Quantum is the same inward movement realized with a set role, and its own historical name is Toe Blur.',
-    },
-  ],
   progression: {
     anchorBaseLabel: 'on mirage',
     steps: [
@@ -790,39 +555,15 @@ const QUANTUM_SET_CONTENT: SetEducationInput = {
       },
     ],
   },
-  relatedConcepts: [
-    {
-      name:  'frantic',
-      prose: 'A set system derived from quantum, layering a further set treatment onto the quantum launch.',
-    },
-    {
-      name:  'slapping',
-      prose: 'A same-side-component sibling of quantum; useful for contrasting the terminal side.',
-    },
-  ],
 };
 
 const NUCLEAR_SET_CONTENT: SetEducationInput = {
   slug:         'nuclear',
   displayName:  'Nuclear',
   definition:
-    'Nuclear is a launch set that folds two movements into one opening: a paradox hip pivot and a downtime illusion-style dex, from a clipper set with a same-side outward dex, delivering the bag into the base that follows. The base movement identity is retained, but its SAME/OP coordinates are authored within the complete compound relative to the most recent preceding side-bearing component; what nuclear sets is the launch. In notation the set reads CLIP > SAME OUT [DEX], and as a set treatment it contributes +2, combining paradox and illusion.',
-  howItLaunches: '',
+    'Nuclear is a launch set that folds two movements into one opening: a paradox hip pivot and a downtime illusion-style dex, from a clipper set with a same-side outward dex, delivering the bag into the base that follows. The base movement identity is retained, but its SAME/OP coordinates are authored within the complete compound relative to the most recent preceding side-bearing component; what nuclear sets is the launch.',
   jobNotation:
     'Nuclear lives in the set portion of the notation, at the front of the chain: CLIP > SAME OUT [DEX] >. So nuclear butterfly decomposes as nuclear(+2) + butterfly(3) = 5, the leading set carrying the +2 and the trailing base carrying the rest.',
-  launchNotes: '',
-  confusions: [
-    {
-      heading: 'Nuclear vs atomic',
-      prose:
-        'Both relate to uptime launches, but atomic is a single opposite-side outward toe dex (+1) and nuclear is a clipper-anchored paradox-plus-illusion opening (+2). Atomic is a related uptime set, not a component of nuclear under the paradox-plus-illusion reading.',
-    },
-    {
-      heading: 'Nuclear is a +2 set, not a single dex',
-      prose:
-        'Some older readings treat nuclear as a basic single-dex set; the platform tracks it as a +2 opening that folds paradox and illusion together. The +2 reflects the combined launch, not a single dex.',
-    },
-  ],
   progression: {
     anchorBaseLabel: 'on butterfly',
     steps: [
@@ -874,48 +615,15 @@ const NUCLEAR_SET_CONTENT: SetEducationInput = {
       },
     ],
   },
-  relatedConcepts: [
-    {
-      name:  'twinspinning',
-      prose: 'A set system derived from nuclear, the nuclear inspinning, layering a further treatment onto the nuclear launch.',
-    },
-    {
-      name:  'paradox',
-      prose: 'One of the two movements nuclear folds in: a hip pivot between dexes. Useful for seeing the internal structure of nuclear.',
-    },
-    {
-      name:  'illusion',
-      prose: 'The downtime dex nuclear folds in alongside paradox; useful for seeing why nuclear reads as a +2 combined opening.',
-    },
-  ],
 };
 
 const FURIOUS_SET_CONTENT: SetEducationInput = {
   slug:         'furious',
   displayName:  'Furious',
   definition:
-    'Furious is a launch set built from two dexes: it opens a trick from a clipper set with an opposite-side inward dex, then a same-side inward dex, delivering the bag into the base that follows. The base movement identity is retained, but its SAME/OP coordinates are authored within the complete compound relative to the most recent preceding side-bearing component; what furious sets is the launch. In notation the set reads CLIP > OP IN [DEX] > SAME IN [DEX], and as a two-dex set it contributes +2. Its historical name is high stepping.',
-  howItLaunches: '',
+    'Furious is a launch set built from two dexes: it opens a trick from a clipper set with an opposite-side inward dex, then a same-side inward dex, delivering the bag into the base that follows. The base movement identity is retained, but its SAME/OP coordinates are authored within the complete compound relative to the most recent preceding side-bearing component; what furious sets is the launch.',
   jobNotation:
     'Furious lives in the set portion of the notation, at the front of the chain, and spans two dexes: CLIP > OP IN [DEX] > SAME IN [DEX] >. So a furious mirage decomposes as furious(+2) + mirage(2) = 4, the leading two-dex set carrying the +2 and the trailing base carrying the rest.',
-  launchNotes: '',
-  confusions: [
-    {
-      heading: 'Furious vs Barraging',
-      prose:
-        'Furious is the canonical set for this two-dex opening. Barraging is not a canonical set. Some dictionary trick rows keep barraging-based names for historical name continuity, but those names are naming residue, not evidence that Barraging is a set; the set taught here is Furious.',
-    },
-    {
-      heading: 'Furious vs stepping',
-      prose:
-        'Both are clipper-anchored inward launches, but stepping is a single dex (CLIP > OP IN [DEX], +1) and furious runs two inward dexes (+2). Different launch, different count.',
-    },
-    {
-      heading: 'Furious vs Barrage',
-      prose:
-        'Barrage is a separate standalone base concept, unrelated to the furious two-dex set opening despite the similar name.',
-    },
-  ],
   progression: {
     anchorBaseLabel: 'on mirage',
     steps: [
@@ -967,8 +675,6 @@ const FURIOUS_SET_CONTENT: SetEducationInput = {
       },
     ],
   },
-  // Stepping, Barraging and barrage are each a Common confusions entry above.
-  relatedConcepts: [],
 };
 
 // Registry — set teaching pages.
@@ -1065,10 +771,7 @@ export function buildSetEducationContent(
     slug:           input.slug,
     displayName:    input.displayName,
     definition:     input.definition,
-    howItLaunches:  input.howItLaunches,
     jobNotation:    input.jobNotation,
-    launchNotes:    input.launchNotes,
-    confusions:     input.confusions,
     progression: {
       anchorBaseLabel: input.progression.anchorBaseLabel,
       steps,
@@ -1076,6 +779,5 @@ export function buildSetEducationContent(
     representativeTricks: {
       examples,
     },
-    relatedConcepts: input.relatedConcepts,
   };
 }

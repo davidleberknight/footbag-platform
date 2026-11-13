@@ -4250,11 +4250,9 @@ a.hashtag--media:hover {
    and bottom there is no divider, so the list's neighbours own that gap. */
 .rules-index .rules-link-list li:first-child,
 .symbolic-modifier-family .related-modifiers-list li:first-child,
-.set-detail-cross-links li:first-child,
 .set-detail-link-list li:first-child { padding-top: 0; }
 .rules-index .rules-link-list li:last-child,
 .symbolic-modifier-family .related-modifiers-list li:last-child,
-.set-detail-cross-links li:last-child,
 .set-detail-link-list li:last-child { padding-bottom: 0; }
 .rules-index .rules-authority {
   display: block;
@@ -7356,15 +7354,12 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   white-space: normal;
   word-break: break-word;
 }
-.set-detail-movement {
-  font-size: 1rem;
-  line-height: 1.55;
-  margin: 0;
+/* The guide's notation sentence under the formula block. */
+.set-detail-formula + p {
+  margin: var(--space-sm) 0 0;
 }
 .set-detail-link-list,
-.set-detail-cross-links,
-.set-detail-link-list li,
-.set-detail-cross-links li {
+.set-detail-link-list li {
   padding: var(--space-xs) 0;
   font-size: 1rem;
 }
@@ -7398,9 +7393,9 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   margin: var(--space-sm) 0 0;
   line-height: 1.4;
 }
-/* S5 subtype-internal sibling navigation: compact strip placed between
-   cross-references and the provenance footer. Prev anchor flush-left,
-   next anchor flush-right; either side may be absent independently. */
+/* Sibling navigation within a set's subtype: a compact strip at the end of the
+   page. Prev anchor flush-left, next anchor flush-right; either side may be
+   absent independently. */
 .set-detail-sibling-nav {
   display: flex;
   justify-content: space-between;

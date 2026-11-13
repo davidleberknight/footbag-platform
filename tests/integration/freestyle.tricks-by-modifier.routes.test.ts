@@ -406,9 +406,10 @@ describe('the former Set Hub controls land on the Set Encyclopedia', () => {
     expect(res.text).not.toMatch(/Set Hub/);
   });
 
-  it('a set detail page goes back to the Set Encyclopedia, and never names a Set Hub', async () => {
+  it('a set detail page links up to the Set Encyclopedia, and never names a Set Hub', async () => {
     const res = await page('/freestyle/sets/pixie');
-    expect(res.text).toMatch(/<a href="\/freestyle\/sets">Back to Set Encyclopedia<\/a>/);
+    const breadcrumb = /<nav class="breadcrumb"[\s\S]*?<\/nav>/.exec(res.text)?.[0] ?? '';
+    expect(breadcrumb).toMatch(/<a href="\/freestyle\/sets">/);
     expect(res.text).not.toMatch(/Set Hub/);
   });
 });

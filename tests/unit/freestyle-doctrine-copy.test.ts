@@ -283,16 +283,6 @@ const setSlugFor = (displayName: string): string =>
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_|_$/g, '');
 
-/** A canonical positional claim: a side VALUE. Naming the side axis itself
- *  ("separates them by terminal side") is not a claim about which side, and
- *  neither is ordinary prose that happens to contain the word "same".
- *  The positional phrases are matched in any case; the bare notation markers
- *  only in the upper case they are always written in, so "the same chassis"
- *  reads as English rather than as a claim about which leg. */
-const namesASide = (text: string): boolean =>
-  /\bop[- ]side\b|\bopposite[- ]side\b|\bsame[- ]side\b/i.test(text)
-  || /\b(?:SAME|OP)\b/.test(text);
-
 /** Word-token tooltip labels, read as text because the map is module-private. */
 const tokenLabels = (): Map<string, string> => {
   const src = read('src/services/notationRendering.ts');
@@ -496,10 +486,6 @@ describe('the ruled side relationship is stated, and the source keeps its own cl
     const row = COMPOSITIONAL_AUDIT_ENTRIES.find((e) => e.holdenName === 'Blazing')!;
     expect(blazing.formula).toMatch(/op side component/);
     expect(row.holdenReading).toMatch(/op side component/);
-    const unattributed = blazing.equivalenceNotes
-      .filter((n) => namesASide(n.reading) && !/Holden/.test(n.citation))
-      .map((n) => n.reading);
-    expect(unattributed).toEqual([]);
   });
 
   it('the crossing is attributed to the set, not to whatever follows it', () => {

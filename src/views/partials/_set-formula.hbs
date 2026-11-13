@@ -7,6 +7,7 @@
   <div class="section-heading"><h2>Formula</h2></div>
   {{#if content.formula}}
   <code class="set-detail-formula">{{content.formula}}</code>
+  {{#if content.formulaNote}}<p>{{content.formulaNote}}</p>{{/if}}
   {{else}}
   <p class="set-detail-component-note">Canonical JOB notation is pending: the launch mechanics are defined, but the bracket-grammar form is not yet authored.</p>
   {{/if}}

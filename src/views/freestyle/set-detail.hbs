@@ -1,9 +1,8 @@
 {{!--
   Set detail page.
-  One page per canonical set. Mirrors the trick-detail information order so the
-  two surfaces read the same way: identity (name / hashtag), then the plain
-  explanation, then the formula, then related sets, example tricks, cross-links
-  and sibling navigation.
+  One page per canonical set: identity (name and hashtag), what it is, the
+  formula, a worked example where a teaching guide supplies one, example
+  tricks, related sets, then sibling navigation.
 --}}
 {{! The shared page hero and page frame, arranged as the trick detail page
     arranges them, since this page mirrors that one's information order. The
@@ -27,29 +26,18 @@
 
   {{> media-line id="media" display=content.mediaLine.display galleryHref=content.mediaLine.galleryHref galleryLabel=content.mediaLine.galleryLabel}}
 
-  {{#if content.education}}
-  {{!-- Teaching pages carry at most six sections: what it is, how it launches
-        (the notation, the launch structure and any X-Dex behaviour), the
-        progression, example tricks, common confusions, and related concepts
-        with the page's links. The full list of linked tricks is the
-        dictionary's By set view, linked from the related section, so it is not
-        repeated here. How sets are built in general lives on the Set
-        Encyclopedia, so a teaching page explains only its own set. --}}
+  {{!-- Every set page has the same sections, in this order: what it is, the
+        formula, a worked example (only where the set's teaching guide supplies
+        one), example tricks, and related sets. How sets are built in general
+        lives on the Set Encyclopedia, so a set page explains only its own set. --}}
   <section class="content-section" aria-label="What it is">
     <div class="section-heading"><h2>What it is</h2></div>
-    <p>{{content.education.definition}}</p>
+    <p>{{content.whatItIs}}</p>
   </section>
 
-  <section class="content-section" aria-label="How it launches">
-    <div class="section-heading"><h2>How it launches</h2></div>
-    {{#if content.education.howItLaunches}}<p>{{content.education.howItLaunches}}</p>{{/if}}
-    {{#if content.education.jobNotation}}<p>{{content.education.jobNotation}}</p>{{/if}}
-    {{#if content.education.launchNotes}}<p>{{content.education.launchNotes}}</p>{{/if}}
-    {{#if content.xDexReceiverNote}}
-    <p class="set-detail-component-note">{{content.xDexReceiverNote}} <a href="/freestyle/concepts#term-x-dex">See X-Dex in Freestyle Concepts.</a></p>
-    {{/if}}
-  </section>
+  {{> _set-formula}}
 
+  {{#if content.education}}
   <section class="content-section symbolic-walking-progression" aria-label="Progression {{content.education.progression.anchorBaseLabel}}">
     <div class="section-heading"><h2>Progression {{content.education.progression.anchorBaseLabel}}</h2></div>
     <ol class="progression-chain" role="list">
@@ -66,9 +54,11 @@
       {{/each}}
     </ol>
   </section>
+  {{/if}}
 
   <section class="content-section" aria-label="Example tricks">
     <div class="section-heading"><h2>Example tricks</h2></div>
+    {{#if content.education}}
     <ul class="cross-base-list">
       {{#each content.education.representativeTricks.examples}}
       <li>
@@ -79,53 +69,7 @@
       </li>
       {{/each}}
     </ul>
-  </section>
-
-  {{#if content.education.confusions.length}}
-  <section class="content-section" aria-label="Common confusions">
-    <div class="section-heading"><h2>Common confusions</h2></div>
-    {{#each content.education.confusions}}
-    <h3>{{heading}}</h3>
-    <p>{{prose}}</p>
-    {{/each}}
-  </section>
-  {{/if}}
-
-  <section class="content-section" aria-label="Related concepts">
-    <div class="section-heading"><h2>Related concepts</h2></div>
-    {{#if content.education.relatedConcepts.length}}
-    <ul class="related-modifiers-list">
-      {{#each content.education.relatedConcepts}}
-      <li><span class="related-name">{{name}}</span>: {{prose}}</li>
-      {{/each}}
-    </ul>
-    {{/if}}
-    {{> set-detail-cross-links}}
-  </section>
-  {{/if}}
-
-  {{#unless content.education}}
-  <section class="content-section" aria-label="About This Set">
-    <div class="section-heading"><h2>About This Set</h2></div>
-    <p class="set-detail-movement">{{content.movementExplanation}}</p>
-  </section>
-
-  {{> _set-formula}}
-  {{/unless}}
-
-  {{#unless content.education}}
-  {{#if content.relatedSystems.length}}
-  <section class="content-section" aria-label="Related sets">
-    <div class="section-heading"><h2>Related sets</h2></div>
-    <ul class="set-detail-link-list">
-      {{#each content.relatedSystems}}<li><a href="{{href}}">{{label}}</a></li>{{/each}}
-    </ul>
-  </section>
-  {{/if}}
-
-  {{#if content.hasExampleTricks}}
-  <section class="content-section" aria-label="Example tricks">
-    <div class="section-heading"><h2>Example tricks</h2></div>
+    {{else if content.hasExampleTricks}}
     <ul class="set-detail-trick-list">
       {{#each content.exampleTricks}}
       <li class="set-detail-trick">
@@ -135,19 +79,22 @@
       </li>
       {{/each}}
     </ul>
-  </section>
-  {{else}}
-  <section class="content-section" aria-label="Example tricks">
-    <div class="section-heading"><h2>Example tricks</h2></div>
+    {{else}}
     <p class="empty-state">No tricks are linked to this set yet. Some sets are documented before any trick is connected to them.</p>
+    {{/if}}
+    {{#if content.setBrowseHref}}
+    <p><a class="action-link" href="{{siteHref content.setBrowseHref}}">Browse This Set in the Dictionary</a></p>
+    {{/if}}
+  </section>
+
+  {{#if content.relatedSystems.length}}
+  <section class="content-section" aria-label="Related sets">
+    <div class="section-heading"><h2>Related sets</h2></div>
+    <ul class="set-detail-link-list">
+      {{#each content.relatedSystems}}<li><a href="{{href}}">{{label}}</a></li>{{/each}}
+    </ul>
   </section>
   {{/if}}
-
-  <section class="content-section" aria-label="Cross-references">
-    <div class="section-heading"><h2>Cross-references</h2></div>
-    {{> set-detail-cross-links}}
-  </section>
-  {{/unless}}
 
   {{#if (or content.previousSet content.nextSet)}}
   {{! S5: subtype-internal sibling navigation. Suppresses entirely when

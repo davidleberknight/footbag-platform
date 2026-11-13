@@ -51,11 +51,6 @@ export type CanonicalSetAuditStatus =
   | 'conflict'     // substantive disagreement
   | 'holden-only'; // no platform entry
 
-export interface EquivalenceNote {
-  reading: string;     // e.g. "Stepping Paradox", "Double Pixie"
-  citation: string;    // e.g. "Holden parenthetical"
-}
-
 export interface SlugReference {
   slug: string;        // e.g. "pixie"
   label: string;       // e.g. "Pixie"
@@ -80,16 +75,10 @@ export interface CanonicalSet {
    * jargon dump. Later detail pages will expand this; this is a seed.
    */
   movementExplanation: string;
-  /** Equivalence notes (Holden parentheticals, folk-name readings). */
-  equivalenceNotes: readonly EquivalenceNote[];
-  /** Sets that compose FROM this one (e.g. pixie → terraging). */
-  derivedSystems: readonly SlugReference[];
   /** Parallel / sibling sets (e.g. pixie ↔ fairy directional mirrors). */
   relatedSystems: readonly SlugReference[];
-  /** Provenance. */
+  /** Provenance. The compilation is credited once, on the Set Encyclopedia. */
   source: CanonicalSetSource;
-  /** One-line source citation; public prose. */
-  sourceCitation: string;
   /** Audit status when in the Compositional Sets audit table. */
   auditStatus?: CanonicalSetAuditStatus;
   /**
@@ -178,13 +167,10 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     movementExplanation:
       'The foundational entry surface: the bag is set up from a toe stall with no added ' +
       'dexterity. Most sets are this toe set plus a pre-base motion.',
-    equivalenceNotes: [],
-    derivedSystems: [],
     relatedSystems: [
       { slug: 'clipper', label: 'Clipper Set (inside-surface entry)' },
     ],
     source: 'platform-tracked',
-    sourceCitation: 'Platform entry-surface reference.',
   },
   {
     slug: 'clipper', hashtag: '#set_clipper', displayName: 'Clipper Set', subtype: 'true-core',
@@ -192,13 +178,10 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     movementExplanation:
       'The other foundational entry surface: the bag is set from a clipper (cross-body ' +
       'inside-surface) stall with no added dexterity. Many cross-body sets start here.',
-    equivalenceNotes: [],
-    derivedSystems: [],
     relatedSystems: [
       { slug: 'toe', label: 'Toe Set (toe-surface entry)' },
     ],
     source: 'platform-tracked',
-    sourceCitation: 'Platform entry-surface reference.',
   },
   {
     slug: 'pixie', hashtag: '#set_pixie', displayName: 'Pixie', subtype: 'true-core',
@@ -206,20 +189,10 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     movementExplanation:
       'A toe set with a same-side inward dex; the basic around-the-world-style ' +
       'entry and the directional mirror of fairy.',
-    equivalenceNotes: [],
-    derivedSystems: [
-      { slug: 'terraging', label: 'Terraging' },
-      { slug: 'sailing',   label: 'Sailing' },
-      { slug: 'frantic',   label: 'Frantic' },
-      { slug: 'pixie_inspinning', label: 'Pixie Inspinning' },
-      { slug: 'pixie_pinching',   label: 'Pixie Pinching' },
-      { slug: 'arctic',    label: 'Arctic' },
-    ],
     relatedSystems: [
       { slug: 'fairy', label: 'Fairy (directional mirror)' },
     ],
     source: 'platform-tracked',
-    sourceCitation: 'Holden compilation (2003); aligned with platform operator reference.',
     auditStatus: 'aligned',
     tier: 'literal-primitive',
   },
@@ -229,17 +202,10 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     movementExplanation:
       'A toe set with a same-side outward dex; the basic orbit-style entry and the ' +
       'directional mirror of pixie.',
-    equivalenceNotes: [],
-    derivedSystems: [
-      { slug: 'fairy_atomic',   label: 'Fairy Atomic' },
-      { slug: 'fairy_spinning', label: 'Fairy Spinning' },
-      { slug: 'finchy',         label: 'Finchy' },
-    ],
     relatedSystems: [
       { slug: 'pixie', label: 'Pixie (directional mirror)' },
     ],
     source: 'platform-tracked',
-    sourceCitation: 'Holden compilation (2003); aligned with platform operator reference.',
     auditStatus: 'aligned',
     tier: 'literal-primitive',
   },
@@ -249,18 +215,10 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     movementExplanation:
       'A clipper set with an opposite-side inward dex; the set foot relocates as it opens ' +
       'a clipper-anchored chain.',
-    equivalenceNotes: [],
-    derivedSystems: [
-      { slug: 'blurry',     label: 'Blurry' },
-      { slug: 'leaning',    label: 'Leaning' },
-      { slug: 'go_go',      label: 'Go-Go' },
-      { slug: 'shooting',   label: 'Shooting' },
-    ],
     relatedSystems: [
       { slug: 'bubba', label: 'Bubba (directional mirror)' },
     ],
     source: 'platform-tracked',
-    sourceCitation: 'Holden compilation (2003); aligned with platform resolved formulas.',
     auditStatus: 'aligned',
     tier: 'literal-primitive',
   },
@@ -271,18 +229,11 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       'Toe set, then an opposite-side inward dex resolving to an op-side terminal. The ' +
       'inward-direction counterpart of atomic: both finish op-side, but quantum dexes ' +
       'inward where atomic dexes outward.',
-    equivalenceNotes: [
-      { reading: 'compressed atomic', citation: 'Holden reading' },
-    ],
-    derivedSystems: [
-      { slug: 'frantic', label: 'Frantic' },
-    ],
     relatedSystems: [
       { slug: 'atomic',   label: 'Atomic (outward counterpart, op-side terminal)' },
       { slug: 'slapping', label: 'Slapping (same-side-component sibling)' },
     ],
     source: 'platform-tracked',
-    sourceCitation: 'Holden compilation (2003); aligned with platform operator reference.',
     auditStatus: 'aligned',
     tier: 'literal-primitive',
   },
@@ -294,20 +245,11 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       'Atomic are execution styles of Atomic. Older sources may blur Atomic, leggy ' +
       'Atomic, and Illusioning language, but current doctrine keeps them distinct: ' +
       'Illusioning is that same movement realized standalone, not an equivalent name for Atomic.',
-    equivalenceNotes: [
-      { reading: 'Toe set Illusion', citation: 'Holden parenthetical (historical; not formalized by the platform)' },
-    ],
-    derivedSystems: [
-      { slug: 'fairy_atomic', label: 'Fairy Atomic' },
-      { slug: 'neutron',      label: 'Neutron' },
-      { slug: 'tapping',      label: 'Tapping' },
-    ],
     relatedSystems: [
       { slug: 'quantum',  label: 'Quantum (inward counterpart, op-side terminal)' },
       { slug: 'nuclear',  label: 'Nuclear (platform reading: paradox + illusion)' },
     ],
     source: 'platform-tracked',
-    sourceCitation: 'Holden compilation (2003); platform tracks atomic as a +1 set primitive (audit row records partial: platform does not formalize Holden\'s Toe-set Illusion decomposition).',
     auditStatus: 'partial',
     tier: 'literal-primitive',
   },
@@ -317,13 +259,10 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     movementExplanation:
       'A clipper set with an opposite-side outward dex; the reverse-direction mirror of ' +
       'stepping. Named in the historical compilation but not currently a platform canonical.',
-    equivalenceNotes: [],
-    derivedSystems: [],
     relatedSystems: [
       { slug: 'stepping', label: 'Stepping (directional mirror)' },
     ],
     source: 'holden-only',
-    sourceCitation: 'Holden compilation (2003); no current platform canonical.',
     auditStatus: 'holden-only',
     tier: 'literal-primitive',
   },
@@ -333,13 +272,10 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     movementExplanation:
       'Toe set, then an opposite-side inward dex resolving to a same-side terminal, the ' +
       'terminal-side mirror of quantum. From the historical compilation;no current platform canonical.',
-    equivalenceNotes: [],
-    derivedSystems: [],
     relatedSystems: [
       { slug: 'quantum', label: 'Quantum (op-side-terminal sibling)' },
     ],
     source: 'holden-only',
-    sourceCitation: 'Holden compilation (2003); no current platform canonical.',
     auditStatus: 'holden-only',
     tier: 'literal-primitive',
   },
@@ -350,15 +286,10 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       'Toe set, then an opposite-side outward dex with a plant, resolving to a same-side ' +
       'terminal. A historical set reading (also read as Atomic same-side); the ' +
       'platform-canonical identity of tapping is the operator, a +1 tap modifier taught on the Tapping operator page.',
-    equivalenceNotes: [
-      { reading: 'Atomic same side', citation: 'Holden parenthetical' },
-    ],
-    derivedSystems: [],
     relatedSystems: [
       { slug: 'atomic', label: 'Atomic (op-side-terminal sibling)' },
     ],
     source: 'holden-only',
-    sourceCitation: 'Holden compilation (2003); historical set reading only. The platform-canonical identity is the Tapping operator.',
     auditStatus: 'holden-only',
     tier: 'literal-primitive',
   },
@@ -369,15 +300,10 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     movementExplanation:
       'Pixie doubled (folk name Double Pixie): two same-side inward dexes layered over a ' +
       'toe set.',
-    equivalenceNotes: [
-      { reading: 'Double Pixie', citation: 'Holden parenthetical' },
-    ],
-    derivedSystems: [],
     relatedSystems: [
       { slug: 'pixie', label: 'Pixie (single-dex base)' },
     ],
     source: 'holden-only',
-    sourceCitation: 'Holden compilation (2003); decomposition aligns with pixie doubled.',
     auditStatus: 'aligned',
     tier: 'compositional-system',
   },
@@ -391,15 +317,10 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       'barraging-based names for historical continuity, but the set is Furious and their ' +
       'decomposition resolves to Furious. Barrage is a separate standalone base concept, ' +
       'not to be confused with Barraging.',
-    equivalenceNotes: [
-      { reading: 'High Stepping', citation: 'Holden parenthetical (historical)' },
-    ],
-    derivedSystems: [],
     relatedSystems: [
       { slug: 'stepping', label: 'Stepping (single-dex base)' },
     ],
     source: 'platform-tracked',
-    sourceCitation: 'Platform-tracked as the two-dex set; Barraging is a legacy name pattern for this set, not a canonical set of its own.',
     auditStatus: 'partial',
     tier: 'compositional-system',
   },
@@ -409,17 +330,10 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     movementExplanation:
       'Pixie extended with an illusion-style dex (folk name Pixie Illusion). From the historical compilation;' +
       'no current platform canonical.',
-    equivalenceNotes: [
-      { reading: 'Pixie Illusion', citation: 'Holden parenthetical' },
-    ],
-    derivedSystems: [
-      { slug: 'railing', label: 'Railing (rooted sailing)' },
-    ],
     relatedSystems: [
       { slug: 'pixie', label: 'Pixie (single-dex base)' },
     ],
     source: 'holden-only',
-    sourceCitation: 'Holden compilation (2003); decomposes mechanically to pixie + illusion-class second dex.',
     auditStatus: 'holden-only',
     tier: 'compositional-system',
   },
@@ -431,13 +345,10 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       'The launch incorporates the ducking body movement; the across-body path into the duck is ' +
       'what distinguishes it. A set is defined by its launch mechanism, and this launch ' +
       'incorporates ducking rather than a bare dexterity.',
-    equivalenceNotes: [],
-    derivedSystems: [],
     relatedSystems: [
       { slug: 'weaving', label: 'Weaving (sibling ducking set; same-foot catch)' },
     ],
     source: 'platform-tracked',
-    sourceCitation: 'A defined ducking set system; canonical JOB notation is pending authoring.',
     tier: 'compositional-system',
   },
   {
@@ -448,13 +359,10 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       'The launch incorporates the ducking body movement; the same-foot catch is what ' +
       'distinguishes it. A set is defined by its launch mechanism, and this launch ' +
       'incorporates ducking rather than a bare dexterity.',
-    equivalenceNotes: [],
-    derivedSystems: [],
     relatedSystems: [
       { slug: 'zulu', label: 'Zulu (sibling ducking set; across-body bag path)' },
     ],
     source: 'platform-tracked',
-    sourceCitation: 'A defined ducking set system; canonical JOB notation is pending authoring.',
     tier: 'compositional-system',
   },
   {
@@ -462,15 +370,10 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     formula: 'CLIP > OP IN [DEX] > OP OUT [DEX] >',
     movementExplanation:
       'Stepping combined with a paradox-style orientation change.',
-    equivalenceNotes: [
-      { reading: 'Stepping Paradox', citation: 'Holden parenthetical' },
-    ],
-    derivedSystems: [],
     relatedSystems: [
       { slug: 'stepping', label: 'Stepping (single-dex base)' },
     ],
     source: 'platform-tracked',
-    sourceCitation: 'Holden compilation (2003); aligned with the platform ruling.',
     auditStatus: 'aligned',
     tier: 'compositional-system',
   },
@@ -480,16 +383,11 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     movementExplanation:
       'Pixie into quantum\'s direction: pixie\'s opening dex followed by an opposite-side ' +
       'inward dex. From the historical compilation;no current platform canonical.',
-    equivalenceNotes: [
-      { reading: 'pixie-quantum', citation: 'Holden reading' },
-    ],
-    derivedSystems: [],
     relatedSystems: [
       { slug: 'pixie',   label: 'Pixie (first-dex base)' },
       { slug: 'quantum', label: 'Quantum (second-dex base)' },
     ],
     source: 'holden-only',
-    sourceCitation: 'Holden compilation (2003); decomposes mechanically to pixie + quantum-direction second dex.',
     auditStatus: 'holden-only',
     tier: 'compositional-system',
   },
@@ -499,14 +397,11 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     movementExplanation:
       'Two-dex chain combining fairy\'s opening with atomic\'s direction. From the historical compilation;' +
       'no current platform canonical.',
-    equivalenceNotes: [],
-    derivedSystems: [],
     relatedSystems: [
       { slug: 'fairy',  label: 'Fairy (first-dex base)' },
       { slug: 'atomic', label: 'Atomic (second-dex direction)' },
     ],
     source: 'holden-only',
-    sourceCitation: 'Holden compilation (2003); no current platform canonical.',
     auditStatus: 'holden-only',
     tier: 'compositional-system',
   },
@@ -516,16 +411,11 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     movementExplanation:
       'Stepping with a paradox-style orientation change, extended by an illusion-style dex ' +
       '(folk name Stepping Paradox Illusion). From the historical compilation;no current platform canonical.',
-    equivalenceNotes: [
-      { reading: 'Stepping Paradox Illusion', citation: 'Holden parenthetical' },
-    ],
-    derivedSystems: [],
     relatedSystems: [
       { slug: 'stepping', label: 'Stepping (first-dex base)' },
       { slug: 'blurry',   label: 'Blurry (Stepping Paradox shape)' },
     ],
     source: 'holden-only',
-    sourceCitation: 'Holden compilation (2003); no current platform canonical.',
     auditStatus: 'holden-only',
     tier: 'compositional-system',
   },
@@ -539,14 +429,8 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       'a folk name expands this set rather than adding a second symposium treatment. A ' +
       'positional qualifier reads against the side the set originates from: on that side ' +
       'is same-side, crossing to the other is opposite.',
-    equivalenceNotes: [
-      { reading: 'Symposium Atomic', citation: 'Red ruling (curator-relayed)' },
-      { reading: 'Symposium Reverse Miraging', citation: 'Holden parenthetical' },
-    ],
-    derivedSystems: [],
     relatedSystems: [],
     source: 'platform-tracked',
-    sourceCitation: 'Flailing is a Symposium Atomic set contributing +2, corpus-settled across the six published atomic-symposium compounds; Holden compilation (2003) reads it as Symposium Reverse Miraging.',
     auditStatus: 'partial',
     tier: 'compositional-system',
   },
@@ -557,18 +441,10 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       'A clipper-based compound entry combining a paradox hip shift with an illusion-style ' +
       'dex. The historical compilation treats it as a basic single-dex set; the platform tracks it as a +2 ' +
       'compound.',
-    equivalenceNotes: [
-      { reading: 'paradox + illusion compound', citation: 'Platform reading' },
-      { reading: 'basic single-dex set',        citation: 'Holden reading' },
-    ],
-    derivedSystems: [
-      { slug: 'twinspinning', label: 'Twinspinning (nuclear inspinning)' },
-    ],
     relatedSystems: [
       { slug: 'atomic', label: 'Atomic (related uptime set; not a nuclear component under the paradox + illusion reading)' },
     ],
     source: 'platform-tracked',
-    sourceCitation: 'Holden compilation (2003); audit row partial: Holden\'s "basic" reading vs platform\'s compound reading.',
     auditStatus: 'partial',
     tier: 'compositional-system',
   },
@@ -581,16 +457,10 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       'Spin-anchored set system. The historical compilation reads it as spinning miraging; later platform ' +
       'analysis records the decomposition as spinning + stepping (CLIP-led). Both readings ' +
       'preserved as documented disagreement.',
-    equivalenceNotes: [
-      { reading: 'spinning miraging',  citation: 'Holden parenthetical' },
-      { reading: 'spinning stepping',  citation: 'Platform reading' },
-    ],
-    derivedSystems: [],
     relatedSystems: [
       { slug: 'stepping', label: 'Stepping (platform\'s reading anchor)' },
     ],
     source: 'platform-tracked',
-    sourceCitation: 'Holden compilation (2003); audit row conflict: readings disagree on entry surface anchor.',
     auditStatus: 'conflict',
     tier: 'compositional-system',
   },
@@ -600,15 +470,10 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     movementExplanation:
       'Double spinning over a clipper set, two back-spin tokens in sequence. From the historical compilation;' +
       'no current platform canonical.',
-    equivalenceNotes: [
-      { reading: 'double spinning', citation: 'Holden parenthetical' },
-    ],
-    derivedSystems: [],
     relatedSystems: [
       { slug: 'peeking', label: 'Peeking (SET-led variant)' },
     ],
     source: 'holden-only',
-    sourceCitation: 'Holden compilation (2003); no current platform canonical.',
     auditStatus: 'holden-only',
     tier: 'compositional-system',
   },
@@ -618,15 +483,10 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     movementExplanation:
       'Double spinning, SET-led variant. The directional sibling of sonic with a SET ' +
       'rather than CLIP anchor. From the historical compilation;no current platform canonical.',
-    equivalenceNotes: [
-      { reading: 'double spinning (SET-led)', citation: 'Holden parenthetical' },
-    ],
-    derivedSystems: [],
     relatedSystems: [
       { slug: 'sonic', label: 'Sonic (CLIP-led variant)' },
     ],
     source: 'holden-only',
-    sourceCitation: 'Holden compilation (2003); no current platform canonical.',
     auditStatus: 'holden-only',
     tier: 'compositional-system',
   },
@@ -636,16 +496,11 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     movementExplanation:
       'Stepping with a forward spin (folk name Stepping inspinning). From the historical compilation;no ' +
       'current platform canonical.',
-    equivalenceNotes: [
-      { reading: 'stepping inspinning', citation: 'Holden parenthetical' },
-    ],
-    derivedSystems: [],
     relatedSystems: [
       { slug: 'stepping', label: 'Stepping (set base)' },
       { slug: 'go_go',    label: 'Go-Go (back-spin sibling)' },
     ],
     source: 'holden-only',
-    sourceCitation: 'Holden compilation (2003); no current platform canonical.',
     auditStatus: 'holden-only',
     tier: 'compositional-system',
   },
@@ -655,16 +510,11 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     movementExplanation:
       'Stepping backspinning. The directional sibling of leaning with a back-spin token. ' +
       'From the historical compilation;no current platform canonical.',
-    equivalenceNotes: [
-      { reading: 'stepping backspinning', citation: 'Holden parenthetical' },
-    ],
-    derivedSystems: [],
     relatedSystems: [
       { slug: 'stepping', label: 'Stepping (set base)' },
       { slug: 'leaning',  label: 'Leaning (front-spin sibling)' },
     ],
     source: 'holden-only',
-    sourceCitation: 'Holden compilation (2003); no current platform canonical.',
     auditStatus: 'holden-only',
     tier: 'compositional-system',
   },
@@ -674,15 +524,10 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     movementExplanation:
       'Nuclear inspinning. Nuclear\'s opening dex followed by a front-spin body token. ' +
       'From the historical compilation;no current platform canonical.',
-    equivalenceNotes: [
-      { reading: 'nuclear inspinning', citation: 'Holden parenthetical' },
-    ],
-    derivedSystems: [],
     relatedSystems: [
       { slug: 'nuclear', label: 'Nuclear (set base)' },
     ],
     source: 'holden-only',
-    sourceCitation: 'Holden compilation (2003); no current platform canonical.',
     auditStatus: 'holden-only',
     tier: 'compositional-system',
   },
@@ -692,15 +537,10 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     movementExplanation:
       'Atomic with an added back spin (folk name Atomic spin). From the historical compilation;no current ' +
       'platform canonical.',
-    equivalenceNotes: [
-      { reading: 'Atomic spin', citation: 'Holden parenthetical' },
-    ],
-    derivedSystems: [],
     relatedSystems: [
       { slug: 'atomic', label: 'Atomic (set base)' },
     ],
     source: 'holden-only',
-    sourceCitation: 'Holden compilation (2003); no current platform canonical.',
     auditStatus: 'holden-only',
     tier: 'compositional-system',
   },
@@ -710,14 +550,11 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     movementExplanation:
       'Fairy\'s opening dex followed by a back-spin body token. From the historical compilation;no current ' +
       'platform canonical.',
-    equivalenceNotes: [],
-    derivedSystems: [],
     relatedSystems: [
       { slug: 'fairy', label: 'Fairy (set base)' },
       { slug: 'pixie_inspinning', label: 'Pixie Inspinning (directional sibling)' },
     ],
     source: 'holden-only',
-    sourceCitation: 'Holden compilation (2003); no current platform canonical.',
     auditStatus: 'holden-only',
     tier: 'compositional-system',
   },
@@ -727,14 +564,11 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     movementExplanation:
       'Pixie\'s opening dex followed by a front-spin body token. From the historical compilation;no current ' +
       'platform canonical.',
-    equivalenceNotes: [],
-    derivedSystems: [],
     relatedSystems: [
       { slug: 'pixie', label: 'Pixie (set base)' },
       { slug: 'fairy_spinning', label: 'Fairy Spinning (directional sibling)' },
     ],
     source: 'holden-only',
-    sourceCitation: 'Holden compilation (2003); no current platform canonical.',
     auditStatus: 'holden-only',
     tier: 'compositional-system',
   },
@@ -746,14 +580,8 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     movementExplanation:
       'Clipper-anchored cross-body rotational set with an explicit SWIRL dex token. The ' +
       'opening of the whirl/swirl family.',
-    equivalenceNotes: [],
-    derivedSystems: [
-      { slug: 'snapping', label: 'Snapping (Dragon-set variant)' },
-      { slug: 'twisted',  label: 'Twisted (Dragon-set Paradox variant)' },
-    ],
     relatedSystems: [],
     source: 'platform-tracked',
-    sourceCitation: 'Holden compilation (2003); aligned with platform tracking.',
     auditStatus: 'aligned',
     tier: 'compositional-system',
   },
@@ -767,13 +595,8 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       'crossing belongs to the set. A trick performed off it keeps its own side ' +
       'relations, which is why each blazing compound reads as this set followed by its ' +
       'base written as the base is written.',
-    equivalenceNotes: [
-      { reading: 'whirling (op-side terminal variant)', citation: 'Holden distinction' },
-    ],
-    derivedSystems: [],
     relatedSystems: [],
     source: 'platform-tracked',
-    sourceCitation: 'Blazing is a Whirling set; Holden compilation (2003) additionally distinguishes it by terminal side.',
     auditStatus: 'partial',
     tier: 'compositional-system',
   },
@@ -783,15 +606,10 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     movementExplanation:
       'Reverse Whirling (same-side terminal). The opposite-direction sibling of whirling. ' +
       'From the historical compilation;no current platform canonical.',
-    equivalenceNotes: [
-      { reading: 'Reverse Whirling (same side)', citation: 'Holden parenthetical' },
-    ],
-    derivedSystems: [],
     relatedSystems: [
       { slug: 'shattered', label: 'Shattered (op-side terminal sibling)' },
     ],
     source: 'holden-only',
-    sourceCitation: 'Holden compilation (2003); no current platform canonical.',
     auditStatus: 'holden-only',
     tier: 'compositional-system',
   },
@@ -801,15 +619,10 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     movementExplanation:
       'Reverse Whirling (op-side terminal). The terminal-side mirror of scattered. ' +
       'From the historical compilation;no current platform canonical.',
-    equivalenceNotes: [
-      { reading: 'Reverse Whirling (op side)', citation: 'Holden parenthetical' },
-    ],
-    derivedSystems: [],
     relatedSystems: [
       { slug: 'scattered', label: 'Scattered (same-side terminal sibling)' },
     ],
     source: 'holden-only',
-    sourceCitation: 'Holden compilation (2003); no current platform canonical.',
     auditStatus: 'holden-only',
     tier: 'compositional-system',
   },
@@ -820,13 +633,8 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       'Whirling performed off the ground (folk name Symposium Whirling): the whirl shape ' +
       'with no support-foot plant. On its own it scores 0 ADD; when used as a set into ' +
       'another trick, it adds 1 ADD.',
-    equivalenceNotes: [
-      { reading: 'Symposium Whirling', citation: 'Holden parenthetical' },
-    ],
-    derivedSystems: [],
     relatedSystems: [],
     source: 'platform-tracked',
-    sourceCitation: 'Holden compilation (2003); aligned with platform tracking.',
     auditStatus: 'aligned',
     tier: 'compositional-system',
   },
@@ -836,13 +644,8 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     movementExplanation:
       'Whirling with an added back spin (folk name Whirling Gyro); the gyro-lineage ' +
       'anchor.',
-    equivalenceNotes: [
-      { reading: 'Whirling Gyro', citation: 'Holden parenthetical' },
-    ],
-    derivedSystems: [],
     relatedSystems: [],
     source: 'platform-tracked',
-    sourceCitation: 'Holden compilation (2003); aligned with platform tracking.',
     auditStatus: 'aligned',
     tier: 'compositional-system',
   },
@@ -853,15 +656,10 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       'Clipper reverse whirl. The reverse-direction sibling of the whirl shape; folk-named ' +
       'in the historical compilation. The underlying reverse-whirl shape is canonical; the name ' +
       '"Broken" itself is folk.',
-    equivalenceNotes: [
-      { reading: 'clipper reverse whirl', citation: 'Holden parenthetical' },
-    ],
-    derivedSystems: [],
     relatedSystems: [
       { slug: 'scattered', label: 'Scattered (same-side-terminal sibling)' },
     ],
     source: 'holden-only',
-    sourceCitation: 'Holden compilation (2003); name is folk, underlying reverse-whirl shape is canonical.',
     auditStatus: 'holden-only',
     tier: 'compositional-system',
   },
@@ -873,15 +671,10 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     movementExplanation:
       'Fairy off a pinch entry (folk name Pinching Fairy): fairy\'s outward dex over a ' +
       'pinch surface, not a toe set. From the historical compilation;no current platform canonical.',
-    equivalenceNotes: [
-      { reading: 'Pinching Fairy set', citation: 'Holden parenthetical' },
-    ],
-    derivedSystems: [],
     relatedSystems: [
       { slug: 'fairy', label: 'Fairy (toe-entry sibling)' },
     ],
     source: 'holden-only',
-    sourceCitation: 'Holden compilation (2003); no current platform canonical.',
     auditStatus: 'holden-only',
     tier: 'compositional-system',
   },
@@ -891,14 +684,11 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     movementExplanation:
       'Pixie\'s dex direction over a pinch entry surface. From the historical compilation;no current ' +
       'platform canonical.',
-    equivalenceNotes: [],
-    derivedSystems: [],
     relatedSystems: [
       { slug: 'pixie',  label: 'Pixie (toe-entry sibling)' },
       { slug: 'finchy', label: 'Finchy (pinch-entry sibling)' },
     ],
     source: 'holden-only',
-    sourceCitation: 'Holden compilation (2003); no current platform canonical.',
     auditStatus: 'holden-only',
     tier: 'compositional-system',
   },
@@ -908,15 +698,10 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     movementExplanation:
       'Dragon-set Swirling Paradox. A SWIRL token over a dragon entry, then a paradox-token ' +
       'second dex. From the historical compilation;no current platform canonical.',
-    equivalenceNotes: [
-      { reading: 'Dragon set Swirling Paradox', citation: 'Holden parenthetical' },
-    ],
-    derivedSystems: [],
     relatedSystems: [
       { slug: 'snapping', label: 'Snapping (single-dex Dragon sibling)' },
     ],
     source: 'holden-only',
-    sourceCitation: 'Holden compilation (2003); no current platform canonical.',
     auditStatus: 'holden-only',
     tier: 'compositional-system',
   },
@@ -926,16 +711,11 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     movementExplanation:
       'Dragon-set Swirling. A SWIRL token over a dragon entry surface. From the historical compilation;no ' +
       'current platform canonical.',
-    equivalenceNotes: [
-      { reading: 'Dragon set Swirling', citation: 'Holden parenthetical' },
-    ],
-    derivedSystems: [],
     relatedSystems: [
       { slug: 'swirling', label: 'Swirling (toe-entry sibling)' },
       { slug: 'twisted',  label: 'Twisted (paradox-extended Dragon sibling)' },
     ],
     source: 'holden-only',
-    sourceCitation: 'Holden compilation (2003); no current platform canonical.',
     auditStatus: 'holden-only',
     tier: 'compositional-system',
   },
@@ -945,16 +725,11 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     movementExplanation:
       'Pixie off a frigidosis entry (folk name Frigidosis Pixie): pixie\'s inward dex over ' +
       'a frigidosis surface. From the historical compilation;no current platform canonical.',
-    equivalenceNotes: [
-      { reading: 'frigidosis Pixie', citation: 'Holden parenthetical' },
-    ],
-    derivedSystems: [],
     relatedSystems: [
       { slug: 'pixie',          label: 'Pixie (toe-entry sibling)' },
       { slug: 'pixie_pinching', label: 'Pixie Pinching (pinch-entry sibling)' },
     ],
     source: 'holden-only',
-    sourceCitation: 'Holden compilation (2003); no current platform canonical.',
     auditStatus: 'holden-only',
     tier: 'compositional-system',
   },
@@ -969,15 +744,8 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       'ground throughout, the inverse of symposium\'s no-plant constraint. It carries one ' +
       'attached dexterity but contributes no ADD. Railing-family tricks carry this as their ' +
       '(rooted) annotation.',
-    equivalenceNotes: [
-      { reading: 'support-foot set with attached dex (antisymposium)', citation: 'curator-ruled' },
-    ],
-    derivedSystems: [
-      { slug: 'zoid', label: 'Zoid (rooted toe-clipper set)' },
-    ],
     relatedSystems: [],
     source: 'holden-only',
-    sourceCitation: 'Holden compilation (2003); discipline-level note rather than a literal set notation.',
     auditStatus: 'holden-only',
     tier: 'compositional-system',
   },
@@ -987,13 +755,10 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     movementExplanation:
       'Specific named pattern for an antisymposium toe-clipper set. The setting foot stays ' +
       'on the ground through the toe-to-clipper transition.',
-    equivalenceNotes: [],
-    derivedSystems: [],
     relatedSystems: [
       { slug: 'rooting', label: 'Rooting (parent discipline)' },
     ],
     source: 'holden-only',
-    sourceCitation: 'Holden compilation (2003); no current platform canonical.',
     auditStatus: 'holden-only',
     tier: 'compositional-system',
   },
@@ -1006,16 +771,11 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       'discipline, with the setting foot staying on the ground. Rooted adds no ADD and ' +
       'Sailing carries two, so Railing contributes 2. Railing-family trick cards reference ' +
       'this entry by the (railing set) shorthand instead of repeating the expansion.',
-    equivalenceNotes: [
-      { reading: 'Rooted Sailing', citation: 'Holden-derived (rooted + sailing)' },
-    ],
-    derivedSystems: [],
     relatedSystems: [
       { slug: 'sailing', label: 'Sailing (the +2 dex spine)' },
       { slug: 'rooting', label: 'Rooting / Rooted (the +0 antisymposium discipline)' },
     ],
     source: 'holden-only',
-    sourceCitation: 'Holden compilation (2003); Rooted Sailing composition, documented to back the railing trick cohort.',
     auditStatus: 'holden-only',
     tier: 'compositional-system',
   },
@@ -1027,16 +787,11 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       'dex, a no-plant symposium body, and swirling\'s out dex, contributing 3 ADD. Surfing-' +
       'family trick cards reference this entry by the (surfing set) shorthand instead of ' +
       'repeating the expansion.',
-    equivalenceNotes: [
-      { reading: 'Fairy Symposium Swirling', citation: 'derived from the surfing trick cohort expansion' },
-    ],
-    derivedSystems: [],
     relatedSystems: [
       { slug: 'fairy', label: 'Fairy (the toe-set outward entry)' },
       { slug: 'swirling', label: 'Swirling (the same-side out dex)' },
     ],
     source: 'platform-tracked',
-    sourceCitation: 'Derived from the surfing trick cohort expansion (FootbagMoves single-source).',
     auditStatus: 'aligned',
     tier: 'compositional-system',
   },
@@ -1048,15 +803,10 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       'no-plant symposium event, and a second quantum, contributing 3 ADD. Floating-family ' +
       'trick cards reference this entry by the (floating set) shorthand instead of repeating ' +
       'the expansion.',
-    equivalenceNotes: [
-      { reading: 'Quantum Symposium Quantum', citation: 'curator-ruled' },
-    ],
-    derivedSystems: [],
     relatedSystems: [
       { slug: 'sailing', label: 'Sailing (sibling composite set)' },
     ],
     source: 'platform-tracked',
-    sourceCitation: 'Composite set (Quantum Symposium Quantum); curator-ruled at 3 ADD.',
     auditStatus: 'aligned',
     tier: 'compositional-system',
   },
@@ -1067,15 +817,10 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       'Warping is a two-dex set contributing 3 ADD: a first dex, then a second dex carried as a ' +
       'no-plant symposium event. Warping-family trick cards reference this entry by the ' +
       '(warping set) shorthand instead of repeating the expansion.',
-    equivalenceNotes: [
-      { reading: 'two dexes, the second is symposium', citation: 'curator-ruled' },
-    ],
-    derivedSystems: [],
     relatedSystems: [
       { slug: 'sailing', label: 'Sailing (sibling composite set)' },
     ],
     source: 'platform-tracked',
-    sourceCitation: 'Composite set (two dexes, second symposium); curator-ruled at 3 ADD.',
     auditStatus: 'aligned',
     tier: 'compositional-system',
   },
