@@ -204,7 +204,7 @@ Jump directly to later POST routes of a multi-step flow; use stale tokens after 
 
 #### 4.4.33 Availability and resource-exhaustion risks
 
-Rate limits on every mutation surface; request, file, pixel, job and queue limits on upload paths; page-size caps and normalized sort and filter parameters on list routes; expensive operations not repeatable by anonymous or low-tier users; workers with leases, retry caps and poison-message handling.
+Rate limits on every credential and identity-discovery mutation, and on payments, uploads, search and broadcasts (a signed-in member's other writes take none by design); request, file, pixel, job and queue limits on upload paths; page-size caps and normalized sort and filter parameters on list routes; expensive operations not repeatable by anonymous or low-tier users; workers with leases, retry caps and poison-message handling.
 
 #### 4.4.34 Token lifecycle, replay, and clock bugs
 

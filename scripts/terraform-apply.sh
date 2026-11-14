@@ -150,14 +150,11 @@
 # not the machine running the suite has the private checkout linked.
 #
 # Under the job role (an assumed-role session of FootbagDevTester, as AWS
-# reports it) three things differ, and nothing else: terraform is never allowed
-# to prompt (-input=false), a missing values link is refused before planning,
-# and a plan the role may not apply is refused before applying: any aws_iam_*
-# change, because the role holds no IAM write; a replication configuration
-# change, because it passes a role, which the role is never granted; and any
-# change to the staging firewall, because the addresses it admits are written by
-# onboarding and offboarding as footbag-operator, and a values file on a
-# dev-and-tester's machine is no authority over an administrator's entry.
+# reports it) three things differ, and nothing else: only the empty-plan check
+# runs, every apply being refused before planning, because the job writes no
+# infrastructure and every apply is footbag-operator's; terraform is never
+# allowed to prompt (-input=false); and a missing values link is refused before
+# planning.
 set -euo pipefail
 
 TARGET=""
@@ -775,6 +772,19 @@ case "${AWS_IDENTITY_ARN:-}" in
   *":assumed-role/${FOOTBAG_DEV_TESTER_ROLE}/"*) JOB_ROLE=1 ;;
 esac
 
+# The job role plans staging to prove a deploy's infrastructure matches its
+# tree, and applies nothing: every apply, staging's included, is the directly
+# authenticated identity's, and the role's policy denies every infrastructure
+# write. Refused here, before planning, so a run that could only fail partway
+# never takes the state lock.
+if (( JOB_ROLE )) && [[ "$PLAN_SHAPE" != "empty" ]]; then
+  cr_error "the job role applies nothing; it runs only the empty-plan check (--require-empty-plan)."
+  echo "       Every Terraform apply, staging's included, is run by a" >&2
+  echo "       footbag-operator holder as the directly authenticated identity." >&2
+  echo "       Nothing was planned or applied." >&2
+  exit 1
+fi
+
 # A job-role session never answers a terraform prompt. A variable with no value
 # would otherwise make terraform stop and ask, which in a wrapped run reads as a
 # hang; refusing to ask turns it into an error naming the variable.
@@ -783,7 +793,7 @@ declare -a TF_INPUT_ARGS=()
 
 # The values file is a link into the maintainers' private operations checkout,
 # which a dev-and-tester is not required to have: deploying and testing staging
-# need no apply. Without it terraform fails on a missing variable partway into a
+# need no plan of their own. Without it terraform fails on a missing variable partway into a
 # plan, in words that do not name the file, so the job role is refused here,
 # before any state is touched.
 VALUES_FILE="${TERRAFORM_APPLY_VALUES_FILE:-${TF_DIR}/terraform.tfvars}"
@@ -794,7 +804,7 @@ if (( JOB_ROLE )) && [[ ! -r "$VALUES_FILE" ]]; then
   cr_error "terraform/${TARGET}/terraform.tfvars is missing or unreadable."
   echo "       It is a link into the private operations checkout, which this" >&2
   echo "       workstation does not have wired. A dev-and-tester deploys and tests" >&2
-  echo "       staging without applying Terraform; an apply needs the checkout," >&2
+  echo "       staging without it; the empty-plan check needs the checkout," >&2
   echo "       linked with: bash scripts/setup_private_repo.sh" >&2
   echo "       Nothing was planned or applied." >&2
   exit 1
@@ -1265,53 +1275,6 @@ if [[ "$TARGET" == "production" ]]; then
   if [[ -n "$MARKER_CREATES" ]]; then
     echo "NOTE: this plan creates ${MARKER_ADDRESS} as \"false\"; allowed by --allow-marker-create"
     echo "      on the operator's word that this is production's first apply."
-  fi
-fi
-
-# ── Changes that are the directly authenticated identity's to apply ──────────
-#
-# The job role holds no IAM write and no iam:PassRole, so a plan that changes any
-# aws_iam_* resource, or a replication configuration (which passes the
-# replication role to S3), would be refused by AWS partway through the apply,
-# after the resources ahead of it had already changed. The staging firewall is
-# refused for a different reason: AWS would allow it, but the addresses it admits
-# belong to the administrators' values file and to each dev-and-tester's own
-# parameter, and a values file on this machine is no authority over either.
-# Refused here instead, before anything is applied, and failing closed like the
-# DNS read: a plan this cannot read is refused too.
-if (( JOB_ROLE )); then
-  ROLE_REFUSED=""
-  if command -v jq >/dev/null 2>&1; then
-    if ! ROLE_REFUSED="$(printf '%s' "${PLAN_JSON:-}" | jq -r --arg fw "$FIREWALL_ADDRESS" '
-        .resource_changes[]?
-        | select(.change.actions != ["no-op"] and .change.actions != ["read"])
-        | select((.type | startswith("aws_iam"))
-                 or .type == "aws_s3_bucket_replication_configuration"
-                 or .address == $fw)
-        | "  \(.change.actions | join("+"))  \(.address)"
-      ')"; then
-      cr_error "could not read the saved plan to check it for changes the job role may not apply."
-      echo "       Nothing has been applied." >&2
-      exit 1
-    fi
-  else
-    ROLE_GREP_STATUS=0
-    ROLE_REFUSED="$(grep -E '^[[:space:]]*[#~+-].*(aws_iam_|aws_s3_bucket_replication_configuration|aws_lightsail_instance_public_ports)' "$TF_PLAN_LOG")" || ROLE_GREP_STATUS=$?
-    if (( ROLE_GREP_STATUS > 1 )); then
-      cr_error "could not read the plan text to check it for changes the job role may not apply."
-      echo "       Nothing has been applied." >&2
-      exit 1
-    fi
-  fi
-  if [[ -n "$ROLE_REFUSED" ]]; then
-    cr_error "this plan changes what the job role may not apply:"
-    printf '%s\n' "$ROLE_REFUSED" >&2
-    echo "       IAM and replication would be refused by AWS partway through, after" >&2
-    echo "       the changes ahead of them had landed; the staging firewall's" >&2
-    echo "       addresses are not this machine's to decide. Nothing has been" >&2
-    echo "       applied. A footbag-operator holder applies this one, as the" >&2
-    echo "       directly authenticated identity." >&2
-    exit 1
   fi
 fi
 

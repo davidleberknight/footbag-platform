@@ -11,7 +11,9 @@
  *   - The member-level `members.stripe_customer_id` identity, established by a
  *     member's first recurring donation and passed to every later checkout,
  *     one-time or recurring, so a repeat payer stays on one provider-side
- *     Customer instead of accumulating duplicates that split their history
+ *     Customer instead of accumulating duplicates that split their history;
+ *     and, in test mode only, an operator's link of a test-clock customer to a
+ *     member, so the payment rehearsal can produce genuine renewals
  *   - Member-facing payment-history and recurring-donation reads
  *   - The purchasable tiers' configured prices, both as the amount charged and
  *     as the display string every surface that quotes a price to a member reads,
@@ -373,6 +375,7 @@ import {
   NotFoundError,
   ValidationError,
   ConflictError,
+  ForbiddenError,
   RateLimitedError,
   ServiceUnavailableError,
 } from './serviceErrors';
@@ -4395,6 +4398,70 @@ function pastDueRecurringDonation(
   return row ? { amountDisplay: formatAmount(row.amount_cents, row.currency) } : null;
 }
 
+// ── Test-clock customer link ─────────────────────────────────────────────────
+
+const STRIPE_CUSTOMER_ID = /^cus_[A-Za-z0-9]+$/;
+
+export type LinkTestClockCustomerResult =
+  | { status: 'would_link'; memberId: string }
+  | { status: 'linked'; memberId: string; stripeCustomerId: string }
+  | { status: 'already_held'; memberId: string; stripeCustomerId: string };
+
+/**
+ * Links a test-mode Stripe customer to a member, so the member's next recurring
+ * donation runs on that customer.
+ *
+ * A Stripe test clock, the only way to produce a genuine renewal, dunning run
+ * and end-of-dunning cancellation, attaches to a customer only when the customer
+ * is created, and the platform otherwise creates its customer inside checkout.
+ * So the rehearsal on pre-cutover production creates a clock-attached customer
+ * first and names it here; the recurring checkout already reuses a member's
+ * stored customer, which is all the rest of the flow needs.
+ *
+ * Test mode only, decided by the key this process actually holds: production
+ * admits a test key only while the production-live marker reads false, so a
+ * refusal outside test mode also refuses after go-live. The first link wins and
+ * is never re-pointed, as the first recurring donation's is; naming the same
+ * customer again reports it as already held. With `check`, every refusal runs and
+ * nothing is written. No audit row: the rehearsal's database is rebuilt
+ * afterwards, which removes the link with it, and the operator script that calls
+ * this records the change it made.
+ */
+async function linkTestClockCustomer(opts: {
+  memberSlug: string;
+  stripeCustomerId: string | null;
+  check: boolean;
+}): Promise<LinkTestClockCustomerResult> {
+  if (!opts.check && (opts.stripeCustomerId === null || !STRIPE_CUSTOMER_ID.test(opts.stripeCustomerId))) {
+    throw new ValidationError('the customer must be a Stripe customer id (cus_...)');
+  }
+  const mode = await getPaymentAdapter().resolveCredentialMode();
+  if (mode !== 'test') {
+    throw new ForbiddenError(
+      `the payment key this host holds reads as ${mode}, not test; a test-clock customer is linked only in test mode`,
+    );
+  }
+  return transaction(() => {
+    const row = memberBillingDb.findStripeIdentityBySlug.get(opts.memberSlug) as
+      | { id: string; stripe_customer_id: string | null }
+      | undefined;
+    if (!row) throw new NotFoundError(`no active member has the slug ${opts.memberSlug}`);
+    if (row.stripe_customer_id !== null && row.stripe_customer_id === opts.stripeCustomerId) {
+      return { status: 'already_held' as const, memberId: row.id, stripeCustomerId: row.stripe_customer_id };
+    }
+    if (row.stripe_customer_id !== null) {
+      throw new ConflictError(
+        'this member already holds a Stripe customer; name a member with no recurring donation yet',
+      );
+    }
+    if (opts.check) return { status: 'would_link' as const, memberId: row.id };
+    const customerId = opts.stripeCustomerId as string;
+    const now = new Date().toISOString();
+    memberBillingDb.setStripeCustomerIdIfNull.run(customerId, now, 'operator', row.id);
+    return { status: 'linked' as const, memberId: row.id, stripeCustomerId: customerId };
+  });
+}
+
 /**
  * The two payment obligations that otherwise reach a member only by email.
  *
@@ -4530,4 +4597,5 @@ export const paymentService = {
   startEventRegistrationPayment,
   cancelRecurringDonation,
   listRecurringDonationsForMember,
+  linkTestClockCustomer,
 };

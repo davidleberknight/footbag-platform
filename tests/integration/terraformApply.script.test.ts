@@ -470,10 +470,11 @@ describe('terraform-apply.sh: argument handling', () => {
   });
 
   it('applies the caller rule to the identity tree alone', () => {
-    // Every other tree is ordinary work for whoever the operator signed in as.
+    // On staging the job role reaches its empty-plan check; only the identity
+    // tree refuses it for being an assumed role at all.
     writeTerraformStub();
-    const res = run(['--target', 'staging', '--yes'], true, { ...assumedRoleIdentity(), ...valuesPresent() });
-    expect(res.exitCode).toBe(0);
+    const res = run(['--target', 'staging', '--require-empty-plan'], true, { ...assumedRoleIdentity(), ...valuesPresent() });
+    expect(res.exitCode, res.stderr).toBe(0);
     expect(res.stderr).not.toMatch(/is an assumed role/);
   });
 
@@ -510,7 +511,7 @@ describe('terraform-apply.sh: a job-role session', () => {
     // file terraform fails on a missing variable partway into a plan, in words
     // that do not name the file.
     writeTerraformStub();
-    const res = run(['--target', 'staging'], true, {
+    const res = run(['--target', 'staging', '--require-empty-plan'], true, {
       ...assumedRoleIdentity(),
       TERRAFORM_APPLY_VALUES_FILE: join(tmpDir, 'no-such.tfvars'),
     });
@@ -520,67 +521,54 @@ describe('terraform-apply.sh: a job-role session', () => {
     expect(calls(), 'terraform was never invoked').toBe('');
   });
 
-  it('never lets terraform prompt, on the plan and on the apply', () => {
-    // A prompt in a wrapped run reads as a hang; -input=false turns it into an
-    // error naming the variable.
-    writeTerraformStub();
-    const res = run(['--target', 'staging'], true, { ...assumedRoleIdentity(), ...valuesPresent() });
+  it('plans for the empty-plan check without prompting, and applies nothing', () => {
+    // The check every staging deploy makes is the whole of what the role runs
+    // here. A prompt in a wrapped run reads as a hang; -input=false turns it
+    // into an error naming the variable.
+    writeTerraformStub({
+      planResourceChanges: [{ type: 'aws_s3_bucket', address: 'aws_s3_bucket.media', actions: ['no-op'] }],
+    });
+    const res = run(['--target', 'staging', '--require-empty-plan'], true, { ...assumedRoleIdentity(), ...valuesPresent() });
     expect(res.exitCode, res.stderr).toBe(0);
-    const lines = calls().split('\n').filter((l) => / (plan|apply) /.test(l));
-    expect(lines.length).toBe(2);
-    for (const l of lines) expect(l).toContain('-input=false');
+    expect(res.stdout).toMatch(/The plan is empty, as required/);
+    const plans = calls().split('\n').filter((l) => / plan /.test(l));
+    expect(plans.length).toBe(1);
+    expect(plans[0]).toContain('-input=false');
+    expect(calls()).not.toMatch(/ apply /);
   });
 
-  it('refuses a plan that changes IAM, before applying anything', () => {
-    // The role holds no IAM write, so AWS would refuse partway through, after
-    // the changes ahead of it had landed.
+  it('still refuses drift under the empty-plan check, applying nothing', () => {
+    // The role may plan, and a plan that changes anything stops the deploy
+    // rather than being applied by the role.
     writeTerraformStub({
       planResourceChanges: [
         { type: 'aws_iam_role_policy', address: 'aws_iam_role_policy.runtime', actions: ['update'] },
       ],
     });
-    const res = run(['--target', 'staging'], true, { ...assumedRoleIdentity(), ...valuesPresent() });
+    const res = run(['--target', 'staging', '--require-empty-plan'], true, { ...assumedRoleIdentity(), ...valuesPresent() });
     expect(res.exitCode).toBe(1);
-    expect(res.stderr).toMatch(/this plan changes what the job role may not apply/);
-    expect(res.stderr).toContain('aws_iam_role_policy.runtime');
-    expect(calls()).not.toMatch(/ apply \//);
+    expect(res.stderr).toMatch(/required to be empty, and it changes:\n\s+aws_iam_role_policy\.runtime/);
+    expect(calls()).not.toMatch(/ apply /);
   });
 
-  it('refuses a replication change, which needs a role passed that the job role is never granted', () => {
+  it.each([
+    ['a plain apply', ['--target', 'staging']],
+    ['an apply answered in advance', ['--target', 'staging', '--yes']],
+    ['a sweep that applies whatever is pending', ['--target', 'staging', '--skip-empty-plan']],
+    ['the firewall-only apply', ['--target', 'staging', '--firewall-only', '--firewall-add', '203.0.113.7/32']],
+  ])('refuses %s to the job role, before terraform runs', (_label, args) => {
+    // The job writes no infrastructure: every apply, staging's included, is
+    // the directly authenticated identity's. Refused before planning, so a
+    // dev-and-tester never takes the state lock for a run that cannot finish.
     writeTerraformStub({
       planResourceChanges: [
-        { type: 'aws_s3_bucket_replication_configuration', address: 'aws_s3_bucket_replication_configuration.media', actions: ['update'] },
+        { type: 'aws_cloudfront_cache_policy', address: 'aws_cloudfront_cache_policy.site', actions: ['update'] },
       ],
     });
-    const res = run(['--target', 'staging'], true, { ...assumedRoleIdentity(), ...valuesPresent() });
+    const res = run(args, true, { ...assumedRoleIdentity(), ...valuesPresent() });
     expect(res.exitCode).toBe(1);
-    expect(res.stderr).toContain('aws_s3_bucket_replication_configuration.media');
-    expect(calls()).not.toMatch(/ apply \//);
-  });
-
-  it('refuses any change to the staging firewall, whose addresses are not a dev-and-tester\'s to decide', () => {
-    // A stale or edited values file on a dev-and-tester's machine would
-    // otherwise rewrite the administrators' SSH addresses.
-    writeTerraformStub({
-      planResourceChanges: [
-        { type: 'aws_lightsail_instance_public_ports', address: 'aws_lightsail_instance_public_ports.web', actions: ['delete', 'create'] },
-      ],
-    });
-    const res = run(['--target', 'staging'], true, { ...assumedRoleIdentity(), ...valuesPresent() });
-    expect(res.exitCode).toBe(1);
-    expect(res.stderr).toContain('aws_lightsail_instance_public_ports.web');
-    expect(calls()).not.toMatch(/ apply \//);
-  });
-
-  it('applies a plan whose IAM entries are all no-ops', () => {
-    writeTerraformStub({
-      planResourceChanges: [
-        { type: 'aws_iam_role', address: 'aws_iam_role.runtime', actions: ['no-op'] },
-      ],
-    });
-    const res = run(['--target', 'staging'], true, { ...assumedRoleIdentity(), ...valuesPresent() });
-    expect(res.exitCode, res.stderr).toBe(0);
-    expect(calls()).toMatch(/ apply /);
+    expect(res.stderr).toMatch(/the job role applies nothing/);
+    expect(calls(), 'terraform was never invoked').toBe('');
   });
 
   it('leaves the directly authenticated identity exactly as it was', () => {

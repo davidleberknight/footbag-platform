@@ -114,13 +114,12 @@ describe('the job role carries exactly the statements it is meant to', () => {
       StagingServices: [
         'project_buckets',
         'state_bucket_listing',
+        'take_the_staging_plan_lock',
         'project_scoped_services',
         'staging_dashboard',
         'project_keys_by_alias',
         'calls_that_carry_no_resource',
-        'publish_staging_metrics',
         'lightsail_staging_lifecycle',
-        'ses_staging_configuration',
         'ses_account_read',
       ],
       EdgeAndIdentity: [
@@ -132,6 +131,7 @@ describe('the job role carries exactly the statements it is meant to', () => {
         'reads_the_operator_scripts_make',
       ],
       Guardrails: [
+        'never_write_infrastructure',
         'no_self_elevation',
         'never_touch_operator_identity',
         'never_administer_a_dev_tester',
@@ -193,7 +193,10 @@ describe('the job role carries exactly the statements it is meant to', () => {
     // that cannot ask cannot report. Reading that the surface is empty is the
     // opposite of granting through it. An exact set rather than a ban, so a
     // fourth action cannot arrive under cover of the three.
-    const ssoActions = [...source.matchAll(/"((?:sso|identitystore):[A-Za-z*]+)"/g)].map(
+    // The write denial names the same three reads, as what it lets through
+    // rather than what it grants, so its text is left out.
+    const grants = source.replace(statement('NeverWriteInfrastructure'), '');
+    const ssoActions = [...grants.matchAll(/"((?:sso|identitystore):[A-Za-z*]+)"/g)].map(
       (m) => m[1],
     );
     expect(ssoActions).toEqual([
@@ -209,36 +212,211 @@ describe('the job role carries exactly the statements it is meant to', () => {
   });
 });
 
+/**
+ * The reads, and the few named non-read calls, the infrastructure-write denial
+ * leaves through. Written out here by hand rather than read from the policy,
+ * because this list is the claim "the role writes no infrastructure" and the
+ * policy is what is being checked against it.
+ */
+const PERMITTED_THROUGH_THE_WRITE_DENIAL = [
+  's3:Get*',
+  's3:List*',
+  's3:PutObject',
+  's3:DeleteObject',
+  'ssm:Get*',
+  'ssm:Describe*',
+  'ssm:List*',
+  'sqs:Get*',
+  'sqs:List*',
+  'sns:Get*',
+  'sns:List*',
+  'logs:Describe*',
+  'logs:Get*',
+  'logs:List*',
+  'logs:FilterLogEvents',
+  'events:Describe*',
+  'events:List*',
+  'cloudwatch:Describe*',
+  'cloudwatch:Get*',
+  'cloudwatch:List*',
+  'kms:Decrypt',
+  'kms:Describe*',
+  'kms:Get*',
+  'kms:List*',
+  'lightsail:Get*',
+  'cloudfront:Get*',
+  'cloudfront:List*',
+  'cloudfront:Describe*',
+  'ses:Get*',
+  'ses:List*',
+  'ses:Describe*',
+  'iam:Get*',
+  'iam:List*',
+  'iam:Simulate*',
+  'sts:AssumeRole',
+  'sts:GetCallerIdentity',
+  'cloudtrail:LookupEvents',
+  'cloudtrail:Get*',
+  'cloudtrail:Describe*',
+  'route53:Get*',
+  'route53:List*',
+  'access-analyzer:Get*',
+  'access-analyzer:List*',
+  'guardduty:Get*',
+  'guardduty:List*',
+  'account:Get*',
+  'sso:ListInstances',
+  'sso:ListPermissionSets',
+  'identitystore:ListUsers',
+];
+
+describe('the job role writes no infrastructure', () => {
+  it('denies everything but reads and the named calls, on every resource', () => {
+    // The tag denials below cannot reach the CloudFront types that carry no
+    // tag (key groups, public keys, origin access controls, cache and
+    // response-headers policies), so a write grant over CloudFront reached
+    // production's copies of them. Inverted over every resource, the denial
+    // refuses each of them explicitly, and refuses any write a later grant
+    // adds before anyone notices it was added.
+    const s = statement('NeverWriteInfrastructure');
+    expect(s).toMatch(/Effect\s+= "Deny"/);
+    expect(s).toMatch(/\n\s+Resource\s+= "\*"/);
+    expect(s).not.toContain('Condition');
+    expect(actions('NeverWriteInfrastructure', 'NotAction')).toEqual(PERMITTED_THROUGH_THE_WRITE_DENIAL);
+  });
+
+  it('grants nothing the denial refuses, so no grant is a dead letter or a write', () => {
+    // Every action every Allow grants must pass the denial. One that does not
+    // is either a write the policy still claims to grant, or a read the
+    // denial silently cancels, which a dev-and-tester meets as a staging plan
+    // dying on its refresh.
+    const exempt = PERMITTED_THROUGH_THE_WRITE_DENIAL.map(globToRegex);
+    const policy = source.slice(source.indexOf('statements = {'));
+    const allows = [...policy.matchAll(/Sid\s+= "(\w+)"\s*\n\s+Effect\s+= "Allow"/g)].map((m) => m[1]);
+    expect(allows.length, 'no Allow statements were found to check').toBeGreaterThan(8);
+    const blocked = allows.flatMap((sid) =>
+      actions(sid)
+        .filter((a) => !exempt.some((e) => e.test(a)))
+        .map((a) => `${sid} grants ${a}`),
+    );
+    expect(blocked).toEqual([]);
+  });
+
+  it('writes only the staging plan lock, and no other object', () => {
+    // A plan takes Terraform's lock by writing an object beside the state and
+    // deleting it afterwards. That object is the role's only write, so the
+    // grant names it alone: the staging state itself, the media and backup
+    // buckets, and production's state stay unwritable.
+    expect(actions('TakeTheStagingPlanLock')).toEqual(['s3:PutObject', 's3:DeleteObject']);
+    expect(resourcePatterns('TakeTheStagingPlanLock')).toEqual([
+      'arn:aws:s3:::footbag-terraform-state-*/staging/terraform.tfstate.tflock',
+    ]);
+    const policy = source.slice(source.indexOf('statements = {'));
+    const allows = [...policy.matchAll(/Sid\s+= "(\w+)"\s*\n\s+Effect\s+= "Allow"/g)].map((m) => m[1]);
+    for (const sid of allows.filter((x) => x !== 'TakeTheStagingPlanLock')) {
+      const objectWrites = actions(sid).filter((a) => /^s3:(Put|Delete)/.test(a));
+      expect(objectWrites, `${sid} writes S3`).toEqual([]);
+    }
+  });
+
+  it('reads the staging buckets and the staging state, and writes neither', () => {
+    expect(actions('ProjectBucketsIncludingTerraformState')).toEqual(['s3:Get*', 's3:List*']);
+  });
+
+  it('reads the edge a staging plan refreshes, and changes none of it', () => {
+    // CloudFront ARNs carry a generated id, so this grant is Resource "*" and
+    // reaches production's edge as readily as staging's. Reads only, so that
+    // reach changes nothing.
+    expect(actions('CloudFrontWhatTheStagingTreeDeclares')).toEqual([
+      'cloudfront:GetDistribution',
+      'cloudfront:GetDistributionConfig',
+      'cloudfront:ListDistributions',
+      'cloudfront:ListTagsForResource',
+      'cloudfront:DescribeFunction',
+      'cloudfront:GetFunction',
+      'cloudfront:ListFunctions',
+      'cloudfront:GetOriginAccessControl',
+      'cloudfront:ListOriginAccessControls',
+      'cloudfront:GetCachePolicy',
+      'cloudfront:ListCachePolicies',
+      'cloudfront:GetOriginRequestPolicy',
+      'cloudfront:ListOriginRequestPolicies',
+      'cloudfront:GetResponseHeadersPolicy',
+      'cloudfront:ListResponseHeadersPolicies',
+      'cloudfront:GetKeyGroup',
+      'cloudfront:ListKeyGroups',
+      'cloudfront:GetPublicKey',
+      'cloudfront:ListPublicKeys',
+      'cloudfront:GetMonitoringSubscription',
+    ]);
+  });
+
+  it('reads the host a staging plan refreshes, and changes none of it', () => {
+    // A Lightsail ARN carries a generated id too, so this grant reaches the
+    // production host. Reads only, and never the host-access certificate.
+    expect(actions('LightsailWhatTheStagingTreeDeclares')).toEqual([
+      'lightsail:GetInstance',
+      'lightsail:GetAutoSnapshots',
+      'lightsail:GetStaticIp',
+      'lightsail:GetKeyPair',
+      'lightsail:GetInstancePortStates',
+      'lightsail:GetOperation',
+      'lightsail:GetOperations',
+      'lightsail:GetBundles',
+      'lightsail:GetBlueprints',
+    ]);
+  });
+
+  it('carries no grant that only an apply would use', () => {
+    // Configuration sets and metric publication were granted for applying the
+    // staging tree and for nothing a dev-and-tester runs.
+    expect(source).not.toMatch(/Sid\s+= "SesConfigurationSetsByName"/);
+    expect(source).not.toMatch(/Sid\s+= "PublishStagingMetricsOnly"/);
+    expect(source).not.toContain('"cloudwatch:PutMetricData"');
+  });
+});
+
 describe('the job role grants what a terraform plan actually calls', () => {
-  it('lists the CloudWatch actions whole, tag actions included', () => {
-    // CloudWatch is the one service in its statement enumerated action by
-    // action, so anything absent is ungranted. Both environments set
-    // default_tags on every provider block, which puts tags on every alarm in
-    // both trees, and reading an alarm back reads its tags: without these the
-    // plan fails on the refresh rather than on the change.
+  it('lists the scoped service reads whole, the alarm tag read included', () => {
+    // Both environments set default_tags on every provider block, which puts
+    // tags on every alarm in both trees, and reading an alarm back reads its
+    // tags: without the tag read the plan fails on the refresh rather than on
+    // the change.
     expect(actions('ProjectScopedServices')).toEqual([
-      'ssm:*',
-      'sqs:*',
-      'sns:*',
-      'logs:*',
-      'events:*',
-      'cloudwatch:PutMetricAlarm',
-      'cloudwatch:DeleteAlarms',
+      'ssm:Get*',
+      'ssm:Describe*',
+      'ssm:List*',
+      'sqs:Get*',
+      'sqs:List*',
+      'sns:Get*',
+      'sns:List*',
+      'logs:Describe*',
+      'logs:Get*',
+      'logs:List*',
+      'logs:FilterLogEvents',
+      'events:Describe*',
+      'events:List*',
       'cloudwatch:DescribeAlarms*',
       'cloudwatch:ListTagsForResource',
-      'cloudwatch:TagResource',
-      'cloudwatch:UntagResource',
     ]);
+  });
+
+  it('reads the staging keys by alias, and decrypts with them for the parameter refresh', () => {
+    // A staging plan reads each SecureString parameter back decrypted, so
+    // without Decrypt every plan by this role fails on its first secret.
+    expect(actions('ProjectKeysByAlias')).toEqual([
+      'kms:Decrypt',
+      'kms:Describe*',
+      'kms:Get*',
+      'kms:List*',
+    ]);
+    expect(statement('ProjectKeysByAlias')).toContain('"kms:ResourceAliases" = local.scope.kms_alias');
   });
 
   it('reaches the staging dashboard by its region-less ARN', () => {
     // A dashboard ARN carries no region, so the alarm pattern never matched it:
     // the refresh was denied and every staging plan by this role failed there.
-    expect(actions('StagingDashboard')).toEqual([
-      'cloudwatch:GetDashboard',
-      'cloudwatch:PutDashboard',
-      'cloudwatch:DeleteDashboards',
-    ]);
+    expect(actions('StagingDashboard')).toEqual(['cloudwatch:GetDashboard']);
     expect(statement('StagingDashboard')).toContain('local.scope.staging_dashboard');
     expect(scopeBlock()).toMatch(
       /staging_dashboard = "arn:aws:cloudwatch::\$\{var\.aws_account_id\}:dashboard\/footbag-staging"/,
@@ -246,39 +424,25 @@ describe('the job role grants what a terraform plan actually calls', () => {
   });
 
   it('lists the unconditioned calls whole, so a widening cannot arrive unnoticed', () => {
-    // Two opposite failures live in one list. The kms grant beside it is
-    // conditioned on an alias a key does not carry until its own alias resource
-    // exists, so the calls terraform makes in that window must be here —
-    // rotation always is, since every key in both trees enables it. And the
-    // list stops short of a key's whole lifecycle, so seizing or scheduling the
-    // deletion of a key stays behind the alias condition.
+    // Reads AWS authorizes on no resource, made on a staging refresh: scoped to
+    // staging ARNs, each was denied and no plan by this role completed. On "*"
+    // they reach production too, which is why the list holds reads alone.
     const list = actions('CallsThatCarryNoResource');
     expect(list).toEqual([
-      // Authorized on no resource, and made on every staging refresh: scoped to
-      // staging ARNs, each was denied and no plan by this role completed.
       'ssm:DescribeParameters',
       'logs:DescribeLogGroups',
       'cloudwatch:GetMetricStatistics',
       'cloudwatch:ListMetrics',
-      'kms:CreateKey',
       'kms:ListKeys',
       'kms:ListAliases',
-      'kms:CreateAlias',
-      'kms:DeleteAlias',
       'kms:DescribeKey',
       'kms:GetKeyPolicy',
       'kms:GetKeyRotationStatus',
-      'kms:EnableKeyRotation',
-      'kms:DisableKeyRotation',
       'kms:ListResourceTags',
-      'kms:TagResource',
-      'kms:UntagResource',
       'sts:GetCallerIdentity',
       'route53:ListHostedZones',
       'route53:GetChange',
     ]);
-    expect(list).not.toContain('kms:PutKeyPolicy');
-    expect(list).not.toContain('kms:ScheduleKeyDeletion');
 
     // No service wildcard survives here. Four of them did, on the reasoning
     // that an environment cannot be written into a Lightsail, CloudFront, ACM
@@ -288,20 +452,6 @@ describe('the job role grants what a terraform plan actually calls', () => {
     for (const wildcard of ['ses:*', 'acm:*', 'cloudfront:*', 'lightsail:*', 'budgets:*']) {
       expect(list).not.toContain(wildcard);
     }
-    // Metric publication left this statement for one of its own, because the
-    // namespace condition is the whole point of it and a condition cannot be
-    // attached to one action inside a shared list.
-    expect(list).not.toContain('cloudwatch:PutMetricData');
-  });
-
-  it('publishes metrics only into the staging namespace', () => {
-    // Metric publication is condition-scoped to the application's staging
-    // namespace, matching the condition both runtime principals carry, so the
-    // namespace production's alarms read stays outside this role's reach.
-    expect(actions('PublishStagingMetricsOnly')).toEqual(['cloudwatch:PutMetricData']);
-    const s = statement('PublishStagingMetricsOnly');
-    expect(s).toContain('"cloudwatch:namespace" = "Footbag/staging"');
-    expect(s).not.toContain('Footbag/production');
   });
 
   it('reads IAM everywhere and writes it nowhere', () => {
@@ -325,23 +475,11 @@ describe('the job role grants what a terraform plan actually calls', () => {
     }
   });
 
-  it('names the staging configuration sets rather than wildcarding SES', () => {
-    // Both trees name their sets `${local.prefix}-<kind>` and local.prefix
-    // carries the environment, so unlike the rest of SES these ARNs scope
-    // exactly. On a wildcard, ses:DeleteConfigurationSet reached production's
-    // transactional and bulk sets, which carry the reputation tracking for
-    // every message the membership receives.
-    expect(actions('SesConfigurationSetsByName')).toEqual([
-      'ses:CreateConfigurationSet',
-      'ses:DeleteConfigurationSet',
-    ]);
-    expect(statement('SesConfigurationSetsByName')).toContain(
-      'local.scope.ses_configuration_sets',
-    );
-
-    // Only the reads that genuinely carry no resource stay unscoped, and none
-    // of them can change anything. Describing a set is one: in the SES v1 API a
-    // refresh calls it takes no resource, so scoped by ARN it was denied.
+  it('reads SES configuration and the account, and nothing more', () => {
+    // Every SES identity in the estate is production's, so any SES grant
+    // beyond these reads reaches the identity the membership's mail is sent
+    // as. Describing a set takes no resource in the SES v1 API a refresh
+    // calls, so scoped by ARN it was denied.
     expect(actions('SesListAndAccountRead')).toEqual([
       'ses:ListConfigurationSets',
       'ses:DescribeConfigurationSet',
@@ -635,10 +773,8 @@ describe('the job role cannot become an administrator', () => {
     // no condition could keep these calls off production's address: detaching
     // or releasing it loses the address, and whether attaching can move an
     // address already attached elsewhere is not documented. Withholding them is
-    // the only control that exists. Allocating a new address touches nothing
-    // that exists, so it stays.
+    // the only control that exists.
     const granted = actions('LightsailWhatTheStagingTreeDeclares');
-    expect(granted).toContain('lightsail:AllocateStaticIp');
     expect(granted).not.toContain('lightsail:AttachStaticIp');
     expect(granted).not.toContain('lightsail:DetachStaticIp');
     expect(granted).not.toContain('lightsail:ReleaseStaticIp');
@@ -687,7 +823,6 @@ describe('the job role reaches staging and nothing else', () => {
     // No IAM name pattern at all: a staging-wide role or user glob in the scope
     // is the shape IAM write came back through.
     expect(scope).not.toMatch(/:(role|user|policy|instance-profile)\/footbag-staging-\*/);
-    expect(scope).toContain('configuration-set/footbag-staging-*');
     expect(scope).toContain('footbag-staging-app-runtime');
     expect(scope).not.toContain('footbag-production-app-runtime');
     // The estate-wide globs belong to nobody now. A bare `footbag-*` here would

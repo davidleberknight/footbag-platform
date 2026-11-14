@@ -236,6 +236,7 @@ Some rules hold across every surface that touches a member state or a field, and
 | A soft-deleted, deceased or opted-out member, or a registrant still onboarding, is absent from search, rosters and listings | `docs/DESIGN_DECISIONS.md` "Soft Deletes"; `M_Search_Members`; `A_View_Official_Roster_Reports`; `M_Complete_Onboarding_Wizard` | `tests/integration/member-state.listings.sweep.test.ts` |
 | Migrated data the pipeline carries reaches the database whole (each in `scripts/validate-realdata-ri.sh`) | `docs/DESIGN_DECISIONS.md` Legacy Data Migration decision | the real-data invariants (§8.5) |
 | No table or column reaches a copy of production unclassified, and a copy carries no credential, one-time token or payment-provider identifier | `docs/DESIGN_DECISIONS.md` "Migrations and Non-production Databases with a Live Production Database" | `tests/integration/copyColumnRegister.exhaustive.test.ts` for the classification; the copy script's own test for the stripping (to build) |
+| No raw email address, token, password or secret reaches the application log | `docs/DATA_GOVERNANCE.md` "Logging and observability hygiene"; `docs/DESIGN_DECISIONS.md` "Structured Logging" | `tests/unit/logger.test.ts` (every log line passes the logger's redaction) |
 
 ### 4.9 Story journeys
 

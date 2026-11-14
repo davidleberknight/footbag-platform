@@ -88,6 +88,10 @@ export const ADAPTER_SITES: AdapterSite[] = [
     status: { swept: SWEEP },
   },
   {
+    file: 'src/services/paymentService.ts', getter: 'getPaymentAdapter', operation: 'linkTestClockCustomer',
+    status: { noWriteAfter: 'reads which mode the loaded provider key is in, to refuse the link outside test mode; nothing happens at the provider, so nothing recorded depends on the read' },
+  },
+  {
     file: 'src/services/paymentService.ts', getter: 'getPaymentAdapter', operation: 'stubCheckoutSessionFor',
     status: { noWriteAfter: 'reads a session from the stub provider used outside production; nothing is written' },
   },

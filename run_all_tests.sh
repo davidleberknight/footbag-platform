@@ -1499,7 +1499,24 @@ gate_terraform() {
   # function's status was the last tree's, and a broken format check or a broken
   # earlier tree reported PASS while the push gate's terraform job went red.
   local failed=()
-  ( cd terraform && aws_isolated_run terraform fmt -check -recursive ) || failed+=("fmt -check")
+  # Format-check the files git would commit, tracked or new and not ignored,
+  # because that is the set CI's clean checkout holds. A recursive check also
+  # reads a workstation's gitignored terraform.tfvars and fails the local run on
+  # a file the push never carries. A tracked file deleted from disk is dropped,
+  # since fmt fails on a path that does not exist.
+  local listed=() fmt_files=() f
+  mapfile -d '' -t listed < <(git -C terraform ls-files -z --cached --others \
+    --exclude-standard --deduplicate -- '*.tf' '*.tfvars' '*.tftest.hcl')
+  for f in ${listed[@]+"${listed[@]}"}; do
+    [[ -f "terraform/$f" ]] && fmt_files+=("$f")
+  done
+  if (( ${#fmt_files[@]} == 0 )); then
+    echo "  terraform: git lists no .tf or .tfvars file under terraform/" >&2
+    failed+=("fmt -check")
+  else
+    ( cd terraform && aws_isolated_run terraform fmt -check "${fmt_files[@]}" ) \
+      || failed+=("fmt -check")
+  fi
   local d data_dir
   local plugin_arg=()
   # Terraform's own provider cache, in the conventional place under the home

@@ -7,6 +7,7 @@
  * Contract verified:
  *   - content includes anchors for #privacy, #terms, #copyright
  *   - includes the operator identity and contact email
+ *   - each section links the contact address as a live mailto link
  *   - includes Apache-2.0 source-code license reference
  *   - includes IFPA trademark notice and Hacky Sack descriptive-use notice
  *   - privacy disclosures match what the site actually loads: every cookie the
@@ -55,6 +56,27 @@ describe('GET /legal', () => {
     const res = await page('/legal');
     expect(res.text).toContain('David Leberknight');
     expect(res.text).toContain('admin@footbag.org');
+  });
+
+  it('links the contact address as a working mail link in each of the three sections', async () => {
+    const res = await page('/legal');
+    // A visitor with a privacy, terms or copyright question reaches IFPA
+    // only through this address. Each section must carry it as a live
+    // mailto link; inert text would leave that visitor with no way to write.
+    // Launch itself waits on the outside receive-and-reply test of this
+    // mailbox, so the link is never public before the mailbox works.
+    const sectionHtml = (id: string): string => {
+      const start = res.text.indexOf(`id="${id}"`);
+      expect(start, `section ${id} is missing`).toBeGreaterThan(-1);
+      const end = res.text.indexOf('</section>', start);
+      return res.text.slice(start, end);
+    };
+    for (const id of ['privacy', 'terms', 'copyright']) {
+      expect(sectionHtml(id), `section ${id} has no mailto link`).toContain(
+        '<a href="mailto:admin@footbag.org">admin@footbag.org</a>',
+      );
+    }
+    expect(res.text).not.toContain('contact-pending');
   });
 
   it('references IFPA, California jurisdiction, and 501(c)(3) status', async () => {

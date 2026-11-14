@@ -21,9 +21,10 @@
 # cannot apply the tree that declares it. In an organization of one the only
 # account is the management account, and a service control policy never applies
 # there, so the guardrail that would normally hold those denials is structurally
-# unavailable and they have to live inside the policy itself. That makes this the
-# one tree a dev-and-tester cannot apply: it is applied by the directly authenticated
-# identity, which is the actor here rather than anything this tree changes.
+# unavailable and they have to live inside the policy itself. A dev-and-tester
+# applies no tree, since the job writes no infrastructure, and this one least of
+# all: it is applied by the directly authenticated identity, which is the actor
+# here rather than anything this tree changes.
 #
 # WHAT THIS TREE DOES NOT DO.
 #
@@ -45,7 +46,7 @@ locals {
   # Every named dev-and-tester lives under one IAM path, and the trust policy
   # admits the path rather than a list of people. Onboarding therefore never
   # edits this role's trust policy, which is the one part of the lifecycle that
-  # would otherwise need the tree a dev-and-tester cannot apply.
+  # would otherwise need an apply of this tree.
   dev_tester_path        = "/footbag-dev-testers/"
   dev_tester_arn_pattern = "arn:aws:iam::${var.aws_account_id}:user${local.dev_tester_path}*"
 
@@ -55,7 +56,9 @@ locals {
 
   # Staging, and the reads a deploy makes. No production resource, because
   # deploying to production is a closely guarded operation and somebody who
-  # develops and tests does not need it.
+  # develops and tests does not need it. Reads only: the job deploys code onto
+  # infrastructure an administrator has applied, and plans staging to prove
+  # the two match, so it writes no infrastructure on either environment.
   #
   # The Terraform state bucket is the one resource that cannot be reached by
   # the name pattern, since it belongs to no environment. Its object scope is
@@ -78,6 +81,11 @@ locals {
     # the deny-plaintext baseline. The comment above always said listing was the
     # intent; the grant said otherwise.
     state_bucket = "arn:aws:s3:::footbag-terraform-state-*"
+
+    # The lock a staging plan takes. The backend locks natively in S3, writing
+    # this object beside the state for the length of the plan and deleting it
+    # after, so it is the one object the role writes.
+    state_lock = "arn:aws:s3:::footbag-terraform-state-*/staging/terraform.tfstate.tflock"
     project_resources = [
       "arn:aws:ssm:*:${var.aws_account_id}:parameter/footbag/staging/*",
       "arn:aws:sqs:*:${var.aws_account_id}:footbag-staging-*",
@@ -126,36 +134,32 @@ locals {
     ]
     operator_parameters = "arn:aws:ssm:*:${var.aws_account_id}:parameter/footbag-ops/*"
 
-    # Both trees name their configuration sets `${local.prefix}-<kind>` and
-    # local.prefix carries the environment, so unlike the rest of SES these ARNs
-    # scope exactly. The statement below therefore need not be a wildcard, and
-    # must not be: ses:DeleteConfigurationSet on "*" would reach production's
-    # transactional and bulk sets, which carry the reputation tracking for every
-    # message the membership receives.
-    ses_configuration_sets = "arn:aws:ses:*:${var.aws_account_id}:configuration-set/footbag-staging-*"
-
     # The staging tree's one dashboard, named for the environment prefix alone.
     # Dashboard ARNs carry no region, so the alarm pattern above, which does,
     # never matched it: refreshing the dashboard was denied and the put and
-    # delete grants that sat beside the alarm actions were inert.
+    # read beside the alarm reads was inert.
     staging_dashboard = "arn:aws:cloudwatch::${var.aws_account_id}:dashboard/footbag-staging"
   }
 
   # ── The statements ──────────────────────────────────────────────────────────
   #
-  # The policy as a whole is a STARTING policy, derived statically from every
-  # resource type in the Terraform trees and every AWS call in the scripts tree,
-  # together with the trail of the work administrators did as footbag-operator.
-  # The long-run rule is that it is derived from the observed usage of EVERY
+  # The policy as a whole is a STARTING policy: the reads a staging plan and
+  # the scripts a dev-and-tester runs make, derived from every resource type in
+  # the staging tree and every AWS call in the scripts tree, and no write but
+  # the plan's lock. The long-run rule is that it is derived from the observed usage of EVERY
   # dev-and-tester who assumes it, never from one person's history: a policy
   # derived from one dev-and-tester under-grants the others and surfaces as a
   # permission error mid-task, usually during something time-critical.
   statements = {
 
+    # Reads of the staging buckets and of the staging state. Reading the state
+    # is what a plan and every `terraform output` a deploy and the smoke checks
+    # make need; nothing the job does writes an object, a bucket policy or a
+    # bucket.
     project_buckets = {
       Sid      = "ProjectBucketsIncludingTerraformState"
       Effect   = "Allow"
-      Action   = "s3:*"
+      Action   = ["s3:Get*", "s3:List*"]
       Resource = local.scope.buckets
     }
 
@@ -172,224 +176,138 @@ locals {
       Resource = local.scope.state_bucket
     }
 
-    # CloudWatch is the only service here enumerated action by action, so
-    # anything absent from the list is ungranted, where every wildcard beside
-    # it carries tagging for free. Both environment providers set default_tags,
+    # The plan's lock, written when a staging plan starts and deleted when it
+    # ends, and the only object this role writes. Breaking a stale lock deletes
+    # the same object.
+    take_the_staging_plan_lock = {
+      Sid      = "TakeTheStagingPlanLock"
+      Effect   = "Allow"
+      Action   = ["s3:PutObject", "s3:DeleteObject"]
+      Resource = local.scope.state_lock
+    }
+
+    # The reads a staging refresh makes of each of these services, by verb,
+    # because a refresh reads a resource's attributes, policy and tags through
+    # whichever Get, List or Describe call the provider happens to use.
+    # CloudWatch is enumerated: both environment providers set default_tags,
     # which puts three tags on every alarm in both trees, so reading an alarm
-    # back reads its tags too: without the tag actions a plan fails on the
-    # refresh rather than on the change, which reads as a broken credential.
+    # back reads its tags too, and without the tag read a plan fails on the
+    # refresh, which reads as a broken credential. FilterLogEvents is the read
+    # behind following a staging log group.
     project_scoped_services = {
       Sid    = "ProjectScopedServices"
       Effect = "Allow"
-      Action = ["ssm:*", "sqs:*", "sns:*", "logs:*", "events:*",
-        "cloudwatch:PutMetricAlarm", "cloudwatch:DeleteAlarms",
-        "cloudwatch:DescribeAlarms*", "cloudwatch:ListTagsForResource",
-      "cloudwatch:TagResource", "cloudwatch:UntagResource"]
+      Action = ["ssm:Get*", "ssm:Describe*", "ssm:List*", "sqs:Get*",
+        "sqs:List*", "sns:Get*", "sns:List*", "logs:Describe*", "logs:Get*",
+        "logs:List*", "logs:FilterLogEvents", "events:Describe*", "events:List*",
+      "cloudwatch:DescribeAlarms*", "cloudwatch:ListTagsForResource"]
       Resource = local.scope.project_resources
     }
 
     staging_dashboard = {
       Sid      = "StagingDashboard"
       Effect   = "Allow"
-      Action   = ["cloudwatch:GetDashboard", "cloudwatch:PutDashboard", "cloudwatch:DeleteDashboards"]
+      Action   = ["cloudwatch:GetDashboard"]
       Resource = local.scope.staging_dashboard
     }
 
+    # A staging plan reads each SecureString parameter back decrypted, so the
+    # staging keys are read and decrypt; they neither sign nor encrypt here,
+    # since the checks that sign run as the staging runtime role.
     project_keys_by_alias = {
       Sid      = "ProjectKeysByAlias"
       Effect   = "Allow"
-      Action   = "kms:*"
+      Action   = ["kms:Decrypt", "kms:Describe*", "kms:Get*", "kms:List*"]
       Resource = "*"
       Condition = {
         "ForAnyValue:StringLike" = { "kms:ResourceAliases" = local.scope.kms_alias }
       }
     }
 
-    # The calls left here carry no resource of their own. An environment cannot
-    # be expressed in a Lightsail, CloudFront, ACM or SES ARN, but that does not
-    # justify a wildcard on the whole service: a service whose ARNs cannot carry
-    # an environment can still be scoped by ACTION, so none of those four gets
-    # a whole-service wildcard. The statements below enumerate what the staging
-    # tree declares and what the scripts call, and grant nothing on ACM or
-    # budgets at all.
-    #
-    # Budgets the staging tree genuinely does not declare. ACM it does, at
-    # terraform/staging/archive.tf. What makes leaving it out right anyway is
-    # the gate that resource
-    # sits behind: enable_archive_custom_domain, whose own description says it
-    # "stays off in staging, which has neither a domain nor a zone". The
-    # certificate is therefore declared and will never be created here, so an
-    # ACM grant could only ever reach the production certificate, and none is
-    # granted.
-    # The same reasoning keeps route53:ChangeResourceRecordSets out while the
-    # zone's reads are granted below: one zone serves the estate, and a write
-    # over it is a write over production's DNS.
+    # The reads left here carry no resource of their own, and every one of
+    # them is a read: on "*" they reach production as readily as staging, and
+    # reading is all they do. Nothing on ACM, budgets or any Route 53 write is
+    # granted, since one zone serves the estate.
     #
     # The Access Analyzer reconciliation this policy plans for still stands; it
     # needs a month of this role's own use, and the role has not been used yet.
     # This is the floor it will be reconciled against, not a substitute for it.
     #
-    # The KMS entries here are also what covers the gap between creating a key
-    # and naming it. The alias condition above matches on the aliases a key
-    # already carries, and a key has none until its alias resource is created,
-    # so every call in between is denied: rotation is enabled on a key that is
-    # still anonymous, and a later refresh reads its policy, its rotation state
-    # and its tags the same way. Each of those is listed here. Seizing or
-    # destroying an existing key is not: PutKeyPolicy and ScheduleKeyDeletion
-    # stay behind the alias, so a key this project never named is beyond an
-    # dev-and-tester's reach, and an orphan left by an interrupted apply is cleaned
-    # up by the directly authenticated identity rather than by a role.
+    # The KMS reads are the ones a refresh makes of a key, listed here as well
+    # as behind the alias condition above because the condition is evaluated on
+    # the aliases a key carries, and a key whose alias was removed is still in
+    # the staging state. Seizing or destroying a key is not here or anywhere:
+    # an orphan left by an interrupted apply is cleaned up by the directly
+    # authenticated identity rather than by a role.
     #
-    # Two reads a staging refresh makes on every run are here because AWS
-    # authorizes them on no resource: describing parameters, which the provider
-    # does for each SSM parameter's metadata, and describing log groups, which it
-    # does for each log group. Scoped to staging ARNs, as they were under the
-    # services statement, both were denied and no staging plan could complete.
-    # On "*" they return names and descriptions account-wide, never a parameter's
-    # value or a log's contents, and AWS offers nothing narrower.
+    # Describing parameters and describing log groups are authorized on no
+    # resource, and the provider makes both on every refresh: scoped to staging
+    # ARNs, both were denied and no staging plan could complete. On "*" they
+    # return names and descriptions account-wide, never a parameter's value or
+    # a log's contents, and AWS offers nothing narrower.
     calls_that_carry_no_resource = {
       Sid    = "CallsThatCarryNoResource"
       Effect = "Allow"
       Action = ["ssm:DescribeParameters", "logs:DescribeLogGroups",
         "cloudwatch:GetMetricStatistics", "cloudwatch:ListMetrics",
-        "kms:CreateKey", "kms:ListKeys",
-        "kms:ListAliases", "kms:CreateAlias", "kms:DeleteAlias",
-        "kms:DescribeKey", "kms:GetKeyPolicy", "kms:GetKeyRotationStatus",
-        "kms:EnableKeyRotation", "kms:DisableKeyRotation",
-        "kms:ListResourceTags", "kms:TagResource", "kms:UntagResource",
+        "kms:ListKeys", "kms:ListAliases", "kms:DescribeKey",
+        "kms:GetKeyPolicy", "kms:GetKeyRotationStatus", "kms:ListResourceTags",
         "sts:GetCallerIdentity", "route53:ListHostedZones",
       "route53:GetChange"]
       Resource = "*"
     }
 
-    # Metric publication, separated from the calls above so it can carry the one
-    # condition that scopes it: PutMetricData is limited to the application's
-    # staging namespace, matching the condition both runtime principals carry.
-    publish_staging_metrics = {
-      Sid      = "PublishStagingMetricsOnly"
-      Effect   = "Allow"
-      Action   = ["cloudwatch:PutMetricData"]
-      Resource = "*"
-      Condition = {
-        StringEquals = { "cloudwatch:namespace" = "Footbag/staging" }
-      }
-    }
-
-    # Lightsail, enumerated. The service supports resource-level permissions for
-    # part of this set, but an instance ARN carries a generated id rather than
-    # the instance name, so a footbag-staging-* pattern cannot exist and the
-    # scoping here is by action. Every entry traces to a declared resource in
-    # terraform/staging/lightsail.tf or to a call a script makes: the instance,
-    # its static IP, its key pair, its public ports, and the auto-snapshot
-    # add-on, plus the operation poll every mutating call returns and the bundle
-    # and blueprint reads a create validates against.
-    #
-    # Attaching, detaching and releasing a static IP are withheld. Detach and
-    # release authorise against the static IP alone, which Lightsail cannot tag
-    # and whose ARN carries a generated id, so nothing can tell staging's address
-    # from production's, and releasing production's loses it for good. Attach
-    # names an instance as well, but AWS's documentation does not say whether it
-    # can move an address already attached to another instance, so it is
-    # withheld rather than trusted not to. An apply that would attach, detach or
-    # release staging's is run as the directly authenticated identity instead.
-    #
-    # What is gone is the rest of the service: containers, managed databases,
-    # its own CDN and buckets, load balancers, domains, and the instance
-    # lifecycle calls -- stop, reboot, delete, snapshot, clone. Those appeared in
-    # no declared resource, in no script, and in four weeks of trail only from
-    # the browser console. They are also how a holder reached production, by
-    # snapshotting the live host and booting the copy under a key pair of their
-    # own, which no resource scope on this service could have prevented.
+    # Lightsail, the reads a staging refresh makes of what
+    # terraform/staging/lightsail.tf declares: the instance, its static IP, its
+    # key pair, its public ports and its auto-snapshots, plus the operation
+    # poll and the bundle and blueprint reads. An instance ARN carries a
+    # generated id rather than the instance name, so no footbag-staging-*
+    # pattern exists and these reach the production host too; they read it and
+    # change nothing. The call that mints a host-access certificate is a Get as
+    # well, and is not here: the guardrails deny it on every instance.
     lightsail_staging_lifecycle = {
       Sid    = "LightsailWhatTheStagingTreeDeclares"
       Effect = "Allow"
-      Action = ["lightsail:CreateInstances", "lightsail:GetInstance",
-        "lightsail:DeleteInstance", "lightsail:EnableAddOn",
-        "lightsail:DisableAddOn", "lightsail:GetAutoSnapshots",
-        "lightsail:AllocateStaticIp", "lightsail:GetStaticIp",
-        "lightsail:CreateKeyPair",
-        "lightsail:GetKeyPair", "lightsail:DeleteKeyPair",
-        "lightsail:ImportKeyPair", "lightsail:GetInstancePortStates",
-        "lightsail:PutInstancePublicPorts", "lightsail:OpenInstancePublicPorts",
-        "lightsail:CloseInstancePublicPorts", "lightsail:GetOperation",
+      Action = ["lightsail:GetInstance", "lightsail:GetAutoSnapshots",
+        "lightsail:GetStaticIp", "lightsail:GetKeyPair",
+        "lightsail:GetInstancePortStates", "lightsail:GetOperation",
         "lightsail:GetOperations", "lightsail:GetBundles",
-        "lightsail:GetBlueprints", "lightsail:TagResource",
-      "lightsail:UntagResource"]
+      "lightsail:GetBlueprints"]
       Resource = "*"
     }
 
-    # CloudFront, enumerated against the two distributions the staging tree
-    # declares and everything they reference: functions, origin access controls,
-    # cache and response-headers policies, the archive's key group and public
-    # key, and the monitoring subscription. AllowVendedLogDeliveryForResource is
-    # here because the log service evaluates it against the caller when a
-    # delivery is created, which fails during an apply rather than before it.
-    #
-    # Removed: streaming distributions, tenants and connection groups,
-    # field-level encryption, realtime logs, the key-value store, alias moves,
-    # anycast lists, VPC origins, savings plans and the firewall associations.
-    # None appears in a declared resource, a script, or the trail.
+    # CloudFront, the reads a staging refresh makes of the two distributions
+    # the staging tree declares and everything they reference: functions,
+    # origin access controls, cache, origin-request and response-headers
+    # policies, the archive's key group and public key, and the monitoring
+    # subscription. A distribution ARN carries a generated id and five of these
+    # types carry no tag, so nothing here can tell staging's from production's;
+    # that is why the grant is reads and nothing else.
     cloudfront_project_surfaces = {
       Sid    = "CloudFrontWhatTheStagingTreeDeclares"
       Effect = "Allow"
-      Action = ["cloudfront:CreateDistribution", "cloudfront:GetDistribution",
-        "cloudfront:GetDistributionConfig", "cloudfront:UpdateDistribution",
-        "cloudfront:DeleteDistribution", "cloudfront:ListDistributions",
-        "cloudfront:CreateInvalidation", "cloudfront:TagResource",
-        "cloudfront:UntagResource", "cloudfront:ListTagsForResource",
-        "cloudfront:CreateFunction", "cloudfront:DescribeFunction",
-        "cloudfront:GetFunction", "cloudfront:UpdateFunction",
-        "cloudfront:PublishFunction", "cloudfront:DeleteFunction",
-        "cloudfront:ListFunctions", "cloudfront:TestFunction",
-        "cloudfront:CreateOriginAccessControl",
+      Action = ["cloudfront:GetDistribution",
+        "cloudfront:GetDistributionConfig", "cloudfront:ListDistributions",
+        "cloudfront:ListTagsForResource", "cloudfront:DescribeFunction",
+        "cloudfront:GetFunction", "cloudfront:ListFunctions",
         "cloudfront:GetOriginAccessControl",
-        "cloudfront:UpdateOriginAccessControl",
-        "cloudfront:DeleteOriginAccessControl",
-        "cloudfront:ListOriginAccessControls", "cloudfront:CreateCachePolicy",
-        "cloudfront:GetCachePolicy", "cloudfront:UpdateCachePolicy",
-        "cloudfront:DeleteCachePolicy", "cloudfront:ListCachePolicies",
-        "cloudfront:GetOriginRequestPolicy",
+        "cloudfront:ListOriginAccessControls", "cloudfront:GetCachePolicy",
+        "cloudfront:ListCachePolicies", "cloudfront:GetOriginRequestPolicy",
         "cloudfront:ListOriginRequestPolicies",
-        "cloudfront:CreateResponseHeadersPolicy",
         "cloudfront:GetResponseHeadersPolicy",
-        "cloudfront:UpdateResponseHeadersPolicy",
-        "cloudfront:DeleteResponseHeadersPolicy",
-        "cloudfront:ListResponseHeadersPolicies", "cloudfront:CreateKeyGroup",
-        "cloudfront:GetKeyGroup", "cloudfront:UpdateKeyGroup",
-        "cloudfront:DeleteKeyGroup", "cloudfront:ListKeyGroups",
-        "cloudfront:CreatePublicKey", "cloudfront:GetPublicKey",
-        "cloudfront:UpdatePublicKey", "cloudfront:DeletePublicKey",
-        "cloudfront:ListPublicKeys", "cloudfront:CreateMonitoringSubscription",
-        "cloudfront:GetMonitoringSubscription",
-        "cloudfront:DeleteMonitoringSubscription",
-      "cloudfront:AllowVendedLogDeliveryForResource"]
+        "cloudfront:ListResponseHeadersPolicies", "cloudfront:GetKeyGroup",
+        "cloudfront:ListKeyGroups", "cloudfront:GetPublicKey",
+        "cloudfront:ListPublicKeys",
+      "cloudfront:GetMonitoringSubscription"]
       Resource = "*"
     }
 
-    # SES, down to what the staging tree actually declares: two configuration
-    # sets, and the account read arming.sh makes to see whether production
-    # access has been granted.
-    #
-    # ses:* is gone, and this is the largest single removal in the policy. Every
-    # SES identity in the estate belongs to the production tree, so the wildcard
-    # gave a dev-and-tester the verified production identity: mail to any
-    # address, from any address at the domain once domain auth lands, passing
-    # SPF and signed and aligned, which reaches the membership. It also carried
-    # the identity policies that hand an outside account standing authority to
-    # send as the domain and survive an offboard, the DKIM signing attributes,
-    # and the account-level send switch. A staging send test, if one is ever
-    # wanted, is a from-address condition rather than a wildcard.
-    # Creating and deleting a configuration set name it, and are scoped to the
-    # staging ones by ARN. Describing one, which a refresh does, carries no
-    # resource in the SES v1 API the provider calls, so it sits with listing and
-    # the account read on "*"; scoped by ARN it was denied on every refresh.
-    ses_staging_configuration = {
-      Sid      = "SesConfigurationSetsByName"
-      Effect   = "Allow"
-      Action   = ["ses:CreateConfigurationSet", "ses:DeleteConfigurationSet"]
-      Resource = local.scope.ses_configuration_sets
-    }
-
+    # SES, the reads a staging refresh makes of its two configuration sets and
+    # the account read arming.sh makes to see whether production access has
+    # been granted. Every SES identity in the estate belongs to the production
+    # tree, so SES is read and never written here. Describing a set carries no
+    # resource in the SES v1 API the provider calls, so these sit on "*";
+    # scoped by ARN the describe was denied on every refresh.
     ses_account_read = {
       Sid      = "SesListAndAccountRead"
       Effect   = "Allow"
@@ -407,10 +325,10 @@ locals {
     # No IAM write at all. IAM write over staging-named principals is most of
     # the distance to administrator: create a footbag-staging user, attach
     # AdministratorAccess, mint it a key, and from there change footbag-operator
-    # and both runtime trusts. A name scope narrows that without closing it. So
-    # a staging apply that changes staging IAM, a rare and feature-driven event,
-    # runs as the directly authenticated identity, and terraform-apply.sh refuses
-    # such a plan under this role before applying any of it.
+    # and both runtime trusts. A name scope narrows that without closing it.
+    # Every apply, staging's included, runs as the directly authenticated
+    # identity, and terraform-apply.sh refuses any apply under this role before
+    # it plans.
 
     chain_into_runtime_roles = {
       Sid      = "ChainIntoTheRuntimeRoles"
@@ -488,9 +406,45 @@ locals {
       Resource = "*"
     }
 
+    # The job writes no infrastructure, on staging or anywhere else: every
+    # apply runs as the directly authenticated identity, and a dev-and-tester
+    # only plans staging to prove a deploy's infrastructure matches its tree.
+    # So everything but reads is denied, on every resource, with a short list
+    # of named calls let through: assuming the staging runtime role and
+    # reading who the caller is, decrypting a staging parameter on refresh,
+    # writing and removing the plan's lock, and reading the trail back.
+    #
+    # Inverted, like the identity denials below, because an enumerated list of
+    # writes protects only the writes somebody thought to name. It is also the
+    # one control that reaches the CloudFront types that carry no tag, which no
+    # tag condition can. Any grant added later that is not a read is refused
+    # here until this list is changed to admit it, which is the point.
+    #
+    # The two S3 object calls are let through on every resource, and the grant
+    # that allows them names the lock alone, so they reach nothing else.
+    never_write_infrastructure = {
+      Sid    = "NeverWriteInfrastructure"
+      Effect = "Deny"
+      NotAction = ["s3:Get*", "s3:List*", "s3:PutObject", "s3:DeleteObject",
+        "ssm:Get*", "ssm:Describe*", "ssm:List*", "sqs:Get*", "sqs:List*",
+        "sns:Get*", "sns:List*", "logs:Describe*", "logs:Get*", "logs:List*",
+        "logs:FilterLogEvents", "events:Describe*", "events:List*",
+        "cloudwatch:Describe*", "cloudwatch:Get*", "cloudwatch:List*",
+        "kms:Decrypt", "kms:Describe*", "kms:Get*", "kms:List*",
+        "lightsail:Get*", "cloudfront:Get*", "cloudfront:List*",
+        "cloudfront:Describe*", "ses:Get*", "ses:List*", "ses:Describe*",
+        "iam:Get*", "iam:List*", "iam:Simulate*", "sts:AssumeRole",
+        "sts:GetCallerIdentity", "cloudtrail:LookupEvents", "cloudtrail:Get*",
+        "cloudtrail:Describe*", "route53:Get*", "route53:List*",
+        "access-analyzer:Get*", "access-analyzer:List*", "guardduty:Get*",
+        "guardduty:List*", "account:Get*", "sso:ListInstances",
+      "sso:ListPermissionSets", "identitystore:ListUsers"]
+      Resource = "*"
+    }
+
     # Each denial below is a way least privilege quietly becomes administrator
-    # again. Stopping or deleting the trail is denied; updating it is allowed
-    # because Terraform manages it.
+    # again. Stopping or deleting the trail is denied here by name; updating it
+    # is refused by the infrastructure-write denial above.
     no_self_elevation = {
       Sid    = "NoSelfElevation"
       Effect = "Deny"
@@ -576,8 +530,8 @@ locals {
     # Reads are preserved here for the same reason as the operator-identity denial
     # above, and the shape is deliberately the same so the two are read as one
     # rule rather than as two that happen to differ. This role must not edit its
-    # own definition or its trust policy — that is what makes this the one tree
-    # a dev-and-tester cannot apply — but it does have to be readable, because a
+    # own definition or its trust policy, whatever any other statement grants,
+    # but it does have to be readable, because a
     # policy simulation against the role is how a grant is checked without
     # exercising it.
     never_touch_this_role = {
@@ -600,16 +554,6 @@ locals {
     # key, and no plan diff, because the staging tree declares inline policies
     # and sets no managed policy list, so an attached managed policy is not a
     # resource Terraform tracks.
-    #
-    # The cost is real and small. An apply that changes the runtime role's own
-    # permissions is refused under this role, so it goes to the directly
-    # authenticated identity. On the record that is a handful of occasions
-    # across the project's life, each one a feature needing a new capability on
-    # the host rather than anything routine. A permissions boundary on every
-    # staging principal would keep that self-service, and it is the better
-    # answer if this ever bites; it is not the answer today, because it spreads
-    # the control across two trees and stops working the day a new staging
-    # principal is declared without it.
     #
     # Assuming the role is exempt alongside the reads. The inversion matches
     # every action on the role's ARN, sts:AssumeRole included, so without the
@@ -691,12 +635,10 @@ locals {
     # cache policies and response headers policies are not taggable in
     # CloudFront at all -- AWS answers InvalidArgument, "invalid resource type",
     # to a tag read on one -- so no tag condition reaches them and the guard
-    # makes this statement a no-op for them by design. What bounds that instead
-    # is circumstance rather than policy: production's archive key group and
-    # public key are not deployed, and AWS refuses to delete a cache policy or
-    # an origin access control while a distribution still references it. Revisit
-    # if CloudFront gains tagging for those types, or if the archive custom
-    # domain is turned on in production, which is what deploys the key group.
+    # makes this statement a no-op for them by design. The infrastructure-write
+    # denial covers them instead: it refuses every write on every resource,
+    # tagged or not, so this statement is the second refusal for the
+    # distribution and its functions, and the only one keyed on the tag.
     #
     # One further way this stops protecting, and it is quiet. The tag arrives
     # from each environment provider's default_tags, so a resource declaring its
@@ -754,9 +696,10 @@ locals {
     }
 
     # The rest of what reaches a live host: reopening its firewall, or deleting
-    # the host whose database is on local disk. The narrowed Lightsail grant
-    # above names no resource, so without this it reached the production
-    # instance as readily as the staging one.
+    # the host whose database is on local disk. The infrastructure-write denial
+    # refuses these on every instance already; this one refuses them by the
+    # host's tag as well, so the host stays out of reach whatever happens to
+    # either statement.
     #
     # Keyed on the tag rather than on the instance, and stated in the negative
     # so it fails closed. Lightsail supports tag conditions, both providers set
@@ -774,8 +717,8 @@ locals {
     # Only instance-scoped actions belong in this list. Creating an instance is
     # left out because the resource does not exist when the call is authorised,
     # and the static IP and key pair actions are left out because they authorise
-    # against their own resource types rather than the instance, so naming them
-    # here would deny staging's own apply.
+    # against their own resource types rather than the instance, so the
+    # instance's tag says nothing about them.
     never_reach_a_non_staging_host = {
       Sid    = "NeverReachANonStagingHost"
       Effect = "Deny"
@@ -793,7 +736,7 @@ locals {
 
 resource "aws_iam_role" "dev_tester" {
   name        = "FootbagDevTester"
-  description = "The dev-and-tester job: staging, and the reads a deploy makes. Mints no host shell on any instance, may not reach the production host, its keys, its edge functions or its mail identity, may not widen a role it can assume, and may not administer another dev-and-tester."
+  description = "The dev-and-tester job: deploys and tests staging, plans it read-only, and writes no infrastructure. Mints no host shell on any instance, may not reach the production host, its keys, its edge functions or its mail identity, may not widen a role it can assume, and may not administer another dev-and-tester."
 
   # Long enough that a deploy and the verification after it do not expire
   # mid-run, short enough that a session left open on a workstation is not a
@@ -848,13 +791,12 @@ locals {
     StagingServices = [
       local.statements.project_buckets,
       local.statements.state_bucket_listing,
+      local.statements.take_the_staging_plan_lock,
       local.statements.project_scoped_services,
       local.statements.staging_dashboard,
       local.statements.project_keys_by_alias,
       local.statements.calls_that_carry_no_resource,
-      local.statements.publish_staging_metrics,
       local.statements.lightsail_staging_lifecycle,
-      local.statements.ses_staging_configuration,
       local.statements.ses_account_read,
     ]
     EdgeAndIdentity = [
@@ -866,6 +808,7 @@ locals {
       local.statements.reads_the_operator_scripts_make,
     ]
     Guardrails = [
+      local.statements.never_write_infrastructure,
       local.statements.no_self_elevation,
       local.statements.never_touch_operator_identity,
       local.statements.never_administer_a_dev_tester,

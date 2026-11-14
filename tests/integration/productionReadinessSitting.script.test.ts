@@ -236,6 +236,42 @@ describe('the dry run', () => {
   });
 });
 
+describe('the Stripe test-mode exercise on production', () => {
+  // Defect caught: the exercise held as one blocked row, so the sitting names
+  // nothing to run; or a step given the wrong stdin, so the test-clock link (which
+  // takes the host password) refuses mid-sitting, or a key-reading script is fed
+  // the password where it expects the terminal.
+  it('runs as steps before the blocked tail, each script given the stdin it takes', () => {
+    const r = spawnSync('bash', [SCRIPT, '--target', 'production', '--dry-run'], {
+      encoding: 'utf-8', env: { ...process.env, ...env() }, ...SPAWN_GUARD,
+    });
+    expect(r.status, r.stderr).toBe(0);
+    const lines = r.stdout.split('\n');
+    const at = (re: RegExp) => lines.findIndex((l) => re.test(l));
+    const firstBlocked = at(/^\s+p9\d +blocked/);
+    for (const script of ['link-stripe-test-clock.sh', 'payments-pause.sh --target production --pause', 'activate-payments.sh --target production --profile footbag-operator --deactivate']) {
+      const steps = lines.map((l, i) => ({ l, i }))
+        .filter(({ l }) => l.includes(script) && /^\s+p2[12]\S*\s+(once|read|idem)\s/.test(l));
+      expect(steps.length, script).toBeGreaterThan(0);
+      for (const { l, i } of steps) {
+        expect(i, l).toBeLessThan(firstBlocked);
+        expect(l, l).toContain('[password on stdin]');
+      }
+    }
+    for (const script of ['capture-stripe-golden-payloads.sh', 'create-stripe-endpoint.sh --target production --mode test']) {
+      const steps = lines.map((l, i) => ({ l, i }))
+        .filter(({ l }) => l.includes(script) && /^\s+p2[12]\S*\s+(once|read|idem)\s/.test(l));
+      expect(steps.length, script).toBeGreaterThan(0);
+      for (const { l, i } of steps) {
+        expect(i, l).toBeLessThan(firstBlocked);
+        expect(l, l).not.toContain('[password on stdin]');
+      }
+    }
+    // The capture lists the events since the exercise's first flow began.
+    expect(r.stdout).toMatch(/capture-stripe-golden-payloads\.sh --target production --list --since \{SINCE<p21f\}/);
+  });
+});
+
 describe('a full staging run', () => {
   // Defect caught: steps run out of the order their dependencies need, run
   // twice, or a step skipped silently.
@@ -900,8 +936,11 @@ describe('the production steps around email, the zero-logins gate and the archiv
     for (const l of email) {
       expect(l).toMatch(/--profile footbag-production-runtime/);
       expect(l).not.toMatch(/--profile footbag-operator/);
+      // Defect caught: no principal that can read the identity, so the check
+      // refuses and the bounce domain is never judged.
+      expect(l).toMatch(/--read-profile footbag-operator/);
     }
-    expect(out).toMatch(/^ {2}p08d +once +\[password on stdin\] scripts\/verify-prod-email\.sh --profile footbag-production-runtime --outbox --inbox-from-tty$/m);
+    expect(out).toMatch(/^ {2}p08d +once +\[password on stdin\] scripts\/verify-prod-email\.sh --profile footbag-production-runtime --read-profile footbag-operator --outbox --inbox-from-tty$/m);
     expect(order(out).indexOf('p08d1')).toBe(order(out).indexOf('p08d') + 1);
   });
 

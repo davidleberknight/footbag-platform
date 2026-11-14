@@ -28,10 +28,10 @@
 #
 # Because the set of things worth running as the role is not a fixed list, and
 # one of its members is not a script at all. The role's policy was written for
-# the staging Terraform apply, the staging deploy, the staging smoke suite, the
+# the staging deploy and its empty-plan check, the staging smoke suite, the
 # read-only account and DNS checks, and reading the trail back to answer who
 # did something -- that last one being a bare `aws` invocation with no script
-# around it. A flag repeated across dozens of entry points is a convention every
+# around it. It writes no infrastructure, so no Terraform apply runs under it. A flag repeated across dozens of entry points is a convention every
 # new script has to remember, and the one that forgets it is the one that
 # silently runs as `footbag-operator`.
 #
@@ -71,8 +71,6 @@
 #   bash scripts/as-dev-tester.sh --account <name> <command> [args...]
 #
 # Examples:
-#   bash scripts/as-dev-tester.sh --account jane_doe \
-#     bash scripts/terraform-apply.sh --target staging
 #   bash scripts/as-dev-tester.sh --account jane_doe ./deploy_to_aws.sh
 #   bash scripts/as-dev-tester.sh --account jane_doe npm run test:smoke -- --target staging
 #

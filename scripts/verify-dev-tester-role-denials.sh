@@ -71,7 +71,7 @@
 #     grants the action is not the same fact as a refusal the policy states, and
 #     the first one evaporates the day somebody widens a grant. It is reported
 #     separately, as a weaker result than the one intended.
-#   - Enumerate the inverted denials. Two statements are NotAction-shaped
+#   - Enumerate the inverted denials. Several statements are NotAction-shaped
 #     ("everything except reads"), which has no list to read; those are probed
 #     with a fixed representative set of writes, and the report says so rather
 #     than implying the coverage is exhaustive.
@@ -217,6 +217,9 @@ fi
 ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/${ROLE_NAME}"
 DEV_TESTER_ARN="arn:aws:iam::${ACCOUNT_ID}:user${DEV_TESTER_PATH}${DEV_TESTER_NAME}"
 MFA_ARN="arn:aws:iam::${ACCOUNT_ID}:mfa/${DEV_TESTER_NAME}"
+# Any group will do: no group is granted to the role, and the write denial
+# covers every resource.
+GROUP_PROBE_ARN="arn:aws:iam::${ACCOUNT_ID}:group/footbag-dev-testers-probe"
 FOOTBAG_OPERATOR_ARN="arn:aws:iam::${ACCOUNT_ID}:user/${FOOTBAG_OPERATOR_USER}"
 
 # Absent only when IAM says so by name. Any other failure (a denied call, a
@@ -310,11 +313,20 @@ echo "Dev-and-tester lifecycle"
 mapfile -t LIFECYCLE < <(statement_actions NeverAdministerADevTester)
 LIFECYCLE_COUNT=${#LIFECYCLE[@]}
 note "${LIFECYCLE_COUNT} action(s) drawn from NeverAdministerADevTester"
-simulate_denied "lifecycle on the dev-tester path" "$DEV_TESTER_ARN" "${LIFECYCLE[@]}"
-
-# The same statement names the MFA ARNs as well, and a device is not a user, so
-# the second resource is checked rather than assumed to follow from the first.
-mapfile -t MFA_ACTIONS < <(printf '%s\n' "${LIFECYCLE[@]}" | grep -E 'MFADevice$' || true)
+# Each action is asked about on the kind of resource it acts on. The simulator
+# matches no statement for an action asked about on any other kind, and answers
+# implicitDeny whatever the policy says, so a mismatched probe reads as a weak
+# denial that is not there. Group membership acts on the group, creating and
+# deleting a virtual device on the device, and everything else, enabling and
+# resynchronising a second factor included, on the user.
+mapfile -t GROUP_ACTIONS < <(printf '%s\n' "${LIFECYCLE[@]}" | grep -E '^iam:(AddUserToGroup|RemoveUserFromGroup)$' || true)
+mapfile -t MFA_ACTIONS < <(printf '%s\n' "${LIFECYCLE[@]}" | grep -E '^iam:(Create|Delete)VirtualMFADevice$' || true)
+mapfile -t USER_ACTIONS < <(printf '%s\n' "${LIFECYCLE[@]}" \
+  | grep -vE '^iam:(AddUserToGroup|RemoveUserFromGroup|CreateVirtualMFADevice|DeleteVirtualMFADevice)$' || true)
+simulate_denied "lifecycle on the dev-tester path" "$DEV_TESTER_ARN" "${USER_ACTIONS[@]}"
+if (( ${#GROUP_ACTIONS[@]} )); then
+  simulate_denied "group membership" "$GROUP_PROBE_ARN" "${GROUP_ACTIONS[@]}"
+fi
 if (( ${#MFA_ACTIONS[@]} )); then
   simulate_denied "second factor" "$MFA_ARN" "${MFA_ACTIONS[@]}"
 fi
@@ -378,12 +390,11 @@ if (( ${#EDGE[@]} )); then
     (( EDGE_DENIED )) && pass "production edge: ${EDGE_DENIED} action(s) denied on a production tag"
   fi
 
-  simulate_allowed "staging edge" cloudfront:UpdateDistribution "*" \
-    --context-entries "$STAGING_TAG"
-  # Creation carries no resource to tag, so the guard has to let it through. If
-  # this is ever denied, the Null guard has been dropped and every CloudFront
-  # call in staging goes with it.
-  simulate_allowed "staging edge" cloudfront:CreateDistribution "*"
+  # The job writes no infrastructure, so a staging-tagged distribution is
+  # refused too: by the write denial, which the tag denial does not answer for.
+  SIM_CONTEXT=(--context-entries "$STAGING_TAG")
+  simulate_denied "staging edge write" "*" cloudfront:UpdateDistribution cloudfront:DeleteDistribution
+  SIM_CONTEXT=()
 else
   fail "production edge: no actions were read out of NeverTouchAProductionEdgeSurface"
 fi
@@ -427,12 +438,11 @@ fi
 
 # ── 5b. A host that is not staging ───────────────────────────────────────────
 #
-# The firewall and delete calls are granted for staging's own apply and denied
-# on any instance not tagged staging, which is what keeps this role from
-# reopening production's firewall or deleting the instance whose database is on
-# local disk. Both directions are checked, as for the edge surface: denied on a
-# production tag is the control, and allowed on a staging tag is the proof the
-# denial does not also take staging's apply with it.
+# The firewall and delete calls are denied on any instance not tagged staging,
+# which keeps this role from reopening production's firewall or deleting the
+# instance whose database is on local disk, and denied on staging's too by the
+# write denial, since the job writes no infrastructure. Both directions are
+# checked.
 
 echo ""
 echo "A host that is not staging"
@@ -457,9 +467,9 @@ if (( ${#NON_STAGING_HOST[@]} )); then
       fi
     done <<< "$HOST_RESULTS"
   fi
-  for action in "${NON_STAGING_HOST[@]}"; do
-    simulate_allowed "staging host" "$action" "*" --context-entries "$STAGING_TAG"
-  done
+  SIM_CONTEXT=(--context-entries "$STAGING_TAG")
+  simulate_denied "staging host" "*" "${NON_STAGING_HOST[@]}"
+  SIM_CONTEXT=()
 else
   fail "host: no actions were read out of NeverReachANonStagingHost"
 fi
@@ -468,9 +478,8 @@ fi
 #
 # Not a denial statement: the role simply never grants these, and that absence
 # is load-bearing enough to check. Its S3 object scope reaches the staging state
-# key only, which is what stops a dev-and-tester applying the shared, production or
-# identity trees, and is why a walkthrough that expects those applies to succeed
-# is expecting the wrong thing.
+# key only, which is what keeps the shared, production and identity state, and
+# every secret it holds, out of a dev-and-tester's reach.
 
 echo ""
 echo "The terraform state boundary"
@@ -558,9 +567,9 @@ simulate_allowed "reading the runtime role" iam:GetRole "$RUNTIME_ROLE_ARN"
 # production-tagged key and on a key carrying no tag at all, since an absent
 # condition key makes a negated match true. KMS authorises an alias call against
 # the alias as well as the key, and no condition key exists on the alias side,
-# so the denial is scoped to key ARNs; both halves of a staging alias change
-# must then come back allowed, or a role-run staging apply stops partway with a
-# key created and unnamed.
+# so the denial is scoped to key ARNs. A staging alias change is refused on
+# both halves as well, by the write denial, since the job writes no
+# infrastructure.
 
 echo ""
 echo "A key alias"
@@ -570,12 +579,11 @@ SIM_CONTEXT=(--context-entries "$PROD_TAG")
 simulate_denied "key alias on a production-tagged key" "$PROBE_KEY" "${KEY_ALIAS[@]}"
 SIM_CONTEXT=()
 simulate_denied "key alias on an untagged key" "$PROBE_KEY" "${KEY_ALIAS[@]}"
-simulate_allowed "staging alias, alias side" kms:CreateAlias \
-  "arn:aws:kms:us-east-1:${ACCOUNT_ID}:alias/footbag-staging"
-simulate_allowed "staging alias, alias side" kms:DeleteAlias \
-  "arn:aws:kms:us-east-1:${ACCOUNT_ID}:alias/footbag-staging"
-simulate_allowed "staging alias, key side" kms:CreateAlias "$PROBE_KEY" \
-  --context-entries "$STAGING_TAG"
+simulate_denied "staging alias, alias side" \
+  "arn:aws:kms:us-east-1:${ACCOUNT_ID}:alias/footbag-staging" kms:CreateAlias kms:DeleteAlias
+SIM_CONTEXT=(--context-entries "$STAGING_TAG")
+simulate_denied "staging alias, key side" "$PROBE_KEY" kms:CreateAlias
+SIM_CONTEXT=()
 
 # ── 11. A production edge function ───────────────────────────────────────────
 #
@@ -737,6 +745,44 @@ else
   fi
 fi
 
+# ── 16b. No infrastructure write ─────────────────────────────────────────────
+#
+# The job writes no infrastructure, and the inverted write denial says so for
+# every resource. It has no action list to read, so it is probed with writes
+# chosen to cover what a list could miss: two on each of the five CloudFront
+# types that carry no tag, which no tag denial can reach, and one or two in
+# each other service the staging tree declares. The plan's lock is the one
+# object write the job makes, so it must come back allowed.
+
+echo ""
+echo "No infrastructure write"
+simulate_denied "untaggable edge surfaces" "*" \
+  cloudfront:UpdateKeyGroup cloudfront:DeleteKeyGroup \
+  cloudfront:UpdatePublicKey cloudfront:DeletePublicKey \
+  cloudfront:UpdateOriginAccessControl cloudfront:DeleteOriginAccessControl \
+  cloudfront:UpdateCachePolicy cloudfront:DeleteCachePolicy \
+  cloudfront:UpdateResponseHeadersPolicy cloudfront:DeleteResponseHeadersPolicy
+simulate_denied "edge creation" "*" cloudfront:CreateDistribution cloudfront:CreateInvalidation
+simulate_denied "host creation" "*" lightsail:CreateInstances
+simulate_denied "key creation" "*" kms:CreateKey
+simulate_denied "staging alarm" \
+  "arn:aws:cloudwatch:us-east-1:${ACCOUNT_ID}:alarm:footbag-staging-probe" \
+  cloudwatch:PutMetricAlarm cloudwatch:DeleteAlarms
+simulate_denied "staging bucket" "arn:aws:s3:::footbag-staging-media" \
+  s3:PutBucketPolicy s3:DeleteBucket
+simulate_denied "staging queue" "arn:aws:sqs:us-east-1:${ACCOUNT_ID}:footbag-staging-probe" \
+  sqs:CreateQueue sqs:DeleteQueue
+simulate_denied "staging configuration set" \
+  "arn:aws:ses:us-east-1:${ACCOUNT_ID}:configuration-set/footbag-staging-probe" \
+  ses:CreateConfigurationSet ses:DeleteConfigurationSet
+if [[ -n "$STATE_BUCKET" ]]; then
+  STATE_LOCK="arn:aws:s3:::${STATE_BUCKET}/staging/terraform.tfstate.tflock"
+  simulate_allowed "staging plan lock" s3:PutObject "$STATE_LOCK"
+  simulate_allowed "staging plan lock" s3:DeleteObject "$STATE_LOCK"
+else
+  fail "staging plan lock: the state bucket name was not read, so the lock grant is unproven"
+fi
+
 # ── 17. What a staging plan reads ────────────────────────────────────────────
 #
 # A plan by this role refreshes every resource in the staging tree, and one
@@ -764,6 +810,8 @@ simulate_allowed "staging refresh" s3:GetBucketPolicy "arn:aws:s3:::footbag-stag
 simulate_allowed "staging refresh" iam:GetRole "$RUNTIME_ROLE_ARN"
 simulate_allowed "staging refresh" lightsail:GetInstance "*"
 simulate_allowed "staging refresh" cloudfront:GetDistribution "*"
+simulate_allowed "staging refresh" cloudfront:GetKeyGroup "*"
+simulate_allowed "staging refresh" lightsail:GetStaticIp "*"
 
 # ── Verdict ──────────────────────────────────────────────────────────────────
 

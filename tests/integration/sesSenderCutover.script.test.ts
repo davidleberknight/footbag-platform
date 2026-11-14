@@ -303,6 +303,11 @@ describe('ses-sender-cutover.sh: a full move', () => {
     // The send check refuses any principal but the runtime role, and a send as
     // that role is what proves the rewritten From-address condition.
     expect(r.calls.find((c) => c.startsWith('verify-email'))).toContain('--profile footbag-production-runtime');
+    // Defect caught: the check started with no principal that can read the
+    // identity, which it refuses, so step 5 fails after every good cutover. The
+    // reads go through the identity this run applies with.
+    const applyingAs = process.env.AWS_PROFILE ?? 'footbag-operator';
+    expect(r.calls.find((c) => c.startsWith('verify-email'))).toContain(`--read-profile ${applyingAs}`);
   });
 
   // Defect caught: a list written on one line is rewritten as a pattern match,

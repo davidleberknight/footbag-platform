@@ -20,31 +20,38 @@
  * moves fails a test instead of failing a donor.
  *
  * HOW A CAPTURE IS MADE. During the test-mode exercise on production, the
- * operator saves each event's raw body exactly as delivered — the bytes, not a
- * re-serialisation, because the signature is computed over the bytes and
- * re-encoding changes them. Then, before committing:
+ * operator lists the run's events and runs
+ * `scripts/capture-stripe-golden-payloads.sh` with a manifest naming each one,
+ * what it shows, the outcome its replay should produce and the sequence it
+ * belongs to. The script reads each event from the provider's events API and
+ * hands the batch to `scripts/lib/stripe-golden-sanitise.ts`, which:
  *
- *   1. Replace every identifier with an obviously synthetic one of the same
- *      shape. Provider ids are not secret, but a real customer id in a public
- *      repository is a member's payment history made greppable.
- *   2. Remove anything member-identifying. A donation comment is the member's own
+ *   1. Replaces every identifier with an obviously synthetic one of the same
+ *      prefix and length, consistently across the batch. Provider ids are not
+ *      secret, but a real customer id in a public repository is a member's
+ *      payment history made greppable.
+ *   2. Nulls anything member-identifying, every link, the client secret and the
+ *      card's fingerprint and digits. A donation comment is the member's own
  *      words; an email address is personal data. The handlers do not read either
  *      from these payloads, so neither needs to be present for the replay to
  *      prove anything.
- *   3. Keep the STRUCTURE untouched. Every field the provider sent stays, in the
- *      place the provider put it, including fields the handlers ignore. The
- *      structure is the entire point: sanitising it into the shape the stub
- *      already produces would recreate the fiction these exist to break.
+ *   3. Keeps the STRUCTURE untouched. Every field the provider sent stays, in the
+ *      place and order the provider put it, including fields the handlers
+ *      ignore. The structure is the entire point: sanitising it into the shape
+ *      the stub already produces would recreate the fiction these exist to break.
  *
- * The payloads are re-signed with the stub secret at replay time, since the real
- * signature cannot survive sanitisation. That is deliberate and costs nothing:
- * the signature path is exercised by its own suite against the real verifier;
- * what these prove is that the handlers understand the provider's SHAPE.
+ * The events API returns the event rather than the bytes a delivery carried, so
+ * each body is the provider's event in its own two-space layout, and the replay
+ * re-signs it with the stub secret. That costs nothing: the signature path is
+ * exercised by its own suite against the real verifier; what these prove is
+ * that the handlers understand the provider's SHAPE.
  *
  * A capture whose sanitisation is uncertain is not committed. An empty set here
  * is honest; a set of stub output relabelled as golden would be worse than
  * nothing, because it would read as evidence.
  */
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 
 /** One captured provider event, ready to replay. */
 export interface GoldenPayload {
@@ -52,12 +59,18 @@ export interface GoldenPayload {
   describes: string;
   /** The event type, repeated here so a listing reads without parsing bodies. */
   eventType: string;
-  /** The raw body as delivered, sanitised per the rules above. */
+  /** The sanitised event body, per the rules above. */
   rawBody: string;
   /** What replaying it through the handlers should produce. */
   expectedOutcome: 'processed' | 'duplicate' | 'ignored';
-  /** When the shape was captured, so a stale set is visible as stale. */
+  /** The API version the event was sent at, so a stale set is visible as stale. */
   capturedApiVersion: string;
+  /** The day of the capture run, YYYY-MM-DD. */
+  capturedAt: string;
+  /** Where the event came from. */
+  source: string;
+  /** The flow the event belongs to; a group replays in order, against its own seeded rows. */
+  sequenceGroup: string;
 }
 
 /**
@@ -86,4 +99,6 @@ export interface GoldenPayload {
  *   5. `payment_intent.succeeded` for a one-time donation — the flow that has
  *      actually run live, so the easiest to capture and the cheapest to verify.
  */
-export const GOLDEN_PAYLOADS: GoldenPayload[] = [];
+export const GOLDEN_PAYLOADS: GoldenPayload[] = JSON.parse(
+  readFileSync(path.join(__dirname, 'stripeGoldenPayloads.json'), 'utf8'),
+) as GoldenPayload[];

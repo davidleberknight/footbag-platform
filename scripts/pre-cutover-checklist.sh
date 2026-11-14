@@ -453,11 +453,14 @@ if [[ "${MOCK_AWS}" -eq 0 && -n "${FOOTBAG_PRECUTOVER_EMAIL_PROFILE:-}" ]]; then
     echo "G10-OUTBOX sends REAL email through production SES and the outbox on"
     echo "footbag-production, to ${FOOTBAG_PRECUTOVER_EMAIL_INBOX:-the SES success simulator}."
     if confirm_from_tty "Type APPLY to send: " "APPLY"; then
+      # Sends as the named runtime profile; reads the SES identity as the
+      # identity this run settled on, since the runtime role cannot read one.
       run_step "G10-OUTBOX" bash -c \
-        'bash scripts/verify-prod-email.sh --profile "$1" --outbox --yes ${2:+--inbox "$2"} < "$3"' _ \
+        'bash scripts/verify-prod-email.sh --profile "$1" --read-profile "$4" --outbox --yes ${2:+--inbox "$2"} < "$3"' _ \
         "${FOOTBAG_PRECUTOVER_EMAIL_PROFILE}" \
         "${FOOTBAG_PRECUTOVER_EMAIL_INBOX:-}" \
-        "${OPERATOR_CREDENTIAL_FILE}"
+        "${OPERATOR_CREDENTIAL_FILE}" \
+        "${AWS_PROFILE:-footbag-operator}"
     else
       results+=("GATE: G10-OUTBOX FAIL: not confirmed, so no mail was sent")
       fail=$((fail + 1))

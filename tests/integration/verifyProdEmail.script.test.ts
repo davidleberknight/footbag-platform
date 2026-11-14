@@ -38,18 +38,38 @@ const SCRIPT = path.join(REPO_ROOT, 'scripts', 'verify-prod-email.sh');
 let dir: string;
 let fakeBin: string;
 
+/** The read principal every run names, and the user ARN it resolves to. */
+const READ_PROFILE = 'footbag-operator';
+const READ_ARN = 'arn:aws:iam::1:user/footbag-operator';
+
 /**
- * Writes a fake `aws` that answers the four calls the script makes. `arn` decides
- * whether the identity check passes; `mailFrom` is the bounce-domain status the
- * report is built from.
+ * Writes a fake `aws` that answers the calls the script makes. `arn` is the send
+ * profile's identity and decides whether the production check passes; the read
+ * profile resolves to `opts.readArn`. `mailFrom` is the bounce-domain status SES
+ * holds once the mail-day apply has configured `mail.footbag.org` on the
+ * identity, and null before it, when no bounce domain is configured at all.
+ *
+ * Every identity read made through any profile but the read profile is refused,
+ * as the production runtime role refuses it: that role may only send.
  */
 function writeFakeAws(
   arn: string,
-  mailFrom: string,
-  opts: { warn?: boolean; sesDenied?: boolean; domainOnly?: boolean } = {},
+  mailFrom: string | null,
+  opts: {
+    warn?: boolean;
+    sesDenied?: boolean;
+    domainOnly?: boolean;
+    mailFromUnreadable?: boolean;
+    senderUnverified?: boolean;
+    readArn?: string;
+  } = {},
 ): void {
   fakeBin = path.join(dir, 'bin');
   fs.mkdirSync(fakeBin, { recursive: true });
+  const denied = [
+    '  echo "An error occurred (AccessDeniedException) when calling the GetEmailIdentity operation: not authorized" >&2',
+    '  exit 254',
+  ];
   fs.writeFileSync(
     path.join(fakeBin, 'aws'),
     [
@@ -59,14 +79,21 @@ function writeFakeAws(
       // `warn` puts a line on stderr beside every answer, as the CLI prints a
       // deprecation or library notice; an acknowledged fake, since what is
       // asserted is that it is never read as a status. `sesDenied` refuses the
-      // identity reads the way a principal without the read permission is.
+      // identity reads to the read profile too, as a principal without the read
+      // permission is refused.
       ...(opts.warn
         ? ['echo "/usr/lib/python3/dist-packages/urllib3/connectionpool.py: InsecureRequestWarning: fixture warning line" >&2']
         : []),
+      `if [[ "$args" == *"get-email-identity"* && "$args" != *"--profile ${READ_PROFILE}"* ]]; then`,
+      ...denied,
+      'fi',
       ...(opts.sesDenied
+        ? ['if [[ "$args" == *"get-email-identity"* ]]; then', ...denied, 'fi']
+        : []),
+      ...(opts.mailFromUnreadable
         ? [
-            'if [[ "$args" == *"get-email-identity"* ]]; then',
-            '  echo "An error occurred (AccessDeniedException) when calling the GetEmailIdentity operation: not authorized" >&2',
+            'if [[ "$args" == *MailFromAttributes* ]]; then',
+            '  echo "An error occurred (TooManyRequestsException) when calling the GetEmailIdentity operation: Too many requests" >&2',
             '  exit 254',
             'fi',
           ]
@@ -82,9 +109,12 @@ function writeFakeAws(
           ]
         : []),
       'case "$args" in',
+      `  *"sts get-caller-identity"*"--profile ${READ_PROFILE}"*) echo "${opts.readArn ?? READ_ARN}" ;;`,
       `  *"sts get-caller-identity"*) echo "${arn}" ;;`,
-      `  *MailFromAttributes*) echo "${mailFrom}" ;;`,
-      '  *VerifiedForSendingStatus*) echo "True" ;;',
+      mailFrom === null
+        ? '  *MailFromAttributes*) echo "None" ;;'
+        : `  *MailFromAttributes*) printf 'mail.footbag.org\\t%s\\n' "${mailFrom}" ;;`,
+      `  *VerifiedForSendingStatus*) echo "${opts.senderUnverified ? 'False' : 'True'}" ;;`,
       '  *"send-email"*) echo "MessageId: stub" ;;',
       '  *) echo "" ;;',
       'esac',
@@ -110,8 +140,17 @@ function writeFakeTerraform(sender: string | null): string {
   return p;
 }
 
-function run(args: string[], extraEnv: Record<string, string> = {}): ReturnType<typeof spawnSync> {
-  return spawnSync('bash', [SCRIPT, ...args], {
+/** Names the read profile, as every caller does, unless the case names its own. */
+function withRead(args: string[]): string[] {
+  return args.includes('--read-profile') ? args : [...args, '--read-profile', READ_PROFILE];
+}
+
+function run(
+  args: string[],
+  extraEnv: Record<string, string> = {},
+  opts: { noReadProfile?: boolean } = {},
+): ReturnType<typeof spawnSync> {
+  return spawnSync('bash', [SCRIPT, ...(opts.noReadProfile ? args : withRead(args))], {
     encoding: 'utf8',
     env: {
       ...process.env,
@@ -143,7 +182,7 @@ afterEach(() => {
 describe('verify-prod-email.sh --inbox-from-tty', () => {
   /** At a terminal, typing `typed` when the script asks for the inbox. */
   function atTerminal(args: string[], typed: string, stdin = '') {
-    const inner = `bash ${JSON.stringify(SCRIPT)} ${args.join(' ')} ${stdin}; echo "EXIT=$?"`;
+    const inner = `bash ${JSON.stringify(SCRIPT)} ${withRead(args).join(' ')} ${stdin}; echo "EXIT=$?"`;
     const r = spawnSync('script', ['-qec', inner, '/dev/null'], {
       encoding: 'utf8',
       input: `${typed}\n`,
@@ -257,6 +296,28 @@ describe('verify-prod-email.sh refusals', () => {
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/does not resolve to a footbag-production identity/);
   });
+
+  // Defect caught: a run with no principal able to read the identity, which as
+  // the send-only runtime role can never see the bounce domain, so the check
+  // could not tell a healthy mail day from a broken one.
+  it('refuses without a read profile and sends nothing', () => {
+    const r = run(['--profile', 'footbag-production', '--yes'], {}, { noReadProfile: true });
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/--read-profile .* is required/);
+    expect(sends()).toEqual([]);
+  });
+
+  // Defect caught: the identity read in another account, whose healthy bounce
+  // domain says nothing about the production identity mail is sent through.
+  it('refuses a read profile in another account than the send profile', () => {
+    writeFakeAws('arn:aws:iam::1:role/footbag-production-runtime', 'SUCCESS', {
+      readArn: 'arn:aws:iam::2:user/footbag-operator',
+    });
+    const r = run(['--profile', 'footbag-production', '--yes']);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/not in the account the send profile is in/);
+    expect(sends()).toEqual([]);
+  });
 });
 
 /**
@@ -304,7 +365,7 @@ describe('verify-prod-email.sh outbox leg', () => {
     const cred = path.join(dir, 'credential.txt');
     fs.writeFileSync(cred, 'stub-sudo-pass\nSECOND-LINE-MARKER\n', { mode: 0o600 });
 
-    const r = spawnSync('bash', [SCRIPT, '--profile', 'footbag-production', '--sender', 'noreply@footbag.org', '--outbox', '--yes'], {
+    const r = spawnSync('bash', [SCRIPT, ...withRead(['--profile', 'footbag-production', '--sender', 'noreply@footbag.org', '--outbox', '--yes'])], {
       encoding: 'utf8',
       input: fs.readFileSync(cred),
       env: {
@@ -328,17 +389,93 @@ describe('verify-prod-email.sh outbox leg', () => {
   });
 });
 
+/** The closing report's verdict and the lists above it, all on stderr. */
+function report(r: ReturnType<typeof spawnSync>): string {
+  const err = String(r.stderr);
+  const at = err.indexOf('==== Closing report: verify-prod-email.sh ====');
+  expect(at, err).toBeGreaterThanOrEqual(0);
+  return err.slice(at);
+}
+
+/**
+ * After the mail-day apply SES holds a bounce domain on the identity, and launch
+ * waits on this check proving it aligns; before it there is no bounce domain to
+ * judge. Which side a run is on is read from SES itself, never from a flag.
+ */
 describe('verify-prod-email.sh custom bounce-domain report', () => {
-  it('reports a healthy setup as healthy', () => {
+  // Defect caught: a healthy mail day reported as a failure, or proven without
+  // being listed, so the operator cannot tell what the run established.
+  it('lists a healthy bounce domain as proven and passes', () => {
     const r = run(['--profile', 'footbag-production', '--yes']);
+    expect(r.status, String(r.stderr)).toBe(0);
     expect(r.stdout).toMatch(/Custom bounce domain: healthy/);
+    expect(report(r)).toMatch(/No errors or warnings\.[\s\S]*Proven:[\s\S]*mail\.footbag\.org/);
   });
 
-  it('reports an unhealthy setup as unhealthy, and says mail still goes out', () => {
+  // Defect caught: after the mail switch, a failed bounce domain printed and then
+  // followed by success, so launch proceeds on mail that does not align.
+  it('fails the run on an unhealthy bounce domain after the mail switch, and still sends', () => {
+    writeFakeAws('arn:aws:iam::1:role/footbag-production-runtime', 'FAILED');
+    const r = run(['--profile', 'footbag-production', '--yes']);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toMatch(/Custom bounce domain: FAILED -- NOT healthy/);
+    expect(r.stdout).toMatch(/mail still goes\s+out but cannot align/);
+    expect(report(r)).toMatch(/Errors \(1\):\n  - [^\n]*mail\.footbag\.org[^\n]*FAILED/);
+    // The send legs still run, so the report also proves sending works.
+    expect(sends().length).toBeGreaterThan(0);
+  });
+
+  // Defect caught: SES not having found the bounce record yet read as a pass, on
+  // the one run launch waits on to prove alignment.
+  it('fails the run while SES has not yet found the bounce domain', () => {
     writeFakeAws('arn:aws:iam::1:role/footbag-production-runtime', 'PENDING');
     const r = run(['--profile', 'footbag-production', '--yes']);
-    expect(r.stdout).toMatch(/Custom bounce domain: PENDING -- NOT healthy/);
-    expect(r.stdout).toMatch(/mail still goes\s+out but cannot align/);
+    expect(r.status).toBe(1);
+    expect(report(r)).toMatch(/Errors \(1\):\n  - [^\n]*PENDING/);
+  });
+
+  // Defect caught: an unreadable bounce domain treated as absent, which reads as
+  // "before the mail switch" and passes a run that proved nothing.
+  it('fails the run when the bounce domain cannot be read', () => {
+    writeFakeAws('arn:aws:iam::1:role/footbag-production-runtime', 'SUCCESS', { mailFromUnreadable: true });
+    const r = run(['--profile', 'footbag-production', '--yes']);
+    expect(r.status).toBe(1);
+    expect(report(r)).toMatch(/Errors \(1\):\n  - [^\n]*TooManyRequestsException/);
+  });
+
+  // Defect caught: a read principal that cannot read the identity let through
+  // as "sending anyway", so neither the sender nor the bounce domain is checked.
+  it('refuses before sending when the read profile cannot read the identity', () => {
+    writeFakeAws('arn:aws:iam::1:role/footbag-production-runtime', 'SUCCESS', { sesDenied: true });
+    const r = run(['--profile', 'footbag-production', '--yes']);
+    expect(r.status).toBe(1);
+    expect(report(r)).toMatch(/AccessDeniedException/);
+    expect(sends()).toEqual([]);
+  });
+
+  // Defect caught: mail sent as an address SES has not verified, whose refusal
+  // then reads like a permissions problem rather than the verification it is.
+  it('refuses before sending when the sender is not verified', () => {
+    writeFakeAws('arn:aws:iam::1:role/footbag-production-runtime', 'SUCCESS', { senderUnverified: true });
+    const r = run(['--profile', 'footbag-production', '--yes']);
+    expect(r.status).toBe(1);
+    expect(report(r)).toMatch(/Errors \(\d+\):\n  - [^\n]*not verified for sending[^\n]*status: False/);
+    expect(sends()).toEqual([]);
+  });
+
+  // Defect caught: the identity read through the send-only runtime role, which is
+  // always refused, or a send made through the read principal, which proves
+  // nothing about the role production sends as.
+  it('reads the identity through the read profile and sends through the send profile', () => {
+    const r = run(['--profile', 'footbag-production', '--yes']);
+    expect(r.status, String(r.stderr)).toBe(0);
+    const calls = fs.readFileSync(path.join(dir, 'aws-calls.log'), 'utf8').split('\n');
+    const reads = calls.filter((l) => l.includes('get-email-identity'));
+    expect(reads.length).toBeGreaterThan(0);
+    for (const l of reads) expect(l, l).toContain(`--profile ${READ_PROFILE}`);
+    expect(sends().length).toBeGreaterThan(0);
+    for (const l of sends()) expect(l, l).toContain('--profile footbag-production');
+    for (const l of sends()) expect(l, l).not.toContain(`--profile ${READ_PROFILE}`);
   });
 
   it('reads the statuses, not a warning the CLI prints beside them', () => {
@@ -347,19 +484,6 @@ describe('verify-prod-email.sh custom bounce-domain report', () => {
     expect(r.status, String(r.stderr)).toBe(0);
     expect(r.stdout).toMatch(/Sender identity: noreply@\S+ \(verified\)/);
     expect(r.stdout).toMatch(/Custom bounce domain: healthy/);
-  });
-
-  it('still tells a denied read apart from an unverified sender', () => {
-    writeFakeAws('arn:aws:iam::1:role/footbag-production-runtime', 'SUCCESS', { sesDenied: true });
-    const r = run(['--profile', 'footbag-production', '--yes']);
-    expect(r.status, String(r.stderr)).toBe(0);
-    expect(r.stdout).toMatch(/status not readable by this profile; sending anyway/);
-    expect(r.stdout).toMatch(/Custom bounce domain: status not readable by this profile/);
-    // Only a not-found read moves to the domain; a denied one stays on the address.
-    const reads = fs.readFileSync(path.join(dir, 'aws-calls.log'), 'utf8').split('\n')
-      .filter((l) => l.includes('VerifiedForSendingStatus') || l.includes('MailFromAttributes'));
-    expect(reads.length).toBeGreaterThan(0);
-    expect(reads.every((l) => l.includes('--email-identity noreply@'))).toBe(true);
   });
 
   // Defect caught: on the day sending moves under the domain identity, the check
@@ -376,10 +500,17 @@ describe('verify-prod-email.sh custom bounce-domain report', () => {
     expect(reads[0]).toContain('--email-identity footbag.org');
   });
 
-  it('distinguishes not-yet-configured from unhealthy', () => {
-    writeFakeAws('arn:aws:iam::1:role/footbag-production-runtime', 'None');
+  // Defect caught: every run before the mail switch failing or warning about a
+  // bounce domain nobody has configured yet, which trains the operator to read
+  // past the report.
+  it('passes cleanly before the mail switch, when no bounce domain is configured', () => {
+    writeFakeAws('arn:aws:iam::1:role/footbag-production-runtime', null);
     const r = run(['--profile', 'footbag-production', '--yes']);
+    expect(r.status, String(r.stderr)).toBe(0);
     expect(r.stdout).toMatch(/Custom bounce domain: not configured/);
-    expect(r.stdout).not.toMatch(/NOT healthy/);
+    expect(report(r)).toMatch(/No errors or warnings\./);
+    // Nothing about a bounce domain is claimed; the healthy case above is the
+    // control showing the same report does list it once one is configured.
+    expect(report(r)).not.toMatch(/mail\.footbag\.org/);
   });
 });

@@ -55,10 +55,12 @@ interface Estate {
   lifecycleAllowed?: string | null;
   /** A lifecycle action refused only because nothing grants it. */
   lifecycleImplicit?: string | null;
-  /** The regression where the tag denial swallows staging too. */
-  stagingEdgeDenied?: boolean;
-  /** The regression where the Null guard is dropped and creation dies. */
-  createDistributionDenied?: boolean;
+  /** The regression where a staging distribution can be changed again. */
+  stagingEdgeWritable?: boolean;
+  /** One infrastructure write the role is granted again. */
+  infraWriteAllowed?: string | null;
+  /** The regression where the staging plan can no longer take its lock. */
+  lockUnwritable?: boolean;
   /** Whether the role can read another tree's terraform state. */
   sharedStateReadable?: boolean;
   /** Whether it can still read its own, which it must. */
@@ -73,8 +75,8 @@ interface Estate {
   stagingHostAccessAllowed?: boolean;
   /** The regression where the firewall and delete calls reach production. */
   productionHostReachable?: boolean;
-  /** The regression where their denial also takes staging's own apply. */
-  stagingHostDenied?: boolean;
+  /** The regression where the staging host's firewall or instance can be changed again. */
+  stagingHostWritable?: boolean;
   /** The regression where detaching or releasing a static IP is granted again. */
   staticIpReleasable?: boolean;
   /** The regression where attaching a static IP is granted again. */
@@ -109,8 +111,8 @@ interface Estate {
   strayInline?: string | null;
   /** The regression where the role can rewrite its own managed policies. */
   ownPolicyWritable?: boolean;
-  /** The regression where the alias guard also takes staging's own aliases. */
-  stagingAliasDenied?: boolean;
+  /** The regression where staging's key aliases can be changed again. */
+  stagingAliasWritable?: boolean;
   /** Whether the staging runtime role's trust names the job role. */
   runtimeTrustNamesJobRole?: boolean;
   /** The staging runtime role's trust cannot be read at all. */
@@ -127,8 +129,9 @@ const HEALTHY: Required<Estate> = {
   roleExists: true,
   lifecycleAllowed: null,
   lifecycleImplicit: null,
-  stagingEdgeDenied: false,
-  createDistributionDenied: false,
+  stagingEdgeWritable: false,
+  infraWriteAllowed: null,
+  lockUnwritable: false,
   sharedStateReadable: false,
   stagingStateReadable: true,
   roleReadable: true,
@@ -136,7 +139,7 @@ const HEALTHY: Required<Estate> = {
   simulatorNone: false,
   stagingHostAccessAllowed: false,
   productionHostReachable: false,
-  stagingHostDenied: false,
+  stagingHostWritable: false,
   staticIpReleasable: false,
   staticIpAttachable: false,
   selfElevationAllowed: false,
@@ -154,7 +157,7 @@ const HEALTHY: Required<Estate> = {
   jobPoliciesAttached: true,
   strayInline: null,
   ownPolicyWritable: false,
-  stagingAliasDenied: false,
+  stagingAliasWritable: false,
   runtimeTrustNamesJobRole: true,
   runtimeTrustUnreadable: false,
   inlineUnlistable: false,
@@ -249,9 +252,28 @@ function awsStub(estate: Estate): string {
       'decide() {',
       '  local a="$1"',
       `  if [[ -n ${q(e.refreshReadDenied)} && "$a" == ${q(e.refreshReadDenied)} ]]; then echo implicitDeny; return; fi`,
+      `  if [[ -n ${q(e.infraWriteAllowed)} && "$a" == ${q(e.infraWriteAllowed)} ]]; then echo allowed; return; fi`,
+      // As the simulator does, seen against the live role: an action asked
+      // about on a resource of a kind it does not act on matches no statement
+      // at all, so even an action two denials name comes back implicitDeny.
       '  case "$a" in',
-      '    cloudwatch:GetDashboard|ssm:DescribeParameters|logs:DescribeLogGroups|ses:DescribeConfigurationSet|cloudwatch:DescribeAlarms|sqs:GetQueueAttributes|sns:GetTopicAttributes|s3:GetBucketPolicy|lightsail:GetInstance)',
+      '    iam:AddUserToGroup|iam:RemoveUserFromGroup)',
+      '      [[ "$resource" == *:group/* ]] || { echo implicitDeny; return; } ;;',
+      '    iam:CreateVirtualMFADevice|iam:DeleteVirtualMFADevice)',
+      '      [[ "$resource" == *:mfa/* ]] || { echo implicitDeny; return; } ;;',
+      '    iam:EnableMFADevice|iam:DeactivateMFADevice|iam:ResyncMFADevice)',
+      '      [[ "$resource" == *:user/* ]] || { echo implicitDeny; return; } ;;',
+      '  esac',
+      '  case "$a" in',
+      '    cloudwatch:GetDashboard|ssm:DescribeParameters|logs:DescribeLogGroups|ses:DescribeConfigurationSet|cloudwatch:DescribeAlarms|sqs:GetQueueAttributes|sns:GetTopicAttributes|s3:GetBucketPolicy|lightsail:GetInstance|lightsail:GetStaticIp)',
       '      echo allowed; return ;;',
+      '    s3:PutObject|s3:DeleteObject)',
+      '      if [[ "$resource" == */staging/terraform.tfstate.tflock ]]; then',
+      `        ${e.lockUnwritable ? 'echo implicitDeny' : 'echo allowed'}`,
+      '      else',
+      '        echo implicitDeny',
+      '      fi',
+      '      return ;;',
       '    iam:CreatePolicyVersion|iam:SetDefaultPolicyVersion|iam:DeletePolicyVersion|iam:DeletePolicy)',
       '      if [[ "$resource" == *:policy/FootbagDevTester-* ]]; then',
       `        ${e.ownPolicyWritable ? 'echo allowed' : 'echo implicitDeny'}`,
@@ -276,7 +298,7 @@ function awsStub(estate: Estate): string {
       '      return ;;',
       '    lightsail:PutInstancePublicPorts|lightsail:OpenInstancePublicPorts|lightsail:CloseInstancePublicPorts|lightsail:DeleteInstance)',
       '      if [[ "$ctx" == *staging* ]]; then',
-      `        ${e.stagingHostDenied ? 'echo explicitDeny' : 'echo allowed'}`,
+      `        ${e.stagingHostWritable ? 'echo allowed' : 'echo explicitDeny'}`,
       '      else',
       `        ${e.productionHostReachable ? 'echo allowed' : 'echo explicitDeny'}`,
       '      fi',
@@ -294,13 +316,13 @@ function awsStub(estate: Estate): string {
       '    kms:CreateAlias|kms:DeleteAlias|kms:UpdateAlias)',
       // The alias side carries no condition key, so it answers on the grant alone.
       '      if [[ "$resource" == *:alias/* ]]; then',
-      `        ${e.stagingAliasDenied ? 'echo explicitDeny' : 'echo allowed'}`,
+      `        ${e.stagingAliasWritable ? 'echo allowed' : 'echo explicitDeny'}`,
       '      elif [[ "$ctx" == *production* ]]; then',
       `        ${e.productionAliasGraftable ? 'echo allowed' : 'echo explicitDeny'}`,
       '      elif [[ -z "$ctx" ]]; then',
       `        ${e.untaggedAliasGraftable ? 'echo allowed' : 'echo explicitDeny'}`,
       '      else',
-      `        ${e.stagingAliasDenied ? 'echo explicitDeny' : 'echo allowed'}`,
+      `        ${e.stagingAliasWritable ? 'echo allowed' : 'echo explicitDeny'}`,
       '      fi',
       '      return ;;',
       `    iam:PassRole) ${e.budgetsPassable ? 'echo allowed' : 'echo explicitDeny'}; return ;;`,
@@ -327,13 +349,12 @@ function awsStub(estate: Estate): string {
       '      ;;',
       '  esac',
       '  case "$a" in',
+      '    cloudfront:Get*|cloudfront:List*) echo allowed; return ;;',
       '    cloudfront:*)',
-      '      if [[ "$ctx" == *staging* ]]; then',
-      `        ${e.stagingEdgeDenied ? 'echo explicitDeny' : 'echo allowed'}`,
-      '      elif [[ -z "$ctx" ]]; then',
-      `        ${e.createDistributionDenied ? 'echo explicitDeny' : 'echo allowed'}`,
-      '      else',
+      '      if [[ "$ctx" == *production* ]]; then',
       '        echo explicitDeny',
+      '      else',
+      `        ${e.stagingEdgeWritable ? 'echo allowed' : 'echo explicitDeny'}`,
       '      fi',
       '      return ;;',
       '  esac',
@@ -441,6 +462,19 @@ describe('verify-dev-tester-role-denials.sh — the denials hold', () => {
     expect(r.stdout).toMatch(/No findings/);
   });
 
+  it('asks about each lifecycle action on the kind of resource it acts on, so a healthy role reads clean', () => {
+    // Asked about on the wrong kind of resource, an action matches no
+    // statement and comes back implicitDeny even though the policy refuses
+    // it. Seven such results on every healthy run would bury a real weak
+    // one among them.
+    const r = run();
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stderr).not.toMatch(/WEAK/);
+    expect(r.stdout).toMatch(/group membership: 2 action\(s\) explicitly denied/);
+    expect(r.stdout).toMatch(/second factor: 2 action\(s\) explicitly denied/);
+    expect(r.stdout).toMatch(/lifecycle on the dev-tester path: 30 action\(s\) explicitly denied/);
+  });
+
   it('reads the lifecycle action list out of the Terraform, not a copy', () => {
     // The count comes from the HCL. Asserting a floor rather than an exact
     // number, because the list is meant to grow and this test should not be the
@@ -495,29 +529,71 @@ describe('verify-dev-tester-role-denials.sh — a denial that has stopped holdin
   });
 });
 
-describe('verify-dev-tester-role-denials.sh — the tag denial in both directions', () => {
-  it('fails when the denial swallows staging too, which is the naive guard', () => {
-    // Without the Null existence guard a negated tag match denies every call
-    // whose resource tag is absent or unreadable. That locks the dev-and-tester out
-    // of staging, and it surfaces as a broken credential rather than as a
-    // policy error, which is why it has its own case.
-    const r = run({ stagingEdgeDenied: true });
+describe('verify-dev-tester-role-denials.sh — the edge, tagged staging or production', () => {
+  it('fails when a staging distribution can be changed, since the job writes no infrastructure', () => {
+    // A staging-tagged distribution is where a write grant would still show:
+    // the production direction holds by tag whether or not the role can
+    // write staging's.
+    const r = run({ stagingEdgeWritable: true });
     expect(r.status).toBe(1);
-    expect(r.stderr).toMatch(/staging edge: cloudfront:UpdateDistribution came back explicitDeny/);
-    expect(r.stderr).toMatch(/cannot do its job/);
+    expect(r.stderr).toMatch(/staging edge write: cloudfront:UpdateDistribution came back allowed/);
   });
 
-  it('fails when creation is denied, which is the same guard seen from the other side', () => {
-    // A create carries no resource to tag at all, so it is the purest test of
-    // the guard: denied here means the guard is gone.
-    const r = run({ createDistributionDenied: true });
-    expect(r.status).toBe(1);
-    expect(r.stderr).toMatch(/cloudfront:CreateDistribution came back explicitDeny/);
-  });
-
-  it('passes the production direction, which is the control itself', () => {
+  it('proves both directions on a healthy role', () => {
     const r = run();
+    expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).toMatch(/action\(s\) denied on a production tag/);
+    expect(r.stdout).toMatch(/staging edge write: \d+ action\(s\) explicitly denied/);
+  });
+});
+
+describe('verify-dev-tester-role-denials.sh — no infrastructure write', () => {
+  it('proves every write refused explicitly, and the plan lock writable, on a healthy role', () => {
+    const r = run();
+    expect(r.status, r.stderr).toBe(0);
+    // Two writes on each of the five CloudFront types that carry no tag.
+    expect(r.stdout).toMatch(/untaggable edge surfaces: 10 action\(s\) explicitly denied/);
+    expect(r.stdout).toMatch(/staging plan lock: s3:PutObject is allowed, as it must be/);
+    expect(r.stdout).toMatch(/staging plan lock: s3:DeleteObject is allowed, as it must be/);
+  });
+
+  it('fails when a write on any CloudFront type that carries no tag comes back allowed', () => {
+    // No tag condition reaches these, so the write denial is the only thing
+    // between the role and production's key group, public key, origin access
+    // control, cache policy and response-headers policy.
+    for (const action of [
+      'cloudfront:DeleteKeyGroup',
+      'cloudfront:UpdatePublicKey',
+      'cloudfront:DeleteOriginAccessControl',
+      'cloudfront:UpdateCachePolicy',
+      'cloudfront:UpdateResponseHeadersPolicy',
+    ]) {
+      const r = run({ infraWriteAllowed: action });
+      expect(r.status, action).toBe(1);
+      expect(r.stderr, action).toMatch(new RegExp(`untaggable edge surfaces: ${action} came back allowed`));
+    }
+  });
+
+  it('fails when a write in another service comes back allowed, naming the service', () => {
+    for (const [label, action] of [
+      ['host creation', 'lightsail:CreateInstances'],
+      ['key creation', 'kms:CreateKey'],
+      ['staging alarm', 'cloudwatch:PutMetricAlarm'],
+      ['staging bucket', 's3:PutBucketPolicy'],
+      ['staging queue', 'sqs:CreateQueue'],
+      ['staging configuration set', 'ses:CreateConfigurationSet'],
+    ]) {
+      const r = run({ infraWriteAllowed: action });
+      expect(r.status, action).toBe(1);
+      expect(r.stderr, action).toMatch(new RegExp(`${label}: ${action} came back allowed`));
+    }
+  });
+
+  it('fails when the staging plan can no longer take its lock, which stops every deploy check', () => {
+    const r = run({ lockUnwritable: true });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/staging plan lock: s3:PutObject came back implicitDeny/);
+    expect(r.stderr).toMatch(/cannot do its job/);
   });
 });
 
@@ -540,12 +616,12 @@ describe('verify-dev-tester-role-denials.sh — the host-access certificate', ()
 });
 
 describe('verify-dev-tester-role-denials.sh — a host that is not staging', () => {
-  it('proves the firewall and delete calls denied on production and allowed on staging', () => {
+  it('proves the firewall and delete calls denied on production and on staging', () => {
     const r = run();
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).toMatch(/production host: lightsail:PutInstancePublicPorts explicitly denied/);
     expect(r.stdout).toMatch(/production host: lightsail:DeleteInstance explicitly denied/);
-    expect(r.stdout).toMatch(/staging host: lightsail:DeleteInstance is allowed, as it must be/);
+    expect(r.stdout).toMatch(/staging host: 4 action\(s\) explicitly denied/);
   });
 
   it('fails when production can be reopened or deleted', () => {
@@ -554,10 +630,10 @@ describe('verify-dev-tester-role-denials.sh — a host that is not staging', () 
     expect(r.stderr).toMatch(/production host: lightsail:OpenInstancePublicPorts came back allowed/);
   });
 
-  it('fails when the denial also takes staging, which would break its own apply', () => {
-    const r = run({ stagingHostDenied: true });
+  it('fails when the staging host can be reopened or deleted, since the job writes no infrastructure', () => {
+    const r = run({ stagingHostWritable: true });
     expect(r.status).toBe(1);
-    expect(r.stderr).toMatch(/staging host: lightsail:CloseInstancePublicPorts came back explicitDeny/);
+    expect(r.stderr).toMatch(/staging host: lightsail:CloseInstancePublicPorts came back allowed/);
   });
 });
 
@@ -678,13 +754,12 @@ describe('verify-dev-tester-role-denials.sh — IAM write, other roles, operator
     expect(r.stderr).toMatch(/trust could not be read, so the chain is unproven/);
   });
 
-  it('fails when the alias guard also refuses staging\'s own alias changes', () => {
-    // KMS evaluates no condition key on the alias side, so a guard over every
-    // resource denies staging's aliases and a role-run apply stops with an
-    // unnamed key behind it.
-    const r = run({ stagingAliasDenied: true });
+  it('fails when staging\'s key aliases can be changed, since the job writes no infrastructure', () => {
+    // KMS evaluates no condition key on the alias side, so the tag denial
+    // never reaches it; the write denial is what refuses it there.
+    const r = run({ stagingAliasWritable: true });
     expect(r.status).toBe(1);
-    expect(r.stderr).toMatch(/staging alias, alias side: kms:CreateAlias came back explicitDeny/);
+    expect(r.stderr).toMatch(/staging alias, alias side: kms:CreateAlias came back allowed/);
   });
 
   it('fails, naming what AWS said, when the inline policies cannot be listed', () => {

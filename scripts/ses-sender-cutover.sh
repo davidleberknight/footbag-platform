@@ -653,10 +653,12 @@ if (( FROM_STEP <= 5 )); then
     stop 3
   fi
   cr_proved "the production host env holds what Terraform publishes"
-  # As the runtime role, not the operator identity this run applies with: the
-  # check refuses any other principal, and a send through the role is what proves
-  # the From-address condition the apply just rewrote.
-  if ! bash "$VERIFY_EMAIL_CMD" --sender "$CANONICAL_SENDER" --profile "$RUNTIME_PROFILE"; then
+  # Sends as the runtime role, not the operator identity this run applies with:
+  # the check refuses any other send principal, and a send through the role is
+  # what proves the From-address condition the apply just rewrote. Its identity
+  # reads go through the identity this run applies with, which can read SES.
+  if ! bash "$VERIFY_EMAIL_CMD" --sender "$CANONICAL_SENDER" --profile "$RUNTIME_PROFILE" \
+      --read-profile "${AWS_PROFILE:-$FOOTBAG_OPERATOR_PROFILE}"; then
     cr_error "a send as $CANONICAL_SENDER did not verify."
     stop 5
   fi

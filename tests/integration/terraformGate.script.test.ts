@@ -80,9 +80,10 @@ interface GateRun {
  * It is called the way `run_gate` calls every gate, with errexit off, because
  * that is the condition under which a step's failure has to be collected by the
  * gate itself or is lost. `fail` names one step the stub fails: `fmt`, or
- * `validate:<tree>`.
+ * `validate:<tree>`. `root` is the checkout the gate runs in, the repository
+ * itself unless a case builds a throwaway one.
  */
-function runGate(fail = ''): GateRun {
+function runGate(fail = '', root = REPO_ROOT): GateRun {
   const dir = mkdtempSync(join(tmpdir(), 'footbag-test-terraform-gate-'));
   workdirs.push(dir);
   const stubDir = join(dir, 'bin');
@@ -120,8 +121,8 @@ function runGate(fail = ''): GateRun {
   writeFileSync(
     driver,
     'set -euo pipefail\n'
-      + `cd ${JSON.stringify(REPO_ROOT)}\n`
-      + 'source scripts/lib/aws-isolation.sh\n'
+      + `cd ${JSON.stringify(root)}\n`
+      + `source ${JSON.stringify(join(REPO_ROOT, 'scripts', 'lib', 'aws-isolation.sh'))}\n`
       + gateBody
       + `LOG_DIR=${JSON.stringify(logDir)}\n`
       // As run_gate calls it: errexit off, the gate's own status is the verdict.
@@ -268,6 +269,39 @@ describe('gate_terraform', () => {
     expect(run.stderr).toContain('fmt -check');
     // Every tree was still validated, so one run reports every failure.
     expect(run.invocations.filter((i) => i.argv.includes('validate')).length).toBe(TREES.length);
+  });
+
+  // Defect caught: the local gate fails on a workstation's gitignored
+  // terraform.tfvars, a file CI's clean checkout never holds, so the run reports
+  // `FAILED gates (1): terraform` for a tree whose committed files are all
+  // formatted; or, the other way, it skips a new .tf file not yet added to git,
+  // which the push then carries and CI's format check refuses. A tracked file
+  // deleted from disk must not be handed over either, or fmt fails on a path
+  // that no longer exists.
+  it('format-checks exactly the files git would commit, never an ignored one', () => {
+    const repo = mkdtempSync(join(tmpdir(), 'footbag-test-terraform-gate-repo-'));
+    workdirs.push(repo);
+    const git = (...args: string[]) => {
+      const res = spawnSync('git', ['-C', repo, ...args], { encoding: 'utf8', ...SPAWN_GUARD });
+      expect(res.status, `git ${args.join(' ')}: ${res.stderr}`).toBe(0);
+    };
+    git('init', '-q');
+    const tree = join(repo, 'terraform', 'staging');
+    mkdirSync(tree, { recursive: true });
+    writeFileSync(join(repo, '.gitignore'), 'terraform.tfvars\n');
+    writeFileSync(join(tree, 'tracked.tf'), '');
+    writeFileSync(join(tree, 'deleted.tf'), '');
+    git('add', '.gitignore', 'terraform/staging/tracked.tf', 'terraform/staging/deleted.tf');
+    rmSync(join(tree, 'deleted.tf'));
+    writeFileSync(join(tree, 'untracked.tf'), '');
+    writeFileSync(join(tree, 'terraform.tfvars'), '');
+    writeFileSync(join(tree, 'notes.txt'), '');
+
+    const run = runGate('', repo);
+    const fmt = run.invocations.filter((i) => i.argv.includes('fmt'));
+    expect(fmt.length).toBe(1);
+    const targets = fmt[0].argv.filter((a) => a !== 'fmt' && !a.startsWith('-')).sort();
+    expect(targets).toEqual(['staging/tracked.tf', 'staging/untracked.tf']);
   });
 
   it('fails, naming the tree, when a tree other than the last one fails to validate', () => {

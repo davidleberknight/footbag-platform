@@ -10,8 +10,8 @@
  *     order with stable anchor ids `privacy`, `terms`, `copyright`. Footer links across the site
  *     deep-link to these anchors, so the ids are a stable contract.
  *   - Each paragraph is service-shaped prose: text segments rendered escaped, a segment carrying
- *     `href` rendered through the externalLink helper, and a segment marked `pending` rendered as
- *     a not-yet-active contact. No paragraph carries HTML. The lastUpdated ISO date is rendered.
+ *     `href` rendered through the externalLink helper, and a segment carrying `email` rendered as
+ *     a mailto link. No paragraph carries HTML. The lastUpdated ISO date is rendered.
  */
 import { PageViewModel } from '../types/page';
 
@@ -19,11 +19,11 @@ import { PageViewModel } from '../types/page';
 // Shaped types for templates
 // ---------------------------------------------------------------------------
 
-/** A run of paragraph text; `href` makes it an external link, `pending` a contact not yet active. */
+/** A run of paragraph text; `href` makes it an external link, `email` a mailto link to that address. */
 export interface LegalProseSegment {
   text: string;
   href?: string;
-  pending?: boolean;
+  email?: string;
 }
 
 export interface LegalParagraph {
@@ -104,7 +104,7 @@ const PRIVACY_SECTION: LegalSection = {
       subheading: 'Contact',
       body: [
         { text: 'For privacy questions or requests not handled by the automated account tools, contact ' },
-        { text: 'admin@footbag.org (mailbox not yet active)', pending: true },
+        { text: 'admin@footbag.org', email: 'admin@footbag.org' },
         { text: '.' },
       ],
     },
@@ -164,7 +164,7 @@ const TERMS_SECTION: LegalSection = {
       subheading: 'Contact',
       body: [
         { text: 'For Terms questions or administrative matters, contact ' },
-        { text: 'admin@footbag.org (mailbox not yet active)', pending: true },
+        { text: 'admin@footbag.org', email: 'admin@footbag.org' },
         { text: '.' },
       ],
     },
@@ -207,7 +207,7 @@ const COPYRIGHT_SECTION: LegalSection = {
       subheading: 'Contact',
       body: [
         { text: 'For copyright or trademark inquiries, contact ' },
-        { text: 'admin@footbag.org (mailbox not yet active)', pending: true },
+        { text: 'admin@footbag.org', email: 'admin@footbag.org' },
         { text: '.' },
       ],
     },

@@ -455,6 +455,20 @@ moved {
   to   = aws_route53_record.workspace_txt["my"]
 }
 
+# The IFPA list domain's mail routing and text records move the same way, in the
+# same change as the values file's ifpa entries, which
+# scripts/mail-domain-cutover.sh --stage ifpa-move makes: Terraform refuses a
+# move whose source is still declared.
+moved {
+  from = aws_route53_record.legacy_mirror_mx["ifpa"]
+  to   = aws_route53_record.workspace_mx["ifpa"]
+}
+
+moved {
+  from = aws_route53_record.legacy_mirror_txt["ifpa"]
+  to   = aws_route53_record.workspace_txt["ifpa"]
+}
+
 moved {
   from = aws_route53_record.legacy_mirror_cname["docs.my"]
   to   = aws_route53_record.workspace_cname["docs.my"]

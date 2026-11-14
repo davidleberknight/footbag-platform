@@ -4028,10 +4028,6 @@ a.hashtag--media:hover {
 .legal-section {
   scroll-margin-top: var(--anchor-offset);
 }
-.contact-pending {
-  color: var(--text-muted);
-  font-style: italic;
-}
 
 /* ── Equipment page (/equipment) ──────────────────────────────────────── */
 /* Sections are deep-link targets from the game pages, so they clear the

@@ -11345,6 +11345,14 @@ export const memberBilling = {
       AND is_deceased = 0
   `); },
 
+  // The member an operator names by slug when linking a test-clock customer.
+  get findStripeIdentityBySlug() { return db.prepare(`
+    SELECT id, stripe_customer_id
+    FROM members_active
+    WHERE slug = ?
+      AND is_deceased = 0
+  `); },
+
   // Guarded on IS NULL so the first recurring donation establishes the member's
   // canonical Stripe Customer and a later subscription never re-points it.
   get setStripeCustomerIdIfNull() { return db.prepare(`

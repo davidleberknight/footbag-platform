@@ -16,7 +16,7 @@ Check whether documentation still matches the current codebase and confirmed dec
 - assumptions or contracts changed
 - the human asks whether docs need to be updated
 - you suspect code and docs no longer match
-- a public route was added, removed, renamed, or changed indexability: the sitemap's hand-maintained `STATIC_PUBLIC_PATHS` in `src/services/siteMetaService.ts` does not auto-discover routes, so a new public hub or editorial page must be added there. Entity-detail pages (events, clubs, net teams, tricks, rules, IFPA docs) are DB-derived and update automatically; the static list is the part that drifts.
+- a public route was added, removed, renamed, or changed indexability: the sitemap's hand-maintained `STATIC_PUBLIC_PATHS` in `src/services/siteMetaService.ts` does not auto-discover routes, so a new public hub or editorial page must be added there. Entity-detail pages update automatically: events, clubs, net teams and tricks from the database, and rules and IFPA documents from their files in `ifpa/`; the static list is the part that drifts.
 
 Do not use this skill for:
 - formatting-only changes

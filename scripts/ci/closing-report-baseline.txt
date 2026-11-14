@@ -104,7 +104,6 @@ scripts/verify-captcha-outage-alarm.sh
 scripts/verify-cutover-notice.sh
 scripts/verify-host-snapshots.sh
 scripts/verify-mail-records.sh
-scripts/verify-prod-email.sh
 scripts/verify-production-release.sh
 scripts/verify-replication.sh
 scripts/verify-test-personas.sh

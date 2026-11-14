@@ -617,7 +617,7 @@ case "${P[TF_SES_SUBSCRIPTION]}" in
     ;;
   absent)
     row 5 "SES feedback" PENDING "no queue subscribed to the feedback topic in terraform state"
-    next_cmd "< $(operator_cred_file) bash scripts/activate-notification-feeds.sh --target $TARGET --state on   (creates and subscribes the queues and puts their addresses on the host), then prove it with scripts/verify-prod-email.sh --profile <profile> --bounce-probe"
+    next_cmd "< $(operator_cred_file) bash scripts/activate-notification-feeds.sh --target $TARGET --state on   (creates and subscribes the queues and puts their addresses on the host), then prove it with scripts/verify-prod-email.sh --profile <profile> --read-profile footbag-operator --bounce-probe"
     ;;
   *)
     row 5 "SES feedback" UNKNOWN "terraform state unavailable"
