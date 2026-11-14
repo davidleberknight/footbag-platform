@@ -84,6 +84,27 @@ if [[ -n "${FOOTBAG_HOST_SSH_BIN:-}" ]]; then
   echo "NOTE: using a stand-in for the ssh client (FOOTBAG_HOST_SSH_BIN); this run proves nothing about any host." >&2
 fi
 
+# host_ssh_failure_causes <alias> <status> <env-path>
+# Explains a failed privileged session by who failed. ssh exits 255 when it
+# fails itself, before anything ran on the host: an address the firewall does
+# not admit times out exactly like a host that is down, and blaming the sudo
+# password for either sends the operator to the wrong place. Any other status is
+# the remote command's, so the host was reached and the causes are on it.
+host_ssh_failure_causes() {
+  local alias="$1" status="$2" env_path="$3" target="<staging|production>"
+  [[ "$alias" =~ ^footbag-(staging|production)$ ]] && target="${BASH_REMATCH[1]}"
+  if [[ "$status" == 255 ]]; then
+    echo "       ${alias} could not be reached: ssh itself failed, so nothing ran on" >&2
+    echo "       the host, and ssh's own message above says how. Causes: this" >&2
+    echo "       machine's address is not on the host's SSH allow-list (add it with" >&2
+    echo "       bash scripts/authorize-operator-address.sh --target ${target});" >&2
+    echo "       the host is down; the alias names the wrong address." >&2
+  else
+    echo "       Causes: wrong sudo password on line 1 of the credential file;" >&2
+    echo "       the operator account lacks sudo on the host; ${env_path} absent." >&2
+  fi
+}
+
 # Set by require_host_is to the address the confirmed host records; declared
 # here so a script reading it is safe under `set -u` on a path that never asked.
 HOST_PUBLIC_BASE_URL=""
@@ -150,7 +171,7 @@ require_ssh_alias() {
 # staged copy to shred and no cleanup for a crash to skip.
 host_env_fetch() {
   local alias="$1" env_dest="$2" report_dest="${3:-}" env_path="${4:-$HOST_ENV_PATH_DEFAULT}"
-  local stream want_report="no"
+  local stream want_report="no" status=0
   [[ -n "$report_dest" ]] && want_report="yes"
 
   [[ -r "$HOST_ENV_READ_HALF" ]] || {
@@ -165,17 +186,17 @@ host_env_fetch() {
   # trap to survive an interrupt -- a trap this function cannot set without
   # clobbering its caller's. Process memory needs no cleanup and cannot be left
   # behind by a signal.
-  if ! stream="$(
+  stream="$(
         {
           printf '%s\n' "$SUDO_PASS"
           printf 'HOST_ENV_PATH=%q\n'    "$env_path"
           printf 'WANT_HOST_REPORT=%q\n' "$want_report"
           cat "$HOST_ENV_READ_HALF"
         } | ssh "${HOST_SSH_OPTS[@]}" "$alias" 'sudo -k -S -p "" bash'
-      )"; then
+      )" || status=$?
+  if [[ "$status" != 0 ]]; then
     echo "ERROR: could not read ${env_path} from ${alias}." >&2
-    echo "       Causes: wrong sudo password on line 1 of the credential file;" >&2
-    echo "       the operator account lacks sudo on the host; ${env_path} absent." >&2
+    host_ssh_failure_causes "$alias" "$status" "$env_path"
     return 1
   fi
 
@@ -216,7 +237,7 @@ host_env_fetch() {
 # body ignores; it is there so the request is recognisable on the command line
 # alone, which is what a test's stand-in for ssh reads to answer it.
 require_host_is() {
-  local alias="$1" target="$2" env_path="${3:-$HOST_ENV_PATH_DEFAULT}" stream recorded
+  local alias="$1" target="$2" env_path="${3:-$HOST_ENV_PATH_DEFAULT}" stream recorded status=0
   if [[ -z "$alias" || -z "$target" ]]; then
     echo "ERROR: require_host_is needs the ssh alias and the target. This is a defect in" >&2
     echo "       the calling script." >&2
@@ -228,16 +249,16 @@ require_host_is() {
   }
   require_host_ssh_opts || return 1
 
-  if ! stream="$(
+  stream="$(
         {
           printf '%s\n' "$SUDO_PASS"
           printf 'HOST_ENV_PATH=%q\n' "$env_path"
           cat "$HOST_IDENTITY_HALF"
         } | "$HOST_SSH_BIN" "${HOST_SSH_OPTS[@]}" "$alias" 'sudo -k -S -p "" bash -s footbag-host-identity'
-      )"; then
+      )" || status=$?
+  if [[ "$status" != 0 ]]; then
     echo "ERROR: could not ask ${alias} which environment it is." >&2
-    echo "       Causes: wrong sudo password on line 1 of the credential file;" >&2
-    echo "       the operator account lacks sudo on the host; ${env_path} absent." >&2
+    host_ssh_failure_causes "$alias" "$status" "$env_path"
     return 1
   fi
   if ! grep -q '^---FOOTBAG-HOST-ENV---$' <<< "$stream"; then

@@ -213,7 +213,10 @@ describe('require_host_is: the host says which environment it is', () => {
   writeFileSync(stub, [
     '#!/usr/bin/env bash',
     `cat >> "${sent}"`,
+    // ssh exits 255 when it fails itself, before anything runs on the host;
+    // any other failure is the remote command's, sudo refusing among them.
     'if [[ "${STUB_FAIL:-}" == 1 ]]; then exit 255; fi',
+    'if [[ "${STUB_FAIL:-}" == sudo ]]; then exit 1; fi',
     'echo "---FOOTBAG-HOST-ENV---"',
     'printf "%s\\n" "${STUB_RECORDED-}"',
     'echo "---FOOTBAG-END---"',
@@ -263,6 +266,23 @@ describe('require_host_is: the host says which environment it is', () => {
     const r = ask('staging', { STUB_FAIL: '1' });
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/could not ask footbag-staging which environment it is/);
+  });
+
+  it('names an unreachable host as unreachable, pointing at the allow-list, not the password', () => {
+    // An operator whose address is off the firewall's allow-list was told to
+    // check the sudo password, and went looking in the wrong place.
+    const r = ask('staging', { STUB_FAIL: '1' });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/footbag-staging could not be reached/);
+    expect(r.stderr).toMatch(/authorize-operator-address\.sh --target staging/);
+    expect(r.stderr).not.toMatch(/sudo password/);
+  });
+
+  it('keeps the sudo explanation for a host that was reached and refused', () => {
+    const r = ask('staging', { STUB_FAIL: 'sudo' });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/wrong sudo password/);
+    expect(r.stderr).not.toMatch(/could not be reached/);
   });
 
   // host_address_for reads the other environment's credential file and asks its

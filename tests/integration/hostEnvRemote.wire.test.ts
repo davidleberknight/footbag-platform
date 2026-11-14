@@ -81,6 +81,13 @@ if [[ "\${1:-}" == "-G" ]]; then
   printf 'hostname 203.0.113.10\\n'
   exit 0
 fi
+# FAKE_SSH_EXIT stands in for a connection that fails with that status: 255 is
+# ssh failing itself before anything ran on the host, any other value the
+# remote command's own failure.
+if [[ -n "\${FAKE_SSH_EXIT:-}" ]]; then
+  cat > /dev/null
+  exit "\${FAKE_SSH_EXIT}"
+fi
 IFS= read -r first_line || true
 printf '%s' "$first_line" > "$FAKE_SSH_FIRST_LINE"
 exec bash
@@ -251,6 +258,29 @@ describe('the wire carries the password as stdin line one, and nothing else', ()
     );
     expect(r.exitCode).not.toBe(0);
     expect(r.stderr).toMatch(/does not exist or is unreadable/);
+  });
+
+  it('names an unreachable host as unreachable, pointing at the allow-list, not the password', () => {
+    const r = runWithLib(
+      `require_operator_stdin "x" host staging && host_env_fetch host "${join(workDir, 'out-u')}" ""`,
+      `${PASSWORD}\n`,
+      { FAKE_SSH_EXIT: '255' },
+    );
+    expect(r.exitCode).not.toBe(0);
+    expect(r.stderr).toMatch(/host could not be reached/);
+    expect(r.stderr).toMatch(/authorize-operator-address\.sh/);
+    expect(r.stderr).not.toMatch(/sudo password/);
+  });
+
+  it('keeps the sudo explanation for a host that was reached and refused', () => {
+    const r = runWithLib(
+      `require_operator_stdin "x" host staging && host_env_fetch host "${join(workDir, 'out-s')}" ""`,
+      `${PASSWORD}\n`,
+      { FAKE_SSH_EXIT: '1' },
+    );
+    expect(r.exitCode).not.toBe(0);
+    expect(r.stderr).toMatch(/wrong sudo password/);
+    expect(r.stderr).not.toMatch(/could not be reached/);
   });
 });
 
