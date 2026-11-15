@@ -110,7 +110,7 @@ One canonical, idempotent script installs every tool the repository needs, at th
 
 Every download is compared with a pinned checksum before anything from it is unpacked. The script shows its plan and changes nothing until you type `APPLY`; `--check` reports what it would install and changes nothing, and `--yes` accepts the confirmation in advance. Re-run it any time: on a machine that already has everything, it reports that there is nothing to do.
 
-Docker is the one prerequisite the script does not install; it reports Docker's state and §1.13 covers the install. The AWS CLI is for operators and dev-testers only: `bash scripts/setup-dev-workstation.sh --aws` adds the pinned AWS CLI v2.
+The script does not install Docker from scratch; it reports Docker's state and §1.13 covers the install. Once Docker's own apt package is installed, the script moves it to the pinned engine for your Ubuntu release, a downgrade included, and holds it there. The AWS CLI is for operators and dev-testers only: `bash scripts/setup-dev-workstation.sh --aws` adds the pinned AWS CLI v2.
 
 Claude Code (`@anthropic-ai/claude-code`) is required for all contributors, but it is not needed to run the site or the tests; set it up after your first hello-world success (§1.10B).
 
@@ -601,7 +601,7 @@ Docker is part of the required workflow because the deployed origin is container
 
 Do this before anyone touches AWS.
 
-**Install Docker, the container runtime, first (if you have not already).** The setup script reports Docker's state but does not install it. The engine must be the pinned workstation version, `DOCKER_ENGINE_WORKSTATION` in `ops/tool-versions.env` (29.3.0): `./run_dev.sh` and the test runner refuse any other. On native Linux, install that exact package version from Docker's apt repository; with Docker Desktop, use the release that ships that engine.
+**Install Docker, the container runtime, first (if you have not already).** The setup script does not install Docker from scratch, but once Docker's own apt package is installed it moves the engine to the pinned version for your Ubuntu release, a downgrade included, and holds it there so an ordinary upgrade does not move it. The engine must be the pinned workstation version, `DOCKER_ENGINE_WORKSTATION` in `ops/tool-versions.env` (29.3.0): `./run_dev.sh` and the test runner refuse any other. On native Linux, install Docker's apt package as below and re-run the setup script, which puts it at that exact version; with Docker Desktop, use the release that ships that engine.
 
 On **native Linux**, install Docker Engine from Docker's own apt repository rather than the distribution's `docker.io` package, which lags and ships an older Compose. Follow Docker's "Install Docker Engine on Ubuntu" instructions for the repository setup, then `sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin`. Add yourself to the `docker` group (`sudo usermod -aG docker "$USER"`) and open a new shell so the membership applies; without it every command below needs `sudo`. There is no Docker Desktop in this path and none is needed.
 

@@ -21,8 +21,17 @@
 #      pointed elsewhere: apt's own tools are built for that one only, and a
 #      python3 they cannot load breaks every apt update. The project never uses
 #      the system python3 for its work; it names the pinned interpreter.
+#   0a. The package changes an earlier dpkg run left half done, finished with
+#      dpkg --configure -a: apt refuses every install until they are, and an
+#      unattended upgrade cut off by a shutdown leaves exactly that.
 #   1. The apt baseline: build tools and the rest (sqlite3, jq, age and ffmpeg
 #      are installed at their pins, never from apt).
+#   1a. Docker's engine at the workstation pin, where Docker's own apt package
+#      (docker-ce) is installed at another version: docker-ce and docker-ce-cli
+#      at the pinned version built for this Ubuntu release, a downgrade
+#      included, then held there, because an ordinary apt upgrade otherwise
+#      moves the engine off the pin and run_dev.sh and the test runner refuse
+#      it. Running containers stop while the engine restarts.
 #   2. Python at exactly the version in .python-version: a pinned standalone
 #      CPython build, checksum-verified, under ~/.local.
 #   3. Node at exactly the version in .nvmrc, through a pinned nvm whose
@@ -56,8 +65,11 @@
 #   - Install a version other than the one the push gate pins. The pins below
 #     are checked against .nvmrc, .python-version and the CI workflow first, so a
 #     bumped pin without a bumped download is refused rather than installed wrong.
-#   - Install Docker. On WSL it is a desktop application with a group change and
-#     a restart; it is reported, with the page that installs it.
+#   - Install Docker where Docker's own apt package is not already installed.
+#     On WSL it is a desktop application with a group change and a restart, and
+#     an absent engine or the distribution's docker.io needs Docker's repository
+#     set up first; each is reported, with the page that installs it. So is a
+#     pinned build Docker's repository does not offer for this release.
 #   - Touch anything without showing the plan and taking a typed APPLY.
 #   - Replace a named key pair it was not told to replace by fingerprint. A pair
 #     already at the path is the one an onboarding may have been sealed to, so a
@@ -103,7 +115,11 @@
 #
 # Test seam (CI only): SETUP_DEV_AWS_BIN replaces the aws CLI used for the
 # dead-identity proof, and SETUP_DEV_GIT the git that reaches GitHub for the
-# dev-tester clone; a run using either says so.
+# dev-tester clone; SETUP_DEV_APT_CACHE, SETUP_DEV_APT_MARK and
+# SETUP_DEV_OS_RELEASE replace what the Docker engine step reads and holds
+# with; SETUP_DEV_DPKG and SETUP_DEV_DPKG_UPDATES replace the dpkg that
+# finishes an interrupted run and the directory that shows one. A run using
+# any of them says so.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -217,9 +233,15 @@ SYSTEM_PYTHON3="${SETUP_DEV_SYSTEM_PYTHON3:-/usr/bin/python3}"
 DIST_PACKAGES="${SETUP_DEV_DIST_PACKAGES:-/usr/lib/python3/dist-packages}"
 FETCH="${SETUP_DEV_FETCH:-curl -fsSL -o}"
 GITHUB_GIT="${SETUP_DEV_GIT:-git}"
+APT_CACHE="${SETUP_DEV_APT_CACHE:-apt-cache}"
+APT_MARK="${SETUP_DEV_APT_MARK:-sudo apt-mark}"
+OS_RELEASE="${SETUP_DEV_OS_RELEASE:-/etc/os-release}"
+DPKG="${SETUP_DEV_DPKG:-sudo dpkg}"
+DPKG_UPDATES="${SETUP_DEV_DPKG_UPDATES:-/var/lib/dpkg/updates}"
 NVM_DIR="${NVM_DIR:-${HOME}/.nvm}"
 for seam in SETUP_DEV_BIN_DIR SETUP_DEV_PYTHON_ROOT SETUP_DEV_APT SETUP_DEV_DPKG_QUERY SETUP_DEV_FETCH \
-  SETUP_DEV_ALTERNATIVES SETUP_DEV_SYSTEM_PYTHON3 SETUP_DEV_DIST_PACKAGES SETUP_DEV_GIT; do
+  SETUP_DEV_ALTERNATIVES SETUP_DEV_SYSTEM_PYTHON3 SETUP_DEV_DIST_PACKAGES SETUP_DEV_GIT \
+  SETUP_DEV_APT_CACHE SETUP_DEV_APT_MARK SETUP_DEV_OS_RELEASE SETUP_DEV_DPKG SETUP_DEV_DPKG_UPDATES; do
   if [[ -n "${!seam:-}" ]]; then
     echo "SYNTHETIC: ${seam} is set -- this run proves nothing about this machine." >&2
     cr_unproved "what this machine holds: ${seam} stood in for it"
@@ -256,6 +278,21 @@ distro_python() {
 system_python_ok() {
   [[ -z "$(distro_python)" ]] && return 0
   "$SYSTEM_PYTHON3" -c 'import apt_pkg' >/dev/null 2>&1
+}
+# A dpkg run that stopped part way leaves its pending status records in the
+# updates directory, numbered; that is what apt reads to refuse ("dpkg was
+# interrupted"), so it is what decides here.
+dpkg_interrupted() { compgen -G "${DPKG_UPDATES}/[0-9]*" >/dev/null; }
+# The packages dpkg holds in a half-done state: unpacked but not configured,
+# half configured or installed, waiting on a trigger, or marked for
+# reinstallation (the second letter of dpkg's status abbreviation, or an R
+# third). Finishing an interrupted run can leave some, when one waits on a
+# package the run never got to unpack; apt's repair installs what they need.
+dpkg_unfinished() {
+  # The abbreviation is padded with spaces to three letters, so the package
+  # name is split off at a separator rather than at the first space.
+  { $DPKG_QUERY -W -f='${db:Status-Abbrev}|${Package}\n' 2>/dev/null || true; } \
+    | { grep -E '^.[UFHWt]|^..R' || [[ $? == 1 ]]; } | cut -d'|' -f2 | sed '/^$/d' | tr '\n' ' ' | sed 's/ $//'
 }
 apt_missing() {
   local pkg status
@@ -408,10 +445,56 @@ else
   fi
 fi
 
+# What the Docker engine needs: nothing, or "install" (the pinned docker-ce and
+# docker-ce-cli, then a hold). Only where the engine is off the pin and Docker's
+# own apt package is what is installed; anything else keeps the report below.
+# The pin is the apt version string for one Ubuntu release; the same build for
+# the running release carries the same version before its "~ubuntu" suffix.
+DOCKER_ACTION=""
+DOCKER_NOTE=""
+DOCKER_PACKAGE_WANT=""
+DOCKER_ENGINE_WANT=""
+os_release_value() {
+  sed -n "s/^$1=//p" "$OS_RELEASE" 2>/dev/null | tr -d '"' | sed -n '1p'
+}
+if ! tool_ok docker; then
+  docker_pin="$(_tool_report_list_pin DOCKER_ENGINE_WORKSTATION "$REPO_ROOT")"
+  DOCKER_ENGINE_WANT="${docker_pin#*:}"
+  DOCKER_ENGINE_WANT="${DOCKER_ENGINE_WANT%%-*}"
+  docker_installed="$($DPKG_QUERY -W -f='${Status}|${Version}' docker-ce 2>/dev/null || true)"
+  docker_have=""
+  [[ "$docker_installed" == "install ok installed|"* ]] && docker_have="${docker_installed#*|}"
+  os_id="$(os_release_value ID)"
+  os_version="$(os_release_value VERSION_ID)"
+  os_codename="$(os_release_value VERSION_CODENAME)"
+  if [[ -z "$docker_have" ]]; then
+    DOCKER_NOTE="Docker's own apt package (docker-ce) is not installed, so the engine is left to the developer onboarding guide."
+  elif [[ "$os_id" != "ubuntu" || -z "$os_version" || -z "$os_codename" ]]; then
+    DOCKER_NOTE="this is not an Ubuntu release the script can name a Docker build for (${OS_RELEASE} says ${os_id:-nothing}), so the engine is left to the developer onboarding guide."
+  else
+    DOCKER_PACKAGE_WANT="${docker_pin%%~*}~ubuntu.${os_version}~${os_codename}"
+    # Read whole before it is searched: under pipefail, a grep -q that stops at
+    # its first match makes the listing's own exit a failure.
+    docker_offered="$($APT_CACHE madison docker-ce 2>&1 || true)"
+    if [[ "$docker_have" == "$DOCKER_PACKAGE_WANT" ]]; then
+      DOCKER_NOTE="docker-ce is already ${DOCKER_PACKAGE_WANT}, so what is wrong is the engine itself, not its version (above)."
+    elif grep -qF "| ${DOCKER_PACKAGE_WANT} |" <<< "$docker_offered"; then
+      DOCKER_ACTION="install"
+    else
+      DOCKER_NOTE="Docker's apt repository offers no docker-ce ${DOCKER_PACKAGE_WANT} for this release (apt-cache madison docker-ce lists what it has)."
+    fi
+  fi
+fi
+
 PLAN=()
 system_python_ok || PLAN+=("system python3: point it back at Ubuntu's own $(distro_python), which apt's tools need")
+DPKG_UNFINISHED="$(dpkg_unfinished)"
+if dpkg_interrupted || [[ -n "$DPKG_UNFINISHED" ]]; then
+  PLAN+=("dpkg: finish the package changes an earlier run left half done (dpkg --configure -a, then apt's repair${DPKG_UNFINISHED:+ for ${DPKG_UNFINISHED}}), which apt refuses to work past")
+fi
 mapfile -t MISSING_APT < <(apt_missing)
 (( ${#MISSING_APT[@]} )) && PLAN+=("apt: install ${MISSING_APT[*]}")
+[[ "$DOCKER_ACTION" == "install" ]] && PLAN+=("docker: install engine ${DOCKER_ENGINE_WANT} (docker-ce and docker-ce-cli ${DOCKER_PACKAGE_WANT}, replacing ${docker_have}) and hold it there; running containers stop while it restarts")
 python_ok || PLAN+=("python: install CPython ${PYTHON_VERSION} as ${BIN_DIR}/python${PY_MINOR}")
 node_ok || PLAN+=("node: install Node ${want_node} with nvm ${NVM_VERSION}")
 tool_ok gitleaks || PLAN+=("gitleaks: install ${GITLEAKS_VERSION} into ${BIN_DIR}")
@@ -443,9 +526,9 @@ if [[ -n "$DEVTESTER_NOTE" ]]; then
   echo "  ${DEVTESTER_NOTE}"
   cr_warn "$DEVTESTER_NOTE"
 fi
-if ! tool_ok docker; then
-  echo "  Docker is not ready and is not installed by this script: see the container runtime section of the developer onboarding guide."
-  cr_warn "Docker is not ready and is not installed by this script; the pinned sqlite3 and ffmpeg builds need it."
+if ! tool_ok docker && [[ "$DOCKER_ACTION" != "install" ]]; then
+  echo "  Docker is not ready and this script cannot fix it: ${DOCKER_NOTE} See the container runtime section of the developer onboarding guide."
+  cr_warn "Docker is not ready and this script cannot fix it: ${DOCKER_NOTE} The pinned sqlite3 and ffmpeg builds need it."
 fi
 
 if (( CHECK_ONLY )); then
@@ -494,6 +577,34 @@ if ! system_python_ok; then
   fi
 fi
 
+# ── 0a. An interrupted dpkg run ──────────────────────────────────────────────
+# After the system python3, which the packages' own configure scripts may use.
+# dpkg --configure -a exits non-zero when a package still waits on one the run
+# never unpacked; that is what apt's repair is for, so its exit is not the
+# verdict. What the two leave behind is.
+if dpkg_interrupted || [[ -n "$(dpkg_unfinished)" ]]; then
+  if dpkg_interrupted; then
+    echo "==> dpkg --configure -a (finishing an interrupted run)"
+    if ! $DPKG --configure -a; then
+      echo "    dpkg left packages unconfigured (above); apt's repair is next."
+    fi
+  fi
+  if [[ -n "$(dpkg_unfinished)" ]]; then
+    echo "==> apt's repair for $(dpkg_unfinished)"
+    if ! $APT install -f -y; then
+      echo "    apt's repair reported errors (above); what it left is checked next."
+    fi
+  fi
+  if dpkg_interrupted; then
+    cr_error "dpkg --configure -a ran, and ${DPKG_UPDATES} still shows an interrupted run. Nothing else was installed."
+    exit 1
+  fi
+  if [[ -n "$(dpkg_unfinished)" ]]; then
+    cr_error "these packages are still half installed after dpkg --configure -a and apt's repair: $(dpkg_unfinished). Nothing else was installed."
+    exit 1
+  fi
+fi
+
 # ── 1. apt baseline ──────────────────────────────────────────────────────────
 if (( ${#MISSING_APT[@]} )); then
   echo "==> apt: ${MISSING_APT[*]}"
@@ -504,6 +615,16 @@ if (( ${#MISSING_APT[@]} )); then
     cr_warn "apt update reported errors (above); installing from the package lists apt has."
   fi
   $APT install -y "${MISSING_APT[@]}"
+fi
+
+# ── 1a. Docker's engine at the workstation pin ───────────────────────────────
+# Before the sqlite3 and ffmpeg builds, which run in containers. A hold set at
+# an earlier pin is lifted by the install and set again at this one.
+if [[ "$DOCKER_ACTION" == "install" ]]; then
+  echo "==> Docker engine ${DOCKER_ENGINE_WANT} (${DOCKER_PACKAGE_WANT})"
+  $APT install -y --allow-downgrades --allow-change-held-packages \
+    "docker-ce=${DOCKER_PACKAGE_WANT}" "docker-ce-cli=${DOCKER_PACKAGE_WANT}"
+  $APT_MARK hold docker-ce docker-ce-cli
 fi
 
 # ── 2. Python ────────────────────────────────────────────────────────────────
@@ -636,6 +757,10 @@ python_ok || { cr_error "still missing: CPython ${PYTHON_VERSION}"; remaining=1;
 node_ok || { cr_error "still missing: Node ${want_node} (open a new shell so nvm is on PATH, then re-run)"; remaining=1; }
 npm_deps_current "$REPO_ROOT" || { cr_error "still missing: npm dependencies at the lockfile's versions"; remaining=1; }
 chromium_ok || { cr_error "still missing: Playwright's Chromium"; remaining=1; }
+if [[ "$DOCKER_ACTION" == "install" ]] && ! tool_ok docker; then
+  cr_error "still not at the pin: the docker engine ($(_tool_report_check docker "$REPO_ROOT"))"
+  remaining=1
+fi
 if (( WITH_AWS )) && ! aws_ok; then
   cr_error "still missing: AWS CLI ${AWS_CLI_VERSION} (an older one earlier on PATH shadows ${BIN_DIR}/aws)"
   remaining=1

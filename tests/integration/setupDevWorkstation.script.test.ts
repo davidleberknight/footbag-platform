@@ -15,7 +15,12 @@
  *   - a machine that already has everything is told so, with no prompt at all,
  *     which is what makes running it again safe;
  *   - the dev-tester link is made only to a clone, never over something that is
- *     not a link, and a machine GitHub does not admit carries on without it.
+ *     not a link, and a machine GitHub does not admit carries on without it;
+ *   - a dpkg run an earlier upgrade left half done is finished before apt is
+ *     asked for anything, and a run it cannot clear stops there;
+ *   - the Docker engine is moved to its pin, and held there, only where Docker's
+ *     own apt package is installed and offers the pinned build for the running
+ *     Ubuntu release, and the run fails if the engine still answers off the pin.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
@@ -142,6 +147,8 @@ function run(args: string[], env: Record<string, string> = {}) {
       SETUP_DEV_DIST_PACKAGES: join(root, 'dist-packages'),
       SETUP_DEV_SYSTEM_PYTHON3: join(root, 'system-python3'),
       SETUP_DEV_ALTERNATIVES: join(root, 'alternatives'),
+      SETUP_DEV_DPKG: join(root, 'dpkg'),
+      SETUP_DEV_DPKG_UPDATES: join(root, 'dpkg-updates'),
       ...env,
     },
     ...SPAWN_GUARD,
@@ -166,6 +173,16 @@ beforeEach(() => {
   // apt records what it was asked for; the downloader hands back the wrong bytes.
   file(join(root, 'apt'), `#!/bin/bash\necho "$@" >> ${aptLog}\n`, 0o755);
   file(join(root, 'fetch'), '#!/bin/bash\necho not-the-pinned-file > "$1"\n', 0o755);
+  // dpkg's directory of pending status records, empty as on a machine whose
+  // last dpkg run finished, and a dpkg that records its calls in apt's log, so
+  // the order of the two is visible, and clears the records it was asked to
+  // finish.
+  mkdirSync(join(root, 'dpkg-updates'), { recursive: true });
+  file(
+    join(root, 'dpkg'),
+    `#!/bin/bash\necho "dpkg $@" >> ${aptLog}\nrm -f ${join(root, 'dpkg-updates')}/[0-9]*\n`,
+    0o755,
+  );
   // A system python3 that loads apt's module once the alternative has been set.
   // The alternatives stand-in lists what alt-registered holds, and records every
   // other call.
@@ -355,6 +372,120 @@ describe('setup-dev-workstation.sh — the system python3 apt depends on', () =>
     const r = run(['--check']);
     expect(r.status, r.stderr).toBe(0);
     expect(existsSync(join(root, 'alternatives.log'))).toBe(false);
+  });
+});
+
+describe('setup-dev-workstation.sh — a dpkg run that stopped part way', () => {
+  // The numbered records dpkg leaves while it works, which apt reads to refuse
+  // every install with "dpkg was interrupted" (seen on a workstation whose
+  // unattended kernel upgrade was cut off by a shutdown).
+  function interrupted() {
+    for (const n of ['0000', '0001']) writeFileSync(join(root, 'dpkg-updates', n), 'Package: linux-generic\n');
+  }
+
+  it('plans finishing it under --check, and runs nothing', () => {
+    // Defect caught: the plan went straight to apt, which then refused with an
+    // error the closing report did not explain.
+    stubCompleteMachine();
+    interrupted();
+    const r = run(['--check']);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain("dpkg: finish the package changes an earlier run left half done (dpkg --configure -a, then apt's repair)");
+    expect(existsSync(aptLog)).toBe(false);
+  });
+
+  it('finishes it before asking apt for anything', () => {
+    // Defect caught: apt ran first and failed, so the fix never got its turn.
+    stubCompleteMachine();
+    interrupted();
+    stub('dpkg-query', '[ "$3" = rsync ] && exit 1; printf "install ok installed"');
+    const r = run(['--yes']);
+    expect(r.status, r.stderr).toBe(0);
+    const calls = readFileSync(aptLog, 'utf-8').trim().split('\n');
+    expect(calls[0]).toBe('dpkg --configure -a');
+    expect(calls).toContain('install -y rsync');
+  });
+
+  it('stops, installing nothing else, when finishing it does not clear it', () => {
+    // Defect caught: the run carried on into apt, which refused again, and the
+    // closing report blamed the install rather than the unfinished dpkg run.
+    stubCompleteMachine();
+    interrupted();
+    stub('dpkg-query', '[ "$3" = rsync ] && exit 1; printf "install ok installed"');
+    file(join(root, 'dpkg'), `#!/bin/bash\necho "dpkg $@" >> ${aptLog}\n`, 0o755);
+    const r = run(['--yes']);
+    expect(r.status).toBe(1);
+    expect(closingReport(r.stderr)).toMatch(/\n {2}- dpkg --configure -a ran, and \S+ still shows an interrupted run/);
+    expect(readFileSync(aptLog, 'utf-8').trim()).toBe('dpkg --configure -a');
+  });
+
+  /**
+   * dpkg's own listing as the script queries it, captured 2026-11-13 from an
+   * Ubuntu 24.04 workstation after dpkg --configure -a left a kernel upgrade
+   * part done: the status abbreviation padded to three letters, then the name.
+   * Every other package reads as installed, and the listing is clean once a
+   * repair has run (the apt stand-in leaves a marker).
+   */
+  function halfInstalled() {
+    const repaired = join(root, 'repaired');
+    stub(
+      'dpkg-query',
+      [
+        `case "$2" in *Status-Abbrev*) [ -e ${repaired} ] || printf 'iU |linux-generic\\niHR|linux-headers-6.8.0-146\\n'; exit 0 ;; esac`,
+        '[ "$3" = rsync ] && exit 1',
+        'printf "install ok installed"',
+      ].join('\n'),
+    );
+    file(
+      join(root, 'apt'),
+      `#!/bin/bash\necho "$@" >> ${aptLog}\n[ "$1 $2" = "install -f" ] && touch ${repaired}\nexit 0\n`,
+      0o755,
+    );
+  }
+
+  it('plans apt\'s repair for packages left half installed, naming them', () => {
+    // Defect caught: with no interrupted run on record, the half-installed
+    // packages went unnoticed and the apt install that followed refused.
+    stubCompleteMachine();
+    halfInstalled();
+    const r = run(['--check']);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain("then apt's repair for linux-generic linux-headers-6.8.0-146");
+  });
+
+  it('runs apt\'s repair before the install, and carries on once nothing is left half installed', () => {
+    // Defect caught: dpkg's non-zero exit over the waiting package ended the
+    // run before apt's repair, the step that clears it, had its turn.
+    stubCompleteMachine();
+    interrupted();
+    halfInstalled();
+    file(join(root, 'dpkg'), `#!/bin/bash\necho "dpkg $@" >> ${aptLog}\nrm -f ${join(root, 'dpkg-updates')}/[0-9]*\nexit 1\n`, 0o755);
+    const r = run(['--yes']);
+    expect(r.status, r.stderr).toBe(0);
+    const calls = readFileSync(aptLog, 'utf-8').trim().split('\n');
+    expect(calls.slice(0, 2)).toEqual(['dpkg --configure -a', 'install -f -y']);
+    expect(calls).toContain('install -y rsync');
+  });
+
+  it('stops, naming them, when packages are still half installed after the repair', () => {
+    // Defect caught: the run went on to apt, which refused, and nothing named
+    // the packages that needed attention.
+    stubCompleteMachine();
+    halfInstalled();
+    file(join(root, 'apt'), `#!/bin/bash\necho "$@" >> ${aptLog}\nexit 100\n`, 0o755);
+    const r = run(['--yes']);
+    expect(r.status).toBe(1);
+    expect(closingReport(r.stderr)).toContain(
+      "- these packages are still half installed after dpkg --configure -a and apt's repair: linux-generic linux-headers-6.8.0-146.",
+    );
+    expect(readFileSync(aptLog, 'utf-8').trim()).toBe('install -f -y');
+  });
+
+  it('leaves a finished dpkg run alone', () => {
+    stubCompleteMachine();
+    const r = run(['--check']);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).not.toContain('dpkg: finish');
   });
 });
 
@@ -865,5 +996,131 @@ describe('setup-dev-workstation.sh — the link to the dev-tester clone', () => 
     // Defect caught: the unlinked bug intake was a line in the plan and nothing
     // at the end of the run, so a dev-and-tester never learned to re-run.
     expect(closingReport(r.stderr)).toMatch(/\n {2}- Bug intake is not linked: GitHub did not admit this machine/);
+  });
+});
+
+describe('setup-dev-workstation.sh — the Docker engine at the workstation pin', () => {
+  // Captured 2026-11-13 from `apt-cache madison docker-ce` on an Ubuntu 24.04.4
+  // workstation with Docker's apt repository configured (two of its lines). The
+  // script finds the pinned build by its version column in this listing.
+  const MADISON_SAMPLE = [
+    ' docker-ce | 5:29.7.2-1~ubuntu.24.04~noble | https://download.docker.com/linux/ubuntu noble/stable amd64 Packages',
+    ' docker-ce | 5:29.3.0-1~ubuntu.24.04~noble | https://download.docker.com/linux/ubuntu noble/stable amd64 Packages',
+  ].join('\n');
+  const NOBLE_BUILD = '5:29.3.0-1~ubuntu.24.04~noble';
+  const engineState = () => join(root, 'engine-version');
+  const aptMarkLog = () => join(root, 'apt-mark.log');
+  const aptCalls = () => (existsSync(aptLog) ? readFileSync(aptLog, 'utf-8') : '');
+
+  /**
+   * A complete machine except the engine: Docker's apt package at 29.7.2 on
+   * Ubuntu 24.04, an engine that reports whatever the last docker-ce install
+   * left, and an apt that leaves the pinned version behind when it is asked
+   * for it (unless a case says the install does not deliver).
+   */
+  function engineOffPin(opts: { delivers?: boolean; madison?: string; osRelease?: string; dockerCe?: boolean } = {}) {
+    stubCompleteMachine();
+    stub('docker', `[ "$1" = version ] && { cat ${engineState()} 2>/dev/null || echo 29.7.2; }\nexit 0`);
+    stub(
+      'dpkg-query',
+      opts.dockerCe === false
+        ? '[ "$3" = docker-ce ] && exit 1; printf "install ok installed"'
+        : '[ "$3" = docker-ce ] && { printf "install ok installed|5:29.7.2-1~ubuntu.24.04~noble"; exit 0; }; printf "install ok installed"',
+    );
+    file(
+      join(root, 'apt'),
+      [
+        '#!/bin/bash',
+        `echo "$@" >> ${aptLog}`,
+        opts.delivers === false ? '' : `[[ " $* " == *" docker-ce=${NOBLE_BUILD} "* ]] && echo 29.3.0 > ${engineState()}`,
+        'exit 0',
+        '',
+      ].join('\n'),
+      0o755,
+    );
+    file(join(root, 'apt-cache'), `#!/bin/bash\ncat <<'LIST'\n${opts.madison ?? MADISON_SAMPLE}\nLIST\n`, 0o755);
+    file(join(root, 'apt-mark'), `#!/bin/bash\necho "$@" >> ${aptMarkLog()}\n`, 0o755);
+    file(
+      join(root, 'os-release'),
+      opts.osRelease ?? 'NAME="Ubuntu"\nVERSION_ID="24.04"\nVERSION_CODENAME=noble\nID=ubuntu\nID_LIKE=debian\n',
+    );
+    return {
+      SETUP_DEV_APT_CACHE: join(root, 'apt-cache'),
+      SETUP_DEV_APT_MARK: join(root, 'apt-mark'),
+      SETUP_DEV_OS_RELEASE: join(root, 'os-release'),
+    };
+  }
+
+  it('plans the pinned build for the running Ubuntu release under --check, installing nothing', () => {
+    // Defect caught: the plan named the pin's own release (jammy) on a noble
+    // machine, a package apt cannot find, or the engine was left for the
+    // developer to downgrade by hand.
+    const seams = engineOffPin();
+    const r = run(['--check'], seams);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain(
+      `docker: install engine 29.3.0 (docker-ce and docker-ce-cli ${NOBLE_BUILD}, replacing 5:29.7.2-1~ubuntu.24.04~noble)`,
+    );
+    expect(r.stdout).not.toContain('jammy');
+    expect(r.stderr).toContain('SYNTHETIC: SETUP_DEV_APT_CACHE is set');
+    expect(existsSync(aptLog)).toBe(false);
+    expect(existsSync(aptMarkLog())).toBe(false);
+  });
+
+  it('downgrades both packages to that build and holds them, then proves the engine answers at the pin', () => {
+    // Defect caught: apt refused the install as a downgrade, or left the
+    // packages unheld so the next apt upgrade moved the engine off the pin again.
+    const seams = engineOffPin();
+    const r = run(['--yes'], seams);
+    expect(r.status, r.stderr).toBe(0);
+    expect(aptCalls()).toContain(
+      `install -y --allow-downgrades --allow-change-held-packages docker-ce=${NOBLE_BUILD} docker-ce-cli=${NOBLE_BUILD}`,
+    );
+    expect(readFileSync(aptMarkLog(), 'utf-8').trim()).toBe('hold docker-ce docker-ce-cli');
+    expect(closingReport(r.stderr)).not.toMatch(/Docker is not ready/);
+  });
+
+  it('fails, naming the engine, when the install ran and the engine still answers at the old version', () => {
+    // Defect caught: the run reported "Setup complete" because apt exited 0,
+    // while run_dev.sh would still refuse the engine.
+    const seams = engineOffPin({ delivers: false });
+    const r = run(['--yes'], seams);
+    expect(r.status).toBe(1);
+    expect(closingReport(r.stderr)).toMatch(/\n {2}- still not at the pin: the docker engine \(the docker engine is 29\.7\.2;/);
+  });
+
+  it("leaves an engine that is not Docker's apt package alone, and says so at the end", () => {
+    // Defect caught: the script tried to install docker-ce over Docker Desktop
+    // or the distribution's docker.io, which needs Docker's repository first.
+    const seams = engineOffPin({ dockerCe: false });
+    const r = run(['--yes'], seams);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).not.toContain('docker: install engine');
+    expect(aptCalls()).not.toContain('docker-ce');
+    expect(closingReport(r.stderr)).toMatch(
+      /\n {2}- Docker is not ready and this script cannot fix it: Docker's own apt package \(docker-ce\) is not installed/,
+    );
+  });
+
+  it("installs nothing when Docker's repository does not offer the pinned build for this release", () => {
+    // Defect caught: apt was asked for a version it does not have, failing the
+    // run part way instead of saying up front what is missing.
+    const seams = engineOffPin({ madison: MADISON_SAMPLE.split('\n')[0] });
+    const r = run(['--yes'], seams);
+    expect(r.status, r.stderr).toBe(0);
+    expect(aptCalls()).not.toContain('docker-ce');
+    expect(closingReport(r.stderr)).toContain(`offers no docker-ce ${NOBLE_BUILD} for this release`);
+  });
+
+  it('names no build on a system that is not Ubuntu, and installs nothing', () => {
+    // Defect caught: a package version was composed from an empty or foreign
+    // release name and handed to apt.
+    const seams = engineOffPin({
+      osRelease: 'NAME="Debian GNU/Linux"\nVERSION_ID="12"\nVERSION_CODENAME=bookworm\nID=debian\n',
+    });
+    const r = run(['--yes'], seams);
+    expect(r.status, r.stderr).toBe(0);
+    expect(aptCalls()).not.toContain('docker-ce');
+    expect(closingReport(r.stderr)).toContain('not an Ubuntu release the script can name a Docker build for');
   });
 });

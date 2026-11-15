@@ -101,7 +101,7 @@ _tool_report_check() {
         # running engine reports only the version part.
         pin="$(_tool_report_list_pin DOCKER_ENGINE_WORKSTATION "$root" | sed 's/^[0-9]*://; s/-.*//')"
         have="$(timeout 10 docker version --format '{{.Server.Version}}' 2>/dev/null || true)"
-        [ "$have" = "$pin" ] || echo "the docker engine is ${have:-of unknown version}; the pinned workstation engine is ${pin} (DOCKER_ENGINE_WORKSTATION in ops/tool-versions.env). Install that version per the developer onboarding guide's Docker section."
+        [ "$have" = "$pin" ] || echo "the docker engine is ${have:-of unknown version}; the pinned workstation engine is ${pin} (DOCKER_ENGINE_WORKSTATION in ops/tool-versions.env). bash scripts/setup-dev-workstation.sh installs it where Docker's own apt package is installed; otherwise install that version per the developer onboarding guide's Docker section."
       fi
       ;;
     gitleaks)
