@@ -121,7 +121,7 @@ export const STAGED_GLOSSARY_TERMS: readonly StagedGlossaryTerm[] = [
     term: 'Family',
     slug: 'family',
     definition: 'A lineage of tricks that share a conserved terminal, the structure they land into.',
-    moreHref: `${CONCEPTS}#section-families`, moreLabel: 'Family Encyclopedia',
+    moreHref: '/freestyle/tricks?view=family', moreLabel: 'Family list',
   },
   {
     term: 'Entry movement',
