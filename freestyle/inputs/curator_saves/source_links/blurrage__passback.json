@@ -1,0 +1,8 @@
+{
+  "trick_slug": "blurrage",
+  "source_id": "passback",
+  "external_url": null,
+  "asserted_adds": 3,
+  "asserted_notation": null,
+  "notes": "PassBack historically lists blurrage at 3 ADD. The platform reads it as stepping (+1) on a barrage (3) for 4. The gap of one is part of a pattern seen across several PassBack rows, and whether an unscored implicit term explains it is still an open scoring question, so the platform keeps its derived value."
+}

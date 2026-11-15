@@ -1950,7 +1950,7 @@ export const freestyleCurationService = {
       ...(sourceId
         ? [saveSourceLink(slug, sourceId, {
           external_url: sourceUrl === '' ? null : sourceUrl, asserted_adds: null,
-          asserted_notation: assertedNotation === '' ? null : assertedNotation,
+          asserted_notation: assertedNotation === '' ? null : assertedNotation, notes: null,
         })]
         : []),
       ...modifierSlugs.map((modifierSlug, i) => saveModifierLink(slug, modifierSlug, i + 1, false)),
@@ -2851,7 +2851,7 @@ export const freestyleCurationService = {
   // the trick is already linked to it (the composite primary key), or the asserted
   // ADD is neither empty nor a whole number. external_url is trimmed to NULL when
   // blank; external_ref, asserted_notation, asserted_category, and notes stay unset
-  // in this surface. The insert and its audit entry commit in one transaction.
+  // in this surface (notes is saved as null, so the save file records the row whole). The insert and its audit entry commit in one transaction.
   // Creating new registry sources is not part of this surface.
   attachSource(trickSlug: string, input: FreestyleSourceLinkInput, actorMemberId: string): CurationLinkOutcome {
     assertActorMayCurateFreestyle(actorMemberId);
@@ -2882,7 +2882,7 @@ export const freestyleCurationService = {
     try {
       writeFileThenCommit(
         saveSourceLink(trickSlug, sourceId, {
-          external_url: externalUrl, asserted_adds: assertedAdds, asserted_notation: null,
+          external_url: externalUrl, asserted_adds: assertedAdds, asserted_notation: null, notes: null,
         }),
         () => transaction(() => {
           freestyleTrickSourceLinks.insert.run(trickSlug, sourceId, externalUrl, assertedAdds);

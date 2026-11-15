@@ -1,0 +1,8 @@
+{
+  "trick_slug": "predator",
+  "source_id": "passback",
+  "external_url": null,
+  "asserted_adds": 3,
+  "asserted_notation": null,
+  "notes": "PassBack historically lists predator at 3 ADD. The platform reads it as atomic (+1) on a double leg over (3) for 4. The gap may come from PassBack reading \"atomic\" as implying a paradox, which is still an open scoring question, so the platform keeps its derived value."
+}

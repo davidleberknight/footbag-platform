@@ -99,7 +99,7 @@ RECORD_KINDS = (
      ("alias_text", "trick_slug", "alias_type", "alias_display", "display_reason",
       "source_id", "provenance_note")),
     ("source_links", "freestyle_trick_source_links", ("trick_slug", "source_id"),
-     ("external_url", "asserted_adds", "asserted_notation")),
+     ("external_url", "asserted_adds", "asserted_notation", "notes")),
     ("modifier_links", "freestyle_trick_modifier_links", ("trick_slug", "modifier_slug", "apply_order"),
      ()),
     ("records", "freestyle_records", ("id",),

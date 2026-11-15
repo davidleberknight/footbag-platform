@@ -891,6 +891,24 @@ describe('the save loader refuses a file it cannot apply', () => {
   });
 });
 
+describe('a saved source link', () => {
+  it('brings back the reason its notes record', () => {
+    // Defect: an outside source's differing ADD is saved with the reason it is
+    // recorded rather than adopted, and the rebuild keeps the number but loses
+    // the reason, so the divergence reads as unexplained.
+    const dir = fs.mkdtempSync(path.join(scratch, 'link-notes-'));
+    fs.mkdirSync(path.join(dir, 'source_links'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'source_links', `${noopSlug}__saved-source.json`), JSON.stringify({
+      trick_slug: noopSlug, source_id: 'saved-source', external_url: null,
+      asserted_adds: 7, asserted_notation: null, notes: 'Recorded, not adopted: the source counts two higher.',
+    }));
+    expect(applySaves(rebuildPath, dir).status).toBe(0);
+    expect(rowCount(rebuildPath, 'freestyle_trick_source_links',
+      "trick_slug = ? AND source_id = 'saved-source' AND asserted_adds = 7 AND notes = 'Recorded, not adopted: the source counts two higher.'",
+      [noopSlug])).toBe(1);
+  });
+});
+
 describe('the field list', () => {
   it('names the same whole-record kinds in the adapter and the loader', () => {
     // Defect: the editor saves a kind of record the loader never reads, so the

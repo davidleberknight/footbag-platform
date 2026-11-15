@@ -209,7 +209,6 @@ section is where those become part of the record.
 | Blaze | 4 (Blazing Mirage) | **3** | Platform | over-count of the blazing operator on a mirage base; platform reads whirling-far-mirage at 3 |
 | Blizzard | 4 (Blurry Illusion) | **3** | Platform | blurry over-count; platform reads the base at 3 |
 | Omelette | 4 (Atomic Illusion) | **3** | Platform | atomic is +1 flat, not the higher reading FM's naming implies |
-| Bedwetter | 5 (Blurry Eggbeater) | **4** | Platform | blurry over-count on an eggbeater base |
 | Fury | 6 (Furious Mirage) | **5** | Platform | the furious cohort mechanism (A.1), here on a mirage base; Fury is itself the anchor that fixes furious = 2, so FM's own 6 contradicts the decomposition its naming rests on |
 | Blurrage | 6 (Blurry Barrage) | **4** | Platform | doubled over-count (blurry + barrage both read high); the registry records a PassBack claim of 3, a different divergence in the opposite direction — FM's 6 is layered on top and recorded here |
 | Predator | 5 (Atomic Double Legover) | **4** | Platform | FM reads atomic as adding to a double-legover base above the flat +1; the registry records a separate PassBack claim of 3 (−1), so the platform sits between two single sources diverging in opposite directions |
@@ -217,9 +216,9 @@ section is where those become part of the record.
 | Witchdoctor | 4 (Atomic Symposium Mirage) | **5** | Platform | FM under-counts; mechanism not independently established; recorded as observational, platform value published |
 
 **Source:** FootbagMoves (with a PassBack sibling for Blaze, Blizzard, Omelette,
-Bedwetter, Fury, Blurrage, and Predator). **Adopted:** the platform's live value in
+Fury, Blurrage, and Predator). **Adopted:** the platform's live value in
 every case (verified against `database/footbag.db`). **Why:** the same
-record-don't-adopt policy. For the seven with cohort-explained mechanisms the
+record-don't-adopt policy. For the six with cohort-explained mechanisms the
 reasoning is the furious/blurry/atomic over-count; for Terrage and Witchdoctor the
 platform publishes its structural value and records FootbagMoves' lower reading as
 an observational divergence without claiming to have reconstructed FootbagMoves'
@@ -228,10 +227,9 @@ adoption.
 
 For Blurrage and Predator specifically, the record now holds three readings each:
 the platform value, a PassBack claim, and a FootbagMoves claim, diverging in
-different directions. That is exactly the multi-source divergence the per-trick
-registry exists to hold; it currently holds only the PassBack half, and this
-document is the standing record of the FootbagMoves half until the registry is
-extended.
+different directions. Each trick's source-link rows hold both: a PassBack row and a
+FootbagMoves row, each with that source's figure and the reason it is recorded
+rather than adopted.
 
 ---
 

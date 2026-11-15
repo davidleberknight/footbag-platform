@@ -1,0 +1,8 @@
+{
+  "trick_slug": "blurrage",
+  "source_id": "footbagmoves",
+  "external_url": null,
+  "asserted_adds": 6,
+  "asserted_notation": null,
+  "notes": "FootbagMoves lists blurrage as \"Blurry Barrage\" at 6 ADD. The platform reads stepping (+1) on a barrage (3) for 4, so FootbagMoves over-counts both the blurry set and the barrage. FootbagMoves is the only source for 6, so it is recorded, not adopted."
+}
