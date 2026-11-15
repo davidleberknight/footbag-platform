@@ -152,7 +152,7 @@ beforeAll(() => {
   for (const d of [root, binDir, logDir, path.join(home, 'AWS')]) fs.mkdirSync(d, { recursive: true });
   fs.symlinkSync(path.join(REPO_ROOT, 'scripts'), path.join(root, 'scripts'));
   pinFile = path.join(tmp, 'known_hosts');
-  fs.writeFileSync(pinFile, '[203.0.113.10]:22 ssh-ed25519 AAAA\n');
+  fs.writeFileSync(pinFile, '[203.0.113.10]:22 ssh-ed25519 AAAA\n', { mode: 0o600 });
   fs.writeFileSync(path.join(home, 'AWS', 'AWS_OPERATOR.txt'), 'stub-password\n', { mode: 0o600 });
   callLog = path.join(tmp, 'calls.log');
   npmLog = path.join(tmp, 'npm.log');
