@@ -16,7 +16,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { CORE_TRICK_SPEC } from '../../src/content/freestyleLandingContent';
 
 interface SnapshotTrick {
   slug: string;
@@ -148,15 +147,3 @@ describe('clipper-terminal matrix — BACK SWIRL retirement', () => {
   });
 });
 
-describe('clipper-terminal matrix — hand-authored spec agrees with canonical data', () => {
-  it('every core-trick spec formula equals the canonical database value where the database carries bracket form', () => {
-    for (const spec of CORE_TRICK_SPEC) {
-      const row = bySlug.get(spec.slug);
-      if (!row?.operational_notation) continue;
-      // Legacy lowercase rows (the two stall atoms) predate the bracket
-      // migration; the spec supplies their canonical bracket display.
-      if (!/\[(DEX|BOD|DEL|XBD)\]/.test(row.operational_notation)) continue;
-      expect(spec.operationalNotation, spec.slug).toBe(row.operational_notation);
-    }
-  });
-});

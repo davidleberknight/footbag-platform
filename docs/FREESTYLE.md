@@ -28,10 +28,11 @@ pieces:
   tips, and the observational symbolic-grammar layer. See section 3.
 - **The doctrine record.** `freestyle/doctrine/` holds the standing rulings that
   govern classification, scoring, and naming. See section 6.
-- **The code-side authority modules.** `src/content/freestyle*.ts` carry the
-  content that is deliberately code-managed rather than database-managed: the
-  operator reference (operator structure), the family tiers, and
-  the symbolic panels. See sections 2 and 4.
+- **The code-side exception modules.** `src/content/` holds only the content
+  deliberately kept in code rather than the database: validation vocabularies
+  and rules, site page copy, and the Emerging Vocabulary content until version 2.
+  A conventions check refuses any other file there. The teaching guides live in
+  `src/services/`. See sections 2 and 4.
 - **The curated media lane.** A separate system from the dictionary, governed by
   the curated-media skill; it attaches reference videos to tricks. Never merged
   with the dictionary tables.

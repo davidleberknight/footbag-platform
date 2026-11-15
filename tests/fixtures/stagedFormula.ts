@@ -8,12 +8,13 @@
  *   - the staged formula's breakdown, operators and expanded notation, shaped by
  *     the seeder's own breakdown rule;
  *   - a foundational move's execution notation, which the dictionary load
- *     stores and the landing page's core-trick list repeats.
+ *     stores from the committed corrections.
  */
 import type BetterSqlite3 from 'better-sqlite3';
 import { RESOLVED_ADD_FORMULAS } from '../../freestyle/inputs/curator_content/freestyleResolvedFormulas';
 import { derivationBreakdown } from '../../freestyle/loaders/28a_seed_curator_content';
-import { CORE_TRICK_SPEC } from '../../src/content/freestyleLandingContent';
+import { isCoreTrick } from '../../src/services/coreTrickRegistry';
+import { committedNotation } from './committedNotation';
 import { insertFreestyleTrick, type FreestyleTrickOverrides } from './factories';
 
 export interface StagedFormulaColumns {
@@ -41,8 +42,7 @@ export function pipelineColumns(slug: string): {
   operational_notation?: string;
 } {
   const formula = RESOLVED_ADD_FORMULAS.find((f) => f.slug === slug);
-  const foundation = CORE_TRICK_SPEC.find((s) => s.slug === slug);
-  const notation = foundation?.operationalNotation;
+  const notation = isCoreTrick(slug) ? committedNotation(slug) : undefined;
   return {
     ...(formula ? stagedFormulaColumns(slug) : {}),
     ...(notation ? { operational_notation: notation } : {}),

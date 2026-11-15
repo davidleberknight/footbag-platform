@@ -418,6 +418,49 @@ if [ -n "$generated_src_hits" ]; then
   violations=$((violations + 1))
 fi
 
+# Rule: src/content/ holds only the accepted exception files.
+# Reason: curated freestyle content (per-trick facts, families, sets, glossary
+# terms, operators) lives in the database, where admins edit it with an audit
+# row. What stays in code is the accepted set of exceptions: validation
+# vocabularies and rules, site page copy, and the Emerging Vocabulary content
+# that moves into the database in version 2. Teaching guides live in
+# src/services. A new file here is new curated content in code unless it is
+# added to this list on purpose. Reads through git, so it judges a new file
+# before it is added and never a gitignored one.
+check "src/content holds only accepted exceptions"
+content_allowed='src/content/freestyleAddAnalysisContent.ts
+src/content/freestyleCanonicalSets.ts
+src/content/freestyleComboAnalysisContent.ts
+src/content/freestyleCompetitionFormats.ts
+src/content/freestyleDisplayNameExceptions.ts
+src/content/freestyleEvReviewHold.ts
+src/content/freestyleFamilyTiers.ts
+src/content/freestyleHashtagRoles.ts
+src/content/freestyleHistoryNarrative.ts
+src/content/freestyleLandingContent.ts
+src/content/freestyleMedia.ts
+src/content/freestyleModifierClusters.ts
+src/content/freestyleNotationProvenance.ts
+src/content/freestyleObservationalTricks.ts
+src/content/freestyleObservationalUniverse.ts
+src/content/freestyleOperatorIndex.ts
+src/content/freestyleSemanticOverrides.ts
+src/content/freestyleStartNextSteps.ts
+src/content/freestyleTricksMosaic.ts
+src/content/jobsNotationArticle.ts
+src/content/siteMedia.ts'
+# A file deleted in the working tree but not yet staged is still in the index;
+# it is not in the tree being judged, so it is skipped.
+content_unlisted=$(git ls-files --cached --others --exclude-standard -- src/content \
+  | while IFS= read -r content_file; do [ -e "$content_file" ] && printf '%s\n' "$content_file"; done \
+  | grep -vxF "$content_allowed" \
+  || true)
+if [ -n "$content_unlisted" ]; then
+  echo "$content_unlisted" >&2
+  echo "  FAIL: src/content/ may hold only the accepted exception files (validation rules, page copy, the version 1 Emerging Vocabulary content). Put curated content in the database with an admin editor, or add the file to the allowlist in this check only if it is page copy or a validation rule." >&2
+  violations=$((violations + 1))
+fi
+
 # Rule: no script writes into src/.
 # Reason: the same rule from the other side. A generator that writes into src/
 # is how a generated module arrives. A script under freestyle/, legacy_data/ or

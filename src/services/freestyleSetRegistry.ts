@@ -18,11 +18,7 @@
  * Read-only: nothing here writes.
  */
 import { freestyleSets, type FreestyleSetRow } from '../db/db';
-import {
-  SET_ROUTE_RETIRED_REDIRECTS,
-  SET_SLUG_ALIASES,
-  type SetSubtype,
-} from '../content/freestyleCanonicalSets';
+import { type SetSubtype } from '../content/freestyleCanonicalSets';
 
 /** One related set as a page links it: the label is the stored label, or the
  *  related set's own name when none is stored. */
@@ -114,18 +110,3 @@ export function findCanonicalSetBySlug(slug: string): SetRecord | null {
   return snapshot().bySlug.get(slug) ?? null;
 }
 
-/**
- * The set slug a retired alias slug folds to, or null when the slug is not a
- * fold. A real set is never folded.
- */
-export function resolveCanonicalSetAlias(slug: string): string | null {
-  if (snapshot().bySlug.has(slug)) return null;
-  return SET_SLUG_ALIASES.get(slug) ?? null;
-}
-
-/** Where an old /freestyle/sets/:slug route for a retired concept lands, or null.
- *  Never fires for a slug that is a set. */
-export function resolveSetRouteRedirect(slug: string): string | null {
-  if (snapshot().bySlug.has(slug)) return null;
-  return SET_ROUTE_RETIRED_REDIRECTS.get(slug) ?? null;
-}

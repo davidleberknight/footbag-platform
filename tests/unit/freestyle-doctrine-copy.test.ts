@@ -29,15 +29,11 @@ import { join, resolve } from 'node:path';
 
 import { STAGED_SETS } from '../../freestyle/inputs/curator_content/freestyleSets';
 import {
-  COMPOSITIONAL_SET_FAMILIES,
-  COMPOSITIONAL_AUDIT_ENTRIES,
-} from '../../src/content/freestyleCompositionalSets';
-import {
   STAGED_REFERENCE_ENTRIES as OPERATOR_REFERENCE_ENTRIES,
   STAGED_CORE_DEFINITIONS as TIER1_OPERATOR_DEFINITIONS,
   stagedCoreDefinition,
 } from '../fixtures/stagedOperatorReference';
-import { CORE_TRICK_SPEC } from '../../src/content/freestyleLandingContent';
+import { committedNotation } from '../fixtures/committedNotation';
 
 const ROOT = resolve(__dirname, '../..');
 const read = (p: string) => readFileSync(join(ROOT, p), 'utf8');
@@ -243,10 +239,6 @@ const PLATFORM_RULED_SETS = new Set(
   STAGED_SETS.filter((s) => !COMPILATION_ONLY_SET_SLUGS.has(s.slug)).map((s) => s.slug),
 );
 
-const SOURCE_ONLY_SETS = new Set(
-  STAGED_SETS.filter((s) => COMPILATION_ONLY_SET_SLUGS.has(s.slug)).map((s) => s.slug),
-);
-
 /** Display name to set slug: drops a parenthetical gloss ("Terraging (Double
  *  Pixie)") and takes the first name of a paired title ("Rooting / Rooted"). */
 const setSlugFor = (displayName: string): string =>
@@ -309,51 +301,9 @@ describe('a set the platform has ruled on is not labelled an ordinary operator',
   });
 });
 
-describe('a set the platform has ruled on is not filed as source-only', () => {
-  // The compositional surface keeps a bucket meaning "an outside compilation
-  // lists this name and the platform has no separate treatment of it". A set
-  // carrying a platform ruling contradicts that bucket by definition, which is
-  // how flailing and blazing came to sit there after being ruled.
-  it('no audit row files a ruled set as source-only', () => {
-    const offenders = COMPOSITIONAL_AUDIT_ENTRIES
-      .filter((e) => PLATFORM_RULED_SETS.has(setSlugFor(e.holdenName)))
-      .filter((e) => e.status === 'holden-only')
-      .map((e) => e.holdenName);
-    expect(offenders).toEqual([]);
-  });
-
-  it('no card files a ruled set as source-only', () => {
-    const offenders = COMPOSITIONAL_SET_FAMILIES
-      .flatMap((f) => f.members)
-      .filter((m) => PLATFORM_RULED_SETS.has(setSlugFor(m.name)))
-      .filter((m) => m.statusHint === 'holden-only')
-      .map((m) => m.name);
-    expect(offenders).toEqual([]);
-  });
-
-  it('a ruled set carries a platform reading rather than an empty one', () => {
-    const empty = ['Flailing', 'Blazing']
-      .map((name) => COMPOSITIONAL_AUDIT_ENTRIES.find((e) => e.holdenName === name))
-      .filter((row) => !row?.platformReading)
-      .map((row) => row?.holdenName ?? 'missing row');
-    expect(empty).toEqual([]);
-  });
-
-  it('names the platform only records are still allowed to stay source-only', () => {
-    // The rule runs one way. A compilation name with no platform ruling belongs
-    // in that bucket, and nothing here should push it out.
-    const sourceOnly = COMPOSITIONAL_AUDIT_ENTRIES
-      .filter((e) => SOURCE_ONLY_SETS.has(setSlugFor(e.holdenName)))
-      .filter((e) => e.status === 'holden-only');
-    expect(sourceOnly.length).toBeGreaterThan(5);
-  });
-});
-
 describe('butterfly\'s pinned notation carries the side it is taught on', () => {
-  const spec = CORE_TRICK_SPEC.find((s) => s.slug === 'butterfly')!;
-
   it('the pinned notation is the opposite-side form', () => {
-    expect(spec.operationalNotation).toMatch(/OP OUT/);
+    expect(committedNotation('butterfly')).toMatch(/OP OUT/);
   });
 });
 
@@ -418,12 +368,10 @@ describe('the ruled side relationship is stated, and the source keeps its own cl
   });
 
   it('the source keeps its own side claim, quoted rather than adopted', () => {
-    // Deleting the compilation's reading would destroy the evidence the audit
-    // table exists to show. It stays, attributed.
+    // Deleting the compilation's reading would destroy the evidence. It stays,
+    // attributed.
     const blazing = setEntry('blazing');
-    const row = COMPOSITIONAL_AUDIT_ENTRIES.find((e) => e.holdenName === 'Blazing')!;
     expect(blazing.formula).toMatch(/op side component/);
-    expect(row.holdenReading).toMatch(/op side component/);
   });
 
   it('the crossing is attributed to the set, not to whatever follows it', () => {
@@ -441,7 +389,6 @@ describe('the ruled side relationship is stated, and the source keeps its own cl
     // two days.
     const surfaces = [
       'src/content/freestyleCanonicalSets.ts',
-      'src/content/freestyleCompositionalSets.ts',
       'src/services/symbolicSetEducation.ts',
       'src/services/freestyleService.ts',
     ];

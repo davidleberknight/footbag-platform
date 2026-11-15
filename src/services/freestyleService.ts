@@ -119,6 +119,7 @@ import {
   isSetFirstSlug,
   isRouteMigratedSet,
   type SetEducationContent,
+  UPTIME_REINTERPRETATION_LADDERS,
 } from './symbolicSetEducation';
 import {
   operatorRecords,
@@ -130,9 +131,8 @@ import {
   type ModifierBrowse,
 } from './freestyleOperatorRegistry';
 import { OPERATOR_INDEX_AXES } from '../content/freestyleOperatorIndex';
-import {
-  CORE_TRICK_SPEC,
-} from '../content/freestyleLandingContent';
+import { FOUNDATIONAL_MOVE_ORDER } from '../content/freestyleLandingContent';
+import { isCoreTrick } from './coreTrickRegistry';
 import {
   HISTORY_NARRATIVE,
   type HistoryNarrative,
@@ -159,18 +159,22 @@ import {
 } from './freestyleFamilyRegistry';
 import { FAMILY_TIER_LABEL } from '../content/freestyleFamilyTiers';
 import { JOBS_NOTATION_ARTICLE, JOBS_NOTATION_ARTICLE_TITLE } from '../content/jobsNotationArticle';
-import { TERMINAL_SURFACES, type TopologyHistogramRow } from '../content/freestyleTopologyHistograms';
+// One bar of the family-endings chart on By the Numbers: a catch surface
+// (tricks finishing on it) or a family (its membership).
+interface TopologyHistogramRow {
+  label: string;
+  count: number;
+  tier:  'surface' | 'family';
+}
 import { MODIFIER_CLUSTERS, SET_UPTIME_CLUSTER } from '../content/freestyleModifierClusters';
-import { quantityLadderFor } from '../content/freestyleQuantityLadders';
+import { quantityLadderFor } from './freestyleQuantityLadders';
 import { SET_SUBTYPE_SPECS } from '../content/freestyleCanonicalSets';
 import {
   canonicalSets,
   findCanonicalSetBySlug,
-  resolveSetRouteRedirect,
   type SetRecord,
 } from './freestyleSetRegistry';
 import { COMPETITION_FORMATS } from '../content/freestyleCompetitionFormats';
-import { UPTIME_REINTERPRETATION_LADDERS } from '../content/freestyleCompositionalSets';
 import {
   isDescriptionRedundantWithNotation,
   isDescriptionStructuralPlaceholder,
@@ -510,12 +514,8 @@ export interface FreestyleDemoVideo {
 // renders `{{addNumeric}}` — using `{{add}}` would resolve to the helper
 // and produce "[object Object]undefined" output.
 export interface FreestyleCoreTrickCard {
-  slug:                 string;        // "around-the-world"; the canonical DB slug (drives anchor + href)
-  displaySlug:          string;        // visible #-tag; equals slug unless CoreTrickSpec.displaySlug overrides
-  semanticEquivalences: string[];      // ["ATW"]; empty for irreducible atoms
-  symbolicNotation:     string | null; // null when the `≡` reading carries the symbolic info
-  addNumeric:           number | null; // null when DB row is missing (renders "—" + footnote)
-  addPending:           boolean;       // true when addNumeric is null
+  slug:       string;        // the dictionary slug (drives the anchor and the href)
+  addNumeric: number | null; // null when the row is missing or carries no ADD
 }
 
 // Featured-strip item — a single compact card on the merged landing
@@ -880,33 +880,13 @@ function shapeReferenceMedia(
   };
 }
 
-// Shared core-tricks shaper.
-// Both getLandingPage and getGlossaryPage (§10) build the same compact
-// symbolic-object grid; the helper centralizes the join between the
-// curator-authoritative CORE_TRICK_SPEC and the freestyle_tricks DB rows
-// (ADD value + optional symbolic notation).
+// The foundational moves in teaching order, each with its dictionary ADD; null
+// when the move's row is missing or carries no ADD.
 function shapeCoreTricks(trickRows: FreestyleTrickRow[]): FreestyleCoreTrickCard[] {
-  return CORE_TRICK_SPEC.map(spec => {
-    const row = trickRows.find(t => t.slug === spec.slug);
+  return FOUNDATIONAL_MOVE_ORDER.map(slug => {
+    const row = trickRows.find(t => t.slug === slug);
     const parsedAdd = row && row.adds != null ? Number(row.adds) : NaN;
-    const hasAdd = Number.isFinite(parsedAdd);
-    // Notation normalization:
-    //   - symbolicNotation sources from CoreTrickSpec.operationalNotation
-    //     (curator-authored TS content module), not the DB operational_notation
-    //     column. TS is source-of-truth for atom op-notation.
-    //   - semanticEquivalences takes only the first reading (descriptive
-    //     prose). The accounting formula equivalences[1] is preserved in the
-    //     content module but not rendered on the public landing grid;
-    //     prune in the shaping helper, not the template.
-    //     Accounting derivations remain accessible at /freestyle/add-analysis.
-    return {
-      slug:                 spec.slug,
-      displaySlug:          spec.displaySlug ?? spec.slug,
-      semanticEquivalences: [spec.equivalences[0]!],
-      symbolicNotation:     spec.operationalNotation,
-      addNumeric:           hasAdd ? parsedAdd : null,
-      addPending:           !hasAdd,
-    };
+    return { slug, addNumeric: Number.isFinite(parsedAdd) ? parsedAdd : null };
   });
 }
 
@@ -3004,7 +2984,7 @@ function shapeTrickAddAnalysis(
 const FIRST_CLASS_TIER_1: ReadonlySet<string> = new Set([
   // 11 atom singletons — full curator data via ATOMIC_FLAG_DECOMPOSITIONS.
   // Orbit deliberately excluded: its base_trick is empty in the DB
-  // (it's a CORE_TRICK_SPEC atom but the convergence rule treats it as
+  // (it's a foundational move but the convergence rule treats it as
   // compound). Promote in a future slice when the classification is
   // reconciled.
   'osis',                // golden reference; double-pass rotational dex
@@ -3463,15 +3443,11 @@ const DOCTRINE_BLOCKED_SLUGS: ReadonlySet<string> = new Set([
 // its operational notation (Add-Categories doctrine: every [BOD] / [DEX]
 // / [XBD] / [DEL] / [UNS] flag = 1 ADD).
 //
-// All entries transcribe verbatim from CORE_TRICK_SPEC.equivalences[1]
-// (the curator-locked accounting string) and CORE_TRICK_SPEC.
-// operationalNotation (the curator-authored movement-language chain).
-// To add a new atom: add to CORE_TRICK_SPEC first (the single source
-// of truth for atom content), then mirror the strings here. The map
-// stays explicit rather than computed from CORE_TRICK_SPEC to keep
-// the convergence-rule's H4 gate self-documenting.
+// Each entry's chain matches the move's operational notation in the
+// dictionary. The map stays explicit rather than computed, to keep the
+// convergence rule's gate self-documenting.
 //
-// Orbit deliberately excluded: classified in CORE_TRICK_SPEC but
+// Orbit deliberately excluded: a foundational move but
 // base_trick is empty in the DB; convergence rule (isAtomic check)
 // treats it as compound. Future slice should reconcile.
 interface AtomicFlagDecomposition {
@@ -4043,10 +4019,9 @@ function shapeDictionaryTrickCard(
   // The card's operational notation is the row's own stored column. For the
   // 12 core atoms the source-note line is left off, because their notation is
   // the curator-locked core chain rather than a cited source reading.
-  const coreAtomSpec = CORE_TRICK_SPEC.find(s => s.slug === indexRow.slug);
   const opNotationRaw = resolveOperationalNotationRaw(row.operational_notation);
   const opDisplay = shapeOperationalNotationDisplay(opNotationRaw);
-  const dbSourceNote = (!coreAtomSpec && row.operational_notation_source && row.operational_notation_source.trim())
+  const dbSourceNote = (!isCoreTrick(indexRow.slug) && row.operational_notation_source && row.operational_notation_source.trim())
     ? row.operational_notation_source.trim()
     : null;
   // Every trick that has notation carries it here, tokenized. A first-class
@@ -5131,9 +5106,11 @@ function classifyDensityTier(args: {
   return 'standard';
 }
 
-// The family-endings chart: the two hand-authored terminal surfaces, then every
-// public browse family measured now from the same membership the family browse
-// renders. The browse draws one card per member of a family's membership, and
+// The family-endings chart: the two catch surfaces, then every public browse
+// family, all measured now. A surface's bar counts the active tricks whose
+// notation finishes on it, read from the last component of the same notation the
+// dictionary rows show. A family's bar is measured from the same membership the
+// family browse renders. The browse draws one card per member of a family's membership, and
 // only for a family with more than two members, so a family's bar is its
 // membership size under that floor: the same count the browse shows, without
 // shaping every card to get it. A family below the floor gets no bar, as it gets
@@ -5144,14 +5121,26 @@ function measureFamilyHistogram(): TopologyHistogramRow[] {
   const allRows = runSqliteRead('freestyleTricks.listAllWithPending', () =>
     freestyleTricks.listAllWithPending.all() as FreestyleTrickRowWithStatus[],
   );
-  const familyMap = buildFamilyMembershipMap(allRows.filter(r => r.is_active === 1));
+  const active = allRows.filter(r => r.is_active === 1);
+  let clipper = 0;
+  let toe = 0;
+  for (const r of active) {
+    const last = (resolveOperationalNotationRaw(r.operational_notation) ?? '').split('>').pop()!.toUpperCase();
+    if (/\bCLIP\b/.test(last)) clipper++;
+    else if (/\bTOE\b/.test(last)) toe++;
+  }
+  const familyMap = buildFamilyMembershipMap(active);
   const families: TopologyHistogramRow[] = [];
   for (const family of publicDisplayFamilies()) {
     const members = familyMap.get(family.slug)?.length ?? 0;
     if (members > 2) families.push({ label: family.label, count: members, tier: 'family' });
   }
   families.sort((a, b) => (b.count - a.count) || a.label.localeCompare(b.label));
-  return [...TERMINAL_SURFACES, ...families];
+  return [
+    { label: 'Clipper Stall', count: clipper, tier: 'surface' },
+    { label: 'Toe Stall',     count: toe,     tier: 'surface' },
+    ...families,
+  ];
 }
 
 // Retired standalone nicknames that name exactly one canonical set. Barraging was
@@ -7911,15 +7900,14 @@ export const freestyleService = {
   },
 
   /**
-   * GET /freestyle/sets/:slug — the redirect for a retired set address whose set
-   * lives under another name (barraging, whose set is Furious; whirling, whose set
-   * is Blazing). Returns the redirect path, or null when the slug is a live set
-   * (render it) or unknown (404).
+   * GET /freestyle/sets/:slug — the redirect for a legacy set name whose set
+   * lives under another name (barraging, whose set is Furious). Returns the
+   * redirect path, or null when the slug is a live set (render it) or unknown
+   * (404).
    */
   setRouteRedirectTarget(slug: string): string | null {
     const retiredSet = RETIRED_SET_NICKNAME_REDIRECTS.get(slug);
-    if (retiredSet) return `/freestyle/sets/${retiredSet}`;
-    return resolveSetRouteRedirect(slug);
+    return retiredSet ? `/freestyle/sets/${retiredSet}` : null;
   },
 
   /**

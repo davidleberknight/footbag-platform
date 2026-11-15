@@ -136,7 +136,7 @@ describe('GET /freestyle/sets — the sections below the list', () => {
   it('records both readings where Holden and the platform disagree, rather than picking one', async () => {
     // Defect caught: a documented disagreement silently normalized to one reading.
     const res = await page('/freestyle/sets');
-    const { UPTIME_REINTERPRETATION_LADDERS } = await import('../../src/content/freestyleCompositionalSets');
+    const { UPTIME_REINTERPRETATION_LADDERS } = await import('../../src/services/symbolicSetEducation');
     const disputed = UPTIME_REINTERPRETATION_LADDERS.filter(ladder => ladder.conflictNote !== null);
     expect(disputed.length).toBeGreaterThan(0);
     for (const ladder of disputed) {

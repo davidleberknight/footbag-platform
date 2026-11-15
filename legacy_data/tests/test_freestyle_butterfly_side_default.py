@@ -12,8 +12,8 @@ sat on the canonical row is superseded.
 This guard pins the stored atom, not the family: a butterfly dexterity inside a
 compound is genuinely symmetric and legitimately reads `SAME/OP` there, so the
 check is scoped to the three atom-level slugs and never to the wider family. The
-render-side authoritative source (CORE_TRICK_SPEC) is pinned separately in
-tests/unit/coreTrickSpecNotation.test.ts.
+committed notation the dictionary is built from is pinned separately in
+tests/unit/foundationalNotation.test.ts.
 
 Reads the built database; skips when it is absent.
 

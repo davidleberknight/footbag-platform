@@ -32,8 +32,8 @@
  *    summary partial renders an explicit "JOB: canonical decomposition pending"
  *    muted line rather than silently hiding the row.
  *
- * The osis card is the golden example: it carries curator op-notation
- * (via CORE_TRICK_SPEC) AND an atomic flag-decomposition, so both the
+ * The osis card is the golden example: it carries its row's operational
+ * notation AND an atomic flag-decomposition, so both the
  * JOB and ADD rows in its first-class summary are populated.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -397,12 +397,11 @@ describe('First-class cohort expansion — Tier 1 atom parity', () => {
   // every atom kind: stall (toe-stall), dex (mirage), rotational (whirl),
   // alt-rotational (butterfly), reverse-rotation (swirl). All five must
   // render at osis-grade parity: JOB row + ADD row, no incomplete-state.
-  // Label is 'JOB:' because opNotationRaw is sourced from
-  // CORE_TRICK_SPEC.operationalNotation (curator-authored content
-  // module) — same shape as osis. The 'OPERATIONAL:' label only
+  // Label is 'JOB:' because opNotationRaw is the row's own operational
+  // notation, the same shape as osis. The 'OPERATIONAL:' label only
   // fires when opNotationRaw is empty AND the atomic-chain fallback
-  // supplies the chain (a path not reached for atoms with
-  // CORE_TRICK_SPEC entries).
+  // supplies the chain (a path not reached for a foundational move,
+  // whose row carries its notation).
   // The `= N ADD` terminator is not rendered in ADD breakdowns
   // (hero/registry ADD chip is the authoritative total).
   it.each([

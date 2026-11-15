@@ -54,9 +54,12 @@ interface RunResult { exitCode: number; stdout: string; stderr: string }
  */
 function inFixtureRepo(
   files: Record<string, string>,
-  { declareFixture = true, untracked = {} }: {
+  { declareFixture = true, untracked = {}, deleted = [] }: {
     declareFixture?: boolean;
     untracked?: Record<string, string>;
+    /** Files added to the index, then removed from the working tree: a deletion
+     *  not yet staged. */
+    deleted?: string[];
   } = {},
 ): RunResult {
   const root = mkdtempSync(join(tmpdir(), 'footbag-test-conventions-gate-'));
@@ -71,6 +74,7 @@ function inFixtureRepo(
     spawnSync('git', ['init', '-q', root], { encoding: 'utf8', ...SPAWN_GUARD });
     write(files);
     spawnSync('git', ['-C', root, 'add', '-A'], { encoding: 'utf8', ...SPAWN_GUARD });
+    for (const name of deleted) rmSync(join(root, name));
     write(untracked);
     const env = { ...process.env };
     if (declareFixture) env.CONVENTIONS_FIXTURE_TREE = '1';
@@ -632,6 +636,39 @@ describe('the convention gate: nothing under src/ is generated', () => {
     expect(res.exitCode, res.stderr).toBe(0);
     expectCheckRan(res, 'no script writes into src/');
     expect(res.stderr).not.toContain(WRITE_FAIL);
+  });
+});
+
+describe('the convention gate: src/content holds only accepted exceptions', () => {
+  const CONTENT_FAIL = 'src/content/ may hold only the accepted exception files';
+
+  it('refuses a new content module that is not on the list, judged before it is added', () => {
+    // Defect caught: curated freestyle facts slip back into code as a new
+    // content module, where no admin can edit them and no audit row records a
+    // change, after they were moved into the database.
+    const res = inFixtureRepo({
+      'src/content/freestyleLandingContent.ts': 'export const ORDER = [];\n',
+    }, {
+      untracked: { 'src/content/freestyleTrickFacts.ts': 'export const FACTS = new Map();\n' },
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('src/content/freestyleTrickFacts.ts');
+    expect(res.stderr).toContain(CONTENT_FAIL);
+    expect(res.stderr).not.toContain('src/content/freestyleLandingContent.ts\n');
+  });
+
+  it('accepts the listed exception files, content outside src/content, and an unlisted file deleted but not yet staged', () => {
+    // The deleted file is still in the index; the tree being judged no longer
+    // holds it, so moving content out of src/content must not trip the check.
+    const res = inFixtureRepo({
+      'src/content/freestyleLandingContent.ts': 'export const ORDER = [];\n',
+      'src/content/jobsNotationArticle.ts': 'export const ARTICLE = {};\n',
+      'src/content/freestyleRetiredModule.ts': 'export const OLD = [];\n',
+      'src/services/freestyleQuantityLadders.ts': 'export const LADDERS = [];\n',
+    }, { deleted: ['src/content/freestyleRetiredModule.ts'] });
+    expect(res.exitCode, res.stderr).toBe(0);
+    expectCheckRan(res, 'src/content holds only accepted exceptions');
+    expect(res.stderr).not.toContain(CONTENT_FAIL);
   });
 });
 

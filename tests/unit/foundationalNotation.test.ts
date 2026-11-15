@@ -1,12 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { CORE_TRICK_SPEC } from '../../src/content/freestyleLandingContent';
+import { CORE_TRICKS } from '../../src/services/coreTrickRegistry';
+import { committedNotation } from '../fixtures/committedNotation';
 
-// The 12 foundational atoms render their operational notation on formal
-// notation surfaces (browse-card JOB slot + trick-detail JOB row), sourced from
-// CORE_TRICK_SPEC.operationalNotation. Formal notation surfaces carry symbolic
-// CAPS tokens only — no lowercase prose (no "[set]", "hippy/leggy in/out dex",
-// "op/ss toe", "ss clipper"). Bracket-bearing flags ([DEX]/[BOD]/[XBD]/[DEL]/...)
-// must count to the atom's ADD.
+// The 12 foundational moves carry their operational notation in the committed
+// corrections the dictionary is built from, and the formal notation surfaces
+// (browse-card JOB slot, trick-detail JOB row) render it from the database.
+// Formal notation carries symbolic CAPS tokens only: no lowercase prose (no
+// "[set]", "hippy/leggy in/out dex", "op/ss toe", "ss clipper"). The
+// bracket-bearing flags ([DEX]/[BOD]/[XBD]/[DEL]/...) count to the move's ADD.
 const EXPECTED: Record<string, { notation: string; adds: number }> = {
   'toe_stall':        { notation: 'SET > SAME TOE [DEL]',                       adds: 1 },
   'clipper_stall':    { notation: 'SET > OP CLIP [XBD] [DEL]',                  adds: 2 },
@@ -30,28 +31,17 @@ const EXPECTED: Record<string, { notation: string; adds: number }> = {
 
 const PROSE_FORMS = [/\[set\]/, /hippy/, /leggy/, /\bss\b/, /\bop toe\b/, /\bdowntime\b/, /\(midtime\)/];
 
-describe('CORE_TRICK_SPEC operational notation — formal-surface symbolic forms', () => {
-  it('every atom has an expected entry (catches added/removed atoms)', () => {
-    const slugs = CORE_TRICK_SPEC.map(s => s.slug).sort();
-    expect(slugs).toEqual(Object.keys(EXPECTED).sort());
+describe('the foundational moves\' committed operational notation', () => {
+  it('every foundational move has an expected entry (catches added or removed moves)', () => {
+    expect([...CORE_TRICKS].sort()).toEqual(Object.keys(EXPECTED).sort());
   });
 
-  for (const spec of CORE_TRICK_SPEC) {
-    const expected = EXPECTED[spec.slug];
-
-    it(`${spec.slug} renders the exact symbolic form`, () => {
-      expect(spec.operationalNotation).toBe(expected.notation);
-    });
-
-    it(`${spec.slug} bracket-flag count equals its ADD (${expected.adds})`, () => {
-      const brackets = (spec.operationalNotation ?? '').match(/\[[A-Z]+\]/g) ?? [];
-      expect(brackets.length).toBe(expected.adds);
-    });
-
-    it(`${spec.slug} carries no lowercase-prose notation`, () => {
-      for (const prose of PROSE_FORMS) {
-        expect(spec.operationalNotation ?? '').not.toMatch(prose);
-      }
+  for (const [slug, expected] of Object.entries(EXPECTED)) {
+    it(`${slug} carries the exact symbolic form, with brackets counting to its ADD and no prose`, () => {
+      const notation = committedNotation(slug) ?? '';
+      expect(notation).toBe(expected.notation);
+      expect((notation.match(/\[[A-Z]+\]/g) ?? []).length).toBe(expected.adds);
+      for (const prose of PROSE_FORMS) expect(notation).not.toMatch(prose);
     });
   }
 });

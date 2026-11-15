@@ -167,7 +167,7 @@ import {
   resolveTrickTags,
 } from '../db/db';
 import { tierBadgeShort } from './membershipTieringService';
-import { findCanonicalSetBySlug, resolveCanonicalSetAlias } from './freestyleSetRegistry';
+import { findCanonicalSetBySlug } from './freestyleSetRegistry';
 import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { config } from '../config/env';
 import { isSafePath } from '../lib/safePath';
@@ -1054,16 +1054,14 @@ function tagBody(display: string): string {
 }
 
 // Resolve a tag body to a Set Encyclopedia destination when it is `set_<slug>`
-// or `concept_<slug>_sets`. A legacy set name resolves to its canonical set
-// tag (e.g. furious -> barraging). Unknown set -> null (no link).
+// or `concept_<slug>_sets`. Unknown set -> null (no link).
 function setDestFromTagBody(body: string): MediaDestination | null {
   let slug: string | null = null;
   if (body.startsWith('set_')) slug = body.slice(4);
   else if (body.startsWith('concept_') && body.endsWith('_sets')) slug = body.slice(8, -5);
   if (!slug) return null;
-  const canonical = resolveCanonicalSetAlias(slug) ?? slug;
-  const label = findCanonicalSetBySlug(canonical)?.displayName;
-  return label ? { kind: 'set', kindLabel: 'Set', label, href: `/freestyle/sets/${canonical}` } : null;
+  const label = findCanonicalSetBySlug(slug)?.displayName;
+  return label ? { kind: 'set', kindLabel: 'Set', label, href: `/freestyle/sets/${slug}` } : null;
 }
 
 // A media tag name made readable for a cross-link label: underscores/hyphens to

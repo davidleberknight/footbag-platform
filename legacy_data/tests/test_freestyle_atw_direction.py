@@ -10,8 +10,8 @@ are inward as well.
 This guard proves the canonical data carries the distinction: no active
 Around-the-World trick may store a direction-neutral `SAME IN/OUT` dex, the
 Around-the-World base atom resolves inward, and the Orbit base atom resolves
-outward. The render-side authoritative source (CORE_TRICK_SPEC) is pinned
-separately in tests/unit/coreTrickSpecNotation.test.ts.
+outward. The committed notation the dictionary is built from is pinned
+separately in tests/unit/foundationalNotation.test.ts.
 
 Reads the built database; skips when it is absent.
 

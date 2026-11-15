@@ -781,3 +781,93 @@ export function buildSetEducationContent(
     },
   };
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// Uptime-reinterpretation ladders, rendered on /freestyle/sets
+//
+// Each ladder teaches the relationship between a named set and the trick
+// structure it comes from, step by step. Honest about disagreement where it
+// exists: where the historical compilation and the platform read a set
+// differently, both readings are named rather than one silently picked.
+// ─────────────────────────────────────────────────────────────────────
+
+export interface UptimeReinterpretationLadder {
+  /** Set / system name (e.g. "miraging", "blurry", "surging"). */
+  setName: string;
+  /** Set's operational notation (verbatim from the historical compilation where present). */
+  setNotation: string;
+  /** The uptime-reinterpretation reading in plain language. */
+  reinterpretation: string;
+  /** Two or three short steps showing the relationship between the set and its
+   *  structural source; the ladder renders them as visual steps. */
+  steps: readonly string[];
+  /** Source attribution for this reading; where the ladder records a
+   *  disagreement, both readings are named. */
+  sourceCitation: string;
+  /** Non-null when this reading is not the only published one and the
+   *  disagreement is worth surfacing inline. Used sparingly. */
+  conflictNote: string | null;
+}
+
+export const UPTIME_REINTERPRETATION_LADDERS: readonly UptimeReinterpretationLadder[] = [
+  {
+    setName:         'miraging',
+    setNotation:     'SET > OP IN [DEX] >',
+    reinterpretation:'Mirage-family descriptive language (not a modern set)',
+    steps: [
+      'mirage   (trick)    =  SET > OP IN [DEX] > OP TOE [DEL]',
+      'miraging (reading)  =  SET > OP IN [DEX] >   (the toe-stall terminal omitted as the dex continues into the next move)',
+      'Reading: the inward mirage shape read as descriptive language. Miraging is retained as descriptive mirage-family language for the inward standalone movement; Quantum is the same inward movement realized with a set role, and miraging is not treated as a launch set or a Quantum equivalent.',
+    ],
+    sourceCitation:  'Per the platform\'s operational notation system; aligned with the historical compilation\'s basic-set listing.',
+    conflictNote:    'Retained as descriptive mirage-family language for the inward standalone movement, not a launch set. Quantum is the same inward movement realized with a set role.',
+  },
+  {
+    setName:         'illusioning',
+    setNotation:     'SET > OP OUT [DEX] >   (structurally implied)',
+    reinterpretation:'Illusion-family descriptive language (not a modern set)',
+    steps: [
+      'illusion    (trick)   =  SET > OP OUT [DEX] > OP TOE [DEL]',
+      'illusioning (reading) =  SET > OP OUT [DEX] >   (structurally analogous to miraging, but not explicitly in the historical compilation)',
+      'Reading: the illusion shape read as descriptive language. Illusioning is retained as descriptive illusion-family language for the outward standalone movement; Atomic is the same outward movement realized with a set role, and illusioning is not a launch set or an Atomic equivalent.',
+    ],
+    sourceCitation:  'Structural inference from the mirage/illusion direction-mirror sibling pair; not in the historical compilation.',
+    conflictNote:    'Named "illusioning" is not in the historical compilation or the platform canonical, and current doctrine holds it a standalone movement, not a launch set or an Atomic equivalent. Some instructional and historical sources describe sets by reference to familiar standalone motions; the encyclopedia preserves those as teaching / source language, not as equivalent canonical set names.',
+  },
+  {
+    setName:         'blurry',
+    setNotation:     'CLIP > OP IN [DEX] > OP OUT [DEX] >',
+    reinterpretation:'Stepping with a paradox second dex',
+    steps: [
+      'stepping (set)   =  CLIP > OP IN [DEX] >',
+      '+ paradox second dex (OP OUT [DEX]) layered on top',
+      '=  blurry (compound set) =  CLIP > OP IN [DEX] > OP OUT [DEX] >',
+    ],
+    sourceCitation:  'Per the historical compilation (Blurry = Stepping Paradox) and the platform ruling. Aligned.',
+    conflictNote:    null,
+  },
+  {
+    setName:         'furious',
+    setNotation:     'CLIP > OP IN [DEX] > SAME IN [DEX] >',
+    reinterpretation:'A two-dex set (+2); barraging is a legacy name pattern for this same Furious set, not a separate timing-defined operator. The older third-dex reading is superseded.',
+    steps: [
+      'barraging  =  CLIP > OP IN [DEX] > SAME IN [DEX] >',
+      'barraging is a legacy name pattern for the Furious set, not a separate timing-defined operator; barraging-named rows and aliases are preserved for name continuity and resolve to Furious',
+      'a superseded reading extended this with a third dex (OP IN [DEX]) as "Barraging Paradox Miraging"',
+    ],
+    sourceCitation:  'Historical compilation; barraging is a legacy name pattern for the Furious set, and barraging-named tricks resolve to the Furious two-dex set.',
+    conflictNote:    'The earlier three-dex Barraging Paradox Miraging chain is historical lineage, not current structure.',
+  },
+  {
+    setName:         'surging',
+    setNotation:     'SET > (BACK/FRONT) SPIN [BOD] > OP IN [DEX] >',
+    reinterpretation:'Two recorded readings; the platform tracks both',
+    steps: [
+      'Historical reading =  spinning miraging  (a spin body modifier layered with a miraging-like terminal)',
+      'Platform reading   =  spinning stepping  (per later compilation: a spin body modifier layered with a stepping CLIP-direction dex)',
+      'Both readings share the SPIN [BOD] entry; they disagree on whether the terminal dex reads as miraging (SET-led) or stepping (CLIP-led).',
+    ],
+    sourceCitation:  'The historical compilation and later platform analysis.',
+    conflictNote:    'Surfaced as a documented disagreement, not normalized.',
+  },
+];

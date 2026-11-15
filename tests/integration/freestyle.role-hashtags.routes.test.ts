@@ -118,10 +118,11 @@ describe('GET /freestyle/modifier/:slug — stub hashtag', () => {
     expect(res.text).not.toContain('#set_whirling');
   });
 
-  it('redirects the retired Whirling set URL to Blazing, the uptime whirling set', async () => {
+  it('gives the retired Whirling set address the standard not-found page; whirling lives on its modifier page', async () => {
+    // Whirling is a body modifier, not a set, and before launch a retired
+    // address of this site is not redirected anywhere.
     const res = await page('/freestyle/sets/whirling');
-    expect(res.status).toBe(301);
-    expect(res.headers['location']).toBe('/freestyle/sets/blazing');
+    expect(res.status).toBe(404);
   });
 });
 

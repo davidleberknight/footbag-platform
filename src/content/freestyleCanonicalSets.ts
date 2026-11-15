@@ -83,27 +83,3 @@ export const SET_SUBTYPE_SPECS: readonly SubtypeSpec[] = [
       'movement constraint applied to a set rather than a literal grammar string.',
   },
 ] as const;
-
-/**
- * Set-to-set canonical folds. Empty under current doctrine: illusioning and
- * atomic, and furious and barraging, are not treated as one set. Furious is its
- * own set entry, and Illusioning, Miraging, and Barraging are not sets. A media
- * set-tag therefore canonicalizes to itself, never folding one set name into
- * another. Kept as the media and sitemap seam so a future genuine set-to-set fold
- * has one home; a real set is never folded.
- */
-export const SET_SLUG_ALIASES: ReadonlyMap<string, string> = new Map();
-
-/**
- * Old /freestyle/sets/:slug routes for a retired concept that is not a confirmed
- * set. Whirling is not a set; the uptime whirling set is Blazing, so the old
- * Whirling set URL lands on the Blazing page. Only the set URL moves: whirling
- * stays a body modifier, and its modifier and trick routes resolve as any
- * modifier's do. A retired nickname that names exactly one canonical set and
- * nothing else (barraging names the Furious set) redirects all its routes to that
- * set page instead, resolved ahead of this map. Only fires for slugs that are not
- * themselves a live canonical set.
- */
-export const SET_ROUTE_RETIRED_REDIRECTS: ReadonlyMap<string, string> = new Map([
-  ['whirling',    '/freestyle/sets/blazing'],
-]);

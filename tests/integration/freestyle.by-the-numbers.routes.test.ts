@@ -38,6 +38,11 @@ beforeAll(async () => {
     slug: 'zeta_furious', canonical_name: 'Zeta Furious',
     operational_notation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > SAME OUT [DEX] > SAME TOE', adds: '5', is_active: 1,
   });
+  // Retired, and ending on a clipper: it must not count toward the surface bar.
+  insertFreestyleTrick(db, {
+    slug: 'zeta_retired_clipper', canonical_name: 'Zeta Retired Clipper',
+    operational_notation: 'TOE > OP IN [DEX] > OP CLIP', adds: '3', is_active: 0,
+  });
   db.close();
   createApp = await importApp();
 });
@@ -55,6 +60,20 @@ describe('GET /freestyle/by-the-numbers', () => {
     }
     expect(res.text).toContain('Clipper Stall');
     expect(res.text).toContain('Toe Stall');
+  });
+
+  it('counts each catch surface live: the active tricks whose notation finishes on it', async () => {
+    // Defect caught: the surface bars show a fixed figure that no longer
+    // matches the dictionary, or count a retired trick or a trick that only
+    // starts on the surface. Seeded: one active trick finishes on a clipper,
+    // three on a toe; a retired one finishes on a clipper; two start on one.
+    const res = await page('/freestyle/by-the-numbers');
+    const barCount = (label: string): string | undefined =>
+      res.text.match(new RegExp(
+        `by-numbers-bar-label">${label}</span>[\\s\\S]*?by-numbers-bar-count">(\\d+)<`,
+      ))?.[1];
+    expect(barCount('Clipper Stall')).toBe('1');
+    expect(barCount('Toe Stall')).toBe('3');
   });
 
   it('links each drill-down card to its view and leaves only the dexterity card unlinked', async () => {

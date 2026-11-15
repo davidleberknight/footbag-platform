@@ -543,14 +543,3 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
   // `inspinning` modifier-vocabulary decision.
 ];
 
-/**
- * Filter observational entries by status. Useful for the surface to
- * render only pending-review entries (the default view); other surfaces
- * could later filter to pending-canonicalization or rejected as
- * separate sub-views.
- */
-export function listObservationalByStatus(
-  status: ObservationalStatus,
-): readonly ObservationalTrick[] {
-  return OBSERVATIONAL_TRICKS.filter(t => t.status === status);
-}

@@ -96,7 +96,7 @@ const SYMBOLIC_SPECS: ReadonlyArray<readonly [string, string, readonly string[]]
     ['crosslink_id', 'term_a', 'term_b', 'relationship', 'cluster', 'source', 'notes', 'educational_value']],
 ];
 
-function parseQuotedCsv(text: string): string[][] {
+export function parseQuotedCsv(text: string): string[][] {
   const rows: string[][] = [];
   let field = '', row: string[] = [], q = false, i = 0;
   while (i < text.length) {

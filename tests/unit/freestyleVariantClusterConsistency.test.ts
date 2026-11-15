@@ -9,7 +9,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 
-import { CORE_TRICK_SPEC } from '../../src/content/freestyleLandingContent';
+import { committedNotation } from '../fixtures/committedNotation';
 import { STAGED_FAMILIES } from '../../freestyle/inputs/curator_content/freestyleFamilies';
 import { STAGED_REFERENCE_ENTRIES as OPERATOR_REFERENCE_ENTRIES } from '../fixtures/stagedOperatorReference';
 import { COMPOUND_SEMANTIC_DESCRIPTIONS } from '../../freestyle/inputs/curator_content/freestyleSemanticOverridesData';
@@ -17,8 +17,7 @@ import { MODIFIER_BEGINNER_NOTES } from '../../freestyle/inputs/curator_content/
 
 describe('osis renders one either-side catch model', () => {
   it('the core-atom spec catches on an either-side SAME/OP clipper', () => {
-    const osis = CORE_TRICK_SPEC.find(s => s.slug === 'osis');
-    expect(osis?.operationalNotation).toContain('SAME/OP CLIP');
+    expect(committedNotation('osis')).toContain('SAME/OP CLIP');
   });
 });
 

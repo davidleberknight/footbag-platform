@@ -21,6 +21,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { committedNotation } from '../fixtures/committedNotation';
 
 const read = (rel: string) => readFileSync(join(process.cwd(), rel), 'utf8');
 
@@ -28,7 +29,6 @@ const START = read('src/views/freestyle/start.hbs');
 // The family text: the family roster the family pages read.
 const GLOSSARY = read('freestyle/inputs/curator_content/freestyleFamilies.ts');
 const RED_CORR = read('freestyle/inputs/curated/tricks/red_corrections_2026_04_20.csv');
-const LANDING = read('src/content/freestyleLandingContent.ts');
 
 const OPP_TOE = /opposite[- ](toe|foot)/i;
 
@@ -53,10 +53,9 @@ function resolveCatchFoot(markers: ('OP' | 'SAME')[]): Foot {
 }
 
 function notationFor(slug: string): string {
-  const re = new RegExp(`slug:\\s*'${slug}'[\\s\\S]*?operationalNotation:\\s*'([^']+)'`);
-  const m = LANDING.match(re);
-  if (!m) throw new Error(`no operationalNotation found for ${slug}`);
-  return m[1];
+  const notation = committedNotation(slug);
+  if (!notation) throw new Error(`no committed operational notation for ${slug}`);
+  return notation;
 }
 const sideMarkers = (n: string) => (n.match(/\b(OP|SAME)\b/g) ?? []) as ('OP' | 'SAME')[];
 const dexDirection = (n: string) => (n.match(/\b(IN|OUT)\b/)?.[1] ?? '') as 'IN' | 'OUT' | '';

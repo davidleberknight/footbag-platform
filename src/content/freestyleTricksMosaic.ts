@@ -31,20 +31,6 @@ export const TRICKS_MOSAIC: readonly MosaicAtom[] = [
   { slug: 'swirl',            label: 'Swirl' },
 ];
 
-/**
- * Editorial policy: a foundation cell exposes a "Learn" link to its page only when
- * that page rewards the click. Defer only bare stub destinations that do not reward
- * curiosity; a foundation that resolves to a real page (including a compact family
- * page) is always linked. All twelve foundations currently resolve to a real page, so
- * none are withheld; the rule stands here so a future stub can be deferred by adding
- * its slug. This is an editorial rule, not business logic, so it lives beside the
- * foundation data.
- */
-export function isFoundationLinkReady(slug: string): boolean {
-  const STUB_DESTINATIONS = new Set<string>();
-  return !STUB_DESTINATIONS.has(slug);
-}
-
 /** True when the mosaic covers exactly the canonical core atoms, in any order. */
 export function mosaicMatchesCoreAtoms(): boolean {
   const slugs = new Set(TRICKS_MOSAIC.map(a => a.slug));

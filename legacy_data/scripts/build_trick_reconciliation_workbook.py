@@ -49,7 +49,6 @@ FBORG_DIR = REPO_ROOT / "exploration" / "fborg"
 PB_PATH   = REPO_ROOT / "legacy_data" / "inputs" / "curated" / "tricks" / "passback-dicrionary.txt"
 FM_DIR    = REPO_ROOT / "legacy_data" / "inputs" / "curated" / "tricks"
 
-CORE_TRICK_SPEC_PATH       = REPO_ROOT / "src" / "content" / "freestyleLandingContent.ts"
 SYMBOLIC_EQUIVALENCES_PATH = REPO_ROOT / "src" / "content" / "freestyleSymbolicEquivalences.ts"
 RESOLVED_FORMULAS_PATH     = REPO_ROOT / "src" / "content" / "freestyleResolvedFormulas.ts"
 
@@ -383,20 +382,6 @@ def load_ifpa_db_rows() -> dict[str, dict]:
         rows[r["slug"]] = dict(r)
     con.close()
     return rows
-
-
-def load_core_trick_spec() -> dict[str, str]:
-    """Slug → curator-authored operational notation. Regex-parses the TS module."""
-    text = CORE_TRICK_SPEC_PATH.read_text(encoding="utf-8")
-    result = {}
-    # Match each entry on one line: { slug: 'X', ..., operationalNotation: 'Y' }
-    pattern = re.compile(
-        r"\{\s*slug:\s*'([^']+)'.*?operationalNotation:\s*'([^']+)'\s*\}",
-        re.DOTALL,
-    )
-    for m in pattern.finditer(text):
-        result[m.group(1)] = m.group(2)
-    return result
 
 
 def load_symbolic_equivalences() -> dict[str, list[str]]:
@@ -1044,7 +1029,6 @@ def derive_add_math(
 def build_row(
     slug: str,
     db_rows: dict[str, dict],
-    core_specs: dict[str, str],
     chains: dict[str, list[str]],
     resolved: dict[str, dict],
     fborg: dict[str, dict],
@@ -1083,9 +1067,8 @@ def build_row(
             db_rows,
         )
         ifpa_compact_notation = derived if derived else ""
-    # Full movement formula = curator-authored op-notation for atoms;
-    # DB operational_notation column otherwise.
-    ifpa_full_formula = core_specs.get(slug) or (db["operational_notation"] if db and db.get("operational_notation") else "")
+    # Full movement formula = the row's operational_notation column.
+    ifpa_full_formula = db["operational_notation"] if db and db.get("operational_notation") else ""
     # Job-style operational notation = Ben Job 1995 grammar form (distinct
     # from ATAM full formula). Curator-paced authoring; mostly empty initially.
     # No source layer currently authors Job-style; leave blank pending
@@ -1513,7 +1496,6 @@ def main() -> int:
     db_aliases      = load_db_aliases(DB_PATH)
     db_modifier_links = load_db_modifier_links(DB_PATH)
     modifier_table  = load_db_modifiers(DB_PATH)
-    core_specs      = load_core_trick_spec()
     chains      = load_symbolic_equivalences()
     resolved    = load_resolved_formulas()
     fborg       = parse_fborg_all()
@@ -1530,7 +1512,7 @@ def main() -> int:
     full_scope = sorted(all_active_slugs | placeholder_slugs)
 
     rows = [
-        build_row(slug, db_rows, core_specs, chains, resolved, fborg, pb_rows, fm,
+        build_row(slug, db_rows, chains, resolved, fborg, pb_rows, fm,
                   db_aliases, db_modifier_links, modifier_table)
         for slug in full_scope
     ]
@@ -1568,7 +1550,6 @@ def main() -> int:
     print()
     print(f"IFPA DB active rows loaded:        {len(db_rows)}")
     print(f"IFPA DB aliases loaded:            {sum(len(v) for v in db_aliases.values())} ({len(db_aliases)} tricks)")
-    print(f"IFPA core-trick spec entries:      {len(core_specs)}")
     print(f"IFPA chain readings loaded:        {len(chains)}")
     print(f"IFPA resolved-formula entries:     {len(resolved)}")
     print(f"footbag.org entries parsed:        {len(fborg)}")
