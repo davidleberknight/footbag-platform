@@ -729,6 +729,16 @@ export interface FreestyleLandingContent {
 // The six next-step lessons at the end of the getting-started page.
 const START_NEXT_STEPS_HREF = '/freestyle/start#next-steps';
 
+// Where the trick dictionary lists a family's tricks. The family view gives a
+// section of its own (id="family-{slug}") only to a family parent; a minor
+// lineage shares one band whose entry links its family-filtered dictionary, so
+// any other family goes there, never to a section the view does not render.
+function familyBrowseHref(slug: string): string {
+  return familyTier(slug) === 'family-parent'
+    ? `/freestyle/tricks?view=family#family-${slug}`
+    : `/freestyle/tricks?family=${encodeURIComponent(slug)}`;
+}
+
 // Getting-started page content: the frame's copy is in the template; the
 // service supplies the six next-step lessons that close it.
 export interface StartPageContent {
@@ -1312,7 +1322,7 @@ export interface FreestyleTrickContent {
   // confirmed when the family carries a shared-structure line.
   familyAnchorContext: {
     familyName:        string;       // e.g. "Whirl"
-    familyBrowseHref:  string;       // /freestyle/tricks?view=family#family-{slug}
+    familyBrowseHref:  string;       // where the dictionary lists the family's tricks
   } | null;
   // Reverse-pair transform overlay.
   // Populated only for the five curator-locked reverse-direction
@@ -2261,7 +2271,7 @@ export interface FreestyleFamilyDetailContent {
   // The family's lowest-ADD members, in ADD order: where a newcomer starts.
   exampleTricks: FamilyDetailMemberLink[];
   memberCount: number;             // every member, not only the examples shown
-  allTricksHref: string;           // /freestyle/tricks?view=family#family-{slug}
+  allTricksHref: string;           // where the dictionary lists the family's tricks
   siblingFamilies: { name: string; href: string }[];
 }
 
@@ -6104,7 +6114,7 @@ export const freestyleService = {
                   + effectiveFamilySlug.slice(1).replace(/[-_]/g, ' '));
             return {
               familyName,
-              familyBrowseHref: `/freestyle/tricks?view=family#family-${effectiveFamilySlug}`,
+              familyBrowseHref: familyBrowseHref(effectiveFamilySlug),
             };
           })(),
         };
@@ -6639,7 +6649,7 @@ export const freestyleService = {
         slug:  g.familySlug,
         name:  g.familyName,
         count: g.cards.length,
-        href:  `/freestyle/tricks?family=${encodeURIComponent(g.familySlug)}`,
+        href:  familyBrowseHref(g.familySlug),
       }));
     // Family-view jump index: anchor chips for the first-class family sections,
     // split into root vs derived-branch (branchParentName != null) so a reader
@@ -7853,7 +7863,7 @@ export const freestyleService = {
     const branchParent = parentSlug
       ? {
           name: familyParentLabels().get(slug) ?? familyLabelOf(parentSlug),
-          href: familyPageHref(parentSlug) ?? `/freestyle/tricks?view=family#family-${parentSlug}`,
+          href: familyPageHref(parentSlug) ?? familyBrowseHref(parentSlug),
         }
       : null;
 
@@ -7894,7 +7904,7 @@ export const freestyleService = {
         howToRecognize:       [...(record?.howToRecognize ?? [])],
         exampleTricks,
         memberCount:   memberCards.length,
-        allTricksHref: `/freestyle/tricks?view=family#family-${slug}`,
+        allTricksHref: familyBrowseHref(slug),
         siblingFamilies,
       },
     };

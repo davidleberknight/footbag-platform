@@ -10,7 +10,9 @@
  * Contract under test:
  *   - whirl, butterfly, mirage, osis trick-detail pages all render the
  *     family-anchor callout
- *   - Cross-link points to /freestyle/tricks?view=family#family-{slug}
+ *   - Cross-link points to /freestyle/tricks?view=family#family-{slug} for a
+ *     family parent, and to the family-filtered dictionary for a minor lineage,
+ *     whose family-view band has no section of its own
  *   - Each page's existing first-class Notation summary still renders
  *     (regression on FIRST_CLASS_TIER_1 + ATOMIC_FLAG_DECOMPOSITIONS)
  *   - A non-anchor trick (paradox-mirage) does NOT render the callout
@@ -101,6 +103,36 @@ beforeAll(async () => {
     notation: 'PARADOX MIRAGE',
   });
   insertFreestyleTrickModifierLink(db, 'paradox_mirage', 'paradox', 1);
+  // A third member each for whirl, butterfly and osis: the family view gives a
+  // family its own section only from three active tricks, as every real family
+  // parent has, so a two-trick family would have no section to link to.
+  insertTrickAsRebuilt(db, {
+    slug: 'spinning_whirl', canonical_name: 'spinning whirl', base_trick: 'whirl',
+    trick_family: 'whirl', category: 'compound', adds: '4', is_active: 1,
+    notation: 'SPINNING WHIRL',
+  });
+  insertTrickAsRebuilt(db, {
+    slug: 'dimwalk', canonical_name: 'dimwalk', base_trick: 'butterfly',
+    trick_family: 'butterfly', category: 'compound', adds: '4', is_active: 1,
+    notation: 'PIXIE BUTTERFLY',
+  });
+  insertTrickAsRebuilt(db, {
+    slug: 'paradox_osis', canonical_name: 'paradox osis', base_trick: 'osis',
+    trick_family: 'osis', category: 'compound', adds: '4', is_active: 1,
+    notation: 'PARADOX OSIS',
+  });
+  // Reverse whirl anchors a minor lineage that carries a shared-structure line,
+  // so its page shows the callout although the family view gives it no section.
+  insertTrickAsRebuilt(db, {
+    slug: 'rev_whirl', canonical_name: 'Reverse Whirl', base_trick: 'rev_whirl',
+    trick_family: 'rev_whirl', category: 'dex', adds: '3', is_active: 1,
+    notation: 'REVERSE WHIRL',
+  });
+  insertTrickAsRebuilt(db, {
+    slug: 'paradox_rev_whirl', canonical_name: 'paradox reverse whirl', base_trick: 'rev_whirl',
+    trick_family: 'rev_whirl', category: 'compound', adds: '4', is_active: 1,
+    notation: 'PARADOX REVERSE WHIRL',
+  });
   insertTrickAsRebuilt(db, {
     slug: 'spinning_osis', canonical_name: 'spinning osis', base_trick: 'osis',
     trick_family: 'osis', category: 'compound', adds: '4', is_active: 1,
@@ -124,6 +156,39 @@ describe('family-anchor callout on flagship trick-detail pages', () => {
       // the escaped form that actually appears in the HTTP response body.
       expect(res.text, slug).toContain(`/freestyle/tricks?view&#x3D;family#family-${slug}`);
     }
+  });
+});
+
+describe('every family-anchor callout lands on something its target page renders', () => {
+  // The callout's link that the template writes, with Handlebars' escaping
+  // of "=" undone so it can be requested.
+  const calloutHref = (html: string): string => {
+    const start = html.indexOf('class="trick-family-anchor-callout"');
+    expect(start, 'no family-anchor callout').toBeGreaterThan(-1);
+    const m = html.slice(start).match(/<a href="([^"]+)">/);
+    expect(m, 'the callout carries no link').not.toBeNull();
+    return m![1]!.replace(/&#x3D;/g, '=').replace(/&amp;/g, '&');
+  };
+
+  it.each(['whirl', 'butterfly', 'mirage', 'osis', 'rev_whirl'])(
+    'the %s callout link resolves: its fragment is an id on the target, or the target lists the family',
+    async (slug) => {
+      const href = calloutHref((await page(`/freestyle/tricks/${slug}`)).text);
+      const [path, fragment] = href.split('#');
+      const target = await page(path!);
+      expect(target.status, href).toBe(200);
+      if (fragment) {
+        expect(target.text, `${href}: no element carries id="${fragment}"`).toContain(`id="${fragment}"`);
+      } else {
+        expect(target.text, `${href}: the target does not list the family's anchor trick`)
+          .toContain(`href="/freestyle/tricks/${slug}"`);
+      }
+    },
+  );
+
+  it('a minor lineage callout goes to its family-filtered dictionary, as the family view band does', async () => {
+    const href = calloutHref((await page('/freestyle/tricks/rev_whirl')).text);
+    expect(href).toBe('/freestyle/tricks?family=rev_whirl');
   });
 });
 
