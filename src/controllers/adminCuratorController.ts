@@ -35,6 +35,16 @@ import {
 import { NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { z } from 'zod';
 import { parseFormBody, formText, formOptionalText } from '../lib/parseFormBody';
+import { renderImageWorkerUnavailable, renderInvalidRequest, renderNotFound } from '../lib/controllerErrors';
+import { getMediaJobService, jobEventPayload, jobStateSnapshot } from '../services/mediaJobService';
+import { subscribeToJobEvents } from '../services/jobEventBus';
+import { config } from '../config/env';
+import {
+  FLASH_KIND, writeFlash, writeMediaSavedFlash, writeShareFlash, takeMediaSaved, takeShareFlash,
+  type FoldedTag, type ShareOutcome,
+} from '../lib/flashCookie';
+import { hashtagDiscoveryService } from '../services/hashtagDiscoveryService';
+import { readMultipart, type ParsedMultipart } from '../lib/multipartForm';
 
 // The media edit form. The URL-reference fields appear only on a reference
 // row's edit page, so their absence (leave the field alone) differs from a
@@ -94,15 +104,6 @@ const signUploadBody = z.object({
   galleryPreview: z.unknown().optional(),
 });
 const finalizeUploadBody = z.object({ jobId: z.unknown().optional() });
-import { renderImageWorkerUnavailable, renderInvalidRequest, renderNotFound } from '../lib/controllerErrors';
-import { getMediaJobService, jobEventPayload, jobStateSnapshot } from '../services/mediaJobService';
-import { subscribeToJobEvents } from '../services/jobEventBus';
-import { config } from '../config/env';
-import {
-  FLASH_KIND, writeFlash, writeMediaSavedFlash, writeShareFlash, takeMediaSaved, takeShareFlash,
-  type FoldedTag, type ShareOutcome,
-} from '../lib/flashCookie';
-import { hashtagDiscoveryService } from '../services/hashtagDiscoveryService';
 
 // A consumed media-saved flash as the list pages take it: which save, and the
 // typed tags it stored folded.
@@ -111,7 +112,6 @@ function savedFlagAndFolds(saved: ReturnType<typeof takeMediaSaved>): {
 } {
   return { savedFlag: saved?.kind ?? null, savedFolded: saved?.folded ?? [] };
 }
-import { readMultipart, type ParsedMultipart } from '../lib/multipartForm';
 
 // The HTTP answer to each way a finalize can be refused. A job another admin
 // owns reads as not found, so job ids cannot be probed.
