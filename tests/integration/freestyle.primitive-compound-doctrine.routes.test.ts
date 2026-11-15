@@ -11,9 +11,6 @@
  *     re-verified here as a doctrine surface).
  *   - Compound trick-detail pages with a ratified equivalence-topology
  *     entry render the doctrine footer note inside the panel.
- *   - The Freestyle Concepts "Foundational moves and compounds" section is
- *     present at its deep-link anchor #primitives-and-compounds, in plain
- *     words, and keeps its structure-not-difficulty guardrail.
  *   - Concepts, the Glossary, ADD analysis and Sets render no
  *     visitor-facing "atom" wording.
  */
@@ -102,33 +99,6 @@ describe('Primitive vs Compound — equivalence-topology suppression on atoms', 
     const res = await page('/freestyle/tricks/whirl');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('class="content-section trick-equivalence-topology"');
-  });
-});
-
-/** The Concepts section on foundational moves and compounds, up to the next h3. */
-function foundationalSection(html: string): string {
-  const start = html.indexOf('id="primitives-and-compounds"');
-  expect(start, 'section anchor').toBeGreaterThan(-1);
-  return html.slice(start, html.indexOf('id="tracking-vs-canonization"', start));
-}
-
-describe('Foundational moves and compounds — the Freestyle Concepts section', () => {
-  it('keeps the section at its deep-link anchor, in plain words', async () => {
-    const res = await page('/freestyle/concepts');
-    expect(res.status).toBe(200);
-    const section = foundationalSection(res.text);
-    expect(section).toMatch(/Foundational moves and compounds/);
-    expect(section).toMatch(/<strong>foundational move<\/strong>/);
-    expect(section).toMatch(/<strong>compound<\/strong>/);
-    expect(section).toMatch(/compositional structure/);
-    // Points to the twelve moves themselves rather than re-listing them.
-    expect(section).toContain('href="#core-trick-atoms"');
-  });
-
-  it('keeps the guardrail that the distinction is structure, not difficulty or ADD', async () => {
-    const section = foundationalSection((await page('/freestyle/concepts')).text);
-    expect(section).toMatch(/structural claim, not a difficulty claim/);
-    expect(section).toMatch(/ontology, not difficulty or\s+scoring/);
   });
 });
 

@@ -1,16 +1,15 @@
 /**
  * Integration tests for Freestyle Concepts fragment-anchor support.
  *
- * The Concepts foundational-tricks chapter and the modifier quick-reference
- * subsection carry id="term-{slug}" anchors. Modifier-family pages deep-link
- * to the entry that teaches each term via conceptsHrefForTerm, and the retired
- * connective-panel ids still resolve inside those entries.
+ * The Concepts foundational-move list carries an id="term-{slug}" anchor on each
+ * move, and the surfaces, dexterities and timing terms carry their own. Modifier
+ * pages deep-link into Concepts via conceptsHrefForTerm, which sends a modifier to
+ * the Operators and Modifiers section and a launch set to Timing and Sets.
  *
  * Covers:
- *   - Concepts page renders id="term-X" anchors for foundational tricks
- *   - Concepts page renders id="term-X" anchors for modifier quick-reference
+ *   - Concepts page renders id="term-X" anchors for the foundational moves
  *   - Every Concepts link on the modifier pages resolves
- *   - Retired panel ids land inside their replacement entries
+ *   - Every term the anchor map knows lands on an element of the page
  *   - Fallback path: conceptsHrefForTerm returns bare URL for unknown terms
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -24,7 +23,7 @@ import {
 } from '../fixtures/testDb';
 import { seedStagedOperatorsAndModifiers } from '../fixtures/stagedOperators';
 import { insertFreestyleTrick } from '../fixtures/factories';
-import { conceptsHrefForTerm, LEGACY_PANEL_TARGETS } from '../../src/services/conceptsAnchors';
+import { conceptsHrefForTerm } from '../../src/services/conceptsAnchors';
 
 const { dbPath } = setTestEnv('3094');
 
@@ -65,22 +64,25 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('conceptsHrefForTerm (pure function)', () => {
-  it('sends each former connective-panel term to the entry that teaches it', () => {
-    expect(conceptsHrefForTerm('paradox')).toBe('/freestyle/concepts#term-paradox');
-    expect(conceptsHrefForTerm('spinning')).toBe('/freestyle/concepts#term-spinning');
-    expect(conceptsHrefForTerm('ducking')).toBe('/freestyle/concepts#term-ducking');
-    expect(conceptsHrefForTerm('symposium')).toBe('/freestyle/concepts#term-symposium');
-    expect(conceptsHrefForTerm('whirl')).toBe('/freestyle/concepts#term-whirl');
-    // Pixie is defined as a launch set in Timing & Sets, not on its one-line card.
-    expect(conceptsHrefForTerm('pixie')).toBe('/freestyle/concepts#term-set-launches');
+  it('sends a modifier to the Operators and Modifiers section and a launch set to Timing and Sets', () => {
+    for (const modifier of ['paradox', 'spinning', 'ducking', 'symposium', 'stepping', 'cross-body']) {
+      expect(conceptsHrefForTerm(modifier), modifier).toBe('/freestyle/concepts#section-modifiers');
+    }
+    expect(conceptsHrefForTerm('pixie')).toBe('/freestyle/concepts#section-timing-sets');
+    expect(conceptsHrefForTerm('fairy')).toBe('/freestyle/concepts#section-timing-sets');
   });
 
-  it('returns §10 / §3 inline-term URL for foundational + modifier terms', () => {
+  it('sends a foundational move or the clipper surface to its own term anchor', () => {
     expect(conceptsHrefForTerm('butterfly')).toBe('/freestyle/concepts#term-butterfly');
+    expect(conceptsHrefForTerm('whirl')).toBe('/freestyle/concepts#term-whirl');
     expect(conceptsHrefForTerm('clipper')).toBe('/freestyle/concepts#term-clipper');
     expect(conceptsHrefForTerm('mirage')).toBe('/freestyle/concepts#term-mirage');
-    expect(conceptsHrefForTerm('stepping')).toBe('/freestyle/concepts#term-stepping');
-    expect(conceptsHrefForTerm('cross-body')).toBe('/freestyle/concepts#term-cross-body');
+  });
+
+  it('sends every written form of Jobs notation to the notation subsection', () => {
+    for (const form of ['jobs-notation', 'job-notation', 'job notation', 'jobs notation']) {
+      expect(conceptsHrefForTerm(form), form).toBe('/freestyle/concepts#jobs-notation');
+    }
   });
 
   it('resolves around-the-world to its underscore anchor in every written form', () => {
@@ -98,7 +100,7 @@ describe('conceptsHrefForTerm (pure function)', () => {
   });
 
   it('is case-insensitive and trims whitespace', () => {
-    expect(conceptsHrefForTerm('  Paradox  ')).toBe('/freestyle/concepts#term-paradox');
+    expect(conceptsHrefForTerm('  Paradox  ')).toBe('/freestyle/concepts#section-modifiers');
     expect(conceptsHrefForTerm('BUTTERFLY')).toBe('/freestyle/concepts#term-butterfly');
   });
 });
@@ -121,13 +123,6 @@ describe('GET /freestyle/concepts — fragment anchors render', () => {
     expect(res.text).toContain('id="term-osis"');
     expect(res.text).toContain('id="term-around_the_world"');
     expect(res.text).toContain('id="term-orbit"');
-  });
-
-  it('preserves id="term-pixie" and id="term-fairy" anchors in the set-modifiers subsection (cross-link integrity)', async () => {
-    const res = await page('/freestyle/concepts');
-    expect(res.text).toContain('id="set-modifiers-tier-1"');
-    expect(res.text).toContain('id="term-pixie"');
-    expect(res.text).toContain('id="term-fairy"');
   });
 
   it('renders id="term-set-realization" and id="term-standalone-realization" anchors for the two set-role definitions', async () => {
@@ -163,20 +158,6 @@ describe('GET /freestyle/concepts — fragment anchors render', () => {
     expect(targets.length).toBeGreaterThan(0);
     const dead = [...new Set(targets.filter(t => !ids.has(t)))];
     expect(dead, `fragment links with no target: ${dead.join(', ')}`).toEqual([]);
-  });
-
-  it('renders id="term-X" on the §3 modifier quick-reference subsection', async () => {
-    const res = await page('/freestyle/concepts');
-    expect(res.text).toContain('id="modifier-reference"');
-    expect(res.text).toContain('id="term-stepping"');
-    expect(res.text).toContain('id="term-paradox"');
-    expect(res.text).toContain('id="term-spinning"');
-    expect(res.text).toContain('id="term-symposium"');
-    expect(res.text).toContain('id="term-cross-body"');
-    // Ducking's term-anchor lives with its foundational duck-direction family
-    // (ducking / weaving / diving / zulu); the §6 body-modifier entry delegates
-    // to the connective panel rather than carrying a second term-ducking anchor.
-    expect(res.text).toContain('id="term-ducking"');
   });
 
   it('relative-side subsection explains SAME / OP / paradox coexistence and that OP is not X-Dex', async () => {
@@ -238,25 +219,14 @@ describe('deep links into Concepts land on an element of the Concepts page', () 
       expect(ids.has(fragment!), `${term} → #${fragment} is not on the page`).toBe(true);
     }
   });
-
-  it('each retired connective-panel id still lands inside the entry that replaced it', async () => {
-    // Bookmarks and outside links still carry the old panel ids.
-    const res = await page('/freestyle/concepts');
-    for (const [legacyId, target] of LEGACY_PANEL_TARGETS) {
-      const pattern = new RegExp(`id="${target}"[^>]*>\\s*<span id="${legacyId}"></span>`);
-      expect(res.text, `${legacyId} inside #${target}`).toMatch(pattern);
-    }
-  });
 });
 
 describe('Concepts trick links use canonical underscore slugs (no dead hyphenated links)', () => {
-  // The X-Dex term, the equivalence readings, and the whirl-mirror-pair note
-  // hand-author these trick links in the template; a hyphenated slug never
-  // resolves. Each of these must render as the canonical underscore slug.
+  // The X-Dex term and the worked examples hand-author these trick links in the
+  // template; a hyphenated slug never resolves. Each of these must render as the
+  // canonical underscore slug.
   const UNDERSCORE_TARGETS = [
-    'atom_smasher', 'atomic_miraging_butterfly', 'dada_curve', 'double_leg_over',
-    'gyro_ducking_symposium_torque', 'gyro_whirl', 'hop_over', 'paradox_whirl',
-    'quantum_illusion', 'quantum_mirage', 'rev_whirl', 'spinning_whirl', 'walk_over',
+    'atom_smasher', 'atomic_miraging_butterfly', 'quantum_mirage',
   ];
 
   it('links the template tricks by their canonical underscore slug', async () => {

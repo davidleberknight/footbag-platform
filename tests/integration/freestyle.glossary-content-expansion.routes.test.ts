@@ -3,23 +3,11 @@
  *
  * Long-term contract pinned:
  *
- *   §3 (Dexterities): adds a "Direction" subsection with in-dex / out-dex
- *      vocabulary. Pairs with set primitives (pixie/quantum vs atomic/fairy).
+ *   Dexterities: the in-dex / out-dex direction vocabulary keeps its term
+ *      anchors.
  *
- *   §7 (Symbolic Notation): opens with a visible glyph quick-reference
- *      strip rendered from content.operatorBoard.tiers (three tiers,
- *      one cell per operator).
- *
- *   §8 (Composition & Decomposition): adds a walking-family progression
- *      callout with seven canonical compounds branching off the butterfly
- *      base.
- *
- *   §9 (Movement Topologies): section intro explicitly frames the panels
- *      as a representative selection, not comprehensive coverage.
- *
- *   §12 (Sources): names six source families (footbag.org / PassBack /
- *      footbagmoves.com / AnzTrikz / TT YouTube / WFA-NHSA historical)
- *      with no individual contributors named inline.
+ *   Sources: names the source families with no individual contributors
+ *      named inline.
  *
  *   Landing page: the "Educational pathways →" chip is removed from the
  *      Tutorials & Learning card.
@@ -49,7 +37,7 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('Freestyle Concepts §3 — Direction subsection', () => {
+describe('Freestyle Concepts — Direction vocabulary', () => {
   it('renders the in-dex term anchor and definition', async () => {
     const res = await page('/freestyle/concepts');
     expect(res.status).toBe(200);
@@ -64,76 +52,9 @@ describe('Freestyle Concepts §3 — Direction subsection', () => {
     expect(res.text).toMatch(/Out-dex/);
   });
 
-  it('renders the rev(0) direction-reversal explainer naming its base pairs', async () => {
-    const res = await page('/freestyle/concepts');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('id="term-rev-zero"');
-    expect(res.text).toMatch(/rev\(0\)/);
-    // names the reverse-pair relationship (illusion is rev(0) mirage)
-    expect(res.text).toMatch(/illusion[\s\S]{0,80}reverse[\s\S]{0,40}mirage/i);
-    // and the curator-ruled modifier-layer instance
-    expect(res.text).toMatch(/illusioning[\s\S]{0,40}miraging/i);
-  });
-
-  it('positions the Direction subsection between Motion style and Execution window', async () => {
-    const res = await page('/freestyle/concepts');
-    const motionIdx    = res.text.indexOf('>Motion style<');
-    const directionIdx = res.text.indexOf('>Direction<');
-    const windowIdx    = res.text.indexOf('>Execution window<');
-    expect(motionIdx).toBeGreaterThan(0);
-    expect(directionIdx).toBeGreaterThan(motionIdx);
-    expect(windowIdx).toBeGreaterThan(directionIdx);
-  });
 });
 
-describe('Freestyle Concepts §7 — visible glyph quick-reference', () => {
-  it('renders the glyph quick-reference container at the top of §7', async () => {
-    const res = await page('/freestyle/concepts');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('class="glossary-glyph-quickref"');
-  });
-
-  it('renders all three operator-board tier strips inside the quick-reference', async () => {
-    const res = await page('/freestyle/concepts');
-    expect(res.text).toContain('glossary-glyph-quickref-tier--set');
-    expect(res.text).toContain('glossary-glyph-quickref-tier--body');
-    expect(res.text).toContain('glossary-glyph-quickref-tier--structural');
-  });
-
-  it('renders the key operator glyphs inside the quick-reference', async () => {
-    // Spot-check a representative glyph from each tier. The exact count is
-    // operator-board-cell-count (13), pinned in the portal
-    // test file; here we just verify the cohort is present.
-    const res = await page('/freestyle/concepts');
-    expect(res.text).toMatch(/glossary-glyph-quickref-glyph">PIX</);
-    expect(res.text).toMatch(/glossary-glyph-quickref-glyph">SPIN</);
-    expect(res.text).toMatch(/glossary-glyph-quickref-glyph">XBODY</);
-  });
-
-  it('positions the quick-reference BEFORE the prose explainer', async () => {
-    const res = await page('/freestyle/concepts');
-    const quickrefIdx = res.text.indexOf('class="glossary-glyph-quickref"');
-    const proseIdx    = res.text.indexOf('The longer you stack operators on a base');
-    expect(quickrefIdx).toBeGreaterThan(0);
-    expect(proseIdx).toBeGreaterThan(quickrefIdx);
-  });
-});
-
-describe('Freestyle Concepts — the family worked example', () => {
-  it('keeps its deep-link anchor and hands the progression to the Butterfly family page', async () => {
-    // The Butterfly family page owns that family's progression, so Concepts names
-    // it as the worked example rather than repeating the ladder.
-    const res = await page('/freestyle/concepts');
-    const start = res.text.indexOf('id="walking-family-progression"');
-    expect(start).toBeGreaterThan(-1);
-    const block = res.text.slice(start, res.text.indexOf('</p>', start));
-    expect(block).toContain('href="/freestyle/families/butterfly"');
-    expect(res.text).not.toContain('glossary-walking-family-progression');
-  });
-});
-
-
-describe('Freestyle Concepts §12 — named source families', () => {
+describe('Freestyle Concepts — named source families', () => {
   it('renders the source-families list', async () => {
     const res = await page('/freestyle/concepts');
     expect(res.text).toContain('class="glossary-sources-list"');

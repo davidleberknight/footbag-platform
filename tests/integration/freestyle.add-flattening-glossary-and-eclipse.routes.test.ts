@@ -1,14 +1,7 @@
 /**
- * ADD-flattening Freestyle Concepts note and eclipse: routes and rendering.
+ * Eclipse and the curator-ruled boundary rows: routes and rendering.
  *
- * Two concerns:
- *
- * 1. The Freestyle Concepts ADD Accounting chapter carries an advanced-tier note
- *    explaining that historically-assigned ADD values can flatten
- *    execution-difficulty differences. The held-stall leg-over family
- *    (hop-over / walk-over / wrap) is the worked example.
- *
- * 2. Eclipse trick: curator-supplied operational notation
+ * Eclipse trick: curator-supplied operational notation
  *    (`SET > (jump) [BOD] > SAME or OP INSIDE [DEL] > OP OUT [DEX] > (land)`)
  *    applied via red_corrections + RESOLVED_FORMULAS overlay. Eclipse is
  *    now in FIRST_CLASS_TIER_2 so its browse card renders JOB + ADD.
@@ -85,30 +78,6 @@ beforeAll(async () => {
 });
 
 afterAll(() => cleanupTestDb(dbPath));
-
-describe('Freestyle Concepts ADD Accounting — ADD-flattening note', () => {
-  it('/freestyle/concepts renders the advanced-tier ADD-flattening note in the ADD Accounting section', async () => {
-    const res = await page('/freestyle/concepts');
-    expect(res.status).toBe(200);
-    // The ADD Accounting section anchor must be present
-    expect(res.text).toContain('id="section-add-accounting"');
-    // The new advanced-tier summary phrase
-    expect(res.text).toContain('ADD value can flatten execution difficulty');
-  });
-
-  it('the note cites hop-over / walk-over / wrap as the 2-ADD held-stall leg-over family example', async () => {
-    const res = await page('/freestyle/concepts');
-    expect(res.text).toMatch(/hop-over[\s\S]*walk-over[\s\S]*wrap/);
-    // Allow whitespace (incl. newlines from HTML wrapping) between tokens
-    expect(res.text).toMatch(/held-stall\s+leg-over chassis/);
-  });
-
-  it('the note preserves the doctrine framing (historical ADD stays canonical; structural / mechanical relationships discussed separately)', async () => {
-    const res = await page('/freestyle/concepts');
-    expect(res.text).toContain('preserves historical ADD doctrine');
-    expect(res.text).toContain('structural and mechanical relationships');
-  });
-});
 
 describe('Eclipse — curator-supplied operational notation', () => {
   it('/freestyle/tricks/eclipse renders the curator-supplied op-notation tokens', async () => {
@@ -195,23 +164,5 @@ describe('Curator rulings — double-knee + peak-stall + multi-bag doctrine', ()
     const res = await page('/freestyle/tricks/2-bag-juggling');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">2 ADD<\/span>/);
-  });
-});
-
-describe('Freestyle Concepts ADD Accounting — multi-bag governing rule', () => {
-  it('/freestyle/concepts renders the multi-bag boundary-doctrine note in the ADD Accounting section', async () => {
-    const res = await page('/freestyle/concepts');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Multi-bag governing rule');
-    expect(res.text).toContain('one additional ADD for each');
-    // The illustrative examples (2-bag, 3-bag JOB forms)
-    expect(res.text).toMatch(/TOE &gt; TOE/);
-    // Boundary-object framing
-    expect(res.text).toContain('boundary object');
-  });
-
-  it('the multi-bag note explicitly notes the single-bag dictionary views do NOT classify multi-bag rows', async () => {
-    const res = await page('/freestyle/concepts');
-    expect(res.text).toMatch(/single-bag\s+dictionary\s+views[^<]*do\s+not\s+classify/);
   });
 });

@@ -1,7 +1,7 @@
 /**
- * Cross-surface consistency for variant clusters. The trick page, the family
- * card, the core-atom notation spec, the operator reference, the teaching prose,
- * and the modifier seed notes must not disagree about the same move. These guard
+ * Cross-surface consistency for variant clusters. The trick page, the core-atom
+ * notation spec, the operator reference, the family teaching text, and the
+ * modifier seed notes must not disagree about the same move. These guard
  * the rulings that osis is genuinely either-side, that around-the-world is the
  * inward circle and orbit its reverse, that furious and barraging are distinct,
  * that atomic and illusioning are distinct, and that miraging is not a set.
@@ -10,40 +10,15 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 
 import { CORE_TRICK_SPEC } from '../../src/content/freestyleLandingContent';
-import { ROOT_TERMINAL_FAMILIES, BRANCH_FAMILIES } from '../../src/content/freestyleGlossaryFamilyCards';
 import { STAGED_FAMILIES } from '../../freestyle/inputs/curator_content/freestyleFamilies';
 import { STAGED_REFERENCE_ENTRIES as OPERATOR_REFERENCE_ENTRIES } from '../fixtures/stagedOperatorReference';
 import { COMPOUND_SEMANTIC_DESCRIPTIONS } from '../../freestyle/inputs/curator_content/freestyleSemanticOverridesData';
 import { MODIFIER_BEGINNER_NOTES } from '../../freestyle/inputs/curator_content/freestyleStructuralFactNotes';
-import { GLOSSARY_CORE_CONCEPTS } from '../../src/content/freestyleGlossaryCoreConcepts';
 
-const cardBySlug = new Map(
-  [...ROOT_TERMINAL_FAMILIES, ...BRANCH_FAMILIES].map(c => [c.slug, c]),
-);
-
-describe('core atom family card matches its core atom notation spec', () => {
-  it('every core atom that also has a family card shows the identical formula on both', () => {
-    const checked: string[] = [];
-    for (const spec of CORE_TRICK_SPEC) {
-      const card = cardBySlug.get(spec.slug);
-      if (!card) continue;
-      checked.push(spec.slug);
-      expect(card.canonicalFormula, `${spec.slug}: family card formula must equal the core-atom spec`)
-        .toBe(spec.operationalNotation);
-    }
-    // The parity check must actually exercise the reconciled atoms, not silently
-    // skip them all.
-    expect(checked).toEqual(expect.arrayContaining(['whirl', 'swirl', 'osis', 'butterfly']));
-  });
-});
-
-describe('osis renders one either-side catch model everywhere', () => {
+describe('osis renders one either-side catch model', () => {
   it('the core-atom spec catches on an either-side SAME/OP clipper', () => {
     const osis = CORE_TRICK_SPEC.find(s => s.slug === 'osis');
     expect(osis?.operationalNotation).toContain('SAME/OP CLIP');
-  });
-  it('the osis family card shows the same either-side catch', () => {
-    expect(cardBySlug.get('osis')?.canonicalFormula).toContain('SAME/OP CLIP');
   });
 });
 
@@ -63,11 +38,6 @@ describe('furious is not presented as the same thing as barraging', () => {
   it('the furious modifier note does not call it the barraging pattern', () => {
     const note = MODIFIER_BEGINNER_NOTES.get('furious') ?? '';
     expect(note.toLowerCase()).not.toContain('barraging pattern');
-  });
-  it('no glossary core concept calls barrage and furious the same structure named twice', () => {
-    const joined = GLOSSARY_CORE_CONCEPTS.map(c => c.relates).join(' ').toLowerCase();
-    expect(joined).not.toContain('named twice');
-    expect(joined).not.toContain('same two-dex structure');
   });
 });
 

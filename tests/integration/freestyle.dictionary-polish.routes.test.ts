@@ -93,11 +93,4 @@ describe('Torque teaches the canonical set as its scoring label, not the nicknam
     expect(html).not.toContain('miraging + osis');
     expect(html).not.toContain('miraging(+1) + osis(3)');
   });
-
-  it('Freestyle Concepts compression table reads Torque as Quantum Osis', async () => {
-    const res = await request(await createApp()).get('/freestyle/concepts');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('<td>Quantum Osis</td>');
-    expect(res.text).not.toContain('<td>Miraging Osis</td>');
-  });
 });

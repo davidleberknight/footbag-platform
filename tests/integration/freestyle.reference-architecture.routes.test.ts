@@ -5,8 +5,8 @@
  *                              in as a closed disclosure above the browse controls
  *   - GET /freestyle/glossary  looks up terminology: one alphabetical A to Z list
  *                              of terms with short definitions
- *   - GET /freestyle/concepts  explains concepts in depth: the chapter-based
- *                              reference, which does not carry "Reading the
+ *   - GET /freestyle/concepts  explains how the concepts fit together, in eight
+ *                              sections; it does not carry "Reading the
  *                              Dictionary" and never calls itself a glossary
  *
  * Also pins the deep-link contract: every Concepts anchor a Glossary entry
@@ -196,37 +196,31 @@ describe('GET /freestyle/glossary — the A to Z Glossary', () => {
 });
 
 describe('GET /freestyle/concepts — Freestyle Concepts', () => {
-  it('renders the renamed chapter-based resource', async () => {
+  it('renders the conceptual reference as its eight sections, each reachable from the on-page navigation', async () => {
     const html = await get('/freestyle/concepts');
     expect(html).toContain('<h1>Freestyle Concepts</h1>');
-    expect(html).toContain('<title>Footbag Freestyle Concepts</title>');
-    expect(html).toContain('id="chapter-movement-basics"');
-    expect(html).toContain('id="chapter-add-accounting"');
-    expect(html).toContain('id="section-notation"');
+    const sections = [...html.matchAll(/<section class="content-section" id="([a-z-]+)"/g)].map(m => m[1]!);
+    expect(sections).toEqual([
+      'section-core-concepts', 'section-surfaces', 'section-dexterities', 'section-timing-sets',
+      'section-modifiers', 'section-notation', 'section-composition', 'section-sources',
+    ]);
+    for (const id of sections) expect(html, `on-page link to ${id}`).toContain(`href="#${id}"`);
   });
 
-  it('opens on Movement Basics, with no "Reading the Dictionary" chapter and no link to the removed box', async () => {
+  it('carries no "Reading the Dictionary" section and no link to the removed box', async () => {
     const html = await get('/freestyle/concepts');
+    expect(html).toContain('id="section-core-concepts"');
     expect(html).not.toContain('id="chapter-reading-the-dictionary"');
     expect(html).not.toContain('id="section-reading-the-dictionary"');
-    expect(html).not.toMatch(/dict-tile-title">Reading the Dictionary</);
-    const firstChapter = html.match(/<details class="dict-tile" id="chapter-([a-z-]+)"/);
-    expect(firstChapter?.[1]).toBe('movement-basics');
     // The box does not exist on the dictionary page, so a link to it would
     // land at the top of that page with nothing to explain why.
     expect(html).not.toContain('#reading-the-dictionary');
   });
 
-  it('carries no audience-level sublabels on chapters or sections (no Beginner / Intermediate / Advanced badges)', async () => {
+  it('carries no audience-level badges on its sections', async () => {
     const html = await get('/freestyle/concepts');
+    expect(html).toContain('id="section-core-concepts"');
     expect(html).not.toContain('glossary-tier-badge');
-    expect(html).not.toMatch(/>\s*Beginner\s*<\/span>/);
-    expect(html).not.toMatch(/>\s*Intermediate\s*<\/span>/);
-    expect(html).not.toMatch(/>\s*Advanced Reference\s*<\/span>/);
-    // The chapter summaries are title + hint only.
-    const summaries = [...html.matchAll(/<summary class="dict-tile-summary">([\s\S]*?)<\/summary>/g)].map(m => m[1]!);
-    expect(summaries.length).toBeGreaterThan(5);
-    for (const s of summaries) expect(s).not.toMatch(/badge/);
   });
 
   it('never calls itself a glossary in rendered prose, and points readers at the real Glossary', async () => {

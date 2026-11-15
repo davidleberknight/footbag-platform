@@ -294,7 +294,7 @@ const CLOSING_PARAGRAPHS: readonly string[] = [
 const CROSS_LINKS: readonly AddAnalysisCrossLink[] = [
   { label: 'Trick Dictionary',                 href: '/freestyle/tricks' },
   { label: 'Freestyle Concepts: Trick Naming & Notation', href: '/freestyle/concepts#section-notation' },
-  { label: 'Freestyle Concepts: ADD Accounting',          href: '/freestyle/concepts#traditional-reference' },
+  { label: 'Freestyle Concepts: ADD Accounting',          href: '/freestyle/concepts#section-add-accounting' },
   { label: 'Freestyle History',                href: '/freestyle/history' },
 ];
 

@@ -37,10 +37,7 @@ import {
   STAGED_CORE_DEFINITIONS as TIER1_OPERATOR_DEFINITIONS,
   stagedCoreDefinition,
 } from '../fixtures/stagedOperatorReference';
-import { CORE_ATOM_EDUCATIONAL } from '../../src/content/freestyleCoreAtomEducational';
 import { CORE_TRICK_SPEC } from '../../src/content/freestyleLandingContent';
-
-const CORE_ATOM_EDUCATIONAL_BY_SLUG = new Map(CORE_ATOM_EDUCATIONAL.map((c) => [c.slug, c]));
 
 const ROOT = resolve(__dirname, '../..');
 const read = (p: string) => readFileSync(join(ROOT, p), 'utf8');
@@ -51,22 +48,9 @@ const lineWith = (text: string, needle: string): string => {
 };
 
 describe('SAME/OP are component-relative, not plant-foot relative', () => {
-  const svc = read('src/services/freestyleService.ts');
   const opRender = read('src/services/operationalNotationRendering.ts');
-  const core = read('src/content/freestyleGlossaryCoreConcepts.ts');
   const moves = read('src/views/freestyle/sets-encyclopedia.hbs');
   const concepts = read('src/views/freestyle/concepts.hbs');
-
-  it('the SS/OP short-code definitions are component-relative', () => {
-    const ss = lineWith(svc, "short: 'SS'");
-    const op = lineWith(svc, "short: 'OP'");
-    expect(ss).toMatch(/most recent side-bearing component/);
-    expect(op).toMatch(/most recent side-bearing component/);
-    expect(op).toMatch(/return to the original leg/);
-    // not defined by a fixed plant foot
-    expect(ss).not.toMatch(/plant-?foot|non-?plant/i);
-    expect(op).not.toMatch(/plant-?foot|non-?plant/i);
-  });
 
   it('operational SAME/OP token strings are component-relative, not plant-foot', () => {
     const same = lineWith(opRender, 'SAME:');
@@ -75,11 +59,6 @@ describe('SAME/OP are component-relative, not plant-foot relative', () => {
     expect(op).toMatch(/most recent side-bearing component/);
     expect(same).not.toMatch(/plant foot/);
     expect(op).not.toMatch(/plant foot/);
-  });
-
-  it('the core-concepts side line rejects the fixed-plant-leg definition', () => {
-    expect(core).toMatch(/read against the most recent side-bearing component rather than a fixed plant leg/);
-    expect(core).not.toMatch(/travels relative to your plant leg/);
   });
 
   it('the set-notation side prose and Freestyle Concepts Sides block are component-relative', () => {
@@ -112,14 +91,7 @@ describe('near and far are other names for SAME and OP on every surface that def
 });
 
 describe('[XBD] is cross-body and independent of SAME/OP', () => {
-  const concepts = read('src/views/freestyle/concepts.hbs');
   const edu = read('src/services/symbolicModifierEducation.ts');
-
-  it('the Freestyle Concepts XBD entry is independent of SAME/OP, not plant-foot opposite-side', () => {
-    expect(concepts).toMatch(/records a cross-body configuration or traversal across the body's centreline/);
-    expect(concepts).toMatch(/independent of the component's SAME\/OP relation; both SAME and OP components can be cross-body/);
-    expect(concepts).not.toMatch(/opposite-side surface from the plant foot/);
-  });
 
   it('XBD teaching copy does not share a centreline-crossing definition with paradox', () => {
     expect(edu).not.toMatch(/shares the centreline-crossing idea with paradox/);
@@ -160,12 +132,6 @@ describe('[PDX] is a paradox-relationship marker, not a direction or a fixed for
       expect(f).not.toMatch(/paradox-direction/);
     }
   });
-
-  it('the Freestyle Concepts PDX entry frames CLIP > OP IN [DEX] as an example, not the definition', () => {
-    expect(concepts).toMatch(/marks the paradox relationship on a dexterity/);
-    expect(concepts).toMatch(/is not an IN\/OUT direction/);
-    expect(concepts).toMatch(/common entry example, not the definition/);
-  });
 });
 
 describe('Tapping preserves base identity and re-authors the base side coordinate', () => {
@@ -192,9 +158,8 @@ describe('Tapping preserves base identity and re-authors the base side coordinat
 });
 
 describe('legitimate execution prose is not banned', () => {
-  it('symposium no-plant discipline and stepping plant-foot relocation copy remain', () => {
+  it('symposium no-plant discipline copy remains', () => {
     expect(stagedCoreDefinition('symposium')!.definition).toMatch(/no-plant leg discipline/);
-    expect(read('src/services/freestyleService.ts')).toMatch(/Plant foot relocates/);
   });
 });
 
@@ -332,29 +297,6 @@ describe('a set the platform has ruled on is not labelled an ordinary operator',
     expect(wrong).toEqual([]);
   });
 
-  it('the difficulty-weight table classes a ruled set as a set, not as a body operator', () => {
-    // The table carries one row per ADD-bearing operator with a class cell, and
-    // already uses "set" for stepping, whirling and atomic. A ruled set classed
-    // as body copy contradicts its own set page, which is how weaving and zulu
-    // came to read as body operators on the page that teaches scoring.
-    // Located by its own header rather than by position: the page carries
-    // several tables in the same wrapper, and one of them lists tricks whose
-    // class cell means something else entirely.
-    const concepts = read('src/views/freestyle/concepts.hbs');
-    const HEAD = '<thead><tr><th>Modifier</th><th>ADD</th><th>Class</th></tr></thead>';
-    expect(concepts.split(HEAD).length, 'the weight-table header is not unique').toBe(2);
-    const table = concepts.split(HEAD)[1]!.split('</table>')[0]!;
-    const rows = [...table.matchAll(/<tr><td>([a-z_]+)<\/td><td>[^<]*<\/td><td>([^<]*)<\/td><\/tr>/g)];
-    // A parse that finds nothing would pass this check while asserting nothing,
-    // so the row count is part of the assertion rather than an assumption.
-    expect(rows.length, 'the weight table did not parse').toBeGreaterThan(10);
-    const offenders = rows
-      .filter((m) => PLATFORM_RULED_SETS.has(m[1]!))
-      .filter((m) => !/set/.test(m[2]!))
-      .map((m) => `${m[1]}: ${m[2]}`);
-    expect(offenders).toEqual([]);
-  });
-
   it('the ducking sets are labelled as sets, with the duck named as what scores', () => {
     // Weaving and zulu are ducking sets: their launch incorporates the duck
     // rather than adding it to an existing trick, and the difficulty is the
@@ -407,25 +349,11 @@ describe('a set the platform has ruled on is not filed as source-only', () => {
   });
 });
 
-describe('butterfly teaching copy matches the side its notation carries', () => {
-  const card = CORE_ATOM_EDUCATIONAL_BY_SLUG.get('butterfly')!;
+describe('butterfly\'s pinned notation carries the side it is taught on', () => {
   const spec = CORE_TRICK_SPEC.find((s) => s.slug === 'butterfly')!;
 
   it('the pinned notation is the opposite-side form', () => {
     expect(spec.operationalNotation).toMatch(/OP OUT/);
-  });
-
-  it('the card teaches the opposite-side execution as the base', () => {
-    expect(card.line).toMatch(/opposite-side out-dex/);
-  });
-
-  it('the card does not offer both sides as coequal unnamed base forms', () => {
-    expect(card.line).not.toMatch(/same-side or opposite-side/);
-    expect(card.line).not.toMatch(/in both a same-side and an opposite-side variant/);
-  });
-
-  it('the card keeps the same-side execution as a named variant', () => {
-    expect(card.line).toMatch(/Butterfly Same Side/);
   });
 });
 
@@ -543,34 +471,5 @@ describe('the ruled side relationship is stated, and the source keeps its own cl
       .filter((r) => /\bvariant\b|\balias\b/i.test(r.label))
       .map((r) => `${r.from} -> ${r.to}: ${r.label}`);
     expect(offenders).toEqual([]);
-  });
-});
-
-describe('a stall is a trick and an anchor state, not one instead of the other', () => {
-  const toeStall = CORE_ATOM_EDUCATIONAL_BY_SLUG.get('toe_stall');
-  const panelText = (c: { panels: readonly { body: string }[] }) => c.panels.map(p => p.body).join(' ');
-
-  it('says a toe stall is both', () => {
-    expect(toeStall, 'the toe stall card').toBeDefined();
-    expect(panelText(toeStall!)).toMatch(/both a trick and an anchor state/i);
-  });
-
-  it('does not deny that it is a trick', () => {
-    // The dictionary catalogues Toe Stall as an entry scoring 1 ADD. Teaching
-    // copy saying it is not really a trick contradicted that, and a reader
-    // meeting both had no way to reconcile them.
-    for (const card of CORE_ATOM_EDUCATIONAL_BY_SLUG.values()) {
-      expect(panelText(card), `${card.slug} panels`).not.toMatch(/not really a trick/i);
-      expect(card.line, `${card.slug} line`).not.toMatch(/not really a trick/i);
-    }
-  });
-
-  it('keeps the anchor framing that made the claim worth making', () => {
-    // The correction is to the denial, not to the teaching around it: the trip
-    // out and back is why a bare stall scores less than the dex reaching it.
-    expect(panelText(toeStall!)).toMatch(/anchor/i);
-    expect(panelText(toeStall!)).toMatch(/the difficulty is in the trip, not the landing/i);
-    // ...with its scope stated: not every trick starts or ends on a stall.
-    expect(panelText(toeStall!)).toMatch(/kicks and some body tricks do not/i);
   });
 });

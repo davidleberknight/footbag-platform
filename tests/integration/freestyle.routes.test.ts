@@ -498,8 +498,8 @@ describe('Freestyle landing — operators stay on their own page', () => {
 describe('GET /freestyle/operators — compact modifier index + advanced reference', () => {
   // The operators page is a compact, browseable index of the modifier
   // vocabulary (in the shared dict-trick-row idiom) with the advanced
-  // decomposition reference retained below it via a shared sub-partial. The
-  // modifier feel cards live only in Freestyle Concepts §6.
+  // decomposition reference retained below it via a shared sub-partial. No
+  // modifier feel cards render on it.
 
   it('renders no feel cards or per-modifier reference on the compact index', async () => {
     const res = await page('/freestyle/operators');
@@ -716,30 +716,18 @@ describe('GET /freestyle/operators — orientation lede', () => {
   });
 });
 
-describe('GET /freestyle/concepts §6 is the per-modifier reference home (operators is the index)', () => {
-  it('Concepts §6 keeps the full per-modifier reference + anchors; operators carries only the minimal tail', async () => {
-    const concepts  = await page('/freestyle/concepts');
-    const operators = await page('/freestyle/operators');
-    // The full per-modifier reference + its #term-{slug} anchors live in
-    // Freestyle Concepts (the load-bearing anchor home that semantic tokens link to).
-    for (const anchor of [
-      'id="term-paradox"',
-      'id="intermediate-operators"',
-      'id="set-modifiers-tier-1"',
-    ]) {
-      expect(concepts.text,  `concepts missing ${anchor}`).toContain(anchor);
-      expect(operators.text, `operators should not carry ${anchor}`).not.toContain(anchor);
-    }
-    // The operators page keeps only the cross-cutting tail.
-    expect(operators.text).toContain('id="how-operators-combine"');
-    // Feel cards are Concepts-only.
-    expect(concepts.text).toContain('class="glossary-modifier-card"');
-    expect(operators.text).not.toContain('class="glossary-modifier-card"');
-  });
-
-  it('Concepts §6 heading carries an "Open standalone" link to /freestyle/operators', async () => {
+describe('GET /freestyle/concepts — the operators page is the per-operator reference', () => {
+  it('the Operators and Modifiers section sends readers to the operators page instead of restating each entry', async () => {
     const res = await page('/freestyle/concepts');
-    expect(res.text).toMatch(/<a class="glossary-section-canonical-link" href="\/freestyle\/operators">/);
+    const start = res.text.indexOf('id="section-modifiers"');
+    const end = res.text.indexOf('id="section-notation"');
+    expect(start).toBeGreaterThan(0);
+    expect(end).toBeGreaterThan(start);
+    const section = res.text.slice(start, end);
+    expect(section).toContain('class="action-link" href="/freestyle/operators"');
+    // No per-operator entry is rendered on Concepts any more.
+    expect(res.text).not.toContain('id="intermediate-operators"');
+    expect(res.text).not.toContain('class="glossary-modifier-card"');
   });
 });
 
@@ -763,25 +751,12 @@ describe('GET /freestyle/concepts', () => {
     expect(res.text).toContain('href="/freestyle"');
   });
 
-  it('contains ADD-system core terms', async () => {
-    const res = await page('/freestyle/concepts');
-    expect(res.text).toMatch(/\[DEL\]<\/code> from delay/);
-    expect(res.text).toContain('Dexterity');
-    expect(res.text).toContain('BOP');
-  });
-
   it('contains run-quality floor labels', async () => {
     const res = await page('/freestyle/concepts');
     expect(res.text).toContain('Guiltless');
     expect(res.text).toContain('Fearless');
     expect(res.text).toContain('Tiltless');
     expect(res.text).toContain('Tripless');
-  });
-
-  it('contains play-quality adjectives', async () => {
-    const res = await page('/freestyle/concepts');
-    expect(res.text).toContain('Slurry');
-    expect(res.text).toContain('Froggy');
   });
 
   it('contains run / combo / style vocabulary', async () => {
@@ -791,163 +766,11 @@ describe('GET /freestyle/concepts', () => {
     expect(res.text).toContain('Density');
   });
 
-  it('contains common abbreviations', async () => {
-    const res = await page('/freestyle/concepts');
-    expect(res.text).toContain('PDX');
-    expect(res.text).toContain('PS Whirl');
-    expect(res.text).toContain('SS');
-  });
-
-  it('contains structural-compression and core-trick concepts', async () => {
-    const res = await page('/freestyle/concepts');
-    // §7 carries the notation thesis (with Jobs notation reference
-    // preserved as the historical name of the semantic layer); §composition
-    // hosts the worked structural-compression treatment as part of the
-    // Vocabulary Relationships subsection. §5 hosts the core trick
-    // structures grid.
-    expect(res.text).toMatch(/Structural compression/);
-    expect(res.text).toMatch(/Jobs notation/);
-    expect(res.text).toContain('Family Encyclopedia');
-    expect(res.text).toContain('clipper');
-    expect(res.text).toContain('butterfly');
-  });
-
   it('does not expose review-status or source-discussion content', async () => {
     const res = await page('/freestyle/concepts');
     expect(res.text).not.toContain('Pending Red');
     expect(res.text).not.toContain('Community-only');
     expect(res.text).not.toContain('review_status');
-  });
-});
-
-// ---------------------------------------------------------------------------
-
-
-// ---------------------------------------------------------------------------
-
-describe('GET /freestyle/concepts — intermediate-operator reference subsection (§3)', () => {
-  it('renders the intermediate-operators subsection heading and anchor', async () => {
-    const res = await page('/freestyle/concepts');
-    expect(res.text).toContain('id="intermediate-operators"');
-    expect(res.text).toMatch(/Intermediate operators/);
-  });
-
-  it('renders every authored operator entry with its term anchor', async () => {
-    const res = await page('/freestyle/concepts');
-    const expectedSlugs = [
-      'atomic', 'blurry', 'quantum', 'nuclear',
-      'barraging', 'inspinning', 'whirling', 'double',
-    ];
-    for (const slug of expectedSlugs) {
-      expect(res.text).toMatch(new RegExp(`<dt id="term-${slug}"`));
-    }
-    // Furious folds into barraging; high folds into the barraging explanation.
-    expect(res.text).not.toMatch(/<dt id="term-furious"/);
-    expect(res.text).not.toMatch(/<dt id="term-high"/);
-  });
-
-  // Defect caught: the reference lists operators that are not full reference
-  // entries, such as a core operator, whose definition already has its own home
-  // on the page, or an operator known only by its operators-page row.
-  it('lists exactly the nine full reference entries and nothing else', async () => {
-    const res = await page('/freestyle/concepts');
-    expect(res.text.split('class="glossary-operator-meaning"').length - 1).toBe(9);
-    for (const slug of ['paradox', 'spinning', 'symposium', 'symple', 'muted', 'flying']) {
-      expect(res.text.split(`<dt id="term-${slug}"`).length - 1, slug).toBeLessThanOrEqual(1);
-    }
-  });
-
-  it('renders the locked decomposition strings on confirmed entries', async () => {
-    const res = await page('/freestyle/concepts');
-    expect(res.text).toContain('stepping paradox');
-    expect(res.text).toContain('compressed atomic');
-    expect(res.text).toContain('paradox + illusion');
-  });
-
-  it('flags pending entries with the inline pending badge', async () => {
-    const res = await page('/freestyle/concepts');
-    const pendingFlags = res.text.match(/class="glossary-operator-pending-flag"/g) ?? [];
-    // double is the one remaining pending entry (high folded into barraging).
-    expect(pendingFlags.length).toBe(1);
-  });
-
-  it('renders a plain lineage line on the nuclear entry (no curator-workflow language)', async () => {
-    const res = await page('/freestyle/concepts');
-    expect(res.text).toContain('A settled decomposition.');
-    expect(res.text).not.toContain('Curator-adjudicated');
-  });
-
-  it('frames barraging as a historical name for the furious set, not a canonical set', async () => {
-    // Settled doctrine: Furious is the canonical set; Barraging is not a set but a
-    // historical name for it. The entry names Furious as the set and does not
-    // reintroduce the old "distinct by timing, pending audit" framing.
-    const res = await page('/freestyle/concepts');
-    const idx = res.text.indexOf('id="term-barraging"');
-    expect(idx).toBeGreaterThan(0);
-    const slice = res.text.slice(idx, idx + 2000);
-    expect(slice).toMatch(/historical name for the Furious set/i);
-    expect(slice).not.toMatch(/distinct by timing/i);
-  });
-
-  it('tags the historical nickname patterns (barraging, miraging) in the operator reference', async () => {
-    // The reference makes the official-set-vs-nickname split explicit: Barraging
-    // and Miraging carry a "historical name" flag; official sets do not.
-    const res = await page('/freestyle/concepts');
-    const entry = (slug: string) => {
-      const i = res.text.indexOf(`id="term-${slug}"`);
-      return i < 0 ? '' : res.text.slice(i, i + 500);
-    };
-    expect(entry('barraging')).toContain('glossary-operator-nickname-flag');
-    expect(entry('miraging')).toContain('glossary-operator-nickname-flag');
-  });
-
-  it('renders entries in pedagogical order: set-tier first, body next, quantifier last', async () => {
-    const res = await page('/freestyle/concepts');
-    const idxAtomic    = res.text.indexOf('id="term-atomic"');
-    const idxWhirling  = res.text.indexOf('id="term-whirling"');
-    const idxDouble    = res.text.indexOf('id="term-double"');
-    expect(idxAtomic).toBeGreaterThan(0);
-    expect(idxWhirling).toBeGreaterThan(idxAtomic);
-    expect(idxDouble).toBeGreaterThan(idxWhirling);
-  });
-
-  it('renders the inspinning term anchor inside the intermediate-operators block', async () => {
-    const res = await page('/freestyle/concepts');
-    const intermediateIdx = res.text.indexOf('id="intermediate-operators"');
-    expect(intermediateIdx).toBeGreaterThan(0);
-    const inspinIdx = res.text.indexOf('id="term-inspinning"', intermediateIdx);
-    expect(inspinIdx).toBeGreaterThan(intermediateIdx);
-  });
-
-  it('renders inspinning as a resolved entry (no pending badge)', async () => {
-    const res = await page('/freestyle/concepts');
-    const inspinIdx = res.text.indexOf('id="term-inspinning"');
-    expect(inspinIdx).toBeGreaterThan(0);
-    // Slice from inspinning's <dt> to the next <dt> (or end of <dl>) and confirm
-    // no pending-flag badge appears inside that entry.
-    const after = res.text.slice(inspinIdx);
-    const nextDt = after.indexOf('<dt ', 4);
-    const entrySlice = nextDt > 0 ? after.slice(0, nextDt) : after.slice(0, 2000);
-    expect(entrySlice).not.toContain('glossary-operator-pending-flag');
-  });
-
-  it('surfaces +1 spin status on inspinning', async () => {
-    // Any spin contributes +1 ADD, so inspinning (a forward-rotation spin)
-    // renders as +1 — superseding the earlier +0 directional-only reading.
-    const res = await page('/freestyle/concepts');
-    const inspinIdx = res.text.indexOf('id="term-inspinning"');
-    expect(inspinIdx).toBeGreaterThan(0);
-    const slice = res.text.slice(inspinIdx, inspinIdx + 2000);
-    expect(slice).toMatch(/\+1/);
-    expect(slice).toMatch(/spin/i);
-  });
-
-  it('orders inspinning before whirling within the body-tier subsequence', async () => {
-    const res = await page('/freestyle/concepts');
-    const idxInspinning = res.text.indexOf('id="term-inspinning"');
-    const idxWhirling   = res.text.indexOf('id="term-whirling"');
-    expect(idxInspinning).toBeGreaterThan(0);
-    expect(idxWhirling).toBeGreaterThan(idxInspinning);
   });
 });
 
@@ -1187,74 +1010,12 @@ describe('GET /freestyle/tricks/:slug — operational notation block (O1a)', () 
   });
 });
 
-// ---------------------------------------------------------------------------
-
-// ─────────────────────────────────────────────────────────────────────────
-// Operational notation subsection on /freestyle/concepts: an "Operational
-// Notation" reference with per-token anchor IDs for deep-linking from the
-// trick-detail Token-reference link.
-// ─────────────────────────────────────────────────────────────────────────
-
-describe('GET /freestyle/concepts — operational notation subsection', () => {
-  it('renders the Operational Notation subsection with its deep-link target id', async () => {
-    // Operational notation lives as an Advanced Reference subsection
-    // under §7 (Symbolic Notation), not as a top-level section. The deep-
-    // link anchor id="operational-notation" is preserved for inbound links.
-    // The subsection is wrapped in a <details>/<summary>
-    // collapsible (default-closed) for progressive disclosure. The anchor
-    // sits on the <details> element; the title text
-    // lives in the <summary>. All #op-* child anchors remain reachable
-    // (browsers auto-open <details> when navigating to a child anchor).
-    const res = await page('/freestyle/concepts');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('id="operational-notation"');
-    // Anchor proximity to title text.
-    expect(res.text).toMatch(/id="operational-notation"[\s\S]{0,400}Operational notation/);
-    // The subsection is collapsed in a <details> element.
-    expect(res.text).toMatch(/<details[^>]*class="glossary-operational-details"[^>]*id="operational-notation"/);
-    expect(res.text).toContain('class="glossary-operational-details-summary"');
-  });
-
-  it('defines per-token anchors for the 6 component flags', async () => {
-    const res = await page('/freestyle/concepts');
-    for (const flag of ['dex', 'del', 'bod', 'xbd', 'pdx', 'xdex']) {
-      expect(res.text).toContain(`id="op-flag-${flag}"`);
-    }
-  });
-
-  it('defines per-token anchors for both sides (SAME, OP)', async () => {
-    const res = await page('/freestyle/concepts');
-    expect(res.text).toContain('id="op-side-same"');
-    expect(res.text).toContain('id="op-side-op"');
-  });
-
-  it('defines anchors for sequence operators and pre-states', async () => {
-    const res = await page('/freestyle/concepts');
-    expect(res.text).toContain('id="op-seq-minor"');
-    expect(res.text).toContain('id="op-seq-major"');
-    expect(res.text).toContain('id="op-prestate-back"');
-    expect(res.text).toContain('id="op-prestate-no-plant"');
-    expect(res.text).toContain('id="op-prestate-rooted"');
-  });
-
-  it('renders the §8 ADD Accounting + §12 Community + §14 Sources reference-tail sections', async () => {
-    // In the 14-section IA, ADD Accounting is §8, Community Vocabulary
-    // is §12, Historical Terms is §13, and Sources is §14. The
-    // trick-level ADD definition lives in §8.
+describe('Freestyle Concepts and history — anchor preservation + cross-link contracts', () => {
+  it('keeps the ADD-accounting and run-quality anchors other pages link into', async () => {
+    // The ADD Analysis page, the trick dictionary and the history narrative
+    // link #section-add-accounting; the run-quality ladder keeps #run-quality.
     const res = await page('/freestyle/concepts');
     expect(res.text).toContain('id="section-add-accounting"');
-    expect(res.text).toContain('id="section-community"');
-    expect(res.text).toContain('id="section-sources"');
-  });
-});
-
-describe('Freestyle Concepts and history — anchor preservation + cross-link contracts', () => {
-  it('ADD Accounting section carries id="traditional-reference" + #run-quality anchor (history.hbs inbound link)', async () => {
-    // The traditional-reference + run-quality anchors are preserved
-    // (anchor-preservation forever-rule), living inside §8 ADD
-    // Accounting.
-    const res = await page('/freestyle/concepts');
-    expect(res.text).toContain('id="traditional-reference"');
     expect(res.text).toContain('id="run-quality"');
   });
 
@@ -1313,14 +1074,6 @@ describe('Freestyle Concepts and history — anchor preservation + cross-link co
     }
   });
 
-  it('§11 spyro is documented as a modifier-only descriptor, not an inspin synonym', async () => {
-    const res = await page('/freestyle/concepts');
-    // Spyro is a modifier-only folk descriptor (not a standalone dictionary
-    // trick); it is explicitly NOT equated to inspin.
-    expect(res.text).toMatch(/modifier-only folk descriptor/);
-    expect(res.text).toMatch(/not<\/strong> a synonym for inspin/);
-  });
-
   it('a request for the removed category view renders the default ADD view', async () => {
     // The category view is gone; an inbound link to it still returns 200 and
     // lands on the default view rather than a retirement notice.
@@ -1355,52 +1108,11 @@ describe('Freestyle Concepts framing paragraphs + history page contracts', () =>
     }
   });
 
-  it('Concepts §6 carries the compositional-layering opening paragraph', async () => {
-    const res = await page('/freestyle/concepts');
-    expect(res.text).toContain('glossary-compositional-layering-note');
-    expect(res.text).toMatch(/simultaneous\s+constraint/);
-    expect(res.text).toMatch(/usually\s+harder than the\s+sum of their parts/);
-  });
-
-  it('Concepts §6 acknowledges evolved-ADD-value conventions with cross-link to add-analysis', async () => {
-    const res = await page('/freestyle/concepts');
-    expect(res.text).toMatch(/modifier weights have varied historically/);
-    // Cross-link to add-analysis from §6 (one of several inbound surfaces).
-    const sec6Idx = res.text.indexOf('id="section-modifiers"');
-    const sec7Idx = res.text.indexOf('id="section-notation"');
-    const slice = res.text.slice(sec6Idx, sec7Idx);
-    expect(slice).toContain('href="/freestyle/add-analysis"');
-  });
-
-  it('Concepts §5 carries the whirl resolution-point note exactly once', async () => {
-    // The note lives solely on the whirl family card's observationalNote;
-    // a prior standalone static duplicate (before the family-tree block)
-    // was removed. Guard against the duplicate returning.
-    const res = await page('/freestyle/concepts');
-    expect(res.text).toContain('Blurry Whirl adds the Blurry structure');
-    const occurrences = (res.text.match(/Blurry Whirl adds the Blurry structure/g) ?? []).length;
-    expect(occurrences, 'whirl resolution-point note renders exactly once').toBe(1);
-  });
-
   it('whirl family card does not present an unsupported network / most-documented claim', async () => {
     const res = await page('/freestyle/concepts');
     expect(res.text).not.toMatch(/most documented two-trick/);
     expect(res.text).not.toMatch(/22 years of Sick3/);
     expect(res.text).not.toMatch(/most common opening element/);
-  });
-
-  it('whirl family card is mechanically accurate: cross-body clipper terminal, no clipper entry claim', async () => {
-    const res = await page('/freestyle/concepts');
-    // Canonical whirl uses generic SET (may enter from toe or clipper), so the card
-    // must describe only the terminal, never a fixed clipper entry or a "lands where
-    // it began" relationship.
-    const start = res.text.indexOf('id="term-whirl"');
-    expect(start).toBeGreaterThan(-1);
-    const whirlCard = res.text.slice(start, res.text.indexOf('</article>', start));
-    expect(whirlCard).toMatch(/cross-body clipper stall/);
-    expect(res.text).not.toMatch(/same clipper surface it set from/);
-    expect(res.text).not.toMatch(/ends exactly where it begins/i);
-    expect(res.text).not.toMatch(/lands where it beg|resolves where it beg|whirl sets from a clipper/i);
   });
 
   it('Concepts keeps internal/developer jargon out of user-facing prose', async () => {
@@ -1420,26 +1132,6 @@ describe('Freestyle Concepts framing paragraphs + history page contracts', () =>
     // Worked paradox example with op-tokens.
     expect(res.text).toMatch(/CLIP/);
     expect(res.text).toMatch(/OP IN/);
-  });
-
-  it('Concepts §8 carries the additive-structural-accounting framing + mobius worked example', async () => {
-    // The "additive structural accounting"
-    // definition lives in the §8 philosophy paragraph; the
-    // mobius worked example is a structured card in the §8 worked-
-    // examples grid (compactNotation "gyro torque" + derivation visible).
-    const res = await page('/freestyle/concepts');
-    expect(res.text).toMatch(/additive structural accounting/);
-    expect(res.text).toContain('id="add-example-mobius"');
-    expect(res.text).toMatch(/gyro torque/);
-  });
-
-  it('Concepts §8 worked-example status chips render the shaped label, never the raw code', async () => {
-    const res = await page('/freestyle/concepts');
-    // Visible chip text is the pre-shaped statusLabel; the raw status
-    // code never appears as element text (the 'pending-doctrine' label
-    // form is 'pending doctrine' whenever an example carries it).
-    expect(res.text).toMatch(/glossary-add-example-status--canonical[^>]*>canonical</);
-    expect(res.text).not.toMatch(/>pending-doctrine</);
   });
 
   it('combo-analysis page carries anchor IDs on each run-quality tier + format term', async () => {
@@ -1588,20 +1280,6 @@ describe('Formula accountability contracts', () => {
     expect(res.text).toMatch(new RegExp(`gyro\\(\\+1\\)\\s*\\+\\s*torque\\(4\\)\\s*${eq}\\s*5 ADD`));
   });
 
-  it('paradox term entry in Concepts §3 surfaces the canonical formula visibly', async () => {
-    const res = await page('/freestyle/concepts');
-    const paradoxIdx = res.text.indexOf('id="term-paradox"');
-    expect(paradoxIdx).toBeGreaterThan(0);
-    // Read forward to the close of the <dd>.
-    const ddEnd = res.text.indexOf('</dd>', paradoxIdx);
-    const block = res.text.slice(paradoxIdx, ddEnd);
-    expect(block).toContain('glossary-paradox-formula');
-    expect(block).toMatch(/PDX/);
-    expect(block).toMatch(/CLIP/);
-    expect(block).toMatch(/OP IN/);
-    expect(block).toMatch(/\[DEX\]/);
-  });
-
   it('ADD Analysis surfaces paradox notation as the entry-topology case', async () => {
     const res = await page('/freestyle/add-analysis');
     // CLIP > OP IN [DEX] is still surfaced, but framed as paradox's entry case
@@ -1674,89 +1352,11 @@ describe('Freestyle IA realignment — landing and Concepts contract', () => {
     expect(res.text).not.toContain('three complementary layers');
   });
 
-  it('Concepts intro links to dictionary and set-notation reference without three-layer rhetoric', async () => {
-    const res = await page('/freestyle/concepts');
-    expect(res.text).toContain('href="/freestyle/tricks"');
-    expect(res.text).toContain('href="/freestyle/sets#historical-move-set-reference"');
-  });
-
-  it('the family chapter renders the registry-style core-trick grid; pixie/fairy stay in the set-modifiers reference', async () => {
-    // The families section carries the registry-style core-trick grid. Modifiers
-    // (with the pixie/fairy set-modifier grid) now precedes families in the
-    // Foundations spine, so the family grid is bounded by the families section on
-    // the low side and the Notation topic on the high side.
+  it('the family sentence links the dictionary family view', async () => {
     const res = await page('/freestyle/concepts');
     const familiesAt = res.text.indexOf('id="section-families"');
-    const notationAt = res.text.indexOf('id="section-notation"');
     expect(familiesAt).toBeGreaterThan(0);
-    expect(notationAt).toBeGreaterThan(familiesAt);
-    const gridSlice = res.text.slice(familiesAt, notationAt);
-    // All 11 foundational atoms render as registry tiles with `#term-{slug}` anchors.
-    for (const slug of ['clipper_stall', 'mirage', 'legover', 'pickup', 'illusion', 'whirl', 'butterfly', 'swirl', 'osis', 'around_the_world', 'orbit']) {
-      expect(gridSlice).toContain(`id="term-${slug}"`);
-    }
-    // Grid uses the symbolic-object pattern.
-    expect(gridSlice).toContain('class="freestyle-core-trick-grid"');
-    expect(gridSlice).toContain('class="core-trick-object"');
-    expect(gridSlice).toContain('#clipper');
-    // The previous flat-list rendering must not survive.
-    expect(gridSlice).not.toContain('<ul class="grid-list">');
-    // Pixie + Fairy still belong below in the set-modifiers subsection.
-    expect(gridSlice).not.toContain('id="term-pixie"');
-    expect(gridSlice).not.toContain('id="term-fairy"');
-  });
-
-  it('set-modifiers grid renders only the pixie/fairy set primitives; each operator owns a single anchor', async () => {
-    // The grid is the Concepts anchor home only for the set primitives no other
-    // Modifiers & Operators surface owns. Pixie and Fairy qualify; the
-    // decomposable set/compound operators and Stepping are rendered by the
-    // intermediate-operators list and the body-modifier reference, so rendering
-    // them here too would put each operator's term-{slug} anchor on two elements.
-    const res = await page('/freestyle/concepts');
-    expect(res.text).toContain('id="set-modifiers-tier-1"');
-    const gridStart = res.text.indexOf('class="glossary-set-modifiers-grid"');
-    expect(gridStart).toBeGreaterThan(0);
-    const grid = res.text.slice(gridStart, res.text.indexOf('</section>', gridStart));
-    expect(grid).toContain('id="term-pixie"');
-    expect(grid).toContain('id="term-fairy"');
-    // Tier-1 set primitives carry a glyph chip (pixie → PIX).
-    expect(grid).toMatch(/id="term-pixie"[\s\S]*?<span class="set-modifier-glyph">PIX<\/span>/);
-    // Decomposable operators and Stepping must not reappear as set-modifier cards.
-    for (const slug of ['atomic', 'quantum', 'blurry', 'nuclear', 'barraging', 'stepping']) {
-      expect(grid).not.toContain(`id="term-${slug}"`);
-    }
-    // The retired prose `<dl>` rendering must not survive.
-    expect(grid).not.toContain('<dl class="glossary-set-modifiers">');
-    // Blurry's decomposition is carried once, in the intermediate-operators list.
-    const interSection = res.text.slice(res.text.indexOf('id="intermediate-operators"'), gridStart);
-    expect(interSection).toMatch(/id="term-blurry"[\s\S]*?stepping paradox/);
-  });
-
-  it('structural-compression worked example renders as a four-depth equivalence ladder inside Vocabulary Relationships', async () => {
-    // The worked compression example renders inside the Structural
-    // compression subsection as a four-depth ladder, not the retired
-    // one-liner (mobius = gyro torque = spinning same-side torque). The
-    // #symbolic-compression-flow anchor is preserved on the h4.
-    // Retired prose / classes: glossary-compression-one-liner,
-    // glossary-compression-expanded text-muted (content lives in a <li>
-    // inside glossary-equivalence-worked-example).
-    const res = await page('/freestyle/concepts');
-    const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
-    expect(flowIdx).toBeGreaterThan(0);
-    const nextH4 = res.text.indexOf('glossary-equivalence-worked-heading', flowIdx + 1);
-    const slice = res.text.slice(flowIdx, nextH4 > 0 ? nextH4 : flowIdx + 4000);
-    // Four-depth ladder; all four readings rendered via &equiv;
-    expect(slice).toMatch(/mobius/i);
-    expect(slice).toMatch(/gyro torque/i);
-    expect(slice).toMatch(/spinning same-side torque/i);
-    expect(slice).toMatch(/spinning quantum same-side osis/i);
-    // Link to ADD Accounting & Analysis is preserved.
-    expect(slice).toContain('href="/freestyle/add-analysis"');
-    // The retired three-card cascade must not survive.
-    expect(slice).not.toContain('id="compression-step-osis"');
-    expect(slice).not.toContain('id="compression-step-torque"');
-    expect(slice).not.toContain('id="compression-step-mobius"');
-    expect(slice).not.toContain('class="glossary-compression-flow"');
+    expect(res.text.slice(familiesAt, familiesAt + 300)).toContain('href="/freestyle/tricks?view=family"');
   });
 });
 
@@ -1837,231 +1437,6 @@ describe('Freestyle landing — Featured strip', () => {
     // The retired separate sections must not survive.
     expect(res.text).not.toContain('class="freestyle-demonstrations-grid"');
     expect(res.text).not.toContain('>Competition Formats<');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Freestyle Concepts pedagogy + compositional teaching flow invariants
-
-describe('Freestyle Concepts — [PDX] component-flag definition', () => {
-  it('renders the [PDX] flag definition as mechanical (not circular)', async () => {
-    // The definition marks the paradox relationship on a dexterity, states its
-    // independence from [XBD] and from IN/OUT direction, and frames
-    // CLIP > OP IN [DEX] as an entry example rather than the definition.
-    const res = await page('/freestyle/concepts');
-    const pdxIdx = res.text.indexOf('id="op-flag-pdx"');
-    expect(pdxIdx).toBeGreaterThan(0);
-    const slice = res.text.slice(pdxIdx, pdxIdx + 800);
-    expect(slice).toMatch(/marks the paradox relationship on a dexterity/);
-    expect(slice).toMatch(/independent of/);
-    expect(slice).toMatch(/is not an IN\/OUT direction/);
-    expect(slice).toContain('CLIP &gt; OP IN [DEX]');
-    expect(slice).toMatch(/common entry example, not the definition/);
-    // The old circular phrasing is gone.
-    expect(slice).not.toMatch(/performed in the paradox direction/);
-  });
-});
-
-describe('Freestyle Concepts — Symbolic Notation / Compression layer', () => {
-  it('§7 Jobs / Operational Notation carries the thesis sentence', async () => {
-    // §7 is titled "Jobs / Operational Notation" and carries the
-    // thesis sentence.
-    const res = await page('/freestyle/concepts');
-    expect(res.text).toContain('id="section-notation"');
-    expect(res.text).toMatch(
-      /The language evolves by compressing recurring compositional structures\s+into shorter readable symbolic forms\./,
-    );
-  });
-
-  it('§7 cross-links to the §9 symbolic-compression flow', async () => {
-    // The worked compression-flow lives in §9 (Symbolic Composition).
-    // Anchor #symbolic-compression-flow preserved.
-    const res = await page('/freestyle/concepts');
-    expect(res.text).toContain('href="#symbolic-compression-flow"');
-  });
-});
-
-describe('Freestyle Concepts — Structural compression subsection', () => {
-  it('renders the symbolic-compression-flow anchor inside the composition chapter', async () => {
-    // The worked compression renders as an h4 inside the Vocabulary
-    // Relationships subsection of the Symbolic Composition chapter. Anchor
-    // #symbolic-compression-flow is preserved on that h4 for inbound
-    // deep-links.
-    const res = await page('/freestyle/concepts');
-    const compositionIdx = res.text.indexOf('id="section-composition"');
-    const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
-    const referenceIdx = res.text.indexOf('id="section-reference-history"');
-    expect(compositionIdx).toBeGreaterThan(0);
-    expect(flowIdx).toBeGreaterThan(compositionIdx);
-    expect(referenceIdx).toBeGreaterThan(flowIdx);
-  });
-
-  it('renders the four-depth mobius compression ladder', async () => {
-    // The curator-approved compression ladder carries 4 readings:
-    // mobius → gyro torque → spinning
-    // same-side torque → spinning quantum same-side osis. The deepest
-    // reading is where the "compositional transformations" wow-moment
-    // lands pedagogically.
-    const res = await page('/freestyle/concepts');
-    const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
-    const topologyIdx = res.text.indexOf('id="connective-panels"');
-    const slice = res.text.slice(flowIdx, topologyIdx);
-    // Trick names in the §9 §2 list are hyperlinked; <strong>
-    // wraps an <a>.
-    expect(slice).toMatch(/<strong>\s*<a href="\/freestyle\/tricks\/mobius">mobius<\/a>\s*<\/strong>/i);
-    expect(slice).toMatch(/gyro torque/i);
-    expect(slice).toMatch(/spinning same-side torque/i);
-    expect(slice).toMatch(/spinning quantum same-side osis/i);
-    expect(slice).toMatch(/compression ladder/i);
-    // The retired three-card cascade must not survive.
-    expect(slice).not.toContain('id="compression-step-osis"');
-    expect(slice).not.toContain('id="compression-step-torque"');
-    expect(slice).not.toContain('id="compression-step-mobius"');
-    expect(slice).not.toContain('class="glossary-compression-flow"');
-  });
-
-  it('links to the ADD Accounting & Analysis page for deeper explanation', async () => {
-    const res = await page('/freestyle/concepts');
-    const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
-    const topologyIdx = res.text.indexOf('id="connective-panels"');
-    const slice = res.text.slice(flowIdx, topologyIdx);
-    expect(slice).toContain('href="/freestyle/add-analysis"');
-  });
-
-});
-
-describe('Freestyle Concepts — §9 semantic-vs-operational contrast', () => {
-  it('renders the layer-contrast table inside §9 with semantic + operational rows', async () => {
-    const res = await page('/freestyle/concepts');
-    const sec9Idx = res.text.indexOf('id="operational-notation"');
-    expect(sec9Idx).toBeGreaterThan(0);
-    const after = res.text.slice(sec9Idx, sec9Idx + 2500);
-    expect(after).toContain('class="data-table glossary-layer-contrast"');
-    expect(after).toMatch(/<strong>Semantic<\/strong>/);
-    expect(after).toMatch(/<strong>Operational<\/strong>/);
-    expect(after).toMatch(/stepping ducking paradox torque/);
-  });
-});
-
-describe('Freestyle Concepts — Execution mechanics subsection', () => {
-  it('renders the Execution mechanics subsection heading and anchor (no source attribution)', async () => {
-    // V5 editorial sweep: repetitive PassBack attribution removed; the
-    // execution-mechanics anchor + heading are preserved.
-    const res = await page('/freestyle/concepts');
-    expect(res.text).toContain('id="execution-mechanics"');
-    expect(res.text).toMatch(/id="execution-mechanics"[^>]*>\s*Execution mechanics/);
-    // The per-entry "PassBack glossary" attribution spans must be gone.
-    expect(res.text).not.toContain('class="glossary-source-attrib"');
-  });
-
-  it('renders the execution-mechanics micro-entries inside §6 and the dex / phases entries elsewhere', async () => {
-    // V5: alpine / symposium-mech / symple / muted live in §6 under
-    // "Execution mechanics"; dex-window / hippy-leggy live in §3
-    // (Dexterities); phases-sides lives in §4 (Timing Layers).
-    const res = await page('/freestyle/concepts');
-    expect(res.text).toContain('id="term-alpine"');
-    expect(res.text).toContain('id="term-symposium-mech"');
-    expect(res.text).toContain('id="term-symple"');
-    expect(res.text).toContain('id="term-muted"');
-    expect(res.text).toContain('id="term-dex-window"');
-    expect(res.text).toContain('id="term-hippy-leggy"');
-    expect(res.text).toContain('id="term-phases-sides"');
-  });
-
-  it('§3 "the" entry carries the PassBack pronunciation disambiguation + missed-component definition', async () => {
-    // "the" ("thuh", not "thee") is a real footbag term per the PassBack
-    // glossary, not a typo: a component attempted but completely missed.
-    const res = await page('/freestyle/concepts');
-    const idx = res.text.indexOf('id="term-the"');
-    expect(idx).toBeGreaterThan(0);
-    const slice = res.text.slice(idx, idx + 400);
-    expect(slice).toMatch(/thuh/);
-    expect(slice).toMatch(/attempted but completely missed/);
-  });
-
-  it('§3 Motion style includes the full-vs-half dex fullness entry', async () => {
-    const res = await page('/freestyle/concepts');
-    expect(res.text).toContain('id="term-full-half-dex"');
-    const idx = res.text.indexOf('id="term-full-half-dex"');
-    const slice = res.text.slice(idx, idx + 400);
-    expect(slice).toMatch(/full/i);
-    expect(slice).toMatch(/half/i);
-  });
-
-  it('§3 pulled/slurry/froggy follow the PassBack drag-through definitions', async () => {
-    // Reconciled to the PassBack glossary: pulled and slurry are synonyms
-    // (bag dragged through an uptime dex/spin before the intended component);
-    // froggy is specifically a pulled spin.
-    const res = await page('/freestyle/concepts');
-    const pulled = res.text.slice(res.text.indexOf('id="term-pulled"'), res.text.indexOf('id="term-pulled"') + 400);
-    expect(pulled).toMatch(/dragged through an uptime dex/);
-    const froggy = res.text.slice(res.text.indexOf('id="term-froggy"'), res.text.indexOf('id="term-froggy"') + 400);
-    expect(froggy).toMatch(/pulled spin/);
-  });
-
-  it('§3 carries the new PassBack dex/duck-quality terms', async () => {
-    const res = await page('/freestyle/concepts');
-    for (const id of [
-      'term-dexless', 'term-ducking', 'term-weaving',
-      'term-diving', 'term-zulu', 'term-crowny',
-    ]) {
-      expect(res.text, `Concepts carries ${id}`).toContain(`id="${id}"`);
-    }
-  });
-
-  it('§4 Timing carries the PassBack "attack" term', async () => {
-    const res = await page('/freestyle/concepts');
-    expect(res.text).toContain('id="term-attack"');
-    const idx = res.text.indexOf('id="term-attack"');
-    expect(res.text.slice(idx, idx + 400)).toMatch(/how quickly/i);
-  });
-
-  it('Symposium-mechanic micro-entry carries the single-leg-jump definition', async () => {
-    const res = await page('/freestyle/concepts');
-    const idx = res.text.indexOf('id="term-symposium-mech"');
-    expect(idx).toBeGreaterThan(0);
-    const slice = res.text.slice(idx, idx + 600);
-    expect(slice).toMatch(/active leg performs an action in a single-leg jump/);
-  });
-
-  it('Execution mechanics subsection sits inside §6, above §7', async () => {
-    // execution-mechanics is a §6 subsection (modifiers/operators).
-    const res = await page('/freestyle/concepts');
-    const sec6Idx     = res.text.indexOf('id="section-modifiers"');
-    const execIdx     = res.text.indexOf('id="execution-mechanics"');
-    const sec7Idx     = res.text.indexOf('id="section-notation"');
-    expect(sec6Idx).toBeGreaterThan(0);
-    expect(execIdx).toBeGreaterThan(sec6Idx);
-    expect(sec7Idx).toBeGreaterThan(execIdx);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Typography/layout polish for compact symbolic objects. CSS-only refinements
-// plus dictionary unification (CSS-level). Most assertions are structural:
-// class presence, anchor presence, ordering.
-
-// The landing page renders no Core Tricks grid. The .core-trick-object /
-// .core-trick-slug / .core-trick-equivalence / core-trick-add-pending
-// class contract belongs to the `core-tricks-grid` Handlebars partial on
-// the Concepts page ("Other foundational atoms"), where it is tested.
-
-describe('Freestyle Concepts — compression-flow visual continuity (compact form)', () => {
-  it('symbolic-compression-flow renders zero per-step cards (collapsed to one-liner)', async () => {
-    // The compression flow renders as a one-row equivalence, not a cascade
-    // of .core-trick-object cards; the row's own contract is covered above.
-    const res = await page('/freestyle/concepts');
-    const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
-    expect(flowIdx).toBeGreaterThan(0);
-    const sec9Idx = res.text.indexOf('9. Movement Neighborhoods');
-    const slice = res.text.slice(flowIdx, sec9Idx);
-    const matches = slice.match(/class="core-trick-object glossary-compression-card"/g) ?? [];
-    expect(matches.length).toBe(0);
-  });
-
-  it('thesis sentence in §8 still renders with the .glossary-thesis class', async () => {
-    const res = await page('/freestyle/concepts');
-    expect(res.text).toContain('class="glossary-thesis"');
   });
 });
 

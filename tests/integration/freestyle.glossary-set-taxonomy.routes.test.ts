@@ -1,12 +1,9 @@
 /**
  * Freestyle Concepts set-taxonomy home.
  *
- * Timing & Sets is the home for confirmed set vocabulary, not Operators &
- * Modifiers. The confirmed sets (pixie, fairy, stepping, atomic, quantum,
- * furious) are defined here; the related terms that are not launch sets
- * (illusioning, miraging, barraging, barrage) render with stable non-set anchors
- * that the old /freestyle/sets/:slug routes redirect to. Operators & Modifiers
- * points at Timing & Sets for set definitions rather than carrying them.
+ * Timing & Sets is the home for set vocabulary, not Operators & Modifiers.
+ * Operators & Modifiers points at Timing & Sets for set definitions rather
+ * than carrying them.
  *
  * Set role is a function of a movement's structure, not a timing instant: a set
  * realization performs the dex as part of the launch, a standalone realization
@@ -58,21 +55,6 @@ describe('GET /freestyle/concepts — Timing & Sets is the set-vocabulary home',
     expect(termEntry(text, 'term-set')).toMatch(/launch/i);
   });
 
-  it('defines the confirmed named sets in Timing & Sets, including Furious', async () => {
-    const text = await concepts();
-    const timingIdx = text.indexOf('id="section-timing-sets"');
-    const modifiersIdx = text.indexOf('id="section-modifiers"');
-    expect(timingIdx).toBeGreaterThan(0);
-    expect(modifiersIdx).toBeGreaterThan(timingIdx);
-    const timingChapter = text.slice(timingIdx, modifiersIdx);
-    // The confirmed set vocabulary is anchored here, not in Operators & Modifiers.
-    for (const anchor of ['term-set-atomic', 'term-set-quantum', 'term-set-furious', 'term-set-launches']) {
-      expect(timingChapter).toContain(`id="${anchor}"`);
-    }
-    expect(timingChapter).toContain('The outward dex realized as a set');          // atomic
-    expect(timingChapter).toContain('A two-dex set beginning from clipper');       // furious
-  });
-
   it('defines set realization and standalone realization as the single home for the two roles', async () => {
     const text = await concepts();
     const timingIdx = text.indexOf('id="section-timing-sets"');
@@ -103,22 +85,6 @@ describe('GET /freestyle/concepts — Timing & Sets is the set-vocabulary home',
     // (the presenting-as-operator shape) or after them.
     expect(text).not.toMatch(/(illusioning|miraging)\s+(modifier|operator)/i);
     expect(text).not.toMatch(/(modifier|operator)\s+(illusioning|miraging)/i);
-    // The definitions state the disclaimer explicitly.
-    expect(text).toContain('Illusioning is not a reusable scored operator');
-    expect(text).toContain('Miraging is not a launch set or a reusable scored operator');
-  });
-
-  it('renders the not-set timing terms with their own non-set anchors', async () => {
-    const text = await concepts();
-    for (const anchor of ['term-illusioning', 'term-miraging-not-a-set', 'term-barraging-not-a-set', 'term-barrage-not-a-set']) {
-      expect(text).toContain(`id="${anchor}"`);
-    }
-    // Illusioning is the standalone name; Atomic is named only as its set-role
-    // counterpart, never as an equivalent.
-    const illusioning = termEntry(text, 'term-illusioning');
-    expect(illusioning).toMatch(/Atomic[^.]*set role/);
-    expect(illusioning).not.toMatch(/equivalent to Atomic|same as Atomic/i);
-    expect(text).toContain('not the same as Barraging');        // barrage vs barraging
   });
 
   it('Operators & Modifiers points set definitions to Timing & Sets rather than carrying them', async () => {
@@ -129,7 +95,7 @@ describe('GET /freestyle/concepts — Timing & Sets is the set-vocabulary home',
     const modifiersChapter = familiesIdx > modifiersIdx ? text.slice(modifiersIdx, familiesIdx) : text.slice(modifiersIdx);
     expect(modifiersChapter).toContain('href="#section-timing-sets"');
     // ...and does not carry its own copies of the set definitions.
-    for (const anchor of ['term-set-atomic', 'term-set-quantum', 'term-set-furious']) {
+    for (const anchor of ['term-set', 'term-set-realization', 'term-standalone-realization']) {
       expect(modifiersChapter).not.toContain(`id="${anchor}"`);
     }
   });

@@ -133,9 +133,7 @@ export const STAGED_GLOSSARY_TERMS: readonly StagedGlossaryTerm[] = [
     term: 'Body component',
     slug: 'body-component',
     definition: 'Any non-dex movement in a trick, such as a spin or duck, scored in notation as [BOD].',
-    aliases: ['BOD'],
-    moreHref: `${CONCEPTS}#op-flag-bod`, moreLabel: '[BOD] in notation',
-  },
+    aliases: ['BOD'],  },
   {
     term: 'ADD',
     slug: 'add',
@@ -148,7 +146,7 @@ export const STAGED_GLOSSARY_TERMS: readonly StagedGlossaryTerm[] = [
     slug: 'add-hunting',
     definition: 'Chasing high-ADD tricks for the number alone.',
     aliases: ['ADD hunt'],
-    moreHref: `${CONCEPTS}#run-quality`, moreLabel: 'ADD philosophy',
+    moreHref: `${CONCEPTS}#add-philosophy`, moreLabel: 'ADD philosophy',
   },
   {
     term: 'Technical name',
@@ -180,9 +178,7 @@ export const STAGED_GLOSSARY_TERMS: readonly StagedGlossaryTerm[] = [
   {
     term: 'Kick',
     slug: 'kick',
-    definition: 'A contact that redirects the bag instead of holding it, and carries no ADD of its own.',
-    moreHref: `${CONCEPTS}#implicit-contacts`, moreLabel: 'Implied contacts',
-  },
+    definition: 'A contact that redirects the bag instead of holding it, and carries no ADD of its own.',  },
   {
     term: 'Clipper',
     slug: 'clipper',
@@ -205,7 +201,7 @@ export const STAGED_GLOSSARY_TERMS: readonly StagedGlossaryTerm[] = [
     slug: 'cross-body',
     definition: 'The working foot reaches across and works the bag behind the opposite leg, scored in notation as [XBD].',
     aliases: ['crossbody', 'xbd', 'XBD'],
-    moreHref: `${CONCEPTS}#term-cross-body`, moreLabel: 'Cross-body in Freestyle Concepts',
+    moreHref: `${CONCEPTS}#term-clipper`, moreLabel: 'Cross-body in Freestyle Concepts',
   },
   {
     term: 'Crank',
@@ -236,9 +232,7 @@ export const STAGED_GLOSSARY_TERMS: readonly StagedGlossaryTerm[] = [
   {
     term: 'Rooted',
     slug: 'rooted',
-    definition: 'Caught or set with the stalling foot on the ground.',
-    moreHref: `${CONCEPTS}#op-prestate-rooted`, moreLabel: '(rooted) in notation',
-  },
+    definition: 'Caught or set with the stalling foot on the ground.',  },
   {
     term: 'Magic hop',
     slug: 'magic-hop',
@@ -256,9 +250,7 @@ export const STAGED_GLOSSARY_TERMS: readonly StagedGlossaryTerm[] = [
   {
     term: 'Dexless',
     slug: 'dexless',
-    definition: 'A trick or component that contains no dex.',
-    moreHref: `${CONCEPTS}#term-dexless`, moreLabel: 'Dexless in Freestyle Concepts',
-  },
+    definition: 'A trick or component that contains no dex.',  },
   {
     term: 'Direction',
     slug: 'direction',
@@ -281,9 +273,7 @@ export const STAGED_GLOSSARY_TERMS: readonly StagedGlossaryTerm[] = [
     term: 'Direction reversal',
     slug: 'rev-zero',
     definition: 'The operator, written rev(0), that reverses a dex\'s in and out direction while adding no difficulty.',
-    aliases: ['rev(0)'],
-    moreHref: `${CONCEPTS}#term-rev-zero`, moreLabel: 'Direction reversal in Freestyle Concepts',
-  },
+    aliases: ['rev(0)'],  },
   {
     term: 'Same-side',
     slug: 'same-side',
@@ -320,98 +310,68 @@ export const STAGED_GLOSSARY_TERMS: readonly StagedGlossaryTerm[] = [
   {
     term: 'Hippy',
     slug: 'hippy',
-    definition: 'A dex whose motion comes from the hip: the thigh circles the bag.',
-    moreHref: `${CONCEPTS}#term-hippy-leggy`, moreLabel: 'Motion style in Freestyle Concepts',
-  },
+    definition: 'A dex whose motion comes from the hip: the thigh circles the bag.',  },
   {
     term: 'Leggy',
     slug: 'leggy',
-    definition: 'A dex whose motion comes from the knee: the calf circles the bag.',
-    moreHref: `${CONCEPTS}#term-hippy-leggy`, moreLabel: 'Motion style in Freestyle Concepts',
-  },
+    definition: 'A dex whose motion comes from the knee: the calf circles the bag.',  },
   {
     term: 'Full dex',
     slug: 'full-dex',
-    definition: 'A dex that circles the bag entirely, returning the leg to the side it started on.',
-    moreHref: `${CONCEPTS}#term-full-half-dex`, moreLabel: 'Full vs half dex',
-  },
+    definition: 'A dex that circles the bag entirely, returning the leg to the side it started on.',  },
   {
     term: 'Half dex',
     slug: 'half-dex',
-    definition: 'A dex that circles the bag only partway, finishing on the opposite side.',
-    moreHref: `${CONCEPTS}#term-full-half-dex`, moreLabel: 'Full vs half dex',
-  },
+    definition: 'A dex that circles the bag only partway, finishing on the opposite side.',  },
   {
     term: 'Dex window',
     slug: 'dex-window',
     definition: 'The space around the leg a dex passes through.',
-    aliases: ['window'],
-    moreHref: `${CONCEPTS}#term-dex-window`, moreLabel: 'Execution window',
-  },
+    aliases: ['window'],  },
   {
     term: 'Deep',
     slug: 'deep',
-    definition: 'A dex that sits high in the window, well away from the shoe.',
-    moreHref: `${CONCEPTS}#term-deep`, moreLabel: 'Execution window',
-  },
+    definition: 'A dex that sits high in the window, well away from the shoe.',  },
   {
     term: 'Thin',
     slug: 'thin',
-    definition: 'A dex that sits at the edge of the window, close to the shoe, so the bag barely clears the leg.',
-    moreHref: `${CONCEPTS}#term-thin`, moreLabel: 'Execution window',
-  },
+    definition: 'A dex that sits at the edge of the window, close to the shoe, so the bag barely clears the leg.',  },
   {
     term: 'Shoey',
     slug: 'shoey',
-    definition: 'A dex that grazes the shoe surface during the circle.',
-    moreHref: `${CONCEPTS}#term-shoey`, moreLabel: 'Execution window',
-  },
+    definition: 'A dex that grazes the shoe surface during the circle.',  },
   {
     term: 'Scoopy',
     slug: 'scoopy',
     definition: 'A dex or catch where the leg cups beneath the bag in an arced motion rather than circling or catching cleanly.',
-    aliases: ['scooped', 'scoop'],
-    moreHref: `${CONCEPTS}#term-scoopy`, moreLabel: 'Execution window',
-  },
+    aliases: ['scooped', 'scoop'],  },
 
   // ── Execution and result vocabulary ────────────────────────────────────
   {
     term: 'Clean',
     slug: 'clean',
-    definition: 'Fully controlled, clearly executed.',
-    moreHref: `${CONCEPTS}#term-clean`, moreLabel: 'Execution quality',
-  },
+    definition: 'Fully controlled, clearly executed.',  },
   {
     term: 'Sloppy',
     slug: 'sloppy',
-    definition: 'Poorly controlled execution: the dex completes but the motion is unclear or the bag\'s path is uneven.',
-    moreHref: `${CONCEPTS}#term-sloppy`, moreLabel: 'Execution quality',
-  },
+    definition: 'Poorly controlled execution: the dex completes but the motion is unclear or the bag\'s path is uneven.',  },
   {
     term: 'Pulled',
     slug: 'pulled',
-    definition: 'A set where the bag is dragged through an uptime dex or a spin before the intended component happens.',
-    moreHref: `${CONCEPTS}#term-pulled`, moreLabel: 'Execution quality',
-  },
+    definition: 'A set where the bag is dragged through an uptime dex or a spin before the intended component happens.',  },
   {
     term: 'Slurry',
     slug: 'slurry',
-    definition: 'Synonym for a pulled set.',
-    moreHref: `${CONCEPTS}#term-slurry`, moreLabel: 'Execution quality',
-  },
+    definition: 'Synonym for a pulled set.',  },
   {
     term: 'Froggy',
     slug: 'froggy',
-    definition: 'A pulled spin: a spin that drags the bag through before the intended component happens.',
-    moreHref: `${CONCEPTS}#term-froggy`, moreLabel: 'Execution quality',
-  },
+    definition: 'A pulled spin: a spin that drags the bag through before the intended component happens.',  },
   {
     term: 'Over-dexed',
     slug: 'over-dexed',
     definition: 'A dex with more motion than the trick requires.',
-    aliases: ['over-dex'],
-    moreHref: `${CONCEPTS}#term-over-dexed`, moreLabel: 'Execution quality',
-  },
+    aliases: ['over-dex'],  },
   {
     term: 'Hit',
     slug: 'hit',
@@ -540,9 +500,7 @@ export const STAGED_GLOSSARY_TERMS: readonly StagedGlossaryTerm[] = [
   {
     term: 'Alpine',
     slug: 'alpine',
-    definition: 'Shorthand that splits a trick between its uptime and downtime and inserts a duck or dive between them.',
-    moreHref: `${CONCEPTS}#term-alpine`, moreLabel: 'Alpine in Freestyle Concepts',
-  },
+    definition: 'Shorthand that splits a trick between its uptime and downtime and inserts a duck or dive between them.',  },
   {
     term: 'LIMP',
     slug: 'limp',
@@ -699,7 +657,7 @@ export const STAGED_GLOSSARY_TERMS: readonly StagedGlossaryTerm[] = [
     term: 'Operational notation',
     slug: 'operational-notation',
     definition: 'The token-by-token spelling of a trick, and the source of truth for what it scores.',
-    moreHref: `${CONCEPTS}#operational-notation`, moreLabel: 'Operational notation',
+    moreHref: `${CONCEPTS}#section-notation`, moreLabel: 'Operational notation',
   },
   {
     term: 'Jobs notation',

@@ -208,13 +208,14 @@ describe('GET /freestyle/add-analysis — why sources disagree + cross-links', (
 });
 
 describe('ADD Analysis discoverability — inbound links', () => {
-  it('Freestyle Concepts ADD Accounting compact-equivalence block links to ADD analysis', async () => {
+  it('Freestyle Concepts ADD accounting block links to ADD analysis', async () => {
     const res = await page('/freestyle/concepts');
-    const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
-    expect(flowIdx).toBeGreaterThan(0);
-    const sec9Idx = res.text.indexOf('9. Movement Neighborhoods');
-    const slice = res.text.slice(flowIdx, sec9Idx);
-    expect(slice).toContain('href="/freestyle/add-analysis"');
+    expect(res.status).toBe(200);
+    const start = res.text.indexOf('id="section-add-accounting"');
+    expect(start, 'ADD accounting anchor').toBeGreaterThan(0);
+    const end = res.text.indexOf('id="section-composition"', start);
+    expect(end, 'next section anchor').toBeGreaterThan(start);
+    expect(res.text.slice(start, end)).toContain('href="/freestyle/add-analysis"');
   });
 
   it('freestyle history difficulty section links to ADD analysis', async () => {

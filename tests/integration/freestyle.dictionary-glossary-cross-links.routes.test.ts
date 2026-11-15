@@ -4,20 +4,11 @@
  *
  * Long-term contract pinned:
  *
- *   1. The semantic-token shaper resolves a Concepts anchor per token:
- *      modifier-role tokens with a modifier-feel card map to
- *      `/freestyle/concepts#modifier-{slug}`; base-anchor-role tokens
- *      for known core atoms map to `/freestyle/concepts#term-{slug}`.
- *      Side-positional / unknown / unlisted slugs receive null.
- *
- *   2. Each Freestyle Concepts modifier-feel card carries a "Browse X
- *      tricks" deep-link into the dictionary.
- *
- *   3. Freestyle heroes are breadcrumb + title + subhead only — no
+ *   1. Freestyle heroes are breadcrumb + title + subhead only — no
  *      cross-link CTA inside the hero. The Freestyle Concepts body still
  *      references the trick dictionary in prose.
  *
- *   4. No browse view renders chain tokens. A chain reading is structural
+ *   2. No browse view renders chain tokens. A chain reading is structural
  *      content belonging to the trick's own page, so the shared browse row
  *      carries identity and notation only.
  */
@@ -147,38 +138,6 @@ describe('Browse rows carry no chain tokens on any view', () => {
       expect(row, `ripwalk row missing in ${view} view`).not.toBeNull();
       expect(row![0], `${view} row carries a chain token`).not.toMatch(/sem-token/);
     }
-  });
-});
-
-describe('Freestyle Concepts modifier cards — "See tricks using X" deep-links', () => {
-  it('links each body and entry modifier card to its section of the modifier view', async () => {
-    const res = await page('/freestyle/concepts');
-    expect(res.status).toBe(200);
-    // Spot-check the most pedagogically central cards: each browse link lands
-    // on that modifier's own section, never on a removed view.
-    for (const slug of ['paradox', 'symposium', 'spinning', 'ducking']) {
-      expect(
-        res.text,
-        `Concepts modifier card for '${slug}' missing its browse link`,
-      ).toContain(`href="/freestyle/tricks?view=modifier#modifier-${slug}"`);
-    }
-    expect(res.text).not.toContain('href="/freestyle/tricks?view=movement-system"');
-  });
-
-  it('renders the tricks-link class wrapper on the footer paragraph', async () => {
-    const res = await page('/freestyle/concepts');
-    expect(res.text).toContain('class="glossary-modifier-card-tricks-link"');
-  });
-
-  it('preserves the modifier-pixie deep-link anchor, cross-linked to its set definition', async () => {
-    const res = await page('/freestyle/concepts');
-    // Pixie is set vocabulary, defined in the Timing & Sets chapter. Its feel
-    // card moved there, but the modifier-pixie anchor that dictionary tokens
-    // deep-link to survives as a thin cross-link so those deep links resolve.
-    expect(res.text).toContain('id="modifier-pixie"');
-    const stub = res.text.match(/id="modifier-pixie"[^>]*href="([^"]+)"/);
-    expect(stub).not.toBeNull();
-    expect(stub![1]).toBe('#section-timing-sets');
   });
 });
 

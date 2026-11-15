@@ -31,7 +31,6 @@ import {
 import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 import { insertFreestyleTrickAlias } from '../fixtures/factories';
 import { insertTrickAsRebuilt } from '../fixtures/stagedFormula';
-import { ROOT_TERMINAL_FAMILIES, BRANCH_FAMILIES } from '../../src/content/freestyleGlossaryFamilyCards';
 import { STAGED_CURATOR_CONTENT } from '../../freestyle/loaders/28a_seed_curator_content';
 
 const { dbPath } = setTestEnv('3618');
@@ -127,26 +126,6 @@ describe('GET /freestyle/families/butterfly — glossary/family card reconciled 
     expect(res.text).toContain('far/opposite-side form');
     // Butterfly Same Side is named as the separate same-side variant.
     expect(res.text).toContain('Butterfly Same Side');
-  });
-});
-
-describe('freestyle glossary family cards — butterfly base reconciled, compounds untouched', () => {
-  const findCard = (slug: string) =>
-    [...ROOT_TERMINAL_FAMILIES, ...BRANCH_FAMILIES].find(c => c.slug === slug);
-
-  it('the base butterfly card canonical formula is the far/opposite-side form (no SAME/OP)', () => {
-    const butterfly = findCard('butterfly');
-    expect(butterfly).toBeDefined();
-    expect(butterfly!.canonicalFormula).toBe('SET > OP OUT [DEX] > OP CLIP [XBD] [DEL]');
-    expect(butterfly!.canonicalFormula).not.toContain('SAME/OP');
-  });
-
-  it('the butterfly-family compound cards keep their existing notation (migration held)', () => {
-    // butterfly_swirl is a butterfly-family compound; its side-either notation
-    // is intentionally unchanged in this slice.
-    const butterflySwirl = findCard('butterfly_swirl');
-    expect(butterflySwirl).toBeDefined();
-    expect(butterflySwirl!.canonicalFormula).toContain('SAME/OP OUT [DEX]');
   });
 });
 

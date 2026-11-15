@@ -208,7 +208,7 @@ describe('test-targets.sh — a page template reaches the suites requesting its 
 
   it('selects every suite that requests the route a changed page template renders', () => {
     const expected = suitesRequesting('/freestyle/concepts');
-    expect(expected.length).toBeGreaterThan(25);
+    expect(expected.length).toBeGreaterThan(10);
     const missing = expected.filter((f) => !concepts.tests.includes(f));
     expect(missing, 'suites requesting /freestyle/concepts left out').toEqual([]);
   });
@@ -216,7 +216,7 @@ describe('test-targets.sh — a page template reaches the suites requesting its 
   it('includes the suites that request the page by URL but never name its template', () => {
     for (const f of [
       'tests/integration/freestyle.routes.test.ts',
-      'tests/integration/freestyle.glossary-connective-panels.routes.test.ts',
+      'tests/integration/freestyle.glossary-topics.routes.test.ts',
     ]) {
       expect(concepts.tests, f).toContain(f);
     }
@@ -225,13 +225,13 @@ describe('test-targets.sh — a page template reaches the suites requesting its 
   it('includes a suite that reads the template file directly rather than requesting the page', () => {
     const expected = scanSource('concepts.hbs', { roots: ['tests/unit', 'tests/integration'], exts: ['.ts'] })
       .filter((f) => f.endsWith('.test.ts') && f !== 'tests/integration/testTargets.script.test.ts');
-    expect(expected).toContain('tests/integration/concepts-difficulty-frontier.test.ts');
+    expect(expected).toContain('tests/unit/freestyle-doctrine-copy.test.ts');
     const missing = expected.filter((f) => !concepts.tests.includes(f));
     expect(missing, 'suites naming concepts.hbs left out').toEqual([]);
   });
 
   it('prints the page suites as the set to run, with no advice to trim it', () => {
-    expect(concepts.tests.length).toBeGreaterThan(25);
+    expect(concepts.tests.length).toBeGreaterThan(10);
     expect(concepts.notes.filter((n) => /budget|re-target|trim/.test(n))).toEqual([]);
   });
 

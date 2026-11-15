@@ -1,7 +1,7 @@
 /**
  * Collapsed-region deep-link opener (progressive enhancement).
  *
- * Freestyle Concepts presents its content as independently collapsible chapters
+ * Freestyle pages present some content in independently collapsible regions
  * (<details> elements). Content inside a closed <details> is not rendered, so a
  * deep link or in-page anchor to an id inside a collapsed chapter would land on
  * hidden content. When the URL carries a fragment, this opens every <details>

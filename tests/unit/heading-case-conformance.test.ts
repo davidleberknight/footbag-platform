@@ -36,7 +36,6 @@ const CONTROLLERS = path.join(ROOT, 'src', 'controllers');
  */
 const EDITORIAL_SURFACES = new Map<string, string>([
   ['freestyle/', 'the long-form freestyle reference: article subheads, not interface chrome'],
-  ['partials/freestyle-', 'freestyle reference panels included into those articles'],
   ['partials/trick-', 'trick-page reference panels: notation prose'],
 ]);
 

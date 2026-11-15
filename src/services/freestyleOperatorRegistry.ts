@@ -101,24 +101,6 @@ export function coreOperatorDefinition(slug: string): string | null {
   return op && op.kind === 'core' ? op.definition : null;
 }
 
-// Set treatments first, body operators next, quantifiers last.
-const REFERENCE_TIER: Readonly<Record<OperatorKind, number>> = {
-  'set': 0, 'historical-nickname': 0, 'compound-set': 0,
-  'body': 1, 'compound-body': 1, 'quantifier': 2, 'core': 3,
-};
-
-/**
- * The full reference entries: every non-core operator with a recorded source. An
- * operator known only by its operators-page row has none, so it is not one. In
- * tier order (set treatments, then body operators, then quantifiers), by name
- * within a tier.
- */
-export function referenceOperators(): OperatorRecord[] {
-  return snapshot().records
-    .filter((r) => r.kind !== 'core' && r.sourceNote !== null)
-    .sort((a, b) => REFERENCE_TIER[a.kind] - REFERENCE_TIER[b.kind] || a.name.localeCompare(b.name, 'en'));
-}
-
 /** The slugs the operators page lists under one group, in their page order. */
 export function operatorPageGroupSlugs(groupKey: string): string[] {
   return snapshot().records

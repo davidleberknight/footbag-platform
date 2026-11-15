@@ -62,9 +62,8 @@ silently reshaping either side.
   and multi-dex compounds resolve by the same chain: pixie-mirage and fairy-mirage
   catch on the setting toe (their teaching prose corrected from "opposite toe"),
   while quantum-mirage and pixie-same-side-illusion catch on the opposite (dexing)
-  toe (their prose already correct). Canonical home: the public teaching copy in
-  `src/content/freestyleCoreAtomEducational.ts` and the family cards, with the
-  per-component marker rule in `POSITIONAL_IDENTITY.md`.
+  toe (their prose already correct). Canonical home: the per-component marker rule
+  in `POSITIONAL_IDENTITY.md`.
 - **Double-drifter cells preserve the drifter lead** (maintainer ruling). High Plains
   Drifter and Toe Double Drifter are the clipper-set and toe-set cells of one
   double-drifter structure; both keep the drifter base's opposite-side inward lead dex

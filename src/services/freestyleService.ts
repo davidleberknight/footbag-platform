@@ -10,7 +10,7 @@
  *     (getTrickDetailPage), GET /freestyle/families/:slug
  *     (getFamilyDetailPage; first-class Family Parents only).
  *   - Reference: GET /freestyle/glossary (getGlossaryPage; the A–Z term list),
- *     /freestyle/concepts (getConceptsPage; the chapter-based reference), /freestyle/operators
+ *     /freestyle/concepts (getConceptsPage; the short conceptual reference), /freestyle/operators
  *     (getOperatorsPage), /freestyle/modifier/:slug (getModifierDetail -> teaching | stub),
  *     /freestyle/notation-article (getJobsNotationArticlePage), /freestyle/observational
  *     (getObservationalLayerPage).
@@ -105,7 +105,6 @@ import {
   effectiveFamilyOf,
 } from './freestyleRelatedTricks';
 import type { FreestyleStructuralRelative, FreestyleObservationalNote } from './freestyleRelatedTricks';
-import { movementNeighborsFor } from './freestyleMovementNeighbors';
 import {
   SymbolicEducationCta,
   buildSymbolicEducationCtas,
@@ -125,7 +124,6 @@ import {
   operatorRecords,
   findOperator,
   coreOperatorDefinition,
-  referenceOperators,
   operatorPageGroupSlugs,
   operatorPageGroupOf,
   modifierBrowse,
@@ -141,10 +139,6 @@ import {
   type HistoryNarrativeSource,
 } from '../content/freestyleHistoryNarrative';
 import { loadSiteVideo, loadSiteVideoMedia } from './siteMediaService';
-import {
-  CORE_ATOM_EDUCATIONAL,
-} from '../content/freestyleCoreAtomEducational';
-import { GLOSSARY_CORE_CONCEPTS_BY_KEY } from '../content/freestyleGlossaryCoreConcepts';
 import { glossaryTerms, type GlossaryTermRecord } from './freestyleGlossaryRegistry';
 import {
   familyLabels,
@@ -163,12 +157,8 @@ import {
   resolveDisplayFamily,
   type PublicDisplayFamily,
 } from './freestyleFamilyRegistry';
-import {
-  FAMILY_TIER_LABEL,
-  type FamilyTier,
-} from '../content/freestyleFamilyTiers';
+import { FAMILY_TIER_LABEL } from '../content/freestyleFamilyTiers';
 import { JOBS_NOTATION_ARTICLE, JOBS_NOTATION_ARTICLE_TITLE } from '../content/jobsNotationArticle';
-import { LEGACY_PANEL_TARGETS } from './conceptsAnchors';
 import { TERMINAL_SURFACES, type TopologyHistogramRow } from '../content/freestyleTopologyHistograms';
 import { MODIFIER_CLUSTERS, SET_UPTIME_CLUSTER } from '../content/freestyleModifierClusters';
 import { quantityLadderFor } from '../content/freestyleQuantityLadders';
@@ -230,15 +220,6 @@ import {
   type EmergingDecisionGroup,
 } from '../content/freestyleObservationalUniverse';
 import { EV_REVIEW_HELD_NAMES } from '../content/freestyleEvReviewHold';
-import {
-  ROOT_TERMINAL_FAMILIES,
-  BRANCH_FAMILIES,
-  type GlossaryFamilyCard,
-} from '../content/freestyleGlossaryFamilyCards';
-import {
-  ADD_WORKED_EXAMPLES,
-  type GlossaryAddExample,
-} from '../content/freestyleGlossaryAddExamples';
 import { personLocation } from './countryUtils';
 import {
   START_NEXT_STEPS,
@@ -745,53 +726,6 @@ export interface FreestyleLandingContent {
   totalRecords: number;
 }
 
-// ── Operator Board ──────────────────────────────────────────────────────
-// The landing-page mini-board introduces the Tier-1 operator vocabulary
-// (13 operators across set / body / structural tiers). Cells with
-// curatorConfirmPending=true require a curator accuracy pass before any
-// prose lock.
-export interface OperatorBoardOperator {
-  glyph:                  string;   // e.g. "PIX"
-  name:                   string;   // e.g. "Pixie"
-  action:                 string;   // one-line plain-English action
-  compositionA:           string;   // left side of "A + BASE → RESULT"
-  compositionResult:      string;   // result name on the right of the arrow
-  curatorConfirmPending:  boolean;  // true for [curator confirm] cells
-  // Restrained deep-link to the single most authoritative existing surface
-  // for this operator. null when no mature destination exists: don't fabricate
-  // maturity. href + hrefLabel are paired; both populated or both null.
-  href:                   string | null;   // absolute path with anchor
-  hrefLabel:              string | null;   // short destination-type label
-}
-export interface OperatorBoardTier {
-  key:       'set' | 'body' | 'structural';
-  eyebrow:   string;   // "I · Sets"
-  title:     string;   // "Set operators"
-  intro:     string;   // "What sends the bag into the air."
-  operators: OperatorBoardOperator[];
-}
-export interface OperatorBoardData {
-  heading: string;
-  lede:    string;
-  tiers:   OperatorBoardTier[];
-}
-// Surface tag for the connective-prose lookup. The tiers are surface-invariant;
-// only heading + lede change. Default is 'landing' to keep the original call
-// site (FreestyleService.getLandingPage) unchanged.
-export type OperatorBoardSurface = 'landing' | 'concepts';
-const OPERATOR_BOARD_PROSE: Record<OperatorBoardSurface, { heading: string; lede: string }> = {
-  // Ledes are one short sentence each; the tier eyebrow + card grid
-  // do the structural teaching.
-  landing: {
-    heading: 'The operators of freestyle',
-    lede:    'Named sets, body movements, and structural relationships. Combine them to build every named trick.',
-  },
-  concepts: {
-    heading: 'The compositional vocabulary',
-    lede:    'Named sets, body movements, and structural relationships. The sections below define each in depth.',
-  },
-};
-
 // The six next-step lessons at the end of the getting-started page.
 const START_NEXT_STEPS_HREF = '/freestyle/start#next-steps';
 
@@ -966,36 +900,6 @@ function shapeCoreTricks(trickRows: FreestyleTrickRow[]): FreestyleCoreTrickCard
   });
 }
 
-// Set-modifier registry shaper. Projects (a) the Tier-1 set
-// operators from the operator board + (b) intermediate set/compound-set
-// entries from the full operator reference entries onto one flat
-// FreestyleSetModifierEntry[] for the glossary §10 grid. De-dup: when a
-// slug appears in both sources, the reference entry wins (its definition and
-// decomposition carry richer registry content).
-function shapeSetModifiers(board: OperatorBoardData): FreestyleSetModifierEntry[] {
-  const setTier = board.tiers.find(t => t.key === 'set');
-  // The set-primitive grid is the glossary anchor home only for set primitives
-  // that no other Modifiers & Operators surface owns. Atomic / Quantum / Blurry /
-  // Nuclear / Barraging carry their full decomposition + worked examples in the
-  // intermediate-operators list, and Stepping is defined in the body-modifier
-  // reference; rendering them here too would duplicate each operator's
-  // term-{slug} anchor onto two elements. Excluding them leaves Pixie and Fairy,
-  // whose term-anchor link target lives nowhere else.
-  const ownedElsewhere = new Set<string>([
-    ...referenceOperators().map(e => e.slug),
-    'stepping',
-  ]);
-  return (setTier?.operators ?? [])
-    .map(op => ({
-      slug:           op.name.toLowerCase().replace(/\s+/g, '_'),
-      name:           op.name,
-      glyph:          op.glyph,
-      oneLineMeaning: op.action,
-      decomposition:  null,
-      href:           op.href,
-    }))
-    .filter(e => !ownedElsewhere.has(e.slug));
-}
 
 // Operators index: compact rows grouped by structural-role axis. Per-row data is
 // composed from the modifier table (name + ADD weight), the canonical-set
@@ -1149,48 +1053,7 @@ function buildOperatorIndexAxes(
   }));
 }
 
-// §5 family-tree shaping. Curator-selected pilot families: the four
-// whose compound membership is dense enough to teach the "anchor +
-// branched modifiers" pattern. Members are sorted by ADD ascending
-// (then by canonical name), capped to keep the visual budget tight.
-const FAMILY_TREE_PILOTS: readonly string[] = ['whirl', 'butterfly', 'mirage', 'osis'];
-const FAMILY_TREE_MEMBER_CAP = 7;
 const FAMILY_PAGE_EXAMPLE_COUNT = 8;
-
-function shapeFamilyTrees(trickRows: readonly FreestyleTrickRow[]): FreestyleFamilyTree[] {
-  const trees: FreestyleFamilyTree[] = [];
-  for (const anchorSlug of FAMILY_TREE_PILOTS) {
-    const anchorRow = trickRows.find(r => r.slug === anchorSlug);
-    const anchorAdds = anchorRow && anchorRow.adds != null
-      ? Number(anchorRow.adds)
-      : NaN;
-    const compounds = trickRows
-      .filter(r => r.trick_family === anchorSlug && r.slug !== anchorSlug)
-      .sort((a, b) => {
-        const aAdds = a.adds != null ? Number(a.adds) : Number.POSITIVE_INFINITY;
-        const bAdds = b.adds != null ? Number(b.adds) : Number.POSITIVE_INFINITY;
-        if (aAdds !== bAdds) return aAdds - bAdds;
-        return a.canonical_name.localeCompare(b.canonical_name);
-      })
-      .slice(0, FAMILY_TREE_MEMBER_CAP)
-      .map<FreestyleFamilyTreeMember>(r => {
-        const parsed = r.adds != null ? Number(r.adds) : NaN;
-        return {
-          slug:    r.slug,
-          display: r.canonical_name,
-          adds:    Number.isFinite(parsed) ? parsed : null,
-          href:    `/freestyle/tricks/${r.slug}`,
-        };
-      });
-    trees.push({
-      anchorSlug,
-      anchorDisplay: anchorRow?.canonical_name ?? anchorSlug,
-      anchorAdds:    Number.isFinite(anchorAdds) ? anchorAdds : null,
-      members:       compounds,
-    });
-  }
-  return trees;
-}
 
 export interface FreestyleRelatedGroup {
   key:       string;            // the underlying relating rule
@@ -2662,216 +2525,6 @@ const BODY_MODIFIER_FEEL_CARDS: readonly ModifierFeelCard[] = [
   },
 ];
 
-// One member of a §5 family tree. Compound trick that branches off a
-// family anchor (whirl / butterfly / mirage / osis).
-export interface FreestyleFamilyTreeMember {
-  slug:    string;                           // 'paradox-whirl'
-  display: string;                           // 'paradox whirl'
-  adds:    number | null;                    // 4, or null when ADD is unresolved
-  href:    string;                           // '/freestyle/tricks/paradox-whirl'
-}
-
-// One family-tree entry for §5. Anchor on top, branched members below.
-// Curator-selected pilot families; not every core trick gets a tree.
-export interface FreestyleFamilyTree {
-  anchorSlug:    string;                     // 'whirl'
-  anchorDisplay: string;                     // 'whirl'
-  anchorAdds:    number | null;              // anchor's own ADD value
-  members:       readonly FreestyleFamilyTreeMember[];
-}
-
-// The Concepts abbreviation table: the shorthand readers meet in trick titles
-// and composition prose. The bracketed operational-notation tokens are defined
-// once, in the page's operational-notation reference.
-export interface FreestyleGlossaryAbbreviations {
-  trickNames: readonly FreestyleGlossaryAbbreviationEntry[];
-}
-
-// Curator-authored. Order is rendered as-is.
-const GLOSSARY_ABBREVIATIONS: FreestyleGlossaryAbbreviations = {
-  trickNames: [
-    { short: 'PDX',      meaning: 'Paradox (dex relationship).' },
-    { short: 'SS',       meaning: 'Same side: the component acts on the same leg as the most recent side-bearing component.' },
-    { short: 'OP',       meaning: 'Opposite: the component acts on the opposite leg from the most recent side-bearing component; two OP relations in succession return to the original leg.' },
-    { short: 'SYMP',     meaning: 'Abbreviation of Symposium. Also appears in the historical token Symple, whose status as a distinct operator is unresolved.' },
-    { short: 'DLO',      meaning: 'Double Leg Over.' },
-    { short: 'ATW',      meaning: 'Around-the-World.' },
-    { short: 'DATW',     meaning: 'Double Around-the-World.' },
-    { short: 'BOP',      meaning: 'Butterfly, Osis, Paradox Mirage.' },
-    { short: 'PS Whirl', meaning: 'Paradox Symposium Whirl.' },
-  ],
-};
-
-// Glossary view-model. Carries the shaped notation examples so the §8
-// notation explainers render with the same role-aware classification the
-// trick-detail page uses. Keeps the glossary's promise ("color-coded
-// structural roles") visible on the page itself.
-// A family card plus its two INDEPENDENT doctrine labels, so the card stops
-// collapsing ancestry and tier into one chip:
-//   - lineage position: Root lineage, or Branch lineage (<parent>), from the
-//     public roster's `parent` field;
-//   - tier: Family Parent / Minor Lineage / Foundational Terminal Surface, from
-//     freestyleFamilyTiers.
-// Reflects already-adopted doctrine; changes no roster membership.
-export interface GlossaryFamilyCardView extends GlossaryFamilyCard {
-  lineageLabel: string;
-  tierKey:      FamilyTier;
-  tierLabel:    string;
-  // Compact teaching projection for the glossary card: the plain-language
-  // physical description and the significance hook, plus a link to the full
-  // family article. Null for a family with no authored teaching.
-  teachingBrief: { physicalDescription: string; significance: string; articleHref: string | null } | null;
-  // Old connective-panel ids that now land on this card, rendered as empty
-  // anchors so bookmarks to them still resolve.
-  legacyAnchorIds: readonly string[];
-}
-
-// Family cards that are not in the public roster carry an explicit tier and, when
-// they genuinely descend from a family, a lineage parent. A null parentSlug means
-// an independent minor lineage that is NOT a branch of any family. Keys are card
-// slugs and MUST use the canonical lowercase-underscore slug form: this map is
-// looked up by card.slug, so a hyphenated key silently misses and the card falls
-// through to the family-parent default (the rev-whirl vs rev_whirl bug).
-//
-// rev_whirl is a direction reversal of whirl, and direction reversal generates a
-// DISTINCT lineage, not a branch: it demotes to a minor lineage with no parent, so
-// it renders as its own reversal lineage rather than under Whirl. blur (blurry
-// mirage) and phoenix are terminal-identity branches of their bases and do carry a
-// parent.
-const CARD_ONLY_FAMILY_LINEAGE: Readonly<Record<string, { parentSlug: string | null; tier: FamilyTier }>> = {
-  'rev_whirl': { parentSlug: null,        tier: 'minor-lineage' },
-  'blur':      { parentSlug: 'mirage',    tier: 'minor-lineage' },
-  'phoenix':   { parentSlug: 'butterfly', tier: 'minor-lineage' },
-};
-
-function shapeGlossaryFamilyCard(card: GlossaryFamilyCard): GlossaryFamilyCardView {
-  const override   = CARD_ONLY_FAMILY_LINEAGE[card.slug];
-  // An override sets the lineage explicitly, including a null parent (an
-  // independent minor lineage). Only fall through to the roster parent when there
-  // is no override, so an explicit null parent is not overwritten.
-  const parentSlug = override
-    ? override.parentSlug
-    : familyParentOf().get(card.slug) ?? null;
-  const tier       = override?.tier ?? familyTier(card.slug);
-  const lineageLabel = parentSlug
-    ? `Branch lineage (${familyLabels().get(parentSlug) ?? parentSlug})`
-    : 'Root lineage';
-  // The description and hook are the family's own, from the family roster.
-  const record = familyRecord(card.slug);
-  const teachingBrief = record?.description && record.hook
-    ? {
-        physicalDescription: record.description,
-        significance:        record.hook,
-        articleHref:         familyPageHref(card.slug),
-      }
-    : null;
-  const legacyAnchorIds = [...LEGACY_PANEL_TARGETS]
-    .filter(([, target]) => target === `term-${card.slug}`)
-    .map(([legacyId]) => legacyId);
-  return { ...card, lineageLabel, tierKey: tier, tierLabel: FAMILY_TIER_LABEL[tier], teachingBrief, legacyAnchorIds };
-}
-
-// A lineage sub-group within a tier ("Root lineages", "Branches of Osis").
-export interface FamilyCardSubGroup {
-  label: string;
-  cards: readonly GlossaryFamilyCardView[];
-}
-
-// Family cards grouped PRIMARILY by display tier, then by lineage position, so
-// every Family Parent reads as one tier whether it is a root or a branch. Reuses
-// the same tier classifier + roster `parent` data the chips use; changes no
-// roster membership or tier logic. Each card appears in exactly one group, so its
-// `#term-{slug}` anchor still renders once.
-export interface FamilyCardTierGroup {
-  tierKey:   string;
-  tierLabel: string;
-  subGroups: readonly FamilyCardSubGroup[];
-}
-
-function familyCardParentSlug(slug: string): string | null {
-  const override = CARD_ONLY_FAMILY_LINEAGE[slug];
-  if (override) return override.parentSlug;
-  return familyParentOf().get(slug) ?? null;
-}
-
-function buildFamilyCardTierGroups(): FamilyCardTierGroup[] {
-  const allCards = [...ROOT_TERMINAL_FAMILIES, ...BRANCH_FAMILIES].map(shapeGlossaryFamilyCard);
-  const tierOrder: { key: FamilyTier; label: string }[] = [
-    { key: 'family-parent',                 label: 'Family Parents' },
-    { key: 'minor-lineage',                 label: 'Minor Lineages' },
-    { key: 'foundational-terminal-surface', label: 'Foundational Terminal Surfaces' },
-  ];
-  const groups: FamilyCardTierGroup[] = [];
-  for (const { key, label } of tierOrder) {
-    const tierCards = allCards.filter(c => c.tierKey === key);
-    if (tierCards.length === 0) continue;
-    const subGroups: FamilyCardSubGroup[] = [];
-    const roots = tierCards.filter(c => familyCardParentSlug(c.slug) === null);
-    if (roots.length) subGroups.push({ label: 'Root lineages', cards: roots });
-    // Branches grouped by parent, in the order each parent first appears.
-    const byParent = new Map<string, GlossaryFamilyCardView[]>();
-    for (const c of tierCards) {
-      const parentSlug = familyCardParentSlug(c.slug);
-      if (parentSlug === null) continue;
-      const bucket = byParent.get(parentSlug) ?? [];
-      bucket.push(c);
-      byParent.set(parentSlug, bucket);
-    }
-    for (const [parentSlug, cards] of byParent) {
-      subGroups.push({ label: `Branches of ${familyLabels().get(parentSlug) ?? parentSlug}`, cards });
-    }
-    groups.push({ tierKey: key, tierLabel: label, subGroups });
-  }
-  return groups;
-}
-
-/** One "change one thing" move in the movement-neighbor figure: the plain-language
- *  change and the neighbor trick it lands on. */
-export interface GlossaryMovementNeighborMove {
-  changeLabel: string;   // e.g. "Reverse the direction the leg circles"
-  toName:      string;   // the neighbor trick's canonical name
-  toHref:      string;   // /freestyle/tricks/<neighbor-slug>
-}
-
-/** One card in the "eight closest relatives" figure: a foundational trick and the
- *  three tricks one movement change away from it. */
-export interface GlossaryMovementNeighborCard {
-  name:  string;         // this trick's canonical name
-  href:  string;         // /freestyle/tricks/<slug>
-  moves: GlossaryMovementNeighborMove[];  // exactly three, one per movement aspect
-}
-
-export interface GlossaryMovementNeighbors {
-  cards: GlossaryMovementNeighborCard[];  // the eight one-dex toe tricks
-}
-
-// Reading order for the eight cards: the four direction-reverse pairs kept
-// adjacent, so a reader sees each pair (mirage/illusion, pixie/fairy, and so on)
-// side by side.
-const MOVEMENT_NEIGHBOR_CARD_ORDER = [
-  'mirage', 'illusion', 'pixie', 'fairy',
-  'around_the_world', 'orbit', 'pickup', 'legover',
-] as const;
-
-/** Shape the "eight closest relatives" figure from the movement-neighbor relation,
- *  resolving each slug to its canonical name and detail href against the active
- *  dictionary. */
-function shapeMovementNeighbors(allDictRows: FreestyleTrickRow[]): GlossaryMovementNeighbors {
-  const nameBySlug = new Map(allDictRows.map(r => [r.slug, r.canonical_name]));
-  const nameFor = (slug: string) => nameBySlug.get(slug) ?? slug;
-  const hrefFor = (slug: string) => `/freestyle/tricks/${slug}`;
-  const cards = MOVEMENT_NEIGHBOR_CARD_ORDER.map(slug => ({
-    name: nameFor(slug),
-    href: hrefFor(slug),
-    moves: (movementNeighborsFor(slug) ?? []).map(n => ({
-      changeLabel: n.changeLabel,
-      toName:      nameFor(n.slug),
-      toHref:      hrefFor(n.slug),
-    })),
-  }));
-  return { cards };
-}
-
 // The A–Z Glossary (/freestyle/glossary): one alphabetical list of terms, each
 // a short definition plus an optional deeper link. Grouped by first letter so
 // the template renders letter headings without deriving them.
@@ -2933,157 +2586,27 @@ export function shapeGlossaryLetterGroups(
   return groups;
 }
 
-// One intermediate operator as the Concepts reference renders it: a full
-// operator reference entry, under the field names the partial reads.
-export interface ConceptsIntermediateOperator {
-  slug:                  string;
-  name:                  string;
-  category:              string;
-  oneLineMeaning:        string;
-  decomposition:         string | null;
-  pendingNote:           string | null;
-  workedExamples:        readonly string[];
-  lineageNote:           string;
-  curatorConfirmPending: boolean;
-  isHistoricalNickname:  boolean;
+// One foundational move as the Concepts page lists it: its name, its ADD and the
+// trick page it links to. The list item carries the term-{slug} anchor that the
+// modifier teaching pages and other cross-links land on.
+export interface ConceptsFoundationalMove {
+  slug:     string;
+  name:     string;
+  addLabel: string | null;   // "2 ADD"; null when the dictionary holds no ADD for it
+  href:     string;
 }
 
-// Freestyle Concepts (/freestyle/concepts): the chapter-based reference. The
-// section (§) references in the field comments name chapters of that page.
+// Freestyle Concepts (/freestyle/concepts): eight short sections explaining how
+// tricks are built, written and scored, each linking to the page that holds the
+// detail. Every other word on the page is template prose.
 export interface FreestyleConceptsContent {
-  // The Butterfly family page the chapter's worked example links to; null drops
-  // the link and keeps the words, as for a family that has no page.
-  butterflyFamilyHref: string | null;
-  // Operator-board orientation strip embedded in §3 ("How Tricks Are Built").
-  // Shared partial with the landing page; surface-specific heading + lede.
-  operatorBoard:    OperatorBoardData;
-  // Intermediate-operator reference rendered inside §3 as a quick-reference
-  // subsection: what each intermediate operator means and how it decomposes;
-  // equivalence-chain tokens deep-link here.
-  intermediateOperators: readonly ConceptsIntermediateOperator[];
-  // Each core operator's definition line keyed by slug, from the operators
-  // table. The body-modifier reference partial renders each definition
-  // from this record instead of authoring its own copy; the per-term extras
-  // (formula, panel links, family notes) stay in the template.
-  tier1Definitions: Readonly<Record<string, string>>;
-  // Foundational tricks
-  // and set-modifier grids rendered as compact symbolic objects inside §10.
-  // Same view-model shape as the landing's coreTricks for partial reuse.
-  coreTricks:       FreestyleCoreTrickCard[];
-  setModifiers:     FreestyleSetModifierEntry[];
-  notationExamples: {
-    whirl:        NotationDisplay | null;
-    paradoxWhirl: NotationDisplay | null;
-    gauntlet:     NotationDisplay | null;
-  };
-  // Connective-tissue panels (observational symbolic-grammar layer) for
-  // §7 abbreviation tables — split into trick-name shorthand and
-  // operational-notation tokens. Curator-authored; lives on the service
-  // layer so future additions don't require a template surgery pass.
-  abbreviations:    FreestyleGlossaryAbbreviations;
-  // §5 family-tree visuals — curator-selected pilot families (whirl /
-  // butterfly / mirage / osis). Each entry: anchor + capped member list.
-  // Members are public dictionary rows with their ADD values + detail-
-  // page hrefs; never includes the anchor itself.
-  familyTrees:      readonly FreestyleFamilyTree[];
-  // §6 "Common Advanced Modifiers" feel cards. Player-facing pedagogical
-  // view; complements Surface B's decomposition reference (intermediate
-  // operators dl + execution mechanics + set modifier registry). See
-  // SEMANTIC_COMPRESSION_DOCTRINE §3 for verb discipline; the cards use
-  // Level-2 / Level-3 phrasing (movement-first). Partitioned at the service
-  // layer so the template renders each cluster without status-field
-  // branching: 9 set cards, 4 body cards.
-  setModifierFeelCards:   readonly ModifierFeelCard[];
-  entryTopologyFeelCards: readonly ModifierFeelCardVM[];
-  bodyModifierFeelCards:  readonly ModifierFeelCardVM[];
-  // §5 family cards, grouped primarily by display tier (Family Parents, then
-  // Minor Lineages) and within each by lineage position (root lineages, then
-  // branches grouped under their parent). Each card preserves its #term-{slug}
-  // anchor and appears in exactly one group.
-  familyCardGroups: readonly FamilyCardTierGroup[];
-  // Atoms not covered by the family-card cohorts above — clipper-stall,
-  // legover, pickup, illusion, around-the-world, orbit. Same shape as
-  // coreTricks; rendered under §5's "Other foundational atoms" subsection.
-  // Preserves the #term-{slug} anchors for these atoms without
-  // duplicating with the family-card anchors above.
-  otherFoundationalAtoms: FreestyleCoreTrickCard[];
-  // The ratified first-class family roster, sourced from the same module as
-  // the dictionary's "By family" browse (the family roster) so the
-  // Concepts roster always matches the dictionary's. Not every entry has a
-  // rich family card above; uncarded first-class families still appear here.
-  // Each href is the family-filtered dictionary.
-  firstClassFamilyRoster: readonly { slug: string; label: string; href: string; branches: readonly { slug: string; label: string; href: string }[] }[];
-  // Minor lineages: conserved-terminal families that are not first-class, shown
-  // as a compact list under the roster.
-  minorLineageRoster: readonly { slug: string; label: string; href: string }[];
-  // §8 ADD Accounting worked-example cards. Five compact
-  // educational cards illustrating how ADD math composes for compound
-  // tricks. Pulled from the curator-authored ADD_WORKED_EXAMPLES module,
-  // shaped at this boundary with a visible statusLabel so the template
-  // never renders the raw status code as text.
-  addWorkedExamples:    ReadonlyArray<GlossaryAddExample & { statusLabel: string }>;
-  // The twelve foundational moves of Movement Basics: each card is a
-  // "Movement:" line plus titled collapsible panels, a beginner-facing layer
-  // above the structural reference content. Sourced from
-  // src/content/freestyleCoreAtomEducational.ts. Each card carries a
-  // detail-page href for navigation outward.
-  coreAtomEducationalCards: readonly LanguageOfFreestyleAtomCard[];
-  // Core Concept cards rendered in the Dexterities section: the direction and
-  // side axes as three-layer entries (Line + collapsibles).
-  directionConcept: GlossaryConceptCardVM;
-  sideConcept:      GlossaryConceptCardVM;
-  // The "eight closest relatives" figure rendered in the Dexterities section:
-  // the eight foundational one-dex toe tricks, each with the three tricks one
-  // movement change away. Sourced from the movement-neighbor relation.
-  movementNeighbors: GlossaryMovementNeighbors;
-  // Core Concept card rendered in the Surfaces section: the cross-body body
-  // relationship that defines the clipper.
-  crossBodyConcept: GlossaryConceptCardVM;
-  // Core Concept cards rendered in the Operators & Modifiers section: the
-  // grammar of the operator layer.
-  setVsOperatorConcept: GlossaryConceptCardVM;
-  compositionConcept:   GlossaryConceptCardVM;
-  // Core Concept card rendered in the Notation section: additive scoring and
-  // the bracket-count checksum (its reveal lands here, where the notation is).
-  addConcept: GlossaryConceptCardVM;
-  // The numeric run-quality ladder (Tiltless through Godly) rendered in the ADD
-  // philosophy section. Genuine and BOP are handled separately in the template.
+  // The foundational moves, in teaching order.
+  foundationalMoves: readonly ConceptsFoundationalMove[];
+  // The dictionary's browse-by-family view, where the families are listed.
+  familiesHref: string;
+  // The numeric run-quality ladder (Tiltless through Godly). Genuine and BOP are
+  // handled separately in the template.
   runQualityLadder: readonly ComboAnalysisRunQualityEntry[];
-}
-
-/** A Core Concept glossary card: a Line always visible plus a "how it relates"
- *  and (for insight-home concepts) a "what it reveals" collapsible. Unlike the
- *  atom cards, concepts carry no operational-notation formula. */
-export interface GlossaryConceptCardVM {
-  line:      string;
-  relates:   string;
-  hasReveal: boolean;   // pre-shaped: only insight-home concepts carry a reveal
-  reveal:    string;    // '' when hasReveal is false
-}
-
-/** Shape a signed-off Core Concept entry into its card view-model. The key is
- *  static content, so a miss is an internal invariant, not a user error. */
-function shapeGlossaryConcept(key: string): GlossaryConceptCardVM {
-  const c = GLOSSARY_CORE_CONCEPTS_BY_KEY.get(key);
-  if (!c) throw new Error(`glossary core concept not found: ${key}`);
-  return {
-    line:      c.line,
-    relates:   c.relates ?? '',
-    hasReveal: c.reveal !== undefined,
-    reveal:    c.reveal ?? '',
-  };
-}
-
-/** Glossary §1 pedagogical atom card shape. Distinct from
- *  FreestyleCoreTrickCard (which is the symbolic / structural object
- *  rendered in §10); this card carries beginner-facing prose. */
-export interface LanguageOfFreestyleAtomCard {
-  slug:             string;
-  displayName:      string;
-  adds:             string;        // pre-formatted, e.g. "2 ADD"
-  detailHref:       string;
-  line:             string;        // always-visible "Movement:" description
-  panels:           readonly { title: string; body: string }[]; // titled collapsible depth
 }
 
 // ── Emerging Vocabulary governance surface ────────────────────────────────
@@ -7646,145 +7169,39 @@ export const freestyleService = {
   },
 
   getConceptsPage(): PageViewModel<FreestyleConceptsContent> {
-    // Where each modifier is listed in the browse views, read once for this page.
-    const browse = modifierBrowse();
-    // Build the same lookup context the trick-detail renderer uses, so the
-    // Concepts page's notation examples are classified by the SAME role registries
-    // — keeping the page's claim ("color-coded structural roles") visibly
-    // true at the site of the claim.
     const allDictRows = runSqliteRead('freestyleTricks.listAll', () =>
       freestyleTricks.listAll.all() as FreestyleTrickRow[],
     );
-    const allModifiers = runSqliteRead('freestyleTrickModifiers.listAll', () =>
-      freestyleTrickModifiers.listAll.all() as FreestyleTrickModifierRow[],
-    );
-    const allAliases = runSqliteRead('freestyleTrickAliases.listAll', () =>
-      freestyleTrickAliases.listAll.all() as FreestyleTrickAliasRow[],
-    );
-    const ctx = buildNotationLookupContext(allDictRows, allModifiers, allAliases);
-
-    // Three illustrative examples per the bootstrap plan + style guide:
-    // beginner (single base), compound (modifier + base), modifier-heavy
-    // (3 modifiers + base). Each shaped through the same renderer.
-    const whirlExample        = shapeNotationDisplay('WHIRL', ctx);
-    const paradoxWhirlExample = shapeNotationDisplay('PARADOX WHIRL', ctx);
-    const gauntletExample     = shapeNotationDisplay('STEPPING DUCKING PARADOX TORQUE', ctx);
-
-    // Foundational-tricks
-    // grid shaped from CORE_TRICK_SPEC + freestyle_tricks for the §10
-    // foundational-tricks section. Same view-model shape as the landing's
-    // coreTricks, so the core-tricks-grid partial renders both surfaces
-    // identically (registry-style readability).
-    const coreTricks: FreestyleCoreTrickCard[] = shapeCoreTricks(allDictRows);
-
-    // Set-primitive grid for the Modifiers & Operators section. Pixie and Fairy
-    // are the set-tier primitives whose Concepts term-anchor lives nowhere else;
-    // the decomposable set operators and Stepping are rendered by their own
-    // surfaces (intermediate-operators list, body-modifier reference) so each
-    // operator's anchor stays on a single element.
-    const setModifiers: FreestyleSetModifierEntry[] = shapeSetModifiers(
-      this.getOperatorBoard('concepts'),
-    );
+    // The foundational moves in teaching order, each named as the dictionary
+    // names it. A move whose row is missing keeps its slug as its name.
+    const nameOf = new Map(allDictRows.map(r => [r.slug, r.canonical_name] as const));
+    const foundationalMoves: ConceptsFoundationalMove[] = shapeCoreTricks(allDictRows).map(t => ({
+      slug:     t.slug,
+      name:     trickDisplayName(nameOf.get(t.slug) ?? t.slug),
+      addLabel: t.addNumeric === null ? null : `${t.addNumeric} ADD`,
+      href:     `/freestyle/tricks/${t.slug}`,
+    }));
 
     return {
       seo: {
         title: 'Freestyle Concepts',
         description:
-          'Chapter-based reference to freestyle footbag concepts: movement basics, contact surfaces, dexterities, sets, operators and modifiers, families, notation, and ADD accounting.',
+          'How freestyle footbag tricks are built, written and scored: tricks, sets and modifiers, contact surfaces, dexterities, timing, notation, ADD and runs.',
       },
       page: {
         sectionKey: 'freestyle',
         pageKey:    'freestyle_concepts',
         title:      'Freestyle Concepts',
-        intro:      'In-depth chapters on how freestyle tricks are built, named, and scored. For a quick definition, use the Glossary.',
+        intro:      'How freestyle tricks are built, named, and scored. For a quick definition, use the Glossary.',
       },
       navigation: {
         contextLinks: [{ label: 'Back to Freestyle Footbag', href: '/freestyle' }],
       },
       content: {
-        operatorBoard:         this.getOperatorBoard('concepts'),
-        intermediateOperators: referenceOperators().map((e): ConceptsIntermediateOperator => ({
-          slug:                  e.slug,
-          name:                  e.name,
-          category:              e.kind,
-          oneLineMeaning:        e.definition,
-          decomposition:         e.decomposition,
-          pendingNote:           e.decompositionNote,
-          workedExamples:        e.workedExamples,
-          lineageNote:           e.sourceNote ?? '',
-          curatorConfirmPending: e.confirmationPending,
-          isHistoricalNickname:  e.kind === 'historical-nickname',
-        })),
-        tier1Definitions: Object.fromEntries(
-          operatorRecords().filter(o => o.kind === 'core').map(o => [o.slug, o.definition]),
-        ),
-        coreTricks,
-        setModifiers,
-        notationExamples: {
-          whirl:        whirlExample,
-          paradoxWhirl: paradoxWhirlExample,
-          gauntlet:     gauntletExample,
-        },
-        abbreviations:   GLOSSARY_ABBREVIATIONS,
-        familyTrees:     shapeFamilyTrees(allDictRows),
-        setModifierFeelCards:   SET_MODIFIER_FEEL_CARDS,
-        entryTopologyFeelCards: ENTRY_TOPOLOGY_FEEL_CARDS.map(c => ({ ...c, browseHref: modifierBrowseHref(c.slug, browse) })),
-        bodyModifierFeelCards:  BODY_MODIFIER_FEEL_CARDS.map(c => ({ ...c, browseHref: modifierBrowseHref(c.slug, browse) })),
-        familyCardGroups: buildFamilyCardTierGroups(),
-        otherFoundationalAtoms: coreTricks.filter(t => {
-          const familySlugs = new Set([
-            ...ROOT_TERMINAL_FAMILIES.map(f => f.slug),
-            ...BRANCH_FAMILIES.map(f => f.slug),
-          ]);
-          return !familySlugs.has(t.slug);
-        }),
-        firstClassFamilyRoster: publicDisplayFamilies()
-          .filter(f => !f.parent && familyTier(f.slug) === 'family-parent')
-          .map(root => ({
-            slug:  root.slug,
-            label: root.label,
-            href:  `/freestyle/tricks?family=${encodeURIComponent(root.slug)}`,
-            branches: publicDisplayFamilies()
-              .filter(b => b.parent === root.slug)
-              .map(b => ({ slug: b.slug, label: b.label, href: `/freestyle/tricks?family=${encodeURIComponent(b.slug)}` })),
-          })),
-        minorLineageRoster: publicDisplayFamilies()
-          .filter(f => !f.parent && familyTier(f.slug) === 'minor-lineage')
-          .map(f => ({ slug: f.slug, label: f.label, href: `/freestyle/tricks?family=${encodeURIComponent(f.slug)}` })),
-        addWorkedExamples: ADD_WORKED_EXAMPLES.map((ex) => ({
-          ...ex,
-          statusLabel:
-            ex.status === 'pending-doctrine' ? 'pending doctrine'
-            : ex.status === 'doctrine-locked' ? 'settled'
-            : ex.status,
-        })),
-        // The twelve foundational moves: the Movement line is always visible and
-        // each titled panel renders as its own collapsible. Sourced from
-        // CORE_ATOM_EDUCATIONAL; href maps to canonical trick-detail.
-        butterflyFamilyHref: familyPageHref('butterfly'),
-        coreAtomEducationalCards: CORE_ATOM_EDUCATIONAL.map(c => ({
-          slug:             c.slug,
-          displayName:      c.displayName,
-          adds:             `${c.adds} ADD`,
-          detailHref:       `/freestyle/tricks/${c.slug}`,
-          line:             c.line,
-          panels:           c.panels.map(p => ({ title: p.title, body: p.body })),
-        })),
-        // Core Concept cards for the Dexterities section. hasReveal is
-        // pre-shaped so the template branches on a boolean, not field presence.
-        directionConcept: shapeGlossaryConcept('direction'),
-        sideConcept:      shapeGlossaryConcept('side'),
-        // The "eight closest relatives" movement-neighbor figure.
-        movementNeighbors: shapeMovementNeighbors(allDictRows),
-        // Core Concept card for the Surfaces section.
-        crossBodyConcept: shapeGlossaryConcept('cross-body'),
-        // Core Concept cards for the Operators & Modifiers section.
-        setVsOperatorConcept: shapeGlossaryConcept('set-vs-operator'),
-        compositionConcept:   shapeGlossaryConcept('composition'),
-        // Core Concept card for the Notation section.
-        addConcept:           shapeGlossaryConcept('add'),
+        foundationalMoves,
+        familiesHref:     '/freestyle/tricks?view=family',
         // The numeric run-quality ladder, from the combo-analysis authority.
-        runQualityLadder:     RUN_QUALITY_LADDER,
+        runQualityLadder: RUN_QUALITY_LADDER,
       },
     };
   },
@@ -8840,77 +8257,6 @@ export const freestyleService = {
         components: [
           'Ducking', 'Diving', 'Spinning', 'Inspinning', 'Gyro',
         ].map(shapeBare),
-    };
-  },
-
-  // ── Operator board — Tier-1 movement-language vocabulary.
-  // Freestyle Concepts renders its tiers as the glyph quick-reference strip.
-  // Tiers (the 13 operators) are surface-invariant; heading + lede vary per
-  // surface (see OPERATOR_BOARD_PROSE). Captions are curator-confirmed except on cells
-  // still flagged curatorConfirmPending.
-  getOperatorBoard(surface: OperatorBoardSurface = 'landing'): OperatorBoardData {
-    const op = (
-      glyph: string,
-      name: string,
-      action: string,
-      compositionA: string,
-      compositionResult: string,
-      destination: { href: string; label: string } | null,
-      curatorConfirmPending = false,
-    ): OperatorBoardOperator => ({
-      glyph, name, action, compositionA, compositionResult, curatorConfirmPending,
-      href:      destination?.href      ?? null,
-      hrefLabel: destination?.label     ?? null,
-    });
-    const NOTATION    = (slug: string) => ({ href: `/freestyle/sets#move-${slug}`, label: 'Notation reference' });
-    const CONCEPTS    = (slug: string) => ({ href: `/freestyle/concepts#term-${slug}`,     label: 'Concepts entry'     });
-    const MOD_PEDAGOGY = (slug: string) => ({ href: `/freestyle/modifier/${slug}`,          label: 'Modifier page'      });
-
-    // Every action string
-    // is compressed to 4–10 words. The card hierarchy on the rendered surface
-    // is glyph → name → INPUT → RESULT → action → deeplink — examples carry
-    // the compositional teaching; actions annotate, not lecture.
-    return {
-      ...OPERATOR_BOARD_PROSE[surface],
-      tiers: [
-        {
-          key:     'set',
-          eyebrow: 'I · Sets',
-          title:   'Set operators',
-          intro:   'What sends the bag into the air.',
-          operators: [
-            op('PIX',   'Pixie',    'Same-side, in-direction toe-set dex.',          'PIX + BUTTERFLY',         'DIMWALK',            NOTATION('pixie')),
-            op('AT',    'Atomic',   'Opposite-side, out-direction toe-set dex.',     'AT + MIRAGE',             'ATOM SMASHER',       NOTATION('atomic')),
-            op('Q',     'Quantum',  'Opposite-side, in-direction toe-set dex.',      'Q + MIRAGE',              'TOE BLUR',           NOTATION('quantum')),
-            op('BL',    'Blurry',   'Stepping + Paradox; flat +1 ADD.',              'BLURRY + WHIRL',          'BLURRY WHIRL',       CONCEPTS('blurry')),
-            op('FAIRY', 'Fairy',    'Same-side, out-direction toe-set dex.',         'FAIRY + DRIFTER',         'FAIRY DRIFTER',      NOTATION('fairy')),
-            op('STEP',  'Stepping', 'Plant foot relocates between set and catch.',   'STEP + BUTTERFLY',        'RIPWALK',            CONCEPTS('stepping')),
-          ],
-        },
-        {
-          key:     'body',
-          eyebrow: 'II · Body',
-          title:   'Body operators',
-          intro:   'What the body does while the bag is up.',
-          operators: [
-            op('SPIN',  'Spinning',   'Full-body 360° rotation through the dex moment.', 'SPIN + BUTTERFLY',      'SPINNING BUTTERFLY', MOD_PEDAGOGY('spinning')),
-            op('GY',    'Gyro',       'Half-rotation body modifier (180°).',           'GY + TORQUE',             'MOBIUS',             NOTATION('gyro')),
-            op('DUCK',  'Duck / Dive','Head dip or arc; duck/dive/weave/zulu family.', 'PIX + DUCK + BUTTERFLY', 'PHOENIX',           MOD_PEDAGOGY('ducking')),
-            op('PDX',   'Paradox',    'Hip pivot on a single dex; body switches sides.', 'PDX + LEG-OVER',     'PARADOX LEG-OVER',   MOD_PEDAGOGY('paradox')),
-            op('SYMP',  'Symposium',  'Active leg jumps + lands solo while the other holds.', 'SYMP + ILLUSION', 'FLAIL',              CONCEPTS('symposium'), true),
-          ],
-        },
-        {
-          key:     'structural',
-          eyebrow: 'III · Structure',
-          title:   'Structural concepts',
-          intro:   'Relationships across the trick.',
-          operators: [
-            op('XBODY', 'Cross-body','The bag crosses one plane around the body.',   'XBODY + MIRAGE',          'WHIRL',              null),
-            op('SAME',  'Same-foot','Set foot = catch foot.',                        'SAME + BUTTERFLY',        'SAME-FOOT BUTTERFLY', null),
-          ],
-        },
-      ],
     };
   },
 

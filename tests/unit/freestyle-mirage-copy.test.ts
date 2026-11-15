@@ -25,10 +25,8 @@ import { join } from 'node:path';
 const read = (rel: string) => readFileSync(join(process.cwd(), rel), 'utf8');
 
 const START = read('src/views/freestyle/start.hbs');
-const CORE = read('src/content/freestyleCoreAtomEducational.ts');
-// The family text: the concepts cards and the family roster the family pages read.
-const GLOSSARY = read('src/content/freestyleGlossaryFamilyCards.ts')
-  + read('freestyle/inputs/curator_content/freestyleFamilies.ts');
+// The family text: the family roster the family pages read.
+const GLOSSARY = read('freestyle/inputs/curator_content/freestyleFamilies.ts');
 const RED_CORR = read('freestyle/inputs/curated/tricks/red_corrections_2026_04_20.csv');
 const LANDING = read('src/content/freestyleLandingContent.ts');
 
@@ -107,15 +105,11 @@ describe('relational-token semantics resolve the catch foot', () => {
 
 // ── Settled catch prose ─────────────────────────────────────────────────────
 
-describe('the beginner paragraph and grid state the ruled relationships', () => {
+describe('the beginner paragraph states the ruled relationships', () => {
   it('the beginner Mirage paragraph returns the bag to the setting toe and keeps the dexing leg out of the catch', () => {
     expect(START).toMatch(/catch the bag[\s\S]*?back on the same toe\s+that made the set/i);
     expect(START).toMatch(/circling leg performs the dexterity but does not[\s\S]*?make the catch/i);
     expect(START).not.toMatch(OPP_TOE);
-  });
-  it('the four-atom grid uses unambiguous physical labels', () => {
-    expect(CORE).toMatch(/returns to the setting foot/i);
-    expect(CORE).toMatch(/caught by the dexing foot/i);
   });
 });
 
@@ -143,7 +137,7 @@ describe('dexing-foot tricks are caught by the leg that dexed', () => {
     expect(text).toMatch(/dexing leg/i);
     expect(text).not.toMatch(/catch on the toe of the setting foot/i);
   });
-  it('the glossary legover and pickup cards name the dexing foot as the catcher', () => {
+  it('the legover and pickup family texts name the dexing foot as the catcher', () => {
     expect(GLOSSARY).toMatch(/a legover is one outward dexterity caught by the dexing foot/i);
     expect(GLOSSARY).toMatch(/a pickup is one inward dexterity caught by the dexing foot/i);
   });
@@ -167,7 +161,6 @@ describe('compounds that genuinely catch opposite the setting foot keep that wor
 
 const OVERCLAIM_SOURCES = [
   'src/views/freestyle/start.hbs',
-  'src/content/freestyleGlossaryFamilyCards.ts',
   'freestyle/inputs/curator_content/freestyleFamilies.ts',
 ];
 
@@ -181,8 +174,7 @@ describe('Mirage teaching copy does not overclaim its position', () => {
       expect(text).not.toMatch(/(?<!one of )the first dexterit(y|ies) a player learns/i);
     });
   }
-  it('the glossary family card uses the approved non-exclusive phrasing', () => {
+  it('the mirage family text uses the approved non-exclusive phrasing', () => {
     expect(GLOSSARY).toContain('among the first complete dexterity tricks many players learn');
-    expect(GLOSSARY).toContain('one of the first dexterities a player learns');
   });
 });

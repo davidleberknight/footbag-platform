@@ -1,13 +1,13 @@
 /**
- * The difficulty-frontier note on the Freestyle Concepts page, and the doctrine
+ * The difficulty-frontier note in the Combo Analysis glossary, and the doctrine
  * it has to agree with.
  *
- * The note names no 8-ADD contender, and that absence is the contract. The
- * tempting candidate, "Surging Ducking Paradox Blender", is not a trick at any
- * difficulty: the curated ruling holds it as an outside-source name for the
- * 7-ADD Cheese Processor under the paradox-free reading, deliberately not
- * adopted as an 8-ADD canonical. Prose naming it would put two surfaces in
- * contradiction over one name.
+ * The note names no 8-ADD contender beyond the one it keeps, and that absence is
+ * the contract. The tempting candidate, "Surging Ducking Paradox Blender", is not
+ * a trick at any difficulty: the curated ruling holds it as an outside-source
+ * name for the 7-ADD Cheese Processor under the paradox-free reading,
+ * deliberately not adopted as an 8-ADD canonical. Prose naming it would put two
+ * surfaces in contradiction over one name.
  *
  * Naming some other trick instead would be a fresh product judgement about
  * which of the remaining 8-ADD tricks reads as a contender, and the list was
@@ -27,8 +27,7 @@ import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
 
 const REPO_ROOT = join(__dirname, '..', '..');
-const CONCEPTS_VIEW = join(REPO_ROOT, 'src', 'views', 'freestyle', 'concepts.hbs');
-const CONCEPTS_CONTENT = join(REPO_ROOT, 'src', 'content', 'freestyleComboAnalysisContent.ts');
+const COMBO_CONTENT = join(REPO_ROOT, 'src', 'content', 'freestyleComboAnalysisContent.ts');
 const RELATED_TRICKS = join(REPO_ROOT, 'src', 'services', 'freestyleRelatedTricks.ts');
 
 const RETIRED_NAME = 'Surging Ducking Paradox Blender';
@@ -38,7 +37,7 @@ const TORQUE = 'surging_ducking_paradox_torque';
 /**
  * File text with runs of whitespace collapsed.
  *
- * The view wraps prose across lines, so a trick name can straddle a line break.
+ * Prose wraps across lines, so a trick name can straddle a line break.
  * Searching the raw text would then report the name as absent while it is on the
  * page, which is the direction that matters: this file's central assertion is
  * that a name is gone, and a line break must not be able to satisfy it.
@@ -46,34 +45,24 @@ const TORQUE = 'surging_ducking_paradox_torque';
 const read = (p: string) => readFileSync(p, 'utf8').replace(/\s+/g, ' ');
 
 /**
- * The difficulty-frontier passage alone, from either copy.
+ * The difficulty-frontier passage alone.
  *
- * Both are long files that name plenty of tricks for unrelated reasons, so an
+ * The content file names plenty of tricks for unrelated reasons, so an
  * assertion about what the note says has to be made about the note. Anchored on
  * the claim the passage exists to make, which survives rewording of everything
  * around it.
  */
-function difficultyNote(text: string, from: string, to: string): string {
-  const start = text.indexOf(from);
+function difficultyNote(text: string): string {
+  const start = text.indexOf('video-corroborated landing');
   expect(start, 'the difficulty-frontier passage is no longer recognisable').toBeGreaterThan(-1);
-  const end = text.indexOf(to, start);
+  const end = text.indexOf('corroborating footage', start);
   expect(end, 'the passage no longer ends where it did').toBeGreaterThan(start);
   return text.slice(start, end);
 }
 
-// Each copy words the claim its own way: the Concepts page in plain words, the
-// combo-analysis glossary in its fuller form.
-const NOTE_BOUNDS: ReadonlyArray<[string, string, string]> = [
-  [CONCEPTS_VIEW, 'highest landing in the dictionary that video confirms', 'never confirmed on video'],
-  [CONCEPTS_CONTENT, 'video-corroborated landing', 'corroborating footage'],
-];
-
 describe('the retired name the difficulty note must not carry', () => {
-  it('is absent from both public copies of the note', () => {
-    // Both are rendered surfaces. Correcting one and not the other would leave
-    // the contradiction live for whichever readers reach the other.
-    expect(read(CONCEPTS_VIEW)).not.toContain(RETIRED_NAME);
-    expect(read(CONCEPTS_CONTENT)).not.toContain(RETIRED_NAME);
+  it('is absent from the public note', () => {
+    expect(read(COMBO_CONTENT)).not.toContain(RETIRED_NAME);
   });
 
   it('survives where the curator ruled on it, which is not a public claim', () => {
@@ -90,15 +79,13 @@ describe('the retired name the difficulty note must not carry', () => {
     // product judgement about which of the remaining 8-ADD tricks belongs, and
     // the list was never written to be exhaustive.
     //
-    // Scoped to the sentence, not the file: the page discusses other tricks
+    // Scoped to the passage, not the file: the content discusses other tricks
     // elsewhere for unrelated reasons, and a whole-file assertion would forbid
     // that too.
-    for (const [file, from, to] of NOTE_BOUNDS) {
-      const note = difficultyNote(read(file), from, to);
-      expect(note).toContain('Surging Ducking Paradox Torque');
-      for (const other of ['Montage Swirl', 'Big Apple Sauce', 'Gyro Shooting Star']) {
-        expect(note).not.toContain(other);
-      }
+    const note = difficultyNote(read(COMBO_CONTENT));
+    expect(note).toContain('Surging Ducking Paradox Torque');
+    for (const other of ['Montage Swirl', 'Big Apple Sauce', 'Gyro Shooting Star']) {
+      expect(note).not.toContain(other);
     }
   });
 });
@@ -174,6 +161,6 @@ describe('the claims the note still makes', () => {
       )
       .all() as Array<{ slug: string }>;
     expect(eightAdd.map((r) => r.slug)).toContain('montage_swirl');
-    expect(read(CONCEPTS_VIEW)).not.toContain('Montage Swirl');
+    expect(difficultyNote(read(COMBO_CONTENT))).not.toContain('Montage Swirl');
   });
 });

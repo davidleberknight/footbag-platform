@@ -23,7 +23,7 @@
  *   7. Rake renders curator-locked JOB notation `SET > SWING [DEX] > SAME TOE [DEL]`
  *      and is not labelled "canonical decomposition pending".
  *   8. "unusual surface" does not appear in ADD-accounting displays;
- *      `UNS(1)` is the bucket token. Freestyle Concepts explains UNS.
+ *      `UNS(1)` is the bucket token.
  *   9. double_around_the_world and double_leg_over surface JOB
  *      notation + ADD calculation rows from the resolved-formulas
  *      content module.
@@ -31,7 +31,6 @@
  *      not `flying(+1)`.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
 import { cachedGet } from '../fixtures/cachedGet';
 import BetterSqlite3 from 'better-sqlite3';
 
@@ -350,21 +349,6 @@ describe('Item 7: rake has curator-locked JOB notation', () => {
     // And the page must not be labelled notation-pending.
     expect(res.text).not.toContain('Notation pending');
     expect(res.text).not.toContain('canonical decomposition pending');
-  });
-});
-
-// ── Item 8 — UNS in Freestyle Concepts abbreviations ─────────────────────
-describe('Item 8: Freestyle Concepts explains the UNS abbreviation', () => {
-  it('the Freestyle Concepts operational-token table lists UNS', async () => {
-    const app = await createApp();
-    const res = await request(app).get('/freestyle/concepts');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('UNS');
-    // The [UNS] flag's own definition says what the abbreviation stands for.
-    const start = res.text.indexOf('id="op-flag-uns"');
-    expect(start).toBeGreaterThan(-1);
-    const entry = res.text.slice(start, res.text.indexOf('</dd>', start));
-    expect(entry).toMatch(/unusual-surface/i);
   });
 });
 

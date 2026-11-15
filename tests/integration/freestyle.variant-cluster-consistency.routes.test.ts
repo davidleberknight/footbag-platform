@@ -1,7 +1,6 @@
 /**
  * Rendered-surface consistency for the variant clusters. Verifies on the live
- * routes that osis shows one either-side catch model on both its trick page and
- * its family card, that around-the-world and orbit prose keep the inward/reverse
+ * routes that osis shows one either-side catch model on its trick page, that around-the-world and orbit prose keep the inward/reverse
  * direction distinction, that furious is not called the barraging pattern, and
  * that the glossary does not describe barrage and furious as one structure named
  * twice.
@@ -57,19 +56,13 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('GET /freestyle/tricks/osis and /freestyle/families/osis — one either-side catch', () => {
+describe('GET /freestyle/tricks/osis — one either-side catch', () => {
   it('the osis trick page notation shows both a same-side and an opposite-side catch token', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/osis');
     expect(res.status).toBe(200);
     expect(res.text).toContain('operational-notation-tokens');
     expect(res.text).toContain('>SAME</span>');
     expect(res.text).toContain('>OP</span>');
-  });
-
-  it('the osis family card renders the same either-side SAME/OP clipper catch', async () => {
-    const res = await request(await createApp()).get('/freestyle/concepts');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('SAME/OP CLIP');
   });
 });
 

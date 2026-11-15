@@ -273,7 +273,7 @@ describe('refusals keep the roster sound and the submitted values', () => {
 
 describe('a family moved to minor lineage loses its page and every link', () => {
   const linksToButterfly = (html: string) => html.includes('href="/freestyle/families/butterfly"');
-  const pages = ['/freestyle/start', '/freestyle/concepts', '/freestyle/tricks/ripwalk', '/freestyle/tricks?view=family'];
+  const pages = ['/freestyle/start', '/freestyle/tricks/ripwalk', '/freestyle/tricks?view=family'];
 
   // Defect caught: a demoted family keeps a page, a sitemap entry, a search
   // result or a link from any page. The positive control proves each is present
