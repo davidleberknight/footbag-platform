@@ -155,7 +155,7 @@ describe('Oversized payloads', () => {
 describe('Unparseable requests', () => {
   it('malformed JSON body answers 400, not the 500 page', async () => {
     const res = await request(createApp())
-      .post('/login')
+      .post('/ipc/job-events')
       .set('Content-Type', 'application/json')
       .send('{bad');
     expect(res.status).toBe(400);
@@ -164,9 +164,9 @@ describe('Unparseable requests', () => {
   it('a body in an encoding the parser cannot read answers 415', async () => {
     const res = await request(createApp())
       .post('/login')
-      .set('Content-Type', 'application/json')
+      .type('form')
       .set('Content-Encoding', 'x-unknown')
-      .send('{}');
+      .send('email=x');
     expect(res.status).toBe(415);
   });
 

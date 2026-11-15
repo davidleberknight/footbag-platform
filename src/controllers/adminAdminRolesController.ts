@@ -5,6 +5,18 @@ import { handleControllerError } from '../lib/controllerErrors';
 import { FLASH_KIND, readFlash, clearFlash } from '../lib/flashCookie';
 import { outcomeNotice, type OutcomeNoticeView } from '../lib/outcomeNotice';
 import { redirectWithOutcome } from '../lib/actionOutcome';
+import { z } from 'zod';
+import { parseFormBody, formText } from '../lib/parseFormBody';
+
+const grantForm = z.object({ member_key: formText('Member'), reason: formText('Reason') });
+const revokeForm = z.object({ reason: formText('Reason') });
+
+// A shape the form never sends is refused like any other fixable submission.
+function read<S extends z.ZodType>(schema: S, req: Request): z.output<S> {
+  const parsed = parseFormBody(schema, req.body);
+  if (!parsed.ok) throw new ValidationError(parsed.message);
+  return parsed.data;
+}
 
 // Re-render the page with an inline error; the status follows the error class.
 // NotFoundError -> 404 (a revoke addressed to an unknown member id).
@@ -56,10 +68,11 @@ export const adminAdminRolesController = {
   /** POST /admin/admin-roles/grant — validate, then show the confirmation page. */
   grant(req: Request, res: Response, next: NextFunction): void {
     try {
+      const form = read(grantForm, req);
       const vm = adminRoleService.previewGrant(
         req.user!.userId,
-        String(req.body.member_key ?? ''),
-        String(req.body.reason ?? ''),
+        form.member_key,
+        form.reason,
       );
       res.render('admin/admin-roles/grant-confirm', vm);
     } catch (err) {
@@ -74,10 +87,11 @@ export const adminAdminRolesController = {
   /** POST /admin/admin-roles/grant/confirm — commit the grant after confirmation. */
   grantConfirm(req: Request, res: Response, next: NextFunction): void {
     try {
+      const form = read(grantForm, req);
       const outcome = adminRoleService.grantByKey(
         req.user!.userId,
-        String(req.body.member_key ?? ''),
-        String(req.body.reason ?? ''),
+        form.member_key,
+        form.reason,
       );
       redirectAfterChange(req, res, outcome);
     } catch (err) {
@@ -92,10 +106,11 @@ export const adminAdminRolesController = {
   /** POST /admin/admin-roles/:memberId/revoke — validate, then show the confirmation page. */
   revoke(req: Request, res: Response, next: NextFunction): void {
     try {
+      const form = read(revokeForm, req);
       const vm = adminRoleService.previewRevoke(
         req.user!.userId,
         req.params.memberId ?? '',
-        String(req.body.reason ?? ''),
+        form.reason,
       );
       res.render('admin/admin-roles/revoke-confirm', vm);
     } catch (err) {
@@ -110,10 +125,11 @@ export const adminAdminRolesController = {
   /** POST /admin/admin-roles/:memberId/revoke/confirm — commit the revoke after confirmation. */
   revokeConfirm(req: Request, res: Response, next: NextFunction): void {
     try {
+      const form = read(revokeForm, req);
       const outcome = adminRoleService.revoke(
         req.user!.userId,
         req.params.memberId ?? '',
-        String(req.body.reason ?? ''),
+        form.reason,
       );
       redirectAfterChange(req, res, outcome);
     } catch (err) {

@@ -594,18 +594,34 @@ export interface PaymentHistoryContent {
 export interface DonateAmountOption {
   cents: number;
   label: string;
+  /** The donor chose this amount on the submit being re-rendered. */
+  checked: boolean;
+}
+
+/** What the donor typed on a refused submit, so the form comes back as they left it. */
+export interface DonateSubmitted {
+  amountChoice?: string;
+  customAmount?: string;
+  note?: string;
+  recurring?: string;
 }
 
 export interface DonateContent {
   action: string;
   returnTo: string;
   suggestedAmounts: DonateAmountOption[];
+  customAmountChecked: boolean;
+  customAmountValue: string;
+  recurringYearly: boolean;
+  noteValue: string;
   minAmountDisplay: string;
   maxAmountDisplay: string;
   noteMaxChars: number;
   hasActiveRecurring: boolean;
   paymentHistoryHref: string;
   formError: string | null;
+  /** A refused field's message, keyed by the field's name, shown beside its input. */
+  fieldErrors: Record<string, string>;
 }
 
 /**
@@ -3974,8 +3990,14 @@ function getRecurringCancelConfirmPage(
 
 function getDonatePage(
   memberId: string,
-  opts: { returnTo?: unknown; formError?: string | null } = {},
+  opts: {
+    returnTo?: unknown;
+    formError?: string | null;
+    submitted?: DonateSubmitted;
+    fieldErrors?: Record<string, string>;
+  } = {},
 ): PageViewModel<DonateContent> {
+  const submitted = opts.submitted ?? {};
   const profile = lookupDonorProfile(memberId);
   const hasActiveRecurring = listRecurringDonationsForMember(memberId).some(
     (s) => s.status !== 'canceled',
@@ -3998,13 +4020,19 @@ function getDonatePage(
       suggestedAmounts: DONATION_SUGGESTED_CENTS.map((cents) => ({
         cents,
         label: formatAmount(cents, CURRENCY),
+        checked: submitted.amountChoice === String(cents),
       })),
+      customAmountChecked: submitted.amountChoice === 'custom',
+      customAmountValue: submitted.customAmount ?? '',
+      recurringYearly: submitted.recurring === 'yes',
+      noteValue: submitted.note ?? '',
       minAmountDisplay: formatAmount(DONATION_MIN_CENTS, CURRENCY),
       maxAmountDisplay: formatAmount(DONATION_MAX_CENTS, CURRENCY),
       noteMaxChars: DONATION_NOTE_MAX_CHARS,
       hasActiveRecurring,
       paymentHistoryHref: `/members/${profile.slug}/payments`,
       formError: opts.formError ?? null,
+      fieldErrors: opts.fieldErrors ?? {},
     },
   };
 }

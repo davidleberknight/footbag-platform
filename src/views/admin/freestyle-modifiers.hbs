@@ -15,15 +15,18 @@
       <div class="form-field">
         <label for="modifier-slug">Slug</label>
         <input type="text" id="modifier-slug" name="slug" value="{{content.submitted.slug}}" aria-describedby="modifier-slug-hint" />
+        {{#if content.fieldErrors.slug}}<p class="form-field-error" role="alert">{{content.fieldErrors.slug}}</p>{{/if}}
         <small class="form-hint" id="modifier-slug-hint">Lowercase letters, digits and underscores, beginning with a letter. Permanent once created.</small>
       </div>
       <div class="form-field">
         <label for="modifier-name">Name</label>
         <input type="text" id="modifier-name" name="modifierName" value="{{content.submitted.modifierName}}" />
+        {{#if content.fieldErrors.modifierName}}<p class="form-field-error" role="alert">{{content.fieldErrors.modifierName}}</p>{{/if}}
       </div>
       <div class="form-field">
         <label for="modifier-add">ADD</label>
         <input type="text" id="modifier-add" name="addBonus" inputmode="numeric" value="{{content.submitted.addBonus}}" aria-describedby="modifier-add-hint" />
+        {{#if content.fieldErrors.addBonus}}<p class="form-field-error" role="alert">{{content.fieldErrors.addBonus}}</p>{{/if}}
         <small class="form-hint" id="modifier-add-hint">The ADD this modifier adds to a base trick, a whole number.</small>
       </div>
       <div class="form-field">
@@ -34,14 +37,17 @@
             <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
           {{/each}}
         </select>
+        {{#if content.fieldErrors.modifierType}}<p class="form-field-error" role="alert">{{content.fieldErrors.modifierType}}</p>{{/if}}
       </div>
       <div class="form-field">
         <label for="modifier-notes">Notes (optional)</label>
         <textarea id="modifier-notes" name="notes" rows="2">{{content.submitted.notes}}</textarea>
+        {{#if content.fieldErrors.notes}}<p class="form-field-error" role="alert">{{content.fieldErrors.notes}}</p>{{/if}}
       </div>
       <div class="form-field">
         <label for="modifier-beginnerNote">Beginner note (optional)</label>
         <input type="text" id="modifier-beginnerNote" name="beginnerNote" value="{{content.submitted.beginnerNote}}" aria-describedby="modifier-beginnerNote-hint" />
+        {{#if content.fieldErrors.beginnerNote}}<p class="form-field-error" role="alert">{{content.fieldErrors.beginnerNote}}</p>{{/if}}
         <small class="form-hint" id="modifier-beginnerNote-hint">One plain sentence, shown beside this modifier on every trick page that uses it.</small>
       </div>
       <div class="form-actions">

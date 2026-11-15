@@ -1315,6 +1315,8 @@ export const paymentReconciliationService = {
      *  the person using it. */
     submittedIssueId?: string | null;
     submittedNotes?: string | null;
+    /** The refused note's own message, shown beside the note box it names. */
+    submittedNotesError?: string | null;
     /** Newest first by default. Oldest first is what the person answerable for
      *  the money wants, because the number that matters on an exceptions queue
      *  is how long the worst one has been waiting. */
@@ -1368,6 +1370,10 @@ export const paymentReconciliationService = {
           submittedNotes:
             q.submittedIssueId != null && String(r.id) === q.submittedIssueId
               ? (q.submittedNotes ?? null)
+              : null,
+          notesError:
+            q.submittedIssueId != null && String(r.id) === q.submittedIssueId
+              ? (q.submittedNotesError ?? null)
               : null,
         })),
         hasRows: rows.length > 0,
@@ -1574,6 +1580,8 @@ export interface AdminIssueRowViewModel {
   /** What the administrator typed, when their resolve attempt was rejected and
    *  this is the row it was rejected on. Null everywhere else. */
   submittedNotes: string | null;
+  /** The refusal naming the note box, on the row it was refused on. */
+  notesError: string | null;
 }
 
 export interface AdminReconciliationContent {

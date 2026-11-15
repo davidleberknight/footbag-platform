@@ -372,3 +372,32 @@ describe('correcting a division', () => {
     expect(disciplineRow(s.openId)).toEqual({ discipline_category: 'net', is_aggregate_standing: 0 });
   });
 });
+
+describe('a correction posting a field twice', () => {
+  // Defect caught: a hand-made correction repeating a field (a player name
+  // among them) throws a server error or stores whichever value it read, or
+  // the refused form comes back without the score that was typed.
+  it('is refused at 422 on the entry form, keeping the score, and changes nothing', async () => {
+    const s = seedEvent();
+    const before = entryRow(s.entryId);
+    const body = new URLSearchParams(entryBody(s, { score_text: 'Kept-typed-score' })).toString();
+    const res = await request(createApp())
+      .post(`/admin/events/${s.eventId}/results/entries/${s.entryId}/confirm`)
+      .set('Cookie', cookieFor(ADMIN_ID)).type('form')
+      .send(`${body}&name_${s.participantId}=Someone+Else`);
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Kept-typed-score');
+    expect(entryRow(s.entryId)).toEqual(before);
+  });
+
+  it('is refused at 422 on the division form and changes nothing', async () => {
+    const s = seedEvent();
+    const before = disciplineRow(s.openId);
+    const res = await request(createApp())
+      .post(`/admin/events/${s.eventId}/results/disciplines/${s.openId}/confirm`)
+      .set('Cookie', cookieFor(ADMIN_ID)).type('form')
+      .send('sport_family=net&sport_family=freestyle&aggregate_standing=0&reason=r');
+    expect(res.status).toBe(422);
+    expect(disciplineRow(s.openId)).toEqual(before);
+  });
+});

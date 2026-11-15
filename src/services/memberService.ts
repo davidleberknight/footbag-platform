@@ -487,6 +487,8 @@ export interface AccountDeletionContent {
   /** Why the last attempt came back here, in its tone: a refusal, or an
    *  account already on its way out, which changed nothing and refused nothing. */
   notice: OutcomeNoticeView | null;
+  /** One message per refused field, keyed by the field's form name. */
+  fieldErrors?: Record<string, string>;
 }
 
 /** The page a member lands on once the deletion has gone through. */
@@ -521,6 +523,8 @@ export interface ProfileEditContent extends OwnProfileContent, LocationPickers {
   /** Whether the member opted gender into public visibility (checkbox state). */
   showGender: boolean;
   error?: string;
+  /** One message per refused field, keyed by the field's form name. */
+  fieldErrors?: Record<string, string>;
   avatarError?: string;
   avatarSuccess?: string;
   /** Fixed-length edit slots (one per allowed link); empty slots carry blank
@@ -731,6 +735,9 @@ export interface ProfileEditPageOptions {
    * on a fresh GET, where the stored values are what belongs on the page.
    */
   submitted?: ProfileEditInput;
+  /** One message per refused field, keyed by the field's form name, shown
+   *  beside that field's input. */
+  fieldErrors?: Record<string, string>;
 }
 
 export interface ProfileEditInput {
@@ -1560,7 +1567,11 @@ export const memberService = {
    */
   getAccountDeletionPage(
     slug: string,
-    opts: { notice?: AccountDeletionNotice } = {},
+    opts: {
+      notice?: AccountDeletionNotice;
+      /** A form the page could not read: the refusal, and each field's message. */
+      refusal?: { message: string; fieldErrors: Record<string, string> };
+    } = {},
   ): PageViewModel<AccountDeletionContent> {
     const row = fetchMemberBySlug(slug);
     const isAdministrator = row.is_admin === 1;
@@ -1583,12 +1594,15 @@ export const memberService = {
         hasRecurringDonation,
         isAdministrator,
         adminRolesHref: '/admin/admin-roles',
-        notice: opts.notice
-          ? {
-            text: ACCOUNT_DELETION_NOTICES[opts.notice],
-            tone: opts.notice === 'already_deleted' ? 'info' : 'no',
-          }
-          : null,
+        notice: opts.refusal
+          ? { text: opts.refusal.message, tone: 'no' }
+          : opts.notice
+            ? {
+              text: ACCOUNT_DELETION_NOTICES[opts.notice],
+              tone: opts.notice === 'already_deleted' ? 'info' : 'no',
+            }
+            : null,
+        fieldErrors: opts.refusal?.fieldErrors,
       },
     };
   },
@@ -1610,7 +1624,7 @@ export const memberService = {
     slug: string,
     opts: ProfileEditPageOptions = {},
   ): PageViewModel<ProfileEditContent> {
-    const { error, avatarError, avatarUploadedName, submitted } = opts;
+    const { error, fieldErrors, avatarError, avatarUploadedName, submitted } = opts;
     const shownName = avatarUploadedName?.slice(0, AVATAR_BANNER_NAME_MAX_LEN);
     const avatarSuccess = avatarUploadedName === undefined
       ? undefined
@@ -1665,6 +1679,7 @@ export const memberService = {
         // toggles, and the member is told only about the URL.
         ...submittedOverlay(submitted),
         error,
+        fieldErrors,
         avatarError,
         avatarSuccess,
         linkSlots: submitted

@@ -159,6 +159,67 @@ describe('no PII leakage: wizard pages do not expose real member email addresses
   });
 });
 
+// ── Field shape ──────────────────────────────────────────────────────────────
+
+describe('a wizard form posting a field twice is refused as its own validation failure', () => {
+  // A registrant part-way through signing up: details answered, the claim and
+  // club steps still open, which is when every one of these forms is offered.
+  const REGISTRANT_ID = 'sec-wiz-shape';
+  beforeAll(() => {
+    insertMember(db, { id: REGISTRANT_ID, slug: 'sec_wiz_shape', login_email: 'sec-shape@example.com', onboarding: 'none' });
+    insertOnboardingTask(db, REGISTRANT_ID, 'personal_details', 'completed');
+    insertOnboardingTask(db, REGISTRANT_ID, 'legacy_claim', 'pending');
+    insertOnboardingTask(db, REGISTRANT_ID, 'club_affiliations', 'pending');
+  });
+
+  function wizardState(memberId: string): string {
+    const rows = db.prepare(
+      'SELECT task_type, state FROM member_onboarding_tasks WHERE member_id = ? ORDER BY task_type',
+    ).all(memberId) as Array<{ task_type: string; state: string }>;
+    const member = db.prepare('SELECT city, birth_date FROM members WHERE id = ?').get(memberId);
+    return JSON.stringify({ rows, member });
+  }
+
+  // Defect caught: a hand-made post repeating a field throws in the service (a
+  // server error), or advances the wizard on whichever value the code read.
+  const cases: Array<[string, string]> = [
+    ['/register/wizard/personal_details/submit', 'city=Boulder&country=US&birthDay=1&birthDay=2&birthMonth=3&birthYear=1980'],
+    ['/register/wizard/club_affiliations/submit', 'kind=leadership&candidateId=x&userDecision=confirm&userDecision=decline'],
+    ['/register/wizard/club_affiliations/none', 'insightNote=a&insightNote=b'],
+    ['/register/wizard/legacy_claim/continue-without-linking', 'no_link_answer=never_had_one&no_link_answer=cannot_find_it'],
+    ['/register/wizard/legacy_claim/claim', 'accountId=a&accountId=b'],
+    ['/register/wizard/legacy_claim/claim-with-surname', 'recordId=a&recordId=b'],
+    ['/register/wizard/legacy_claim/birth-date', 'birthDay=1&birthMonth=3&birthMonth=4&birthYear=1980'],
+    ['/register/wizard/legacy_claim/anchors/add', 'anchorType=old_email&anchorValue=a%40example.com&anchorValue=b%40example.com'],
+  ];
+  it.each(cases)('POST %s', async (route, body) => {
+    const before = wizardState(REGISTRANT_ID);
+    const res = await request(createApp())
+      .post(route)
+      .set('Cookie', cookieFor(REGISTRANT_ID))
+      .type('form')
+      .send(body);
+    expect(res.status, res.text.slice(0, 300)).toBe(422);
+    expect(res.text).toContain('form-error-banner');
+    expect(wizardState(REGISTRANT_ID)).toBe(before);
+  });
+
+  // Defect caught: the refused details form comes back blank, so the
+  // registrant types everything again, or the message is not beside the field.
+  it('the refused details form keeps what was typed, with the message beside the refused field', async () => {
+    const res = await request(createApp())
+      .post('/register/wizard/personal_details/submit')
+      .set('Cookie', cookieFor(REGISTRANT_ID))
+      .type('form')
+      .send('city=Keptcity&country=US&birthDay=14&birthMonth=3&birthYear=1980&year=1990&year=1991');
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('value="Keptcity"');
+    expect(res.text).toContain('value="14"');
+    const at = res.text.indexOf('id="year"');
+    expect(res.text.slice(at, res.text.indexOf('</div>', at))).toContain('class="form-field-error"');
+  });
+});
+
 // ── Unknown taskType ─────────────────────────────────────────────────────────
 
 describe('unknown taskType returns 404 without leaking information', () => {

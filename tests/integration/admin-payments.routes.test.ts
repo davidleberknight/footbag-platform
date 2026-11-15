@@ -323,6 +323,25 @@ describe('GET /admin/payments/reconciliation', () => {
     expect(res.text).toContain('I checked the provider ledger');
   });
 
+  // Defect caught: a note posted twice reaches the service as something other
+  // than one string, or is refused without saying which box to fix.
+  it('refuses a note posted twice beside the note box, keeping the issue open', async () => {
+    const issueId = await seedOneIssue();
+    const res = await request(createApp())
+      .post(`/admin/payments/reconciliation/${issueId}/resolve`)
+      .set('Cookie', cookie(ADMIN))
+      .type('form')
+      .send('notes=first&notes=second');
+
+    expect(res.status).toBe(422);
+    const at = res.text.indexOf(`id="notes-${issueId}"`);
+    expect(at).toBeGreaterThan(-1);
+    expect(res.text.slice(at, res.text.indexOf('</div>', at))).toContain('class="form-field-error"');
+    const after = await plainRequest(createApp())
+      .get('/admin/payments/reconciliation').set('Cookie', cookie(ADMIN));
+    expect(after.text).toContain(issueId);
+  });
+
   it('prints an amount with its currency code and no invented symbol', async () => {
     // A dollar sign in front of a euro total is a false statement about money,
     // and this figure is read by whoever reconciles the books. Latent while

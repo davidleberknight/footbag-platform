@@ -23,9 +23,20 @@ import { UNSUBSCRIBE_PATH } from '../services/communicationService';
 import { PageViewModel } from '../types/page';
 import { identityAccessService } from '../services/identityAccessService';
 import { NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
-import { handleControllerError, renderNotFound } from '../lib/controllerErrors';
+import { handleControllerError, renderInvalidRequest, renderNotFound } from '../lib/controllerErrors';
 import { isOwnMemberRoute } from '../lib/routeOwnership';
 import { FLASH_KIND, takeFlash, writeFlash } from '../lib/flashCookie';
+import { z } from 'zod';
+import { parseFormBody, formOptionalText } from '../lib/parseFormBody';
+
+// The unsubscribe page's button. A mail client's one-click post carries its
+// own field instead, which the schema drops.
+const unsubscribeForm = z.object({ confirm: formOptionalText('The confirmation') });
+
+const subscriptionForm = z.object({
+  slug: formOptionalText('The mailing list'),
+  subscribe: formOptionalText('Your choice'),
+});
 
 /** The unsubscribe address carries its token in the query string, so neither
  *  a browser nor a shared proxy may keep the page. */
@@ -36,6 +47,8 @@ function setNoStore(res: Response): void {
 
 export const emailPreferenceController = {
   postOneClickUnsubscribe(req: Request, res: Response, next: NextFunction): void {
+    const parsed = parseFormBody(unsubscribeForm, req.body);
+    if (!parsed.ok) { renderInvalidRequest(res, { title: parsed.message }); return; }
     try {
       const token = typeof req.query.t === 'string' ? req.query.t : '';
       const outcome = emailSubscriptionService.unsubscribeByToken(token);
@@ -43,7 +56,7 @@ export const emailPreferenceController = {
       // nothing about whether an address, a member, or a subscription exists, so
       // the endpoint cannot be turned into a membership probe, and a client that
       // fires twice sees the same success both times.
-      if (req.body?.confirm === '1') {
+      if (parsed.data.confirm === '1') {
         // The button on the page the link opened: a person is reading, so the
         // outcome is shown as a page, a refused link included.
         setNoStore(res);
@@ -95,9 +108,20 @@ export const emailPreferenceController = {
       return;
     }
     const memberKey = String(req.params.memberKey);
-    const body = req.body as Record<string, unknown>;
-    const slug = typeof body.slug === 'string' ? body.slug : '';
-    const subscribe = body.subscribe === '1';
+    const parsed = parseFormBody(subscriptionForm, req.body);
+    if (!parsed.ok) {
+      try {
+        res.status(422).render(
+          'members/email-preferences',
+          emailSubscriptionService.getSubscriptionsPage(memberKey, req.user!.userId, { errorMessage: parsed.message }),
+        );
+      } catch (err) {
+        handleControllerError(err, res, next, 'email preference controller');
+      }
+      return;
+    }
+    const slug = parsed.data.slug ?? '';
+    const subscribe = parsed.data.subscribe === '1';
 
     try {
       const outcome = await emailSubscriptionService.setOwnSubscription(req.user!.userId, slug, subscribe);

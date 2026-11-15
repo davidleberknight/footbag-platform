@@ -13,13 +13,14 @@ import { NotFoundError, ValidationError } from '../services/serviceErrors';
 import { renderNotFound } from '../lib/controllerErrors';
 import { FLASH_KIND, writeFlash } from '../lib/flashCookie';
 
-function composeInputFromBody(body: Record<string, unknown>): ComposeInput {
-  return {
-    subject: typeof body.subject === 'string' ? body.subject : '',
-    bodyText: typeof body.bodyText === 'string' ? body.bodyText : '',
-    sendToken: typeof body.sendToken === 'string' ? body.sendToken : '',
-  };
-}
+import { z } from 'zod';
+import { parseFormBody, formText } from '../lib/parseFormBody';
+
+const composeForm = z.object({
+  subject: formText('Subject'),
+  bodyText: formText('Message'),
+  sendToken: formText('The send token'),
+});
 
 export const adminBroadcastController = {
   composeForm(req: Request, res: Response, next: NextFunction): void {
@@ -37,7 +38,22 @@ export const adminBroadcastController = {
 
   send(req: Request, res: Response, next: NextFunction): void {
     const slug = String(req.params.slug);
-    const input = composeInputFromBody(req.body as Record<string, unknown>);
+    const parsed = parseFormBody(composeForm, req.body);
+    if (!parsed.ok) {
+      const s = parsed.submitted;
+      try {
+        const vm = broadcastService.getComposePage(slug, {
+          submitted: { subject: s.subject ?? '', bodyText: s.bodyText ?? '', sendToken: s.sendToken ?? '' },
+          fieldErrors: parsed.fieldErrors,
+        });
+        if (!vm) { renderNotFound(res); return; }
+        res.status(422).render('admin/mailing-lists/compose', vm);
+      } catch (err) {
+        next(err);
+      }
+      return;
+    }
+    const input: ComposeInput = parsed.data;
 
     try {
       const outcome = broadcastService.sendToList(slug, input, req.user!.userId);

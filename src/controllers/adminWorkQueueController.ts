@@ -8,6 +8,45 @@ import { handleControllerError } from '../lib/controllerErrors';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
 import { outcomeNotice, type OutcomeNoticeView } from '../lib/outcomeNotice';
 import { redirectWithOutcome } from '../lib/actionOutcome';
+import { z } from 'zod';
+import { parseFormBody, formText, formOptionalText } from '../lib/parseFormBody';
+
+// Every queue form carries the category the administrator is working in, so
+// the action returns to it.
+const category = formOptionalText('Category');
+
+const claimForm = z.object({ category });
+const resolveForm = z.object({
+  decision_label: formText('Decision'),
+  resolution_note: formText('Note'),
+  category,
+});
+const noteForm = z.object({ note: formText('Note'), category });
+const askForm = z.object({
+  subject: formOptionalText('Subject'),
+  body: formOptionalText('Message'),
+  expectedAnswerKind: formOptionalText('Answer kind'),
+  category,
+});
+const linkTargetForm = z.object({
+  target_legacy_member_id: formText('Legacy member id'),
+  target_historical_person_id: formText('Historical person id'),
+  reason: formText('Reason'),
+  category,
+});
+const rejectForm = z.object({ reason: formText('Reason'), category });
+
+// A shape the form never sends is refused like any other fixable submission,
+// through the catch that already re-renders the queue at 422.
+function read<S extends z.ZodType>(schema: S, req: Request): z.output<S> {
+  const parsed = parseFormBody(schema, req.body);
+  if (!parsed.ok) throw new ValidationError(parsed.message);
+  return parsed.data;
+}
+
+function renderRefusal(req: Request, res: Response, err: ValidationError): void {
+  res.status(422).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: err.message }));
+}
 
 // The resolve methods rate-limit in-service (shared per-admin bucket; admin
 // role does not bypass). This controller only maps the error to HTTP.
@@ -21,10 +60,10 @@ function sendRateLimited(res: Response, err: RateLimitedError): void {
  * not refused, so it returns to the queue saying so in the informational tone
  * rather than drawing an error page.
  */
-function redirectAlreadySettled(req: Request, res: Response, text: string): void {
+function redirectAlreadySettled(req: Request, res: Response, text: string, formCategory: string | undefined): void {
   redirectWithOutcome(req, res, {
     flash: FLASH_KIND.WORK_QUEUE_OUTCOME,
-    to: queueReturnPath(req),
+    to: queueReturnPath(req, formCategory),
     ending: 'already_held',
     text,
   });
@@ -36,9 +75,8 @@ function redirectAlreadySettled(req: Request, res: Response, text: string): void
  * the first item. The service decides what an unrecognized value means, so the
  * raw query value is passed straight back rather than validated twice.
  */
-function queueReturnPath(req: Request): string {
-  const body = (req.body ?? {}) as { category?: unknown };
-  const raw = typeof body.category === 'string' ? body.category : req.query['category'];
+function queueReturnPath(req: Request, formCategory: string | undefined): string {
+  const raw = formCategory ?? req.query['category'];
   if (typeof raw !== 'string' || raw === '') return '/admin/work-queue';
   return `/admin/work-queue?category=${encodeURIComponent(raw)}`;
 }
@@ -121,10 +159,15 @@ export const adminWorkQueueController = {
   claim(req: Request, res: Response, next: NextFunction): void {
     const queueItemId = req.params['id'] ?? '';
     try {
+      const form = read(claimForm, req);
       const result = workQueueService.claim({ queueItemId, adminMemberId: req.user!.userId });
       writeFlash(res, req, FLASH_KIND.WORK_QUEUE_CLAIMED, result.status);
-      res.redirect(303, queueReturnPath(req));
+      res.redirect(303, queueReturnPath(req, form.category));
     } catch (err) {
+      if (err instanceof ValidationError) {
+        renderRefusal(req, res, err);
+        return;
+      }
       handleControllerError(err, res, next, 'admin work queue controller');
     }
   },
@@ -132,17 +175,16 @@ export const adminWorkQueueController = {
   /** POST /admin/work-queue/:id/resolve */
   async resolve(req: Request, res: Response, next: NextFunction): Promise<void> {
     const queueItemId = req.params['id'] ?? '';
-    const decisionLabel = String(req.body?.decision_label ?? '');
-    const resolutionNote = String(req.body?.resolution_note ?? '');
     try {
+      const form = read(resolveForm, req);
       const result = await adminWorkQueueService.resolve({
         queueItemId,
         adminMemberId: req.user!.userId,
-        decisionLabel,
-        resolutionNote,
+        decisionLabel: form.decision_label,
+        resolutionNote: form.resolution_note,
       });
       writeFlash(res, req, FLASH_KIND.WORK_QUEUE_RESOLVED, result.memberNotified ? 'notified' : 'quiet');
-      res.redirect(303, queueReturnPath(req));
+      res.redirect(303, queueReturnPath(req, form.category));
     } catch (err) {
       if (err instanceof ValidationError) {
         res.status(422).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: err.message }));
@@ -167,11 +209,11 @@ export const adminWorkQueueController = {
    * answers or an administrator takes it back. */
   park(req: Request, res: Response, next: NextFunction): void {
     const queueItemId = req.params['id'] ?? '';
-    const note = String(req.body?.note ?? '');
     try {
-      adminWorkQueueService.park({ queueItemId, adminMemberId: req.user!.userId, note });
+      const form = read(noteForm, req);
+      adminWorkQueueService.park({ queueItemId, adminMemberId: req.user!.userId, note: form.note });
       writeFlash(res, req, FLASH_KIND.WORK_QUEUE_PARKED, 'parked');
-      res.redirect(303, queueReturnPath(req));
+      res.redirect(303, queueReturnPath(req, form.category));
     } catch (err) {
       if (err instanceof ValidationError) {
         res.status(422).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: err.message }));
@@ -196,10 +238,15 @@ export const adminWorkQueueController = {
   unpark(req: Request, res: Response, next: NextFunction): void {
     const queueItemId = req.params['id'] ?? '';
     try {
+      const form = read(claimForm, req);
       adminWorkQueueService.unpark({ queueItemId, adminMemberId: req.user!.userId });
       writeFlash(res, req, FLASH_KIND.WORK_QUEUE_PARKED, 'unparked');
-      res.redirect(303, queueReturnPath(req));
+      res.redirect(303, queueReturnPath(req, form.category));
     } catch (err) {
+      if (err instanceof ValidationError) {
+        renderRefusal(req, res, err);
+        return;
+      }
       if (err instanceof NotFoundError) {
         res.status(404).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: 'That item is not parked.' }));
         return;
@@ -215,11 +262,11 @@ export const adminWorkQueueController = {
    * reverted here. */
   dismiss(req: Request, res: Response, next: NextFunction): void {
     const queueItemId = req.params['id'] ?? '';
-    const note = String(req.body?.note ?? '');
     try {
-      adminWorkQueueService.dismiss({ queueItemId, adminMemberId: req.user!.userId, note });
+      const form = read(noteForm, req);
+      adminWorkQueueService.dismiss({ queueItemId, adminMemberId: req.user!.userId, note: form.note });
       writeFlash(res, req, FLASH_KIND.WORK_QUEUE_REVIEWED, queueItemId);
-      res.redirect(303, queueReturnPath(req));
+      res.redirect(303, queueReturnPath(req, form.category));
     } catch (err) {
       if (err instanceof ValidationError) {
         res.status(422).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: err.message }));
@@ -246,15 +293,16 @@ export const adminWorkQueueController = {
   askMember(req: Request, res: Response, next: NextFunction): void {
     const queueItemId = req.params['id'] ?? '';
     try {
+      const form = read(askForm, req);
       memberMessageService.sendQuestion({
         queueItemId,
         adminMemberId:      req.user!.userId,
-        subject:            req.body?.subject,
-        body:               req.body?.body,
-        expectedAnswerKind: req.body?.expectedAnswerKind,
+        subject:            form.subject,
+        body:               form.body,
+        expectedAnswerKind: form.expectedAnswerKind,
       });
       writeFlash(res, req, FLASH_KIND.WORK_QUEUE_MEMBER_ASKED, queueItemId);
-      res.redirect(303, queueReturnPath(req));
+      res.redirect(303, queueReturnPath(req, form.category));
     } catch (err) {
       if (err instanceof ValidationError) {
         res.status(422).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: err.message }));
@@ -277,12 +325,13 @@ export const adminWorkQueueController = {
   linkHelpApprovePreview(req: Request, res: Response, next: NextFunction): void {
     const queueItemId = req.params['id'] ?? '';
     try {
+      const form = read(linkTargetForm, req);
       res.render('admin/work-queue/link-help-confirm', adminWorkQueueService.getLinkHelpApprovalConfirmPage({
         adminMemberId:      req.user!.userId,
         queueItemId,
-        legacyMemberId:     String(req.body?.target_legacy_member_id ?? ''),
-        historicalPersonId: String(req.body?.target_historical_person_id ?? ''),
-        category:           typeof req.body?.category === 'string' ? req.body.category : null,
+        legacyMemberId:     form.target_legacy_member_id,
+        historicalPersonId: form.target_historical_person_id,
+        category:           form.category ?? null,
       }));
     } catch (err) {
       if (err instanceof ValidationError) {
@@ -300,15 +349,14 @@ export const adminWorkQueueController = {
   /** POST /admin/work-queue/:id/link-help/approve/confirm */
   async linkHelpApprove(req: Request, res: Response, next: NextFunction): Promise<void> {
     const queueItemId = req.params['id'] ?? '';
-    const targetLegacyMemberId = String(req.body?.target_legacy_member_id ?? '');
-    const targetHistoricalPersonId = String(req.body?.target_historical_person_id ?? '');
     try {
+      const form = read(linkTargetForm, req);
       identityAccessService.approveLinkHelpRequest(req.user!.userId, queueItemId, {
-        legacyMemberId: targetLegacyMemberId,
-        historicalPersonId: targetHistoricalPersonId,
+        legacyMemberId: form.target_legacy_member_id,
+        historicalPersonId: form.target_historical_person_id,
       });
       writeFlash(res, req, FLASH_KIND.WORK_QUEUE_RESOLVED, queueItemId);
-      res.redirect(303, queueReturnPath(req));
+      res.redirect(303, queueReturnPath(req, form.category));
     } catch (err) {
       if (err instanceof ValidationError || err instanceof ConflictError) {
         res.status(422).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: err.message }));
@@ -334,16 +382,17 @@ export const adminWorkQueueController = {
   linkHelpDisputeRevertPreview(req: Request, res: Response, next: NextFunction): void {
     const queueItemId = req.params['id'] ?? '';
     try {
+      const form = read(linkTargetForm, req);
       const vm = adminWorkQueueService.getDisputeRevertConfirmPage({
         adminMemberId:      req.user!.userId,
         queueItemId,
-        legacyMemberId:     String(req.body?.target_legacy_member_id ?? ''),
-        historicalPersonId: String(req.body?.target_historical_person_id ?? ''),
-        reason:             String(req.body?.reason ?? ''),
-        category:           typeof req.body?.category === 'string' ? req.body.category : null,
+        legacyMemberId:     form.target_legacy_member_id,
+        historicalPersonId: form.target_historical_person_id,
+        reason:             form.reason,
+        category:           form.category ?? null,
       });
       if (!vm) {
-        redirectAlreadySettled(req, res, 'Nobody currently holds that record, so there is no claim to revert.');
+        redirectAlreadySettled(req, res, 'Nobody currently holds that record, so there is no claim to revert.', form.category);
         return;
       }
       res.render('admin/work-queue/dispute-revert-confirm', vm);
@@ -367,20 +416,18 @@ export const adminWorkQueueController = {
    * (which resolves the item) or reject it. */
   async linkHelpDisputeRevert(req: Request, res: Response, next: NextFunction): Promise<void> {
     const queueItemId = req.params['id'] ?? '';
-    const targetLegacyMemberId = String(req.body?.target_legacy_member_id ?? '');
-    const targetHistoricalPersonId = String(req.body?.target_historical_person_id ?? '');
-    const reason = String(req.body?.reason ?? '');
     try {
+      const form = read(linkTargetForm, req);
       const result = identityAccessService.revertClaimForDispute(req.user!.userId, queueItemId, {
-        legacyMemberId: targetLegacyMemberId,
-        historicalPersonId: targetHistoricalPersonId,
-      }, reason);
+        legacyMemberId: form.target_legacy_member_id,
+        historicalPersonId: form.target_historical_person_id,
+      }, form.reason);
       if (result.status === 'nothing_to_revert') {
-        redirectAlreadySettled(req, res, 'Nobody currently holds that record, so there is no claim to revert.');
+        redirectAlreadySettled(req, res, 'Nobody currently holds that record, so there is no claim to revert.', form.category);
         return;
       }
       writeFlash(res, req, FLASH_KIND.WORK_QUEUE_CLAIM_REVERTED, '');
-      res.redirect(303, queueReturnPath(req));
+      res.redirect(303, queueReturnPath(req, form.category));
     } catch (err) {
       if (err instanceof ValidationError) {
         res.status(422).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: err.message }));
@@ -401,11 +448,11 @@ export const adminWorkQueueController = {
   /** POST /admin/work-queue/:id/link-help/reject */
   async linkHelpReject(req: Request, res: Response, next: NextFunction): Promise<void> {
     const queueItemId = req.params['id'] ?? '';
-    const reason = String(req.body?.reason ?? '');
     try {
-      identityAccessService.rejectLinkHelpRequest(req.user!.userId, queueItemId, reason);
+      const form = read(rejectForm, req);
+      identityAccessService.rejectLinkHelpRequest(req.user!.userId, queueItemId, form.reason);
       writeFlash(res, req, FLASH_KIND.WORK_QUEUE_RESOLVED, queueItemId);
-      res.redirect(303, queueReturnPath(req));
+      res.redirect(303, queueReturnPath(req, form.category));
     } catch (err) {
       if (err instanceof ValidationError) {
         res.status(422).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: err.message }));

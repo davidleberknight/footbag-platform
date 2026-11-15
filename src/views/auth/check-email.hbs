@@ -32,6 +32,9 @@
       <div class="form-field">
         <label for="email">Didn't get the email? Enter your address to resend:</label>
         <input type="email" id="email" name="email" autocomplete="email" required />
+        {{#if content.fieldErrors.email}}
+          <p class="form-field-error" role="alert">{{content.fieldErrors.email}}</p>
+        {{/if}}
       </div>
       {{> captcha-field content}}
       <div class="form-actions">

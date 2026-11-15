@@ -188,6 +188,34 @@ describe('POST /donate', () => {
     expect(res.text).toContain('name="amountChoice"');
   });
 
+  // Defect caught: a refused donation comes back blank, so the donor chooses
+  // the amount, the frequency and the note again.
+  it('keeps the chosen frequency and the typed note when the amount is refused', async () => {
+    const res = await request(createApp())
+      .post('/donate')
+      .set('Cookie', cookie(OTHER))
+      .type('form')
+      .send({ amountChoice: 'custom', customAmount: 'not-a-number', recurring: 'yes', note: 'Worlds fund' });
+    expect(res.status).toBe(422);
+    expect(noteValue(res.text)).toBe('Worlds fund');
+    expect(res.text).toMatch(/name="recurring" value="yes" checked/);
+    expect(res.text).toMatch(/name="amountChoice" value="custom" checked/);
+    expect(res.text).toMatch(/id="customAmount"[^>]*value="not-a-number"/s);
+  });
+
+  // Defect caught: a note posted twice reaches the service as a list, or is
+  // refused without saying which field to fix; and no checkout opens.
+  it('refuses a note posted twice beside the note field, opening no checkout', async () => {
+    const res = await request(createApp())
+      .post('/donate')
+      .set('Cookie', cookie(OTHER))
+      .type('form')
+      .send('amountChoice=2500&recurring=no&note=one&note=two');
+    expect(res.status).toBe(422);
+    const at = res.text.indexOf('id="note"');
+    expect(res.text.slice(at, res.text.indexOf('</div>', at))).toContain('class="form-field-error"');
+  });
+
   it('re-renders at 422 when no amount was chosen at all', async () => {
     const res = await request(createApp())
       .post('/donate')

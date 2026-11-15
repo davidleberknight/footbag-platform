@@ -12,6 +12,7 @@
         <label for="sharpenBirthDay">Day</label>
         <input type="text" id="sharpenBirthDay" name="birthDay" inputmode="numeric" maxlength="2"
                autocomplete="bday-day" value="{{birthDay}}" />
+        {{#if fieldErrors.birthDay}}<p class="form-field-error" role="alert">{{fieldErrors.birthDay}}</p>{{/if}}
       </div>
       <div class="form-field form-date-month">
         <label for="sharpenBirthMonth">Month</label>
@@ -21,11 +22,13 @@
             <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
           {{/each}}
         </select>
+        {{#if fieldErrors.birthMonth}}<p class="form-field-error" role="alert">{{fieldErrors.birthMonth}}</p>{{/if}}
       </div>
       <div class="form-field form-date-year">
         <label for="sharpenBirthYear">Year</label>
         <input type="text" id="sharpenBirthYear" name="birthYear" inputmode="numeric" maxlength="4"
                autocomplete="bday-year" value="{{birthYear}}" />
+        {{#if fieldErrors.birthYear}}<p class="form-field-error" role="alert">{{fieldErrors.birthYear}}</p>{{/if}}
       </div>
     </div>
   </fieldset>

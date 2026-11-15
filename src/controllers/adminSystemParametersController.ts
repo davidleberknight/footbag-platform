@@ -15,31 +15,40 @@ import {
 import { ConflictError, ValidationError } from '../services/serviceErrors';
 import { handleControllerError } from '../lib/controllerErrors';
 import { FLASH_KIND, takeFlash, writeFlash } from '../lib/flashCookie';
+import { z } from 'zod';
+import { parseFormBody, formText, formOptionalText } from '../lib/parseFormBody';
 
 const VIEW = 'admin/system-parameters/index';
 
-function stringField(body: Record<string, unknown>, name: string): string {
-  const value = body[name];
-  return typeof value === 'string' ? value : '';
-}
+// Only the keys the screen owns are named, so a posted field naming any other
+// configuration key reaches nothing.
+const parameterFields: Record<string, ReturnType<typeof formOptionalText>> = {};
+for (const key of EDITABLE_PARAMETER_KEYS) parameterFields[key] = formOptionalText(key);
+const parametersForm = z.object({ ...parameterFields, reason: formText('Reason') });
 
-// Only the keys the screen owns are read out of the body, so a posted field
-// naming any other configuration key reaches nothing.
-function submittedValues(body: Record<string, unknown>): Record<string, string> {
+const priceForm = z.object({
+  priceKey: formText('Price'),
+  amountUsd: formText('Amount (USD)'),
+  effectiveStartDate: formText('Effective from'),
+  reason: formText('Reason'),
+});
+
+// The values as typed: each editable key that arrived as text, and the reason.
+function submittedParameters(fields: Partial<Record<string, string>>): { values: Record<string, string>; reason: string } {
   const values: Record<string, string> = {};
   for (const key of EDITABLE_PARAMETER_KEYS) {
-    const raw = body[key];
-    if (typeof raw === 'string') values[key] = raw;
+    const value = fields[key];
+    if (typeof value === 'string') values[key] = value;
   }
-  return values;
+  return { values, reason: fields.reason ?? '' };
 }
 
-function priceInputFromBody(body: Record<string, unknown>): PriceScheduleInput {
+function priceInputFrom(fields: Partial<Record<string, string>>): PriceScheduleInput {
   return {
-    priceKey: stringField(body, 'priceKey'),
-    amountUsd: stringField(body, 'amountUsd'),
-    effectiveStartDate: stringField(body, 'effectiveStartDate'),
-    reason: stringField(body, 'reason'),
+    priceKey: fields.priceKey ?? '',
+    amountUsd: fields.amountUsd ?? '',
+    effectiveStartDate: fields.effectiveStartDate ?? '',
+    reason: fields.reason ?? '',
   };
 }
 
@@ -59,11 +68,11 @@ export const adminSystemParametersController = {
   },
 
   update(req: Request, res: Response, next: NextFunction): void {
-    const body = req.body as Record<string, unknown>;
-    const values = submittedValues(body);
-    const reason = stringField(body, 'reason');
+    const parsed = parseFormBody(parametersForm, req.body);
+    const { values, reason } = submittedParameters(parsed.ok ? parsed.data : parsed.submitted);
 
     try {
+      if (!parsed.ok) throw new ValidationError(parsed.message, { fieldErrors: parsed.fieldErrors });
       adminSystemParametersService.updateParameters({ values, reason }, req.user!.userId);
       writeFlash(res, req, FLASH_KIND.ADMIN_SAVED, 'parameters');
       res.redirect(303, '/admin/system-parameters');
@@ -86,9 +95,11 @@ export const adminSystemParametersController = {
   },
 
   schedulePrice(req: Request, res: Response, next: NextFunction): void {
-    const input = priceInputFromBody(req.body as Record<string, unknown>);
+    const parsed = parseFormBody(priceForm, req.body);
+    const input = priceInputFrom(parsed.ok ? parsed.data : parsed.submitted);
 
     try {
+      if (!parsed.ok) throw new ValidationError(parsed.message, { fieldErrors: parsed.fieldErrors });
       adminSystemParametersService.schedulePrice(input, req.user!.userId);
       writeFlash(res, req, FLASH_KIND.ADMIN_SAVED, 'price');
       res.redirect(303, '/admin/system-parameters');

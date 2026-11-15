@@ -202,6 +202,20 @@ describe('who may send an announcement', () => {
     expect(outboxRows()).toHaveLength(0);
   });
 
+  // Defect caught: an announcement repeating a field (a hand-made request)
+  // goes out with whichever value the code read, or throws, or the refused
+  // form comes back without the message the organizer wrote.
+  it('refuses a field posted twice at 422, keeps the message, and sends nothing', async () => {
+    seedSubscribers();
+    const outboxBefore = outboxRows().length;
+    const res = await request(createApp())
+      .post(ANNOUNCE).set('Cookie', organizerCookie()).type('form')
+      .send('subject=One&subject=Two&bodyText=Kept+typed+message&sendToken=tok-shape');
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Kept typed message');
+    expect(outboxRows()).toHaveLength(outboxBefore);
+  });
+
   it('404s an organizer reaching for another member\'s announce form', async () => {
     const res = await request(createApp())
       .get(`/members/${PLAIN_SLUG}/announce`).set('Cookie', organizerCookie());

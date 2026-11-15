@@ -5,6 +5,33 @@ import { handleControllerError } from '../lib/controllerErrors';
 import { FLASH_KIND, readFlash, clearFlash } from '../lib/flashCookie';
 import { outcomeNotice, type OutcomeNoticeView } from '../lib/outcomeNotice';
 import { redirectWithOutcome } from '../lib/actionOutcome';
+import { z } from 'zod';
+import { parseFormBody, formText } from '../lib/parseFormBody';
+
+const grantForm = z.object({
+  member_key: formText('Member id or slug'),
+  honor: formText('Honor'),
+  induction_year: formText('Induction year'),
+});
+
+const removeForm = z.object({
+  member_key: formText('Member id or slug'),
+  honor: formText('Honor'),
+  reason: formText('Reason'),
+});
+
+const boardForm = z.object({
+  member_key: formText('Member id or slug'),
+  reason: formText('Reason'),
+});
+
+// A shape the form never sends is refused like any other fixable submission,
+// through the catch that already re-renders the page at 422.
+function read<S extends z.ZodType>(schema: S, req: Request): z.output<S> {
+  const parsed = parseFormBody(schema, req.body);
+  if (!parsed.ok) throw new ValidationError(parsed.message);
+  return parsed.data;
+}
 
 // Re-render the form with an inline error; the status follows the error class.
 // ValidationError -> 422 (unknown member, invalid honor). ConflictError -> 409
@@ -39,11 +66,8 @@ export const adminHonorGrantsController = {
   /** POST /admin/honor-grants/grant -- validate, then show the confirmation page. */
   grant(req: Request, res: Response, next: NextFunction): void {
     try {
-      const vm = adminHonorGrantService.previewHonorGrant(
-        String(req.body.member_key ?? ''),
-        String(req.body.honor ?? ''),
-        String(req.body.induction_year ?? ''),
-      );
+      const form = read(grantForm, req);
+      const vm = adminHonorGrantService.previewHonorGrant(form.member_key, form.honor, form.induction_year);
       res.render('admin/honor-grants/grant-confirm', vm);
     } catch (err) {
       if (err instanceof NotFoundError || err instanceof ValidationError || err instanceof ConflictError) {
@@ -57,11 +81,12 @@ export const adminHonorGrantsController = {
   /** POST /admin/honor-grants/grant/confirm -- commit the grant after confirmation. */
   grantConfirm(req: Request, res: Response, next: NextFunction): void {
     try {
+      const form = read(grantForm, req);
       const outcome = adminHonorGrantService.grantHonor(
         req.user!.userId,
-        String(req.body.member_key ?? ''),
-        String(req.body.honor ?? ''),
-        String(req.body.induction_year ?? ''),
+        form.member_key,
+        form.honor,
+        form.induction_year,
       );
       // The first submit and this admin's own repeat return to the list as they
       // always have; an honor another act left in place says so.
@@ -87,10 +112,11 @@ export const adminHonorGrantsController = {
   /** POST /admin/honor-grants/remove -- preview taking back a grant made in error. */
   remove(req: Request, res: Response, next: NextFunction): void {
     try {
+      const form = read(removeForm, req);
       res.render('admin/honor-grants/action-confirm', adminHonorGrantService.previewHonorRemoval(
-        String(req.body.member_key ?? ''),
-        String(req.body.honor ?? ''),
-        String(req.body.reason ?? ''),
+        form.member_key,
+        form.honor,
+        form.reason,
       ));
     } catch (err) {
       if (err instanceof NotFoundError || err instanceof ValidationError || err instanceof ConflictError) {
@@ -104,12 +130,8 @@ export const adminHonorGrantsController = {
   /** POST /admin/honor-grants/remove/confirm */
   removeConfirm(req: Request, res: Response, next: NextFunction): void {
     try {
-      adminHonorGrantService.removeHonor(
-        req.user!.userId,
-        String(req.body.member_key ?? ''),
-        String(req.body.honor ?? ''),
-        String(req.body.reason ?? ''),
-      );
+      const form = read(removeForm, req);
+      adminHonorGrantService.removeHonor(req.user!.userId, form.member_key, form.honor, form.reason);
       res.redirect(303, '/admin/honor-grants');
     } catch (err) {
       if (err instanceof NotFoundError || err instanceof ValidationError || err instanceof ConflictError) {
@@ -129,10 +151,11 @@ export const adminHonorGrantsController = {
   board(setting: boolean) {
     return (req: Request, res: Response, next: NextFunction): void => {
       try {
+        const form = read(boardForm, req);
         res.render('admin/honor-grants/action-confirm', adminHonorGrantService.previewBoardChange(
-          String(req.body.member_key ?? ''),
+          form.member_key,
           setting,
-          String(req.body.reason ?? ''),
+          form.reason,
         ));
       } catch (err) {
         if (err instanceof NotFoundError || err instanceof ValidationError || err instanceof ConflictError) {
@@ -148,11 +171,12 @@ export const adminHonorGrantsController = {
   boardConfirm(setting: boolean) {
     return (req: Request, res: Response, next: NextFunction): void => {
       try {
+        const form = read(boardForm, req);
         const outcome = adminHonorGrantService.applyBoardChange(
           req.user!.userId,
-          String(req.body.member_key ?? ''),
+          form.member_key,
           setting,
-          String(req.body.reason ?? ''),
+          form.reason,
         );
         if (outcome.notice) {
           redirectWithOutcome(req, res, {

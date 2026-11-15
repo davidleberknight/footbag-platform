@@ -424,6 +424,148 @@ describe('a deleted or erased account is not correctable', () => {
   });
 });
 
+/**
+ * The profile form read through its schema. A field posted twice is refused
+ * with its message beside the field and nothing written; the form comes back
+ * holding what was typed; and the admin form's own reading of an unticked box
+ * (absent, since it pairs no hidden value with it) and of a blank contact-email
+ * setting is unchanged.
+ */
+describe('the profile correction reads its form through a schema', () => {
+  const SHAPE_ID = 'pc_shape';
+
+  function shapeRow(): unknown {
+    return db((conn) => conn.prepare('SELECT * FROM members WHERE id = ?').get(SHAPE_ID));
+  }
+
+  function shapeCorrections(): number {
+    return db((conn) => (conn.prepare(
+      "SELECT COUNT(*) AS n FROM audit_entries WHERE action_type = 'member.profile_corrected' AND entity_id = ?",
+    ).get(SHAPE_ID) as { n: number }).n);
+  }
+
+  /** The baseline submission as a form body, so a field can be sent twice. */
+  function formBody(over: Record<string, string> = {}, omit: string[] = []): URLSearchParams {
+    const fields = submission(over);
+    for (const key of omit) delete fields[key];
+    return new URLSearchParams(fields);
+  }
+
+  /** The markup of one field's block, from its input to the block's end. */
+  function fieldBlock(html: string, inputId: string): string {
+    const at = html.indexOf(`id="${inputId}"`);
+    expect(at, `the record renders the ${inputId} input`).toBeGreaterThan(-1);
+    return html.slice(at, html.indexOf('</div>', at));
+  }
+
+  beforeAll(() => {
+    db((conn) => {
+      insertMember(conn, {
+        id: SHAPE_ID, slug: 'pc-shape', display_name: 'Sha Pe', real_name: 'Sha Pe',
+        login_email: 'pc-shape@example.com', city: 'Aukland', country: 'New Zealand',
+        searchable: 1, email_visibility: 'members', phone_visible: 1,
+      });
+      completeOnboarding(conn, SHAPE_ID);
+    });
+  });
+
+  it('refuses a city posted twice beside the City field, writing nothing', async () => {
+    const before = shapeRow();
+    const body = formBody({ city: 'Wellington' });
+    body.append('city', 'Dunedin');
+    const res = await request(createApp())
+      .post(`/admin/members/${SHAPE_ID}/profile/confirm`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send(body.toString());
+    expect(res.status).toBe(422);
+    expect(fieldBlock(res.text, 'p_city')).toContain('class="form-field-error"');
+    expect(shapeRow()).toEqual(before);
+    expect(shapeCorrections()).toBe(0);
+  });
+
+  it('brings the form back holding what was typed, and the corrected resubmission saves', async () => {
+    const body = formBody({ city: 'Typedtown', whatsappVisible: '1', reason: 'Typed reason' }, ['searchable']);
+    body.append('phone', '+64 21 555 0199');
+    const res = await request(createApp())
+      .post(`/admin/members/${SHAPE_ID}/profile`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send(body.toString());
+    expect(res.status).toBe(422);
+
+    const at = res.text.indexOf(`action="/admin/members/${SHAPE_ID}/profile"`);
+    expect(res.text.slice(res.text.lastIndexOf('<details', at), at)).toMatch(/<details[^>]* open/);
+    expect(fieldBlock(res.text, 'p_city')).toContain('value="Typedtown"');
+    expect(fieldBlock(res.text, 'p_reason')).toContain('value="Typed reason"');
+    expect(fieldBlock(res.text, 'p_whatsapp_vis')).toMatch(/value="1"\s+checked/);
+    // Left unticked in the submission, though the stored record has it ticked.
+    expect(fieldBlock(res.text, 'p_searchable')).not.toMatch(/value="1"\s+checked/);
+    const phone = fieldBlock(res.text, 'p_phone');
+    expect(phone).toContain('class="form-field-error"');
+    expect(phone).toContain('value=""');
+
+    const fixed = await request(createApp())
+      .post(`/admin/members/${SHAPE_ID}/profile`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send(formBody({ city: 'Typedtown', phone: '+64 21 555 0199', reason: 'Typed reason' }).toString());
+    expect(fixed.status).toBe(200);
+  });
+
+  // The record's checkboxes have no hidden "0" beside them, so an unticked box
+  // is absent from the body a browser sends; the stored record has both ticked.
+  it('saves an absent box as unticked and a blank contact-email setting as private', async () => {
+    const res = await request(createApp())
+      .post(`/admin/members/${SHAPE_ID}/profile/confirm`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send(formBody({ emailVisibility: '' }, ['searchable', 'phoneVisible']).toString());
+    expect(res.status).toBe(303);
+    const row = db((conn) => conn.prepare(
+      'SELECT searchable, phone_visible, email_visibility FROM members WHERE id = ?',
+    ).get(SHAPE_ID)) as { searchable: number; phone_visible: number; email_visibility: string };
+    expect(row.searchable).toBe(0);
+    expect(row.phone_visible).toBe(0);
+    expect(row.email_visibility).toBe('private');
+  });
+
+  // Defect caught: the confirmation carries a blank setting forward instead of
+  // the one the preview resolved, so what is committed is not what was shown.
+  it('carries a blank contact-email setting to the confirmation as private', async () => {
+    const res = await request(createApp())
+      .post(`/admin/members/${SHAPE_ID}/profile`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send(formBody({ emailVisibility: '' }).toString());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('name="emailVisibility" value="private"');
+  });
+
+  it('saves two links posted as the form posts them, in their order', async () => {
+    const body = formBody({ city: 'Linkton' });
+    body.append('link_label', 'First site');
+    body.append('link_url', 'https://one.example');
+    body.append('link_label', 'Second site');
+    body.append('link_url', 'https://two.example');
+    const res = await request(createApp())
+      .post(`/admin/members/${SHAPE_ID}/profile/confirm`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send(body.toString());
+    expect(res.status).toBe(303);
+    const links = db((conn) => conn.prepare(
+      // ordering-is-the-contract: the slots are stored in the order the form posted them.
+      'SELECT label, url FROM member_links WHERE member_id = ? ORDER BY sort_order, id',
+    ).all(SHAPE_ID)) as Array<{ label: string; url: string }>;
+    // Stored in the normalised form a published link takes.
+    expect(links).toEqual([
+      { label: 'First site', url: 'https://one.example/' },
+      { label: 'Second site', url: 'https://two.example/' },
+    ]);
+  });
+});
+
 describe('the route is administrator-only', () => {
   it('refuses an authenticated non-administrator', async () => {
     const res = await request(createApp())

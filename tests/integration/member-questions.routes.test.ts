@@ -473,6 +473,24 @@ describe('the member reads and answers', () => {
     expect(row.status).toBe('open');
   });
 
+  // Defect caught: an answer repeating a field (a hand-made request) records
+  // whichever value the code read, or throws, or comes back without the note
+  // the member typed.
+  it('an answer posting a field twice is refused at 422, keeps the note, and records nothing', async () => {
+    const itemId = seedItem();
+    await ask(itemId);
+    const messageId = messageRow()!.id as string;
+    const res = await request(createApp())
+      .post(`/members/${MEMBER_SLUG}/questions/${messageId}/answer`)
+      .set('Cookie', memberCookie())
+      .type('form')
+      .send('dateAnswer=confirm&dateAnswer=correct&note=Kept+typed+note');
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('form-error-banner');
+    expect(res.text).toContain('Kept typed note');
+    expect(messageRow()!.status).not.toBe('answered');
+  });
+
   it('confirming the date on file records the outcome and leaves it alone', async () => {
     const itemId = seedItem();
     await ask(itemId);

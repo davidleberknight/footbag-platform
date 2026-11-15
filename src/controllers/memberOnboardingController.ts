@@ -21,6 +21,79 @@ import {
   readFlash,
   clearFlash,
 } from '../lib/flashCookie';
+import { z } from 'zod';
+import { parseFormBody, formText, formOptionalText, formList, formCheckbox } from '../lib/parseFormBody';
+
+// The forms each wizard step posts. Fields a variant of the form does not
+// carry stay undefined, which the services already read as "not answered".
+const personalDetailsForm = z.object({
+  city: formText('City'),
+  region: formText('State or province'),
+  country: formText('Country'),
+  birthDay: formText('Day of birth'),
+  birthMonth: formText('Month of birth'),
+  birthYear: formText('Year of birth'),
+  gender: formText('Gender'),
+  year: formText('First competition year'),
+  showCompetitiveResults: formCheckbox('Show my competition results on my public profile', '0'),
+});
+
+const clubAffiliationsForm = z.object({
+  kind: formOptionalText('The kind of club question'),
+  candidateId: formOptionalText('The club being answered'),
+  userDecision: formOptionalText('Your answer about the club'),
+  activitySignal: formOptionalText('Whether the club is still active'),
+  clubRegion: formOptionalText("The club's state or province"),
+  insightNote: formOptionalText('Your note about clubs'),
+  allCandidateIds: formList('The clubs offered'),
+  selectedCandidateIds: formList('The club you picked'),
+});
+
+const noClubsForm = z.object({ insightNote: formOptionalText('Your note about clubs') });
+
+const noLinkForm = z.object({ no_link_answer: formOptionalText('Your answer about an old account') });
+
+const claimTargetForm = z.object({
+  accountId: formOptionalText('The old account'),
+  recordId: formOptionalText('The competition record'),
+});
+
+const birthDateForm = z.object({
+  birthDay: formText('Day of birth'),
+  birthMonth: formText('Month of birth'),
+  birthYear: formText('Year of birth'),
+});
+
+const addAnchorForm = z.object({
+  anchorType: formText('The kind of detail'),
+  anchorValue: formText('The email address or surname used on the old site'),
+});
+
+// Only the keys that arrived, so a refused field falls back to what is stored
+// rather than being overwritten with a blank.
+function keptText<K extends string>(submitted: Partial<Record<string, string>>, keys: readonly K[]): Partial<Record<K, string>> {
+  const kept: Partial<Record<K, string>> = {};
+  for (const key of keys) {
+    const value = submitted[key];
+    if (value !== undefined) kept[key] = value;
+  }
+  return kept;
+}
+
+// A refusal on the claim step: the step's own page at 422, with the message.
+async function refuseOnClaimStep(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+  message: string,
+  refusal?: { fieldErrors: Record<string, string>; birth?: { day: string; month: string; year: string } },
+): Promise<void> {
+  try {
+    await renderLegacyClaim(req, res, 422, message, refusal);
+  } catch (err) {
+    next(err);
+  }
+}
 
 // Wizard surface: `/register/wizard/:taskType`. POST handlers are thin
 // HTTP glue: parse input, call one service method returning a
@@ -57,6 +130,9 @@ interface ClubAffiliationsCardContent {
   // club card, and on the wrap-up landing. Absent everywhere else, so the
   // template renders the field exactly where it is offered.
   insightPrompt:   ClubInsightPrompt | null;
+  /** On a refused answer: the note the member typed, and each field's message. */
+  insightNoteValue?: string;
+  fieldErrors?:    Record<string, string>;
 }
 
 interface PersonalDetailsContent {
@@ -73,6 +149,8 @@ interface PersonalDetailsContent {
   regionOptions: RegionOption[];
   regionFieldHidden: boolean;
   error: string | null;
+  /** One message per refused field, keyed by the field's form name. */
+  fieldErrors?: Record<string, string>;
   submitLabel: string;
 }
 
@@ -114,6 +192,7 @@ async function renderLegacyClaim(
   res: Response,
   statusOverride?: number,
   validationMessage?: string,
+  refusal?: { fieldErrors: Record<string, string>; birth?: { day: string; month: string; year: string } },
 ): Promise<void> {
   const memberId = req.user!.userId;
   const { view: data, declaredAnchors } = memberOnboardingService.getLinkHistoryView(memberId);
@@ -144,6 +223,14 @@ async function renderLegacyClaim(
     data.birthMonthOptions = birthMonthOptions(parts.month);
     data.continueHref = nextPendingHref(memberId);
   }
+  // A refused date correction comes back holding what the member typed.
+  if (refusal?.birth) {
+    data.birthDay = refusal.birth.day;
+    data.birthMonth = refusal.birth.month;
+    data.birthYear = refusal.birth.year;
+    data.birthMonthOptions = birthMonthOptions(refusal.birth.month);
+  }
+  if (refusal) data.fieldErrors = refusal.fieldErrors;
   if (validationMessage) data.validationMessage = validationMessage;
   res.status(statusOverride ?? 200).render('register/wizard/legacy-claim', {
     seo:  { title: 'Find Your Past Records' },
@@ -214,7 +301,13 @@ function capHitNoticeFrom(
 function renderClubAffiliationsCard(
   req: Request,
   res: Response,
-  opts: { formError?: string | null; statusOverride?: number; continueHref?: string | null } = {},
+  opts: {
+    formError?: string | null;
+    statusOverride?: number;
+    continueHref?: string | null;
+    fieldErrors?: Record<string, string>;
+    insightNote?: string;
+  } = {},
 ): void {
   const memberId = req.user!.userId;
   const { cards, isWrapUp, hadSuggestionMaterial, hasLeftInsight } =
@@ -249,6 +342,8 @@ function renderClubAffiliationsCard(
       resolvedNotice,
       capHitNotice,
       formError:      opts.formError ?? null,
+      fieldErrors:    opts.fieldErrors,
+      insightNoteValue: opts.insightNote,
       isWrapUp,
       noLegacyAffiliationFound: isWrapUp && !hadSuggestionMaterial,
       // Asked once per member. On the wrap-up landing when the member has no
@@ -268,7 +363,7 @@ function renderClubAffiliationsCard(
 function renderPersonalDetails(
   req: Request,
   res: Response,
-  opts: { city?: string; region?: string; country?: string; birthDay?: string; birthMonth?: string; birthYear?: string; gender?: string; yearValue?: string; showCompetitiveResults?: boolean; error?: string | null; statusOverride?: number } = {},
+  opts: { city?: string; region?: string; country?: string; birthDay?: string; birthMonth?: string; birthYear?: string; gender?: string; yearValue?: string; showCompetitiveResults?: boolean; error?: string | null; fieldErrors?: Record<string, string>; statusOverride?: number } = {},
 ): void {
   const form = memberService.getPersonalDetailsForm(req.user!.userId, opts);
   res.status(opts.statusOverride ?? 200).render('register/wizard/personal-details', {
@@ -278,6 +373,7 @@ function renderPersonalDetails(
       dashboardHref: dashboardHrefFor(req),
       ...form,
       error: opts.error ?? null,
+      fieldErrors: opts.fieldErrors,
       // "Continue" while other onboarding steps remain; "Complete" when saving
       // this required step finishes the member's outstanding wizard tasks.
       submitLabel: memberOnboardingService.hasOtherOutstandingTasks(req.user!.userId, 'personal_details')
@@ -369,7 +465,9 @@ async function claimFromCard(
   next: NextFunction,
   withSurname: boolean,
 ): Promise<void> {
-  const target = readClaimTarget(req.body);
+  const parsed = parseFormBody(claimTargetForm, req.body);
+  if (!parsed.ok) { await refuseOnClaimStep(req, res, next, parsed.message); return; }
+  const target = readClaimTarget(parsed.data);
   await dispatch<null>(req, res, next, 'legacy_claim', {
     action: () => memberOnboardingService.processClaimCandidate(
       req.user!.userId, target, req.ip ?? 'unknown', withSurname),
@@ -477,7 +575,9 @@ export const memberOnboardingController = {
   // old-site account, or held one and cannot find it. Either completes the
   // required task. Not a skip; the wizard has none.
   async postContinueWithoutLinking(req: Request, res: Response, next: NextFunction): Promise<void> {
-    const answer = memberOnboardingService.readNoLinkAnswer(req.body?.no_link_answer);
+    const parsed = parseFormBody(noLinkForm, req.body);
+    if (!parsed.ok) { await refuseOnClaimStep(req, res, next, parsed.message); return; }
+    const answer = memberOnboardingService.readNoLinkAnswer(parsed.data.no_link_answer);
     await dispatch(req, res, next, 'legacy_claim', {
       action: () => memberOnboardingService.processContinueWithoutLinking(req.user!.userId, answer),
       renderValidationError: async (result) => {
@@ -491,7 +591,14 @@ export const memberOnboardingController = {
   // The club task's explicit "none of these are my clubs" answer: declines
   // every remaining suggestion card and completes the task in one transaction.
   async postNoClubs(req: Request, res: Response, next: NextFunction): Promise<void> {
-    const insightNote = req.body?.insightNote;
+    const parsed = parseFormBody(noClubsForm, req.body);
+    if (!parsed.ok) {
+      renderClubAffiliationsCard(req, res, {
+        formError: parsed.message, fieldErrors: parsed.fieldErrors, statusOverride: 422,
+      });
+      return;
+    }
+    const insightNote = parsed.data.insightNote;
     await dispatch(req, res, next, 'club_affiliations', {
       action: () => memberOnboardingService.processNoClubsAnswer(req.user!.userId, insightNote),
       // The no-club answer can fail validation now that it carries the insight
@@ -501,6 +608,7 @@ export const memberOnboardingController = {
         renderClubAffiliationsCard(req, res, {
           formError:      result.message,
           statusOverride: 422,
+          insightNote,
         });
       },
     });
@@ -517,25 +625,24 @@ export const memberOnboardingController = {
   },
 
   async postPersonalDetailsSubmit(req: Request, res: Response, next: NextFunction): Promise<void> {
-    const city = String(req.body.city ?? '');
-    const region = String(req.body.region ?? '');
-    const country = String(req.body.country ?? '');
-    const birth = {
-      day:   String(req.body.birthDay ?? ''),
-      month: String(req.body.birthMonth ?? ''),
-      year:  String(req.body.birthYear ?? ''),
-    };
-    const gender = String(req.body.gender ?? '');
-    const yearValue = String(req.body.year ?? '');
-    // The form pairs a hidden "0" with the checkbox's "1" so an unchecked box
-    // still submits a value, which means a checked box submits both and the
-    // body carries an array. The checkbox is written second, so the last value
-    // is the member's answer.
-    const rawShowCompetitiveResults = Array.isArray(req.body.showCompetitiveResults)
-      ? req.body.showCompetitiveResults[req.body.showCompetitiveResults.length - 1]
-      : req.body.showCompetitiveResults;
+    const parsed = parseFormBody(personalDetailsForm, req.body);
+    if (!parsed.ok) {
+      const box = parsed.submittedLists.showCompetitiveResults?.at(-1) ?? parsed.submitted.showCompetitiveResults;
+      const kept = keptText(parsed.submitted, ['city', 'region', 'country', 'birthDay', 'birthMonth', 'birthYear', 'gender'] as const);
+      renderPersonalDetails(req, res, {
+        ...kept,
+        ...(parsed.submitted.year !== undefined ? { yearValue: parsed.submitted.year } : {}),
+        ...(box !== undefined ? { showCompetitiveResults: box === '1' } : {}),
+        error: parsed.message,
+        fieldErrors: parsed.fieldErrors,
+        statusOverride: 422,
+      });
+      return;
+    }
+    const { city, region, country, gender, year: yearValue } = parsed.data;
+    const birth = { day: parsed.data.birthDay, month: parsed.data.birthMonth, year: parsed.data.birthYear };
     const showCompetitiveResults =
-      rawShowCompetitiveResults === '1' || rawShowCompetitiveResults === 'true';
+      parsed.data.showCompetitiveResults === '1' || parsed.data.showCompetitiveResults === 'true';
     await dispatch<PersonalDetailsFormState>(req, res, next, 'personal_details', {
       action: () => memberOnboardingService.processPersonalDetailsSubmit(
         req.user!.userId, city, region, country, birth, gender, yearValue, showCompetitiveResults),
@@ -558,13 +665,25 @@ export const memberOnboardingController = {
   },
 
   async postClubAffiliationsSubmit(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const parsed = parseFormBody(clubAffiliationsForm, req.body);
+    if (!parsed.ok) {
+      renderClubAffiliationsCard(req, res, {
+        formError: parsed.message,
+        fieldErrors: parsed.fieldErrors,
+        insightNote: parsed.submitted.insightNote,
+        statusOverride: 422,
+      });
+      return;
+    }
+    const answer = parsed.data;
     await dispatch<null>(req, res, next, 'club_affiliations', {
       action: () =>
-        memberOnboardingService.processClubAffiliationsSubmit(req.user!.userId, req.body),
+        memberOnboardingService.processClubAffiliationsSubmit(req.user!.userId, answer),
       renderValidationError: (result) => {
         renderClubAffiliationsCard(req, res, {
           formError:      result.message,
           statusOverride: 422,
+          insightNote:    answer.insightNote,
         });
       },
     });
@@ -574,23 +693,33 @@ export const memberOnboardingController = {
   // match. The redirect back re-runs the match, because the step recomputes its
   // candidates on every draw, so a corrected date searches again by itself.
   async postLegacyClaimBirthDate(req: Request, res: Response, next: NextFunction): Promise<void> {
-    const parts = {
-      day:   String(req.body.birthDay ?? ''),
-      month: String(req.body.birthMonth ?? ''),
-      year:  String(req.body.birthYear ?? ''),
-    };
+    const parsed = parseFormBody(birthDateForm, req.body);
+    if (!parsed.ok) {
+      await refuseOnClaimStep(req, res, next, parsed.message, {
+        fieldErrors: parsed.fieldErrors,
+        birth: {
+          day: parsed.submitted.birthDay ?? '',
+          month: parsed.submitted.birthMonth ?? '',
+          year: parsed.submitted.birthYear ?? '',
+        },
+      });
+      return;
+    }
+    const parts = { day: parsed.data.birthDay, month: parsed.data.birthMonth, year: parsed.data.birthYear };
     await dispatch<null>(req, res, next, 'legacy_claim', {
       action: () => memberOnboardingService.processLegacyClaimBirthDate(req.user!.userId, req.user!.slug ?? '', parts),
       renderValidationError: async (result) => {
-        await renderLegacyClaim(req, res, 422, result.message);
+        await renderLegacyClaim(req, res, 422, result.message, { fieldErrors: {}, birth: parts });
       },
     });
   },
 
   async postAddAnchor(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const parsed = parseFormBody(addAnchorForm, req.body);
+    if (!parsed.ok) { await refuseOnClaimStep(req, res, next, parsed.message); return; }
+    const { anchorType, anchorValue } = parsed.data;
     await dispatch<null>(req, res, next, 'legacy_claim', {
-      action: () => memberOnboardingService.processAddAnchor(
-        req.user!.userId, String(req.body.anchorType ?? ''), String(req.body.anchorValue ?? '')),
+      action: () => memberOnboardingService.processAddAnchor(req.user!.userId, anchorType, anchorValue),
       renderValidationError: async (result) => {
         await renderLegacyClaim(req, res, 422, result.message);
       },

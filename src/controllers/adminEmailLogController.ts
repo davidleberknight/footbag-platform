@@ -4,6 +4,10 @@ import { ValidationError } from '../services/serviceErrors';
 import { handleControllerError } from '../lib/controllerErrors';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
 import type { OutcomeTone } from '../lib/outcomeNotice';
+import { z } from 'zod';
+import { parseFormBody, formOptionalText } from '../lib/parseFormBody';
+
+const reviewForm = z.object({ note: formOptionalText('Note') });
 
 /** Trim a query value to a non-empty string, or undefined. */
 function str(v: unknown): string | undefined {
@@ -70,10 +74,12 @@ export const adminEmailLogController = {
    *  after every item. */
   review(req: Request, res: Response, next: NextFunction): void {
     try {
+      const parsed = parseFormBody(reviewForm, req.body);
+      if (!parsed.ok) throw new ValidationError(parsed.message);
       const result = emailLogService.markReviewed({
         outboxId:      req.params['id'] ?? '',
         adminMemberId: req.user!.userId,
-        note:          req.body?.note,
+        note:          parsed.data.note,
       });
       writeFlash(res, req, FLASH_KIND.EMAIL_LOG_REVIEWED, result.status);
       res.redirect(303, returnPath(req));

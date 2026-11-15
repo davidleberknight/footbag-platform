@@ -269,6 +269,19 @@ describe('POST /media/item/:mediaId/flag — what the form will not accept', () 
     expect(flagsFor(SPARE_ITEMS[0])).toHaveLength(0);
   });
 
+  // Defect caught: a report repeating its reason (a hand-made request) records
+  // whichever reason the code read, or throws a server error.
+  it('records nothing, at 422 with a way back, when a field is posted twice', async () => {
+    const res = await request(createApp())
+      .post(`/media/item/${SPARE_ITEMS[0]}/flag`)
+      .set('Cookie', cookieFor(REPORTER_ID))
+      .type('form')
+      .send('reason_code=spam&reason_code=other');
+    expect(res.status).toBe(422);
+    expect(res.text).toContain(`href="/media/item/${SPARE_ITEMS[0]}"`);
+    expect(flagsFor(SPARE_ITEMS[0])).toHaveLength(0);
+  });
+
   it('records nothing when the description runs past its cap', async () => {
     const res = await request(createApp())
       .post(`/media/item/${SPARE_ITEMS[0]}/flag`)

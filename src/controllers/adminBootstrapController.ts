@@ -2,6 +2,10 @@ import { Request, Response, NextFunction } from 'express';
 import { adminBootstrapService } from '../services/adminBootstrapService';
 import { RateLimitedError } from '../services/serviceErrors';
 import { PageViewModel } from '../types/page';
+import { z } from 'zod';
+import { parseFormBody, formText } from '../lib/parseFormBody';
+
+const claimForm = z.object({ token: formText('Bootstrap token') });
 
 /**
  * Single-shot first-admin bootstrap claim. Reachable by any SIGNED-IN
@@ -52,10 +56,14 @@ export const adminBootstrapController = {
   },
 
   async postClaim(req: Request, res: Response, next: NextFunction): Promise<void> {
+    // A token posted in a shape the form never sends is answered as an invalid
+    // token, the same page either way.
+    const parsed = parseFormBody(claimForm, req.body);
+    if (!parsed.ok) { render(res, 'invalid', 422); return; }
     try {
       const result = await adminBootstrapService.claimBootstrapAdmin(
         req.user!.userId,
-        String(req.body.token ?? ''),
+        parsed.data.token,
         req.ip ?? 'unknown',
       );
       render(res, result.status, result.status === 'granted' ? 200 : 422);

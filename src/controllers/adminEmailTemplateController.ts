@@ -10,12 +10,22 @@ import { NotFoundError, ValidationError } from '../services/serviceErrors';
 import { renderNotFound } from '../lib/controllerErrors';
 import { FLASH_KIND, takeFlash, writeFlash } from '../lib/flashCookie';
 
-function editInputFromBody(body: Record<string, unknown>): EmailTemplateEditInput {
+import { z } from 'zod';
+import { parseFormBody, formText, formOptionalText } from '../lib/parseFormBody';
+
+const templateForm = z.object({
+  subjectTemplate: formText('Subject'),
+  bodyTemplate: formText('Body'),
+  piiClassification: formText('Personal data classification'),
+  isEnabled: formOptionalText('Enabled'),
+});
+
+function editInputFrom(fields: Partial<Record<string, string>>): EmailTemplateEditInput {
   return {
-    subjectTemplate: typeof body.subjectTemplate === 'string' ? body.subjectTemplate : '',
-    bodyTemplate: typeof body.bodyTemplate === 'string' ? body.bodyTemplate : '',
-    piiClassification: typeof body.piiClassification === 'string' ? body.piiClassification : '',
-    isEnabled: body.isEnabled === '1',
+    subjectTemplate: fields.subjectTemplate ?? '',
+    bodyTemplate: fields.bodyTemplate ?? '',
+    piiClassification: fields.piiClassification ?? '',
+    isEnabled: fields.isEnabled === '1',
   };
 }
 
@@ -48,9 +58,11 @@ export const adminEmailTemplateController = {
 
   update(req: Request, res: Response, next: NextFunction): void {
     const key = String(req.params.key);
-    const input = editInputFromBody(req.body as Record<string, unknown>);
+    const parsed = parseFormBody(templateForm, req.body);
+    const input = editInputFrom(parsed.ok ? parsed.data : parsed.submitted);
 
     try {
+      if (!parsed.ok) throw new ValidationError(parsed.message, { fieldErrors: parsed.fieldErrors });
       const result = emailTemplateAdminService.updateTemplate(key, input, req.user!.userId);
       const outcome = result.status === 'saved' ? 'email_template' : 'email_template_unchanged';
       writeFlash(res, req, FLASH_KIND.ADMIN_SAVED, `${outcome}:${key}`);

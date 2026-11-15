@@ -57,24 +57,28 @@
         <label for="canonicalName">Canonical name</label>
         <input type="text" id="canonicalName" name="canonicalName" maxlength="200"
                value="{{content.fields.canonicalName}}" aria-describedby="canonicalName-hint">
+        {{#if content.fieldErrors.canonicalName}}<p class="form-field-error" role="alert">{{content.fieldErrors.canonicalName}}</p>{{/if}}
         <small class="form-hint" id="canonicalName-hint">The slug is folded from this name, and nothing may already hold it.</small>
       </div>
 
       <div class="form-field">
         <label for="adds">Difficulty (ADD)</label>
         <input type="text" id="adds" name="adds" inputmode="numeric" value="{{content.fields.adds}}" aria-describedby="adds-hint">
+        {{#if content.fieldErrors.adds}}<p class="form-field-error" role="alert">{{content.fieldErrors.adds}}</p>{{/if}}
         <small class="form-hint" id="adds-hint">Must equal the notation's scoring-bracket count above.</small>
       </div>
 
       <div class="form-field">
         <label for="baseTrick">Base trick slug</label>
         <input type="text" id="baseTrick" name="baseTrick" value="{{content.fields.baseTrick}}" aria-describedby="baseTrick-hint">
+        {{#if content.fieldErrors.baseTrick}}<p class="form-field-error" role="alert">{{content.fieldErrors.baseTrick}}</p>{{/if}}
         <small class="form-hint" id="baseTrick-hint">The trick this is built on. Its family becomes this trick's family.</small>
       </div>
 
       <div class="form-field">
         <label for="familyOverride">Family override</label>
         <input type="text" id="familyOverride" name="familyOverride" value="{{content.fields.familyOverride}}" aria-describedby="familyOverride-hint">
+        {{#if content.fieldErrors.familyOverride}}<p class="form-field-error" role="alert">{{content.fieldErrors.familyOverride}}</p>{{/if}}
         <small class="form-hint" id="familyOverride-hint">Leave empty unless the base's own family is not the family this trick belongs to.</small>
       </div>
 
@@ -83,16 +87,19 @@
         <select id="category" name="category">
           {{#each content.categoryOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
         </select>
+        {{#if content.fieldErrors.category}}<p class="form-field-error" role="alert">{{content.fieldErrors.category}}</p>{{/if}}
       </div>
 
       <div class="form-field">
         <label for="description">Description</label>
         <textarea id="description" name="description" rows="4" maxlength="4000">{{content.fields.description}}</textarea>
+        {{#if content.fieldErrors.description}}<p class="form-field-error" role="alert">{{content.fieldErrors.description}}</p>{{/if}}
       </div>
 
       <div class="form-field">
         <label for="aliases">Aliases</label>
         <input type="text" id="aliases" name="aliases" value="{{content.fields.aliases}}" aria-describedby="aliases-hint">
+        {{#if content.fieldErrors.aliases}}<p class="form-field-error" role="alert">{{content.fieldErrors.aliases}}</p>{{/if}}
         <small class="form-hint" id="aliases-hint">Separate several with a vertical bar. Each is added as a displayed community nickname.</small>
       </div>
 
@@ -102,6 +109,7 @@
           <option value="">None</option>
           {{#each content.sourceOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
         </select>
+        {{#if content.fieldErrors.sourceId}}<p class="form-field-error" role="alert">{{content.fieldErrors.sourceId}}</p>{{/if}}
         {{#if content.sourceRequired}}
         <small class="form-hint">The notation rests on a source, so this trick must link to the source it rests on.</small>
         {{/if}}
@@ -110,12 +118,14 @@
       <div class="form-field">
         <label for="sourceUrl">Source URL</label>
         <input type="url" id="sourceUrl" name="sourceUrl" maxlength="500" value="{{content.fields.sourceUrl}}">
+        {{#if content.fieldErrors.sourceUrl}}<p class="form-field-error" role="alert">{{content.fieldErrors.sourceUrl}}</p>{{/if}}
       </div>
 
       <div class="form-field">
         <label for="sourceAssertedNotation">Notation the source itself wrote</label>
         <input type="text" id="sourceAssertedNotation" name="sourceAssertedNotation"
                value="{{content.fields.sourceAssertedNotation}}">
+        {{#if content.fieldErrors.sourceAssertedNotation}}<p class="form-field-error" role="alert">{{content.fieldErrors.sourceAssertedNotation}}</p>{{/if}}
         {{#if content.assertedNotationRequired}}
         <small class="form-hint">Required: the notation was taken from a source that wrote one, so record what it wrote.</small>
         {{/if}}
@@ -124,6 +134,7 @@
       <div class="form-field">
         <label for="modifierLinks">Modifier slugs</label>
         <input type="text" id="modifierLinks" name="modifierLinks" value="{{content.fields.modifierLinks}}" aria-describedby="modifierLinks-hint">
+        {{#if content.fieldErrors.modifierLinks}}<p class="form-field-error" role="alert">{{content.fieldErrors.modifierLinks}}</p>{{/if}}
         <small class="form-hint" id="modifierLinks-hint">Separate several with a vertical bar, in the order they apply.</small>
       </div>
 

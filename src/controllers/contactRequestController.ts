@@ -5,6 +5,13 @@ import { handleControllerError, renderNotFound } from '../lib/controllerErrors';
 import { PageViewModel } from '../types/page';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
 import { isOwnMemberRoute } from '../lib/routeOwnership';
+import { z } from 'zod';
+import { parseFormBody, formText } from '../lib/parseFormBody';
+
+const contactForm = z.object({
+  category: formText('What this is about'),
+  message: formText('Your message'),
+});
 
 interface ContactAdminContent {
   memberKey: string;
@@ -72,8 +79,20 @@ export const contactRequestController = {
   /** POST /members/:memberKey/contact-admin */
   postSubmit(req: Request, res: Response, next: NextFunction): void {
     if (!isOwnMemberRoute(req)) { renderNotFound(res); return; }
-    const category = String(req.body?.category ?? '');
-    const message = String(req.body?.message ?? '');
+    const parsed = parseFormBody(contactForm, req.body);
+    if (!parsed.ok) {
+      try {
+        res.status(422).render('members/contact-admin', buildViewModel(req, {
+          errorMessage: parsed.message,
+          prefilledCategory: parsed.submitted.category ?? '',
+          prefilledMessage: parsed.submitted.message ?? '',
+        }));
+      } catch (err) {
+        handleControllerError(err, res, next, 'contact request controller');
+      }
+      return;
+    }
+    const { category, message } = parsed.data;
     try {
       adminWorkQueueService.submit({
         requestingMemberId: req.user!.userId,

@@ -1,8 +1,12 @@
 import type { Request, Response, NextFunction } from 'express';
 import { systemAlarmService } from '../services/systemAlarmService';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
-import { handleControllerError } from '../lib/controllerErrors';
+import { handleControllerError, renderInvalidRequest } from '../lib/controllerErrors';
 import { NotFoundError, ValidationError } from '../services/serviceErrors';
+import { z } from 'zod';
+import { parseFormBody, formOptionalText } from '../lib/parseFormBody';
+
+const acknowledgeForm = z.object({ note: formOptionalText('Note') });
 
 export const adminAlarmsController = {
   /** GET /admin/alarms */
@@ -32,7 +36,9 @@ export const adminAlarmsController = {
   /** POST /admin/alarms/:id/acknowledge */
   acknowledge(req: Request, res: Response, next: NextFunction): void {
     const alarmId = req.params['id'] ?? '';
-    const note = typeof req.body?.note === 'string' ? req.body.note : null;
+    const parsed = parseFormBody(acknowledgeForm, req.body);
+    if (!parsed.ok) { renderInvalidRequest(res, { title: parsed.message, backHref: '/admin/alarms' }); return; }
+    const note = parsed.data.note ?? null;
     try {
       // The service reports a no-op when the alarm was already taken or has
       // since cleared. Writing the success flash regardless tells the second

@@ -2036,6 +2036,38 @@ if [ -n "$ctrl_db_hits" ]; then
 fi
 fi
 
+# Rule: a controller reads a submitted body only as parseFormBody(<schema>, req.body),
+# or through rawBody(req) on a raw-body route. No cast of req.body, no field read.
+# Reason: the controller boundary is the trust boundary. A field read straight off
+# req.body can arrive repeated, or as a number or an object, and throw; a cast hides
+# that from the compiler. The schema beside each handler names the form's fields and
+# refuses any other shape as the form's own validation failure.
+# The rule matches the spelling req.body, so it is a floor, not a proof.
+if check "controllers read the form body only through its schema" src/controllers; then
+ctrl_body_hits=$(python3 - <<'PYEOF'
+import re, pathlib
+use = re.compile(r'\breq\.body\b')
+schema_arg_before = re.compile(r'parseFormBody\(\s*[A-Za-z_$][\w$.]*\s*,\s*$')
+close_after = re.compile(r'\s*\)')
+root = pathlib.Path('src/controllers')
+files = sorted(p.as_posix() for p in root.rglob('*.ts')) if root.exists() else []
+for rel in files:
+    for i, line in enumerate(pathlib.Path(rel).read_text().splitlines(), 1):
+        if line.strip().startswith(('//', '*', '/*')):
+            continue
+        for m in use.finditer(line):
+            if schema_arg_before.search(line[:m.start()]) and close_after.match(line[m.end():]):
+                continue
+            print(f"{rel}:{i}: reads req.body directly; parse it with parseFormBody(<schema>, req.body)")
+PYEOF
+)
+if [ -n "$ctrl_body_hits" ]; then
+  echo "$ctrl_body_hits" >&2
+  echo "  FAIL: a controller reads its body only through the form's schema (parseFormBody) or rawBody" >&2
+  violations=$((violations + 1))
+fi
+fi
+
 # Rule: a *_failed operational-error audit row is written via
 # recordOperationalError, not appendAuditEntry directly.
 # Reason: recordOperationalError pairs the audit row with a logger.error() that

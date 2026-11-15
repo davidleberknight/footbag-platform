@@ -17,6 +17,7 @@
         <div class="form-field">
           <label for="city">City <span class="fw-600">(required)</span></label>
           <input type="text" id="city" name="city" maxlength="64" value="{{content.city}}" required />
+          {{#if content.fieldErrors.city}}<p class="form-field-error" role="alert">{{content.fieldErrors.city}}</p>{{/if}}
         </div>
 
         <div class="form-field">
@@ -27,9 +28,10 @@
               <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
             {{/each}}
           </select>
+          {{#if content.fieldErrors.country}}<p class="form-field-error" role="alert">{{content.fieldErrors.country}}</p>{{/if}}
         </div>
 
-        {{#> region-picker id="region" pickers=content}}
+        {{#> region-picker id="region" pickers=content error=content.fieldErrors.region}}
           <label for="region">State or province <span class="fw-600">(required in the USA and Canada)</span></label>
         {{/region-picker}}
 
@@ -41,6 +43,7 @@
               <label for="birthDay">Day</label>
               <input type="text" id="birthDay" name="birthDay" inputmode="numeric" maxlength="2"
                      autocomplete="bday-day" value="{{content.birthDay}}" />
+              {{#if content.fieldErrors.birthDay}}<p class="form-field-error" role="alert">{{content.fieldErrors.birthDay}}</p>{{/if}}
             </div>
             <div class="form-field form-date-month">
               <label for="birthMonth">Month</label>
@@ -50,11 +53,13 @@
                   <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
                 {{/each}}
               </select>
+              {{#if content.fieldErrors.birthMonth}}<p class="form-field-error" role="alert">{{content.fieldErrors.birthMonth}}</p>{{/if}}
             </div>
             <div class="form-field form-date-year">
               <label for="birthYear">Year</label>
               <input type="text" id="birthYear" name="birthYear" inputmode="numeric" maxlength="4"
                      autocomplete="bday-year" value="{{content.birthYear}}" />
+              {{#if content.fieldErrors.birthYear}}<p class="form-field-error" role="alert">{{content.fieldErrors.birthYear}}</p>{{/if}}
             </div>
           </div>
         </fieldset>
@@ -75,6 +80,7 @@
               <input type="radio" name="gender" value="undisclosed" {{#if (eq content.gender "undisclosed")}}checked{{/if}} />
               Prefer not to say
             </label>
+            {{#if content.fieldErrors.gender}}<p class="form-field-error" role="alert">{{content.fieldErrors.gender}}</p>{{/if}}
           </div>
         </fieldset>
 
@@ -83,6 +89,7 @@
           <input type="number" id="year" name="year" min="1972" inputmode="numeric"
                  value="{{content.yearValue}}" placeholder="e.g. 1998" />
           <small class="form-hint">Optional. The year you first competed in a footbag tournament. Will display on your profile if set.</small>
+          {{#if content.fieldErrors.year}}<p class="form-field-error" role="alert">{{content.fieldErrors.year}}</p>{{/if}}
         </div>
 
         <div class="form-field">

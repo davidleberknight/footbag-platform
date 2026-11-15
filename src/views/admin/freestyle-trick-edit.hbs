@@ -35,32 +35,39 @@
         <div class="form-field">
           <label for="trick-canonicalName">Canonical name</label>
           <input type="text" id="trick-canonicalName" name="canonicalName" value="{{content.fields.canonicalName}}" />
+          {{#if content.fieldErrors.canonicalName}}<p class="form-field-error" role="alert">{{content.fieldErrors.canonicalName}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="trick-adds">ADD</label>
           <input type="text" id="trick-adds" name="adds" value="{{content.fields.adds}}" />
+          {{#if content.fieldErrors.adds}}<p class="form-field-error" role="alert">{{content.fieldErrors.adds}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="trick-movementNotation">Movement notation</label>
           <textarea id="trick-movementNotation" name="movementNotation" rows="2">{{content.fields.movementNotation}}</textarea>
+          {{#if content.fieldErrors.movementNotation}}<p class="form-field-error" role="alert">{{content.fieldErrors.movementNotation}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="trick-executionNotation">Execution notation</label>
           <textarea id="trick-executionNotation" name="executionNotation" rows="2">{{content.fields.executionNotation}}</textarea>
+          {{#if content.fieldErrors.executionNotation}}<p class="form-field-error" role="alert">{{content.fieldErrors.executionNotation}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="trick-family">Trick family</label>
           <input type="text" id="trick-family" name="family" value="{{content.fields.family}}" />
+          {{#if content.fieldErrors.family}}<p class="form-field-error" role="alert">{{content.fieldErrors.family}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="trick-baseTrick">Base trick</label>
           <input type="text" id="trick-baseTrick" name="baseTrick" value="{{content.fields.baseTrick}}" />
+          {{#if content.fieldErrors.baseTrick}}<p class="form-field-error" role="alert">{{content.fieldErrors.baseTrick}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="trick-category">Category</label>
           <select id="trick-category" name="category">
             {{#each content.categoryOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
           </select>
+          {{#if content.fieldErrors.category}}<p class="form-field-error" role="alert">{{content.fieldErrors.category}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label><input type="checkbox" name="isActive" {{#if content.fields.isActive}}checked{{/if}} /> Active</label>
@@ -68,59 +75,72 @@
         <div class="form-field">
           <label for="trick-sortOrder">Sort position</label>
           <input type="text" id="trick-sortOrder" name="sortOrder" value="{{content.fields.sortOrder}}" />
+          {{#if content.fieldErrors.sortOrder}}<p class="form-field-error" role="alert">{{content.fieldErrors.sortOrder}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="trick-reviewStatus">Review status</label>
           <select id="trick-reviewStatus" name="reviewStatus">
             {{#each content.reviewStatusOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
           </select>
+          {{#if content.fieldErrors.reviewStatus}}<p class="form-field-error" role="alert">{{content.fieldErrors.reviewStatus}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="trick-description">Description</label>
           <textarea id="trick-description" name="description" rows="3">{{content.fields.description}}</textarea>
+          {{#if content.fieldErrors.description}}<p class="form-field-error" role="alert">{{content.fieldErrors.description}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="trick-shortDescription">Short description</label>
           <textarea id="trick-shortDescription" name="shortDescription" rows="2">{{content.fields.shortDescription}}</textarea>
+          {{#if content.fieldErrors.shortDescription}}<p class="form-field-error" role="alert">{{content.fieldErrors.shortDescription}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="trick-executionSummary">Execution summary</label>
           <textarea id="trick-executionSummary" name="executionSummary" rows="3">{{content.fields.executionSummary}}</textarea>
+          {{#if content.fieldErrors.executionSummary}}<p class="form-field-error" role="alert">{{content.fieldErrors.executionSummary}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="trick-learningNotes">Learning notes</label>
           <textarea id="trick-learningNotes" name="learningNotes" rows="3">{{content.fields.learningNotes}}</textarea>
+          {{#if content.fieldErrors.learningNotes}}<p class="form-field-error" role="alert">{{content.fieldErrors.learningNotes}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="trick-prerequisiteNotes">Prerequisite notes</label>
           <textarea id="trick-prerequisiteNotes" name="prerequisiteNotes" rows="2">{{content.fields.prerequisiteNotes}}</textarea>
+          {{#if content.fieldErrors.prerequisiteNotes}}<p class="form-field-error" role="alert">{{content.fieldErrors.prerequisiteNotes}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="trick-pronunciation">Pronunciation</label>
           <input type="text" id="trick-pronunciation" name="pronunciation" value="{{content.fields.pronunciation}}" />
+          {{#if content.fieldErrors.pronunciation}}<p class="form-field-error" role="alert">{{content.fieldErrors.pronunciation}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="trick-operationalNotationSource">Execution-notation source</label>
           <textarea id="trick-operationalNotationSource" name="operationalNotationSource" rows="2">{{content.fields.operationalNotationSource}}</textarea>
+          {{#if content.fieldErrors.operationalNotationSource}}<p class="form-field-error" role="alert">{{content.fieldErrors.operationalNotationSource}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="trick-aboutDerivatives">Derivatives note</label>
           <textarea id="trick-aboutDerivatives" name="aboutDerivatives" rows="2" aria-describedby="trick-aboutDerivatives-hint">{{content.fields.aboutDerivatives}}</textarea>
+          {{#if content.fieldErrors.aboutDerivatives}}<p class="form-field-error" role="alert">{{content.fieldErrors.aboutDerivatives}}</p>{{/if}}
           <small id="trick-aboutDerivatives-hint" class="form-hint">One line naming the trick's major higher-ADD derivatives, shown in the page's opening.</small>
         </div>
         <div class="form-field">
           <label for="trick-aboutNamingNote">Naming note</label>
           <textarea id="trick-aboutNamingNote" name="aboutNamingNote" rows="2" aria-describedby="trick-aboutNamingNote-hint">{{content.fields.aboutNamingNote}}</textarea>
+          {{#if content.fieldErrors.aboutNamingNote}}<p class="form-field-error" role="alert">{{content.fieldErrors.aboutNamingNote}}</p>{{/if}}
           <small id="trick-aboutNamingNote-hint" class="form-hint">Why a community name is kept out of the alias line, shown in the page's opening.</small>
         </div>
         <div class="form-field">
           <label for="trick-reversePairBase">Reverse of</label>
           <input type="text" id="trick-reversePairBase" name="reversePairBase" value="{{content.fields.reversePairBase}}" aria-describedby="trick-reversePairBase-hint" />
+          {{#if content.fieldErrors.reversePairBase}}<p class="form-field-error" role="alert">{{content.fieldErrors.reversePairBase}}</p>{{/if}}
           <small id="trick-reversePairBase-hint" class="form-hint">The slug of the trick this one reverses. The page then shows the rev(0) formula. Leave empty for none.</small>
         </div>
         <div class="form-field">
           <label for="trick-familyOverride">Public family</label>
           <input type="text" id="trick-familyOverride" name="familyOverride" value="{{content.fields.familyOverride}}" aria-describedby="trick-familyOverride-hint" />
+          {{#if content.fieldErrors.familyOverride}}<p class="form-field-error" role="alert">{{content.fieldErrors.familyOverride}}</p>{{/if}}
           <small id="trick-familyOverride-hint" class="form-hint">The public family slug the browse and the trick page file this trick under, when it differs from the trick family. Leave empty to use the trick family.</small>
         </div>
         <div class="form-field">
@@ -128,41 +148,49 @@
           <select id="trick-trickKind" name="trickKind" aria-describedby="trick-trickKind-hint">
             {{#each content.trickKindOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
           </select>
+          {{#if content.fieldErrors.trickKind}}<p class="form-field-error" role="alert">{{content.fieldErrors.trickKind}}</p>{{/if}}
           <small id="trick-trickKind-hint" class="form-hint">Only a trick is listed in the trick browse.</small>
         </div>
         <div class="form-field">
           <label for="trick-terminalCohort">Lands in</label>
           <input type="text" id="trick-terminalCohort" name="terminalCohort" value="{{content.fields.terminalCohort}}" aria-describedby="trick-terminalCohort-hint" />
+          {{#if content.fieldErrors.terminalCohort}}<p class="form-field-error" role="alert">{{content.fieldErrors.terminalCohort}}</p>{{/if}}
           <small id="trick-terminalCohort-hint" class="form-hint">The slug of the terminal trick whose "Tricks that land here" list names this trick. Leave empty for none.</small>
         </div>
         <div class="form-field">
           <label for="trick-terminalCohortPosition">Position in that list</label>
           <input type="text" id="trick-terminalCohortPosition" name="terminalCohortPosition" value="{{content.fields.terminalCohortPosition}}" aria-describedby="trick-terminalCohortPosition-hint" />
+          {{#if content.fieldErrors.terminalCohortPosition}}<p class="form-field-error" role="alert">{{content.fieldErrors.terminalCohortPosition}}</p>{{/if}}
           <small id="trick-terminalCohortPosition-hint" class="form-hint">A whole number from 1, set together with the terminal trick.</small>
         </div>
         <div class="form-field">
           <label for="trick-addDerivation">Difficulty breakdown</label>
           <input type="text" id="trick-addDerivation" name="addDerivation" value="{{content.fields.addDerivation}}" aria-describedby="trick-addDerivation-hint" />
+          {{#if content.fieldErrors.addDerivation}}<p class="form-field-error" role="alert">{{content.fieldErrors.addDerivation}}</p>{{/if}}
           <small id="trick-addDerivation-hint" class="form-hint">The ADD worked out operator by operator, such as quantum(+1) + guay(2). The total shown beside it is the ADD above. Leave empty for none.</small>
         </div>
         <div class="form-field">
           <label for="trick-formulaOperator">Fallback operators</label>
           <input type="text" id="trick-formulaOperator" name="formulaOperator" value="{{content.fields.formulaOperator}}" aria-describedby="trick-formulaOperator-hint" />
+          {{#if content.fieldErrors.formulaOperator}}<p class="form-field-error" role="alert">{{content.fieldErrors.formulaOperator}}</p>{{/if}}
           <small id="trick-formulaOperator-hint" class="form-hint">The operators joined by +, such as pixie + symposium. Used only when the trick has no modifier links; names that are not registered modifiers are ignored.</small>
         </div>
         <div class="form-field">
           <label for="trick-expandedNotation">Expanded notation</label>
           <input type="text" id="trick-expandedNotation" name="expandedNotation" value="{{content.fields.expandedNotation}}" aria-describedby="trick-expandedNotation-hint" />
+          {{#if content.fieldErrors.expandedNotation}}<p class="form-field-error" role="alert">{{content.fieldErrors.expandedNotation}}</p>{{/if}}
           <small id="trick-expandedNotation-hint" class="form-hint">The execution notation written out in full, shown under it when the execution notation uses a shorthand. Leave empty for none.</small>
         </div>
         <div class="form-field">
           <label for="trick-movementNotationSubtitle">Movement-notation subtitle</label>
           <input type="text" id="trick-movementNotationSubtitle" name="movementNotationSubtitle" value="{{content.fields.movementNotationSubtitle}}" aria-describedby="trick-movementNotationSubtitle-hint" />
+          {{#if content.fieldErrors.movementNotationSubtitle}}<p class="form-field-error" role="alert">{{content.fieldErrors.movementNotationSubtitle}}</p>{{/if}}
           <small id="trick-movementNotationSubtitle-hint" class="form-hint">One line under the movement notation heading. Leave empty for none.</small>
         </div>
         <div class="form-field">
           <label for="trick-executionNotationSubtitle">Execution-notation subtitle</label>
           <input type="text" id="trick-executionNotationSubtitle" name="executionNotationSubtitle" value="{{content.fields.executionNotationSubtitle}}" aria-describedby="trick-executionNotationSubtitle-hint" />
+          {{#if content.fieldErrors.executionNotationSubtitle}}<p class="form-field-error" role="alert">{{content.fieldErrors.executionNotationSubtitle}}</p>{{/if}}
           <small id="trick-executionNotationSubtitle-hint" class="form-hint">One line under the execution notation heading. Leave empty for none.</small>
         </div>
       </fieldset>
@@ -186,6 +214,7 @@
             <select id="alias-{{this.slug}}-type" name="aliasType">
               {{#each this.typeOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
             </select>
+            {{#if this.fieldErrors.aliasType}}<p class="form-field-error" role="alert">{{this.fieldErrors.aliasType}}</p>{{/if}}
           </div>
           <div class="form-field">
             <label><input type="checkbox" name="aliasDisplay" {{#if this.isDisplayed}}checked{{/if}} /> Show beside the trick name</label>
@@ -196,6 +225,7 @@
           <div class="form-field">
             <label for="alias-{{this.slug}}-reason">{{#if this.divergesFromClass}}Why this differs from the class (required){{else}}Why, if you set this against the class{{/if}}</label>
             <textarea id="alias-{{this.slug}}-reason" name="divergenceReason" rows="2" maxlength="500">{{this.divergenceReason}}</textarea>
+            {{#if this.fieldErrors.divergenceReason}}<p class="form-field-error" role="alert">{{this.fieldErrors.divergenceReason}}</p>{{/if}}
           </div>
           {{! Provenance is a separate fact from the publication judgement above:
               where the alias came from, not whether a reader should see it. The
@@ -205,10 +235,12 @@
             <select id="alias-{{this.slug}}-source" name="sourceId">
               {{#each this.sourceOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
             </select>
+            {{#if this.fieldErrors.sourceId}}<p class="form-field-error" role="alert">{{this.fieldErrors.sourceId}}</p>{{/if}}
           </div>
           <div class="form-field">
             <label for="alias-{{this.slug}}-provenance">What that source says it is</label>
             <textarea id="alias-{{this.slug}}-provenance" name="provenanceNote" rows="2" maxlength="500">{{this.provenanceNote}}</textarea>
+            {{#if this.fieldErrors.provenanceNote}}<p class="form-field-error" role="alert">{{this.fieldErrors.provenanceNote}}</p>{{/if}}
           </div>
           {{#unless this.isCuratorOwned}}<p class="text-muted">{{this.ownerLabel}}</p>{{/unless}}
           <div class="form-actions">
@@ -228,12 +260,14 @@
         <div class="form-field">
           <label for="add-alias-text">Add alias</label>
           <input type="text" id="add-alias-text" name="aliasText" value="{{content.aliasFormText}}" placeholder="Alias name" />
+          {{#if content.aliasFieldErrors.aliasText}}<p class="form-field-error" role="alert">{{content.aliasFieldErrors.aliasText}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="add-alias-type">Type</label>
           <select id="add-alias-type" name="aliasType">
             {{#each content.aliasTypeOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
           </select>
+          {{#if content.aliasFieldErrors.aliasType}}<p class="form-field-error" role="alert">{{content.aliasFieldErrors.aliasType}}</p>{{/if}}
         </div>
         {{! A new alias is maintained here whatever source it cites, so the source
             is asked for on its own terms rather than standing in for ownership. }}
@@ -242,10 +276,12 @@
           <select id="add-alias-source" name="sourceId">
             {{#each content.aliasSourceOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
           </select>
+          {{#if content.aliasFieldErrors.sourceId}}<p class="form-field-error" role="alert">{{content.aliasFieldErrors.sourceId}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="add-alias-provenance">What that source says it is</label>
-          <textarea id="add-alias-provenance" name="provenanceNote" rows="2" maxlength="500"></textarea>
+          <textarea id="add-alias-provenance" name="provenanceNote" rows="2" maxlength="500">{{content.aliasFormProvenanceNote}}</textarea>
+          {{#if content.aliasFieldErrors.provenanceNote}}<p class="form-field-error" role="alert">{{content.aliasFieldErrors.provenanceNote}}</p>{{/if}}
         </div>
       </fieldset>
       <div class="form-actions">
@@ -279,14 +315,17 @@
             <option value="">Choose a source</option>
             {{#each content.sourceOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
           </select>
+          {{#if content.sourceFieldErrors.sourceId}}<p class="form-field-error" role="alert">{{content.sourceFieldErrors.sourceId}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="attach-source-url">External URL (optional)</label>
           <input type="text" id="attach-source-url" name="externalUrl" value="{{content.sourceFormExternalUrl}}" />
+          {{#if content.sourceFieldErrors.externalUrl}}<p class="form-field-error" role="alert">{{content.sourceFieldErrors.externalUrl}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="attach-source-adds">Asserted ADD (optional)</label>
           <input type="text" id="attach-source-adds" name="assertedAdds" value="{{content.sourceFormAssertedAdds}}" />
+          {{#if content.sourceFieldErrors.assertedAdds}}<p class="form-field-error" role="alert">{{content.sourceFieldErrors.assertedAdds}}</p>{{/if}}
         </div>
       </fieldset>
       <div class="form-actions">
@@ -320,10 +359,12 @@
             <option value="">Choose a modifier</option>
             {{#each content.modifierOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
           </select>
+          {{#if content.modifierFieldErrors.modifierSlug}}<p class="form-field-error" role="alert">{{content.modifierFieldErrors.modifierSlug}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="attach-modifier-order">Apply order</label>
           <input type="text" id="attach-modifier-order" name="applyOrder" value="{{content.modifierFormApplyOrder}}" placeholder="1" />
+          {{#if content.modifierFieldErrors.applyOrder}}<p class="form-field-error" role="alert">{{content.modifierFieldErrors.applyOrder}}</p>{{/if}}
         </div>
       </fieldset>
       <div class="form-actions">

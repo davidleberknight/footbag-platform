@@ -7,6 +7,7 @@
   without a script. The template holds every entry, inert and never shown, for
   region-picker.js to swap in when the country changes; the country select it
   watches carries data-country-picker. `placeholder` overrides the empty option.
+  `error`, when set, is the field's refusal message, shown beneath the select.
 --}}
 <div class="form-field" data-region-field {{#if pickers.regionFieldHidden}}hidden{{/if}}>
   {{> @partial-block}}
@@ -16,6 +17,7 @@
       <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
     {{/each}}
   </select>
+  {{#if error}}<p class="form-field-error" role="alert">{{error}}</p>{{/if}}
   <template data-region-options>
     {{#each pickers.regionTemplateOptions}}
       <option value="{{this.value}}" data-country="{{this.countryName}}"{{#if this.required}} data-required{{/if}}>{{this.label}}</option>

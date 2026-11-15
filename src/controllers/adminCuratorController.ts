@@ -33,6 +33,67 @@ import {
   changedTypedTags,
 } from '../services/curatorMediaService';
 import { NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
+import { z } from 'zod';
+import { parseFormBody, formText, formOptionalText } from '../lib/parseFormBody';
+
+// The media edit form. The URL-reference fields appear only on a reference
+// row's edit page, so their absence (leave the field alone) differs from a
+// blank value (clear it).
+const curatorMediaEditForm = z.object({
+  caption: formText('Caption'),
+  tags: formText('Hashtags'),
+  addPlayer: formOptionalText('The player to credit'),
+  sourceId: formOptionalText('Source id'),
+  thumbnailUrl: formOptionalText('Thumbnail URL'),
+  startSeconds: formOptionalText('Start (seconds)'),
+  endSeconds: formOptionalText('End (seconds)'),
+  externalUrl: formOptionalText('External URL'),
+});
+
+// One label and one URL input per link slot the gallery form draws.
+const galleryLinkFields: Record<string, ReturnType<typeof formText>> = {};
+for (let i = 0; i < config.galleryMaxExternalLinks; i++) {
+  galleryLinkFields[`externalLinkLabel${i}`] = formText(`Link ${i + 1} label`);
+  galleryLinkFields[`externalLinkUrl${i}`] = formText(`Link ${i + 1} URL`);
+}
+
+// The gallery edit form. The moderation boxes carry no hidden 0, so an
+// unticked box arrives absent and reads as blank.
+const curatorGalleryEditForm = z.object({
+  name: formText('Name'),
+  description: formText('Description'),
+  sortOrder: formText('Sort order'),
+  criteriaTags: formText('Criteria hashtags'),
+  excludeTags: formText('Exclude hashtags'),
+  reason: formText('Reason'),
+  // Absent when the form offered no cover choice, which keeps the stored one.
+  coverMediaId: formOptionalText('Cover'),
+  clearName: formText('Clear the name'),
+  clearDescription: formText('Clear the description'),
+  ...galleryLinkFields,
+});
+
+// The delete buttons post confirmed=1 only from the confirmation step.
+const curatorDeleteForm = z.object({ confirmed: formOptionalText('The confirmation') });
+
+// The async video upload's JSON bodies. The service checks each value's type
+// and content, so the schema only names the fields it takes.
+const signUploadBody = z.object({
+  videoFilename: z.unknown().optional(),
+  videoContentType: z.unknown().optional(),
+  videoSizeBytes: z.unknown().optional(),
+  posterContentType: z.unknown().optional(),
+  posterSizeBytes: z.unknown().optional(),
+  caption: z.unknown().optional(),
+  tags: z.unknown().optional(),
+  externalUrl: z.unknown().optional(),
+  galleryName: z.unknown().optional(),
+  gallerySlug: z.unknown().optional(),
+  gallerySort: z.unknown().optional(),
+  galleryExcludeTags: z.unknown().optional(),
+  galleryPreview: z.unknown().optional(),
+});
+const finalizeUploadBody = z.object({ jobId: z.unknown().optional() });
 import { renderImageWorkerUnavailable, renderInvalidRequest, renderNotFound } from '../lib/controllerErrors';
 import { getMediaJobService, jobEventPayload, jobStateSnapshot } from '../services/mediaJobService';
 import { subscribeToJobEvents } from '../services/jobEventBus';
@@ -335,36 +396,56 @@ export const adminCuratorController = {
     try {
       const mediaId = req.params.id;
       const adminMemberId = req.user!.userId;
-      const captionRaw = (req.body?.caption ?? '').trim();
+      const svc = buildSvc();
+      const parsed = parseFormBody(curatorMediaEditForm, req.body);
+      const renderEditRefused = async (
+        message: string,
+        typed: Partial<Record<string, string | undefined>>,
+        fieldErrors?: Record<string, string>,
+      ): Promise<void> => {
+        const page = await getCuratorMediaEditErrorPage(svc, mediaId, message, {
+          caption: typed.caption ?? '',
+          tagsString: typed.tags ?? '',
+          sourceId: typed.sourceId,
+          startSeconds: typed.startSeconds,
+          endSeconds: typed.endSeconds,
+          externalUrl: typed.externalUrl,
+        }, fieldErrors);
+        if (!page) {
+          res.status(404).render('admin/curator/edit', getCuratorMediaNotFoundPage(mediaId));
+          return;
+        }
+        res.status(422).render('admin/curator/edit', page);
+      };
+      if (!parsed.ok) {
+        await renderEditRefused(parsed.message, parsed.submitted, parsed.fieldErrors);
+        return;
+      }
+      const form = parsed.data;
+      const captionRaw = form.caption.trim();
       const caption = captionRaw.length === 0 ? null : captionRaw;
-      const tags = withPlayerCredits(
-        parseTagList(req.body?.tags),
-        typeof req.body?.addPlayer === 'string' ? req.body.addPlayer : undefined,
-      );
+      const tags = withPlayerCredits(parseTagList(form.tags), form.addPlayer);
 
       // URL-ref sidecar fields. Sent as form inputs from the edit page;
       // empty string is treated as null (clears the sidecar field).
       // Service ignores these on DB-direct rows.
       const editInput: CuratorMediaEditInput = { adminMemberId, mediaId, caption, tags };
-      const trimToNull = (v: unknown): string | null => {
-        if (typeof v !== 'string') return null;
+      const trimToNull = (v: string): string | null => {
         const t = v.trim();
         return t.length === 0 ? null : t;
       };
-      const parseIntOrNull = (v: unknown): number | null => {
-        if (typeof v !== 'string') return null;
+      const parseIntOrNull = (v: string): number | null => {
         const t = v.trim();
         if (t.length === 0) return null;
         const n = parseInt(t, 10);
         return Number.isFinite(n) ? n : null;
       };
-      if (req.body?.sourceId !== undefined) editInput.sourceId = trimToNull(req.body.sourceId);
-      if (req.body?.thumbnailUrl !== undefined) editInput.thumbnailUrl = trimToNull(req.body.thumbnailUrl);
-      if (req.body?.startSeconds !== undefined) editInput.startSeconds = parseIntOrNull(req.body.startSeconds);
-      if (req.body?.endSeconds !== undefined) editInput.endSeconds = parseIntOrNull(req.body.endSeconds);
-      if (req.body?.externalUrl !== undefined) editInput.externalUrl = trimToNull(req.body.externalUrl);
+      if (form.sourceId !== undefined) editInput.sourceId = trimToNull(form.sourceId);
+      if (form.thumbnailUrl !== undefined) editInput.thumbnailUrl = trimToNull(form.thumbnailUrl);
+      if (form.startSeconds !== undefined) editInput.startSeconds = parseIntOrNull(form.startSeconds);
+      if (form.endSeconds !== undefined) editInput.endSeconds = parseIntOrNull(form.endSeconds);
+      if (form.externalUrl !== undefined) editInput.externalUrl = trimToNull(form.externalUrl);
 
-      const svc = buildSvc();
       try {
         await svc.editMedia(editInput);
       } catch (err) {
@@ -373,25 +454,12 @@ export const adminCuratorController = {
           return;
         }
         if (err instanceof ValidationError) {
-          const typed = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
-          const page = await getCuratorMediaEditErrorPage(svc, mediaId, err.message, {
-            caption: req.body?.caption ?? '',
-            tagsString: req.body?.tags ?? '',
-            sourceId: typed(req.body?.sourceId),
-            startSeconds: typed(req.body?.startSeconds),
-            endSeconds: typed(req.body?.endSeconds),
-            externalUrl: typed(req.body?.externalUrl),
-          });
-          if (!page) {
-            res.status(404).render('admin/curator/edit', getCuratorMediaNotFoundPage(mediaId));
-            return;
-          }
-          res.status(422).render('admin/curator/edit', page);
+          await renderEditRefused(err.message, form);
           return;
         }
         throw err;
       }
-      writeMediaSavedFlash(res, req, 'edit', changedTypedTags(req.body?.tags));
+      writeMediaSavedFlash(res, req, 'edit', changedTypedTags(form.tags));
       res.redirect(303, '/admin/curator/media');
     } catch (err) {
       next(err);
@@ -445,15 +513,40 @@ export const adminCuratorController = {
     try {
       const galleryId = req.params.id;
       const actorMemberId = req.user!.userId;
-      const name = String(req.body?.name ?? '');
-      const description = String(req.body?.description ?? '');
-      const sortOrderRaw = String(req.body?.sortOrder ?? '');
-      const criteriaTags = parseTagList(req.body?.criteriaTags);
-      const excludeTags = parseTagList(req.body?.excludeTags);
-      const externalLinks = parseExternalLinkInputs(req.body ?? {});
-      const reasonRaw = String(req.body?.reason ?? '');
-      // Absent when the form offered no cover choice, which keeps the stored one.
-      const coverMediaId = typeof req.body?.coverMediaId === 'string' ? req.body.coverMediaId : undefined;
+      const parsed = parseFormBody(curatorGalleryEditForm, req.body);
+      if (!parsed.ok) {
+        const typed = parsed.submitted;
+        try {
+          renderCuratorGalleryEditError(res, 422, parsed.message, {
+            galleryId,
+            name: typed.name ?? '',
+            description: typed.description ?? '',
+            sortOrderRaw: typed.sortOrder ?? '',
+            criteriaTagsRaw: typed.criteriaTags ?? '',
+            excludeTagsRaw: typed.excludeTags ?? '',
+            externalLinks: parseExternalLinkInputs(typed),
+            fieldErrors: parsed.fieldErrors,
+            reasonRaw: typed.reason ?? '',
+            coverMediaId: typed.coverMediaId,
+          }, actorMemberId);
+        } catch (err) {
+          if (err instanceof NotFoundError) {
+            res.status(404).render('admin/curator/galleries/edit', getCuratorGalleryNotFoundPage(galleryId));
+            return;
+          }
+          throw err;
+        }
+        return;
+      }
+      const form = parsed.data;
+      const name = form.name;
+      const description = form.description;
+      const sortOrderRaw = form.sortOrder;
+      const criteriaTags = parseTagList(form.criteriaTags);
+      const excludeTags = parseTagList(form.excludeTags);
+      const externalLinks = parseExternalLinkInputs(form);
+      const reasonRaw = form.reason;
+      const coverMediaId = form.coverMediaId;
 
       // The reason and the clear flags ride along on every submission; the
       // service ignores them unless this is a member's own gallery, which is
@@ -466,8 +559,8 @@ export const adminCuratorController = {
         },
         reason: reasonRaw,
         moderation: {
-          clearName:        req.body?.clearName === '1',
-          clearDescription: req.body?.clearDescription === '1',
+          clearName:        form.clearName === '1',
+          clearDescription: form.clearDescription === '1',
         },
       });
       if (result.status === 'not_found') {
@@ -480,8 +573,8 @@ export const adminCuratorController = {
           name,
           description,
           sortOrderRaw,
-          criteriaTagsRaw: (req.body?.criteriaTags ?? '') as string,
-          excludeTagsRaw: (req.body?.excludeTags ?? '') as string,
+          criteriaTagsRaw: form.criteriaTags,
+          excludeTagsRaw: form.excludeTags,
           externalLinks,
           fieldErrors: result.fieldErrors,
           reasonRaw,
@@ -494,7 +587,7 @@ export const adminCuratorController = {
         count: 0,
         saved: true,
         gallery: { id: galleryId, name, tags: [], created: false },
-        folded: changedTypedTags(req.body?.criteriaTags, req.body?.excludeTags),
+        folded: changedTypedTags(form.criteriaTags, form.excludeTags),
         rejected: [],
       });
       res.redirect(303, result.landingHref);
@@ -505,7 +598,12 @@ export const adminCuratorController = {
 
   /** POST /admin/curator/galleries/:id/delete — hard-delete FH gallery + sidecar. */
   async postGalleryDelete(req: Request, res: Response, next: NextFunction): Promise<void> {
-    if (req.body?.confirmed !== '1') {
+    const parsed = parseFormBody(curatorDeleteForm, req.body);
+    if (!parsed.ok) {
+      renderInvalidRequest(res, { title: parsed.message });
+      return;
+    }
+    if (parsed.data.confirmed !== '1') {
       res.redirect(303, `/admin/curator/galleries?confirmDelete=${encodeURIComponent(req.params.id)}`);
       return;
     }
@@ -539,7 +637,12 @@ export const adminCuratorController = {
 
   /** POST /admin/curator/media/:id/delete — hard delete + S3 cleanup. */
   async postDelete(req: Request, res: Response, next: NextFunction): Promise<void> {
-    if (req.body?.confirmed !== '1') {
+    const parsed = parseFormBody(curatorDeleteForm, req.body);
+    if (!parsed.ok) {
+      renderInvalidRequest(res, { title: parsed.message });
+      return;
+    }
+    if (parsed.data.confirmed !== '1') {
       res.redirect(303, `/admin/curator/media?confirmDelete=${encodeURIComponent(req.params.id)}`);
       return;
     }
@@ -575,7 +678,12 @@ export const adminCuratorController = {
    */
   async postSignUpload(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const body = (req.body ?? {}) as Record<string, unknown>;
+      const parsed = parseFormBody(signUploadBody, req.body);
+      if (!parsed.ok) {
+        res.status(400).json({ error: parsed.message });
+        return;
+      }
+      const body = parsed.data as Record<string, unknown>;
       const text = (key: string) => String(body[key] ?? '');
       const result = await signCuratorVideoUpload(getDefaultCuratorMediaService(), {
         adminMemberId: req.user!.userId,
@@ -621,7 +729,12 @@ export const adminCuratorController = {
     // would 429 a benign browser retry of an already-authorized, already-throttled
     // upload, which is precisely the retry the stranded-dispatch path depends on.
     try {
-      const jobId = String((req.body as Record<string, unknown> | undefined)?.jobId ?? '').trim();
+      const parsed = parseFormBody(finalizeUploadBody, req.body);
+      if (!parsed.ok) {
+        res.status(400).json({ error: parsed.message });
+        return;
+      }
+      const jobId = String(parsed.data.jobId ?? '').trim();
       const result = await getDefaultCuratorMediaService().finalizeCuratorVideoUpload(
         jobId,
         req.user!.userId,

@@ -382,6 +382,8 @@ export interface FreestyleTrickEditAlias {
   isCuratorOwned: boolean;
   /** Said plainly on a committed row, because saving takes it over. */
   ownerLabel: string;
+  /** This row's own refused fields, keyed by field name; empty on every other row. */
+  fieldErrors: Record<string, string>;
   updateHref: string;
   deleteHref: string;
 }
@@ -475,8 +477,12 @@ export interface FreestyleTrickEditContent {
   /** Sources a new alias may cite, headed by the no-source curator assertion. */
   aliasSourceOptions: FilterOption[];
   aliasFormText: string;
+  aliasFormProvenanceNote: string;
   aliasError: string;
   hasAliasError: boolean;
+  /** Each form on this page keeps its own field messages, since several share
+   *  field names (a source, a type, a provenance note). */
+  aliasFieldErrors: Record<string, string>;
   attachSourceHref: string;
   sourceOptions: FilterOption[];
   hasUnlinkedSources: boolean;
@@ -484,11 +490,13 @@ export interface FreestyleTrickEditContent {
   sourceFormAssertedAdds: string;
   sourceError: string;
   hasSourceError: boolean;
+  sourceFieldErrors: Record<string, string>;
   attachModifierHref: string;
   modifierOptions: FilterOption[];
   modifierFormApplyOrder: string;
   modifierError: string;
   hasModifierError: boolean;
+  modifierFieldErrors: Record<string, string>;
 }
 
 /** The alias fields the add-alias form submits. */
@@ -599,10 +607,16 @@ export interface EditPageOptions {
   submitted?: FreestyleTrickScalarInput;
   fieldErrors?: Record<string, string>;
   aliasError?: string;
+  aliasFieldErrors?: Record<string, string>;
   aliasSubmitted?: FreestyleAliasInput;
+  /** A refused edit of one existing alias: that row shows what was submitted
+   *  and its own field messages. */
+  aliasEdit?: { aliasSlug: string; submitted: FreestyleAliasClassInput; fieldErrors: Record<string, string> };
   sourceError?: string;
+  sourceFieldErrors?: Record<string, string>;
   sourceSubmitted?: FreestyleSourceLinkInput;
   modifierError?: string;
+  modifierFieldErrors?: Record<string, string>;
   modifierSubmitted?: FreestyleModifierLinkInput;
 }
 
@@ -934,10 +948,11 @@ export interface FreestyleNotationAuthoringContent {
   saveHref: string;
   backlogHref: string;
   /** Messages for the banner, the way every other admin form on this surface
-   *  reports a refusal. Keyed messages stay on the service contract; the page
-   *  renders the list. */
+   *  reports a refusal; `fieldErrors` carries the same messages keyed by field
+   *  name, for the page to show each beside its own input. */
   errorList: string[];
   hasErrors: boolean;
+  fieldErrors: Record<string, string>;
   saved: boolean;
   /** Why this ruling's notation can no longer be authored, or empty when it can. */
   refusal: string;
@@ -1028,6 +1043,8 @@ export interface FreestyleTrickPublicationContent {
   draftsHref: string;
   errorList: string[];
   hasErrors: boolean;
+  /** The same messages keyed by field name, each shown beside its own input. */
+  fieldErrors: Record<string, string>;
 }
 
 // Readable words for the two ledger vocabularies this queue displays. A curator
@@ -1370,6 +1387,8 @@ export interface FreestyleSourceRegistryContent {
   submitted: FreestyleSourceInput;
   retrievedAtValue: string;
   error?: string;
+  /** A refused field's message keyed by its name, shown beside its input. */
+  fieldErrors: Record<string, string>;
 }
 
 export const freestyleCurationService = {
@@ -1564,6 +1583,7 @@ export const freestyleCurationService = {
         backlogHref: '/admin/freestyle/notation-backlog',
         errorList: Object.values(fieldErrors),
         hasErrors: Object.keys(fieldErrors).length > 0,
+        fieldErrors,
         saved: opts.saved === true,
         refusal:    authoringRefusal(row) ?? '',
         authorable: authoringRefusal(row) === null,
@@ -1760,6 +1780,7 @@ export const freestyleCurationService = {
         draftsHref:  '/admin/freestyle/notation-drafts',
         errorList:  Object.values(fieldErrors),
         hasErrors:  Object.keys(fieldErrors).length > 0,
+        fieldErrors,
       },
     };
   },
@@ -2081,27 +2102,35 @@ export const freestyleCurationService = {
     // that decide whether it reaches a reader are editable here rather than only
     // settable when the alias is first added.
     const aliases: FreestyleTrickEditAlias[] = (freestyleTrickAliases.listForCuration.all(slug) as AliasDbRow[])
-      .map((a) => ({
+      .map((a) => {
+        // A refused edit of this row comes back holding what the curator typed.
+        const edit = opts.aliasEdit?.aliasSlug === a.alias_slug ? opts.aliasEdit : undefined;
+        const typeSelected = edit ? (edit.submitted.aliasType ?? '') : a.alias_type;
+        const sourceSelected = edit?.submitted.sourceId !== undefined ? edit.submitted.sourceId : (a.source_id ?? '');
+        return {
         slug: a.alias_slug,
         text: a.alias_text,
         type: a.alias_type,
         typeOptions: ALIAS_TYPES.map((t) => ({
           value: t,
           label: ALIAS_TYPE_LABELS[t] ?? t,
-          selected: t === a.alias_type,
+          selected: t === typeSelected,
         })),
         isDisplayed: a.alias_display === 1,
         displayLabel: a.alias_display === 1 ? 'Shown beside the trick name' : 'Search only',
         divergesFromClass: a.alias_display !== displayDefaultForAliasType(a.alias_type),
-        divergenceReason: (a.display_reason ?? '').trim(),
-        provenanceNote: (a.provenance_note ?? '').trim(),
+        divergenceReason: edit ? (edit.submitted.divergenceReason ?? '') : (a.display_reason ?? '').trim(),
+        provenanceNote: edit?.submitted.provenanceNote !== undefined
+          ? edit.submitted.provenanceNote
+          : (a.provenance_note ?? '').trim(),
         // The source options carry the row's own selection, so the form round-trips
         // provenance instead of silently offering to clear it.
         sourceOptions: [
-          { value: '', label: 'No source (curator assertion)', selected: !a.source_id },
+          { value: '', label: 'No source (curator assertion)', selected: !sourceSelected },
           ...(freestyleTrickSources.listAll.all() as { id: string; source_label: string }[])
-            .map((s) => ({ value: s.id, label: s.source_label, selected: s.id === a.source_id })),
+            .map((s) => ({ value: s.id, label: s.source_label, selected: s.id === sourceSelected })),
         ],
+        fieldErrors: edit?.fieldErrors ?? {},
         // Shown so a curator can see that editing this row will take it over.
         isCuratorOwned: a.alias_origin_producer === 'curator-application',
         ownerLabel: a.alias_origin_producer === 'curator-application'
@@ -2109,7 +2138,8 @@ export const freestyleCurationService = {
           : 'From committed input; editing takes ownership',
         updateHref: `/admin/freestyle/tricks/${slug}/aliases/${encodeURIComponent(a.alias_slug)}`,
         deleteHref: `/admin/freestyle/tricks/${slug}/aliases/${encodeURIComponent(a.alias_slug)}/delete`,
-      }));
+        };
+      });
 
     // On a failed add-alias re-render, keep the submitted text and type; otherwise
     // the form starts empty with the default type.
@@ -2123,10 +2153,11 @@ export const freestyleCurationService = {
     // The registry's real sources, plus the ordinary case of none. "No source" is
     // a curator asserting the alias themselves, not a placeholder for provenance
     // somebody should supply later, and it says nothing about who owns the row.
+    const aliasSourceSelected = opts.aliasSubmitted?.sourceId ?? '';
     const aliasSourceOptions: FilterOption[] = [
-      { value: '', label: 'No source (curator assertion)', selected: true },
+      { value: '', label: 'No source (curator assertion)', selected: aliasSourceSelected === '' },
       ...(freestyleTrickSources.listAll.all() as { id: string; source_label: string }[])
-        .map((s) => ({ value: s.id, label: s.source_label, selected: false })),
+        .map((s) => ({ value: s.id, label: s.source_label, selected: s.id === aliasSourceSelected })),
     ];
     const aliasError = opts.aliasError ?? '';
     const sourceLinks = freestyleTrickSourceLinks.listForCuration.all(slug) as SourceLinkDbRow[];
@@ -2266,8 +2297,10 @@ export const freestyleCurationService = {
         aliasTypeOptions,
         aliasSourceOptions,
         aliasFormText,
+        aliasFormProvenanceNote: opts.aliasSubmitted?.provenanceNote ?? '',
         aliasError,
         hasAliasError:    aliasError !== '',
+        aliasFieldErrors: opts.aliasFieldErrors ?? {},
         attachSourceHref: `/admin/freestyle/tricks/${row.slug}/sources`,
         sourceOptions,
         hasUnlinkedSources:     sourceOptions.length > 0,
@@ -2275,11 +2308,13 @@ export const freestyleCurationService = {
         sourceFormAssertedAdds: opts.sourceSubmitted?.assertedAdds ?? '',
         sourceError,
         hasSourceError:   sourceError !== '',
+        sourceFieldErrors: opts.sourceFieldErrors ?? {},
         attachModifierHref: `/admin/freestyle/tricks/${row.slug}/modifiers`,
         modifierOptions,
         modifierFormApplyOrder: opts.modifierSubmitted?.applyOrder ?? '',
         modifierError,
         hasModifierError: modifierError !== '',
+        modifierFieldErrors: opts.modifierFieldErrors ?? {},
       },
     };
   },
@@ -3029,7 +3064,9 @@ export const freestyleCurationService = {
   // asserted a trick's existence, ADD, or notation), distinct from the separate
   // media-source registry. Read-only; no persona guard on the read. `opts` re-renders
   // the create form after a validation failure with the submitted values and error.
-  getSourceRegistryPage(opts: { submitted?: FreestyleSourceInput; error?: string } = {}): PageViewModel<FreestyleSourceRegistryContent> {
+  getSourceRegistryPage(
+    opts: { submitted?: FreestyleSourceInput; error?: string; fieldErrors?: Record<string, string> } = {},
+  ): PageViewModel<FreestyleSourceRegistryContent> {
     const dbRows = freestyleTrickSources.listForCuration.all() as SourceCurationDbRow[];
     const rows: FreestyleSourceRegistryRow[] = dbRows.map((r) => ({
       id:          r.id,
@@ -3067,6 +3104,7 @@ export const freestyleCurationService = {
         submitted,
         retrievedAtValue: (submitted.retrievedAt ?? '').trim() || new Date().toISOString(),
         error: opts.error,
+        fieldErrors: opts.fieldErrors ?? {},
       },
     };
   },
@@ -3155,7 +3193,7 @@ export const freestyleCurationService = {
   // The modifier registry: every modifier with its ADD and type, and the form
   // that creates one. A failed create re-renders with the submitted values.
   getModifierRegistryPage(
-    opts: { submitted?: FreestyleModifierInput; error?: string } = {},
+    opts: { submitted?: FreestyleModifierInput; error?: string; fieldErrors?: Record<string, string> } = {},
   ): PageViewModel<FreestyleModifierRegistryContent> {
     const rows = (freestyleTrickModifiers.listAll.all() as ModifierDbRow[]).map((r) => ({
       slug:      r.slug,
@@ -3186,6 +3224,7 @@ export const freestyleCurationService = {
         typeOptions: modifierTypeOptions(submitted.modifierType),
         submitted,
         error: opts.error,
+        fieldErrors: opts.fieldErrors ?? {},
       },
     };
   },
@@ -3193,7 +3232,7 @@ export const freestyleCurationService = {
   // The edit form for one modifier. Throws NotFoundError for an unknown slug.
   getModifierEditPage(
     slug: string,
-    opts: { submitted?: FreestyleModifierInput; error?: string } = {},
+    opts: { submitted?: FreestyleModifierInput; error?: string; fieldErrors?: Record<string, string> } = {},
   ): PageViewModel<FreestyleModifierEditContent> {
     const row = freestyleTrickModifiers.getBySlug.get(slug) as ModifierDbRow | undefined;
     if (!row) throw new NotFoundError(`No freestyle modifier "${slug}"`);
@@ -3230,6 +3269,7 @@ export const freestyleCurationService = {
         browseGroupOptions:       browseGroupOptions(submitted.browseGroup),
         browseFullSectionChecked: submitted.browseFullSection === '1',
         error:       opts.error,
+        fieldErrors: opts.fieldErrors ?? {},
       },
     };
   },
@@ -3368,7 +3408,7 @@ export const freestyleCurationService = {
   // The edit form for one family. Throws NotFoundError for an unknown slug.
   getFamilyEditPage(
     slug: string,
-    opts: { submitted?: FreestyleFamilyInput; errors?: string[]; saved?: boolean } = {},
+    opts: { submitted?: FreestyleFamilyInput; errors?: string[]; fieldErrors?: Record<string, string>; saved?: boolean } = {},
   ): PageViewModel<FreestyleFamilyEditContent> {
     const record = familyRecord(slug);
     if (!record) throw new NotFoundError(`No freestyle family "${slug}"`);
@@ -3403,6 +3443,7 @@ export const freestyleCurationService = {
         tierOptions:   FAMILY_TIERS.map((t) => ({ value: t, label: FAMILY_TIER_LABELS[t], selected: submitted.tier === t })),
         errors:        opts.errors ?? [],
         hasErrors:     (opts.errors ?? []).length > 0,
+        fieldErrors:   opts.fieldErrors ?? {},
         saved:         opts.saved === true,
       },
     };
@@ -3521,7 +3562,7 @@ export const freestyleCurationService = {
   // The form that creates a set. A refused create re-renders it with the
   // submitted values and every reason.
   getSetNewPage(
-    opts: { submitted?: FreestyleSetInput; errors?: string[] } = {},
+    opts: { submitted?: FreestyleSetInput; errors?: string[]; fieldErrors?: Record<string, string> } = {},
   ): PageViewModel<FreestyleSetFormContent> {
     const submitted: FreestyleSetInput = opts.submitted ?? {};
     return {
@@ -3538,14 +3579,14 @@ export const freestyleCurationService = {
           ],
         },
       },
-      content: setFormContent('/admin/freestyle/sets', submitted, opts.errors ?? [], false, true),
+      content: setFormContent('/admin/freestyle/sets', submitted, opts.errors ?? [], false, true, opts.fieldErrors),
     };
   },
 
   // The edit form for one set. Throws NotFoundError for an unknown slug.
   getSetEditPage(
     slug: string,
-    opts: { submitted?: FreestyleSetInput; errors?: string[]; saved?: boolean } = {},
+    opts: { submitted?: FreestyleSetInput; errors?: string[]; fieldErrors?: Record<string, string>; saved?: boolean } = {},
   ): PageViewModel<FreestyleSetFormContent> {
     const record = findCanonicalSetBySlug(slug);
     if (!record) throw new NotFoundError(`No freestyle set "${slug}"`);
@@ -3565,7 +3606,9 @@ export const freestyleCurationService = {
         },
       },
       content: {
-        ...setFormContent(`/admin/freestyle/sets/${record.slug}/edit`, submitted, opts.errors ?? [], opts.saved === true, false),
+        ...setFormContent(
+          `/admin/freestyle/sets/${record.slug}/edit`, submitted, opts.errors ?? [], opts.saved === true, false, opts.fieldErrors,
+        ),
         slug: record.slug,
       },
     };
@@ -4484,6 +4527,8 @@ export interface FreestyleSetFormContent {
   heldChecked: boolean;
   errors: string[];
   hasErrors: boolean;
+  /** A field refused for its shape, keyed by its name, shown beside its input. */
+  fieldErrors: Record<string, string>;
   saved: boolean;
 }
 
@@ -4529,6 +4574,7 @@ function setFormContent(
   errors: string[],
   saved: boolean,
   isNew: boolean,
+  fieldErrors: Record<string, string> = {},
 ): FreestyleSetFormContent {
   return {
     isNew,
@@ -4542,6 +4588,7 @@ function setFormContent(
     heldChecked:  submitted.heldFromList === '1',
     errors,
     hasErrors:    errors.length > 0,
+    fieldErrors,
     saved,
   };
 }
@@ -4694,6 +4741,8 @@ export interface FreestyleFamilyEditContent {
   tierOptions: FilterOption[];
   errors: string[];
   hasErrors: boolean;
+  /** A field refused for its shape, keyed by its name, shown beside its input. */
+  fieldErrors: Record<string, string>;
   saved: boolean;
 }
 
@@ -4870,6 +4919,8 @@ export interface FreestyleModifierRegistryContent {
   typeOptions: FilterOption[];
   submitted: FreestyleModifierInput;
   error?: string;
+  /** A refused field's message keyed by its name, shown beside its input. */
+  fieldErrors: Record<string, string>;
 }
 
 export interface FreestyleModifierEditContent {
@@ -4881,6 +4932,8 @@ export interface FreestyleModifierEditContent {
   browseGroupOptions: FilterOption[];
   browseFullSectionChecked: boolean;
   error?: string;
+  /** A refused field's message keyed by its name, shown beside its input. */
+  fieldErrors: Record<string, string>;
 }
 
 export interface FreestyleModifierAffectedTrick {

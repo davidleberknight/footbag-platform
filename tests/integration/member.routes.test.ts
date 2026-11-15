@@ -577,6 +577,102 @@ describe('POST /members/:memberKey/edit — save profile', () => {
     expect(genderOf(OWN_ID)).toBe('undisclosed');
   });
 
+  function profileColumns(id: string): { bio: string; phone_visible: number; show_first_competition_year: number } {
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    try {
+      return db.prepare('SELECT bio, phone_visible, show_first_competition_year FROM members WHERE id = ?').get(id) as {
+        bio: string; phone_visible: number; show_first_competition_year: number;
+      };
+    } finally {
+      db.close();
+    }
+  }
+
+  // Defect caught: a save posting one field twice (a hand-made request) throws
+  // a server error or saves part of it, or the refused form comes back with the
+  // bio and links the member typed replaced by what is stored, so they retype
+  // them; or the refused field's message is not beside the field it names.
+  it('a repeated field → 422 with its message beside it, the rest of the form kept, nothing saved; the corrected form saves', async () => {
+    const before = profileColumns(OWN_ID).bio;
+    const app = createApp();
+    const fields = [
+      'bio=Kept+repeated-field+bio', 'city=Portland', 'region=OR', 'country=US',
+      'birthDay=14', 'birthMonth=3', 'birthYear=1978', 'emailVisibility=private',
+      'link_label=Kept+first+label', 'link_url=https%3A%2F%2Fone.example',
+      'link_label=Kept+second+label', 'link_url=https%3A%2F%2Ftwo.example',
+    ];
+    const res = await request(app)
+      .post(`/members/${OWN_SLUG}/edit`)
+      .set('Cookie', ownCookie())
+      .type('form')
+      .send([...fields, 'phone=555-0100', 'phone=555-0199'].join('&'));
+    expect(res.status).toBe(422);
+    const fieldBlock = (id: string) => {
+      const at = res.text.indexOf(`id="${id}"`);
+      return res.text.slice(at, res.text.indexOf('</div>', at));
+    };
+    expect(fieldBlock('phone')).toContain('class="form-field-error"');
+    expect(fieldBlock('bio')).not.toContain('class="form-field-error"');
+    expect(fieldBlock('bio')).toContain('Kept repeated-field bio');
+    expect(fieldBlock('link_label_0')).toContain('value="Kept first label"');
+    expect(fieldBlock('link_url_0')).toContain('value="https://one.example"');
+    expect(fieldBlock('link_label_1')).toContain('value="Kept second label"');
+    expect(fieldBlock('link_url_1')).toContain('value="https://two.example"');
+    expect(profileColumns(OWN_ID).bio).toBe(before);
+
+    const corrected = await request(app)
+      .post(`/members/${OWN_SLUG}/edit`)
+      .set('Cookie', ownCookie())
+      .type('form')
+      .send([...fields, 'phone=555-0100'].join('&'));
+    expect(corrected.status).toBe(303);
+    expect(profileColumns(OWN_ID).bio).toBe('Kept repeated-field bio');
+  });
+
+  // Defect caught: a checkbox posted as the form posts it (a hidden 0 then the
+  // checked box's 1) saves as unchecked, or an absent box flips a setting the
+  // member never touched.
+  it('a checked box posted after its hidden 0 saves as checked; an absent box keeps its default', async () => {
+    const app = createApp();
+    const base = 'bio=&city=Portland&region=OR&country=US&birthDay=14&birthMonth=3&birthYear=1978&emailVisibility=private';
+    const checked = await request(app)
+      .post(`/members/${OWN_SLUG}/edit`)
+      .set('Cookie', ownCookie())
+      .type('form')
+      .send(`${base}&phoneVisible=0&phoneVisible=1&showFirstCompetitionYear=0&showFirstCompetitionYear=1`);
+    expect(checked.status).toBe(303);
+    expect(profileColumns(OWN_ID)).toMatchObject({ phone_visible: 1, show_first_competition_year: 1 });
+
+    const absent = await request(app)
+      .post(`/members/${OWN_SLUG}/edit`)
+      .set('Cookie', ownCookie())
+      .type('form')
+      .send(base);
+    expect(absent.status).toBe(303);
+    expect(profileColumns(OWN_ID)).toMatchObject({ phone_visible: 0, show_first_competition_year: 0 });
+  });
+
+  // Defect caught: a save that does not carry the contact-email setting (a
+  // hand-made request) widens the member's email to every signed-in member.
+  it('a save without the contact-email setting keeps the email private', async () => {
+    const app = createApp();
+    const visibilityOf = () => {
+      const db = new BetterSqlite3(dbPath, { readonly: true });
+      try {
+        return (db.prepare('SELECT email_visibility FROM members WHERE id = ?').get(OWN_ID) as { email_visibility: string }).email_visibility;
+      } finally {
+        db.close();
+      }
+    };
+    const res = await request(app)
+      .post(`/members/${OWN_SLUG}/edit`)
+      .set('Cookie', ownCookie())
+      .type('form')
+      .send('bio=Email+setting+absent&city=Portland&region=OR&country=US&birthDay=14&birthMonth=3&birthYear=1978');
+    expect(res.status).toBe(303);
+    expect(visibilityOf()).toBe('private');
+  });
+
   // Profile edit was unlimited per session, allowing DB
   // write amplification + audit-table inflation. Limit gates the controller
   // entry before any service work; tunable via system_config_current.

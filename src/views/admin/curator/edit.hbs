@@ -42,18 +42,27 @@
       <div class="form-field">
         <label for="curator-edit-caption">Caption</label>
         <input type="text" id="curator-edit-caption" name="caption" maxlength="500" value="{{content.media.caption}}">
+        {{#if content.fieldErrors.caption}}
+          <p class="form-field-error" role="alert">{{content.fieldErrors.caption}}</p>
+        {{/if}}
         <small class="form-hint">Up to 500 characters.{{#if content.media.isSidecarBacked}} Writes to the sidecar's title.{{/if}}</small>
       </div>
 
       <div class="form-field">
         <label for="curator-edit-tags">Hashtags</label>
         <input type="text" id="curator-edit-tags" name="tags" value="{{content.media.tagsString}}">
+        {{#if content.fieldErrors.tags}}
+          <p class="form-field-error" role="alert">{{content.fieldErrors.tags}}</p>
+        {{/if}}
         <small class="form-hint">Start each hashtag with #; words without a # between them are one hashtag. Each is converted to the letters a to z, digits and underscores. A clip that names a trick carries exactly one of <code>#tutorial</code>, <code>#demo</code> or <code>#record</code>, which is what says what the clip is for.</small>
       </div>
 
       <div class="form-field">
         <label for="curator-edit-external-url">External URL</label>
         <input type="url" id="curator-edit-external-url" name="externalUrl" value="{{content.media.externalUrl}}" placeholder="https://example.com/article">
+        {{#if content.fieldErrors.externalUrl}}
+          <p class="form-field-error" role="alert">{{content.fieldErrors.externalUrl}}</p>
+        {{/if}}
         <small class="form-hint">Link to the source page or creator. Optional.</small>
       </div>
 
@@ -69,20 +78,32 @@
           <div class="form-field">
             <label for="curator-edit-source-id">Source id</label>
             <input type="text" id="curator-edit-source-id" name="sourceId" value="{{content.media.sourceId}}">
+            {{#if content.fieldErrors.sourceId}}
+              <p class="form-field-error" role="alert">{{content.fieldErrors.sourceId}}</p>
+            {{/if}}
             <small class="form-hint">Must exist in <code>media_sources.source_id</code>.</small>
           </div>
           <div class="form-field">
             <label for="curator-edit-start-seconds">Start (seconds)</label>
             <input type="number" id="curator-edit-start-seconds" name="startSeconds" min="0" value="{{content.media.startSeconds}}">
+            {{#if content.fieldErrors.startSeconds}}
+              <p class="form-field-error" role="alert">{{content.fieldErrors.startSeconds}}</p>
+            {{/if}}
           </div>
           <div class="form-field">
             <label for="curator-edit-end-seconds">End (seconds)</label>
             <input type="number" id="curator-edit-end-seconds" name="endSeconds" min="0" value="{{content.media.endSeconds}}">
+            {{#if content.fieldErrors.endSeconds}}
+              <p class="form-field-error" role="alert">{{content.fieldErrors.endSeconds}}</p>
+            {{/if}}
           </div>
           {{#if content.media.showThumbnailField}}
             <div class="form-field">
               <label for="curator-edit-thumbnail-url">Thumbnail URL</label>
               <input type="url" id="curator-edit-thumbnail-url" name="thumbnailUrl" value="{{content.media.thumbnailUrl}}">
+              {{#if content.fieldErrors.thumbnailUrl}}
+                <p class="form-field-error" role="alert">{{content.fieldErrors.thumbnailUrl}}</p>
+              {{/if}}
               <small class="form-hint">Vimeo only, and must be <code>https://</code>.</small>
             </div>
           {{/if}}

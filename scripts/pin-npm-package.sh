@@ -26,6 +26,8 @@
 #     and an override of the same package move together, because npm refuses an
 #     override that disagrees with the dependency it shadows. A package that is
 #     only pulled in by others takes --override, which adds an override for it.
+#     A package nothing pulls in yet takes --add, which adds it to dependencies
+#     in name order; a package already declared anywhere is refused there.
 #   - Works in a throwaway copy first: applies the change, lists every lockfile
 #     entry that moved, and refuses when any entry other than the named package's
 #     moved, unless --accept-collateral (removing an override legitimately lets
@@ -40,10 +42,12 @@
 #
 # Usage:
 #   bash scripts/pin-npm-package.sh <name> <version>
+#   bash scripts/pin-npm-package.sh --add <name> <version>
 #   bash scripts/pin-npm-package.sh --override <name> <version>
 #   bash scripts/pin-npm-package.sh --remove-override <name>
 #
 # Flags:
+#   --add                 add a new direct dependency nothing declares yet
 #   --override            add an override for a package nothing declares directly
 #   --remove-override     remove an override (its dependents re-resolve; implies
 #                         --accept-collateral)
@@ -59,6 +63,7 @@ cd "$REPO_ROOT"
 usage() { sed -n '2,/^set -eu/{/^set -eu/d;p;}' "$0" | sed 's/^# \{0,1\}//'; }
 die() { echo "ERROR: $*" >&2; echo "       Nothing changed." >&2; exit 1; }
 
+ADD_DEPENDENCY=0
 ADD_OVERRIDE=0
 REMOVE_OVERRIDE=0
 ALLOW_DOWNGRADE=0
@@ -66,6 +71,7 @@ ACCEPT_COLLATERAL=0
 POSITIONAL=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --add) ADD_DEPENDENCY=1 ;;
     --override) ADD_OVERRIDE=1 ;;
     --remove-override) REMOVE_OVERRIDE=1; ACCEPT_COLLATERAL=1 ;;
     --allow-downgrade) ALLOW_DOWNGRADE=1 ;;
@@ -84,6 +90,9 @@ if (( REMOVE_OVERRIDE == 1 )); then
   (( ADD_OVERRIDE == 0 )) || { echo "ERROR: --override and --remove-override contradict each other." >&2; exit 2; }
 else
   [[ -n "$NAME" && -n "$VERSION" && ${#POSITIONAL[@]} -eq 2 ]] || { echo "ERROR: name a package and an exact version (--help)." >&2; exit 2; }
+fi
+if (( ADD_DEPENDENCY == 1 && (ADD_OVERRIDE == 1 || REMOVE_OVERRIDE == 1) )); then
+  echo "ERROR: --add adds a dependency; it does not combine with an override flag." >&2; exit 2
 fi
 
 NPM="${FOOTBAG_NPM_BIN:-npm}"
@@ -124,8 +133,12 @@ direct=$(( ${#SECTIONS[@]} - has_override ))
 if (( REMOVE_OVERRIDE == 1 )); then
   (( has_override == 1 )) || die "${NAME} has no override to remove."
   (( direct == 0 )) || die "${NAME} is also a direct dependency; its override must match it, so pin the dependency instead."
+elif (( ADD_DEPENDENCY == 1 )); then
+  (( ${#SECTIONS[@]} == 0 )) || die "${NAME} is already declared in ${SECTIONS[*]}; pin it without --add."
+  (( in_lock == 0 )) || die "${NAME} is already in the lockfile, pulled in by another package; adding it directly would move what they resolve, so review that by hand."
+  SECTIONS=(dependencies)
 elif (( ${#SECTIONS[@]} == 0 )); then
-  (( ADD_OVERRIDE == 1 )) || die "${NAME} is not declared in package.json; for a package others pull in, pass --override."
+  (( ADD_OVERRIDE == 1 )) || die "${NAME} is not declared in package.json; for a package others pull in, pass --override; for a new dependency, pass --add."
   (( in_lock > 0 )) || die "${NAME} is not in the lockfile, so an override for it would pin nothing."
   SECTIONS=(overrides)
 else
@@ -182,6 +195,9 @@ if (( already == 0 )); then
     for s in "${SECTIONS[@]}"; do
       filter="${filter} | .[\"${s}\"] = ((.[\"${s}\"] // {}) + {(\$n): \$v})"
     done
+    if (( ADD_DEPENDENCY == 1 )); then
+      filter="${filter} | .dependencies |= (to_entries | sort_by(.key) | from_entries)"
+    fi
   fi
   jq --indent 2 --arg n "$NAME" --arg v "$VERSION" "$filter" "$WORK/orig/package.json" > "$WORK/new/package.json"
   lock_only "$WORK/new" || die "npm could not resolve the changed package.json."

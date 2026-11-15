@@ -956,3 +956,30 @@ describe('POST /clubs/create — typed text is cleaned before it is checked', ()
     expect(storedClub('clean_over')).toBeUndefined();
   });
 });
+
+describe('a field posted twice on the create form', () => {
+  // Defect caught: a create repeating a field (a hand-made request) makes a
+  // club from whichever value the code read, or throws, or comes back without
+  // the rest of what was typed or without the message beside the field.
+  it('is refused at 422 beside the field, keeps the rest of the form, and creates nothing', async () => {
+    const id = 'cc-shape-creator';
+    const db = new BetterSqlite3(dbPath);
+    createMemberAtTier(db, { id, slug: 'cc_shape_creator', tier: 'tier1' });
+    completeOnboarding(db, id);
+    db.close();
+    const res = await request(createApp())
+      .post('/clubs/create')
+      .set('Cookie', authCookie(id))
+      .type('form')
+      .send(`${formData({ name: 'Shape One', slug: 'shape_kept', description: 'Kept typed description' })}&name=Shape+Two`);
+    expect(res.status).toBe(422);
+    const at = res.text.indexOf('id="name"');
+    expect(res.text.slice(at, res.text.indexOf('</div>', at))).toContain('class="form-field-error"');
+    expect(res.text).toContain('Kept typed description');
+    expect(res.text).toContain('value="shape_kept"');
+    const check = new BetterSqlite3(dbPath, { readonly: true });
+    const made = (check.prepare("SELECT COUNT(*) AS c FROM clubs WHERE name IN ('Shape One', 'Shape Two')").get() as { c: number }).c;
+    check.close();
+    expect(made).toBe(0);
+  });
+});

@@ -4,6 +4,49 @@ import { NotFoundError, ValidationError } from '../services/serviceErrors';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
 import { outcomeNotice, outcomePayload, type OutcomeNoticeView } from '../lib/outcomeNotice';
 import { renderInvalidRequest, renderNotFound } from '../lib/controllerErrors';
+import { z } from 'zod';
+import { parseFormBody, formText, formOptionalText } from '../lib/parseFormBody';
+
+const resolveForm = z.object({
+  action: formText('Action'),
+  predicate: formOptionalText('Rule'),
+  reasonText: formText('Reason'),
+});
+
+const promoteForm = z.object({
+  reasonText: formText('Reason'),
+  region: formText('Region'),
+});
+
+const claimForm = z.object({
+  itemType: formText('Item type'),
+  itemId: formText('Item'),
+});
+
+const delistForm = z.object({
+  reasonText: formText('Reason'),
+});
+
+const bulkForm = z.object({
+  group: formText('Group'),
+  action: formText('Action'),
+  reasonText: formText('Shared reason'),
+});
+
+// The queue's forms are single rows of buttons with nothing typed worth
+// keeping, so a shape the form never sends answers the plain 422 page, naming
+// the field.
+function readOrRefuse<S extends z.ZodType>(schema: S, req: Request, res: Response): z.output<S> | null {
+  const parsed = parseFormBody(schema, req.body);
+  if (parsed.ok) return parsed.data;
+  renderInvalidRequest(res, { title: parsed.message });
+  return null;
+}
+
+// A blank or whitespace-only reason is no reason.
+function reasonOrNull(text: string): string | null {
+  return text.trim() || null;
+}
 
 // An action that changed nothing has to say so. A resolve whose guarded write
 // matched no row means another admin acted first, and redirecting the same way
@@ -36,11 +79,11 @@ export const adminClubCleanupController = {
 
   resolve(req: Request, res: Response, next: NextFunction): void {
     const clubId = req.params.clubId;
-    const action = String(req.body.action ?? '');
-    const predicate = String(req.body.predicate ?? 'crowdsource_viability');
-    const reasonText = typeof req.body.reasonText === 'string' && req.body.reasonText.trim()
-      ? req.body.reasonText.trim()
-      : null;
+    const form = readOrRefuse(resolveForm, req, res);
+    if (!form) return;
+    const action = form.action;
+    const predicate = form.predicate ?? 'crowdsource_viability';
+    const reasonText = reasonOrNull(form.reasonText);
 
     // The service owns the valid action and predicate sets and throws
     // ValidationError for an unknown one; the catch below maps that to the same
@@ -82,12 +125,10 @@ export const adminClubCleanupController = {
 
   async promote(req: Request, res: Response, next: NextFunction): Promise<void> {
     const candidateId = req.params.candidateId;
-    const reasonText = typeof req.body.reasonText === 'string' && req.body.reasonText.trim()
-      ? req.body.reasonText.trim()
-      : null;
-    const region = typeof req.body.region === 'string' && req.body.region.trim()
-      ? req.body.region.trim()
-      : null;
+    const form = readOrRefuse(promoteForm, req, res);
+    if (!form) return;
+    const reasonText = reasonOrNull(form.reasonText);
+    const region = form.region.trim() || null;
 
     try {
       await clubCleanupService.promoteCandidate(req.user!.userId, candidateId, reasonText, region);
@@ -106,8 +147,9 @@ export const adminClubCleanupController = {
   },
 
   claim(req: Request, res: Response, next: NextFunction): void {
-    const itemType = String(req.body.itemType ?? '');
-    const itemId = String(req.body.itemId ?? '');
+    const form = readOrRefuse(claimForm, req, res);
+    if (!form) return;
+    const { itemType, itemId } = form;
 
     try {
       clubCleanupService.claimItem(
@@ -131,13 +173,11 @@ export const adminClubCleanupController = {
 
   resolveCandidate(req: Request, res: Response, next: NextFunction): void {
     const candidateId = req.params.candidateId;
-    const action = String(req.body.action ?? '');
-    const predicate = typeof req.body.predicate === 'string' && req.body.predicate
-      ? req.body.predicate
-      : undefined;
-    const reasonText = typeof req.body.reasonText === 'string' && req.body.reasonText.trim()
-      ? req.body.reasonText.trim()
-      : null;
+    const form = readOrRefuse(resolveForm, req, res);
+    if (!form) return;
+    const action = form.action;
+    const predicate = form.predicate || undefined;
+    const reasonText = reasonOrNull(form.reasonText);
 
     // The service owns the valid-action set and throws ValidationError for an
     // unknown action; the catch below maps that to the same 422 render, so the
@@ -171,9 +211,9 @@ export const adminClubCleanupController = {
 
   delistResidue(req: Request, res: Response, next: NextFunction): void {
     const clubId = req.params.clubId;
-    const reasonText = typeof req.body.reasonText === 'string' && req.body.reasonText.trim()
-      ? req.body.reasonText.trim()
-      : null;
+    const form = readOrRefuse(delistForm, req, res);
+    if (!form) return;
+    const reasonText = reasonOrNull(form.reasonText);
 
     try {
       clubCleanupService.delistUnconfirmedResidue(req.user!.userId, clubId, reasonText);
@@ -188,11 +228,10 @@ export const adminClubCleanupController = {
   },
 
   bulkResolve(req: Request, res: Response, next: NextFunction): void {
-    const group = String(req.body.group ?? '');
-    const action = String(req.body.action ?? '');
-    const reasonText = typeof req.body.reasonText === 'string' && req.body.reasonText.trim()
-      ? req.body.reasonText.trim()
-      : null;
+    const form = readOrRefuse(bulkForm, req, res);
+    if (!form) return;
+    const { group, action } = form;
+    const reasonText = reasonOrNull(form.reasonText);
 
     // The service owns the valid group and action sets and throws
     // ValidationError for unknown values; the catch below maps that to the

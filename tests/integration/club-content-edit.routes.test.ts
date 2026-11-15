@@ -516,3 +516,22 @@ describe('club content edit cleans the typed text', () => {
     expect(clubRow(clubId).description).toBe(older);
   });
 });
+
+describe('a field posted twice on the club edit form', () => {
+  // Defect caught: a co-leader's edit repeating a field (a hand-made request)
+  // saves part of it or throws, or the refused form comes back without the
+  // other fields they changed, or without the message beside the field.
+  it('is refused at 422 beside the field, keeps the rest of the form, and changes nothing', async () => {
+    const { clubId, clubKey, leaderId } = seedClubWithLeader();
+    const res = await request(createApp())
+      .post(`/clubs/${clubKey}/content/edit`)
+      .set('Cookie', cookieFor(leaderId))
+      .type('form')
+      .send('name=One&name=Two&description=Kept+typed+description');
+    expect(res.status).toBe(422);
+    const at = res.text.indexOf('id="club_name"');
+    expect(res.text.slice(at, res.text.indexOf('</div>', at))).toContain('class="form-field-error"');
+    expect(res.text).toContain('Kept typed description');
+    expect(clubRow(clubId).description).toBe('Old description.');
+  });
+});

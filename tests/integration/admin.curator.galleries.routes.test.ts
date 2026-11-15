@@ -333,6 +333,33 @@ describe('POST /admin/curator/galleries/:id/edit (happy path)', () => {
 });
 
 describe('POST /admin/curator/galleries/:id/edit (validation)', () => {
+  it('refuses a field posted twice at 422 beside the field, keeps the description, saves nothing', async () => {
+    // Defect caught: a repeated field reaches the save as a list, throwing a
+    // server error or saving whichever value was read.
+    const before = galleryRow(GALLERY_B);
+    const res = await request(createApp())
+      .post(`/admin/curator/galleries/${GALLERY_B}/edit`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send('name=One&name=Two&description=Kept+typed+description&sortOrder=upload_desc&criteriaTags=%23curated&excludeTags=');
+    expect(res.status).toBe(422);
+    const at = res.text.indexOf('id="gallery-name"');
+    expect(res.text.slice(at, res.text.indexOf('</div>', at))).toContain('form-field-error');
+    expect(res.text).toContain('Kept typed description');
+    expect(galleryRow(GALLERY_B)).toEqual(before);
+  });
+
+  it('refuses a repeated delete confirmation at 422 and deletes nothing', async () => {
+    // Defect caught: a repeated confirmation crashes the delete or acts on it.
+    const res = await request(createApp())
+      .post(`/admin/curator/galleries/${GALLERY_B}/delete`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send('confirmed=1&confirmed=1');
+    expect(res.status).toBe(422);
+    expect(galleryRow(GALLERY_B)).toBeDefined();
+  });
+
   it('rejects empty name with 422', async () => {
     const res = await request(createApp())
       .post(`/admin/curator/galleries/${GALLERY_B}/edit`)

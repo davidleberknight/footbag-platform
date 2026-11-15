@@ -14,7 +14,8 @@ import { healthRouter }   from './routes/healthRoutes';
 import { seoRouter }      from './routes/seoRoutes';
 import { ipcRouter }      from './routes/ipcRoutes';
 import { adminRouter }    from './routes/adminRoutes';
-import { publicRouter, STRIPE_WEBHOOK_PATH }   from './routes/publicRoutes';
+import { publicRouter }   from './routes/publicRoutes';
+import { JSON_BODY_PATHS } from './lib/jsonBodyRoutes';
 // Permanent test scaffolding: the persona harness dev router. Mounted only in
 // development and staging (see the mount block below); never mounted in
 // production. Production images strip dist/testkit and stub this module to
@@ -364,17 +365,20 @@ export function createApp(): express.Express {
   app.set('views', path.join(process.cwd(), 'src', 'views'));
 
   // ── Body parsing ─────────────────────────────────────────────────────────
-  // The Stripe webhook receiver needs the raw, unparsed body to verify the
-  // Stripe-Signature HMAC, so it is mounted with express.raw() at its route and
-  // must be excluded from the global JSON parser (which would otherwise consume
-  // the stream and leave the route with no Buffer to verify).
+  // Every form posts urlencoded text. JSON is parsed only on the routes code
+  // calls with a JSON body, so no form field can arrive as a number or an
+  // object. The Stripe webhook receiver reads the raw body (express.raw() at
+  // its own route) to verify the Stripe-Signature HMAC, and the CSP report
+  // endpoint below has its own parser. The parser is plain middleware, not a
+  // route, so the app serves no route of its own at these paths: each request
+  // still reaches its real route and that route's guard.
   const jsonParser = express.json();
   app.use((req, res, next) => {
-    // Exact-match skip (Stripe is configured at exactly this path); a different
-    // path falls through to JSON parsing, which is harmless for non-webhook
-    // requests.
-    if (req.path === STRIPE_WEBHOOK_PATH) return next();
-    jsonParser(req, res, next);
+    if (req.method === 'POST' && JSON_BODY_PATHS.includes(req.path)) {
+      jsonParser(req, res, next);
+      return;
+    }
+    next();
   });
   app.use(express.urlencoded({ extended: false }));
   app.use(cookieParser(config.sessionSecret));

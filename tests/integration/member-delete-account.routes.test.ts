@@ -123,6 +123,57 @@ describe('the confirmation screen', () => {
     expect(withGift.text).toContain('name="recurringDonation" value="keep"');
   });
 
+  // Defect caught: a member who asks to end their recurring gift as the
+  // account goes keeps being charged, or one who asks to keep it has it ended.
+  it('ends the recurring gift only when the member chose to end it', async () => {
+    const ender = makeMember({ slug: 'del_choice_end' });
+    const keeper = makeMember({ slug: 'del_choice_keep' });
+    withDb((db) => {
+      insertRecurringDonationSubscription(db, { member_id: ender, status: 'active' });
+      insertRecurringDonationSubscription(db, { member_id: keeper, status: 'active' });
+    });
+    const cancelFlagOf = (memberId: string) => withDb((db) => (db.prepare(
+      'SELECT is_cancel_at_period_end FROM recurring_donation_subscriptions WHERE member_id = ?',
+    ).get(memberId) as { is_cancel_at_period_end: number }).is_cancel_at_period_end);
+    for (const [slug, id, choice] of [['del_choice_end', ender, 'cancel'], ['del_choice_keep', keeper, 'keep']] as const) {
+      const res = await request(createApp())
+        .post(`/members/${slug}/delete`)
+        .set('Cookie', cookieFor(id))
+        .type('form')
+        .send(`confirmed=1&recurringDonation=${choice}`);
+      expect(res.status, slug).toBe(200);
+    }
+    expect(cancelFlagOf(ender)).toBe(1);
+    expect(cancelFlagOf(keeper)).toBe(0);
+  });
+
+  // Defect caught: a deletion posting the donation choice twice (a hand-made
+  // request) deletes the account on whichever value the code happened to read,
+  // or throws; or the refusal does not say which choice needs fixing.
+  it('refuses a repeated donation choice beside the choice and deletes nothing; the corrected form deletes', async () => {
+    const slug = 'del_repeated_choice';
+    const id = makeMember({ slug });
+    withDb((db) => insertRecurringDonationSubscription(db, { member_id: id, status: 'active' }));
+    const res = await request(createApp())
+      .post(`/members/${slug}/delete`)
+      .set('Cookie', cookieFor(id))
+      .type('form')
+      .send('confirmed=1&recurringDonation=cancel&recurringDonation=keep');
+    expect(res.status).toBe(422);
+    const at = res.text.indexOf('name="recurringDonation" value="keep"');
+    expect(res.text.slice(at, res.text.indexOf('</fieldset>', at))).toContain('class="form-field-error"');
+    expect(res.text).toContain('name="confirmed" value="1"');
+    expect(deletedAtOf(id)).toBeNull();
+
+    const corrected = await request(createApp())
+      .post(`/members/${slug}/delete`)
+      .set('Cookie', cookieFor(id))
+      .type('form')
+      .send('confirmed=1&recurringDonation=keep');
+    expect(corrected.status).toBe(200);
+    expect(deletedAtOf(id)).not.toBeNull();
+  });
+
   it('refuses an administrator and names what has to happen first', async () => {
     const slug = 'del_admin_blocked';
     const id = makeMember({ slug, isAdmin: 1 });

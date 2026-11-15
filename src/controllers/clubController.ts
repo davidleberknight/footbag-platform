@@ -2,7 +2,42 @@ import { Request, Response, NextFunction } from 'express';
 import { clubService, NO_LEADER_JOIN_REFUSAL } from '../services/clubService';
 import { locationPickers } from '../services/memberService';
 import { ValidationError } from '../services/serviceErrors';
-import { handleControllerError, renderNotFound } from '../lib/controllerErrors';
+import { handleControllerError, renderInvalidRequest, renderNotFound } from '../lib/controllerErrors';
+import { z } from 'zod';
+import { parseFormBody, formText, formOptionalText } from '../lib/parseFormBody';
+
+// The co-leaders' edit form on the club page. A field the form leaves out
+// stays undefined, which the service reads as "leave it as it is".
+const contentEditForm = z.object({
+  name: formOptionalText('Club name'),
+  description: formOptionalText('Description'),
+  city: formOptionalText('City'),
+  region: formOptionalText('Region / State'),
+  external_url: formOptionalText('External URL'),
+});
+
+const createForm = z.object({
+  name: formText('Club name'),
+  description: formText('Description'),
+  city: formText('City'),
+  region: formText('Region / State'),
+  country: formText('Country'),
+  slug: formText('Club hashtag'),
+  confirm_near_matches: formOptionalText('The confirmation that your club is distinct'),
+});
+
+// What the edit form sent, for the re-render: only the fields that arrived.
+function keptEditValues(fields: z.output<typeof contentEditForm>): Record<string, string> {
+  const kept: Record<string, string> = {};
+  for (const [key, value] of Object.entries(fields)) {
+    if (value !== undefined) kept[key] = value;
+  }
+  return kept;
+}
+
+// The confirm screens' buttons, and the primary-club switch.
+const confirmForm = z.object({ confirmed: formOptionalText('The confirmation') });
+const makePrimaryForm = z.object({ club_key: formOptionalText('The club') });
 import { writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
 import { FLASH_KIND } from '../lib/flashCookie';
 import { redirectWithOutcome, type ActionEnding } from '../lib/actionOutcome';
@@ -76,17 +111,28 @@ export const clubController = {
 
   /** POST /clubs/:key/content/edit (leaders edit directly) */
   async postContentEdit(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const parsed = parseFormBody(contentEditForm, req.body);
     try {
+      if (!parsed.ok) {
+        const vm = clubService.getPublicClubPage(
+          req.params.key,
+          req.isMember,
+          req.user?.userId,
+          { editErrors: parsed.fieldErrors, editValues: parsed.submitted as Record<string, string> },
+        );
+        res.status(422).render('clubs/detail', vm);
+        return;
+      }
       const clubId = clubService.resolveClubIdByKey(req.params.key);
-      const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
+      const fields = parsed.data;
       const ending = await clubService.editClubContentAsLeader(
         clubId,
         {
-          name:        str(req.body.name),
-          description: str(req.body.description),
-          city:        str(req.body.city),
-          region:      str(req.body.region),
-          externalUrl: str(req.body.external_url),
+          name:        fields.name,
+          description: fields.description,
+          city:        fields.city,
+          region:      fields.region,
+          externalUrl: fields.external_url,
         },
         req.user!.userId,
       );
@@ -104,7 +150,7 @@ export const clubController = {
           req.params.key,
           req.isMember,
           req.user?.userId,
-          { editErrors: err.fieldErrors ?? { form: err.message }, editValues: req.body },
+          { editErrors: err.fieldErrors ?? { form: err.message }, editValues: parsed.ok ? keptEditValues(parsed.data) : null },
         );
         res.status(422).render('clubs/detail', vm);
         return;
@@ -126,13 +172,15 @@ export const clubController = {
 
   postCreate(req: Request, res: Response, next: NextFunction): void {
     try {
-      const name = String(req.body?.name ?? '');
-      const description = String(req.body?.description ?? '');
-      const city = String(req.body?.city ?? '');
-      const region = String(req.body?.region ?? '');
-      const country = String(req.body?.country ?? '');
-      const slug = String(req.body?.slug ?? '');
-      const confirmNearMatches = req.body?.confirm_near_matches === '1';
+      const parsed = parseFormBody(createForm, req.body);
+      const typed = parsed.ok ? parsed.data : parsed.submitted;
+      const name = typed.name ?? '';
+      const description = typed.description ?? '';
+      const city = typed.city ?? '';
+      const region = typed.region ?? '';
+      const country = typed.country ?? '';
+      const slug = typed.slug ?? '';
+      const confirmNearMatches = typed.confirm_near_matches === '1';
 
       const club = { name, description, city, region, country, slug, confirmNearMatches };
 
@@ -153,6 +201,11 @@ export const clubController = {
           ...extra,
         });
       };
+
+      if (!parsed.ok) {
+        renderForm(422, parsed.message, parsed.fieldErrors);
+        return;
+      }
 
       let result;
       try {
@@ -231,8 +284,10 @@ export const clubController = {
 
   postLeave(req: Request, res: Response, next: NextFunction): void {
     try {
+      const parsed = parseFormBody(confirmForm, req.body);
+      if (!parsed.ok) { renderInvalidRequest(res, { title: parsed.message }); return; }
       const clubId = clubService.resolveClubIdByKey(req.params.key);
-      const confirmed = req.body?.confirmed === '1';
+      const confirmed = parsed.data.confirmed === '1';
       const result = clubService.leaveClub(req.user!.userId, clubId, { confirmed });
 
       if (result.branch === 'needs_confirmation') {
@@ -270,7 +325,9 @@ export const clubController = {
 
   postMakePrimary(req: Request, res: Response, next: NextFunction): void {
     try {
-      const targetClubKey = typeof req.body?.club_key === 'string' ? req.body.club_key : '';
+      const parsed = parseFormBody(makePrimaryForm, req.body);
+      if (!parsed.ok) { renderInvalidRequest(res, { title: parsed.message }); return; }
+      const targetClubKey = parsed.data.club_key ?? '';
       const result = clubService.makePrimaryAffiliation(req.user!.userId, targetClubKey);
 
       const endings: Record<typeof result.branch, [ActionEnding, string]> = {
@@ -294,8 +351,10 @@ export const clubController = {
 
   postStepDown(req: Request, res: Response, next: NextFunction): void {
     try {
+      const parsed = parseFormBody(confirmForm, req.body);
+      if (!parsed.ok) { renderInvalidRequest(res, { title: parsed.message }); return; }
       const clubId = clubService.resolveClubIdByKey(req.params.key);
-      const confirmed = req.body?.confirmed === '1';
+      const confirmed = parsed.data.confirmed === '1';
       const result = clubService.stepDownFromLeader(req.user!.userId, clubId, { confirmed });
 
       if (result.branch === 'needs_confirmation') {

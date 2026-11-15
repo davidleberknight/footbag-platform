@@ -24,75 +24,92 @@
           <select id="record-recordType" name="recordType">
             {{#each content.recordTypeOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
           </select>
+          {{#if content.fieldErrors.recordType}}<p class="form-field-error" role="alert">{{content.fieldErrors.recordType}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="record-personId">Linked historical-person id (optional)</label>
           <input type="text" id="record-personId" name="personId" value="{{content.fields.personId}}" />
+          {{#if content.fieldErrors.personId}}<p class="form-field-error" role="alert">{{content.fieldErrors.personId}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="record-displayName">Display name (used when no person is linked)</label>
           <input type="text" id="record-displayName" name="displayName" value="{{content.fields.displayName}}" />
+          {{#if content.fieldErrors.displayName}}<p class="form-field-error" role="alert">{{content.fieldErrors.displayName}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="record-trickName">Trick name</label>
           <input type="text" id="record-trickName" name="trickName" value="{{content.fields.trickName}}" />
+          {{#if content.fieldErrors.trickName}}<p class="form-field-error" role="alert">{{content.fieldErrors.trickName}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="record-sortName">Structured sort name</label>
           <input type="text" id="record-sortName" name="sortName" value="{{content.fields.sortName}}" />
+          {{#if content.fieldErrors.sortName}}<p class="form-field-error" role="alert">{{content.fieldErrors.sortName}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="record-addsCount">Adds count</label>
           <input type="text" id="record-addsCount" name="addsCount" value="{{content.fields.addsCount}}" />
+          {{#if content.fieldErrors.addsCount}}<p class="form-field-error" role="alert">{{content.fieldErrors.addsCount}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="record-valueNumeric">Value</label>
           <input type="text" id="record-valueNumeric" name="valueNumeric" value="{{content.fields.valueNumeric}}" />
+          {{#if content.fieldErrors.valueNumeric}}<p class="form-field-error" role="alert">{{content.fieldErrors.valueNumeric}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="record-valueText">Value text (optional)</label>
           <input type="text" id="record-valueText" name="valueText" value="{{content.fields.valueText}}" />
+          {{#if content.fieldErrors.valueText}}<p class="form-field-error" role="alert">{{content.fieldErrors.valueText}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="record-achievedDate">Achieved date (YYYY-MM-DD)</label>
           <input type="text" id="record-achievedDate" name="achievedDate" value="{{content.fields.achievedDate}}" />
+          {{#if content.fieldErrors.achievedDate}}<p class="form-field-error" role="alert">{{content.fieldErrors.achievedDate}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="record-datePrecision">Date precision</label>
           <select id="record-datePrecision" name="datePrecision">
             {{#each content.datePrecisionOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
           </select>
+          {{#if content.fieldErrors.datePrecision}}<p class="form-field-error" role="alert">{{content.fieldErrors.datePrecision}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="record-source">Source</label>
           <input type="text" id="record-source" name="source" value="{{content.fields.source}}" />
+          {{#if content.fieldErrors.source}}<p class="form-field-error" role="alert">{{content.fieldErrors.source}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="record-confidence">Confidence</label>
           <select id="record-confidence" name="confidence">
             {{#each content.confidenceOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
           </select>
+          {{#if content.fieldErrors.confidence}}<p class="form-field-error" role="alert">{{content.fieldErrors.confidence}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="record-videoUrl">Video URL</label>
           <input type="text" id="record-videoUrl" name="videoUrl" value="{{content.fields.videoUrl}}" />
+          {{#if content.fieldErrors.videoUrl}}<p class="form-field-error" role="alert">{{content.fieldErrors.videoUrl}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="record-videoTimecode">Video timecode</label>
           <input type="text" id="record-videoTimecode" name="videoTimecode" value="{{content.fields.videoTimecode}}" />
+          {{#if content.fieldErrors.videoTimecode}}<p class="form-field-error" role="alert">{{content.fieldErrors.videoTimecode}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="record-notes">Notes</label>
           <textarea id="record-notes" name="notes" rows="2">{{content.fields.notes}}</textarea>
+          {{#if content.fieldErrors.notes}}<p class="form-field-error" role="alert">{{content.fieldErrors.notes}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="record-curatorReviewNote">Curator review note</label>
           <textarea id="record-curatorReviewNote" name="curatorReviewNote" rows="2" aria-describedby="record-curatorReviewNote-hint">{{content.fields.curatorReviewNote}}</textarea>
+          {{#if content.fieldErrors.curatorReviewNote}}<p class="form-field-error" role="alert">{{content.fieldErrors.curatorReviewNote}}</p>{{/if}}
           <small class="form-hint" id="record-curatorReviewNote-hint">Shown on the records page; the record's trick link is hidden while a note is set.</small>
         </div>
         <div class="form-field">
           <label for="record-supersededBy">Superseded by (record id of the newer record, optional)</label>
           <input type="text" id="record-supersededBy" name="supersededBy" value="{{content.fields.supersededBy}}" />
+          {{#if content.fieldErrors.supersededBy}}<p class="form-field-error" role="alert">{{content.fieldErrors.supersededBy}}</p>{{/if}}
         </div>
       </fieldset>
       <div class="form-actions">

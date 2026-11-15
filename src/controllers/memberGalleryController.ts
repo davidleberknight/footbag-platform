@@ -35,7 +35,10 @@ import {
 } from '../services/curatorMediaService';
 import { NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { FLASH_KIND, writeFlash, takeMediaSaved, writeShareFlash } from '../lib/flashCookie';
-import { renderNotFound } from '../lib/controllerErrors';
+import { renderInvalidRequest, renderNotFound } from '../lib/controllerErrors';
+import { config } from '../config/env';
+import { z } from 'zod';
+import { parseFormBody, formText, formOptionalText } from '../lib/parseFormBody';
 import { isAdminCaller, isOwnMemberRoute } from '../lib/routeOwnership';
 import { mediaService } from '../services/mediaService';
 
@@ -48,6 +51,26 @@ import { mediaService } from '../services/mediaService';
 // caller input, so the prepended tag cannot be forged.
 
 const buildSvc = getDefaultCuratorMediaService;
+
+// One label and one URL input per link slot the form draws.
+const linkFields: Record<string, ReturnType<typeof formText>> = {};
+for (let i = 0; i < config.galleryMaxExternalLinks; i++) {
+  linkFields[`externalLinkLabel${i}`] = formText(`Link ${i + 1} label`);
+  linkFields[`externalLinkUrl${i}`] = formText(`Link ${i + 1} URL`);
+}
+
+const galleryEditForm = z.object({
+  name: formText('Name'),
+  description: formText('Description'),
+  sortOrder: formText('Sort order'),
+  criteriaTags: formText('Criteria hashtags'),
+  excludeTags: formText('Exclude hashtags'),
+  // Absent when the form offered no cover choice, which keeps the stored one.
+  coverMediaId: formOptionalText('Cover'),
+  ...linkFields,
+});
+
+const galleryDeleteForm = z.object({ confirmed: formOptionalText('The confirmation') });
 
 function renderListWithError(
   req: Request,
@@ -148,16 +171,63 @@ export const memberGalleryController = {
       const memberKey = req.params.memberKey;
       const galleryId = req.params.id;
       const actorMemberId = req.user!.userId;
-      const name = String(req.body?.name ?? '');
-      const description = String(req.body?.description ?? '');
-      const sortOrderRaw = String(req.body?.sortOrder ?? '');
-      const criteriaTags = parseTagList(req.body?.criteriaTags);
-      const excludeTags = parseTagList(req.body?.excludeTags);
-      const externalLinks = parseExternalLinkInputs(req.body ?? {});
-      // Absent when the form offered no cover choice, which keeps the stored one.
-      const coverMediaId = typeof req.body?.coverMediaId === 'string' ? req.body.coverMediaId : undefined;
-
       const svc = buildSvc();
+      // The edit form re-rendered at 422 with the member's own work, for a
+      // shape refusal here or a content refusal from the service below.
+      const renderRefused = (
+        message: string,
+        fieldErrors: Record<string, string> | undefined,
+        typed: Record<string, string | undefined>,
+        externalLinks: ReturnType<typeof parseExternalLinkInputs>,
+      ): void => {
+        const reread = svc.getGalleryForEdit(galleryId, actorMemberId, {
+          memberKey, selectedCoverMediaId: typed.coverMediaId,
+        });
+        res.status(422).render(
+          'members/galleries/edit',
+          getMemberGalleryEditPage(memberKey, galleryId, {
+            memberId: actorMemberId,
+            errorMessage: message,
+            fieldErrors,
+            gallery: {
+              id: galleryId,
+              name: typed.name ?? '',
+              description: typed.description ?? '',
+              sortOrder: typed.sortOrder ?? '',
+              criteriaTagsString: typed.criteriaTags ?? '',
+              excludeTagsString: typed.excludeTags ?? '',
+              isDefault: reread.isDefault,
+            },
+            criteriaTags: reread.criteriaTags,
+            isDefault: reread.isDefault,
+            currentItems: reread.currentItems,
+            currentItemsTruncated: reread.currentItemsTruncated,
+            coverChoice: reread.coverChoice,
+            externalLinkSlots: buildExternalLinkSlots(externalLinks, [], fieldErrors),
+          }),
+        );
+      };
+
+      const parsed = parseFormBody(galleryEditForm, req.body);
+      if (!parsed.ok) {
+        try {
+          renderRefused(parsed.message, parsed.fieldErrors, parsed.submitted, parseExternalLinkInputs(parsed.submitted));
+        } catch (err) {
+          // Not the member's own gallery: the same answer the edit page gives.
+          if (err instanceof NotFoundError) { renderNotFound(res); return; }
+          throw err;
+        }
+        return;
+      }
+      const form = parsed.data;
+      const name = form.name;
+      const description = form.description;
+      const sortOrderRaw = form.sortOrder;
+      const criteriaTags = parseTagList(form.criteriaTags);
+      const excludeTags = parseTagList(form.excludeTags);
+      const externalLinks = parseExternalLinkInputs(form);
+      const coverMediaId = form.coverMediaId;
+
       // A gallery that is not the member's own answers not-found, as the edit
       // page itself does.
       const result = await updateMemberGallery(svc, {
@@ -174,7 +244,7 @@ export const memberGalleryController = {
           count: 0,
           saved: true,
           gallery: { id: galleryId, name, tags: [], created: false },
-          folded: changedTypedTags(req.body?.criteriaTags, req.body?.excludeTags),
+          folded: changedTypedTags(form.criteriaTags, form.excludeTags),
           rejected: [],
         });
         res.redirect(303, result.landingHref);
@@ -189,32 +259,7 @@ export const memberGalleryController = {
         renderListWithError(req, res, 429, result.message);
         return;
       }
-      const reread = svc.getGalleryForEdit(galleryId, actorMemberId, {
-        memberKey, selectedCoverMediaId: coverMediaId,
-      });
-      res.status(422).render(
-        'members/galleries/edit',
-        getMemberGalleryEditPage(memberKey, galleryId, {
-          memberId: actorMemberId,
-          errorMessage: result.message,
-          fieldErrors: result.fieldErrors,
-          gallery: {
-            id: galleryId,
-            name,
-            description,
-            sortOrder: sortOrderRaw,
-            criteriaTagsString: (req.body?.criteriaTags ?? '') as string,
-            excludeTagsString: (req.body?.excludeTags ?? '') as string,
-            isDefault: reread.isDefault,
-          },
-          criteriaTags: reread.criteriaTags,
-          isDefault: reread.isDefault,
-          currentItems: reread.currentItems,
-          currentItemsTruncated: reread.currentItemsTruncated,
-          coverChoice: reread.coverChoice,
-          externalLinkSlots: buildExternalLinkSlots(externalLinks, [], result.fieldErrors),
-        }),
-      );
+      renderRefused(result.message, result.fieldErrors, form, externalLinks);
     } catch (err) {
       logger.error('member gallery update error', { error: err instanceof Error ? err.message : String(err) });
       next(err);
@@ -227,7 +272,9 @@ export const memberGalleryController = {
       renderNotFound(res);
       return;
     }
-    if (req.body?.confirmed !== '1') {
+    const parsedDelete = parseFormBody(galleryDeleteForm, req.body);
+    if (!parsedDelete.ok) { renderInvalidRequest(res, { title: parsedDelete.message }); return; }
+    if (parsedDelete.data.confirmed !== '1') {
       const memberKey = req.params.memberKey;
       res.redirect(303, `${memberGalleriesHref(memberKey)}?confirmDelete=${encodeURIComponent(req.params.id)}`);
       return;

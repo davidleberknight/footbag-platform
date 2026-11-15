@@ -376,16 +376,21 @@ function generateUniqueSlug(displayName: string): string {
 // contracts live with the domain service that owns the business logic behind
 // each page.
 
+/** A refused field's message, keyed by the field's name, shown beside its input. */
+export type FormFieldErrors = Record<string, string>;
+
 export interface LoginContent {
   returnTo?: string;
   authReason?: string;
   error?: string;
+  fieldErrors?: FormFieldErrors;
   turnstileSiteKey?: string | null;
   captchaStubbed?: boolean;
 }
 
 export interface RegisterContent {
   error?: string;
+  fieldErrors?: FormFieldErrors;
   /** Informational: the typed profile URL was folded and is shown for checking. */
   notice?: string;
   givenNames?: string;
@@ -401,6 +406,7 @@ export interface CheckEmailContent {
   resent?: boolean;
   emailPreview?: SimulatedEmailPreview;
   error?: string;
+  fieldErrors?: FormFieldErrors;
   turnstileSiteKey?: string | null;
   captchaStubbed?: boolean;
   /** How long the verification link lives, from the same setting that sets the
@@ -422,6 +428,7 @@ export interface VerifyResultContent {
 
 export interface PasswordForgotContent {
   error?: string;
+  fieldErrors?: FormFieldErrors;
   turnstileSiteKey?: string | null;
   captchaStubbed?: boolean;
 }
@@ -442,6 +449,7 @@ export interface PasswordForgotSentContent {
 export interface PasswordResetContent {
   token: string | undefined;
   error?: string;
+  fieldErrors?: FormFieldErrors;
   /** The link already reset the password: a repeat, reported as the first
    *  outcome with a sign-in prompt rather than as an error. */
   alreadyReset?: boolean;
@@ -563,6 +571,8 @@ export interface LinkHistoryContent {
    * when no validation message applies.
    */
   validationMessage?: string;
+  /** One message per refused field, keyed by the field's form name. */
+  fieldErrors?: Record<string, string>;
   declaredAnchors?: DeclaredAnchorView[];
   /** Banner after an anchor add redirected back: confirms the save and the
    * match re-check without leaking whether anything matched. */

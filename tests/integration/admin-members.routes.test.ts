@@ -34,6 +34,7 @@ const TIER_ID = 'am_tier_001';
 const AP_ID = 'am_ap_001';
 const AP_PAID_ID = 'am_ap_paid_001';
 const TIER_CLEAN_ID = 'am_tier_clean_001';
+const REPEAT_ID = 'am_repeat_001';
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
@@ -143,6 +144,13 @@ beforeAll(async () => {
     memberOverrides: {
       display_name: 'Paula Paid', real_name: 'Paula Paid', given_names: 'Paula', family_name: 'Paid',
       login_email: 'am-paula@example.com',
+    },
+  });
+  createMemberAtTier(conn, {
+    id: REPEAT_ID, slug: 'am_rita_repeat', tier: 'tier0',
+    memberOverrides: {
+      display_name: 'Rita Repeat', real_name: 'Rita Repeat', given_names: 'Rita', family_name: 'Repeat',
+      login_email: 'am-rita@example.com',
     },
   });
   // More members than the lookup shows at once, so the truncation notice has
@@ -606,5 +614,64 @@ describe('the Active Player expiry correction', () => {
       .type('form')
       .send({ expires_on: 'next tuesday', reason: 'error correction' });
     expect(res.status).toBe(422);
+  });
+});
+
+/**
+ * A field posted twice is the form's own refusal: the correction is never
+ * applied on whichever copy happened to be read, the record comes back at 422
+ * with the message beside the field it names, and nothing about the member
+ * moves.
+ */
+describe('a correction refuses a field posted twice', () => {
+  function memberSnapshot(): unknown {
+    return db((conn) => conn.prepare('SELECT * FROM members WHERE id = ?').get(REPEAT_ID));
+  }
+
+  function auditCount(): number {
+    return db((conn) => (conn.prepare(
+      'SELECT COUNT(*) AS n FROM audit_entries WHERE entity_id = ?',
+    ).get(REPEAT_ID) as { n: number }).n);
+  }
+
+  // Each row is a different handler; `fieldId` is the refused field's input on
+  // the record. The picture removal's row lives in its own suite, which seeds a
+  // picture to remove.
+  it.each([
+    { path: 'name', body: 'given_names=Rita&given_names=Rina&family_name=Repeat&reason=fix', fieldId: 'given_names' },
+    { path: 'name/confirm', body: 'given_names=Rita&given_names=Rina&family_name=Repeat&reason=fix', fieldId: 'given_names' },
+    { path: 'slug/confirm', body: 'slug=am_rita_one&slug=am_rita_two&reason=fix', fieldId: 'slug' },
+    { path: 'tier/confirm', body: 'tier=tier1&tier=tier2&reason=fix', fieldId: 'tier' },
+    { path: 'active-player/confirm', body: `expires_on=${isoDaysFromNow(30).slice(0, 10)}&expires_on=&reason=fix`, fieldId: 'expires_on' },
+    { path: 'delete/confirm', body: 'reason=fake&reason=bogus', fieldId: 'delete_reason' },
+  ])('POST $path answers 422 and writes nothing', async ({ path, body, fieldId }) => {
+    const before = memberSnapshot();
+    const auditsBefore = auditCount();
+
+    const res = await request(createApp())
+      .post(`/admin/members/${REPEAT_ID}/${path}`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send(body);
+
+    expect(res.status).toBe(422);
+    const at = res.text.indexOf(`id="${fieldId}"`);
+    expect(at, `the record renders the ${fieldId} input`).toBeGreaterThan(-1);
+    expect(res.text.slice(at, res.text.indexOf('</div>', at))).toContain('class="form-field-error"');
+    expect(memberSnapshot()).toEqual(before);
+    expect(auditCount()).toBe(auditsBefore);
+  });
+
+  it('brings the refused form back open, holding the values that arrived once', async () => {
+    const res = await request(createApp())
+      .post(`/admin/members/${REPEAT_ID}/slug/confirm`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send('slug=am_rita_typed&reason=one&reason=two');
+    expect(res.status).toBe(422);
+    const at = res.text.indexOf(`action="/admin/members/${REPEAT_ID}/slug"`);
+    expect(res.text.slice(res.text.lastIndexOf('<details', at), at)).toMatch(/<details[^>]* open/);
+    expect(res.text).toMatch(/id="slug" name="slug" value="am_rita_typed"/);
+    expect(res.text).toMatch(/id="slug_reason" name="reason" value=""/);
   });
 });

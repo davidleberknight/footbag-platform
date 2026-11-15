@@ -73,47 +73,53 @@
   <section>
     <div class="section-heading"><h2>Corrections</h2></div>
 
-    <details class="admin-action-disclosure">
+    <details class="admin-action-disclosure" {{#if content.openForm.name}}open{{/if}}>
       <summary>Correct the Name</summary>
       <p class="fs-sm">A corrected name is held to every rule a name is held to at registration. The profile URL is left alone, because correcting one is a separate action.</p>
       <form method="POST" action="{{content.nameAction}}" class="form-block">
         <div class="form-field">
           <label for="given_names">Given names</label>
           <input type="text" id="given_names" name="given_names" value="{{content.form.givenNames}}" maxlength="35" />
+          {{#if content.fieldErrors.name.given_names}}<p class="form-field-error" role="alert">{{content.fieldErrors.name.given_names}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="family_name">Family name</label>
           <input type="text" id="family_name" name="family_name" value="{{content.form.familyName}}" maxlength="35" required />
+          {{#if content.fieldErrors.name.family_name}}<p class="form-field-error" role="alert">{{content.fieldErrors.name.family_name}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="display_name">Display name</label>
           <input type="text" id="display_name" name="display_name" value="{{content.form.displayName}}" maxlength="70" />
+          {{#if content.fieldErrors.name.display_name}}<p class="form-field-error" role="alert">{{content.fieldErrors.name.display_name}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="name_reason">Reason (required)</label>
-          <input type="text" id="name_reason" name="reason" maxlength="500" required />
+          <input type="text" id="name_reason" name="reason" value="{{content.reasons.name}}" maxlength="500" required />
+          {{#if content.fieldErrors.name.reason}}<p class="form-field-error" role="alert">{{content.fieldErrors.name.reason}}</p>{{/if}}
         </div>
         <button type="submit" class="btn btn-primary">Review the Name Correction</button>
       </form>
     </details>
 
-    <details class="admin-action-disclosure">
+    <details class="admin-action-disclosure" {{#if content.openForm.slug}}open{{/if}}>
       <summary>Correct the Profile URL</summary>
       <p class="fs-sm">The member's uploader hashtag moves with them, so their media and galleries keep resolving. The old URL stops working and nothing redirects from it, so any link they have already shared will lead nowhere.</p>
       <form method="POST" action="{{content.slugAction}}" class="form-block">
         <div class="form-field">
           <label for="slug">Profile URL</label>
           <input type="text" id="slug" name="slug" value="{{content.form.slug}}" maxlength="70" required />
+          {{#if content.fieldErrors.slug.slug}}<p class="form-field-error" role="alert">{{content.fieldErrors.slug.slug}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="slug_reason">Reason (required)</label>
-          <input type="text" id="slug_reason" name="reason" maxlength="500" required />
+          <input type="text" id="slug_reason" name="reason" value="{{content.reasons.slug}}" maxlength="500" required />
+          {{#if content.fieldErrors.slug.reason}}<p class="form-field-error" role="alert">{{content.fieldErrors.slug.reason}}</p>{{/if}}
         </div>
         <button type="submit" class="btn btn-primary">Review the Profile URL Correction</button>
       </form>
     </details>
 
-    <details class="admin-action-disclosure">
+    <details class="admin-action-disclosure" {{#if content.openForm.tier}}open{{/if}}>
       <summary>Change the Membership Tier</summary>
       <p class="fs-sm">The member is emailed when their membership status changes. Active Player standing is managed separately, and director standing is set on the honour and board page, because it carries a badge and a record of the tier the member returns to.</p>
       <form method="POST" action="{{content.tierAction}}" class="form-block">
@@ -124,58 +130,67 @@
               <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
             {{/each}}
           </select>
+          {{#if content.fieldErrors.tier.tier}}<p class="form-field-error" role="alert">{{content.fieldErrors.tier.tier}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="tier_reason">Reason (required)</label>
-          <input type="text" id="tier_reason" name="reason" maxlength="500" required />
+          <input type="text" id="tier_reason" name="reason" value="{{content.reasons.tier}}" maxlength="500" required />
+          {{#if content.fieldErrors.tier.reason}}<p class="form-field-error" role="alert">{{content.fieldErrors.tier.reason}}</p>{{/if}}
         </div>
         <button type="submit" class="btn btn-primary">Review the Tier Change</button>
       </form>
     </details>
 
-    <details class="admin-action-disclosure">
+    <details class="admin-action-disclosure" {{#if content.openForm.activePlayer}}open{{/if}}>
       <summary>Correct the Active Player Expiry</summary>
       <p class="fs-sm">Active Player is a Tier 0 standing. Leave the date blank to end the standing, which is how one granted in error is taken back. The member is emailed that their standing was corrected, and told the reason you give.</p>
       <form method="POST" action="{{content.activePlayerAction}}" class="form-block">
         <div class="form-field">
           <label for="expires_on">Runs to the end of this date</label>
           <input type="date" id="expires_on" name="expires_on" value="{{content.form.activePlayerExpiryDate}}" />
+          {{#if content.fieldErrors.activePlayer.expires_on}}<p class="form-field-error" role="alert">{{content.fieldErrors.activePlayer.expires_on}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="ap_reason">Reason (required)</label>
-          <input type="text" id="ap_reason" name="reason" maxlength="500" required />
+          <input type="text" id="ap_reason" name="reason" value="{{content.reasons.activePlayer}}" maxlength="500" required />
+          {{#if content.fieldErrors.activePlayer.reason}}<p class="form-field-error" role="alert">{{content.fieldErrors.activePlayer.reason}}</p>{{/if}}
         </div>
         <button type="submit" class="btn btn-primary">Review the Expiry Correction</button>
       </form>
     </details>
 
     {{#if content.canCorrectProfile}}
-    <details class="admin-action-disclosure">
+    <details class="admin-action-disclosure" {{#if content.openForm.profile}}open{{/if}}>
       <summary>Correct the Profile Details</summary>
       <p class="fs-sm">The member's own profile is the ordinary path for these fields. Use this when they cannot: a data bug, a member who has died, or an account whose holder can no longer reach it. Every value passes the same rules their own form applies, and the whole set is written, so leave a field as it stands unless you mean to change it. Their written biography is not shown here, because it is their words.</p>
       <form method="POST" action="{{content.profileAction}}" class="form-block">
         <div class="form-field">
           <label for="p_city">City</label>
           <input type="text" id="p_city" name="city" value="{{content.profileForm.city}}" maxlength="64" />
+          {{#if content.fieldErrors.profile.city}}<p class="form-field-error" role="alert">{{content.fieldErrors.profile.city}}</p>{{/if}}
         </div>
-        {{#> region-picker id="p_region" pickers=content.profileForm placeholder="No state or province"}}
+        {{#> region-picker id="p_region" pickers=content.profileForm placeholder="No state or province" error=content.fieldErrors.profile.region}}
           <label for="p_region">State or province <span class="text-muted">(USA, Canada and Australia only)</span></label>
         {{/region-picker}}
         <div class="form-field">
           <label for="p_country">Country</label>
           <input type="text" id="p_country" name="country" value="{{content.profileForm.country}}" maxlength="64" data-country-picker />
+          {{#if content.fieldErrors.profile.country}}<p class="form-field-error" role="alert">{{content.fieldErrors.profile.country}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="p_birth_day">Date of birth: day</label>
           <input type="text" id="p_birth_day" name="birthDay" value="{{content.profileForm.birthDay}}" maxlength="2" inputmode="numeric" />
+          {{#if content.fieldErrors.profile.birthDay}}<p class="form-field-error" role="alert">{{content.fieldErrors.profile.birthDay}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="p_birth_month">Date of birth: month</label>
           <input type="text" id="p_birth_month" name="birthMonth" value="{{content.profileForm.birthMonth}}" maxlength="2" inputmode="numeric" />
+          {{#if content.fieldErrors.profile.birthMonth}}<p class="form-field-error" role="alert">{{content.fieldErrors.profile.birthMonth}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="p_birth_year">Date of birth: year</label>
           <input type="text" id="p_birth_year" name="birthYear" value="{{content.profileForm.birthYear}}" maxlength="4" inputmode="numeric" />
+          {{#if content.fieldErrors.profile.birthYear}}<p class="form-field-error" role="alert">{{content.fieldErrors.profile.birthYear}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="p_gender">Gender</label>
@@ -184,18 +199,22 @@
               <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
             {{/each}}
           </select>
+          {{#if content.fieldErrors.profile.gender}}<p class="form-field-error" role="alert">{{content.fieldErrors.profile.gender}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="p_phone">Phone</label>
           <input type="text" id="p_phone" name="phone" value="{{content.profileForm.phone}}" maxlength="40" />
+          {{#if content.fieldErrors.profile.phone}}<p class="form-field-error" role="alert">{{content.fieldErrors.profile.phone}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="p_whatsapp">WhatsApp</label>
           <input type="text" id="p_whatsapp" name="whatsapp" value="{{content.profileForm.whatsapp}}" maxlength="40" />
+          {{#if content.fieldErrors.profile.whatsapp}}<p class="form-field-error" role="alert">{{content.fieldErrors.profile.whatsapp}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="p_first_year">First competition year</label>
           <input type="text" id="p_first_year" name="firstCompetitionYear" value="{{content.profileForm.firstCompetitionYear}}" maxlength="4" inputmode="numeric" />
+          {{#if content.fieldErrors.profile.firstCompetitionYear}}<p class="form-field-error" role="alert">{{content.fieldErrors.profile.firstCompetitionYear}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="p_email_vis">Who can see the contact email</label>
@@ -204,30 +223,37 @@
               <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
             {{/each}}
           </select>
+          {{#if content.fieldErrors.profile.emailVisibility}}<p class="form-field-error" role="alert">{{content.fieldErrors.profile.emailVisibility}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="p_phone_vis">Show the phone to members</label>
           <input type="checkbox" id="p_phone_vis" name="phoneVisible" value="1" {{#if content.profileForm.phoneVisible}}checked{{/if}} />
+          {{#if content.fieldErrors.profile.phoneVisible}}<p class="form-field-error" role="alert">{{content.fieldErrors.profile.phoneVisible}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="p_whatsapp_vis">Show WhatsApp to members</label>
           <input type="checkbox" id="p_whatsapp_vis" name="whatsappVisible" value="1" {{#if content.profileForm.whatsappVisible}}checked{{/if}} />
+          {{#if content.fieldErrors.profile.whatsappVisible}}<p class="form-field-error" role="alert">{{content.fieldErrors.profile.whatsappVisible}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="p_searchable">List in member search</label>
           <input type="checkbox" id="p_searchable" name="searchable" value="1" {{#if content.profileForm.searchable}}checked{{/if}} />
+          {{#if content.fieldErrors.profile.searchable}}<p class="form-field-error" role="alert">{{content.fieldErrors.profile.searchable}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="p_show_results">Show competition results</label>
           <input type="checkbox" id="p_show_results" name="showCompetitiveResults" value="1" {{#if content.profileForm.showCompetitiveResults}}checked{{/if}} />
+          {{#if content.fieldErrors.profile.showCompetitiveResults}}<p class="form-field-error" role="alert">{{content.fieldErrors.profile.showCompetitiveResults}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="p_show_year">Show the first competition year</label>
           <input type="checkbox" id="p_show_year" name="showFirstCompetitionYear" value="1" {{#if content.profileForm.showFirstCompetitionYear}}checked{{/if}} />
+          {{#if content.fieldErrors.profile.showFirstCompetitionYear}}<p class="form-field-error" role="alert">{{content.fieldErrors.profile.showFirstCompetitionYear}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="p_show_gender">Show gender to members</label>
           <input type="checkbox" id="p_show_gender" name="showGender" value="1" {{#if content.profileForm.showGender}}checked{{/if}} />
+          {{#if content.fieldErrors.profile.showGender}}<p class="form-field-error" role="alert">{{content.fieldErrors.profile.showGender}}</p>{{/if}}
         </div>
         {{#each content.profileForm.links}}
           <div class="form-field">
@@ -241,7 +267,8 @@
         {{/each}}
         <div class="form-field">
           <label for="p_reason">Reason (required)</label>
-          <input type="text" id="p_reason" name="reason" maxlength="500" required />
+          <input type="text" id="p_reason" name="reason" value="{{content.reasons.profile}}" maxlength="500" required />
+          {{#if content.fieldErrors.profile.reason}}<p class="form-field-error" role="alert">{{content.fieldErrors.profile.reason}}</p>{{/if}}
         </div>
         <button type="submit" class="btn btn-primary">Review the Profile Correction</button>
       </form>
@@ -249,13 +276,14 @@
     {{/if}}
 
     {{#if content.hasAvatar}}
-      <details class="admin-action-disclosure">
+      <details class="admin-action-disclosure" {{#if content.openForm.avatar}}open{{/if}}>
         <summary>Remove the Profile Picture</summary>
         <p class="fs-sm">The picture comes off the profile and its stored files are deleted. The account, the membership and everything else on the record are untouched, and the member is emailed the reason you give. They can upload another.</p>
         <form method="POST" action="{{content.avatarRemoveAction}}" class="form-block">
           <div class="form-field">
             <label for="avatar_reason">Reason (required)</label>
-            <input type="text" id="avatar_reason" name="reason" maxlength="500" required />
+            <input type="text" id="avatar_reason" name="reason" value="{{content.reasons.avatar}}" maxlength="500" required />
+            {{#if content.fieldErrors.avatar.reason}}<p class="form-field-error" role="alert">{{content.fieldErrors.avatar.reason}}</p>{{/if}}
           </div>
           <button type="submit" class="btn btn-outline">Review Removing the Picture</button>
         </form>
@@ -282,13 +310,14 @@
     {{/if}}
 
     {{#if content.canDeleteAccount}}
-      <details class="admin-action-disclosure">
+      <details class="admin-action-disclosure" {{#if content.openForm.delete}}open{{/if}}>
         <summary>Delete the Account</summary>
         <p class="fs-sm">For a registration that breaks the rules, such as a fake name or a bogus location. The member's photos, videos and galleries are deleted at once, they are withdrawn from upcoming events, any recurring donation is cancelled, and they can no longer sign in. The member is emailed the reason you give. Deletion cannot be undone.</p>
         <form method="POST" action="{{content.deleteAccountAction}}" class="form-block">
           <div class="form-field">
             <label for="delete_reason">Reason (required)</label>
-            <input type="text" id="delete_reason" name="reason" maxlength="500" required />
+            <input type="text" id="delete_reason" name="reason" value="{{content.reasons.delete}}" maxlength="500" required />
+            {{#if content.fieldErrors.delete.reason}}<p class="form-field-error" role="alert">{{content.fieldErrors.delete.reason}}</p>{{/if}}
           </div>
           <button type="submit" class="btn btn-outline">Review Deleting the Account</button>
         </form>

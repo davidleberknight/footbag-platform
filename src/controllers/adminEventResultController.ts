@@ -9,36 +9,64 @@ import { FLASH_KIND, readFlash, clearFlash } from '../lib/flashCookie';
 import { handleControllerError } from '../lib/controllerErrors';
 import { outcomeNotice, type OutcomeNoticeView } from '../lib/outcomeNotice';
 import { redirectWithOutcome } from '../lib/actionOutcome';
+import { z } from 'zod';
+import { parseFormBody, formText } from '../lib/parseFormBody';
 
 const CONTEXT = 'admin event result controller';
 const NAME_FIELD = /^name_(.+)$/;
 
-function bodyValue(req: Request, field: string): string {
-  return String(req.body?.[field] ?? '');
+// The entry form carries one name input per player, named `name_<personId>`;
+// every field beyond the fixed ones is read as text and only those are used.
+const entryForm = z.object({
+  placement: formText('Placement'),
+  score_text: formText('Score'),
+  discipline_id: formText('Division'),
+  reason: formText('Reason'),
+}).catchall(formText('Player name'));
+
+const disciplineForm = z.object({
+  sport_family: formText('Sport'),
+  aggregate_standing: formText('Overall standing'),
+  reason: formText('Reason'),
+});
+
+// A form as typed: the parsed fields, or on a refusal the ones that arrived as
+// text, so the refused form comes back holding them.
+function typed(schema: z.ZodType, req: Request): Record<string, string> {
+  const parsed = parseFormBody(schema, req.body);
+  return (parsed.ok ? parsed.data : parsed.submitted) as Record<string, string>;
+}
+
+// A form read through its schema; a shape it never sends is refused like any
+// other fixable correction.
+function read(schema: z.ZodType, req: Request): Record<string, string> {
+  const parsed = parseFormBody(schema, req.body);
+  if (!parsed.ok) throw new ValidationError(parsed.message);
+  return parsed.data as Record<string, string>;
 }
 
 function param(req: Request, name: string): string {
   return req.params[name] ?? '';
 }
 
-function entryInputFrom(req: Request): EntryCorrectionInput {
+function entryInputFrom(fields: Record<string, string>): EntryCorrectionInput {
   const names: Record<string, string> = {};
-  for (const [key, value] of Object.entries(req.body ?? {})) {
+  for (const [key, value] of Object.entries(fields)) {
     const match = NAME_FIELD.exec(key);
-    if (match) names[match[1]!] = String(value ?? '');
+    if (match) names[match[1]!] = value ?? '';
   }
   return {
-    placement:    bodyValue(req, 'placement'),
-    scoreText:    bodyValue(req, 'score_text'),
-    disciplineId: bodyValue(req, 'discipline_id'),
+    placement:    fields.placement ?? '',
+    scoreText:    fields.score_text ?? '',
+    disciplineId: fields.discipline_id ?? '',
     names,
   };
 }
 
-function disciplineInputFrom(req: Request): DisciplineCorrectionInput {
+function disciplineInputFrom(fields: Record<string, string>): DisciplineCorrectionInput {
   return {
-    sportFamily:       bodyValue(req, 'sport_family'),
-    aggregateStanding: bodyValue(req, 'aggregate_standing'),
+    sportFamily:       fields.sport_family ?? '',
+    aggregateStanding: fields.aggregate_standing ?? '',
   };
 }
 
@@ -48,7 +76,7 @@ function renderEntryError(req: Request, res: Response, err: unknown, next: NextF
   try {
     res.status(422).render('admin/event-results/entry', adminEventResultService.getEntryCorrectionPage(
       param(req, 'eventId'), param(req, 'entryId'),
-      { input: entryInputFrom(req), errorMessage: err.message },
+      { input: entryInputFrom(typed(entryForm, req)), errorMessage: err.message },
     ));
   } catch (inner) {
     handleControllerError(inner, res, next, CONTEXT);
@@ -60,7 +88,7 @@ function renderDisciplineError(req: Request, res: Response, err: unknown, next: 
   try {
     res.status(422).render('admin/event-results/discipline', adminEventResultService.getDisciplineCorrectionPage(
       param(req, 'eventId'), param(req, 'disciplineId'),
-      { input: disciplineInputFrom(req), errorMessage: err.message },
+      { input: disciplineInputFrom(typed(disciplineForm, req)), errorMessage: err.message },
     ));
   } catch (inner) {
     handleControllerError(inner, res, next, CONTEXT);
@@ -107,8 +135,9 @@ export const adminEventResultController = {
   /** POST /admin/events/:eventId/results/entries/:entryId */
   previewEntry(req: Request, res: Response, next: NextFunction): void {
     try {
+      const form = read(entryForm, req);
       res.render('admin/event-results/confirm', adminEventResultService.previewEntryCorrection(
-        param(req, 'eventId'), param(req, 'entryId'), entryInputFrom(req), bodyValue(req, 'reason'),
+        param(req, 'eventId'), param(req, 'entryId'), entryInputFrom(form), form.reason,
       ));
     } catch (err) {
       renderEntryError(req, res, err, next);
@@ -119,8 +148,9 @@ export const adminEventResultController = {
   confirmEntry(req: Request, res: Response, next: NextFunction): void {
     const eventId = param(req, 'eventId');
     try {
+      const form = read(entryForm, req);
       const outcome = adminEventResultService.applyEntryCorrection(
-        req.user!.userId, eventId, param(req, 'entryId'), entryInputFrom(req), bodyValue(req, 'reason'),
+        req.user!.userId, eventId, param(req, 'entryId'), entryInputFrom(form), form.reason,
       );
       redirectWithOutcome(req, res, {
         flash: FLASH_KIND.EVENT_RESULT_OUTCOME,
@@ -146,8 +176,9 @@ export const adminEventResultController = {
   /** POST /admin/events/:eventId/results/disciplines/:disciplineId */
   previewDiscipline(req: Request, res: Response, next: NextFunction): void {
     try {
+      const form = read(disciplineForm, req);
       res.render('admin/event-results/confirm', adminEventResultService.previewDisciplineCorrection(
-        param(req, 'eventId'), param(req, 'disciplineId'), disciplineInputFrom(req), bodyValue(req, 'reason'),
+        param(req, 'eventId'), param(req, 'disciplineId'), disciplineInputFrom(form), form.reason,
       ));
     } catch (err) {
       renderDisciplineError(req, res, err, next);
@@ -158,8 +189,9 @@ export const adminEventResultController = {
   confirmDiscipline(req: Request, res: Response, next: NextFunction): void {
     const eventId = param(req, 'eventId');
     try {
+      const form = read(disciplineForm, req);
       const outcome = adminEventResultService.applyDisciplineCorrection(
-        req.user!.userId, eventId, param(req, 'disciplineId'), disciplineInputFrom(req), bodyValue(req, 'reason'),
+        req.user!.userId, eventId, param(req, 'disciplineId'), disciplineInputFrom(form), form.reason,
       );
       redirectWithOutcome(req, res, {
         flash: FLASH_KIND.EVENT_RESULT_OUTCOME,

@@ -8,6 +8,10 @@ import { paymentsHealthService } from '../services/paymentsHealthService';
 import { handleControllerError, renderNotFound } from '../lib/controllerErrors';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
 import { NotFoundError, ValidationError } from '../services/serviceErrors';
+import { z } from 'zod';
+import { parseFormBody, formText } from '../lib/parseFormBody';
+
+const resolveForm = z.object({ notes: formText('What did you do about it?') });
 
 function str(v: unknown): string | undefined {
   return typeof v === 'string' && v !== '' ? v : undefined;
@@ -122,12 +126,32 @@ export const adminPaymentsController = {
 
   /** POST /admin/payments/reconciliation/:issueId/resolve */
   resolve(req: Request, res: Response, next: NextFunction): void {
+    const parsed = parseFormBody(resolveForm, req.body);
+    const renderRefused = (errorMessage: string, notes: string | null, notesError: string | null): void => {
+      res.status(422).render(
+        'admin/payments/reconciliation',
+        paymentReconciliationService.getAdminReconciliationPage({
+          status: 'outstanding',
+          errorMessage,
+          // The submitted values come back with the re-render. Without them a
+          // rejected note is simply gone, and the note is prose about what
+          // someone checked and concluded.
+          submittedIssueId: req.params.issueId,
+          submittedNotes: notes,
+          submittedNotesError: notesError,
+        }),
+      );
+    };
+    if (!parsed.ok) {
+      renderRefused(parsed.message, parsed.submitted.notes ?? null, parsed.fieldErrors.notes ?? null);
+      return;
+    }
+    const { notes } = parsed.data;
     try {
-      const body = req.body as Record<string, unknown>;
       const result = paymentReconciliationService.resolveIssue({
         issueId: req.params.issueId,
         adminMemberId: req.user!.userId,
-        notes: typeof body.notes === 'string' ? body.notes : '',
+        notes,
       });
       // A repeat takes the same redirect as the first submit, carrying the
       // message the service chose for it.
@@ -139,19 +163,7 @@ export const adminPaymentsController = {
       // back with the reason rather than a bare error screen. An unknown issue
       // is a 404 like any other missing resource.
       if (err instanceof ValidationError) {
-        const body = req.body as Record<string, unknown>;
-        res.status(422).render(
-          'admin/payments/reconciliation',
-          paymentReconciliationService.getAdminReconciliationPage({
-            status: 'outstanding',
-            errorMessage: err.message,
-            // The submitted values come back with the re-render. Without them a
-            // rejected note is simply gone, and the note is prose about what
-            // someone checked and concluded.
-            submittedIssueId: req.params.issueId,
-            submittedNotes: typeof body.notes === 'string' ? body.notes : null,
-          }),
-        );
+        renderRefused(err.message, notes, null);
         return;
       }
       if (err instanceof NotFoundError) {

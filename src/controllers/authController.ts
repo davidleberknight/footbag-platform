@@ -19,6 +19,11 @@ import { logger } from '../config/logger';
 import { config } from '../config/env';
 import { memberOnboardingService } from '../services/memberOnboardingService';
 import { isSafePath } from '../lib/safePath';
+import { z } from 'zod';
+import { parseFormBody, formText } from '../lib/parseFormBody';
+
+// The human-challenge answer every gated form posts beside its own fields.
+const captchaField = { 'cf-turnstile-response': formText('The verification challenge') };
 
 // Shown when the Turnstile challenge fails. Kept generic and identical across
 // every gated surface so a failed challenge reveals nothing about whether an
@@ -34,6 +39,7 @@ function buildLoginViewModel(opts: {
   returnTo?: string;
   authReason?: string;
   error?: string;
+  fieldErrors?: Record<string, string>;
 }): PageViewModel<LoginContent> {
   return {
     seo: { title: 'Login', noindex: true },
@@ -42,6 +48,7 @@ function buildLoginViewModel(opts: {
       returnTo: opts.returnTo,
       authReason: opts.authReason,
       error: opts.error,
+      fieldErrors: opts.fieldErrors,
       turnstileSiteKey: config.turnstileSiteKey,
       captchaStubbed: config.captchaAdapter === 'stub',
     },
@@ -60,26 +67,40 @@ function getLogin(req: Request, res: Response): void {
   }));
 }
 
-async function postLogin(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const { email, password, returnTo } = req.body as { email?: string; password?: string; returnTo?: string };
+const loginForm = z.object({
+  email: formText('Email address'),
+  password: formText('Password'),
+  returnTo: formText('The page to return to'),
+  ...captchaField,
+});
 
-  const renderError = (msg: string, status = 200) => {
+async function postLogin(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const parsed = parseFormBody(loginForm, req.body);
+  const returnTo = parsed.ok ? parsed.data.returnTo : parsed.submitted.returnTo;
+
+  const renderError = (msg: string, status = 200, fieldErrors?: Record<string, string>) => {
     res.status(status).render('auth/login', buildLoginViewModel({
       error: msg,
+      fieldErrors,
       returnTo: isSafePath(returnTo) ? returnTo : undefined,
     }));
   };
 
+  if (!parsed.ok) {
+    renderError(parsed.message, 422, parsed.fieldErrors);
+    return;
+  }
+  const { email, password } = parsed.data;
   const ip = req.ip ?? 'unknown';
 
   try {
-    const captcha = await identityAccessService.verifyHumanChallenge(String(req.body['cf-turnstile-response'] ?? ''), req.ip);
+    const captcha = await identityAccessService.verifyHumanChallenge(parsed.data['cf-turnstile-response'], req.ip);
     if (!captcha) {
       renderError(CAPTCHA_FAILED_MESSAGE, 422);
       return;
     }
 
-    const member = await identityAccessService.attemptLogin(email ?? '', password ?? '', ip);
+    const member = await identityAccessService.attemptLogin(email, password, ip);
 
     if (member !== null) {
       const role = member.is_admin ? 'admin' : 'member';
@@ -125,20 +146,34 @@ function getRegister(req: Request, res: Response): void {
   } satisfies PageViewModel<RegisterContent>);
 }
 
+const registerForm = z.object({
+  givenNames: formText('Given name(s)'),
+  familyName: formText('Family name'),
+  displayName: formText('Display name'),
+  slug: formText('Profile URL'),
+  email: formText('Email address'),
+  password: formText('Password'),
+  confirmPassword: formText('Confirm password'),
+  ...captchaField,
+});
+
 async function postRegister(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const { givenNames, familyName, displayName, slug, email, password, confirmPassword } = req.body as {
-    givenNames?: string; familyName?: string; displayName?: string; slug?: string;
-    email?: string; password?: string; confirmPassword?: string;
-  };
+  const parsed = parseFormBody(registerForm, req.body);
+  const typed = parsed.ok ? parsed.data : parsed.submitted;
+  const { givenNames, familyName, displayName, slug, email } = typed;
 
   // A refusal carries `error`; a folded profile URL carries `notice` and the
   // folded URL in place of the one typed.
-  const renderForm = (shown: { error?: string; notice?: string; slug?: string }, status = 422) => {
+  const renderForm = (
+    shown: { error?: string; notice?: string; slug?: string; fieldErrors?: Record<string, string> },
+    status = 422,
+  ) => {
     res.status(status).render('auth/register', {
       seo: { title: 'Register', noindex: true },
       page: { sectionKey: '', pageKey: 'register', title: 'Register to create an IFPA member account.' },
       content: {
         error: shown.error,
+        fieldErrors: shown.fieldErrors,
         notice: shown.notice,
         givenNames: givenNames ?? '',
         familyName: familyName ?? '',
@@ -151,22 +186,28 @@ async function postRegister(req: Request, res: Response, next: NextFunction): Pr
   };
   const renderError = (msg: string, status = 422) => renderForm({ error: msg }, status);
 
+  if (!parsed.ok) {
+    renderForm({ error: parsed.message, fieldErrors: parsed.fieldErrors });
+    return;
+  }
+  const form = parsed.data;
+
   try {
-    const captcha = await identityAccessService.verifyHumanChallenge(String(req.body['cf-turnstile-response'] ?? ''), req.ip);
+    const captcha = await identityAccessService.verifyHumanChallenge(form['cf-turnstile-response'], req.ip);
     if (!captcha) {
       renderError(CAPTCHA_FAILED_MESSAGE);
       return;
     }
 
     const result = await identityAccessService.registerMember(
-      email ?? '',
-      password ?? '',
-      confirmPassword ?? '',
-      givenNames ?? '',
-      familyName ?? '',
-      displayName ?? '',
+      form.email,
+      form.password,
+      form.confirmPassword,
+      form.givenNames,
+      form.familyName,
+      form.displayName,
       req.ip ?? 'unknown',
-      slug ?? '',
+      form.slug,
     );
     if (result.status === 'slug_folded') {
       renderForm({ notice: result.notice, slug: result.slug });
@@ -176,7 +217,7 @@ async function postRegister(req: Request, res: Response, next: NextFunction): Pr
     // Stub-only: carry the recipient across the redirect so the dev card on
     // /register/check-email scopes to this user's verify token, not everyone's.
     if (config.sesAdapter === 'stub') {
-      writeFlash(res, req, FLASH_KIND.VERIFY_EMAIL_PENDING, (email ?? '').toLowerCase().trim());
+      writeFlash(res, req, FLASH_KIND.VERIFY_EMAIL_PENDING, form.email.toLowerCase().trim());
     }
     // The check-email page only reads the card, so the drain happens here.
     await simulatedEmailService.drainCapturedMail();
@@ -314,22 +355,33 @@ async function getVerify(req: Request, res: Response, next: NextFunction): Promi
   }
 }
 
+const verifyResendForm = z.object({ email: formText('Email address'), ...captchaField });
+
 async function postVerifyResend(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const { email } = req.body as { email?: string };
+  const parsed = parseFormBody(verifyResendForm, req.body);
 
   // Service rate-limits internally and no-ops when the bucket is exceeded or
   // no unverified member matches; response is identical either way for
-  // anti-enumeration.
+  // anti-enumeration. A refused shape depends on the request alone, never on
+  // an account.
   try {
-    const captcha = await identityAccessService.verifyHumanChallenge(String(req.body['cf-turnstile-response'] ?? ''), req.ip);
-    if (!captcha) {
+    const renderRefused = async (error: string, fieldErrors?: Record<string, string>): Promise<void> => {
       res.status(422).render('auth/check-email', await identityAccessService.getCheckEmailPage(
-        { error: CAPTCHA_FAILED_MESSAGE, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
+        { error, fieldErrors, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
       ));
+    };
+    if (!parsed.ok) {
+      await renderRefused(parsed.message, parsed.fieldErrors);
       return;
     }
+    const captcha = await identityAccessService.verifyHumanChallenge(parsed.data['cf-turnstile-response'], req.ip);
+    if (!captcha) {
+      await renderRefused(CAPTCHA_FAILED_MESSAGE);
+      return;
+    }
+    const { email } = parsed.data;
 
-    await identityAccessService.resendVerifyEmail(email ?? '');
+    await identityAccessService.resendVerifyEmail(email);
     // On a host holding the stub sender (dev, staging, and production while email
     // is dark) the resend card shows the resent verification link scoped to the
     // address the visitor just submitted, so a tester finishes the flow on the
@@ -341,7 +393,7 @@ async function postVerifyResend(req: Request, res: Response, next: NextFunction)
     const emailPreview =
       (await simulatedEmailService.getEmailPreview({
         urlPathPrefix: '/verify/',
-        recipientEmail: email ?? undefined,
+        recipientEmail: email,
       })) ?? undefined;
     res.render('auth/check-email', await identityAccessService.getCheckEmailPage(
       { resent: true, emailPreview, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
@@ -391,19 +443,29 @@ function getPasswordForgot(_req: Request, res: Response): void {
   } satisfies PageViewModel<PasswordForgotContent>);
 }
 
+const passwordForgotForm = z.object({ email: formText('Email address'), ...captchaField });
+
 async function postPasswordForgot(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const { email } = req.body as { email?: string };
+  const parsed = parseFormBody(passwordForgotForm, req.body);
+  const renderRefused = (error: string, fieldErrors?: Record<string, string>): void => {
+    res.status(422).render('auth/password-forgot', {
+      seo: { title: 'Reset Your Password', noindex: true },
+      page: { sectionKey: '', pageKey: 'password_forgot', title: 'Reset Your Password' },
+      content: { error, fieldErrors, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
+    } satisfies PageViewModel<PasswordForgotContent>);
+  };
+  if (!parsed.ok) {
+    renderRefused(parsed.message, parsed.fieldErrors);
+    return;
+  }
+  const { email } = parsed.data;
   try {
-    const captcha = await identityAccessService.verifyHumanChallenge(String(req.body['cf-turnstile-response'] ?? ''), req.ip);
+    const captcha = await identityAccessService.verifyHumanChallenge(parsed.data['cf-turnstile-response'], req.ip);
     if (!captcha) {
-      res.status(422).render('auth/password-forgot', {
-        seo: { title: 'Reset Your Password', noindex: true },
-        page: { sectionKey: '', pageKey: 'password_forgot', title: 'Reset Your Password' },
-        content: { error: CAPTCHA_FAILED_MESSAGE, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
-      } satisfies PageViewModel<PasswordForgotContent>);
+      renderRefused(CAPTCHA_FAILED_MESSAGE);
       return;
     }
-    await identityAccessService.requestPasswordReset(email ?? '');
+    await identityAccessService.requestPasswordReset(email);
     // On a host holding the stub sender (dev, staging, and production while email
     // is dark) the sent page shows the reset link scoped to the address the
     // visitor just submitted, so a tester completes the reset on the page itself.
@@ -414,7 +476,7 @@ async function postPasswordForgot(req: Request, res: Response, next: NextFunctio
     const emailPreview =
       (await simulatedEmailService.getEmailPreview({
         urlPathPrefix: '/password/reset/',
-        recipientEmail: email ?? undefined,
+        recipientEmail: email,
       })) ?? undefined;
     res.render('auth/password-forgot-sent', {
       seo: { title: 'Reset Your Password', noindex: true },
@@ -445,11 +507,28 @@ function getPasswordReset(req: Request, res: Response): void {
   } satisfies PageViewModel<PasswordResetContent>);
 }
 
+const passwordResetForm = z.object({
+  newPassword: formText('New password'),
+  confirmPassword: formText('Confirm new password'),
+  ...captchaField,
+});
+
 async function postPasswordReset(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const { newPassword, confirmPassword } = req.body as {
-    newPassword?: string; confirmPassword?: string;
-  };
   const token = req.params.token;
+  const renderRefused = (error: string, fieldErrors?: Record<string, string>): void => {
+    setNoStore(res);
+    res.status(422).render('auth/password-reset', {
+      seo: { title: 'Set a New Password', noindex: true },
+      page: { sectionKey: '', pageKey: 'password_reset', title: 'Set a New Password' },
+      content: { token, error, fieldErrors, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
+    } satisfies PageViewModel<PasswordResetContent>);
+  };
+  const parsed = parseFormBody(passwordResetForm, req.body);
+  if (!parsed.ok) {
+    renderRefused(parsed.message, parsed.fieldErrors);
+    return;
+  }
+  const { newPassword, confirmPassword } = parsed.data;
 
   const renderAlreadyReset = (): void => {
     setNoStore(res);
@@ -469,28 +548,19 @@ async function postPasswordReset(req: Request, res: Response, next: NextFunction
   // used, and does nothing.
   let firstCheck: Awaited<ReturnType<typeof identityAccessService.recognisesResetRepeat>> | undefined;
   try {
-    firstCheck = await identityAccessService.recognisesResetRepeat(token, String(newPassword ?? ''));
+    firstCheck = await identityAccessService.recognisesResetRepeat(token, newPassword);
     if (firstCheck === 'repeat') {
       renderAlreadyReset();
       return;
     }
 
-    const captcha = await identityAccessService.verifyHumanChallenge(String(req.body['cf-turnstile-response'] ?? ''), req.ip);
+    const captcha = await identityAccessService.verifyHumanChallenge(parsed.data['cf-turnstile-response'], req.ip);
     if (!captcha) {
-      setNoStore(res);
-      res.status(422).render('auth/password-reset', {
-        seo: { title: 'Set a New Password', noindex: true },
-        page: { sectionKey: '', pageKey: 'password_reset', title: 'Set a New Password' },
-        content: { token, error: CAPTCHA_FAILED_MESSAGE, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
-      } satisfies PageViewModel<PasswordResetContent>);
+      renderRefused(CAPTCHA_FAILED_MESSAGE);
       return;
     }
 
-    const result = await identityAccessService.completePasswordReset(
-      token,
-      newPassword ?? '',
-      confirmPassword ?? '',
-    );
+    const result = await identityAccessService.completePasswordReset(token, newPassword, confirmPassword);
     // Failure mode (KMS Sign error, IAM regression, KMS key rotation
     // mid-flight): the reset already committed (password_version bumped,
     // single-use token consumed). All prior sessions are invalid by the
@@ -533,7 +603,7 @@ async function postPasswordReset(req: Request, res: Response, next: NextFunction
     if (err instanceof ValidationError && firstCheck === 'link_unspent') {
       let secondCheck: Awaited<ReturnType<typeof identityAccessService.recognisesResetRepeat>>;
       try {
-        secondCheck = await identityAccessService.recognisesResetRepeat(token, String(newPassword ?? ''));
+        secondCheck = await identityAccessService.recognisesResetRepeat(token, newPassword);
       } catch (checkErr) {
         next(checkErr);
         return;
@@ -548,12 +618,7 @@ async function postPasswordReset(req: Request, res: Response, next: NextFunction
       return;
     }
     if (err instanceof ValidationError) {
-      setNoStore(res);
-      res.status(422).render('auth/password-reset', {
-        seo: { title: 'Set a New Password', noindex: true },
-        page: { sectionKey: '', pageKey: 'password_reset', title: 'Set a New Password' },
-        content: { token, error: err.message, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
-      } satisfies PageViewModel<PasswordResetContent>);
+      renderRefused(err.message);
       return;
     }
     next(err);

@@ -235,6 +235,24 @@ interface FactRow {
   value: string;
 }
 
+/** The record's correction forms that carry typed fields, by the action each posts. */
+export type MemberCorrectionForm = 'name' | 'slug' | 'tier' | 'activePlayer' | 'profile' | 'avatar' | 'delete';
+
+/**
+ * A refused correction, handed back to the record so the form the
+ * administrator was filling in comes back open, holding what they typed, with
+ * each refused field's message beside its input.
+ */
+export interface MemberRecordRefusal {
+  form: MemberCorrectionForm;
+  /** One message per refused field, keyed by the field's name. */
+  fieldErrors?: Record<string, string>;
+  /** The form's text fields as submitted, keyed by field name; a refused field is absent and shows blank. */
+  values: Partial<Record<string, string>>;
+  /** The profile form's fields as submitted, read the way a save reads them. */
+  profile?: ProfileEditInput;
+}
+
 export interface AdminMemberRecordContent {
   memberId: string;
   displayName: string;
@@ -332,6 +350,12 @@ export interface AdminMemberRecordContent {
   /** Named for where each one goes, since all three leave this record. */
   elsewhereLinks: Array<{ label: string; href: string }>;
   errorMessage?: string;
+  /** The refused form's messages, keyed by form and then by field name. */
+  fieldErrors: Partial<Record<MemberCorrectionForm, Record<string, string>>>;
+  /** Which form a refusal reopens, so its messages are in view. */
+  openForm: Partial<Record<MemberCorrectionForm, boolean>>;
+  /** Each form's reason as typed: blank on a fresh record, kept on a refusal. */
+  reasons: Record<MemberCorrectionForm, string>;
 }
 
 interface ChangeRow {
@@ -577,7 +601,19 @@ function requireCorrectableProfile(row: AdminMemberRow): void {
  * member's own save is. A form opening on blanks would clear the fields an
  * administrator did not mean to touch.
  */
-function profileFormFor(row: AdminMemberRow): AdminMemberRecordContent['profileForm'] {
+const EMAIL_VISIBILITY_OPTIONS = [
+  { value: 'private', label: 'Nobody' },
+  { value: 'members', label: 'Signed-in members' },
+];
+
+const GENDER_OPTIONS = [
+  { value: 'undisclosed', label: 'Undisclosed' },
+  { value: 'female', label: 'Female' },
+  { value: 'male', label: 'Male' },
+];
+
+function profileFormFor(row: AdminMemberRow, submitted?: ProfileEditInput): AdminMemberRecordContent['profileForm'] {
+  if (submitted) return submittedProfileForm(submitted);
   const parts = memberService.getBirthDateParts(row.id);
   const pickers = locationPickers(row.country ?? '', row.region ?? '');
   return {
@@ -593,15 +629,10 @@ function profileFormFor(row: AdminMemberRow): AdminMemberRecordContent['profileF
     birthDay:             parts.day,
     birthMonth:           parts.month,
     birthYear:            parts.year,
-    emailVisibilityOptions: [
-      { value: 'private', label: 'Nobody' },
-      { value: 'members', label: 'Signed-in members' },
-    ].map((o) => ({ ...o, selected: o.value === row.email_visibility })),
-    genderOptions: [
-      { value: 'undisclosed', label: 'Undisclosed' },
-      { value: 'female', label: 'Female' },
-      { value: 'male', label: 'Male' },
-    ].map((o) => ({ ...o, selected: o.value === (row.gender ?? 'undisclosed') })),
+    emailVisibilityOptions: EMAIL_VISIBILITY_OPTIONS
+      .map((o) => ({ ...o, selected: o.value === row.email_visibility })),
+    genderOptions: GENDER_OPTIONS
+      .map((o) => ({ ...o, selected: o.value === (row.gender ?? 'undisclosed') })),
     firstCompetitionYear: row.first_competition_year === null ? '' : String(row.first_competition_year),
     phoneVisible:            row.phone_visible === 1,
     whatsappVisible:         row.whatsapp_visible === 1,
@@ -611,6 +642,41 @@ function profileFormFor(row: AdminMemberRow): AdminMemberRecordContent['profileF
     showGender:              row.show_gender === 1,
     links: memberService.listMemberLinks(row.id)
       .map((l, i) => ({ slot: i + 1, label: l.label, url: l.url })),
+  };
+}
+
+// The profile form as the administrator submitted it, so a refused correction
+// comes back holding every value they typed rather than the stored record. A
+// box is ticked exactly when its submission would store it ticked.
+function submittedProfileForm(input: ProfileEditInput): AdminMemberRecordContent['profileForm'] {
+  const ticked = (value: string | string[]): boolean =>
+    (Array.isArray(value) ? value[value.length - 1] : value) === '1';
+  const pickers = locationPickers(input.country, input.region);
+  return {
+    city:                  input.city,
+    region:                input.region,
+    regionOptions:         pickers.regionOptions,
+    regionTemplateOptions: pickers.regionTemplateOptions,
+    regionFieldHidden:     pickers.regionFieldHidden,
+    regionRequired:        pickers.regionRequired,
+    country:               input.country,
+    phone:                 input.phone,
+    whatsapp:              input.whatsapp,
+    birthDay:              input.birthDay,
+    birthMonth:            input.birthMonth,
+    birthYear:             input.birthYear,
+    emailVisibilityOptions: EMAIL_VISIBILITY_OPTIONS
+      .map((o) => ({ ...o, selected: o.value === input.emailVisibility })),
+    genderOptions: GENDER_OPTIONS
+      .map((o) => ({ ...o, selected: o.value === input.gender })),
+    firstCompetitionYear:     input.firstCompetitionYear,
+    phoneVisible:             ticked(input.phoneVisible),
+    whatsappVisible:          ticked(input.whatsappVisible),
+    searchable:               ticked(input.searchable),
+    showCompetitiveResults:   ticked(input.showCompetitiveResults),
+    showFirstCompetitionYear: ticked(input.showFirstCompetitionYear),
+    showGender:               ticked(input.showGender),
+    links: input.links.map((l, i) => ({ slot: i + 1, label: l.label, url: l.url })),
   };
 }
 
@@ -824,9 +890,14 @@ export const adminMemberService = {
   /** The member record: everything an administrator acts on, in one place. */
   getMemberRecordPage(
     memberId: string,
-    opts: { outcome?: string | null; errorMessage?: string } = {},
+    opts: { outcome?: string | null; errorMessage?: string; refusal?: MemberRecordRefusal } = {},
   ): PageViewModel<AdminMemberRecordContent> {
     const row = readMember(memberId);
+    const refusal = opts.refusal;
+    // The refused form's own fields come back as typed; a field the refusal
+    // left out (the one sent in a shape the form never sends) shows blank.
+    const kept = (form: MemberCorrectionForm, field: string, stored: string): string =>
+      refusal?.form === form ? (refusal.values[field] ?? '') : stored;
     const tier = getTierStatus(row.id);
     const activePlayer = getActivePlayerStatus(row.id);
     const links = account.findIdentityLinks.get(row.id) as
@@ -953,17 +1024,19 @@ export const adminMemberService = {
         identityLinks,
         hasIdentityLinks: identityLinks.length > 0,
         form: {
-          givenNames:  row.given_names ?? '',
-          familyName:  row.family_name ?? '',
-          displayName: row.display_name,
-          slug:        row.slug ?? '',
-          tierOptions: tierOptionsFor(tier.tier_status),
-          activePlayerExpiryDate: expiresAt ? expiresAt.slice(0, 10) : '',
+          givenNames:  kept('name', 'given_names', row.given_names ?? ''),
+          familyName:  kept('name', 'family_name', row.family_name ?? ''),
+          displayName: kept('name', 'display_name', row.display_name),
+          slug:        kept('slug', 'slug', row.slug ?? ''),
+          tierOptions: refusal?.form === 'tier'
+            ? tierOptionsFor(tier.tier_status).map((o) => ({ ...o, selected: o.value === refusal.values['tier'] }))
+            : tierOptionsFor(tier.tier_status),
+          activePlayerExpiryDate: kept('activePlayer', 'expires_on', expiresAt ? expiresAt.slice(0, 10) : ''),
         },
         nameAction:         `/admin/members/${row.id}/name`,
         slugAction:         `/admin/members/${row.id}/slug`,
         tierAction:         `/admin/members/${row.id}/tier`,
-        profileForm:        profileFormFor(row),
+        profileForm:        profileFormFor(row, refusal?.form === 'profile' ? refusal.profile : undefined),
         canCorrectProfile:  profileIsCorrectable(row),
         profileAction:      `/admin/members/${row.id}/profile`,
         activePlayerAction: `/admin/members/${row.id}/active-player`,
@@ -981,6 +1054,17 @@ export const adminMemberService = {
           { label: 'The admin roles page, where a grant names its own member', href: '/admin/admin-roles' },
         ],
         errorMessage:       opts.errorMessage,
+        fieldErrors: refusal ? { [refusal.form]: refusal.fieldErrors ?? {} } : {},
+        openForm:    refusal ? { [refusal.form]: true } : {},
+        reasons: {
+          name:         kept('name', 'reason', ''),
+          slug:         kept('slug', 'reason', ''),
+          tier:         kept('tier', 'reason', ''),
+          activePlayer: kept('activePlayer', 'reason', ''),
+          profile:      kept('profile', 'reason', ''),
+          avatar:       kept('avatar', 'reason', ''),
+          delete:       kept('delete', 'reason', ''),
+        },
       },
     };
   },

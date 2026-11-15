@@ -3,28 +3,45 @@ import { adminClubService, type ClubContentCorrectionInput } from '../services/a
 import { NotFoundError, ValidationError, ConflictError } from '../services/serviceErrors';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
 import { handleControllerError } from '../lib/controllerErrors';
+import { z } from 'zod';
+import { parseFormBody, formText } from '../lib/parseFormBody';
 
 const CONTEXT = 'admin club controller';
 
-function bodyValue(req: Request, field: string): string {
-  return String(req.body?.[field] ?? '');
+// The field names are the co-leader's own form's, deliberately: one submission
+// shape means one set of names for the same fields, whichever surface posted them.
+const contentForm = z.object({
+  name: formText('Club name'),
+  description: formText('Description'),
+  city: formText('City'),
+  region: formText('Region / State'),
+  country: formText('Country'),
+  external_url: formText('External URL'),
+  reason: formText('Reason'),
+});
+
+const hashtagForm = z.object({
+  hashtag_slug: formText('Club hashtag'),
+  reason: formText('Reason'),
+});
+
+// A body in a shape the form never sends is refused the way a fixable
+// submission is: on the club record, at 422, with the message.
+function readForm<S extends z.ZodType>(schema: S, req: Request): z.output<S> {
+  const parsed = parseFormBody(schema, req.body);
+  if (!parsed.ok) throw new ValidationError(parsed.message);
+  return parsed.data;
 }
 
-/**
- * The submitted club details, in the shape the club service takes.
- *
- * The field names are the co-leader's own form's, deliberately: one submission
- * shape means one assembler and one set of names for the same fields, whichever
- * surface posted them.
- */
-function contentInputFrom(req: Request): ClubContentCorrectionInput {
+/** The submitted club details, in the shape the club service takes. */
+function contentInputFrom(form: z.output<typeof contentForm>): ClubContentCorrectionInput {
   return {
-    name:        bodyValue(req, 'name'),
-    description: bodyValue(req, 'description'),
-    city:        bodyValue(req, 'city'),
-    region:      bodyValue(req, 'region'),
-    country:     bodyValue(req, 'country'),
-    externalUrl: bodyValue(req, 'external_url'),
+    name:        form.name,
+    description: form.description,
+    city:        form.city,
+    region:      form.region,
+    country:     form.country,
+    externalUrl: form.external_url,
   };
 }
 
@@ -88,8 +105,9 @@ export const adminClubController = {
   async previewContent(req: Request, res: Response, next: NextFunction): Promise<void> {
     const clubId = req.params['clubId'] ?? '';
     try {
+      const form = readForm(contentForm, req);
       res.render('admin/clubs/confirm', await adminClubService.previewContentCorrection(
-        clubId, contentInputFrom(req), bodyValue(req, 'reason'),
+        clubId, contentInputFrom(form), form.reason,
       ));
     } catch (err) {
       if (isHandled(err)) { renderRecordError(res, clubId, err, next); return; }
@@ -101,8 +119,9 @@ export const adminClubController = {
   async confirmContent(req: Request, res: Response, next: NextFunction): Promise<void> {
     const clubId = req.params['clubId'] ?? '';
     try {
+      const form = readForm(contentForm, req);
       const outcome = await adminClubService.applyContentCorrection(
-        req.user!.userId, clubId, contentInputFrom(req), bodyValue(req, 'reason'),
+        req.user!.userId, clubId, contentInputFrom(form), form.reason,
       );
       writeFlash(res, req, FLASH_KIND.CLUB_RECORD_CORRECTED, outcome);
       res.redirect(303, `/admin/clubs/${clubId}`);
@@ -116,8 +135,9 @@ export const adminClubController = {
   previewHashtag(req: Request, res: Response, next: NextFunction): void {
     const clubId = req.params['clubId'] ?? '';
     try {
+      const form = readForm(hashtagForm, req);
       res.render('admin/clubs/confirm', adminClubService.previewHashtagCorrection(
-        clubId, bodyValue(req, 'hashtag_slug'), bodyValue(req, 'reason'),
+        clubId, form.hashtag_slug, form.reason,
       ));
     } catch (err) {
       if (isHandled(err)) { renderRecordError(res, clubId, err, next); return; }
@@ -129,8 +149,9 @@ export const adminClubController = {
   confirmHashtag(req: Request, res: Response, next: NextFunction): void {
     const clubId = req.params['clubId'] ?? '';
     try {
+      const form = readForm(hashtagForm, req);
       const outcome = adminClubService.applyHashtagCorrection(
-        req.user!.userId, clubId, bodyValue(req, 'hashtag_slug'), bodyValue(req, 'reason'),
+        req.user!.userId, clubId, form.hashtag_slug, form.reason,
       );
       writeFlash(res, req, FLASH_KIND.CLUB_RECORD_CORRECTED, outcome);
       res.redirect(303, `/admin/clubs/${clubId}`);

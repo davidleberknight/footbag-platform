@@ -209,6 +209,20 @@ describe('member per-item media edit routes', () => {
     expect(findMediaExternalUrl(mediaId)).toBe('https://example.com/source');
   });
 
+  // Defect caught: an edit repeating a field (a hand-made request) saves
+  // whichever value the code read, or the refused form loses the caption.
+  it('POST with a field posted twice → 422, the caption kept, nothing saved', async () => {
+    const mediaId = insertOwnerMedia('owner-shape.jpg', 'before');
+    const res = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/media/${mediaId}/edit`)
+      .set('Cookie', cookieFor(OWNER_ID))
+      .type('form')
+      .send('caption=Kept+typed+caption&tags=%23one&tags=%23two&externalUrl=');
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Kept typed caption');
+    expect(findMediaCaption(mediaId)).toBe('before');
+  });
+
   // Defect caught: an edited caption is stored with live markup, a control
   // character, CRLF line ends or a decomposed accent.
   it('POST owner edit stores the cleaned caption', async () => {
@@ -309,16 +323,18 @@ describe('member per-item media edit routes', () => {
   });
 
   // A hand-made request repeating the tags field arrives as a list, not text;
-  // it must be answered as a submission, never crash the save with a 500.
-  it('POST with the tags field repeated is answered as a save, not a server error', async () => {
+  // it is refused as the form's own validation failure, never a 500, and
+  // never a save of whichever value the code read.
+  it('POST with the tags field repeated is refused at 422 and changes no tag', async () => {
     const mediaId = insertOwnerMedia('owner-repeated-tags.jpg');
+    const before = findMediaTags(mediaId);
     const res = await request(createApp())
       .post(`/members/${OWNER_SLUG}/media/${mediaId}/edit`)
       .set('Cookie', cookieFor(OWNER_ID))
       .type('form')
       .send('caption=&externalUrl=&tags=%23one&tags=%23two');
-    expect(res.status).toBe(303);
-    expect(findMediaTags(mediaId)).toEqual([`#by_${OWNER_SLUG}`]);
+    expect(res.status).toBe(422);
+    expect(findMediaTags(mediaId)).toEqual(before);
   });
 
   // A typed hashtag is stored in its folded form, and the member is told on the

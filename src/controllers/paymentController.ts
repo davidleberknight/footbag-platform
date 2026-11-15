@@ -8,6 +8,18 @@ import { handleControllerError, renderNotFound, renderRateLimited } from '../lib
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
 import { isSafePath } from '../lib/safePath';
 import { outcomeNotice, outcomePayload, type OutcomeNoticeView } from '../lib/outcomeNotice';
+import { z } from 'zod';
+import { parseFormBody, formText, formOptionalText, rawBody } from '../lib/parseFormBody';
+
+// The donation form. The amount choice is absent when no radio is picked,
+// which reads the custom amount instead.
+const donateForm = z.object({
+  amountChoice: formOptionalText('How much would you like to give?'),
+  customAmount: formText('Another amount, in US dollars'),
+  recurring: formText('How often?'),
+  note: formText('Note'),
+  returnTo: formText('The page to return to'),
+});
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -230,10 +242,10 @@ export const paymentController = {
    */
   async postPaymentWebhook(req: Request, res: Response): Promise<void> {
     const signature = req.get('stripe-signature') ?? '';
-    // express.raw delivers req.body as a Buffer. Treat empty / non-Buffer as
+    // express.raw delivers the body as a Buffer. Treat empty / non-Buffer as
     // a 400 (Stripe always sends a body).
-    const buf = req.body as Buffer | undefined;
-    if (!Buffer.isBuffer(buf) || buf.length === 0) {
+    const buf = rawBody(req);
+    if (!buf || buf.length === 0) {
       res.status(400).type('text/plain').send('missing body');
       return;
     }
@@ -353,14 +365,26 @@ export const paymentController = {
       renderNotFound(res);
       return;
     }
-    const body = req.body as Record<string, unknown>;
-    const returnTo = body.returnTo;
+    const parsed = parseFormBody(donateForm, req.body);
+    const submitted = parsed.ok ? parsed.data : parsed.submitted;
+    const returnTo = submitted.returnTo;
+    const renderForm = (status: number, formError: string, fieldErrors?: Record<string, string>): void => {
+      res.status(status).render(
+        'payments/donate',
+        paymentService.getDonatePage(user.userId, { returnTo, formError, submitted, fieldErrors }),
+      );
+    };
+    if (!parsed.ok) {
+      renderForm(422, parsed.message, parsed.fieldErrors);
+      return;
+    }
+    const form = parsed.data;
     try {
       const result = await paymentService.startDonation(
         user.userId,
-        selectDonationAmountInput(body),
-        body.note,
-        body.recurring === 'yes',
+        selectDonationAmountInput(form),
+        form.note,
+        form.recurring === 'yes',
         returnTo,
       );
       res.redirect(303, result.redirectUrl);
@@ -368,20 +392,14 @@ export const paymentController = {
       // ConflictError is a gift paid at the provider whose confirmation has not
       // arrived yet: an ordinary state the donor is told about on the form.
       if (err instanceof ValidationError || err instanceof ConflictError) {
-        res.status(422).render(
-          'payments/donate',
-          paymentService.getDonatePage(user.userId, { returnTo, formError: err.message }),
-        );
+        renderForm(422, err.message);
         return;
       }
       if (err instanceof RateLimitedError) {
         if (err.retryAfterSeconds) {
           res.setHeader('Retry-After', String(err.retryAfterSeconds));
         }
-        res.status(429).render(
-          'payments/donate',
-          paymentService.getDonatePage(user.userId, { returnTo, formError: err.message }),
-        );
+        renderForm(429, err.message);
         return;
       }
       handleControllerError(err, res, next, 'donate controller');
@@ -471,11 +489,9 @@ export const paymentController = {
  * precision rule, and every message, so a garbled value arrives there and is
  * refused with the same wording as any other bad amount.
  */
-function selectDonationAmountInput(body: Record<string, unknown>): string {
-  const choice = body.amountChoice;
-  if (typeof choice === 'string' && choice !== 'custom') return choice;
-  const custom = body.customAmount;
-  return typeof custom === 'string' ? custom : '';
+function selectDonationAmountInput(form: { amountChoice: string | undefined; customAmount: string }): string {
+  if (form.amountChoice !== undefined && form.amountChoice !== 'custom') return form.amountChoice;
+  return form.customAmount;
 }
 
 // Suppress unused-import warnings for types imported for JSDoc clarity. These

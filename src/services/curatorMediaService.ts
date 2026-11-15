@@ -5670,6 +5670,8 @@ export interface CuratorMediaEditContent {
   notFound: boolean;
   mediaId: string;
   errorMessage: string | null;
+  /** A refused field's message, keyed by the field's name, shown beside its input. */
+  fieldErrors?: Record<string, string>;
   media: {
     mediaId: string;
     mediaType: 'photo' | 'video';
@@ -5991,6 +5993,7 @@ export async function getCuratorMediaEditErrorPage(
   errorMessage: string,
   submitted: Partial<Pick<CuratorMediaEditFields,
     'caption' | 'tagsString' | 'sourceId' | 'startSeconds' | 'endSeconds' | 'externalUrl'>>,
+  fieldErrors?: Record<string, string>,
 ): Promise<PageViewModel<CuratorMediaEditContent> | null> {
   const item = await svc.getMediaItem(mediaId);
   if (!item) return null;
@@ -6001,6 +6004,7 @@ export async function getCuratorMediaEditErrorPage(
     notFound: false,
     mediaId,
     errorMessage,
+    fieldErrors,
     media: { ...curatorMediaEditFields(item), ...typed },
     cancelHref: '/admin/curator/media',
     formAction: `/admin/curator/media/${encodeURIComponent(mediaId)}/edit`,

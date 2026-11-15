@@ -5,6 +5,27 @@ import { handleControllerError, renderNotFound } from '../lib/controllerErrors';
 import { FLASH_KIND, readFlash, clearFlash } from '../lib/flashCookie';
 import { outcomeNotice, type OutcomeNoticeView } from '../lib/outcomeNotice';
 import { redirectWithOutcome } from '../lib/actionOutcome';
+import { z } from 'zod';
+import { parseFormBody, formText } from '../lib/parseFormBody';
+
+const assignForm = z.object({
+  member_key: formText('Member id or slug'),
+  reason: formText('Reason'),
+});
+
+const demoteForm = z.object({
+  member_id: formText('Member'),
+  mode: formText('Action'),
+  reason: formText('Reason'),
+});
+
+// A shape the form never sends is refused like any other fixable submission,
+// through the catch that already re-renders the detail page at 422.
+function read<S extends z.ZodType>(schema: S, req: Request): z.output<S> {
+  const parsed = parseFormBody(schema, req.body);
+  if (!parsed.ok) throw new ValidationError(parsed.message);
+  return parsed.data;
+}
 
 // The detail page is rebuilt to carry the error, which means loading the club
 // again -- and when the club is the thing that does not exist, that load throws
@@ -57,11 +78,12 @@ export const adminClubLeadershipController = {
   assign(req: Request, res: Response, next: NextFunction): void {
     const clubId = req.params.clubId ?? '';
     try {
+      const form = read(assignForm, req);
       const outcome = adminClubLeadershipService.assignLeader(
         req.user!.userId,
         clubId,
-        String(req.body.member_key ?? ''),
-        String(req.body.reason ?? ''),
+        form.member_key,
+        form.reason,
       );
       redirectWithOutcome(req, res, {
         flash: FLASH_KIND.CLUB_LEADERSHIP_OUTCOME,
@@ -86,16 +108,17 @@ export const adminClubLeadershipController = {
   demotePreview(req: Request, res: Response, next: NextFunction): void {
     const clubId = req.params.clubId ?? '';
     try {
-      const mode = req.body.mode;
+      const form = read(demoteForm, req);
+      const mode = form.mode;
       if (mode !== 'to_member' && mode !== 'remove_affiliation') {
         renderDetailError(res, next, clubId, new ValidationError('Choose how to demote the leader.'));
         return;
       }
       res.render('admin/club-leadership/demote-confirm', adminClubLeadershipService.previewDemote(
         clubId,
-        String(req.body.member_id ?? ''),
+        form.member_id,
         mode,
-        String(req.body.reason ?? ''),
+        form.reason,
       ));
     } catch (err) {
       if (err instanceof ValidationError || err instanceof NotFoundError) {
@@ -112,7 +135,8 @@ export const adminClubLeadershipController = {
     try {
       // The demote form offers exactly these two actions; reject anything else
       // rather than silently falling back to a demotion the admin did not pick.
-      const mode = req.body.mode;
+      const form = read(demoteForm, req);
+      const mode = form.mode;
       if (mode !== 'to_member' && mode !== 'remove_affiliation') {
         renderDetailError(res, next, clubId, new ValidationError('Choose how to demote the leader.'));
         return;
@@ -120,9 +144,9 @@ export const adminClubLeadershipController = {
       const outcome = adminClubLeadershipService.demoteLeader(
         req.user!.userId,
         clubId,
-        String(req.body.member_id ?? ''),
+        form.member_id,
         mode,
-        String(req.body.reason ?? ''),
+        form.reason,
       );
       redirectWithOutcome(req, res, {
         flash: FLASH_KIND.CLUB_LEADERSHIP_OUTCOME,

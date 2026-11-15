@@ -52,7 +52,11 @@ const STUB_NPM = [
   '      | .packages |= with_entries(',
   '          (.key | sub("^.*node_modules/"; "")) as $n',
   '          | if (($want[$n] // null) | type) == "string" then .value.version = $want[$n]',
-  '            elif ($changing and $c != "" and $n == $c) then .value.version = "9.9.9" else . end)\' \\',
+  '            elif ($changing and $c != "" and $n == $c) then .value.version = "9.9.9" else . end)',
+  '      # A newly declared direct dependency gets a lock entry of its own, as npm gives it.',
+  '      | reduce (($p[0].dependencies // {}) | to_entries[]) as $d (.;',
+  '          if .packages["node_modules/" + $d.key] then . else',
+  '            .packages["node_modules/" + $d.key] = {version: $d.value, resolved: "https://registry.npmjs.org/x", integrity: ("sha512-" + $d.value)} end)\' \\',
   '      "$dir/package-lock.json" > "$dir/package-lock.json.tmp"',
   '    # Like npm, an install that resolves to the same lock leaves the file untouched.',
   '    if [[ "$(jq -S . "$dir/package-lock.json")" == "$(jq -S . "$dir/package-lock.json.tmp")" ]]; then',
@@ -147,6 +151,7 @@ describe('pin-npm-package.sh: what it refuses, leaving both files untouched', ()
     expect(run(['--nope', 'qs', '6.16.0']).status).toBe(2);
     expect(run(['qs']).status).toBe(2);
     expect(run(['--override', '--remove-override', 'qs']).status).toBe(2);
+    expect(run(['--add', '--override', 'zod', '4.6.7']).status).toBe(2);
   });
 
   // Each row: a request the design forbids, and the reason the refusal gives.
@@ -155,6 +160,9 @@ describe('pin-npm-package.sh: what it refuses, leaving both files untouched', ()
     ['a version the registry does not publish', ['brace-expansion', '5.0.13'], {}, 'does not publish'],
     ['a downgrade without --allow-downgrade', ['eslint', '10.3.0'], { published: '10.3.0' }, 'lower than the pinned'],
     ['a transitive package without --override', ['debug', '4.3.0'], {}, 'pass --override'],
+    ['a new package without --add', ['zod', '4.6.7'], { published: '4.6.7' }, 'pass --add'],
+    ['--add on a package already declared', ['--add', 'express', '5.2.0'], {}, 'pin it without --add'],
+    ['--add on a package another one pulls in', ['--add', 'debug', '4.3.0'], {}, 'already in the lockfile'],
     ['--override on a direct dependency', ['--override', 'express', '5.2.0'], {}, 'is a direct dependency'],
     ['an override in nested form', ['minimist', '1.2.8'], { published: '1.2.8' }, 'not a plain version string'],
     ['a Node other than the pinned one', ['brace-expansion', '5.0.12'], { nvmrc: '0.0.1' }, 'resolves under the Node'],
@@ -190,6 +198,20 @@ describe('pin-npm-package.sh: what it changes', () => {
     expect(r.lock.packages['node_modules/debug'].version).toBe('4.4.0');
     expect(r.calls).toMatch(/^npm ci --no-audit --no-fund$/m);
     expect(r.out).toContain('TEST SEAM: FOOTBAG_NPM_BIN');
+  });
+
+  // Defect caught: a new dependency cannot be added through the script, lands
+  // out of name order, or is written without its lock entry.
+  it('adds a new dependency in name order with its lock entry, then installs', () => {
+    const pkg = { ...PACKAGE, dependencies: { express: '5.1.0', zzz: '1.0.0' } };
+    const lock = { ...LOCK, packages: { ...LOCK.packages, 'node_modules/zzz': entry('1.0.0') } };
+    const r = run(['--add', 'zod', '4.6.7'], { published: '4.6.7 1.0.0', pkg, lock });
+    expect(r.status, r.out).toBe(0);
+    expect(Object.keys(r.pkg.dependencies)).toEqual(['express', 'zod', 'zzz']);
+    expect(r.pkg.dependencies.zod).toBe('4.6.7');
+    expect(r.lock.packages['node_modules/zod'].version).toBe('4.6.7');
+    expect(r.lock.packages['node_modules/express'].version).toBe('5.1.0');
+    expect(r.calls).toMatch(/^npm ci --no-audit --no-fund$/m);
   });
 
   // Defect caught: a moved package the caller reviewed and accepted is refused.

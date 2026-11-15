@@ -38,10 +38,19 @@ import {
 import { NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { FLASH_KIND, writeFlash, writeShareFlash } from '../lib/flashCookie';
 import { renderNotFound } from '../lib/controllerErrors';
+import { z } from 'zod';
+import { parseFormBody, formText, formOptionalText } from '../lib/parseFormBody';
 import { isAdminCaller, isOwnMemberRoute } from '../lib/routeOwnership';
 import { hashtagDiscoveryService, type MemberTagSuggestions } from '../services/hashtagDiscoveryService';
 
 const buildSvc = getDefaultCuratorMediaService;
+
+const mediaEditForm = z.object({
+  caption: formText('Caption'),
+  tags: formText('Hashtags'),
+  externalUrl: formText('Link'),
+  addPlayer: formOptionalText('The player to tag'),
+});
 
 type FormValues = MemberMediaEditFormValues;
 
@@ -118,10 +127,26 @@ export const memberMediaEditController = {
     const memberId = req.user!.userId;
     const slug = req.user!.slug;
 
-    const captionRaw = String(req.body?.caption ?? '').trim();
+    const parsed = parseFormBody(mediaEditForm, req.body);
+    if (!parsed.ok) {
+      const s = parsed.submitted;
+      try {
+        renderForm(res, memberKey, mediaId, {
+          caption: s.caption ?? '',
+          tags: s.tags ?? '',
+          externalUrl: s.externalUrl ?? '',
+        }, { status: 422, errorMessage: parsed.message, owner: { memberId, slug } });
+      } catch (err) {
+        if (err instanceof NotFoundError) { renderNotFound(res); return; }
+        next(err);
+      }
+      return;
+    }
+    const form = parsed.data;
+    const captionRaw = form.caption.trim();
     const caption: string | null = captionRaw.length === 0 ? null : captionRaw;
-    const tags = parseTagList(req.body?.tags);
-    const externalUrlRaw = String(req.body?.externalUrl ?? '').trim();
+    const tags = parseTagList(form.tags);
+    const externalUrlRaw = form.externalUrl.trim();
     const externalUrl: string | null = externalUrlRaw.length === 0 ? null : externalUrlRaw;
 
     try {
@@ -134,10 +159,10 @@ export const memberMediaEditController = {
         caption,
         tags,
         externalUrl,
-        addPlayer: typeof req.body?.addPlayer === 'string' ? req.body.addPlayer : undefined,
+        addPlayer: form.addPlayer,
       });
       writeShareFlash(res, req, {
-        mediaId, count: 0, saved: true, gallery: null, folded: changedTypedTags(req.body?.tags), rejected: [],
+        mediaId, count: 0, saved: true, gallery: null, folded: changedTypedTags(form.tags), rejected: [],
       });
       res.redirect(303, memberItemLandingHref(memberId, mediaId));
     } catch (err) {
@@ -148,7 +173,7 @@ export const memberMediaEditController = {
       if (err instanceof ValidationError) {
         renderForm(res, memberKey, mediaId, {
           caption: captionRaw,
-          tags: (req.body?.tags ?? '') as string,
+          tags: form.tags,
           externalUrl: externalUrlRaw,
         }, { status: 422, errorMessage: err.message, owner: { memberId, slug } });
         return;
@@ -157,7 +182,7 @@ export const memberMediaEditController = {
         if (err.retryAfterSeconds) res.setHeader('Retry-After', String(err.retryAfterSeconds));
         renderForm(res, memberKey, mediaId, {
           caption: captionRaw,
-          tags: (req.body?.tags ?? '') as string,
+          tags: form.tags,
           externalUrl: externalUrlRaw,
         }, { status: 429, errorMessage: err.message, owner: { memberId, slug } });
         return;

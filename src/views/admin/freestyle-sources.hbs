@@ -16,6 +16,7 @@
       <div class="form-field">
         <label for="source-id">Source ID</label>
         <input type="text" id="source-id" name="id" value="{{content.submitted.id}}" placeholder="e.g. anz-trikz-2026" aria-describedby="source-id-hint" />
+        {{#if content.fieldErrors.id}}<p class="form-field-error" role="alert">{{content.fieldErrors.id}}</p>{{/if}}
         <small class="form-hint" id="source-id-hint">Lowercase letters, digits, hyphens, and underscores; must begin and end with a letter or digit. This becomes a permanent referenced identifier and cannot be renamed through this surface.</small>
       </div>
       <div class="form-field">
@@ -26,23 +27,28 @@
             <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
           {{/each}}
         </select>
+        {{#if content.fieldErrors.sourceType}}<p class="form-field-error" role="alert">{{content.fieldErrors.sourceType}}</p>{{/if}}
       </div>
       <div class="form-field">
         <label for="source-label">Source label</label>
         <input type="text" id="source-label" name="sourceLabel" value="{{content.submitted.sourceLabel}}" placeholder="Human-readable description" />
+        {{#if content.fieldErrors.sourceLabel}}<p class="form-field-error" role="alert">{{content.fieldErrors.sourceLabel}}</p>{{/if}}
       </div>
       <div class="form-field">
         <label for="source-retrievedAt">Retrieved at</label>
         <input type="text" id="source-retrievedAt" name="retrievedAt" value="{{content.retrievedAtValue}}" aria-describedby="source-retrievedAt-hint" />
+        {{#if content.fieldErrors.retrievedAt}}<p class="form-field-error" role="alert">{{content.fieldErrors.retrievedAt}}</p>{{/if}}
         <small class="form-hint" id="source-retrievedAt-hint">ISO-8601 UTC, e.g. 2026-04-20T00:00:00.000Z. Prefilled with now; change it if the source was retrieved earlier.</small>
       </div>
       <div class="form-field">
         <label for="source-url">Source URL (optional)</label>
         <input type="text" id="source-url" name="sourceUrl" value="{{content.submitted.sourceUrl}}" />
+        {{#if content.fieldErrors.sourceUrl}}<p class="form-field-error" role="alert">{{content.fieldErrors.sourceUrl}}</p>{{/if}}
       </div>
       <div class="form-field">
         <label for="source-notes">Notes (optional)</label>
         <textarea id="source-notes" name="notes" rows="2">{{content.submitted.notes}}</textarea>
+        {{#if content.fieldErrors.notes}}<p class="form-field-error" role="alert">{{content.fieldErrors.notes}}</p>{{/if}}
       </div>
       <div class="form-actions">
         <button type="submit" class="btn btn-primary btn-sm">Create Source</button>

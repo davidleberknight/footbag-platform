@@ -50,6 +50,7 @@
             <p class="fs-sm">You are giving IFPA a recurring donation. Tell us what to do with it.</p>
             <label class="radio-label"><input type="radio" name="recurringDonation" value="cancel" checked /> End my recurring donation</label>
             <label class="radio-label"><input type="radio" name="recurringDonation" value="keep" /> Keep giving, and leave my card being charged</label>
+            {{#if content.fieldErrors.recurringDonation}}<p class="form-field-error" role="alert">{{content.fieldErrors.recurringDonation}}</p>{{/if}}
           </fieldset>
         {{/if}}
 

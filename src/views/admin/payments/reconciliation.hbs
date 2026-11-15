@@ -71,6 +71,9 @@
                 <label for="notes-{{this.id}}">What did you do about it?</label>
                 <textarea id="notes-{{this.id}}" name="notes" rows="3" required
                           placeholder="Explain what you checked and what you concluded...">{{this.submittedNotes}}</textarea>
+                {{#if this.notesError}}
+                  <p class="form-field-error" role="alert">{{this.notesError}}</p>
+                {{/if}}
                 <small class="form-hint">Recorded against the issue so other administrators can follow it.</small>
               </div>
               <div class="form-actions">

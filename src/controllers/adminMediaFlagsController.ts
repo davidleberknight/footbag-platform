@@ -10,6 +10,21 @@ import {
 import { NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { handleControllerError } from '../lib/controllerErrors';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
+import { z } from 'zod';
+import { parseFormBody, formOptionalText } from '../lib/parseFormBody';
+
+const reasonForm = z.object({ reason: formOptionalText('Reason') });
+const adminFlagForm = z.object({
+  reason_code: formOptionalText('The reason for the report'),
+  reason_text: formOptionalText('Your note about the report'),
+});
+
+// A shape the form never sends is refused like any other fixable decision.
+function read<S extends z.ZodType>(schema: S, req: Request): z.output<S> {
+  const parsed = parseFormBody(schema, req.body);
+  if (!parsed.ok) throw new ValidationError(parsed.message);
+  return parsed.data;
+}
 
 function sendRateLimited(res: Response, err: RateLimitedError): void {
   if (err.retryAfterSeconds) res.setHeader('Retry-After', String(err.retryAfterSeconds));
@@ -42,10 +57,11 @@ export const adminMediaFlagsController = {
   /** POST /admin/media-flags/:mediaId/delete */
   async remove(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
+      const form = read(reasonForm, req);
       const result = await getDefaultMediaModerationService().decideDelete({
         mediaId:       req.params['mediaId'] ?? '',
         adminMemberId: req.user!.userId,
-        reason:        req.body?.reason,
+        reason:        form.reason,
       });
       writeFlash(res, req, FLASH_KIND.MEDIA_MODERATION_DECIDED, deleteDecisionNotice(result));
       res.redirect(303, '/admin/media-flags');
@@ -74,10 +90,11 @@ export const adminMediaFlagsController = {
   /** POST /admin/media-flags/:mediaId/no-action */
   noAction(req: Request, res: Response, next: NextFunction): void {
     try {
+      const form = read(reasonForm, req);
       const result = getDefaultMediaModerationService().decideNoAction({
         mediaId:       req.params['mediaId'] ?? '',
         adminMemberId: req.user!.userId,
-        reason:        req.body?.reason,
+        reason:        form.reason,
       });
       writeFlash(res, req, FLASH_KIND.MEDIA_MODERATION_DECIDED, noActionDecisionNotice(result));
       res.redirect(303, '/admin/media-flags');
@@ -91,11 +108,12 @@ export const adminMediaFlagsController = {
   /** POST /admin/media-flags/:mediaId/flag */
   flag(req: Request, res: Response, next: NextFunction): void {
     try {
+      const form = read(adminFlagForm, req);
       const result = getDefaultMediaModerationService().setFlagAsAdmin({
         mediaId:       req.params['mediaId'] ?? '',
         adminMemberId: req.user!.userId,
-        reasonCode:    req.body?.reason_code,
-        reasonText:    req.body?.reason_text,
+        reasonCode:    form.reason_code,
+        reasonText:    form.reason_text,
       });
       writeFlash(res, req, FLASH_KIND.MEDIA_MODERATION_DECIDED, adminFlagNotice(result));
       res.redirect(303, '/admin/media-flags');
@@ -110,10 +128,11 @@ export const adminMediaFlagsController = {
   /** POST /admin/media-flags/flags/:flagId/clear */
   clearFlag(req: Request, res: Response, next: NextFunction): void {
     try {
+      const form = read(reasonForm, req);
       const result = getDefaultMediaModerationService().clearFlag({
         flagId:        req.params['flagId'] ?? '',
         adminMemberId: req.user!.userId,
-        reason:        req.body?.reason,
+        reason:        form.reason,
       });
       writeFlash(res, req, FLASH_KIND.MEDIA_MODERATION_DECIDED, clearFlagNotice(result));
       res.redirect(303, '/admin/media-flags');

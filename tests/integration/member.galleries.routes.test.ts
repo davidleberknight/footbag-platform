@@ -462,6 +462,25 @@ describe('POST /members/:memberKey/galleries/:id/edit', () => {
     expect(res.text).toContain('Gallery name is required');
   });
 
+  // Defect caught: an edit repeating a field (a hand-made request) saves
+  // whichever value the code read, or the refused form loses what was typed,
+  // or the message is not beside the field.
+  it('refuses a field posted twice at 422 beside the field, keeps the description, saves nothing', async () => {
+    await createGalleryViaApi('Shape Source');
+    const id = findGalleryIdByName('Shape Source')!;
+    const res = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/galleries/${id}/edit`)
+      .set('Cookie', ownerCookie())
+      .type('form')
+      .send('name=One&name=Two&description=Kept+typed+description&sortOrder=upload_desc&criteriaTags=%23x&excludeTags=');
+    expect(res.status).toBe(422);
+    const at = res.text.indexOf('id="gallery-name"');
+    expect(res.text.slice(at, res.text.indexOf('</div>', at))).toContain('form-field-error');
+    expect(res.text).toContain('Kept typed description');
+    expect(findGalleryIdByName('One')).toBeUndefined();
+    expect(findGalleryIdByName('Shape Source')).toBe(id);
+  });
+
   it('renders inline error against criteriaTags when a tag is invalid', async () => {
     await createGalleryViaApi('Bad Crit Source');
     const id = findGalleryIdByName('Bad Crit Source')!;

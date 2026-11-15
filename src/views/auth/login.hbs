@@ -30,10 +30,16 @@
           <div class="form-field">
             <label for="email">Email address</label>
             <input type="text" id="email" name="email" autocomplete="email" required />
+            {{#if content.fieldErrors.email}}
+              <p class="form-field-error" role="alert">{{content.fieldErrors.email}}</p>
+            {{/if}}
           </div>
           <div class="form-field">
             <label for="password">Password</label>
             <input type="password" id="password" name="password" autocomplete="current-password" required />
+            {{#if content.fieldErrors.password}}
+              <p class="form-field-error" role="alert">{{content.fieldErrors.password}}</p>
+            {{/if}}
           </div>
           {{> captcha-field content}}
           <button type="submit" class="btn btn-primary">Log In</button>

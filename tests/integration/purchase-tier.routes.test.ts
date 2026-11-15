@@ -59,6 +59,28 @@ describe('POST /members/:memberKey/purchase-tier (stub adapter)', () => {
     expect(res.headers.location).toMatch(/^\/payments\/checkout\/cs_stub_[a-z0-9]+$/);
   });
 
+  // Defect caught: a tier posted twice reaches code that expects one string
+  // and the member gets a server error, or a checkout opens on a guessed tier.
+  it('refuses a tier posted twice at 422, opening no checkout', async () => {
+    const countPayments = () => {
+      const db = new BetterSqlite3(dbPath, { readonly: true });
+      try {
+        return (db.prepare('SELECT COUNT(*) AS n FROM payments').get() as { n: number }).n;
+      } finally {
+        db.close();
+      }
+    };
+    const before = countPayments();
+    const res = await request(createApp())
+      .post(`/members/${MEMBER_SLUG}/purchase-tier`)
+      .set('Cookie', memberCookie())
+      .type('form')
+      .send('tier=tier1&tier=tier2');
+    expect(res.status).toBe(422);
+    expect(res.headers.location).toBeUndefined();
+    expect(countPayments()).toBe(before);
+  });
+
   it('redirects anonymous POSTers to login with returnTo', async () => {
     const app = createApp();
     const res = await request(app)

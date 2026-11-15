@@ -17,13 +17,14 @@ import { renderNotFound } from '../lib/controllerErrors';
 import { isOwnMemberRoute } from '../lib/routeOwnership';
 import { FLASH_KIND, takeFlash, writeFlash } from '../lib/flashCookie';
 
-function composeInputFromBody(body: Record<string, unknown>): ComposeInput {
-  return {
-    subject: typeof body.subject === 'string' ? body.subject : '',
-    bodyText: typeof body.bodyText === 'string' ? body.bodyText : '',
-    sendToken: typeof body.sendToken === 'string' ? body.sendToken : '',
-  };
-}
+import { z } from 'zod';
+import { parseFormBody, formText } from '../lib/parseFormBody';
+
+const announceForm = z.object({
+  subject: formText('Subject'),
+  bodyText: formText('Message'),
+  sendToken: formText('The send token'),
+});
 
 export const memberAnnounceController = {
   /** GET /members/:memberKey/announce */
@@ -52,7 +53,22 @@ export const memberAnnounceController = {
       return;
     }
     const memberKey = String(req.params.memberKey);
-    const input = composeInputFromBody(req.body as Record<string, unknown>);
+    const parsed = parseFormBody(announceForm, req.body);
+    if (!parsed.ok) {
+      const s = parsed.submitted;
+      try {
+        const vm = broadcastService.getAnnouncePage(memberKey, {
+          submitted: { subject: s.subject ?? '', bodyText: s.bodyText ?? '', sendToken: s.sendToken ?? '' },
+          fieldErrors: parsed.fieldErrors,
+        });
+        if (!vm) { renderNotFound(res); return; }
+        res.status(422).render('members/announce', vm);
+      } catch (err) {
+        next(err);
+      }
+      return;
+    }
+    const input: ComposeInput = parsed.data;
 
     try {
       const outcome = broadcastService.sendAnnouncement(input, req.user!.userId);

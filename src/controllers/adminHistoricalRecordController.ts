@@ -6,6 +6,8 @@ import {
 import { NotFoundError, ValidationError, ConflictError } from '../services/serviceErrors';
 import { FLASH_KIND, readFlash, clearFlash } from '../lib/flashCookie';
 import { handleControllerError } from '../lib/controllerErrors';
+import { z } from 'zod';
+import { parseFormBody, formText } from '../lib/parseFormBody';
 import { outcomeNotice, type OutcomeNoticeView } from '../lib/outcomeNotice';
 import { redirectWithOutcome } from '../lib/actionOutcome';
 
@@ -33,16 +35,35 @@ function renderError(
   );
 }
 
-function bodyValue(req: Request, field: string): string {
-  return String(req.body?.[field] ?? '');
+const correctionForm = z.object({
+  name: formText('Name'),
+  country: formText('Country'),
+  first_year: formText('First year'),
+  last_year: formText('Last year'),
+  reason: formText('Reason'),
+});
+
+// The correction as typed: the parsed fields, or on a refusal the ones that
+// arrived as text, so the form comes back holding them.
+function typedCorrection(req: Request): Partial<Record<string, string>> {
+  const parsed = parseFormBody(correctionForm, req.body);
+  return parsed.ok ? parsed.data : parsed.submitted;
 }
 
-function correctionInputFrom(req: Request): HistoricalRecordCorrectionInput {
+// The correction read through its schema; a shape the form never sends is
+// refused like any other fixable correction.
+function readCorrection(req: Request): { input: HistoricalRecordCorrectionInput; reason: string } {
+  const parsed = parseFormBody(correctionForm, req.body);
+  if (!parsed.ok) throw new ValidationError(parsed.message);
+  return { input: correctionInputFrom(parsed.data), reason: parsed.data.reason };
+}
+
+function correctionInputFrom(fields: Partial<Record<string, string>>): HistoricalRecordCorrectionInput {
   return {
-    name:      bodyValue(req, 'name'),
-    country:   bodyValue(req, 'country'),
-    firstYear: bodyValue(req, 'first_year'),
-    lastYear:  bodyValue(req, 'last_year'),
+    name:      fields.name ?? '',
+    country:   fields.country ?? '',
+    firstYear: fields.first_year ?? '',
+    lastYear:  fields.last_year ?? '',
   };
 }
 
@@ -60,7 +81,7 @@ function renderCorrectionError(
   res.status(422).render(
     'admin/historical-records/correction',
     adminHistoricalRecordService.getCorrectionPage(req.params['personId'] ?? '', {
-      input: correctionInputFrom(req),
+      input: correctionInputFrom(typedCorrection(req)),
       errorMessage: err.message,
     }),
   );
@@ -144,8 +165,9 @@ export const adminHistoricalRecordController = {
   /** POST /admin/historical-records/:personId/correction */
   previewCorrection(req: Request, res: Response, next: NextFunction): void {
     try {
+      const { input, reason } = readCorrection(req);
       res.render('admin/historical-records/confirm', adminHistoricalRecordService.previewCorrection(
-        req.params['personId'] ?? '', correctionInputFrom(req), bodyValue(req, 'reason'),
+        req.params['personId'] ?? '', input, reason,
       ));
     } catch (err) {
       if (isHandled(err)) { renderCorrectionError(req, res, err, next); return; }
@@ -157,8 +179,9 @@ export const adminHistoricalRecordController = {
   confirmCorrection(req: Request, res: Response, next: NextFunction): void {
     const personId = req.params['personId'] ?? '';
     try {
+      const { input, reason } = readCorrection(req);
       const outcome = adminHistoricalRecordService.applyCorrection(
-        req.user!.userId, personId, correctionInputFrom(req), bodyValue(req, 'reason'),
+        req.user!.userId, personId, input, reason,
       );
       redirectWithOutcome(req, res, {
         flash: FLASH_KIND.HISTORICAL_RECORD_OUTCOME,

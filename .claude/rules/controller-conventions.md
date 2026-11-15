@@ -57,7 +57,7 @@ For anti-enumeration endpoints (login, register, password reset, email verify, c
 
 ## Request parsing
 
-`req.query` and `req.params` values are typed `string | string[] | undefined`. Controllers narrow with `typeof X === 'string'` before passing to services. Body fields use null-coalescing for optional defaults; services validate the actual content.
+`req.query` and `req.params` values are typed `string | string[] | undefined`. Controllers narrow with `typeof X === 'string'` before passing to services. A submitted body is read only through `parseFormBody(<schema>, req.body)` from `src/lib/parseFormBody.ts`, with the form's schema beside its handler, or through `rawBody(req)` on a raw-body route. A refusal re-renders the form at 422 with the message naming the field and the values the visitor typed. The schema decides shape; services validate the content. The conventions gate refuses any other read of `req.body`.
 
 ## Pre-shaped middleware locals
 

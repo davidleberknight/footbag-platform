@@ -36,6 +36,9 @@
             maxlength="35"
             autocomplete="given-name"
           />
+          {{#if content.fieldErrors.givenNames}}
+            <p class="form-field-error" role="alert">{{content.fieldErrors.givenNames}}</p>
+          {{/if}}
           <small class="form-hint">The name or names you are usually called by.</small>
         </div>
 
@@ -50,6 +53,9 @@
             required
             autocomplete="family-name"
           />
+          {{#if content.fieldErrors.familyName}}
+            <p class="form-field-error" role="alert">{{content.fieldErrors.familyName}}</p>
+          {{/if}}
           <small class="form-hint">Your surname or family name. If you have only one name, enter it here. Type it with the capitals you use, for example van der Berg or McDonald.</small>
         </div>
 
@@ -63,6 +69,9 @@
             required
             autocomplete="email"
           />
+          {{#if content.fieldErrors.email}}
+            <p class="form-field-error" role="alert">{{content.fieldErrors.email}}</p>
+          {{/if}}
         </div>
       </div>
 
@@ -78,6 +87,9 @@
             required
             autocomplete="new-password"
           />
+          {{#if content.fieldErrors.password}}
+            <p class="form-field-error" role="alert">{{content.fieldErrors.password}}</p>
+          {{/if}}
         </div>
 
         <div class="form-field">
@@ -91,6 +103,9 @@
             required
             autocomplete="new-password"
           />
+          {{#if content.fieldErrors.confirmPassword}}
+            <p class="form-field-error" role="alert">{{content.fieldErrors.confirmPassword}}</p>
+          {{/if}}
         </div>
       </div>
 
@@ -109,6 +124,9 @@
               maxlength="70"
               autocomplete="nickname"
             />
+            {{#if content.fieldErrors.displayName}}
+              <p class="form-field-error" role="alert">{{content.fieldErrors.displayName}}</p>
+            {{/if}}
           </div>
           <ul class="fs-sm mt-2 mb-0">
             <li>Must include your last name</li>
@@ -130,6 +148,9 @@
               maxlength="70"
               autocomplete="off"
             />
+            {{#if content.fieldErrors.slug}}
+              <p class="form-field-error" role="alert">{{content.fieldErrors.slug}}</p>
+            {{/if}}
             <small class="form-hint">footbag.org/members/<strong>your_slug</strong></small>
             {{> hashtag-slug-help}}
           </div>

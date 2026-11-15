@@ -26,7 +26,7 @@
         {{#each content.suggestedAmounts}}
           <div class="form-field">
             <label>
-              <input type="radio" name="amountChoice" value="{{this.cents}}">
+              <input type="radio" name="amountChoice" value="{{this.cents}}"{{#if this.checked}} checked{{/if}}>
               {{this.label}}
             </label>
           </div>
@@ -34,15 +34,21 @@
 
         <div class="form-field">
           <label>
-            <input type="radio" name="amountChoice" value="custom">
+            <input type="radio" name="amountChoice" value="custom"{{#if content.customAmountChecked}} checked{{/if}}>
             Another amount
           </label>
         </div>
+        {{#if content.fieldErrors.amountChoice}}
+          <p class="form-field-error" role="alert">{{content.fieldErrors.amountChoice}}</p>
+        {{/if}}
 
         <div class="form-field">
           <label for="customAmount">Another amount, in US dollars</label>
           <input type="text" id="customAmount" name="customAmount" inputmode="decimal"
-                 autocomplete="off" placeholder="25.00">
+                 autocomplete="off" placeholder="25.00" value="{{content.customAmountValue}}">
+          {{#if content.fieldErrors.customAmount}}
+            <p class="form-field-error" role="alert">{{content.fieldErrors.customAmount}}</p>
+          {{/if}}
           <small class="form-hint">
             Between {{content.minAmountDisplay}} and {{content.maxAmountDisplay}}. Used only when
             you choose Another amount above.
@@ -55,16 +61,19 @@
 
         <div class="form-field">
           <label>
-            <input type="radio" name="recurring" value="no" checked>
+            <input type="radio" name="recurring" value="no"{{#unless content.recurringYearly}} checked{{/unless}}>
             Once
           </label>
         </div>
 
         <div class="form-field">
           <label>
-            <input type="radio" name="recurring" value="yes">
+            <input type="radio" name="recurring" value="yes"{{#if content.recurringYearly}} checked{{/if}}>
             Every year
           </label>
+          {{#if content.fieldErrors.recurring}}
+            <p class="form-field-error" role="alert">{{content.fieldErrors.recurring}}</p>
+          {{/if}}
           <small class="form-hint">
             An annual donation renews on its own. You can cancel it at any time from your payment
             history page, and the period you have already given still counts.
@@ -78,7 +87,10 @@
         <div class="form-field">
           <label for="note">Note (optional)</label>
           <input type="text" id="note" name="note" maxlength="{{content.noteMaxChars}}"
-                 placeholder="In memory of...">
+                 placeholder="In memory of..." value="{{content.noteValue}}">
+          {{#if content.fieldErrors.note}}
+            <p class="form-field-error" role="alert">{{content.fieldErrors.note}}</p>
+          {{/if}}
           <small class="form-hint">
             For example "Worlds", the name of a tournament, "General fund" or "In memory of...".
             Stored with your donation and shown on your payment history. Up to

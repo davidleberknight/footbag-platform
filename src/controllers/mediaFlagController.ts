@@ -1,7 +1,14 @@
 import { Request, Response, NextFunction } from 'express';
 import { getDefaultMediaModerationService } from '../services/mediaModerationService';
 import { ForbiddenError, RateLimitedError, ValidationError } from '../services/serviceErrors';
-import { handleControllerError, renderForbidden } from '../lib/controllerErrors';
+import { handleControllerError, renderForbidden, renderInvalidRequest } from '../lib/controllerErrors';
+import { z } from 'zod';
+import { parseFormBody, formOptionalText } from '../lib/parseFormBody';
+
+const flagForm = z.object({
+  reason_code: formOptionalText('The reason for the report'),
+  reason_text: formOptionalText('Your note about the report'),
+});
 
 export const mediaFlagController = {
   /** POST /media/item/:mediaId/flag
@@ -14,12 +21,16 @@ export const mediaFlagController = {
   submit(req: Request, res: Response, next: NextFunction): void {
     const mediaId = req.params['mediaId'] ?? '';
     const itemHref = `/media/item/${encodeURIComponent(mediaId)}`;
+    // The item page has no form surface to re-render, so a body the form never
+    // sends is answered on the invalid-request page, with a way back.
+    const parsed = parseFormBody(flagForm, req.body);
+    if (!parsed.ok) { renderInvalidRequest(res, { title: parsed.message, backHref: itemHref }); return; }
     try {
       getDefaultMediaModerationService().flagMediaItem({
         mediaId,
         reporterMemberId: req.user!.userId,
-        reasonCode:       req.body?.reason_code,
-        reasonText:       req.body?.reason_text,
+        reasonCode:       parsed.data.reason_code,
+        reasonText:       parsed.data.reason_text,
       });
       res.redirect(303, itemHref);
     } catch (err) {

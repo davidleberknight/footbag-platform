@@ -59,6 +59,7 @@
       <div class="form-field">
         <label for="notation">Movement notation</label>
         <textarea id="notation" name="notation" rows="3" maxlength="500" aria-describedby="notation-hint">{{content.fields.notation}}</textarea>
+        {{#if content.fieldErrors.notation}}<p class="form-field-error" role="alert">{{content.fieldErrors.notation}}</p>{{/if}}
         {{! Information, not a verdict: the difficulty this count has to match is
             asserted when the canonical trick is created, so there is nothing yet to
             check it against. }}
@@ -71,6 +72,7 @@
           <option value="">Choose one</option>
           {{#each content.basisOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
         </select>
+        {{#if content.fieldErrors.evidenceBasis}}<p class="form-field-error" role="alert">{{content.fieldErrors.evidenceBasis}}</p>{{/if}}
         <ul id="evidenceBasis-hint">
           {{#each content.basisHelp}}<li><strong>{{label}}</strong> &mdash; {{help}}</li>{{/each}}
         </ul>
@@ -82,6 +84,7 @@
           <option value="">Choose one</option>
           {{#each content.methodOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
         </select>
+        {{#if content.fieldErrors.derivationMethod}}<p class="form-field-error" role="alert">{{content.fieldErrors.derivationMethod}}</p>{{/if}}
         <ul id="derivationMethod-hint">
           {{#each content.methodHelp}}<li><strong>{{label}}</strong> &mdash; {{help}}</li>{{/each}}
         </ul>
@@ -93,6 +96,7 @@
           <option value="">None &mdash; it was not derived under a convention</option>
           {{#each content.conventionOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
         </select>
+        {{#if content.fieldErrors.conventionId}}<p class="form-field-error" role="alert">{{content.fieldErrors.conventionId}}</p>{{/if}}
         <ul id="conventionId-hint">
           {{#each content.conventionSummaries}}<li><strong>{{title}}</strong> &mdash; {{summary}}</li>{{/each}}
         </ul>
@@ -101,6 +105,7 @@
       <div class="form-field">
         <label for="provenanceNote">Provenance note</label>
         <textarea id="provenanceNote" name="provenanceNote" rows="3" maxlength="4000">{{content.fields.provenanceNote}}</textarea>
+        {{#if content.fieldErrors.provenanceNote}}<p class="form-field-error" role="alert">{{content.fieldErrors.provenanceNote}}</p>{{/if}}
       </div>
 
       <div class="form-actions">

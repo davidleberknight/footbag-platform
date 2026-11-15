@@ -163,6 +163,66 @@ describe('a removal without a reason is refused and writes nothing', () => {
     expect(avatarPointer(WITH_PICTURE_ID)).toBe('av_media_1');
   });
 
+  // Defect caught: a reason posted twice takes the picture down on whichever
+  // copy was read, instead of coming back to the form beside the reason field.
+  it('refuses a reason posted twice beside the reason field, leaving the picture', async () => {
+    const res = await request(createApp())
+      .post(`/admin/members/${WITH_PICTURE_ID}/avatar/remove/confirm`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send('reason=one&reason=two');
+    expect(res.status).toBe(422);
+    const at = res.text.indexOf('id="avatar_reason"');
+    expect(at).toBeGreaterThan(-1);
+    expect(res.text.slice(at, res.text.indexOf('</div>', at))).toContain('class="form-field-error"');
+    expect(mediaStatus('av_media_1')).toBe('active');
+    expect(avatarPointer(WITH_PICTURE_ID)).toBe('av_media_1');
+  });
+
+  // The record carries two reason fields side by side (this one and the
+  // account deletion's), so a refusal routed to the wrong form puts the message
+  // and the typed reason where the administrator is not looking.
+  function formAt(html: string, action: string): { opened: boolean; body: string } {
+    const at = html.indexOf(`action="${action}"`);
+    expect(at, `the record renders the form posting to ${action}`).toBeGreaterThan(-1);
+    const open = html.lastIndexOf('<details', at);
+    return {
+      opened: /^<details[^>]* open/.test(html.slice(open, html.indexOf('>', open) + 1)),
+      body: html.slice(at, html.indexOf('</form>', at)),
+    };
+  }
+
+  it('brings a refused preview back in the picture form, not the deletion form', async () => {
+    const res = await request(createApp())
+      .post(`/admin/members/${WITH_PICTURE_ID}/avatar/remove`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send('reason=one&reason=two');
+    expect(res.status).toBe(422);
+    const picture = formAt(res.text, `/admin/members/${WITH_PICTURE_ID}/avatar/remove`);
+    const deletion = formAt(res.text, `/admin/members/${WITH_PICTURE_ID}/delete`);
+    expect(picture.opened).toBe(true);
+    expect(picture.body).toContain('class="form-field-error"');
+    expect(deletion.opened).toBe(false);
+    expect(deletion.body).not.toContain('class="form-field-error"');
+  });
+
+  it('keeps the typed reason of a refused preview in the picture form only', async () => {
+    const typed = 'x'.repeat(501);
+    const res = await request(createApp())
+      .post(`/admin/members/${WITH_PICTURE_ID}/avatar/remove`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ reason: typed });
+    expect(res.status).toBe(422);
+    const picture = formAt(res.text, `/admin/members/${WITH_PICTURE_ID}/avatar/remove`);
+    const deletion = formAt(res.text, `/admin/members/${WITH_PICTURE_ID}/delete`);
+    expect(picture.opened).toBe(true);
+    expect(picture.body).toContain(`value="${typed}"`);
+    expect(deletion.body).toContain('id="delete_reason" name="reason" value=""');
+    expect(mediaStatus('av_media_1')).toBe('active');
+  });
+
   it('refuses a reason past the cap, one character over, and accepts one at it', async () => {
     seedAvatar(SECOND_ID, 'av_media_cap');
 

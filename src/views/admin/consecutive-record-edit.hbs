@@ -22,54 +22,67 @@
         <div class="form-field">
           <label for="consecutive-sortOrder">Display position</label>
           <input type="text" id="consecutive-sortOrder" name="sortOrder" value="{{content.fields.sortOrder}}" />
+          {{#if content.fieldErrors.sortOrder}}<p class="form-field-error" role="alert">{{content.fieldErrors.sortOrder}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="consecutive-section">Section</label>
           <input type="text" id="consecutive-section" name="section" value="{{content.fields.section}}" />
+          {{#if content.fieldErrors.section}}<p class="form-field-error" role="alert">{{content.fieldErrors.section}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="consecutive-subsection">Subsection</label>
           <input type="text" id="consecutive-subsection" name="subsection" value="{{content.fields.subsection}}" />
+          {{#if content.fieldErrors.subsection}}<p class="form-field-error" role="alert">{{content.fieldErrors.subsection}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="consecutive-discipline">Record type</label>
           <input type="text" id="consecutive-discipline" name="discipline" value="{{content.fields.discipline}}" />
+          {{#if content.fieldErrors.discipline}}<p class="form-field-error" role="alert">{{content.fieldErrors.discipline}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="consecutive-year">Year</label>
           <input type="text" id="consecutive-year" name="year" value="{{content.fields.year}}" />
+          {{#if content.fieldErrors.year}}<p class="form-field-error" role="alert">{{content.fieldErrors.year}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="consecutive-rank">Rank</label>
           <input type="text" id="consecutive-rank" name="rank" value="{{content.fields.rank}}" />
+          {{#if content.fieldErrors.rank}}<p class="form-field-error" role="alert">{{content.fieldErrors.rank}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="consecutive-player1">Player 1</label>
           <input type="text" id="consecutive-player1" name="player1" value="{{content.fields.player1}}" />
+          {{#if content.fieldErrors.player1}}<p class="form-field-error" role="alert">{{content.fieldErrors.player1}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="consecutive-player2">Player 2</label>
           <input type="text" id="consecutive-player2" name="player2" value="{{content.fields.player2}}" />
+          {{#if content.fieldErrors.player2}}<p class="form-field-error" role="alert">{{content.fieldErrors.player2}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="consecutive-score">Score</label>
           <input type="text" id="consecutive-score" name="score" value="{{content.fields.score}}" />
+          {{#if content.fieldErrors.score}}<p class="form-field-error" role="alert">{{content.fieldErrors.score}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="consecutive-note">Note</label>
           <textarea id="consecutive-note" name="note" rows="2">{{content.fields.note}}</textarea>
+          {{#if content.fieldErrors.note}}<p class="form-field-error" role="alert">{{content.fieldErrors.note}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="consecutive-eventDate">Event date</label>
           <input type="text" id="consecutive-eventDate" name="eventDate" value="{{content.fields.eventDate}}" />
+          {{#if content.fieldErrors.eventDate}}<p class="form-field-error" role="alert">{{content.fieldErrors.eventDate}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="consecutive-eventName">Event name</label>
           <input type="text" id="consecutive-eventName" name="eventName" value="{{content.fields.eventName}}" />
+          {{#if content.fieldErrors.eventName}}<p class="form-field-error" role="alert">{{content.fieldErrors.eventName}}</p>{{/if}}
         </div>
         <div class="form-field">
           <label for="consecutive-location">Location</label>
           <input type="text" id="consecutive-location" name="location" value="{{content.fields.location}}" />
+          {{#if content.fieldErrors.location}}<p class="form-field-error" role="alert">{{content.fieldErrors.location}}</p>{{/if}}
         </div>
       </fieldset>
       <div class="form-actions">

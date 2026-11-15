@@ -5,6 +5,18 @@ import { handleControllerError, renderNotFound } from '../lib/controllerErrors';
 import { FLASH_KIND, readFlash, clearFlash } from '../lib/flashCookie';
 import { outcomeNotice, type OutcomeNoticeView } from '../lib/outcomeNotice';
 import { redirectWithOutcome } from '../lib/actionOutcome';
+import { z } from 'zod';
+import { parseFormBody, formText } from '../lib/parseFormBody';
+
+const assignForm = z.object({ member_key: formText('Member'), reason: formText('Reason') });
+const removeForm = z.object({ member_id: formText('Organizer'), reason: formText('Reason') });
+
+// A shape the form never sends is refused like any other fixable submission.
+function read<S extends z.ZodType>(schema: S, req: Request): z.output<S> {
+  const parsed = parseFormBody(schema, req.body);
+  if (!parsed.ok) throw new ValidationError(parsed.message);
+  return parsed.data;
+}
 
 // A failed write is answered on the event's own page, which means loading the
 // event again. When the event is the thing that does not exist, that reload
@@ -61,11 +73,12 @@ export const adminEventOrganizerController = {
   assign(req: Request, res: Response, next: NextFunction): void {
     const eventId = req.params.eventId ?? '';
     try {
+      const form = read(assignForm, req);
       const outcome = adminEventOrganizerService.assignOrganizer(
         req.user!.userId,
         eventId,
-        String(req.body.member_key ?? ''),
-        String(req.body.reason ?? ''),
+        form.member_key,
+        form.reason,
       );
       redirectWithOutcome(req, res, {
         flash: FLASH_KIND.EVENT_ORGANIZER_OUTCOME,
@@ -86,11 +99,12 @@ export const adminEventOrganizerController = {
   remove(req: Request, res: Response, next: NextFunction): void {
     const eventId = req.params.eventId ?? '';
     try {
+      const form = read(removeForm, req);
       const outcome = adminEventOrganizerService.removeOrganizer(
         req.user!.userId,
         eventId,
-        String(req.body.member_id ?? ''),
-        String(req.body.reason ?? ''),
+        form.member_id,
+        form.reason,
       );
       redirectWithOutcome(req, res, {
         flash: FLASH_KIND.EVENT_ORGANIZER_OUTCOME,

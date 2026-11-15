@@ -12,14 +12,39 @@ import { mailingListService, type MailingListInput } from '../services/mailingLi
 import { ConflictError, NotFoundError, ValidationError } from '../services/serviceErrors';
 import { renderNotFound } from '../lib/controllerErrors';
 import { FLASH_KIND, takeFlash, writeFlash } from '../lib/flashCookie';
+import { z } from 'zod';
+import { parseFormBody, formText, formOptionalText } from '../lib/parseFormBody';
 
-function listInputFromBody(body: Record<string, unknown>): MailingListInput {
+const listForm = z.object({
+  name: formText('Name'),
+  description: formText('Description'),
+  isMemberManageable: formOptionalText('Members manage their own subscription'),
+  fromIdentity: formText('From address'),
+  subjectPrefix: formText('Subject prefix'),
+});
+
+const subscriptionForm = z.object({
+  memberId: formText('Member'),
+  status: formText('Subscription'),
+  reason: formText('Reason'),
+});
+
+// The list as typed, whether it parsed or not, and a refusal for a shape the
+// form never sends, thrown so the handler's own 422 re-render answers it.
+function readListForm(req: Request): { input: MailingListInput; refuse: () => void } {
+  const parsed = parseFormBody(listForm, req.body);
+  const typed: Partial<Record<string, string>> = parsed.ok ? parsed.data : parsed.submitted;
   return {
-    name: typeof body.name === 'string' ? body.name : '',
-    description: typeof body.description === 'string' ? body.description : '',
-    isMemberManageable: body.isMemberManageable === '1',
-    fromIdentity: typeof body.fromIdentity === 'string' ? body.fromIdentity : '',
-    subjectPrefix: typeof body.subjectPrefix === 'string' ? body.subjectPrefix : '',
+    input: {
+      name: typed.name ?? '',
+      description: typed.description ?? '',
+      isMemberManageable: typed.isMemberManageable === '1',
+      fromIdentity: typed.fromIdentity ?? '',
+      subjectPrefix: typed.subjectPrefix ?? '',
+    },
+    refuse: () => {
+      if (!parsed.ok) throw new ValidationError(parsed.message, { fieldErrors: parsed.fieldErrors });
+    },
   };
 }
 
@@ -48,8 +73,9 @@ export const adminMailingListController = {
   },
 
   create(req: Request, res: Response, next: NextFunction): void {
-    const input = listInputFromBody(req.body as Record<string, unknown>);
+    const { input, refuse } = readListForm(req);
     try {
+      refuse();
       const slug = mailingListService.createList(input, req.user!.userId);
       redirectToList(req, res, slug, 'created');
     } catch (err) {
@@ -97,8 +123,9 @@ export const adminMailingListController = {
 
   update(req: Request, res: Response, next: NextFunction): void {
     const slug = String(req.params.slug);
-    const input = listInputFromBody(req.body as Record<string, unknown>);
+    const { input, refuse } = readListForm(req);
     try {
+      refuse();
       mailingListService.updateList(slug, input, req.user!.userId);
       redirectToList(req, res, slug, 'saved');
     } catch (err) {
@@ -138,12 +165,11 @@ export const adminMailingListController = {
 
   adjustSubscription(req: Request, res: Response, next: NextFunction): void {
     const slug = String(req.params.slug);
-    const body = req.body as Record<string, unknown>;
-    const memberId = typeof body.memberId === 'string' ? body.memberId : '';
-    const status = typeof body.status === 'string' ? body.status : '';
-    const reason = typeof body.reason === 'string' ? body.reason : '';
+    const parsed = parseFormBody(subscriptionForm, req.body);
 
     try {
+      if (!parsed.ok) throw new ValidationError(parsed.message, { fieldErrors: parsed.fieldErrors });
+      const { memberId, status, reason } = parsed.data;
       const outcome = mailingListService.adjustSubscription(
         slug, memberId, status, reason, req.user!.userId,
       );

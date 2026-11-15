@@ -251,6 +251,37 @@ describe('the convention gate: rules about src/', () => {
     expectCheckRan(res, '.prepare( outside src/db/db.ts');
   });
 
+  // Defect caught: a controller casts or reads a submitted field off the body,
+  // so a repeated or non-text field reaches code expecting one string and the
+  // visitor gets a server error instead of their form back.
+  it('refuses a controller that casts the body or reads a field off it', () => {
+    const res = inFixtureRepo({
+      'src/controllers/thingController.ts':
+        'export function post(req) {\n'
+        + '  const { email } = req.body as { email?: string };\n'
+        + '  const name = req.body.name;\n'
+        + '  return [email, name];\n'
+        + '}\n',
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('src/controllers/thingController.ts:2: reads req.body directly');
+    expect(res.stderr).toContain('src/controllers/thingController.ts:3: reads req.body directly');
+  });
+
+  it('accepts a controller that parses its body through the form schema, and a comment naming the body', () => {
+    const res = inFixtureRepo({
+      'src/controllers/thingController.ts':
+        '// req.body is parsed below, never read directly.\n'
+        + 'export function post(req) {\n'
+        + '  const parsed = parseFormBody(thingForm, req.body);\n'
+        + '  return parsed;\n'
+        + '}\n',
+    });
+    expect(res.exitCode, res.stderr).toBe(0);
+    expect(res.stderr).not.toContain('reads req.body directly');
+    expectCheckRan(res, 'controllers read the form body only through its schema');
+  });
+
   // Defect caught: a service writes its own outbox row or calls the provider
   // directly, so its mail skips the gate that keeps it from deceased members.
   it('refuses an outbox write or a provider send outside the communication service', () => {

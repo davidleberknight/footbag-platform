@@ -32,6 +32,230 @@ import { renderNotFound } from '../lib/controllerErrors';
 import { FLASH_KIND, takeFlash, writeFlash } from '../lib/flashCookie';
 import { outcomeNotice } from '../lib/outcomeNotice';
 import { redirectWithOutcome } from '../lib/actionOutcome';
+import { z } from 'zod';
+import { parseFormBody, formText, formOptionalText, type FormParse } from '../lib/parseFormBody';
+
+// One schema per form, each label the field's visible label on its page.
+
+const notationAuthorForm = z.object({
+  notation:         formText('Movement notation'),
+  evidenceBasis:    formText('Where did the notation come from?'),
+  derivationMethod: formText('How was it produced?'),
+  conventionId:     formText('Which convention, if it was derived under one?'),
+  provenanceNote:   formText('Provenance note'),
+});
+
+const trickPublishForm = z.object({
+  canonicalName:          formText('Canonical name'),
+  adds:                   formText('Difficulty (ADD)'),
+  baseTrick:              formText('Base trick slug'),
+  category:               formText('Category'),
+  familyOverride:         formText('Family override'),
+  description:            formText('Description'),
+  aliases:                formText('Aliases'),
+  sourceId:               formText('Source'),
+  sourceUrl:              formText('Source URL'),
+  sourceAssertedNotation: formText('Notation the source itself wrote'),
+  modifierLinks:          formText('Modifier slugs'),
+});
+
+const trickEditForm = z.object({
+  canonicalName:             formText('Canonical name'),
+  adds:                      formText('ADD'),
+  movementNotation:          formText('Movement notation'),
+  executionNotation:         formText('Execution notation'),
+  family:                    formText('Trick family'),
+  baseTrick:                 formText('Base trick'),
+  category:                  formText('Category'),
+  reviewStatus:              formText('Review status'),
+  // The box has no hidden partner: present (any value) means active.
+  isActive:                  formOptionalText('Active'),
+  sortOrder:                 formText('Sort position'),
+  description:               formText('Description'),
+  shortDescription:          formText('Short description'),
+  executionSummary:          formText('Execution summary'),
+  learningNotes:             formText('Learning notes'),
+  prerequisiteNotes:         formText('Prerequisite notes'),
+  pronunciation:             formText('Pronunciation'),
+  operationalNotationSource: formText('Execution-notation source'),
+  aboutDerivatives:          formText('Derivatives note'),
+  aboutNamingNote:           formText('Naming note'),
+  reversePairBase:           formText('Reverse of'),
+  familyOverride:            formText('Public family'),
+  trickKind:                 formText('Kind'),
+  terminalCohort:            formText('Lands in'),
+  terminalCohortPosition:    formText('Position in that list'),
+  addDerivation:             formText('Difficulty breakdown'),
+  formulaOperator:           formText('Fallback operators'),
+  expandedNotation:          formText('Expanded notation'),
+  movementNotationSubtitle:  formText('Movement-notation subtitle'),
+  executionNotationSubtitle: formText('Execution-notation subtitle'),
+});
+
+const aliasAddForm = z.object({
+  aliasText:      formText('Add alias'),
+  aliasType:      formText('Type'),
+  sourceId:       formText('Where it comes from'),
+  provenanceNote: formText('What that source says it is'),
+});
+
+const aliasEditForm = z.object({
+  aliasType:        formText('Type'),
+  aliasDisplay:     formText('Show beside the trick name'),
+  divergenceReason: formText('Why this differs from the class'),
+  // Absent and emptied mean different things here (see updateAlias).
+  sourceId:         formOptionalText('Where this alias comes from'),
+  provenanceNote:   formOptionalText('What that source says it is'),
+});
+
+const sourceAttachForm = z.object({
+  sourceId:     formText('Attach source'),
+  externalUrl:  formText('External URL'),
+  assertedAdds: formText('Asserted ADD'),
+});
+
+const modifierAttachForm = z.object({
+  modifierSlug: formText('Attach modifier'),
+  applyOrder:   formText('Apply order'),
+});
+
+const recordForm = z.object({
+  recordType:        formText('Record type'),
+  personId:          formText('Linked historical-person id'),
+  displayName:       formText('Display name'),
+  trickName:         formText('Trick name'),
+  sortName:          formText('Structured sort name'),
+  addsCount:         formText('Adds count'),
+  valueNumeric:      formText('Value'),
+  valueText:         formText('Value text'),
+  achievedDate:      formText('Achieved date'),
+  datePrecision:     formText('Date precision'),
+  source:            formText('Source'),
+  confidence:        formText('Confidence'),
+  videoUrl:          formText('Video URL'),
+  videoTimecode:     formText('Video timecode'),
+  notes:             formText('Notes'),
+  curatorReviewNote: formText('Curator review note'),
+  supersededBy:      formText('Superseded by'),
+});
+
+const consecutiveForm = z.object({
+  sortOrder:  formText('Display position'),
+  section:    formText('Section'),
+  subsection: formText('Subsection'),
+  discipline: formText('Record type'),
+  year:       formText('Year'),
+  rank:       formText('Rank'),
+  player1:    formText('Player 1'),
+  player2:    formText('Player 2'),
+  score:      formText('Score'),
+  note:       formText('Note'),
+  eventDate:  formText('Event date'),
+  eventName:  formText('Event name'),
+  location:   formText('Location'),
+});
+
+const sourceCreateForm = z.object({
+  id:          formText('Source ID'),
+  sourceType:  formText('Source type'),
+  sourceLabel: formText('Source label'),
+  sourceUrl:   formText('Source URL'),
+  retrievedAt: formText('Retrieved at'),
+  notes:       formText('Notes'),
+});
+
+const modifierForm = z.object({
+  slug:         formText('Slug'),
+  modifierName: formText('Name'),
+  addBonus:     formText('ADD'),
+  modifierType: formText('Type'),
+  notes:        formText('Notes'),
+  beginnerNote: formText('Beginner note'),
+  browseGroup:  formText('Browse group'),
+  browseOrder:  formText('Browse position'),
+  // The box has no hidden partner; ticked posts "1", unticked posts nothing.
+  browseFullSection: formText('Give it a full browse section of its own'),
+});
+
+// The confirm page posts the edit back with confirm=1 once the ADD change is seen.
+const modifierEditForm = modifierForm.extend({
+  confirm: formText('Confirmation'),
+});
+
+const familyForm = z.object({
+  displayName:          formText('Display name'),
+  parentSlug:           formText('Parent family'),
+  tier:                 formText('Tier'),
+  sortOrder:            formText('Display order'),
+  hook:                 formText('Hook'),
+  description:          formText('What the family is'),
+  plainLanguageReading: formText('Plain-language reading'),
+  importance:           formText('Why it matters'),
+  howToRecognize:       formText('How to recognize one'),
+  relatedFamilySlugs:   formText('Related families'),
+  sharedStructure:      formText('Shared structure'),
+  trickPageNote:        formText('Trick-page note'),
+  foldedLabels:         formText('Folded family labels'),
+});
+
+const setEditForm = z.object({
+  displayName:  formText('Display name'),
+  setGroup:     formText('Set group'),
+  formula:      formText('Formula'),
+  explanation:  formText('Plain explanation'),
+  relatedSets:  formText('Related sets'),
+  // The box has no hidden partner; ticked posts "1", unticked posts nothing.
+  heldFromList: formText('Hold off the encyclopedia list'),
+});
+
+const setCreateForm = setEditForm.extend({
+  slug: formText('Slug'),
+});
+
+const glossaryEditForm = z.object({
+  term:       formText('Term'),
+  definition: formText('Definition'),
+  aliases:    formText('Aliases'),
+  moreHref:   formText('Deeper link'),
+  moreLabel:  formText('Deeper link label'),
+});
+
+const glossaryCreateForm = glossaryEditForm.extend({
+  slug: formText('Slug'),
+});
+
+const operatorEditForm = z.object({
+  name:                formText('Name'),
+  kind:                formText('Kind'),
+  definition:          formText('Definition'),
+  decomposition:       formText('Decomposition'),
+  decompositionNote:   formText('Note under the decomposition'),
+  workedExamples:      formText('Worked examples'),
+  sourceNote:          formText('Source note'),
+  // The box has no hidden partner; ticked posts "1", unticked posts nothing.
+  confirmationPending: formText("Still awaits a curator's confirmation"),
+  pageGroup:           formText('Operators page group'),
+  pageOrder:           formText('Position in that group'),
+});
+
+const operatorCreateForm = operatorEditForm.extend({
+  slug: formText('Slug'),
+});
+
+type Typed = Partial<Record<string, string>>;
+
+/** The form's values as typed: the parsed fields, or on a refusal the fields
+ *  that did arrive as one text value, so the re-render keeps them. */
+function typedFields<T>(parsed: FormParse<T>): Typed {
+  return parsed.ok ? (parsed.data as Typed) : parsed.submitted;
+}
+
+/** A body in a shape the form never sends, thrown inside the handler's try so
+ *  its own 422 re-render answers it, each message beside its own field. Nothing
+ *  is written. */
+function refuseShape<T>(parsed: FormParse<T>): void {
+  if (!parsed.ok) throw new ValidationError(parsed.message, { fieldErrors: parsed.fieldErrors });
+}
 
 /** Redirect to an edit page after a save, carrying the confirmation in the
  *  one-shot flash keyed to that page's own path. */
@@ -99,14 +323,17 @@ export const adminFreestyleController = {
   /** POST /admin/freestyle/notation-backlog/:candidateId/author */
   notationAuthorSave(req: Request, res: Response, next: NextFunction): void {
     const candidateId = req.params['candidateId'] ?? '';
+    const parsed = parseFormBody(notationAuthorForm, req.body);
+    const typed = typedFields(parsed);
     const submitted = {
-      notation:         typeof req.body.notation === 'string' ? req.body.notation : '',
-      evidenceBasis:    typeof req.body.evidenceBasis === 'string' ? req.body.evidenceBasis : '',
-      derivationMethod: typeof req.body.derivationMethod === 'string' ? req.body.derivationMethod : '',
-      conventionId:     typeof req.body.conventionId === 'string' ? req.body.conventionId : '',
-      provenanceNote:   typeof req.body.provenanceNote === 'string' ? req.body.provenanceNote : '',
+      notation:         str(typed.notation),
+      evidenceBasis:    str(typed.evidenceBasis),
+      derivationMethod: str(typed.derivationMethod),
+      conventionId:     str(typed.conventionId),
+      provenanceNote:   str(typed.provenanceNote),
     };
     try {
+      refuseShape(parsed);
       freestyleCurationService.saveAuthoredNotation(candidateId, submitted, req.user!.userId);
       redirectSaved(req, res, `/admin/freestyle/notation-backlog/${candidateId}/author`);
     } catch (err) {
@@ -149,21 +376,23 @@ export const adminFreestyleController = {
   /** POST /admin/freestyle/notation-backlog/:candidateId/publish */
   trickPublishSave(req: Request, res: Response, next: NextFunction): void {
     const candidateId = req.params['candidateId'] ?? '';
-    const str = (v: unknown): string => (typeof v === 'string' ? v : '');
+    const parsed = parseFormBody(trickPublishForm, req.body);
+    const typed = typedFields(parsed);
     const submitted: FreestyleTrickPublicationInput = {
-      canonicalName:          str(req.body.canonicalName),
-      adds:                   str(req.body.adds),
-      baseTrick:              str(req.body.baseTrick),
-      category:               str(req.body.category),
-      familyOverride:         str(req.body.familyOverride),
-      description:            str(req.body.description),
-      aliases:                str(req.body.aliases),
-      sourceId:               str(req.body.sourceId),
-      sourceUrl:              str(req.body.sourceUrl),
-      sourceAssertedNotation: str(req.body.sourceAssertedNotation),
-      modifierLinks:          str(req.body.modifierLinks),
+      canonicalName:          str(typed.canonicalName),
+      adds:                   str(typed.adds),
+      baseTrick:              str(typed.baseTrick),
+      category:               str(typed.category),
+      familyOverride:         str(typed.familyOverride),
+      description:            str(typed.description),
+      aliases:                str(typed.aliases),
+      sourceId:               str(typed.sourceId),
+      sourceUrl:              str(typed.sourceUrl),
+      sourceAssertedNotation: str(typed.sourceAssertedNotation),
+      modifierLinks:          str(typed.modifierLinks),
     };
     try {
+      refuseShape(parsed);
       const slug = freestyleCurationService.publishCanonicalTrick(
         candidateId, submitted, req.user!.userId,
       );
@@ -232,39 +461,42 @@ export const adminFreestyleController = {
   // is a 404.
   update(req: Request, res: Response, next: NextFunction): void {
     const slug = String(req.params.slug);
+    const parsed = parseFormBody(trickEditForm, req.body);
+    const typed = typedFields(parsed);
     const input: FreestyleTrickScalarInput = {
-      canonicalName:     str(req.body.canonicalName),
-      adds:              str(req.body.adds),
-      movementNotation:  str(req.body.movementNotation),
-      executionNotation: str(req.body.executionNotation),
-      family:            str(req.body.family),
-      baseTrick:         str(req.body.baseTrick),
-      category:          str(req.body.category),
-      reviewStatus:      str(req.body.reviewStatus),
-      isActive:          req.body.isActive !== undefined, // checkbox present -> active
-      sortOrder:         str(req.body.sortOrder),
-      description:               str(req.body.description),
-      shortDescription:          str(req.body.shortDescription),
-      executionSummary:          str(req.body.executionSummary),
-      learningNotes:             str(req.body.learningNotes),
-      prerequisiteNotes:         str(req.body.prerequisiteNotes),
-      pronunciation:             str(req.body.pronunciation),
-      operationalNotationSource: str(req.body.operationalNotationSource),
-      aboutDerivatives:          str(req.body.aboutDerivatives),
-      aboutNamingNote:           str(req.body.aboutNamingNote),
-      reversePairBase:           str(req.body.reversePairBase),
-      familyOverride:            str(req.body.familyOverride),
-      trickKind:                 str(req.body.trickKind),
-      terminalCohort:            str(req.body.terminalCohort),
-      terminalCohortPosition:    str(req.body.terminalCohortPosition),
-      addDerivation:             str(req.body.addDerivation),
-      formulaOperator:           str(req.body.formulaOperator),
-      expandedNotation:          str(req.body.expandedNotation),
-      movementNotationSubtitle:  str(req.body.movementNotationSubtitle),
-      executionNotationSubtitle: str(req.body.executionNotationSubtitle),
+      canonicalName:     str(typed.canonicalName),
+      adds:              str(typed.adds),
+      movementNotation:  str(typed.movementNotation),
+      executionNotation: str(typed.executionNotation),
+      family:            str(typed.family),
+      baseTrick:         str(typed.baseTrick),
+      category:          str(typed.category),
+      reviewStatus:      str(typed.reviewStatus),
+      isActive:          typed.isActive !== undefined, // checkbox present -> active
+      sortOrder:         str(typed.sortOrder),
+      description:               str(typed.description),
+      shortDescription:          str(typed.shortDescription),
+      executionSummary:          str(typed.executionSummary),
+      learningNotes:             str(typed.learningNotes),
+      prerequisiteNotes:         str(typed.prerequisiteNotes),
+      pronunciation:             str(typed.pronunciation),
+      operationalNotationSource: str(typed.operationalNotationSource),
+      aboutDerivatives:          str(typed.aboutDerivatives),
+      aboutNamingNote:           str(typed.aboutNamingNote),
+      reversePairBase:           str(typed.reversePairBase),
+      familyOverride:            str(typed.familyOverride),
+      trickKind:                 str(typed.trickKind),
+      terminalCohort:            str(typed.terminalCohort),
+      terminalCohortPosition:    str(typed.terminalCohortPosition),
+      addDerivation:             str(typed.addDerivation),
+      formulaOperator:           str(typed.formulaOperator),
+      expandedNotation:          str(typed.expandedNotation),
+      movementNotationSubtitle:  str(typed.movementNotationSubtitle),
+      executionNotationSubtitle: str(typed.executionNotationSubtitle),
     };
 
     try {
+      refuseShape(parsed);
       freestyleCurationService.updateTrickScalars(slug, input, req.user!.userId);
       redirectSaved(req, res, `/admin/freestyle/tricks/${slug}/edit`);
     } catch (err) {
@@ -293,19 +525,23 @@ export const adminFreestyleController = {
   // and an inline error; an unknown trick slug is a 404.
   addAlias(req: Request, res: Response, next: NextFunction): void {
     const slug = String(req.params.slug);
+    const parsed = parseFormBody(aliasAddForm, req.body);
+    const typed = typedFields(parsed);
     const input: FreestyleAliasInput = {
-      aliasText: str(req.body.aliasText),
-      aliasType: str(req.body.aliasType),
-      sourceId: str(req.body.sourceId),
-      provenanceNote: str(req.body.provenanceNote),
+      aliasText: str(typed.aliasText),
+      aliasType: str(typed.aliasType),
+      sourceId: str(typed.sourceId),
+      provenanceNote: str(typed.provenanceNote),
     };
 
     try {
+      refuseShape(parsed);
       redirectAfterAttach(req, res, slug, freestyleCurationService.addAlias(slug, input, req.user!.userId));
     } catch (err) {
       if (err instanceof ValidationError) {
         const vm = freestyleCurationService.getTrickEditPage(slug, {
           aliasError: err.message,
+          aliasFieldErrors: err.fieldErrors ?? {},
           aliasSubmitted: input,
         });
         if (!vm) {
@@ -333,22 +569,26 @@ export const adminFreestyleController = {
     // A missing field and an emptied one mean different things here: emptied is a
     // curator clearing provenance on purpose, missing is a form that never asked,
     // and the service must not read the second as the first.
+    const parsed = parseFormBody(aliasEditForm, req.body);
+    const typed = typedFields(parsed);
     const input: FreestyleAliasClassInput = {
-      aliasType: str(req.body.aliasType),
-      aliasDisplay: str(req.body.aliasDisplay),
-      divergenceReason: str(req.body.divergenceReason),
-      ...(optStr(req.body.sourceId) !== undefined
-        ? { sourceId: optStr(req.body.sourceId) } : {}),
-      ...(optStr(req.body.provenanceNote) !== undefined
-        ? { provenanceNote: optStr(req.body.provenanceNote) } : {}),
+      aliasType: str(typed.aliasType),
+      aliasDisplay: str(typed.aliasDisplay),
+      divergenceReason: str(typed.divergenceReason),
+      ...(typed.sourceId !== undefined ? { sourceId: typed.sourceId } : {}),
+      ...(typed.provenanceNote !== undefined ? { provenanceNote: typed.provenanceNote } : {}),
     };
 
     try {
+      refuseShape(parsed);
       freestyleCurationService.updateAlias(slug, aliasSlug, input, req.user!.userId);
       res.redirect(303, `/admin/freestyle/tricks/${slug}/edit`);
     } catch (err) {
       if (err instanceof ValidationError) {
-        const vm = freestyleCurationService.getTrickEditPage(slug, { aliasError: err.message });
+        const vm = freestyleCurationService.getTrickEditPage(slug, {
+          aliasError: err.message,
+          aliasEdit: { aliasSlug, submitted: input, fieldErrors: err.fieldErrors ?? {} },
+        });
         if (!vm) {
           renderNotFound(res);
           return;
@@ -386,18 +626,22 @@ export const adminFreestyleController = {
   // source values and an inline error; an unknown trick slug is a 404.
   attachSource(req: Request, res: Response, next: NextFunction): void {
     const slug = String(req.params.slug);
+    const parsed = parseFormBody(sourceAttachForm, req.body);
+    const typed = typedFields(parsed);
     const input: FreestyleSourceLinkInput = {
-      sourceId:    str(req.body.sourceId),
-      externalUrl: str(req.body.externalUrl),
-      assertedAdds: str(req.body.assertedAdds),
+      sourceId:    str(typed.sourceId),
+      externalUrl: str(typed.externalUrl),
+      assertedAdds: str(typed.assertedAdds),
     };
 
     try {
+      refuseShape(parsed);
       redirectAfterAttach(req, res, slug, freestyleCurationService.attachSource(slug, input, req.user!.userId));
     } catch (err) {
       if (err instanceof ValidationError) {
         const vm = freestyleCurationService.getTrickEditPage(slug, {
           sourceError: err.message,
+          sourceFieldErrors: err.fieldErrors ?? {},
           sourceSubmitted: input,
         });
         if (!vm) {
@@ -437,17 +681,21 @@ export const adminFreestyleController = {
   // and an inline error; an unknown trick slug is a 404.
   attachModifier(req: Request, res: Response, next: NextFunction): void {
     const slug = String(req.params.slug);
+    const parsed = parseFormBody(modifierAttachForm, req.body);
+    const typed = typedFields(parsed);
     const input: FreestyleModifierLinkInput = {
-      modifierSlug: str(req.body.modifierSlug),
-      applyOrder:   str(req.body.applyOrder),
+      modifierSlug: str(typed.modifierSlug),
+      applyOrder:   str(typed.applyOrder),
     };
 
     try {
+      refuseShape(parsed);
       redirectAfterAttach(req, res, slug, freestyleCurationService.attachModifier(slug, input, req.user!.userId));
     } catch (err) {
       if (err instanceof ValidationError) {
         const vm = freestyleCurationService.getTrickEditPage(slug, {
           modifierError: err.message,
+          modifierFieldErrors: err.fieldErrors ?? {},
           modifierSubmitted: input,
         });
         if (!vm) {
@@ -525,9 +773,11 @@ export const adminFreestyleController = {
   // values and per-field errors; an unknown record id is a 404.
   recordUpdate(req: Request, res: Response, next: NextFunction): void {
     const id = String(req.params.id);
-    const input = recordInputFromBody(req.body);
+    const parsed = parseFormBody(recordForm, req.body);
+    const input = recordInputFrom(typedFields(parsed));
 
     try {
+      refuseShape(parsed);
       freestyleRecordCurationService.updateRecord(id, input, req.user!.userId);
       redirectSaved(req, res, `/admin/freestyle/records/${id}/edit`);
     } catch (err) {
@@ -564,8 +814,10 @@ export const adminFreestyleController = {
   // saved indicator; a validation failure re-renders the new form (422) with the
   // submitted values and per-field errors.
   recordCreate(req: Request, res: Response, next: NextFunction): void {
-    const input = recordInputFromBody(req.body);
+    const parsed = parseFormBody(recordForm, req.body);
+    const input = recordInputFrom(typedFields(parsed));
     try {
+      refuseShape(parsed);
       const id = freestyleRecordCurationService.createRecord(input, req.user!.userId);
       redirectSaved(req, res, `/admin/freestyle/records/${id}/edit`);
     } catch (err) {
@@ -612,9 +864,11 @@ export const adminFreestyleController = {
   // per-field errors; an unknown id is a 404.
   consecutiveUpdate(req: Request, res: Response, next: NextFunction): void {
     const id = String(req.params.id);
-    const input = consecutiveInputFromBody(req.body);
+    const parsed = parseFormBody(consecutiveForm, req.body);
+    const input = consecutiveInputFrom(typedFields(parsed));
 
     try {
+      refuseShape(parsed);
       consecutiveKicksCurationService.updateRow(id, input, req.user!.userId);
       redirectSaved(req, res, `/admin/freestyle/consecutive-records/${id}/edit`);
     } catch (err) {
@@ -651,8 +905,10 @@ export const adminFreestyleController = {
   // with the saved indicator; a validation failure re-renders the new form (422)
   // with the submitted values and per-field errors.
   consecutiveCreate(req: Request, res: Response, next: NextFunction): void {
-    const input = consecutiveInputFromBody(req.body);
+    const parsed = parseFormBody(consecutiveForm, req.body);
+    const input = consecutiveInputFrom(typedFields(parsed));
     try {
+      refuseShape(parsed);
       const id = consecutiveKicksCurationService.createRow(input, req.user!.userId);
       redirectSaved(req, res, `/admin/freestyle/consecutive-records/${id}/edit`);
     } catch (err) {
@@ -711,15 +967,18 @@ export const adminFreestyleController = {
   // failure re-renders the create form (422) with the submitted values and an
   // inline error.
   createSource(req: Request, res: Response, next: NextFunction): void {
+    const parsed = parseFormBody(sourceCreateForm, req.body);
+    const typed = typedFields(parsed);
     const input: FreestyleSourceInput = {
-      id:          str(req.body.id),
-      sourceType:  str(req.body.sourceType),
-      sourceLabel: str(req.body.sourceLabel),
-      sourceUrl:   str(req.body.sourceUrl),
-      retrievedAt: str(req.body.retrievedAt),
-      notes:       str(req.body.notes),
+      id:          str(typed.id),
+      sourceType:  str(typed.sourceType),
+      sourceLabel: str(typed.sourceLabel),
+      sourceUrl:   str(typed.sourceUrl),
+      retrievedAt: str(typed.retrievedAt),
+      notes:       str(typed.notes),
     };
     try {
+      refuseShape(parsed);
       freestyleCurationService.createSource(input, req.user!.userId);
       res.redirect(303, '/admin/freestyle/sources');
     } catch (err) {
@@ -727,6 +986,7 @@ export const adminFreestyleController = {
         res.status(422).render('admin/freestyle-sources', freestyleCurationService.getSourceRegistryPage({
           submitted: input,
           error: err.message,
+          fieldErrors: err.fieldErrors ?? {},
         }));
         return;
       }
@@ -745,14 +1005,17 @@ export const adminFreestyleController = {
   // Create one modifier. Success redirects to the registry; a validation failure
   // re-renders the create form (422) with the submitted values.
   createModifier(req: Request, res: Response, next: NextFunction): void {
-    const input = modifierInputFromBody(req.body);
+    const parsed = parseFormBody(modifierForm, req.body);
+    const input = modifierInputFrom(typedFields(parsed));
     try {
+      refuseShape(parsed);
       freestyleCurationService.createModifier(input, req.user!.userId);
       res.redirect(303, '/admin/freestyle/modifiers');
     } catch (err) {
       if (err instanceof ValidationError) {
-        res.status(422).render('admin/freestyle-modifiers',
-          freestyleCurationService.getModifierRegistryPage({ submitted: input, error: err.message }));
+        res.status(422).render('admin/freestyle-modifiers', freestyleCurationService.getModifierRegistryPage({
+          submitted: input, error: err.message, fieldErrors: err.fieldErrors ?? {},
+        }));
         return;
       }
       next(err);
@@ -775,10 +1038,13 @@ export const adminFreestyleController = {
   // page; a confirmed or ADD-free change saves and redirects to the registry.
   updateModifier(req: Request, res: Response, next: NextFunction): void {
     const slug = str(req.params.slug);
-    const input = modifierInputFromBody(req.body);
+    const parsed = parseFormBody(modifierEditForm, req.body);
+    const typed = typedFields(parsed);
+    const input = modifierInputFrom(typed);
     try {
+      refuseShape(parsed);
       const result = freestyleCurationService.updateModifier(slug, input, req.user!.userId, {
-        confirmed: req.body.confirm === '1',
+        confirmed: typed.confirm === '1',
       });
       if (result.status === 'confirm') {
         res.render('admin/freestyle-modifier-add-confirm', result.page);
@@ -787,8 +1053,9 @@ export const adminFreestyleController = {
       res.redirect(303, '/admin/freestyle/modifiers');
     } catch (err) {
       if (err instanceof ValidationError) {
-        res.status(422).render('admin/freestyle-modifier-edit',
-          freestyleCurationService.getModifierEditPage(slug, { submitted: input, error: err.message }));
+        res.status(422).render('admin/freestyle-modifier-edit', freestyleCurationService.getModifierEditPage(slug, {
+          submitted: input, error: err.message, fieldErrors: err.fieldErrors ?? {},
+        }));
         return;
       }
       if (err instanceof NotFoundError) {
@@ -828,8 +1095,15 @@ export const adminFreestyleController = {
   // page; a refusal re-renders it (422) with the submitted values and every reason.
   updateFamily(req: Request, res: Response, next: NextFunction): void {
     const slug = str(req.params.slug);
-    const input = familyInputFromBody(req.body);
+    const parsed = parseFormBody(familyForm, req.body);
+    const input = familyInputFrom(typedFields(parsed));
     try {
+      if (!parsed.ok) {
+        res.status(422).render('admin/freestyle-family-edit', freestyleCurationService.getFamilyEditPage(slug, {
+          submitted: input, errors: Object.values(parsed.fieldErrors), fieldErrors: parsed.fieldErrors,
+        }));
+        return;
+      }
       const result = freestyleCurationService.updateFamily(slug, input, req.user!.userId);
       const editPath = `/admin/freestyle/families/${slug}/edit`;
       if (result.status === 'saved') redirectSaved(req, res, editPath);
@@ -869,8 +1143,15 @@ export const adminFreestyleController = {
   // Create one set. Success lands on the new set's edit page; a refusal
   // re-renders the create form (422) with the submitted values and every reason.
   createSet(req: Request, res: Response, next: NextFunction): void {
-    const input = setInputFromBody(req.body, true);
+    const parsed = parseFormBody(setCreateForm, req.body);
+    const input = setInputFrom(typedFields(parsed), true);
     try {
+      if (!parsed.ok) {
+        res.status(422).render('admin/freestyle-set-form', freestyleCurationService.getSetNewPage({
+          submitted: input, errors: Object.values(parsed.fieldErrors), fieldErrors: parsed.fieldErrors,
+        }));
+        return;
+      }
       freestyleCurationService.createSet(input, req.user!.userId);
       redirectSaved(req, res, `/admin/freestyle/sets/${input.slug}/edit`);
     } catch (err) {
@@ -903,8 +1184,15 @@ export const adminFreestyleController = {
   // page; a refusal re-renders it (422) with the submitted values and every reason.
   updateSet(req: Request, res: Response, next: NextFunction): void {
     const slug = str(req.params.slug);
-    const input = setInputFromBody(req.body, false);
+    const parsed = parseFormBody(setEditForm, req.body);
+    const input = setInputFrom(typedFields(parsed), false);
     try {
+      if (!parsed.ok) {
+        res.status(422).render('admin/freestyle-set-form', freestyleCurationService.getSetEditPage(slug, {
+          submitted: input, errors: Object.values(parsed.fieldErrors), fieldErrors: parsed.fieldErrors,
+        }));
+        return;
+      }
       const result = freestyleCurationService.updateSet(slug, input, req.user!.userId);
       const editPath = `/admin/freestyle/sets/${slug}/edit`;
       if (result.status === 'saved') redirectSaved(req, res, editPath);
@@ -944,8 +1232,15 @@ export const adminFreestyleController = {
   // Add one glossary term. Success lands on the new term's edit page; a refusal
   // re-renders the add form (422) with the submitted values and every reason.
   createGlossaryTerm(req: Request, res: Response, next: NextFunction): void {
-    const input = glossaryInputFromBody(req.body, true);
+    const parsed = parseFormBody(glossaryCreateForm, req.body);
+    const input = glossaryInputFrom(typedFields(parsed), true);
     try {
+      if (!parsed.ok) {
+        res.status(422).render('admin/freestyle-glossary-term-form', freestyleCurationService.getGlossaryNewPage({
+          submitted: input, errors: Object.values(parsed.fieldErrors),
+        }));
+        return;
+      }
       freestyleCurationService.createGlossaryTerm(input, req.user!.userId);
       redirectSaved(req, res, `/admin/freestyle/glossary/${input.slug}/edit`);
     } catch (err) {
@@ -978,8 +1273,15 @@ export const adminFreestyleController = {
   // edit page; a refusal re-renders it (422) with the submitted values and every reason.
   updateGlossaryTerm(req: Request, res: Response, next: NextFunction): void {
     const slug = str(req.params.slug);
-    const input = glossaryInputFromBody(req.body, false);
+    const parsed = parseFormBody(glossaryEditForm, req.body);
+    const input = glossaryInputFrom(typedFields(parsed), false);
     try {
+      if (!parsed.ok) {
+        res.status(422).render('admin/freestyle-glossary-term-form', freestyleCurationService.getGlossaryEditPage(slug, {
+          submitted: input, errors: Object.values(parsed.fieldErrors),
+        }));
+        return;
+      }
       const result = freestyleCurationService.updateGlossaryTerm(slug, input, req.user!.userId);
       const editPath = `/admin/freestyle/glossary/${slug}/edit`;
       if (result.status === 'saved') redirectSaved(req, res, editPath);
@@ -1034,8 +1336,15 @@ export const adminFreestyleController = {
   // Add one operator. Success lands on the new operator's edit page; a refusal
   // re-renders the add form (422) with the submitted values and every reason.
   createOperator(req: Request, res: Response, next: NextFunction): void {
-    const input = operatorInputFromBody(req.body, true);
+    const parsed = parseFormBody(operatorCreateForm, req.body);
+    const input = operatorInputFrom(typedFields(parsed), true);
     try {
+      if (!parsed.ok) {
+        res.status(422).render('admin/freestyle-operator-form', freestyleCurationService.getOperatorNewPage({
+          submitted: input, errors: Object.values(parsed.fieldErrors),
+        }));
+        return;
+      }
       freestyleCurationService.createOperator(input, req.user!.userId);
       redirectSaved(req, res, `/admin/freestyle/operators/${input.slug}/edit`);
     } catch (err) {
@@ -1068,8 +1377,15 @@ export const adminFreestyleController = {
   // edit page; a refusal re-renders it (422) with the submitted values and every reason.
   updateOperator(req: Request, res: Response, next: NextFunction): void {
     const slug = str(req.params.slug);
-    const input = operatorInputFromBody(req.body, false);
+    const parsed = parseFormBody(operatorEditForm, req.body);
+    const input = operatorInputFrom(typedFields(parsed), false);
     try {
+      if (!parsed.ok) {
+        res.status(422).render('admin/freestyle-operator-form', freestyleCurationService.getOperatorEditPage(slug, {
+          submitted: input, errors: Object.values(parsed.fieldErrors),
+        }));
+        return;
+      }
       const result = freestyleCurationService.updateOperator(slug, input, req.user!.userId);
       const editPath = `/admin/freestyle/operators/${slug}/edit`;
       if (result.status === 'saved') redirectSaved(req, res, editPath);
@@ -1103,7 +1419,7 @@ export const adminFreestyleController = {
   },
 };
 
-function operatorInputFromBody(body: Record<string, unknown>, withSlug: boolean): FreestyleOperatorInput {
+function operatorInputFrom(body: Typed, withSlug: boolean): FreestyleOperatorInput {
   return {
     ...(withSlug ? { slug: str(body.slug) } : {}),
     name:                str(body.name),
@@ -1119,7 +1435,7 @@ function operatorInputFromBody(body: Record<string, unknown>, withSlug: boolean)
   };
 }
 
-function glossaryInputFromBody(body: Record<string, unknown>, withSlug: boolean): FreestyleGlossaryTermInput {
+function glossaryInputFrom(body: Typed, withSlug: boolean): FreestyleGlossaryTermInput {
   return {
     ...(withSlug ? { slug: str(body.slug) } : {}),
     term:       str(body.term),
@@ -1130,7 +1446,7 @@ function glossaryInputFromBody(body: Record<string, unknown>, withSlug: boolean)
   };
 }
 
-function setInputFromBody(body: Record<string, unknown>, withSlug: boolean): FreestyleSetInput {
+function setInputFrom(body: Typed, withSlug: boolean): FreestyleSetInput {
   return {
     ...(withSlug ? { slug: str(body.slug) } : {}),
     displayName:  str(body.displayName),
@@ -1142,7 +1458,7 @@ function setInputFromBody(body: Record<string, unknown>, withSlug: boolean): Fre
   };
 }
 
-function familyInputFromBody(body: Record<string, unknown>): FreestyleFamilyInput {
+function familyInputFrom(body: Typed): FreestyleFamilyInput {
   return {
     displayName:          str(body.displayName),
     parentSlug:           str(body.parentSlug),
@@ -1160,7 +1476,7 @@ function familyInputFromBody(body: Record<string, unknown>): FreestyleFamilyInpu
   };
 }
 
-function modifierInputFromBody(body: Record<string, unknown>): FreestyleModifierInput {
+function modifierInputFrom(body: Typed): FreestyleModifierInput {
   return {
     slug:         str(body.slug),
     modifierName: str(body.modifierName),
@@ -1174,7 +1490,7 @@ function modifierInputFromBody(body: Record<string, unknown>): FreestyleModifier
   };
 }
 
-function recordInputFromBody(body: Record<string, unknown>): FreestyleRecordScalarInput {
+function recordInputFrom(body: Typed): FreestyleRecordScalarInput {
   return {
     recordType:    str(body.recordType),
     personId:      str(body.personId),
@@ -1196,7 +1512,7 @@ function recordInputFromBody(body: Record<string, unknown>): FreestyleRecordScal
   };
 }
 
-function consecutiveInputFromBody(body: Record<string, unknown>): ConsecutiveScalarInput {
+function consecutiveInputFrom(body: Typed): ConsecutiveScalarInput {
   return {
     sortOrder:  str(body.sortOrder),
     section:    str(body.section),
@@ -1216,14 +1532,4 @@ function consecutiveInputFromBody(body: Record<string, unknown>): ConsecutiveSca
 
 function str(value: unknown): string {
   return typeof value === 'string' ? value : '';
-}
-
-/** The submitted string, or undefined when the request did not carry the field.
- *
- *  Distinct from `str` because an absent field and an empty one mean different
- *  things on a form that edits several independent facts at once: absent is "this
- *  form did not ask", empty is "the person cleared it".
- */
-function optStr(value: unknown): string | undefined {
-  return typeof value === 'string' ? value : undefined;
 }

@@ -19,19 +19,78 @@ import { readMultipart, type ParsedMultipart } from '../lib/multipartForm';
 interface MemberPasswordEditContent {
   memberKey: string;
   error?: string;
+  fieldErrors?: Record<string, string>;
   success?: boolean;
 }
 
 import { logger } from '../config/logger';
 import { isSafePath } from '../lib/safePath';
+import { z } from 'zod';
+import { parseFormBody, formText, formOptionalText, formList, formCheckbox } from '../lib/parseFormBody';
 
+// The tier purchase button. Each field may instead arrive on the query string.
+const purchaseTierForm = z.object({
+  tier: formOptionalText('Membership tier'),
+  returnTo: formOptionalText('The page to return to'),
+});
 
-// Repeated form fields (e.g. three `link_label` inputs) arrive as an array;
-// a single one arrives as a string. Normalize both to a string[].
-function coerceStringArray(value: unknown): string[] {
-  if (Array.isArray(value)) return value.map((v) => (typeof v === 'string' ? v : ''));
-  if (typeof value === 'string') return [value];
-  return [];
+const passwordEditForm = z.object({
+  oldPassword: formText('Current password'),
+  newPassword: formText('New password'),
+  confirmPassword: formText('Confirm new password'),
+});
+
+// The account-deletion confirmation. A bare post without `confirmed` is someone
+// who has not read the screen yet.
+const deleteAccountForm = z.object({
+  confirmed: formOptionalText('Confirmation'),
+  recurringDonation: formOptionalText('Your recurring donation'),
+});
+
+// The profile edit form. Each checkbox keeps the default it has always had
+// when absent; the link inputs repeat, one label and one URL per slot.
+const profileEditForm = z.object({
+  bio: formText('Bio'),
+  city: formText('City'),
+  region: formText('State or province'),
+  country: formText('Country'),
+  phone: formText('Phone'),
+  whatsapp: formText('WhatsApp'),
+  emailVisibility: formOptionalText('Contact email visibility'),
+  phoneVisible: formCheckbox('Show my phone to logged-in members', '0'),
+  whatsappVisible: formCheckbox('Show my WhatsApp to logged-in members', '0'),
+  searchable: formCheckbox('Allow other members to find me in member search', '0'),
+  firstCompetitionYear: formText('First year of competition'),
+  birthDay: formText('Day of birth'),
+  birthMonth: formText('Month of birth'),
+  birthYear: formText('Year of birth'),
+  showCompetitiveResults: formCheckbox('Show competitive results on my public profile', '1'),
+  showFirstCompetitionYear: formCheckbox('Show first competition year on my public profile', '0'),
+  showGender: formCheckbox('Show my gender on my public profile', '0'),
+  gender: formText('Gender'),
+  link_label: formList('Link label'),
+  link_url: formList('Link URL'),
+});
+
+function profileEditInput(fields: z.output<typeof profileEditForm>): ProfileEditInput {
+  const { link_label: labels, link_url: urls, emailVisibility, ...rest } = fields;
+  const links: Array<{ label: string; url: string }> = [];
+  for (let i = 0; i < Math.max(labels.length, urls.length); i += 1) {
+    links.push({ label: labels[i] ?? '', url: urls[i] ?? '' });
+  }
+  return { ...rest, emailVisibility: emailVisibility ?? 'private', links };
+}
+
+// What a refused profile edit hands back to the form: every field that arrived
+// in a shape the form sends, read the same way a save reads it. The refused
+// fields are left out and show as blank beside their messages.
+function keptProfileInput(
+  refusal: { fieldErrors: Record<string, string>; submitted: Partial<Record<string, string>>; submittedLists: Partial<Record<string, string[]>> },
+): ProfileEditInput | undefined {
+  const kept: Record<string, string | string[] | undefined> = { ...refusal.submitted, ...refusal.submittedLists };
+  for (const key of Object.keys(refusal.fieldErrors)) delete kept[key];
+  const reread = profileEditForm.safeParse(kept);
+  return reread.success ? profileEditInput(reread.data) : undefined;
 }
 
 export const memberController = {
@@ -177,16 +236,23 @@ export const memberController = {
   async postDeleteAccount(req: Request, res: Response, next: NextFunction): Promise<void> {
     if (!isOwnMemberRoute(req)) { renderNotFound(res); return; }
     const memberKey = req.params.memberKey;
+    const parsed = parseFormBody(deleteAccountForm, req.body);
+    if (!parsed.ok) {
+      res.status(422).render('members/delete-account', memberService.getAccountDeletionPage(memberKey, {
+        refusal: { message: parsed.message, fieldErrors: parsed.fieldErrors },
+      }));
+      return;
+    }
     // The confirmation screen posts back to itself carrying the hidden field, so
     // a bare POST is someone who has not read it yet and gets it now.
-    if (req.body.confirmed !== '1') {
+    if (parsed.data.confirmed !== '1') {
       res.render('members/delete-account', memberService.getAccountDeletionPage(memberKey));
       return;
     }
     try {
       const result = await getDefaultAccountDeletionService().requestAccountDeletion({
         memberId: req.user!.userId,
-        recurringDonationChoice: req.body.recurringDonation === 'cancel' ? 'cancel' : 'keep',
+        recurringDonationChoice: parsed.data.recurringDonation === 'cancel' ? 'cancel' : 'keep',
       });
       // A deletion that already landed (two overlapping submits) is the same
       // outcome as the first, so it gets the same done page.
@@ -221,34 +287,17 @@ export const memberController = {
     }
     const memberKey = req.params.memberKey;
     try {
-      const linkLabels = coerceStringArray(req.body.link_label);
-      const linkUrls   = coerceStringArray(req.body.link_url);
-      const linkCount  = Math.max(linkLabels.length, linkUrls.length);
-      const links: Array<{ label: string; url: string }> = [];
-      for (let i = 0; i < linkCount; i += 1) {
-        links.push({ label: linkLabels[i] ?? '', url: linkUrls[i] ?? '' });
+      const parsed = parseFormBody(profileEditForm, req.body);
+      if (!parsed.ok) {
+        const vm = memberService.getProfileEditPage(memberKey, {
+          error: parsed.message,
+          fieldErrors: parsed.fieldErrors,
+          submitted: keptProfileInput(parsed),
+        });
+        res.status(422).render('members/profile-edit', vm);
+        return;
       }
-      const input: ProfileEditInput = {
-        bio:             req.body.bio            ?? '',
-        city:            req.body.city           ?? '',
-        region:          req.body.region         ?? '',
-        country:         req.body.country        ?? '',
-        phone:           req.body.phone          ?? '',
-        whatsapp:        req.body.whatsapp       ?? '',
-        emailVisibility: req.body.emailVisibility ?? 'private',
-        phoneVisible:    req.body.phoneVisible    ?? '0',
-        whatsappVisible: req.body.whatsappVisible ?? '0',
-        searchable:      req.body.searchable      ?? '0',
-        firstCompetitionYear: req.body.firstCompetitionYear ?? '',
-        birthDay:        req.body.birthDay      ?? '',
-        birthMonth:      req.body.birthMonth    ?? '',
-        birthYear:       req.body.birthYear     ?? '',
-        showCompetitiveResults: req.body.showCompetitiveResults ?? '1',
-        showFirstCompetitionYear: req.body.showFirstCompetitionYear ?? '0',
-        showGender:      req.body.showGender     ?? '0',
-        gender:          req.body.gender         ?? '',
-        links,
-      };
+      const input = profileEditInput(parsed.data);
       try {
         await memberService.updateOwnProfile(memberKey, input);
         writeFlash(res, req, FLASH_KIND.PROFILE_UPDATED);
@@ -372,28 +421,26 @@ export const memberController = {
     }
     const memberId = req.user!.userId;
 
-    const renderForm = (opts: { error: string; status: number }) => {
+    const renderForm = (opts: { error: string; status: number; fieldErrors?: Record<string, string> }) => {
       res.status(opts.status).render('members/password-edit', {
         seo:  { title: 'Change Password' },
         page: { sectionKey: 'members', pageKey: 'member_password', title: 'Change Password' },
         navigation: {
           contextLinks: [{ label: 'Back to My Profile', href: `/members/${req.params.memberKey}` }],
         },
-        content: { error: opts.error, memberKey: req.params.memberKey },
+        content: { error: opts.error, fieldErrors: opts.fieldErrors, memberKey: req.params.memberKey },
       } satisfies PageViewModel<MemberPasswordEditContent>);
     };
 
-    const { oldPassword, newPassword, confirmPassword } = req.body as {
-      oldPassword?: string; newPassword?: string; confirmPassword?: string;
-    };
+    const parsed = parseFormBody(passwordEditForm, req.body);
+    if (!parsed.ok) {
+      renderForm({ error: parsed.message, status: 422, fieldErrors: parsed.fieldErrors });
+      return;
+    }
+    const { oldPassword, newPassword, confirmPassword } = parsed.data;
 
     try {
-      const result = await identityAccessService.changePassword(
-        memberId,
-        oldPassword ?? '',
-        newPassword ?? '',
-        confirmPassword ?? '',
-      );
+      const result = await identityAccessService.changePassword(memberId, oldPassword, newPassword, confirmPassword);
       // Set the replacement session cookie so this browser stays signed in. The
       // service signed it before committing the change, so by the time we get
       // here the token is guaranteed to exist and to carry the new version.
@@ -440,9 +487,17 @@ export const memberController = {
 
   async postPurchaseTier(req: Request, res: Response, next: NextFunction): Promise<void> {
     if (!isOwnMemberRoute(req)) { renderNotFound(res); return; }
-    const tier = String(req.body.tier ?? req.query.tier ?? '');
+    const parsed = parseFormBody(purchaseTierForm, req.body);
+    if (!parsed.ok) {
+      // The purchase form is a single button carrying hidden fields, so there
+      // is nothing typed to keep: the generic page names what was refused.
+      renderInvalidRequest(res, { title: parsed.message });
+      return;
+    }
+    const queryTier = typeof req.query.tier === 'string' ? req.query.tier : '';
+    const tier = parsed.data.tier ?? queryTier;
     const rawReturnTo =
-      typeof req.body.returnTo === 'string' ? req.body.returnTo
+      parsed.data.returnTo !== undefined ? parsed.data.returnTo
       : typeof req.query.returnTo === 'string' ? req.query.returnTo
       : '';
     const returnTo = isSafePath(rawReturnTo) ? rawReturnTo : `/members/${req.params.memberKey}`;
