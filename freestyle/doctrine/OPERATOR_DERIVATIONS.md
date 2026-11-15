@@ -11,10 +11,10 @@ audit (2026-07-02) at `exploration/red-reduction-audit-2026-07-02/AUDIT.md`, its
 Method: the burden of proof is on KEEPING a question in the expert queue. A ruling is
 derived only when independent evidence converges and a competing reading is
 positively excluded; where evidence ran out, the item stays with the expert or the
-curator and says so. Operator ADD values themselves live in
-`src/content/freestyleOperatorReference.ts` and the
-`freestyle/inputs/base_dictionary/trick_modifiers.csv` registry; this document records the
-derivations and their proofs.
+curator and says so. Operator ADD values themselves live in the modifier
+registry (the `freestyle/inputs/base_dictionary/trick_modifiers.csv` seed before
+cutover), and operator structure in the `freestyle_operators` table; this document
+records the derivations and their proofs.
 
 ## Alpine = the ducking prefix
 

@@ -23,6 +23,7 @@ import { seedCuratorContent, STAGED_CURATOR_CONTENT } from '../../freestyle/load
 import { STAGED_FAMILIES, STAGED_FAMILY_SUBLABELS } from '../../freestyle/inputs/curator_content/freestyleFamilies';
 import { STAGED_SETS } from '../../freestyle/inputs/curator_content/freestyleSets';
 import { STAGED_GLOSSARY_TERMS } from '../../freestyle/inputs/curator_content/freestyleGlossaryTerms';
+import { STAGED_OPERATORS, STAGED_MODIFIER_BROWSE } from '../../freestyle/inputs/curator_content/freestyleOperators';
 
 const { dbPath } = setTestEnv('4142');
 const savesDir = process.env.CURATOR_SAVES_DIR!;
@@ -46,6 +47,10 @@ const FAMILY_EDITED = 'swirl';
 const SET_EDITED = 'fairy';
 const SAVED_SET_FORMULA = 'TOE > SAME OUT [DEX] > (saved)';
 const CREATED_SET = 'saved_created_set';
+const OPERATOR_EDITED = 'gyro';
+const SAVED_OPERATOR_DEFINITION = 'A definition the curator saved over the seeded operator.';
+const OPERATOR_ADDED = 'saved_added_operator';
+const PARADOX_BROWSE = STAGED_MODIFIER_BROWSE.find((b) => b.slug === 'paradox')!;
 const GLOSSARY_EDITED = 'mods';
 const SAVED_GLOSSARY_DEFINITION = 'A definition the curator saved.';
 const GLOSSARY_ADDED = 'saved-added-term';
@@ -308,12 +313,26 @@ beforeAll(async () => {
     slug: 'saved_modifier', modifierName: 'Saved Modifier', addBonus: '2', modifierType: 'set', notes: '',
   }, ADMIN_ID);
   service.attachModifier(editedSlug, { modifierSlug: 'saved_modifier', applyOrder: '8' }, ADMIN_ID);
-  // Paradox carries a seeded beginner note, so the save overrides it over the
-  // staged curator content.
+  // Paradox carries a seeded beginner note and a seeded browse placement with a
+  // full section, so the save overrides both over the staged curator content: the
+  // group and position stay, and the full section is switched off.
   service.updateModifier('paradox', {
     modifierName: 'paradox', addBonus: '1', modifierType: 'body', notes: 'Saved modifier note.',
     beginnerNote: SAVED_BEGINNER_NOTE,
+    browseGroup: PARADOX_BROWSE.group!, browseOrder: String(PARADOX_BROWSE.order), browseFullSection: '',
   }, ADMIN_ID, { confirmed: false });
+  // An operator edit over the seeded operators, and an operator the editor added.
+  const gyro = STAGED_OPERATORS.find((o) => o.slug === OPERATOR_EDITED)!;
+  service.updateOperator(OPERATOR_EDITED, {
+    name: gyro.name, kind: gyro.kind, definition: SAVED_OPERATOR_DEFINITION,
+    decomposition: '', decompositionNote: '', workedExamples: '', sourceNote: '',
+    pageGroup: gyro.pageGroup ?? '', pageOrder: gyro.pageOrder === null ? '' : String(gyro.pageOrder),
+  }, ADMIN_ID);
+  service.createOperator({
+    slug: OPERATOR_ADDED, name: 'Saved Added Operator', kind: 'body', definition: 'An operator the curator added.',
+    decomposition: '', decompositionNote: '', workedExamples: 'Saved Example', sourceNote: '',
+    pageGroup: 'body-rotation', pageOrder: '99',
+  }, ADMIN_ID);
   // A family edit over the seeded roster.
   service.updateFamily(FAMILY_EDITED, familyForm(FAMILY_EDITED, { hook: SAVED_FAMILY_HOOK }), ADMIN_ID);
   // A set edit over the seeded sets, and a created set related to it.
@@ -628,6 +647,22 @@ describe('a rebuild', () => {
       [FAMILY_EDITED, SAVED_FAMILY_HOOK])).toBe(1);
   });
 
+  it('keeps an added operator, a saved operator edit and a saved browse placement over the seeded content', () => {
+    // Defect: an operator added or edited in the operator editor, or a browse
+    // placement changed in the modifier editor, is gone or undone at the next
+    // rebuild, because the seeder resets them after the saves or the save loader
+    // never reads them. The staged content is the control.
+    expect(STAGED_OPERATORS.some((o) => o.slug === OPERATOR_ADDED)).toBe(false);
+    expect(STAGED_OPERATORS.find((o) => o.slug === OPERATOR_EDITED)!.definition).not.toBe(SAVED_OPERATOR_DEFINITION);
+    expect(PARADOX_BROWSE.fullSection).toBe(true);
+    expect(rowCount(rebuildPath, 'freestyle_operators', 'slug = ? AND definition = ?',
+      [OPERATOR_EDITED, SAVED_OPERATOR_DEFINITION])).toBe(1);
+    expect(rowCount(rebuildPath, 'freestyle_operators', "slug = ? AND page_group = 'body-rotation' AND page_order = 99 AND worked_examples_json = ?",
+      [OPERATOR_ADDED, JSON.stringify(['Saved Example'])])).toBe(1);
+    expect(rowCount(rebuildPath, 'freestyle_trick_modifiers', 'slug = ? AND browse_group = ? AND browse_order = ? AND browse_full_section = 0',
+      ['paradox', PARADOX_BROWSE.group, PARADOX_BROWSE.order])).toBe(1);
+  });
+
   it('keeps an added glossary term, a saved glossary edit and a removal over the seeded glossary', () => {
     // Defect: a glossary term added, edited or removed in the glossary editor is
     // gone, undone or back at the next rebuild, because the seeder empties the
@@ -864,9 +899,9 @@ describe('the field list', () => {
     const kinds = loader.match(/RECORD_KINDS = \(([\s\S]*?)\n\)/)![1]!;
     // Each kind's tuple opens with its folder and then its table.
     const loaderFolders = [...kinds.matchAll(/^\s+\("([a-z_]+)", "[a-z_]+", \(/gm)].map((m) => m[1]!);
-    // Families, sets and glossary terms are read by functions of their own, each
-    // naming its folder.
-    const ownFolders = ['families', 'sets', 'glossary_terms'].filter((k) => new RegExp(`saves_dir / "${k}"`).test(loader));
+    // Families, sets, glossary terms and operators are read by functions of their
+    // own, each naming its folder.
+    const ownFolders = ['families', 'sets', 'glossary_terms', 'operators'].filter((k) => new RegExp(`saves_dir / "${k}"`).test(loader));
     expect([...loaderFolders, ...ownFolders].sort()).toEqual([...adapterModule.SAVE_ITEM_KINDS].sort());
   });
 

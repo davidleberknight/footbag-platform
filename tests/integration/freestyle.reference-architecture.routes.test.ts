@@ -25,6 +25,7 @@ import {
 } from '../fixtures/testDb';
 import { insertTrickAsRebuilt } from '../fixtures/stagedFormula';
 import { seedStagedGlossary } from '../fixtures/stagedGlossary';
+import { seedStagedOperatorsAndModifiers } from '../fixtures/stagedOperators';
 import { STAGED_GLOSSARY_TERMS as GLOSSARY_TERMS } from '../../freestyle/inputs/curator_content/freestyleGlossaryTerms';
 import type { GlossaryTermRecord } from '../../src/services/freestyleGlossaryRegistry';
 
@@ -49,6 +50,8 @@ beforeAll(async () => {
   }
   // The glossary entries live in the database, seeded as the rebuild seeds them.
   seedStagedGlossary(db);
+  // The operator pages the glossary's deeper links point at, as the rebuild seeds them.
+  seedStagedOperatorsAndModifiers(db);
   db.close();
   createApp = await importApp();
   ({ shapeGlossaryLetterGroups } = await import('../../src/services/freestyleService'));

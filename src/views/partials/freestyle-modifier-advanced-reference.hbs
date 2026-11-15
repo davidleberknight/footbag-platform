@@ -11,10 +11,10 @@
   term-anchor link target lives nowhere else).
 
   Required view-model fields on parent `content`:
-    - intermediateOperators: OperatorReferenceEntry[]
+    - intermediateOperators: ConceptsIntermediateOperator[]
     - setModifiers: FreestyleSetModifierEntry[]
-    - tier1Definitions: Record<slug, string> — the canonical Tier-1 definition
-      lines. Each body-modifier <dd> below renders its definition from this
+    - tier1Definitions: Record<slug, string> — each core operator's definition
+      line. Each body-modifier <dd> below renders its definition from this
       record and keeps only its per-term extras (formula, panel links, family
       notes) inline, so this partial never authors a competing definition.
 

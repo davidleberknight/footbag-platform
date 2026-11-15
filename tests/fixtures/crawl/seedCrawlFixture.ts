@@ -19,6 +19,7 @@ import type BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb } from '../testDb';
 import { seedStagedSets } from '../stagedSets';
 import { seedStagedGlossary } from '../stagedGlossary';
+import { seedStagedOperators } from '../stagedOperators';
 import { seedPersona } from '../../../src/testkit/personaFactory';
 import { CANONICAL_PERSONAS } from '../../../src/testkit/canonicalPersonas';
 import {
@@ -137,6 +138,9 @@ export function seedCrawlWorld(db: BetterSqlite3.Database): PrivateFieldCanaries
   // Every glossary entry as the rebuild seeds it, so the glossary page and the
   // glossary editor are crawled with real entries and their deeper links.
   seedStagedGlossary(db);
+  // Every operator as the rebuild seeds it, so the operators page, the operator
+  // editor and every operator page are crawled.
+  seedStagedOperators(db);
   insertFreestyleTrick(db, {
     slug: 'whirl', canonical_name: 'Whirl', adds: '3',
     trick_family: 'whirl', base_trick: 'whirl', category: 'dex',

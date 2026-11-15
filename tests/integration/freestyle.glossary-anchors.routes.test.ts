@@ -22,6 +22,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
+import { seedStagedOperatorsAndModifiers } from '../fixtures/stagedOperators';
 import { insertFreestyleTrick } from '../fixtures/factories';
 import { conceptsHrefForTerm, LEGACY_PANEL_TARGETS } from '../../src/services/conceptsAnchors';
 
@@ -55,6 +56,8 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'ducking-butterfly',        canonical_name: 'ducking butterfly',        adds: '4', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound' });
   insertFreestyleTrick(db, { slug: 'ducking-whirl',            canonical_name: 'ducking whirl',            adds: '4', base_trick: 'whirl',  trick_family: 'whirl',  category: 'compound' });
 
+  // The operators and the placed modifiers the pages link, as the rebuild seeds them.
+  seedStagedOperatorsAndModifiers(db);
   db.close();
   createApp = await importApp();
 });

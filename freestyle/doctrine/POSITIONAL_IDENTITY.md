@@ -97,7 +97,7 @@ when the dex and the catch sit on different sides, the qualifier targets the
 - An `OP` (far) component does not by itself add ADD. X-Dex is a separate flag
   (`[XDEX]`), never implied by `OP`: it fires only when a far-form dex lands on an
   eligible rotating receiver, per the receiver-gated rule whose canonical home is
-  `src/content/freestyleOperatorReference.ts`.
+  the atomic entry in the `freestyle_operators` table.
 - `[PDX]` (the paradox-direction marker) is a third member of the per-dex side
   relationship, distinct from `SAME`/`OP` and from `[XDEX]`, and can coexist with
   both on one trick (sumo carries a `[PDX]` dex and a separate `OP IN [DEX] [XDEX]`

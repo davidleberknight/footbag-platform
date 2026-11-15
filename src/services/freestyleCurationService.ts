@@ -68,6 +68,16 @@
  *     each save or removal writes its save file first, then the row change and one
  *     `freestyle.glossary_term.created`, `.updated` or `.removed` audit row in one
  *     transaction.
+ *   - The operator editor (`freestyle_operators`): listing the operators, adding
+ *     one, and editing one operator's name, kind, definition, decomposition and
+ *     its note, worked examples, source note, whether it awaits a curator's
+ *     confirmation, and its group and position on the operators page. An
+ *     operator holds no ADD, is never removed, and its slug is never edited. A
+ *     save is refused, with every reason and the submitted values kept, when a
+ *     field breaks the rules in freestyleOperatorRules. An unchanged submit
+ *     writes nothing; a save writes its save file first, then the row and one
+ *     `freestyle.operator.created` or `freestyle.operator.updated` audit row in
+ *     one transaction.
  *   - The notation authoring funnel: the backlog of Emerging Vocabulary rulings
  *     that still need a movement notation, authoring a notation draft for one
  *     with its provenance, and publishing an authored candidate as a new active
@@ -167,15 +177,18 @@
  * Persistence: reads and writes freestyle_tricks, freestyle_trick_aliases,
  * freestyle_trick_source_links, freestyle_trick_modifier_links,
  * freestyle_trick_sources, freestyle_ev_adjudications, freestyle_families,
- * freestyle_family_sublabels, freestyle_sets and freestyle_glossary_terms; reads
+ * freestyle_family_sublabels, freestyle_sets, freestyle_glossary_terms,
+ * freestyle_operators and freestyle_trick_modifiers (including each modifier's
+ * browse placement, set on edit); reads
  * freestyle_trick_modifiers, and media_items, media_tags and tags to count a
  * trick's live media. Appends freestyle.trick.updated,
  * freestyle.trick.published, freestyle.trick_alias.created/updated/deleted,
  * freestyle.trick_source_link.created/deleted,
  * freestyle.trick_modifier_link.created/deleted,
  * freestyle.trick_source.created, freestyle.family.updated,
- * freestyle.set.created/updated, freestyle.glossary_term.created/updated/removed
- * and freestyle.adjudication_notation.authored to audit_entries. A trick edit also goes through the curated-authoring adapter,
+ * freestyle.set.created/updated, freestyle.glossary_term.created/updated/removed,
+ * freestyle.operator.created/updated and freestyle.adjudication_notation.authored
+ * to audit_entries. A trick edit also goes through the curated-authoring adapter,
  * which writes the committed save file first on a developer machine before go-live
  * and writes nothing elsewhere; a file that cannot be written refuses the save.
  */
@@ -191,6 +204,7 @@ import {
   freestyleFamilies,
   freestyleSets,
   freestyleGlossaryTerms,
+  freestyleOperators,
   transaction,
 } from '../db/db';
 import { appendAuditEntry, findStandingOwnAct } from './auditService';
@@ -215,6 +229,16 @@ import { canonicalSets, findCanonicalSetBySlug, type SetRecord } from './freesty
 import { setRosterProblems, SET_SLUG_PATTERN, type SetRuleInput } from './freestyleSetRules';
 import { SET_SUBTYPE_SPECS } from '../content/freestyleCanonicalSets';
 import { glossaryTerms, findGlossaryTerm, type GlossaryTermRecord } from './freestyleGlossaryRegistry';
+import { operatorRecords, findOperator, type OperatorRecord } from './freestyleOperatorRegistry';
+import {
+  operatorProblems,
+  modifierBrowseProblems,
+  OPERATOR_KINDS,
+  OPERATOR_SLUG_PATTERN,
+  type OperatorRuleInput,
+} from './freestyleOperatorRules';
+import { OPERATOR_INDEX_AXES } from '../content/freestyleOperatorIndex';
+import { MODIFIER_CLUSTERS, isModifierCluster } from '../content/freestyleModifierClusters';
 import {
   glossaryProblems,
   isSitePath,
@@ -3179,6 +3203,9 @@ export const freestyleCurationService = {
       modifierType: row.modifier_type,
       notes:        row.notes ?? '',
       beginnerNote: row.beginner_note ?? '',
+      browseGroup:       row.browse_group ?? '',
+      browseOrder:       row.browse_order === null ? '' : String(row.browse_order),
+      browseFullSection: row.browse_full_section === 1 ? '1' : '',
     };
     return {
       seo:  { title: `Edit Modifier ${row.modifier_name}` },
@@ -3200,6 +3227,8 @@ export const freestyleCurationService = {
         cancelHref:  '/admin/freestyle/modifiers',
         submitted,
         typeOptions: modifierTypeOptions(submitted.modifierType),
+        browseGroupOptions:       browseGroupOptions(submitted.browseGroup),
+        browseFullSectionChecked: submitted.browseFullSection === '1',
         error:       opts.error,
       },
     };
@@ -3271,6 +3300,9 @@ export const freestyleCurationService = {
     if (fields.type !== current.modifier_type) changed.push('modifier_type');
     if (fields.notes !== (current.notes ?? null)) changed.push('notes');
     if (fields.beginnerNote !== (current.beginner_note ?? null)) changed.push('beginner_note');
+    if (fields.browseGroup !== current.browse_group) changed.push('browse_group');
+    if (fields.browseOrder !== current.browse_order) changed.push('browse_order');
+    if (fields.browseFullSection !== (current.browse_full_section === 1)) changed.push('browse_full_section');
     if (changed.length === 0) return { status: 'unchanged' };
 
     const addChanged = changed.includes('add_bonus');
@@ -3285,7 +3317,7 @@ export const freestyleCurationService = {
       () => transaction(() => {
         freestyleTrickModifiers.update.run(
           fields.name, fields.addBonus, fields.addBonus, fields.type, fields.notes,
-          fields.beginnerNote, slug,
+          fields.beginnerNote, fields.browseGroup, fields.browseOrder, fields.browseFullSection ? 1 : 0, slug,
         );
         appendAuditEntry({
           actionType:    'freestyle.modifier.updated',
@@ -3852,7 +3884,375 @@ export const freestyleCurationService = {
       }),
     );
   },
+
+  // Every operator, each linking to its edit form, and the link to add one.
+  // Operators are never removed here.
+  getOperatorListPage(): PageViewModel<FreestyleOperatorListContent> {
+    const groupName = new Map(OPERATOR_INDEX_AXES.map((a) => [a.axisKey, a.axisName] as const));
+    const rows = operatorRecords().map((o) => ({
+      slug:       o.slug,
+      name:       o.name,
+      kindLabel:  OPERATOR_KIND_LABELS[o.kind],
+      groupLabel: o.pageGroup ? groupName.get(o.pageGroup) ?? o.pageGroup : '',
+      editHref:   `/admin/freestyle/operators/${o.slug}/edit`,
+    }));
+    return {
+      seo:  { title: 'Freestyle Operators' },
+      page: {
+        sectionKey: 'admin', pageKey: 'admin_freestyle_operators', title: 'Freestyle Operators',
+        instructions: {
+          what: 'Lists every freestyle operator with its kind and its group on the operators page, and adds a new one.',
+          why: 'What each operator is, and where the operators page lists it, is kept in the running application, so it is corrected without a deployment.',
+          how: 'Add an operator, or open one below to edit it.',
+          headsUp: [
+            'An operator holds no ADD; a modifier\'s ADD is changed in the modifier editor.',
+            'An operator\'s slug is permanent once it is added, and operators are never removed here.',
+            'Adding or editing an operator is recorded in the audit log.',
+          ],
+        },
+      },
+      content: { rows, hasRows: rows.length > 0, newHref: '/admin/freestyle/operators/new' },
+    };
+  },
+
+  // The form that adds an operator. A refused add re-renders it with the
+  // submitted values and every reason.
+  getOperatorNewPage(
+    opts: { submitted?: FreestyleOperatorInput; errors?: string[] } = {},
+  ): PageViewModel<FreestyleOperatorFormContent> {
+    return {
+      seo:  { title: 'New Operator' },
+      page: {
+        sectionKey: 'admin', pageKey: 'admin_freestyle_operator_new', title: 'New Operator',
+        instructions: {
+          what: 'Adds a freestyle operator: its slug, name, kind, definition and the rest of its reference entry, and optionally its place on the operators page.',
+          why: 'So an operator missing from the reference is added in the running application.',
+          how: 'Fill in the operator and save. Worked examples take one per line.',
+          headsUp: [
+            'The slug is permanent and becomes the operator\'s page address.',
+            'An operator in a group is listed on the operators page as soon as it is saved.',
+          ],
+        },
+      },
+      content: operatorFormContent('/admin/freestyle/operators', opts.submitted ?? {}, opts.errors ?? [], false, true, null),
+    };
+  },
+
+  // The edit form for one operator. Throws NotFoundError for an unknown slug.
+  getOperatorEditPage(
+    slug: string,
+    opts: { submitted?: FreestyleOperatorInput; errors?: string[]; saved?: boolean } = {},
+  ): PageViewModel<FreestyleOperatorFormContent> {
+    const record = findOperator(slug);
+    if (!record) throw new NotFoundError(`No freestyle operator "${slug}"`);
+    return {
+      seo:  { title: `Edit Operator ${record.name}` },
+      page: {
+        sectionKey: 'admin', pageKey: 'admin_freestyle_operator_edit', title: `Edit Operator ${record.name}`,
+        instructions: {
+          what: 'Edits one freestyle operator: what it is, its reference entry and its place on the operators page.',
+          why: 'So the operator reference is kept in the running application.',
+          how: 'Change the fields and save. Worked examples take one per line.',
+          headsUp: [
+            'A change shows on the operators page and wherever a page states what the operator is, as soon as it is saved.',
+            'The slug is permanent.',
+          ],
+        },
+      },
+      content: operatorFormContent(
+        `/admin/freestyle/operators/${record.slug}/edit`, opts.submitted ?? operatorInputOf(record),
+        opts.errors ?? [], opts.saved === true, false, record.slug,
+      ),
+    };
+  },
+
+  // Add one operator. The slug is permanent; it may equal a modifier's, and then
+  // the two describe the same thing. The row, its save file and its audit entry
+  // land together behind the persona guard. Throws OperatorValidationError on
+  // bad input.
+  createOperator(input: FreestyleOperatorInput, actorMemberId: string): void {
+    const slug = (input.slug ?? '').trim();
+    const errors: string[] = [];
+    if (!slug) errors.push('Slug is required.');
+    else if (!OPERATOR_SLUG_PATTERN.test(slug)) errors.push('Slug may use only lowercase letters, digits and underscores.');
+    else if (findOperator(slug)) errors.push(`An operator "${slug}" already exists.`);
+    let validated: OperatorFields | null = null;
+    try {
+      validated = validateOperatorFields(input);
+    } catch (err) {
+      if (!(err instanceof OperatorValidationError)) throw err;
+      errors.push(...err.reasons);
+    }
+    if (errors.length > 0 || validated === null) throw new OperatorValidationError(errors);
+    const fields: OperatorFields = validated;
+
+    assertActorMayCurateFreestyle(actorMemberId);
+    const now = new Date().toISOString();
+    try {
+      writeFileThenCommit(
+        () => getCuratedAuthoringAdapter().saveItem('operators', slug, operatorSaveBody(slug, fields)),
+        () => transaction(() => {
+          freestyleOperators.insert.run(
+            slug, fields.name, fields.kind, fields.definition, fields.decomposition,
+            fields.decompositionNote, JSON.stringify(fields.workedExamples), fields.sourceNote,
+            fields.confirmationPending ? 1 : 0, fields.pageGroup, fields.pageOrder,
+            now, actorMemberId, now, actorMemberId,
+          );
+          appendAuditEntry({
+            actionType:    'freestyle.operator.created',
+            actorType:     'admin',
+            actorMemberId,
+            entityType:    'freestyle_operator',
+            entityId:      slug,
+            metadata:      { slug, changedFields: [...OPERATOR_FIELD_NAMES] },
+          });
+        }),
+      );
+    } catch (err) {
+      if (isDuplicateKeyError(err)) throw new OperatorValidationError([`An operator "${slug}" already exists.`]);
+      throw err;
+    }
+  },
+
+  // Edit one operator. Every field is validated; an unchanged submit writes
+  // nothing. The row, its save file and its audit entry land together behind the
+  // persona guard. Throws NotFoundError for an unknown slug and
+  // OperatorValidationError on bad input.
+  updateOperator(slug: string, input: FreestyleOperatorInput, actorMemberId: string): UpdateOperatorResult {
+    const current = findOperator(slug);
+    if (!current) throw new NotFoundError(`No freestyle operator "${slug}"`);
+    const fields = validateOperatorFields(input);
+
+    const changed: string[] = [];
+    if (fields.name !== current.name) changed.push('name');
+    if (fields.kind !== current.kind) changed.push('kind');
+    if (fields.definition !== current.definition) changed.push('definition');
+    if (fields.decomposition !== current.decomposition) changed.push('decomposition');
+    if (fields.decompositionNote !== current.decompositionNote) changed.push('decomposition_note');
+    if (JSON.stringify(fields.workedExamples) !== JSON.stringify(current.workedExamples)) changed.push('worked_examples');
+    if (fields.sourceNote !== current.sourceNote) changed.push('source_note');
+    if (fields.confirmationPending !== current.confirmationPending) changed.push('confirmation_pending');
+    if (fields.pageGroup !== current.pageGroup) changed.push('page_group');
+    if (fields.pageOrder !== current.pageOrder) changed.push('page_order');
+    if (changed.length === 0) return { status: 'unchanged' };
+
+    assertActorMayCurateFreestyle(actorMemberId);
+    const now = new Date().toISOString();
+    writeFileThenCommit(
+      () => getCuratedAuthoringAdapter().saveItem('operators', slug, operatorSaveBody(slug, fields)),
+      () => transaction(() => {
+        freestyleOperators.update.run(
+          fields.name, fields.kind, fields.definition, fields.decomposition, fields.decompositionNote,
+          JSON.stringify(fields.workedExamples), fields.sourceNote, fields.confirmationPending ? 1 : 0,
+          fields.pageGroup, fields.pageOrder, now, actorMemberId, slug,
+        );
+        appendAuditEntry({
+          actionType:    'freestyle.operator.updated',
+          actorType:     'admin',
+          actorMemberId,
+          entityType:    'freestyle_operator',
+          entityId:      slug,
+          metadata:      { slug, changedFields: changed },
+        });
+      }),
+    );
+    return { status: 'saved' };
+  },
 };
+
+// ── Operator editor ───────────────────────────────────────────────────────
+
+export interface FreestyleOperatorInput {
+  slug?:                string;   // add only
+  name?:                string;
+  kind?:                string;
+  definition?:          string;
+  decomposition?:       string;
+  decompositionNote?:   string;
+  workedExamples?:      string;   // one per line
+  sourceNote?:          string;
+  confirmationPending?: string;   // "1" when checked
+  pageGroup?:           string;   // '' = not listed on the operators page
+  pageOrder?:           string;
+}
+
+/** An operator save refused for one or more reasons, each shown to the editor. */
+export class OperatorValidationError extends ValidationError {
+  constructor(readonly reasons: readonly string[]) {
+    super(reasons.join(' '));
+    this.name = 'OperatorValidationError';
+  }
+}
+
+export interface FreestyleOperatorListRow {
+  slug:       string;
+  name:       string;
+  kindLabel:  string;
+  groupLabel: string;
+  editHref:   string;
+}
+
+export interface FreestyleOperatorListContent {
+  rows:    FreestyleOperatorListRow[];
+  hasRows: boolean;
+  newHref: string;
+}
+
+export interface FreestyleOperatorFormContent {
+  /** Set on the edit form only; the add form takes the slug as a field. */
+  slug?:               string;
+  isNew:               boolean;
+  formAction:          string;
+  cancelHref:          string;
+  submitted:           FreestyleOperatorInput;
+  kindOptions:         FilterOption[];
+  groupOptions:        FilterOption[];
+  confirmationChecked: boolean;
+  errors:              string[];
+  hasErrors:           boolean;
+  saved:               boolean;
+}
+
+export type UpdateOperatorResult = { status: 'saved' } | { status: 'unchanged' };
+
+interface OperatorFields {
+  name:                string;
+  kind:                string;
+  definition:          string;
+  decomposition:       string | null;
+  decompositionNote:   string | null;
+  workedExamples:      string[];
+  sourceNote:          string | null;
+  confirmationPending: boolean;
+  pageGroup:           string | null;
+  pageOrder:           number | null;
+}
+
+/** The fields an add records, named as the audit row names them. */
+const OPERATOR_FIELD_NAMES = [
+  'name', 'kind', 'definition', 'decomposition', 'decomposition_note', 'worked_examples',
+  'source_note', 'confirmation_pending', 'page_group', 'page_order',
+] as const;
+const OPERATOR_NAME_MAX = 80;
+// The decomposition and a worked example are single lines on a page.
+const OPERATOR_LINE_MAX = 400;
+// No operator needs more than a dozen worked examples.
+const OPERATOR_EXAMPLES_MAX = 12;
+
+const OPERATOR_KIND_LABELS: Readonly<Record<string, string>> = {
+  'core':                'Core operator',
+  'set':                 'Set',
+  'body':                'Body',
+  'compound-set':        'Compound set',
+  'compound-body':       'Compound body',
+  'historical-nickname': 'Historical name',
+  'quantifier':          'Quantifier',
+};
+
+function operatorInputOf(r: OperatorRecord): FreestyleOperatorInput {
+  return {
+    name:                r.name,
+    kind:                r.kind,
+    definition:          r.definition,
+    decomposition:       r.decomposition ?? '',
+    decompositionNote:   r.decompositionNote ?? '',
+    workedExamples:      r.workedExamples.join('\n'),
+    sourceNote:          r.sourceNote ?? '',
+    confirmationPending: r.confirmationPending ? '1' : '',
+    pageGroup:           r.pageGroup ?? '',
+    pageOrder:           r.pageOrder === null ? '' : String(r.pageOrder),
+  };
+}
+
+function operatorFormContent(
+  formAction: string,
+  submitted: FreestyleOperatorInput,
+  errors: string[],
+  saved: boolean,
+  isNew: boolean,
+  slug: string | null,
+): FreestyleOperatorFormContent {
+  return {
+    ...(slug !== null ? { slug } : {}),
+    isNew,
+    formAction,
+    cancelHref:   '/admin/freestyle/operators',
+    submitted,
+    kindOptions:  [
+      ...(isNew && !submitted.kind ? [{ value: '', label: 'Choose a kind', selected: true }] : []),
+      ...OPERATOR_KINDS.map((k) => ({ value: k, label: OPERATOR_KIND_LABELS[k] ?? k, selected: submitted.kind === k })),
+    ],
+    groupOptions: [
+      { value: '', label: 'Not listed on the operators page', selected: !submitted.pageGroup },
+      ...OPERATOR_INDEX_AXES.map((a) => ({ value: a.axisKey, label: a.axisName, selected: submitted.pageGroup === a.axisKey })),
+    ],
+    confirmationChecked: submitted.confirmationPending === '1',
+    errors,
+    hasErrors: errors.length > 0,
+    saved,
+  };
+}
+
+// Validates each field and the operator rules together; collects every problem
+// so the editor sees them all at once.
+function validateOperatorFields(input: FreestyleOperatorInput): OperatorFields {
+  const errors: string[] = [];
+  const name = cleanUserText(input.name ?? '', 'single_line', 'name');
+  if (name.length > OPERATOR_NAME_MAX) errors.push(`Name must be ${OPERATOR_NAME_MAX} characters or fewer.`);
+  const kind = (input.kind ?? '').trim();
+  const definition = cleanUserText(input.definition ?? '', 'multi_line', 'definition');
+  if (definition.length > PROSE_MAX) errors.push(`Definition must be ${PROSE_MAX} characters or fewer.`);
+  const decomposition = cleanUserText(input.decomposition ?? '', 'single_line', 'decomposition');
+  if (decomposition.length > OPERATOR_LINE_MAX) errors.push(`Decomposition must be ${OPERATOR_LINE_MAX} characters or fewer.`);
+  const decompositionNote = cleanUserText(input.decompositionNote ?? '', 'multi_line', 'decompositionNote');
+  if (decompositionNote.length > PROSE_MAX) errors.push(`Decomposition note must be ${PROSE_MAX} characters or fewer.`);
+  const sourceNote = cleanUserText(input.sourceNote ?? '', 'multi_line', 'sourceNote');
+  if (sourceNote.length > PROSE_MAX) errors.push(`Source note must be ${PROSE_MAX} characters or fewer.`);
+  const workedExamples = (input.workedExamples ?? '').split(/\r?\n/)
+    .map((line) => cleanUserText(line, 'single_line', 'workedExamples'))
+    .filter((line) => line.length > 0);
+  if (workedExamples.length > OPERATOR_EXAMPLES_MAX) errors.push(`Worked examples takes at most ${OPERATOR_EXAMPLES_MAX} lines.`);
+  if (workedExamples.some((w) => w.length > OPERATOR_LINE_MAX)) {
+    errors.push(`Each worked example must be ${OPERATOR_LINE_MAX} characters or fewer.`);
+  }
+  const pageGroup = (input.pageGroup ?? '').trim() || null;
+  const orderRaw = (input.pageOrder ?? '').trim();
+  let pageOrder: number | null = null;
+  if (orderRaw !== '') {
+    if (/^\d+$/.test(orderRaw)) pageOrder = Number(orderRaw);
+    else errors.push('Position on the operators page must be a whole number zero or greater.');
+  }
+  const rule: OperatorRuleInput = { slug: 'x', name, kind, definition, pageGroup, pageOrder };
+  for (const p of operatorProblems([rule])) {
+    if (p.field !== 'slug') errors.push(p.message);
+  }
+  if (errors.length > 0) throw new OperatorValidationError(errors);
+  return {
+    name, kind, definition,
+    decomposition:       nullIfEmpty(decomposition),
+    decompositionNote:   nullIfEmpty(decompositionNote),
+    workedExamples,
+    sourceNote:          nullIfEmpty(sourceNote),
+    confirmationPending: input.confirmationPending === '1',
+    pageGroup, pageOrder,
+  };
+}
+
+function operatorSaveBody(slug: string, f: OperatorFields): SaveItemBody {
+  return {
+    slug,
+    name:                 f.name,
+    kind:                 f.kind,
+    definition:           f.definition,
+    decomposition:        f.decomposition,
+    decomposition_note:   f.decompositionNote,
+    worked_examples:      f.workedExamples,
+    source_note:          f.sourceNote,
+    confirmation_pending: f.confirmationPending,
+    page_group:           f.pageGroup,
+    page_order:           f.pageOrder,
+  };
+}
 
 // ── Glossary editor ───────────────────────────────────────────────────────
 
@@ -4416,6 +4816,10 @@ export interface FreestyleModifierInput {
   modifierType?: string;
   notes?:        string;
   beginnerNote?: string;
+  // Edit only: where the browse-by-modifier view lists the modifier.
+  browseGroup?:       string;   // '' = the catch-all group
+  browseOrder?:       string;   // '' = no position
+  browseFullSection?: string;   // "1" when checked
 }
 
 // The types the registry carries; the schema's comment names the same three.
@@ -4436,6 +4840,9 @@ interface ModifierDbRow {
   modifier_type: string;
   notes: string | null;
   beginner_note: string | null;
+  browse_group: string | null;
+  browse_order: number | null;
+  browse_full_section: number;
 }
 
 interface ModifierFields {
@@ -4444,6 +4851,9 @@ interface ModifierFields {
   type: string;
   notes: string | null;
   beginnerNote: string | null;
+  browseGroup: string | null;
+  browseOrder: number | null;
+  browseFullSection: boolean;
 }
 
 export interface FreestyleModifierRegistryRow {
@@ -4468,6 +4878,8 @@ export interface FreestyleModifierEditContent {
   cancelHref: string;
   submitted: FreestyleModifierInput;
   typeOptions: FilterOption[];
+  browseGroupOptions: FilterOption[];
+  browseFullSectionChecked: boolean;
   error?: string;
 }
 
@@ -4522,9 +4934,18 @@ function validateModifierFields(input: FreestyleModifierInput): ModifierFields {
   if (beginnerNote.length > MODIFIER_LINE_MAX) {
     throw new ValidationError(`Beginner note must be ${MODIFIER_LINE_MAX} characters or fewer.`);
   }
+  const browseGroup = (input.browseGroup ?? '').trim() || null;
+  const orderRaw = (input.browseOrder ?? '').trim();
+  if (orderRaw !== '' && !/^\d+$/.test(orderRaw)) {
+    throw new ValidationError('Browse position must be a whole number zero or greater.');
+  }
+  const browseOrder = orderRaw === '' ? null : Number(orderRaw);
+  const browseProblems = modifierBrowseProblems({ group: browseGroup, order: browseOrder });
+  if (browseProblems.length > 0) throw new ValidationError(browseProblems.join(' '));
   return {
     name, addBonus: Number(addRaw), type, notes: nullIfEmpty(notes),
     beginnerNote: nullIfEmpty(beginnerNote),
+    browseGroup, browseOrder, browseFullSection: input.browseFullSection === '1',
   };
 }
 
@@ -4537,7 +4958,19 @@ function modifierSaveBody(slug: string, fields: ModifierFields): Record<string, 
     modifier_type: fields.type,
     notes: fields.notes,
     beginner_note: fields.beginnerNote,
+    browse_group: fields.browseGroup,
+    browse_order: fields.browseOrder,
+    browse_full_section: fields.browseFullSection ? 1 : 0,
   };
+}
+
+// The browse groups a modifier can be placed in, with the catch-all as "none".
+function browseGroupOptions(selected: string | undefined): FilterOption[] {
+  return [
+    { value: '', label: 'None (listed under Other tracked operators)', selected: !selected },
+    ...MODIFIER_CLUSTERS.filter((c) => isModifierCluster(c.key))
+      .map((c) => ({ value: c.key, label: c.label, selected: selected === c.key })),
+  ];
 }
 
 // Computed ADD is the base trick's ADD plus each linked modifier's bonus, the
@@ -4609,6 +5042,9 @@ function modifierConfirmPage(
         modifierType: input.modifierType ?? '',
         notes:        input.notes ?? '',
         beginnerNote: input.beginnerNote ?? '',
+        browseGroup:       input.browseGroup ?? '',
+        browseOrder:       input.browseOrder ?? '',
+        browseFullSection: input.browseFullSection ?? '',
       },
     },
   };

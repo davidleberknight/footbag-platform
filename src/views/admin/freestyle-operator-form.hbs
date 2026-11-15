@@ -1,0 +1,80 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{> admin-instructions}}
+  <section>
+    {{#if content.saved}}
+    {{> outcome-notice text="Saved." tone='ok'}}
+    {{/if}}
+    {{> outcome-notice lines=content.errors tone='no'}}
+
+    <form method="POST" action="{{content.formAction}}" class="form-block">
+      {{#if content.isNew}}
+      <div class="form-field">
+        <label for="operator-slug">Slug</label>
+        <input type="text" id="operator-slug" name="slug" value="{{content.submitted.slug}}" aria-describedby="operator-slug-hint" />
+        <small class="form-hint" id="operator-slug-hint">Lowercase letters, digits and underscores. It becomes the operator's page address and cannot be changed. It may equal a modifier's slug, and then the two describe the same thing.</small>
+      </div>
+      {{/if}}
+      <div class="form-field">
+        <label for="operator-name">Name</label>
+        <input type="text" id="operator-name" name="name" value="{{content.submitted.name}}" />
+      </div>
+      <div class="form-field">
+        <label for="operator-kind">Kind</label>
+        <select id="operator-kind" name="kind">
+          {{#each content.kindOptions}}
+            <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+          {{/each}}
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="operator-definition">Definition</label>
+        <textarea id="operator-definition" name="definition" rows="3" aria-describedby="operator-definition-hint">{{content.submitted.definition}}</textarea>
+        <small class="form-hint" id="operator-definition-hint">What the operator is, in plain words.</small>
+      </div>
+      <div class="form-field">
+        <label for="operator-decomposition">Decomposition (optional)</label>
+        <input type="text" id="operator-decomposition" name="decomposition" value="{{content.submitted.decomposition}}" />
+      </div>
+      <div class="form-field">
+        <label for="operator-decompositionNote">Note under the decomposition (optional)</label>
+        <textarea id="operator-decompositionNote" name="decompositionNote" rows="2">{{content.submitted.decompositionNote}}</textarea>
+      </div>
+      <div class="form-field">
+        <label for="operator-workedExamples">Worked examples (optional)</label>
+        <textarea id="operator-workedExamples" name="workedExamples" rows="3" aria-describedby="operator-workedExamples-hint">{{content.submitted.workedExamples}}</textarea>
+        <small class="form-hint" id="operator-workedExamples-hint">One per line, in order.</small>
+      </div>
+      <div class="form-field">
+        <label for="operator-sourceNote">Source note (optional)</label>
+        <textarea id="operator-sourceNote" name="sourceNote" rows="2" aria-describedby="operator-sourceNote-hint">{{content.submitted.sourceNote}}</textarea>
+        <small class="form-hint" id="operator-sourceNote-hint">Where the entry's content comes from. An operator with a source note, other than a core operator, is listed in the reference on Freestyle Concepts.</small>
+      </div>
+      <div class="form-field">
+        <label><input type="checkbox" name="confirmationPending" value="1" {{#if content.confirmationChecked}}checked{{/if}} /> Still awaits a curator's confirmation</label>
+      </div>
+      <div class="form-field">
+        <label for="operator-pageGroup">Operators page group</label>
+        <select id="operator-pageGroup" name="pageGroup">
+          {{#each content.groupOptions}}
+            <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+          {{/each}}
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="operator-pageOrder">Position in that group</label>
+        <input type="text" id="operator-pageOrder" name="pageOrder" inputmode="numeric" value="{{content.submitted.pageOrder}}" aria-describedby="operator-pageOrder-hint" />
+        <small class="form-hint" id="operator-pageOrder-hint">A whole number; lower comes first. Required when the operator is in a group, and empty when it is not.</small>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary btn-sm">Save Operator</button>
+        <a href="{{content.cancelHref}}" class="btn btn-outline btn-sm">Cancel</a>
+      </div>
+    </form>
+  </section>
+</div>

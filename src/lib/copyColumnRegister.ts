@@ -213,7 +213,12 @@ export const COPY_COLUMN_REGISTER: Readonly<Record<string, TableClassification>>
   },
   freestyle_trick_modifiers: {
     keep: ['slug', 'modifier_name', 'add_bonus', 'add_bonus_rotational', 'modifier_type', 'notes',
-      'beginner_note', 'loaded_at'],
+      'beginner_note', 'browse_group', 'browse_order', 'browse_full_section', 'loaded_at'],
+  },
+  freestyle_operators: {
+    keep: ['slug', 'name', 'kind', 'definition', 'decomposition', 'decomposition_note',
+      'worked_examples_json', 'source_note', 'confirmation_pending', 'page_group', 'page_order',
+      'created_at', 'created_by', 'updated_at', 'updated_by', 'version'],
   },
   freestyle_trick_source_links: {
     keep: ['trick_slug', 'source_id', 'external_ref', 'external_url', 'asserted_adds',

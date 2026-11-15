@@ -30,8 +30,8 @@ its blocker, so leaving a closed question's status stale leaves rows blocked on 
 question that is answered.
 
 **4. If the ruling defines an operator, update the operator authority.** An
-operator's structure and X-Dex behaviour are owned by
-`src/content/freestyleOperatorReference.ts`, and its ADD by the modifier
+operator's structure and X-Dex behaviour are owned by the `freestyle_operators`
+table, changed through the operator editor, and its ADD by the modifier
 registry: the `inputs/base_dictionary/trick_modifiers.csv` seed before
 cutover, and the `freestyle_trick_modifiers` table, changed through the modifier
 editor, after. The generator cross-checks these: a

@@ -18,6 +18,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { cachedGet } from '../fixtures/cachedGet';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+import { seedStagedOperatorsAndModifiers } from '../fixtures/stagedOperators';
 import { seedStagedSets } from '../fixtures/stagedSets';
 import { insertFreestyleTrick, insertFreestyleTrickModifier, insertFreestyleTrickModifierLink } from '../fixtures/factories';
 
@@ -67,6 +68,8 @@ beforeAll(async () => {
   insertFreestyleTrickModifierLink(db, 'railing_spin_test', 'spinning', 1);
   insertFreestyleTrickModifierLink(db, 'railing_spin_test', 'railing', 2);
 
+  // The operators and the placed modifiers the pages link, as the rebuild seeds them.
+  seedStagedOperatorsAndModifiers(db);
   db.close();
   createApp = await importApp();
 });

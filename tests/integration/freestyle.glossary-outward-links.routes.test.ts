@@ -37,6 +37,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
+import { seedStagedOperatorsAndModifiers } from '../fixtures/stagedOperators';
 import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 const { dbPath } = setTestEnv('3164');
 
@@ -46,6 +47,8 @@ const page = cachedGet(() => createApp());
 beforeAll(async () => {
   const db = createTestDb(dbPath);
   seedStagedFamilies(db);
+  // The operators and the placed modifiers the pages link, as the rebuild seeds them.
+  seedStagedOperatorsAndModifiers(db);
   db.close();
   createApp = await importApp();
 });

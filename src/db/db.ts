@@ -2639,6 +2639,9 @@ export interface FreestyleTrickModifierRow {
   modifier_type:        string;
   notes:                string | null;
   beginner_note:        string | null;
+  browse_group:         string | null;
+  browse_order:         number | null;
+  browse_full_section:  number;
 }
 
 // Flat row from freestyleTrickModifiers.listTricksByModifier — one row per
@@ -3481,17 +3484,67 @@ export const freestyleGlossaryTerms = {
   `); },
 };
 
+export interface FreestyleOperatorRow {
+  slug:                 string;
+  name:                 string;
+  kind:                 string;
+  definition:           string;
+  decomposition:        string | null;
+  decomposition_note:   string | null;
+  worked_examples_json: string;
+  source_note:          string | null;
+  confirmation_pending: number;
+  page_group:           string | null;
+  page_order:           number | null;
+}
+
+// The freestyle operators. Read whole: a couple of dozen rows that the operators
+// page, the modifier pages and the reference pages consult, so the service caches
+// them and re-reads when the fingerprint below changes.
+export const freestyleOperators = {
+  get listAll() { return db.prepare(`
+    SELECT slug, name, kind, definition, decomposition, decomposition_note,
+           worked_examples_json, source_note, confirmation_pending, page_group, page_order
+    FROM freestyle_operators
+    ORDER BY slug ASC
+  `); },
+
+  // Changes whenever an operator is added or edited: every edit bumps version,
+  // and an add changes the count.
+  get fingerprint() { return db.prepare(`
+    SELECT COUNT(*) || ':' || COALESCE(SUM(version), 0) || ':' || COALESCE(MAX(updated_at), '') AS fp
+    FROM freestyle_operators
+  `); },
+
+  // The operator editor's writes.
+  get insert() { return db.prepare(`
+    INSERT INTO freestyle_operators
+      (slug, name, kind, definition, decomposition, decomposition_note, worked_examples_json,
+       source_note, confirmation_pending, page_group, page_order,
+       created_at, created_by, updated_at, updated_by, version)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+  `); },
+
+  get update() { return db.prepare(`
+    UPDATE freestyle_operators
+    SET name = ?, kind = ?, definition = ?, decomposition = ?, decomposition_note = ?,
+        worked_examples_json = ?, source_note = ?, confirmation_pending = ?, page_group = ?,
+        page_order = ?, updated_at = ?, updated_by = ?, version = version + 1
+    WHERE slug = ?
+  `); },
+};
+
 export const freestyleTrickModifiers = {
   get listAll() { return db.prepare(`
     SELECT slug, modifier_name, add_bonus, add_bonus_rotational, modifier_type, notes,
-           beginner_note
+           beginner_note, browse_group, browse_order, browse_full_section
     FROM freestyle_trick_modifiers
     ORDER BY modifier_type ASC, modifier_name ASC
   `); },
 
   get getBySlug() { return db.prepare(`
     SELECT slug, modifier_name, add_bonus, add_bonus_rotational, modifier_type, notes,
-           beginner_note
+           beginner_note, browse_group, browse_order, browse_full_section
     FROM freestyle_trick_modifiers
     WHERE slug = ?
   `); },
@@ -3508,7 +3561,7 @@ export const freestyleTrickModifiers = {
   get update() { return db.prepare(`
     UPDATE freestyle_trick_modifiers
     SET modifier_name = ?, add_bonus = ?, add_bonus_rotational = ?, modifier_type = ?, notes = ?,
-        beginner_note = ?
+        beginner_note = ?, browse_group = ?, browse_order = ?, browse_full_section = ?
     WHERE slug = ?
   `); },
 

@@ -13,7 +13,8 @@ save naming a family the committed inputs do not produce stops the rebuild. A se
 whole and may be one the editor created, so a set save the inputs do not produce is added;
 a related set naming no set stops the rebuild. A glossary entry is saved whole, may be one
 the editor added, and removed: true marks one the editor removed; an alias left naming
-another entry's term stops the rebuild. Running last
+another entry's term stops the rebuild. An operator is saved whole and may be one the
+editor added; operators are never removed. Running last
 makes the precedence plain: base inputs first, curator saves on top.
 
 Because a save overrides a value someone could still read in an older CSV, this
@@ -74,6 +75,14 @@ SET_SAVE_FIELDS = frozenset({"slug", "related_sets", "held_from_list", *SET_SAVE
 GLOSSARY_SAVE_COLUMNS = ("term", "definition", "more_href", "more_label")
 GLOSSARY_SAVE_FIELDS = frozenset({"slug", "aliases", *GLOSSARY_SAVE_COLUMNS})
 
+# An operator save: every column the operator editor writes, the worked examples as
+# a list of strings and the confirmation flag as a boolean. Operators are never
+# removed.
+OPERATOR_SAVE_COLUMNS = ("name", "kind", "definition", "decomposition", "decomposition_note",
+                         "source_note", "page_group", "page_order")
+OPERATOR_SAVE_FIELDS = frozenset({"slug", "worked_examples", "confirmation_pending",
+                                  *OPERATOR_SAVE_COLUMNS})
+
 # (folder, table, key columns, value columns). Applied in this order after the
 # tricks, because aliases and links reference sources and tricks by foreign key.
 RECORD_KINDS = (
@@ -81,7 +90,7 @@ RECORD_KINDS = (
      ("source_type", "source_label", "source_url", "retrieved_at", "notes")),
     ("modifiers", "freestyle_trick_modifiers", ("slug",),
      ("modifier_name", "add_bonus", "add_bonus_rotational", "modifier_type", "notes",
-      "beginner_note")),
+      "beginner_note", "browse_group", "browse_order", "browse_full_section")),
     ("published_tricks", "freestyle_tricks", ("slug",),
      ("canonical_name", "adds", "base_trick", "trick_family", "category", "description",
       "operational_notation", "operational_notation_source", "notation_evidence_basis",
@@ -372,6 +381,71 @@ def apply_glossary_saves(conn, saves_dir, overrides):
     return applied
 
 
+def apply_operator_saves(conn, saves_dir, overrides):
+    """Apply operator additions and edits.
+
+    An operator save is the whole operator as the curator left it. An operator the
+    committed inputs do not produce is one the editor added, so it is inserted; any
+    other is updated, and only a real change bumps the row's version. A value the
+    table refuses, such as an unknown kind, stops the rebuild.
+    """
+    applied = 0
+    for path in sorted((saves_dir / "operators").glob("*.json")):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except ValueError as err:
+            raise ValueError(f"{path} is not valid JSON: {err}") from err
+        if not isinstance(data, dict) or data.get("slug") != path.stem:
+            raise ValueError(f"{path} must name its own operator as slug")
+        unknown = sorted(set(data) - OPERATOR_SAVE_FIELDS)
+        if unknown:
+            raise ValueError(f"{path} carries fields a save may not set: {', '.join(unknown)}")
+        absent = sorted(OPERATOR_SAVE_FIELDS - set(data))
+        if absent:
+            raise ValueError(f"{path} is missing {', '.join(absent)}")
+        examples = data["worked_examples"]
+        if not isinstance(examples, list) or not all(isinstance(e, str) for e in examples):
+            raise ValueError(f"{path} must list the worked examples as strings")
+        if not isinstance(data["confirmation_pending"], bool):
+            raise ValueError(f"{path} must give confirmation_pending as true or false")
+        slug = data["slug"]
+        columns = list(OPERATOR_SAVE_COLUMNS) + ["worked_examples_json", "confirmation_pending"]
+        values = [data[c] for c in OPERATOR_SAVE_COLUMNS] + [
+            json.dumps(examples, ensure_ascii=False, separators=(",", ":")),
+            1 if data["confirmation_pending"] else 0,
+        ]
+        base = conn.execute(
+            f"SELECT {', '.join(columns)} FROM freestyle_operators WHERE slug = ?", (slug,)
+        ).fetchone()
+        try:
+            if base is None:
+                conn.execute(
+                    f"INSERT INTO freestyle_operators (slug, {', '.join(columns)}, created_at, "
+                    f"created_by, updated_at, updated_by, version) VALUES (?, "
+                    f"{', '.join('?' for _ in columns)}, ?, ?, ?, ?, 1)",
+                    [slug, *values, LOADED_AT, "curator-save", LOADED_AT, "curator-save"],
+                )
+                overrides.append((f"operators:{slug}", "added", None, "present"))
+            else:
+                changed = False
+                for column, base_value, saved in zip(columns, base, values):
+                    if base_value != saved:
+                        overrides.append((f"operators:{slug}", column, base_value, saved))
+                        changed = True
+                if not changed:
+                    continue
+                assignments = ", ".join(f"{c} = ?" for c in columns)
+                conn.execute(
+                    f"UPDATE freestyle_operators SET {assignments}, updated_at = ?, "
+                    "updated_by = ?, version = version + 1 WHERE slug = ?",
+                    values + [LOADED_AT, "curator-save", slug],
+                )
+        except sqlite3.IntegrityError as err:
+            raise ValueError(f"{path} could not be applied: {err}") from err
+        applied += 1
+    return applied
+
+
 def apply_ruling_saves(conn, saves_dir, overrides):
     """Apply notation authoring and publication to the rulings.
 
@@ -529,6 +603,7 @@ def main() -> int:
             applied += apply_family_saves(conn, saves_dir, overrides)
             applied += apply_set_saves(conn, saves_dir, overrides)
             applied += apply_glossary_saves(conn, saves_dir, overrides)
+            applied += apply_operator_saves(conn, saves_dir, overrides)
             apply_trick_saves(conn, saves, overrides)
             for kind, table, keys, values in RECORD_KINDS[2:]:
                 for path in sorted((saves_dir / kind).glob("*.json")):

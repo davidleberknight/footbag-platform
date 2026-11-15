@@ -122,16 +122,16 @@ import {
   type SetEducationContent,
 } from './symbolicSetEducation';
 import {
-  OperatorReferenceEntry,
-  OPERATOR_REFERENCE_ENTRIES,
-  getOperatorReferenceEntry,
-  TIER1_OPERATOR_DEFINITIONS,
-  getTier1OperatorDefinition,
-} from '../content/freestyleOperatorReference';
-import {
-  OPERATOR_INDEX_AXES,
-  OPERATOR_INDEX_SLUGS,
-} from '../content/freestyleOperatorIndex';
+  operatorRecords,
+  findOperator,
+  coreOperatorDefinition,
+  referenceOperators,
+  operatorPageGroupSlugs,
+  operatorPageGroupOf,
+  modifierBrowse,
+  type ModifierBrowse,
+} from './freestyleOperatorRegistry';
+import { OPERATOR_INDEX_AXES } from '../content/freestyleOperatorIndex';
 import {
   CORE_TRICK_SPEC,
 } from '../content/freestyleLandingContent';
@@ -170,7 +170,7 @@ import {
 import { JOBS_NOTATION_ARTICLE, JOBS_NOTATION_ARTICLE_TITLE } from '../content/jobsNotationArticle';
 import { LEGACY_PANEL_TARGETS } from './conceptsAnchors';
 import { TERMINAL_SURFACES, type TopologyHistogramRow } from '../content/freestyleTopologyHistograms';
-import { MODIFIER_CLUSTERS, FIRST_CLASS_BROWSE_MODIFIERS, clusterForModifier } from '../content/freestyleModifierClusters';
+import { MODIFIER_CLUSTERS, SET_UPTIME_CLUSTER } from '../content/freestyleModifierClusters';
 import { quantityLadderFor } from '../content/freestyleQuantityLadders';
 import { SET_SUBTYPE_SPECS } from '../content/freestyleCanonicalSets';
 import {
@@ -589,7 +589,7 @@ export interface FreestyleByTheNumbersContent {
 // The pedagogical display grouping that splits the systems chart into two
 // readable columns: named launch/set systems in one, movement operators in the
 // other. This is a chart reading aid, not the canonical operator classification.
-// The authoritative per-operator role lives in freestyleOperatorReference; by that
+// The authoritative per-operator role lives in the freestyle_operators table; by that
 // doctrine paradox and symposium are operators, and they sit in this set-systems
 // column only so the chart can show how launch systems and body operators spread
 // differently across the vocabulary.
@@ -968,10 +968,10 @@ function shapeCoreTricks(trickRows: FreestyleTrickRow[]): FreestyleCoreTrickCard
 
 // Set-modifier registry shaper. Projects (a) the Tier-1 set
 // operators from the operator board + (b) intermediate set/compound-set
-// entries from OPERATOR_REFERENCE_ENTRIES onto one flat
+// entries from the full operator reference entries onto one flat
 // FreestyleSetModifierEntry[] for the glossary §10 grid. De-dup: when a
-// slug appears in both sources, the OPERATOR_REFERENCE entry wins (its
-// `oneLineMeaning` + `decomposition` carry richer registry content).
+// slug appears in both sources, the reference entry wins (its definition and
+// decomposition carry richer registry content).
 function shapeSetModifiers(board: OperatorBoardData): FreestyleSetModifierEntry[] {
   const setTier = board.tiers.find(t => t.key === 'set');
   // The set-primitive grid is the glossary anchor home only for set primitives
@@ -982,7 +982,7 @@ function shapeSetModifiers(board: OperatorBoardData): FreestyleSetModifierEntry[
   // term-{slug} anchor onto two elements. Excluding them leaves Pixie and Fairy,
   // whose term-anchor link target lives nowhere else.
   const ownedElsewhere = new Set<string>([
-    ...OPERATOR_REFERENCE_ENTRIES.map(e => e.slug),
+    ...referenceOperators().map(e => e.slug),
     'stepping',
   ]);
   return (setTier?.operators ?? [])
@@ -1037,23 +1037,13 @@ function operatorAddLabel(row: FreestyleTrickModifierRow | undefined): string | 
   return `+${row.add_bonus}`;
 }
 
-// Execution-mechanic definitions for the no-plant modifiers that have no feel
-// card or operator-reference entry, so their index row + stub still describe
-// themselves once the shared advanced-reference is off the operators page.
-const MODIFIER_EXECUTION_NOTES: Readonly<Record<string, string>> = {
-  symple: 'Symposium is the established operator. The historical tokens Symple and symp also appear in source material, but two things are unresolved: whether Symple names a distinct movement, and whether symp means anything beyond an abbreviation of Symposium.',
-  muted:  'An active leg held in the air for an entire component without planting. Mostly used for dexes, but applies to other components too.',
-};
-
-// The definition line for an operator row or stub. Tier-1 operators have one
-// canonical definition (the operator reference owns it); a feel card's movement
-// line, an intermediate reference entry's one-line meaning, and the execution
-// notes are the fallbacks for operators without one.
+// The definition line for an operator row or stub. A core operator's definition is
+// the one canonical statement of what it is; for any other operator a feel card's
+// movement line comes first and the operator's own definition is the fallback.
 function operatorDescriptor(slug: string): string | null {
-  return getTier1OperatorDefinition(slug)?.definition
+  return coreOperatorDefinition(slug)
     ?? operatorFeelCard(slug)?.feel
-    ?? getOperatorReferenceEntry(slug)?.oneLineMeaning
-    ?? MODIFIER_EXECUTION_NOTES[slug]
+    ?? findOperator(slug)?.definition
     ?? null;
 }
 
@@ -1062,7 +1052,7 @@ function operatorDescriptor(slug: string): string | null {
 // the modifier vocabulary reads as platform-tracked.
 function operatorStatus(slug: string): { key: string; label: string } {
   if (hasModifierFamilyPage(slug)) return { key: 'teaching', label: 'Teaching page' };
-  if (getOperatorReferenceEntry(slug)?.curatorConfirmPending) {
+  if (findOperator(slug)?.confirmationPending) {
     return { key: 'doctrine-pending', label: 'Doctrine-pending' };
   }
   return { key: 'platform-tracked', label: 'Listed, no guide yet' };
@@ -1074,10 +1064,10 @@ const MODIFIER_TYPE_LABEL: Readonly<Record<string, string>> = {
   set: 'Set', body: 'Body', 'rotational-qualifier': 'Rotational',
 };
 
-// A slug is a known modifier (resolves to a detail page, not a 404) when it is
-// in the curated index, the modifier table, or the operator reference.
+// A slug is a known modifier (resolves to a detail page, not a 404) when it is a
+// modifier-registry row or an operator.
 function isKnownModifier(slug: string, row: FreestyleTrickModifierRow | undefined): boolean {
-  return OPERATOR_INDEX_SLUGS.has(slug) || row != null || getOperatorReferenceEntry(slug) != null;
+  return row != null || findOperator(slug) != null;
 }
 
 // Alphanumeric-only comparison key. Observational rows use hyphen slugs and the
@@ -1125,9 +1115,9 @@ function publicObservationalUniverse(): ObservationalUniverseRow[] {
 // Where a modifier's tricks are listed in the dictionary: a launch set has a
 // section in the set view, a first-class browse modifier has one in the
 // modifier view, and any other modifier has no section, so null.
-function modifierBrowseHref(slug: string): string | null {
-  if (clusterForModifier(slug) === 'set-uptime') return `/freestyle/tricks?view=set#set-${slug}`;
-  if (FIRST_CLASS_BROWSE_MODIFIERS.has(slug)) return `/freestyle/tricks?view=modifier#modifier-${slug}`;
+function modifierBrowseHref(slug: string, browse: ModifierBrowse): string | null {
+  if (browse.groupOf(slug) === SET_UPTIME_CLUSTER) return `/freestyle/tricks?view=set#set-${slug}`;
+  if (browse.hasFullSection(slug)) return `/freestyle/tricks?view=modifier#modifier-${slug}`;
   return null;
 }
 
@@ -1135,11 +1125,12 @@ function buildOperatorIndexAxes(
   modifierRows: readonly FreestyleTrickModifierRow[],
 ): OperatorIndexAxisGroup[] {
   const rowBySlug = new Map(modifierRows.map(r => [r.slug, r]));
+  const browse = modifierBrowse();
   return OPERATOR_INDEX_AXES.map(axis => ({
     axisKey:  axis.axisKey,
     axisName: axis.axisName,
     provisional: axis.provisional ?? false,
-    modifiers: axis.modifierSlugs.map((slug): OperatorIndexRow => {
+    modifiers: operatorPageGroupSlugs(axis.axisKey).map((slug): OperatorIndexRow => {
       const row = rowBySlug.get(slug);
       return {
         slug,
@@ -1152,7 +1143,7 @@ function buildOperatorIndexAxes(
         status:     operatorStatus(slug),
         // An operator with no dictionary section falls back to the dictionary
         // search, so the action is never a dead anchor.
-        browseHref: modifierBrowseHref(slug) ?? `/freestyle/search?q=${encodeURIComponent(slug)}`,
+        browseHref: modifierBrowseHref(slug, browse) ?? `/freestyle/search?q=${encodeURIComponent(slug)}`,
       };
     }),
   }));
@@ -2484,8 +2475,8 @@ export interface FreestylePartnershipsContent {
 // registry tile: name + one-line meaning + optional decomposition + a
 // deeplink anchor for cross-reference. Source-agnostic at the view-model
 // layer: the service projects Tier-1 set operators (PIX / AT / Q / BL /
-// FAIRY / STEP) AND OPERATOR_REFERENCE_ENTRIES (atomic / quantum / blurry /
-// nuclear / barraging / furious) onto the same shape.
+// FAIRY / STEP) AND the full operator reference entries (atomic / quantum /
+// blurry / nuclear / barraging / furious) onto the same shape.
 export interface FreestyleSetModifierEntry {
   slug:            string;                  // 'atomic', 'pixie', etc. — anchor target
   name:            string;                  // 'Atomic', 'Pixie'
@@ -2942,6 +2933,21 @@ export function shapeGlossaryLetterGroups(
   return groups;
 }
 
+// One intermediate operator as the Concepts reference renders it: a full
+// operator reference entry, under the field names the partial reads.
+export interface ConceptsIntermediateOperator {
+  slug:                  string;
+  name:                  string;
+  category:              string;
+  oneLineMeaning:        string;
+  decomposition:         string | null;
+  pendingNote:           string | null;
+  workedExamples:        readonly string[];
+  lineageNote:           string;
+  curatorConfirmPending: boolean;
+  isHistoricalNickname:  boolean;
+}
+
 // Freestyle Concepts (/freestyle/concepts): the chapter-based reference. The
 // section (§) references in the field comments name chapters of that page.
 export interface FreestyleConceptsContent {
@@ -2952,11 +2958,11 @@ export interface FreestyleConceptsContent {
   // Shared partial with the landing page; surface-specific heading + lede.
   operatorBoard:    OperatorBoardData;
   // Intermediate-operator reference rendered inside §3 as a quick-reference
-  // subsection. Authoritative source for what each intermediate operator
-  // means and how it decomposes; equivalence-chain tokens deep-link here.
-  intermediateOperators: readonly (OperatorReferenceEntry & { isHistoricalNickname: boolean })[];
-  // Canonical Tier-1 definition lines keyed by slug, from the operator
-  // reference. The body-modifier reference partial renders each definition
+  // subsection: what each intermediate operator means and how it decomposes;
+  // equivalence-chain tokens deep-link here.
+  intermediateOperators: readonly ConceptsIntermediateOperator[];
+  // Each core operator's definition line keyed by slug, from the operators
+  // table. The body-modifier reference partial renders each definition
   // from this record instead of authoring its own copy; the per-term extras
   // (formula, panel links, family notes) stay in the template.
   tier1Definitions: Readonly<Record<string, string>>;
@@ -6236,7 +6242,7 @@ export const freestyleService = {
           // single-operator compounds; everything else stays silent. The doctrine
           // source for "established operator" is a Tier-1 operator definition.
           const structuralAbout = buildStructuralAbout(
-            dictRow, allDictRows, allModifierLinks, s => getTier1OperatorDefinition(s) != null,
+            dictRow, allDictRows, allModifierLinks, s => coreOperatorDefinition(s) != null,
           );
           return {
             derivedStructuralAbout: structuralAbout,
@@ -7084,12 +7090,14 @@ export const freestyleService = {
     // one in-family trick links to that modifier.
     // A launch set deep-links into its By-set section; every other modifier
     // deep-links into its per-modifier subsection of the modifier browse.
+    // Where each modifier is listed in the browse views, read once for this page.
+    const browse = modifierBrowse();
     const relatedModifierGroups: FreestyleRelatedModifierLink[] = activeFamily
       ? [...modifierGroupAccumulator.values()].map(b => ({
           modifierSlug: b.modifierSlug,
           modifierName: b.modifierName,
           modifierType: b.modifierType,
-          href:         clusterForModifier(b.modifierSlug) === 'set-uptime'
+          href:         browse.groupOf(b.modifierSlug) === SET_UPTIME_CLUSTER
             ? `/freestyle/tricks?view=set#set-${b.modifierSlug}`
             : `/freestyle/tricks?view=modifier#modifier-${b.modifierSlug}`,
         }))
@@ -7126,12 +7134,12 @@ export const freestyleService = {
     };
 
     // Modifier clusters (organizational UX): bucket the active modifier groups
-    // into curated higher-level clusters for the By-modifier browse. Reversible
-    // content map; modifiers not listed in a cluster fall through to 'other';
-    // empty clusters are dropped. The set-uptime cluster is skipped: the launch
-    // sets are first-class ?view=set sections and do not repeat here.
-    // Cluster → per-modifier subsections (the deep-link granularity), in the
-    // cluster's declared modifier order, unlisted stragglers alphabetical.
+    // into the browse groups each modifier is placed in, for the By-modifier
+    // browse. Modifiers placed in no group fall through to 'other'; empty groups
+    // are dropped. The set-uptime group is skipped: the launch sets are
+    // first-class ?view=set sections and do not repeat here.
+    // Group → per-modifier subsections (the deep-link granularity), in each
+    // modifier's browse order, unplaced stragglers alphabetical.
     // Each subsection reuses the already-shaped modifier group's cards, so the
     // structural within-group ordering matches the rest of the dictionary.
     // Standard within-group row order for the set and modifier browse
@@ -7146,15 +7154,14 @@ export const freestyleService = {
     };
 
     const modifierClusterView: ModifierClusterView[] = MODIFIER_CLUSTERS
-      .filter(c => c.key !== 'set-uptime')
+      .filter(c => c.key !== SET_UPTIME_CLUSTER)
       .map(c => {
-        const declared = new Map(c.modifiers.map((s, i) => [s, i] as const));
         const inCluster = modifierGroups
-          .filter(g => FIRST_CLASS_BROWSE_MODIFIERS.has(g.modifierSlug)
-            && clusterForModifier(g.modifierSlug) === c.key && g.cards.length > 0)
+          .filter(g => browse.hasFullSection(g.modifierSlug)
+            && browse.groupOf(g.modifierSlug) === c.key && g.cards.length > 0)
           .sort((a, b) => {
-            const da = declared.get(a.modifierSlug);
-            const db2 = declared.get(b.modifierSlug);
+            const da = browse.orderOf(a.modifierSlug) ?? undefined;
+            const db2 = browse.orderOf(b.modifierSlug) ?? undefined;
             if (da !== undefined && db2 !== undefined) return da - db2;
             if (da !== undefined) return -1;
             if (db2 !== undefined) return 1;
@@ -7190,8 +7197,8 @@ export const freestyleService = {
     // reference entry is a recorded follow-up gap, not something this band
     // invents a page for.
     const modifierOtherGroups = modifierGroups
-      .filter(g => !FIRST_CLASS_BROWSE_MODIFIERS.has(g.modifierSlug)
-        && clusterForModifier(g.modifierSlug) !== 'set-uptime'
+      .filter(g => !browse.hasFullSection(g.modifierSlug)
+        && browse.groupOf(g.modifierSlug) !== SET_UPTIME_CLUSTER
         && g.cards.length > 0)
       .sort((a, b) => b.trickCount - a.trickCount
         || a.modifierName.localeCompare(b.modifierName, undefined, { sensitivity: 'base' }))
@@ -7216,10 +7223,10 @@ export const freestyleService = {
 
     // First-class "By set" browse view: the set / uptime systems only, split
     // from the modifier machinery along the set-uptime cluster seam. Sections
-    // follow the cluster's declared order; rows reuse the modifier groups'
+    // follow each set's browse order; rows reuse the modifier groups'
     // structural ordering (family, then ADD, then rung, then name). Body and
     // timing operators stay in ?view=modifier.
-    const setClusterSlugs = MODIFIER_CLUSTERS.find(c => c.key === 'set-uptime')?.modifiers ?? [];
+    const setClusterSlugs = browse.membersOf(SET_UPTIME_CLUSTER);
     const setViewGroups: FreestyleSetViewGroup[] = setClusterSlugs
       .map(slug => modifierGroups.find(g => g.modifierSlug === slug))
       .filter((g): g is FreestyleModifierGroup => g !== undefined && g.cards.length > 0)
@@ -7639,6 +7646,8 @@ export const freestyleService = {
   },
 
   getConceptsPage(): PageViewModel<FreestyleConceptsContent> {
+    // Where each modifier is listed in the browse views, read once for this page.
+    const browse = modifierBrowse();
     // Build the same lookup context the trick-detail renderer uses, so the
     // Concepts page's notation examples are classified by the SAME role registries
     // — keeping the page's claim ("color-coded structural roles") visibly
@@ -7694,12 +7703,20 @@ export const freestyleService = {
       },
       content: {
         operatorBoard:         this.getOperatorBoard('concepts'),
-        intermediateOperators: OPERATOR_REFERENCE_ENTRIES.map(e => ({
-          ...e,
-          isHistoricalNickname: e.category === 'historical-nickname',
+        intermediateOperators: referenceOperators().map((e): ConceptsIntermediateOperator => ({
+          slug:                  e.slug,
+          name:                  e.name,
+          category:              e.kind,
+          oneLineMeaning:        e.definition,
+          decomposition:         e.decomposition,
+          pendingNote:           e.decompositionNote,
+          workedExamples:        e.workedExamples,
+          lineageNote:           e.sourceNote ?? '',
+          curatorConfirmPending: e.confirmationPending,
+          isHistoricalNickname:  e.kind === 'historical-nickname',
         })),
         tier1Definitions: Object.fromEntries(
-          TIER1_OPERATOR_DEFINITIONS.map(d => [d.slug, d.definition]),
+          operatorRecords().filter(o => o.kind === 'core').map(o => [o.slug, o.definition]),
         ),
         coreTricks,
         setModifiers,
@@ -7711,8 +7728,8 @@ export const freestyleService = {
         abbreviations:   GLOSSARY_ABBREVIATIONS,
         familyTrees:     shapeFamilyTrees(allDictRows),
         setModifierFeelCards:   SET_MODIFIER_FEEL_CARDS,
-        entryTopologyFeelCards: ENTRY_TOPOLOGY_FEEL_CARDS.map(c => ({ ...c, browseHref: modifierBrowseHref(c.slug) })),
-        bodyModifierFeelCards:  BODY_MODIFIER_FEEL_CARDS.map(c => ({ ...c, browseHref: modifierBrowseHref(c.slug) })),
+        entryTopologyFeelCards: ENTRY_TOPOLOGY_FEEL_CARDS.map(c => ({ ...c, browseHref: modifierBrowseHref(c.slug, browse) })),
+        bodyModifierFeelCards:  BODY_MODIFIER_FEEL_CARDS.map(c => ({ ...c, browseHref: modifierBrowseHref(c.slug, browse) })),
         familyCardGroups: buildFamilyCardTierGroups(),
         otherFoundationalAtoms: coreTricks.filter(t => {
           const familySlugs = new Set([
@@ -8232,7 +8249,9 @@ export const freestyleService = {
     // The heading is chrome, so it takes the feel card's name or the Title Case
     // slug, never the registry's lowercase modifier_name.
     const displayName = operatorFeelCard(slug)?.name ?? operatorTitleCase(slug);
-    const axis        = OPERATOR_INDEX_AXES.find(a => a.modifierSlugs.includes(slug));
+    const axisKey     = operatorPageGroupOf(slug);
+    const axis        = axisKey ? OPERATOR_INDEX_AXES.find(a => a.axisKey === axisKey) : undefined;
+    const operator    = findOperator(slug);
     const typeLabel   = axis?.typeLabel
       ?? (row ? MODIFIER_TYPE_LABEL[row.modifier_type] ?? 'Modifier' : 'Modifier');
     const status      = operatorStatus(slug);
@@ -8241,7 +8260,7 @@ export const freestyleService = {
     // so for a set slug fall back to its canonical-set related systems so its
     // detail page still offers the directional-mirror and kin links.
     const siblingSlugs = axis
-      ? axis.modifierSlugs
+      ? operatorPageGroupSlugs(axis.axisKey)
       : (findCanonicalSetBySlug(slug)?.relatedSystems ?? []).map(r => r.slug);
     const relatedModifiers = siblingSlugs
       .filter(s => s !== slug)
@@ -8293,13 +8312,13 @@ export const freestyleService = {
         addLabel:    operatorAddLabel(row),
         notation:    operatorNotation(slug, row?.modifier_type),
         whatItIs:    operatorDescriptor(slug),
-        decomposition:  getOperatorReferenceEntry(slug)?.decomposition ?? null,
-        workedExamples: getOperatorReferenceEntry(slug)?.workedExamples ?? [],
+        decomposition:  operator?.decomposition ?? null,
+        workedExamples: operator?.workedExamples ?? [],
         statusKey:   status.key,
         statusLabel: status.label,
         commonTricks,
         relatedModifiers,
-        browseHref:  modifierBrowseHref(slug) ?? `/freestyle/search?q=${encodeURIComponent(slug)}`,
+        browseHref:  modifierBrowseHref(slug, modifierBrowse()) ?? `/freestyle/search?q=${encodeURIComponent(slug)}`,
         baseAtom:    (() => {
           const atom = baseAtomCrossLinkFor(slug);
           return atom ? { label: `${operatorTitleCase(atom)} (base trick)`, href: `/freestyle/tricks/${atom}` } : null;
@@ -8319,8 +8338,8 @@ export const freestyleService = {
 
   /**
    * Modifier slugs whose /freestyle/modifier/:slug page renders directly. The
-   * known-modifier universe is the operator index, the modifier table, and the
-   * operator reference (the same gate as the detail route). Every slug the
+   * known-modifier universe is the modifier table and the operators (the same
+   * gate as the detail route). Every slug the
    * route 301-redirects is excluded (set-first slugs and retired set nicknames,
    * which land on a /freestyle/sets/:slug page the set collector already
    * lists), using the route's own redirect decision so the two cannot drift.
@@ -8331,9 +8350,8 @@ export const freestyleService = {
     const rows = runSqliteRead('freestyleTrickModifiers.listAll', () =>
       freestyleTrickModifiers.listAll.all() as FreestyleTrickModifierRow[],
     );
-    const slugs = new Set<string>(OPERATOR_INDEX_SLUGS);
+    const slugs = new Set<string>(operatorRecords().map((o) => o.slug));
     for (const r of rows) slugs.add(r.slug);
-    for (const e of OPERATOR_REFERENCE_ENTRIES) slugs.add(e.slug);
     return [...slugs].filter((s) => !this.modifierRouteRedirectTarget(s)).sort();
   },
 
@@ -8534,8 +8552,9 @@ export const freestyleService = {
       }));
 
     // Only a set with its own section in the dictionary's By set view links to it.
+    const browse = modifierBrowse();
     const setBrowseHref =
-      clusterForModifier(set.slug) === 'set-uptime' ? modifierBrowseHref(set.slug) : null;
+      browse.groupOf(set.slug) === SET_UPTIME_CLUSTER ? modifierBrowseHref(set.slug, browse) : null;
     const education = buildSetEducationContent(set.slug, allActiveRows);
 
     // S5 sibling navigation: previous / next set within the same subtype,

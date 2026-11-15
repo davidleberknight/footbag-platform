@@ -68,6 +68,14 @@ beforeAll(async () => {
   insertFreestyleTrickModifierLink(db, 'wb_match', 'edited_mod');
   insertFreestyleTrickModifierLink(db, 'wb_mismatch', 'edited_mod');
   insertFreestyleTrickAlias(db, 'taken_alias', 'whirl');
+  // A modifier placed in a browse group with a full section, linked to an active
+  // trick so the browse-by-modifier view renders it.
+  insertFreestyleTrickModifier(db, {
+    slug: 'browse_mod', modifier_name: 'browse mod', modifier_type: 'body',
+    browse_group: 'rotational-body', browse_order: 10, browse_full_section: 1,
+  });
+  insertFreestyleTrick(db, { slug: 'browse_trick', canonical_name: 'browse trick', adds: '4', base_trick: 'whirl', trick_family: 'whirl', category: 'compound' });
+  insertFreestyleTrickModifierLink(db, 'browse_trick', 'browse_mod');
   db.close();
   createApp = await importApp();
   adapterModule = await import('../../src/adapters/curatedAuthoringAdapter');
@@ -228,6 +236,72 @@ describe('POST /admin/freestyle/modifiers/:slug/edit', () => {
     const post = await request(await app()).post('/admin/freestyle/modifiers/no_such_mod/edit')
       .set('Cookie', admin()).type('form').send(fields());
     expect(post.status).toBe(404);
+  });
+});
+
+describe('a modifier\'s place in the browse-by-modifier view', () => {
+  const editBrowse = async (body: Record<string, string>) => request(await app())
+    .post('/admin/freestyle/modifiers/browse_mod/edit').set('Cookie', admin()).type('form').send(body);
+  // The form as rendered, at the modifier's current ADD, so only a case that
+  // changes the ADD goes through the confirm page.
+  const currentAdd = () => String(modifier('browse_mod')!.add_bonus);
+  const browseFields = (overrides: Record<string, string> = {}) => ({
+    modifierName: 'browse mod', addBonus: currentAdd(), modifierType: 'body', notes: '',
+    browseGroup: 'rotational-body', browseOrder: '10', browseFullSection: '1', ...overrides,
+  });
+  const placement = () => query<{ browse_group: string | null; browse_order: number | null; browse_full_section: number }>(
+    'SELECT browse_group, browse_order, browse_full_section FROM freestyle_trick_modifiers WHERE slug = ?', 'browse_mod');
+  const browsePage = async () => (await request(await app()).get('/freestyle/tricks?view=modifier')).text;
+
+  // Defect caught: the edit form loses the stored placement, so the next save of
+  // an unrelated field moves the modifier out of its group.
+  it('shows the stored placement on the edit form', async () => {
+    const page = await request(await app()).get('/admin/freestyle/modifiers/browse_mod/edit').set('Cookie', admin());
+    expect(page.text).toMatch(/<option value="rotational-body" selected>/);
+    expect(page.text).toContain('name="browseOrder" inputmode="numeric" value="10"');
+    expect(page.text).toMatch(/name="browseFullSection" value="1" checked/);
+  });
+
+  // Defect caught: confirming an ADD change clears the browse placement the
+  // confirm page did not carry, so the modifier silently drops out of its group.
+  it('carries the placement through the ADD confirm page and keeps it on the confirmed save', async () => {
+    const nextAdd = String(Number(currentAdd()) + 1);
+    const preview = await editBrowse(browseFields({ addBonus: nextAdd }));
+    expect(preview.status).toBe(200);
+    expect(preview.text).toContain('name="browseGroup" value="rotational-body"');
+    expect(preview.text).toContain('name="browseOrder" value="10"');
+    expect(preview.text).toContain('name="browseFullSection" value="1"');
+    expect((await editBrowse({ ...browseFields({ addBonus: nextAdd }), confirm: '1' })).status).toBe(303);
+    expect(placement()).toEqual({ browse_group: 'rotational-body', browse_order: 10, browse_full_section: 1 });
+  });
+
+  // Defect caught: a placement edit reaches only the database, so the next
+  // rebuild puts the seeded placement back, or the browse view ignores it.
+  it('saves a placement change to the row, its save file and the audit row, and the browse view follows it', async () => {
+    expect(await browsePage()).toContain('href="#modifier-browse_mod"');
+    const res = await editBrowse(browseFields({ browseFullSection: '' }));
+    expect(res.status).toBe(303);
+    expect(placement()).toEqual({ browse_group: 'rotational-body', browse_order: 10, browse_full_section: 0 });
+    expect(JSON.parse(fs.readFileSync(saveFile('browse_mod'), 'utf8'))).toMatchObject({
+      browse_group: 'rotational-body', browse_order: 10, browse_full_section: 0,
+    });
+    const latest = query<{ metadata_json: string }>(
+      "SELECT metadata_json FROM audit_entries WHERE entity_id = 'browse_mod' AND action_type = 'freestyle.modifier.updated' ORDER BY rowid DESC LIMIT 1")!;
+    expect(JSON.parse(latest.metadata_json).changedFields).toEqual(['browse_full_section']);
+    expect(await browsePage()).not.toContain('href="#modifier-browse_mod"');
+  });
+
+  // Defect caught: a modifier filed under a group the browse view never shows, or
+  // given a position that is not a number, and so lost from the view.
+  it.each([
+    ['an unknown group', { browseGroup: 'no-such-group' }],
+    ['the catch-all group named directly', { browseGroup: 'other' }],
+    ['a position that is not a whole number', { browseOrder: 'first' }],
+  ] as Array<[string, Record<string, string>]>)('refuses %s, writing nothing', async (_label, overrides) => {
+    const before = placement();
+    const res = await editBrowse(browseFields(overrides));
+    expect(res.status).toBe(422);
+    expect(placement()).toEqual(before);
   });
 });
 

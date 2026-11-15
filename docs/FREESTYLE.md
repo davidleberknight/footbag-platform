@@ -56,11 +56,12 @@ tiers, and knowing which tier a datum sits in is the whole of making a safe edit
 1. **Live-database-owned curation.** Everything a curator edits in the running
    app: trick scalar and editorial-prose fields, aliases, source links, modifier
    links, records, consecutive-kicks records, and provenance-source rows. Section 4 lists the surface for each.
-2. **Code-managed doctrine and operator structure.** A modifier's ADD lives in the
+2. **Operator values and code-managed doctrine.** A modifier's ADD lives in the
    modifier registry and is changed in the modifier editor
-   (A_Edit_Freestyle_Modifier). `freestyleOperatorReference.ts` carries operator
-   structure and X-Dex behavior; the rule and the secondary surfaces it binds are
-   in the `footbag-freestyle-dictionary` skill. Doctrine rulings live in
+   (A_Edit_Freestyle_Modifier). What each operator is, its structure and its X-Dex
+   behavior live in the `freestyle_operators` table and are changed in the
+   operator editor (A_Edit_Freestyle_Operator); the rule and the secondary
+   surfaces it binds are in the `footbag-freestyle-dictionary` skill. Doctrine rulings live in
    `freestyle/doctrine/` (section 6).
 3. **Generated or spreadsheet-owned symbolic research.** The five `symbolic_*`
    tables load from committed spreadsheets under `freestyle/symbolic_grammar/`;
@@ -228,8 +229,8 @@ the sources do not agree on.
 ## 8. Terminology ownership
 
 One sentence answers who owns a term's meaning. Canonical structure and scoring
-are owned by the dictionary tables and the operator reference
-(`freestyleOperatorReference.ts` for operator ADD, structure, and X-Dex). The
+are owned by the dictionary tables, the modifier registry for operator ADD, and
+the `freestyle_operators` table for operator structure and X-Dex. The
 reader-facing explanation of terms is the public Freestyle Concepts page, with the
 public A–Z glossary giving each term a one-line definition that links there. `docs/GLOSSARY.md`
 is the project technical glossary. This guide points to those homes and never
@@ -266,8 +267,8 @@ Each document owns one thing:
 - `docs/DATA_MODEL.md` - the platform data model; points here for the freestyle
   and symbolic tables.
 - `freestyle/doctrine/` (and its `README.md` index) - the doctrine of record.
-- `src/content/freestyleOperatorReference.ts` - the operator ADD, structure, and
-  X-Dex authority.
+- The `freestyle_operators` table and the modifier registry - the operator
+  structure and X-Dex authority, and the operator ADD authority.
 - The public A–Z glossary and Freestyle Concepts pages, and `docs/GLOSSARY.md` - reader-facing and technical
   term explanation.
 - `freestyle/README.md` - the pipeline runbook (pre-go-live migration tooling).

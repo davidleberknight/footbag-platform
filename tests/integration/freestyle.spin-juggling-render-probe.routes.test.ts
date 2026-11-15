@@ -11,6 +11,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { cachedGet } from '../fixtures/cachedGet';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+import { seedStagedOperatorsAndModifiers } from '../fixtures/stagedOperators';
 import { insertFreestyleTrick } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3970');
@@ -23,6 +24,8 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'double-spin', canonical_name: 'double spin', adds: '2', notation: 'SPIN > SPIN', operational_notation: 'SPIN [BOD] > SPIN [BOD]', category: 'body' });
   insertFreestyleTrick(db, { slug: '2-bag-juggling', canonical_name: '2-bag-juggling', adds: '2', notation: 'TOE > TOE', operational_notation: 'TOE [DEL] > TOE [DEL]', category: 'multi-bag' });
   insertFreestyleTrick(db, { slug: '3-bag-juggling', canonical_name: '3-bag-juggling', adds: '3', notation: 'TOE > TOE > TOE', operational_notation: 'TOE [DEL] > TOE [DEL] > TOE [DEL]', category: 'multi-bag' });
+  // The operators and the placed modifiers the pages link, as the rebuild seeds them.
+  seedStagedOperatorsAndModifiers(db);
   db.close();
   createApp = await importApp();
 });

@@ -14,8 +14,9 @@ per-row provenance lives where each ruling is applied.
 ## Where rulings live
 
 - **Operator ADD values, structure, X-Dex behavior:**
-  `src/content/freestyleOperatorReference.ts` is the single authority, mirrored on
-  the data side by `freestyle/inputs/base_dictionary/trick_modifiers.csv`. This ledger names
+  the modifier registry is the single authority for ADD (seeded before cutover by
+  `freestyle/inputs/base_dictionary/trick_modifiers.csv`), and the
+  `freestyle_operators` table for structure and X-Dex. This ledger names
   which operators carry expert rulings; it never duplicates their values.
 - **Per-row rulings (identities, equivalences, ADDs, structures):** the provenance
   notes on the rows themselves in
@@ -143,8 +144,9 @@ silently reshaping either side.
 
 ## Operator rulings in force
 
-Values for all of these live in `freestyleOperatorReference.ts` /
-`trick_modifiers.csv`; the registry notes cite the ruling batches.
+Values for all of these live in the `freestyle_operators` table and the modifier
+registry (`trick_modifiers.csv` before cutover); the registry notes cite the
+ruling batches.
 
 - **Pogo** (the +1 adjudication): Red's pt-series answer was that pogo is a set and
   does not add ADD. The corpus contradicted the modifier half uniformly — every
@@ -175,8 +177,8 @@ Values for all of these live in `freestyleOperatorReference.ts` /
   **superseded by the latest timing clarification:** Atomic is an uptime set and
   Illusioning is a distinct downtime move, so they do not merge (see the
   timing-individuates entry under Structural doctrine in force). The atomic +1 and
-  X-Dex rules are unaffected. `freestyleOperatorReference.ts` is the canonical
-  statement of the atomic +1 / X-Dex doctrine.
+  X-Dex rules are unaffected. The atomic entry in the `freestyle_operators` table
+  is the canonical statement of the atomic +1 / X-Dex doctrine.
 - **Terraging** (pt8): its own +3 body modifier, NOT a parallel form of barraging
   (correcting pt6 phrasing). The unreconciled terraging-chain arithmetic is an open
   rider — see `RED_QUEUE.md`.

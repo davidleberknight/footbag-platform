@@ -100,7 +100,7 @@ export interface CuratedSaveReceipt {
  */
 export const SAVE_ITEM_KINDS = [
   'sources', 'modifiers', 'published_tricks', 'aliases', 'source_links', 'modifier_links', 'records',
-  'consecutive_records', 'families', 'sets', 'glossary_terms',
+  'consecutive_records', 'families', 'sets', 'glossary_terms', 'operators',
 ] as const;
 export type SaveItemKind = (typeof SAVE_ITEM_KINDS)[number];
 /** A saved record: scalar fields, plus ordered lists of strings (a family's

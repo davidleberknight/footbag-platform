@@ -30,10 +30,11 @@ import {
   insertFreestyleTrickModifierLink,
 } from '../fixtures/factories';
 import { seedStagedGlossary } from '../fixtures/stagedGlossary';
+import { seedStagedOperators } from '../fixtures/stagedOperators';
 import {
-  getOperatorReferenceEntry,
-  getTier1OperatorDefinition,
-} from '../../src/content/freestyleOperatorReference';
+  stagedReferenceEntry as getOperatorReferenceEntry,
+  stagedCoreDefinition as getTier1OperatorDefinition,
+} from '../fixtures/stagedOperatorReference';
 
 const { dbPath } = setTestEnv('3097');
 
@@ -63,6 +64,9 @@ beforeAll(async () => {
   // The glossary entries that link to the provisional operator pages live in the
   // database, seeded as the rebuild seeds them.
   seedStagedGlossary(db);
+  // The operators page lists the operators the database holds, seeded as the
+  // rebuild seeds them.
+  seedStagedOperators(db);
 
   db.close();
   createApp = await importApp();

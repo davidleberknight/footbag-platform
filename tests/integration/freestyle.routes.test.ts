@@ -23,6 +23,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
+import { seedStagedOperatorsAndModifiers } from '../fixtures/stagedOperators';
 import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 import {
   insertHistoricalPerson,
@@ -236,6 +237,8 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'around_the_world', canonical_name: 'around the world', adds: '2', notation: 'ATW' });
   insertFreestyleTrickAlias(db, 'atw', 'around_the_world', 'atw', { alias_type: 'technical', alias_display: 0 });
 
+  // The operators and the placed modifiers the pages link, as the rebuild seeds them.
+  seedStagedOperatorsAndModifiers(db);
   db.close();
   createApp = await importApp();
 });
@@ -841,6 +844,17 @@ describe('GET /freestyle/concepts — intermediate-operator reference subsection
     // Furious folds into barraging; high folds into the barraging explanation.
     expect(res.text).not.toMatch(/<dt id="term-furious"/);
     expect(res.text).not.toMatch(/<dt id="term-high"/);
+  });
+
+  // Defect caught: the reference lists operators that are not full reference
+  // entries, such as a core operator, whose definition already has its own home
+  // on the page, or an operator known only by its operators-page row.
+  it('lists exactly the nine full reference entries and nothing else', async () => {
+    const res = await page('/freestyle/concepts');
+    expect(res.text.split('class="glossary-operator-meaning"').length - 1).toBe(9);
+    for (const slug of ['paradox', 'spinning', 'symposium', 'symple', 'muted', 'flying']) {
+      expect(res.text.split(`<dt id="term-${slug}"`).length - 1, slug).toBeLessThanOrEqual(1);
+    }
   });
 
   it('renders the locked decomposition strings on confirmed entries', async () => {

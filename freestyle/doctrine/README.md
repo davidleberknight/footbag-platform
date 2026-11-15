@@ -25,12 +25,11 @@ instead of an unexplained edit.
 
 ## Authority relationship
 
-- `src/content/freestyleOperatorReference.ts` is the canonical home for every
-  operator's ADD value, structure, and X-Dex behavior, with the
-  modifier registry as its data-side mirror (the
+- The modifier registry is the canonical home for every operator's ADD value (the
   `freestyle/inputs/base_dictionary/trick_modifiers.csv` seed before cutover, the
-  `freestyle_trick_modifiers` table after).
-  These documents link to it and never duplicate its values.
+  `freestyle_trick_modifiers` table after), and the `freestyle_operators` table,
+  edited in the operator editor, for every operator's structure and X-Dex
+  behavior. These documents link to them and never duplicate their values.
 - These documents are canonical for rulings and method: which expert and curator
   rulings are in force, what each ruling means, how evidence was weighed, and which
   questions remain open.

@@ -177,6 +177,8 @@ export const ADAPTER_SITES: AdapterSite[] = [
   { file: 'src/services/freestyleCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'createGlossaryTerm', status: { pending: SAVE_THEN_COMMIT } },
   { file: 'src/services/freestyleCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'updateGlossaryTerm', status: { pending: SAVE_THEN_COMMIT } },
   { file: 'src/services/freestyleCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'removeGlossaryTerm', status: { pending: SAVE_THEN_COMMIT } },
+  { file: 'src/services/freestyleCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'createOperator', status: { pending: SAVE_THEN_COMMIT } },
+  { file: 'src/services/freestyleCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'updateOperator', status: { pending: SAVE_THEN_COMMIT } },
   { file: 'src/services/freestyleRecordCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'saveRecordFile', status: { pending: SAVE_THEN_COMMIT } },
   { file: 'src/services/consecutiveKicksCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'deleteRow', status: { pending: SAVE_THEN_COMMIT } },
   { file: 'src/services/consecutiveKicksCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'saveRowFile', status: { pending: SAVE_THEN_COMMIT } },

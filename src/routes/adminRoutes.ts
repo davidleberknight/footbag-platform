@@ -253,6 +253,12 @@ adminRouter.get('/freestyle/sets/new',                 adminFreestyleController.
 adminRouter.post('/freestyle/sets',                    adminFreestyleController.createSet);
 adminRouter.get('/freestyle/sets/:slug/edit',          adminFreestyleController.editSet);
 adminRouter.post('/freestyle/sets/:slug/edit',         adminFreestyleController.updateSet);
+// The operators: added and edited, never removed, in the application.
+adminRouter.get('/freestyle/operators',                adminFreestyleController.operators);
+adminRouter.get('/freestyle/operators/new',            adminFreestyleController.newOperator);
+adminRouter.post('/freestyle/operators',               adminFreestyleController.createOperator);
+adminRouter.get('/freestyle/operators/:slug/edit',     adminFreestyleController.editOperator);
+adminRouter.post('/freestyle/operators/:slug/edit',    adminFreestyleController.updateOperator);
 // The A to Z glossary: terms added, edited and removed in the application.
 adminRouter.get('/freestyle/glossary',                 adminFreestyleController.glossary);
 adminRouter.get('/freestyle/glossary/new',             adminFreestyleController.newGlossaryTerm);

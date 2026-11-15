@@ -12,6 +12,7 @@ import { randomUUID } from 'node:crypto';
 import BetterSqlite3 from 'better-sqlite3';
 import { signJwtLocalSync } from './signJwt';
 import { DAY_MS } from './clock';
+import { STAGED_MODIFIER_BROWSE } from '../../freestyle/inputs/curator_content/freestyleOperators';
 
 // Membership / identity / club row builders are defined once in the
 // testkit subtree (the only src location permitted to compile SQL
@@ -1331,17 +1332,23 @@ export interface FreestyleTrickModifierOverrides {
   /** The pipeline seeds this for the modifiers the staged curator content
    *  covers and leaves the rest NULL. */
   beginner_note?:       string | null;
+  /** The browse placement defaults to what the pipeline seeds for the slug from
+   *  the staged curator content (none, for a slug it does not place). */
+  browse_group?:        string | null;
+  browse_order?:        number | null;
+  browse_full_section?: 0 | 1;
 }
 
 export function insertFreestyleTrickModifier(
   db: BetterSqlite3.Database,
   o: FreestyleTrickModifierOverrides,
 ): void {
+  const staged = STAGED_MODIFIER_BROWSE.find((b) => b.slug === o.slug);
   db.prepare(`
     INSERT INTO freestyle_trick_modifiers
       (slug, modifier_name, add_bonus, add_bonus_rotational, modifier_type, notes,
-       beginner_note, loaded_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       beginner_note, browse_group, browse_order, browse_full_section, loaded_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     o.slug,
     o.modifier_name ?? o.slug,
@@ -1350,6 +1357,9 @@ export function insertFreestyleTrickModifier(
     o.modifier_type ?? 'body',
     o.notes ?? null,
     o.beginner_note ?? null,
+    o.browse_group !== undefined ? o.browse_group : staged?.group ?? null,
+    o.browse_order !== undefined ? o.browse_order : staged?.order ?? null,
+    o.browse_full_section ?? (staged?.fullSection ? 1 : 0),
     nowIso(),
   );
 }
@@ -1428,6 +1438,47 @@ export function insertFreestyleSet(db: BetterSqlite3.Database, o: FreestyleSetOv
     o.explanation ?? `A test set named ${o.slug}.`,
     JSON.stringify(o.related_sets ?? []),
     o.held_from_list ?? 0,
+    now,
+    now,
+  );
+}
+
+export interface FreestyleOperatorOverrides {
+  slug: string;
+  name?: string;
+  kind?: string;
+  definition?: string;
+  decomposition?: string | null;
+  decomposition_note?: string | null;
+  worked_examples?: readonly string[];
+  source_note?: string | null;
+  confirmation_pending?: 0 | 1;
+  page_group?: string | null;
+  page_order?: number | null;
+}
+
+/** One freestyle operator, stamped as the rebuild seeder stamps it. Defaults to a
+ *  body operator named after its slug, with a definition, not on the operators page. */
+export function insertFreestyleOperator(db: BetterSqlite3.Database, o: FreestyleOperatorOverrides): void {
+  const now = nowIso();
+  db.prepare(`
+    INSERT INTO freestyle_operators
+      (slug, name, kind, definition, decomposition, decomposition_note, worked_examples_json,
+       source_note, confirmation_pending, page_group, page_order,
+       created_at, created_by, updated_at, updated_by, version)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'curator-content-seed', ?, 'curator-content-seed', 1)
+  `).run(
+    o.slug,
+    o.name ?? o.slug.charAt(0).toUpperCase() + o.slug.slice(1).replace(/_/g, ' '),
+    o.kind ?? 'body',
+    o.definition ?? `A test operator named ${o.slug}.`,
+    o.decomposition ?? null,
+    o.decomposition_note ?? null,
+    JSON.stringify(o.worked_examples ?? []),
+    o.source_note ?? null,
+    o.confirmation_pending ?? 0,
+    o.page_group ?? null,
+    o.page_order ?? null,
     now,
     now,
   );

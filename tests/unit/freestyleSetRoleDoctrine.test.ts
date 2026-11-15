@@ -11,10 +11,10 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
-  getOperatorReferenceEntry,
-  getTier1OperatorDefinition,
-  OPERATOR_REFERENCE_ENTRIES,
-} from '../../src/content/freestyleOperatorReference';
+  stagedReferenceEntry as getOperatorReferenceEntry,
+  stagedCoreDefinition as getTier1OperatorDefinition,
+  STAGED_REFERENCE_ENTRIES as OPERATOR_REFERENCE_ENTRIES,
+} from '../fixtures/stagedOperatorReference';
 
 const atomic   = getOperatorReferenceEntry('atomic')!;
 const miraging = getOperatorReferenceEntry('miraging')!;

@@ -5236,7 +5236,40 @@ CREATE TABLE freestyle_trick_modifiers (
   modifier_type         TEXT NOT NULL,             -- 'body' | 'set' | 'rotational-qualifier' (no CHECK; v2.1 expanded for Gyro)
   notes                 TEXT,
   beginner_note         TEXT,                      -- one plain-English sentence shown beside the modifier in a trick page's facts block; NULL = none shown
+  browse_group          TEXT,                      -- the browse-by-modifier group the modifier is listed under; the groups and their headings are page prose in code; NULL = the catch-all group
+  browse_order          INTEGER,                   -- position within its browse group; NULL = after every positioned modifier
+  browse_full_section   INTEGER NOT NULL DEFAULT 0 CHECK (browse_full_section IN (0, 1)),
+                                                   -- 1 = a full section of its own in the browse-by-modifier view
   loaded_at             TEXT NOT NULL
+);
+
+-- Freestyle operators: what each operator is, as the operators page, the modifier
+-- pages and the reference pages state it, and where the operators page lists it.
+-- Seeded before go-live from the staged curator content, then added and edited in
+-- the operator editor; never deleted. An operator holds no ADD: a modifier's ADD
+-- lives only in freestyle_trick_modifiers, and an operator whose slug equals a
+-- modifier's describes that modifier. The operators page's groups and their
+-- headings are page prose kept in code; the editor and the seeder refuse any other
+-- group.
+CREATE TABLE freestyle_operators (
+  slug                  TEXT PRIMARY KEY,                -- lowercase letters, digits, underscores; never edited
+  name                  TEXT NOT NULL,                   -- the name the pages show
+  kind                  TEXT NOT NULL CHECK (kind IN ('core', 'set', 'body', 'compound-set', 'compound-body', 'historical-nickname', 'quantifier')),
+  definition            TEXT NOT NULL,                   -- one sentence saying what the operator is
+  decomposition         TEXT,                            -- the operator's settled decomposition; NULL = none settled
+  decomposition_note    TEXT,                            -- a note shown under the decomposition; NULL = none
+  worked_examples_json  TEXT NOT NULL DEFAULT '[]',      -- JSON array of worked-example lines, in order
+  source_note           TEXT,                            -- where the entry's content comes from; NULL = none shown
+  confirmation_pending  INTEGER NOT NULL DEFAULT 0 CHECK (confirmation_pending IN (0, 1)),
+                                                         -- 1 = still awaits a curator's confirmation
+  page_group            TEXT,                            -- the operators-page group it is listed under; NULL = not listed there
+  page_order            INTEGER,                         -- position within its page group; set exactly when page_group is set
+  created_at            TEXT NOT NULL,
+  created_by            TEXT NOT NULL,
+  updated_at            TEXT NOT NULL,
+  updated_by            TEXT NOT NULL,
+  version               INTEGER NOT NULL DEFAULT 1,
+  CHECK ((page_group IS NULL) = (page_order IS NULL))
 );
 
 -- =============================================================================

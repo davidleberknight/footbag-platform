@@ -24,6 +24,9 @@
  *                                trick family label
  *   the sets                   → freestyle_sets, one row per set
  *   the A–Z glossary           → freestyle_glossary_terms, one row per entry
+ *   the operators              → freestyle_operators, one row per operator
+ *   the browse placement       → freestyle_trick_modifiers.browse_group,
+ *                                browse_order and browse_full_section
  *
  * It runs after loader 28 and before loader 29, so a curator's save applied by 29
  * still wins over the seeded value. Before go-live the curator columns are wholly
@@ -31,15 +34,17 @@
  * resets them and then writes every staged entry: an entry removed from a module
  * leaves no stale value behind. The description column is the exception: the
  * dictionary load fills it, so only staged values are written and nothing is
- * reset. The two family tables, the set table and the glossary table are wholly
- * curator content, so they are emptied and re-inserted.
+ * reset. The two family tables, the set table, the glossary table and the
+ * operator table are wholly curator content, so they are emptied and re-inserted.
  *
  * Refuses, writing nothing, when an entry names a record, modifier or trick the
  * database does not hold, a family override names a family that is not on the
  * staged roster, the roster breaks a family rule (the same rules the family
  * editor applies), the staged sets break a set rule (the same rules the set
- * editor applies), or the staged glossary breaks a glossary rule (the same rules
- * the glossary editor applies): a silently skipped entry would drop curator content from the
+ * editor applies), the staged glossary breaks a glossary rule (the same rules
+ * the glossary editor applies), or the staged operators or browse placement break
+ * an operator or browse rule, or place a modifier the registry does not hold
+ * (the same rules the operator and modifier editors apply): a silently skipped entry would drop curator content from the
  * site unnoticed.
  *
  * Deleted with the pipeline at cutover, together with the staged modules.
@@ -75,6 +80,13 @@ import {
   type StagedGlossaryTerm,
 } from '../inputs/curator_content/freestyleGlossaryTerms';
 import { glossaryProblems } from '../../src/services/freestyleGlossaryRules';
+import {
+  STAGED_OPERATORS,
+  STAGED_MODIFIER_BROWSE,
+  type StagedOperator,
+  type StagedModifierBrowse,
+} from '../inputs/curator_content/freestyleOperators';
+import { operatorProblems, modifierBrowseProblems } from '../../src/services/freestyleOperatorRules';
 
 /** The actor the seeded family, set and glossary rows are stamped with. */
 export const FAMILY_SEED_ACTOR = 'curator-content-seed';
@@ -107,6 +119,10 @@ export interface CuratorContent {
   sets: readonly StagedSet[];
   /** The A–Z glossary entries, in any order: the page orders them. */
   glossaryTerms: readonly StagedGlossaryTerm[];
+  /** The operators, in any order: each carries its own page position. */
+  operators: readonly StagedOperator[];
+  /** Where the browse-by-modifier view lists each placed registry modifier. */
+  modifierBrowse: readonly StagedModifierBrowse[];
 }
 
 export const STAGED_CURATOR_CONTENT: CuratorContent = {
@@ -126,6 +142,8 @@ export const STAGED_CURATOR_CONTENT: CuratorContent = {
   familySublabels: STAGED_FAMILY_SUBLABELS,
   sets: STAGED_SETS,
   glossaryTerms: STAGED_GLOSSARY_TERMS,
+  operators: STAGED_OPERATORS,
+  modifierBrowse: STAGED_MODIFIER_BROWSE,
 };
 
 /** Every trick slug the content names, as a key or as a target. */
@@ -165,6 +183,8 @@ export interface SeedCounts {
   familySublabels: number;
   sets: number;
   glossaryTerms: number;
+  operators: number;
+  modifierBrowse: number;
 }
 
 export class CuratorContentRefusal extends Error {
@@ -260,6 +280,19 @@ export function seedCuratorContent(
     }
   }
 
+  // The operators meet the operator rules the editor applies, and each browse
+  // placement names a registry modifier once, in a group the browse view defines.
+  for (const p of operatorProblems(content.operators)) {
+    problems.push(`operator "${p.slug}": ${p.message}`);
+  }
+  const placed = new Set<string>();
+  for (const b of content.modifierBrowse) {
+    if (!modifierExists.get(b.slug)) problems.push(`browse placement names modifier "${b.slug}", which the registry does not hold`);
+    if (placed.has(b.slug)) problems.push(`browse placement for "${b.slug}" is listed more than once`);
+    placed.add(b.slug);
+    for (const message of modifierBrowseProblems(b)) problems.push(`browse placement for "${b.slug}": ${message}`);
+  }
+
   // A trick sits in at most one "Tricks that land here" list, because the row
   // holds one terminal and one position.
   const cohortOf = new Map<string, string>();
@@ -298,7 +331,10 @@ export function seedCuratorContent(
 
   return db.transaction((): SeedCounts => {
     db.prepare(`UPDATE freestyle_records SET curator_review_note = NULL`).run();
-    db.prepare(`UPDATE freestyle_trick_modifiers SET beginner_note = NULL`).run();
+    db.prepare(`
+      UPDATE freestyle_trick_modifiers
+      SET beginner_note = NULL, browse_group = NULL, browse_order = NULL, browse_full_section = 0
+    `).run();
     db.prepare(`
       UPDATE freestyle_tricks
       SET about_derivatives = NULL, about_naming_note = NULL, reverse_pair_base = NULL,
@@ -402,6 +438,37 @@ export function seedCuratorContent(
       ).changes;
     }
 
+    // The operator table: emptied and re-inserted, so an operator removed from the
+    // staged module leaves no row behind. An operator the editor added comes back
+    // from its save file in loader 29.
+    db.prepare(`DELETE FROM freestyle_operators`).run();
+    const insertOperator = db.prepare(`
+      INSERT INTO freestyle_operators
+        (slug, name, kind, definition, decomposition, decomposition_note, worked_examples_json,
+         source_note, confirmation_pending, page_group, page_order,
+         created_at, created_by, updated_at, updated_by, version)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    `);
+    let operators = 0;
+    for (const o of content.operators) {
+      operators += insertOperator.run(
+        o.slug, o.name, o.kind, o.definition, o.decomposition, o.decompositionNote,
+        JSON.stringify(o.workedExamples), o.sourceNote, o.confirmationPending ? 1 : 0,
+        o.pageGroup, o.pageOrder, now, FAMILY_SEED_ACTOR, now, FAMILY_SEED_ACTOR,
+      ).changes;
+    }
+
+    // The browse placement, onto the modifier rows reset above.
+    const setBrowse = db.prepare(`
+      UPDATE freestyle_trick_modifiers
+      SET browse_group = ?, browse_order = ?, browse_full_section = ?
+      WHERE slug = ?
+    `);
+    let modifierBrowse = 0;
+    for (const b of content.modifierBrowse) {
+      modifierBrowse += setBrowse.run(b.group, b.order, b.fullSection ? 1 : 0, b.slug).changes;
+    }
+
     return {
       recordsUnderReview,
       beginnerNotes,
@@ -420,6 +487,8 @@ export function seedCuratorContent(
       familySublabels,
       sets,
       glossaryTerms,
+      operators,
+      modifierBrowse,
     };
   })();
 }
@@ -444,7 +513,8 @@ function main(argv: readonly string[]): number {
       `${c.formulas} formulas, ${c.expandedNotations} expanded notations, ` +
       `${c.movementNotationSubtitles + c.executionNotationSubtitles} notation subtitles, ` +
       `${c.families} families, ${c.familySublabels} folded family labels, ${c.sets} sets, ` +
-      `${c.glossaryTerms} glossary entries.`,
+      `${c.glossaryTerms} glossary entries, ${c.operators} operators, ` +
+      `${c.modifierBrowse} browse placements.`,
     );
     return 0;
   } catch (err) {

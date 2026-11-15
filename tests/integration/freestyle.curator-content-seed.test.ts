@@ -22,6 +22,7 @@ import {
   insertFreestyleFamilySublabel,
   insertFreestyleSet,
   insertFreestyleGlossaryTerm,
+  insertFreestyleOperator,
 } from '../fixtures/factories';
 import {
   seedCuratorContent,
@@ -33,7 +34,7 @@ import {
 
 const { dbPath } = setTestEnv('4148');
 const content = STAGED_CURATOR_CONTENT;
-const modifierSlugs = [...content.beginnerNotes.keys()];
+const modifierSlugs = [...new Set([...content.beginnerNotes.keys(), ...content.modifierBrowse.map((b) => b.slug)])];
 const trickSlugs = [...trickSlugsNamedBy(content)];
 const EXTRA_MODIFIER = 'zz_unstaged_modifier';
 const EXTRA_RECORD = 'Zz Unstaged Record';
@@ -62,7 +63,10 @@ function build(): BetterSqlite3.Database {
   cleanupTestDb(dbPath);
   const conn = createTestDb(dbPath);
   for (const name of [...content.recordReviews.keys(), EXTRA_RECORD]) insertFreestyleRecord(conn, { trick_name: name });
-  for (const slug of [...modifierSlugs, EXTRA_MODIFIER]) insertFreestyleTrickModifier(conn, { slug });
+  // Inserted with no browse placement, so a placement found after seeding is the seeder's.
+  for (const slug of [...modifierSlugs, EXTRA_MODIFIER]) {
+    insertFreestyleTrickModifier(conn, { slug, browse_group: null, browse_order: null, browse_full_section: 0 });
+  }
   for (const slug of trickSlugs) insertFreestyleTrick(conn, { slug });
   insertFreestyleTrick(conn, { slug: EXTRA_TRICK, description: EXTRA_DESCRIPTION, operational_notation: EXTRA_NOTATION });
   return conn;
@@ -131,7 +135,30 @@ describe('seeding the staged curator content', () => {
       familySublabels:            content.familySublabels.size,
       sets:                       content.sets.length,
       glossaryTerms:              content.glossaryTerms.length,
+      operators:                  content.operators.length,
+      modifierBrowse:             content.modifierBrowse.length,
     });
+    // Every staged operator lands as authored, its worked examples as JSON in order.
+    for (const o of content.operators) {
+      expect(db.prepare(`
+        SELECT name AS n, kind AS k, definition AS d, decomposition AS c, decomposition_note AS cn,
+               worked_examples_json AS w, source_note AS s, confirmation_pending AS p,
+               page_group AS g, page_order AS o
+        FROM freestyle_operators WHERE slug = ?`).get(o.slug), o.slug).toEqual({
+        n: o.name, k: o.kind, d: o.definition, c: o.decomposition, cn: o.decompositionNote,
+        w: JSON.stringify(o.workedExamples), s: o.sourceNote, p: o.confirmationPending ? 1 : 0,
+        g: o.pageGroup, o: o.pageOrder,
+      });
+    }
+    // Every staged browse placement lands on its modifier, and an unplaced
+    // modifier keeps none.
+    for (const b of content.modifierBrowse) {
+      expect(db.prepare(`
+        SELECT browse_group AS g, browse_order AS o, browse_full_section AS f
+        FROM freestyle_trick_modifiers WHERE slug = ?`).get(b.slug), b.slug)
+        .toEqual({ g: b.group, o: b.order, f: b.fullSection ? 1 : 0 });
+    }
+    expect(value('SELECT browse_group AS v FROM freestyle_trick_modifiers WHERE slug = ?', EXTRA_MODIFIER)).toBeNull();
     // Every staged glossary entry lands as authored, its aliases as JSON in order
     // and an absent deeper link as no link at all.
     for (const t of content.glossaryTerms) {
@@ -219,6 +246,20 @@ describe('seeding the staged curator content', () => {
   // after the next refresh, so a dropped set keeps its page.
   // Defect caught: a glossary entry removed from the staged content living on in
   // the database after the next refresh, so a dropped term stays on the page.
+  // Defect caught: an operator removed from the staged content living on in the
+  // database after the next refresh, or a browse placement removed from it
+  // keeping its modifier in a group.
+  it('removes an operator and a browse placement no staged entry supplies any more', () => {
+    seedCuratorContent(db);
+    insertFreestyleOperator(db, { slug: 'zz_stale_op' });
+    db.prepare("UPDATE freestyle_trick_modifiers SET browse_group = 'rotational-body', browse_full_section = 1 WHERE slug = ?").run(EXTRA_MODIFIER);
+    seedCuratorContent(db);
+    expect(value("SELECT COUNT(*) AS v FROM freestyle_operators WHERE slug = 'zz_stale_op'")).toBe(0);
+    expect(value('SELECT COUNT(*) AS v FROM freestyle_operators')).toBe(content.operators.length);
+    expect(db.prepare('SELECT browse_group AS g, browse_full_section AS f FROM freestyle_trick_modifiers WHERE slug = ?')
+      .get(EXTRA_MODIFIER)).toEqual({ g: null, f: 0 });
+  });
+
   it('removes a glossary entry no staged entry supplies any more', () => {
     seedCuratorContent(db);
     insertFreestyleGlossaryTerm(db, { slug: 'zz-stale-term' });
@@ -335,6 +376,23 @@ describe('refusing content the database cannot take', () => {
     ['a glossary link off the site', withExtra({
       glossaryTerms: content.glossaryTerms.map((t) => (t.slug === 'fill' ? { ...t, moreHref: 'https://example.com', moreLabel: 'x' } : t)),
     }), /glossary entry "fill"/],
+    // Defect caught: a staged operator the operators page cannot place or explain,
+    // or a browse placement for a modifier that does not exist.
+    ['an operator in a group the operators page does not define', withExtra({
+      operators: content.operators.map((o) => (o.slug === 'gyro' ? { ...o, pageGroup: 'no-such-group' } : o)),
+    }), /operator "gyro"/],
+    ['an operator with no definition', withExtra({
+      operators: content.operators.map((o) => (o.slug === 'double' ? { ...o, definition: '' } : o)),
+    }), /operator "double"/],
+    ['an operator listed twice', withExtra({
+      operators: [...content.operators, content.operators[0]!],
+    }), /already an operator/],
+    ['a browse placement for a modifier the registry does not hold', withExtra({
+      modifierBrowse: [...content.modifierBrowse, { slug: 'zz_no_such_modifier', group: 'rotational-body', order: 99, fullSection: false }],
+    }), /zz_no_such_modifier/],
+    ['a browse placement in a group the view does not define', withExtra({
+      modifierBrowse: content.modifierBrowse.map((b) => (b.slug === 'pixie' ? { ...b, group: 'no-such-group' } : b)),
+    }), /browse placement for "pixie"/],
     ['a glossary entry with no definition', withExtra({
       glossaryTerms: content.glossaryTerms.map((t) => (t.slug === 'fill' ? { ...t, definition: ' ' } : t)),
     }), /glossary entry "fill"/],
@@ -344,6 +402,8 @@ describe('refusing content the database cannot take', () => {
     insertFreestyleFamily(db, { slug: 'zz_kept_family' });
     insertFreestyleSet(db, { slug: 'zz_kept_set' });
     insertFreestyleGlossaryTerm(db, { slug: 'zz-kept-term' });
+    insertFreestyleOperator(db, { slug: 'zz_kept_op' });
+    db.prepare("UPDATE freestyle_trick_modifiers SET browse_group = 'rotational-body' WHERE slug = ?").run(EXTRA_MODIFIER);
     let refusal: unknown;
     try {
       seedCuratorContent(db, bad);
@@ -360,6 +420,8 @@ describe('refusing content the database cannot take', () => {
     expect(value('SELECT COUNT(*) AS v FROM freestyle_families')).toBe(1);
     expect(value('SELECT COUNT(*) AS v FROM freestyle_sets')).toBe(1);
     expect(value('SELECT COUNT(*) AS v FROM freestyle_glossary_terms')).toBe(1);
+    expect(value('SELECT COUNT(*) AS v FROM freestyle_operators')).toBe(1);
+    expect(value('SELECT browse_group AS v FROM freestyle_trick_modifiers WHERE slug = ?', EXTRA_MODIFIER)).toBe('rotational-body');
   });
 });
 

@@ -12,6 +12,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { cachedGet } from '../fixtures/cachedGet';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+import { seedStagedOperatorsAndModifiers } from '../fixtures/stagedOperators';
 import { insertFreestyleTrick, insertFreestyleTrickModifier, insertFreestyleTrickModifierLink } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3231');
@@ -38,6 +39,8 @@ beforeAll(async () => {
   // A family-null trick with nothing structurally related.
   insertFreestyleTrick(db, { slug: 'lonely_null', canonical_name: 'lonely null', adds: '2', base_trick: 'lonely_null', trick_family: null });
 
+  // The operators and the placed modifiers the pages link, as the rebuild seeds them.
+  seedStagedOperatorsAndModifiers(db);
   db.close();
   createApp = await importApp();
 });

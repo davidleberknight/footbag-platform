@@ -12,8 +12,10 @@ import {
   FamilyValidationError,
   SetValidationError,
   GlossaryValidationError,
+  OperatorValidationError,
   type FreestyleSetInput,
   type FreestyleGlossaryTermInput,
+  type FreestyleOperatorInput,
   type FreestyleFamilyInput,
   type CurationLinkOutcome,
 } from '../services/freestyleCurationService';
@@ -1011,6 +1013,81 @@ export const adminFreestyleController = {
     }
   },
 
+  /** GET /admin/freestyle/operators */
+  operators(_req: Request, res: Response, next: NextFunction): void {
+    try {
+      res.render('admin/freestyle-operators', freestyleCurationService.getOperatorListPage());
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /** GET /admin/freestyle/operators/new */
+  newOperator(_req: Request, res: Response, next: NextFunction): void {
+    try {
+      res.render('admin/freestyle-operator-form', freestyleCurationService.getOperatorNewPage());
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // Add one operator. Success lands on the new operator's edit page; a refusal
+  // re-renders the add form (422) with the submitted values and every reason.
+  createOperator(req: Request, res: Response, next: NextFunction): void {
+    const input = operatorInputFromBody(req.body, true);
+    try {
+      freestyleCurationService.createOperator(input, req.user!.userId);
+      redirectSaved(req, res, `/admin/freestyle/operators/${input.slug}/edit`);
+    } catch (err) {
+      if (err instanceof OperatorValidationError) {
+        res.status(422).render('admin/freestyle-operator-form',
+          freestyleCurationService.getOperatorNewPage({ submitted: input, errors: [...err.reasons] }));
+        return;
+      }
+      next(err);
+    }
+  },
+
+  /** GET /admin/freestyle/operators/:slug/edit */
+  editOperator(req: Request, res: Response, next: NextFunction): void {
+    const slug = str(req.params.slug);
+    const editPath = `/admin/freestyle/operators/${slug}/edit`;
+    try {
+      res.render('admin/freestyle-operator-form',
+        freestyleCurationService.getOperatorEditPage(slug, { saved: savedHere(req, res, editPath) }));
+    } catch (err) {
+      if (err instanceof NotFoundError) {
+        renderNotFound(res);
+        return;
+      }
+      next(err);
+    }
+  },
+
+  // Save one operator's edit. Success, or an unchanged submit, returns to the
+  // edit page; a refusal re-renders it (422) with the submitted values and every reason.
+  updateOperator(req: Request, res: Response, next: NextFunction): void {
+    const slug = str(req.params.slug);
+    const input = operatorInputFromBody(req.body, false);
+    try {
+      const result = freestyleCurationService.updateOperator(slug, input, req.user!.userId);
+      const editPath = `/admin/freestyle/operators/${slug}/edit`;
+      if (result.status === 'saved') redirectSaved(req, res, editPath);
+      else res.redirect(303, editPath);
+    } catch (err) {
+      if (err instanceof OperatorValidationError) {
+        res.status(422).render('admin/freestyle-operator-form',
+          freestyleCurationService.getOperatorEditPage(slug, { submitted: input, errors: [...err.reasons] }));
+        return;
+      }
+      if (err instanceof NotFoundError) {
+        renderNotFound(res);
+        return;
+      }
+      next(err);
+    }
+  },
+
   // Remove one glossary term. Success returns to the glossary list; unknown is a 404.
   removeGlossaryTerm(req: Request, res: Response, next: NextFunction): void {
     try {
@@ -1025,6 +1102,22 @@ export const adminFreestyleController = {
     }
   },
 };
+
+function operatorInputFromBody(body: Record<string, unknown>, withSlug: boolean): FreestyleOperatorInput {
+  return {
+    ...(withSlug ? { slug: str(body.slug) } : {}),
+    name:                str(body.name),
+    kind:                str(body.kind),
+    definition:          str(body.definition),
+    decomposition:       str(body.decomposition),
+    decompositionNote:   str(body.decompositionNote),
+    workedExamples:      str(body.workedExamples),
+    sourceNote:          str(body.sourceNote),
+    confirmationPending: str(body.confirmationPending),
+    pageGroup:           str(body.pageGroup),
+    pageOrder:           str(body.pageOrder),
+  };
+}
 
 function glossaryInputFromBody(body: Record<string, unknown>, withSlug: boolean): FreestyleGlossaryTermInput {
   return {
@@ -1075,6 +1168,9 @@ function modifierInputFromBody(body: Record<string, unknown>): FreestyleModifier
     modifierType: str(body.modifierType),
     notes:        str(body.notes),
     beginnerNote: str(body.beginnerNote),
+    browseGroup:       str(body.browseGroup),
+    browseOrder:       str(body.browseOrder),
+    browseFullSection: str(body.browseFullSection),
   };
 }
 

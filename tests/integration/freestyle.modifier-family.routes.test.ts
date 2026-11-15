@@ -21,7 +21,8 @@ import {
   importApp,
 } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
-import { getTier1OperatorDefinition } from '../../src/content/freestyleOperatorReference';
+import { stagedCoreDefinition as getTier1OperatorDefinition } from '../fixtures/stagedOperatorReference';
+import { seedStagedOperators } from '../fixtures/stagedOperators';
 import { conceptsHrefForTerm } from '../../src/services/conceptsAnchors';
 
 const { dbPath } = setTestEnv('3093');
@@ -130,6 +131,9 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'symposium_torque',    canonical_name: 'symposium torque',    adds: '5', base_trick: 'torque',    trick_family: 'torque',  category: 'compound' });
   insertFreestyleTrick(db, { slug: 'symposium_eggbeater', canonical_name: 'symposium eggbeater', adds: '4', base_trick: 'eggbeater', trick_family: 'legover', category: 'compound' });
   insertFreestyleTrick(db, { slug: 'witchdoctor',         canonical_name: 'witchdoctor',         adds: '6', base_trick: 'whirl',     trick_family: 'whirl',   category: 'compound' });
+  // Each teaching page's definition is its operator's, read from the database,
+  // seeded as the rebuild seeds it.
+  seedStagedOperators(db);
 
   db.close();
   createApp = await importApp();

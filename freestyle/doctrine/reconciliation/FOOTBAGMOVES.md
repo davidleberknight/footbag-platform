@@ -261,7 +261,7 @@ already maps. A few carry genuine identity content:
 
 - **Quantum versus Miraging.** FootbagMoves' Sets tab defines **Quantum = "Toe
   Miraging"** — it treats Quantum as a compound built on Miraging. The platform
-  (`freestyleOperatorReference.ts`) defines Miraging and Quantum as two independent
+  (the `freestyle_operators` table) defines Miraging and Quantum as two independent
   operators with no cross-reference. This is the one genuinely open identity question
   in the FootbagMoves overlap. **Adopted:** the platform's current two-operator model
   ships as-is. **Why:** the "one set or two" merger question is unresolved by design;

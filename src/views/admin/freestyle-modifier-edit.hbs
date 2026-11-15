@@ -35,6 +35,23 @@
         <input type="text" id="modifier-beginnerNote" name="beginnerNote" value="{{content.submitted.beginnerNote}}" aria-describedby="modifier-beginnerNote-hint" />
         <small class="form-hint" id="modifier-beginnerNote-hint">One plain sentence, shown beside this modifier on every trick page that uses it.</small>
       </div>
+      <div class="form-field">
+        <label for="modifier-browseGroup">Browse group</label>
+        <select id="modifier-browseGroup" name="browseGroup" aria-describedby="modifier-browseGroup-hint">
+          {{#each content.browseGroupOptions}}
+            <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+          {{/each}}
+        </select>
+        <small class="form-hint" id="modifier-browseGroup-hint">Where the trick dictionary's browse-by-modifier view lists this modifier. A modifier in the set and uptime group is listed in the set view instead.</small>
+      </div>
+      <div class="form-field">
+        <label for="modifier-browseOrder">Browse position (optional)</label>
+        <input type="text" id="modifier-browseOrder" name="browseOrder" inputmode="numeric" value="{{content.submitted.browseOrder}}" aria-describedby="modifier-browseOrder-hint" />
+        <small class="form-hint" id="modifier-browseOrder-hint">A whole number; lower comes first within its group. Leave it empty to list the modifier after the positioned ones.</small>
+      </div>
+      <div class="form-field">
+        <label><input type="checkbox" name="browseFullSection" value="1" {{#if content.browseFullSectionChecked}}checked{{/if}} /> Give it a full browse section of its own</label>
+      </div>
       <div class="form-actions">
         <button type="submit" class="btn btn-primary btn-sm">Save Modifier</button>
         <a href="{{content.cancelHref}}" class="btn btn-outline btn-sm">Cancel</a>

@@ -25,8 +25,13 @@
  * "fix" any of the four.
  */
 import { describe, it, expect } from 'vitest';
-import { OPERATOR_INDEX_SLUGS } from '../../src/content/freestyleOperatorIndex';
 import { STAGED_SETS } from '../../freestyle/inputs/curator_content/freestyleSets';
+import { STAGED_OPERATORS } from '../../freestyle/inputs/curator_content/freestyleOperators';
+
+// The slugs the operators page lists: every staged operator placed in a page group.
+const OPERATOR_INDEX_SLUGS: ReadonlySet<string> = new Set(
+  STAGED_OPERATORS.filter((o) => o.pageGroup !== null).map((o) => o.slug),
+);
 
 const findCanonicalSetBySlug = (slug: string) => STAGED_SETS.find((s) => s.slug === slug) ?? null;
 

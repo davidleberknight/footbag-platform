@@ -111,7 +111,11 @@ beforeAll(async () => {
     addTrick({ slug: trickNameToSlug(name), canonical_name: name });
     insertFreestyleRecord(db, { trick_name: name, display_name: 'Parity Holder', confidence: 'verified' });
   }
-  const modifierSlugs = new Set([...content.beginnerNotes.keys(), PLAIN_MODIFIER, ...OPERATOR_MODIFIERS]);
+  // Every modifier the staged content names, beginner notes and browse placement alike.
+  const modifierSlugs = new Set([
+    ...content.beginnerNotes.keys(), ...content.modifierBrowse.map((b) => b.slug),
+    PLAIN_MODIFIER, ...OPERATOR_MODIFIERS,
+  ]);
   for (const slug of modifierSlugs) insertFreestyleTrickModifier(db, { slug });
   [...noted, PLAIN_MODIFIER].forEach((slug, i) => insertFreestyleTrickModifierLink(db, TRICK, slug, i + 1));
   // A base carrying a displayed alias, so the check that the reversed trick is

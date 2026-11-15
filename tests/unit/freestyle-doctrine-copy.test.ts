@@ -33,9 +33,10 @@ import {
   COMPOSITIONAL_AUDIT_ENTRIES,
 } from '../../src/content/freestyleCompositionalSets';
 import {
-  OPERATOR_REFERENCE_ENTRIES,
-  TIER1_OPERATOR_DEFINITIONS,
-} from '../../src/content/freestyleOperatorReference';
+  STAGED_REFERENCE_ENTRIES as OPERATOR_REFERENCE_ENTRIES,
+  STAGED_CORE_DEFINITIONS as TIER1_OPERATOR_DEFINITIONS,
+  stagedCoreDefinition,
+} from '../fixtures/stagedOperatorReference';
 import { CORE_ATOM_EDUCATIONAL } from '../../src/content/freestyleCoreAtomEducational';
 import { CORE_TRICK_SPEC } from '../../src/content/freestyleLandingContent';
 
@@ -168,17 +169,15 @@ describe('[PDX] is a paradox-relationship marker, not a direction or a fixed for
 });
 
 describe('Tapping preserves base identity and re-authors the base side coordinate', () => {
-  const opRef = read('src/content/freestyleOperatorReference.ts');
+  const tappingDef = stagedCoreDefinition('tapping')!.definition;
   const edu = read('src/services/symbolicModifierEducation.ts');
 
   it('no tapping surface says the base runs or follows unchanged', () => {
     // Scope the check to the tapping definition/cards, which is where the audit found it.
-    const tappingDef = opRef.slice(opRef.indexOf("slug: 'tapping'"), opRef.indexOf("slug: 'symposium'"));
     expect(tappingDef).not.toMatch(/runs unchanged|follows unchanged|base is unchanged/);
   });
 
   it('the canonical tapping definition describes coordinate re-authoring via the Tapdown example', () => {
-    const tappingDef = opRef.slice(opRef.indexOf("slug: 'tapping'"), opRef.indexOf("slug: 'symposium'"));
     expect(tappingDef).toMatch(/encoded as SAME OUT/);
     expect(tappingDef).toMatch(/standalone OP OUT/);
     expect(tappingDef).toMatch(/leg relation changes; the OUT direction does not/);
@@ -194,7 +193,7 @@ describe('Tapping preserves base identity and re-authors the base side coordinat
 
 describe('legitimate execution prose is not banned', () => {
   it('symposium no-plant discipline and stepping plant-foot relocation copy remain', () => {
-    expect(read('src/content/freestyleOperatorReference.ts')).toMatch(/no-plant leg discipline/);
+    expect(stagedCoreDefinition('symposium')!.definition).toMatch(/no-plant leg discipline/);
     expect(read('src/services/freestyleService.ts')).toMatch(/Plant foot relocates/);
   });
 });

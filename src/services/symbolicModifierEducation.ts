@@ -13,15 +13,15 @@
  *
  * Adding new modifiers: register an object in MODIFIER_PAGE_CONTENT.
  *
- * Definition authority: a Tier-1 operator's "What it is" line is canonical in
- * the operator reference (TIER1_OPERATOR_DEFINITIONS) and is derived at build
- * time, never authored here. Everything pedagogical on these pages (subtitle,
+ * Definition authority: a core operator's "What it is" line is its definition in
+ * the freestyle_operators table, read when the page is built, never authored
+ * here. Everything pedagogical on these pages (subtitle,
  * how it changes the base trick, progression, examples, related concepts)
  * stays authored locally.
  */
 import type { FreestyleTrickRow } from '../db/db';
 import { conceptsHrefForTerm } from './conceptsAnchors';
-import { getTier1OperatorDefinition } from '../content/freestyleOperatorReference';
+import { coreOperatorDefinition } from './freestyleOperatorRegistry';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Types
@@ -60,9 +60,9 @@ export interface ModifierEducationInput {
   // settled community consensus (paradox / cross-body).
   workingModelNote?:    string;
   // ── Concept-first frozen template (the standard for operator pages) ──
-  // What it is. Tier-1 operators leave this unset: their canonical definition
-  // line comes from the operator reference at build time. A local value is
-  // only for operators without a Tier-1 canonical definition.
+  // What it is. Core operators leave this unset: their definition comes from
+  // the operators table when the page is built. A local value is only for
+  // modifiers that are not core operators.
   definition?:          string;
   howItChangesBase?:    string;     // How <Operator> changes the base trick (operator-first; modifies, never replaces)
   // ── Shared ──
@@ -965,9 +965,9 @@ export function buildModifierFamilyPage(
     pageTitle:          input.pageTitle,
     pageSubtitle:       input.pageSubtitle,
     workingModelNote:   input.workingModelNote,
-    // The canonical Tier-1 definition wins; a local value only covers operators
-    // the operator reference does not define.
-    definition:         getTier1OperatorDefinition(input.slug)?.definition ?? input.definition,
+    // A core operator's definition wins; a local value only covers modifiers
+    // that are not core operators.
+    definition:         coreOperatorDefinition(input.slug) ?? input.definition,
     howItChangesBase:   input.howItChangesBase,
     progression: {
       anchorBaseLabel: input.progression.anchorBaseLabel,

@@ -179,6 +179,7 @@ each release contains is §1.3.
     - [A_Review_Emerging_Vocabulary](#a_review_emerging_vocabulary)
     - [A_Edit_Freestyle_Trick](#a_edit_freestyle_trick)
     - [A_Edit_Freestyle_Modifier](#a_edit_freestyle_modifier)
+    - [A_Edit_Freestyle_Operator](#a_edit_freestyle_operator)
     - [A_Edit_Freestyle_Family](#a_edit_freestyle_family)
     - [A_Edit_Freestyle_Set](#a_edit_freestyle_set)
     - [A_Edit_Freestyle_Glossary](#a_edit_freestyle_glossary)
@@ -3331,6 +3332,7 @@ Success Criteria, Fields:
 
 - Create takes the slug, the display name, the ADD bonus, the modifier type, notes and a beginner note; edit changes every field but the slug. The rotational ADD bonus is always saved equal to the ADD bonus.
 - The modifier registry is the single home of a modifier's ADD: computed ADD, first-class status and every public surface read it from there.
+- Edit also sets where the trick dictionary's browse-by-modifier view lists the modifier: its group (one the view defines; none lists it under the catch-all group), its position in that group, and whether it gets a full browse section of its own.
 
 Success Criteria, Validation (a save that fails any check is rejected with a clear message and the submitted values preserved):
 
@@ -3349,6 +3351,32 @@ Success Criteria, Durability:
 Audit:
 
 - Every create and edit appends one audit_entries row recording the admin actor, timestamp, a freestyle-namespaced action type (`freestyle.modifier.created` or `freestyle.modifier.updated`), the modifier slug and the changed field names, with the old and new ADD for an ADD change.
+
+### A_Edit_Freestyle_Operator
+
+Access: same as A_Edit_Freestyle_Trick. Editing a slug that has no operator returns 404.
+
+Story: As an admin, I can add a freestyle operator and edit an existing one, with validation and an audit trail, so that what each operator is, and where the operators page lists it, is maintained in the running application with no deployment.
+
+Success Criteria, Fields:
+
+- An operator has its slug, its name, its kind (core operator, set, body, compound set, compound body, historical name or quantifier), a one-sentence definition, and optionally a decomposition, a note shown under the decomposition, worked examples, a source note, and whether it still awaits a curator's confirmation. Add takes every field; edit changes every field but the slug.
+- An operator may also be placed in one of the groups the operators page defines, at a position within that group; an operator in no group is not listed there. The groups and their headings are page prose kept in code.
+- An operator holds no ADD: a modifier's ADD has its single home in the modifier registry (A_Edit_Freestyle_Modifier). An operator's slug may equal a modifier's, and then the two describe the same thing.
+- A change shows on the operators page and wherever a surviving page states what the operator is.
+
+Success Criteria, Validation (a save that fails any check is rejected with a clear message and the submitted values preserved):
+
+- The slug is lowercase letters, digits and underscores, and is not already an operator.
+- The name and the definition are present, and the kind and the group are ones the editor offers.
+
+Success Criteria, Durability:
+
+- Before go-live, on a developer machine, a save is written back to the committed authoring files as every freestyle curation screen's is, so a rebuild reproduces it.
+
+Audit:
+
+- Every add and edit appends one audit_entries row recording the admin actor, timestamp, a freestyle-namespaced action type (`freestyle.operator.created` or `freestyle.operator.updated`), the operator slug and the changed field names.
 
 ### A_Edit_Freestyle_Family
 
