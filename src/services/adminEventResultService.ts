@@ -122,7 +122,7 @@ export interface EntryCorrectionInput {
   scoreText: string;
   disciplineId: string;
   /** Each competitor's displayed name, keyed by the participant row id. */
-  names: Record<string, string>;
+  names: ReadonlyMap<string, string>;
 }
 
 export interface AdminEntryCorrectionContent {
@@ -278,7 +278,7 @@ function validateEntry(
 
   const names = new Map<string, string>();
   for (const p of participants) {
-    const name = cleanUserText(input.names[p.participant_row_id] ?? '', 'single_line', 'name');
+    const name = cleanUserText(input.names.get(p.participant_row_id) ?? '', 'single_line', 'name');
     if (!name) throw new ValidationError('Enter every competitor\'s name.');
     if (name.length > MAX_NAME) {
       throw new ValidationError(`A name must be ${MAX_NAME} characters or fewer.`);
@@ -341,7 +341,7 @@ function entryHiddenFields(input: EntryCorrectionInput, reason: string): Array<{
     { name: 'placement',     value: input.placement },
     { name: 'score_text',    value: input.scoreText },
     { name: 'discipline_id', value: input.disciplineId },
-    ...Object.entries(input.names).map(([id, value]) => ({ name: `name_${id}`, value })),
+    ...[...input.names].map(([id, value]) => ({ name: `name_${id}`, value })),
     { name: 'reason',        value: reason },
   ];
 }
@@ -524,7 +524,7 @@ export const adminEventResultService = {
             fieldName: `name_${p.participant_row_id}`,
             inputId: `er_name_${p.participant_order}`,
             label: participants.length === 1 ? 'Competitor name' : `Competitor ${p.participant_order} name`,
-            value: input?.names[p.participant_row_id] ?? p.display_name,
+            value: input?.names.get(p.participant_row_id) ?? p.display_name,
           })),
         },
         divisionOptions: divisions.map((d) => ({

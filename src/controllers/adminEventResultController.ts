@@ -50,10 +50,11 @@ function param(req: Request, name: string): string {
 }
 
 function entryInputFrom(fields: Record<string, string>): EntryCorrectionInput {
-  const names: Record<string, string> = {};
+  // A Map, so a posted field name is only ever a key, never a property.
+  const names = new Map<string, string>();
   for (const [key, value] of Object.entries(fields)) {
     const match = NAME_FIELD.exec(key);
-    if (match) names[match[1]!] = value ?? '';
+    if (match) names.set(match[1]!, value ?? '');
   }
   return {
     placement:    fields.placement ?? '',
