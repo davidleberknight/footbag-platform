@@ -14,6 +14,7 @@ import { cachedGet } from '../fixtures/cachedGet';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, insertEvent, insertClub, insertTag, insertMemberGallery, insertHistoricalPerson, insertFreestyleTrick, createTestSessionJwt } from '../fixtures/factories';
 import { seedStagedSets } from '../fixtures/stagedSets';
+import { seedStagedOperatorsAndModifiers } from '../fixtures/stagedOperators';
 
 const { dbPath } = setTestEnv('3080');
 const ORIGIN = 'http://localhost:3080';
@@ -45,6 +46,9 @@ beforeAll(async () => {
 
   // The freestyle sets, so each set's detail URL appears in the sitemap.
   seedStagedSets(db);
+  // The operators and the placed modifiers, as the built database holds them,
+  // so each modifier page that renders appears in the sitemap.
+  seedStagedOperatorsAndModifiers(db);
 
   // Historical people covering each answer the detail page gives a signed-out
   // visitor: Hall of Fame and Big Add Posse records are public pages; an
