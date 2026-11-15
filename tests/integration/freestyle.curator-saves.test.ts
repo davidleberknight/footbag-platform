@@ -22,6 +22,7 @@ import { insertMember } from '../fixtures/factories';
 import { seedCuratorContent, STAGED_CURATOR_CONTENT } from '../../freestyle/loaders/28a_seed_curator_content';
 import { STAGED_FAMILIES, STAGED_FAMILY_SUBLABELS } from '../../freestyle/inputs/curator_content/freestyleFamilies';
 import { STAGED_SETS } from '../../freestyle/inputs/curator_content/freestyleSets';
+import { STAGED_GLOSSARY_TERMS } from '../../freestyle/inputs/curator_content/freestyleGlossaryTerms';
 
 const { dbPath } = setTestEnv('4142');
 const savesDir = process.env.CURATOR_SAVES_DIR!;
@@ -45,6 +46,10 @@ const FAMILY_EDITED = 'swirl';
 const SET_EDITED = 'fairy';
 const SAVED_SET_FORMULA = 'TOE > SAME OUT [DEX] > (saved)';
 const CREATED_SET = 'saved_created_set';
+const GLOSSARY_EDITED = 'mods';
+const SAVED_GLOSSARY_DEFINITION = 'A definition the curator saved.';
+const GLOSSARY_ADDED = 'saved-added-term';
+const GLOSSARY_REMOVED = 'broken-in';
 
 /** The family edit form as the staged roster fills it. */
 function familyForm(slug: string, overrides: Record<string, string> = {}): Record<string, string> {
@@ -322,6 +327,18 @@ beforeAll(async () => {
     slug: CREATED_SET, displayName: 'Saved Created Set', setGroup: 'rotational', formula: '',
     explanation: 'A set the curator created.', relatedSets: `${SET_EDITED} | Edited, related`,
   }, ADMIN_ID);
+  // A glossary edit, an added term and a removed term over the seeded glossary.
+  const glossaryEdited = STAGED_GLOSSARY_TERMS.find((t) => t.slug === GLOSSARY_EDITED)!;
+  service.updateGlossaryTerm(GLOSSARY_EDITED, {
+    term: glossaryEdited.term, definition: SAVED_GLOSSARY_DEFINITION,
+    aliases: (glossaryEdited.aliases ?? []).join('\n'),
+    moreHref: glossaryEdited.moreHref ?? '', moreLabel: glossaryEdited.moreLabel ?? '',
+  }, ADMIN_ID);
+  service.createGlossaryTerm({
+    slug: GLOSSARY_ADDED, term: 'Saved Added Term', definition: 'A term the curator added.',
+    aliases: '', moreHref: '', moreLabel: '',
+  }, ADMIN_ID);
+  service.removeGlossaryTerm(GLOSSARY_REMOVED, ADMIN_ID);
 
   // Records and consecutive rows, including what the loaders alone cannot express:
   // a text value, a year-level date, and a row the records loader would skip.
@@ -611,6 +628,21 @@ describe('a rebuild', () => {
       [FAMILY_EDITED, SAVED_FAMILY_HOOK])).toBe(1);
   });
 
+  it('keeps an added glossary term, a saved glossary edit and a removal over the seeded glossary', () => {
+    // Defect: a glossary term added, edited or removed in the glossary editor is
+    // gone, undone or back at the next rebuild, because the seeder empties the
+    // glossary table after the saves or the save loader never reads glossary
+    // files. The staged glossary is the control.
+    expect(STAGED_GLOSSARY_TERMS.some((t) => t.slug === GLOSSARY_ADDED)).toBe(false);
+    expect(STAGED_GLOSSARY_TERMS.some((t) => t.slug === GLOSSARY_REMOVED)).toBe(true);
+    expect(rowCount(rebuildPath, 'freestyle_glossary_terms', 'slug = ? AND term = ?',
+      [GLOSSARY_ADDED, 'Saved Added Term'])).toBe(1);
+    expect(rowCount(rebuildPath, 'freestyle_glossary_terms', 'slug = ? AND definition = ?',
+      [GLOSSARY_EDITED, SAVED_GLOSSARY_DEFINITION])).toBe(1);
+    expect(rowCount(rebuildPath, 'freestyle_glossary_terms', 'slug = ?', [GLOSSARY_REMOVED])).toBe(0);
+    expect(rowCount(rebuildPath, 'freestyle_glossary_terms', '1 = 1', [])).toBe(STAGED_GLOSSARY_TERMS.length);
+  });
+
   it('keeps a created set and a saved set edit over the seeded sets', () => {
     // Defect: a set created or edited in the set editor is gone or undone at the
     // next rebuild, because the seeder empties the set table after the saves or
@@ -781,6 +813,23 @@ describe('the save loader refuses a file it cannot apply', () => {
 
   // Defect: a saved set naming a related set no set has is applied, and its page
   // links to a page that does not exist.
+  // Defect: a saved glossary term whose alias is another entry's term is applied,
+  // and the glossary shows one word as two entries.
+  it('a glossary term whose alias is another entry\'s term', () => {
+    const dir = fs.mkdtempSync(path.join(scratch, 'bad-glossary-'));
+    fs.mkdirSync(path.join(dir, 'glossary_terms'), { recursive: true });
+    const trickTerm = STAGED_GLOSSARY_TERMS.find((t) => t.slug === 'trick')!.term;
+    const body = {
+      slug: 'zz-alias-clash', term: 'Zz Alias Clash', definition: 'A term whose alias is another term.',
+      aliases: [trickTerm], more_href: null, more_label: null,
+    };
+    fs.writeFileSync(path.join(dir, 'glossary_terms', 'zz-alias-clash.json'), JSON.stringify(body));
+    const r = applySaves(rebuildPath, dir);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/zz-alias-clash/);
+    expect(rowCount(rebuildPath, 'freestyle_glossary_terms', 'slug = ?', ['zz-alias-clash'])).toBe(0);
+  });
+
   it('a set whose related set names no set', () => {
     const dir = fs.mkdtempSync(path.join(scratch, 'bad-set-'));
     fs.mkdirSync(path.join(dir, 'sets'), { recursive: true });
@@ -815,8 +864,9 @@ describe('the field list', () => {
     const kinds = loader.match(/RECORD_KINDS = \(([\s\S]*?)\n\)/)![1]!;
     // Each kind's tuple opens with its folder and then its table.
     const loaderFolders = [...kinds.matchAll(/^\s+\("([a-z_]+)", "[a-z_]+", \(/gm)].map((m) => m[1]!);
-    // Families and sets are read by functions of their own, each naming its folder.
-    const ownFolders = ['families', 'sets'].filter((k) => new RegExp(`saves_dir / "${k}"`).test(loader));
+    // Families, sets and glossary terms are read by functions of their own, each
+    // naming its folder.
+    const ownFolders = ['families', 'sets', 'glossary_terms'].filter((k) => new RegExp(`saves_dir / "${k}"`).test(loader));
     expect([...loaderFolders, ...ownFolders].sort()).toEqual([...adapterModule.SAVE_ITEM_KINDS].sort());
   });
 

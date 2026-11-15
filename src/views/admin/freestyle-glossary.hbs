@@ -1,0 +1,36 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{> admin-instructions}}
+  <section>
+    <p><a href="{{siteHref content.newHref}}" class="btn btn-primary">New Glossary Term</a></p>
+    {{#if content.hasRows}}
+      <div class="records-table-wrap" tabindex="0" role="region" aria-label="Freestyle glossary terms">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Term</th>
+            <th>Slug</th>
+            <th>Definition</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.rows}}
+            <tr>
+              <td><a href="{{this.editHref}}">{{this.term}}</a></td>
+              <td><code>{{this.slug}}</code></td>
+              <td>{{this.definition}}</td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+      </div>
+    {{else}}
+      <div class="empty-state"><p>No glossary terms yet.</p></div>
+    {{/if}}
+  </section>
+</div>

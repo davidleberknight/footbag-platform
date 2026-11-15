@@ -11,7 +11,9 @@ import {
   FreestyleTrickPublicationInput,
   FamilyValidationError,
   SetValidationError,
+  GlossaryValidationError,
   type FreestyleSetInput,
+  type FreestyleGlossaryTermInput,
   type FreestyleFamilyInput,
   type CurationLinkOutcome,
 } from '../services/freestyleCurationService';
@@ -918,7 +920,122 @@ export const adminFreestyleController = {
       next(err);
     }
   },
+
+  /** GET /admin/freestyle/glossary */
+  glossary(_req: Request, res: Response, next: NextFunction): void {
+    try {
+      res.render('admin/freestyle-glossary', freestyleCurationService.getGlossaryListPage());
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /** GET /admin/freestyle/glossary/new */
+  newGlossaryTerm(_req: Request, res: Response, next: NextFunction): void {
+    try {
+      res.render('admin/freestyle-glossary-term-form', freestyleCurationService.getGlossaryNewPage());
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // Add one glossary term. Success lands on the new term's edit page; a refusal
+  // re-renders the add form (422) with the submitted values and every reason.
+  createGlossaryTerm(req: Request, res: Response, next: NextFunction): void {
+    const input = glossaryInputFromBody(req.body, true);
+    try {
+      freestyleCurationService.createGlossaryTerm(input, req.user!.userId);
+      redirectSaved(req, res, `/admin/freestyle/glossary/${input.slug}/edit`);
+    } catch (err) {
+      if (err instanceof GlossaryValidationError) {
+        res.status(422).render('admin/freestyle-glossary-term-form',
+          freestyleCurationService.getGlossaryNewPage({ submitted: input, errors: [...err.reasons] }));
+        return;
+      }
+      next(err);
+    }
+  },
+
+  /** GET /admin/freestyle/glossary/:slug/edit */
+  editGlossaryTerm(req: Request, res: Response, next: NextFunction): void {
+    const slug = str(req.params.slug);
+    const editPath = `/admin/freestyle/glossary/${slug}/edit`;
+    try {
+      res.render('admin/freestyle-glossary-term-form',
+        freestyleCurationService.getGlossaryEditPage(slug, { saved: savedHere(req, res, editPath) }));
+    } catch (err) {
+      if (err instanceof NotFoundError) {
+        renderNotFound(res);
+        return;
+      }
+      next(err);
+    }
+  },
+
+  // Save one glossary term's edit. Success, or an unchanged submit, returns to the
+  // edit page; a refusal re-renders it (422) with the submitted values and every reason.
+  updateGlossaryTerm(req: Request, res: Response, next: NextFunction): void {
+    const slug = str(req.params.slug);
+    const input = glossaryInputFromBody(req.body, false);
+    try {
+      const result = freestyleCurationService.updateGlossaryTerm(slug, input, req.user!.userId);
+      const editPath = `/admin/freestyle/glossary/${slug}/edit`;
+      if (result.status === 'saved') redirectSaved(req, res, editPath);
+      else res.redirect(303, editPath);
+    } catch (err) {
+      if (err instanceof GlossaryValidationError) {
+        res.status(422).render('admin/freestyle-glossary-term-form',
+          freestyleCurationService.getGlossaryEditPage(slug, { submitted: input, errors: [...err.reasons] }));
+        return;
+      }
+      if (err instanceof NotFoundError) {
+        renderNotFound(res);
+        return;
+      }
+      next(err);
+    }
+  },
+
+  // The confirm page before a removal: links to the term's anchor stop working,
+  // so the final button sits behind a page that names the term. Unknown is a 404.
+  removeGlossaryTermConfirm(req: Request, res: Response, next: NextFunction): void {
+    try {
+      res.render('admin/freestyle-glossary-term-remove-confirm',
+        freestyleCurationService.getGlossaryRemovePage(str(req.params.slug)));
+    } catch (err) {
+      if (err instanceof NotFoundError) {
+        renderNotFound(res);
+        return;
+      }
+      next(err);
+    }
+  },
+
+  // Remove one glossary term. Success returns to the glossary list; unknown is a 404.
+  removeGlossaryTerm(req: Request, res: Response, next: NextFunction): void {
+    try {
+      freestyleCurationService.removeGlossaryTerm(str(req.params.slug), req.user!.userId);
+      res.redirect(303, '/admin/freestyle/glossary');
+    } catch (err) {
+      if (err instanceof NotFoundError) {
+        renderNotFound(res);
+        return;
+      }
+      next(err);
+    }
+  },
 };
+
+function glossaryInputFromBody(body: Record<string, unknown>, withSlug: boolean): FreestyleGlossaryTermInput {
+  return {
+    ...(withSlug ? { slug: str(body.slug) } : {}),
+    term:       str(body.term),
+    definition: str(body.definition),
+    aliases:    str(body.aliases),
+    moreHref:   str(body.moreHref),
+    moreLabel:  str(body.moreLabel),
+  };
+}
 
 function setInputFromBody(body: Record<string, unknown>, withSlug: boolean): FreestyleSetInput {
   return {

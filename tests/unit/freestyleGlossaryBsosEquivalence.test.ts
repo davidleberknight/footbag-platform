@@ -16,7 +16,7 @@
  * following and this entry would need reopening rather than quietly standing.
  */
 import { describe, it, expect } from 'vitest';
-import { GLOSSARY_TERMS } from '../../src/content/freestyleGlossaryTerms';
+import { STAGED_GLOSSARY_TERMS as GLOSSARY_TERMS } from '../../freestyle/inputs/curator_content/freestyleGlossaryTerms';
 
 const bsos = GLOSSARY_TERMS.find(t => t.slug === 'bsos');
 const run = GLOSSARY_TERMS.find(t => t.slug === 'run');

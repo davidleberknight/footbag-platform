@@ -1,0 +1,28 @@
+{{! Confirm step before a glossary term is removed; the removal itself is the POST below }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{> admin-instructions}}
+  <section>
+    <p class="notice notice-warn" role="alert">Removing this term takes it off the public glossary, and every link to <code>{{content.anchorText}}</code> stops working.</p>
+
+    <dl class="trick-structural-facts-list">
+      {{#each content.summary}}
+      <dt>{{label}}</dt>
+      <dd>{{value}}</dd>
+      {{/each}}
+    </dl>
+
+    <div class="form-actions">
+      <form method="POST" action="{{content.removeHref}}" class="inline-form">
+        <button type="submit" class="btn btn-outline">Remove Term</button>
+      </form>
+      <a href="{{content.cancelHref}}" class="btn btn-outline">Cancel</a>
+    </div>
+  </section>
+</div>

@@ -3437,6 +3437,50 @@ export const freestyleSets = {
   `); },
 };
 
+export interface FreestyleGlossaryTermRow {
+  slug:         string;
+  term:         string;
+  definition:   string;
+  aliases_json: string;
+  more_href:    string | null;
+  more_label:   string | null;
+}
+
+// The A to Z glossary entries. Read whole: about a hundred short rows, read by the
+// glossary page and the glossary editor. The page orders them when it shapes them.
+export const freestyleGlossaryTerms = {
+  get listAll() { return db.prepare(`
+    SELECT slug, term, definition, aliases_json, more_href, more_label
+    FROM freestyle_glossary_terms
+    ORDER BY slug ASC
+  `); },
+
+  get getBySlug() { return db.prepare(`
+    SELECT slug, term, definition, aliases_json, more_href, more_label
+    FROM freestyle_glossary_terms
+    WHERE slug = ?
+  `); },
+
+  // The glossary editor's writes.
+  get insert() { return db.prepare(`
+    INSERT INTO freestyle_glossary_terms
+      (slug, term, definition, aliases_json, more_href, more_label,
+       created_at, created_by, updated_at, updated_by, version)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+  `); },
+
+  get update() { return db.prepare(`
+    UPDATE freestyle_glossary_terms
+    SET term = ?, definition = ?, aliases_json = ?, more_href = ?, more_label = ?,
+        updated_at = ?, updated_by = ?, version = version + 1
+    WHERE slug = ?
+  `); },
+
+  get deleteBySlug() { return db.prepare(`
+    DELETE FROM freestyle_glossary_terms WHERE slug = ?
+  `); },
+};
+
 export const freestyleTrickModifiers = {
   get listAll() { return db.prepare(`
     SELECT slug, modifier_name, add_bonus, add_bonus_rotational, modifier_type, notes,

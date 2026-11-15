@@ -5203,6 +5203,25 @@ CREATE TABLE freestyle_sets (
   version            INTEGER NOT NULL DEFAULT 1
 );
 
+-- Freestyle glossary terms: the entries of the A to Z glossary at /freestyle/glossary,
+-- each with a one-sentence definition. Seeded before go-live from the staged curator
+-- content, then added, edited and removed in the glossary editor. The page orders the
+-- entries alphabetically when it reads them, so no order is stored.
+CREATE TABLE freestyle_glossary_terms (
+  slug          TEXT PRIMARY KEY,                -- the anchor suffix: the entry renders at #term-<slug>; never edited
+  term          TEXT NOT NULL,                   -- the displayed term, in its established capitalization
+  definition    TEXT NOT NULL,                   -- one plain sentence
+  aliases_json  TEXT NOT NULL DEFAULT '[]',      -- JSON array of other spellings and abbreviations, in display order
+  more_href     TEXT,                            -- the deeper-material link, a path on this site; NULL = none
+  more_label    TEXT,                            -- the deeper link's label; set exactly when more_href is set
+  created_at    TEXT NOT NULL,
+  created_by    TEXT NOT NULL,
+  updated_at    TEXT NOT NULL,
+  updated_by    TEXT NOT NULL,
+  version       INTEGER NOT NULL DEFAULT 1,
+  CHECK ((more_href IS NULL) = (more_label IS NULL))
+);
+
 -- Modifier reference table — loaded from trick_modifiers.csv, and edited in the
 -- modifier editor. It is the single home of each modifier's ADD.
 -- Each modifier applies a flat ADD bonus to any base trick. The

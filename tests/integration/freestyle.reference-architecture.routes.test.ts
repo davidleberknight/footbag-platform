@@ -24,7 +24,9 @@ import {
   importApp,
 } from '../fixtures/testDb';
 import { insertTrickAsRebuilt } from '../fixtures/stagedFormula';
-import type { GlossaryTerm } from '../../src/content/freestyleGlossaryTerms';
+import { seedStagedGlossary } from '../fixtures/stagedGlossary';
+import { STAGED_GLOSSARY_TERMS as GLOSSARY_TERMS } from '../../freestyle/inputs/curator_content/freestyleGlossaryTerms';
+import type { GlossaryTermRecord } from '../../src/services/freestyleGlossaryRegistry';
 
 const { dbPath } = setTestEnv('4044');
 
@@ -32,7 +34,6 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 const page = cachedGet(() => createApp());
 // src/ modules are imported after setTestEnv so the config singleton sees the
 // test database path.
-let GLOSSARY_TERMS: readonly GlossaryTerm[];
 let shapeGlossaryLetterGroups: typeof import('../../src/services/freestyleService').shapeGlossaryLetterGroups;
 
 beforeAll(async () => {
@@ -46,9 +47,10 @@ beforeAll(async () => {
   ] as const) {
     insertTrickAsRebuilt(db, { slug, canonical_name: slug.replace(/_/g, ' '), adds, base_trick: slug, trick_family: slug, category: 'dex', is_active: 1 });
   }
+  // The glossary entries live in the database, seeded as the rebuild seeds them.
+  seedStagedGlossary(db);
   db.close();
   createApp = await importApp();
-  ({ GLOSSARY_TERMS } = await import('../../src/content/freestyleGlossaryTerms'));
   ({ shapeGlossaryLetterGroups } = await import('../../src/services/freestyleService'));
 });
 
@@ -140,13 +142,18 @@ describe('GET /freestyle/glossary — the A to Z Glossary', () => {
   });
 
   it('shapeGlossaryLetterGroups is deterministic and tiebreaks on slug', () => {
-    const a = shapeGlossaryLetterGroups(GLOSSARY_TERMS);
-    const b = shapeGlossaryLetterGroups([...GLOSSARY_TERMS].reverse());
+    const records: GlossaryTermRecord[] = GLOSSARY_TERMS.map(t => ({
+      slug: t.slug, term: t.term, definition: t.definition, aliases: t.aliases ?? [],
+      moreHref: t.moreHref ?? null, moreLabel: t.moreLabel ?? null,
+    }));
+    const a = shapeGlossaryLetterGroups(records);
+    const b = shapeGlossaryLetterGroups([...records].reverse());
     expect(a).toEqual(b);
+    const plain = { aliases: [], moreHref: null, moreLabel: null };
     const tie = shapeGlossaryLetterGroups([
-      { term: 'Zeta', slug: 'zeta-b', definition: 'x' },
-      { term: 'zeta', slug: 'zeta-a', definition: 'y' },
-      { term: 'Alpha', slug: 'alpha', definition: 'z' },
+      { term: 'Zeta', slug: 'zeta-b', definition: 'x', ...plain },
+      { term: 'zeta', slug: 'zeta-a', definition: 'y', ...plain },
+      { term: 'Alpha', slug: 'alpha', definition: 'z', ...plain },
     ]);
     expect(tie.map(g => g.letter)).toEqual(['A', 'Z']);
     expect(tie[1]!.entries.map(e => e.anchorId)).toEqual(['term-zeta-a', 'term-zeta-b']);

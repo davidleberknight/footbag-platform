@@ -29,6 +29,7 @@ import {
   insertFreestyleTrickModifier,
   insertFreestyleTrickModifierLink,
 } from '../fixtures/factories';
+import { seedStagedGlossary } from '../fixtures/stagedGlossary';
 import {
   getOperatorReferenceEntry,
   getTier1OperatorDefinition,
@@ -59,6 +60,9 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'dimwalk', canonical_name: 'dimwalk', adds: '4', base_trick: 'butterfly', trick_family: 'butterfly' });
   insertFreestyleTrickModifierLink(db, 'smear',   'miraging');
   insertFreestyleTrickModifierLink(db, 'dimwalk', 'miraging');
+  // The glossary entries that link to the provisional operator pages live in the
+  // database, seeded as the rebuild seeds them.
+  seedStagedGlossary(db);
 
   db.close();
   createApp = await importApp();

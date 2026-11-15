@@ -11,7 +11,9 @@ away, since a rebuild would otherwise bring it back from a base input. A family 
 whole too, with the trick family labels that fold into it, but only ever edited: a family
 save naming a family the committed inputs do not produce stops the rebuild. A set is saved
 whole and may be one the editor created, so a set save the inputs do not produce is added;
-a related set naming no set stops the rebuild. Running last
+a related set naming no set stops the rebuild. A glossary entry is saved whole, may be one
+the editor added, and removed: true marks one the editor removed; an alias left naming
+another entry's term stops the rebuild. Running last
 makes the precedence plain: base inputs first, curator saves on top.
 
 Because a save overrides a value someone could still read in an older CSV, this
@@ -66,6 +68,11 @@ FAMILY_SAVE_FIELDS = frozenset({"slug", "folded_labels", *FAMILY_SAVE_COLUMNS, *
 # {"slug", "label"} objects and the held flag as a boolean.
 SET_SAVE_COLUMNS = ("display_name", "set_group", "sort_order", "formula", "explanation")
 SET_SAVE_FIELDS = frozenset({"slug", "related_sets", "held_from_list", *SET_SAVE_COLUMNS})
+
+# A glossary save: every column the glossary editor writes, the aliases as a list of
+# strings; or the slug alone with removed: true for an entry the editor removed.
+GLOSSARY_SAVE_COLUMNS = ("term", "definition", "more_href", "more_label")
+GLOSSARY_SAVE_FIELDS = frozenset({"slug", "aliases", *GLOSSARY_SAVE_COLUMNS})
 
 # (folder, table, key columns, value columns). Applied in this order after the
 # tricks, because aliases and links reference sources and tricks by foreign key.
@@ -278,6 +285,93 @@ def apply_set_saves(conn, saves_dir, overrides):
     return applied
 
 
+def apply_glossary_saves(conn, saves_dir, overrides):
+    """Apply glossary additions, edits and removals.
+
+    A glossary save is the whole entry as the curator left it, or the slug with
+    removed: true. An entry the committed inputs do not produce is one the editor
+    added, so it is inserted; any other is updated, and only a real change bumps the
+    row's version. A removal of an entry already gone changes nothing. Once every
+    glossary save is in, no alias may equal another entry's term, or the rebuild
+    stops: the page would otherwise show one word as two entries.
+    """
+    applied = 0
+    for path in sorted((saves_dir / "glossary_terms").glob("*.json")):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except ValueError as err:
+            raise ValueError(f"{path} is not valid JSON: {err}") from err
+        if not isinstance(data, dict) or data.get("slug") != path.stem:
+            raise ValueError(f"{path} must name its own glossary entry as slug")
+        slug = data["slug"]
+        if data.get("removed") is True:
+            if set(data) != {"slug", "removed"}:
+                raise ValueError(f"{path} marks a removal, so it may carry only slug and removed")
+            before = conn.execute("SELECT term FROM freestyle_glossary_terms WHERE slug = ?", (slug,)).fetchone()
+            if before is not None:
+                conn.execute("DELETE FROM freestyle_glossary_terms WHERE slug = ?", (slug,))
+                overrides.append((f"glossary_terms:{slug}", "removed", "present", None))
+                applied += 1
+            continue
+        unknown = sorted(set(data) - GLOSSARY_SAVE_FIELDS)
+        if unknown:
+            raise ValueError(f"{path} carries fields a save may not set: {', '.join(unknown)}")
+        absent = sorted(GLOSSARY_SAVE_FIELDS - set(data))
+        if absent:
+            raise ValueError(f"{path} is missing {', '.join(absent)}")
+        aliases = data["aliases"]
+        if not isinstance(aliases, list) or not all(isinstance(a, str) for a in aliases):
+            raise ValueError(f"{path} must list the aliases as strings")
+        columns = list(GLOSSARY_SAVE_COLUMNS) + ["aliases_json"]
+        values = [data[c] for c in GLOSSARY_SAVE_COLUMNS] + [
+            json.dumps(aliases, ensure_ascii=False, separators=(",", ":")),
+        ]
+        base = conn.execute(
+            f"SELECT {', '.join(columns)} FROM freestyle_glossary_terms WHERE slug = ?", (slug,)
+        ).fetchone()
+        try:
+            if base is None:
+                conn.execute(
+                    f"INSERT INTO freestyle_glossary_terms (slug, {', '.join(columns)}, created_at, "
+                    f"created_by, updated_at, updated_by, version) VALUES (?, "
+                    f"{', '.join('?' for _ in columns)}, ?, ?, ?, ?, 1)",
+                    [slug, *values, LOADED_AT, "curator-save", LOADED_AT, "curator-save"],
+                )
+                overrides.append((f"glossary_terms:{slug}", "added", None, "present"))
+            else:
+                changed = False
+                for column, base_value, saved in zip(columns, base, values):
+                    if base_value != saved:
+                        overrides.append((f"glossary_terms:{slug}", column, base_value, saved))
+                        changed = True
+                if not changed:
+                    continue
+                assignments = ", ".join(f"{c} = ?" for c in columns)
+                conn.execute(
+                    f"UPDATE freestyle_glossary_terms SET {assignments}, updated_at = ?, "
+                    "updated_by = ?, version = version + 1 WHERE slug = ?",
+                    values + [LOADED_AT, "curator-save", slug],
+                )
+        except sqlite3.IntegrityError as err:
+            raise ValueError(f"{path} could not be applied: {err}") from err
+        applied += 1
+
+    term_of = {}
+    for slug, term in conn.execute("SELECT slug, term FROM freestyle_glossary_terms ORDER BY slug"):
+        term_of.setdefault(term.strip().lower(), slug)
+    for slug, term, aliases_json in conn.execute(
+        "SELECT slug, term, aliases_json FROM freestyle_glossary_terms ORDER BY slug"
+    ):
+        for alias in json.loads(aliases_json):
+            owner = term_of.get(alias.strip().lower())
+            if owner is not None and owner != slug and alias.strip().lower() != term.strip().lower():
+                raise ValueError(
+                    f"glossary entry {slug} lists {alias!r} as an alias, and that is the term of "
+                    f"entry {owner}. Decide which is right: edit {slug}'s aliases, or {owner}'s term."
+                )
+    return applied
+
+
 def apply_ruling_saves(conn, saves_dir, overrides):
     """Apply notation authoring and publication to the rulings.
 
@@ -434,6 +528,7 @@ def main() -> int:
             # Families before the tricks, whose family override names a family.
             applied += apply_family_saves(conn, saves_dir, overrides)
             applied += apply_set_saves(conn, saves_dir, overrides)
+            applied += apply_glossary_saves(conn, saves_dir, overrides)
             apply_trick_saves(conn, saves, overrides)
             for kind, table, keys, values in RECORD_KINDS[2:]:
                 for path in sorted((saves_dir / kind).glob("*.json")):

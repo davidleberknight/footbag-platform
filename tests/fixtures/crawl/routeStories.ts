@@ -320,6 +320,13 @@ export const ROUTE_STORIES: Readonly<Record<string, RouteStory>> = {
   'POST /admin/freestyle/sets': { stories: ['A_Edit_Freestyle_Set'] },
   'GET /admin/freestyle/sets/:slug/edit': { stories: ['A_Edit_Freestyle_Set'] },
   'POST /admin/freestyle/sets/:slug/edit': { stories: ['A_Edit_Freestyle_Set'] },
+  'GET /admin/freestyle/glossary': { stories: ['A_Edit_Freestyle_Glossary'] },
+  'GET /admin/freestyle/glossary/new': { stories: ['A_Edit_Freestyle_Glossary'] },
+  'POST /admin/freestyle/glossary': { stories: ['A_Edit_Freestyle_Glossary'] },
+  'GET /admin/freestyle/glossary/:slug/edit': { stories: ['A_Edit_Freestyle_Glossary'] },
+  'POST /admin/freestyle/glossary/:slug/edit': { stories: ['A_Edit_Freestyle_Glossary'] },
+  'GET /admin/freestyle/glossary/:slug/remove': { stories: ['A_Edit_Freestyle_Glossary'] },
+  'POST /admin/freestyle/glossary/:slug/remove': { stories: ['A_Edit_Freestyle_Glossary'] },
   'GET /admin/freestyle/records': { stories: ['A_Edit_Freestyle_Record'] },
   'GET /admin/freestyle/records/new': { stories: ['A_Edit_Freestyle_Record'] },
   'POST /admin/freestyle/records': { stories: ['A_Edit_Freestyle_Record'] },
@@ -452,7 +459,6 @@ export const STORIES_WITHOUT_ROUTE: Readonly<Record<string, { status: StoryWitho
   'A_Create_Vote': { status: 'designed-not-deployed', why: 'Voting is second-version scope and no admin vote route is mounted.' },
   'A_Publish_Vote_Results': { status: 'designed-not-deployed', why: 'Voting is second-version scope and no admin vote route is mounted.' },
   'A_Cancel_Vote': { status: 'designed-not-deployed', why: 'Voting is second-version scope and no admin vote route is mounted.' },
-  'A_Edit_Freestyle_Glossary': { status: 'designed-not-deployed', why: 'Glossary content has not moved into the database, so no glossary editor route is mounted.' },
 
   // Background system jobs
   'SYS_Check_Active_Player_Expiry': { status: 'runtime-only', why: 'Runs as a daily worker job.' },

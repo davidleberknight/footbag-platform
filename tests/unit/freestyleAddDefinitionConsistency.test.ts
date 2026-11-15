@@ -19,7 +19,7 @@
  * bracket claim stays qualified.
  */
 import { describe, it, expect } from 'vitest';
-import { GLOSSARY_TERMS } from '../../src/content/freestyleGlossaryTerms';
+import { STAGED_GLOSSARY_TERMS as GLOSSARY_TERMS } from '../../freestyle/inputs/curator_content/freestyleGlossaryTerms';
 import { GLOSSARY_CORE_CONCEPTS_BY_KEY } from '../../src/content/freestyleGlossaryCoreConcepts';
 import { countScoringBrackets } from '../../src/lib/freestyleNotation';
 

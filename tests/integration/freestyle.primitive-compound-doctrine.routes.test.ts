@@ -27,6 +27,7 @@ import {
   importApp,
 } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
+import { seedStagedGlossary } from '../fixtures/stagedGlossary';
 
 const { dbPath } = setTestEnv('3201');
 
@@ -54,6 +55,9 @@ beforeAll(async () => {
     adds: '3', base_trick: 'mirage', trick_family: 'mirage',
     category: 'compound', notation: 'PARADOX MIRAGE', is_active: 1,
   });
+  // The glossary entries live in the database, seeded as the rebuild seeds them,
+  // so the glossary page renders its real wording.
+  seedStagedGlossary(db);
 
   db.close();
   createApp = await importApp();

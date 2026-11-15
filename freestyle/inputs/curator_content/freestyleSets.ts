@@ -25,19 +25,6 @@ export interface StagedSet {
   heldFromList: boolean;
 }
 
-/**
- * Sets recorded only from the historical community compilation, with no platform
- * ruling of their own. No page shows this, so it is not seeded; the doctrine
- * checks read it to tell a set the platform has ruled on from one it merely
- * records.
- */
-export const COMPILATION_ONLY_SET_SLUGS: ReadonlySet<string> = new Set([
-  'bubba', 'slapping', 'tapping', 'terraging', 'sailing', 'frantic', 'fairy_atomic',
-  'shooting', 'sonic', 'peeking', 'leaning', 'go_go', 'twinspinning', 'neutron',
-  'fairy_spinning', 'pixie_inspinning', 'scattered', 'shattered', 'broken', 'finchy',
-  'pixie_pinching', 'twisted', 'snapping', 'arctic', 'rooting', 'zoid', 'railing',
-]);
-
 export const STAGED_SETS: readonly StagedSet[] = [
   {
     slug: "toe",

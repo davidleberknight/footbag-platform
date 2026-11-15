@@ -253,6 +253,14 @@ adminRouter.get('/freestyle/sets/new',                 adminFreestyleController.
 adminRouter.post('/freestyle/sets',                    adminFreestyleController.createSet);
 adminRouter.get('/freestyle/sets/:slug/edit',          adminFreestyleController.editSet);
 adminRouter.post('/freestyle/sets/:slug/edit',         adminFreestyleController.updateSet);
+// The A to Z glossary: terms added, edited and removed in the application.
+adminRouter.get('/freestyle/glossary',                 adminFreestyleController.glossary);
+adminRouter.get('/freestyle/glossary/new',             adminFreestyleController.newGlossaryTerm);
+adminRouter.post('/freestyle/glossary',                adminFreestyleController.createGlossaryTerm);
+adminRouter.get('/freestyle/glossary/:slug/edit',      adminFreestyleController.editGlossaryTerm);
+adminRouter.post('/freestyle/glossary/:slug/edit',     adminFreestyleController.updateGlossaryTerm);
+adminRouter.get('/freestyle/glossary/:slug/remove',    adminFreestyleController.removeGlossaryTermConfirm);
+adminRouter.post('/freestyle/glossary/:slug/remove',   adminFreestyleController.removeGlossaryTerm);
 adminRouter.get('/freestyle/records',              adminFreestyleController.recordsIndex);
 adminRouter.get('/freestyle/records/new',          adminFreestyleController.recordNew);
 adminRouter.post('/freestyle/records',             adminFreestyleController.recordCreate);

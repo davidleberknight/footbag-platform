@@ -23,6 +23,7 @@
  *                                freestyle_family_sublabels, one row per folded
  *                                trick family label
  *   the sets                   → freestyle_sets, one row per set
+ *   the A–Z glossary           → freestyle_glossary_terms, one row per entry
  *
  * It runs after loader 28 and before loader 29, so a curator's save applied by 29
  * still wins over the seeded value. Before go-live the curator columns are wholly
@@ -30,14 +31,15 @@
  * resets them and then writes every staged entry: an entry removed from a module
  * leaves no stale value behind. The description column is the exception: the
  * dictionary load fills it, so only staged values are written and nothing is
- * reset. The two family tables and the set table are wholly curator content, so
- * they are emptied and re-inserted.
+ * reset. The two family tables, the set table and the glossary table are wholly
+ * curator content, so they are emptied and re-inserted.
  *
  * Refuses, writing nothing, when an entry names a record, modifier or trick the
  * database does not hold, a family override names a family that is not on the
  * staged roster, the roster breaks a family rule (the same rules the family
- * editor applies), or the staged sets break a set rule (the same rules the set
- * editor applies): a silently skipped entry would drop curator content from the
+ * editor applies), the staged sets break a set rule (the same rules the set
+ * editor applies), or the staged glossary breaks a glossary rule (the same rules
+ * the glossary editor applies): a silently skipped entry would drop curator content from the
  * site unnoticed.
  *
  * Deleted with the pipeline at cutover, together with the staged modules.
@@ -68,8 +70,13 @@ import {
 import { familyRosterProblems } from '../../src/services/freestyleFamilyRules';
 import { STAGED_SETS, type StagedSet } from '../inputs/curator_content/freestyleSets';
 import { setRosterProblems } from '../../src/services/freestyleSetRules';
+import {
+  STAGED_GLOSSARY_TERMS,
+  type StagedGlossaryTerm,
+} from '../inputs/curator_content/freestyleGlossaryTerms';
+import { glossaryProblems } from '../../src/services/freestyleGlossaryRules';
 
-/** The actor the seeded family and set rows are stamped with. */
+/** The actor the seeded family, set and glossary rows are stamped with. */
 export const FAMILY_SEED_ACTOR = 'curator-content-seed';
 
 /** The breakdown the trick page shows: the derivation without a final "= N ADD",
@@ -98,6 +105,8 @@ export interface CuratorContent {
   familySublabels: ReadonlyMap<string, string>;
   /** The sets, in display order. */
   sets: readonly StagedSet[];
+  /** The A–Z glossary entries, in any order: the page orders them. */
+  glossaryTerms: readonly StagedGlossaryTerm[];
 }
 
 export const STAGED_CURATOR_CONTENT: CuratorContent = {
@@ -116,6 +125,7 @@ export const STAGED_CURATOR_CONTENT: CuratorContent = {
   families: STAGED_FAMILIES,
   familySublabels: STAGED_FAMILY_SUBLABELS,
   sets: STAGED_SETS,
+  glossaryTerms: STAGED_GLOSSARY_TERMS,
 };
 
 /** Every trick slug the content names, as a key or as a target. */
@@ -154,6 +164,7 @@ export interface SeedCounts {
   families: number;
   familySublabels: number;
   sets: number;
+  glossaryTerms: number;
 }
 
 export class CuratorContentRefusal extends Error {
@@ -228,6 +239,25 @@ export function seedCuratorContent(
     relatedSetSlugs: s.relatedSets.map((r) => r.slug),
   })))) {
     problems.push(`set "${p.slug}": ${p.message}`);
+  }
+
+  // The glossary meets the glossary rules the editor applies: one entry per slug
+  // and per term, no alias doubling as another entry, and a deeper link that is a
+  // path on this site carried with its label. The editor also refuses an entry
+  // missing its term or definition.
+  for (const p of glossaryProblems(content.glossaryTerms.map((t) => ({
+    slug:      t.slug,
+    term:      t.term,
+    aliases:   t.aliases ?? [],
+    moreHref:  t.moreHref ?? null,
+    moreLabel: t.moreLabel ?? null,
+  })))) {
+    problems.push(`glossary entry "${p.slug}": ${p.message}`);
+  }
+  for (const t of content.glossaryTerms) {
+    if (!t.term.trim() || !t.definition.trim()) {
+      problems.push(`glossary entry "${t.slug}": the term and the definition are both required`);
+    }
   }
 
   // A trick sits in at most one "Tricks that land here" list, because the row
@@ -354,6 +384,24 @@ export function seedCuratorContent(
       ).changes;
     }
 
+    // The glossary table: emptied and re-inserted, so an entry removed from the
+    // staged module leaves no entry behind. An entry the editor added comes back
+    // from its save file in loader 29, and one it removed is removed again there.
+    db.prepare(`DELETE FROM freestyle_glossary_terms`).run();
+    const insertGlossaryTerm = db.prepare(`
+      INSERT INTO freestyle_glossary_terms
+        (slug, term, definition, aliases_json, more_href, more_label,
+         created_at, created_by, updated_at, updated_by, version)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    `);
+    let glossaryTerms = 0;
+    for (const t of content.glossaryTerms) {
+      glossaryTerms += insertGlossaryTerm.run(
+        t.slug, t.term, t.definition, JSON.stringify(t.aliases ?? []),
+        t.moreHref ?? null, t.moreLabel ?? null, now, FAMILY_SEED_ACTOR, now, FAMILY_SEED_ACTOR,
+      ).changes;
+    }
+
     return {
       recordsUnderReview,
       beginnerNotes,
@@ -371,6 +419,7 @@ export function seedCuratorContent(
       families,
       familySublabels,
       sets,
+      glossaryTerms,
     };
   })();
 }
@@ -394,7 +443,8 @@ function main(argv: readonly string[]): number {
       `${c.terminalCohortMembers} terminal cohort members, ` +
       `${c.formulas} formulas, ${c.expandedNotations} expanded notations, ` +
       `${c.movementNotationSubtitles + c.executionNotationSubtitles} notation subtitles, ` +
-      `${c.families} families, ${c.familySublabels} folded family labels, ${c.sets} sets.`,
+      `${c.families} families, ${c.familySublabels} folded family labels, ${c.sets} sets, ` +
+      `${c.glossaryTerms} glossary entries.`,
     );
     return 0;
   } catch (err) {

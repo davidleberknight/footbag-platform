@@ -194,6 +194,10 @@ export const COPY_COLUMN_REGISTER: Readonly<Record<string, TableClassification>>
       'related_sets_json', 'held_from_list', 'created_at', 'created_by', 'updated_at', 'updated_by',
       'version'],
   },
+  freestyle_glossary_terms: {
+    keep: ['slug', 'term', 'definition', 'aliases_json', 'more_href', 'more_label', 'created_at',
+      'created_by', 'updated_at', 'updated_by', 'version'],
+  },
   freestyle_records: {
     keep: ['id', 'record_type', 'person_id', 'display_name', 'trick_name', 'sort_name',
       'adds_count', 'value_numeric', 'value_text', 'achieved_date', 'date_precision', 'source',

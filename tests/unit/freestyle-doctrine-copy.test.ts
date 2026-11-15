@@ -27,10 +27,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
-import {
-  STAGED_SETS,
-  COMPILATION_ONLY_SET_SLUGS,
-} from '../../freestyle/inputs/curator_content/freestyleSets';
+import { STAGED_SETS } from '../../freestyle/inputs/curator_content/freestyleSets';
 import {
   COMPOSITIONAL_SET_FAMILIES,
   COMPOSITIONAL_AUDIT_ENTRIES,
@@ -93,7 +90,7 @@ describe('SAME/OP are component-relative, not plant-foot relative', () => {
 
 describe('near and far are other names for SAME and OP on every surface that defines them', () => {
   const add = read('src/content/freestyleAddAnalysisContent.ts');
-  const terms = read('src/content/freestyleGlossaryTerms.ts');
+  const terms = read('freestyle/inputs/curator_content/freestyleGlossaryTerms.ts');
 
   it('the ADD-analysis positional-cues line equates near/far with SAME/OP', () => {
     const line = lineWith(add, 'Positional cues, not difficulty contributions');
@@ -263,6 +260,17 @@ describe('glossary side section, clipper, XBD labels, and side-variant cards', (
 // literal lists that remain are documented where they sit, and each is written
 // to fail when the thing it records is fixed, so neither outlives its cause.
 // ─────────────────────────────────────────────────────────────────────────
+
+/** Sets recorded only from the historical community compilation, with no
+ *  platform ruling of their own. No page reads this list, so it lives here with
+ *  the checks that use it to tell a set the platform has ruled on from one it
+ *  merely records. */
+const COMPILATION_ONLY_SET_SLUGS: ReadonlySet<string> = new Set([
+  'bubba', 'slapping', 'tapping', 'terraging', 'sailing', 'frantic', 'fairy_atomic',
+  'shooting', 'sonic', 'peeking', 'leaning', 'go_go', 'twinspinning', 'neutron',
+  'fairy_spinning', 'pixie_inspinning', 'scattered', 'shattered', 'broken', 'finchy',
+  'pixie_pinching', 'twisted', 'snapping', 'arctic', 'rooting', 'zoid', 'railing',
+]);
 
 /** Sets the platform has ruled on, as opposed to names it merely records from
  *  an outside compilation. A source-only entry carries no platform claim, so

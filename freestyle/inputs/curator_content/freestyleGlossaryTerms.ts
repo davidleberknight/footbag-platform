@@ -1,8 +1,9 @@
 /**
- * The A–Z Glossary (/freestyle/glossary): a compact lookup of freestyle
+ * Staged A–Z Glossary content (/freestyle/glossary): a compact lookup of freestyle
  * vocabulary, each term with a one-sentence definition, optional aliases (other
  * spellings and abbreviations players use for the same thing), and an optional
- * link to the deeper material.
+ * link to the deeper material. Loader 28a seeds it into freestyle_glossary_terms;
+ * after that the glossary editor owns every value.
  *
  * The inventory answers "I heard a footbag player use this word, what does it
  * mean?". A word that names a trick, set, contest format, equipment item or event
@@ -11,13 +12,13 @@
  * definition is a shortening of copy that already exists on the site or a plain
  * restatement of community usage recorded in the curated PassBack glossary; where
  * the site has ruled on a term, the site's reading wins. This module coins no new
- * doctrine. Alphabetical ordering is applied by the service, not by the order
- * below; entries are grouped here by theme only so a curator can find them.
- *
- * Reversible TS content module.
+ * doctrine. Alphabetical ordering is applied when the page is read, not by the
+ * order below; entries are grouped here by theme only so a curator can find them.
+ * The rules every entry meets are in src/services/freestyleGlossaryRules.ts, which
+ * the seeder applies before it writes.
  */
 
-export interface GlossaryTerm {
+export interface StagedGlossaryTerm {
   /** Displayed term, in established capitalization. */
   term: string;
   /** Stable anchor suffix: the entry renders with id="term-{slug}". */
@@ -39,7 +40,7 @@ const CONCEPTS = '/freestyle/concepts';
 const COMBO = '/freestyle/combo-analysis';
 const HISTORY = '/freestyle/history';
 
-export const GLOSSARY_TERMS: readonly GlossaryTerm[] = [
+export const STAGED_GLOSSARY_TERMS: readonly StagedGlossaryTerm[] = [
   // ── Equipment and physical vocabulary ─────────────────────────────────
   {
     term: 'Fill',
@@ -708,36 +709,3 @@ export const GLOSSARY_TERMS: readonly GlossaryTerm[] = [
     moreHref: `${CONCEPTS}#jobs-notation`, moreLabel: 'Jobs notation',
   },
 ];
-
-// Module-load invariants: one canonical entry per term and per anchor slug, an
-// alias never doubles as another entry's term, and a "more" link always travels
-// with its label. A duplicate here would render two entries for one term, which
-// is exactly what a glossary must not do.
-(() => {
-  const terms = new Set<string>();
-  const slugs = new Set<string>();
-  for (const t of GLOSSARY_TERMS) {
-    const termKey = t.term.trim().toLowerCase();
-    if (terms.has(termKey)) throw new Error(`duplicate glossary term: ${t.term}`);
-    if (slugs.has(t.slug)) throw new Error(`duplicate glossary slug: ${t.slug}`);
-    if ((t.moreHref === undefined) !== (t.moreLabel === undefined)) {
-      throw new Error(`glossary term ${t.term} must carry both moreHref and moreLabel or neither`);
-    }
-    terms.add(termKey);
-    slugs.add(t.slug);
-  }
-  const aliasOwner = new Map<string, string>();
-  for (const t of GLOSSARY_TERMS) {
-    for (const a of t.aliases ?? []) {
-      const key = a.trim().toLowerCase();
-      // A case variant of the entry's own term is fine; the same string as
-      // ANOTHER entry's term is a duplicate in disguise.
-      if (key !== t.term.trim().toLowerCase() && terms.has(key)) {
-        throw new Error(`glossary alias "${a}" on ${t.term} duplicates an entry term`);
-      }
-      const owner = aliasOwner.get(key);
-      if (owner && owner !== t.term) throw new Error(`glossary alias "${a}" claimed by both ${owner} and ${t.term}`);
-      aliasOwner.set(key, t.term);
-    }
-  }
-})();

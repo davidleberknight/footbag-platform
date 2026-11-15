@@ -21,6 +21,7 @@ import {
   insertFreestyleFamily,
   insertFreestyleFamilySublabel,
   insertFreestyleSet,
+  insertFreestyleGlossaryTerm,
 } from '../fixtures/factories';
 import {
   seedCuratorContent,
@@ -129,7 +130,18 @@ describe('seeding the staged curator content', () => {
       families:                   content.families.length,
       familySublabels:            content.familySublabels.size,
       sets:                       content.sets.length,
+      glossaryTerms:              content.glossaryTerms.length,
     });
+    // Every staged glossary entry lands as authored, its aliases as JSON in order
+    // and an absent deeper link as no link at all.
+    for (const t of content.glossaryTerms) {
+      expect(db.prepare(`
+        SELECT term AS t, definition AS d, aliases_json AS a, more_href AS h, more_label AS l
+        FROM freestyle_glossary_terms WHERE slug = ?`).get(t.slug), t.slug).toEqual({
+        t: t.term, d: t.definition, a: JSON.stringify(t.aliases ?? []),
+        h: t.moreHref ?? null, l: t.moreLabel ?? null,
+      });
+    }
     // Every staged set lands as authored, its related sets as JSON in order.
     for (const s of content.sets) {
       expect(db.prepare(`
@@ -205,6 +217,16 @@ describe('seeding the staged curator content', () => {
 
   // Defect caught: a set removed from the staged sets living on in the database
   // after the next refresh, so a dropped set keeps its page.
+  // Defect caught: a glossary entry removed from the staged content living on in
+  // the database after the next refresh, so a dropped term stays on the page.
+  it('removes a glossary entry no staged entry supplies any more', () => {
+    seedCuratorContent(db);
+    insertFreestyleGlossaryTerm(db, { slug: 'zz-stale-term' });
+    seedCuratorContent(db);
+    expect(value("SELECT COUNT(*) AS v FROM freestyle_glossary_terms WHERE slug = 'zz-stale-term'")).toBe(0);
+    expect(value('SELECT COUNT(*) AS v FROM freestyle_glossary_terms')).toBe(content.glossaryTerms.length);
+  });
+
   it('removes a set no staged entry supplies any more', () => {
     seedCuratorContent(db);
     insertFreestyleSet(db, { slug: 'zz_stale_set' });
@@ -305,11 +327,23 @@ describe('refusing content the database cannot take', () => {
     ['a set listed twice', withExtra({
       sets: [...content.sets, content.sets[0]!],
     }), /already a set/],
+    // Defect caught: a staged glossary entry that would show one word twice, link
+    // off the site, or render with nothing under its term.
+    ['a glossary alias that is another entry\'s term', withExtra({
+      glossaryTerms: content.glossaryTerms.map((t) => (t.slug === 'fill' ? { ...t, aliases: ['Trick'] } : t)),
+    }), /glossary entry "fill"/],
+    ['a glossary link off the site', withExtra({
+      glossaryTerms: content.glossaryTerms.map((t) => (t.slug === 'fill' ? { ...t, moreHref: 'https://example.com', moreLabel: 'x' } : t)),
+    }), /glossary entry "fill"/],
+    ['a glossary entry with no definition', withExtra({
+      glossaryTerms: content.glossaryTerms.map((t) => (t.slug === 'fill' ? { ...t, definition: ' ' } : t)),
+    }), /glossary entry "fill"/],
   ])('%s', (_label, bad, message) => {
     db.prepare('UPDATE freestyle_trick_modifiers SET beginner_note = ? WHERE slug = ?').run('kept', EXTRA_MODIFIER);
     db.prepare('UPDATE freestyle_tricks SET family_override = ? WHERE slug = ?').run('kept', EXTRA_TRICK);
     insertFreestyleFamily(db, { slug: 'zz_kept_family' });
     insertFreestyleSet(db, { slug: 'zz_kept_set' });
+    insertFreestyleGlossaryTerm(db, { slug: 'zz-kept-term' });
     let refusal: unknown;
     try {
       seedCuratorContent(db, bad);
@@ -325,6 +359,7 @@ describe('refusing content the database cannot take', () => {
     expect(value('SELECT COUNT(*) AS v FROM freestyle_tricks WHERE family_override IS NOT NULL')).toBe(1);
     expect(value('SELECT COUNT(*) AS v FROM freestyle_families')).toBe(1);
     expect(value('SELECT COUNT(*) AS v FROM freestyle_sets')).toBe(1);
+    expect(value('SELECT COUNT(*) AS v FROM freestyle_glossary_terms')).toBe(1);
   });
 });
 

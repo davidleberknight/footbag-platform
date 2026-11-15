@@ -145,7 +145,7 @@ import {
   CORE_ATOM_EDUCATIONAL,
 } from '../content/freestyleCoreAtomEducational';
 import { GLOSSARY_CORE_CONCEPTS_BY_KEY } from '../content/freestyleGlossaryCoreConcepts';
-import { GLOSSARY_TERMS, type GlossaryTerm } from '../content/freestyleGlossaryTerms';
+import { glossaryTerms, type GlossaryTermRecord } from './freestyleGlossaryRegistry';
 import {
   familyLabels,
   familyPageHref,
@@ -2916,7 +2916,7 @@ function compareGlossaryLines(a: { term: string; slug: string }, b: { term: stri
 }
 
 export function shapeGlossaryLetterGroups(
-  terms: readonly GlossaryTerm[],
+  terms: readonly GlossaryTermRecord[],
 ): FreestyleGlossaryLetterGroup[] {
   const lines: { term: string; slug: string; entry: FreestyleGlossaryEntry }[] = [];
   for (const t of terms) {
@@ -2924,11 +2924,11 @@ export function shapeGlossaryLetterGroups(
       term:       t.term,
       anchorId:   `term-${t.slug}`,
       definition: t.definition,
-      hasAliases: (t.aliases?.length ?? 0) > 0,
-      aliasText:  (t.aliases ?? []).join(', '),
-      hasMore:    t.moreHref !== undefined,
-      moreHref:   t.moreHref ?? null,
-      moreLabel:  t.moreLabel ?? null,
+      hasAliases: t.aliases.length > 0,
+      aliasText:  t.aliases.join(', '),
+      hasMore:    t.moreHref !== null,
+      moreHref:   t.moreHref,
+      moreLabel:  t.moreLabel,
     } });
   }
   lines.sort(compareGlossaryLines);
@@ -7773,7 +7773,7 @@ export const freestyleService = {
   },
 
   getGlossaryPage(): PageViewModel<FreestyleGlossaryContent> {
-    const letters = shapeGlossaryLetterGroups(GLOSSARY_TERMS);
+    const letters = shapeGlossaryLetterGroups(glossaryTerms());
     return {
       seo: {
         title: 'Freestyle Glossary',

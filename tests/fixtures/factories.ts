@@ -1433,6 +1433,36 @@ export function insertFreestyleSet(db: BetterSqlite3.Database, o: FreestyleSetOv
   );
 }
 
+export interface FreestyleGlossaryTermOverrides {
+  slug: string;
+  term?: string;
+  definition?: string;
+  aliases?: readonly string[];
+  more_href?: string | null;
+  more_label?: string | null;
+}
+
+/** One A to Z glossary entry, stamped as the rebuild seeder stamps it. Defaults to
+ *  a term named after its slug, with a definition, no aliases and no deeper link. */
+export function insertFreestyleGlossaryTerm(db: BetterSqlite3.Database, o: FreestyleGlossaryTermOverrides): void {
+  const now = nowIso();
+  db.prepare(`
+    INSERT INTO freestyle_glossary_terms
+      (slug, term, definition, aliases_json, more_href, more_label,
+       created_at, created_by, updated_at, updated_by, version)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 'curator-content-seed', ?, 'curator-content-seed', 1)
+  `).run(
+    o.slug,
+    o.term ?? o.slug.charAt(0).toUpperCase() + o.slug.slice(1).replace(/-/g, ' '),
+    o.definition ?? `A test term named ${o.slug}.`,
+    JSON.stringify(o.aliases ?? []),
+    o.more_href ?? null,
+    o.more_label ?? null,
+    now,
+    now,
+  );
+}
+
 /** One trick family label folding into a family. */
 export function insertFreestyleFamilySublabel(
   db: BetterSqlite3.Database,

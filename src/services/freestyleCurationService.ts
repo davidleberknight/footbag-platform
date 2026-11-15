@@ -58,6 +58,16 @@
  *     its group. An unchanged submit writes nothing; a save writes its save file
  *     first, then the row and one `freestyle.set.created` or
  *     `freestyle.set.updated` audit row in one transaction.
+ *   - The glossary editor (`freestyle_glossary_terms`): listing the A–Z glossary
+ *     entries, adding one, editing one entry's term, definition, aliases and
+ *     deeper link with its label, and removing one behind a confirm page. A slug
+ *     is never edited, because other pages link to its anchor. A save is refused,
+ *     with every reason and the submitted values kept, when a field fails its own
+ *     check or the glossary would break a glossary rule it did not break before
+ *     (the rules in freestyleGlossaryRules). An unchanged submit writes nothing;
+ *     each save or removal writes its save file first, then the row change and one
+ *     `freestyle.glossary_term.created`, `.updated` or `.removed` audit row in one
+ *     transaction.
  *   - The notation authoring funnel: the backlog of Emerging Vocabulary rulings
  *     that still need a movement notation, authoring a notation draft for one
  *     with its provenance, and publishing an authored candidate as a new active
@@ -156,14 +166,16 @@
  *
  * Persistence: reads and writes freestyle_tricks, freestyle_trick_aliases,
  * freestyle_trick_source_links, freestyle_trick_modifier_links,
- * freestyle_trick_sources, and freestyle_ev_adjudications; reads
+ * freestyle_trick_sources, freestyle_ev_adjudications, freestyle_families,
+ * freestyle_family_sublabels, freestyle_sets and freestyle_glossary_terms; reads
  * freestyle_trick_modifiers, and media_items, media_tags and tags to count a
  * trick's live media. Appends freestyle.trick.updated,
  * freestyle.trick.published, freestyle.trick_alias.created/updated/deleted,
  * freestyle.trick_source_link.created/deleted,
  * freestyle.trick_modifier_link.created/deleted,
- * freestyle.trick_source.created, and freestyle.adjudication_notation.authored
- * to audit_entries. A trick edit also goes through the curated-authoring adapter,
+ * freestyle.trick_source.created, freestyle.family.updated,
+ * freestyle.set.created/updated, freestyle.glossary_term.created/updated/removed
+ * and freestyle.adjudication_notation.authored to audit_entries. A trick edit also goes through the curated-authoring adapter,
  * which writes the committed save file first on a developer machine before go-live
  * and writes nothing elsewhere; a file that cannot be written refuses the save.
  */
@@ -178,6 +190,7 @@ import {
   freestyleTrickModifierLinks,
   freestyleFamilies,
   freestyleSets,
+  freestyleGlossaryTerms,
   transaction,
 } from '../db/db';
 import { appendAuditEntry, findStandingOwnAct } from './auditService';
@@ -201,6 +214,13 @@ import { familyRosterProblems, FAMILY_TIERS, type FamilyRuleInput } from './free
 import { canonicalSets, findCanonicalSetBySlug, type SetRecord } from './freestyleSetRegistry';
 import { setRosterProblems, SET_SLUG_PATTERN, type SetRuleInput } from './freestyleSetRules';
 import { SET_SUBTYPE_SPECS } from '../content/freestyleCanonicalSets';
+import { glossaryTerms, findGlossaryTerm, type GlossaryTermRecord } from './freestyleGlossaryRegistry';
+import {
+  glossaryProblems,
+  isSitePath,
+  GLOSSARY_SLUG_PATTERN,
+  type GlossaryRuleInput,
+} from './freestyleGlossaryRules';
 import {
   NOTATION_EVIDENCE_BASES,
   NOTATION_DERIVATION_METHODS,
@@ -3616,7 +3636,408 @@ export const freestyleCurationService = {
     );
     return { status: 'saved' };
   },
+
+  // Every glossary entry in A to Z order, each linking to its edit form, and the
+  // link to add one.
+  getGlossaryListPage(): PageViewModel<FreestyleGlossaryListContent> {
+    const rows = sortedGlossary(glossaryTerms()).map((t) => ({
+      slug:       t.slug,
+      term:       t.term,
+      definition: t.definition,
+      editHref:   `/admin/freestyle/glossary/${t.slug}/edit`,
+    }));
+    return {
+      seo:  { title: 'Freestyle Glossary Terms' },
+      page: {
+        sectionKey: 'admin', pageKey: 'admin_freestyle_glossary', title: 'Freestyle Glossary Terms',
+        instructions: {
+          what: 'Lists every term on the public A to Z freestyle glossary and adds a new one.',
+          why: 'The glossary is kept in the running application, so a term is added, corrected or removed without a deployment.',
+          how: 'Add a term, or open one below to edit or remove it.',
+          headsUp: [
+            'A change shows on the public glossary as soon as it is saved.',
+            'A term\'s slug is permanent once it is added, because other pages link to it.',
+            'Adding, editing or removing a term is recorded in the audit log.',
+          ],
+        },
+      },
+      content: { rows, hasRows: rows.length > 0, newHref: '/admin/freestyle/glossary/new' },
+    };
+  },
+
+  // The form that adds a glossary term. A refused add re-renders it with the
+  // submitted values and every reason.
+  getGlossaryNewPage(
+    opts: { submitted?: FreestyleGlossaryTermInput; errors?: string[] } = {},
+  ): PageViewModel<FreestyleGlossaryTermFormContent> {
+    return {
+      seo:  { title: 'New Glossary Term' },
+      page: {
+        sectionKey: 'admin', pageKey: 'admin_freestyle_glossary_new', title: 'New Glossary Term',
+        instructions: {
+          what: 'Adds a term to the public A to Z freestyle glossary: its slug, term, definition, aliases and an optional deeper link.',
+          why: 'So a word players use is explained on the glossary without a deployment.',
+          how: 'Fill in the term and save. The page places it alphabetically.',
+          headsUp: [
+            'The slug is permanent and becomes the term\'s address on the glossary page.',
+            'The term is live on the glossary as soon as it is saved.',
+          ],
+        },
+      },
+      content: glossaryFormContent('/admin/freestyle/glossary', opts.submitted ?? {}, opts.errors ?? [], false, true, null),
+    };
+  },
+
+  // The edit form for one glossary term. Throws NotFoundError for an unknown slug.
+  getGlossaryEditPage(
+    slug: string,
+    opts: { submitted?: FreestyleGlossaryTermInput; errors?: string[]; saved?: boolean } = {},
+  ): PageViewModel<FreestyleGlossaryTermFormContent> {
+    const record = findGlossaryTerm(slug);
+    if (!record) throw new NotFoundError(`No glossary term "${slug}"`);
+    return {
+      seo:  { title: `Edit Glossary Term ${record.term}` },
+      page: {
+        sectionKey: 'admin', pageKey: 'admin_freestyle_glossary_edit', title: `Edit Glossary Term ${record.term}`,
+        instructions: {
+          what: 'Edits one term on the public A to Z freestyle glossary, or removes it.',
+          why: 'So the glossary is corrected in the running application.',
+          how: 'Change the fields and save. Aliases take one per line.',
+          headsUp: [
+            'A change shows on the public glossary as soon as it is saved.',
+            'The slug is permanent.',
+          ],
+        },
+      },
+      content: glossaryFormContent(
+        `/admin/freestyle/glossary/${record.slug}/edit`, opts.submitted ?? glossaryInputOf(record),
+        opts.errors ?? [], opts.saved === true, false, record.slug,
+      ),
+    };
+  },
+
+  // The confirm page before a glossary term is removed. Throws NotFoundError for
+  // an unknown slug.
+  getGlossaryRemovePage(slug: string): PageViewModel<FreestyleGlossaryTermRemoveContent> {
+    const record = findGlossaryTerm(slug);
+    if (!record) throw new NotFoundError(`No glossary term "${slug}"`);
+    return {
+      seo:  { title: `Remove Glossary Term ${record.term}` },
+      page: {
+        sectionKey: 'admin', pageKey: 'admin_freestyle_glossary_remove', title: `Remove Glossary Term ${record.term}`,
+        instructions: { what: 'Review removing this glossary term before it happens.' },
+      },
+      content: {
+        summary: [
+          { label: 'Term',       value: record.term },
+          { label: 'Slug',       value: record.slug },
+          { label: 'Definition', value: record.definition },
+        ],
+        anchorText: `/freestyle/glossary#term-${record.slug}`,
+        removeHref: `/admin/freestyle/glossary/${record.slug}/remove`,
+        cancelHref: `/admin/freestyle/glossary/${record.slug}/edit`,
+      },
+    };
+  },
+
+  // Add one glossary term. The slug is permanent. The row, its save file and its
+  // audit entry land together behind the persona guard. Throws
+  // GlossaryValidationError on bad input.
+  createGlossaryTerm(input: FreestyleGlossaryTermInput, actorMemberId: string): void {
+    const slug = (input.slug ?? '').trim();
+    const errors: string[] = [];
+    if (!slug) errors.push('Slug is required.');
+    else if (!GLOSSARY_SLUG_PATTERN.test(slug)) {
+      errors.push('Slug may use only lowercase letters and digits, in words joined by single hyphens.');
+    } else if (findGlossaryTerm(slug)) errors.push(`A glossary term "${slug}" already exists.`);
+    let validated: GlossaryFields | null = null;
+    try {
+      validated = validateGlossaryFields(input);
+    } catch (err) {
+      if (!(err instanceof GlossaryValidationError)) throw err;
+      errors.push(...err.reasons);
+    }
+    if (errors.length > 0 || validated === null) throw new GlossaryValidationError(errors);
+    const fields: GlossaryFields = validated;
+
+    const introduced = introducedGlossaryProblems(slug, glossaryRuleInput(slug, fields));
+    if (introduced.length > 0) throw new GlossaryValidationError(introduced);
+
+    assertActorMayCurateFreestyle(actorMemberId);
+    const now = new Date().toISOString();
+    try {
+      writeFileThenCommit(
+        () => getCuratedAuthoringAdapter().saveItem('glossary_terms', slug, glossarySaveBody(slug, fields)),
+        () => transaction(() => {
+          freestyleGlossaryTerms.insert.run(
+            slug, fields.term, fields.definition, JSON.stringify(fields.aliases),
+            fields.moreHref, fields.moreLabel, now, actorMemberId, now, actorMemberId,
+          );
+          appendAuditEntry({
+            actionType:    'freestyle.glossary_term.created',
+            actorType:     'admin',
+            actorMemberId,
+            entityType:    'freestyle_glossary_term',
+            entityId:      slug,
+            metadata:      { slug, changedFields: [...GLOSSARY_FIELD_NAMES] },
+          });
+        }),
+      );
+    } catch (err) {
+      if (isDuplicateKeyError(err)) throw new GlossaryValidationError([`A glossary term "${slug}" already exists.`]);
+      throw err;
+    }
+  },
+
+  // Edit one glossary term. Every field is validated, and the edited glossary must
+  // still meet the glossary rules; any rule the edit would break refuses the save
+  // with every reason. An unchanged submit writes nothing. Throws NotFoundError for
+  // an unknown slug and GlossaryValidationError on bad input.
+  updateGlossaryTerm(slug: string, input: FreestyleGlossaryTermInput, actorMemberId: string): UpdateGlossaryTermResult {
+    const current = findGlossaryTerm(slug);
+    if (!current) throw new NotFoundError(`No glossary term "${slug}"`);
+    const fields = validateGlossaryFields(input);
+    const introduced = introducedGlossaryProblems(slug, glossaryRuleInput(slug, fields));
+    if (introduced.length > 0) throw new GlossaryValidationError(introduced);
+
+    const changed: string[] = [];
+    if (fields.term !== current.term) changed.push('term');
+    if (fields.definition !== current.definition) changed.push('definition');
+    if (JSON.stringify(fields.aliases) !== JSON.stringify(current.aliases)) changed.push('aliases');
+    if (fields.moreHref !== current.moreHref) changed.push('more_href');
+    if (fields.moreLabel !== current.moreLabel) changed.push('more_label');
+    if (changed.length === 0) return { status: 'unchanged' };
+
+    assertActorMayCurateFreestyle(actorMemberId);
+    const now = new Date().toISOString();
+    writeFileThenCommit(
+      () => getCuratedAuthoringAdapter().saveItem('glossary_terms', slug, glossarySaveBody(slug, fields)),
+      () => transaction(() => {
+        freestyleGlossaryTerms.update.run(
+          fields.term, fields.definition, JSON.stringify(fields.aliases),
+          fields.moreHref, fields.moreLabel, now, actorMemberId, slug,
+        );
+        appendAuditEntry({
+          actionType:    'freestyle.glossary_term.updated',
+          actorType:     'admin',
+          actorMemberId,
+          entityType:    'freestyle_glossary_term',
+          entityId:      slug,
+          metadata:      { slug, changedFields: changed },
+        });
+      }),
+    );
+    return { status: 'saved' };
+  },
+
+  // Remove one glossary term. Its save file records the removal so a rebuild does
+  // not bring it back from the staged content. Throws NotFoundError for an unknown
+  // slug, including a second removal of the same term.
+  removeGlossaryTerm(slug: string, actorMemberId: string): void {
+    const current = findGlossaryTerm(slug);
+    if (!current) throw new NotFoundError(`No glossary term "${slug}"`);
+    assertActorMayCurateFreestyle(actorMemberId);
+    writeFileThenCommit(
+      () => getCuratedAuthoringAdapter().saveItem('glossary_terms', slug, { slug, removed: true }),
+      () => transaction(() => {
+        freestyleGlossaryTerms.deleteBySlug.run(slug);
+        appendAuditEntry({
+          actionType:    'freestyle.glossary_term.removed',
+          actorType:     'admin',
+          actorMemberId,
+          entityType:    'freestyle_glossary_term',
+          entityId:      slug,
+          metadata:      { slug, changedFields: [...GLOSSARY_FIELD_NAMES] },
+        });
+      }),
+    );
+  },
 };
+
+// ── Glossary editor ───────────────────────────────────────────────────────
+
+export interface FreestyleGlossaryTermInput {
+  slug?:       string;   // add only
+  term?:       string;
+  definition?: string;
+  aliases?:    string;   // one per line
+  moreHref?:   string;
+  moreLabel?:  string;
+}
+
+/** A glossary save refused for one or more reasons, each shown to the editor. */
+export class GlossaryValidationError extends ValidationError {
+  constructor(readonly reasons: readonly string[]) {
+    super(reasons.join(' '));
+    this.name = 'GlossaryValidationError';
+  }
+}
+
+export interface FreestyleGlossaryListRow {
+  slug:       string;
+  term:       string;
+  definition: string;
+  editHref:   string;
+}
+
+export interface FreestyleGlossaryListContent {
+  rows:    FreestyleGlossaryListRow[];
+  hasRows: boolean;
+  newHref: string;
+}
+
+export interface FreestyleGlossaryTermFormContent {
+  /** Set on the edit form only; the add form takes the slug as a field. */
+  slug?:      string;
+  isNew:      boolean;
+  formAction: string;
+  cancelHref: string;
+  /** The confirm page that removes the term; set on the edit form only. */
+  removeHref: string | null;
+  submitted:  FreestyleGlossaryTermInput;
+  errors:     string[];
+  hasErrors:  boolean;
+  saved:      boolean;
+}
+
+export interface FreestyleGlossaryTermRemoveContent {
+  summary:    { label: string; value: string }[];
+  /** The public address that stops resolving once the term is removed. */
+  anchorText: string;
+  removeHref: string;
+  cancelHref: string;
+}
+
+export type UpdateGlossaryTermResult = { status: 'saved' } | { status: 'unchanged' };
+
+interface GlossaryFields {
+  term:       string;
+  definition: string;
+  aliases:    string[];
+  moreHref:   string | null;
+  moreLabel:  string | null;
+}
+
+/** The fields an add or a removal records, named as the audit row names them. */
+const GLOSSARY_FIELD_NAMES = ['term', 'definition', 'aliases', 'more_href', 'more_label'] as const;
+const GLOSSARY_TERM_MAX = 80;
+// A definition is one sentence, and a deeper link and its label are single lines.
+const GLOSSARY_LINE_MAX = 400;
+// No term needs more than a dozen other spellings.
+const GLOSSARY_ALIASES_MAX = 12;
+
+// The same order the public glossary page uses, so the editor list reads like the page.
+function sortedGlossary(terms: readonly GlossaryTermRecord[]): GlossaryTermRecord[] {
+  return [...terms].sort((a, b) => {
+    const byTerm = a.term.localeCompare(b.term, 'en', { sensitivity: 'base', numeric: true });
+    return byTerm !== 0 ? byTerm : a.slug.localeCompare(b.slug, 'en');
+  });
+}
+
+function glossaryInputOf(r: GlossaryTermRecord): FreestyleGlossaryTermInput {
+  return {
+    term:       r.term,
+    definition: r.definition,
+    aliases:    r.aliases.join('\n'),
+    moreHref:   r.moreHref ?? '',
+    moreLabel:  r.moreLabel ?? '',
+  };
+}
+
+function glossaryFormContent(
+  formAction: string,
+  submitted: FreestyleGlossaryTermInput,
+  errors: string[],
+  saved: boolean,
+  isNew: boolean,
+  slug: string | null,
+): FreestyleGlossaryTermFormContent {
+  return {
+    ...(slug !== null ? { slug } : {}),
+    isNew,
+    formAction,
+    cancelHref: '/admin/freestyle/glossary',
+    removeHref: slug !== null ? `/admin/freestyle/glossary/${slug}/remove` : null,
+    submitted,
+    errors,
+    hasErrors:  errors.length > 0,
+    saved,
+  };
+}
+
+function glossaryRuleInput(slug: string, f: GlossaryFields): GlossaryRuleInput {
+  return { slug, term: f.term, aliases: f.aliases, moreHref: f.moreHref, moreLabel: f.moreLabel };
+}
+
+/**
+ * The glossary-rule problems a save would add: the rules run over every entry with
+ * this one as submitted, and a problem the glossary already had is not this save's
+ * to fix.
+ */
+function introducedGlossaryProblems(slug: string, edited: GlossaryRuleInput): string[] {
+  const entries = glossaryTerms();
+  const asRule = (r: GlossaryTermRecord): GlossaryRuleInput => ({
+    slug: r.slug, term: r.term, aliases: r.aliases, moreHref: r.moreHref, moreLabel: r.moreLabel,
+  });
+  const termOf = (s: string): string => entries.find((r) => r.slug === s)?.term ?? s;
+  const before = new Set(glossaryProblems(entries.map(asRule)).map((p) => `${p.slug}|${p.message}`));
+  const roster = entries.some((r) => r.slug === slug)
+    ? entries.map((r) => (r.slug === slug ? edited : asRule(r)))
+    : [...entries.map(asRule), edited];
+  return glossaryProblems(roster)
+    .filter((p) => !before.has(`${p.slug}|${p.message}`))
+    .map((p) => (p.slug === slug ? p.message : `${termOf(p.slug)}: ${p.message}`));
+}
+
+// Validates each field on its own; the glossary rules are checked by the caller.
+// Collects every problem so the editor sees them all at once.
+function validateGlossaryFields(input: FreestyleGlossaryTermInput): GlossaryFields {
+  const errors: string[] = [];
+  const term = cleanUserText(input.term ?? '', 'single_line', 'term');
+  if (!term) errors.push('Term is required.');
+  else if (term.length > GLOSSARY_TERM_MAX) errors.push(`Term must be ${GLOSSARY_TERM_MAX} characters or fewer.`);
+
+  const definition = cleanUserText(input.definition ?? '', 'single_line', 'definition');
+  if (!definition) errors.push('Definition is required.');
+  else if (definition.length > GLOSSARY_LINE_MAX) errors.push(`Definition must be ${GLOSSARY_LINE_MAX} characters or fewer.`);
+
+  const aliases = (input.aliases ?? '').split(/\r?\n/)
+    .map((line) => cleanUserText(line, 'single_line', 'aliases'))
+    .filter((line) => line.length > 0);
+  if (aliases.length > GLOSSARY_ALIASES_MAX) errors.push(`Aliases takes at most ${GLOSSARY_ALIASES_MAX} entries.`);
+  if (aliases.some((a) => a.length > GLOSSARY_TERM_MAX)) {
+    errors.push(`Each alias must be ${GLOSSARY_TERM_MAX} characters or fewer.`);
+  }
+
+  const moreHref = cleanUserText(input.moreHref ?? '', 'single_line', 'moreHref');
+  const moreLabel = cleanUserText(input.moreLabel ?? '', 'single_line', 'moreLabel');
+  if ((moreHref === '') !== (moreLabel === '')) {
+    errors.push('A deeper link and its label go together: give both or neither.');
+  } else if (moreHref !== '' && !isSitePath(moreHref)) {
+    errors.push('The deeper link must be a path on this site, starting with a single "/".');
+  }
+  if (moreHref.length > GLOSSARY_LINE_MAX || moreLabel.length > GLOSSARY_LINE_MAX) {
+    errors.push(`The deeper link and its label must each be ${GLOSSARY_LINE_MAX} characters or fewer.`);
+  }
+
+  if (errors.length > 0) throw new GlossaryValidationError(errors);
+  return {
+    term, definition, aliases,
+    moreHref:  moreHref === '' ? null : moreHref,
+    moreLabel: moreLabel === '' ? null : moreLabel,
+  };
+}
+
+function glossarySaveBody(slug: string, f: GlossaryFields): SaveItemBody {
+  return {
+    slug,
+    term:       f.term,
+    definition: f.definition,
+    aliases:    f.aliases,
+    more_href:  f.moreHref,
+    more_label: f.moreLabel,
+  };
+}
 
 // ── Set editor ────────────────────────────────────────────────────────────
 

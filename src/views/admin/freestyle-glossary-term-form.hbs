@@ -1,0 +1,55 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{> admin-instructions}}
+  <section>
+    {{#if content.saved}}
+    {{> outcome-notice text="Saved." tone='ok'}}
+    {{/if}}
+    {{> outcome-notice lines=content.errors tone='no'}}
+
+    <form method="POST" action="{{content.formAction}}" class="form-block">
+      {{#if content.isNew}}
+      <div class="form-field">
+        <label for="glossary-slug">Slug</label>
+        <input type="text" id="glossary-slug" name="slug" value="{{content.submitted.slug}}" aria-describedby="glossary-slug-hint" />
+        <small class="form-hint" id="glossary-slug-hint">Lowercase letters and digits, in words joined by hyphens. It becomes the term's address on the glossary page, and cannot be changed.</small>
+      </div>
+      {{/if}}
+      <div class="form-field">
+        <label for="glossary-term">Term</label>
+        <input type="text" id="glossary-term" name="term" value="{{content.submitted.term}}" />
+      </div>
+      <div class="form-field">
+        <label for="glossary-definition">Definition</label>
+        <textarea id="glossary-definition" name="definition" rows="3" aria-describedby="glossary-definition-hint">{{content.submitted.definition}}</textarea>
+        <small class="form-hint" id="glossary-definition-hint">One plain sentence.</small>
+      </div>
+      <div class="form-field">
+        <label for="glossary-aliases">Aliases (optional)</label>
+        <textarea id="glossary-aliases" name="aliases" rows="3" aria-describedby="glossary-aliases-hint">{{content.submitted.aliases}}</textarea>
+        <small class="form-hint" id="glossary-aliases-hint">One per line: other spellings and abbreviations players use for the same thing. An alias cannot be another term on the glossary.</small>
+      </div>
+      <div class="form-field">
+        <label for="glossary-moreHref">Deeper link (optional)</label>
+        <input type="text" id="glossary-moreHref" name="moreHref" value="{{content.submitted.moreHref}}" aria-describedby="glossary-moreHref-hint" />
+        <small class="form-hint" id="glossary-moreHref-hint">A path on this site, such as /freestyle/concepts#section-surfaces. Give it together with its label.</small>
+      </div>
+      <div class="form-field">
+        <label for="glossary-moreLabel">Deeper link label (optional)</label>
+        <input type="text" id="glossary-moreLabel" name="moreLabel" value="{{content.submitted.moreLabel}}" />
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary btn-sm">Save Term</button>
+        <a href="{{content.cancelHref}}" class="btn btn-outline btn-sm">Cancel</a>
+        {{#if content.removeHref}}
+        <a href="{{siteHref content.removeHref}}" class="btn btn-outline btn-sm">Remove Term</a>
+        {{/if}}
+      </div>
+    </form>
+  </section>
+</div>
