@@ -155,6 +155,18 @@ describe('GET /equipment', () => {
     expect(main).toContain('World Footbag (<a href="https://worldfootbag.com"');
     expect(main).toContain('an endorsement by IFPA.');
   });
+
+  it('links the Foot-C section to its set-up PDF, versioned and served as a PDF', async () => {
+    const res = await page('/equipment');
+    const section = res.text.match(/id="foot-c">([\s\S]*?)<\/section>/)?.[1] ?? '';
+    // A visitor building a Mini Net finds no set-up guide, follows a link
+    // that 404s, or keeps getting a replaced PDF stale from the cache.
+    const href = section.match(/<a href="(\/img\/[^"]+\.pdf\?v=[^"]+)">/)?.[1];
+    expect(href).toBeDefined();
+    const pdf = await page(href!);
+    expect(pdf.status).toBe(200);
+    expect(pdf.headers['content-type']).toMatch(/^application\/pdf/);
+  });
 });
 
 describe('equipment as a top-level section', () => {

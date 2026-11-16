@@ -37,6 +37,9 @@
       {{#each closingParagraphs}}
         <p>{{this}}</p>
       {{/each}}
+      {{#if download}}
+        <p>{{download.before}}<a href="{{siteHref download.href}}">{{download.linkLabel}}</a>{{download.after}}</p>
+      {{/if}}
     </section>
   {{/each}}
 

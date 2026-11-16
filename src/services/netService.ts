@@ -81,7 +81,7 @@ const NET_COMPETITION_FORMATS: NetCompetitionFormat[] = [
 const NET_EXPLORE_CARDS: NetExploreCard[] = [
   { slug: 'events',    label: 'Events',    href: '/events',                paragraph: 'Net events from every year.',                                             linkLabel: 'Event Archive' },
   { slug: 'rules',     label: 'Rules',     href: '/rules/net/footbag-net', paragraph: 'The official IFPA rules of footbag net: court, service, scoring and fouls.', linkLabel: 'Net Rules' },
-  { slug: 'equipment', label: 'Equipment', href: '/equipment#net',         paragraph: 'Net footbags, shoes, and how to set up a court and net.',                 linkLabel: 'Net Equipment' },
+  { slug: 'equipment', label: 'Equipment', href: '/equipment#net',         paragraph: 'Net footbags, shoes, and how to set up a full-size or Mini Net court.',   linkLabel: 'Net Equipment' },
 ];
 
 // ---------------------------------------------------------------------------

@@ -14,6 +14,9 @@
  *     that governs it; items without one are practical guidance.
  *   - The vendor notice links to the vendor's site; the template renders that link through the
  *     shared external-link helper, like every other offsite link on the site.
+ *   - A section may end with a download sentence linking a file the site serves (the Foot-C
+ *     set-up PDF); its href carries the asset version token, so a replaced file is never served
+ *     stale from the cache.
  *
  * Governance:
  *   - Equipment is the site's own practical guidance, written by the IFPA secretary, and a sibling
@@ -23,6 +26,7 @@
  *     current practice that the rule does not fix, the wording says so.
  */
 import { PageViewModel } from '../types/page';
+import { assetUrl } from '../lib/assetVersion';
 
 export interface EquipmentRuleLinkViewModel {
   label: string;
@@ -41,6 +45,7 @@ export interface EquipmentSectionViewModel {
   paragraphs: string[];
   items: EquipmentItemViewModel[];
   closingParagraphs: string[];
+  download: EquipmentLinkedSentenceViewModel | null;
 }
 
 export interface EquipmentLinkedSentenceViewModel {
@@ -115,6 +120,7 @@ const SECTIONS: EquipmentSectionViewModel[] = [
     closingParagraphs: [
       'For the widest choice, buy online. Your local club can also tell you where players near you get their bags.',
     ],
+    download: null,
   },
   {
     id: 'shoes',
@@ -124,6 +130,7 @@ const SECTIONS: EquipmentSectionViewModel[] = [
     ],
     items: [],
     closingParagraphs: [],
+    download: null,
   },
   {
     id: 'net',
@@ -152,11 +159,15 @@ const SECTIONS: EquipmentSectionViewModel[] = [
       },
     ],
     closingParagraphs: [],
+    download: null,
   },
   {
     id: 'foot-c',
     heading: 'Foot-C or Mini Net',
-    paragraphs: ['A smaller net game that fits in one quarter of a full-size net court.'],
+    paragraphs: [
+      'A smaller net game that fits in one quarter of a full-size net court.',
+      'Chris Ott, a Footbag Hall of Fame member, created Foot-C as a junior net game, so young players can learn net on a court their size.',
+    ],
     items: [
       {
         lead: 'Court',
@@ -165,11 +176,17 @@ const SECTIONS: EquipmentSectionViewModel[] = [
       },
       {
         lead: 'Net',
-        text: '41 inches high (1.04 meters) and 10 feet across, spanning the court\'s width.',
+        text: '40 inches high (1.02 meters) and 10 feet across, spanning the court\'s width.',
         officialRule: null,
       },
     ],
     closingParagraphs: [],
+    download: {
+      before: 'To build your own net, see ',
+      linkLabel: 'How to Set Up a Foot-C Net (PDF)',
+      href: assetUrl('img/FootC-court-dimensions.pdf'),
+      after: '.',
+    },
   },
   {
     id: 'freestyle',
@@ -183,6 +200,7 @@ const SECTIONS: EquipmentSectionViewModel[] = [
       },
     ],
     closingParagraphs: [],
+    download: null,
   },
   {
     id: 'golf',
@@ -214,6 +232,7 @@ const SECTIONS: EquipmentSectionViewModel[] = [
       },
     ],
     closingParagraphs: [],
+    download: null,
   },
   {
     id: 'square-games',
@@ -242,6 +261,7 @@ const SECTIONS: EquipmentSectionViewModel[] = [
       },
     ],
     closingParagraphs: [],
+    download: null,
   },
 ];
 
