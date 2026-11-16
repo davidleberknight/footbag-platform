@@ -922,6 +922,12 @@ if (( FAILS > 0 )); then
 fi
 
 echo ""
-echo "All critical invariants passed. $WARNS advisory item(s), each listed below."
+# The advisories are listed by the closing report that follows, so the pointer
+# to them is printed only when there is something there to find.
+if (( WARNS > 0 )); then
+  echo "All critical invariants passed. $WARNS advisory item(s), each listed in the closing report below."
+else
+  echo "All critical invariants passed, with no advisory items."
+fi
 cr_proved "every critical invariant of the $TARGET host env file"
 cr_finish

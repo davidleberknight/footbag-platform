@@ -139,6 +139,44 @@ describe('verify-host-env.sh — clean baseline', () => {
     expect(result.stdout).toContain('All critical invariants passed');
     expect(result.stdout).not.toContain('  FAIL  ');
   });
+
+  // Defect caught: the success line points the operator at advisories "listed
+  // below" when the run found none, or drops the count when it found some, so
+  // the operator either hunts for nothing or misses an advisory to act on.
+  it('the success line counts the advisories and points to them only when there are some', () => {
+    // Every advisory satisfied, as on a freshly deployed staging host: the admin
+    // allowlist set, the signing key named by alias, and the container sizing
+    // values docker/env/staging.env commits.
+    const fullyAdvisedEnv = [
+      mutate(/JWT_KMS_KEY_ID=.+/, 'JWT_KMS_KEY_ID=alias/footbag-staging-jwt'),
+      'FOOTBAG_DEV_INITIAL_ADMIN_EMAILS=admin@example.com',
+      'NGINX_MEMORY_LIMIT=48M',
+      'WEB_MEMORY_LIMIT=192M',
+      'WORKER_MEMORY_LIMIT=96M',
+      'IMAGE_MEMORY_LIMIT=192M',
+      'IMAGE_MAX_CONCURRENT=1',
+      'VIDEO_X264_PRESET=veryfast',
+      'VIDEO_X264_THREADS=1',
+      'VIDEO_X264_RC_LOOKAHEAD=10',
+      'VIDEO_MAX_HEIGHT=720',
+      'VIDEO_MIN_HOST_AVAILABLE_MB=96',
+    ].join('\n');
+    const noAdvisories = runScript({ envFilePath: writeEnvFile(fullyAdvisedEnv) });
+    expect(noAdvisories.exitCode).toBe(0);
+    expect(noAdvisories.stdout).not.toContain('  WARN  ');
+    expect(noAdvisories.stdout).toContain('All critical invariants passed, with no advisory items.');
+    expect(noAdvisories.stdout).not.toContain('listed in the closing report below');
+
+    // The clean staging fixture leaves several advisories open; the count on the
+    // success line must match the WARN rows the table printed.
+    const someAdvisories = runScript({ envFilePath: writeEnvFile(CLEAN_STAGING_ENV) });
+    expect(someAdvisories.exitCode).toBe(0);
+    const warnRows = someAdvisories.stdout.split('\n').filter((l) => l.startsWith('  WARN  ')).length;
+    expect(warnRows).toBeGreaterThan(0);
+    expect(someAdvisories.stdout).toContain(
+      `All critical invariants passed. ${warnRows} advisory item(s), each listed in the closing report below.`,
+    );
+  });
 });
 
 describe('verify-host-env.sh — the side-effect switches on staging', () => {
