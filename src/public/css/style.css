@@ -7095,22 +7095,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
    pattern; same primitives, same callout/list/example aesthetics.
    ──────────────────────────────────────────────────────────────────────── */
 
-.combo-analysis-architecture-list,
-.combo-analysis-topology-list {
-  margin: var(--space-md) 0;
-}
-.combo-analysis-architecture-list dt,
-.combo-analysis-topology-list dt {
-  font-weight: 600;
-  margin-top: var(--space-lg);
-  color: var(--text);
-}
-.combo-analysis-architecture-list dd,
-.combo-analysis-topology-list dd {
-  margin-left: 0;
-  margin-top: var(--space-xs);
-}
-
 .combo-analysis-worked-examples {
   list-style: none;
   padding: 0;
@@ -7150,31 +7134,15 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   font-weight: 600;
 }
 .combo-analysis-example-why {
-  margin: var(--space-xs) 0 var(--space-sm) var(--space-lg);
+  margin: var(--space-xs) 0 0 var(--space-lg);
   padding: 0;
 }
 .combo-analysis-example-why li {
   margin: var(--space-xs) 0;
 }
-.combo-analysis-example-concepts {
-  margin: var(--space-sm) 0;
-  font-size: 0.9rem;
-  color: var(--text-muted);
+.combo-analysis-example-why li:last-child {
+  margin-bottom: 0;
 }
-.combo-analysis-example-corpus {
-  margin: var(--space-sm) 0 0 0;
-  font-size: 0.9rem;
-  color: var(--text-muted);
-}
-
-.combo-analysis-caveats {
-  margin: var(--space-md) 0 var(--space-md) var(--space-lg);
-  padding: 0;
-}
-.combo-analysis-caveats li {
-  margin: var(--space-sm) 0;
-}
-
 .combo-analysis-cross-links {
   margin-top: var(--space-2xl);
   padding: var(--space-lg);

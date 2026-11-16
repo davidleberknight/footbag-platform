@@ -1,20 +1,17 @@
 /**
  * Integration tests for GET /freestyle/combo-analysis.
  *
- * Educational sequence-level page parallel to ADD Analysis. Pure curator
- * content; no DB seeding required beyond schema bootstrap. Mirrors
- * tests/integration/freestyle.add-analysis.routes.test.ts conventions.
+ * The run-level page parallel to ADD Analysis: the run-quality terms, five
+ * worked combos, and further reading. Page copy only; no database seeding
+ * beyond the schema.
  *
  * Verifies:
- *   - Route returns 200
- *   - All 8 sections render with anchor ids (§1-§8)
- *   - Run-quality table renders with per-row anchors
- *   - Sequence-architecture + Difficulty-architecture terms render with anchors
- *   - All 5 worked examples render with concept cross-links
- *   - Topology patterns render
- *   - Caveats render
- *   - Cross-links to ADD Analysis, history, tricks, glossary present
- *   - Lexicon discipline — no "should be"/"is wrong"/"incorrect" framing
+ *   - the route renders its three sections, in order, with their anchors
+ *   - the run-quality table keeps the per-row anchors the glossary links into
+ *   - the five worked examples render in order
+ *   - every same-page link lands on an element the page renders
+ *   - the further-reading links point at pages that exist
+ *   - no unreproducible statistic or prescriptive framing appears
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { cachedGet } from '../fixtures/cachedGet';
@@ -32,7 +29,7 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
-  // Page is pure curator content; schema-loaded DB is sufficient.
+  // Page is pure page copy; a schema-loaded DB is sufficient.
   const db = createTestDb(dbPath);
   db.close();
   createApp = await importApp();
@@ -41,46 +38,14 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /freestyle/combo-analysis — route + page structure', () => {
-  it('renders the page title + intro', async () => {
+  it('renders its three sections in order, each with its anchor', async () => {
     const res = await page('/freestyle/combo-analysis');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Combo Analysis');
-    expect(res.text).toMatch(/How freestyle tricks connect into longer flowing/);
-  });
-
-  it('renders all 8 sections in canonical order', async () => {
-    const res = await page('/freestyle/combo-analysis');
-    const sections = [
-      'id="philosophy"',
-      'id="run-quality"',
-      'Sequence architecture',
-      'Difficulty architecture',
-      'id="worked-examples"',
-      'id="transition-topology"',
-      'id="caveats"',
-      'id="further-reading"',
-    ];
     let lastIdx = -1;
-    for (const heading of sections) {
-      const idx = res.text.indexOf(heading);
-      expect(idx, `Missing heading: ${heading}`).toBeGreaterThan(lastIdx);
+    for (const id of ['run-quality', 'worked-examples', 'further-reading']) {
+      const idx = res.text.indexOf(`id="${id}"`);
+      expect(idx, `Missing or out-of-order section: ${id}`).toBeGreaterThan(lastIdx);
       lastIdx = idx;
-    }
-  });
-
-  it('exposes anchor ids for the 8 main sections', async () => {
-    const res = await page('/freestyle/combo-analysis');
-    for (const id of [
-      'philosophy',
-      'run-quality',
-      'sequence-architecture',
-      'difficulty-architecture',
-      'worked-examples',
-      'transition-topology',
-      'caveats',
-      'further-reading',
-    ]) {
-      expect(res.text, `Missing section anchor: ${id}`).toContain(`id="${id}"`);
     }
   });
 
@@ -88,9 +53,19 @@ describe('GET /freestyle/combo-analysis — route + page structure', () => {
     const res = await page('/freestyle/combo-analysis');
     expect(res.text).toContain('href="/freestyle"');
   });
+
+  it('every same-page link lands on an element the page renders', async () => {
+    // Defect caught: a link inside the page points at a section that was cut,
+    // so following it goes nowhere.
+    const res = await page('/freestyle/combo-analysis');
+    const fragments = [...res.text.matchAll(/href="#([^"]+)"/g)].map((m) => m[1]!);
+    for (const id of fragments) {
+      expect(res.text, `no element carries id="${id}"`).toContain(`id="${id}"`);
+    }
+  });
 });
 
-describe('GET /freestyle/combo-analysis — §2 run-quality table', () => {
+describe('GET /freestyle/combo-analysis — run-quality table', () => {
   it('renders the 12 run-quality + format + concept entries with anchor ids', async () => {
     const res = await page('/freestyle/combo-analysis');
     const expectedAnchors = [
@@ -111,47 +86,7 @@ describe('GET /freestyle/combo-analysis — §2 run-quality table', () => {
   });
 });
 
-describe('GET /freestyle/combo-analysis — §3 sequence architecture', () => {
-  it('renders all 9 sequence-architecture terms with anchor ids', async () => {
-    const res = await page('/freestyle/combo-analysis');
-    const expectedAnchors = [
-      'setup-trick', 'resolution-trick', 'launch-node', 'attractor',
-      'throughput-trick', 'sink', 'pure-terminus', 'stabilization',
-      'recovery-trick',
-    ];
-    for (const id of expectedAnchors) {
-      expect(res.text, `Missing sequence-arch term anchor: ${id}`).toContain(`id="${id}"`);
-    }
-  });
-
-  it('names whirl as the leading closer and blurry whirl as the leading opener, without magnitudes', async () => {
-    const res = await page('/freestyle/combo-analysis');
-    expect(res.text).toMatch(/Whirl frequently functions as a closing trick/);
-    expect(res.text).toMatch(/Blurry whirl commonly appears as an opening trick/);
-  });
-});
-
-describe('GET /freestyle/combo-analysis — §4 difficulty architecture', () => {
-  it('renders all 7 difficulty-architecture terms with anchor ids', async () => {
-    const res = await page('/freestyle/combo-analysis');
-    const expectedAnchors = [
-      'concentration-strategy', 'breadth-strategy', 'per-trick-density',
-      'sequence-risk', 'difficulty-stacking', 'additive-layering',
-      'difficulty-plateau',
-    ];
-    for (const id of expectedAnchors) {
-      expect(res.text, `Missing difficulty-arch term anchor: ${id}`).toContain(`id="${id}"`);
-    }
-  });
-
-  it('describes concentration and breadth qualitatively, without named-chain magnitude claims', async () => {
-    const res = await page('/freestyle/combo-analysis');
-    expect(res.text).toMatch(/depth.{0,40}approach/);
-    expect(res.text).toMatch(/length.{0,40}approach/);
-  });
-});
-
-describe('GET /freestyle/combo-analysis — §5 worked examples', () => {
+describe('GET /freestyle/combo-analysis — worked examples', () => {
   it('renders all 5 worked-example anchors in canonical order', async () => {
     const res = await page('/freestyle/combo-analysis');
     const expected = [
@@ -175,7 +110,7 @@ describe('GET /freestyle/combo-analysis — §5 worked examples', () => {
     const nextIdx    = res.text.indexOf('id="example-walking-ladder"');
     expect(exampleIdx).toBeGreaterThan(0);
     const slice = res.text.slice(exampleIdx, nextIdx);
-    expect(slice).toMatch(/blurry whirl\s*&rArr;?\s*\n?\s*whirl|blurry whirl[\s\S]{0,60}whirl/);
+    expect(slice).toMatch(/blurry whirl[\s\S]{0,60}whirl/);
     expect(slice).not.toMatch(/17/);
     expect(slice).not.toMatch(/most common two-trick transition/);
   });
@@ -184,53 +119,21 @@ describe('GET /freestyle/combo-analysis — §5 worked examples', () => {
     const res = await page('/freestyle/combo-analysis');
     const exampleIdx = res.text.indexOf('id="example-breadth-via-length"');
     expect(exampleIdx).toBeGreaterThan(0);
-    const sliceEnd   = res.text.indexOf('id="transition-topology"');
-    const slice      = res.text.slice(exampleIdx, sliceEnd);
+    const slice = res.text.slice(exampleIdx, res.text.indexOf('id="further-reading"'));
     expect(slice).toMatch(/butterfly[\s\S]{0,40}whirl[\s\S]{0,40}osis/);
     expect(slice).not.toMatch(/22 ADD/);
     expect(slice).not.toMatch(/corpus maximum/i);
     expect(slice).not.toMatch(/Greg Solis/);
   });
-
-  it('each worked example carries concept cross-links into §3/§4', async () => {
-    const res = await page('/freestyle/combo-analysis');
-    // Concept cross-links render as #anchor-id hrefs to §3/§4 terms.
-    expect(res.text).toMatch(/href="#launch-node"/);
-    expect(res.text).toMatch(/href="#attractor"/);
-    expect(res.text).toMatch(/href="#concentration-strategy"/);
-    expect(res.text).toMatch(/href="#breadth-strategy"/);
-    expect(res.text).toMatch(/href="#recovery-trick"/);
-  });
 });
 
-describe('GET /freestyle/combo-analysis — §6 transition topology', () => {
-  it('renders all 6 topology patterns with anchor ids', async () => {
+describe('GET /freestyle/combo-analysis — further reading', () => {
+  it('links ADD Analysis, the Trick Dictionary and Freestyle History', async () => {
     const res = await page('/freestyle/combo-analysis');
-    const expectedAnchors = [
-      'topology-asymmetric-flow', 'topology-rotational-cluster',
-      'topology-walking-transitions', 'topology-clipper-stabilization',
-      'topology-ducking-chains', 'topology-paradox-chains',
-    ];
-    for (const id of expectedAnchors) {
-      expect(res.text, `Missing topology anchor: ${id}`).toContain(`id="${id}"`);
-    }
-  });
-});
-
-describe('GET /freestyle/combo-analysis — §7 caveats + §8 cross-links', () => {
-  it('renders the scope + coverage caveats without a corpus size or date span', async () => {
-    const res = await page('/freestyle/combo-analysis');
-    expect(res.text).toMatch(/archival sample of ADD-scored/);
-    expect(res.text).toMatch(/European competition is more heavily represented/);
-    expect(res.text).toMatch(/community conventions/);
-  });
-
-  it('renders the cross-links inventory', async () => {
-    const res = await page('/freestyle/combo-analysis');
-    expect(res.text).toContain('href="/freestyle/add-analysis"');
-    expect(res.text).toContain('href="/freestyle/history"');
-    expect(res.text).toContain('href="/freestyle/tricks"');
-    expect(res.text).toContain('href="/freestyle/glossary"');
+    const reading = res.text.slice(res.text.indexOf('id="further-reading"'));
+    expect(reading).toContain('href="/freestyle/add-analysis"');
+    expect(reading).toContain('href="/freestyle/tricks"');
+    expect(reading).toContain('href="/freestyle/history"');
   });
 });
 
@@ -260,20 +163,6 @@ describe('GET /freestyle/combo-analysis — reproducibility discipline', () => {
         `Historical Sick 3 substitution present: "${phrase}"`,
       ).toBe(false);
     }
-  });
-
-  it('retains the reproducible qualitative findings', async () => {
-    const res = await page('/freestyle/combo-analysis');
-    expect(res.text).toMatch(/Blurry whirl commonly appears as an opening trick/);
-    expect(res.text).toMatch(/Whirl frequently functions as a closing trick/);
-    expect(res.text).toMatch(/Dimwalk often connects different parts of a combination/);
-  });
-
-  it('states the page scope: an educational analysis of an archival sample, not a census', async () => {
-    const res = await page('/freestyle/combo-analysis');
-    expect(res.text).toMatch(/educational analysis/);
-    expect(res.text).toMatch(/archival sample/);
-    expect(res.text).toMatch(/not a complete census/);
   });
 });
 

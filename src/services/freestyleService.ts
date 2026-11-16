@@ -7012,20 +7012,16 @@ export const freestyleService = {
   /**
    * GET /freestyle/combo-analysis
    *
-   * Educational combo + run-architecture page. Operates at the SEQUENCE
-   * level above the trick dictionary, parallel to ADD Analysis which
-   * operates at the trick-decomposition level.
-   *
-   * Pure curator content; no DB access. Content lives in
-   * src/content/freestyleComboAnalysisContent.ts per
-   * [[feedback_reversible_content_governance]].
+   * How tricks link into runs: the run-quality terms and worked combos. It
+   * works at the level above single tricks, as ADD Analysis works at the
+   * level of one trick's parts. Page copy only; no database access.
    */
   getComboAnalysisPage(): PageViewModel<ComboAnalysisContent> {
     return {
       seo: {
         title:       'Combo Analysis (Freestyle)',
         description:
-          'How freestyle tricks connect into longer flowing combinations and runs: setup tricks, resolution tricks, recovery patterns, and the transitions that hold a run together.',
+          'How freestyle tricks connect into runs: the run-quality terms from Tiltless to Godly, and five worked combos with why each one works.',
       },
       page: {
         sectionKey: 'freestyle',

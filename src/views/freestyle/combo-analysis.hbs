@@ -28,17 +28,7 @@
     a string of tricks into a combo worth watching.
   </p>
 
-  {{!-- Philosophy ─────────────────────────────────────────────────────── --}}
-  <section id="philosophy" class="content-section">
-    <div class="section-heading">
-      <h2>Philosophy</h2>
-    </div>
-    {{#each content.philosophyParagraphs}}
-    <p>{{this}}</p>
-    {{/each}}
-  </section>
-
-  {{!-- §2 — Run-quality terminology ───────────────────────────────────── --}}
+  {{!-- Run-quality terminology ───────────────────────────────────────── --}}
   <section id="run-quality" class="content-section">
     <div class="section-heading">
       <h2>Run-quality terminology</h2>
@@ -65,30 +55,13 @@
     </div>
   </section>
 
-  {{!-- §3-§4 — Sequence + Difficulty architecture ────────────────────── --}}
-  {{#each content.architectureSections}}
-  <section id="{{anchorId}}" class="content-section">
-    <div class="section-heading">
-      <h2>{{heading}}</h2>
-      <p class="section-intro">{{lede}}</p>
-    </div>
-
-    <dl class="combo-analysis-architecture-list">
-      {{#each terms}}
-      <dt id="{{anchorId}}">{{term}}</dt>
-      <dd>{{definition}}</dd>
-      {{/each}}
-    </dl>
-  </section>
-  {{/each}}
-
-  {{!-- §5 — Worked examples ───────────────────────────────────────────── --}}
+  {{!-- Worked examples ──────────────────────────────────────────────── --}}
   <section id="worked-examples" class="content-section">
     <div class="section-heading">
       <h2>Worked examples</h2>
       <p class="section-intro">
-        Five vignettes, ordered from standard to extreme. Each grounds a real
-        corpus pattern in the §3 / §4 vocabulary.
+        Five short combos, from a simple pair to a long chain, and why each
+        one works.
       </p>
     </div>
 
@@ -105,50 +78,12 @@
           <li>{{this}}</li>
           {{/each}}
         </ul>
-        {{#if conceptsSurfaced.length}}
-        <p class="combo-analysis-example-concepts source-note">
-          <strong>Concepts surfaced:</strong>
-          {{#each conceptsSurfaced}}<a href="#{{anchorId}}">{{label}}</a>{{#unless @last}}; {{/unless}}{{/each}}.
-        </p>
-        {{/if}}
-        <p class="combo-analysis-example-corpus source-note"><em>{{corpusNote}}</em></p>
       </li>
       {{/each}}
     </ol>
   </section>
 
-  {{!-- §6 — Transition topology ───────────────────────────────────────── --}}
-  <section id="transition-topology" class="content-section">
-    <div class="section-heading">
-      <h2>Transition topology</h2>
-      <p class="section-intro">{{content.topologyIntro}}</p>
-    </div>
-
-    <dl class="combo-analysis-topology-list">
-      {{#each content.topologyPatterns}}
-      <dt id="{{anchorId}}">{{name}}</dt>
-      <dd>{{definition}}</dd>
-      {{/each}}
-    </dl>
-  </section>
-
-  {{!-- §7 — Caveats ───────────────────────────────────────────────────── --}}
-  <section id="caveats" class="content-section">
-    <div class="section-heading">
-      <h2>Honesty &amp; uncertainty</h2>
-      <p class="section-intro">
-        What the documented patterns describe, and what they don&rsquo;t.
-      </p>
-    </div>
-
-    <ul class="combo-analysis-caveats">
-      {{#each content.caveats}}
-      <li>{{this}}</li>
-      {{/each}}
-    </ul>
-  </section>
-
-  {{!-- §8 — Cross-references ──────────────────────────────────────────── --}}
+  {{!-- Further reading ─────────────────────────────────────────────── --}}
   <nav id="further-reading" class="combo-analysis-cross-links" aria-label="Related pages">
     <h2>Further reading</h2>
     <ul>
