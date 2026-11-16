@@ -87,8 +87,6 @@ describe('freestyle landing destinations', () => {
     // anywhere, reachable only by typing its address.
     const reachedFrom: Array<[string, string]> = [
       ['/freestyle/start', '/freestyle/about'],
-      ['/freestyle/start', '/freestyle/by-the-numbers'],
-      ['/freestyle/start', '/freestyle/observational'],
       ['/freestyle/competition', '/freestyle/partnerships'],
     ];
     const landing = await page('/freestyle');

@@ -744,10 +744,9 @@ function familyBrowseHref(slug: string): string {
 export interface StartPageContent {
   nextStepsIntro: string;
   nextSteps:      readonly StartNextStep[];
-  // The family pages the page's own copy links to; null drops the link and
+  // The family page the page's own copy links to; null drops the link and
   // keeps the words, as for a family that has no page.
-  mirageFamilyHref:    string | null;
-  butterflyFamilyHref: string | null;
+  mirageFamilyHref: string | null;
 }
 
 // A next-step lesson's link: its own page, or its family's page while that
@@ -7066,7 +7065,6 @@ export const freestyleService = {
         nextStepsIntro:      START_NEXT_STEPS_INTRO,
         nextSteps:           START_NEXT_STEPS.map(resolveStartNextStep),
         mirageFamilyHref:    familyPageHref('mirage'),
-        butterflyFamilyHref: familyPageHref('butterfly'),
       },
     };
   },

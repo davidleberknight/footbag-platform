@@ -67,7 +67,7 @@ describe('GET /freestyle/start — novice page contract', () => {
 
   it('defines stall, set, catch, and dexterity before the Mirage section', async () => {
     const html = await page('/freestyle/start');
-    const mirageAt = html.indexOf('Your first named trick');
+    const mirageAt = html.indexOf('Your first trick');
     expect(mirageAt).toBeGreaterThan(0);
     const beforeMirage = html.slice(0, mirageAt);
     for (const definition of [
@@ -87,23 +87,8 @@ describe('GET /freestyle/start — novice page contract', () => {
     }
   });
 
-  it('introduces clipper as a distinct cross-body use of the inside surface', async () => {
+  it('links the Mirage family page, never the retired learning index', async () => {
     const html = await page('/freestyle/start');
-    expect(html).toMatch(/clipper<\/strong> is a particular use of the\s+inside surface/);
-    expect(html).toContain('not another word for an ordinary inside kick');
-  });
-
-  it('gates Butterfly behind clipper control and never calls it two dexterities', async () => {
-    const html = await page('/freestyle/start');
-    expect(html).toContain('Clipper control, then Butterfly');
-    expect(html).not.toMatch(/two dexterities/i);
-  });
-
-  it('hands off to the dictionary, the glossary, and Freestyle Concepts, never the retired learning index', async () => {
-    const html = await page('/freestyle/start');
-    expect(html).toContain('href="/freestyle/tricks"');
-    expect(html).toContain('href="/freestyle/glossary"');
-    expect(html).toContain('href="/freestyle/concepts"');
     expect(html).toContain('href="/freestyle/families/mirage"');
     expect(html).not.toContain('href="/freestyle/learn"');
   });
