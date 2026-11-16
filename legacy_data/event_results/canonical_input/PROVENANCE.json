@@ -15,7 +15,7 @@
       "pipeline/historical/export_historical_csvs.py": "c25aa7e95708373fe1e78c1c4e5a1b4747fe6b29df4c76cc686205e2bde00c89",
       "pipeline/05p5_remediate_canonical.py": "1d05a966a64d310350f1e31e27d1eccbbd8385f687c0ccf9bf65799ad6f320d1"
     },
-    "regenerated_at": "2026-11-02",
-    "commit": "220ac9af"
+    "regenerated_at": "2026-11-15",
+    "commit": "ff0cbb3a"
   }
 }

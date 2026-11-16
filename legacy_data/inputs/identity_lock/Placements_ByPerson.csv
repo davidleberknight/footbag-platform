@@ -363,7 +363,7 @@ event_id,year,division_canon,division_category,place,competitor_type,person_id,t
 1016457376,2002,Intermediate Shred 30,freestyle,4,player,a2823c8b-27b9-5f22-95cd-58af9770f3a6,,Josh Owens,,complete,,josh owens,
 1016457376,2002,Intermediate Shred 30,freestyle,5,player,153f48a3-6f39-583d-a39a-e791454234e8,,Brett Ables,,complete,,brett ables,
 1016457376,2002,Open Shred 30,freestyle,1,player,2c16c43d-6111-5231-b813-23f20f6ba7a3,,Jonathan Schneider,,complete,,jonathan schneider,
-1016457376,2002,Open Shred 30,freestyle,2,player,16b2083f-d41a-5944-8669-d41494e21159,,Alex Faber,,complete,,alex faber,
+1016457376,2002,Open Shred 30,freestyle,2,player,bd9edb36-ddd6-5fa8-b46f-aad4e708716d,,Alexander Faber,,complete,,alexander faber,
 1016457376,2002,Open Big 3,freestyle,1,player,2c16c43d-6111-5231-b813-23f20f6ba7a3,,Jonathan Schneider,,complete,,jonathan schneider,
 1016457376,2002,Open Big 3,freestyle,2,player,bd9edb36-ddd6-5fa8-b46f-aad4e708716d,,Alexander Faber,,complete,,alexander faber,
 1016457376,2002,Open Sick One,freestyle,1,player,2c16c43d-6111-5231-b813-23f20f6ba7a3,,Jonathan Schneider,,complete,,jonathan schneider,
@@ -1287,13 +1287,13 @@ event_id,year,division_canon,division_category,place,competitor_type,person_id,t
 1044624680,2003,Novice Four Square,sideline,2,player,2a52edfd-ffdc-56ac-bd40-d2a17e72d6b0,,Andy Silvy,,complete,,andy silvy,
 1044624680,2003,Open Freestyle Routines,freestyle,1,player,,,Jonathan Schneider,,partial,1,jon schneider,
 1044624680,2003,Open Freestyle Routines,freestyle,2,player,66c8ee00-cda8-5430-ba1c-ffb177198d18,,Andrew Coleman,,complete,,andrew coleman,
-1044624680,2003,Open Freestyle Routines,freestyle,3,player,16b2083f-d41a-5944-8669-d41494e21159,,Alex Faber,,complete,,alex faber,
+1044624680,2003,Open Freestyle Routines,freestyle,3,player,bd9edb36-ddd6-5fa8-b46f-aad4e708716d,,Alexander Faber,,complete,,alexander faber,
 1044624680,2003,Open Shred 30,freestyle,1,player,,,Jonathan Schneider,,partial,1,jon schneider,
-1044624680,2003,Open Shred 30,freestyle,2,player,16b2083f-d41a-5944-8669-d41494e21159,,Alex Faber,,complete,,alex faber,
+1044624680,2003,Open Shred 30,freestyle,2,player,bd9edb36-ddd6-5fa8-b46f-aad4e708716d,,Alexander Faber,,complete,,alexander faber,
 1044624680,2003,Open Shred 30,freestyle,3,player,66c8ee00-cda8-5430-ba1c-ffb177198d18,,Andrew Coleman,,complete,,andrew coleman,
 1044624680,2003,Open Sick Trick,freestyle,1,player,,,Jonathan Schneider,,partial,1,jon schneider,
 1044624680,2003,Open Sick Trick,freestyle,2,player,66c8ee00-cda8-5430-ba1c-ffb177198d18,,Andrew Coleman,,complete,,andrew coleman,
-1044624680,2003,Open Sick Trick,freestyle,3,player,16b2083f-d41a-5944-8669-d41494e21159,,Alex Faber,,complete,,alex faber,
+1044624680,2003,Open Sick Trick,freestyle,3,player,bd9edb36-ddd6-5fa8-b46f-aad4e708716d,,Alexander Faber,,complete,,alexander faber,
 1044952105,2003,Open Doubles Net,net,1,team,,202607a4-85da-5231-957a-85eb5a4e3e76|3ef63282-9e9c-5f57-94c5-e1b5c4fe8c3c,__NON_PERSON__,Emmanuel Bouchard / Patrick Asswad,mostly_complete,,,
 1044952105,2003,Open Doubles Net,net,2,team,,6d50650f-7f41-5484-894f-74986085f48b|f569a985-6548-5b3d-9322-5e2c764bcc11,__NON_PERSON__,Martin Cote / Robert Lavigne,mostly_complete,,,
 1044952105,2003,Open Doubles Net,net,3,team,,691f48a0-1dbd-5ef5-99ea-13615a7437d2|bd1ac97c-6c20-5bcd-9fbd-f5279f4c22bf,__NON_PERSON__,Yves Archambault / Chris Siebert,mostly_complete,,,
@@ -26304,7 +26304,7 @@ event_id,year,division_canon,division_category,place,competitor_type,person_id,t
 947026077,2000,Intermediate Doubles Net,net,1,team,,,__NON_PERSON__,Lovell McIlwain / Justin Wright,complete,,,
 947026077,2000,Intermediate Doubles Net,net,2,team,,,__NON_PERSON__,Mark Hunsberger / Jeremy Walters,complete,,,
 947026077,2000,Intermediate Doubles Net,net,3,team,,,__NON_PERSON__,Dan Kramer / Amy Noller,complete,,,
-947026077,2000,Novice Freestyle,freestyle,1,player,16b2083f-d41a-5944-8669-d41494e21159,,Alex Faber,,complete,,alex faber,
+947026077,2000,Novice Freestyle,freestyle,1,player,bd9edb36-ddd6-5fa8-b46f-aad4e708716d,,Alexander Faber,,complete,,alexander faber,
 947026077,2000,Novice Freestyle,freestyle,2,player,ba1e5566-8046-5eea-8672-06652ca3cb64,,Ara Bagdassurian,,complete,,ara bagdassurian,
 947026077,2000,Novice Freestyle,freestyle,3,player,0f51c65d-c889-5354-8cb7-21bef31c04ca,,Jake Milofsky,,complete,,jake milofsky,
 947026077,2000,Novice Singles Net,net,1,player,de3e9581-85a2-520b-92e5-d48c0d7f8bd2,,Jeremy Walters,,complete,,jeremy walters,
@@ -26494,7 +26494,7 @@ event_id,year,division_canon,division_category,place,competitor_type,person_id,t
 952906680,2000,Shred Contest Open,freestyle,7,player,,,Pierre,,complete,True,pierre,
 952906680,2000,Shred Contest Open,freestyle,8,player,c57afdbe-f73a-5740-a2d3-0ec71764ee18,,Samuel Jobin,,complete,,samuel jobin,
 953918475,2000,Amateur Freestyle,freestyle,1,player,26e40173-e0b2-5d76-99b7-61a202886550,,Melissa Schneider,,complete,,melissa schneider,
-953918475,2000,Amateur Freestyle,freestyle,2,player,16b2083f-d41a-5944-8669-d41494e21159,,Alex Faber,,complete,,alex faber prizes,
+953918475,2000,Amateur Freestyle,freestyle,2,player,bd9edb36-ddd6-5fa8-b46f-aad4e708716d,,Alexander Faber,,complete,,alexander faber,
 953918475,2000,Amateur Freestyle,freestyle,3,player,3a087614-49b1-54de-baa9-8ec6c750277e,,Edwin Tishner,,complete,,edwin tishner prizes,
 953918475,2000,Amateur Freestyle,freestyle,4,player,e81912f2-3801-51ab-b228-9d7f65999f74,,Amos Schumacher,,complete,,amos schumacher prizes,
 953918475,2000,Amateur Golf,golf,1,player,,,__NON_PERSON__,,complete,False,jeremy watlers prizes,
@@ -27958,7 +27958,7 @@ event_id,year,division_canon,division_category,place,competitor_type,person_id,t
 984694623,2001,Intermediate Freestyle - Routines,freestyle,7,player,738cbf71-ad21-598f-a5b3-afdb8bdf543d,,Theodore Fritsch,,partial,,ted fritch,Intermediate Freestyle - Routines
 984694623,2001,Intermediate Freestyle - Routines,freestyle,8,player,,,Alexandre Colpron,,partial,1,,Intermediate Freestyle - Routines
 984694623,2001,Open Freestyle - Routines,freestyle,1,player,97d60d0e-3503-5814-8b1d-3fe6bb6bff86,,Yacine Merzouk,,mostly_complete,,yacine merzouk,Open Freestyle - Routines
-984694623,2001,Open Freestyle - Routines,freestyle,2,player,16b2083f-d41a-5944-8669-d41494e21159,,Alex Faber,,mostly_complete,,alex faber,Open Freestyle - Routines
+984694623,2001,Open Freestyle - Routines,freestyle,2,player,bd9edb36-ddd6-5fa8-b46f-aad4e708716d,,Alexander Faber,,mostly_complete,,alexander faber,Open Freestyle - Routines
 984694623,2001,Open Freestyle - Routines,freestyle,3,player,c57afdbe-f73a-5740-a2d3-0ec71764ee18,,Samuel Jobin,,mostly_complete,,samuel jobin,Open Freestyle - Routines
 984694623,2001,Open Freestyle - Routines,freestyle,4,player,e1b0b026-9914-5ebb-8321-fe835ac96c25,,Scott Bevier,,mostly_complete,,scott bevier,Open Freestyle - Routines
 984694623,2001,Open Freestyle - Routines,freestyle,5,player,c86e3f98-1abf-59a0-bd1a-2dcb61f7e241,,Luc Legeault,,mostly_complete,,luc legault,Open Freestyle - Routines
