@@ -402,12 +402,6 @@ describe('?view=sets is not a supported browse value', () => {
 });
 
 describe('the former Set Hub controls land on the Set Encyclopedia', () => {
-  it('the about page links the Set Encyclopedia, and never names a Set Hub', async () => {
-    const res = await page('/freestyle/about');
-    expect(res.text).toMatch(/<a href="\/freestyle\/sets" class="action-link">Set Encyclopedia<\/a>/);
-    expect(res.text).not.toMatch(/Set Hub/);
-  });
-
   it('a set detail page links up to the Set Encyclopedia, and never names a Set Hub', async () => {
     const res = await page('/freestyle/sets/pixie');
     const breadcrumb = /<nav class="breadcrumb"[\s\S]*?<\/nav>/.exec(res.text)?.[0] ?? '';

@@ -7070,7 +7070,7 @@ export const freestyleService = {
       seo: {
         title: 'About Freestyle',
         description:
-          'About freestyle footbag: competition formats, judging, and community resources.',
+          'About freestyle footbag: its competition formats and how each is judged.',
       },
       page: {
         sectionKey: 'freestyle',

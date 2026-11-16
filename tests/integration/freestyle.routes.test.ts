@@ -398,14 +398,6 @@ describe('GET /freestyle/about', () => {
     expect(res.text).toContain('composition (the variety and breadth of distinct');
     expect(res.text).not.toContain('variety (breadth of tricks');
   });
-
-  it('links onward to the trick dictionary, glossary, and notation article', async () => {
-    const res = await page('/freestyle/about');
-    expect(res.text).toContain('href="/freestyle/tricks"');
-    expect(res.text).toContain('href="/freestyle/glossary"');
-    // "Learn the Notation" lands on the notation article, not the retired learning index.
-    expect(res.text).toMatch(/href="\/freestyle\/notation-article"[^>]*>Learn the Notation/);
-  });
 });
 
 // ---------------------------------------------------------------------------
