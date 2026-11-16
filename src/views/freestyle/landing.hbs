@@ -52,7 +52,7 @@
       </a>
       <a class="banner-tile" href="/freestyle/concepts">
         <span class="banner-tile-title">Freestyle Concepts</span>
-        <span class="banner-tile-blurb">Chapters on how tricks are built, named, and scored.</span>
+        <span class="banner-tile-blurb">How tricks are built, written, and scored.</span>
       </a>
       <a class="banner-tile" href="/freestyle/sets">
         <span class="banner-tile-title">Set Encyclopedia</span>
@@ -61,21 +61,10 @@
     </div>
   </section>
 
-  {{! ── Freestyle Media ────────────────────────────────────────────────────── }}
-  <section class="content-section">
-    <div class="section-heading"><h2>Freestyle Media</h2></div>
-    <div class="banner-grid">
-      <a class="banner-tile" href="/freestyle/media">
-        <span class="banner-tile-title">Browse Freestyle Media</span>
-        <span class="banner-tile-blurb">Tutorials and demos, trick videos, and other media galleries.</span>
-      </a>
-    </div>
-  </section>
-
-  {{! ── Featured videos — the visual showcase ──────────────────────────────── }}
-  {{#if content.featured.length}}
+  {{! ── Videos: the featured clips, then every freestyle gallery ──────────── }}
   <section class="content-section freestyle-featured" id="featured">
-    <div class="section-heading"><h2>Featured Videos</h2></div>
+    <div class="section-heading"><h2>Videos</h2></div>
+    {{#if content.featured.length}}
     <div class="freestyle-featured-grid">
       {{#each content.featured}}
       <article class="card featured-card" id="featured-{{key}}">
@@ -87,8 +76,14 @@
       </article>
       {{/each}}
     </div>
+    {{/if}}
+    <div class="banner-grid">
+      <a class="banner-tile" href="/freestyle/media">
+        <span class="banner-tile-title">Browse Freestyle Media</span>
+        <span class="banner-tile-blurb">Tutorials and demos, trick videos, and other media galleries.</span>
+      </a>
+    </div>
   </section>
-  {{/if}}
 
   {{! ── Analysis & Competition — the deeper reference, after the visual tour ── }}
   <section class="content-section">
@@ -128,10 +123,6 @@
       <a class="banner-tile" href="/freestyle/by-the-numbers">
         <span class="banner-tile-title">Freestyle by the Numbers</span>
         <span class="banner-tile-blurb">How the trick dictionary breaks down by difficulty, dexterity, entry set, family ending, and body movement.</span>
-      </a>
-      <a class="banner-tile" href="/freestyle/observational">
-        <span class="banner-tile-title">Emerging Vocabulary</span>
-        <span class="banner-tile-blurb">Trick names and readings still being confirmed.</span>
       </a>
       <a class="banner-tile" href="/freestyle/history">
         <span class="banner-tile-title">Story of Freestyle</span>

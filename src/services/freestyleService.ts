@@ -8319,12 +8319,10 @@ export const freestyleService = {
         intro: {
           heading: 'What is Freestyle Footbag?',
           paragraphs: [
-            // Movement-language framing. The landing carries only short
-            // framing; Freestyle Concepts covers compositional grammar in
-            // depth. No em dashes, no historical filler, no overconfident
-            // atom counts.
-            'Freestyle footbag is a movement discipline in which players link tricks while keeping a small bag aloft with repeated foot contact. Spins, jumps, ducks and circling leg motions combine around the bag as it traces an unbroken path through the air.',
-            'Trick names are compositional. "Spinning whirl" literally means a body spin layered onto the whirl base. The vocabulary grows from a small set of building blocks (stalls, dexterities, body modifiers and sets) which combine into an enormous range of tricks. Once you know those parts, you can often read a trick name before you have ever seen it performed.',
+            // The one answer to what freestyle is: Start and About link here
+            // rather than repeating it. Freestyle Concepts covers how tricks are
+            // built in depth.
+            'Freestyle footbag is keeping a small bag in the air with your feet while linking tricks. Tricks are built from simple parts: "spinning whirl" is a whirl with a spin added.',
           ],
         },
         demoVideo: loadSiteVideo('freestyle_demo'),

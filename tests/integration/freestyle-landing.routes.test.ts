@@ -5,12 +5,17 @@ const { dbPath } = setTestEnv('3986');
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import { cachedGet } from '../fixtures/cachedGet';
+import { insertFreestyleTrick } from '../fixtures/factories';
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
-  createTestDb(dbPath);
+  const db = createTestDb(dbPath);
+  // One trick, so the landing draws its Trick Dictionary tile: the tile
+  // renders only once the dictionary holds a row.
+  insertFreestyleTrick(db, { slug: 'whirl', canonical_name: 'whirl', adds: '3', category: 'dex' });
+  db.close();
   createApp = await importApp();
 });
 
@@ -88,6 +93,7 @@ describe('freestyle landing destinations', () => {
     const reachedFrom: Array<[string, string]> = [
       ['/freestyle/start', '/freestyle/about'],
       ['/freestyle/competition', '/freestyle/partnerships'],
+      ['/freestyle/tricks', '/freestyle/observational'],
     ];
     const landing = await page('/freestyle');
     for (const [from, to] of reachedFrom) {

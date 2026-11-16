@@ -6517,6 +6517,11 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
     grid-template-columns: repeat(2, 1fr);
   }
 }
+/* The landing's videos section ends with the media gallery tile, one grid gap
+   below the featured clips. */
+.freestyle-featured-grid + .banner-grid {
+  margin-top: var(--space-md);
+}
 .featured-card {
   padding: var(--space-md) var(--space-lg);
   display: flex;

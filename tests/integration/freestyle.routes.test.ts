@@ -1412,7 +1412,7 @@ describe('Freestyle landing — Featured strip', () => {
   it('renders the Featured heading + grid', async () => {
     const res = await page('/freestyle');
     expect(res.text).toMatch(/class="[^"]*\bfreestyle-featured\b/);
-    expect(res.text).toMatch(/<h2>Featured Videos<\/h2>/);
+    expect(res.text).toMatch(/class="freestyle-featured-grid"/);
   });
 
   it('renders every competition-format name as a card title', async () => {

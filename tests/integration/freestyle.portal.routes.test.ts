@@ -387,19 +387,22 @@ describe('GET /freestyle — two-band landing', () => {
     expect(res.text).not.toContain('World Records');
   });
 
-  it('orders sections: lede → vocabulary → Media → Featured → analysis → explore', async () => {
+  it('orders sections: lede → vocabulary → videos (featured clips, then the gallery) → analysis → explore', async () => {
     const res = await page('/freestyle');
     const ledeIdx     = res.text.indexOf('freestyle-portal-lede');
     const languageIdx = res.text.indexOf('>The Language of Freestyle<');
-    const mediaIdx    = res.text.indexOf('>Freestyle Media<');
-    const featuredIdx = res.text.indexOf('class="content-section freestyle-featured"');
+    const videosIdx   = res.text.indexOf('class="content-section freestyle-featured"');
+    const clipIdx     = res.text.indexOf('id="featured-', videosIdx);
+    const galleryIdx  = res.text.indexOf('href="/freestyle/media"');
     const analysisIdx = res.text.indexOf('Analysis &amp; Competition');
     const exploreIdx  = res.text.indexOf('>Explore Freestyle<');
     expect(ledeIdx).toBeGreaterThan(0);
     expect(languageIdx).toBeGreaterThan(ledeIdx);
-    expect(mediaIdx).toBeGreaterThan(languageIdx);
-    expect(featuredIdx).toBeGreaterThan(mediaIdx);
-    expect(analysisIdx).toBeGreaterThan(featuredIdx);
+    expect(videosIdx).toBeGreaterThan(languageIdx);
+    // One videos section: the featured clips lead, the gallery link closes it.
+    expect(clipIdx).toBeGreaterThan(videosIdx);
+    expect(galleryIdx).toBeGreaterThan(clipIdx);
+    expect(analysisIdx).toBeGreaterThan(galleryIdx);
     // The further reference pages close the page.
     expect(exploreIdx).toBeGreaterThan(analysisIdx);
   });
@@ -407,7 +410,7 @@ describe('GET /freestyle — two-band landing', () => {
   // ── Featured videos showcase ────────────────────────────────────────────
   it('renders the Featured videos showcase with the curated demonstrations', async () => {
     const res = await page('/freestyle');
-    expect(res.text).toContain('>Featured Videos<');
+    expect(res.text).toContain('id="featured"');
     for (const name of ['Circle', 'Sick 3', 'Shred 30']) {
       expect(res.text).toContain(name);
     }
