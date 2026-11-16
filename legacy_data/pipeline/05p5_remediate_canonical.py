@@ -1532,7 +1532,7 @@ if _EK1 not in existing_event_keys:
     _hivernal_doubles = [
         # (placement, p1id, p1name, p2id, p2name, notes)
         ("1", "3ef63282-9e9c-5f57-94c5-e1b5c4fe8c3c", "Emmanuel Bouchard",
-               "39bc6c51-d2e0-5930-8677-51828c12de14", "Andy Ronald", ""),
+               "760941c4-9426-56f1-ac79-e8ad3ce9cf98", "Andy Ronald", ""),
         ("2", "c312c02d-8a8c-5c73-8b68-65fc9e3fa453", "Benjamin Rochon",
                "184a06bb-be96-5120-9a7c-1676f2b01a2a", "Jean-Francois Lemieux", ""),
         ("3", "6d50650f-7f41-5484-894f-74986085f48b", "Martin Cote",
@@ -1655,7 +1655,7 @@ if _EK2 not in existing_event_keys:
                    "40a3babb-8d9d-522c-8cbf-9f221bbc5903", "Marilyn Demuy"),
             ("2", "4f763ef4-fb7b-5fcb-9883-988370e20b2e", "Alexis Deschenes",
                    "adc70b9b-7496-5ded-8feb-fdc8e9c5d21c", "Julie Symons"),
-            ("3", "39bc6c51-d2e0-5930-8677-51828c12de14", "Andy Ronald",
+            ("3", "760941c4-9426-56f1-ac79-e8ad3ce9cf98", "Andy Ronald",
                    "f2ce846c-fa31-52e4-a88e-d8f7bccbe92e", "Maude Landreville"),
         ],
         "open_womens_doubles_net": [
@@ -2509,10 +2509,10 @@ if _05p5_missing:
     if _unresolved_closure:
         raise RuntimeError(
             f"Referential closure failed: {len(_unresolved_closure)} person_id(s) "
-            f"in participants cannot be found in {_lock_files[-1].name}:\n"
+            f"in participants cannot be found in {_lock_file.name}:\n"
             + "\n".join(f"  {p}" for p in _unresolved_closure)
         )
-    print(f"  Backfilled {_backfilled} missing person(s) from {_lock_files[-1].name}")
+    print(f"  Backfilled {_backfilled} missing person(s) from {_lock_file.name}")
 else:
     print("  OK — all participant person_ids present in persons.")
 
