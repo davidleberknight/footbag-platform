@@ -315,12 +315,12 @@ describe('dictionary trick row — required slots', () => {
       'smog', 'smoke', 'tapdown', 'tombstone',
       'blurriest', 'grave_digger', 'tomahawk', 'big_apple',
       'sole_stall',
-      // Tier 2 — observational→canonical promotions (14)
+      // Tier 2 — observational→canonical promotions (13)
       'blizzard', 'blaze', 'bedwetter', 'sole_survivor',
       'spinning_paradox_mirage', 'spinning_paradox_illusion',
       'spinning_paradox_whirl', 'paradox_double_leg_over',
       'paradox_barrage', 'paradox_symposium_mirage',
-      'paradox_high_plains_drifter', 'spinning_paradox_blender',
+      'paradox_high_plains_drifter',
       'stepping_ducking_paradox_blender', 'paradox_blizzard',
       // Tier 2 — doctrine-divergence pilot (3)
       'blurrage', 'predator', 'schmoe',

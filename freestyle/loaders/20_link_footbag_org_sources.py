@@ -51,6 +51,7 @@ from _legacy_move_overrides import (  # noqa: E402
     assert_override_targets_present_and_active,
     override_slug_for_move,
 )
+from _freestyle_desired_map import complete_map, stale  # noqa: E402
 
 FOOTBAG_ORG_SOURCE_ID = "footbag-org-2026-04"
 FOOTBAG_ORG_RETRIEVED_AT = "2026-04-15T00:00:00.000Z"
@@ -92,18 +93,28 @@ def build_resolver(conn: sqlite3.Connection) -> dict[str, str]:
     Index includes:
       - canonical_name (lowercased, slug form)
       - every alias_text and alias_slug
+
+    A row the committed inputs no longer ask for is left out. It is retired at
+    the end of the refresh, so a link written to it would be the reference that
+    refuses the retirement; its name resolves instead through the alias its
+    survivor carries.
     """
     resolver: dict[str, str] = {}
+    retiring = {slug for slug, _owner in stale(conn, complete_map(conn))}
 
     for slug, canonical_name in conn.execute(
         "SELECT slug, canonical_name FROM freestyle_tricks WHERE is_active = 1"
     ):
+        if slug in retiring:
+            continue
         resolver.setdefault(canonical_name.strip().lower(), slug)
         resolver.setdefault(trick_name_to_slug(canonical_name), slug)
 
     for alias_slug, alias_text, trick_slug in conn.execute(
         "SELECT alias_slug, alias_text, trick_slug FROM freestyle_trick_aliases"
     ):
+        if trick_slug in retiring:
+            continue
         # only set if not already pointing somewhere — canonical wins on collision
         resolver.setdefault(alias_text.strip().lower(), trick_slug)
         resolver.setdefault(alias_slug, trick_slug)

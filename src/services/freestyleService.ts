@@ -3230,7 +3230,7 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'double_around_the_world',
   'double_leg_over',
   //    moved from OBSERVATIONAL_TRICKS module into canonical via
-  //    audit-validated derivations. 9 FB.org + 4 PassBack + 1 stepwise
+  //    audit-validated derivations. 8 FB.org + 4 PassBack + 1 stepwise
   //    FB.org (paradox-blizzard depends on blizzard, both promoted
   //    same slice). Per feedback_observational_canonical_promotion_cleanup,
   //    each row's observational entry is removed in the same change-set.
@@ -3245,7 +3245,6 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'paradox_barrage',         // paradox(+1) + barrage(3) = 4 ADD (FB.org)
   'paradox_symposium_mirage', // paradox(+1) + symposium(+1) + mirage(2) = 4 ADD (FB.org)
   'paradox_high_plains_drifter', // paradox(+1) + HPD(4) = 5 ADD (FB.org)
-  'spinning_paradox_blender', // spinning(+1) + paradox(+1) + blender(4) = 6 ADD (FB.org)
   'stepping_ducking_paradox_blender', // stepping(+1) + ducking(+1) + paradox(+1) + blender(4) = 7 ADD (FB.org)
   'paradox_blizzard',        // paradox(+1) + blizzard(3) = 4 ADD (FB.org; stepwise via blizzard)
   // ── Doctrine-divergence pilot batch. Each carries a +1 gap between

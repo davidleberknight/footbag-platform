@@ -433,3 +433,34 @@ class TestTheRefreshAsAWhole:
         failed, result = refresh(db)
         assert failed is None, f"{failed} failed:\n{result.stderr if result else ''}"
         assert owner_of(db, "a_surviving_curator_trick") == CURATOR_PUBLICATION
+
+    def test_a_folded_row_named_by_footbag_org_gives_its_source_to_the_survivor(self, db):
+        """A duplicate folded into its twin, whose name footbag.org publishes.
+
+        Spinning Paradox Blender was folded into Spender, and footbag.org move 246
+        carries that name. Until retirement the old row is still in the table, so a
+        linker that resolved names against it wrote the move's link there, and the
+        link then refused the retirement and stopped the refresh.
+        """
+        conn = connect(db)
+        with conn:
+            conn.execute(
+                "INSERT INTO freestyle_tricks (slug, canonical_name, adds, review_status,"
+                " is_active, is_core, sort_order, loaded_at, trick_origin_producer)"
+                " VALUES ('spinning_paradox_blender', 'spinning paradox blender', '6',"
+                " 'expert_reviewed', 1, 0, 99996, '2026-08-29T00:00:00.000Z', ?)",
+                (EXPERT_ADDITIONS,),
+            )
+        conn.close()
+        failed, result = refresh(db)
+        assert failed is None, f"{failed} failed:\n{result.stderr if result else ''}"
+        assert owner_of(db, "spinning_paradox_blender") is KeyError
+        conn = connect(db)
+        try:
+            linked = conn.execute(
+                "SELECT trick_slug FROM freestyle_trick_source_links"
+                " WHERE source_id = 'footbag-org-2026-04' AND external_ref = '246'"
+            ).fetchall()
+        finally:
+            conn.close()
+        assert linked == [("spender",)]

@@ -220,7 +220,6 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
   { slug: 'spinning_ducking_symposium_whirl', derivation: 'spinning(+1) + ducking(+1) + symposium-whirl(4) = 6 ADD', operator: 'spinning + ducking' },
   { slug: 'spinning_eggbeater', derivation: 'spinning(+1) + eggbeater(3) = 4 ADD', operator: 'spinning' },
   { slug: 'spinning_osis', derivation: 'spinning(+1) + osis(3) = 4 ADD', operator: 'spinning' },
-  { slug: 'spinning_paradox_blender', derivation: 'spinning(+1) + paradox(+1) + blender(4) = 6 ADD', operator: 'spinning + paradox' },
   { slug: 'spinning_paradox_illusion', derivation: 'spinning(+1) + paradox(+1) + illusion(2) = 4 ADD', operator: 'spinning + paradox' },
   { slug: 'spinning_paradox_mirage', derivation: 'spinning(+1) + paradox(+1) + mirage(2) = 4 ADD', operator: 'spinning + paradox' },
   { slug: 'spinning_paradox_whirl', derivation: 'spinning(+1) + paradox(+1) + whirl(3) = 5 ADD', operator: 'spinning + paradox' },

@@ -189,7 +189,6 @@ beforeAll(async () => {
   insertTrickAsRebuilt(db, { slug: 'paradox_barrage',                  canonical_name: 'paradox barrage',                  adds: '4', base_trick: 'barrage',             trick_family: 'barrage',             category: 'compound', notation: 'PARADOX BARRAGE' });
   insertTrickAsRebuilt(db, { slug: 'paradox_symposium_mirage',         canonical_name: 'paradox symposium mirage',         adds: '4', base_trick: 'mirage',              trick_family: 'mirage',              category: 'compound', notation: 'PARADOX SYMPOSIUM MIRAGE' });
   insertTrickAsRebuilt(db, { slug: 'paradox_high_plains_drifter',      canonical_name: 'paradox high-plains-drifter',      adds: '5', base_trick: 'high_plains_drifter', trick_family: 'high_plains_drifter', category: 'compound', notation: 'PARADOX HIGH-PLAINS-DRIFTER' });
-  insertTrickAsRebuilt(db, { slug: 'spinning_paradox_blender',         canonical_name: 'spinning paradox blender',         adds: '6', base_trick: 'blender',             trick_family: 'blender',             category: 'compound', notation: 'SPINNING PARADOX BLENDER' });
   insertTrickAsRebuilt(db, { slug: 'stepping_ducking_paradox_blender', canonical_name: 'stepping ducking paradox blender', adds: '7', base_trick: 'blender',             trick_family: 'blender',             category: 'compound', notation: 'STEPPING DUCKING PARADOX BLENDER' });
   insertTrickAsRebuilt(db, { slug: 'paradox_blizzard',                 canonical_name: 'paradox blizzard',                 adds: '4', base_trick: 'blizzard',            trick_family: 'blizzard',            category: 'compound', notation: 'PARADOX BLIZZARD' });
 
@@ -514,12 +513,12 @@ describe('First-class cohort governance — isFirstClass() and getFirstClassTier
       'smog', 'smoke', 'tapdown', 'tombstone',
       'blurriest', 'grave_digger', 'tomahawk', 'big_apple',
       'sole_stall',
-      // observational→canonical promotions (14)
+      // observational→canonical promotions (13)
       'blizzard', 'blaze', 'bedwetter', 'sole_survivor',
       'spinning_paradox_mirage', 'spinning_paradox_illusion',
       'spinning_paradox_whirl', 'paradox_double_leg_over',
       'paradox_barrage', 'paradox_symposium_mirage',
-      'paradox_high_plains_drifter', 'spinning_paradox_blender',
+      'paradox_high_plains_drifter',
       'stepping_ducking_paradox_blender', 'paradox_blizzard',
       // doctrine-divergence pilot (3)
       'blurrage', 'predator', 'schmoe',
