@@ -63,6 +63,11 @@ beforeAll(async () => {
   insertFreestyleTrick(db, {
     slug: 'cross_body_sole_stall', canonical_name: 'cross-body sole stall', adds: '2', category: 'surface',
   });
+  // A community name spelled with a genuine hyphen, as the built dictionary's
+  // torch_r_rack row is.
+  insertFreestyleTrick(db, {
+    slug: 'torch_r_rack', canonical_name: 'torch-r rack', adds: '6', category: 'compound',
+  });
 
   insertFreestyleTrickModifier(db, { slug: 'pixie', modifier_name: 'pixie', add_bonus: 1, modifier_type: 'set' });
   insertFreestyleTrickModifier(db, { slug: 'spinning', modifier_name: 'spinning', add_bonus: 1, modifier_type: 'body' });
@@ -126,13 +131,20 @@ describe('trick-page surfaces render the base display name, never the raw slug',
 
   // Defect caught: the heading folds every hyphen to a space, so a genuine
   // compound adjective reads "Cross Body Sole Stall" instead of the approved
-  // "Cross-body Sole Stall".
-  it('the heading keeps a genuine compound-adjective hyphen', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/cross_body_sole_stall');
-    expect(res.status).toBe(200);
-    const h1 = res.text.match(/<h1[^>]*>([\s\S]*?)<\/h1>/)?.[1] ?? '';
-    expect(h1).toContain('Cross-body Sole Stall');
-    expect(res.text).not.toContain('Cross Body Sole Stall');
+  // "Cross-body Sole Stall", and the community name reads "Torch R Rack"
+  // instead of "Torch-r Rack".
+  it('the heading keeps a genuine hyphen from the approved list', async () => {
+    const cases = [
+      ['cross_body_sole_stall', 'Cross-body Sole Stall', 'Cross Body Sole Stall'],
+      ['torch_r_rack', 'Torch-r Rack', 'Torch R Rack'],
+    ];
+    for (const [slug, kept, folded] of cases) {
+      const res = await request(createApp()).get(`/freestyle/tricks/${slug}`);
+      expect(res.status, slug).toBe(200);
+      const h1 = res.text.match(/<h1[^>]*>([\s\S]*?)<\/h1>/)?.[1] ?? '';
+      expect(h1, slug).toContain(kept);
+      expect(res.text, slug).not.toContain(folded);
+    }
   });
 
   it('modifier-layering panel names the base by its canonical name', async () => {

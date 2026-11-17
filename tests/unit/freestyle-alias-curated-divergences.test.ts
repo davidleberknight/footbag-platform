@@ -1,17 +1,18 @@
 /**
- * The five aliases whose publication state is set against their class on purpose.
+ * The six aliases whose publication state is set against their class on purpose.
  *
  * Every other curated override agrees with the state its class implies, so these
- * five are the whole evidence that the two are separate judgements rather than
+ * six are the whole evidence that the two are separate judgements rather than
  * one judgement stored twice. Each was ruled individually, and the reasons are
  * specific: two are community nicknames a reader can reconstruct from the
  * canonical name, one is held pending doctrine, one names a narrower move than
- * the trick it points at, and one is a structural reading published because the
- * page would be poorer without it.
+ * the trick it points at, one is a structural reading published because the
+ * page would be poorer without it, and one is footbag.org's technical name for
+ * a trick stored under its community name, shown beside it.
  *
  * They are pinned here because a later change that quietly brought them into
  * line with their classes would look like tidying and would silently reverse
- * five decisions. Anything moving them has to say so.
+ * six decisions. Anything moving them has to say so.
  *
  * The reasons are asserted as present, not as exact text. Rewording a ruling is
  * a curator's business; leaving one unexplained is not.
@@ -78,10 +79,11 @@ const RULED = [
   { slug: 'infinity',                 type: 'common',     display: 0 },
   { slug: 'whirlwalk',                type: 'common',     display: 0 },
   { slug: 'reverse_around_the_world', type: 'structural', display: 1 },
+  { slug: 'stepping_superfly',        type: 'structural', display: 1 },
 ];
 
 describe('the curated overrides that diverge from their class', () => {
-  it('are exactly the five that were ruled', () => {
+  it('are exactly the six that were ruled', () => {
     expect(diverging().map(o => o.aliasSlug).sort()).toEqual(RULED.map(r => r.slug).sort());
   });
 

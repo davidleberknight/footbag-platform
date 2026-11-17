@@ -48,10 +48,11 @@ export const DISPLAY_NAME_ROW_EXCEPTIONS: ReadonlyMap<string, string> = new Map(
 ]);
 
 /**
- * Compound adjectives whose hyphen is genuine English orthography.
+ * Tokens whose hyphen is genuine orthography: compound adjectives, and a
+ * community trick name spelled with one (Torch-r Rack).
  *
  * The display keeps the hyphen and the slug folds it to an underscore, so these
  * are removed before the "no separator hyphen" check rather than being treated
  * as a curator writing a slug into a name.
  */
-export const GENUINE_HYPHEN_TOKENS: readonly string[] = ['cross-body', 'x-body'];
+export const GENUINE_HYPHEN_TOKENS: readonly string[] = ['cross-body', 'x-body', 'torch-r'];

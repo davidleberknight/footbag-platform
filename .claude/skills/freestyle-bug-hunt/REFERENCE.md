@@ -317,7 +317,7 @@ Maintainer-ratified rules:
    gallery caption) is a bug, with two exceptions in
    `src/content/freestyleDisplayNameExceptions.ts`: a slug in `DISPLAY_NAME_ROW_EXCEPTIONS`
    (its name is shown verbatim, and need not be its slug's words), and a hyphen inside a
-   `GENUINE_HYPHEN_TOKENS` token (`cross-body`, `x-body`) in any name.
+   `GENUINE_HYPHEN_TOKENS` token (`cross-body`, `x-body`, `torch-r`) in any name.
 2. Slugs use underscores — that is the canonical convention across the dictionary,
    sidecars, and tags. A hyphenated slug anywhere in the chain (table, alias, sidecar, tag,
    URL) is a bug.

@@ -481,7 +481,7 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Stepping far Swirl", "slug": "stepping-far-swirl", "source": "PB", "ecosystem": "stepping", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "alias/A", "resolvedTarget": "ledger:same-formula-row", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "", "owner": "mechanical", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "steppingfarswirl", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
   {"name": "Stepping Legover (Schmoe)", "slug": "stepping-legover-schmoe", "source": "SG", "ecosystem": "stepping", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "absent", "resolvedTarget": "canonical:schmoe", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "steppinglegover", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
   {"name": "Stepping near Butterfly Swirl", "slug": "stepping-near-butterfly-swirl", "source": "PB", "ecosystem": "stepping", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "alias/A", "resolvedTarget": "ledger:same-formula-row", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "", "owner": "mechanical", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "steppingnearbutterflyswirl", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
-  {"name": "Torch-r Rack torture rack (Stepping Superfly)", "slug": "torch-r-rack-torture-rack-stepping-superfly", "source": "FB", "ecosystem": "stepping", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "alias/A", "resolvedTarget": "canonical:stepping_superfly", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "", "owner": "mechanical", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "torchrracktorturerack", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
+  {"name": "Torch-r Rack torture rack (Stepping Superfly)", "slug": "torch-r-rack-torture-rack-stepping-superfly", "source": "FB", "ecosystem": "stepping", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "alias/A", "resolvedTarget": "alias:torch_r_rack", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "", "owner": "mechanical", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "torchrracktorturerack", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
   {"name": "Clipper far (downtime) Miraging Symp. Mirage", "slug": "clipper-far-downtime-miraging-symp-mirage", "source": "PB", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "alias/A", "resolvedTarget": "ledger:same-formula-row", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "", "owner": "mechanical", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "clipperfarmiragingsymposiummirage", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
   {"name": "Far Symposium Reverse Whirl", "slug": "far-symposium-reverse-whirl", "source": "SG", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "alias/A", "resolvedTarget": "ledger:same-formula-row", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "", "owner": "mechanical", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "farsymposiumreversewhirl", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
   {"name": "Flailing (Symposium Reverse Miraging)", "slug": "flailing-symposium-reverse-miraging", "source": "FB", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "alias/A", "resolvedTarget": "ledger:same-formula-row", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "", "owner": "mechanical", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "flailing", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
@@ -904,7 +904,6 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Toe set os Triple Over Down", "slug": "toe-set-os-triple-over-down", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive", "ledger": "folk/F", "resolvedTarget": "", "objectType": "observational-name", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "observational", "publicSection": "archive", "resolutionConflict": false, "identityKey": "toesetostripleoverdown", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
   {"name": "Toe set ss Triple Over Down", "slug": "toe-set-ss-triple-over-down", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive", "ledger": "folk/F", "resolvedTarget": "", "objectType": "observational-name", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "observational", "publicSection": "archive", "resolutionConflict": false, "identityKey": "toesetsstripleoverdown", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
   {"name": "Toe Stall dragged from Xbd position", "slug": "toe-stall-dragged-from-xbd-position", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive", "ledger": "folk/F", "resolvedTarget": "", "objectType": "malformed", "evidenceState": "none", "blockerId": "", "owner": "mechanical", "publicationState": "rejected", "publicSection": "archive", "resolutionConflict": false, "identityKey": "toestalldraggedfromxbdposition", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
-  {"name": "Torch-r Rack", "slug": "torch-r-rack", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive", "ledger": "absent", "resolvedTarget": "alias:stepping_superfly", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "torchrrack", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
   {"name": "Toxic", "slug": "toxic", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive", "ledger": "absent", "resolvedTarget": "alias:miraging_symposium_whirl", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "toxic", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
   {"name": "Triple ATW in-out", "slug": "triple-atw-in-out", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive", "ledger": "folk/F", "resolvedTarget": "", "objectType": "observational-name", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "observational", "publicSection": "archive", "resolutionConflict": false, "identityKey": "tripleatwinout", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
   {"name": "Triple ATW out-in", "slug": "triple-atw-out-in", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive", "ledger": "folk/F", "resolvedTarget": "", "objectType": "observational-name", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "observational", "publicSection": "archive", "resolutionConflict": false, "identityKey": "tripleatwoutin", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
@@ -1129,7 +1128,7 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
 
 export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
   {
-    "total": 965,
+    "total": 964,
     "canonicalPublished": 510,
     "universeTotal": 2460,
     "publishedDistinctStructures": 507,
@@ -1138,7 +1137,7 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
     "observationalUniverseDistinctStructures": 1944,
     "canonicalOntology": 507,
     "promotionFrontier": 203,
-    "lexicalArchive": 744,
+    "lexicalArchive": 743,
     "intakeBuckets": {
       "promotion_ready": {
         "names": 55,
@@ -1165,8 +1164,8 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
         "distinctStructures": 14
       },
       "low_confidence": {
-        "names": 393,
-        "distinctStructures": 393
+        "names": 392,
+        "distinctStructures": 392
       },
       "doctrine_unresolved": {
         "names": 14,
@@ -1174,14 +1173,14 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
       }
     },
     "publicSections": {
-      "archive": 598,
+      "archive": 597,
       "decide": 44,
       "evidence": 19,
       "ruling": 214
     },
     "publicationStates": {
       "adjudication-pending": 44,
-      "already-represented": 509,
+      "already-represented": 508,
       "doctrine-blocked": 214,
       "evidence-pending": 19,
       "not-a-trick": 17,
@@ -1215,9 +1214,9 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
       "james": 47,
       "james+red": 214,
       "mechanical": 369,
-      "none": 226
+      "none": 225
     },
-    "identityCount": 875,
+    "identityCount": 874,
     "reconciliationWarnings": {
       "conflicting-parenthetical-resolutions": 2,
       "positional-paren-resolution-held": 4
@@ -1225,7 +1224,7 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
     "ready": 64,
     "frontier": 110,
     "doctrineBlocked": 53,
-    "folkUnresolved": 430,
+    "folkUnresolved": 429,
     "parserUnresolved": 308,
     "promotionReadyPct": 18,
     "doctrineBlockedPct": 5,
@@ -1235,7 +1234,7 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
     "sources": {
       "SG": 430,
       "PB": 233,
-      "FM": 230,
+      "FM": 229,
       "FB": 56,
       "MULTI": 16
     },
