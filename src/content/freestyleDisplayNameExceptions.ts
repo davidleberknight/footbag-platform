@@ -45,7 +45,6 @@ export const DISPLAY_NAME_ROW_EXCEPTIONS: ReadonlyMap<string, string> = new Map(
   ['pixie_symposium_rev_whirl',         'pixie symposium reverse whirl'],
   ['spinning_rev_whirl',                'spinning reverse whirl'],
   ['stepping_rev_whirl',                'stepping reverse whirl'],
-  ['whirling_rev_whirl',                'whirling reverse whirl'],
 ]);
 
 /**

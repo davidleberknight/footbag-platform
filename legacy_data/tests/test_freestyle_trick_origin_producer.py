@@ -92,7 +92,7 @@ def owners(db) -> dict:
 def test_every_row_is_classified(loaded_db):
     """A clean load leaves no row unowned; an unowned row is unrefreshable."""
     o = owners(loaded_db)
-    assert len(o) == 992
+    assert len(o) == 991
     assert [s for s, p in o.items() if p is None] == []
 
 
@@ -104,7 +104,7 @@ def test_producer_counts_match_the_writer_inventory(loaded_db):
         counts[producer] = counts.get(producer, 0) + 1
     assert counts == {
         BASE_DICTIONARY: 69,
-        EXPERT_ADDITIONS: 916,
+        EXPERT_ADDITIONS: 915,
         FOOTBAG_ORG_PENDING: 7,
     }
 

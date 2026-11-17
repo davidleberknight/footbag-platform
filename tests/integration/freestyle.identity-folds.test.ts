@@ -120,6 +120,14 @@ const FOLDS = [
     dependants: [],
     movedFields: ['operational_notation'],
   },
+  {
+    retired: 'whirling_rev_whirl',
+    retiredName: 'whirling rev whirl',
+    survivor: 'bling_blang',
+    dependants: [],
+    movedFields: ['operational_notation'],
+    movedLinks: 'whirling',
+  },
 ];
 
 describe('identity folds: committed source outcomes', () => {

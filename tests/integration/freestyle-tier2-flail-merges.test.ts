@@ -124,23 +124,22 @@ describe('Tier-2 flail-equivalence merges: committed source outcomes', () => {
     expect(aliasAdditions.some(r => r[0].toLowerCase() === 'creature')).toBe(false);
   });
 
-  it('conforms the whirling derivative to the rev-whirl family conventions', () => {
+  it('keeps the whirling reverse whirl on the rev-whirl family conventions under its community name', () => {
     expect(additions.some(r => toSlug(r[0]) === 'whirling_reverse_whirl')).toBe(false);
-    const row = additionBySlug('whirling_rev_whirl')!;
-    expect(row, 'whirling rev whirl additions row').toBeTruthy();
+    expect(additions.some(r => toSlug(r[0]) === 'whirling_rev_whirl')).toBe(false);
+    const row = additionBySlug('bling_blang')!;
+    expect(row, 'bling blang additions row').toBeTruthy();
     expect(row[2]).toBe('rev-whirl');   // base_trick: the reverse-whirl root, never whirl
     expect(row[5]).toBe('whirling');    // operator link: whirling alone
-    expect(row[4].split('|').map(s => s.trim())).toContain('whirling reverse whirl');
+    const aliases = row[4].split('|').map(s => s.trim());
+    expect(aliases).toEqual(expect.arrayContaining(['whirling rev whirl', 'whirling reverse whirl']));
   });
 
-  it('rekeys the whirling correction ledger without losing its layers', () => {
+  it('keeps the reverse-whirl cell on the surviving row', () => {
     expect(correctionsFor('whirling_reverse_whirl')).toHaveLength(0);
-    const rekeyed = correctionsFor('whirling_rev_whirl');
-    expect(rekeyed.length).toBeGreaterThanOrEqual(5);
-    const job = rekeyed.find(r => r[1] === 'notation');
-    expect(job![3]).toBe('WHIRLING REV WHIRL');
-    const final = rekeyed.filter(r => r[1] === 'operational_notation').pop();
-    expect(final![3]).toBe('SET > OP FRONT WHIRL [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]');
+    expect(correctionsFor('whirling_rev_whirl')).toHaveLength(0);
+    const final = correctionsFor('bling_blang').filter(r => r[1] === 'operational_notation').pop();
+    expect(final![3]).toBe('CLIP > OP FRONT WHIRL [DEX] >> OP OUT [DEX] > OP CLIP [XBD] [DEL]');
   });
 });
 
@@ -161,14 +160,17 @@ describe('Tier-2 flail-equivalence merges: route resolution contract', () => {
       alias_type: 'technical', alias_display: 0,
     });
     insertFreestyleTrick(db, {
-      slug: 'whirling_rev_whirl', canonical_name: 'whirling rev whirl', adds: '4',
+      slug: 'bling_blang', canonical_name: 'bling blang', adds: '4',
       base_trick: 'rev_whirl', trick_family: 'rev_whirl', category: 'compound',
       review_status: 'expert_reviewed', is_active: 1,
-      notation: 'WHIRLING REV WHIRL',
-      operational_notation: 'SET > OP FRONT WHIRL [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]',
+      notation: 'BLING BLANG',
+      operational_notation: 'CLIP > OP FRONT WHIRL [DEX] >> OP OUT [DEX] > OP CLIP [XBD] [DEL]',
     });
-    insertFreestyleTrickAlias(db, 'whirling_reverse_whirl', 'whirling_rev_whirl', 'whirling reverse whirl', {
-      alias_type: 'common', alias_display: 1,
+    insertFreestyleTrickAlias(db, 'whirling_reverse_whirl', 'bling_blang', 'whirling reverse whirl', {
+      alias_type: 'structural', alias_display: 0,
+    });
+    insertFreestyleTrickAlias(db, 'whirling_rev_whirl', 'bling_blang', 'whirling rev whirl', {
+      alias_type: 'technical', alias_display: 0,
     });
     db.close();
     createApp = await importApp();
@@ -182,16 +184,18 @@ describe('Tier-2 flail-equivalence merges: route resolution contract', () => {
     expect(res.headers.location).toBe('/freestyle/tricks/quantum_flail');
   });
 
-  it('redirects the old whirling slug one hop to the renamed canonical page', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/whirling_reverse_whirl');
-    expect(res.status).toBe(301);
-    expect(res.headers.location).toBe('/freestyle/tricks/whirling_rev_whirl');
+  it('redirects both whirling reverse whirl slugs one hop to Bling Blang', async () => {
+    for (const retired of ['whirling_reverse_whirl', 'whirling_rev_whirl']) {
+      const res = await request(createApp()).get(`/freestyle/tricks/${retired}`);
+      expect(res.status, retired).toBe(301);
+      expect(res.headers.location, retired).toBe('/freestyle/tricks/bling_blang');
+    }
   });
 
   it('serves both survivors directly with no shadowing retired row', async () => {
     const quantum = await request(createApp()).get('/freestyle/tricks/quantum_flail');
     expect(quantum.status).toBe(200);
-    const whirling = await request(createApp()).get('/freestyle/tricks/whirling_rev_whirl');
-    expect(whirling.status).toBe(200);
+    const bling = await request(createApp()).get('/freestyle/tricks/bling_blang');
+    expect(bling.status).toBe(200);
   });
 });
