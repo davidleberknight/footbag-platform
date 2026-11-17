@@ -70,6 +70,24 @@ const FOLDS = [
     dependants: ['overlord', 'pixie_spinning_paradox_blender'],
     movedFields: ['description', 'execution_summary', 'learning_notes', 'prerequisite_notes'],
   },
+  {
+    retired: 'spinning_ducking_paradox_whirl',
+    retiredName: 'spinning ducking paradox whirl',
+    survivor: 'maelstrom',
+    dependants: [],
+    movedFields: [],
+    // Paradox is inside Maelstrom's paradox-whirl base, so only the outer two move.
+    movedLinks: 'spinning|ducking',
+  },
+  {
+    retired: 'spinning_ducking_paradox_drifter',
+    retiredName: 'spinning ducking paradox drifter',
+    survivor: 'morpheus',
+    dependants: [],
+    movedFields: [],
+    // Paradox is inside Morpheus's paradox-drifter base, so only the outer two move.
+    movedLinks: 'spinning|ducking',
+  },
 ];
 
 describe('identity folds: committed source outcomes', () => {
@@ -98,6 +116,10 @@ describe('identity folds: committed source outcomes', () => {
   it.each(FOLDS)('$survivor carries what $retired held', (f) => {
     const fields = corrections.filter(r => toSlug(r[0]) === f.survivor).map(r => r[1]);
     expect(fields).toEqual(expect.arrayContaining(f.movedFields));
+    if ('movedLinks' in f) {
+      const survivor = additions.find(r => toSlug(r[0]) === f.survivor)!;
+      expect(survivor[5]).toBe(f.movedLinks);
+    }
   });
 });
 

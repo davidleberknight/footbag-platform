@@ -1129,10 +1129,6 @@ spinning-paradox-symposium-whirl,notation,,SPINNING PARADOX SYMPOSIUM WHIRL,W9h 
 spinning-paradox-symposium-whirl,operational_notation,,CLIP > (back) SPIN [BOD] > (no plant while) OP IN [PDX] [BOD] [DEX] > OP CLIP [XBD] [DEL],W9h 2026-05-27: spinning swap for ducking in paradox-symposium-whirl chassis. 6 brackets matches 6 ADD.
 spinning-ducking-paradox-mirage,notation,,SPINNING DUCKING PARADOX MIRAGE,W9h 2026-05-27: JOB per mechanical uppercase rule.
 spinning-ducking-paradox-mirage,operational_notation,,CLIP > (back) SPIN [BOD] > DUCK [BOD] > OP IN [PDX] [DEX] > OP TOE [DEL],W9h 2026-05-27: spinning-paradox-mirage + ducking insertion. 5 brackets matches 5 ADD.
-spinning-ducking-paradox-whirl,notation,,SPINNING DUCKING PARADOX WHIRL,W9i 2026-05-27: JOB per mechanical uppercase rule.
-spinning-ducking-paradox-whirl,operational_notation,,CLIP > (back) SPIN [BOD] > DUCK [BOD] > OP IN [PDX] [DEX] > OP CLIP [XBD] [DEL],W9i 2026-05-27: spinning-ducking-paradox-mirage chassis + whirl terminal. 6 brackets matches 6 ADD.
-spinning-ducking-paradox-drifter,notation,,SPINNING DUCKING PARADOX DRIFTER,W9i 2026-05-27: JOB per mechanical uppercase rule.
-spinning-ducking-paradox-drifter,operational_notation,,CLIP > (back) SPIN [BOD] > DUCK [BOD] > OP IN [PDX] [DEX] > SAME CLIP [XBD] [DEL],W9i 2026-05-27: spinning-ducking-paradox-mirage chassis + drifter terminal. 6 brackets matches 6 ADD.
 spinning-ducking-paradox-blender,notation,,SPINNING DUCKING PARADOX BLENDER,W9i 2026-05-27: JOB per mechanical uppercase rule.
 spinning-ducking-paradox-blender,operational_notation,,CLIP > (back) SPIN [BOD] > DUCK [BOD] > OP IN [PDX] [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],W9i 2026-05-27: spinning-ducking-paradox chassis + blender chain. 7 brackets matches 7 ADD.
 spinning-ducking-paradox-symposium-whirl,notation,,SPINNING DUCKING PARADOX SYMPOSIUM WHIRL,W9i 2026-05-27: JOB per mechanical uppercase rule.
@@ -2218,7 +2214,6 @@ spinning-ducking-legover,base_trick,legover,ducking-legover,"Base trick set to t
 spinning-ducking-mirage,base_trick,mirage,ducking-mirage,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
 spinning-ducking-osis,base_trick,osis,ducking-osis,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
 spinning-ducking-paradox-blender,base_trick,blender,ducking-paradox-blender,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
-spinning-ducking-paradox-drifter,base_trick,drifter,ducking-paradox-drifter,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
 spinning-ducking-paradox-mirage,base_trick,mirage,ducking-paradox-mirage,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
 spinning-ducking-paradox-symposium-mirage,base_trick,mirage,ducking-paradox-symposium-mirage,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
 spinning-ducking-paradox-symposium-whirl,base_trick,whirl,mullet,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family; that parent is Mullet, the ducking paradox symposium whirl"
