@@ -205,6 +205,20 @@ const FOLDS = [
     dependants: [],
     movedFields: [],
   },
+  {
+    retired: 'tapping_torque',
+    retiredName: 'tapping torque',
+    survivor: 'spinal_tap',
+    dependants: [],
+    movedFields: ['description'],
+  },
+  {
+    retired: 'ducking_barfly',
+    retiredName: 'ducking barfly',
+    survivor: 'spanishfly',
+    dependants: [],
+    movedFields: ['description', 'execution_summary', 'learning_notes', 'prerequisite_notes'],
+  },
 ];
 
 describe('identity folds: committed source outcomes', () => {

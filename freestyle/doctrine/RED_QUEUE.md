@@ -450,8 +450,12 @@ Each is separable and answered on its own.
   is expert-attested with a live record; both stay distinct with no merge and
   no formula change. Ask for the rules expert: confirm the post-plant
   registration reading, and whether stepped compounds should re-register
-  component sides relative to the planted foot. Close condition: record the
-  ruling and remove this entry.
+  component sides relative to the planted foot. The same reading governs the
+  tapping rows: the stored tapping definition writes the dexterity after the tap
+  as SAME, which Tap, Tapping Legover, Tapping Illusion and Spinal Tap carry,
+  while tapping pickup, whirl, drifter, eggbeater, clipper and guay keep OP;
+  re-registering tapping guay would make it identical to tapping reverse guay.
+  Close condition: record the ruling and remove this entry.
 
 - **Sailing's structural decomposition.** Sailing's scored value is settled:
   a +2 set. Its decomposition is not: the modifier registry note reads
