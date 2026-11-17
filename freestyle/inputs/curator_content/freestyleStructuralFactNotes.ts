@@ -36,6 +36,8 @@ export const MODIFIER_BEGINNER_NOTES: ReadonlyMap<string, string> = new Map([
   // ── Well-defined operators with no curator feel card (NEEDS-CURATOR review) ──
   ['gyro',       'A half body turn carried into the middle of the trick, on the same foot that set the bag.'],
   ['diving',     'A duck where the bag passes over the opposite side of the neck and comes back down on the side it started from.'],
+  ['weaving',    'A duck where the bag passes over the same side of the neck and comes back down on the side it started from.'],
+  ['zulu',       'A duck where the bag passes over the opposite side of the neck and comes down on the other side.'],
   ['swirling',   'Inserts the swirl-cell dexterity, a same-side out dex, ahead of the base (+1).'],
   ['inspinning', 'A forward body turn carried through the middle of the trick.'],
   ['whirling',   'A rotation modifier: a rotational opening run before the base (whirling osis is the blender).'],
