@@ -385,6 +385,37 @@ Each is separable and answered on its own.
   Close condition: record the expert ruling in the ratified-rulings record, apply any
   resulting identity or documentation change, and remove this queue entry.
 
+- **Reverse swirling as a prefix.** Seven active rows carry a reverse swirling
+  prefix: `reverse_swirling_pickup`, `reverse_swirling_osis`,
+  `reverse_swirling_blender`, `reverse_swirling_paradox_torque`,
+  `reverse_swirling_symposium_mirage`, `symposium_reverse_swirling_pickup` and
+  `reverse_swirling_paradox_symposium_whirl`. None can be described yet, because the
+  record gives the prefix no single meaning. Swirling is defined only in its outward
+  form, a same-side outward dexterity ahead of the base; the reverse rule in the
+  operator derivations covers a swirl appended at the end of a trick, not a reverse
+  swirling dexterity in front. The rows also disagree with each other: five open with
+  a same-side inward dexterity (`SET > SAME IN [DEX] > …`), while Reverse Swirling Osis
+  opens with an opposite-side inward dexterity and a forward spin
+  (`SET > OP IN [DEX] > (front) SPIN [BOD] > OP CLIP [XBD] [DEL]`). Three carry a
+  `SAME SYMP [DEX]` token found nowhere else in the dictionary, where the standard
+  form of a no-plant dexterity is `(no plant while)` with `[BOD]`. And Reverse
+  Swirling Paradox Torque is stored on a Torque base while its notation ends
+  `SAME IN [DEX] [PDX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]`, the same-side
+  cell the Reverse Torque entry above shows Torque does not occupy.
+
+  Ask for the rules expert: What does a reverse swirling prefix contribute? Is it the
+  same-side inward dexterity five of the rows show, and if so, is Reverse Swirling
+  Osis's opposite-side form an error or a different movement? Should
+  `SAME SYMP [DEX]` be read as an ordinary no-plant dexterity? Is Reverse Swirling
+  Paradox Torque built on Torque, or on the form Reverse Torque and Same-Side Blender
+  share, which depends on the answer above?
+
+  Until then the seven rows keep their current openings and receive no plain-language
+  rewrite. Close condition: record the ruling in the ratified-rulings record, define
+  the prefix in the operator authority if it is ruled one, correct any row whose
+  notation or base the ruling changes, write the seven openings, and remove this queue
+  entry.
+
 - **Probe vs clipper stall shared notation.** Probe and clipper stall share the
   byte-identical formula `SET > OP CLIP [XBD] [DEL]`. Probe is source-attested
   (footbag.org newmoves 35) as a clipper stall set from the opposite-side
