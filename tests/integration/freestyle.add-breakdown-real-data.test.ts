@@ -39,8 +39,8 @@ const DICTIONARY_LOADERS: readonly (readonly [string, string[]])[] = [
 const KNOWN_UNBALANCED = new Set([
   'armageddon', 'atomic_miraging_butterfly', 'big_apple_sauce', 'blur',
   'blurry_torque', 'blurry_whirl', 'blurry_whirling_swirl',
-  'ducking_paradox_symposium_illusion', 'food_processor', 'genuphobia', 'mofly',
-  'paratoxic', 'pixie_diving_symposium_mirage', 'pixie_over_down',
+  'food_processor', 'genuphobia', 'mofly',
+  'paratoxic', 'pixie_over_down',
   'pixie_quantum_double_over_down_swirl', 'rage', 'spinning_miraging_symposium_torque',
   'sumo', 'symposium_miraging_mirage', 'witchdoctor',
 ]);
