@@ -52,11 +52,11 @@ describe('curated source resolves barraging scoring to Furious', () => {
     expect(row!.toLowerCase()).not.toContain('a barraging barfly');
   });
 
-  it('the Furious Double Leg Over decomposition scores furious(+2), not barraging(+2)', () => {
+  it('Nebula, the furious double leg over, scores furious(2), not barraging(+2)', () => {
     const csv = readFileSync(join(root, 'freestyle/inputs/curated/tricks/red_additions_2026_04_20.csv'), 'utf8');
-    const row = csv.split('\n').find(l => l.startsWith('furious double leg over,'));
-    expect(row, 'furious double leg over row').toBeDefined();
-    expect(row!).toContain('furious(+2) + double-leg-over(3)');
+    const row = csv.split('\n').find(l => l.startsWith('nebula,'));
+    expect(row, 'nebula row').toBeDefined();
+    expect(row!).toContain('furious(2)+double-leg-over(3)');
     expect(row!).not.toContain('barraging(+2)');
   });
 });

@@ -95,7 +95,7 @@ beforeAll(async () => {
   // Gyro concept-first page uses underscore slugs (matching the real DB).
   insertFreestyleTrick(db, { slug: 'gyro_mirage',          canonical_name: 'gyro mirage',          adds: '3', base_trick: 'mirage',  trick_family: 'mirage',  category: 'compound' });
   insertFreestyleTrick(db, { slug: 'gyro_whirl',           canonical_name: 'gyro whirl',           adds: '4', base_trick: 'whirl',   trick_family: 'whirl',   category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'gyro_eggbeater',       canonical_name: 'gyro eggbeater',       adds: '4', base_trick: 'eggbeater', trick_family: 'eggbeater', category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'mantis',               canonical_name: 'mantis',               adds: '4', base_trick: 'eggbeater', trick_family: 'eggbeater', category: 'compound' });
   insertFreestyleTrick(db, { slug: 'gyro_symposium_mirage', canonical_name: 'gyro symposium mirage', adds: '4', base_trick: 'mirage', trick_family: 'mirage', category: 'compound' });
   insertFreestyleTrick(db, { slug: 'gyro_symposium_whirl',  canonical_name: 'gyro symposium whirl',  adds: '5', base_trick: 'whirl',  trick_family: 'whirl',  category: 'compound' });
   insertFreestyleTrick(db, { slug: 'mobius',               canonical_name: 'mobius',               adds: '5', base_trick: 'torque',  trick_family: 'torque',  category: 'compound' });
@@ -113,7 +113,7 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'tapping_butterfly',       canonical_name: 'tapping butterfly',       adds: '4', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound' });
   insertFreestyleTrick(db, { slug: 'tapping_whirl',           canonical_name: 'tapping whirl',           adds: '4', base_trick: 'whirl',     trick_family: 'whirl',     category: 'compound' });
   insertFreestyleTrick(db, { slug: 'tapping_double_leg_over', canonical_name: 'tapping double leg over', adds: '4', base_trick: 'double-leg-over', trick_family: 'double_leg_over', category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'tapping_mirage',          canonical_name: 'tapping mirage',          adds: '3', base_trick: 'mirage',    trick_family: 'mirage',    category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'tap',                     canonical_name: 'tap',                     adds: '3', base_trick: 'mirage',    trick_family: 'mirage',    category: 'compound' });
   insertFreestyleTrick(db, { slug: 'tapping_clipper',         canonical_name: 'tapping clipper',         adds: '3', base_trick: 'clipper',   trick_family: 'clipper',   category: 'compound' });
   insertFreestyleTrick(db, { slug: 'tapping_legover',         canonical_name: 'tapping legover',         adds: '3', base_trick: 'legover',   trick_family: 'legover',   category: 'compound' });
   insertFreestyleTrick(db, { slug: 'tapping_drifter',         canonical_name: 'tapping drifter',         adds: '4', base_trick: 'drifter',   trick_family: 'drifter',   category: 'compound' });

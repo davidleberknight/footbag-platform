@@ -54,6 +54,10 @@ const tricksDir = join(REPO_ROOT, 'freestyle/inputs/curated/tricks');
 const additions = parseCsv(join(tricksDir, 'red_additions_2026_04_20.csv')).slice(1);
 // slug,field,old_value,new_value,source_note
 const corrections = parseCsv(join(tricksDir, 'red_corrections_2026_04_20.csv')).slice(1);
+// trick_canon,adds,base_trick,category,aliases,... A survivor the base dictionary
+// owns takes its inline aliases from this row, not from an expert-additions row
+// that overlays it.
+const baseTricks = parseCsv(join(REPO_ROOT, 'freestyle/inputs/base_dictionary/tricks.csv')).slice(1);
 // alias_slug,action,alias_type,alias_display,note
 const aliasOverrides = parseCsv(
   join(REPO_ROOT, 'freestyle/inputs/base_dictionary/alias_overrides.csv')).slice(1);
@@ -156,6 +160,43 @@ const FOLDS = [
     dependants: [],
     movedFields: [],
   },
+  {
+    retired: 'tapping_mirage',
+    retiredName: 'tapping mirage',
+    survivor: 'tap',
+    dependants: [],
+    movedFields: ['description'],
+  },
+  {
+    retired: 'tapping_leg_over',
+    retiredName: 'tapping leg over',
+    survivor: 'tapping_legover',
+    dependants: [],
+    movedFields: ['operational_notation', 'execution_summary', 'learning_notes', 'prerequisite_notes'],
+  },
+  {
+    retired: 'stepping_butterfly',
+    retiredName: 'stepping butterfly',
+    survivor: 'ripwalk',
+    dependants: [],
+    movedFields: [],
+  },
+  {
+    retired: 'barraging_eggbeater',
+    retiredName: 'barraging eggbeater',
+    survivor: 'clown_face',
+    dependants: [],
+    movedFields: ['operational_notation', 'description'],
+    movedLinks: 'furious',
+  },
+  {
+    retired: 'furious_double_leg_over',
+    retiredName: 'furious double leg over',
+    survivor: 'nebula',
+    dependants: [],
+    movedFields: ['operational_notation', 'description'],
+    movedLinks: 'furious',
+  },
 ];
 
 describe('identity folds: committed source outcomes', () => {
@@ -165,9 +206,10 @@ describe('identity folds: committed source outcomes', () => {
   });
 
   it.each(FOLDS)('$retired is carried on $survivor and retyped to a hidden redirect', (f) => {
-    const survivor = additions.find(r => toSlug(r[0]) === f.survivor);
-    expect(survivor, f.survivor).toBeTruthy();
-    expect(survivor![4].split('|').map(s => s.trim())).toContain(f.retiredName);
+    const rows = [...additions, ...baseTricks].filter(r => toSlug(r[0]) === f.survivor);
+    expect(rows.length, f.survivor).toBeGreaterThan(0);
+    const carried = rows.flatMap(r => (r[4] ?? '').split('|').map(s => s.trim()));
+    expect(carried).toContain(f.retiredName);
     const ov = aliasOverrides.find(r => r[0] === f.retired);
     expect(ov, `override for ${f.retired}`).toBeTruthy();
     expect([ov![1], ov![2], ov![3]]).toEqual(['retype', 'technical', '0']);

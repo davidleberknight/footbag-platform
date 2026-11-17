@@ -3010,7 +3010,6 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'warp',                            // warping(3 = two-dex set, 2nd dex symposium) + mirage(2) = 5; FM lists 7
   // Stepping + base batch (leading-[DEX] chassis; stepping=+1; all bases canonical).
   'stepping_mirage',
-  'stepping_butterfly',
   'stepping_blender',
   'stepping_reaper',
   'stepping_rev_whirl',
@@ -3060,7 +3059,6 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   // Furious-set + base batch (two-dex +2 chassis; furious=+2; historical name barraging; all bases canonical).
   'barraging_barfly',
   'furious_butterfly',
-  'barraging_eggbeater',
   'furious_illusion',
   'furious_legover',
   'furious_mirage',

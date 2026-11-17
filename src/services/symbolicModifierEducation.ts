@@ -751,7 +751,7 @@ const TAPPING_CONTENT: ModifierEducationInput = {
       'These examples illustrate how the same tapping operator prepends its tap across different trick families.',
     examples: [
       {
-        slug:      'tapping_mirage',
+        slug:      'tap',
         baseLabel: 'Basic dex',
       },
       {

@@ -74,7 +74,6 @@ export const FAMILY_OVERRIDES: ReadonlyMap<string, string> = new Map([
   ['chainsaw_massacre', 'eggbeater'],
   ['stepping_ducking_symposium_eggbeater', 'eggbeater'],
   ['spinning_eggbeater', 'eggbeater'],
-  ['barraging_eggbeater', 'eggbeater'],
   ['stepping_ducking_pigbeater', 'eggbeater'],
 
   // Flurry (the anchor carried its legover root; the branch members already
