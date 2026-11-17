@@ -113,6 +113,13 @@ const FOLDS = [
     // Paradox is inside Gangsta Party's paradox-blender base, so only the outer two move.
     movedLinks: 'spinning|ducking',
   },
+  {
+    retired: 'miraging_symposium_paradon',
+    retiredName: 'miraging symposium paradon',
+    survivor: 'mofly',
+    dependants: [],
+    movedFields: ['operational_notation'],
+  },
 ];
 
 describe('identity folds: committed source outcomes', () => {
