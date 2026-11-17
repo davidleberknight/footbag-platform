@@ -589,6 +589,18 @@ Each is separable and answered on its own.
   came from footbag.org text and whose notation the pipeline composed, with the
   symposium on Blur's first dexterity: is it Voodoo under another name, or a distinct
   trick? Both rows stay held, with no opening, until that is ruled.
+- **Two symposium actions in a flailing compound (Bill and Ted).** The flailing
+  derivation rules that a Symposium written after flailing restates the set and adds
+  nothing, unless a source shows two distinct symposium actions, and proves it from
+  Bill Ted's Excellent Adventure being published at 5 ADD. FootbagMoves gives that
+  trick ("Flailing ss Symposium Eggbeater") at 7 ADD with two separate no-plant
+  steps and an X-Dex:
+  `Toe > (no plant while) Op Out (DEX)(BOD) >> (no plant while) Same Out (DEX)(XDEX)(BOD) > Op Out (DEX) > Same Toe (DEL)`,
+  and Bill & Ted's Bogus Journey ("Flailing ss Symposium Double Legover") at 6 with
+  the same two no-plant steps. Ask for the rules expert: is Bill and Ted 5 ADD
+  (flailing on eggbeater) or 7 (flailing, a symposium eggbeater and an X-Dex), and
+  does the redundancy ruling stand? The row (`bill_ted_s_excellent_adventure`, 5 ADD,
+  no notation) stays held, with no opening, until that is ruled.
 
 ## Scoring and structure questions
 
