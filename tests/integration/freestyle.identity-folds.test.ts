@@ -154,13 +154,6 @@ const FOLDS = [
     movedFields: [],
   },
   {
-    retired: 'gyro_barfly',
-    retiredName: 'gyro barfly',
-    survivor: 'bullwhip',
-    dependants: [],
-    movedFields: [],
-  },
-  {
     retired: 'tapping_mirage',
     retiredName: 'tapping mirage',
     survivor: 'tap',

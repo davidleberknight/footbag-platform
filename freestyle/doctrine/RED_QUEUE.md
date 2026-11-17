@@ -518,6 +518,10 @@ Each is separable and answered on its own.
   underlying Down-grid cell identity survives body-spin frame inversion once
   the original set surface is not explicitly written; this is the same
   doctrine class as the Venom "Barfly cell under spin inversion" reading.
+  Bullwhip belongs to the same question: footbag.org move 290 gives it the gyro
+  barfly notation exactly, its folk alias reads "spinning near double down", and
+  the rules expert gave its base trick as gyro at 5 ADD. Whether Bullwhip, gyro
+  barfly and gyro double over down are one movement is this ruling's to make.
   Within-segment bracket order is formatting, not evidence of structural
   difference ([DEL] [XBD] versus [XBD] [DEL]; [DEX] [BOD] versus [BOD] [DEX]).
   No merge, alias change, formula change, bracket-order normalization, scoring
