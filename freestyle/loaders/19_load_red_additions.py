@@ -12,7 +12,8 @@ Writes: database/footbag.db
   - freestyle_trick_source_links    (DELETE + INSERT scoped to source_id='red-husted-2026-04-20';
                                      also UPDATE curated-v1 row's asserted_adds for corrected fields)
   - freestyle_trick_aliases         (DELETE + INSERT scoped to source_id='red-husted-2026-04-20')
-  - freestyle_trick_modifier_links  (DELETE + INSERT scoped to Red's trick slugs)
+  - freestyle_trick_modifier_links  (DELETE + INSERT scoped to Red's trick slugs
+                                     and every row this loader created)
 
 Pipeline ordering: must run AFTER script 17 (curated baseline). Re-running script
 17 wipes Red's source_links / aliases (they're scoped by source_id), so re-run
@@ -264,13 +265,18 @@ def load_additions(conn: sqlite3.Connection, additions_csv: Path, loaded_at: str
         deduped_alias_rows,
     )
 
-    # Modifier links: scoped DELETE (by trick_slug) + INSERT
-    if red_trick_slugs:
-        placeholders = ",".join("?" * len(red_trick_slugs))
-        conn.execute(
-            f"DELETE FROM freestyle_trick_modifier_links WHERE trick_slug IN ({placeholders})",
-            red_trick_slugs,
-        )
+    # Modifier links: scoped DELETE + INSERT. Two scopes. The slugs this input
+    # carries, because it also rewrites rows the base dictionary created. And every
+    # row this loader created, because a row the input no longer carries is retired
+    # at the end of the refresh, and links left on it are a reference that refuses
+    # the retirement.
+    placeholders = ",".join("?" * len(red_trick_slugs))
+    conn.execute(
+        "DELETE FROM freestyle_trick_modifier_links WHERE trick_slug IN "
+        "(SELECT slug FROM freestyle_tricks WHERE trick_origin_producer = ?)"
+        + (f" OR trick_slug IN ({placeholders})" if red_trick_slugs else ""),
+        (EXPERT_ADDITIONS, *red_trick_slugs),
+    )
     conn.executemany(
         """
         INSERT INTO freestyle_trick_modifier_links (trick_slug, modifier_slug, apply_order)

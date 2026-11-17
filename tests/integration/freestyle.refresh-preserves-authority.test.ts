@@ -29,7 +29,11 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import { insertMember } from '../fixtures/factories';
+import {
+  insertMember,
+  insertFreestyleTrick,
+  insertFreestyleTrickModifierLink,
+} from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('4141');
 
@@ -427,6 +431,45 @@ describe('the ruling seed tops up rather than rebuilding', () => {
       conn.prepare('UPDATE freestyle_ev_adjudications SET owner = ? WHERE candidate_id = ?')
         .run(victim.owner, victim.candidate_id);
       runLoaderOrThrow(ADJUDICATION_LOADER);
+    } finally {
+      conn.close();
+    }
+  });
+});
+
+describe('a trick the expert additions stop carrying', () => {
+  // A duplicate row folded into its twin leaves the additions file. Its own
+  // modifier links must go with it, or they are the reference that refuses
+  // its retirement and the whole refresh stops.
+  const DROPPED = 'harness_dropped_expert_compound';
+  let results: ReturnType<typeof runLoader>[] = [];
+  let modifier = '';
+
+  beforeAll(() => {
+    const conn = open();
+    try {
+      modifier = (conn.prepare('SELECT slug FROM freestyle_trick_modifiers LIMIT 1')
+        .get() as { slug: string }).slug;
+      insertFreestyleTrick(conn, {
+        slug: DROPPED, canonical_name: 'harness dropped expert compound',
+        trick_origin_producer: 'expert-additions', is_active: 1,
+      });
+      insertFreestyleTrickModifierLink(conn, DROPPED, modifier);
+    } finally {
+      conn.close();
+    }
+    results = DICTIONARY_LOADERS.map(runLoader);
+  });
+
+  it('retires the row and its links, and the refresh completes', () => {
+    expect(results.map(r => r.status), results.map(r => r.stderr ?? '').join('\n')).toEqual(
+      DICTIONARY_LOADERS.map(() => 0));
+    const conn = open();
+    try {
+      expect(conn.prepare('SELECT 1 FROM freestyle_tricks WHERE slug = ?').get(DROPPED))
+        .toBeUndefined();
+      expect(conn.prepare('SELECT COUNT(*) AS n FROM freestyle_trick_modifier_links WHERE trick_slug = ?')
+        .get(DROPPED)).toEqual({ n: 0 });
     } finally {
       conn.close();
     }

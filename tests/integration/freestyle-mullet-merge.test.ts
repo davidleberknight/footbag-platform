@@ -75,6 +75,35 @@ describe('Mullet merge: committed source outcomes', () => {
   });
 });
 
+describe('Mullet merge: ducking paradox symposium whirl folded in', () => {
+  const RETIRED = 'ducking_paradox_symposium_whirl';
+
+  it('retires the duplicate row with no insertion row and no residual corrections', () => {
+    expect(additions.some(r => toSlug(r[0]) === RETIRED)).toBe(false);
+    expect(corrections.filter(r => toSlug(r[0]) === RETIRED)).toHaveLength(0);
+  });
+
+  it('carries the technical name inline on mullet and retypes it to a hidden redirect', () => {
+    const mullet = additions.find(r => toSlug(r[0]) === 'mullet')!;
+    expect(mullet[4].split('|').map(s => s.trim())).toContain('ducking paradox symposium whirl');
+    const ov = aliasOverrides.find(r => r[0] === RETIRED);
+    expect(ov, `override for ${RETIRED}`).toBeTruthy();
+    expect([ov![1], ov![2], ov![3]]).toEqual(['retype', 'technical', '0']);
+  });
+
+  it('repoints the dependants that were built on the retired row to mullet', () => {
+    for (const dependant of ['spinning_ducking_paradox_symposium_whirl', 'stepping_ducking_paradox_symposium_whirl']) {
+      const baseRows = corrections.filter(r => toSlug(r[0]) === dependant && r[1] === 'base_trick');
+      expect(baseRows.at(-1)?.[3], dependant).toBe('mullet');
+    }
+  });
+
+  it('moves the technique notes to mullet', () => {
+    const fields = corrections.filter(r => toSlug(r[0]) === 'mullet').map(r => r[1]);
+    expect(fields).toEqual(expect.arrayContaining(['execution_summary', 'learning_notes', 'prerequisite_notes']));
+  });
+});
+
 describe('Mullet merge: route resolution contract', () => {
   const { dbPath } = setTestEnv('3404');
   let createApp: Awaited<ReturnType<typeof importApp>>;
@@ -91,6 +120,9 @@ describe('Mullet merge: route resolution contract', () => {
     insertFreestyleTrickAlias(db, 'symposium_tomahawk', 'mullet', 'symposium tomahawk', {
       alias_type: 'technical', alias_display: 0,
     });
+    insertFreestyleTrickAlias(db, 'ducking_paradox_symposium_whirl', 'mullet', 'ducking paradox symposium whirl', {
+      alias_type: 'technical', alias_display: 0,
+    });
     db.close();
     createApp = await importApp();
   });
@@ -99,6 +131,12 @@ describe('Mullet merge: route resolution contract', () => {
 
   it('redirects the retired slug one hop to the surviving canonical page', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/symposium_tomahawk');
+    expect(res.status).toBe(301);
+    expect(res.headers.location).toBe('/freestyle/tricks/mullet');
+  });
+
+  it('redirects the folded technical name to the surviving canonical page', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks/ducking_paradox_symposium_whirl');
     expect(res.status).toBe(301);
     expect(res.headers.location).toBe('/freestyle/tricks/mullet');
   });
