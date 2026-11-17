@@ -546,71 +546,41 @@ describe('GET /freestyle/tricks/:slug — family badge in hero', () => {
     expect(res.text).toMatch(/class="trick-hero-meta-chip trick-hero-meta-chip-family"[^>]*href="\/freestyle\/tricks\?family=whirl"[^>]*>Whirl family</);
   });
 
-  it('same-family peers are surfaced by the Family ladder', async () => {
-    const res = await page('/freestyle/tricks/whirl');
-    // The whirl-family peer spinning-whirl is surfaced via the Family ladder,
-    // not the Related Tricks section.
-    expect(res.text).toContain('content-section trick-family-lineage');
-    const familySection = res.text.split('Family</h2>')[1] ?? '';
-    expect(familySection).toContain('/freestyle/tricks/spinning-whirl');
-  });
-
-  it('stars family-ladder members that hold passback records, and only those', async () => {
-    const res = await page('/freestyle/tricks/spinning-whirl');
-    expect(res.status).toBe(200);
-    const ladder = (res.text.split('content-section trick-family-lineage')[1] ?? '').split('</section>')[0];
-    // whirl holds a passback record: its ladder entry carries the star.
-    expect(ladder).toMatch(/<a href="\/freestyle\/tricks\/whirl">whirl<\/a>\s*<span class="record-indicator"[^>]*>&#9733;<\/span>/);
-    // spinning-whirl holds none: its own (current) entry closes with no star.
-    expect(ladder).toMatch(/<strong>spinning whirl<\/strong>\s*<span class="family-lineage-here">&larr; here<\/span>\s*<\/span>/);
-  });
 });
 
-// Previous Tricks and Next Tricks are not standalone sections; lower-ADD
-// and higher-ADD same-family navigation is owned by the Family ladder.
-describe('GET /freestyle/tricks/:slug — no Previous/Next Tricks sections', () => {
-  it('does not render a Previous Tricks section, surfacing lower-ADD peers via the Family ladder', async () => {
-    // 'spinning-whirl' (5 ADD) has whirl(3) as a lower-ADD family peer.
-    const res = await page('/freestyle/tricks/spinning-whirl');
-    expect(res.status).toBe(200);
-    expect(res.text).not.toContain('Previous Tricks');
-    // The lower-ADD peer is surfaced via the Family ladder instead. Anchor on the
-    // section class, not the heading word: a non-parent's lineage heading reads
-    // "Related", not "Family".
-    expect(res.text).toContain('content-section trick-family-lineage');
-    const familySection = res.text.split('content-section trick-family-lineage')[1] ?? '';
-    expect(familySection).toContain('/freestyle/tricks/whirl');
-  });
+// One section of a trick page, from its data-section marker to its close.
+function sectionOf(html: string, key: string): string {
+  const start = html.indexOf(`data-section="${key}"`);
+  return start < 0 ? '' : html.slice(start, html.indexOf('</section>', start));
+}
 
-  it('does not render a Next Tricks section, surfacing higher-ADD peers via the Family ladder', async () => {
+// Previous Tricks and Next Tricks are not standalone sections; the trick's
+// base chain and the tricks built on it are its Progression.
+// A trick page lists no family members in any form: no Previous/Next Tricks,
+// no progression, no ladder. The family view, one link away, lists them.
+describe('GET /freestyle/tricks/:slug — no family list in any form', () => {
+  // Defect caught: a base's page lists the tricks built on it, which is the
+  // family list the family view already carries.
+  it('whirl lists none of the tricks built on it and links its family view instead', async () => {
     const res = await page('/freestyle/tricks/whirl');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('Next Tricks');
-    // The higher-ADD peer spinning-whirl is surfaced via the Family ladder.
-    expect(res.text).toContain('content-section trick-family-lineage');
-    const familySection = res.text.split('Family</h2>')[1] ?? '';
-    expect(familySection).toContain('/freestyle/tricks/spinning-whirl');
-  });
-});
-
-describe('GET /freestyle/tricks/:slug — Related Tricks section narrowed', () => {
-  // Defect caught: a visitor meets the same family peer twice, on the Family
-  // ladder and again under Related Tricks.
-  it('does not surface same-family peers in Related Tricks', async () => {
-    const res = await page('/freestyle/tricks/whirl');
-    expect(res.status).toBe(200);
-    const ladder = (res.text.split('content-section trick-family-lineage')[1] ?? '').split('</section>')[0]!;
-    expect(ladder).toContain('/freestyle/tricks/spinning-whirl');
-    const relatedStart = res.text.indexOf('data-section="related-tricks"');
-    const related = relatedStart < 0 ? '' : res.text.slice(relatedStart, res.text.indexOf('</section>', relatedStart));
-    expect(related).not.toContain('/freestyle/tricks/spinning-whirl');
+    expect(res.text).not.toContain('data-section="progression"');
+    expect(res.text).not.toContain('href="/freestyle/tricks/spinning-whirl"');
+    expect(sectionOf(res.text, 'related-tricks')).toContain('data-family-browse');
   });
 
-  it('Related Tricks section is omitted when no conceptual neighbours exist', async () => {
-    // 'legover' is in the dictionary but has no curated movement neighbours.
-    const res = await page('/freestyle/tricks/legover');
+  // Defect caught: a compound loses the base it builds on, or a record marker
+  // returns to the relationship section. whirl holds a record.
+  it('spinning-whirl names its base in the build path, and Related Tricks carries no record marker', async () => {
+    const res = await page('/freestyle/tricks/spinning-whirl');
     expect(res.status).toBe(200);
-    expect(res.text).not.toContain('Related Tricks');
+    expect(res.text).not.toContain('Previous Tricks');
+    expect(res.text).toMatch(/<dd data-build-path>Whirl /);
+    const related = sectionOf(res.text, 'related-tricks');
+    expect(related).toContain('data-family-browse');
+    expect(related).not.toContain('&#9733;');
+    expect(related).not.toContain('Has trick records');
   });
 });
 

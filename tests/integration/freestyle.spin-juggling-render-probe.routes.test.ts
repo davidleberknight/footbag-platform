@@ -45,13 +45,6 @@ describe('spin/juggling rendering probe', () => {
     expect(res.text).toMatch(/op-token[^>]*>SPIN</);
   });
 
-  it('spin cross-links to its operator collection (See also: Spinning tricks)', async () => {
-    const res = await page('/freestyle/tricks/spin');
-    expect(res.text).toContain('See also:');
-    expect(res.text).toContain('Spinning tricks');
-    expect(res.text).toContain('href="/freestyle/modifier/spinning"');
-  });
-
   it('double-spin renders both SPIN tokens in JOB block', async () => {
     const res = await page('/freestyle/tricks/double-spin');
     expect(res.text).toContain('notation-display');

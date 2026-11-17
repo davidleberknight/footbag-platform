@@ -136,13 +136,11 @@ const NEIGHBORHOOD_GROUPS: readonly (readonly string[])[] = [
   ['around_the_world', 'inside_around_the_world', 'outside_around_the_world'],
 ];
 
-// Base-atom -> same-named operator cross-link. A base atom (spin, whirl) and the
-// operator built from it (spinning, whirling) sit in separate rows with no
-// family / base / neighbour rule connecting them, so the atom's detail page never
-// points at the operator's tricks and the reader has to infer the relationship.
-// This curated map adds an explicit "See also: <Operator> tricks" link from the
-// atom to the operator's collection. Curator-extensible; each value must be a
-// real operator/modifier so the link resolves.
+// Base atom -> same-named operator. A base atom (spin, whirl) and the operator
+// built from it (spinning, whirling) sit in separate rows with no family / base
+// / neighbour rule connecting them. The operator's page links back to its atom
+// through this curated map; the atom's trick page carries no link the other
+// way. Curator-extensible; each value must be a real operator/modifier.
 export const ATOM_OPERATOR_CROSSLINKS: Readonly<Record<string, string>> = {
   spin:     'spinning',
   whirl:    'whirling',
@@ -152,14 +150,8 @@ export const ATOM_OPERATOR_CROSSLINKS: Readonly<Record<string, string>> = {
   barrage:  'barraging',
 };
 
-/** The operator slug a base atom cross-links to, or null when it has none. */
-export function operatorCrossLinkFor(slug: string): string | null {
-  return ATOM_OPERATOR_CROSSLINKS[slug] ?? null;
-}
-
 // Inverse of ATOM_OPERATOR_CROSSLINKS, so the operator's page links back to its
-// base atom (spinning -> spin), making the relationship discoverable from either
-// direction.
+// base atom (spinning -> spin).
 const OPERATOR_BASE_ATOMS: Readonly<Record<string, string>> = Object.fromEntries(
   Object.entries(ATOM_OPERATOR_CROSSLINKS).map(([atom, op]) => [op, atom]),
 );
@@ -465,26 +457,25 @@ export function buildRelativeSideVariants(
 }
 
 // ---------------------------------------------------------------------------
-// Structural relatives — ranked "similar tricks" by structural relationship
+// Closest relatives
 // ---------------------------------------------------------------------------
 //
-// A structural relative is another canonical trick that shares real structure
-// with the current one: the same base, the same family / terminal, a meaningful
-// overlap in established operators, or a difference of exactly one operator. Each
-// relative carries a plain-words reason so the reader can tell WHY it is listed.
+// A trick page names a handful of tricks, never a whole family: the family's
+// full membership is the dictionary's family view, one link away. The page's
+// own relatives are only those a curator related to the trick: curated
+// movement neighbours, curated structural relatives, and the stored reverse
+// pair. No relative is computed from a shared base, a family label, shared
+// operators or name similarity.
 //
-// A minimum-relationship threshold applies: a candidate that shares none of those
-// signals is not a relative, so an unrelated trick is never listed to pad the
-// section to a fixed count. The section may show as few as zero relatives.
-//
-// Exclusions: the trick itself, inactive rows (callers pass the already-active
-// dictionary), operators / modifiers / pending-review rows (the row's kind must
-// be 'trick'), and alias objects (aliases are not rows in the trick table, so a
-// row-based ranker never surfaces one). Links are canonical detail URLs only.
-//
-// Curated overrides: a structurally exceptional page (a frontier compound whose
-// best relatives are editorial knowledge, not a formula score) may pin its own
-// ordered relatives, which then replace the ranked output for that page.
+// The list holds public tricks only: a modifier, set, operator, catch-surface
+// or under-review row has its own page or none, so it is never linked as a
+// trick. Inactive rows never arrive (callers pass the active dictionary).
+
+/** A trick a relationship list may link to: a public trick row. */
+function isPublicTrickRow(r: FreestyleTrickRow): boolean {
+  return r.category !== 'modifier' && r.category !== 'set' && r.category !== 'operator'
+    && trickKindOf(r) === 'trick';
+}
 
 export interface FreestyleStructuralRelative {
   slug:          string;
@@ -546,31 +537,10 @@ export function observationalNotesFor(slug: string): readonly FreestyleObservati
   return CURATED_OBSERVATIONAL_NOTES[slug] ?? [];
 }
 
-// Multiset comparison of two operator lists: how many operators they share, and
-// which are unique to each side (with multiplicity).
-function operatorSetDiff(
-  currentMods: readonly string[],
-  candidateMods: readonly string[],
-): { shared: number; currentOnly: string[]; candidateOnly: string[] } {
-  const pool = [...candidateMods];
-  const currentOnly: string[] = [];
-  let shared = 0;
-  for (const m of currentMods) {
-    const i = pool.indexOf(m);
-    if (i >= 0) { pool.splice(i, 1); shared++; }
-    else currentOnly.push(m);
-  }
-  return { shared, currentOnly, candidateOnly: pool };
-}
-
-function humanizeSlug(slug: string): string {
-  return slug.replace(/[-_]/g, ' ');
-}
-
 /**
  * The public family a row renders under: a curator family override first, then
  * the raw trick_family, folded to its display family. Null when the label is not
- * a public family. This is the resolution the trick page's family ladder and the
+ * a public family. This is the resolution the trick page's family links and the
  * family browse use, so a raw sub-label never splits a family in two.
  */
 export function effectiveFamilyOf(
@@ -582,226 +552,49 @@ export function effectiveFamilyOf(
 }
 
 /**
- * The slugs the current trick's family ladder lists, the current trick included:
- * every trick, compound or move (not a modifier, set or operator row) whose
- * effective family is the current trick's. Empty when the trick has no public
- * family, since then no ladder renders.
+ * Build the trick's closest relatives, at most STRUCTURAL_RELATIVE_MAX of them,
+ * in this order, each source contributing only what the earlier ones did not:
+ *   1. the curated movement neighbours the caller passes (`neighbours`);
+ *   2. the trick's curated structural relatives, for the few exceptional pages
+ *      that carry them;
+ *   3. its stored reverse pair, in both directions (the trick this one reverses,
+ *      and any trick stored as reversing this one).
+ * Nothing else is a relative: no shared base, family label, shared operator or
+ * name fragment. A trick in `exclude` (the page's other relationship lists) is
+ * never listed again.
  */
-export function familyLadderSlugs(
-  current: { trick_family: string | null; family_override: string | null },
-  allRows: readonly FreestyleTrickRow[],
-  resolve: FamilyResolver = resolveDisplayFamily,
-): Set<string> {
-  const family = effectiveFamilyOf(current, resolve);
-  if (!family) return new Set();
-  return new Set(
-    allRows
-      .filter(r =>
-        r.category !== 'modifier' && r.category !== 'set' && r.category !== 'operator'
-        && effectiveFamilyOf(r, resolve) === family,
-      )
-      .map(r => r.slug),
-  );
-}
-
-/**
- * Build the ranked "similar tricks" list for a trick.
- *
- * Ranking (highest first), each with a plain-words reason:
- *   1. same base trick;
- *   2. one established operator added or removed (with family or shared-operator
- *      context, so a one-operator delta between unrelated tricks does not count);
- *   3. same family or terminal;
- *   4. meaningful established-operator overlap (two or more shared operators).
- * A candidate matching none of these is below threshold and is omitted. A
- * curated override, when present, replaces the ranked output for that page.
- *
- * A trick the family ladder already lists is never a structural relative, in
- * the ranked output or a curated override: same-family progression belongs to
- * the ladder, and the two sections do not repeat one another.
- *
- * `modifierLinks` are the (trick_slug, modifier_slug) rows for the whole
- * dictionary; the operator multiset per trick is derived from them. `resolve`
- * folds a family label to its public family.
- */
-export function buildStructuralRelatives(
+export function buildClosestRelatives(
   current: FreestyleTrickRow,
   allRows: readonly FreestyleTrickRow[],
-  modifierLinks: readonly { trick_slug: string; modifier_slug: string }[],
-  resolve: FamilyResolver = resolveDisplayFamily,
+  opts: {
+    neighbours: readonly { slug: string; reason: string }[];
+    exclude:    ReadonlySet<string>;
+  } = { neighbours: [], exclude: new Set() },
 ): FreestyleStructuralRelative[] {
   const rowBySlug = new Map(allRows.map(r => [r.slug, r] as const));
-  const nameOf = (slug: string | null): string =>
-    slug ? (rowBySlug.get(slug)?.canonical_name ?? humanizeSlug(slug)) : '';
 
-  const shapeRelative = (row: FreestyleTrickRow, reason: string): FreestyleStructuralRelative => ({
-    slug:          row.slug,
-    canonicalName: row.canonical_name,
-    hashtag:       slugToHashtag(row.slug),
-    adds:          row.adds,
-    detailHref:    `/freestyle/tricks/${row.slug}`,
-    reason,
-  });
+  const out: FreestyleStructuralRelative[] = [];
+  const taken = new Set<string>([current.slug, ...opts.exclude]);
+  const add = (slug: string, reason: string): void => {
+    if (out.length >= STRUCTURAL_RELATIVE_MAX || taken.has(slug)) return;
+    const row = rowBySlug.get(slug);
+    if (!row || !isPublicTrickRow(row)) return;
+    taken.add(slug);
+    out.push({
+      slug:          row.slug,
+      canonicalName: row.canonical_name,
+      hashtag:       slugToHashtag(row.slug),
+      adds:          row.adds,
+      detailHref:    `/freestyle/tricks/${row.slug}`,
+      reason,
+    });
+  };
 
-  const onLadder = familyLadderSlugs(current, allRows, resolve);
-
-  // Curated override wins: pin the editorial relatives, dropping any whose target
-  // is not an active canonical row or is already on the family ladder.
-  const curated = CURATED_STRUCTURAL_RELATIVES[current.slug];
-  if (curated) {
-    const out: FreestyleStructuralRelative[] = [];
-    for (const { slug, reason } of curated) {
-      const row = rowBySlug.get(slug);
-      if (row && row.slug !== current.slug && !onLadder.has(row.slug)
-          && trickKindOf(row) === 'trick') {
-        out.push(shapeRelative(row, reason));
-      }
-      if (out.length >= STRUCTURAL_RELATIVE_MAX) break;
-    }
-    return out;
+  for (const n of opts.neighbours) add(n.slug, n.reason);
+  for (const c of CURATED_STRUCTURAL_RELATIVES[current.slug] ?? []) add(c.slug, c.reason);
+  if (current.reverse_pair_base) add(current.reverse_pair_base, 'The trick this one reverses');
+  for (const r of allRows) {
+    if (r.reverse_pair_base === current.slug) add(r.slug, 'Reverses this trick');
   }
-
-  const modsBySlug = new Map<string, string[]>();
-  for (const l of modifierLinks) {
-    const arr = modsBySlug.get(l.trick_slug) ?? [];
-    arr.push(l.modifier_slug);
-    modsBySlug.set(l.trick_slug, arr);
-  }
-  const currentMods = modsBySlug.get(current.slug) ?? [];
-
-  const eligible = allRows.filter(
-    r => r.slug !== current.slug && !onLadder.has(r.slug)
-      && r.category !== 'modifier' && trickKindOf(r) === 'trick',
-  );
-
-  const curAdd = current.adds == null ? 0 : Number.parseInt(current.adds, 10);
-  interface Scored { row: FreestyleTrickRow; score: number; reason: string; closeness: number }
-  const scored: Scored[] = [];
-  for (const cand of eligible) {
-    const candMods = modsBySlug.get(cand.slug) ?? [];
-    // Two operator-less tricks are not structural relatives even when they share
-    // a base or family label: there is no operator structure in common, only the
-    // empty-operator-set noise the adjacency layer also suppresses. A base atom's
-    // real relatives are the compounds that carry operators on top of it.
-    if (currentMods.length === 0 && candMods.length === 0) continue;
-    const candAdd = cand.adds == null ? 0 : Number.parseInt(cand.adds, 10);
-    const addDistance = Math.abs(candAdd - curAdd);
-    const sameBase = !!current.base_trick && cand.base_trick === current.base_trick;
-    // A family match counts only when the current trick has a real, named family:
-    // not empty and not its own slug. Two family-less tricks (both blank) must not
-    // read as "Same family", and a self-family trick has no family peers.
-    const hasNamedFamily = !!current.trick_family && current.trick_family !== current.slug;
-    const sameFamily = hasNamedFamily && cand.trick_family === current.trick_family;
-    const { shared, currentOnly, candidateOnly } = operatorSetDiff(currentMods, candMods);
-    const symDiff = currentOnly.length + candidateOnly.length;
-
-    let score = 0;
-    let reason = '';
-    if (sameBase) {
-      score = 100;
-      // The operator sets come from freestyle_trick_modifier_links, which is
-      // known-incomplete: an empty set does not prove a compound carries no
-      // operator (many carry it in their identity with no link row). So the
-      // symmetric difference cannot support an "operator fewer" or "operator more"
-      // claim, and a lower ADD does not prove a candidate is this trick minus one
-      // operator either. Until the data model carries an explicit
-      // operator-metadata-complete signal, every same-base relationship reads
-      // neutral. The closeness ranking below still uses the operator-set delta.
-      reason = `Same ${nameOf(current.base_trick!)} base, different operator treatment`;
-    } else if (sameFamily) {
-      score = 80;
-      reason = `Same ${nameOf(current.trick_family)} family`;
-    } else if (shared >= 2) {
-      score = 40 + shared;
-      // List the shared operators so the reason names the actual overlap.
-      const sharedOps = currentMods.filter(m => candMods.includes(m));
-      reason = `Shares ${[...new Set(sharedOps)].join(' + ')}`;
-    } else {
-      continue; // below the minimum-relationship threshold
-    }
-    // Closeness: prefer the nearest structural neighbour within a score tier, by
-    // operator-set difference first, then ADD distance. This keeps a generic
-    // same-family match in a very large family from crowding out a closer one.
-    const closeness = symDiff * 100 + addDistance;
-    scored.push({ row: cand, score, reason, closeness });
-  }
-
-  scored.sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
-    if (a.closeness !== b.closeness) return a.closeness - b.closeness;
-    return a.row.slug.localeCompare(b.row.slug);
-  });
-
-  return scored.slice(0, STRUCTURAL_RELATIVE_MAX).map(s => shapeRelative(s.row, s.reason));
-}
-
-/**
- * High-confidence structural About fallback: a one-line reading for a compound
- * whose database description is empty or a suppressed placeholder, naming the
- * base, the terminal, and the single added operator.
- *
- * Returns null (an absent About, i.e. accurate silence) unless every required
- * fact is confidently known:
- *   - the base is a real canonical row distinct from this trick, with a build
- *     chain (a known base and terminal identity);
- *   - the trick's family is present (a recognized terminal);
- *   - the trick adds EXACTLY ONE operator over its parent, and that operator is
- *     established and resolved (`isEstablishedOperator`), so the single defining
- *     layer is unambiguous and not a misleading claim for a multi-phase stack;
- *   - the sentence would not repeat the trick name ("X builds on X").
- * The established-operator test is injected so the caller supplies the doctrine
- * source (an operator with a Tier-1 definition) without this module importing it.
- */
-export function buildStructuralAbout(
-  current: FreestyleTrickRow,
-  allRows: readonly FreestyleTrickRow[],
-  modifierLinks: readonly { trick_slug: string; modifier_slug: string }[],
-  isEstablishedOperator: (slug: string) => boolean,
-): string | null {
-  if (!current.base_trick || current.base_trick === current.slug) return null;
-  const rowBySlug = new Map(allRows.map(r => [r.slug, r] as const));
-  const baseRow = rowBySlug.get(current.base_trick);
-  if (!baseRow || !baseRow.canonical_name) return null;
-  if (!current.trick_family) return null;
-
-  // Base chain must reach at least one ancestor (a real build path).
-  let cur: string | null = current.base_trick;
-  const seen = new Set<string>([current.slug]);
-  let ancestors = 0;
-  while (cur && !seen.has(cur) && rowBySlug.has(cur)) {
-    seen.add(cur);
-    ancestors++;
-    const next: string | null = rowBySlug.get(cur)!.base_trick;
-    cur = next && next !== cur ? next : null;
-  }
-  if (ancestors === 0) return null;
-
-  const mods = new Map<string, string[]>();
-  for (const l of modifierLinks) {
-    const a = mods.get(l.trick_slug) ?? [];
-    a.push(l.modifier_slug);
-    mods.set(l.trick_slug, a);
-  }
-  const thisMods = [...(mods.get(current.slug) ?? [])];
-  const parentMods = [...(mods.get(current.base_trick) ?? [])];
-  const added: string[] = [];
-  for (const m of thisMods) {
-    const i = parentMods.indexOf(m);
-    if (i >= 0) parentMods.splice(i, 1);
-    else added.push(m);
-  }
-  if (added.length !== 1) return null;
-  if (!isEstablishedOperator(added[0]!)) return null;
-
-  const baseName = baseRow.canonical_name;
-  const thisName = current.canonical_name;
-  if (baseName.toLowerCase() === thisName.toLowerCase()) return null;
-
-  const cap = (n: string): string => n.replace(/\b\w/g, c => c.toUpperCase());
-  const familyRow = rowBySlug.get(current.trick_family);
-  const familyName = familyRow ? familyRow.canonical_name : '';
-  const op = added[0]!.replace(/[-_]/g, ' ');
-  return familyName && familyName.toLowerCase() !== baseName.toLowerCase()
-    ? `${cap(thisName)} builds on ${cap(baseName)}, adding the ${op} operator on a ${familyName} terminal.`
-    : `${cap(thisName)} builds on ${cap(baseName)}, adding the ${op} operator.`;
+  return out;
 }

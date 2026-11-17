@@ -23,9 +23,9 @@
     Trick-detail architecture: one universal shell with variable depth. A
     section that only repeats another is not drawn: the opening carries the
     build path and the parent delta, Structure at a glance is the one modifier
-    block, Technique Notes are the one teaching surface, and two relationship
-    sections own the rest: the Family ladder owns same-family progression, and
-    Related Tricks owns every other neighbour, structural relatives included.
+    block, Technique Notes are the one teaching surface, open, and Related
+    Tricks owns the few relatives a curator related to the trick plus the
+    family links. No section lists the whole family; the family view does.
   --}}
   {{!-- Above the fold, in the order a detail page orients: plain words saying
        what the trick is, then the taxonomy chips that classify it, then the
@@ -65,14 +65,15 @@
 
   {{> trick-modifier-layering}}
 
-  {{!-- Technique Notes: execution, learning, and prerequisites grouped into one
-       compact disclosure, collapsed by default so the page does not grow. Sits
-       below the canonical reference material and stays distinct from the
-       canonical About explanation and from community-contributed tips. --}}
+  {{!-- Technique Notes: execution, learning, and prerequisites, the page's one
+       teaching surface, open in its own section so a reader meets the coaching
+       without opening anything. Sits below the canonical reference material and
+       stays distinct from the canonical About explanation. --}}
   {{#if content.ux2Pilot.hasTechniqueNotes}}
   <section id="technique-notes" class="content-section" aria-label="Technique Notes">
-    <details class="trick-technique-collapsible">
-      <summary><h2>Technique Notes</h2></summary>
+    <div class="section-heading">
+      <h2>Technique Notes</h2>
+    </div>
       {{#if content.ux2Pilot.executionParagraphs.length}}
       <div class="trick-technique-part">
         <h3 class="trick-technique-heading">Execution</h3>
@@ -97,16 +98,12 @@
         {{/each}}
       </div>
       {{/if}}
-    </details>
   </section>
   {{/if}}
 
   {{!-- Terminal-derived "what lands here" cohort for non-family terminal atoms
-       (toe_stall / clipper_stall). Suppressed where the Family ladder already
-       owns the terminal. --}}
+       (toe_stall / clipper_stall). A terminal that is a family carries none. --}}
   {{> trick-terminal-derived}}
-
-  {{> trick-family}}
 
   {{> trick-quantity-ladder}}
 

@@ -2586,6 +2586,9 @@ export interface FreestyleTrickRow {
   trick_kind:               string | null;
   terminal_cohort:          string | null;
   terminal_cohort_position: number | null;
+  // The trick this one reverses, when a curator has named one; a trick page
+  // lists the pair as each other's closest relatives.
+  reverse_pair_base:        string | null;
 }
 
 // Extension of FreestyleTrickRow that also carries the operational-notation and
@@ -2686,7 +2689,8 @@ export const freestyleTricks = {
   get listAll() { return db.prepare(`
     SELECT slug, canonical_name, adds, base_trick, trick_family, category,
            description, aliases_json, notation, operational_notation, sort_order,
-           family_override, trick_kind, terminal_cohort, terminal_cohort_position
+           family_override, trick_kind, terminal_cohort, terminal_cohort_position,
+           reverse_pair_base
     FROM freestyle_tricks
     WHERE is_active = 1
     ORDER BY sort_order ASC
@@ -2700,7 +2704,8 @@ export const freestyleTricks = {
     SELECT slug, canonical_name, adds, base_trick, trick_family, category,
            description, aliases_json, notation, sort_order, is_active,
            review_status, operational_notation, operational_notation_source,
-           family_override, trick_kind, terminal_cohort, terminal_cohort_position
+           family_override, trick_kind, terminal_cohort, terminal_cohort_position,
+           reverse_pair_base
     FROM freestyle_tricks
     WHERE is_active = 1
        OR (is_active = 0 AND review_status = 'pending')

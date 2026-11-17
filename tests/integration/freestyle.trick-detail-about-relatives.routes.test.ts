@@ -1,11 +1,10 @@
 /**
  * Trick-detail About fallback and structurally-related-tricks rendering.
  *
- *   - A single established-operator compound with no usable database description
- *     renders the high-confidence generated About line (base + operator).
+ *   - A compound with no usable database description opens with its build path
+ *     and no generated sentence in place of a description.
  *   - A thin / placeholder database description is never displayed publicly, and
- *     a page that does not qualify for the generated fallback shows no About prose
- *     at all (accurate silence over generic filler).
+ *     nothing generated stands in for it (accurate silence over generic filler).
  *   - A family-null trick with no structural relationship renders no
  *     Structurally related tricks section.
  */
@@ -48,11 +47,14 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('trick-detail About fallback + relatives', () => {
-  it('renders the high-confidence generated About for a single established-operator compound', async () => {
+  // Defect caught: a page with no stored description opens with a sentence
+  // assembled from its parts, which repeats the build path beside it.
+  it('opens a description-less compound with its build path and no generated sentence', async () => {
     const res = await page('/freestyle/tricks/spinning_whirl');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('data-structural-about');
-    expect(res.text).toContain('Spinning Whirl builds on Whirl, adding the spinning operator.');
+    expect(res.text).toContain('data-build-path');
+    expect(res.text).not.toContain('data-structural-about');
+    expect(res.text).not.toContain('builds on');
   });
 
   it('no longer renders a separate Structural Neighbors block (consolidated into Structurally related tricks)', async () => {

@@ -5,17 +5,16 @@
  * resolving each row to the public family it renders under, not the raw
  * trick_family. Three surfaces are covered:
  *   - the hero family chip (.trick-hero-meta-chip-family),
- *   - the family-lineage ladder section (.trick-family-lineage),
- *   - the family-anchor callout.
+ *   - the family browse link in Related Tricks (data-family-browse).
  *
  * Behaviors pinned:
  *   1. A derived-branch family resolves to itself: a torque-family compound
  *      shows the Torque family, and the chip href targets it.
- *   2. A family ladder includes its own members (consistent ladder on family
- *      and member pages) and does not absorb a sibling family's members.
+ *   2. A family's browse link targets that family, never a sibling or parent
+ *      family that would absorb its members.
  *   3. Whirl and swirl resolve to their own separate families.
  *   4. A route-out family (foundational surface / modifier ecosystem) suppresses
- *      the family chip AND the family-lineage section — no misleading
+ *      the family chip AND the family link — no misleading
  *      "<surface/ecosystem> family".
  *   No trick_family data is overwritten; resolution is the reversible content map.
  */
@@ -30,6 +29,13 @@ import {
 } from '../fixtures/testDb';
 import { seedStagedFamilies } from '../fixtures/stagedFamilies';
 import { insertFreestyleTrick } from '../fixtures/factories';
+import { STAGED_FAMILIES } from '../../freestyle/inputs/curator_content/freestyleFamilies';
+
+const familyNote = (slug: string): string => {
+  const note = STAGED_FAMILIES.find(f => f.slug === slug)?.trickPageNote;
+  if (!note) throw new Error(`the staged ${slug} family carries no trick-page note`);
+  return note;
+};
 
 const { dbPath } = setTestEnv('3532');
 
@@ -49,8 +55,10 @@ beforeAll(async () => {
     // Osis family + native member
     t('osis', 'osis', 'dex'),
     t('spinning-osis', 'osis'),
-    // Torque family (derived branch, resolves to itself) + member
-    t('torque', 'torque', 'dex'),
+    // Torque family (derived branch, resolves to itself) + member. The anchor
+    // is stored as the real dictionary stores it: under the osis label, with a
+    // curator family override to torque.
+    { ...t('torque', 'osis', 'dex'), family_override: 'torque' },
     t('paradox-torque', 'torque'),
     // Whirl family + member
     t('whirl', 'whirl', 'dex'),
@@ -93,15 +101,23 @@ describe('Trick-detail family context — families resolve to themselves', () =>
     expect(html).toContain('class="trick-also-family-chip" href="/freestyle/tricks?family=osis">Osis family</a>');
   });
 
-  it('the Torque family ladder includes its members and the Osis ladder does not absorb them', async () => {
+  // Defect caught: a branch family's anchor, stored under its parent's label,
+  // shows the parent family's paragraph (torque showing the osis note) and
+  // never its own. The two notes are read from the staged families the
+  // rebuild seeds.
+  it('the torque anchor shows the torque family paragraph, and the osis anchor the osis one', async () => {
     const torque = await page('torque');
-    expect(torque).toContain('trick-family-lineage');
-    // Ladder members render as detail links within the lineage section.
-    expect(torque).toContain('href="/freestyle/tricks/paradox-torque"');
-    // The osis ladder lists its own members, not the torque-label rows.
-    const osis = await page('osis');
-    expect(osis).toContain('href="/freestyle/tricks/spinning-osis"');
-    expect(osis).not.toContain('href="/freestyle/tricks/paradox-torque"');
+    expect(torque).toContain(familyNote('torque'));
+    expect(torque).not.toContain(familyNote('osis'));
+    expect(await page('osis')).toContain(familyNote('osis'));
+  });
+
+  // Defect caught: a branch family's trick sends a reader to its parent root's
+  // membership, so the Torque tricks appear to belong to Osis.
+  it('a torque-family trick and an osis-family trick each link their own family\'s membership', async () => {
+    const browse = /<a class="action-link" href="([^"]+)" data-family-browse>/;
+    expect((await page('paradox-torque')).match(browse)?.[1]).toMatch(/family(?:&#x3D;|-)torque$/);
+    expect((await page('spinning-osis')).match(browse)?.[1]).toMatch(/family(?:&#x3D;|-)osis$/);
   });
 
   it('whirl and swirl resolve to their own separate families', async () => {
@@ -117,15 +133,15 @@ describe('Trick-detail family context — families resolve to themselves', () =>
 });
 
 describe('Trick-detail family context — route-outs suppress the family surfaces', () => {
-  it('a foundational-surface family (clipper-stall) shows no family chip and no lineage section', async () => {
+  it('a foundational-surface family (clipper-stall) shows no family chip and no family link', async () => {
     const html = await page('clipper-stall');
     expect(html).not.toContain('trick-hero-meta-chip-family');
-    expect(html).not.toContain('trick-family-lineage');
+    expect(html).not.toContain('data-family-browse');
   });
 
-  it('a modifier-ecosystem family (pixie) shows no family chip and no lineage section', async () => {
+  it('a modifier-ecosystem family (pixie) shows no family chip and no family link', async () => {
     const html = await page('big-pixie');
     expect(html).not.toContain('trick-hero-meta-chip-family');
-    expect(html).not.toContain('trick-family-lineage');
+    expect(html).not.toContain('data-family-browse');
   });
 });

@@ -1,30 +1,22 @@
 /**
- * Unit tests for buildStructuralRelatives and the outside-source notes.
+ * Unit tests for a trick page's closest relatives and its outside-source notes.
  *
- * The structural-relatives engine ranks "similar tricks" by real structure
- * (same base, same family or terminal, established-operator overlap, or a
- * one-operator delta), applies a minimum-relationship threshold so unrelated
- * tricks are never listed to pad a count, excludes self / operators / modifiers /
- * pending rows and every trick the family ladder already lists, and lets a structurally exceptional page pin curated relatives.
- * The two named 8-ADD frontier compounds (Carousel and Big Apple Sauce) must
- * receive useful, valid relatives, and an outside-source name that the platform
- * does not adopt appears only as a labelled note.
+ * Closest relatives are only the tricks a curator related to the trick:
+ * curated movement neighbours, curated structural relatives and the stored
+ * reverse pair, at most six. A shared base, a family label or shared operators
+ * never make a relative; a modifier, set or under-review row is never one; and
+ * a trick the page lists elsewhere is never listed again. The two named 8-ADD
+ * frontier compounds (Carousel and Big Apple Sauce) receive their curated
+ * relatives, and an outside-source name the platform does not adopt appears
+ * only as a labelled note.
  */
 import { describe, it, expect } from 'vitest';
 import { FreestyleTrickRow } from '../../src/db/db';
 import {
-  buildStructuralRelatives,
-  buildStructuralAbout,
+  buildClosestRelatives,
   observationalNotesFor,
 } from '../../src/services/freestyleRelatedTricks';
 import { COMPOUND_SEMANTIC_DESCRIPTIONS } from '../../freestyle/inputs/curator_content/freestyleSemanticOverridesData';
-import { STAGED_FAMILIES, STAGED_FAMILY_SUBLABELS } from '../../freestyle/inputs/curator_content/freestyleFamilies';
-
-// The family folding the rebuild seeds: a family slug is its own family, a
-// folded label is the family it folds into.
-const STAGED_SLUGS = new Set(STAGED_FAMILIES.map(f => f.slug));
-const stagedResolve = (label: string): string | null =>
-  STAGED_SLUGS.has(label) ? label : (STAGED_FAMILY_SUBLABELS.get(label) ?? null);
 
 const getCompoundSemanticDescription = (slug: string): string | null =>
   COMPOUND_SEMANTIC_DESCRIPTIONS.get(slug) ?? null;
@@ -47,8 +39,13 @@ function row(
     aliases_json: null,
     notation:     null,
     sort_order:   0,
+    trick_kind:   null,
+    reverse_pair_base: null,
   } as unknown as FreestyleTrickRow;
 }
+
+const slugsOf = (list: readonly { slug: string }[]): string[] => list.map(r => r.slug);
+const NONE = { neighbours: [], exclude: new Set<string>() };
 
 // Carousel + its curated relatives, and Big Apple Sauce + its curated relatives.
 const CAROUSEL = 'surging_ducking_paradox_symposium_whirling_rake';
@@ -62,34 +59,26 @@ const smsTorque     = { ...row('spinning_miraging_symposium_torque', '7', 'compo
 
 const ALL = [carousel, pswRake, sdpTorque, bigAppleSauce, smsTorque];
 
-describe('buildStructuralRelatives — curated overrides for frontier compounds', () => {
-  it('Carousel receives its curated Rake-terminal and cross-frontier relatives', () => {
-    const rels = buildStructuralRelatives(carousel, ALL, [], stagedResolve);
-    const slugs = rels.map(r => r.slug);
-    expect(slugs).toContain('paradox_symposium_whirling_rake');
-    expect(slugs).toContain('surging_ducking_paradox_torque');
-    expect(slugs).not.toContain(CAROUSEL); // never itself
-    // Each carries a plain-words reason and a canonical detail URL.
-    for (const r of rels) {
-      expect(r.reason.length).toBeGreaterThan(0);
-      expect(r.detailHref).toBe(`/freestyle/tricks/${r.slug}`);
-    }
-    const psw = rels.find(r => r.slug === 'paradox_symposium_whirling_rake');
-    expect(psw!.reason).toMatch(/Whirling Rake terminal/i);
+describe('buildClosestRelatives — curated relatives for frontier compounds', () => {
+  // Defect caught: a frontier compound whose useful neighbours are editorial
+  // shows an empty or unrelated relatives list.
+  it('Carousel receives its curated Rake-terminal and cross-frontier relatives, each linking its canonical page', () => {
+    const rels = buildClosestRelatives(carousel, ALL, NONE);
+    expect(slugsOf(rels)).toEqual(['paradox_symposium_whirling_rake', 'surging_ducking_paradox_torque']);
+    for (const r of rels) expect(r.detailHref).toBe(`/freestyle/tricks/${r.slug}`);
   });
 
-  it('Big Apple Sauce lists none of its curated relatives, because its Torque ladder already lists both', () => {
-    // Both curated targets resolve to the Torque family (one by raw label, one by
-    // the curator family override), so the family ladder on the same page lists
-    // them; a curated pin does not repeat them. Carousel above shows a curated
-    // pin outside the ladder still renders.
-    expect(buildStructuralRelatives(bigAppleSauce, ALL, [], stagedResolve)).toEqual([]);
+  // Defect caught: a same-family curated relative is dropped, leaving the page
+  // with no named neighbours now that the page carries no family list.
+  it('Big Apple Sauce lists both curated Torque-family relatives', () => {
+    expect(slugsOf(buildClosestRelatives(bigAppleSauce, ALL, NONE)))
+      .toEqual(['surging_ducking_paradox_torque', 'spinning_miraging_symposium_torque']);
   });
 
   it('drops a curated target that is not an active row rather than fabricating it', () => {
     // Only Carousel + one of its two curated targets are present.
-    const rels = buildStructuralRelatives(carousel, [carousel, pswRake], [], stagedResolve);
-    expect(rels.map(r => r.slug)).toEqual(['paradox_symposium_whirling_rake']);
+    const rels = buildClosestRelatives(carousel, [carousel, pswRake], NONE);
+    expect(slugsOf(rels)).toEqual(['paradox_symposium_whirling_rake']);
   });
 
   it('surfaces the labelled outside-source note for Carousel, and none for an ordinary trick', () => {
@@ -101,206 +90,72 @@ describe('buildStructuralRelatives — curated overrides for frontier compounds'
   });
 });
 
-describe('buildStructuralRelatives — ranked engine for ordinary pages', () => {
-  const current = row('spinning_whirl', '3', 'compound', 'whirl', 'whirl');
-  // Same base, filed under another family, so the whirl ladder does not list it.
-  const gyroWhirl = row('gyro_whirl', '4', 'compound', 'whirl', 'osis');
-  const unrelated = row('head_stall', '2', 'surface', 'head_stall', 'head_stall'); // no relation
-  const modifier  = row('spinning', '1', 'modifier', 'spinning', 'spinning'); // modifier kind
-  const operator  = row('atomic', '1', 'set', 'atomic', 'atomic');            // operator kind
-  const pending   = row('surging', '2', 'compound', 'surging', 'surging');    // pending-review kind
-  const rows = [current, gyroWhirl, unrelated, modifier, operator, pending];
-  const links = [{ trick_slug: 'spinning_whirl', modifier_slug: 'spinning' }];
-
-  it('ranks a same-base sibling with a plain-words reason', () => {
-    const rels = buildStructuralRelatives(current, rows, links, stagedResolve);
-    const gyro = rels.find(r => r.slug === 'gyro_whirl');
-    expect(gyro).toBeDefined();
-    expect(gyro!.reason).toMatch(/base/i);
+describe('buildClosestRelatives — only what a curator related', () => {
+  // Defect caught: the relatives list grows back into a family list, through a
+  // shared base, a shared family label or shared operators.
+  it('never lists a trick that only shares a base or a family with this one', () => {
+    const cur      = row('cur', '3', 'compound', 'base_a', 'fam_x');
+    const sameBase = row('same_base', '4', 'compound', 'base_a', 'fam_x');
+    const famOnly  = row('fam_only', '4', 'compound', 'base_c', 'fam_x');
+    expect(buildClosestRelatives(cur, [cur, sameBase, famOnly], NONE)).toEqual([]);
   });
 
-  it('excludes self, unrelated tricks, modifiers, operators, and pending rows', () => {
-    const slugs = buildStructuralRelatives(current, rows, links, stagedResolve).map(r => r.slug);
-    expect(slugs).not.toContain('spinning_whirl'); // self
-    expect(slugs).not.toContain('head_stall');     // below threshold
-    expect(slugs).not.toContain('spinning');       // modifier
-    expect(slugs).not.toContain('atomic');         // operator
-    expect(slugs).not.toContain('surging');        // pending-review
+  // Defect caught: a reversed trick and the trick it reverses do not point at
+  // each other, although a curator stored the pair.
+  it('lists the stored reverse pair in both directions', () => {
+    const whirl    = row('whirl', '3', 'dex', 'whirl', 'whirl');
+    const revWhirl = { ...row('rev_whirl', '3', 'dex', 'rev_whirl', 'rev_whirl'), reverse_pair_base: 'whirl' };
+    expect(slugsOf(buildClosestRelatives(revWhirl, [whirl, revWhirl], NONE))).toEqual(['whirl']);
+    expect(slugsOf(buildClosestRelatives(whirl, [whirl, revWhirl], NONE))).toEqual(['rev_whirl']);
   });
 
-  it('does not pad to a fixed count when only one relative qualifies', () => {
-    const rels = buildStructuralRelatives(current, rows, links, stagedResolve);
-    expect(rels.length).toBe(1);
+  // Defect caught: a modifier, set or under-review row is linked as if it were
+  // a trick, so the link redirects or leads to a held-back row.
+  it('never lists a modifier, set or under-review row, even as a curated neighbour', () => {
+    const cur      = row('cur', '2', 'compound', 'cur', 'cur');
+    const modifier = row('spinning', '1', 'modifier', 'spinning', 'spinning');
+    const set      = row('atomic', '1', 'set', 'atomic', 'atomic');
+    const pending  = { ...row('held', '3', 'compound', 'held', 'held'), trick_kind: 'pending-review' };
+    const real     = row('real', '2', 'compound', 'real', 'real');
+    const rels = buildClosestRelatives(cur, [cur, modifier, set, pending, real], {
+      neighbours: ['spinning', 'atomic', 'held', 'real'].map(slug => ({ slug, reason: 'Movement neighbour' })),
+      exclude:    new Set(),
+    });
+    expect(slugsOf(rels)).toEqual(['real']);
   });
 
-  it('returns an empty list when nothing meets the threshold', () => {
-    const lonely = row('sole_stall', '2', 'surface', 'sole_stall', 'sole_stall');
-    const rels = buildStructuralRelatives(lonely, [lonely, unrelated], [], stagedResolve);
-    expect(rels).toEqual([]);
+  // Defect caught: the curated neighbours, which a curator ordered, lose their
+  // order or fall behind the reverse pair.
+  it('keeps curated neighbours first, in the order given, then the reverse pair', () => {
+    const cur = { ...row('cur', '2', 'dex', 'cur', 'cur'), reverse_pair_base: 'rev' };
+    const rev = row('rev', '2', 'dex', 'rev', 'rev');
+    const b   = row('b', '1', 'body', 'b', 'b');
+    const a   = row('a', '1', 'body', 'a', 'a');
+    const rels = buildClosestRelatives(cur, [cur, rev, a, b], {
+      neighbours: [{ slug: 'b', reason: 'Movement neighbour' }, { slug: 'a', reason: 'Movement neighbour' }],
+      exclude:    new Set(),
+    });
+    expect(slugsOf(rels)).toEqual(['b', 'a', 'rev']);
   });
 
-  it('rejects a weak operator-overlap-only candidate below the threshold', () => {
-    // Shares exactly one operator, different base and family: not a relative.
-    const cur  = row('a_x', '2', 'compound', 'aa', 'fa');
-    const weak = row('b_x', '2', 'compound', 'bb', 'fb');
-    const links = [
-      { trick_slug: 'a_x', modifier_slug: 'x' },
-      { trick_slug: 'b_x', modifier_slug: 'x' },
-    ];
-    expect(buildStructuralRelatives(cur, [cur, weak], links, stagedResolve)).toEqual([]);
+  // Defect caught: a trick named in another relationship list on the page is
+  // listed again here, so two sections repeat one another.
+  it('never lists a trick the caller excludes', () => {
+    const cur = row('cur', '2', 'dex', 'cur', 'cur');
+    const nb  = row('nb', '2', 'dex', 'nb', 'nb');
+    expect(buildClosestRelatives(cur, [cur, nb], {
+      neighbours: [{ slug: 'nb', reason: 'Movement neighbour' }], exclude: new Set(['nb']),
+    })).toEqual([]);
   });
 
-  it('rejects a spurious one-operator match when the ADD gap is too large for one operator', () => {
-    // Same family, one link-set difference, but a 3-ADD gap: the link data is
-    // incomplete, so the "one operator" claim would be misleading.
-    const cur  = row('spin_whirl', '2', 'compound', 'whirl_a', 'whirl');
-    const far  = row('pixie_paradon', '5', 'compound', 'whirl_b', 'whirl');
-    const links = [
-      { trick_slug: 'spin_whirl', modifier_slug: 'spinning' },
-      { trick_slug: 'pixie_paradon', modifier_slug: 'spinning' },
-      { trick_slug: 'pixie_paradon', modifier_slug: 'pixie' },
-    ];
-    // shared spinning, one extra (pixie) => symDiff 1, but ADD gap 3 => rejected
-    // from the one-operator tier; same-family still applies as a weaker reason.
-    const rels = buildStructuralRelatives(cur, [cur, far], links, stagedResolve);
-    const match = rels.find(r => r.slug === 'pixie_paradon');
-    expect(match?.reason ?? '').not.toMatch(/One operator/);
-  });
-
-  it('produces each reason category with an accurate label', () => {
-    const cur          = row('cur',  '3', 'compound', 'base_a', 'fam_x');  // mods p,q
-    const sameBaseOne  = row('sib1', '4', 'compound', 'base_a', 'fam_x');  // same base, +1 op (r)
-    const sameBaseMany = row('sib2', '6', 'compound', 'base_a', 'fam_x');  // same base, +3 ops
-    const familyOnly   = row('famonly', '9', 'compound', 'base_c', 'fam_x'); // same family, other base
-    const overlap      = row('ovl', '5', 'compound', 'base_d', 'fam_z');   // 2 shared ops, other base+family
-    const links = [
-      { trick_slug: 'cur', modifier_slug: 'p' }, { trick_slug: 'cur', modifier_slug: 'q' },
-      { trick_slug: 'sib1', modifier_slug: 'p' }, { trick_slug: 'sib1', modifier_slug: 'q' }, { trick_slug: 'sib1', modifier_slug: 'r' },
-      { trick_slug: 'sib2', modifier_slug: 'p' }, { trick_slug: 'sib2', modifier_slug: 'q' }, { trick_slug: 'sib2', modifier_slug: 'r' }, { trick_slug: 'sib2', modifier_slug: 's' }, { trick_slug: 'sib2', modifier_slug: 't' },
-      { trick_slug: 'famonly', modifier_slug: 'a' }, { trick_slug: 'famonly', modifier_slug: 'b' }, { trick_slug: 'famonly', modifier_slug: 'c' },
-      { trick_slug: 'ovl', modifier_slug: 'p' }, { trick_slug: 'ovl', modifier_slug: 'q' }, { trick_slug: 'ovl', modifier_slug: 'w1' }, { trick_slug: 'ovl', modifier_slug: 'w2' },
-    ];
-    const rels = buildStructuralRelatives(cur, [cur, sameBaseOne, sameBaseMany, familyOnly, overlap], links, stagedResolve);
-    const by = (slug: string) => rels.find(r => r.slug === slug)?.reason ?? '';
-    // Same-base relationships never claim "one operator fewer/more". modifier_links
-    // is known-incomplete, so even an apparently clean strict-superset delta (sib1
-    // one extra operator, sib2 three extra) reads neutral until an explicit
-    // operator-metadata-complete signal exists in the data model.
-    expect(by('sib1')).toMatch(/same .* base, different operator treatment/i);
-    expect(by('sib1')).not.toMatch(/one operator (more|fewer)/i);
-    expect(by('sib2')).toMatch(/same .* base, different operator treatment/i);
-    expect(by('sib2')).not.toMatch(/(more|fewer) operators/i);
-    expect(by('famonly')).toMatch(/family/i);
-    expect(by('ovl')).toMatch(/^Shares/);
-  });
-
-  it('never infers operator removal/addition from incomplete modifier links', () => {
-    // Real dictionary pairs where the candidate has NO modifier-link rows but is a
-    // distinct compound whose operator lives in its identity, often at equal or
-    // higher ADD. An empty link set must not read as "this trick minus an operator".
-    // The rows carry no family, so no family ladder claims the same-base
-    // candidates and the reason wording is what is under test.
-    const duckingLegover = row('ducking_legover', '3', 'compound', 'legover', '');
-    const schmoe         = row('schmoe',          '3', 'compound', 'legover', '');
-    const flurry         = row('flurry',          '4', 'compound', 'legover', '');
-    const goliath        = row('goliath',         '5', 'compound', 'legover', '');
-    const tapdown        = row('tapdown',  '4', 'compound', 'butterfly', '');
-    const parkwalk       = row('parkwalk', '4', 'compound', 'butterfly', '');
-    const flog           = row('flog',     '4', 'compound', 'double_leg_over', '');
-    const predator       = row('predator', '4', 'compound', 'double_leg_over', '');
-    const blackula       = row('blackula',   '5', 'compound', 'double_over_down', '');
-    const downDiver      = row('down_diver', '5', 'compound', 'double_over_down', '');
-    const fusion         = row('fusion',     '5', 'compound', 'double_over_down', '');
-    const links = [
-      { trick_slug: 'ducking_legover', modifier_slug: 'ducking' },
-      { trick_slug: 'tapdown',  modifier_slug: 'tapping' },
-      { trick_slug: 'flog',     modifier_slug: 'fairy' },
-      { trick_slug: 'blackula', modifier_slug: 'symposium' },
-    ];
-    const all = [duckingLegover, schmoe, flurry, goliath, tapdown, parkwalk, flog, predator, blackula, downDiver, fusion];
-    const reasonFor = (cur: FreestyleTrickRow, candSlug: string): string =>
-      buildStructuralRelatives(cur, all, links, stagedResolve).find(r => r.slug === candSlug)?.reason ?? '';
-
-    const cases: Array<[FreestyleTrickRow, string]> = [
-      [duckingLegover, 'schmoe'], [duckingLegover, 'flurry'], [duckingLegover, 'goliath'],
-      [tapdown, 'parkwalk'], [flog, 'predator'], [blackula, 'down_diver'], [blackula, 'fusion'],
-    ];
-    for (const [cur, cand] of cases) {
-      const reason = reasonFor(cur, cand);
-      expect(reason, `${cur.slug} -> ${cand}`).not.toMatch(/one operator (fewer|more)/i);
-      expect(reason, `${cur.slug} -> ${cand}`).not.toMatch(/(fewer|more) operators/i);
-      expect(reason, `${cur.slug} -> ${cand}`).toMatch(/same .* base, different operator treatment/i);
-    }
-  });
-
-  // Defect caught: the trick page lists the same trick twice, once on its family
-  // ladder and again under structural relatives, so the relatives section repeats
-  // same-family progression instead of showing structural neighbours.
-  it('never lists a trick the family ladder already lists, including one filed under a folded sub-label', () => {
-    const cur        = row('ladder_cur', '3', 'compound', 'mirage', 'mirage');
-    // Same base and family: the ladder lists it.
-    const sameFamily = row('ladder_peer', '4', 'compound', 'mirage', 'mirage');
-    // Raw label paradox_mirage folds into the mirage family, so the ladder lists
-    // it too, although its raw trick_family differs from the current trick's.
-    const folded     = row('ladder_folded', '4', 'compound', 'other_base', 'paradox_mirage');
-    // Another family, sharing two operators: a genuine structural neighbour.
-    const neighbour  = row('ladder_neighbour', '4', 'compound', 'illusion', 'illusion');
-    const links = ['ladder_cur', 'ladder_peer', 'ladder_folded', 'ladder_neighbour'].flatMap(slug => [
-      { trick_slug: slug, modifier_slug: 'p' },
-      { trick_slug: slug, modifier_slug: 'q' },
-    ]);
-    const slugs = buildStructuralRelatives(cur, [cur, sameFamily, folded, neighbour], links, stagedResolve).map(r => r.slug);
-    expect(slugs).not.toContain('ladder_peer');
-    expect(slugs).not.toContain('ladder_folded');
-    expect(slugs).toEqual(['ladder_neighbour']);
-  });
-
-  it('never reads two family-less tricks as "Same family"', () => {
-    // Both have an empty trick_family (the Blink case); one has no base either.
-    const a = row('fa', '2', 'compound', '', '');
-    const b = row('fb', '5', 'compound', 'paradon', '');
-    const links = [{ trick_slug: 'fa', modifier_slug: 'x' }, { trick_slug: 'fb', modifier_slug: 'y' }];
-    expect(buildStructuralRelatives(a, [a, b], links, stagedResolve)).toEqual([]);
-  });
-});
-
-describe('buildStructuralAbout — high-confidence fallback only', () => {
-  const established = (op: string) => op === 'spinning';
-  const whirl = row('whirl', '1', 'core', 'whirl', 'whirl');
-
-  it('generates a one-line reading for a single established-operator compound', () => {
-    const cur = row('spinning_whirl', '2', 'compound', 'whirl', 'whirl');
-    const links = [{ trick_slug: 'spinning_whirl', modifier_slug: 'spinning' }];
-    expect(buildStructuralAbout(cur, [cur, whirl], links, established))
-      .toBe('Spinning Whirl builds on Whirl, adding the spinning operator.');
-  });
-
-  it('suppresses when the base is missing', () => {
-    const cur = row('spinning_ghost', '2', 'compound', 'ghost', 'ghost');
-    const links = [{ trick_slug: 'spinning_ghost', modifier_slug: 'spinning' }];
-    expect(buildStructuralAbout(cur, [cur], links, established)).toBeNull();
-  });
-
-  it('suppresses when the added operator is unresolved', () => {
-    const cur = row('muted_whirl', '2', 'compound', 'whirl', 'whirl');
-    const links = [{ trick_slug: 'muted_whirl', modifier_slug: 'muted' }];
-    expect(buildStructuralAbout(cur, [cur, whirl], links, established)).toBeNull();
-  });
-
-  it('suppresses a multi-operator (multi-phase) stack', () => {
-    const cur = row('spinning_gyro_whirl', '3', 'compound', 'whirl', 'whirl');
-    const links = [
-      { trick_slug: 'spinning_gyro_whirl', modifier_slug: 'spinning' },
-      { trick_slug: 'spinning_gyro_whirl', modifier_slug: 'gyro' },
-    ];
-    expect(buildStructuralAbout(cur, [cur, whirl], links, established)).toBeNull();
-  });
-
-  it('suppresses a tautological sentence that would repeat the trick name', () => {
-    const base = { ...row('base_x', '1', 'core', 'base_x', 'fam'), canonical_name: 'whirl' } as typeof whirl;
-    const cur  = { ...row('other', '2', 'compound', 'base_x', 'fam'), canonical_name: 'whirl' } as typeof whirl;
-    const links = [{ trick_slug: 'other', modifier_slug: 'spinning' }];
-    expect(buildStructuralAbout(cur, [cur, base], links, established)).toBeNull();
+  // Defect caught: a long curated neighbourhood turns the list into a dump.
+  it('stops at six relatives however many are curated', () => {
+    const cur = row('cur', '2', 'dex', 'cur', 'cur');
+    const many = Array.from({ length: 9 }, (_, i) => row(`n${i}`, '2', 'dex', `n${i}`, `n${i}`));
+    const rels = buildClosestRelatives(cur, [cur, ...many], {
+      neighbours: many.map(r => ({ slug: r.slug, reason: 'Movement neighbour' })), exclude: new Set(),
+    });
+    expect(rels).toHaveLength(6);
   });
 });
 

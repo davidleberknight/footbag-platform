@@ -19,15 +19,6 @@
     {{/unless}}
   {{/if}}
 
-  {{!-- Structural fallback: where no description is displayed (the DB copy was
-       empty or suppressed as a placeholder or notation echo) and no curated prose
-       exists, a high-confidence one-line structural reading (base, terminal, the
-       single added operator) stands in. The service supplies structuralAbout only
-       for confidently-known single-operator compounds, so most empty-About pages
-       stay silent rather than carry generic filler. --}}
-  {{#unless content.dictEntry.description}}{{#if content.structuralAbout}}
-  <p class="trick-description" data-structural-about>{{content.structuralAbout}}</p>
-  {{/if}}{{/unless}}
 
   {{#if content.dictEntry.isModifier}}
   <p class="trick-description">
@@ -85,12 +76,6 @@
 
   {{#if content.dictEntry.familyNote}}
   <p>{{content.dictEntry.familyNote}}</p>
-  {{/if}}
-
-  {{!-- Base-atom -> operator cross-link: e.g. the spin atom points at Spinning
-       tricks, so the relationship is explicit rather than inferred. --}}
-  {{#if content.relatedOperator}}
-  <p>See also: <a href="{{content.relatedOperator.href}}">{{content.relatedOperator.label}}</a></p>
   {{/if}}
 
 </section>

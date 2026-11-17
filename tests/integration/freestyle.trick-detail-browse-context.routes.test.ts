@@ -3,8 +3,8 @@
  *
  * A trick's detail page should explain why it appears in each browse surface.
  * Two surfaces are pinned here:
- *   1. Same-family and shared-modifier relating stays with the Family ladder,
- *      out of Related Tricks.
+ *   1. Same-family and shared-modifier relating stays out of Related Tricks;
+ *      the family's membership is one link away instead.
  *   2. A branch-family trick echoes its parent root ("Also a member of: Osis
  *      family"); a root-family trick shows no such note.
  * No trick_family data is written; all surfaces derive from reversible content maps.
@@ -63,15 +63,14 @@ async function page(slug: string): Promise<string> {
   return res.text;
 }
 
-describe('W1 — same-family and shared-modifier relating owned by the Family ladder', () => {
+describe('W1 — same-family relating is the family link, not a list', () => {
   it('does not render Same-family / Shares-a-modifier groups in Related Tricks', async () => {
     const html = await page('paradox-torque');
-    // Same-family relating is owned by the Family ladder; the shared-modifier
-    // and same-family groups do not appear in the Related Tricks section.
+    // The shared-modifier and same-family groups do not appear in Related
+    // Tricks; the family's membership is one link away instead.
     expect(html).not.toContain('Same family');
     expect(html).not.toContain('Shares a modifier');
-    // The canonical same-family relating still surfaces via the Family ladder.
-    expect(html).toContain('content-section trick-family-lineage');
+    expect(html).toContain('data-family-browse');
   });
 });
 

@@ -177,13 +177,14 @@ describe('Record-to-trick linkage', () => {
     expect(res.text).not.toMatch(/hero-subtitle[^>]*>[^<]*\((?:ss|op)\)/);
   });
 
-  it('keeps the side qualifier in the hero subtitle when the catch side is resolved', async () => {
+  // Defect caught: the record's sort name ("Resolved Catch (ss)") reappears
+  // under the heading, restating the trick name with a record qualifier.
+  it('never turns a record sort name into the hero subtitle, while the record still lists', async () => {
     const res = await page('/freestyle/tricks/resolved_catch');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Resolved-Side Holder');
     expect(res.text).toContain('<h1>Resolved Catch</h1>');
-    // The side is established, so it stays: real information, not jargon.
-    expect(res.text).toMatch(/<p class="hero-subtitle">Resolved Catch \(ss\)<\/p>/);
+    expect(res.text).not.toContain('class="hero-subtitle"');
   });
 
   it('shows no hero subtitle when the record name only repeats the trick name in another case', async () => {

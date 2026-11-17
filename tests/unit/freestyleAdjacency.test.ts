@@ -38,6 +38,7 @@ function row(slug: string, adds: string, base_trick: string, trick_family: strin
     trick_kind:           null,
     terminal_cohort:      null,
     terminal_cohort_position: null,
+    reverse_pair_base:    null,
   };
 }
 

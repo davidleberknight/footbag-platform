@@ -95,10 +95,8 @@ import {
   FreestyleRelativeSideVariants,
   buildRelatedTricks,
   buildRelativeSideVariants,
-  buildStructuralRelatives,
-  buildStructuralAbout,
+  buildClosestRelatives,
   observationalNotesFor,
-  operatorCrossLinkFor,
   baseAtomCrossLinkFor,
   trickKindOf,
   rawFamilyOf,
@@ -1044,13 +1042,6 @@ function buildOperatorIndexAxes(
 
 const FAMILY_PAGE_EXAMPLE_COUNT = 8;
 
-export interface FreestyleRelatedGroup {
-  key:       string;            // the underlying relating rule
-  label:     string;            // group heading (e.g. "Same family", "Swing elements")
-  rationale: string | null;     // optional one-line WHY for the whole group
-  tricks:    FreestyleRelatedTrick[];
-}
-
 export interface FreestyleQuantityLadderView {
   ladderLabel: string;
   rationale:   string;
@@ -1082,7 +1073,6 @@ export interface TrickDetailViewer {
 
 export interface FreestyleTrickContent {
   trickName: string;
-  sortName: string | null;
   slug: string;
   // Phonetic respelling shown as a compact fact chip when the trick has a
   // non-obvious pronunciation (e.g. guay = "gwhy"); null otherwise.
@@ -1094,55 +1084,38 @@ export interface FreestyleTrickContent {
   hasProgression: boolean;                  // true when any records are superseded
   // Dictionary info, null when trick has no dictionary entry
   dictEntry: FreestyleTrickDictEntry | null;
-  // Family members: siblings or derivatives, sorted by ADD value
-  familyMembers: FreestyleFamilyMember[];   // empty when family has only one member
-  hasFamilyMembers: boolean;
-  // "Family" only when this trick is one of the official Family Parents; the
-  // broader adjacency groups read "Related" so they are not called families.
-  familyHeadingLabel: string;
   // Hero family chip — parent-resolved family; null when the trick's family is
   // a route-out (foundational surface / ecosystem / alt-surface / multi-bag).
   // `href` is the encoded family filter; the template renders it unescaped so
   // the query string survives.
   familyChip: { label: string; slug: string; isMinorLineage: boolean; href: string } | null;
-  // Same family-member set as `familyMembers`, regrouped
-  // by ADD value for tier-grouped rendering. Numeric tiers sort ascending;
-  // non-numeric/null tier renders last as "Modifiers".
-  familyTiers: FreestyleFamilyTier[];
-  // Related Tricks (R1 same-family → R2 modifier-prefix → R3 grandparent),
-  // ADD-bucket sampled within each rule, capped at 8. Empty when no dict entry.
-  // This is the CANONICAL (Layer 1) IFPA-family-based relating.
-  relatedTricks: FreestyleRelatedTrick[];
-  // `relatedTricks` partitioned into the labeled relationship categories
-  // (Same family / Shares a modifier / Movement neighbours / Built on /
-  // Structural ancestor) by the existing per-row `rule`. Each group carries an
-  // optional one-line rationale; the movement-neighbour group is re-labeled
-  // "Swing elements" for the pendulum/rake pair. Empty groups are dropped.
-  relatedGroups: FreestyleRelatedGroup[];
-  // Base-atom -> operator cross-link: when this trick is a base atom with a
-  // same-named operator (spin -> spinning, whirl -> whirling), a one-line "See
-  // also: <Operator> tricks" link to the operator's collection. Null otherwise.
-  relatedOperator: { label: string; href: string } | null;
+  // At most six tricks a curator related to this one: curated movement
+  // neighbours, curated structural relatives, then the stored reverse pair.
+  // Never repeats a trick another relationship list on the page names. The
+  // family's full membership is never listed; familyBrowse links to it.
+  closestRelatives: FreestyleStructuralRelative[];
+  // The curated neighbour group's one-line rationale, shown above the list
+  // when the page carries one (the swing elements, the held-delay leg-overs).
+  closestRelativesNote: string | null;
+  // The dictionary's view of the trick's whole family, which stands in for
+  // listing the family on the page; null when the trick has no public family.
+  familyBrowse: { label: string; href: string } | null;
+  // The family's own page, which owns same-family progression; null when the
+  // family has no page.
+  familyPage: { label: string; href: string } | null;
   // Relative-side variants callout: the same base performed with a different
   // side relationship (base / same-side / far). Null unless the trick is part
   // of a group spanning at least two distinct sides. Carries a glossary
   // deep-link to the SAME / OP explainer. Display projection, not a family.
   relativeSideVariants: FreestyleRelativeSideVariants | null;
-  // Ranked structural relatives of this trick (same base, same family or
-  // terminal, established-operator overlap, or a one-operator delta), rendered
-  // inside Related Tricks. A minimum-relationship threshold applies, so the list
-  // may be short or empty rather than padded; a structurally exceptional page may
-  // pin curated relatives. Excludes self, aliases, and non-trick rows.
-  similarTricks: FreestyleStructuralRelative[];
   // Clearly-labelled outside-source names cited as relatives of this trick that
   // the platform records under a different canonical reading. Rendered inside
   // Related Tricks as context, never as a canonical link. Empty for most pages.
   observationalNotes: FreestyleObservationalNote[];
   // Terminal-derived cohort. On a terminal-stall atom that is not a public family
   // (toe_stall, clipper_stall), the curated cross-family list of recognizable
-  // tricks that finish on this surface; null otherwise. Distinct from the Family
-  // ladder (which owns terminals that ARE families, e.g. inside_stall) so nothing
-  // is shown twice.
+  // tricks that finish on this surface; null otherwise. A terminal that IS a
+  // family (e.g. inside_stall) has no such list: its family view lists it.
   terminalDerived: TerminalDerivedView | null;
   // Derived one-line relocations of the retired Mechanical Delta and Progressive
   // Readings sections, both rendered in the opening: intuitionDelta ("Compared
@@ -1150,11 +1123,6 @@ export interface FreestyleTrickContent {
   // Null when the trick is not a modifier-composed compound.
   intuitionDelta: string | null;
   buildPath:      string | null;
-  // Conservative structural About fallback (base + terminal + the single most-
-  // distinguishing operator), rendered only where the DB description is a
-  // suppressed placeholder so it never overwrites real or curated copy. Null for
-  // primitives and for pages that already carry a description.
-  structuralAbout: string | null;
   // Quantity ladder this trick belongs to (same base, increasing repetition
   // count) — a cross-family relationship, NOT a family. Null when not a ladder
   // member. A ladder member slug absent from the dictionary renders missing.
@@ -1169,8 +1137,9 @@ export interface FreestyleTrickContent {
   // triggers: butterfly-wing-topology → walking progression;
   // spinning-family / whirl-rotational-topology → spinning modifier page.
   symbolicEducationCtas: SymbolicEducationCta[];
-  // True when Related Tricks has any row to show: a relationship group, a
-  // structural relative, an outside-source note or a teaching-page link.
+  // True when Related Tricks has anything to show: a closest relative, an
+  // outside-source note, a teaching-page link, a family link or a further
+  // family chip.
   hasRelatedSection: boolean;
   // Reference Media — split by source tier:
   // - tutorialMedia: instructional sources (TT, AnzTrikz, FootbagSpot,
@@ -1291,18 +1260,6 @@ export interface FreestyleTrickContent {
   // the First-Class ADD Convergence Rule AND appears in the pilot
   // allow-list. Drives first-class-only surfaces elsewhere on the page.
   isFirstClass: boolean;
-  // Family-anchor context. Populated
-  // only when the current trick IS the family-anchor (slug ===
-  // trick_family) AND the family carries a curator-authored invariant
-  // (DP-1's six: whirl, rev-whirl, butterfly, mirage, osis, swirl).
-  // Null for every other trick. Drives the family-anchor callout in
-  // the trick-family section header; teaches readers that the page
-  // they're on is itself the productive root of a family. A family counts as
-  // confirmed when the family carries a shared-structure line.
-  familyAnchorContext: {
-    familyName:        string;       // e.g. "Whirl"
-    familyBrowseHref:  string;       // where the dictionary lists the family's tricks
-  } | null;
   // Reverse-pair transform overlay.
   // Populated only for the five curator-locked reverse-direction
   // pairs (illusion, pickup, rev-whirl, rev-swirl, orbit). Surfaces
@@ -1672,25 +1629,6 @@ function shapeNotationGrammar(
     editorialContext,
     editorialDecomposition: shapeEditorialDecomposition(row, dictBySlug, modifierLinks),
   };
-}
-
-export interface FreestyleFamilyMember {
-  slug: string;
-  canonicalName: string;
-  adds: string | null;
-  isCurrentTrick: boolean;   // true for the trick being viewed
-  detailHref: string;        // always /freestyle/tricks/:slug (dict entry exists)
-  hasRecords: boolean;       // true when passback records exist for this trick
-}
-
-// Family lineage grouped by ADD value. Numeric tiers sort
-// ascending; rows with non-numeric or null ADD ("modifier", unrated) collapse
-// into a single "Modifiers" tier rendered after the numeric tiers.
-export interface FreestyleFamilyTier {
-  addsLabel: string;                       // e.g. "3 ADD", "4 ADD", "Modifiers"
-  addsNumeric: number | null;              // null for the non-numeric tier
-  members: FreestyleFamilyMember[];        // members in this tier (preserves source order)
-  hasCurrent: boolean;                     // true if the current trick sits in this tier
 }
 
 export interface FreestyleModifierEntry {
@@ -4591,7 +4529,13 @@ function shapeDictEntry(
     // The generic base-family paragraph belongs on the family-anchor (base)
     // page only, not repeated on every derivative. Derivatives keep their
     // trick-specific About line, build path, and "compared with base" note.
-    familyNote:       (isFamilyDisplayAnchor(row.slug) && row.trick_family) ? familyTrickPageNote(row.trick_family) : null,
+    // The note is the one for the family the page is filed under (the curator
+    // override first), so a branch family's anchor (torque, stored under the
+    // osis label) shows its own family's note, not its parent's.
+    familyNote:       (() => {
+      const family = isFamilyDisplayAnchor(row.slug) ? effectiveFamilyOf(row) : null;
+      return family ? familyTrickPageNote(family) : null;
+    })(),
   };
 }
 
@@ -5027,40 +4971,6 @@ function buildHeroDecomposition(
   return tokens;
 }
 
-// Family-tier grouping. Reorganises the flat family-member
-// list into ADD-tier groups; preserves source order within each tier. Numeric
-// tiers ascending; the non-numeric tier (rows with `adds` null or "modifier")
-// renders last under a "Modifiers" label. Returns an empty array when the
-// caller has not populated familyMembers (i.e., when the family has only one
-// row -- itself; the shell omits the section anyway via hasFamilyMembers).
-function buildFamilyTiers(members: FreestyleFamilyMember[]): FreestyleFamilyTier[] {
-  if (members.length === 0) return [];
-  const byTier = new Map<string, FreestyleFamilyMember[]>();
-  for (const m of members) {
-    const key = m.adds && /^\d+$/.test(m.adds) ? m.adds : 'modifier';
-    if (!byTier.has(key)) byTier.set(key, []);
-    byTier.get(key)!.push(m);
-  }
-  const numericTiers: FreestyleFamilyTier[] = Array.from(byTier.entries())
-    .filter(([k]) => k !== 'modifier')
-    .map(([k, list]) => ({
-      addsLabel:   `${k} ADD`,
-      addsNumeric: parseInt(k, 10),
-      members:     list,
-      hasCurrent:  list.some(m => m.isCurrentTrick),
-    }))
-    .sort((a, b) => (a.addsNumeric ?? 0) - (b.addsNumeric ?? 0));
-  const modList = byTier.get('modifier');
-  if (modList && modList.length > 0) {
-    numericTiers.push({
-      addsLabel:   'Modifiers',
-      addsNumeric: null,
-      members:     modList,
-      hasCurrent:  modList.some(m => m.isCurrentTrick),
-    });
-  }
-  return numericTiers;
-}
 
 // Density classification. Derived from existing data only;
 // no schema dependency. Inputs: modifier-link count, semantic notation presence,
@@ -5321,11 +5231,11 @@ export const freestyleService = {
   /**
    * Build the trick-detail page view-model.
    *
-   * Relationship sections follow a single-owner rule, so no trick appears in two
-   * relationship sections: the Family ladder owns same-family progression, and
-   * Related Tricks owns every other neighbour: conceptual movement-neighbour /
-   * swing-element links and, as its structurally related group, cross-base
-   * composition (the same operators on another base, plus same-structure twins).
+   * The page never lists the trick's whole family. Related Tricks owns at most
+   * six closest relatives a curator related to the trick (curated neighbours,
+   * curated structural relatives, the stored reverse pair) plus the links to
+   * the family's view and page, which own the family's membership. The trick's
+   * own lineage is the opening's build path, not a list.
    * The page's opening carries two derived one-liners, `intuitionDelta` and
    * `buildPath`, both null for atoms and link-less tricks.
    *
@@ -5419,30 +5329,7 @@ export const freestyleService = {
     const currentRows = allTrickRows.filter(r => !r.superseded_by);
     const hasProgression = allTrickRows.some(r => r.superseded_by);
 
-    const sortName = allTrickRows[0]?.sort_name ?? null;
     const topValue = currentRows[0]?.value_numeric ?? 0;
-
-    // Hero subtitle (the record's display name). A trick whose terminal catch is
-    // an ambiguous SAME/OP delay is genuinely either-side: osis is the canonical
-    // case, caught same-side or opposite-side with equal validity, and its own
-    // notation says so (`... SAME/OP CLIP [DEL]`). A record's "(ss)"/"(op)" side
-    // qualifier on such a trick asserts a single side the trick does not have, so
-    // it is dropped from the subtitle here; where the catch side is resolved the
-    // qualifier is kept, because there the side is real information. The
-    // SAME/OP-before-[DEL]-within-one-segment test isolates the terminal catch,
-    // so a resolved catch after an either-side entry dex (butterfly's
-    // `SAME/OP OUT [DEX] > OP CLIP [DEL]`) is correctly treated as side-resolved.
-    const catchSideIsEitherSide = /SAME\/OP[^>]*\[DEL\]/.test(dictRow?.operational_notation ?? '');
-    const heroSubtitle: string | null = (() => {
-      if (!sortName) return null;
-      // Resolved catch side: the subtitle keeps its side qualifier. Only the
-      // genuinely either-side tricks lose it.
-      const shown = catchSideIsEitherSide ? stripDisplaySideQualifier(sortName) : sortName;
-      // A subtitle that only repeats the heading (a record name that is the
-      // trick name in another case, or osis once its false side qualifier is
-      // gone) adds nothing under the h1, so suppress it.
-      return shown && shown.toLowerCase() !== displayTrickName.toLowerCase() ? shown : null;
-    })();
 
     // Load all tricks and all modifiers for composition computation in shapeDictEntry
     const allDictRows = runSqliteRead('freestyleTricks.listAll', () =>
@@ -5476,40 +5363,14 @@ export const freestyleService = {
       ? shapeDictEntry(dictRow, allDictRows, allModifierRows, aliasTextsFromTable, trickCoveredByAliasTable)
       : null;
 
-    // Family-context resolution. The family block must agree
-    // with the family-view browse: resolve each row to the public family it
+    // Family-context resolution. The family chip and family links must agree
+    // with the family-view browse: resolve the row to the public family it
     // renders under, not the raw trick_family. Sub-labels fold to the family
     // whose terminal they conserve; labels that are not families (catch
     // surfaces, modifier ecosystems, sparse lineages) resolve to null, so the
-    // family-context block suppresses rather than presenting a misleading
-    // "<label> family". The same per-row resolution the browse uses builds the
-    // folded-lineage member list, so a family and its folded sub-labels show a
-    // consistent ladder. The family override column takes precedence over
-    // trick_family, which is never overwritten.
-    const familyOfRow = effectiveFamilyOf;
-    const effectiveFamilySlug = dictRow ? familyOfRow(dictRow) : null;
-
-    // Build family members list for difficulty ladder
-    let familyMembers: FreestyleFamilyMember[] = [];
-    if (dictRow && effectiveFamilySlug) {
-      // Build set of slugs with records for linking
-      const slugsWithRecords = new Set(
-        publicRows.filter(r => r.trick_name).map(r => recordTrickNameToSlug(r.trick_name!)),
-      );
-      familyMembers = allDictRows
-        .filter(r =>
-          r.category !== 'modifier' && r.category !== 'set' && r.category !== 'operator'
-          && familyOfRow(r) === effectiveFamilySlug,
-        )
-        .map(r => ({
-          slug:           r.slug,
-          canonicalName:  r.canonical_name,
-          adds:           r.adds,
-          isCurrentTrick: r.slug === dictRow.slug,
-          detailHref:     `/freestyle/tricks/${r.slug}`,
-          hasRecords:     slugsWithRecords.has(r.slug),
-        }));
-    }
+    // page names no misleading "<label> family". The family override column
+    // takes precedence over trick_family, which is never overwritten.
+    const effectiveFamilySlug = dictRow ? effectiveFamilyOf(dictRow) : null;
 
     const hasDictEntry     = dictEntry !== null;
     const hasRecords       = currentRows.length > 0;
@@ -5658,41 +5519,23 @@ export const freestyleService = {
           });
         })();
 
-        // Related Tricks owns CONCEPTUAL relationships only: curated movement
-        // neighbourhoods (kick/stall pairs, dex-kick variants, surface stalls)
-        // and the swing-element pair. Same-family progression is owned by the
-        // Family ladder; compositional and same-base structural relationships
-        // are owned by Structurally related tricks (`similarTricks`). So only the curated `neighborhood`
-        // rule surfaces here; the family / modifier-prefix / parent / grandparent
-        // rules are not rendered as related groups.
-        // One batched coverage read serves every panel on this page that
-        // renders another trick's hashtag. A trick appears here exactly when a
-        // watchable clip is tagged with its slug, which is the same predicate
-        // the dictionary browse rows use, so the two cannot disagree. A trick
-        // whose only footage sits on a competition record row is absent from
-        // it, and correctly keeps a plain token.
-        const coveredTrickSlugs = new Set<string>(
-          runSqliteRead('freestyleMediaLinks.listCoveredTrickSlugsWithSource', () =>
-            freestyleMediaLinks.listCoveredTrickSlugsWithSource.all() as FreestyleMediaCoveredSourceRow[],
-          ).map(r => r.slug),
-        );
-        const hasTrickMedia = (s: string): boolean => coveredTrickSlugs.has(s);
-
-        const relatedList: FreestyleRelatedTrick[] = dictRow ? buildRelatedTricks(dictRow, allDictRows, hasTrickMedia) : [];
+        // The curated movement neighbourhoods (kick/stall pairs, dex-kick
+        // variants, surface stalls, the swing-element pair) lead the closest
+        // relatives. Only the curated `neighborhood` rule is read here; the
+        // family / modifier-prefix / parent / grandparent rules are never shown,
+        // since the family view and the progression own those relationships.
+        const neighbours: FreestyleRelatedTrick[] = dictRow
+          ? buildRelatedTricks(dictRow, allDictRows).filter(r => r.rule === 'neighborhood')
+          : [];
         const isSwingElement = slug === 'pendulum' || slug === 'rake';
         const isHeldDelayLegover =
           slug === 'wrap' || slug === 'walk_over' || slug === 'hop_over' || slug === 'eclipse';
-        const relatedGroups: FreestyleRelatedGroup[] = ([
-          { key: 'neighborhood',    label: isSwingElement ? 'Swing elements' : 'Movement neighbours',
-            rationale: isSwingElement
-              ? 'Completed by the swing action itself; the terminal is open (stall, kick, hand catch, or a follow-on trick).'
-              : isHeldDelayLegover
+        const closestRelativesNote = neighbours.length === 0 ? null
+          : isSwingElement
+            ? 'Completed by the swing action itself; the terminal is open (stall, kick, hand catch, or a follow-on trick).'
+            : isHeldDelayLegover
               ? 'Continuous-control held-stall leg-over lineage. Walk-over is the stepping variant, Hop-over the jumping variant, and Eclipse the airborne extension.'
-              : null },
-        ] as const).flatMap(g => {
-          const tricks = relatedList.filter(r => r.rule === g.key);
-          return tricks.length ? [{ key: g.key, label: g.label, rationale: g.rationale, tricks }] : [];
-        });
+              : null;
 
         // Quantity ladder (same base, increasing repetition count). Cross-family;
         // never re-homes trick_family. A member absent from the dictionary renders
@@ -5722,9 +5565,12 @@ export const freestyleService = {
         // in the page's opening. Both are derived from base_trick + modifier
         // links, so they cover every modifier-composed compound, not only
         // curated flagship pages.
-        const { derivedDelta, derivedBuildPath, derivedStructuralAbout } = ((): { derivedDelta: string | null; derivedBuildPath: string | null; derivedStructuralAbout: string | null } => {
+        // No generated opening sentence is shaped here: a page whose stored
+        // description is empty or hidden as a placeholder opens with nothing
+        // rather than a sentence assembled from the trick's parts.
+        const { derivedDelta, derivedBuildPath } = ((): { derivedDelta: string | null; derivedBuildPath: string | null } => {
           if (!dictRow || !dictRow.base_trick || dictRow.base_trick === dictRow.slug) {
-            return { derivedDelta: null, derivedBuildPath: null, derivedStructuralAbout: null };
+            return { derivedDelta: null, derivedBuildPath: null };
           }
           const rowBySlug = new Map(allDictRows.map(r => [r.slug, r] as const));
           const modsBySlug = new Map<string, string[]>();
@@ -5755,15 +5601,7 @@ export const freestyleService = {
           }
           const thisName = dictRow.canonical_name;
           const hasBuildPath = !!(thisMods.length && ancestors.length);
-          // High-confidence structural About fallback (base + terminal + the
-          // single added operator), rendered only for confidently-known
-          // single-operator compounds; everything else stays silent. The doctrine
-          // source for "established operator" is a Tier-1 operator definition.
-          const structuralAbout = buildStructuralAbout(
-            dictRow, allDictRows, allModifierLinks, s => coreOperatorDefinition(s) != null,
-          );
           return {
-            derivedStructuralAbout: structuralAbout,
             // Suppress the parent-delta line when a build path is shown: the
             // build path already lists every operator, so a "Compared with X,
             // this adds Y and Z" line would only repeat that same modifier list.
@@ -5778,9 +5616,23 @@ export const freestyleService = {
           };
         })();
 
+        // The closest relatives never repeat a trick the relative-side variants
+        // or the quantity ladder already name, and read by display name, as
+        // the page title does.
+        const relativeSideVariants = dictRow ? buildRelativeSideVariants(dictRow, allDictRows) : null;
+        const shownElsewhere = new Set<string>([
+          ...(relativeSideVariants?.variants ?? []).map(v => v.slug),
+          ...(quantityLadder?.steps ?? []).flatMap(s => (s.slug ? [s.slug] : [])),
+        ]);
+        const closestRelatives = dictRow
+          ? buildClosestRelatives(dictRow, allDictRows, {
+              neighbours: neighbours.map(n => ({ slug: n.slug, reason: n.ruleLabel })),
+              exclude:    shownElsewhere,
+            }).map(r => ({ ...r, canonicalName: trickDisplayName(r.canonicalName) }))
+          : [];
+
         const shaped = {
           trickName: displayTrickName,
-          sortName: heroSubtitle,
           slug,
           pronunciation: dictRow?.pronunciation ?? null,
           trickTag,
@@ -5790,36 +5642,24 @@ export const freestyleService = {
           progression:      allTrickRows.map(r => shapeFreestyleRecord(r)),
           hasProgression,
           dictEntry,
-          familyMembers,
-          hasFamilyMembers: familyMembers.length > 1,
-          familyHeadingLabel: isOfficialFamilyParent(slug) ? 'Family' : 'Related',
           familyChip:       familySlug
             ? { label: `${familyName} family`, slug: familySlug, isMinorLineage: familyIsMinorLineage(familySlug), href: `/freestyle/tricks?family=${encodeURIComponent(familySlug)}` }
             : null,
-          familyTiers:      buildFamilyTiers(familyMembers),
           additionalFamilies,
-          relatedTricks:    relatedList,
-          relatedGroups,
-          relatedOperator:  (() => {
-            const op = operatorCrossLinkFor(slug);
-            if (!op) return null;
-            // Only cross-link to an operator that actually has a modifier page.
-            // An operator retired as a scored modifier (e.g. illusioning) has no
-            // page, so a link to it would 404; suppress it rather than render a
-            // dead link, and it re-appears automatically if the operator later
-            // gains a page.
-            const opRow = runSqliteRead('freestyleTrickModifiers.getBySlug', () =>
-              freestyleTrickModifiers.getBySlug.get(op) as FreestyleTrickModifierRow | undefined,
-            );
-            if (!isKnownModifier(op, opRow)) return null;
-            return { label: `${operatorTitleCase(op)} tricks`, href: modifierPageHref(op) };
+          closestRelatives,
+          closestRelativesNote,
+          familyBrowse: familySlug
+            ? { label: `Browse All ${familyName} Family Tricks`, href: familyBrowseHref(familySlug) }
+            : null,
+          familyPage: (() => {
+            const href = familySlug ? familyPageHref(familySlug) : null;
+            return href ? { label: `About the ${familyName} Family`, href } : null;
           })(),
-          relativeSideVariants: dictRow ? buildRelativeSideVariants(dictRow, allDictRows) : null,
-          similarTricks:      dictRow ? buildStructuralRelatives(dictRow, allDictRows, allModifierLinks) : [],
+          relativeSideVariants,
           observationalNotes: [...observationalNotesFor(slug)],
           // Terminal-derived cohort (curated): on a terminal atom that is not a
-          // public family, the cross-family "what lands here" list. The Family
-          // ladder owns terminals that ARE families, so the two never overlap.
+          // public family, the cross-family "what lands here" list. A terminal
+          // that IS a family carries no such list; its family view lists it.
           terminalDerived: ((): TerminalDerivedView | null => {
             // allDictRows (listAll) is already is_active = 1, so an inactive
             // member simply drops out. The curated order is the position column.
@@ -5831,7 +5671,6 @@ export const freestyleService = {
           })(),
           intuitionDelta: derivedDelta,
           buildPath:      derivedBuildPath,
-          structuralAbout: derivedStructuralAbout,
           quantityLadder,
           // The same modifiers the Structural Facts block shows: the trick's own
           // links, or the curator-published operator when it has none, so the
@@ -6077,31 +5916,6 @@ export const freestyleService = {
           // override-resolved description so a clean curator override always
           // renders even when the underlying row is a formula backfill.
           descriptionIsPlaceholder: isDescriptionStructuralPlaceholder(dictEntry?.description ?? null),
-          familyAnchorContext: (() => {
-            // Family-anchor callout. When the
-            // current trick is itself the family-anchor (slug ===
-            // trick_family) AND the family carries a curator-authored
-            // invariant, surface a callout in the trick-family
-            // section so the trick-detail page teaches the
-            // family-anchor role explicitly. Returns null otherwise.
-            // A trick is a family-anchor only when it anchors its EFFECTIVE
-            // (resolved, non-routed-out) family — so sub-labels that fold into
-            // a family (e.g. mobius → torque) and route-out labels do not claim
-            // anchor status, and the browse href targets a family section that
-            // actually renders.
-            if (!dictRow || !effectiveFamilySlug) return null;
-            if (effectiveFamilySlug !== dictRow.slug) return null;
-            // A family with a curator-authored invariant is a confirmed
-            // terminal family; only its anchor carries the callout.
-            if (!getFamilyInvariant(effectiveFamilySlug)) return null;
-            const familyName = familyLabels().get(effectiveFamilySlug)
-              ?? (effectiveFamilySlug.charAt(0).toUpperCase()
-                  + effectiveFamilySlug.slice(1).replace(/[-_]/g, ' '));
-            return {
-              familyName,
-              familyBrowseHref: familyBrowseHref(effectiveFamilySlug),
-            };
-          })(),
         };
         // The About section renders only when one of its rows has something to
         // show; each term mirrors one row of the About partial, so a trick with
@@ -6110,7 +5924,6 @@ export const freestyleService = {
         const d = shaped.dictEntry;
         const aboutHasContent = !!d && (
           (!!d.description && !shaped.descriptionIsPlaceholder)
-          || (!d.description && !!shaped.structuralAbout)
           || d.isModifier
           || !!shaped.buildPath
           || (!!d.baseTrick && !shaped.modifierLayering)
@@ -6119,14 +5932,15 @@ export const freestyleService = {
           || !!shaped.aboutNamingNote
           || !!shaped.intuitionDelta
           || !!d.familyNote
-          || !!shaped.relatedOperator
         );
-        // The one Related Tricks section holds every relationship but the
-        // family ladder, so it renders when any of its parts has rows.
-        const hasRelatedSection = shaped.relatedGroups.length > 0
-          || shaped.similarTricks.length > 0
+        // Related Tricks holds the closest relatives, the outside-source notes,
+        // the teaching-page links and the family links, so it renders when any
+        // of them has something to show.
+        const hasRelatedSection = shaped.closestRelatives.length > 0
           || shaped.observationalNotes.length > 0
-          || shaped.symbolicEducationCtas.length > 0;
+          || shaped.symbolicEducationCtas.length > 0
+          || shaped.familyBrowse !== null
+          || shaped.additionalFamilies.length > 0;
         return { ...shaped, aboutHasContent, hasRelatedSection };
       })(),
     };

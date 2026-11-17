@@ -8,10 +8,11 @@
   plain-words opening, where it belongs, and only the formula is kept of the
   two because it carries the arithmetic the strip would leave implicit.
 
-  Sparse pages with no summary fall back to the records-side sortname for
-  identity continuity, unless it only repeats the h1. The hashtag is not a
-  hero part: it renders in the media line at the top of the page body, and
-  the taxonomy chips (family, ADD, pronunciation) render in the body too.
+  A page with no curated summary carries no subtitle: a record's sort name
+  ("Mirage (op)") only repeats the h1 with a record qualifier, and the records
+  table names the record itself. The hashtag is not a hero part: it renders
+  in the media line at the top of the page body, and the taxonomy chips
+  (family, ADD, pronunciation) render in the body too.
 --}}
 <div class="hero hero-sm">
   <div>
@@ -25,8 +26,6 @@
     <h1>{{page.title}}</h1>
     {{#if summary}}
     <p class="hero-subtitle">{{summary}}</p>
-    {{else}}
-      {{#if content.sortName}}<p class="hero-subtitle">{{content.sortName}}</p>{{/if}}
     {{/if}}
   </div>
 </div>

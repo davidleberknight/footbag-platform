@@ -10,8 +10,8 @@
  *     same operators
  *   - Shell ordering: the opening About section sits above the
  *     structural-facts block
- *   - The family-lineage heading reads "Family" only on an official Family
- *     Parent
+ *   - A trick page never lists its whole family: it links the family's own
+ *     page, which owns same-family progression, and names no family members
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { cachedGet } from '../fixtures/cachedGet';
@@ -149,19 +149,13 @@ describe('Build path and parent delta', () => {
   });
 });
 
-describe('Family-lineage heading is "Family" only for official Family Parents', () => {
-  it('an official Family Parent (mirage) labels its lineage section "Family"', async () => {
-    const res = await page('/freestyle/tricks/mirage');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('class="content-section trick-family-lineage"');
-    expect(res.text).toMatch(/<h2>[^<]*\bFamily<\/h2>/);
-  });
-
-  it('a non-parent trick (paradox-mirage) labels its lineage section "Related", never "Family"', async () => {
+describe('Family pages own same-family progression', () => {
+  // Defect caught: a trick page duplicates the family's whole membership
+  // instead of linking the family page that owns it.
+  it('a family member links its family page and draws no family list', async () => {
     const res = await page('/freestyle/tricks/paradox_mirage');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('class="content-section trick-family-lineage"');
-    expect(res.text).toMatch(/<h2>[^<]*\bRelated<\/h2>/);
-    expect(res.text).not.toMatch(/<h2>[^<]*\bFamily<\/h2>/);
+    expect(res.text).toMatch(/<a class="action-link" href="\/freestyle\/families\/mirage" data-family-page>/);
+    expect(res.text).not.toContain('family-lineage');
   });
 });

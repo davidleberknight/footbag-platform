@@ -10,18 +10,10 @@
  */
 import { describe, it, expect } from 'vitest';
 import { FreestyleTrickRow } from '../../src/db/db';
-import { buildRelatedTricks, buildRelativeSideVariants, operatorCrossLinkFor, baseAtomCrossLinkFor } from '../../src/services/freestyleRelatedTricks';
+import { buildRelatedTricks, buildRelativeSideVariants, baseAtomCrossLinkFor } from '../../src/services/freestyleRelatedTricks';
 
-describe('atom <-> operator cross-links (bidirectional)', () => {
-  it('maps each base atom to its operator', () => {
-    expect(operatorCrossLinkFor('spin')).toBe('spinning');
-    expect(operatorCrossLinkFor('whirl')).toBe('whirling');
-    expect(operatorCrossLinkFor('swirl')).toBe('swirling');
-    expect(operatorCrossLinkFor('mirage')).toBe('miraging');
-    expect(operatorCrossLinkFor('illusion')).toBe('illusioning');
-    expect(operatorCrossLinkFor('barrage')).toBe('barraging');
-  });
-  it('maps each operator back to its base atom (inverse)', () => {
+describe('operator -> base atom cross-links', () => {
+  it('maps each operator back to its base atom', () => {
     expect(baseAtomCrossLinkFor('spinning')).toBe('spin');
     expect(baseAtomCrossLinkFor('whirling')).toBe('whirl');
     expect(baseAtomCrossLinkFor('swirling')).toBe('swirl');
@@ -30,8 +22,6 @@ describe('atom <-> operator cross-links (bidirectional)', () => {
     expect(baseAtomCrossLinkFor('barraging')).toBe('barrage');
   });
   it('returns null for concepts with no counterpart', () => {
-    expect(operatorCrossLinkFor('butterfly')).toBeNull();
-    expect(operatorCrossLinkFor('spinning')).toBeNull();
     expect(baseAtomCrossLinkFor('spin')).toBeNull();
     expect(baseAtomCrossLinkFor('ducking')).toBeNull();
   });
@@ -60,6 +50,7 @@ function row(
     trick_kind:     null,
     terminal_cohort: null,
     terminal_cohort_position: null,
+    reverse_pair_base: null,
   };
 }
 

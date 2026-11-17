@@ -303,7 +303,6 @@
   --operational-glossary-target-bg: rgba(180, 83, 9, 0.06); /* warm amber deep-link highlight */
   --notation-panel-bg:              rgba(0, 0, 0, 0.03);    /* fixed-width notation article panel */
   --notation-panel-border:          rgba(0, 0, 0, 0.1);     /* its edge */
-  --lineage-current-bg:             rgba(34, 197, 94, 0.05); /* the family-lineage tier holding the current trick */
   /* Modifier-layering legend: one wash per notation layer, keyed to the same
      layer colours as the notation tokens (set, rotation, modifier, core family). */
   --modifier-layer-set-bg:          rgba(219, 234, 254, 0.42);
@@ -3554,12 +3553,6 @@ main pre[role="region"] { overflow-x: auto; }
   flex-shrink: 0;
   text-decoration: none;
 }
-/* Panels that stack the token under the trick name rather than beside it. */
-.hashtag--block {
-  display: block;
-  white-space: normal;
-  margin-top: var(--space-xs);
-}
 /* Live: the trick has media and this token opens its gallery. */
 a.hashtag--media {
   font-size: var(--hashtag-size-live);
@@ -3888,10 +3881,11 @@ a.hashtag--media:hover {
   display: flex;
   flex-direction: column;
 }
-.related-tricks-list li > a { font-weight: 500; }
+.related-tricks-list li > a,
+.related-tricks-list li > span > a { font-weight: 500; }
 
-/* Labeled relationship groups (Same family / Shares a modifier / Movement
-   neighbours or Swing elements / Built on / Structural ancestor). */
+/* Labeled relationship groups on a trick page (Closest Relatives, Built on
+   This Trick, outside-source names). */
 .related-group { margin-bottom: var(--space-lg); }
 .related-group-label {
   font-weight: 600;
@@ -4498,27 +4492,6 @@ a.hashtag--media:hover {
 .notation-grammar-collapsible > *:not(summary):first-of-type { padding-top: var(--space-sm); }
 .notation-grammar-collapsible > *:last-child { padding-bottom: var(--space-sm); }
 
-/* Compact collapsible disclosure on trick-detail, collapsed by default so the
-   page does not grow: curator Technique Notes (execution, learning,
-   prerequisites), display support beside the canonical About explanation. */
-.trick-technique-collapsible {
-  padding: 0;
-}
-.trick-technique-collapsible > summary {
-  cursor: pointer;
-  padding: var(--space-sm) 0;
-  font-weight: 600;
-  font-size: 1rem;
-}
-.trick-technique-collapsible[open] > summary { border-bottom: 1px solid var(--border); }
-/* The disclosure's title is the section's h2, so the h3s inside it sit under a
-   heading of their own rank; inline keeps it on the line of the native marker. */
-.trick-technique-collapsible > summary > h2 {
-  display: inline;
-  font-size: 1.5rem;
-  margin: 0;
-}
-
 /* Core-atom glossary cards: per-entry three-layer disclosure (Line visible,
    Relates and Reveal as collapsibles). Mirrors the caret idiom above. */
 .glossary-core-atom-collapsible {
@@ -4606,12 +4579,9 @@ a.hashtag--media:hover {
 }
 
 /* Technique Notes inner sub-blocks (Execution / Learning Notes / Before You Try
-   This), each a compact labeled group inside the single disclosure. */
+   This), each a compact labeled group inside the open section. */
 .trick-technique-part {
-  padding: var(--space-sm) 0 var(--space-md) var(--space-xl);
-}
-.trick-technique-part + .trick-technique-part {
-  padding-top: 0;
+  padding: 0 0 var(--space-md);
 }
 .trick-technique-heading {
   margin: 0 0 var(--space-xs);
@@ -4711,82 +4681,6 @@ a.hashtag--media:hover {
    lower than one that does not, on the same page. The heading block owns that
    gap for both. */
 .section-heading .section-intro { margin-bottom: 0; }
-
-
-/* ─────────────────────────────────────────────────────────────────────────
-   ADD-tiered family lineage. Tier-grouped rows: numeric ADD tiers ascending,
-   "Modifiers" tier last. Current trick row highlighted within its tier.
-   Restraint-first: muted tier labels, sentence-cased member names, single
-   star indicator for record-bearing rows.
-   ───────────────────────────────────────────────────────────────────────── */
-
-.trick-family-lineage .family-lineage {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-  margin-top: var(--space-xs);
-}
-.family-lineage-tier {
-  display: grid;
-  grid-template-columns: 78px 1fr;
-  gap: var(--space-md);
-  align-items: baseline;
-  padding: var(--space-sm) 0;
-  border-bottom: 1px dotted var(--gray-250);
-}
-.family-lineage-tier:last-child { border-bottom: none; }
-.family-lineage-tier-current {
-  background: var(--lineage-current-bg);
-  border-radius: var(--radius-xs);
-  padding-left: var(--space-sm);
-}
-.family-lineage-tier-label {
-  font-size: 0.9rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--sec-text-dim);
-  font-weight: 600;
-}
-.family-lineage-tier-members {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-sm) var(--space-lg);
-}
-.family-lineage-member {
-  font-size: 0.9rem;
-  line-height: 1.5;
-}
-.family-lineage-member-current {
-  font-weight: 700;
-  color: var(--map-tier-6);
-}
-.family-lineage-member-current strong {
-  background: var(--success-tint);
-  padding: 1px var(--space-sm);
-  border-radius: var(--radius-xs);
-}
-.family-lineage-here {
-  font-size: 0.9rem;
-  color: var(--sec-text-dim);
-  margin-left: var(--space-xs);
-  font-weight: 500;
-}
-.family-lineage-member .record-indicator {
-  font-size: 0.9rem;
-  color: var(--sec-sandbox);
-  margin-left: var(--space-xs);
-}
-
-@media (max-width: 768px) {
-  .family-lineage-tier {
-    grid-template-columns: 1fr;
-    gap: var(--space-xs);
-  }
-  .family-lineage-tier-label {
-    font-size: 0.9rem;
-    color: var(--steel-550);
-  }
-}
 
 /* ─────────────────────────────────────────────────────────────────────────
    Nested modifier-layering panel. Activates only when
@@ -6808,34 +6702,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   .glossary-equivalence-worked-example em {
     display: block;
     margin-left: 0;
-  }
-}
-
-/* Family-anchor callout on
-   trick-detail pages. Renders only when the current trick IS the
-   family-anchor for a curator-confirmed terminal family. Reuses the
-   muted-tone aesthetic of .browse-view-intro for visual cohesion
-   across the dictionary pedagogy surfaces. */
-.trick-family-anchor-callout {
-  margin: 0 0 var(--space-lg);
-  padding: var(--space-md) var(--space-lg);
-  background: var(--bg-light);
-  border-left: 3px solid var(--border);
-  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
-  color: var(--text);
-  font-size: 1rem;
-  line-height: 1.5;
-}
-.trick-family-anchor-callout p {
-  margin: 0;
-}
-.trick-family-anchor-callout p + p {
-  margin-top: var(--space-sm);
-}
-@media (max-width: 480px) {
-  .trick-family-anchor-callout {
-    font-size: 0.9rem;
-    padding: var(--space-sm) var(--space-md);
   }
 }
 

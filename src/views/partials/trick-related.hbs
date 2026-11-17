@@ -1,42 +1,24 @@
 {{!--
-  Related tricks: every relationship except same-family progression, which the
-  Family ladder owns. Labeled relationship groups (Same family / Shares a
-  modifier / Movement neighbours or Swing elements / Built on / Structural
-  ancestor), partitioned in the service by each row's relating rule; then the
-  ranked structural relatives; then outside-source names recorded under another
-  canonical reading, which never become links; then links to the teaching pages
-  the trick's base or modifiers point at. content.hasRelatedSection is true when
-  any of these has something to show.
+  Related tricks: a handful of named tricks, never a whole family. The closest
+  relatives (at most six, only those a curator related to the trick: curated
+  neighbours and the stored reverse pair); then outside-source names
+  recorded under another canonical reading, which never become links; then the
+  teaching pages the trick's base or modifiers point at; then the family links,
+  which stand in for listing the family here. content.hasRelatedSection is true
+  when any of these has something to show.
 --}}
 {{#if content.hasRelatedSection}}
 <section class="content-section" data-section="related-tricks">
   <div class="section-heading">
     <h2>Related Tricks</h2>
   </div>
-  {{#each content.relatedGroups}}
-  <div class="related-group">
-    <h3 class="related-group-label">{{label}}</h3>
-    {{#if rationale}}<p class="relationship-why">{{rationale}}</p>{{/if}}
+  {{#if content.closestRelatives.length}}
+  <div class="related-group" data-section="closest-relatives">
+    <h3 class="related-group-label">Closest Relatives</h3>
+    {{#if content.closestRelativesNote}}<p class="relationship-why">{{content.closestRelativesNote}}</p>{{/if}}
     <ul class="related-tricks-list">
-      {{#each tricks}}
-      <li>
-        <a href="{{detailHref}}">{{canonicalName}}</a>
-        {{#if hashtagHref}}
-          <a class="hashtag hashtag--block hashtag--media" href="{{hashtagHref}}">{{hashtag}}</a>
-        {{else}}
-          <span class="hashtag hashtag--block">{{hashtag}}</span>
-        {{/if}}
-      </li>
-      {{/each}}
-    </ul>
-  </div>
-  {{/each}}
-  {{#if content.similarTricks.length}}
-  <div class="related-group" data-section="similar-tricks">
-    <h3 class="related-group-label">Structurally related tricks</h3>
-    <ul class="related-tricks-list">
-      {{#each content.similarTricks}}
-      <li><a href="{{detailHref}}">{{canonicalName}}</a>{{#if adds}} <span class="text-muted fs-sm">({{adds}})</span>{{/if}}</li>
+      {{#each content.closestRelatives}}
+      <li><span><a href="{{detailHref}}">{{canonicalName}}</a>{{#if adds}} <span class="text-muted fs-sm">({{adds}} ADD)</span>{{/if}}</span></li>
       {{/each}}
     </ul>
   </div>
@@ -54,5 +36,17 @@
   {{#each content.symbolicEducationCtas}}
   <p><a href="{{href}}">{{label}}</a></p>
   {{/each}}
+  {{#if content.additionalFamilies.length}}
+  <p class="trick-also-family">
+    Also a member of:
+    {{#each content.additionalFamilies}}<a class="trick-also-family-chip{{#if isMinorLineage}} trick-also-family-chip--minor{{/if}}" href="{{siteHref href}}">{{label}}{{#if isMinorLineage}} <span class="trick-family-minor-tag">&middot; minor lineage</span>{{/if}}</a>{{#unless @last}} {{/unless}}{{/each}}
+  </p>
+  {{/if}}
+  {{#if content.familyBrowse}}
+  <p><a class="action-link" href="{{siteHref content.familyBrowse.href}}" data-family-browse>{{content.familyBrowse.label}}</a></p>
+  {{/if}}
+  {{#if content.familyPage}}
+  <p><a class="action-link" href="{{siteHref content.familyPage.href}}" data-family-page>{{content.familyPage.label}}</a></p>
+  {{/if}}
 </section>
 {{/if}}

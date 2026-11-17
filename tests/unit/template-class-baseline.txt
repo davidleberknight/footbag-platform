@@ -228,10 +228,6 @@ event-list-meta
 event-list-row
 event-list-title
 event-meta-row
-family-lineage
-family-lineage-here
-family-lineage-tier-label
-family-lineage-tier-members
 family-rung-header
 family-teaching-list
 family-view-ordering-note
@@ -321,7 +317,6 @@ glossary-section-next
 glossary-sources-list
 glossary-term-list
 hashtag
-hashtag--block
 hashtag--media
 hero
 hero-eyebrow
@@ -509,7 +504,6 @@ queue-member-question
 queue-question-body
 quick-actions
 radio-label
-record-indicator
 record-review-flag
 record-review-note
 records-by-trick
@@ -645,13 +639,11 @@ trick-add-group
 trick-add-lineage
 trick-also-family
 trick-description
-trick-family-anchor-callout
 trick-family-anchor-label
 trick-family-anchor-sublabel
 trick-family-branch-of
 trick-family-cross-link
 trick-family-group
-trick-family-lineage
 trick-family-minor-tag
 trick-family-rung
 trick-family-shared-structure
@@ -675,7 +667,6 @@ trick-shell
 trick-sort-name
 trick-structural-facts
 trick-structural-facts-list
-trick-technique-collapsible
 trick-technique-heading
 trick-technique-part
 trick-transform

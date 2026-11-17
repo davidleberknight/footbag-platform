@@ -4,10 +4,9 @@
  * Pins these additive surfaces:
  *   1. Quantity ladder (spin -> double_spin -> triple_spin): a cross-family
  *      progression rendered with a current-rung marker + rationale, NOT a family.
- *   2. Swing elements: the pendulum/rake movement-neighbour pair re-labeled
- *      "Swing elements" with the open-terminal rationale.
- *   3. Related tricks split into labeled relationship groups (group label, not
- *      per-row reason).
+ *   2. Swing elements: the pendulum/rake movement-neighbour pair lists each
+ *      other as closest relatives, under the open-terminal rationale.
+ *   3. Related Tricks carries no family group and no per-row reasons.
  *   4. Orphan-neighbour overlays: double_kick / miraging_kick / toe_clipper
  *      surface their curated movement neighbours.
  */
@@ -77,15 +76,22 @@ describe('Quantity ladder (cross-family, not a family)', () => {
   });
 });
 
+// The closest-relatives block of a page, from its opening tag to the end of
+// its list, so a link found there is one the block itself renders.
+function closestRelatives(html: string): string {
+  const start = html.indexOf('data-section="closest-relatives"');
+  expect(start, 'the page renders no closest relatives').toBeGreaterThan(-1);
+  return html.slice(start, html.indexOf('</ul>', start));
+}
+
+// Defect caught: the swing-element pair, in families of their own, stop
+// pointing at each other, or lose the line explaining the open terminal.
 describe('Swing elements (movement neighbours, not a family)', () => {
-  it('labels the pendulum/rake pair "Swing elements" with the open-terminal rationale', async () => {
-    const html = await page('pendulum');
-    expect(html).toContain('Swing elements');
-    expect(html).toContain('terminal is open');
-    expect(html).toContain('/freestyle/tricks/rake');
-    const rakeHtml = await page('rake');
-    expect(rakeHtml).toContain('Swing elements');
-    expect(rakeHtml).toContain('/freestyle/tricks/pendulum');
+  it('lists pendulum and rake as each other\'s closest relatives, under the open-terminal rationale', async () => {
+    const pendulum = closestRelatives(await page('pendulum'));
+    expect(pendulum).toContain('class="relationship-why"');
+    expect(pendulum).toContain('href="/freestyle/tricks/rake"');
+    expect(closestRelatives(await page('rake'))).toContain('href="/freestyle/tricks/pendulum"');
   });
 });
 
@@ -101,10 +107,9 @@ describe('Related groups + regressions', () => {
 
 describe('Orphan-neighbour overlays + modifier glosses', () => {
   it('double_kick surfaces its flying-contact set and the double_knee sibling', async () => {
-    const html = await page('double_kick');
-    expect(html).toContain('Movement neighbours');
-    expect(html).toContain('/freestyle/tricks/flying_clipper');
-    expect(html).toContain('/freestyle/tricks/double_knee');   // mutual sibling pair
+    const block = closestRelatives(await page('double_kick'));
+    expect(block).toContain('/freestyle/tricks/flying_clipper');
+    expect(block).toContain('/freestyle/tricks/double_knee');   // mutual sibling pair
   });
   it('miraging_kick relates to mirage; toe_clipper to flying_clipper', async () => {
     expect(await page('miraging_kick')).toContain('/freestyle/tricks/mirage');

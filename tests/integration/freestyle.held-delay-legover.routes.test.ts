@@ -3,7 +3,7 @@
  *
  * wrap / walk-over / hop-over / eclipse each sit in their own singleton family,
  * so the curated movement-neighbourhood overlay is the only surface that links
- * them. Each of the four lists the other three under "Movement neighbours" with
+ * them. Each of the four lists the other three as its closest relatives, under
  * the lineage rationale.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -35,17 +35,24 @@ async function page(slug: string): Promise<string> {
   return res.text;
 }
 
-const RATIONALE = 'Continuous-control held-stall leg-over lineage. Walk-over is the stepping variant, Hop-over the jumping variant, and Eclipse the airborne extension.';
+// The closest-relatives block of a page, from its opening tag to the end of
+// its list, so a link found there is one the block itself renders.
+function closestRelatives(html: string): string {
+  const start = html.indexOf('data-section="closest-relatives"');
+  expect(start, 'the page renders no closest relatives').toBeGreaterThan(-1);
+  return html.slice(start, html.indexOf('</ul>', start));
+}
 
+// Defect caught: the four held-stall leg-overs, each in a family of its own,
+// lose the only links between them, or lose the line saying how they relate.
 describe('Held-stall leg-over Movement neighbours overlay', () => {
   const all = ['wrap', 'walk_over', 'hop_over', 'eclipse'];
   for (const slug of all) {
-    it(`${slug} lists the other three under Movement neighbours with the lineage rationale`, async () => {
-      const html = await page(slug);
-      expect(html).toContain('Movement neighbours');
-      expect(html).toContain(RATIONALE);
+    it(`${slug} lists the other three as closest relatives, under the lineage rationale`, async () => {
+      const block = closestRelatives(await page(slug));
+      expect(block).toContain('class="relationship-why"');
       for (const other of all.filter(s => s !== slug)) {
-        expect(html).toContain(`href="/freestyle/tricks/${other}"`);
+        expect(block).toContain(`href="/freestyle/tricks/${other}"`);
       }
     });
   }

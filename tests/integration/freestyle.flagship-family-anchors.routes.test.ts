@@ -3,19 +3,15 @@
  *
  * Targets: whirl, butterfly, mirage. All three are FIRST_CLASS_TIER_1
  * members + carry ATOMIC_FLAG_DECOMPOSITIONS entries, so the
- * first-class Notation summary already renders. On top of that, the
- * family-anchor callout in the trick-family section makes the dual
- * role (trick + family-anchor) explicit on the trick page itself.
+ * first-class Notation summary already renders.
  *
  * Contract under test:
- *   - whirl, butterfly, mirage, osis trick-detail pages all render the
- *     family-anchor callout
- *   - Cross-link points to /freestyle/tricks?view=family#family-{slug} for a
- *     family parent, and to the family-filtered dictionary for a minor lineage,
- *     whose family-view band has no section of its own
+ *   - each flagship page's family browse link resolves: to the family view's
+ *     #family-{slug} section for a family parent, and to the family-filtered
+ *     dictionary for a minor lineage, whose family-view band has no section
+ *     of its own
  *   - Each page's existing first-class Notation summary still renders
  *     (regression on FIRST_CLASS_TIER_1 + ATOMIC_FLAG_DECOMPOSITIONS)
- *   - A non-anchor trick (paradox-mirage) does NOT render the callout
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { cachedGet } from '../fixtures/cachedGet';
@@ -145,50 +141,37 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('family-anchor callout on flagship trick-detail pages', () => {
-  it('each flagship page renders the family-anchor callout linking to its family', async () => {
-    for (const slug of ['whirl', 'butterfly', 'mirage', 'osis']) {
-      const res = await page(`/freestyle/tricks/${slug}`);
-      expect(res.status, slug).toBe(200);
-      expect(res.text, slug).toMatch(/class="trick-family-anchor-callout"/);
-      // Cross-link to family-browse view at the #family-{slug} anchor.
-      // Handlebars escapes '=' to '&#x3D;' inside href attributes; assert
-      // the escaped form that actually appears in the HTTP response body.
-      expect(res.text, slug).toContain(`/freestyle/tricks?view&#x3D;family#family-${slug}`);
-    }
-  });
-});
-
-describe('every family-anchor callout lands on something its target page renders', () => {
-  // The callout's link that the template writes, with Handlebars' escaping
-  // of "=" undone so it can be requested.
-  const calloutHref = (html: string): string => {
-    const start = html.indexOf('class="trick-family-anchor-callout"');
-    expect(start, 'no family-anchor callout').toBeGreaterThan(-1);
-    const m = html.slice(start).match(/<a href="([^"]+)">/);
-    expect(m, 'the callout carries no link').not.toBeNull();
+describe('every family link on a flagship page lands on something its target renders', () => {
+  // The browse link the template writes, with Handlebars' escaping of "="
+  // undone so it can be requested.
+  const browseHref = (html: string): string => {
+    const m = html.match(/<a class="action-link" href="([^"]+)" data-family-browse>/);
+    expect(m, 'the page carries no family browse link').not.toBeNull();
     return m![1]!.replace(/&#x3D;/g, '=').replace(/&amp;/g, '&');
   };
 
+  // Defect caught: the link that stands in for the family's membership lands
+  // on a page that does not show the family, so a reader loses the family.
   it.each(['whirl', 'butterfly', 'mirage', 'osis', 'rev_whirl'])(
-    'the %s callout link resolves: its fragment is an id on the target, or the target lists the family',
+    'the %s browse link resolves: its fragment is an id on the target, or the target lists the trick',
     async (slug) => {
-      const href = calloutHref((await page(`/freestyle/tricks/${slug}`)).text);
+      const href = browseHref((await page(`/freestyle/tricks/${slug}`)).text);
       const [path, fragment] = href.split('#');
       const target = await page(path!);
       expect(target.status, href).toBe(200);
       if (fragment) {
         expect(target.text, `${href}: no element carries id="${fragment}"`).toContain(`id="${fragment}"`);
       } else {
-        expect(target.text, `${href}: the target does not list the family's anchor trick`)
+        expect(target.text, `${href}: the target does not list the trick`)
           .toContain(`href="/freestyle/tricks/${slug}"`);
       }
     },
   );
 
-  it('a minor lineage callout goes to its family-filtered dictionary, as the family view band does', async () => {
-    const href = calloutHref((await page('/freestyle/tricks/rev_whirl')).text);
-    expect(href).toBe('/freestyle/tricks?family=rev_whirl');
+  // Defect caught: a minor lineage, which has no section of its own in the
+  // family view, links to a fragment nothing renders.
+  it('a minor lineage links to its family-filtered dictionary, as the family view band does', async () => {
+    expect(browseHref((await page('/freestyle/tricks/rev_whirl')).text)).toBe('/freestyle/tricks?family=rev_whirl');
   });
 });
 
@@ -218,17 +201,6 @@ describe('flagship anchors — universal notation card renders', () => {
   });
 });
 
-describe('non-anchor tricks do NOT render the family-anchor callout', () => {
-  it('paradox-mirage page does NOT render the callout (compound, not an anchor)', async () => {
-    const res = await page('/freestyle/tricks/paradox_mirage');
-    expect(res.status).toBe(200);
-    expect(res.text).not.toMatch(/class="trick-family-anchor-callout"/);
-    // The page's existing family chip + family lineage still render,
-    // but they don't claim anchor status on this row.
-    expect(res.text).not.toMatch(/<strong>paradox mirage<\/strong>\s+is the/i);
-  });
-});
-
 describe('base-family paragraph appears on the family-anchor page only', () => {
   // The generic base-family prose (the family's trick-page note) belongs on the base trick's own
   // page, not repeated on every derivative About section.
@@ -249,26 +221,6 @@ describe('base-family paragraph appears on the family-anchor page only', () => {
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('The whirl is the central rotational base');
   });
-});
-
-describe('no curator-internal language leakage', () => {
-  it.each(['whirl', 'butterfly', 'mirage', 'osis'])(
-    '%s callout does not expose pt##/Slice/Wave/Sprint labels',
-    async (slug) => {
-      const res = await page(`/freestyle/tricks/${slug}`);
-      const startIdx = res.text.indexOf('trick-family-anchor-callout');
-      expect(startIdx).toBeGreaterThan(0);
-      // Find the end of the callout block.
-      const endIdx = res.text.indexOf('</div>', res.text.indexOf('trick-family-anchor-invariant', startIdx));
-      const region = res.text.slice(startIdx, endIdx);
-      expect(region).not.toMatch(/\bpt\d+\b/i);
-      expect(region).not.toMatch(/Slice [A-Z]\b/);
-      expect(region).not.toMatch(/Wave[- ]?\d/i);
-      expect(region).not.toMatch(/Sprint/i);
-      expect(region).not.toMatch(/FAMILY_INVARIANTS/);
-      expect(region).not.toMatch(/curatorConfirmPending/i);
-    },
-  );
 });
 
 describe('compact structural-fact block', () => {

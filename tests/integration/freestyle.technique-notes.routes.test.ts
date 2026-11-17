@@ -1,11 +1,11 @@
 /**
- * Technique Notes disclosure on the trick-detail page.
+ * Technique Notes on the trick-detail page.
  *
- * Execution, Learning Notes, and Prerequisites are grouped into a single
- * compact disclosure, collapsed by default so the page does not grow. The
- * block sits below the canonical reference material, stays distinct from the
- * canonical About explanation, and renders only when the trick has at least
- * one of the three instructional fields. A trick with none renders no block.
+ * Execution, Learning Notes, and Prerequisites are grouped into one open
+ * section, the page's single teaching surface. The section sits below the
+ * canonical reference material, stays distinct from the canonical About
+ * explanation, and renders only when the trick has at least one of the three
+ * instructional fields. A trick with none renders no section.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -41,16 +41,18 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('Technique Notes disclosure', () => {
-  it('renders one collapsed disclosure grouping the three instructional parts', async () => {
+  // Defect caught: the page's one teaching surface is hidden behind a closed
+  // disclosure, so a reader never meets the coaching without opening it.
+  it('renders one open section grouping the three instructional parts', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/mirage');
     expect(res.status).toBe(200);
 
-    // a single disclosure, collapsed by default (no open attribute)
-    expect(res.text).toContain('class="trick-technique-collapsible"');
-    expect(res.text).toMatch(/<details class="trick-technique-collapsible"(?![^>]*\bopen\b)/);
-    // the disclosure's title is the section's h2, so its h3 parts never sit
-    // under whichever unrelated h2 came before them
-    expect(res.text).toContain('<summary><h2>Technique Notes</h2></summary>');
+    const start = res.text.indexOf('id="technique-notes"');
+    expect(start, 'no Technique Notes section').toBeGreaterThan(-1);
+    const section = res.text.slice(start, res.text.indexOf('</section>', start));
+    // open: the section's heading is its own h2, and nothing folds it away
+    expect(section).toMatch(/<div class="section-heading">\s*<h2>Technique Notes<\/h2>/);
+    expect(section).not.toContain('<details');
 
     // the three parts are sub-blocks, not standalone full-width sections
     expect(res.text).toContain('>Execution</h3>');
@@ -70,7 +72,7 @@ describe('Technique Notes disclosure', () => {
   it('renders no Technique Notes block when the trick has no instructional prose', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/dyno');
     expect(res.status).toBe(200);
-    expect(res.text).not.toContain('trick-technique-collapsible');
+    expect(res.text).not.toContain('id="technique-notes"');
     expect(res.text).not.toContain('>Technique Notes</h2>');
   });
 });

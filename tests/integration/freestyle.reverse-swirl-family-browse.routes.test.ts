@@ -138,18 +138,4 @@ describe('what the browse entry does not change', () => {
     // not move a single row either way.
     expect(res.text).not.toContain('barfly reverse swirl');
   });
-
-  it('leaves the ladder on a member detail page as it was', async () => {
-    const res = await page('/freestyle/tricks/barfly_reverse_swirl');
-    expect(res.status).toBe(200);
-    // Driven by trick_family, not by the registry: the same six, before and after.
-    for (const t of REV_SWIRL_FAMILY.filter(m => m.slug !== 'barfly_reverse_swirl')) {
-      expect(res.text).toContain(t.name);
-    }
-  });
-
-  it('heads that page Related rather than Family, because it stays a Minor Lineage', async () => {
-    const res = await page('/freestyle/tricks/barfly_reverse_swirl');
-    expect(res.text).toContain('Related');
-  });
 });

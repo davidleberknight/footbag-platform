@@ -1,14 +1,17 @@
 /**
  * GET /freestyle/tricks/:slug — the trick page's section set.
  *
- * A trick page carries one opening, its notation and structure, Technique
- * Notes, and two relationship sections: the Family ladder and Related Tricks.
- * The sections that only repeated another one stay off every page shape: a
+ * A trick page carries one opening, its notation and structure, open Technique
+ * Notes, and one relationship section, Related Tricks. The sections that only
+ * repeated another one, or that a curator never wrote, stay off every page
+ * shape: a progression list, a generated opening sentence, a closed Technique
+ * Notes disclosure, a
  * pathways block, a movement-intuition section, a per-modifier block, a
  * compressed-from line, equivalent readings, a naming-and-interpretation card,
  * scoring notes, alternate derivations, a separate structural-relatives
- * section, a separate educational aside, the conserved-mechanic line in the
- * family callout, and the "lands in" backlink on a cohort member.
+ * section, a separate educational aside, the family-anchor callout, the
+ * whole-family ladder, a record marker in a relationship list, and the
+ * "lands in" backlink on a cohort member.
  *
  * Each case pairs the absence check with the kept section that must still
  * render on the same page, so an empty page cannot pass.
@@ -45,6 +48,13 @@ const REMOVED_MARKERS = [
   'similar-tricks-list',
   'trick-family-anchor-invariant',
   'data-section="terminal-backlink"',
+  'trick-family-lineage',
+  'trick-family-anchor-callout',
+  'data-section="similar-tricks"',
+  'record-indicator',
+  'data-section="progression"',
+  'data-structural-about',
+  'trick-technique-collapsible',
 ];
 
 function sectionSlice(html: string, marker: string): string {
@@ -101,25 +111,23 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('a modifier compound', () => {
-  // Defect caught: a cut section returning, or the structural relatives and the
-  // teaching-page link falling out of Related Tricks with nothing in their place.
-  it('keeps one relationship block beside the family ladder, holding the relatives and the teaching link', async () => {
+  // Defect caught: a cut section returning, or the teaching-page link falling
+  // out of Related Tricks with nothing in its place.
+  it('keeps one relationship block holding the teaching and family links', async () => {
     const html = await page('ripwalk');
     expectNoRemovedSection(html, 'ripwalk');
     const related = sectionSlice(html, 'related-tricks');
     expect(related, 'Related Tricks section').not.toBe('');
-    // The structurally related group sits inside Related Tricks, not beside it.
-    expect(related).toContain('data-section="similar-tricks"');
-    expect(related).toContain('href="/freestyle/tricks/stepping_whirl"');
-    // The teaching-page link this trick earns closes Related Tricks.
+    // A trick sharing the operators on another base is not a close relative.
+    expect(related).not.toContain('href="/freestyle/tricks/stepping_whirl"');
+    // The teaching-page link this trick earns sits in Related Tricks.
     const ctas = buildSymbolicEducationCtas({
       slug: 'ripwalk', baseTrick: 'butterfly', modifierSlugs: ['stepping', 'paradox'],
       familyPageHrefOf: (s) => `/freestyle/families/${s}`,
     });
     expect(ctas.length).toBeGreaterThan(0);
     for (const cta of ctas) expect(related).toContain(`href="${cta.href}"`);
-    // The Family ladder still owns same-family progression.
-    expect(html).toContain('content-section trick-family-lineage');
+    expect(related).toContain('data-family-browse');
   });
 
   // Defect caught: the page's opening growing its old heading back, so the
@@ -134,13 +142,14 @@ describe('a modifier compound', () => {
 });
 
 describe('a family anchor', () => {
-  // Defect caught: the anchor callout carrying the conserved-mechanic line
-  // again, or losing the callout itself.
-  it('shows the family-anchor callout without the invariant line', async () => {
+  // Defect caught: a family anchor lists its family's tricks on its own page
+  // again, or loses the link to the family's page that owns them.
+  it('links its family page and lists none of the tricks built on it', async () => {
     const html = await page('mirage');
     expectNoRemovedSection(html, 'mirage');
-    expect(html).toContain('trick-family-anchor-callout');
-    expect(html).toContain('href="/freestyle/tricks/paradox_mirage"');
+    const related = sectionSlice(html, 'related-tricks');
+    expect(related).toMatch(/href="\/freestyle\/families\/mirage" data-family-page/);
+    expect(html).not.toContain('href="/freestyle/tricks/paradox_mirage"');
   });
 });
 
