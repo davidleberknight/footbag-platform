@@ -577,6 +577,18 @@ Each is separable and answered on its own.
   butterfly(3) at 4. Ask for the rules expert: does the middle inward dexterity score,
   and does it carry the X-Dex FootbagMoves gives it, making the trick 4, 5 or 6 ADD?
   The row stays held, with no opening, until that is ruled.
+- **Voodoo's structure, and whether Symposium Blur is Voodoo.** Footbag.org move 157
+  gives Voodoo (technical name "Paradox Symposium Blur") at 5 ADD as
+  `CLIP > SAME IN [DEX] [BOD] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL]`;
+  FootbagMoves gives it as "Paradox Merlin" at 6 ADD,
+  `Clip >> Same In (DEX)(PDX) > (no plant while) Op In (DEX)(XDEX)(BOD) > Op Toe (DEL)`.
+  Both are Merlin's shape with the first dexterity changed; they differ on whether that
+  dexterity is a body or a paradox mark and on whether the symposium dexterity carries
+  an X-Dex. Ask for the rules expert: is Voodoo paradox Merlin, and is it 5 or 6 ADD?
+  The same answer decides Symposium Blur (`symposium_blur`, 5 ADD), a row whose name
+  came from footbag.org text and whose notation the pipeline composed, with the
+  symposium on Blur's first dexterity: is it Voodoo under another name, or a distinct
+  trick? Both rows stay held, with no opening, until that is ruled.
 
 ## Scoring and structure questions
 
