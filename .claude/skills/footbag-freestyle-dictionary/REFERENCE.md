@@ -81,4 +81,4 @@ than from a copy.
 
 ### Adding a new navigation surface
 
-Default to extending `freestyleRelatedTricks.ts` rather than spawning new files (the helpers share a filter → bucket-by-ADD → sort → flatten-with-cap shape). "Structurally similar?" → Related; "all whirl tricks?" → family filter. Same-family navigation by ADD is owned by the family ladder, not by a helper here.
+Default to extending `freestyleRelatedTricks.ts` rather than spawning new files (the helpers share a filter → bucket-by-ADD → sort → flatten-with-cap shape). "Structurally similar?" → Related; "all whirl tricks?" → family filter. A trick page never lists a whole family; the family view and the family page own same-family navigation.

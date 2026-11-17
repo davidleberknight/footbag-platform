@@ -191,7 +191,7 @@ Do not build new curated media on the legacy `freestyle_media_*` tables; the uni
 
 ## 5c. Navigation Layer (trick detail page)
 
-The trick detail page ships the family ladder plus the Related Tricks section, driven by the active dictionary alone. Helpers live in `src/services/freestyleRelatedTricks.ts`; all exclude `category='modifier'` and the current trick. Display order: **Trick Family ladder → Related Tricks.** Same-family navigation by ADD, higher and lower alike, is owned by the family ladder rather than by sections of its own. Helper internals (the buildRelatedTricks specification) are in `REFERENCE.md`.
+The trick detail page ships one relationship section, Related Tricks, driven by the active dictionary alone: at most six closest relatives a curator related to the trick (curated movement neighbours, curated structural relatives, the stored reverse pair), then links to the family's view and its page. It never lists the trick's whole family and never computes a relative from a shared base, family label or shared operators. Helpers live in `src/services/freestyleRelatedTricks.ts`; all exclude modifier, set, operator and under-review rows and the current trick. Helper internals (the buildRelatedTricks specification) are in `REFERENCE.md`.
 
 ### Hashtag, trick name, and family navigation (load-bearing UX rule)
 
