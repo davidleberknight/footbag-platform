@@ -177,9 +177,32 @@ function trickHrefFor(name: string | null, resolve?: (slug: string) => string | 
   return canonical ? `/freestyle/tricks/${canonical}` : null;
 }
 
+/**
+ * The ADD a record table shows: its trick's ADD from the dictionary when the
+ * record's trick resolves and a lookup is supplied, else the figure the record's
+ * source reported. The dictionary is the authority on a trick's ADD; a source
+ * such as PassBack can score the same trick differently, and the record keeps
+ * that figure stored as reported. A record under curator review keeps its own
+ * figure, since which trick it is has not been settled.
+ */
+function recordAddsFor(
+  row: FreestyleRecordRow,
+  underReview: boolean,
+  resolveActiveSlug: ((slug: string) => string | null) | undefined,
+  trickAdds: ((slug: string) => number | null) | undefined,
+): number | null {
+  if (!trickAdds || underReview || !row.trick_name || isRecordOnlyTrickName(row.trick_name)) {
+    return row.adds_count;
+  }
+  const slug = recordTrickNameToSlug(row.trick_name);
+  const canonical = resolveActiveSlug ? resolveActiveSlug(slug) : slug;
+  return (canonical ? trickAdds(canonical) : null) ?? row.adds_count;
+}
+
 export function shapeFreestyleRecord(
   row: FreestyleRecordRow,
   resolveActiveSlug?: (slug: string) => string | null,
+  trickAdds?: (slug: string) => number | null,
 ): FreestyleRecordViewModel {
   const placeholderDate = dateIsPlaceholder(row.achieved_date);
   // A record under curator review must not link to a speculative canonical
@@ -192,7 +215,7 @@ export function shapeFreestyleRecord(
     trickName:       row.trick_name,
     trickHref:       reviewNote ? null : trickHrefFor(row.trick_name, resolveActiveSlug),
     sortName:        row.sort_name,
-    addsCount:       row.adds_count,
+    addsCount:       recordAddsFor(row, !!reviewNote, resolveActiveSlug, trickAdds),
     valueNumeric:    row.value_numeric,
     achievedDate:    placeholderDate || !row.achieved_date
       ? null

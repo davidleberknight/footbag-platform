@@ -36,7 +36,7 @@ import { PageViewModel } from '../types/page';
 import { groupPlayerResults, resultsHaveDetail } from './playerShaping';
 import type { PlayerEventGroup, PlayerHeroData } from '../types/playerProfile';
 import { FreestyleRecordViewModel, shapeFreestyleRecord } from './freestyleRecordShaping';
-import { buildActiveTrickSlugResolver } from './freestyleResolvableSlugs';
+import { buildActiveTrickAddsLookup, buildActiveTrickSlugResolver } from './freestyleResolvableSlugs';
 import { mediaService, type EntityMediaBlock } from './mediaService';
 import { PLAYER_TAG_PREFIX, playerTagForName } from './slugify';
 import { personLocation } from './countryUtils';
@@ -161,6 +161,7 @@ export const historyService = {
     };
 
     const resolveActiveSlug = buildActiveTrickSlugResolver();
+    const trickAdds = buildActiveTrickAddsLookup();
     return {
       action: 'render',
       vm: {
@@ -180,7 +181,7 @@ export const historyService = {
           hasRecords:            freestyleRows.length > 0,
           eventGroups:           player.eventGroups,
           resultsHaveDetail:     resultsHaveDetail(player.eventGroups),
-          freestyleRecords:      freestyleRows.map(r => shapeFreestyleRecord(r, resolveActiveSlug)),
+          freestyleRecords:      freestyleRows.map(r => shapeFreestyleRecord(r, resolveActiveSlug, trickAdds)),
           media,
           mediaHeading:          `Media Featuring ${player.personName}`,
         },

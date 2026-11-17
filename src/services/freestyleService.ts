@@ -80,7 +80,7 @@ import {
 import { modifierHashtagRole } from '../content/freestyleHashtagRoles';
 import { GENUINE_HYPHEN_TOKENS } from '../content/freestyleDisplayNameExceptions';
 import { toTitleCase } from '../lib/titleCase';
-import { buildActiveTrickSlugResolver } from './freestyleResolvableSlugs';
+import { buildActiveTrickAddsLookup, buildActiveTrickSlugResolver } from './freestyleResolvableSlugs';
 import {
   NotationDisplay,
   shapeNotationDisplay,
@@ -2767,6 +2767,7 @@ export interface ModifierStubContent {
 
 function groupByType(rows: FreestyleRecordRow[]): FreestyleRecordGroup[] {
   const resolveActiveSlug = buildActiveTrickSlugResolver();
+  const trickAdds = buildActiveTrickAddsLookup();
   const groupMap = new Map<string, FreestyleRecordRow[]>();
   for (const row of rows) {
     const bucket = groupMap.get(row.record_type) ?? [];
@@ -2776,7 +2777,7 @@ function groupByType(rows: FreestyleRecordRow[]): FreestyleRecordGroup[] {
   return Array.from(groupMap.entries()).map(([recordType, typeRows]) => ({
     recordType,
     label:   labelForType(recordType),
-    records: typeRows.map(r => shapeFreestyleRecord(r, resolveActiveSlug)),
+    records: typeRows.map(r => shapeFreestyleRecord(r, resolveActiveSlug, trickAdds)),
   }));
 }
 
@@ -5364,6 +5365,12 @@ export const freestyleService = {
       .sort((a, b) => b.value_numeric - a.value_numeric);
 
     const currentRows = allTrickRows.filter(r => !r.superseded_by);
+    // Every record here resolves to this trick, by its slug or an alias, so its
+    // table shows this trick's ADD; a record-only page has none to show.
+    const pageTrickAddsValue = dictRow?.adds != null && /^\d+$/.test(String(dictRow.adds))
+      ? Number(dictRow.adds)
+      : null;
+    const pageTrickAdds = pageTrickAddsValue === null ? undefined : () => pageTrickAddsValue;
     const hasProgression = allTrickRows.some(r => r.superseded_by);
 
     const topValue = currentRows[0]?.value_numeric ?? 0;
@@ -5686,10 +5693,10 @@ export const freestyleService = {
           slug,
           pronunciation: dictRow?.pronunciation ?? null,
           trickTag,
-          records:          currentRows.map(r => shapeFreestyleRecord(r)),
+          records:          currentRows.map(r => shapeFreestyleRecord(r, undefined, pageTrickAdds)),
           recordCount:      currentRows.length,
           topValue,
-          progression:      allTrickRows.map(r => shapeFreestyleRecord(r)),
+          progression:      allTrickRows.map(r => shapeFreestyleRecord(r, undefined, pageTrickAdds)),
           hasProgression,
           dictEntry,
           familyChip:       familySlug

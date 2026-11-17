@@ -53,3 +53,21 @@ export function buildActiveTrickSlugResolver(): (slug: string) => string | null 
     return aliasTarget.get(slug) ?? null;
   };
 }
+
+/**
+ * The stored ADD of an active canonical trick, or null when the slug is not an
+ * active trick or its ADD is not a whole number. A record table shows its
+ * trick's ADD from here rather than the figure the record's source reported,
+ * since the dictionary's ADD is the authority and a source such as PassBack
+ * can score the same trick differently. Built fresh per call for the same
+ * reason as the resolvers above.
+ */
+export function buildActiveTrickAddsLookup(): (slug: string) => number | null {
+  const adds = new Map<string, number>();
+  for (const row of runSqliteRead('freestyleTricks.listAll', () =>
+    freestyleTricks.listAll.all() as FreestyleTrickRow[],
+  )) {
+    if (row.adds != null && /^\d+$/.test(String(row.adds))) adds.set(row.slug, Number(row.adds));
+  }
+  return (slug: string) => adds.get(slug) ?? null;
+}
