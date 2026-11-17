@@ -4940,6 +4940,44 @@ function buildSubstitutions(
   return out.slice(0, 4);
 }
 
+// The links an ADD breakdown sums. A trick's links follow one of two
+// conventions: some list its whole composition from the root (a compound
+// built on Paradox Mirage keeps its paradox link, which places it under
+// Paradox when browsing by modifier, though the base's ADD already counts
+// it), others list only what is added on top of the base (Bladerunner's
+// atomic is a second atomic on an eggbeater that already carries one). The
+// stored ADD tells them apart: when the links as listed already sum to it,
+// all are shown; otherwise each modifier the base carries is removed once per
+// occurrence on the base, and that list is used only if it then sums to the
+// stored ADD. Anything else is left as stored. The test is stored links and
+// ADD, never a name; a trick that is its own base removes nothing.
+function linksBeyondBase(
+  modifierLinks: FreestyleTrickModifierLinkDetailRow[],
+  slug: string,
+  baseTrick: string | null,
+  modifierLinkMap: Map<string, ModifierLinkInfo[]>,
+  baseAdds: number | null,
+  trickAdds: number | null,
+): FreestyleTrickModifierLinkDetailRow[] {
+  if (!baseTrick || baseTrick === slug || baseAdds === null || trickAdds === null) {
+    return modifierLinks;
+  }
+  const sumOf = (links: FreestyleTrickModifierLinkDetailRow[]) =>
+    links.reduce((total, link) => total + Number(link.add_bonus), baseAdds);
+  if (sumOf(modifierLinks) === trickAdds) return modifierLinks;
+  const carried = new Map<string, number>();
+  for (const m of modifierLinkMap.get(baseTrick) ?? []) {
+    carried.set(m.slug, (carried.get(m.slug) ?? 0) + 1);
+  }
+  const beyond = modifierLinks.filter(link => {
+    const left = carried.get(link.modifier_slug) ?? 0;
+    if (left === 0) return true;
+    carried.set(link.modifier_slug, left - 1);
+    return false;
+  });
+  return sumOf(beyond) === trickAdds ? beyond : modifierLinks;
+}
+
 // Hero decomposition builder. Returns a role-coloured
 // token sequence (modifier(s) + base) for any compound trick with at least
 // one modifier link. Returns null for atoms (zero modifier links) and
@@ -5434,6 +5472,19 @@ export const freestyleService = {
         const modifierLinkMap = buildModifierLinkMap(allLinkRows);
         const currentTrickMods: ModifierLinkInfo[] =
           dictRow ? (modifierLinkMap.get(slug) ?? []) : [];
+        // The links every ADD breakdown on this page sums: a modifier the base
+        // already carries is left out when its ADD already counts it, which
+        // the stored totals decide (linksBeyondBase).
+        const addsOf = (value: string | null | undefined): number | null =>
+          value != null && /^\d+$/.test(value) ? Number(value) : null;
+        const breakdownLinks = linksBeyondBase(
+          modifierLinks,
+          slug,
+          dictRow?.base_trick ?? null,
+          modifierLinkMap,
+          addsOf(allDictRows.find(r => r.slug === dictRow?.base_trick)?.adds),
+          addsOf(dictRow?.adds),
+        );
 
         // Load all curator-tagged media for this trick once. Split into
         // three buckets by source tier:
@@ -5794,7 +5845,7 @@ export const freestyleService = {
             ? buildHeroFormula(
                 dictEntry.canonicalName,
                 dictEntry.isModifier,
-                modifierLinks,
+                breakdownLinks,
                 dictEntry.baseTrick,
                 heroBaseName,
                 dictEntry.baseTrickAdds,
@@ -5803,7 +5854,7 @@ export const freestyleService = {
             : null,
           heroDecomposition: dictEntry
             ? buildHeroDecomposition(
-                modifierLinks,
+                breakdownLinks,
                 dictEntry.baseTrick,
                 heroBaseName,
                 dictEntry.isModifier,
@@ -5811,7 +5862,7 @@ export const freestyleService = {
             : null,
           modifierLayering: dictEntry
             ? buildModifierLayering(
-                modifierLinks,
+                breakdownLinks,
                 dictEntry.baseTrick,
                 heroBaseName,
                 dictEntry.baseTrickAdds,
@@ -5844,7 +5895,7 @@ export const freestyleService = {
                 add_bonus_rotational: row.add_bonus_rotational,
               });
             }
-            const modifierSlugs = modifierLinks.map(l => l.modifier_slug);
+            const modifierSlugs = breakdownLinks.map(l => l.modifier_slug);
             const baseRow = dictRow?.base_trick
               ? allDictRows.find(r => r.slug === dictRow.base_trick)
               : null;
@@ -5871,12 +5922,12 @@ export const freestyleService = {
               ? Number(dictRow.adds)
               : null;
             const linkDerivation = baseRow && baseAddNum !== null && trickAddNum !== null
-              && dictRow?.base_trick && dictRow.base_trick !== slug && modifierLinks.length
+              && dictRow?.base_trick && dictRow.base_trick !== slug && breakdownLinks.length
               ? {
                 totalAdd:        trickAddNum,
                 baseDisplayName: baseRow.canonical_name,
                 baseAdds:        baseAddNum,
-                links:           modifierLinks.map(l => ({
+                links:           breakdownLinks.map(l => ({
                   name:     allModifierRows.find(m => m.slug === l.modifier_slug)?.modifier_name
                             ?? l.modifier_slug,
                   addBonus: modifierBonusTable.get(l.modifier_slug)?.add_bonus ?? 0,
