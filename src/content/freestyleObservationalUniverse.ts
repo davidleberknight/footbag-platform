@@ -576,6 +576,8 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Furious Eggbeater", "slug": "furious-eggbeater", "source": "FM", "ecosystem": "blurry/furious", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier", "ledger": "absent", "resolvedTarget": "alias:clown_face", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "furiouseggbeater", "groupPrimary": false, "alsoRecordedAs": [], "readiness": ""},
   {"name": "Furious Eggbeater (Clown Face)", "slug": "furious-eggbeater-clown-face", "source": "SG", "ecosystem": "blurry/furious", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "alias/A", "resolvedTarget": "canonical:clown_face", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "", "owner": "mechanical", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "furiouseggbeater", "groupPrimary": true, "alsoRecordedAs": ["Furious Eggbeater"], "readiness": ""},
   {"name": "Nuclear", "slug": "nuclear", "source": "FB", "ecosystem": "blurry/furious", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier", "ledger": "authoring/F", "resolvedTarget": "", "objectType": "set-operator", "evidenceState": "compositional-name-only", "blockerId": "", "owner": "mechanical", "publicationState": "not-a-trick", "publicSection": "archive", "resolutionConflict": false, "identityKey": "nuclear", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
+  {"name": "Nuclear Butterfly", "slug": "nuclear-butterfly", "source": "FM", "ecosystem": "blurry/furious", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier", "ledger": "absent", "resolvedTarget": "alias:matador", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "nuclearbutterfly", "groupPrimary": false, "alsoRecordedAs": [], "readiness": ""},
+  {"name": "Nuclear Butterfly (Matador)", "slug": "nuclear-butterfly-matador", "source": "SG", "ecosystem": "blurry/furious", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "absent", "resolvedTarget": "canonical:matador", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "nuclearbutterfly", "groupPrimary": true, "alsoRecordedAs": ["Nuclear Butterfly"], "readiness": ""},
   {"name": "Nuclear DDD (Cold Fusion) (Geesha)", "slug": "nuclear-ddd-cold-fusion-geesha", "source": "SG", "ecosystem": "blurry/furious", "parentFamily": "", "section": "doctrine", "cluster": "dod-ddd", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier", "ledger": "alias/A", "resolvedTarget": "alias:cold_fusion", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "", "owner": "mechanical", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "nucleardowndoubledown", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
   {"name": "Nuclear far Butterfly", "slug": "nuclear-far-butterfly", "source": "PB", "ecosystem": "blurry/furious", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier", "ledger": "absent", "resolvedTarget": "alias:matador", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "nuclearfarbutterfly", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
   {"name": "Nuclear far Mirage", "slug": "nuclear-far-mirage", "source": "PB", "ecosystem": "blurry/furious", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier", "ledger": "absent", "resolvedTarget": "alias:sumo", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "nuclearfarmirage", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
@@ -1118,7 +1120,7 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
 
 export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
   {
-    "total": 954,
+    "total": 956,
     "canonicalPublished": 510,
     "universeTotal": 2460,
     "publishedDistinctStructures": 507,
@@ -1126,8 +1128,8 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
     "observationalUniverseNames": 1945,
     "observationalUniverseDistinctStructures": 1944,
     "canonicalOntology": 507,
-    "promotionFrontier": 197,
-    "lexicalArchive": 741,
+    "promotionFrontier": 198,
+    "lexicalArchive": 742,
     "intakeBuckets": {
       "promotion_ready": {
         "names": 51,
@@ -1138,12 +1140,12 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
         "distinctStructures": 39
       },
       "unresolved_candidate": {
-        "names": 107,
-        "distinctStructures": 107
+        "names": 108,
+        "distinctStructures": 108
       },
       "alias": {
-        "names": 334,
-        "distinctStructures": 334
+        "names": 335,
+        "distinctStructures": 335
       },
       "equivalence": {
         "names": 0,
@@ -1163,14 +1165,14 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
       }
     },
     "publicSections": {
-      "archive": 589,
+      "archive": 590,
       "decide": 44,
       "evidence": 19,
       "ruling": 214
     },
     "publicationStates": {
       "adjudication-pending": 44,
-      "already-represented": 500,
+      "already-represented": 501,
       "doctrine-blocked": 214,
       "evidence-pending": 19,
       "not-a-trick": 17,
@@ -1204,17 +1206,17 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
       "james": 44,
       "james+red": 214,
       "mechanical": 368,
-      "none": 221
+      "none": 222
     },
-    "identityCount": 866,
+    "identityCount": 867,
     "reconciliationWarnings": {
       "conflicting-parenthetical-resolutions": 2,
       "positional-paren-resolution-held": 4
     },
     "ready": 58,
-    "frontier": 108,
+    "frontier": 109,
     "doctrineBlocked": 53,
-    "folkUnresolved": 427,
+    "folkUnresolved": 428,
     "parserUnresolved": 308,
     "promotionReadyPct": 17,
     "doctrineBlockedPct": 6,
@@ -1222,9 +1224,9 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
     "parserUnresolvedPct": 32,
     "canonicalCoveragePct": 21,
     "sources": {
-      "SG": 427,
+      "SG": 428,
       "PB": 230,
-      "FM": 226,
+      "FM": 227,
       "FB": 56,
       "MULTI": 15
     },

@@ -128,6 +128,34 @@ const FOLDS = [
     movedFields: ['operational_notation'],
     movedLinks: 'whirling',
   },
+  {
+    retired: 'spinning_legover',
+    retiredName: 'spinning legover',
+    survivor: 'merkon',
+    dependants: [],
+    movedFields: ['execution_summary', 'learning_notes', 'prerequisite_notes'],
+  },
+  {
+    retired: 'gyro_eggbeater',
+    retiredName: 'gyro eggbeater',
+    survivor: 'mantis',
+    dependants: [],
+    movedFields: [],
+  },
+  {
+    retired: 'nuclear_butterfly',
+    retiredName: 'nuclear butterfly',
+    survivor: 'matador',
+    dependants: ['barfry'],
+    movedFields: [],
+  },
+  {
+    retired: 'gyro_barfly',
+    retiredName: 'gyro barfly',
+    survivor: 'bullwhip',
+    dependants: [],
+    movedFields: [],
+  },
 ];
 
 describe('identity folds: committed source outcomes', () => {

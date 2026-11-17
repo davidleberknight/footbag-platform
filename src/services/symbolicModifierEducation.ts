@@ -558,7 +558,7 @@ const GYRO_CONTENT: ModifierEducationInput = {
         baseLabel: 'Whirl family',
       },
       {
-        slug:      'gyro_eggbeater',
+        slug:      'mantis',
         baseLabel: 'Cross-body',
       },
       {
