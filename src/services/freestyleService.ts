@@ -3094,7 +3094,6 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'miraging_symposium_butterfly',
   'miraging_symposium_whirl',
   'paradox_fusion',
-  'paradox_symposium_illusion',
   // Whirling-X (uptime-whirl operator; OP IN [DEX] prefix + leading-dex flip).
   'whirling_pickup',
   'whirling_whirl',

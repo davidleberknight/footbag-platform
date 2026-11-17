@@ -151,7 +151,6 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
   { slug: 'paradox_drifter', derivation: 'paradox(+1) + drifter(3) = 4 ADD', operator: 'paradox' },
   { slug: 'paradox_high_plains_drifter', derivation: 'paradox(+1) + high-plains-drifter(4) = 5 ADD', operator: 'paradox' },
   { slug: 'paradox_mirage', derivation: 'paradox(+1) + mirage(2) = 3 ADD', operator: 'paradox' },
-  { slug: 'paradox_symposium_illusion', derivation: 'paradox(+1) + symposium-illusion(3) = 4 ADD', operator: 'paradox' },
   { slug: 'paradox_symposium_mirage', derivation: 'paradox(+1) + symposium(+1) + mirage(2) = 4 ADD', operator: 'paradox + symposium' },
   { slug: 'paradox_symposium_whirl', derivation: 'paradox(+1) + symposium(+1) + whirl(3) = 5 ADD', operator: 'paradox + symposium' },
   { slug: 'paradox_torque', derivation: 'paradox(+1) + torque(4) = 5 ADD', operator: 'paradox' },

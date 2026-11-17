@@ -7,12 +7,12 @@ the authority sits where it is supposed to and that moving it there changed
 nothing, and it proves things that do not imply each other:
 
   Adjudication equivalence — the table holds every ruling the ledger holds, with
-  the same values. This is a claim about 871 records, and it stays meaningful
+  the same values. This is a claim about 874 records, and it stays meaningful
   while the ledger remains as migration history.
 
   Projection equivalence — a generator run emits content byte-identical to the
   committed module, which was generated before the authority moved. This is a
-  claim about 963 rows composed from the corpus, most of which carry a ruling and
+  claim about 965 rows composed from the corpus, most of which carry a ruling and
   some of which carry none.
 
   Authority — the generator reads the table and nothing else. Editing the ledger
@@ -163,7 +163,7 @@ def regenerated_from_db(seeded_db: Path, tmp_path_factory) -> str:
 # ── Adjudication equivalence ────────────────────────────────────────────────
 
 def test_every_ruling_is_in_the_table(ledger_rows, seeded_rows):
-    assert len(seeded_rows) == len(ledger_rows) == 871
+    assert len(seeded_rows) == len(ledger_rows) == 874
 
 
 def test_the_adjudicated_names_are_the_same_set(ledger_rows, seeded_rows):
@@ -348,8 +348,8 @@ def test_the_database_authority_emits_the_committed_module_byte_for_byte(regener
 
 def test_the_emitted_corpus_has_the_same_shape(regenerated_from_db, committed_module_rows):
     rows = _module_rows(regenerated_from_db)
-    assert len(rows) == len(committed_module_rows) == 963
-    assert sum(1 for r in rows if r["layer"] == "frontier") == 201
+    assert len(rows) == len(committed_module_rows) == 965
+    assert sum(1 for r in rows if r["layer"] == "frontier") == 203
     assert sum(1 for r in rows if r["layer"] == "archive") == 762
 
 

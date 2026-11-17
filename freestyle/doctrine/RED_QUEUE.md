@@ -524,6 +524,19 @@ Each is separable and answered on its own.
   change, or family change is authorized. Close when the frame-inversion
   question is ruled and the cell identities of the spun compounds are recorded
   accordingly.
+- **Near nuclear forms move the catch too (Barfry, Hurl).** Barfry
+  (`CLIP > SAME OUT [PDX] [DEX] > SAME OUT [DEX] > SAME CLIP [XBD] [DEL]`, built on
+  Matador) and Hurl (`CLIP > SAME OUT [PDX] [DEX] > SAME IN [DEX] > SAME CLIP [XBD] [DEL]`,
+  built on nuclear whirl) are the attested near forms ("Nuclear near Butterfly",
+  "Nuclear ss Butterfly", "Nuclear ss Whirl"). Against their far forms each moves two
+  components to the same side: the base dexterity and the clipper catch. The ratified
+  targeting rule moves the catch only when it is the sole off-side element, so the
+  stored near configuration goes beyond it; it was derived from the far exemplars
+  (far = OP on the base dexterity and the catch). PassBack's near/far is bag-relative
+  in the down lineage, which may bear on Barfry. Ask for the rules expert: does a near
+  qualifier on a nuclear butterfly or whirl move the catch as well as the dexterity?
+  Both openings are held until it is ruled. Close condition: record the ruling, correct
+  the two notations if the catch stays opposite, and remove this entry.
 
 ## Individual held tricks
 

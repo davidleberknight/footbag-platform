@@ -197,6 +197,21 @@ const FOLDS = [
     movedFields: ['operational_notation', 'description'],
     movedLinks: 'furious',
   },
+  {
+    retired: 'paradox_symposium_illusion',
+    retiredName: 'paradox symposium illusion',
+    survivor: 'paradox_flail',
+    dependants: ['ducking_paradox_symposium_illusion'],
+    movedFields: ['operational_notation'],
+    movedLinks: 'paradox|symposium',
+  },
+  {
+    retired: 'toe_gyro_mirage',
+    retiredName: 'toe gyro mirage',
+    survivor: 'gyro_mirage',
+    dependants: [],
+    movedFields: [],
+  },
 ];
 
 describe('identity folds: committed source outcomes', () => {
