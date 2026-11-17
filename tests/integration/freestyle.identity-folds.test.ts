@@ -88,6 +88,31 @@ const FOLDS = [
     // Paradox is inside Morpheus's paradox-drifter base, so only the outer two move.
     movedLinks: 'spinning|ducking',
   },
+  {
+    retired: 'atomic_eggbeater',
+    retiredName: 'atomic eggbeater',
+    survivor: 'bladerunner',
+    dependants: [],
+    movedFields: [],
+    movedLinks: 'atomic',
+  },
+  {
+    retired: 'symposium_paradon',
+    retiredName: 'symposium paradon',
+    survivor: 'dolomite',
+    dependants: ['pixie_dolomite'],
+    movedFields: [],
+    movedLinks: 'symposium',
+  },
+  {
+    retired: 'spinning_ducking_paradox_blender',
+    retiredName: 'spinning ducking paradox blender',
+    survivor: 'gangsta_party',
+    dependants: [],
+    movedFields: ['description'],
+    // Paradox is inside Gangsta Party's paradox-blender base, so only the outer two move.
+    movedLinks: 'spinning|ducking',
+  },
 ];
 
 describe('identity folds: committed source outcomes', () => {
