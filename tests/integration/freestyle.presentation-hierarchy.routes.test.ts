@@ -107,7 +107,8 @@ describe('Presentation-hierarchy contract — ADD View row order', () => {
   // for a trick by name, and the notation is reference material beside it.
   for (const pilot of PILOTS) {
     it(`renders ${pilot.slug} identity-before-notation in ADD View`, async () => {
-      const res = await page('/freestyle/tricks?view=add');
+      // The ADD view shows one level per page: the pilot's own seeded level.
+      const res = await page(`/freestyle/tricks/${pilot.adds}`);
       expect(res.status).toBe(200);
       const row = trickRowRegion(res.text, pilot.slug);
       expect(row, `add-row not found for ${pilot.slug} in ADD View`).not.toBeNull();
@@ -151,7 +152,7 @@ describe('Presentation-hierarchy contract — ADD and Family share the row contr
   // SAME row contract; only the grouping (ADD bucket vs family section)
   // differs. (Long-term target: every browse view on this same contract.)
   it('dimwalk renders identity-before-notation in BOTH ADD and Family', async () => {
-    const add = await page('/freestyle/tricks?view=add');
+    const add = await page('/freestyle/tricks/4');
     const fam = await page('/freestyle/tricks?view=family');
 
     for (const [label, html] of [['ADD', add.text], ['Family', fam.text]] as const) {
@@ -165,10 +166,10 @@ describe('Presentation-hierarchy contract — ADD and Family share the row contr
   });
 
   it('the detail page is reached the same way in both views', async () => {
-    const add = await page('/freestyle/tricks?view=add');
     const fam = await page('/freestyle/tricks?view=family');
 
     for (const pilot of PILOTS) {
+      const add = await page(`/freestyle/tricks/${pilot.adds}`);
       const addRow = trickRowRegion(add.text, pilot.slug);
       const famRow = trickRowRegion(fam.text, pilot.slug);
       expect(addRow).not.toBeNull();
@@ -186,10 +187,10 @@ describe('Presentation-hierarchy contract — ADD and Family share the row contr
   });
 
   it('ADD value rides the grouping header + line-2 ADD slot in both views (no green chip)', async () => {
-    const add = await page('/freestyle/tricks?view=add');
     const fam = await page('/freestyle/tricks?view=family');
 
     for (const pilot of PILOTS) {
+      const add = await page(`/freestyle/tricks/${pilot.adds}`);
       const addRow = trickRowRegion(add.text, pilot.slug);
       const famRow = trickRowRegion(fam.text, pilot.slug);
       // ADD view groups by ADD bucket; family groups by family section. Both

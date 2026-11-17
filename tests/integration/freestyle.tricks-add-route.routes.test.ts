@@ -6,11 +6,12 @@
  *
  *   1. /freestyle/tricks/5 is the canonical URL for the 5-ADD dictionary
  *      view: it renders only that tier, so reload and back/forward preserve
- *      the selection. An undocumented tier is a 404. ?view=add remains the
- *      all-tier view for existing bookmarks.
+ *      the selection. An undocumented tier is a 404.
  *
  *   2. ADD navigation chips link to the canonical per-tier URLs on every ADD
- *      surface; a tier page leads with an all-tier chip and drops its own.
+ *      surface; the level on screen is the current chip, not a link. The
+ *      unfiltered dictionary opens on the lowest documented level, never the
+ *      whole corpus, and every level page carries the orientation tiles.
  *
  *   3. The numeric segment never shadows trick slugs: ordinary slugs and
  *      digit-led slugs (2_bag_juggling) still resolve to the trick-detail
@@ -72,13 +73,19 @@ describe('GET /freestyle/tricks/:add — canonical per-tier view', () => {
     expect(res.status).toBe(404);
   });
 
-  it('leads its chip row with the all-tier view and drops its own tier', async () => {
+  it('links its chip row to every other tier and not to its own', async () => {
     const html = await page('/freestyle/tricks/5');
     expect(html).toContain('aria-label="Browse by ADD level"');
-    expect(html).toContain('<a href="/freestyle/tricks?view=add">All ADD Levels</a>');
     expect(html).toContain('<a href="/freestyle/tricks/1">1 ADD</a>');
     expect(html).toContain('<a href="/freestyle/tricks/3">3 ADD</a>');
     expect(html).not.toContain('<a href="/freestyle/tricks/5">5 ADD</a>');
+    // The level on screen is the current chip, so a reader sees where they are.
+    expect(html).toContain('<span aria-current="page" class="trick-view-toggle-active">5 ADD</span>');
+  });
+
+  it('carries the orientation tiles, so beginner help is one click away on a level page', async () => {
+    const html = await page('/freestyle/tricks/5');
+    expect(html).toContain('class="dict-tile-grid"');
   });
 
   it('keeps the sort toggle on the canonical tier path', async () => {
@@ -93,26 +100,27 @@ describe('GET /freestyle/tricks/:add — canonical per-tier view', () => {
     expect(html).toContain('<a href="/freestyle/tricks">Trick Dictionary</a>');
     expect(html).toContain('5 ADD');
   });
+});
 
-  it('keeps the landing orientation tiles off the tier page', async () => {
-    const html = await page('/freestyle/tricks/5');
-    expect(html).not.toContain('class="dict-onboarding-links"');
-    const landing = await page('/freestyle/tricks');
-    expect(landing).toContain('class="dict-onboarding-links"');
-  });
+describe('the unfiltered dictionary opens on one ADD level', () => {
+  // The seeded levels are 1, 2, 3 and 5, so the lowest documented level is 1.
+  for (const url of ['/freestyle/tricks', '/freestyle/tricks?view=add', '/freestyle/tricks?view=no-such-view']) {
+    it(`${url} renders the lowest level only, never the whole dictionary`, async () => {
+      const html = await page(url);
+      expect(html).toContain('id="add-1"');
+      expect(html).toContain('data-trick-slug="toe_stall"');
+      expect(html).not.toContain('id="add-3"');
+      expect(html).not.toContain('id="add-5"');
+      expect(html).not.toContain('data-trick-slug="whirl"');
+      expect(html).toContain('<span aria-current="page" class="trick-view-toggle-active">1 ADD</span>');
+    });
+  }
 });
 
 describe('ADD view back-compat and chip navigation', () => {
-  it('?view=add still renders every tier on one page', async () => {
+  it('the ?view=add chip row navigates to the canonical per-tier URLs', async () => {
     const html = await page('/freestyle/tricks?view=add');
-    expect(html).toContain('id="add-1"');
-    expect(html).toContain('id="add-3"');
-    expect(html).toContain('id="add-5"');
-  });
-
-  it('the all-tier chip row navigates to the canonical per-tier URLs', async () => {
-    const html = await page('/freestyle/tricks?view=add');
-    expect(html).toContain('<a href="/freestyle/tricks/1">1 ADD</a>');
+    expect(html).toContain('<a href="/freestyle/tricks/3">3 ADD</a>');
     expect(html).toContain('<a href="/freestyle/tricks/5">5 ADD</a>');
     expect(html).not.toContain('href="#add-');
   });

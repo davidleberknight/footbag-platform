@@ -7202,16 +7202,9 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 }
 
 /* Governance and polish surfaces.
-   - Toggle aside for the Operators & Modifiers reference link
    - Modifier browse view (?view=modifier): Core / Secondary cohorts
    - "By modifier" trick-list density
 */
-.trick-view-toggle-aside {
-  margin: var(--space-sm) 0 var(--space-lg);
-  font-size: 0.9rem;
-  color: var(--text);
-  font-style: italic;
-}
 
 /* ── Set Encyclopedia (standalone /freestyle/sets) ──────────
  * Denser visual treatment than the dictionary browse views. Goal:

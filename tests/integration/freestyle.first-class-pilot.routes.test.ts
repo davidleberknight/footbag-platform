@@ -278,8 +278,13 @@ describe('First-class trick pilot — notation card is universal', () => {
 });
 
 describe('First-class trick pilot — uniform browse row', () => {
+  // The ADD view shows one level per page; each slug's level, from its seeded adds.
+  const PILOT_ADD: Record<string, number> = {
+    osis: 3, paradox_mirage: 3, symposium_mirage: 3, atomic_butterfly: 4, ripwalk: 4, mobius: 5,
+  };
+
   it.each(PILOT_SLUGS)('renders the shared row contract for %s in the dictionary browse', async (slug) => {
-    const res = await page('/freestyle/tricks?view=add');
+    const res = await page(`/freestyle/tricks/${PILOT_ADD[slug]}`);
     expect(res.status).toBe(200);
     const cardIdx = res.text.indexOf(`data-trick-slug="${slug}"`);
     expect(cardIdx, `row for ${slug} not found in the ADD view`).toBeGreaterThan(0);
@@ -294,14 +299,14 @@ describe('First-class trick pilot — uniform browse row', () => {
     // (non-first-class) is compared against osis (first-class): both carry the
     // same two columns and the same difficulty slot, and neither carries a
     // marker the other lacks.
-    const res = await page('/freestyle/tricks?view=add');
-    const regionFor = (slug: string): string => {
+    const regionFor = async (slug: string): Promise<string> => {
+      const res = await page(`/freestyle/tricks/${PILOT_ADD[slug]}`);
       const idx = res.text.indexOf(`data-trick-slug="${slug}"`);
       expect(idx, `row for ${slug} not found`).toBeGreaterThan(0);
       return res.text.slice(idx, res.text.indexOf('</article>', idx));
     };
     for (const slug of ['mobius', 'osis']) {
-      const region = regionFor(slug);
+      const region = await regionFor(slug);
       expect(region, `${slug} missing identity column`).toContain('class="dict-trick-row-identity"');
       expect(region, `${slug} missing notation column`).toContain('class="dict-trick-row-notation"');
       expect(region, `${slug} missing difficulty value`).toMatch(/class="dict-trick-row-add">\(\d+\)</);

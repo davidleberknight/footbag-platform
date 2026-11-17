@@ -106,8 +106,8 @@ beforeAll(async () => {
     is_active:      0,
   });
 
-  // Active canonical row with no numeric ADD: exercises the
-  // 'Unrated / unresolved' bucket on the ADD view. Empty-string adds matches
+  // Active canonical row with no numeric ADD: it belongs to no ADD level on
+  // the ADD view. Empty-string adds matches
   // real data (loader-21 emits empty when the source has no ADD value). It is
   // active + adjudicated (not external), so the canonical browse keeps it.
   insertFreestyleTrick(db, {
@@ -346,10 +346,10 @@ describe('GET /freestyle/tricks', () => {
   });
 
   it('shows all active non-modifier tricks', async () => {
-    const res = await page('/freestyle/tricks?view=add');
-    expect(res.text).toContain('whirl');
-    expect(res.text).toContain('blurriest');
-    expect(res.text).toContain('legover');
+    // The ADD view shows one level per page: whirl 3, blurriest 6, legover 2.
+    expect((await page('/freestyle/tricks/3')).text).toContain('whirl');
+    expect((await page('/freestyle/tricks/6')).text).toContain('blurriest');
+    expect((await page('/freestyle/tricks/2')).text).toContain('legover');
     // Modifier-category rows live in the dedicated Modifier Reference
     // section, not the trick categories — see 'public dictionary
     // presentation' describe block below.
@@ -366,11 +366,10 @@ describe('GET /freestyle/tricks', () => {
   });
 
   it('links all dict tricks to /freestyle/tricks/:slug (not just those with records)', async () => {
-    const res = await page('/freestyle/tricks?view=add');
-    // whirl has records — linked
-    expect(res.text).toContain('/freestyle/tricks/whirl');
-    // blurriest has no record — but is in the dict, so now also linked
-    expect(res.text).toContain('/freestyle/tricks/blurriest');
+    // whirl (3 ADD) has records — linked
+    expect((await page('/freestyle/tricks/3')).text).toContain('/freestyle/tricks/whirl');
+    // blurriest (6 ADD) has no record — but is in the dict, so now also linked
+    expect((await page('/freestyle/tricks/6')).text).toContain('/freestyle/tricks/blurriest');
   });
 
   it('atom dictionary cards surface curator-authored op-notation via the ADD-view JOB slot (not a chip)', async () => {
@@ -378,7 +377,7 @@ describe('GET /freestyle/tricks', () => {
     // chain surfaces on line 2 of the ADD-view two-line row (the JOB slot,
     // sourced from firstClassChainValue). The ATW alias is still suppressed
     // from atom browse cards. Legover ≡ leg-over orthographic noise stays out.
-    const res = await page('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks/2');
     const atwIdx = res.text.indexOf('data-trick-slug="around_the_world"');
     expect(atwIdx).toBeGreaterThan(0);
     const atwCardEnd = res.text.indexOf('</article>', atwIdx);
@@ -402,7 +401,8 @@ describe('GET /freestyle/tricks', () => {
 
 describe('public dictionary presentation', () => {
   it('renders notation inline in the default ADD view (no table header)', async () => {
-    const res = await page('/freestyle/tricks?view=add');
+    // around_the_world (2 ADD) carries an execution chain for the row to show.
+    const res = await page('/freestyle/tricks/2');
     expect(res.status).toBe(200);
     // ADD view uses the two-line dict-trick-row contract: no table header; the
     // JOB chain (or an interpretation reading) renders on the row, not in a
@@ -429,16 +429,17 @@ describe('public dictionary presentation', () => {
   });
 
   it('ADD view cards carry data-trick-slug as the per-card identity attribute', async () => {
-    const res = await page('/freestyle/tricks?view=add');
-    expect(res.status).toBe(200);
     // The shared dictionary-trick-card exposes data-trick-slug on the card root,
     // so a card's identity is readable without parsing its rendered text.
-    expect(res.text).toContain('data-trick-slug="whirl"');
-    expect(res.text).toContain('data-trick-slug="legover"');
+    // One level per page: whirl 3, legover 2.
+    const three = await page('/freestyle/tricks/3');
+    expect(three.status).toBe(200);
+    expect(three.text).toContain('data-trick-slug="whirl"');
+    expect((await page('/freestyle/tricks/2')).text).toContain('data-trick-slug="legover"');
   });
 
   it('compound slugs (e.g. spinning-whirl) preserve their slug in data-trick-slug', async () => {
-    const res = await page('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks/5');
     expect(res.text).toContain('data-trick-slug="spinning-whirl"');
   });
 
@@ -481,9 +482,9 @@ describe('GET /freestyle/tricks?family=… — hashtag filter', () => {
     expect(res.status).toBe(200);
     // Falls through to unfiltered dictionary; the family header must NOT render
     expect(res.text).not.toContain('to see the full dictionary');
-    // All families still visible
-    expect(res.text).toContain('/freestyle/tricks/whirl');
-    expect(res.text).toContain('/freestyle/tricks/legover');
+    // The unfiltered default level still renders (head-stall is the one 1-ADD
+    // trick, outside any family a filter would keep).
+    expect(res.text).toContain('/freestyle/tricks/head-stall');
   });
 
   it('renders Related set/modifier groups when the active family has modifier-linked tricks', async () => {
@@ -615,10 +616,11 @@ describe('GET /freestyle/tricks/:slug — Related Tricks section narrowed', () =
 
 describe('pending row visibility', () => {
   it('pending external placeholders are excluded from the canonical ADD browse', async () => {
-    const res = await page('/freestyle/tricks?view=add');
+    // pending-zorblax is seeded at 4 ADD, so its level page is where it would leak.
+    const res = await page('/freestyle/tricks/4');
     expect(res.status).toBe(200);
-    // Active control still rendered.
-    expect(res.text).toContain('whirl');
+    // Active control still rendered (paradox whirl, 4 ADD).
+    expect(res.text).toContain('data-trick-slug="paradox-whirl"');
     // External / unadjudicated placeholders belong to Emerging Vocabulary, not
     // the canonical dictionary browse; they are excluded entirely.
     expect(res.text).not.toContain('pending zorblax');
@@ -626,9 +628,10 @@ describe('pending row visibility', () => {
   });
 
   it('ADD view hides pending tricks, including pending family members', async () => {
-    const res = await page('/freestyle/tricks?view=add');
+    // Both pending rows are seeded at 4 ADD, so their level page is where they would leak.
+    const res = await page('/freestyle/tricks/4');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('whirl');
+    expect(res.text).toContain('data-trick-slug="paradox-whirl"');
     // Pending rows do not surface in the canonical browse.
     expect(res.text).not.toContain('pending zorblax');
     expect(res.text).not.toContain('pending paradox whirl');
@@ -654,15 +657,15 @@ describe('pending row visibility', () => {
 
 describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', () => {
   it('renders an ADD-group section per non-empty ADD bucket', async () => {
-    const res = await page('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks/3');
     expect(res.status).toBe(200);
-    // The fixture seeds tricks with ADD values; expect at least the 3-ADD
-    // bucket header to render (whirl is 3 ADD in this fixture).
+    // The fixture seeds tricks with ADD values; expect the 3-ADD level page
+    // to render its bucket header (whirl is 3 ADD in this fixture).
     expect(res.text).toMatch(/<h2>3 ADD<\/h2>/);
   });
 
   it('places at least one known trick in the correct ADD group', async () => {
-    const res = await page('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks/3');
     // 'whirl' is 3 ADD: anchor-id "add-3" must contain the whirl row.
     const startIdx = res.text.indexOf('id="add-3"');
     expect(startIdx).toBeGreaterThan(0);
@@ -670,12 +673,6 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
     const sliceEnd = res.text.indexOf('id="add-', startIdx + 1);
     const slice = sliceEnd > 0 ? res.text.slice(startIdx, sliceEnd) : res.text.slice(startIdx);
     expect(slice).toContain('whirl');
-  });
-
-  it('renders an "Unrated / unresolved" group when at least one row has no numeric ADD', async () => {
-    const res = await page('/freestyle/tricks?view=add');
-    // The fixture seeds active 'unrated quasar' with empty ADD.
-    expect(res.text).toContain('Unrated / unresolved');
   });
 
   // A trick's hashtag links to its media gallery only when reference media
@@ -699,7 +696,8 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
   });
 
   it('renders the hashtag as a clickable media-gallery link when a trick has tutorial-tier coverage', async () => {
-    const res = await page('/freestyle/tricks?view=add');
+    // refmedia-tutorial-only is seeded at 3 ADD.
+    const res = await page('/freestyle/tricks/3');
     const cardMatch = res.text.match(/<article class="dict-trick-row[^>]*data-media-coverage="tutorial"[^>]*>([\s\S]*?)<\/article>/);
     expect(cardMatch).not.toBeNull();
     expect(cardMatch![1]).toContain('hashtag--media');
@@ -707,7 +705,8 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
   });
 
   it('renders the hashtag as a clickable media-gallery link when a trick has only demo-tier coverage', async () => {
-    const res = await page('/freestyle/tricks?view=add');
+    // refmedia-demo-only is seeded at 3 ADD.
+    const res = await page('/freestyle/tricks/3');
     const cardMatch = res.text.match(/<article class="dict-trick-row[^>]*data-media-coverage="demo"[^>]*>([\s\S]*?)<\/article>/);
     expect(cardMatch).not.toBeNull();
     expect(cardMatch![1]).toContain('hashtag--media');
@@ -715,7 +714,8 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
   });
 
   it('links the hashtag to the gallery for a trick whose tutorial media comes only from the curator channel', async () => {
-    const res = await page('/freestyle/tricks?view=add');
+    // curator-only-trick is seeded at 4 ADD.
+    const res = await page('/freestyle/tricks/4');
     // `curator-only-trick`'s tutorial-tier coverage comes from the curator
     // channel: media_items + media_tags + tags with source_id='tt_youtube'.
     // listCoveredTrickSlugsWithSource must surface it as 'tutorial'.

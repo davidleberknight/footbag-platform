@@ -105,14 +105,23 @@ afterAll(() => cleanupTestDb(dbPath));
 describe('operator / set / modifier rows are never trick members in browse views', () => {
   for (const view of BROWSE_VIEWS) {
     it(`?view=${view}: quantum and paradox render no trick row or card`, async () => {
-      const res = await request(await createApp()).get(`/freestyle/tricks?view=${view}`);
-      expect(res.status).toBe(200);
-      // Trick membership is marked by the row/card slug attribute; neither the
-      // set row nor the modifier row may carry one anywhere in the view.
-      expect(res.text).not.toContain('data-trick-slug="quantum"');
-      expect(res.text).not.toContain('data-trick-slug="paradox"');
+      // The ADD view shows one level per page, so it is checked on the default
+      // page and on every seeded trick level (mirage 2, quantum-mirage 3, blur 4).
+      const urls = view === 'add'
+        ? ['/freestyle/tricks?view=add', '/freestyle/tricks/2', '/freestyle/tricks/3', '/freestyle/tricks/4']
+        : [`/freestyle/tricks?view=${view}`];
+      let combined = '';
+      for (const url of urls) {
+        const res = await request(await createApp()).get(url);
+        expect(res.status, url).toBe(200);
+        // Trick membership is marked by the row/card slug attribute; neither the
+        // set row nor the modifier row may carry one anywhere in the view.
+        expect(res.text, url).not.toContain('data-trick-slug="quantum"');
+        expect(res.text, url).not.toContain('data-trick-slug="paradox"');
+        combined += res.text;
+      }
       // A genuine compound stays browsable, so the guard is not vacuous.
-      expect(res.text).toContain(`data-trick-slug="${WITNESS[view] ?? 'quantum-mirage'}"`);
+      expect(combined).toContain(`data-trick-slug="${WITNESS[view] ?? 'quantum-mirage'}"`);
     });
   }
 

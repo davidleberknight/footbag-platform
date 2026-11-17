@@ -75,6 +75,17 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 const EXAMPLE_SLUGS = ['flying-inside', '2-bag-juggling', 'drifter', 'ducking-guay', 'ducking-mirage', 'eclipse', 'fairy-legover'];
+// The ADD view shows one level per page; each example's level, from its seeded adds.
+const EXAMPLE_ADD: Record<string, number> = {
+  'flying-inside': 1, '2-bag-juggling': 2, drifter: 3, 'ducking-guay': 3,
+  'ducking-mirage': 3, eclipse: 3, 'fairy-legover': 3,
+};
+
+async function exampleCard(slug: string): Promise<string> {
+  const res = await page(`/freestyle/tricks/${EXAMPLE_ADD[slug]}`);
+  expect(res.status, slug).toBe(200);
+  return cardWindow(res.text, slug);
+}
 
 // Extract one card's markup window by slug.
 function cardWindow(text: string, slug: string): string {
@@ -95,9 +106,8 @@ describe('ADD view — uniform row contract', () => {
   });
 
   it('every example trick uses the same .dict-trick-row wrapper', async () => {
-    const res = await page('/freestyle/tricks?view=add');
     for (const slug of EXAMPLE_SLUGS) {
-      const w = cardWindow(res.text, slug);
+      const w = await exampleCard(slug);
       expect(w, `${slug} missing .dict-trick-row`).toMatch(/class="dict-trick-row/);
       expect(w, `${slug} missing the identity column`).toMatch(/class="dict-trick-row-identity"/);
       expect(w, `${slug} missing the notation column`).toMatch(/class="dict-trick-row-notation"/);
@@ -110,17 +120,15 @@ describe('ADD view — uniform row contract', () => {
   });
 
   it('every row carries its difficulty value as a number, not a derivation', async () => {
-    const res = await page('/freestyle/tricks?view=add');
     for (const slug of EXAMPLE_SLUGS) {
-      const w = cardWindow(res.text, slug);
+      const w = await exampleCard(slug);
       expect(w, `${slug} missing its difficulty value`).toMatch(/class="dict-trick-row-add">\(\d+\)</);
     }
   });
 
   it('no row states how far along our own authoring has got', async () => {
-    const res = await page('/freestyle/tricks?view=add');
     for (const slug of EXAMPLE_SLUGS) {
-      const w = cardWindow(res.text, slug);
+      const w = await exampleCard(slug);
       expect(w, `${slug} must not carry a status badge`).not.toMatch(/dict-trick-row-status/);
       expect(w, `${slug} must not carry a pending-decomposition note`).not.toMatch(/dict-trick-row-pending/);
       expect(w, `${slug} must not carry a not-yet-authored marker`).not.toMatch(/dict-badge-incomplete/);
@@ -128,8 +136,8 @@ describe('ADD view — uniform row contract', () => {
   });
 
   it('the operator-by-operator breakdown does not reach a browse row', async () => {
-    const res = await page('/freestyle/tricks?view=add');
-    // ducking-guay and ducking-mirage both have a derivable breakdown from the
+    const res = await page('/freestyle/tricks/3');
+    // ducking-guay and ducking-mirage (both 3 ADD) both have a derivable breakdown from the
     // ducking modifier-link. It belongs on the trick detail page, in words; a
     // reader scanning the dictionary wants the value, not the arithmetic.
     expect(res.text).not.toMatch(/ducking\(\+1\) \+ guay\(2\)/);
@@ -137,9 +145,8 @@ describe('ADD view — uniform row contract', () => {
   });
 
   it('ducking-guay and ducking-mirage render with identical row structure', async () => {
-    const res = await page('/freestyle/tricks?view=add');
-    const guay = cardWindow(res.text, 'ducking-guay');
-    const mirage = cardWindow(res.text, 'ducking-mirage');
+    const guay = await exampleCard('ducking-guay');
+    const mirage = await exampleCard('ducking-mirage');
     for (const marker of ['class="dict-trick-row', 'class="dict-trick-row-identity"', 'class="dict-trick-row-notation"']) {
       expect(guay).toContain(marker);
       expect(mirage).toContain(marker);

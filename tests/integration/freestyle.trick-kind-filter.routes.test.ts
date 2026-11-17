@@ -160,8 +160,11 @@ describe('Trick-browse view filter — non-trick kinds excluded', () => {
   // does NOT appear in the rendered HTML (since the dictionary card carries
   // `data-trick-slug="{slug}"` attribute on every card it renders).
   const views = [
+    // The ADD view shows one level per page: paradox would land on the default
+    // 1-ADD page, atomic and surging on the 2-ADD page.
     { name: 'ADD',      url: '/freestyle/tricks' },
-    { name: 'family',   url: '/freestyle/tricks?view=family' },
+    { name: '2-ADD',    url: '/freestyle/tricks/2' },
+    { name: 'family',  url: '/freestyle/tricks?view=family' },
     { name: 'set',      url: '/freestyle/tricks?view=set' },
     { name: 'modifier', url: '/freestyle/tricks?view=modifier' },
   ];
@@ -181,7 +184,7 @@ describe('Trick-browse view filter — non-trick kinds excluded', () => {
 
 describe('Trick-browse view filter — true tricks preserved', () => {
   it('renders the control trick in the ADD view', async () => {
-    const res = await page('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks/3');
     expect(res.status).toBe(200);
     expect(res.text).toContain(`data-trick-slug="${TRICK_SAMPLE}"`);
   });
@@ -208,7 +211,7 @@ describe('Trick-browse view filter — true tricks preserved', () => {
   // never finds them. The atomic set row seeded beside them stays out, so the
   // view still filters set primitives.
   it('renders the dual-role sets pixie and fairy in the ADD view', async () => {
-    const res = await page('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks/2');
     expect(res.status).toBe(200);
     for (const slug of DUAL_ROLE_SAMPLES) {
       expect(res.text, slug).toContain(`data-trick-slug="${slug}"`);

@@ -130,9 +130,10 @@ describe('Browse rows carry no chain tokens on any view', () => {
   it('no browse view renders a chain token', async () => {
     const app = createApp();
     // The views this fixture places ripwalk in; the set and modifier views
-    // group by modifier link, which ripwalk has none of.
-    for (const view of ['add', 'family']) {
-      const res = await request(app).get(`/freestyle/tricks?view=${view}`);
+    // group by modifier link, which ripwalk has none of. The ADD view shows
+    // ripwalk on its own level page (4 ADD).
+    for (const [view, url] of [['add', '/freestyle/tricks/4'], ['family', '/freestyle/tricks?view=family']]) {
+      const res = await request(app).get(url);
       expect(res.status).toBe(200);
       const row = res.text.match(/data-trick-slug="ripwalk"[\s\S]*?<\/article>/);
       expect(row, `ripwalk row missing in ${view} view`).not.toBeNull();

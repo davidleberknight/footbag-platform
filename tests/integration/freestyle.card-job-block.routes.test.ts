@@ -123,10 +123,13 @@ describe('JOB-block rendering across browse views (no raw operational notation o
 
   it('By ADD (two-line): each row renders its JOB inside the resolved line-2 JOB value', async () => {
     // ADD view uses the two-line dict-trick-row contract.
-    const res = await getPage('/freestyle/tricks?view=add');
-    expect(res.status).toBe(200);
-    expectTwoLineJob(res.text, 'atomic_illusion');
-    expectTwoLineJob(res.text, 'ducking_toe_stall');
+    // One level per page: atomic_illusion is 3 ADD, ducking_toe_stall 2 ADD.
+    const three = await getPage('/freestyle/tricks/3');
+    expect(three.status).toBe(200);
+    expectTwoLineJob(three.text, 'atomic_illusion');
+    const two = await getPage('/freestyle/tricks/2');
+    expect(two.status).toBe(200);
+    expectTwoLineJob(two.text, 'ducking_toe_stall');
   });
 
   it('By set (two-line): each row renders its JOB inside the resolved line-2 JOB value', async () => {
@@ -154,7 +157,7 @@ describe('JOB-block rendering across browse views (no raw operational notation o
     expect(page.status).toBe(200);
     expect(page.text).toMatch(/class="operational-notation-tokens"/);
 
-    const res = await getPage('/freestyle/tricks?view=add');
+    const res = await getPage('/freestyle/tricks/5');
     const idx = res.text.indexOf('data-trick-slug="mobius"');
     expect(idx).toBeGreaterThan(-1);
     const window = res.text.substring(idx, idx + 4000);
@@ -244,7 +247,7 @@ describe('/freestyle/tricks — nicknames beside the name', () => {
   }
 
   it('renders folk nicknames beside the mobius name', async () => {
-    const res = await getPage('/freestyle/tricks?view=add');
+    const res = await getPage('/freestyle/tricks/5');
     const row = mobiusRow(res.text);
     expect(row).toContain('class="dict-trick-row-nicknames"');
     expect(row).toContain('möbius');

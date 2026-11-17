@@ -94,7 +94,7 @@ describe('branch-family chain additions', () => {
   }
 
   it('paradox_blender keeps its notation on the row', async () => {
-    const res = await getPage('/freestyle/tricks?view=add');
+    const res = await getPage('/freestyle/tricks/5');
     expect(res.status).toBe(200);
     expect(rowFor(res.text, 'paradox_blender')).toMatch(/class="dict-trick-row-notation-value">/);
   });

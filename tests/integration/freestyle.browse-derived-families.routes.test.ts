@@ -198,12 +198,15 @@ describe('Clipper-Stall family retirement (Family View)', () => {
   });
 
   it('the clipper_stall row + retired members remain visible in the ADD view', async () => {
-    const res = await page('/freestyle/tricks?view=add');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('data-trick-slug="clipper_stall"');
-    expect(res.text).toContain('data-trick-slug="ducking_clipper"');
-    expect(res.text).toContain('data-trick-slug="spinning_clipper"');
-    expect(res.text).toContain('data-trick-slug="reaper"');
+    // One level per page: clipper_stall is 2 ADD, its retired members 3 ADD.
+    const two = await page('/freestyle/tricks/2');
+    expect(two.status).toBe(200);
+    expect(two.text).toContain('data-trick-slug="clipper_stall"');
+    const three = await page('/freestyle/tricks/3');
+    expect(three.status).toBe(200);
+    expect(three.text).toContain('data-trick-slug="ducking_clipper"');
+    expect(three.text).toContain('data-trick-slug="spinning_clipper"');
+    expect(three.text).toContain('data-trick-slug="reaper"');
   });
 });
 
@@ -213,15 +216,16 @@ describe('Clipper-Stall family retirement (Family View)', () => {
 
 describe('Unresolved compounds stay listed, with no review state on the row', () => {
   it('a curator-flagged folk-derived trick is listed like any other', async () => {
-    const res = await page('/freestyle/tricks?view=add');
-    expect(res.status).toBe(200);
     // A row states what a trick is, never how far along our own authoring of
     // it has got. An unresolved compound is therefore indistinguishable from a
     // settled one on the row: it is listed, named and reachable, and the
     // review state is trick-page content. tomahawk is not in
     // UNRESOLVED_COMPOUNDS (its decomposition is settled) and is listed here
     // alongside the flagged four to show the rows do not differ.
-    for (const slug of ['reaper', 'surreal', 'montage', 'surgery', 'tomahawk']) {
+    // The ADD view shows one level per page; each slug's level from its seeded adds.
+    for (const [slug, add] of [['reaper', 3], ['surreal', 6], ['montage', 7], ['surgery', 6], ['tomahawk', 5]] as const) {
+      const res = await page(`/freestyle/tricks/${add}`);
+      expect(res.status).toBe(200);
       const idx = res.text.indexOf(`data-trick-slug="${slug}"`);
       expect(idx, `${slug} row should render`).toBeGreaterThan(-1);
       const nextCard = res.text.indexOf('data-trick-slug=', idx + 1);

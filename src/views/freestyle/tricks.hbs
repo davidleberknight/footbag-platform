@@ -46,12 +46,9 @@
       to expert. Every tile in the row
       behaves the same way (opens in place, independently, nothing persists),
       so the row carries no control that navigates away. An open tile stretches
-      to the full row and the rest reflow. Default landing only: secondary
-      views and the family filter carry their own state-specific
-      orientation. ── }}
-  {{#if (eq content.activeView "add")}}
-  {{#unless content.activeFamily}}
-  {{#unless content.isAddTierView}}
+      to the full row and the rest reflow. Every view and every selected
+      group carries them, so beginner help is one click away wherever a
+      reader lands. ── }}
   <div class="dict-tile-grid">
     <details class="dict-tile">
       <summary class="dict-tile-summary">
@@ -90,9 +87,6 @@
     </details>
   </div>
   <p>Names still being confirmed are listed under <a href="/freestyle/observational">Emerging Vocabulary</a>.</p>
-  {{/unless}}
-  {{/unless}}
-  {{/if}}
 
   {{#if content.activeFamily}}
   <p class="browse-view-intro">{{content.familyFilterIntro}}
@@ -142,11 +136,6 @@
       <a title="{{content.navSection.viewTitles.modifier}}" href="/freestyle/tricks?view=modifier">By modifier</a>
     {{/if}}
   </nav>
-  {{! Reference surfaces that are NOT dictionary browse axes, so they never
-      belong in the View row above. This carried the browse grid's two
-      cross-links, which is why it now renders on every view rather than only
-      the secondary ones. }}
-  <p class="trick-view-toggle-aside">New to the dictionary? Look up a term in the <a href="/freestyle/glossary">Glossary</a> or read the <a href="/freestyle/concepts">Freestyle Concepts</a> chapters. Modifier and operator vocabulary is in the <a href="/freestyle/operators">Operators &amp; Modifiers reference</a>, and set systems are in the <a href="/freestyle/sets">Set Encyclopedia</a>.</p>
 
   {{#if (eq content.activeView "add")}}
   {{! Within-tier browse mode: Alphabetical (default, flat A-Z for lookup) or
@@ -168,7 +157,7 @@
   <nav class="jump-bar" aria-label="Browse by ADD level">
     <span class="jump-bar-label">ADD levels:</span>
     {{#each content.addJumpChips}}
-      <a href="{{siteHref href}}">{{label}}</a>{{#unless @last}} <span class="jump-bar-sep">·</span> {{/unless}}
+      {{#if isCurrent}}<span aria-current="page" class="trick-view-toggle-active">{{label}}</span>{{else}}<a href="{{siteHref href}}">{{label}}</a>{{/if}}{{#unless @last}} <span class="jump-bar-sep">·</span> {{/unless}}
     {{/each}}
   </nav>
   {{/if}}

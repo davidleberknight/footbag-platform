@@ -286,6 +286,21 @@ function cardFor(slug: string, html: string): string {
   return html.slice(articleOpen, articleClose + '</article>'.length);
 }
 
+/** The ADD view shows one level per page: every level page its chip row
+ *  links, joined, so a cohort spanning many levels is checked in one place. */
+async function everyAddLevel(): Promise<string> {
+  const landing = await page('/freestyle/tricks');
+  expect(landing.status).toBe(200);
+  const levelUrls = [...new Set(landing.text.match(/\/freestyle\/tricks\/\d+(?=")/g) ?? [])];
+  const pages = [landing.text];
+  for (const url of levelUrls) {
+    const res = await page(url);
+    expect(res.status, url).toBe(200);
+    pages.push(res.text);
+  }
+  return pages.join('\n');
+}
+
 describe('First-class rendering parity — osis golden', () => {
   it('osis renders its execution chain and its ADD breakdown', async () => {
     const html = await pageFor('osis');
@@ -298,7 +313,7 @@ describe('First-class rendering parity — osis golden', () => {
 
 describe('First-class rendering parity — tautological-chain suppression', () => {
   it('paradox-mirage does not render a tautological ≡ chain reading', async () => {
-    const res = await page('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks/3');
     const card = cardFor('paradox_mirage', res.text);
     // The chain reading "paradox mirage" must NOT appear inside the
     // dict-trick-row-interpretation (chain row). It may legitimately appear
@@ -309,13 +324,13 @@ describe('First-class rendering parity — tautological-chain suppression', () =
   });
 
   it('symposium-mirage does not render a tautological ≡ chain reading', async () => {
-    const res = await page('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks/3');
     const card = cardFor('symposium_mirage', res.text);
     expect(card).not.toMatch(/data-token-slug="symposium"[\s\S]+data-token-slug="mirage"/);
   });
 
   it('atomic-butterfly does not render a tautological ≡ chain reading', async () => {
-    const res = await page('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks/4');
     const card = cardFor('atomic_butterfly', res.text);
     expect(card).not.toMatch(/data-token-slug="atomic"[\s\S]+data-token-slug="butterfly"/);
   });
@@ -343,9 +358,9 @@ describe('First-class rendering parity — honest incomplete-state', () => {
 
 describe('First-class rendering parity — no fake formulas, no pending pill', () => {
   it('none of the first-class slugs render the pendingDecomposition pill', async () => {
-    const res = await page('/freestyle/tricks?view=add');
+    const html = await everyAddLevel();
     for (const slug of ['osis', 'paradox_mirage', 'symposium_mirage', 'atomic_butterfly', 'ripwalk']) {
-      const card = cardFor(slug, res.text);
+      const card = cardFor(slug, html);
       expect(card).not.toContain('class="dict-trick-row-pending"');
       expect(card).not.toContain('decomposition under review');
     }
@@ -453,7 +468,7 @@ describe('First-class cohort governance — isFirstClass() and getFirstClassTier
   // summary class. A slug that appears in either tier renders
   // dict-trick-row-notation; a slug not in any tier does not.
   it('every Tier 1 + Tier 2 cohort member renders a first-class summary row', async () => {
-    const res = await page('/freestyle/tricks?view=add');
+    const html = await everyAddLevel();
     const cohort = [
       // Tier 1 — 12 elite (11 atoms + pendulum)
       'osis', 'toe_stall', 'clipper_stall', 'mirage', 'whirl', 'butterfly',
@@ -510,7 +525,7 @@ describe('First-class cohort governance — isFirstClass() and getFirstClassTier
       'blurrage', 'predator', 'schmoe',
     ];
     for (const slug of cohort) {
-      const card = cardFor(slug, res.text);
+      const card = cardFor(slug, html);
       expect(card, `${slug} missing first-class summary row`).toContain('dict-trick-row-notation');
     }
   });

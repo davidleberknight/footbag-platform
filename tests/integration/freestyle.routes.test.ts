@@ -1454,7 +1454,7 @@ describe('Freestyle dictionary — S1+S3: ≡ equivalence rendering on dict card
   });
 
   it('no browse row carries a ≡ chain reading', async () => {
-    const res = await page('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks/4');
     expect(res.text).toContain('data-trick-slug="torque"');
     expect(res.text).not.toMatch(/class="dict-trick-row-interpretation"/);
     expect(res.text).not.toMatch(/class="core-trick-equiv-sigil"/);
@@ -1465,7 +1465,7 @@ describe('Freestyle dictionary — S2: held chain readings (drifter)', () => {
   it('holds drifter\'s decomposition: no miraging reading rendered', async () => {
     // "miraging clipper" is legacy mirage-family shorthand held for curator
     // review; drifter renders no ≡ reading rather than teach the nickname.
-    const res = await page('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks/3');
     const idx = res.text.indexOf('data-trick-slug="drifter"');
     expect(idx).toBeGreaterThan(-1);
     const next = res.text.indexOf('data-trick-slug=', idx + 1);

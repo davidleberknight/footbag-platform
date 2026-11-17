@@ -331,11 +331,18 @@ describe('a row that is not a trick stays out of the browse', () => {
   // Defect caught: a modifier or a row under review listed as a trick once its
   // kind is read from the trick_kind column.
   it('omits each non-trick row and keeps an ordinary trick', async () => {
-    const res = await page('/freestyle/tricks');
+    // The ADD view shows one level per page; read every level its chip row links.
+    const landing = await page('/freestyle/tricks');
+    expect(landing.status).toBe(200);
+    const levelUrls = [...new Set(landing.text.match(/\/freestyle\/tricks\/\d+(?=")/g) ?? [])];
+    let combined = landing.text;
+    for (const url of levelUrls) combined += (await page(url)).text;
     for (const slug of NOT_TRICKS) {
       expect(content.trickKinds.has(slug), slug).toBe(true);
-      expect(res.text, slug).not.toContain(`data-trick-slug="${slug}"`);
+      expect(combined, slug).not.toContain(`data-trick-slug="${slug}"`);
     }
-    expect(res.text).toContain(`data-trick-slug="${TRICK}"`);
+    // zz_parity_trick is seeded at 6 ADD.
+    expect(levelUrls).toContain('/freestyle/tricks/6');
+    expect(combined).toContain(`data-trick-slug="${TRICK}"`);
   });
 });

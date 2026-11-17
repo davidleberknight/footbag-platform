@@ -149,12 +149,12 @@ describe('Foundational-vocabulary promotion — JOB renders via tokenized op-not
 });
 
 describe('Foundational-vocabulary promotion — no "canonical decomposition pending" leakage', () => {
-  it.each(PROMOTION_COHORT.map(r => [r.slug] as const))(
+  it.each(PROMOTION_COHORT.map(r => [r.slug, r.adds] as const))(
     '%s does NOT render the "JOB: canonical decomposition pending" incomplete-state line on browse cards',
-    async (slug) => {
+    async (slug, adds) => {
       // Browse view first — if the trick is in FIRST_CLASS_TIER_2, its
-      // card on /freestyle/tricks?view=add must NOT show canonical decomposition pending.
-      const res = await page('/freestyle/tricks?view=add');
+      // card on its ADD level page must NOT show canonical decomposition pending.
+      const res = await page(`/freestyle/tricks/${adds}`);
       // Find this trick's card via the data-trick-slug marker.
       const idx = res.text.indexOf(`data-trick-slug="${slug}"`);
       if (idx < 0) {
@@ -189,7 +189,7 @@ describe('Foundational-vocabulary promotion — no tautological compound-slot le
 // Canonical browse-view regression — the public browse surface a viewer sees.
 //
 // Curator requirement: detail-route + content-overlay tests alone
-// are insufficient — the canonical browse view at /freestyle/tricks?view=add
+// are insufficient — the canonical ADD browse view (one level per page)
 // must visibly render the promoted rows. These tests assert that.
 //
 // The test DB seeds the 4 promoted slugs (the same way the production DB
@@ -198,11 +198,12 @@ describe('Foundational-vocabulary promotion — no tautological compound-slot le
 // that the JOB row is present on the card.
 // ─────────────────────────────────────────────────────────────────────────
 
-describe('Foundational-vocabulary promotion — canonical browse view (/freestyle/tricks?view=add) renders the 4 new trick rows', () => {
-  it.each(PROMOTION_COHORT.map(r => [r.slug] as const))(
+describe('Foundational-vocabulary promotion — canonical ADD browse view renders the 4 new trick rows', () => {
+  it.each(PROMOTION_COHORT.map(r => [r.slug, r.adds] as const))(
     '%s appears as an article card on the ADD browse view',
-    async (slug) => {
-      const res = await page('/freestyle/tricks?view=add');
+    async (slug, adds) => {
+      // The ADD view shows one level per page: the trick's own seeded level.
+      const res = await page(`/freestyle/tricks/${adds}`);
       expect(res.status).toBe(200);
       expect(res.text).toContain(`data-trick-slug="${slug}"`);
     },
@@ -216,14 +217,14 @@ describe('Foundational-vocabulary promotion — canonical browse view (/freestyl
   });
 
   it('triple-around-the-world appears under the 4 ADD section', async () => {
-    const res = await page('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks/4');
     const fourAddSectionMatch = res.text.match(/<section[^>]*id="add-4"[\s\S]*?<\/section>/);
     expect(fourAddSectionMatch).toBeTruthy();
     expect(fourAddSectionMatch?.[0] ?? '').toContain('data-trick-slug="triple_around_the_world"');
   });
 
   it('double-around-the-world-heel appears under the 3 ADD section', async () => {
-    const res = await page('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks/3');
     const threeAddSectionMatch = res.text.match(/<section[^>]*id="add-3"[\s\S]*?<\/section>/);
     expect(threeAddSectionMatch).toBeTruthy();
     expect(threeAddSectionMatch?.[0] ?? '').toContain('data-trick-slug="double_around_the_world_heel"');

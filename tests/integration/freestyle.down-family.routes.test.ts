@@ -225,9 +225,9 @@ describe('Down umbrella family (the one ruled structural decomposition)', () => 
 
 describe('Down-family browse rendering — FIRST_CLASS_TIER_2', () => {
   it('all three down-family browse cards render JOB + ADD (not "canonical decomposition pending")', async () => {
-    const res = await page('/freestyle/tricks?view=add');
-    expect(res.status).toBe(200);
-    for (const slug of ['double_over_down', 'down_double_down', 'down_diver']) {
+    for (const [slug, add] of [['double_over_down', 4], ['down_double_down', 4], ['down_diver', 5]] as const) {
+      const res = await page(`/freestyle/tricks/${add}`);
+      expect(res.status).toBe(200);
       const idx = res.text.indexOf(`data-trick-slug="${slug}"`);
       expect(idx).toBeGreaterThan(-1);
       const articleOpen = res.text.lastIndexOf('<article', idx);

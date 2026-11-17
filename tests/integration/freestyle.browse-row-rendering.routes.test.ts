@@ -165,6 +165,10 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
+// The ADD view shows one level per page. The levels the seeded tricks occupy:
+// toe stall 1, mirage 2, butterfly 3, ripwalk and torque 4, mobius 5, montage 7.
+const SEEDED_LEVELS = [1, 2, 3, 4, 5, 7];
+
 // ─────────────────────────────────────────────────────────────────────────
 // 1. Route stability + partial rendering
 // ─────────────────────────────────────────────────────────────────────────
@@ -178,13 +182,12 @@ describe('GET /freestyle/tricks (By ADD) — route stability', () => {
     expect(res.text).not.toContain('dict-card-stack');
   });
 
-  it('renders ADD-group sections with anchor IDs', async () => {
-    const res = await page('/freestyle/tricks?view=add');
-    expect(res.text).toContain('id="add-1"');
-    expect(res.text).toContain('id="add-2"');
-    expect(res.text).toContain('id="add-4"');
-    expect(res.text).toContain('id="add-5"');
-    expect(res.text).toContain('id="add-7"');
+  it('renders each ADD level page with its own section anchor ID', async () => {
+    for (const level of SEEDED_LEVELS) {
+      const res = await page(`/freestyle/tricks/${level}`);
+      expect(res.status, `level ${level}`).toBe(200);
+      expect(res.text, `level ${level}`).toContain(`id="add-${level}"`);
+    }
   });
 });
 
@@ -194,33 +197,32 @@ describe('GET /freestyle/tricks (By ADD) — route stability', () => {
 
 describe('dictionary trick row — required slots', () => {
   it('links the trick name to its page and offers a separate Detail control', async () => {
-    const res = await page('/freestyle/tricks?view=add');
     // The plain-English name is the route to the trick's page, the way every
-    // other entity list on the site links its title.
-    expect(res.text).toMatch(/<a class="dict-trick-row-title" href="\/freestyle\/tricks\/ripwalk">ripwalk<\/a>/);
-    expect(res.text).toMatch(/<a class="dict-trick-row-title" href="\/freestyle\/tricks\/mobius">mobius<\/a>/);
-    expect(res.text).toMatch(/<a class="dict-trick-row-title" href="\/freestyle\/tricks\/montage">montage<\/a>/);
-    // A distinct Detail control resolves to the same page, so the two agree.
-    expect(res.text).toMatch(/<a class="tag-chip tag-chip--sm" href="\/freestyle\/tricks\/ripwalk">Detail<\/a>/);
-    expect(res.text).toMatch(/<a class="tag-chip tag-chip--sm" href="\/freestyle\/tricks\/mobius">Detail<\/a>/);
-    expect(res.text).toMatch(/<a class="tag-chip tag-chip--sm" href="\/freestyle\/tricks\/montage">Detail<\/a>/);
+    // other entity list on the site links its title. Each row is read on its
+    // own level page: ripwalk 4, mobius 5, montage 7.
+    for (const [slug, level] of [['ripwalk', 4], ['mobius', 5], ['montage', 7]] as const) {
+      const res = await page(`/freestyle/tricks/${level}`);
+      expect(res.text).toMatch(new RegExp(`<a class="dict-trick-row-title" href="/freestyle/tricks/${slug}">${slug}</a>`));
+      // A distinct Detail control resolves to the same page, so the two agree.
+      expect(res.text).toMatch(new RegExp(`<a class="tag-chip tag-chip--sm" href="/freestyle/tricks/${slug}">Detail</a>`));
+    }
   });
 
   it('renders the #slug tag-identity chip on every row', async () => {
-    const res = await page('/freestyle/tricks?view=add');
-    expect(res.text).toContain('<span class="hashtag">#ripwalk</span>');
-    expect(res.text).toContain('<span class="hashtag">#mobius</span>');
-    expect(res.text).toContain('<span class="hashtag">#montage</span>');
+    for (const [slug, level] of [['ripwalk', 4], ['mobius', 5], ['montage', 7]] as const) {
+      const res = await page(`/freestyle/tricks/${level}`);
+      expect(res.text).toContain(`<span class="hashtag">#${slug}</span>`);
+    }
   });
 
   it('renders the difficulty value on every row, in parentheses beside the notation', async () => {
-    const res = await page('/freestyle/tricks?view=add');
     // The value is the number alone. Spelling out "N ADD" per row would
     // restate the grouping header on the one view that already says it, so
     // the row carries the compact form on every view alike.
-    for (const value of ['(1)', '(2)', '(4)', '(5)', '(7)']) {
-      expect(res.text, `the row must carry the ${value} difficulty value`)
-        .toMatch(new RegExp(`<span class="dict-trick-row-add">\\${value[0]}${value.slice(1, -1)}\\)</span>`));
+    for (const level of [1, 2, 4, 5, 7]) {
+      const res = await page(`/freestyle/tricks/${level}`);
+      expect(res.text, `the row must carry the (${level}) difficulty value`)
+        .toMatch(new RegExp(`<span class="dict-trick-row-add">\\(${level}\\)</span>`));
     }
   });
 
@@ -341,7 +343,7 @@ describe('dictionary trick row — required slots', () => {
       return stripped;
     };
     for (const url of [
-      '/freestyle/tricks?view=add',
+      ...SEEDED_LEVELS.map((level) => `/freestyle/tricks/${level}`),
       '/freestyle/tricks?view=family',
       '/freestyle/tricks?view=set',
       '/freestyle/tricks?view=modifier',
@@ -361,7 +363,7 @@ describe('dictionary trick row — required slots', () => {
   it('a trick with no notation renders an empty notation column, not a placeholder', async () => {
     // torque carries no operational notation at all. The row shows its
     // difficulty value and stops; it never announces the absence.
-    const res = await page('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks/4');
     const torqueStart = res.text.indexOf('data-trick-slug="torque"');
     expect(torqueStart).toBeGreaterThan(-1);
     const torqueEnd = res.text.indexOf('</article>', torqueStart);
@@ -377,9 +379,13 @@ describe('dictionary trick row — required slots', () => {
   });
 
   it('renders a row article element for every seeded trick', async () => {
-    const res = await page('/freestyle/tricks?view=add');
-    // Each row renders as <article class="dict-trick-row" data-trick-slug="...">.
-    const slugAttrCount = (res.text.match(/data-trick-slug="/g) ?? []).length;
+    // Each row renders as <article class="dict-trick-row" data-trick-slug="...">,
+    // on its own level page.
+    let slugAttrCount = 0;
+    for (const level of SEEDED_LEVELS) {
+      const res = await page(`/freestyle/tricks/${level}`);
+      slugAttrCount += (res.text.match(/data-trick-slug="/g) ?? []).length;
+    }
     expect(slugAttrCount).toBeGreaterThanOrEqual(6);
   });
 });
@@ -401,7 +407,7 @@ describe('dictionary trick row — sparse and deep render through the same templ
   it('Montage (deep) renders cleanly: the same two columns, no extra apparatus', async () => {
     // A seven-operator compound gets no richer treatment than a one-operator
     // trick: the depth lives in the notation, not in extra rows or chrome.
-    const res = await page('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks/7');
     const montageStart = res.text.indexOf('data-trick-slug="montage"');
     expect(montageStart).toBeGreaterThan(-1);
     const montageEnd = res.text.indexOf('</article>', montageStart);
@@ -426,21 +432,22 @@ describe('dictionary trick row — sparse and deep render through the same templ
 
 describe('dictionary-trick-card — grouping', () => {
   it('Ripwalk card lands inside the 4-ADD section', async () => {
-    const res = await page('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks/4');
     const sectionStart = res.text.indexOf('id="add-4"');
-    const nextSectionStart = res.text.indexOf('id="add-5"', sectionStart);
     expect(sectionStart).toBeGreaterThan(-1);
-    expect(nextSectionStart).toBeGreaterThan(sectionStart);
-    const region = res.text.substring(sectionStart, nextSectionStart);
+    const sectionEnd = res.text.indexOf('</section>', sectionStart);
+    expect(sectionEnd).toBeGreaterThan(sectionStart);
+    const region = res.text.substring(sectionStart, sectionEnd);
     expect(region).toContain('data-trick-slug="ripwalk"');
   });
 
   it('Mobius card lands inside the 5-ADD section', async () => {
-    const res = await page('/freestyle/tricks?view=add');
+    const res = await page('/freestyle/tricks/5');
     const sectionStart = res.text.indexOf('id="add-5"');
-    const nextSectionStart = res.text.indexOf('id="add-7"', sectionStart);
     expect(sectionStart).toBeGreaterThan(-1);
-    const region = res.text.substring(sectionStart, nextSectionStart > sectionStart ? nextSectionStart : res.text.length);
+    const sectionEnd = res.text.indexOf('</section>', sectionStart);
+    expect(sectionEnd).toBeGreaterThan(sectionStart);
+    const region = res.text.substring(sectionStart, sectionEnd);
     expect(region).toContain('data-trick-slug="mobius"');
   });
 });

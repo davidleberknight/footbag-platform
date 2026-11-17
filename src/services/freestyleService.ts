@@ -1747,13 +1747,13 @@ export interface FreestyleTrickIndexRow {
   placeholderNote: string | null; // pre-shaped note rendered under the row when isExternalOnly = true
 }
 
-// ADD-grouped bucket for the beginner/default view. addNumeric is null for
-// the "Unrated / unresolved" bucket; otherwise an integer 0..9.
+// ADD-grouped bucket for the beginner/default view: one integer ADD level.
+// A trick row with no numeric ADD belongs to no level and no ADD bucket.
 export interface FreestyleTrickAddGroup {
-  addNumeric: number | null;
-  addLabel: string;            // pre-shaped: '1 ADD', '2 ADD', '0 ADD', 'Unrated / unresolved'
+  addNumeric: number;
+  addLabel: string;            // pre-shaped: '1 ADD', '2 ADD', '0 ADD'
   countLabel: string;          // pre-shaped '39 tricks' / '1 trick'; a bare number beside the heading says nothing about what it counts
-  anchorId: string;            // pre-shaped section anchor: 'add-0'..'add-N', 'add-unrated'. Avoids the 0-is-falsy template footgun and stays correct for future 8/9 ADD buckets.
+  anchorId: string;            // pre-shaped section anchor: 'add-0'..'add-N'. Avoids the 0-is-falsy template footgun and stays correct for future 8/9 ADD buckets.
   // Shared trick rows, ADD ascending then trick name alphabetical.
   cards: DictionaryTrickCard[];
   // The same cards partitioned into lineage-root sub-bands (Mirage-derived,
@@ -2000,15 +2000,12 @@ export interface FreestyleTricksIndexContent {
   // lookup). Drives the By family / Alphabetical toggle; does not change which
   // tricks appear, only how each ADD tier is sub-arranged.
   addSort: 'family' | 'alpha';
-  // ADD navigation chips: one per documented tier, each linking to the tier's
-  // canonical /freestyle/tricks/:add URL; a tier page leads with an all-tier
-  // chip and drops its own. Rendered only on the ADD view.
-  addJumpChips: { label: string; href: string }[];
-  // True on the canonical per-tier route (/freestyle/tricks/:add): the ADD
-  // view narrowed to one tier. The landing orientation tiles stay off it.
-  isAddTierView: boolean;
+  // ADD level selector: one chip per documented level, each linking to the
+  // level's canonical /freestyle/tricks/:add URL; the level on screen is the
+  // current chip. Rendered only on the ADD view.
+  addJumpChips: { label: string; href: string; isCurrent: boolean }[];
   // Pre-shaped sort-toggle targets for the ADD view, so a tier page keeps its
-  // canonical path and the all-tier view keeps ?view=add.
+  // canonical path and the default view keeps ?view=add.
   addSortToggle: { familyHref: string; alphaHref: string };
   // Size of the subset a reader is looking at, under the hero: the
   // family-filtered 'M of N tricks', or a tier page's 'X ADD · M tricks'.
@@ -6302,11 +6299,11 @@ export const freestyleService = {
    * presentation: 'alpha' renders a flat A-Z list for lookup, anything else
    * (the default) keeps the banded By-family grouping.
    *
-   * `addTier` (the numeric /freestyle/tricks/:add path segment) narrows the
-   * ADD view to that single tier; the numeric path is the canonical public
-   * URL for a selected ADD level, while ?view=add stays the all-tier view.
-   * A tier with no documented tricks throws NotFoundError, like an unknown
-   * trick slug.
+   * The ADD view shows one level at a time. `addTier` (the numeric
+   * /freestyle/tricks/:add path segment) names the level, and that numeric
+   * path is the canonical public URL for it; without one, the ADD view opens
+   * on the lowest documented level. A tier with no documented tricks throws
+   * NotFoundError, like an unknown trick slug.
    */
   getFreestyleTricksIndexPage(
     family?: string,
@@ -6386,19 +6383,20 @@ export const freestyleService = {
     // the legacy `tricks` shape. The By ADD template branch renders the
     // `cards` array via the shared partial; other views remain on `tricks`.
     interface AddBucketEntry { row: FreestyleTrickRowWithStatus; indexRow: FreestyleTrickIndexRow; }
-    const addBuckets = new Map<number | null, AddBucketEntry[]>();
+    const addBuckets = new Map<number, AddBucketEntry[]>();
     for (const row of allRows) {
       if (!isTrickRow(row)) continue;
       const indexRow = shapeTrickIndexRow(row, ctx);
       if (indexRow.isExternalOnly) continue;
       const numeric = parseAddNumeric(row.adds);
+      if (numeric === null) continue;
       const bucket = addBuckets.get(numeric) ?? [];
       bucket.push({ row, indexRow });
       addBuckets.set(numeric, bucket);
     }
     const addGroups: FreestyleTrickAddGroup[] = [];
     const buildGroup = (
-      addNumeric: number | null,
+      addNumeric: number,
       addLabel: string,
       entries: AddBucketEntry[],
     ): FreestyleTrickAddGroup => {
@@ -6447,38 +6445,47 @@ export const freestyleService = {
         addNumeric,
         addLabel,
         countLabel: `${sorted.length} ${sorted.length === 1 ? 'trick' : 'tricks'}`,
-        anchorId: addNumeric != null ? `add-${addNumeric}` : 'add-unrated',
+        anchorId: `add-${addNumeric}`,
         cards:  sorted.map(cardOf),
         lineageBands,
         showLineageBands: lineageBands.length > 0,
       };
     };
-    const numericKeys = [...addBuckets.keys()].filter((k): k is number => k !== null).sort((a, b) => a - b);
+    const numericKeys = [...addBuckets.keys()].sort((a, b) => a - b);
     for (const k of numericKeys) {
       addGroups.push(buildGroup(k, `${k} ADD`, addBuckets.get(k) ?? []));
     }
-    if (addBuckets.has(null)) {
-      addGroups.push(buildGroup(null, 'Unrated / unresolved', addBuckets.get(null) ?? []));
-    }
-    // Canonical per-tier resolution (/freestyle/tricks/:add). A requested
-    // tier with no bucket is a 404, like an unknown trick slug.
-    const tierGroup = addTier != null
-      ? addGroups.find(grp => grp.addNumeric === addTier) ?? null
+
+    // ---- View toggle --------------------------------------------------
+    const allowedViews: FreestyleTricksActiveView[] = ['add', 'family', 'set', 'modifier'];
+    const requestedView = (view ?? 'add') as FreestyleTricksActiveView;
+    // A value outside the allow-list, including an inbound link to a view the
+    // dictionary no longer offers, falls through to the default ADD view
+    // rather than erroring.
+    const resolvedView: FreestyleTricksActiveView = allowedViews.includes(requestedView)
+      ? requestedView
+      : 'add';
+    const activeView = resolvedView;
+
+    // The ADD view shows one level at a time. The canonical per-tier route
+    // (/freestyle/tricks/:add) names the level; a requested tier with no
+    // bucket is a 404, like an unknown trick slug. Without one, the
+    // unfiltered ADD view opens on the lowest documented level (1 ADD on the
+    // live dictionary), so the page never carries the whole corpus.
+    const shownTier = addTier
+      ?? (activeView === 'add' && !activeFamily ? numericKeys[0] ?? null : null);
+    const tierGroup = shownTier != null
+      ? addGroups.find(grp => grp.addNumeric === shownTier) ?? null
       : null;
     if (addTier != null && !tierGroup) {
       throw new NotFoundError(`No freestyle tricks at ${addTier} ADD`);
     }
 
-    // ADD navigation chips: one per documented tier, each linking to that
-    // tier's canonical URL so a bucket click survives reload and the
-    // back/forward buttons. A tier page leads with the all-tier view and
-    // drops the tier it is already on.
-    const addJumpChips: { label: string; href: string }[] = numericKeys
-      .filter(n => n !== addTier)
-      .map(n => ({ label: `${n} ADD`, href: `/freestyle/tricks/${n}` }));
-    if (addTier != null) {
-      addJumpChips.unshift({ label: 'All ADD Levels', href: '/freestyle/tricks?view=add' });
-    }
+    // ADD level selector: one chip per documented level, each linking to that
+    // level's canonical URL so a selection survives reload and the
+    // back/forward buttons. The level on screen is the current chip.
+    const addJumpChips: { label: string; href: string; isCurrent: boolean }[] = numericKeys
+      .map(n => ({ label: `${n} ADD`, href: `/freestyle/tricks/${n}`, isCurrent: n === shownTier }));
 
     // Trick count drives the totalTricks view-model field (used for
     // view-model completeness; never surfaced as a lead stat).
@@ -6497,7 +6504,7 @@ export const freestyleService = {
         ? `${canonicalCount} of ${canonicalCountUnfiltered} tricks`
         : null;
     // Sort-toggle targets keep the reader on the surface they are on: the
-    // canonical tier URL on a tier page, the all-tier query URL otherwise.
+    // canonical tier URL on a tier page, the default ADD view otherwise.
     const addSortToggle = addTier != null
       ? {
           familyHref: `/freestyle/tricks/${addTier}?sort=family`,
@@ -6507,17 +6514,6 @@ export const freestyleService = {
           familyHref: '/freestyle/tricks?view=add&sort=family',
           alphaHref:  '/freestyle/tricks?view=add&sort=alpha',
         };
-
-    // ---- View toggle --------------------------------------------------
-    const allowedViews: FreestyleTricksActiveView[] = ['add', 'family', 'set', 'modifier'];
-    const requestedView = (view ?? 'add') as FreestyleTricksActiveView;
-    // A value outside the allow-list, including an inbound link to a view the
-    // dictionary no longer offers, falls through to the default ADD view
-    // rather than erroring.
-    const resolvedView: FreestyleTricksActiveView = allowedViews.includes(requestedView)
-      ? requestedView
-      : 'add';
-    const activeView = resolvedView;
 
     // Load modifier reference table (still shaped; rendering currently disabled)
     const modifierRows = runSqliteRead('freestyleTrickModifiers.listAll', () =>
@@ -6876,7 +6872,6 @@ export const freestyleService = {
         addJumpChips,
         addSortToggle,
         headerCount,
-        isAddTierView: addTier != null,
         activeView,
         familyGroups: familyParentGroups,
         minorLineages,

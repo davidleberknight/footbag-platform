@@ -86,17 +86,17 @@ describe('Butterfly-kick correction — 2 ADD with [dex] [bod] reading', () => {
 
 describe('First-class browse-card rendering — JOB+ADD card renders for promoted rows', () => {
   it.each([
-    ['around_the_world_kick'],
-    ['triple_around_the_world'],
-    ['double_around_the_world_heel'],
-    ['hop_over'],
-    ['walk_over'],
-    ['wrap'],
-    ['butterfly_kick'],
+    ['around_the_world_kick', 1],
+    ['triple_around_the_world', 4],
+    ['double_around_the_world_heel', 3],
+    ['hop_over', 2],
+    ['walk_over', 2],
+    ['wrap', 2],
+    ['butterfly_kick', 2],
   ] as const)(
     '%s renders a resolved JOB on its two-line ADD-view row (no "canonical decomposition pending")',
-    async (slug) => {
-      const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    async (slug, add) => {
+      const res = await request(await createApp()).get(`/freestyle/tricks/${add}`);
       expect(res.status).toBe(200);
       const card = cardFor(slug, res.text);
       // First-class row present

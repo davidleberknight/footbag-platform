@@ -246,7 +246,8 @@ describe('GET /freestyle/tricks — dictionary navigation', () => {
     }
     const html = await get('/freestyle/tricks');
     expect(html).toContain('href="/freestyle/tricks?view=family"');
-    expect(html).toContain('/freestyle/tricks/whirl');
+    // whirl is seeded at 3 ADD, so its row sits on that level's page.
+    expect(await get('/freestyle/tricks/3')).toContain('/freestyle/tricks/whirl');
   });
 
   it('the onboarding tile links point at the semantically right destinations', async () => {

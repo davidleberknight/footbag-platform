@@ -189,8 +189,8 @@ describe('GET /freestyle/tricks — default By ADD ladder', () => {
     expect(nav).not.toContain('Movement Neighborhoods');
     // "Operators & Modifiers" stays out of the toggle row: operators and
     // modifiers are reference vocabulary, not a dictionary grouping axis.
-    // The /freestyle/operators reference page is reachable from the aside
-    // line below the toggle instead.
+    // The /freestyle/operators reference page is a reference surface, not a
+    // browse axis; the freestyle landing page links it.
     expect(nav).toContain('By modifier');
     expect(nav).not.toContain('href="/freestyle/operators"');
     // Observed Tricks is not duplicated into the dictionary browse strip;
@@ -198,13 +198,6 @@ describe('GET /freestyle/tricks — default By ADD ladder', () => {
     expect(nav).not.toContain('href="/freestyle/observational"');
     // No "‹ Dictionary" back-link in the toggle row.
     expect(nav).not.toContain('trick-view-toggle-back');
-  });
-
-  it('Operators & Modifiers reference link is reachable from the landing surface', async () => {
-    // The Operators reference is linked from the landing surface itself, so a
-    // reader reaches it without first choosing a view.
-    const res = await page('/freestyle/tricks');
-    expect(res.text).toContain('href="/freestyle/operators"');
   });
 
   it('groups tricks by ADD value, with the gentlest first', async () => {
@@ -217,7 +210,8 @@ describe('GET /freestyle/tricks — default By ADD ladder', () => {
     expect(twoIdx).toBeGreaterThan(-1);
     expect(threeIdx).toBeGreaterThan(twoIdx);
     expect(res.text).toContain('data-trick-slug="mirage"');
-    expect(res.text).toContain('data-trick-slug="whirl"');
+    // whirl (3 ADD) sits on its own level page.
+    expect((await page('/freestyle/tricks/3')).text).toContain('data-trick-slug="whirl"');
   });
 });
 
@@ -253,7 +247,8 @@ describe('GET /freestyle/tricks — browse axes and their explanations', () => {
   });
 
   it('By ADD groups each bucket into lineage sub-bands with headers', async () => {
-    const html = (await page('/freestyle/tricks?sort=family')).text;
+    // The 4-ADD level spans the whirl and mirage lineages in this seed.
+    const html = (await page('/freestyle/tricks/4?sort=family')).text;
     // The By-family ADD-view mode (?sort=family) sub-groups each tier into
     // nearest-anchor family bands with a plain family-name header (no
     // "-derived" suffix, and no surface/root bands).
@@ -285,9 +280,6 @@ describe('GET /freestyle/tricks — browse axes and their explanations', () => {
     // with the Jump to row two lines below.
     expect(res.text).not.toContain('dict-landing-grid');
     expect(res.text).not.toContain('dict-landing-card');
-    // The operators and sets reference surfaces stay reachable without a grid.
-    expect(res.text).toContain('href="/freestyle/operators"');
-    expect(res.text).toContain('href="/freestyle/sets"');
   });
 });
 
@@ -354,15 +346,6 @@ describe('GET /freestyle/tricks — beginner orientation bridge', () => {
     expect(links).toContain('href="/freestyle/glossary"');
     expect(links).toContain('Look Up a Term in the Glossary.');
     expect(links).not.toContain('Beginner Glossary.');
-  });
-
-  it('does not render the orientation tiles on secondary or filtered views', async () => {
-    const family = await page('/freestyle/tricks?view=family');
-    expect(family.text).not.toContain('aria-label="About the dictionary"');
-    expect(family.text).not.toContain('class="dict-onboarding-links"');
-    const filtered = await page('/freestyle/tricks?family=whirl');
-    expect(filtered.text).not.toContain('aria-label="About the dictionary"');
-    expect(filtered.text).not.toContain('class="dict-onboarding-links"');
   });
 
   it('softens internal ontology terms to beginner entry vocabulary', async () => {
@@ -438,7 +421,11 @@ describe('GET /freestyle/tricks — one orienting lede per state', () => {
   it('secondary views keep beginner help reachable via the glossary and Freestyle Concepts', async () => {
     const res = await page('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('New to the dictionary? Look up a term in the <a href="/freestyle/glossary">Glossary</a> or read the <a href="/freestyle/concepts">Freestyle Concepts</a> chapters.');
+    const start = res.text.indexOf('class="dict-onboarding-links"');
+    expect(start).toBeGreaterThan(-1);
+    const links = res.text.slice(start, start + 800);
+    expect(links).toContain('href="/freestyle/glossary"');
+    expect(links).toContain('href="/freestyle/concepts#');
   });
 });
 
@@ -481,10 +468,12 @@ describe('GET /freestyle/tricks — orientation tiles and search section', () =>
     const res = await page('/freestyle/tricks');
     // A bare number beside "2 ADD" says nothing about what it counts.
     expect(res.text).not.toMatch(/<span class="section-count">\d+<\/span>/);
-    // The seed puts a single trick at 2 ADD and five at 4 ADD, so both the
-    // singular and the plural forms render.
+    // The seed puts a single trick at 2 ADD (the default level) and five at
+    // 4 ADD, so both the singular and the plural forms render.
     expect(res.text).toContain('<span class="section-count">1 trick</span>');
-    expect(res.text).toContain('<span class="section-count">5 tricks</span>');
+    const four = await page('/freestyle/tricks/4');
+    expect(four.text).not.toMatch(/<span class="section-count">\d+<\/span>/);
+    expect(four.text).toContain('<span class="section-count">5 tricks</span>');
   });
 
   it('the long list ends with a control back to the top of the dictionary', async () => {

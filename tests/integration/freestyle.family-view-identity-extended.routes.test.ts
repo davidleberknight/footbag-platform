@@ -224,7 +224,8 @@ describe('ADD View and Family View — shared two-line row contract', () => {
   for (const slug of IDENTITY_PILOTS) {
     it(`'${slug}' renders the same two-line row contract in ADD and Family views`, async () => {
       const pilot = ALL_PILOTS.find(p => p.slug === slug)!;
-      const addView    = await page('/freestyle/tricks?view=add');
+      // The ADD view shows one level per page: the pilot's own seeded level.
+      const addView    = await page(`/freestyle/tricks/${pilot.adds}`);
       const familyView = await page('/freestyle/tricks?view=family');
       expect(addView.status).toBe(200);
       expect(familyView.status).toBe(200);

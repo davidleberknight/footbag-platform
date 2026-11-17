@@ -195,12 +195,13 @@ describe('ADD view and Family view — shared two-line row contract', () => {
 
   for (const slug of IDENTITY_PILOTS) {
     it(`'${slug}' renders the same two-line row contract in ADD and Family views`, async () => {
-      const addView    = await page('/freestyle/tricks?view=add');
+      const pilot = WHIRL_PILOTS.find(p => p.slug === slug)!;
+      // The ADD view shows one level per page: the pilot's own seeded level.
+      const addView    = await page(`/freestyle/tricks/${pilot.adds}`);
       const familyView = await page('/freestyle/tricks?view=family');
       expect(addView.status).toBe(200);
       expect(familyView.status).toBe(200);
 
-      const pilot = WHIRL_PILOTS.find(p => p.slug === slug)!;
       const escapedHref = `/freestyle/tricks/${slug}`.replace(/\//g, '\\/');
       const rowRe = (s: string) => new RegExp(`<article class="dict-trick-row[\\s\\S]*?data-trick-slug="${s}"[\\s\\S]*?<\\/article>`);
 

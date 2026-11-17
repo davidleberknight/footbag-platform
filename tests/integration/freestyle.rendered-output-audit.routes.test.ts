@@ -251,7 +251,7 @@ describe('Compound-description slot leakage prevention', () => {
   });
 
   it('DATW browse card has NO ≡ tautological reading ("double around the world")', async () => {
-    const res = await getPage('/freestyle/tricks?view=add');
+    const res = await getPage('/freestyle/tricks/3');
     const card = res.text.match(/data-trick-slug="double_around_the_world"[\s\S]*?<\/article>/);
     expect(card).not.toBeNull();
     // Tautological filter drops the canonical-name echo.

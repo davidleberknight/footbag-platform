@@ -74,15 +74,9 @@ describe('spin/juggling rendering probe', () => {
 
   // Kick-doctrine reclassification: spin + double-spin are first-class tricks
   // (not modifiers), so they must be findable in the trick-browse views.
-  it.each([['spin'], ['double-spin']])('%s is findable in the ADD browse view (kick-doctrine trick)', async (slug) => {
-    const res = await page('/freestyle/tricks?view=add');
+  it.each([['spin', 1], ['double-spin', 2]])('%s is findable in the ADD browse view (kick-doctrine trick)', async (slug, add) => {
+    const res = await page(`/freestyle/tricks/${add}`);
     expect(res.status).toBe(200);
     expect(res.text).toContain(`data-trick-slug="${slug}"`);
-  });
-
-  it('spin + double-spin both appear together in the ADD browse view', async () => {
-    const res = await page('/freestyle/tricks?view=add');
-    expect(res.text).toContain('data-trick-slug="spin"');
-    expect(res.text).toContain('data-trick-slug="double-spin"');
   });
 });

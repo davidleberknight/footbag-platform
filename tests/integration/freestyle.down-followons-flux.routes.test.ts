@@ -115,9 +115,9 @@ describe('Down-family follow-ons + flux detail pages — first-class JOB + ADD',
 
 describe('Down-family follow-ons + flux browse rendering — FIRST_CLASS_TIER_2', () => {
   it('all three browse cards render JOB + ADD inline (not "canonical decomposition pending")', async () => {
-    const res = await page('/freestyle/tricks?view=add');
-    expect(res.status).toBe(200);
-    for (const slug of ['pixie_double_over_down', 'scorpions_tail', 'flux']) {
+    for (const [slug, add] of [['pixie_double_over_down', 5], ['scorpions_tail', 5], ['flux', 4]] as const) {
+      const res = await page(`/freestyle/tricks/${add}`);
+      expect(res.status).toBe(200);
       const idx = res.text.indexOf(`data-trick-slug="${slug}"`);
       expect(idx).toBeGreaterThan(-1);
       const articleOpen = res.text.lastIndexOf('<article', idx);
