@@ -18,7 +18,7 @@
 
 export const COMPOUND_SEMANTIC_DESCRIPTIONS: ReadonlyMap<string, string> = new Map([
   ['furious',        'a two-dex set: two same-direction dexterity steps on a single set, contributing +2.'],
-  ['atom_smasher',   'atomic mirage composition: atomic set primitive followed by a mirage-class terminal.'],
+  ['atom_smasher',   'A mirage with an atomic set: one outward dexterity off the toe, then the mirage\'s dexterity, and a toe catch.'],
   // Foundational set operators: identity plus the uptime relationship to the dex
   // they echo (Pixie to Around the World, Fairy to Orbit). Worded as "an uptime
   // X", never "X equals Y".
