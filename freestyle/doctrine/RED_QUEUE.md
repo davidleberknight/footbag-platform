@@ -568,6 +568,15 @@ Each is separable and answered on its own.
 - **Pogo-clipper terminal (registry Q12).** Is the pogo-clipper terminal a kick or a
   stall? Row-specific to Pogo Clipper and its same-side form; pogo's `+1` operator
   contract is already settled, only the terminal contact is open.
+- **Atomic Miraging Butterfly's scoring.** The row (`atomic_miraging_butterfly`,
+  base butterfly, linked to atomic only) stores 5 ADD and the notation
+  `TOE > OP OUT [DEX] > OP IN [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]`.
+  FootbagMoves lists it at 6, with an X-Dex on the middle inward dexterity:
+  `Toe > Op Out (DEX) >> Op In (DEX)(XDEX) > Op Out (DEX) > Op Clip (XBD)(DEL)`.
+  Settled doctrine says miraging is not a scored operator, which leaves atomic(+1) on
+  butterfly(3) at 4. Ask for the rules expert: does the middle inward dexterity score,
+  and does it carry the X-Dex FootbagMoves gives it, making the trick 4, 5 or 6 ADD?
+  The row stays held, with no opening, until that is ruled.
 
 ## Scoring and structure questions
 
