@@ -371,7 +371,8 @@ toe_mobius,retype,structural,0,modifier-stack decomposition rather than a nickna
 toe_near_barrage,retype,structural,0,modifier-stack decomposition rather than a nickname
 toe_near_symposium_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
 toe_set_spinning_double_over_down,retype,structural,0,modifier-stack decomposition rather than a nickname
-torch_r_rack,retype,typo,0,misspelling of the canonical name
+torch_r_rack,retype,common,1,"the trick's community name as footbag.org spells it (move 281, Common Name ""Torch-r Rack""), shown beside the canonical Stepping Superfly; ratified by the maintainer"
+torture_rack,retype,historical,0,"how the community name Torch-r Rack is pronounced (footbag.org move 281); kept so a search for it still finds the trick, hidden so one nickname shows; ratified by the maintainer"
 triple_atw,retype,technical,0,abbreviation of the canonical name
 triple_spinning_kick,retype,structural,0,modifier-stack decomposition rather than a nickname
 two_bag,retype,technical,0,truncation of the canonical
