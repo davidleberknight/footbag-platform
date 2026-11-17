@@ -163,7 +163,7 @@ describe('GET /freestyle/tricks?view=set', () => {
     expect(html).toContain('href="/freestyle/sets"');
   });
 
-  it('renders the collapsed "Why these set groups?" disclosure with the encyclopedia link, and the family view its parallel', async () => {
+  it('renders the collapsed "Why these set groups?" disclosure with the encyclopedia link', async () => {
     const html = await page();
     const details = html.match(/<details class="browse-view-why">[\s\S]*?<\/details>/);
     expect(details, 'set-view rationale disclosure present').not.toBeNull();
@@ -171,13 +171,6 @@ describe('GET /freestyle/tricks?view=set', () => {
     expect(details![0]).toContain('Why these set groups?');
     expect(details![0]).toContain('href="/freestyle/sets"');
     expect(details![0]).toMatch(/count alone/);
-
-    const fam = await getPage('/freestyle/tricks?view=family');
-    expect(fam.status).toBe(200);
-    const famDetails = fam.text.match(/<details class="browse-view-why">[\s\S]*?<\/details>/);
-    expect(famDetails, 'family-view rationale disclosure present').not.toBeNull();
-    expect(famDetails![0]).toContain('Why these family groups?');
-    expect(famDetails![0]).toMatch(/Minor Lineages/);
   });
 
   it('rows within a set order by ADD ascending, then alphabetically, and the intro says so', async () => {

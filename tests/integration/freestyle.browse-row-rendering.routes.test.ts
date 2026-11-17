@@ -467,10 +467,14 @@ describe('GET /freestyle/tricks?view=family — trick rows', () => {
     expect(res.text).toContain('id="family-butterfly"');
   });
 
-  it('family section heading wraps an <a> family-filter link', async () => {
+  // Defect caught: the family heading links somewhere that does not show that family.
+  it('family section heading links to that family\'s own page in the family view', async () => {
     const res = await page('/freestyle/tricks?view=family');
     // Family name renders display-cased (first letter capitalised).
-    expect(res.text).toMatch(/<h2><a href="\/freestyle\/tricks\?family=butterfly">Butterfly family<\/a><\/h2>/);
+    expect(res.text).toMatch(/<h2><a href="\/freestyle\/tricks\?view=family&amp;family=butterfly">Butterfly family<\/a><\/h2>/);
+    const target = await page('/freestyle/tricks?view=family&family=butterfly');
+    expect(target.status).toBe(200);
+    expect(target.text).toContain('id="family-butterfly"');
   });
 
   it('family section renders the two-line dict-trick-row stack', async () => {

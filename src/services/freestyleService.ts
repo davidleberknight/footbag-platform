@@ -147,7 +147,6 @@ import {
   familyTier,
   familyTrickPageNote,
   familyWithAncestors,
-  getFamilyInvariant,
   isOfficialFamilyParent,
   publicDisplayFamilies,
   publicFamilyOrder,
@@ -727,14 +726,19 @@ export interface FreestyleLandingContent {
 // The six next-step lessons at the end of the getting-started page.
 const START_NEXT_STEPS_HREF = '/freestyle/start#next-steps';
 
-// Where the trick dictionary lists a family's tricks. The family view gives a
-// section of its own (id="family-{slug}") only to a family parent; a minor
-// lineage shares one band whose entry links its family-filtered dictionary, so
-// any other family goes there, never to a section the view does not render.
+// One family's own page in the dictionary's family view.
+function familyViewHref(slug: string): string {
+  return `/freestyle/tricks?view=family&family=${encodeURIComponent(slug)}`;
+}
+
+// Where the trick dictionary lists a family's tricks. Every family parent and
+// minor lineage has its own page in the family view; a foundational catch
+// surface gets no family-view page, so it goes to the family-filtered
+// dictionary instead.
 function familyBrowseHref(slug: string): string {
-  return familyTier(slug) === 'family-parent'
-    ? `/freestyle/tricks?view=family#family-${slug}`
-    : `/freestyle/tricks?family=${encodeURIComponent(slug)}`;
+  return familyTier(slug) === 'foundational-terminal-surface'
+    ? `/freestyle/tricks?family=${encodeURIComponent(slug)}`
+    : familyViewHref(slug);
 }
 
 // Getting-started page content: the frame's copy is in the template; the
@@ -1952,14 +1956,13 @@ export interface FreestyleTricksIndexContent {
   headerCount: string | null;
   activeView: FreestyleTricksActiveView;
 
-  familyGroups: FreestyleFamilyGroup[];  // first-class Family Parents, rendered as full sections
-  // Minor lineages: conserved-terminal families below the current first-class
-  // threshold, shown as a compact band rather than full sections.
-  minorLineages: FreestyleMinorLineage[];
-  // In-page jump index for the family view: root families and derived branch
-  // families as anchor chips, so readers can skip between family sections
-  // without scrolling the full list. Derived purely from familyGroups.
-  familyJumpIndex: FreestyleFamilyJumpIndex;
+  // The family view shows one family at a time: the one family on screen, or
+  // empty outside the family view.
+  familyGroups: FreestyleFamilyGroup[];
+  // Family selector for the family view: one chip per rendered family in the
+  // stored family order, each linking to that family's own address, the family
+  // on screen marked current. Empty outside the family view.
+  familyChips: { label: string; href: string; isCurrent: boolean }[];
   // Sets-grouped view: dictionary tricks bucketed by which modifier(s) they
   // use. Drives ?view=modifier. Empty when no active tricks have modifier_links.
   modifierGroups: FreestyleModifierGroup[];
@@ -1983,17 +1986,15 @@ export interface FreestyleTricksIndexContent {
   activeFamily: string | null;           // when set, dictionary is filtered to this family only (hashtag-click filter)
   // Empty unless activeFamily is set AND the family has modifier-linked tricks.
   relatedModifierGroups: FreestyleRelatedModifierLink[];
-  // familyViewIntro: per-view context note for the advanced family browse view.
+  // familyViewIntro: per-view context note for the family browse view.
   // Absence = silence (template branches on the truthy string).
   familyViewIntro: string | null;
-  // Compact collapsed "Why these groups?" rationale disclosures for the family
-  // and set views: the curation principle in plain words, closed by default.
-  familyWhyDisclosure: { summary: string; paragraphs: string[] };
+  // Compact collapsed "Why these groups?" rationale disclosure for the set
+  // view: the curation principle in plain words, closed by default.
   setWhyDisclosure:    { summary: string; paragraphs: string[] };
   // Per-view scale sentences (browse-shell cleanup). Each is computed from the
   // same group arrays the template renders, so the counts always match the
   // visible sections/cards. Rendered once in the corresponding view's intro.
-  familyScale: string | null;
   modifierScale: string | null;
   setScale: string | null;
   // Per-view section intros, service-shaped like familyViewIntro so the copy
@@ -2085,21 +2086,10 @@ export interface ModifierJumpChip {
   anchor: string;  // `#modifier-{slug}`
 }
 
-export interface FreestyleMinorLineage {
-  slug:  string;              // trick_family value; drives ?family={slug}
-  name:  string;              // display label (e.g. "Flurry")
-  count: number;              // live rendered membership (tricks shown in the lineage)
-  href:  string;              // /freestyle/tricks?family={slug}
-}
-
 export interface FreestyleFamilyGroup {
   familySlug: string;
   familyName: string;         // capitalized family name (e.g. "Whirl")
-  familyHref: string;         // /freestyle/tricks?family={familySlug}
-  // Pre-shaped family-anchor link. Points at the family page when the family has
-  // one, otherwise at the anchor trick's detail page, or null when neither
-  // resolves.
-  familyAnchorHref: string | null;
+  familyHref: string;         // the family's own page in the family view
   members: FreestyleTrickIndexRow[];
   // Shared symbolic trick cards, with anchor-first ordering.
   // Anchor = the family's base trick (slug === familySlug) when present.
@@ -2108,18 +2098,13 @@ export interface FreestyleFamilyGroup {
   // (e.g., butterfly family → the Butterfly family page). Null when no
   // corresponding surface is shipped.
   crossLink: { label: string; href: string } | null;
-  // Family-level shared-terminal-structure
-  // invariant. Pedagogical surface rendered as a small subdued line below
-  // the section heading. Curator-authored per family slug; null when no
-  // line is authored (the family's shared_structure).
-  sharedStructure: string | null;
   // For a derived branch family (torque/blender under osis; double-leg-over/
   // eggbeater under legover), the display name of its parent root family. Null
   // for a root family.
   branchParentName: string | null;
-  // The same cards, partitioned into operator-rung bands (Core / 1 operator /
-  // 2 operators / 3+ operators) so the section reads as a progression. Cards
-  // remain available flat above for non-rung consumers.
+  // The same cards, partitioned into operator-rung bands (base forms, then
+  // 1 operator / 2 operators / 3+ operators) so the section reads as a
+  // progression. Cards remain available flat above for non-rung consumers.
   rungGroups: FreestyleFamilyRungGroup[];
   // True when the family spans more than one rung band (so the template shows
   // band headers); false for a family that is all one rung (no header noise).
@@ -2128,24 +2113,11 @@ export interface FreestyleFamilyGroup {
 
 // One operator-rung band within a family section.
 export interface FreestyleFamilyRungGroup {
-  rung: number;     // 0 = Core; 3 also covers 4+ (the "3+ operators" band)
-  label: string;    // "Core" | "1 operator" | "2 operators" | "3+ operators"
+  rung: number;     // 0 = base forms; 3 also covers 4+ (the "3+ operators" band)
+  // "1 operator" | "2 operators" | "3+ operators"; null for the base-form band,
+  // which opens the section and needs no heading.
+  label: string | null;
   cards: DictionaryTrickCard[];
-}
-
-// One chip in the family-view jump index.
-export interface FreestyleFamilyJumpChip {
-  slug: string;
-  name: string;
-  anchor: string;    // in-page hash, e.g. "#family-whirl"
-}
-
-// Jump index for the family view: root families first, then derived branch
-// families; a single entry points at the minor-lineages band when present.
-export interface FreestyleFamilyJumpIndex {
-  roots: FreestyleFamilyJumpChip[];
-  branches: FreestyleFamilyJumpChip[];
-  hasMinorLineages: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -4391,9 +4363,10 @@ function buildFamilyGroup(
     ?? (familySlug.charAt(0).toUpperCase() + familySlug.slice(1));
   // Partition the (already rung-sorted) cards into operator-rung bands.
   // Cards are sorted rung-ascending, so each band is contiguous. The 3+
-  // band collects rung 3 and above. The anchor sits at the head of Core.
-  const rungBandOf = (n: number): { rung: number; label: string } =>
-    n <= 0 ? { rung: 0, label: 'Core' }
+  // band collects rung 3 and above. The anchor sits at the head of the
+  // base-form band, which opens the section unlabelled.
+  const rungBandOf = (n: number): { rung: number; label: string | null } =>
+    n <= 0 ? { rung: 0, label: null }
     : n === 1 ? { rung: 1, label: '1 operator' }
     : n === 2 ? { rung: 2, label: '2 operators' }
     : { rung: 3, label: '3+ operators' };
@@ -4404,24 +4377,13 @@ function buildFamilyGroup(
     if (last && last.rung === band.rung) last.cards.push(cards[i]!);
     else rungGroups.push({ rung: band.rung, label: band.label, cards: [cards[i]!] });
   });
-  // Family-anchor link target. When a dedicated family page exists, the family
-  // name links there: the family page is the primary explanation of the family
-  // and links on to the member tricks, so it is the natural intermediate step.
-  // A family group with no family page of its own falls back to its anchor
-  // trick's detail page; null when neither resolves, so the sub-label renders the
-  // name as plain text rather than a dead link.
-  const familyAnchorHref =
-    familyPageHref(familySlug)
-      ?? (rows.some(r => r.slug === familySlug) ? `/freestyle/tricks/${familySlug}` : null);
   return {
     familySlug,
     familyName,
-    familyHref: `/freestyle/tricks?family=${encodeURIComponent(familySlug)}`,
-    familyAnchorHref,
+    familyHref: familyViewHref(familySlug),
     members,
     cards,
     crossLink: familyCrossLink(familySlug),
-    sharedStructure: getFamilyInvariant(familySlug),
     branchParentName: familyParentLabels().get(familySlug) ?? null,
     rungGroups,
     showRungLabels: rungGroups.length > 1,
@@ -6186,10 +6148,23 @@ export const freestyleService = {
       freestyleTricks.listAllWithPending.all() as FreestyleTrickRowWithStatus[],
     );
 
+    // ---- View toggle --------------------------------------------------
+    const allowedViews: FreestyleTricksActiveView[] = ['add', 'family', 'set', 'modifier'];
+    const requestedView = (view ?? 'add') as FreestyleTricksActiveView;
+    // A value outside the allow-list, including an inbound link to a view the
+    // dictionary no longer offers, falls through to the default ADD view
+    // rather than erroring.
+    const activeView: FreestyleTricksActiveView = allowedViews.includes(requestedView)
+      ? requestedView
+      : 'add';
+
     // Apply optional family filter (driven by ?family= hashtag click). An
     // umbrella root with no raw rows of its own (the Down family) filters as
-    // the set of raw labels its branches and their sub-labels carry.
-    const { activeFamily, rows: allRows } = applyDictionaryFamilyFilter(allRowsUnfiltered, family);
+    // the set of raw labels its branches and their sub-labels carry. In the
+    // family view the parameter instead names the one family shown, chosen
+    // below from the unfiltered groups, so it filters nothing here.
+    const { activeFamily, rows: allRows } = applyDictionaryFamilyFilter(
+      allRowsUnfiltered, activeView === 'family' ? undefined : family);
 
     // Row-shaping context + modifier-link rows, via the builder shared with
     // the family-detail page.
@@ -6324,16 +6299,25 @@ export const freestyleService = {
       addGroups.push(buildGroup(k, `${k} ADD`, addBuckets.get(k) ?? []));
     }
 
-    // ---- View toggle --------------------------------------------------
-    const allowedViews: FreestyleTricksActiveView[] = ['add', 'family', 'set', 'modifier'];
-    const requestedView = (view ?? 'add') as FreestyleTricksActiveView;
-    // A value outside the allow-list, including an inbound link to a view the
-    // dictionary no longer offers, falls through to the default ADD view
-    // rather than erroring.
-    const resolvedView: FreestyleTricksActiveView = allowedViews.includes(requestedView)
-      ? requestedView
-      : 'add';
-    const activeView = resolvedView;
+    // The family view shows one family at a time, like the ADD view's levels.
+    // ?family= names it; without one the view opens on the first family in the
+    // stored family order. A named family the view does not render is a 404.
+    const shownFamilyGroup = activeView === 'family'
+      ? (family ? familyGroups.find(g => g.familySlug === family) : familyGroups[0]) ?? null
+      : null;
+    if (activeView === 'family' && family && !shownFamilyGroup) {
+      throw new NotFoundError(`No freestyle family view for ${family}`);
+    }
+    // Family selector: one chip per rendered family, in the stored family
+    // order, each linking to that family's own address; the family on screen
+    // is the current chip.
+    const familyChips: { label: string; href: string; isCurrent: boolean }[] = activeView === 'family'
+      ? familyGroups.map(g => ({
+          label: g.familyName,
+          href: familyViewHref(g.familySlug),
+          isCurrent: g.familySlug === shownFamilyGroup?.familySlug,
+        }))
+      : [];
 
     // The ADD view shows one level at a time. The canonical per-tier route
     // (/freestyle/tricks/:add) names the level; a requested tier with no
@@ -6488,36 +6472,6 @@ export const freestyleService = {
         }))
       : [];
 
-    // Display tier (curated first-class roster): split the rendered family
-    // groups into first-class Family Parents and a compact Minor-Lineage band.
-    // The tier is curated doctrine; the count shown for each minor lineage is
-    // its live rendered membership. trick_family data is untouched.
-    const familyParentGroups = familyGroups.filter(
-      g => familyTier(g.familySlug) === 'family-parent',
-    );
-    const minorLineages: FreestyleMinorLineage[] = familyGroups
-      .filter(g => familyTier(g.familySlug) === 'minor-lineage')
-      .map(g => ({
-        slug:  g.familySlug,
-        name:  g.familyName,
-        count: g.cards.length,
-        href:  familyBrowseHref(g.familySlug),
-      }));
-    // Family-view jump index: anchor chips for the first-class family sections,
-    // split into root vs derived-branch (branchParentName != null) so a reader
-    // can skip directly to a family without scrolling. Derived from the already
-    // rendered familyParentGroups; the minor-lineages band gets a single entry.
-    const familyJumpChip = (g: FreestyleFamilyGroup): FreestyleFamilyJumpChip => ({
-      slug: g.familySlug,
-      name: g.familyName,
-      anchor: `#family-${g.familySlug}`,
-    });
-    const familyJumpIndex: FreestyleFamilyJumpIndex = {
-      roots: familyParentGroups.filter(g => g.branchParentName === null).map(familyJumpChip),
-      branches: familyParentGroups.filter(g => g.branchParentName !== null).map(familyJumpChip),
-      hasMinorLineages: minorLineages.length > 0,
-    };
-
     // Modifier clusters (organizational UX): bucket the active modifier groups
     // into the browse groups each modifier is placed in, for the By-modifier
     // browse. Modifiers placed in no group fall through to 'other'; empty groups
@@ -6627,16 +6581,6 @@ export const freestyleService = {
     // the templates render, so they always match the visible sections/cards.
     const plural = (n: number, one: string, many: string): string => (n === 1 ? one : many);
 
-    const familyMemberships = familyGroups.reduce((n, g) => n + g.cards.length, 0);
-    const familyDistinct = new Set(familyGroups.flatMap(g => g.cards.map(c => c.slug))).size;
-    const familyScale =
-      `${familyGroups.length} family ${plural(familyGroups.length, 'grouping', 'groupings')} organize tricks by ` +
-      `structural anchor: ${familyParentGroups.length} core ${plural(familyParentGroups.length, 'family', 'families')} ` +
-      `and ${minorLineages.length} smaller ${plural(minorLineages.length, 'lineage', 'lineages')} that may later roll ` +
-      'into broader family hierarchies. ' +
-      `${familyMemberships} trick-row ${plural(familyMemberships, 'membership', 'memberships')} shown` +
-      (familyMemberships > familyDistinct ? ', and some tricks belong to more than one family.' : '.');
-
     // Per-view section intros, service-shaped; the static cross-link
     // affordances stay in the template.
     const modifierIntro =
@@ -6648,22 +6592,10 @@ export const freestyleService = {
       'groupings used for browsing, not the whole set vocabulary. Within each set, tricks ' +
       'are ordered by ADD, then alphabetically.';
 
-    // "Why these groups?" rationale copy for the family and set views: the
-    // curation principle in plain words. Membership itself is curated doctrine
-    // elsewhere (the public-family roster and the set-group ruling); this copy
-    // only explains the principle, and deliberately names no rejected
-    // candidates.
-    const familyWhyDisclosure = {
-      summary: 'Why these family groups?',
-      paragraphs: [
-        'These sections are chosen for useful browsing, not as a complete taxonomy.',
-        'A family gets a section when it has enough member tricks to be worth browsing and a '
-          + 'conserved identity: its members keep a recognizable shared signature even as '
-          + 'modifiers stack.',
-        'Groupings too broad to tell tricks apart, like the universal catch surfaces, do not '
-          + 'get sections. Smaller conserved lineages appear in the compact Minor Lineages band.',
-      ],
-    };
+    // "Why these groups?" rationale copy for the set view: the curation
+    // principle in plain words. Membership itself is curated doctrine elsewhere
+    // (the set-group ruling); this copy only explains the principle, and
+    // deliberately names no rejected candidates.
     const setWhyDisclosure = {
       summary: 'Why these set groups?',
       paragraphs: [
@@ -6741,9 +6673,8 @@ export const freestyleService = {
         addSortToggle,
         headerCount,
         activeView,
-        familyGroups: familyParentGroups,
-        minorLineages,
-        familyJumpIndex,
+        familyGroups: shownFamilyGroup ? [shownFamilyGroup] : [],
+        familyChips,
         modifierGroups,
         modifierClusterView,
         modifierJumpIndex,
@@ -6808,18 +6739,9 @@ export const freestyleService = {
           built:    { title: 'How tricks are built',     hint: 'ADD, dex, families, and modifiers, with a worked example.' },
         },
         watchVideosButton: { label: 'Watch Videos', href: '/freestyle/media' },
-        // Per-view context note for the advanced family browse view.
-        familyViewIntro:
-          'Family groupings cluster tricks that preserve a conserved terminal mechanic. ' +
-          'Members of a family share the same shallow structural skeleton (entry + dex + ' +
-          'terminator), even when they carry different modifiers or sit at different ADD ' +
-          'values. This is distinct from the ADD view (which clusters by structural difficulty ' +
-          'regardless of family) and the modifier view (which groups by the modifiers that ' +
-          'transform a base). The shared terminal structure under each family ' +
-          'heading below is the invariant that makes the cohort cohere.',
-        familyWhyDisclosure,
+        // Per-view context note for the family browse view.
+        familyViewIntro: 'Tricks grouped by the base move they are built on.',
         setWhyDisclosure,
-        familyScale,
         modifierScale,
         setScale,
         modifierIntro,

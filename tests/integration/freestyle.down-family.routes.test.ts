@@ -103,9 +103,8 @@ beforeAll(async () => {
     adds: '5', base_trick: 'paradon', trick_family: 'paradon',
     category: 'compound', review_status: 'expert_reviewed', is_active: 1,
   });
-  // Third paradon member so the paradon branch clears the three-member minimum
-  // and surfaces in the compact Minor Lineages band (paradon is minor-lineage
-  // tier, so it renders as a ?family= link, not a full section).
+  // Third paradon member so the paradon branch, a minor lineage, clears the
+  // three-member minimum and gets its own family-view page.
   insertFreestyleTrick(db, {
     slug: 'travertine', canonical_name: 'travertine',
     adds: '6', base_trick: 'paradon', trick_family: 'paradon',
@@ -158,7 +157,7 @@ describe('Down-family detail pages — first-class JOB + ADD', () => {
 
 describe('Down umbrella family (the one ruled structural decomposition)', () => {
   it('the Down root section renders in the family view, aggregating its variant branches', async () => {
-    const res = await page('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family&family=down');
     expect(res.status).toBe(200);
     // The umbrella root has no raw trick_family rows of its own; its section
     // is the union of the variant branches' members.
@@ -171,41 +170,24 @@ describe('Down umbrella family (the one ruled structural decomposition)', () => 
     }
   });
 
-  it('the Down umbrella family-anchor links to the family page, not a missing trick page', async () => {
-    const res = await page('/freestyle/tricks?view=family');
-    const downIdx = res.text.indexOf('id="family-down"');
-    expect(downIdx).toBeGreaterThan(-1);
-    const nextSection = res.text.indexOf('id="family-', downIdx + 1);
-    const section = res.text.slice(downIdx, nextSection === -1 ? undefined : nextSection);
-    // Down has no trick row of its own; its family-anchor must point at the
-    // family page, not a dead /freestyle/tricks/down page.
-    expect(section).toContain('href="/freestyle/families/down"');
-    expect(section).not.toContain('href="/freestyle/tricks/down"');
-  });
-
-  it('an official family parent that also has its own trick row still links its anchor to the family page', async () => {
-    const res = await page('/freestyle/tricks?view=family');
-    const bIdx = res.text.indexOf('id="family-barfly"');
-    expect(bIdx).toBeGreaterThan(-1);
-    const nextSection = res.text.indexOf('id="family-', bIdx + 1);
-    const section = res.text.slice(bIdx, nextSection === -1 ? undefined : nextSection);
-    // barfly has both a trick row and a family page; the anchor routes to the
-    // family page (the primary explanation), never bypassing it to the trick.
-    const anchor = section.match(/class="trick-family-anchor-sublabel">[\s\S]*?<a href="([^"]*)"/);
-    expect(anchor?.[1]).toBe('/freestyle/families/barfly');
-  });
-
-  it('variant branches keep their own presentation alongside the umbrella, tier deciding the form', async () => {
-    const res = await page('/freestyle/tricks?view=family');
-    // Parent-tier variants render as full sections; minor-tier variants render
-    // in the Minor Lineages band with a working ?family= link. Both remain
-    // reachable, and all aggregate into the Down section.
-    expect(res.text).toContain('id="family-barfly"');
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\?family=paradon"/);
+  // Defect caught: aggregating the branches into the Down umbrella swallows
+  // them, so a parent-tier or minor-tier variant loses its own family page.
+  it('variant branches keep their own family pages alongside the umbrella, whatever their tier', async () => {
+    const down = await page('/freestyle/tricks?view=family&family=down');
+    // The chip row on the umbrella's page reaches each branch's own page.
+    expect(down.text).toContain('href="/freestyle/tricks?view=family&amp;family=barfly"');
+    expect(down.text).toContain('href="/freestyle/tricks?view=family&amp;family=paradon"');
+    // barfly is a parent-tier variant, paradon a minor lineage; each page renders it.
+    const barfly = await page('/freestyle/tricks?view=family&family=barfly');
+    expect(barfly.status).toBe(200);
+    expect(barfly.text).toContain('id="family-barfly"');
+    const paradon = await page('/freestyle/tricks?view=family&family=paradon');
+    expect(paradon.status).toBe(200);
+    expect(paradon.text).toContain('id="family-paradon"');
   });
 
   it('the double-over-down members render in the Double-Over-Down branch section', async () => {
-    const res = await page('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family&family=double_over_down');
     const dodIdx = res.text.indexOf('id="family-double_over_down"');
     expect(dodIdx).toBeGreaterThan(-1);
     const nextSection = res.text.indexOf('id="family-', dodIdx + 1);

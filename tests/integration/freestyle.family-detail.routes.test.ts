@@ -141,8 +141,12 @@ describe('GET /freestyle/families/:slug — page budget and examples', () => {
   // Defect caught: the members beyond the eighth become unreachable from the page.
   it('links to the whole family in the dictionary and counts every member', async () => {
     const res = await page('/freestyle/families/inside_stall');
-    expect(res.text).toContain('href="/freestyle/tricks?view=family#family-inside_stall"');
+    expect(res.text).toContain('href="/freestyle/tricks?view=family&amp;family=inside_stall"');
     expect(res.text).toMatch(/<span class="section-count">12<\/span>/);
+    // The link lands on the family's own page in the family view.
+    const target = await page('/freestyle/tricks?view=family&family=inside_stall');
+    expect(target.status).toBe(200);
+    expect(target.text).toContain('id="family-inside_stall"');
   });
 });
 

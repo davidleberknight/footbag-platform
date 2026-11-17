@@ -1,14 +1,15 @@
 /**
- * /freestyle/tricks?view=family — two-line row contract.
+ * /freestyle/tricks?view=family&family=<slug> — two-line row contract.
  *
  * Family view uses the SAME generalized dictionary-trick-row partial as the
- * ADD view. Every family row obeys the two-line contract:
+ * ADD view. Every family row, on its family's own page, obeys the two-line
+ * contract:
  *   Line 1 (.dict-trick-row-head): name · hashtag · optional ≡ interpretation · optional media
  *   Line 2 (.dict-trick-row-notation): JOB: <op notation> · ADD: <formula | bare N>
  *
- * Family-specific scaffolding is preserved: family section headings, the
- * family-anchor sublabel, shared-structure invariant, and anchor-first
- * ordering. The shared dict-card / green ADD chip do NOT appear on rows.
+ * Family-specific scaffolding is preserved: the family section heading and
+ * anchor-first ordering. The shared dict-card / green ADD chip do NOT appear
+ * on rows.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { cachedGet } from '../fixtures/cachedGet';
@@ -81,8 +82,15 @@ afterAll(() => cleanupTestDb(dbPath));
 
 // torque is a derived branch that renders as its own top-level family
 // section.
-const FAMILIES = ['mirage', 'legover', 'butterfly', 'whirl', 'torque'];
-const ALL_MEMBERS = ['mirage', 'smear', 'legover', 'magellan', 'butterfly', 'ripwalk', 'whirl', 'paradox-whirl', 'torque', 'spinning-torque'];
+const MEMBERS: Record<string, string[]> = {
+  mirage:    ['mirage', 'smear'],
+  legover:   ['legover', 'magellan'],
+  butterfly: ['butterfly', 'ripwalk'],
+  whirl:     ['whirl', 'paradox-whirl'],
+  torque:    ['torque', 'spinning-torque'],
+};
+const FAMILIES = Object.keys(MEMBERS);
+const ALL_MEMBERS = Object.values(MEMBERS).flat();
 
 function rowFor(html: string, slug: string): string {
   const m = html.match(new RegExp(`<article class="dict-trick-row[\\s\\S]*?data-trick-slug="${slug}"[\\s\\S]*?</article>`));
@@ -90,68 +98,89 @@ function rowFor(html: string, slug: string): string {
   return m![0];
 }
 
+// One family's own page in the family view.
+const familyPath = (family: string) => `/freestyle/tricks?view=family&family=${family}`;
+
+// Each seeded family's own page, one response per family.
+async function familyPages(): Promise<Array<{ family: string; status: number; text: string }>> {
+  const pages = [];
+  for (const family of FAMILIES) {
+    const res = await getPage(familyPath(family));
+    pages.push({ family, status: res.status, text: res.text });
+  }
+  return pages;
+}
+
+// The row for a member, looked up on its own family's page.
+async function memberRow(slug: string): Promise<string> {
+  const family = Object.entries(MEMBERS).find(([, slugs]) => slugs.includes(slug))![0];
+  return rowFor((await getPage(familyPath(family))).text, slug);
+}
+
 describe('Family view — two-line row contract', () => {
-  it('200 + family section headers + family-anchor sublabel preserved', async () => {
-    const res = await getPage('/freestyle/tricks?view=family');
-    expect(res.status).toBe(200);
-    for (const fam of FAMILIES) {
-      expect(res.text, `${fam} section missing`).toContain(`id="family-${fam}"`);
+  // Defect caught: a family's own page fails, shows the wrong family, or its
+  // heading links somewhere that does not show that family.
+  it('200 + each family page renders its section, headed by a link to itself', async () => {
+    for (const p of await familyPages()) {
+      expect(p.status, `${p.family} page status`).toBe(200);
+      expect(p.text, `${p.family} section missing`).toContain(`id="family-${p.family}"`);
     }
-    // Family-anchor sublabel (grouping context) still renders.
-    expect(res.text).toContain('class="trick-family-anchor-label"');
-    expect(res.text).toMatch(/<h2><a href="\/freestyle\/tricks\?family=mirage">Mirage family<\/a><\/h2>/);
+    const mirage = await getPage(familyPath('mirage'));
+    expect(mirage.text).toMatch(/<h2><a href="\/freestyle\/tricks\?view=family&amp;family=mirage">Mirage family<\/a><\/h2>/);
   });
 
   it('every family member renders both columns of the shared dict-trick-row', async () => {
-    const res = await getPage('/freestyle/tricks?view=family');
     for (const slug of ALL_MEMBERS) {
-      const row = rowFor(res.text, slug);
+      const row = await memberRow(slug);
       expect(row, `${slug} missing identity`).toMatch(/class="dict-trick-row-identity"/);
       expect(row, `${slug} missing notation`).toMatch(/class="dict-trick-row-notation"/);
     }
   });
 
   it('NO green ADD chip (.dict-card-add) and NO shared dict-card-stack in the family view', async () => {
-    const res = await getPage('/freestyle/tricks?view=family');
-    expect(res.text).not.toMatch(/class="dict-card-add[ "]/);
-    expect(res.text).not.toContain('dict-card-stack');
+    for (const p of await familyPages()) {
+      expect(p.text, p.family).toContain('data-trick-slug="');
+      expect(p.text, p.family).not.toMatch(/class="dict-card-add[ "]/);
+      expect(p.text, p.family).not.toContain('dict-card-stack');
+    }
   });
 
   it('every family row carries its notation and its difficulty value', async () => {
-    const res = await getPage('/freestyle/tricks?view=family');
     for (const slug of ALL_MEMBERS) {
-      const row = rowFor(res.text, slug);
+      const row = await memberRow(slug);
       expect(row, `${slug} missing notation`).toMatch(/class="dict-trick-row-notation-value"/);
       expect(row, `${slug} missing difficulty value`).toMatch(/class="dict-trick-row-add">\(\d+\)</);
     }
   });
 
   it('a family compound row keeps to identity and notation, carrying no ≡ reading', async () => {
-    const res = await getPage('/freestyle/tricks?view=family');
     // Each of these has an authored equivalence chain, so a reading leaking
     // onto the row would show here.
     for (const slug of ['smear', 'magellan', 'torque']) {
-      const row = rowFor(res.text, slug);
+      const row = await memberRow(slug);
       expect(row, `${slug} row carries a reading`).not.toMatch(/&equiv;/);
       expect(row).toMatch(/class="dict-trick-row-notation-value"/);
     }
   });
 
   it('anchor-first ordering preserved: family base trick renders before its compounds', async () => {
-    const res = await getPage('/freestyle/tricks?view=family');
+    const res = await getPage(familyPath('mirage'));
     const start = res.text.indexOf('id="family-mirage"');
+    expect(start).toBeGreaterThan(-1);
     const end = res.text.indexOf('</section>', start);
     const section = res.text.slice(start, end);
+    expect(section.indexOf('data-trick-slug="mirage"')).toBeGreaterThan(-1);
     expect(section.indexOf('data-trick-slug="mirage"')).toBeLessThan(section.indexOf('data-trick-slug="smear"'));
   });
 
   it('operational notation appears ONLY inside the JOB slot (no loose bracket tokens)', async () => {
-    const res = await getPage('/freestyle/tricks?view=family');
-    const re = /\[(DEX|BOD|PDX|XBD|DEL|UNS|XDEX)\]/g;
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(res.text)) !== null) {
-      const before = res.text.substring(Math.max(0, m.index - 260), m.index);
-      expect(before, `bracket token at ${m.index} not inside a JOB value`).toMatch(/dict-trick-row-notation-value|op-token/);
+    for (const p of await familyPages()) {
+      const re = /\[(DEX|BOD|PDX|XBD|DEL|UNS|XDEX)\]/g;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(p.text)) !== null) {
+        const before = p.text.substring(Math.max(0, m.index - 260), m.index);
+        expect(before, `${p.family}: bracket token at ${m.index} not inside a JOB value`).toMatch(/dict-trick-row-notation-value|op-token/);
+      }
     }
   });
 });

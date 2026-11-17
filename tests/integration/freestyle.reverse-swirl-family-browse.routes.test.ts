@@ -2,15 +2,14 @@
  * What a reader sees of the Reverse Swirl family.
  *
  * The swirl and reverse-swirl movements are distinct terminal identities, ruled
- * so and corrected in the data: six active tricks carry the reverse-swirl family
- * and none of them is in the swirl family. Until now the browse showed that group
- * nowhere, and a reader who followed a family chip landed on a page headed with
- * the abbreviation the row is keyed by rather than the family's name.
+ * so in the data: six active tricks carry the reverse-swirl family and none of
+ * them is in the swirl family. The browse shows that group under the family's
+ * name, never the abbreviation the row is keyed by.
  *
- * A Minor Lineage, exactly as Reverse Whirl is: a chip in the compact band with a
- * live count, and nothing more. It is not first-class, so it is not searchable as
- * a family and heads no section as "Family"; those follow from a separate roster
- * this change does not touch.
+ * A Minor Lineage, exactly as Reverse Whirl is: a chip in the family view's chip
+ * row and a family-view page of its own carrying its live count. It is not
+ * first-class, so it is not searchable as a family; that follows from a separate
+ * roster.
  *
  * The fixture carries the six real members plus enough of the swirl family to
  * prove the two do not bleed into each other.
@@ -70,8 +69,8 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-async function familyView(): Promise<string> {
-  const res = await page('/freestyle/tricks?view=family');
+async function familyView(family?: string): Promise<string> {
+  const res = await page(family ? `/freestyle/tricks?view=family&family=${family}` : '/freestyle/tricks?view=family');
   expect(res.status).toBe(200);
   return res.text;
 }
@@ -79,23 +78,29 @@ async function familyView(): Promise<string> {
 describe('the By Family browse', () => {
   it('shows Reverse Swirl as its own group', async () => {
     expect(await familyView()).toContain('Reverse Swirl');
+    expect(await familyView('rev_swirl')).toContain('id="family-rev_swirl"');
   });
 
   it('names it as a family rather than as the slug it is keyed by', async () => {
-    const html = await familyView();
-    expect(html).not.toContain('Rev swirl');
-    expect(html).not.toContain('Rev Swirl');
+    for (const html of [await familyView(), await familyView('rev_swirl')]) {
+      expect(html).not.toContain('Rev swirl');
+      expect(html).not.toContain('Rev Swirl');
+    }
+    expect(await familyView('rev_swirl')).toContain('Reverse Swirl family</a>');
   });
 
+  // Defect caught: the lineage's page counts other than its live membership.
   it('counts its six members', async () => {
-    const html = await familyView();
-    // The chip carries the live membership; six is what the corrected data holds.
-    const near = html.slice(html.indexOf('Reverse Swirl'), html.indexOf('Reverse Swirl') + 400);
-    expect(near).toMatch(/\b6\b/);
+    const html = await familyView('rev_swirl');
+    // Six is what the corrected data holds.
+    const start = html.indexOf('id="family-rev_swirl"');
+    expect(start).toBeGreaterThan(-1);
+    const count = html.slice(start).match(/<span class="section-count">(\d+)<\/span>/)?.[1];
+    expect(count).toBe('6');
   });
 
   it('still shows Swirl, and none of the reverse-swirl six inside it', async () => {
-    const html = await familyView();
+    const html = await familyView('swirl');
     expect(html).toContain('id="family-swirl"');
     // Bounded by the next family section rather than by a guessed length, so the
     // claim is about this section and not about however much happens to follow.

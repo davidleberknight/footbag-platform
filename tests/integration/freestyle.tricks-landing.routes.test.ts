@@ -216,18 +216,8 @@ describe('GET /freestyle/tricks — default By ADD ladder', () => {
 });
 
 describe('GET /freestyle/tricks — browse axes and their explanations', () => {
-  it('By family view renders a jump index linking to in-page family-section anchors', async () => {
-    const res = await page('/freestyle/tricks?view=family');
-    expect(res.text).toContain('aria-label="Jump to family"');
-    expect(res.text).toContain('Root families:');
-    // whirl has >1 member in the seed, so its family section + jump chip render;
-    // the chip targets the in-page anchor, not the ?family= detail page.
-    // The chip names the family alone: a control never carries a count.
-    expect(res.text).toMatch(/<a href="#family-whirl">[^<\d]+<\/a>/);
-  });
-
   it('orders family entries by operator rung: anchor, then 1-operator, then 2-operator', async () => {
-    const html = (await page('/freestyle/tricks?view=family')).text;
+    const html = (await page('/freestyle/tricks?view=family&family=whirl')).text;
     const at = (slug: string) => html.indexOf(`data-trick-slug="${slug}"`);
     const iWhirl  = at('whirl');           // anchor, rung 0
     const iSpin   = at('spinning-whirl');  // rung 1
@@ -241,7 +231,7 @@ describe('GET /freestyle/tricks — browse axes and their explanations', () => {
   });
 
   it('renders operator-rung band headers when a family spans multiple rungs', async () => {
-    const html = (await page('/freestyle/tricks?view=family')).text;
+    const html = (await page('/freestyle/tricks?view=family&family=whirl')).text;
     expect(html).toContain('class="family-rung-header"');
     expect(html).toContain('2 operators');
   });

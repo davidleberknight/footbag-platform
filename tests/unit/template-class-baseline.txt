@@ -230,7 +230,6 @@ event-list-title
 event-meta-row
 family-rung-header
 family-teaching-list
-family-view-ordering-note
 featured-caption
 featured-card
 filter-bar
@@ -339,8 +338,6 @@ jump-bar
 jump-bar--inline
 jump-bar--wide
 jump-bar-label
-jump-bar-label--branch
-jump-bar-label--minor
 jump-bar-sep
 ladder-step-add
 ladder-step-here
@@ -639,14 +636,11 @@ trick-add-group
 trick-add-lineage
 trick-also-family
 trick-description
-trick-family-anchor-label
-trick-family-anchor-sublabel
 trick-family-branch-of
 trick-family-cross-link
 trick-family-group
 trick-family-minor-tag
 trick-family-rung
-trick-family-shared-structure
 trick-hero-meta-chip
 trick-hero-meta-chip-adds
 trick-hero-meta-chip-modifier

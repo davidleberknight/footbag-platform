@@ -1,17 +1,14 @@
 /**
- * Integration tests for rev_whirl's route-out from the public family browse.
+ * Integration tests for the rev_whirl minor lineage in the public family browse.
  *
  * Three rows carry the `rev_whirl` label: rev_whirl (the canonical
  * direction-variant anchor), hatchet (SAME FRONT WHIRL [DEX] > OP CLIP [XBD])
- * and mullet (SAME FRONT WHIRL [DEX] [PDX] > OP CLIP [XBD]). The label carries
- * the rev_whirl shared-structure invariant text.
+ * and mullet (SAME FRONT WHIRL [DEX] [PDX] > OP CLIP [XBD]).
  *
- * rev_whirl is NOT a public display family: its lineage is too sparse to clear
- * the family floor, so the public family browse routes it out. In the rendered
- * family view there is no id="family-rev_whirl" section and the rev_whirl /
- * hatchet / mullet rows do not appear at all. The raw trick_family data is
- * never overwritten, so the ?family=rev_whirl filter URL still returns 200 and
- * lists the rows reachable through it.
+ * rev_whirl is a minor lineage, separate from the Whirl family: its rows render
+ * on the lineage's own family-view page and never fold into the Whirl section.
+ * The raw trick_family data is never overwritten, so the ?family=rev_whirl
+ * filter URL still returns 200 and lists the rows reachable through it.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { cachedGet } from '../fixtures/cachedGet';
@@ -55,9 +52,8 @@ beforeAll(async () => {
     trick_family: 'whirl', category: 'compound', adds: '5', is_active: 1,
   });
 
-  // Rows under the rev_whirl label. rev_whirl is a route-out family, so they
-  // drop from the family view while staying reachable via the raw ?family=
-  // filter.
+  // Rows under the rev_whirl label, a minor lineage of its own, also reachable
+  // via the raw ?family= filter.
   insertFreestyleTrick(db, {
     slug: 'rev_whirl', canonical_name: 'rev whirl',
     trick_family: 'rev_whirl', category: 'dex', adds: '3', is_active: 1,
@@ -77,28 +73,23 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('Family view — rev_whirl is a route-out, not a family', () => {
-  it('does NOT render a rev_whirl family section', async () => {
-    const res = await page('/freestyle/tricks?view=family');
-    expect(res.status).toBe(200);
-    // rev_whirl has too sparse a lineage to be a public family: no
-    // top-level section, no "Rev Whirl family" heading.
-    expect(res.text).not.toContain('id="family-rev_whirl"');
-    expect(res.text).not.toMatch(/Rev Whirl family<\/a>/);
-  });
+const WHIRL_PAGE = '/freestyle/tricks?view=family&family=whirl';
 
-  it('the rev_whirl, hatchet, mullet rows are absent from the family view entirely', async () => {
-    const res = await page('/freestyle/tricks?view=family');
+describe('Family view — rev_whirl is a lineage of its own, apart from Whirl', () => {
+  // Defect caught: the lineage's rows are lost from the family view, or its
+  // page shows some other family's rows.
+  it('the rev_whirl lineage page lists the rev_whirl, hatchet and mullet rows', async () => {
+    const res = await page('/freestyle/tricks?view=family&family=rev_whirl');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('id="family-rev_whirl"');
     for (const slug of ['rev_whirl', 'hatchet', 'mullet']) {
-      expect(
-        res.text,
-        `${slug} routes out of the family view`,
-      ).not.toContain(`data-trick-slug="${slug}"`);
+      expect(res.text, `${slug} renders on its lineage page`).toContain(`data-trick-slug="${slug}"`);
     }
+    expect(res.text).not.toContain('data-trick-slug="paradox_whirl"');
   });
 
   it('the Whirl family does NOT absorb the rev_whirl rows', async () => {
-    const res = await page('/freestyle/tricks?view=family');
+    const res = await page(WHIRL_PAGE);
     const sectionStart = res.text.indexOf('id="family-whirl"');
     expect(sectionStart).toBeGreaterThan(-1);
     const sectionEnd = res.text.indexOf('</section>', sectionStart);
@@ -113,18 +104,19 @@ describe('Family view — rev_whirl is a route-out, not a family', () => {
 });
 
 describe('Family view — Whirl family renders separately', () => {
-  it('Whirl family section renders under its own "Whirl" heading + invariant', async () => {
-    const res = await page('/freestyle/tricks?view=family');
-    expect(res.text).toMatch(/<a href="\/freestyle\/tricks\?family=whirl">Whirl family<\/a>/);
+  // Defect caught: the Whirl section's heading links to another family's page.
+  it('Whirl family section renders under its own "Whirl" heading', async () => {
+    const res = await page(WHIRL_PAGE);
     const sectionStart = res.text.indexOf('id="family-whirl"');
+    expect(sectionStart).toBeGreaterThan(-1);
     const sectionEnd = res.text.indexOf('</section>', sectionStart);
     const sectionHtml = res.text.slice(sectionStart, sectionEnd);
-    expect(sectionHtml).toMatch(/Shared terminal structure: <code>leggy in dex &gt; ss clipper<\/code>/);
+    expect(sectionHtml).toMatch(/<a href="\/freestyle\/tricks\?view=family&amp;family=whirl">Whirl family<\/a>/);
   });
 
   it('tomahawk STAYS in the Whirl section', async () => {
     // tomahawk remains curator-deferred in Whirl.
-    const res = await page('/freestyle/tricks?view=family');
+    const res = await page(WHIRL_PAGE);
     const sectionStart = res.text.indexOf('id="family-whirl"');
     const sectionEnd = res.text.indexOf('</section>', sectionStart);
     const sectionHtml = res.text.slice(sectionStart, sectionEnd);
@@ -139,7 +131,7 @@ describe('Family view — Whirl family renders separately', () => {
     // curator-authored chain reading that places it in whirl-family
     // lineage; its FRONT WHIRL execution is a contextual detail-page note,
     // not a family-membership commitment.
-    const res = await page('/freestyle/tricks?view=family');
+    const res = await page(WHIRL_PAGE);
     const sectionStart = res.text.indexOf('id="family-whirl"');
     const sectionEnd = res.text.indexOf('</section>', sectionStart);
     const sectionHtml = res.text.slice(sectionStart, sectionEnd);

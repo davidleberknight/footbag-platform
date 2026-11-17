@@ -64,14 +64,18 @@ describe('family-detail displayed count equals the trick cards rendered on that 
   });
 });
 
-describe('minor-lineage band count equals live rendered membership', () => {
+describe('a minor lineage\'s family-view count equals live rendered membership', () => {
+  // Defect caught: the lineage's page states a count other than the members it lists.
   it('the eclipse lineage count equals its live members', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=family');
+    const res = await request(await createApp()).get('/freestyle/tricks?view=family&family=eclipse');
     expect(res.status).toBe(200);
-    const m = res.text.match(
-      /family=eclipse"[^<]*>[^<]*<\/a>\s*<span class="trick-minor-lineage-count">(\d+)<\/span>/,
-    );
-    expect(m?.[1]).toBe('3');
+    const start = res.text.indexOf('id="family-eclipse"');
+    expect(start).toBeGreaterThan(-1);
+    const section = res.text.slice(start, res.text.indexOf('</section>', start));
+    const count = section.match(/<span class="section-count">(\d+)<\/span>/)?.[1];
+    const rows = section.match(/data-trick-slug="/g) ?? [];
+    expect(count).toBe('3');
+    expect(rows).toHaveLength(3);
   });
 });
 

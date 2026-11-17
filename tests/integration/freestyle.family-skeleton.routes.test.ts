@@ -1,14 +1,16 @@
 /**
  * /freestyle/tricks?view=family — public family browse skeleton.
  *
- * The Family view renders the curated public-display family taxonomy:
+ * The Family view renders the curated public-display family taxonomy, one
+ * family per page (?view=family&family=<slug>):
  *   - Each public family renders as its own top-level id="family-{slug}"
- *     section, including roots and derived branches.
+ *     section on its own page, including roots, derived branches and minor
+ *     lineages.
  *   - Sub-labels fold INTO the family whose terminal they conserve
  *     (subordinate rows, no top-level sub-label section).
  *   - Route-out labels (modifier ecosystems, alternative surfaces,
- *     foundational surfaces, sparse lineages) do NOT render as families and
- *     their rows are skipped entirely.
+ *     foundational surfaces, sparse lineages) do NOT render as families (their
+ *     family-view address is a 404) and their rows are skipped entirely.
  *   - Raw trick_family data is never overwritten, so ?family=<slug> filter
  *     URLs (including route-out labels) stay usable.
  *
@@ -92,42 +94,60 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-async function familyView(): Promise<string> {
-  const res = await page('/freestyle/tricks?view=family');
-  expect(res.status).toBe(200);
+// One family's own page in the family view.
+const familyPath = (slug: string) => `/freestyle/tricks?view=family&family=${slug}`;
+
+async function familyView(slug: string): Promise<string> {
+  const res = await page(familyPath(slug));
+  expect(res.status, slug).toBe(200);
   return res.text;
+}
+
+// Every family page the view renders: the bare view's own family plus each
+// family its chip row links to, concatenated.
+async function everyFamilyPage(): Promise<string> {
+  const bare = await page('/freestyle/tricks?view=family');
+  expect(bare.status).toBe(200);
+  const nav = bare.text.match(/<nav class="jump-bar jump-bar--wide" aria-label="Browse by family">([\s\S]*?)<\/nav>/)?.[1] ?? '';
+  const hrefs = [...nav.matchAll(/<a href="([^"]+)">/g)].map(m => m[1]!.replace(/&amp;/g, '&').replace(/&#x3D;/g, '='));
+  expect(hrefs.length, 'the chip row links the other rendered families').toBeGreaterThan(0);
+  const pages = [bare.text];
+  for (const href of hrefs) pages.push((await page(href)).text);
+  return pages.join('\n');
 }
 
 describe('Family skeleton — public families render top-level', () => {
   it('renders the seeded families (osis, whirl, swirl, torque) as top-level sections', async () => {
-    const html = await familyView();
-    expect(html).toContain('id="family-osis"');
-    expect(html).toContain('id="family-whirl"');
-    expect(html).toContain('id="family-swirl"');
-    expect(html).toContain('id="family-torque"');
+    for (const slug of ['osis', 'whirl', 'swirl', 'torque']) {
+      expect(await familyView(slug)).toContain(`id="family-${slug}"`);
+    }
   });
 
   it('renders "Whirl" and "Swirl" as separate family headings', async () => {
-    const html = await familyView();
-    expect(html).toMatch(/<h2><a href="\/freestyle\/tricks\?family=whirl">Whirl family<\/a><\/h2>/);
-    expect(html).toMatch(/<h2><a href="\/freestyle\/tricks\?family=swirl">Swirl family<\/a><\/h2>/);
+    const whirl = await familyView('whirl');
+    const swirl = await familyView('swirl');
+    expect(whirl).toMatch(/<h2><a href="\/freestyle\/tricks\?view=family&amp;family=whirl">Whirl family<\/a><\/h2>/);
+    expect(swirl).toMatch(/<h2><a href="\/freestyle\/tricks\?view=family&amp;family=swirl">Swirl family<\/a><\/h2>/);
     // The combined "Whirl / Swirl" name is gone.
-    expect(html).not.toContain('Whirl / Swirl family');
+    expect(whirl).not.toContain('Whirl / Swirl family');
+    expect(swirl).not.toContain('Whirl / Swirl family');
   });
 });
 
 describe('Family skeleton — sub-labels fold in, sparse lineages route out', () => {
   it('renders guay under the inside-stall family, with no section of its own', async () => {
-    const html = await familyView();
+    const html = await familyView('inside_stall');
     // guay is an inside-stall family member; it has no top-level section of its own.
     expect(html).toContain('id="family-inside_stall"');
-    expect(html).not.toContain('id="family-guay"');
     expect(html).toContain('data-trick-slug="guay"');
+    expect(await everyFamilyPage()).not.toContain('id="family-guay"');
+    expect((await page(familyPath('guay'))).status).toBe(404);
   });
 
   it('does NOT render twirl as a family and skips its rows entirely', async () => {
-    const html = await familyView();
+    const html = await everyFamilyPage();
     expect(html, 'twirl must not be a top-level family').not.toContain('id="family-twirl"');
+    expect((await page(familyPath('twirl'))).status).toBe(404);
     for (const slug of ['twirl', 'big_twirl']) {
       expect(html, `${slug} must not appear in family view`).not.toContain(`data-trick-slug="${slug}"`);
     }
@@ -136,21 +156,25 @@ describe('Family skeleton — sub-labels fold in, sparse lineages route out', ()
 
 describe('Family skeleton — route-outs do not render as families', () => {
   it('does NOT render modifier-ecosystem families (pixie / fairy / atomic / quantum)', async () => {
-    const html = await familyView();
+    const html = await everyFamilyPage();
     for (const eco of ['pixie', 'fairy', 'atomic', 'quantum']) {
       expect(html, `${eco} must not be a family`).not.toContain(`id="family-${eco}"`);
+      expect((await page(familyPath(eco))).status, `${eco} must have no family page`).toBe(404);
     }
   });
 
   it('does NOT render alternative/foundational surface families (cross-body-sole-stall / toe-stall / clipper-stall)', async () => {
-    const html = await familyView();
+    const html = await everyFamilyPage();
     for (const surf of ['cross_body_sole_stall', 'toe_stall', 'clipper_stall']) {
       expect(html, `${surf} must not be a family`).not.toContain(`id="family-${surf}"`);
+      expect((await page(familyPath(surf))).status, `${surf} must have no family page`).toBe(404);
     }
   });
 
   it('route-out rows are absent from the family view entirely (skipped at bucketing)', async () => {
-    const html = await familyView();
+    const html = await everyFamilyPage();
+    // Positive control: a public family's rows do render across the pages.
+    expect(html).toContain('data-trick-slug="guay"');
     for (const slug of ['big_pixie', 'toe_one', 'xbss_one', 'big_atomic', 'big_quantum', 'clip_stall_one']) {
       expect(html, `${slug} must not appear in family view`).not.toContain(`data-trick-slug="${slug}"`);
     }
@@ -158,16 +182,15 @@ describe('Family skeleton — route-outs do not render as families', () => {
 });
 
 describe('Family skeleton — other public families render safely', () => {
-  it('renders drifter as a Family Parent section and eclipse in the Minor Lineages band', async () => {
-    const html = await familyView();
-    // drifter (above the current first-class threshold) is a full section.
-    expect(html).toContain('id="family-drifter"');
-    expect(html).toContain('data-trick-slug="day_drifter"');
-    // eclipse (below the threshold) is demoted to the compact Minor Lineages
-    // band rather than a full section; its ?family= route is untouched.
-    expect(html).not.toContain('id="family-eclipse"');
-    expect(html).toContain('id="minor-lineages"');
-    expect(html).toContain('/freestyle/tricks?family=eclipse');
+  it('renders drifter as a Family Parent page and eclipse as a minor lineage page of its own', async () => {
+    const drifter = await familyView('drifter');
+    expect(drifter).toContain('id="family-drifter"');
+    expect(drifter).toContain('data-trick-slug="day_drifter"');
+    // eclipse is a minor lineage: it gets its own family-view page too, and
+    // its ?family= route is untouched.
+    const eclipse = await familyView('eclipse');
+    expect(eclipse).toContain('id="family-eclipse"');
+    expect(eclipse).toContain('data-trick-slug="lunar_eclipse"');
   });
 });
 

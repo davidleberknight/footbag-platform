@@ -1,5 +1,6 @@
 /**
- * The by-family browse renders a curated family as its own section only when the
+ * The by-family browse renders a curated family (its own page in the family
+ * view, and a chip linking it) only when the
  * family reaches the documented minimum of three active members (the >2 hard
  * rule). The count is the final aggregated membership the page uses: inactive
  * rows do not count, and a memberless umbrella root reaches the floor through its
@@ -64,38 +65,50 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-async function familyView(): Promise<string> {
-  const res = await page('/freestyle/tricks?view=family');
-  expect(res.status).toBe(200);
-  return res.text;
+// Whether the family view renders a family: its own page answers 200 with the
+// family's section, and the chip row links it; a family the view does not
+// render has no page (404) and no chip.
+async function renders(slug: string): Promise<boolean> {
+  const own = await page(`/freestyle/tricks?view=family&family=${slug}`);
+  const bare = await page('/freestyle/tricks?view=family');
+  expect(bare.status).toBe(200);
+  const nav = bare.text.match(/<nav class="jump-bar jump-bar--wide" aria-label="Browse by family">([\s\S]*?)<\/nav>/)?.[1] ?? '';
+  const chipped = nav.includes(`family=${slug}"`) || bare.text.includes(`id="family-${slug}"`);
+  if (own.status === 200) {
+    expect(own.text, `${slug} page renders its section`).toContain(`id="family-${slug}"`);
+    expect(chipped, `${slug} renders but the chip row does not reach it`).toBe(true);
+    return true;
+  }
+  expect(own.status, `${slug} page status`).toBe(404);
+  expect(chipped, `${slug} has no page but the chip row links it`).toBe(false);
+  return false;
 }
 
 describe('by-family browse — three-member inclusion threshold', () => {
   it('excludes a curated family with only two active members', async () => {
-    expect(await familyView()).not.toContain('id="family-whirl"');
+    expect(await renders('whirl')).toBe(false);
   });
 
   it('includes a curated family with exactly three active members', async () => {
-    expect(await familyView()).toContain('id="family-butterfly"');
+    expect(await renders('butterfly')).toBe(true);
   });
 
   it('includes a curated family with more than three active members', async () => {
-    expect(await familyView()).toContain('id="family-mirage"');
+    expect(await renders('mirage')).toBe(true);
   });
 
   it('does not count inactive rows toward the threshold', async () => {
     // pickup has 2 active + 1 inactive; the inactive row must not lift it to 3.
-    expect(await familyView()).not.toContain('id="family-pickup"');
+    expect(await renders('pickup')).toBe(false);
   });
 
   it('uses the final aggregated membership: the down umbrella reaches three via its branches', async () => {
-    const text = await familyView();
     // Aggregated down count is 3 (one per branch), so down renders ...
-    expect(text).toContain('id="family-down"');
+    expect(await renders('down')).toBe(true);
     // ... while each single-member branch stays below the floor.
-    expect(text).not.toContain('id="family-barfly"');
-    expect(text).not.toContain('id="family-double_over_down"');
-    expect(text).not.toContain('id="family-paradon"');
+    for (const branch of ['barfly', 'double_over_down', 'paradon']) {
+      expect(await renders(branch), branch).toBe(false);
+    }
   });
 });
 

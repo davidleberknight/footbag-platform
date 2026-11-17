@@ -6192,18 +6192,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   font-size: 0.9rem;
 }
 
-/* Family-level shared-terminal-structure invariant.
- * Subdued single line under the family heading; sits
- * above the optional cross-link and above the card stack. Pedagogical
- * surface that teaches the conserved terminal mechanic of a terminal
- * family (e.g., whirl: leggy in dex > ss clipper). Never rendered
- * inside cards. */
-.trick-family-shared-structure {
-  margin: var(--space-xs) 0 var(--space-sm) 0;
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  line-height: 1.5;
-}
 .family-teaching-list {
   margin: var(--space-sm) 0 var(--space-xs) 0;
   padding-left: var(--space-xl);
@@ -6219,17 +6207,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   color: var(--text-muted);
   line-height: 1.4;
 }
-.trick-family-shared-structure code {
-  font-family: var(--font-body);
-  font-weight: 600;
-  font-size: 0.9rem;
-  background: var(--glossary-inline-notation-bg);
-  padding: 1px var(--space-sm);
-  border-radius: var(--radius-2xs);
-  color: var(--secondary);
-  letter-spacing: 0.02em;
-}
-
 /* ── In-page jump bar ────────────────────────────────────────────
    One horizontal strip of anchor links that moves a reader between the
    sections of a long browse page. Every browse axis uses this one shell:
@@ -6261,8 +6238,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .jump-bar a:hover,
 .jump-bar a:focus-visible { text-decoration: underline; }
 .jump-bar-label { color: var(--text-muted); font-weight: 600; margin-right: var(--space-xs); }
-.jump-bar-label--branch,
-.jump-bar-label--minor { margin-left: var(--space-md); }
 .jump-bar-sep {
   color: var(--text-muted);
   margin: 0 var(--space-xs);
@@ -6703,20 +6678,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
     display: block;
     margin-left: 0;
   }
-}
-
-/* Family-anchor sub-label
-   beneath each family heading on the family view. Names the
-   canonical family-anchor trick so readers connect the glossary's
-   "family-anchor trick" vocabulary to the dictionary. */
-.trick-family-anchor-sublabel {
-  margin: var(--space-xs) 0 var(--space-sm);
-  font-size: 0.9rem;
-  color: var(--text-muted);
-}
-.trick-family-anchor-label {
-  font-weight: 600;
-  margin-right: var(--space-xs);
 }
 
 /* Per-view pedagogical intro
@@ -7285,12 +7246,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .set-detail-sibling-nav-next:hover .set-detail-sibling-nav-name,
 .set-detail-sibling-nav-next:focus .set-detail-sibling-nav-name {
   text-decoration: underline;
-}
-
-.family-view-ordering-note {
-  margin: var(--space-xs) 0 var(--space-lg);
-  font-size: 0.9rem;
-  color: var(--text);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────

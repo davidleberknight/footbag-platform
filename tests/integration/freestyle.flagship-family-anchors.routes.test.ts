@@ -6,10 +6,8 @@
  * first-class Notation summary already renders.
  *
  * Contract under test:
- *   - each flagship page's family browse link resolves: to the family view's
- *     #family-{slug} section for a family parent, and to the family-filtered
- *     dictionary for a minor lineage, whose family-view band has no section
- *     of its own
+ *   - each flagship page's family browse link resolves to the family's own
+ *     page in the family view, for a family parent and a minor lineage alike
  *   - Each page's existing first-class Notation summary still renders
  *     (regression on FIRST_CLASS_TIER_1 + ATOMIC_FLAG_DECOMPOSITIONS)
  */
@@ -117,8 +115,14 @@ beforeAll(async () => {
     trick_family: 'osis', category: 'compound', adds: '4', is_active: 1,
     notation: 'PARADOX OSIS',
   });
-  // Reverse whirl anchors a minor lineage that carries a shared-structure line,
-  // so its page shows the callout although the family view gives it no section.
+  // Reverse whirl anchors a minor lineage that carries a shared-structure line.
+  // Three members, like the real lineage, so the family view gives it a page
+  // of its own for the trick page's browse link to land on.
+  insertTrickAsRebuilt(db, {
+    slug: 'pixie_rev_whirl', canonical_name: 'pixie reverse whirl', base_trick: 'rev_whirl',
+    trick_family: 'rev_whirl', category: 'compound', adds: '4', is_active: 1,
+    notation: 'PIXIE REVERSE WHIRL',
+  });
   insertTrickAsRebuilt(db, {
     slug: 'rev_whirl', canonical_name: 'Reverse Whirl', base_trick: 'rev_whirl',
     trick_family: 'rev_whirl', category: 'dex', adds: '3', is_active: 1,
@@ -168,10 +172,12 @@ describe('every family link on a flagship page lands on something its target ren
     },
   );
 
-  // Defect caught: a minor lineage, which has no section of its own in the
-  // family view, links to a fragment nothing renders.
-  it('a minor lineage links to its family-filtered dictionary, as the family view band does', async () => {
-    expect(browseHref((await page('/freestyle/tricks/rev_whirl')).text)).toBe('/freestyle/tricks?family=rev_whirl');
+  // Defect caught: a minor lineage's browse link goes somewhere other than the
+  // lineage's own page in the family view, so the reader lands on the wrong family.
+  it('a minor lineage links to its own page in the family view, which renders its section', async () => {
+    const href = browseHref((await page('/freestyle/tricks/rev_whirl')).text);
+    expect(href).toBe('/freestyle/tricks?view=family&family=rev_whirl');
+    expect((await page(href)).text).toContain('id="family-rev_whirl"');
   });
 });
 

@@ -1,14 +1,11 @@
 /**
  * Per-view scale-intro guard.
  *
- * Each non-landing browse view shows a visible "scale" sentence stating how
+ * The By Modifier browse view shows a visible "scale" sentence stating how
  * many groupings + trick-row memberships it renders. The counts are derived
  * from the same group arrays the template renders, so this test also asserts
  * the stated grouping count matches the number of rendered sections (not a
  * hardcoded guess).
- *
- * Family wording is intentionally cautious ("family groupings", "may later
- * roll into broader family hierarchies") pending the family-hierarchy audit.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { cachedGet } from '../fixtures/cachedGet';
@@ -44,9 +41,6 @@ beforeAll(async () => {
     { slug: 'pixie-illusion', canonical_name: 'pixie illusion', adds: '3', base_trick: 'mirage', trick_family: 'mirage', category: 'compound', notation: 'PIXIE ILLUSION', operational_notation: 'SET > PIXIE > OP IN [DEX] > OP TOE [DEL]', review_status: 'expert_reviewed', is_active: 1 },
     { slug: 'ducking-whirl', canonical_name: 'ducking whirl', adds: '4', base_trick: 'whirl', trick_family: 'whirl', category: 'compound', notation: 'DUCKING WHIRL', operational_notation: 'CLIP > DUCK [BOD] > LEGGY IN [DEX] > SAME CLIP [XBD] [DEL]', review_status: 'expert_reviewed', is_active: 1 },
     { slug: 'spinning-whirl', canonical_name: 'spinning whirl', adds: '4', base_trick: 'whirl', trick_family: 'whirl', category: 'compound', notation: 'SPINNING WHIRL', operational_notation: 'CLIP > SPIN [BOD] > LEGGY IN [DEX] > SAME CLIP [XBD] [DEL]', review_status: 'expert_reviewed', is_active: 1 },
-    // Third mirage member so the mirage family clears the family-view
-    // three-member minimum (two family groupings render, not one).
-    { slug: 'blur', canonical_name: 'blur', adds: '4', base_trick: 'mirage', trick_family: 'mirage', category: 'compound', notation: 'BLUR', operational_notation: 'SET > OP IN [DEX] > OP OUT [DEX] > OP TOE [DEL]', review_status: 'expert_reviewed', is_active: 1 },
   ];
   for (const t of tricks) insertFreestyleTrick(db, t);
 
@@ -77,14 +71,6 @@ function countOccurrences(html: string, needle: string): number {
 }
 
 describe('Browse-view scale intros — present + clarifying clause per view', () => {
-  it('Family view states a cautious family-groupings scale', async () => {
-    const html = (await page('/freestyle/tricks?view=family')).text;
-    const scale = scaleSentence(html);
-    expect(scale).toMatch(/family groupings organize tricks by structural anchor/);
-    expect(scale).toMatch(/may later roll into broader family hierarchies/);
-    expect(scale).toMatch(/trick-row memberships shown/);
-  });
-
   it('By Modifier view states a modifiers scale + multi-modifier clarification', async () => {
     const html = (await page('/freestyle/tricks?view=modifier')).text;
     const scale = scaleSentence(html);
@@ -97,7 +83,6 @@ describe('Browse-view scale intros — present + clarifying clause per view', ()
 describe('Browse-view scale intros — counts match the rendered sections (not hardcoded)', () => {
   // grouping-count in the scale === number of rendered grouping sections.
   const CASES: Array<[string, string, string]> = [
-    ['family', 'family', 'class="content-section trick-family-group'],
     ['modifier', 'modifiers', 'class="trick-modifier-group"'],
   ];
 
@@ -110,12 +95,4 @@ describe('Browse-view scale intros — counts match the rendered sections (not h
       expect(statedGroupings, `${view} scale count matches rendered sections`).toBe(renderedSections);
     });
   }
-
-  it('family: stated memberships equals the number of rendered family rows', async () => {
-    const html = (await page('/freestyle/tricks?view=family')).text;
-    const scale = scaleSentence(html);
-    const memberships = parseInt(scale.match(/(\d[\d,]*) trick-row memberships/)![1].replace(/,/g, ''), 10);
-    const renderedRows = countOccurrences(html, 'data-trick-slug="');
-    expect(memberships).toBe(renderedRows);
-  });
 });

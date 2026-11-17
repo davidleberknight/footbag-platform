@@ -40,6 +40,10 @@ beforeAll(async () => {
     });
   trick('whirl', 'whirl', 'whirl', '3', { category: 'dex' });
   trick('rev_whirl', 'rev_whirl', 'rev_whirl', '3', { category: 'dex', reverse_pair_base: 'whirl' });
+  // Three members, like the real lineage, so the family view gives reverse
+  // whirl a page of its own for its family link to land on.
+  trick('pixie_rev_whirl', 'rev_whirl', 'rev_whirl', '4');
+  trick('fairy_rev_whirl', 'rev_whirl', 'rev_whirl', '4');
   trick(CURRENT, 'whirl', 'whirl', '4');
   for (const p of PEERS) trick(p, 'whirl', 'whirl', '5');
   for (const d of DERIVATIVES) trick(d, 'whirl', CURRENT, '5');

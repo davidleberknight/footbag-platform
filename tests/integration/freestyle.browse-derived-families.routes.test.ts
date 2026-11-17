@@ -2,14 +2,14 @@
  * Integration tests for three freestyle browse behaviors.
  *
  *   1. Derived-branch families — torque + blender each render as their own
- *      top-level family section (derived branches that resolve to themselves),
+ *      top-level family page (derived branches that resolve to themselves),
  *      with their members (mobius / paradox_torque under torque,
  *      paradox_blender / mind_bender under blender) folded in. They do NOT
  *      fold invisibly into osis. drifter renders as its own family, with
  *      high_plains_drifter re-bucketed in via the family override.
  *
- *   2. No Clipper-Stall family — Family View renders no
- *      id="family-clipper_stall" section. The clipper_stall row
+ *   2. No Clipper-Stall family — Family View gives clipper_stall no page and
+ *      renders no id="family-clipper_stall" section. The clipper_stall row
  *      itself remains visible in the ADD view. ducking_clipper /
  *      spinning_clipper / reaper / high_plains_drifter do not
  *      surface under a clipper_stall heading.
@@ -122,9 +122,25 @@ function familySection(html: string, slug: string): string {
   return end > -1 ? html.substring(start, end) : html.substring(start);
 }
 
+// One family's own page in the family view.
+const familyPage = (slug: string) => page(`/freestyle/tricks?view=family&family=${slug}`);
+
+// Every family page the view renders: the bare view's own family plus each
+// family its chip row links to.
+async function everyFamilyPage(): Promise<string[]> {
+  const bare = await page('/freestyle/tricks?view=family');
+  expect(bare.status).toBe(200);
+  const nav = bare.text.match(/<nav class="jump-bar jump-bar--wide" aria-label="Browse by family">([\s\S]*?)<\/nav>/)?.[1] ?? '';
+  const hrefs = [...nav.matchAll(/<a href="([^"]+)">/g)].map(m => m[1]!.replace(/&amp;/g, '&').replace(/&#x3D;/g, '='));
+  expect(hrefs.length, 'the chip row links the other rendered families').toBeGreaterThan(0);
+  const pages = [bare.text];
+  for (const href of hrefs) pages.push((await page(href)).text);
+  return pages;
+}
+
 describe('Family view — torque + blender render as their own family parents', () => {
   it('torque renders as its own top-level family with its members folded in', async () => {
-    const res = await page('/freestyle/tricks?view=family');
+    const res = await familyPage('torque');
     expect(res.status).toBe(200);
     expect(res.text).toContain('id="family-torque"');
     const section = familySection(res.text, 'torque');
@@ -134,7 +150,7 @@ describe('Family view — torque + blender render as their own family parents', 
   });
 
   it('blender renders as its own top-level family with its members folded in', async () => {
-    const res = await page('/freestyle/tricks?view=family');
+    const res = await familyPage('blender');
     expect(res.text).toContain('id="family-blender"');
     const section = familySection(res.text, 'blender');
     for (const slug of ['blender', 'paradox_blender', 'mind_bender']) {
@@ -143,7 +159,7 @@ describe('Family view — torque + blender render as their own family parents', 
   });
 
   it('every torque + blender member also appears in the osis section (a branch is contained in its root)', async () => {
-    const res = await page('/freestyle/tricks?view=family');
+    const res = await familyPage('osis');
     // torque and blender are derived branches of osis, so every member of
     // either branch is also a member of osis and renders in the osis section
     // as well as in its own branch section.
@@ -154,15 +170,21 @@ describe('Family view — torque + blender render as their own family parents', 
     }
   });
 
+  // Defect caught: a branch member is promoted to a family of its own, so the
+  // view grows a page per compound.
   it('the torque + blender members do not render as their own top-level families', async () => {
-    const res = await page('/freestyle/tricks?view=family');
+    for (const html of await everyFamilyPage()) {
+      for (const slug of ['mobius', 'paradox_torque', 'paradox_blender', 'mind_bender']) {
+        expect(html).not.toContain(`id="family-${slug}"`);
+      }
+    }
     for (const slug of ['mobius', 'paradox_torque', 'paradox_blender', 'mind_bender']) {
-      expect(res.text).not.toContain(`id="family-${slug}"`);
+      expect((await familyPage(slug)).status, slug).toBe(404);
     }
   });
 
   it('drifter family renders with drifter as its anchor + high_plains_drifter re-bucketed in', async () => {
-    const res = await page('/freestyle/tricks?view=family');
+    const res = await familyPage('drifter');
     expect(res.text).toContain('id="family-drifter"');
     const section = familySection(res.text, 'drifter');
     expect(section).toContain('data-trick-slug="drifter"');
@@ -175,21 +197,22 @@ describe('Family view — torque + blender render as their own family parents', 
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('Clipper-Stall family retirement (Family View)', () => {
-  it('Family View does not render id="family-clipper_stall"', async () => {
-    const res = await page('/freestyle/tricks?view=family');
-    expect(res.text).not.toContain('id="family-clipper_stall"');
+  it('Family View gives clipper_stall no family page', async () => {
+    const res = await familyPage('clipper_stall');
+    expect(res.status).toBe(404);
+    for (const html of await everyFamilyPage()) {
+      expect(html).not.toContain('id="family-clipper_stall"');
+    }
   });
 
   it('ducking_clipper / spinning_clipper / reaper / clipper_stall do not appear in any Family-View section', async () => {
-    const res = await page('/freestyle/tricks?view=family');
-    // The clipper_stall ROW (anchor) — singleton in its bucket and the
-    // bucket is retired — must not surface inside any family section.
-    // Since the test seed has no other 'clipper' family rows, the
-    // entire family-view should be clipper_stall-free.
-    const sectionsStart = res.text.indexOf('class="content-section trick-family-group');
-    const sectionsEnd   = res.text.indexOf('<p class="source-note"');
-    if (sectionsStart > -1 && sectionsEnd > sectionsStart) {
-      const familyArea = res.text.substring(sectionsStart, sectionsEnd);
+    // The clipper_stall ROW (anchor) and the retired bucket's members must not
+    // surface inside any family section. The seed has no other 'clipper'
+    // family rows, so every family page should be clipper_stall-free.
+    for (const html of await everyFamilyPage()) {
+      const slug = html.match(/<section class="content-section trick-family-group" id="family-([a-z_]+)"/)?.[1];
+      expect(slug, 'each family page renders its family section').toBeDefined();
+      const familyArea = familySection(html, slug!);
       expect(familyArea).not.toContain('data-trick-slug="clipper_stall"');
       expect(familyArea).not.toContain('data-trick-slug="ducking_clipper"');
       expect(familyArea).not.toContain('data-trick-slug="spinning_clipper"');

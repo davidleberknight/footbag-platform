@@ -60,6 +60,9 @@ beforeAll(async () => {
     // curator family override to torque.
     { ...t('torque', 'osis', 'dex'), family_override: 'torque' },
     t('paradox-torque', 'torque'),
+    // A third torque member, so the family view gives torque its own page for
+    // the browse link to land on.
+    t('spinning-torque', 'torque'),
     // Whirl family + member
     t('whirl', 'whirl', 'dex'),
     t('paradox-whirl', 'whirl'),
@@ -116,8 +119,14 @@ describe('Trick-detail family context — families resolve to themselves', () =>
   // membership, so the Torque tricks appear to belong to Osis.
   it('a torque-family trick and an osis-family trick each link their own family\'s membership', async () => {
     const browse = /<a class="action-link" href="([^"]+)" data-family-browse>/;
-    expect((await page('paradox-torque')).match(browse)?.[1]).toMatch(/family(?:&#x3D;|-)torque$/);
-    expect((await page('spinning-osis')).match(browse)?.[1]).toMatch(/family(?:&#x3D;|-)osis$/);
+    const unescape = (h: string | undefined) => (h ?? '').replace(/&#x3D;/g, '=').replace(/&amp;/g, '&');
+    const torqueHref = unescape((await page('paradox-torque')).match(browse)?.[1]);
+    const osisHref = unescape((await page('spinning-osis')).match(browse)?.[1]);
+    expect(torqueHref).toBe('/freestyle/tricks?view=family&family=torque');
+    expect(osisHref).toBe('/freestyle/tricks?view=family&family=osis');
+    // Each link lands on a page that renders that family's section.
+    expect((await getPage(torqueHref)).text).toContain('id="family-torque"');
+    expect((await getPage(osisHref)).text).toContain('id="family-osis"');
   });
 
   it('whirl and swirl resolve to their own separate families', async () => {

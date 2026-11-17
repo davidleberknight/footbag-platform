@@ -443,12 +443,14 @@ describe('public dictionary presentation', () => {
     expect(res.text).toContain('data-trick-slug="spinning-whirl"');
   });
 
-  it('makes family-section headings clickable as family-filter links in the family view', async () => {
-    const res = await page('/freestyle/tricks?view=family');
+  // Defect caught: the family heading links somewhere that does not show that family.
+  it('makes family-section headings clickable links to the family\'s own page in the family view', async () => {
+    const res = await page('/freestyle/tricks?view=family&family=whirl');
     expect(res.status).toBe(200);
-    // Each family section renders an <h2> heading wrapping an <a> family-filter
-    // link.
-    expect(res.text).toMatch(/<h2><a href="\/freestyle\/tricks\?family=whirl">/);
+    // The family section renders an <h2> heading wrapping a link to that
+    // family's own family-view page.
+    expect(res.text).toMatch(/<h2><a href="\/freestyle\/tricks\?view=family&amp;family=whirl">/);
+    expect(res.text).toContain('id="family-whirl"');
   });
 
   it('renders the plain-language onboarding lede (no governance note)', async () => {

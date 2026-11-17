@@ -314,40 +314,18 @@
   {{/if}}
 
   {{! ── Family view — two-line row contract.
-      Same generalized dictionary-trick-row partial as the ADD view; only the
-      grouping (family sections + family-anchor sublabel) differs. }}
+      Same generalized dictionary-trick-row partial as the ADD view; one family
+      at a time, chosen from the family chips. }}
   {{#if (eq content.activeView "family")}}
   {{#if content.familyViewIntro}}
   <p class="browse-view-intro">{{content.familyViewIntro}}</p>
   {{/if}}
-  <p class="family-view-ordering-note"><em>Families are listed in the dictionary's canonical order: the root families first, then the derived branch families (torque and blender under osis; double legover and eggbeater under legover).</em></p>
-  {{#if content.familyScale}}<p class="browse-view-scale">{{content.familyScale}}</p>{{/if}}
-  {{! Collapsed curation-rationale disclosure; closed by default, native marker. }}
-  <details class="browse-view-why">
-    <summary>{{content.familyWhyDisclosure.summary}}</summary>
-    <div class="browse-view-why-body">
-      {{#each content.familyWhyDisclosure.paragraphs}}<p>{{this}}</p>{{/each}}
-    </div>
-  </details>
-  {{! Family jump index. Static hash-anchor chips (no JS), grouped into root
-      families and derived branch families, plus a link to the minor-lineages
-      band. Lets readers skip between family sections without scrolling. }}
-  {{#if content.familyJumpIndex.roots.length}}
-  <nav class="jump-bar jump-bar--wide" aria-label="Jump to family">
-    <span class="jump-bar-label">Root families:</span>
-    {{#each content.familyJumpIndex.roots}}
-      <a href="{{anchor}}">{{name}}</a>{{#unless @last}} <span class="jump-bar-sep">·</span> {{/unless}}
+  {{#if content.familyChips.length}}
+  <nav class="jump-bar jump-bar--wide" aria-label="Browse by family">
+    <span class="jump-bar-label">Families:</span>
+    {{#each content.familyChips}}
+      {{#if isCurrent}}<span aria-current="page" class="trick-view-toggle-active">{{label}}</span>{{else}}<a href="{{siteHref href}}">{{label}}</a>{{/if}}{{#unless @last}} <span class="jump-bar-sep">·</span> {{/unless}}
     {{/each}}
-    {{#if content.familyJumpIndex.branches.length}}
-    <span class="jump-bar-label jump-bar-label--branch">Derived / branch:</span>
-    {{#each content.familyJumpIndex.branches}}
-      <a href="{{anchor}}">{{name}}</a>{{#unless @last}} <span class="jump-bar-sep">·</span> {{/unless}}
-    {{/each}}
-    {{/if}}
-    {{#if content.familyJumpIndex.hasMinorLineages}}
-    <span class="jump-bar-label jump-bar-label--minor">Minor lineages:</span>
-    <a href="#minor-lineages">All minor lineages</a>
-    {{/if}}
   </nav>
   {{/if}}
   {{#if content.familyGroups.length}}
@@ -360,27 +338,15 @@
     {{#if branchParentName}}
     <p class="trick-family-branch-of">Branch of the {{branchParentName}} family.</p>
     {{/if}}
-    {{! Family-anchor sub-label. Names
-        the canonical family-anchor trick so readers connect the
-        glossary's "family-anchor trick" vocabulary to the dictionary
-        surface. The name links to the family page when one exists (the
-        primary explanation of the family), otherwise to the anchor trick. }}
-    <p class="trick-family-anchor-sublabel"><span class="trick-family-anchor-label">Family-anchor:</span> {{#if familyAnchorHref}}<a href="{{familyAnchorHref}}">{{familyName}}</a>{{else}}{{familyName}}{{/if}}</p>
-    {{! Family-level shared-terminal-structure invariant. Curator-authored per
-        family, edited in the family editor; rendered between the heading and
-        the card stack. }}
-    {{#if sharedStructure}}
-    <p class="trick-family-shared-structure">Shared terminal structure: <code>{{sharedStructure}}</code></p>
-    {{/if}}
     {{#if crossLink}}
     <p class="trick-family-cross-link"><a class="action-link" href="{{crossLink.href}}">{{crossLink.label}}</a></p>
     {{/if}}
-    {{! Operator-rung bands: simplest/base forms first, then 1-, 2-, 3+-operator
+    {{! Operator-rung bands: base forms first, unlabelled, then 1-, 2-, 3+-operator
         forms. Band headers show only when a family spans more than one rung
         (showRungLabels), so single-rung families stay header-free. }}
     {{#each rungGroups}}
     <div class="trick-family-rung">
-      {{#if ../showRungLabels}}<h3 class="family-rung-header">{{label}}</h3>{{/if}}
+      {{#if ../showRungLabels}}{{#if label}}<h3 class="family-rung-header">{{label}}</h3>{{/if}}{{/if}}
       <ul class="dict-trick-row-stack" role="list">
         {{#each cards}}
           {{> dictionary-trick-row}}
@@ -390,20 +356,6 @@
     {{/each}}
   </section>
   {{/each}}
-  {{/if}}
-  {{#if content.minorLineages.length}}
-  <section class="content-section trick-minor-lineage-band" id="minor-lineages" aria-label="Minor lineages">
-    <div class="section-heading">
-      <h2>Minor lineages</h2>
-      <span class="section-count">{{content.minorLineages.length}}</span>
-    </div>
-    <p class="trick-minor-lineage-intro">Additional curated lineages appear in the family view but do not have their own standalone family pages. Their placement is an editorial classification rather than a threshold based on the number of tricks.</p>
-    <ul class="trick-minor-lineage-list">
-      {{#each content.minorLineages}}
-      <li><a href="{{siteHref href}}">{{name}}</a> <span class="trick-minor-lineage-count">{{count}}</span></li>
-      {{/each}}
-    </ul>
-  </section>
   {{/if}}
   {{/if}}
 

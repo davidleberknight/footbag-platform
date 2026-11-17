@@ -32,6 +32,9 @@ const { dbPath } = setTestEnv('3098');
 let createApp: Awaited<ReturnType<typeof importApp>>;
 const page = cachedGet(() => createApp());
 
+// One family's own page in the family view.
+const familyPage = (family: string) => `/freestyle/tricks?view=family&family=${family}`;
+
 // Each pilot lists slug, canonical name, ADD value, family slug,
 // and the FIRST reading the chain emits. The test asserts both
 // the trick appears in the family view AND the first reading
@@ -168,9 +171,9 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('Family View — butterfly / mirage / osis / torque pilot families render', () => {
-  // Each public family renders as its own section. The osis pilots render
-  // under id="family-osis" and the torque pilots under id="family-torque";
-  // both sets appear in the family view.
+  // Each public family renders as its own section on its own family-view
+  // page. The osis pilots render under id="family-osis" and the torque pilots
+  // under id="family-torque".
   const familySections = [
     { family: 'butterfly', pilots: BUTTERFLY_PILOTS },
     { family: 'mirage',    pilots: MIRAGE_PILOTS    },
@@ -180,7 +183,7 @@ describe('Family View — butterfly / mirage / osis / torque pilot families rend
 
   for (const section of familySections) {
     it(`renders the ${section.family} family section with all pilots`, async () => {
-      const res = await page('/freestyle/tricks?view=family');
+      const res = await page(familyPage(section.family));
       expect(res.status).toBe(200);
       expect(res.text).toContain(`id="family-${section.family}"`);
       for (const pilot of section.pilots) {
@@ -192,10 +195,9 @@ describe('Family View — butterfly / mirage / osis / torque pilot families rend
 
 describe('Chain entries never fall back to a pending notation', () => {
   it('does NOT render "Notation pending" for any chained pilot', async () => {
-    const res = await page('/freestyle/tricks?view=family');
-    expect(res.status).toBe(200);
-
     for (const pilot of PILOTS_WITH_CHAINS) {
+      const res = await page(familyPage(pilot.family));
+      expect(res.status).toBe(200);
       const cardRegion = res.text.match(
         new RegExp(`data-trick-slug="${pilot.slug}"[\\s\\S]*?<\\/article>`),
       );
@@ -226,7 +228,7 @@ describe('ADD View and Family View — shared two-line row contract', () => {
       const pilot = ALL_PILOTS.find(p => p.slug === slug)!;
       // The ADD view shows one level per page: the pilot's own seeded level.
       const addView    = await page(`/freestyle/tricks/${pilot.adds}`);
-      const familyView = await page('/freestyle/tricks?view=family');
+      const familyView = await page(familyPage(pilot.family));
       expect(addView.status).toBe(200);
       expect(familyView.status).toBe(200);
 
@@ -262,14 +264,16 @@ describe('Family View — non-trick filter regression guard', () => {
   // Even with the expanded pilot cohort, modifier / operator rows must
   // still be filtered from family-view buckets.
   it('paradox (modifier) does NOT appear in family view even with trick_family=mirage', async () => {
-    const res = await page('/freestyle/tricks?view=family');
+    const res = await page(familyPage('mirage'));
     expect(res.status).toBe(200);
+    expect(res.text).toContain('data-trick-slug="smear"');
     expect(res.text).not.toContain('data-trick-slug="paradox"');
   });
 
   it('atomic (operator) does NOT appear in family view even with trick_family=butterfly', async () => {
-    const res = await page('/freestyle/tricks?view=family');
+    const res = await page(familyPage('butterfly'));
     expect(res.status).toBe(200);
+    expect(res.text).toContain('data-trick-slug="tripwalk"');
     expect(res.text).not.toContain('data-trick-slug="atomic"');
   });
 });

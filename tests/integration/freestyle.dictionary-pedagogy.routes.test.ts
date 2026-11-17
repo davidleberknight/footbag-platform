@@ -1,21 +1,13 @@
 /**
- * Integration tests for the dictionary browse pedagogy additions.
- *
- * Three pedagogical additions to /freestyle/tricks browse views:
- *   (a) Four family-invariant entries (butterfly, mirage, osis,
- *       swirl) bringing the family-invariant set to 6 terminal families
- *   (b) familyViewIntro paragraph teaching the family-grouping logic
- *   (c) addViewIntro paragraph teaching ADD/topology orthogonality
+ * Integration tests for the dictionary browse pedagogy.
  *
  * Contract under test:
- *   - Family view renders the new pedagogy intro paragraph
- *   - ADD view renders the new pedagogy intro paragraph
- *   - Family invariants (whirl, butterfly, mirage, osis, swirl) render under
- *     their family headings
+ *   - Family view renders its intro paragraph, and the intro stays off the
+ *     other views
+ *   - The beginner-first lede on the ADD view, and the page-level hero
+ *     subtitle on the family view
  *   - swirl renders as its own root family, distinct from whirl
- *   - rev-whirl is a route-out (too few descendants to be a family): no family
- *     section, and its invariant does not surface
- *   - No curator-internal language reaches the rendered HTML
+ *   - No curator-internal language reaches the rendered intro paragraphs
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { cachedGet } from '../fixtures/cachedGet';
@@ -34,30 +26,21 @@ const { dbPath } = setTestEnv('3165');
 let createApp: Awaited<ReturnType<typeof importApp>>;
 const page = cachedGet(() => createApp());
 
-// Seed each rendering terminal family with its anchor plus two compounds so it
-// clears the family-view three-member minimum. rev-whirl stays a two-member
-// route-out (too few descendants to be a family): it must render no section.
+// Seed each terminal family with its anchor plus two compounds so it clears
+// the family-view three-member minimum.
 const FAMILY_FIXTURES = [
-  // Whirl (pre-existing pilot)
   { slug: 'whirl',           name: 'whirl',           family: 'whirl',     adds: '3', category: 'dex' as const },
   { slug: 'paradox-whirl',   name: 'paradox whirl',   family: 'whirl',     adds: '4', category: 'compound' as const },
   { slug: 'blurry-whirl',    name: 'blurry whirl',    family: 'whirl',     adds: '5', category: 'compound' as const },
-  // Rev-Whirl (route-out: stays at two members, renders no family section)
-  { slug: 'rev-whirl',       name: 'rev-whirl',       family: 'rev-whirl', adds: '4', category: 'dex' as const },
-  { slug: 'hatchet',         name: 'hatchet',         family: 'rev-whirl', adds: '5', category: 'compound' as const },
-  // Butterfly (NEW)
   { slug: 'butterfly',       name: 'butterfly',       family: 'butterfly', adds: '3', category: 'dex' as const },
   { slug: 'ripwalk',         name: 'ripwalk',         family: 'butterfly', adds: '4', category: 'compound' as const },
   { slug: 'parkwalk',        name: 'parkwalk',        family: 'butterfly', adds: '5', category: 'compound' as const },
-  // Mirage (NEW)
   { slug: 'mirage',          name: 'mirage',          family: 'mirage',    adds: '2', category: 'dex' as const },
   { slug: 'paradox-mirage',  name: 'paradox mirage',  family: 'mirage',    adds: '3', category: 'compound' as const },
   { slug: 'blur',            name: 'blur',            family: 'mirage',    adds: '4', category: 'compound' as const },
-  // Osis (NEW)
   { slug: 'osis',            name: 'osis',            family: 'osis',      adds: '3', category: 'dex' as const },
   { slug: 'spinning-osis',   name: 'spinning osis',   family: 'osis',      adds: '4', category: 'compound' as const },
   { slug: 'ducking-osis',    name: 'ducking osis',    family: 'osis',      adds: '5', category: 'compound' as const },
-  // Swirl (NEW)
   { slug: 'swirl',           name: 'swirl',           family: 'swirl',     adds: '3', category: 'dex' as const },
   { slug: 'double-swirl',    name: 'double swirl',    family: 'swirl',     adds: '4', category: 'compound' as const },
   { slug: 'triple-swirl',    name: 'triple swirl',    family: 'swirl',     adds: '5', category: 'compound' as const },
@@ -87,14 +70,6 @@ describe('Dictionary browse — family-view intro paragraph', () => {
     const res = await page('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/class="browse-view-intro"/);
-  });
-
-  it('familyViewIntro names the grouping logic + contrasts with ADD view', async () => {
-    const res = await page('/freestyle/tricks?view=family');
-    expect(res.text).toMatch(/conserved terminal mechanic/i);
-    expect(res.text).toMatch(/ADD view/i);
-    expect(res.text).toMatch(/the modifier view/i);
-    expect(res.text).not.toMatch(/Movement System view/i);
   });
 
   it('familyViewIntro does NOT appear on other views', async () => {
@@ -136,78 +111,16 @@ describe('Dictionary — beginner-first landing lede', () => {
   });
 });
 
-describe('Dictionary browse — extended family invariants', () => {
-  it('whirl invariant renders under the whirl family heading (regression)', async () => {
-    const res = await page('/freestyle/tricks?view=family');
-    expect(res.text).toContain('leggy in dex &gt; ss clipper');
-  });
-
-  it('rev-whirl is a route-out: no family section, invariant does not surface', async () => {
-    const res = await page('/freestyle/tricks?view=family');
-    // rev-whirl has too few descendants to be a family, so it renders no
-    // family section and its invariant does not appear.
-    expect(res.text).not.toContain('id="family-rev-whirl"');
-    expect(res.text).not.toContain('leggy out dex &gt; ss clipper');
-  });
-
-  it('butterfly invariant renders', async () => {
-    const res = await page('/freestyle/tricks?view=family');
-    expect(res.text).toContain('hippy out dex &gt; ss clipper');
-  });
-
-  it('mirage invariant renders', async () => {
-    const res = await page('/freestyle/tricks?view=family');
-    expect(res.text).toContain('hippy in dex &gt; op toe');
-  });
-
-  it('osis invariant renders', async () => {
-    const res = await page('/freestyle/tricks?view=family');
-    expect(res.text).toContain('spin &gt; ss clipper');
-  });
-
+describe('Dictionary browse — swirl is its own family', () => {
+  // Defect caught: swirl is folded into whirl (or dropped), so its own family
+  // page shows nothing or shows whirl's tricks.
   it('swirl renders as its own root family, distinct from whirl', async () => {
-    const res = await page('/freestyle/tricks?view=family');
-    expect(res.text).toContain('id="family-swirl"');
-    expect(res.text).toContain('leggy xbd out dex &gt; ss clipper');
-  });
-});
-
-describe('Dictionary browse — family-anchor sub-label', () => {
-  it('renders the "Family-anchor:" sub-label under each family heading', async () => {
-    const res = await page('/freestyle/tricks?view=family');
+    const res = await page('/freestyle/tricks?view=family&family=swirl');
     expect(res.status).toBe(200);
-    expect(res.text).toMatch(/class="trick-family-anchor-sublabel"/);
-    expect(res.text).toMatch(/class="trick-family-anchor-label"[^>]*>\s*Family-anchor:\s*</);
-  });
-
-  it('sub-label links an official family parent to its family page', async () => {
-    const res = await page('/freestyle/tricks?view=family');
-    // Whirl has a dedicated family page, so the anchor name links there (the
-    // primary explanation of the family) rather than bypassing it to the
-    // representative trick.
-    const startIdx = res.text.indexOf('id="family-whirl"');
-    const endIdx = res.text.indexOf('</section>', startIdx);
-    const region = res.text.slice(startIdx, endIdx);
-    const sublabel = region.match(/class="trick-family-anchor-sublabel">[\s\S]*?<\/p>/)?.[0] ?? '';
-    expect(sublabel).toMatch(/<a href="\/freestyle\/families\/whirl"/);
-    expect(sublabel).not.toMatch(/<a href="\/freestyle\/tricks\/whirl"/);
-  });
-
-  it('sub-label uses the family display name (not the slug) for the link text', async () => {
-    const res = await page('/freestyle/tricks?view=family');
-    const startIdx = res.text.indexOf('id="family-butterfly"');
-    const endIdx = res.text.indexOf('</section>', startIdx);
-    const region = res.text.slice(startIdx, endIdx);
-    // Link text should be the display name ("Butterfly") rendered by
-    // the template via {{familyName}} — case-insensitive match because
-    // the service may title-case differently from the slug.
-    const sublabel = region.match(/class="trick-family-anchor-sublabel">[\s\S]*?<\/p>/)?.[0] ?? '';
-    expect(sublabel).toMatch(/<a href="[^"]*">\s*[Bb]utterfly\s*</);
-  });
-
-  it('sub-label does NOT appear on non-family views', async () => {
-    const addRes = await page('/freestyle/tricks?view=add');
-    expect(addRes.text).not.toMatch(/class="trick-family-anchor-sublabel"/);
+    expect(res.text).toContain('id="family-swirl"');
+    expect(res.text).not.toContain('id="family-whirl"');
+    expect(res.text).toContain('data-trick-slug="double-swirl"');
+    expect(res.text).not.toContain('data-trick-slug="paradox-whirl"');
   });
 });
 
@@ -225,15 +138,5 @@ describe('Dictionary browse — no curator-internal language leakage', () => {
       expect(region).not.toMatch(/Sprint/i);
       expect(region).not.toMatch(/curatorConfirmPending/i);
     }
-  });
-
-  it('family invariants do not expose curator-internal slugs or commentary', async () => {
-    const res = await page('/freestyle/tricks?view=family');
-    // The structural-form lines are plain text; no internal references
-    // should leak from the content module's comments.
-    expect(res.text).not.toContain('FAMILY_INVARIANTS');
-    expect(res.text).not.toContain('Slice I');
-    expect(res.text).not.toContain('Slice J');
-    expect(res.text).not.toContain('Slice L');
   });
 });
