@@ -79,7 +79,7 @@ export const STAGED_OPERATORS: readonly StagedOperator[] = [
     slug: "diving",
     name: "Diving",
     kind: "core",
-    definition: "Diving is a body operator: the bag passes over the player, the complement of ducking, while the underlying trick is unchanged. It is a +1 body modifier.",
+    definition: "Diving is a body operator, one of the four kinds of duck: the bag passes from one side of the body over the opposite side of the neck and back down to the side it came from, while the underlying trick is unchanged. It is a +1 body modifier.",
     decomposition: null,
     decompositionNote: null,
     workedExamples: [],
