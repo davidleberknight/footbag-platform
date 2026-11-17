@@ -1,0 +1,7 @@
+{
+  "templateKey": "media_report_outcome_reporter",
+  "subjectTemplate": "Your report on footbag.org has been reviewed",
+  "bodyTemplate": "Thank you for your report. An administrator reviewed the media you flagged and {decisionSentence}",
+  "piiClassification": "confidential",
+  "isEnabled": true
+}

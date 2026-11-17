@@ -71,6 +71,7 @@ const STATIC_PUBLIC_PATHS = [
   '/hof',
   '/bap',
   '/legal',
+  '/community-standards',
   '/rules',
   '/equipment',
   '/ifpa',

@@ -1,17 +1,25 @@
 /**
- * LegalService -- public legal page (read-only).
+ * LegalService -- public legal pages (read-only).
  *
  * Serves:
  *   - GET /legal (public, unauthenticated): canonical single legal page.
+ *   - GET /community-standards (public, unauthenticated): the Community Standards, which the
+ *     Terms of Use make part of the terms. The wording is adopted by the IFPA CTO.
  *
  * Rendering contract:
- *   - getLegalPage() returns PageViewModel<LegalContent>.
- *   - Composes Privacy, Terms of Use, and Copyright and Trademarks as three sections in fixed
- *     order with stable anchor ids `privacy`, `terms`, `copyright`. Footer links across the site
- *     deep-link to these anchors, so the ids are a stable contract.
+ *   - getLegalPage() and getCommunityStandardsPage() return PageViewModel<LegalContent>, and
+ *     both render identically for every viewer.
+ *   - The legal page composes Privacy, Terms of Use, and Copyright and Trademarks as three
+ *     sections in fixed order with stable anchor ids `privacy`, `terms`, `copyright`. Footer
+ *     links across the site deep-link to these anchors, so the ids are a stable contract.
+ *   - The Community Standards page's section ids, and the `rights` id on its paragraph about
+ *     rights to what is posted, are deep-link targets from the legal page and the forms that
+ *     link to the standards, so they are a stable contract too.
  *   - Each paragraph is service-shaped prose: text segments rendered escaped, a segment carrying
- *     `href` rendered through the externalLink helper, and a segment carrying `email` rendered as
- *     a mailto link. No paragraph carries HTML. The lastUpdated ISO date is rendered.
+ *     `href` rendered through the externalLink helper, a segment carrying `path` rendered as a
+ *     link to that page of this site, and a segment carrying `email` rendered as a mailto link.
+ *     A paragraph's `steps` render as a numbered list after its prose. No paragraph carries
+ *     HTML. The lastUpdated ISO date is rendered.
  */
 import { PageViewModel } from '../types/page';
 
@@ -19,16 +27,24 @@ import { PageViewModel } from '../types/page';
 // Shaped types for templates
 // ---------------------------------------------------------------------------
 
-/** A run of paragraph text; `href` makes it an external link, `email` a mailto link to that address. */
+/**
+ * A run of paragraph text; `href` makes it an external link, `path` a link to a page of this
+ * site, `email` a mailto link to that address.
+ */
 export interface LegalProseSegment {
   text: string;
   href?: string;
+  path?: string;
   email?: string;
 }
 
 export interface LegalParagraph {
+  /** Anchor id on the paragraph's subheading, for a paragraph other pages deep-link to. */
+  id?: string;
   subheading?: string;
   body: LegalProseSegment[];
+  /** Numbered steps shown after the paragraph's prose. */
+  steps?: string[];
 }
 
 /** A paragraph of plain text, as one segment. */
@@ -42,6 +58,8 @@ export interface LegalSection {
 
 export interface LegalContent {
   lastUpdated: string;
+  /** Accessible name of the page's table of contents. */
+  tocLabel: string;
   sections: LegalSection[];
 }
 
@@ -49,7 +67,10 @@ export interface LegalContent {
 // Static content
 // ---------------------------------------------------------------------------
 
-const LAST_UPDATED = '2026-11-10';
+const LAST_UPDATED = '2026-11-16';
+
+const COMMUNITY_STANDARDS_PATH = '/community-standards';
+const COMMUNITY_STANDARDS_LAST_UPDATED = '2026-11-16';
 
 const PRIVACY_SECTION: LegalSection = {
   id: 'privacy',
@@ -77,8 +98,11 @@ const PRIVACY_SECTION: LegalSection = {
     },
     {
       subheading: 'Email',
-      body: prose(
-        'Email is used for account-related actions (verification, password reset, receipts) and for IFPA announcements to members who have opted in, including a one-time announcement about the move to the new footbag.org. We do not send marketing email and do not share member email addresses with third parties.'),
+      body: [
+        { text: 'Email is used for account-related actions (verification, password reset, receipts) and for IFPA announcements to members who have opted in, including a one-time announcement about the move to the new footbag.org. ' },
+        { text: 'We do not send marketing email', path: `${COMMUNITY_STANDARDS_PATH}#announcements` },
+        { text: ' and do not share member email addresses with third parties.' },
+      ],
     },
     {
       subheading: 'Third-party embeds',
@@ -141,6 +165,14 @@ const TERMS_SECTION: LegalSection = {
         'You agree not to: (a) impersonate another person or misrepresent your identity; (b) submit content that is illegal, harassing, defamatory, or infringes others\' rights; (c) attempt to gain unauthorized access to member accounts, data, or infrastructure; (d) scrape, mass-download, or re-publish site content at scale; (e) submit false or manipulated historical, competitive, or identity information; (f) use the site to send spam or unsolicited commercial messages. Violations may result in content removal, account suspension, or account termination at IFPA\'s discretion.'),
     },
     {
+      subheading: 'Community Standards',
+      body: [
+        { text: 'The ' },
+        { text: 'Community Standards', path: COMMUNITY_STANDARDS_PATH },
+        { text: ' are part of these Terms, so breaking them breaches these Terms. If we remove your content or restrict your account in breach of these Terms, you have the right to bring a claim for breach of contract.' },
+      ],
+    },
+    {
       subheading: 'Disclaimer',
       body: prose(
         'The site and its content are provided "as is" without warranties of any kind, express or implied. The maintainers make reasonable efforts to keep information accurate but do not guarantee completeness, correctness, or uninterrupted availability.'),
@@ -200,8 +232,11 @@ const COPYRIGHT_SECTION: LegalSection = {
     },
     {
       subheading: 'Member-contributed content',
-      body: prose(
-        'Member-contributed content (photos, profile text, video links) remains the copyright of its author. By submitting content, members grant IFPA a license to display it as described in the Terms of Use.'),
+      body: [
+        { text: 'Member-contributed content (photos, profile text, video links) ' },
+        { text: 'remains the copyright of its author', path: `${COMMUNITY_STANDARDS_PATH}#rights` },
+        { text: '. By submitting content, members grant IFPA a license to display it as described in the Terms of Use.' },
+      ],
     },
     {
       subheading: 'Contact',
@@ -213,6 +248,143 @@ const COPYRIGHT_SECTION: LegalSection = {
     },
   ],
 };
+
+// The Community Standards, in the wording the IFPA CTO adopted. Edit only on a new adoption.
+const COMMUNITY_STANDARDS_INTRO =
+  'These standards apply to everything members publish on footbag.org. They are short on purpose: if something is not covered here, ask whether it is respectful, honest, safe and about footbag.';
+
+const COMMUNITY_STANDARDS_SECTIONS: LegalSection[] = [
+  {
+    id: 'scope',
+    heading: 'What These Standards Cover',
+    paragraphs: [
+      {
+        body: [
+          { text: 'They apply to everything footbag.org publishes for members: profile text and links, club and event descriptions, photos, links to video hosted elsewhere, captions, hashtags, gallery names and community announcements. They are part of the ' },
+          { text: 'Terms of Use', path: '/legal#terms' },
+          { text: ', so breaking them is a breach of the terms. We may remove anything that breaks these standards or the law.' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'general',
+    heading: 'General Standards',
+    paragraphs: [
+      { subheading: 'Respect People', body: prose('No harassment, bullying, hate, threats or personal attacks.') },
+      {
+        subheading: 'Be Honest',
+        body: prose('Do not pretend to be someone else. Do not post results, records or claims you know are false, or a misleading subject line.'),
+      },
+      {
+        subheading: 'Stay Safe',
+        body: prose('No sexual content and no violence. Nothing that encourages dangerous behavior or puts someone at risk. Take extra care with anyone under 18.'),
+      },
+      {
+        subheading: 'Protect Privacy',
+        body: prose('Do not publish anyone else\'s contact details, address or private messages. Never post intimate images of anyone.'),
+      },
+      {
+        id: 'rights',
+        subheading: 'Post Only What You Have the Right to Post',
+        body: prose('Photos, video, text and music must be yours or shared with permission. Giving credit, or writing "no infringement intended", is not permission.'),
+      },
+      { subheading: 'Keep to Footbag', body: prose('Content should be about footbag or the footbag community.') },
+      {
+        subheading: 'No Spam or Hidden Selling',
+        body: prose('No repeated or off-topic posts, no keyword stuffing, and no commercial content that is not clearly disclosed.'),
+      },
+      { subheading: 'Follow the Law', body: prose('Do not post anything illegal.') },
+    ],
+  },
+  {
+    id: 'links',
+    heading: 'Links to Video Hosted Elsewhere',
+    paragraphs: [
+      {
+        body: prose('The hosting platform\'s rules apply as well as these. If a video breaks either, we remove the link from footbag.org; only the platform can remove the video itself. Link straight to the video, not through a link shortener or redirect, and never to an infringing copy.'),
+      },
+    ],
+  },
+  {
+    id: 'text',
+    heading: 'Text You Write',
+    paragraphs: [
+      {
+        body: prose('This covers bios, descriptions, captions, hashtags and gallery names. Describe footbag accurately, in your own words or with permission. Keep hashtags and gallery names honest and plain: no insults or slurs, and no keywords added to attract unrelated searches.'),
+      },
+    ],
+  },
+  {
+    id: 'photos',
+    heading: 'Photos',
+    paragraphs: [
+      {
+        body: prose('Post photos you took or have permission to use, and none taken where people expect privacy, such as changing areas. An identifiable person under 18 needs a parent\'s or guardian\'s consent before their photo is posted, and their name, school and address stay out of captions and hashtags. If you appear in a photo and do not want it shown, ask and we will remove it. A parent or guardian can ask the same for their child at any time.'),
+      },
+    ],
+  },
+  {
+    id: 'announcements',
+    heading: 'Community Announcements',
+    paragraphs: [
+      {
+        body: prose('Announcements are emailed to members who chose to receive them, so they carry the strictest rules. Keep to one footbag topic, with an honest subject line and plain links (no shorteners or redirects). Footbag products and services appear only as clearly disclosed news, never as an advert. No political or religious campaigning. Fundraising is for footbag causes only. We may decline an announcement or ask you to change it.'),
+      },
+    ],
+  },
+  {
+    id: 'enforcement',
+    heading: 'What Happens When Standards Are Broken',
+    paragraphs: [
+      {
+        body: prose('The same steps apply to every kind of content, and we use the lightest one that fits:'),
+        steps: [
+          'We remove the item and tell you why.',
+          'We send you a written warning.',
+          'You lose the privilege involved, such as uploading or sending announcements, for up to 30 days.',
+          'You lose that privilege for longer or for good. The IFPA board decides this step under the bylaws.',
+        ],
+      },
+      {
+        body: prose('The most serious harms go straight to step 4: sexual content involving a minor, threats, and publishing someone\'s private details. While the board decides, an administrator may restrict the account at once. We may report serious cases to the authorities.'),
+      },
+      {
+        body: prose('For copyright, step 4 is also our repeat-infringer policy: a member who repeatedly posts work they have no right to share loses the right to post, and in appropriate cases their account.'),
+      },
+      {
+        body: prose('Suspension and expulsion from IFPA follow the bylaws: the board decides, after notice and a chance to be heard.'),
+      },
+      {
+        body: prose('When we act, we tell you what we removed or limited, for how long, why, which standard it broke, and how to appeal. People, not automated tools, make these decisions. Reports made in bad faith can themselves break these standards.'),
+      },
+    ],
+  },
+  {
+    id: 'reporting',
+    heading: 'How to Report a Problem',
+    paragraphs: [
+      {
+        body: [
+          { text: 'Members: use the flag on any photo or video. For anything else, use the contact form and choose "Content that breaks the community standards". Visitors: email ' },
+          { text: 'admin@footbag.org', email: 'admin@footbag.org' },
+          { text: '. Tell us the page address, what is wrong and why. Copyright owners can send a notice as the ' },
+          { text: 'Legal page', path: '/legal#copyright' },
+          { text: ' describes. If anyone is in immediate danger, contact local emergency services first.' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'appeals',
+    heading: 'Appeals',
+    paragraphs: [
+      {
+        body: prose('If we tell you about a decision on your content, you can appeal within 30 days through the contact form on your profile, saying which decision you are appealing. An administrator who did not make the decision reviews it and replies with reasons. Board decisions follow the bylaws.'),
+      },
+    ],
+  },
+];
 
 // ---------------------------------------------------------------------------
 // Service
@@ -233,7 +405,28 @@ export const legalService = {
       },
       content: {
         lastUpdated: LAST_UPDATED,
+        tocLabel: 'Legal contents',
         sections: [PRIVACY_SECTION, TERMS_SECTION, COPYRIGHT_SECTION],
+      },
+    };
+  },
+
+  getCommunityStandardsPage(): PageViewModel<LegalContent> {
+    return {
+      seo: {
+        title: 'Community Standards',
+        description: 'What footbag.org publishes for members, what is removed, and how to report a problem or appeal a decision.',
+      },
+      page: {
+        sectionKey: '',
+        pageKey: 'legal_community_standards',
+        title: 'Community Standards',
+        intro: COMMUNITY_STANDARDS_INTRO,
+      },
+      content: {
+        lastUpdated: COMMUNITY_STANDARDS_LAST_UPDATED,
+        tocLabel: 'Community Standards contents',
+        sections: COMMUNITY_STANDARDS_SECTIONS,
       },
     };
   },

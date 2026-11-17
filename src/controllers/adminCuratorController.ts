@@ -35,12 +35,16 @@ import {
 import { NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { z } from 'zod';
 import { parseFormBody, formText, formOptionalText } from '../lib/parseFormBody';
+import { getDefaultMediaModerationService } from '../services/mediaModerationService';
+import { outcomeNotice } from '../lib/outcomeNotice';
+import { redirectWithOutcome } from '../lib/actionOutcome';
 import { renderImageWorkerUnavailable, renderInvalidRequest, renderNotFound } from '../lib/controllerErrors';
 import { getMediaJobService, jobEventPayload, jobStateSnapshot } from '../services/mediaJobService';
 import { subscribeToJobEvents } from '../services/jobEventBus';
 import { config } from '../config/env';
 import {
   FLASH_KIND, writeFlash, writeMediaSavedFlash, writeShareFlash, takeMediaSaved, takeShareFlash,
+  readFlash, clearFlash,
   type FoldedTag, type ShareOutcome,
 } from '../lib/flashCookie';
 import { hashtagDiscoveryService } from '../services/hashtagDiscoveryService';
@@ -49,6 +53,9 @@ import { readMultipart, type ParsedMultipart } from '../lib/multipartForm';
 // The media edit form. The URL-reference fields appear only on a reference
 // row's edit page, so their absence (leave the field alone) differs from a
 // blank value (clear it).
+// The one edit an administrator makes to a member's item: clearing its caption.
+const captionClearForm = z.object({ reason: formText('Reason') });
+
 const curatorMediaEditForm = z.object({
   caption: formText('Caption'),
   tags: formText('Hashtags'),
@@ -367,6 +374,19 @@ export const adminCuratorController = {
   async getEdit(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const mediaId = req.params.id;
+      // One address reaches both: an item a member uploaded is moderated here
+      // (its caption cleared), and the platform's own item is curated below.
+      let outcome = null;
+      const flash = readFlash(req);
+      if (flash?.kind === FLASH_KIND.MEDIA_CAPTION_OUTCOME) {
+        outcome = outcomeNotice(flash.payload);
+        clearFlash(res, req);
+      }
+      const moderation = getDefaultMediaModerationService().getCaptionModerationPage(mediaId, { outcome });
+      if (moderation) {
+        res.render('admin/curator/moderate-item', moderation);
+        return;
+      }
       // The player search submits the edit form by GET, so the fields the curator
       // had typed arrive in the query and are shown again rather than lost.
       const typedField = (name: string) => (typeof req.query[name] === 'string' ? String(req.query[name]) : undefined);
@@ -396,6 +416,37 @@ export const adminCuratorController = {
     try {
       const mediaId = req.params.id;
       const adminMemberId = req.user!.userId;
+      const moderationSvc = getDefaultMediaModerationService();
+      if (moderationSvc.getCaptionModerationPage(mediaId)) {
+        const clearForm = parseFormBody(captionClearForm, req.body);
+        try {
+          if (!clearForm.ok) throw new ValidationError(clearForm.message);
+          const result = moderationSvc.clearCaption({
+            mediaId, adminMemberId, reason: clearForm.data.reason,
+          });
+          redirectWithOutcome(req, res, {
+            flash: FLASH_KIND.MEDIA_CAPTION_OUTCOME,
+            to: `/admin/curator/media/${mediaId}/edit`,
+            ending: result.status === 'cleared' ? 'advance' : 'already_held',
+            text: result.status === 'cleared'
+              ? 'The caption has been cleared, the text is recorded in the audit log, and the member has been emailed your reason.'
+              : 'The caption was already empty, so nothing changed.',
+          });
+        } catch (err) {
+          const refused = err instanceof ValidationError
+            ? moderationSvc.getCaptionModerationPage(mediaId, {
+              errorMessage: err.message,
+              reason: clearForm.ok ? clearForm.data.reason : '',
+            })
+            : null;
+          if (refused) {
+            res.status(422).render('admin/curator/moderate-item', refused);
+            return;
+          }
+          throw err;
+        }
+        return;
+      }
       const svc = buildSvc();
       const parsed = parseFormBody(curatorMediaEditForm, req.body);
       const renderEditRefused = async (

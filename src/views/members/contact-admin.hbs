@@ -7,7 +7,7 @@
 <div class="wrapper">
   <section>
     {{#if content.successFlag}}
-      {{> outcome-notice text="Your request has been sent to the IFPA administrator. We will reply by email." tone='ok'}}
+      {{> outcome-notice text=content.successMessage tone='ok'}}
     {{/if}}
 
     {{> outcome-notice text=content.errorMessage tone='no'}}
@@ -26,6 +26,7 @@
               <option value="{{value}}"{{#if (eq value ../content.prefilledCategory)}} selected{{/if}}>{{label}}</option>
             {{/each}}
           </select>
+          <p class="form-hint">Content reports are judged against the <a href="/community-standards">Community Standards</a>.</p>
         </div>
 
         <div class="form-field">
@@ -34,6 +35,8 @@
           <small class="form-hint">Up to 2000 characters.</small>
         </div>
       </fieldset>
+
+      {{> volunteer-admin-notice}}
 
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">Submit Request</button>

@@ -63,6 +63,16 @@ const CATALOG: CatalogEntry[] = [
   { template: 'admin_queue_digest', services: ['workQueueService'], samples: [
     { params: { openCount: 3, itemLines: 'Task type: t, Entity ID: e', queueUrl: 'https://x/admin/work-queue' }, variant: 'admin_queue_digest' },
   ] },
+  { template: 'admin_queue_topic_digest', services: ['workQueueService'], samples: [
+    { params: { areaLabel: 'Finance', openCount: 2, itemLines: 'Task type: t, Entity ID: e', queueUrl: 'https://x/admin/work-queue?topic=finance' }, variant: 'admin_queue_topic_digest' },
+  ] },
+  { template: 'work_queue_topic_route_disabled', services: ['sesFeedbackService'], samples: [
+    { params: { areaLabel: 'Finance' }, variant: 'work_queue_topic_route_disabled' },
+  ] },
+  { template: 'media_report_outcome_reporter', services: ['mediaModerationService'], samples: [
+    { params: { removed: true }, variant: 'media_report_outcome_reporter' },
+    { params: { removed: false }, variant: 'media_report_outcome_reporter' },
+  ] },
   { template: 'admin_queue_stale_escalation', services: ['workQueueService'], samples: [
     { params: { taskType: 't', entityId: 'e', ageDays: 3, queueUrl: 'https://x/admin/work-queue' }, variant: 'admin_queue_stale_escalation' },
   ] },

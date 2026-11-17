@@ -61,7 +61,7 @@ open('the public site: pages any visitor reads, with member-only enhancements sh
   'GET /net', 'GET /x-square', 'GET /golf', 'GET /consecutives', 'GET /sideline',
   'GET /rules', 'GET /rules/:categorySlug/:ruleSlug', 'GET /ifpa', 'GET /ifpa/:docSlug',
   'GET /events', 'GET /events/year/:year', 'GET /events/:eventKey',
-  'GET /history/:personId', 'GET /legal', 'GET /equipment');
+  'GET /history/:personId', 'GET /legal', 'GET /community-standards', 'GET /equipment');
 open('typeahead over public vocabulary (tags, events, clubs, tricks); no member is ever matched',
   'GET /tags/suggest', 'GET /freestyle/search/suggest');
 open('an honoree profile is public; the controller sends any other visitor to sign in, the same way for an unknown address',

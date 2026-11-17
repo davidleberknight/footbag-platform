@@ -35,6 +35,9 @@ import {
 const { dbPath } = setTestEnv('4182');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+// Loaded after setTestEnv: a static import of the service would open the
+// database before FOOTBAG_DB_PATH names this suite's file.
+let FLAG_REASONS: typeof import('../../src/services/mediaModerationService').FLAG_REASONS;
 
 const ADMIN_ID = 'aaaaaaaa-0000-0000-0000-0000000af001';
 const UPLOADER_ID = 'bbbbbbbb-0000-0000-0000-0000000af002';
@@ -202,6 +205,7 @@ beforeAll(async () => {
 
   db.close();
   createApp = await importApp();
+  ({ FLAG_REASONS } = await import('../../src/services/mediaModerationService'));
 });
 
 afterAll(() => cleanupTestDb(dbPath));
@@ -264,7 +268,9 @@ describe('GET /admin/media-flags — the queue', () => {
     const res = await request(createApp()).get('/admin/media-flags').set('Cookie', admin());
     expect(res.status).toBe(200);
     expect(res.text).toContain(`Caption ${ITEM_PATTERN}`);
-    expect(res.text).toContain('Illegal, harassing, or defamatory');
+    expect(res.text).toContain(
+      FLAG_REASONS.find((r) => r.value === 'illegal_or_harassing')!.label,
+    );
     expect(res.text).toContain('AF Reporter');
     expect(res.text).toContain('AF Uploader');
     expect(res.text).toContain(`Report on ${ITEM_PATTERN}`);

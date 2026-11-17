@@ -648,6 +648,8 @@ const LOG_ROWS: Record<string, string> = {
   'Bounce domain healthy (`scripts/verify-prod-email.sh`)': '',
   'Alarm subscriptions confirmed (root mailbox and `ops-alert@`)': 'pass',
   'Test alarm (`scripts/send-test-alarm.sh`) received by all three watchers': 'Passed',
+  'Work-queue area groups receive the platform\'s mail (six live SES sends)': 'pass',
+  'Work-queue area digests on and area owners saved (after the load)': 'pass',
 };
 
 function cutoverLog(rows: Record<string, string> = LOG_ROWS, launchSection = ''): string {
@@ -875,6 +877,10 @@ describe('production-cutover.sh launch: the cutover log gate', () => {
       'Certificate-address bounce test',
       'Alarm subscriptions confirmed (root mailbox and `ops-alert@`)',
       'Test alarm (`scripts/send-test-alarm.sh`) received by all three watchers',
+      // Defect caught: launch with the work-queue area emails unproven or
+      // switched off, so an area's group receives nothing from the first day.
+      'Work-queue area groups receive the platform\'s mail (six live SES sends)',
+      'Work-queue area digests on and area owners saved (after the load)',
     ];
     for (const row of required) {
       for (const [how, rows] of [

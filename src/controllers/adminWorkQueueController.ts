@@ -10,31 +10,49 @@ import { outcomeNotice, type OutcomeNoticeView } from '../lib/outcomeNotice';
 import { redirectWithOutcome } from '../lib/actionOutcome';
 import { z } from 'zod';
 import { parseFormBody, formText, formOptionalText } from '../lib/parseFormBody';
+import { WORK_QUEUE_TOPICS, WORK_QUEUE_TOPIC_KEYS, type WorkQueueTopic } from '../services/workQueueTaskTypes';
 
-// Every queue form carries the category the administrator is working in, so
-// the action returns to it.
+// Every queue form carries the category and the area the administrator is
+// working in, so the action returns to them.
 const category = formOptionalText('Category');
+const topic = formOptionalText('Area');
 
-const claimForm = z.object({ category });
+const claimForm = z.object({ category, topic });
 const resolveForm = z.object({
   decision_label: formText('Decision'),
   resolution_note: formText('Note'),
   category,
+  topic,
 });
-const noteForm = z.object({ note: formText('Note'), category });
+const noteForm = z.object({ note: formText('Note'), category, topic });
 const askForm = z.object({
   subject: formOptionalText('Subject'),
   body: formOptionalText('Message'),
   expectedAnswerKind: formOptionalText('Answer kind'),
   category,
+  topic,
 });
 const linkTargetForm = z.object({
   target_legacy_member_id: formText('Legacy member id'),
   target_historical_person_id: formText('Historical person id'),
   reason: formText('Reason'),
   category,
+  topic,
 });
-const rejectForm = z.object({ reason: formText('Reason'), category });
+const rejectForm = z.object({ reason: formText('Reason'), category, topic });
+// One owner choice per area; an empty value is No owner. The service decides
+// whether each choice is a current administrator. The fields come from the area
+// registry, so a new area's choice is read by the save the day the page offers it.
+const ownerField = (area: WorkQueueTopic) => `owner_${area}`;
+const ownersForm = z.object({
+  ...Object.fromEntries(WORK_QUEUE_TOPIC_KEYS.map((area) =>
+    [ownerField(area), formOptionalText(`${WORK_QUEUE_TOPICS[area].label} owner`)])),
+  category,
+  topic,
+});
+
+/** The filters a queue form carries back. */
+type QueueFilters = { category?: string; topic?: string };
 
 // A shape the form never sends is refused like any other fixable submission,
 // through the catch that already re-renders the queue at 422.
@@ -60,10 +78,10 @@ function sendRateLimited(res: Response, err: RateLimitedError): void {
  * not refused, so it returns to the queue saying so in the informational tone
  * rather than drawing an error page.
  */
-function redirectAlreadySettled(req: Request, res: Response, text: string, formCategory: string | undefined): void {
+function redirectAlreadySettled(req: Request, res: Response, text: string, form: QueueFilters): void {
   redirectWithOutcome(req, res, {
     flash: FLASH_KIND.WORK_QUEUE_OUTCOME,
-    to: queueReturnPath(req, formCategory),
+    to: queueReturnPath(req, form),
     ending: 'already_held',
     text,
   });
@@ -75,10 +93,14 @@ function redirectAlreadySettled(req: Request, res: Response, text: string, formC
  * the first item. The service decides what an unrecognized value means, so the
  * raw query value is passed straight back rather than validated twice.
  */
-function queueReturnPath(req: Request, formCategory: string | undefined): string {
-  const raw = formCategory ?? req.query['category'];
-  if (typeof raw !== 'string' || raw === '') return '/admin/work-queue';
-  return `/admin/work-queue?category=${encodeURIComponent(raw)}`;
+function queueReturnPath(req: Request, form: QueueFilters): string {
+  const params = new URLSearchParams();
+  const rawTopic = form.topic ?? req.query['topic'];
+  if (typeof rawTopic === 'string' && rawTopic !== '') params.set('topic', rawTopic);
+  const rawCategory = form.category ?? req.query['category'];
+  if (typeof rawCategory === 'string' && rawCategory !== '') params.set('category', rawCategory);
+  const qs = params.toString();
+  return qs ? `/admin/work-queue?${qs}` : '/admin/work-queue';
 }
 
 export const adminWorkQueueController = {
@@ -141,6 +163,7 @@ export const adminWorkQueueController = {
         // own answer names itself here, and its composer opens already drafted.
         askItemId: typeof req.query.ask === 'string' ? req.query.ask : null,
         category: typeof req.query.category === 'string' ? req.query.category : null,
+        topic: typeof req.query.topic === 'string' ? req.query.topic : null,
       }));
     } catch (err) {
       if (err instanceof RateLimitedError) {
@@ -162,7 +185,7 @@ export const adminWorkQueueController = {
       const form = read(claimForm, req);
       const result = workQueueService.claim({ queueItemId, adminMemberId: req.user!.userId });
       writeFlash(res, req, FLASH_KIND.WORK_QUEUE_CLAIMED, result.status);
-      res.redirect(303, queueReturnPath(req, form.category));
+      res.redirect(303, queueReturnPath(req, form));
     } catch (err) {
       if (err instanceof ValidationError) {
         renderRefusal(req, res, err);
@@ -184,7 +207,7 @@ export const adminWorkQueueController = {
         resolutionNote: form.resolution_note,
       });
       writeFlash(res, req, FLASH_KIND.WORK_QUEUE_RESOLVED, result.memberNotified ? 'notified' : 'quiet');
-      res.redirect(303, queueReturnPath(req, form.category));
+      res.redirect(303, queueReturnPath(req, form));
     } catch (err) {
       if (err instanceof ValidationError) {
         res.status(422).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: err.message }));
@@ -202,6 +225,36 @@ export const adminWorkQueueController = {
     }
   },
 
+  /** POST /admin/work-queue/owners
+   *
+   * Record each area's owner. Any administrator may; each changed area writes
+   * one audit row, and a save that changes nothing says so in the informational
+   * tone. */
+  saveOwners(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const form = read(ownersForm, req);
+      const choices = form as Record<string, string | undefined>;
+      const result = adminWorkQueueService.saveTopicOwners({
+        adminMemberId: req.user!.userId,
+        owners: Object.fromEntries(
+          WORK_QUEUE_TOPIC_KEYS.map((area) => [area, choices[ownerField(area)]]),
+        ) as Partial<Record<WorkQueueTopic, string>>,
+      });
+      redirectWithOutcome(req, res, {
+        flash: FLASH_KIND.WORK_QUEUE_OUTCOME,
+        to: queueReturnPath(req, form),
+        ending: result.status === 'saved' ? 'advance' : 'already_held',
+        text: result.status === 'saved' ? 'Area owners saved.' : 'No area owner changed.',
+      });
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        renderRefusal(req, res, err);
+        return;
+      }
+      handleControllerError(err, res, next, 'admin work queue controller');
+    }
+  },
+
   /** POST /admin/work-queue/:id/park
    *
    * Set an item aside with a reason. It leaves the working queue, the digests
@@ -213,7 +266,7 @@ export const adminWorkQueueController = {
       const form = read(noteForm, req);
       adminWorkQueueService.park({ queueItemId, adminMemberId: req.user!.userId, note: form.note });
       writeFlash(res, req, FLASH_KIND.WORK_QUEUE_PARKED, 'parked');
-      res.redirect(303, queueReturnPath(req, form.category));
+      res.redirect(303, queueReturnPath(req, form));
     } catch (err) {
       if (err instanceof ValidationError) {
         res.status(422).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: err.message }));
@@ -241,7 +294,7 @@ export const adminWorkQueueController = {
       const form = read(claimForm, req);
       adminWorkQueueService.unpark({ queueItemId, adminMemberId: req.user!.userId });
       writeFlash(res, req, FLASH_KIND.WORK_QUEUE_PARKED, 'unparked');
-      res.redirect(303, queueReturnPath(req, form.category));
+      res.redirect(303, queueReturnPath(req, form));
     } catch (err) {
       if (err instanceof ValidationError) {
         renderRefusal(req, res, err);
@@ -266,7 +319,7 @@ export const adminWorkQueueController = {
       const form = read(noteForm, req);
       adminWorkQueueService.dismiss({ queueItemId, adminMemberId: req.user!.userId, note: form.note });
       writeFlash(res, req, FLASH_KIND.WORK_QUEUE_REVIEWED, queueItemId);
-      res.redirect(303, queueReturnPath(req, form.category));
+      res.redirect(303, queueReturnPath(req, form));
     } catch (err) {
       if (err instanceof ValidationError) {
         res.status(422).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: err.message }));
@@ -302,7 +355,7 @@ export const adminWorkQueueController = {
         expectedAnswerKind: form.expectedAnswerKind,
       });
       writeFlash(res, req, FLASH_KIND.WORK_QUEUE_MEMBER_ASKED, queueItemId);
-      res.redirect(303, queueReturnPath(req, form.category));
+      res.redirect(303, queueReturnPath(req, form));
     } catch (err) {
       if (err instanceof ValidationError) {
         res.status(422).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: err.message }));
@@ -332,6 +385,7 @@ export const adminWorkQueueController = {
         legacyMemberId:     form.target_legacy_member_id,
         historicalPersonId: form.target_historical_person_id,
         category:           form.category ?? null,
+        topic:              form.topic ?? null,
       }));
     } catch (err) {
       if (err instanceof ValidationError) {
@@ -356,7 +410,7 @@ export const adminWorkQueueController = {
         historicalPersonId: form.target_historical_person_id,
       });
       writeFlash(res, req, FLASH_KIND.WORK_QUEUE_RESOLVED, queueItemId);
-      res.redirect(303, queueReturnPath(req, form.category));
+      res.redirect(303, queueReturnPath(req, form));
     } catch (err) {
       if (err instanceof ValidationError || err instanceof ConflictError) {
         res.status(422).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: err.message }));
@@ -390,9 +444,10 @@ export const adminWorkQueueController = {
         historicalPersonId: form.target_historical_person_id,
         reason:             form.reason,
         category:           form.category ?? null,
+        topic:              form.topic ?? null,
       });
       if (!vm) {
-        redirectAlreadySettled(req, res, 'Nobody currently holds that record, so there is no claim to revert.', form.category);
+        redirectAlreadySettled(req, res, 'Nobody currently holds that record, so there is no claim to revert.', form);
         return;
       }
       res.render('admin/work-queue/dispute-revert-confirm', vm);
@@ -423,11 +478,11 @@ export const adminWorkQueueController = {
         historicalPersonId: form.target_historical_person_id,
       }, form.reason);
       if (result.status === 'nothing_to_revert') {
-        redirectAlreadySettled(req, res, 'Nobody currently holds that record, so there is no claim to revert.', form.category);
+        redirectAlreadySettled(req, res, 'Nobody currently holds that record, so there is no claim to revert.', form);
         return;
       }
       writeFlash(res, req, FLASH_KIND.WORK_QUEUE_CLAIM_REVERTED, '');
-      res.redirect(303, queueReturnPath(req, form.category));
+      res.redirect(303, queueReturnPath(req, form));
     } catch (err) {
       if (err instanceof ValidationError) {
         res.status(422).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: err.message }));
@@ -452,7 +507,7 @@ export const adminWorkQueueController = {
       const form = read(rejectForm, req);
       identityAccessService.rejectLinkHelpRequest(req.user!.userId, queueItemId, form.reason);
       writeFlash(res, req, FLASH_KIND.WORK_QUEUE_RESOLVED, queueItemId);
-      res.redirect(303, queueReturnPath(req, form.category));
+      res.redirect(303, queueReturnPath(req, form));
     } catch (err) {
       if (err instanceof ValidationError) {
         res.status(422).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: err.message }));

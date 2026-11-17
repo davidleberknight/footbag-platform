@@ -17,7 +17,7 @@
  * 16, 24 and 32px (24px at most on a phone).
  */
 
-export const CAPTURE_SCHEMA = 2 as const;
+export const CAPTURE_SCHEMA = 3 as const;
 
 /**
  * The computed properties every element records, in a fixed order. The
@@ -67,6 +67,7 @@ export const STYLE_PROPS = [
   'row-gap',
   'column-gap',
   'list-style-type',
+  'list-style-position',
   'clip-path',
   'overflow-y',
   'text-overflow',
@@ -132,6 +133,8 @@ export interface ElementRecord {
   visibleLabel?: boolean;
   /** Width in px of the digit zero in this element's font; recorded when its whole text, descendants included, is prose length. */
   chPx?: number;
+  /** List items drawing an outside marker only: the width in px of the marker text (such as "12. "), in the item's font. */
+  markerPx?: number;
   /** Indices into `Capture.strings`, aligned with `Capture.styleProps`. */
   styles: number[];
 }
@@ -199,6 +202,7 @@ export type RuleId =
   | 'colour-off-palette'
   | 'prose-leading-tight'
   | 'image-unsized'
+  | 'list-marker-outside-column'
   // Findings the browser check adds beside the rules: something the browser
   // refused or reported while the page loaded, a URL that rendered another view
   // than the one it was meant to measure, and an axe violation by rule id.
@@ -1221,6 +1225,31 @@ export const RULES: readonly Rule[] = [
       return v.elements
         .filter((el) => el.tag === 'img' && v.isPainted(el) && !el.attrs.sized && v.style(el, 'aspect-ratio') === 'auto' && !framed(el))
         .map((el) => ({ el, measured: 'no width and height attributes and no aspect ratio' }));
+    },
+  },
+  {
+    id: 'list-marker-outside-column',
+    applies: 'any',
+    requirement: 'A list\'s numbers and bullets sit inside its content column, so none is cut off at a phone\'s edge or hangs outside the text.',
+    check(v) {
+      // An outside marker is drawn to the left of its item's box, so the room
+      // between the item and the content edge of the column holding the list
+      // must be at least as wide as the marker.
+      const out: Array<{ el: ElementRecord; measured: string }> = [];
+      for (const li of v.elements) {
+        if (li.tag !== 'li' || li.markerPx === undefined || !v.isPainted(li)) continue;
+        if (v.style(li, 'display') !== 'list-item' || v.style(li, 'list-style-type') === 'none') continue;
+        if (v.style(li, 'list-style-position') !== 'outside') continue;
+        const list = v.boxParentOf(li);
+        const column = list ? v.boxParentOf(list) : null;
+        if (!column) continue;
+        const contentLeft = column.rect.x + v.px(column, 'border-left-width') + v.px(column, 'padding-left');
+        const room = li.rect.x - contentLeft;
+        if (room + 0.5 < li.markerPx) {
+          out.push({ el: li, measured: `marker ${fmt(li.markerPx)}px wide with ${fmt(room)}px of room` });
+        }
+      }
+      return out;
     },
   },
 ];

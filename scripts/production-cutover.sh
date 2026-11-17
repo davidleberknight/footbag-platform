@@ -381,8 +381,10 @@ log_value() {
 # Launch opens the site to every visitor, so it waits on the cutover-day mail
 # results being recorded: the mail apply, its record check, the outside tests,
 # the admin@ receive-and-reply test the legal page's contact link depends on,
-# the certificate-address bounce test, and the alarm receipts. Each row's
-# first cell, then the word its value must start with.
+# the certificate-address bounce test, the alarm receipts, each work-queue
+# area group receiving the platform's own mail, and the area digests switched
+# on after the load, which replaces the database and would wipe an earlier
+# setting. Each row's first cell, then the word its value must start with.
 LAUNCH_LOG_ROWS=(
   "Mail apply|applied"
   "\`scripts/verify-mail-records.sh --stage mail-day\` passes|pass"
@@ -391,6 +393,8 @@ LAUNCH_LOG_ROWS=(
   "Certificate-address bounce test|pass"
   "Alarm subscriptions confirmed|pass"
   "Test alarm|pass"
+  "Work-queue area groups receive the platform's mail|pass"
+  "Work-queue area digests on and area owners saved|pass"
 )
 
 launch_log_gate() {

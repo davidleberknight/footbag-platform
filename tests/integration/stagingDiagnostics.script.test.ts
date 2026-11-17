@@ -29,6 +29,7 @@ import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { createTestDb } from '../fixtures/testDb';
 import {
   insertFreestyleTrick, insertMediaSource, insertMember, insertSesEvent, insertSystemAlarmEvent,
+  insertWorkQueueItem,
 } from '../fixtures/factories';
 
 const SCRIPT = join(process.cwd(), 'scripts/staging_diagnostics.sh');
@@ -324,6 +325,58 @@ describe('active-alarms reads what the admin alarms page lists as active', () =>
     const r = activeRun();
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).toContain('NO ACTIVE ALARMS');
+  });
+});
+
+describe('work-queue lists the items in the real queue table', () => {
+  let dbPath: string;
+  let helpId: string;
+  let contactId: string;
+
+  beforeEach(() => {
+    dbPath = join(workDir, 'footbag.db');
+    const db = createTestDb(dbPath);
+    const memberId = insertMember(db, { slug: 'queue-member' });
+    helpId = insertWorkQueueItem(db, { entity_id: memberId, task_type: 'member_link_help_request' });
+    contactId = insertWorkQueueItem(db, { entity_id: memberId, task_type: 'member_contact_request' });
+    db.close();
+  });
+
+  // The stand-in forwards the one `-e TASK_TYPE=...` value the real
+  // `compose exec` would put in the container's environment.
+  function queueRun(...args: string[]) {
+    const { path } = stubTools();
+    const docker = join(workDir, 'bin', 'docker');
+    writeFileSync(docker, [
+      '#!/usr/bin/env bash',
+      'for a in "$@"; do case "$a" in TASK_TYPE=*) export "$a" ;; esac; done',
+      `sed "s#/app/db/footbag.db#${dbPath}#" | NODE_PATH=${JSON.stringify(join(process.cwd(), 'node_modules'))} node`,
+      '',
+    ].join('\n'));
+    chmodSync(docker, 0o755);
+    const res = spawnSync('bash', [SCRIPT, 'work-queue', ...args], {
+      encoding: 'utf-8', env: { ...process.env, PATH: path, HOME: workDir }, ...SPAWN_GUARD,
+    });
+    return { status: res.status, stdout: res.stdout ?? '', stderr: res.stderr ?? '' };
+  }
+
+  // Defect caught: an operator inspecting the queue on a host gets a SQLite
+  // "no such column" error instead of the items, because the query names
+  // columns the table does not have.
+  it('lists every open item', () => {
+    const r = queueRun();
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toContain(helpId);
+    expect(r.stdout).toContain(contactId);
+  });
+
+  // Defect caught: filtering by a producer's task type shows the other
+  // producers' items too, or nothing at all.
+  it('narrows to one task type when asked', () => {
+    const r = queueRun('member_contact_request');
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toContain(contactId);
+    expect(r.stdout).not.toContain(helpId);
   });
 });
 

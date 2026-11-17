@@ -91,7 +91,9 @@ export type CorrectionOutcome =
   | 'avatar_removed_storage_pending'
   | 'avatar_already_removed'
   | 'profile_corrected'
-  | 'profile_unchanged';
+  | 'profile_unchanged'
+  | 'bio_cleared'
+  | 'bio_already_empty';
 
 // Each outcome carries its tone. A correction that landed and a correction that
 // found nothing to change are different events, and painting both of them, plus
@@ -127,6 +129,9 @@ const OUTCOME_NOTICE: Record<CorrectionOutcome, [OutcomeTone, string]> = {
   profile_corrected:
     ['ok', "The member's profile details have been corrected, and every changed value is recorded in the audit log."],
   profile_unchanged: ['info', 'Those are the details the record already held, so nothing changed.'],
+  bio_cleared:
+    ['ok', "The member's biography has been cleared, the text is recorded in the audit log, and the member has been emailed your reason."],
+  bio_already_empty: ['info', 'The biography was already empty, so nothing changed.'],
   avatar_already_removed: ['info', 'That picture has already been taken down.'],
   avatar_removed_storage_pending:
     ['ok', 'The profile picture has been removed and the member has been told. Its stored files could not be deleted and the failure is logged for an operator; the member\'s next upload writes over them.'],
@@ -236,7 +241,7 @@ interface FactRow {
 }
 
 /** The record's correction forms that carry typed fields, by the action each posts. */
-export type MemberCorrectionForm = 'name' | 'slug' | 'tier' | 'activePlayer' | 'profile' | 'avatar' | 'delete';
+export type MemberCorrectionForm = 'name' | 'slug' | 'tier' | 'activePlayer' | 'profile' | 'avatar' | 'bio' | 'delete';
 
 /**
  * A refused correction, handed back to the record so the form the
@@ -335,6 +340,10 @@ export interface AdminMemberRecordContent {
    */
   hasAvatar: boolean;
   avatarRemoveAction: string;
+  /** Whether there is a biography to clear on a record that can be corrected;
+   *  the control is absent otherwise rather than offered and then refused. */
+  canClearBio: boolean;
+  bioClearAction: string;
   /** Which of the two deceased controls this record offers, and where it posts. */
   isDeceasedMarked: boolean;
   deceasedMarkAction: string;
@@ -1042,7 +1051,9 @@ export const adminMemberService = {
         activePlayerAction: `/admin/members/${row.id}/active-player`,
         hasAvatar:          currentAvatar(row.id) !== null,
         avatarRemoveAction: `/admin/members/${row.id}/avatar/remove`,
-        isDeceasedMarked:     row.is_deceased === 1,
+        canClearBio:        profileIsCorrectable(row) && (row.bio ?? '') !== '',
+        bioClearAction:     `/admin/members/${row.id}/bio/clear`,
+        isDeceasedMarked:    row.is_deceased === 1,
         deceasedMarkAction:   `/admin/members/${row.id}/deceased`,
         deceasedRevertAction: `/admin/members/${row.id}/deceased/revert`,
         deceasedGraceNote:    deceasedGraceNote(),
@@ -1063,7 +1074,8 @@ export const adminMemberService = {
           activePlayer: kept('activePlayer', 'reason', ''),
           profile:      kept('profile', 'reason', ''),
           avatar:       kept('avatar', 'reason', ''),
-          delete:       kept('delete', 'reason', ''),
+          bio:          kept('bio', 'reason', ''),
+          delete:      kept('delete', 'reason', ''),
         },
       },
     };
@@ -1469,7 +1481,7 @@ export const adminMemberService = {
       summary: "The member's own profile is the ordinary path for these fields, and this surface is "
         + 'the backstop for when they cannot use it. Every value here passes the same rules their '
         + 'own form applies. Their written biography is not touched: it is their words, and clearing '
-        + 'it is a separate action.',
+        + 'it is its own action on the member record.',
       changes,
       hasChanges:      changes.length > 0,
       noChangeMessage: changes.length > 0 ? null : 'Those are the details the record already holds. Nothing would change.',
@@ -1496,6 +1508,48 @@ export const adminMemberService = {
       row.slug!, input, { kind: 'administrator', memberId: actorId, reason },
     );
     return moved.length > 0 ? 'profile_corrected' : 'profile_unchanged';
+  },
+
+  /**
+   * Preview clearing the member's biography. Nothing is written. The bio is
+   * their own words, so an administrator can clear it and never rewrite it.
+   */
+  previewBioClear(
+    memberId: string,
+    rawReason: string,
+  ): PageViewModel<AdminMemberConfirmContent> {
+    const row = readMember(memberId);
+    const reason = requireReason(rawReason);
+    requireCorrectableProfile(row);
+    const { before } = memberService.clearBioByAdministrator(
+      row.slug!, { memberId: 'preview', reason }, { preview: true },
+    );
+    const hasChanges = before !== '';
+    return confirmEnvelope('Confirm: Clear the Biography', {
+      memberId:    row.id,
+      displayName: row.display_name,
+      slugLabel:   displayOrDash(row.slug),
+      summary: 'The biography is the member\'s own words, so it is cleared rather than rewritten. '
+        + 'The text is kept in the audit log with your reason, the member is emailed the reason, '
+        + 'and they can write a new one.',
+      changes: hasChanges ? [{ label: 'Biography', before, after: '(empty)' }] : [],
+      hasChanges,
+      noChangeMessage: hasChanges ? null : 'The biography is already empty. Nothing would change.',
+      reason,
+      hiddenFields: [{ name: 'reason', value: reason }],
+      confirmAction: `/admin/members/${row.id}/bio/clear/confirm`,
+      confirmLabel:  'Yes, Clear the Biography',
+      cancelHref:    recordHref(row.id),
+    });
+  },
+
+  /** Commit a biography clear through the service that owns the member. */
+  applyBioClear(actorId: string, memberId: string, rawReason: string): CorrectionOutcome {
+    const row = readMember(memberId);
+    const reason = requireReason(rawReason);
+    requireCorrectableProfile(row);
+    const result = memberService.clearBioByAdministrator(row.slug!, { memberId: actorId, reason });
+    return result.cleared ? 'bio_cleared' : 'bio_already_empty';
   },
 
   /** Preview a profile-picture removal. Nothing is written. */

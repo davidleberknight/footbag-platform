@@ -7,10 +7,16 @@
 
 <div class="wrapper">
   {{> admin-instructions}}
+  <nav class="filter-bar" aria-label="Show items by area">
+    <span class="fs-sm">Show:</span>
+    {{#each content.areaFilterLinks}}
+      <a class="tag-chip" href="{{siteHref href}}"{{#if isActive}} aria-current="page"{{/if}}>{{label}}</a>
+    {{/each}}
+  </nav>
   {{#if content.isFiltered}}
     <p class="fs-sm">
       Showing {{content.filterLabel}} only, out of {{content.wholeQueueTotal}} open across the whole queue.
-      <a href="/admin/work-queue">Show every category</a>
+      {{#if content.isCategoryFiltered}}<a href="{{siteHref content.clearCategoryHref}}">Show every category</a>{{/if}}
     </p>
   {{/if}}
   {{#if content.resolvedFlag}}
@@ -62,6 +68,7 @@
       {{#each items}}
         <div class="card work-queue-item">
           <div class="card-title">{{taskTypeLabel}}</div>
+          {{> work-queue-topic-line}}
           <p class="card-meta">
             Opened {{openedAtDisplay}}
             {{#if entityDisplayName}}
@@ -90,12 +97,12 @@
           {{else if lapsedClaimByName}}
             <p class="fs-sm">{{lapsedClaimByName}} claimed this earlier and has not closed it. It is open to anyone again.</p>
             <form method="POST" action="/admin/work-queue/{{id}}/claim" class="form-block">
-              <input type="hidden" name="category" value="{{@root.content.filterCategory}}" />
+              <input type="hidden" name="category" value="{{@root.content.filterCategory}}" /><input type="hidden" name="topic" value="{{@root.content.filterTopic}}" />
               <button type="submit" class="btn btn-outline btn-sm">Claim</button>
             </form>
           {{else}}
             <form method="POST" action="/admin/work-queue/{{id}}/claim" class="form-block">
-              <input type="hidden" name="category" value="{{@root.content.filterCategory}}" />
+              <input type="hidden" name="category" value="{{@root.content.filterCategory}}" /><input type="hidden" name="topic" value="{{@root.content.filterTopic}}" />
               <button type="submit" class="btn btn-outline btn-sm">Claim</button>
             </form>
           {{/if}}
@@ -128,7 +135,7 @@
               <details class="queue-ask-member" {{#if askOpen}}open{{/if}}>
                 <summary>Ask the member</summary>
                 <form method="POST" action="/admin/work-queue/{{id}}/ask-member" class="form-block">
-                  <input type="hidden" name="category" value="{{@root.content.filterCategory}}" />
+                  <input type="hidden" name="category" value="{{@root.content.filterCategory}}" /><input type="hidden" name="topic" value="{{@root.content.filterTopic}}" />
                   <div class="form-field">
                     <label for="ask_kind_{{id}}">What do you need back?</label>
                     <select id="ask_kind_{{id}}" name="expectedAnswerKind" required>
@@ -240,7 +247,7 @@
               <p><a href="{{this.href}}" class="{{this.buttonClass}}">{{this.label}}</a></p>
             {{else}}
               <form method="POST" action="{{this.actionPath}}" class="form-block">
-                <input type="hidden" name="category" value="{{@root.content.filterCategory}}" />
+                <input type="hidden" name="category" value="{{@root.content.filterCategory}}" /><input type="hidden" name="topic" value="{{@root.content.filterTopic}}" />
                 {{#if this.hasDecisions}}
                   <div class="form-field">
                     <label for="{{this.decisionInputId}}">Decision</label>
@@ -288,6 +295,7 @@
       {{#each content.parked}}
         <div class="card work-queue-item">
           <div class="card-title">{{this.taskTypeLabel}}</div>
+          {{> work-queue-topic-line}}
           <p class="card-meta">
             {{this.categoryLabel}} &middot; Parked {{this.parkedAtDisplay}}{{#if this.parkedByName}} by {{this.parkedByName}}{{/if}}
             {{#if this.entityDisplayName}}
@@ -297,11 +305,33 @@
           {{#if this.summary}}<p class="text-secondary">{{this.summary}}</p>{{/if}}
           {{#if this.parkReason}}<p>{{this.parkReason}}</p>{{/if}}
           <form method="POST" action="{{this.returnAction}}" class="form-block">
-            <input type="hidden" name="category" value="{{@root.content.filterCategory}}" />
+            <input type="hidden" name="category" value="{{@root.content.filterCategory}}" /><input type="hidden" name="topic" value="{{@root.content.filterTopic}}" />
             <button type="submit" class="btn btn-outline btn-sm">Return to the Queue</button>
           </form>
         </div>
       {{/each}}
     </section>
   {{/if}}
+
+  <section>
+    <div class="section-heading">
+      <h2>Area Owners</h2>
+    </div>
+    <form method="POST" action="/admin/work-queue/owners" class="form-block">
+      <input type="hidden" name="category" value="{{content.filterCategory}}" /><input type="hidden" name="topic" value="{{content.filterTopic}}" />
+      {{#each content.areaOwnerFields}}
+        <div class="form-field">
+          <label for="{{fieldName}}">{{label}}</label>
+          <select id="{{fieldName}}" name="{{fieldName}}">
+            {{#each options}}
+              <option value="{{value}}"{{#if selected}} selected{{/if}}>{{label}}</option>
+            {{/each}}
+          </select>
+        </div>
+      {{/each}}
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Save Owners</button>
+      </div>
+    </form>
+  </section>
 </div>

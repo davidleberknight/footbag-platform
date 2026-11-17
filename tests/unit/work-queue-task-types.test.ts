@@ -18,6 +18,8 @@ import path from 'path';
 
 import {
   WORK_QUEUE_TASK_TYPES,
+  WORK_QUEUE_TOPICS,
+  WORK_QUEUE_TOPIC_KEYS,
   workQueueDescriptorFor,
   workQueueActionFor,
 } from '../../src/services/workQueueTaskTypes';
@@ -102,5 +104,27 @@ describe('work-queue task-type declarations', () => {
 
   it('answers null for an undeclared type rather than inventing a descriptor', () => {
     expect(workQueueDescriptorFor('not_a_task_type')).toBeNull();
+  });
+
+  // An administrator lost and an event left without an organizer are every
+  // administrator's matter; filing either under one area would show it as one
+  // owner's job and send it to that area's group alone.
+  it('keeps the shared matters out of every area', () => {
+    expect(WORK_QUEUE_TASK_TYPES.admin_loss_recruitment.routeTopic).toBeNull();
+    expect(WORK_QUEUE_TASK_TYPES.needs_organizer.routeTopic).toBeNull();
+  });
+
+  // The area digest goes to the address in the registry. One that differs from
+  // the canonical address IFPA created as a group is mail that reaches nobody,
+  // and a canonical queue address missing from the registry is an area whose
+  // switch can never send anything.
+  it('holds every area address to the canonical address list, both ways', () => {
+    const canonical = fs.readFileSync(path.join(process.cwd(), 'docs', 'DESIGN_DECISIONS.md'), 'utf8');
+    const listed = new Set(
+      [...canonical.matchAll(/`(queue-[a-z]+@footbag\.org)`/g)].map((m) => m[1]),
+    );
+    expect(listed.size).toBeGreaterThan(0);
+    const registry = new Set(WORK_QUEUE_TOPIC_KEYS.map((t) => WORK_QUEUE_TOPICS[t].address));
+    expect([...registry].sort()).toEqual([...listed].sort());
   });
 });

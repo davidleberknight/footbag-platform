@@ -8,6 +8,13 @@
  *     or uploader who is a prospective member is shown by id, never
  *     named or linked
  *   - The two decisions, Delete and No Action, and the clearing of a single flag
+ *   - Clearing the caption of an item a member uploaded, which is their own
+ *     words and so is cleared rather than rewritten: with a reason, an audit row
+ *     (`media.member_item_moderated`) carrying the caption before and after, and
+ *     the member emailed, in one transaction. Served on the admin media edit
+ *     address, which reaches the platform's own items through the curator
+ *     service; an administrator's own upload is refused here, since they edit
+ *     it as its owner
  *   - `media_items.moderation_status`, which nothing else in the application writes
  *   - Detaching a decided profile picture from its member. A profile picture is
  *     reportable and decidable like any other item, but the profile resolves it
@@ -24,7 +31,7 @@
  *
  * Required patterns:
  *   - A report names one reason from the closed `reason_code` set, each value a
- *     clause of the published terms of use. The reporter's own words are optional
+ *     rule of the published Community Standards. The reporter's own words are optional
  *     except on `other`, capped, and stored only in `media_flags.reason_text`.
  *   - One report per (media, reporter) pair: a repeat from the same member is a
  *     no-op, never a second count, which is what the unique index makes certain.
@@ -64,9 +71,10 @@
  *
  * Transaction discipline:
  *   Each decision writes the media row, its open flags, the queue twin, the
- *   audit row and the uploader's mail in one transaction, so a rolled-back
- *   decision cannot announce itself. The mail is best-effort: an uploader who
- *   cannot be mailed is skipped and the decision still stands. Object-storage
+ *   audit row, the uploader's mail and each reporter's outcome mail in one
+ *   transaction, so a rolled-back decision cannot announce itself. The mail is
+ *   best-effort: a recipient who cannot be mailed is skipped and the decision
+ *   still stands. Object-storage
  *   removal happens after it commits.
  *
  * Persistence:
@@ -74,11 +82,15 @@
  *
  * Side effects:
  *   - audit_entries append: `media.flagged`, `media.deleted`, `media.flag_resolved`,
- *     `media.flag_cleared`
+ *     `media.flag_cleared`, `media.member_item_moderated`
+ *   - outbox enqueue of the member's record-corrected mail on a caption clear
  *   - work-queue insert of `media_flag_review`, and its close on a decision
  *   - work-queue insert of `media_takedown_storage_removal` on a failed object
  *     removal, and its close on a removal that succeeds
  *   - outbox enqueue of the uploader's decision mail
+ *   - outbox enqueue of the outcome (removed, or left up) to each member whose
+ *     report the decision closes, never carrying the administrator's reason;
+ *     an administrator who reported and then decided the item is not mailed
  *   - object-storage delete on a Delete decision
  *
  * Service shape: factory `createMediaModerationService(deps)`, which takes the
@@ -98,7 +110,7 @@ import { INVALID_TEXT_ENCODING_MESSAGE, sanitizeUserText, type TextShape } from 
 import { emailService } from './emailService';
 import { workQueueService } from './workQueueService';
 import type { PageViewModel } from '../types/page';
-import type { OutcomeTone } from '../lib/outcomeNotice';
+import type { OutcomeNoticeView, OutcomeTone } from '../lib/outcomeNotice';
 
 /** Which published conduct rule the reporter says the item breaks. */
 export type FlagReasonCode =
@@ -110,16 +122,16 @@ export type FlagReasonCode =
   | 'other';
 
 /**
- * The reasons a reporter picks from. Each is a clause of the terms of use the
- * site publishes, so a decision is defensible against a rule the member could
- * read before they reported.
+ * The reasons a reporter picks from. Each names a rule of the published
+ * Community Standards, so a decision is defensible against a rule the member
+ * could read before they reported.
  */
 export const FLAG_REASONS: readonly { value: FlagReasonCode; label: string }[] = [
-  { value: 'illegal_or_harassing', label: 'Illegal, harassing, or defamatory' },
-  { value: 'infringes_rights',     label: 'Infringes copyright or another right' },
-  { value: 'impersonation',        label: 'Impersonation or misrepresented identity' },
-  { value: 'false_information',    label: 'False or manipulated competitive or historical information' },
-  { value: 'spam',                 label: 'Spam or unsolicited promotion' },
+  { value: 'illegal_or_harassing', label: 'Harassment, threats, private details, or unsafe or illegal content' },
+  { value: 'infringes_rights',     label: 'Posted without the right to (copyright, music or someone\'s image)' },
+  { value: 'impersonation',        label: 'Pretends to be someone else' },
+  { value: 'false_information',    label: 'False results, records or claims' },
+  { value: 'spam',                 label: 'Spam or hidden selling' },
   { value: 'other',                label: 'Something else' },
 ];
 
@@ -240,6 +252,8 @@ export interface FlaggedMediaViewModel {
   reports: FlaggedReportViewModel[];
   deleteHref: string;
   noActionHref: string;
+  /** Where the caption is cleared, when the item has one. */
+  captionClearHref: string | null;
 }
 
 /** A hidden item whose stored files are still there. */
@@ -280,6 +294,19 @@ interface ModerationRow {
   uploader_slug: string;
   uploader_login_email: string;
   uploader_is_system: number;
+}
+
+/** The admin media edit page as it serves an item a member uploaded. */
+export interface CaptionModerationContent {
+  mediaId: string;
+  uploaderDisplayName: string;
+  itemHref: string;
+  caption: string;
+  hasCaption: boolean;
+  formAction: string;
+  reason: string;
+  errorMessage: string | null;
+  outcome: OutcomeNoticeView | null;
 }
 
 interface AwaitingRemovalRow {
@@ -413,6 +440,8 @@ function loadItemForModeration(mediaId: string): ModerationRow {
 export interface MediaFlagBlockViewModel {
   actionHref: string;
   reasons: readonly { value: FlagReasonCode; label: string }[];
+  /** The Community Standards the reasons are drawn from. */
+  standardsHref: string;
   detailMaxLength: number;
   alreadyFlagged: boolean;
   alreadyFlaggedMessage: string;
@@ -441,6 +470,7 @@ export function buildMediaFlagBlock(input: {
   return {
     actionHref: `/media/item/${input.mediaId}/flag`,
     reasons: FLAG_REASONS,
+    standardsHref: '/community-standards',
     detailMaxLength: FLAG_DETAIL_MAX_LEN,
     alreadyFlagged: existing != null,
     alreadyFlaggedMessage: 'You reported this item. An administrator will review it.',
@@ -682,6 +712,9 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
         }
       }
 
+      // Read before the flags close: these are the members owed the outcome.
+      const reporterIds = (mediaFlags.listOpenReporterIdsForMedia.all(input.row.id) as
+        Array<{ reporter_member_id: string }>).map((r) => r.reporter_member_id);
       const flagRes = mediaFlags.resolveOpenFlagsForMedia.run(
         input.nowIso, input.adminMemberId, input.resolutionLabel, input.reason,
         input.nowIso, input.adminMemberId, input.row.id,
@@ -719,6 +752,18 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
       uploaderNotified = input.resolutionLabel === 'deleted'
         ? notifyUploader(input.row, 'Removed', input.reason, auditId, flagRes.changes > 0)
         : notifyUploader(input.row, 'No action taken', input.reason, auditId, true);
+      // Each member who reported the item learns the outcome and nothing else:
+      // the reason is addressed to the uploader. An administrator who reported
+      // the item and then decided it already knows.
+      for (const reporterId of reporterIds) {
+        if (reporterId === input.adminMemberId) continue;
+        emailService.sendActNotice({
+          template: 'media_report_outcome_reporter',
+          params: { removed: input.resolutionLabel === 'deleted' },
+          memberId: reporterId,
+          actId: auditId,
+        });
+      }
       settled = true;
     });
     return { settled, uploaderNotified };
@@ -799,6 +844,108 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
       });
 
       return cleared ? { status: 'cleared' } : { status: 'already_settled' };
+    },
+
+    /**
+     * The admin media edit page for an item a member uploaded. A member's
+     * caption is their own words, so the one edit an administrator makes here
+     * is clearing it; the item's hashtags and media are the member's to change.
+     * Null for an item the platform's own account uploaded, which the curator
+     * edit page serves instead, so one address reaches both.
+     */
+    getCaptionModerationPage(mediaId: string, opts: {
+      errorMessage?: string | null;
+      reason?: string;
+      outcome?: OutcomeNoticeView | null;
+    } = {}): PageViewModel<CaptionModerationContent> | null {
+      const row = runSqliteRead('getMediaItemForModeration', () =>
+        media.getMediaItemForModeration.get(mediaId),
+      ) as ModerationRow | undefined;
+      if (!row || row.uploader_is_system === 1) return null;
+      const caption = row.caption ?? '';
+      return {
+        seo:  { title: 'Moderate a Member\'s Media Item', noindex: true },
+        page: {
+          sectionKey: 'admin', pageKey: 'admin_media_caption_moderation',
+          title: 'Moderate a Member\'s Media Item',
+          instructions: {
+            what: 'An item a member uploaded, and the one change an administrator makes to it here: clearing its caption.',
+            why: 'A caption is the member\'s own words, so one that breaks the Community Standards is cleared rather than rewritten.',
+            how: 'Give the reason and clear the caption. To take the whole item down, use the takedown queue.',
+            headsUp: [
+              'The member is emailed your reason.',
+              'The caption is kept in the audit log, and the member can write a new one.',
+            ],
+          },
+        },
+        content: {
+          mediaId: row.id,
+          uploaderDisplayName: row.uploader_display_name,
+          itemHref: `/media/item/${row.id}`,
+          caption,
+          hasCaption: caption !== '',
+          formAction: `/admin/curator/media/${row.id}/edit`,
+          reason: opts.reason ?? '',
+          errorMessage: opts.errorMessage ?? null,
+          outcome: opts.outcome ?? null,
+        },
+      };
+    },
+
+    /**
+     * Clear a member item's caption with a reason. The text before is kept in
+     * the audit row, and the member is emailed the reason, in one transaction.
+     * An administrator's own upload is refused here: they edit it as its owner.
+     * A caption already empty writes nothing.
+     */
+    clearCaption(input: {
+      mediaId: string;
+      adminMemberId: string;
+      reason: unknown;
+    }): { status: 'cleared' } | { status: 'already_empty' } {
+      const reason = validateDecisionReason(input.reason);
+      const row = loadItemForModeration(input.mediaId);
+      if (row.uploader_is_system === 1) {
+        throw new NotFoundError(`Member media item not found: ${input.mediaId}`);
+      }
+      if (row.uploader_member_id === input.adminMemberId) {
+        throw new ValidationError(
+          'This is your own item. Edit its caption from your own media, as its owner.',
+          { reason: 'This is your own item.' },
+        );
+      }
+      const before = row.caption ?? '';
+      let cleared = false;
+      transaction(() => {
+        const nowIso = new Date().toISOString();
+        const res = media.clearCaptionByAdmin.run(nowIso, input.adminMemberId, row.id);
+        if (res.changes === 0) return;
+        const auditId = appendAuditEntry({
+          actionType:    'media.member_item_moderated',
+          actorType:     'admin',
+          actorMemberId: input.adminMemberId,
+          entityType:    'media_item',
+          entityId:      row.id,
+          reasonText:    reason,
+          metadata:      {
+            uploaderMemberId: row.uploader_member_id,
+            before: { caption: before },
+            after:  { caption: '' },
+          },
+        });
+        emailService.sendActNotice({
+          template: 'member_record_corrected',
+          params: {
+            memberName:  row.uploader_display_name,
+            whatChanged: 'the caption on one of your media items',
+            note:        reason,
+          },
+          memberId: row.uploader_member_id,
+          actId:    auditId,
+        });
+        cleared = true;
+      });
+      return cleared ? { status: 'cleared' } : { status: 'already_empty' };
     },
 
     /** Delete: the item is hidden, then its stored objects are removed. */
@@ -903,6 +1050,9 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
             reports: [],
             deleteHref:   `/admin/media-flags/${r.media_id}/delete`,
             noActionHref: `/admin/media-flags/${r.media_id}/no-action`,
+            // A report about the words alone is answered by clearing the
+            // caption, which leaves the item up.
+            captionClearHref: r.caption ? `/admin/curator/media/${r.media_id}/edit` : null,
           };
           byMedia.set(r.media_id, item);
         }

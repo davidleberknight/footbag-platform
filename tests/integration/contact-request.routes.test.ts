@@ -87,6 +87,19 @@ describe('GET /members/:slug/contact-admin', () => {
     expect(res.text).toContain('name="message"');
   });
 
+  // A member reporting content through this form is judged against the
+  // Community Standards; a form that never links them leaves the member
+  // guessing what counts. Within the form: the footer links them on every page.
+  it('links the Community Standards from inside the form', async () => {
+    const res = await request(createApp())
+      .get(`/members/${OWNER_SLUG}/contact-admin`)
+      .set('Cookie', ownerCookie());
+    const formStart = res.text.indexOf('name="category"');
+    expect(formStart).toBeGreaterThan(-1);
+    const form = res.text.slice(formStart, res.text.indexOf('</form>', formStart));
+    expect(form).toContain('href="/community-standards"');
+  });
+
   // The profile's identity control links here naming what it is for, so the
   // form opens with that topic chosen rather than asking a question the click
   // already answered.
@@ -137,7 +150,46 @@ describe('GET /members/:slug/contact-admin', () => {
       .get(`/members/${OWNER_SLUG}/contact-admin`)
       .set('Cookie', ownerCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Your request has been sent to the IFPA administrator');
+    // The confirmation renders as the success banner, the one outcome on this
+    // page; without it the member cannot tell their request went.
+    expect(res.text).toContain('form-success-banner');
+  });
+
+  // A member asked to send once and wait needs that said where they send it.
+  it('shows the volunteer notice above the submit button', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get(`/members/${OWNER_SLUG}/contact-admin`)
+      .set('Cookie', ownerCookie());
+    expect(res.status).toBe(200);
+    // Within the contact form itself: the site header carries a submit of its own.
+    const form = res.text.indexOf(`action="/members/${OWNER_SLUG}/contact-admin"`);
+    const notice = res.text.indexOf('data-volunteer-notice', form);
+    const submit = res.text.indexOf('type="submit"', form);
+    expect(form).toBeGreaterThan(-1);
+    expect(notice).toBeGreaterThan(-1);
+    expect(notice).toBeLessThan(submit);
+  });
+
+  // The community-standards category raises a content report, the moderation
+  // area's twin of a contact request; every other topic stays a contact request.
+  // Defect caught: a standards report landing with membership, so the
+  // moderation area's owner and digest never see it.
+  it('raises a community-standards report as a content report', async () => {
+    const app = createApp();
+    const post = await request(app)
+      .post(`/members/${OWNER_SLUG}/contact-admin`)
+      .set('Cookie', ownerCookie())
+      .type('form')
+      .send({ category: 'community_standards', message: 'A club page carries an abusive line.' });
+    expect(post.status).toBe(303);
+    const { CONTACT_CATEGORY_LABELS } = await import('../../src/services/adminWorkQueueService');
+    const snapDb = new BetterSqlite3(dbPath, { readonly: true });
+    const row = snapDb.prepare(
+      `SELECT task_type FROM work_queue_items WHERE entity_id = ? AND reason_text LIKE ? AND status = 'open'`,
+    ).get(OWNER_ID, `${CONTACT_CATEGORY_LABELS.community_standards}:%`) as { task_type: string } | undefined;
+    snapDb.close();
+    expect(row?.task_type).toBe('content_report');
   });
 
   it('tampered contact-submitted flash cookie yields no banner', async () => {
@@ -160,7 +212,7 @@ describe('GET /members/:slug/contact-admin', () => {
       .get(`/members/${OWNER_SLUG}/contact-admin`)
       .set('Cookie', [ownerCookie(), tampered].join('; '));
     expect(res.status).toBe(200);
-    expect(res.text).not.toContain('Your request has been sent to the IFPA administrator');
+    expect(res.text).not.toContain('form-success-banner');
   });
 });
 
@@ -276,6 +328,21 @@ describe('POST /members/:slug/contact-admin', () => {
       .send({ category: 'other', message: 'fourth' });
     expect(fourth.status).toBe(429);
     expect(fourth.text).toContain('You already have 3 open requests');
+  });
+
+  // Defect caught: a member past the cap by filing community-standards reports,
+  // which are raised as their own type and so escape a count of contact requests.
+  it('counts community-standards reports toward the same cap', async () => {
+    const app = createApp();
+    const send = (category: string, message: string) => request(app)
+      .post(`/members/${OWNER_SLUG}/contact-admin`)
+      .set('Cookie', ownerCookie())
+      .type('form')
+      .send({ category, message });
+    expect((await send('community_standards', 'report one')).status).toBe(303);
+    expect((await send('community_standards', 'report two')).status).toBe(303);
+    expect((await send('other', 'a question')).status).toBe(303);
+    expect((await send('other', 'one too many')).status).toBe(429);
   });
 
   it('non-owner POST → 404', async () => {

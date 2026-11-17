@@ -20,6 +20,7 @@ export interface NodeSpec {
   id?: string;
   text?: string;
   chPx?: number;
+  markerPx?: number;
   scroll?: { sw: number; cw: number; sh?: number; ch?: number };
   visibleLabel?: boolean;
   children?: NodeSpec[];
@@ -114,6 +115,7 @@ export function buildCapture(roots: NodeSpec | NodeSpec[], opts: CaptureOptions 
     };
     if (spec.scroll) rec.scroll = spec.scroll;
     if (spec.chPx !== undefined) rec.chPx = spec.chPx;
+    if (spec.markerPx !== undefined) rec.markerPx = spec.markerPx;
     if (spec.visibleLabel !== undefined) rec.visibleLabel = spec.visibleLabel;
     elements.push(rec);
     visitChildren(spec.children ?? [], rec);

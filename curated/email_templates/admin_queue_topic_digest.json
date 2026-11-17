@@ -1,0 +1,7 @@
+{
+  "templateKey": "admin_queue_topic_digest",
+  "subjectTemplate": "IFPA admin work queue: {countPhrase} in {areaLabel}",
+  "bodyTemplate": "The {areaLabel} area has {countPhrase} open in the admin work queue that nobody has claimed:\n\n{itemLines}\n\nEvery administrator can see and act on these. Review and claim them at {queueUrl}.",
+  "piiClassification": "internal",
+  "isEnabled": true
+}

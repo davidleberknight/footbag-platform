@@ -190,6 +190,7 @@ export const ROUTE_EXEMPTIONS: readonly RouteExemption[] = [
       'POST /admin/members/:memberId/name/confirm', 'POST /admin/members/:memberId/slug/confirm',
       'POST /admin/members/:memberId/tier/confirm', 'POST /admin/members/:memberId/active-player/confirm',
       'POST /admin/members/:memberId/profile/confirm', 'POST /admin/members/:memberId/avatar/remove/confirm',
+      'POST /admin/members/:memberId/bio/clear/confirm',
       'POST /admin/members/:memberId/deceased/confirm', 'POST /admin/members/:memberId/deceased/revert/confirm',
       'POST /admin/members/:memberId/delete/confirm',
       'POST /admin/historical-records/:personId/deceased/confirm',

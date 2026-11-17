@@ -4,8 +4,11 @@
  *
  * Owns: the task-type table. Each type declares its display label, the queue
  * category it belongs to, the entity types a row of that type may legitimately
- * point at, whether it fans an urgent notification out on enqueue, how its
- * evidence renders, and its ordered list of actions.
+ * point at, whether it fans an urgent notification out on enqueue, the area
+ * (routing topic) it belongs to or none for a shared matter, how its evidence
+ * renders, and its ordered list of actions. Also owns the area registry: each
+ * area's label and fixed queue address. A new area is one registry entry plus
+ * its canonical address; a new task type picks its area with one field.
  *
  * Why it exists. Modelling each type as membership of a hardcoded family needs a
  * predicate deciding the family, a matching boolean on the view item, and a
@@ -174,6 +177,38 @@ export type WorkQueueAction =
  */
 export type UrgentAdminAlertTemplate = 'admin_loss_recruitment';
 
+/**
+ * The areas a task type may belong to. Each has one accountable owner among the
+ * administrators, recorded in the database, and a fixed queue address that,
+ * while the area's switch is on, receives a daily digest of the area's open,
+ * unclaimed routine items. The address is a group held outside the platform, so
+ * who reads an area's mail changes without a platform change. An area with no
+ * task type yet (sanctioning, freestyle) still has an owner to show and an
+ * address waiting for the types that will join it.
+ */
+export type WorkQueueTopic =
+  | 'finance' | 'membership' | 'platform' | 'sanctioning' | 'freestyle' | 'moderation';
+
+export const WORK_QUEUE_TOPICS: Readonly<Record<WorkQueueTopic, { label: string; address: string }>> = {
+  finance:     { label: 'Finance',     address: 'queue-finance@footbag.org' },
+  membership:  { label: 'Membership',  address: 'queue-membership@footbag.org' },
+  platform:    { label: 'Platform',    address: 'queue-platform@footbag.org' },
+  sanctioning: { label: 'Sanctioning', address: 'queue-sanctioning@footbag.org' },
+  freestyle:   { label: 'Freestyle',   address: 'queue-freestyle@footbag.org' },
+  moderation:  { label: 'Moderation',  address: 'queue-moderation@footbag.org' },
+};
+
+export const WORK_QUEUE_TOPIC_KEYS = Object.keys(WORK_QUEUE_TOPICS) as WorkQueueTopic[];
+
+export function isWorkQueueTopic(value: string): value is WorkQueueTopic {
+  return Object.prototype.hasOwnProperty.call(WORK_QUEUE_TOPICS, value);
+}
+
+/** The runtime switch for one area's digest: unset or 0 is off, 1 is on. */
+export function topicRouteConfigKey(topic: WorkQueueTopic): string {
+  return `work_queue_topic_route_${topic}`;
+}
+
 export interface WorkQueueTaskTypeDescriptor {
   label: string;
   queueCategory: string;
@@ -184,6 +219,9 @@ export interface WorkQueueTaskTypeDescriptor {
    *  the matter needs same-day action. Null is routine: read on the queue page
    *  and rolled up in the periodic digest. */
   urgentAdminAlert: UrgentAdminAlertTemplate | null;
+  /** The area this type belongs to, or null for a matter every administrator
+   *  shares. Ownership orients an item and never restricts who may act on it. */
+  routeTopic: WorkQueueTopic | null;
   evidence: WorkQueueEvidence;
   actions: readonly WorkQueueAction[];
 }
@@ -226,6 +264,7 @@ function paymentsTask(label: string, entityTypes: readonly string[]): WorkQueueT
     queueCategory: 'payments',
     entityTypes,
     urgentAdminAlert: null,
+    routeTopic: 'finance',
     evidence: { kind: 'reason_text' },
     actions: [{
       kind:            'decide',
@@ -246,12 +285,20 @@ function paymentsTask(label: string, entityTypes: readonly string[]): WorkQueueT
   };
 }
 
-export const WORK_QUEUE_TASK_TYPES: Readonly<Record<string, WorkQueueTaskTypeDescriptor>> = {
-  member_contact_request: {
-    label:            'Member contact request',
+/**
+ * A message a member sent through the contact form, answered by writing back.
+ * A report of content breaking the community standards is the same request in
+ * every respect but its area, so it is a type of its own only so that it can
+ * belong to the moderation area while every other contact topic stays with
+ * membership.
+ */
+function memberRequestTask(label: string, routeTopic: WorkQueueTopic): WorkQueueTaskTypeDescriptor {
+  return {
+    label,
     queueCategory:    'membership',
     entityTypes:      ['member'],
     urgentAdminAlert: null,
+    routeTopic,
     evidence:         { kind: 'member_message' },
     actions: [{
       kind:            'decide',
@@ -269,13 +316,19 @@ export const WORK_QUEUE_TASK_TYPES: Readonly<Record<string, WorkQueueTaskTypeDes
       // same hole the legacy-identity help path already closes.
       selfActionBarred: true,
     }],
-  },
+  };
+}
+
+export const WORK_QUEUE_TASK_TYPES: Readonly<Record<string, WorkQueueTaskTypeDescriptor>> = {
+  member_contact_request: memberRequestTask('Member contact request', 'membership'),
+  content_report:         memberRequestTask('Content report', 'moderation'),
 
   member_link_help_request: {
     label:            'Member link help request',
     queueCategory:    'membership',
     entityTypes:      ['member'],
     urgentAdminAlert: null,
+    routeTopic:       'membership',
     evidence:         { kind: 'structured', payload: 'link_help' },
     actions: [
       {
@@ -335,6 +388,8 @@ export const WORK_QUEUE_TASK_TYPES: Readonly<Record<string, WorkQueueTaskTypeDes
     // The people who must act on losing an administrator are exactly the
     // shrinking set the loss is about, and a digest entry days later is too late.
     urgentAdminAlert: 'admin_loss_recruitment',
+    // Shared: losing an administrator is every administrator's matter.
+    routeTopic:       null,
     evidence:         { kind: 'reason_text' },
     actions: [{
       kind:            'close',
@@ -353,6 +408,7 @@ export const WORK_QUEUE_TASK_TYPES: Readonly<Record<string, WorkQueueTaskTypeDes
     queueCategory:    'media',
     entityTypes:      ['media_item'],
     urgentAdminAlert: null,
+    routeTopic:       'moderation',
     evidence:         { kind: 'reason_text' },
     // The twin of an open report, closed when the item is decided on the page
     // that owns the decision. The review needs the thumbnail and the flagging
@@ -370,6 +426,7 @@ export const WORK_QUEUE_TASK_TYPES: Readonly<Record<string, WorkQueueTaskTypeDes
     queueCategory:    'media',
     entityTypes:      ['media_item'],
     urgentAdminAlert: null,
+    routeTopic:       'platform',
     evidence:         { kind: 'reason_text' },
     // Raised when a takedown hid the item but its stored files survived, so the
     // bytes are still served to anyone holding their address. Without a card the
@@ -388,6 +445,7 @@ export const WORK_QUEUE_TASK_TYPES: Readonly<Record<string, WorkQueueTaskTypeDes
     queueCategory:    'events',
     entityTypes:      ['event'],
     urgentAdminAlert: null,
+    routeTopic:       null,
     evidence:         { kind: 'reason_text' },
     // Raised when the last member organizing an event stops being one, by
     // deleting their account or being marked deceased. The event keeps running
@@ -408,6 +466,7 @@ export const WORK_QUEUE_TASK_TYPES: Readonly<Record<string, WorkQueueTaskTypeDes
     queueCategory:    'payments',
     entityTypes:      ['reconciliation_issue'],
     urgentAdminAlert: null,
+    routeTopic:       'finance',
     evidence:         { kind: 'reason_text' },
     // The twin of a reconciliation issue, closed when the issue itself is
     // resolved on the page that owns it.

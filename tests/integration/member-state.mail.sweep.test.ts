@@ -334,6 +334,7 @@ const POLICY: Record<EmailTemplateKey, Route> = {
   contact_request_resolution:             { via: 'act' },
   link_help_request_resolution:           { via: 'act' },
   media_moderation_decision:              { via: 'act' },
+  media_report_outcome_reporter:          { via: 'act' },
   member_question_waiting:                { via: 'member' },
   vouch_confirmation:                     { via: 'address' },
   honor_congratulation:                   { via: 'act' },
@@ -356,7 +357,9 @@ const POLICY: Record<EmailTemplateKey, Route> = {
   admin_loss_recruitment:                 { via: 'admins' },
   admin_queue_stale_escalation:           { via: 'admins' },
   admin_recurring_donation_ended:         { via: 'admins' },
+  work_queue_topic_route_disabled:        { via: 'admins' },
   reconciliation_digest:                  { via: 'role' },
+  admin_queue_topic_digest:               { via: 'role' },
 };
 
 /** Which send method each route's sites must use, and whether strict. */

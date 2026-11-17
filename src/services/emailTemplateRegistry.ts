@@ -40,6 +40,12 @@ function openItemPhrase(n: number): string {
   return `${n} open item${n === 1 ? '' : 's'}`;
 }
 
+// The area digest's wording says "open" itself ("has 3 items open"), so its
+// count is the bare item count.
+function itemPhrase(n: number): string {
+  return `${n} item${n === 1 ? '' : 's'}`;
+}
+
 // Stored template text is logic-less, so a donation note that may be absent
 // resolves to a complete sentence here rather than to an empty gap in the body.
 function donationNotePhrase(note: string | null): string {
@@ -135,6 +141,9 @@ export const TEMPLATE_VARIANTS = {
   link_help_request_resolution:    v('confidential', ['memberName', 'displayDecision', 'note']),
   admin_loss_recruitment:          v('internal',     ['entityId', 'queueUrl']),
   admin_queue_digest:              v('internal',     ['countPhrase', 'itemLines', 'queueUrl']),
+  admin_queue_topic_digest:        v('internal',     ['areaLabel', 'countPhrase', 'itemLines', 'queueUrl']),
+  work_queue_topic_route_disabled: v('internal',     ['areaLabel']),
+  media_report_outcome_reporter:   v('confidential', ['decisionSentence']),
   admin_queue_stale_escalation:    v('internal',     ['taskType', 'entityId', 'agePhrase', 'queueUrl']),
 } satisfies Record<string, VariantDef>;
 
@@ -458,6 +467,27 @@ const SHAPERS = {
   admin_queue_digest: (p: { openCount: number; itemLines: string; queueUrl: string }): ShapedEmail => ({
     variant: 'admin_queue_digest',
     merge: { countPhrase: openItemPhrase(p.openCount), itemLines: p.itemLines, queueUrl: p.queueUrl },
+  }),
+  // Goes to an area's group address, never to a member; carries task type and
+  // entity id lines only, like the per-administrator digest.
+  admin_queue_topic_digest: (p: {
+    areaLabel: string;
+    openCount: number;
+    itemLines: string;
+    queueUrl: string;
+  }): ShapedEmail => ({
+    variant: 'admin_queue_topic_digest',
+    merge: { areaLabel: p.areaLabel, countPhrase: itemPhrase(p.openCount), itemLines: p.itemLines, queueUrl: p.queueUrl },
+  }),
+  work_queue_topic_route_disabled: (p: { areaLabel: string }): ShapedEmail => ({
+    variant: 'work_queue_topic_route_disabled',
+    merge: { areaLabel: p.areaLabel },
+  }),
+  // The reporter learns the outcome only. The administrator's reason is
+  // addressed to the uploader, so it never reaches this message.
+  media_report_outcome_reporter: (p: { removed: boolean }): ShapedEmail => ({
+    variant: 'media_report_outcome_reporter',
+    merge: { decisionSentence: p.removed ? 'removed it.' : 'decided to leave it up.' },
   }),
   admin_queue_stale_escalation: (p: {
     taskType: string;

@@ -45,6 +45,7 @@
           {{flagCountLabel}} &middot; {{statusLabel}} &middot; Uploaded by
           {{#if uploaderHref}}<a href="{{uploaderHref}}">{{uploaderDisplay}}</a>{{else}}{{uploaderDisplay}}{{/if}} &middot;
           <a href="{{mediaHref}}">Open the item page</a>
+          {{#if captionClearHref}} &middot; <a href="{{siteHref captionClearHref}}">Clear the caption</a>{{/if}}
         </p>
 
         {{#if thumbHref}}

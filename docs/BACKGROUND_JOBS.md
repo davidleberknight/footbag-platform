@@ -257,13 +257,15 @@ Success Criteria:
 
 - Each administrator subscribed to the admin-alerts list receives one digest listing the open routine work-queue items, leaving out items under another administrator's live claim; an administrator with nothing left to list gets no digest.
 - The digest is sent on the interval an administrator configures, and never more often.
+- In the same pass, each work-queue topic whose routing switch is on receives one digest at its queue address, listing that topic's open, unparked routine items under no live claim; a topic with nothing to list gets none. With every switch off, the pass sends exactly the per-administrator digests above.
+- A bounce or complaint on a topic's queue address switches that topic off and emails every administrator once, naming the topic; the per-administrator digests continue unchanged.
 
 Operation:
 
 - Cadence: every `admin_queue_digest_interval_days`, measured from the last successful digest.
-- Configuration: `admin_queue_digest_interval_days` (default 1).
+- Configuration: `admin_queue_digest_interval_days` (default 1); `work_queue_topic_route_<topic>` per topic (unset means off).
 - Catch-up: due once the interval has passed since the last success, so a missed digest goes on the first pass after.
-- Run record: its job-run row, with the administrators mailed, the messages sent, and the open routine items counted.
+- Run record: its job-run row, with the administrators mailed, the messages sent, the open routine items counted, and the items sent to each area whose digest went out.
 - Failure alarm: the error alarm.
 - Missed-run alarm: the heartbeat alarm.
 - Audit trail: none; the outbox records each message.

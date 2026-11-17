@@ -1,5 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import { adminWorkQueueService, CONTACT_CATEGORIES, CONTACT_CATEGORY_LABELS } from '../services/adminWorkQueueService';
+import {
+  adminWorkQueueService, CONTACT_CATEGORIES, CONTACT_CATEGORY_LABELS, CONTACT_REQUEST_CONFIRMATION,
+} from '../services/adminWorkQueueService';
 import { RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { handleControllerError, renderNotFound } from '../lib/controllerErrors';
 import { PageViewModel } from '../types/page';
@@ -22,6 +24,8 @@ interface ContactAdminContent {
   prefilledMessage: string;
   errorMessage: string | null;
   successFlag: boolean;
+  /** The confirmation shown after a submit; null on every other render. */
+  successMessage: string | null;
 }
 
 function buildViewModel(
@@ -46,6 +50,7 @@ function buildViewModel(
       prefilledMessage:  opts.prefilledMessage  ?? '',
       errorMessage:      opts.errorMessage ?? null,
       successFlag:       opts.successFlag ?? false,
+      successMessage:    opts.successFlag ? CONTACT_REQUEST_CONFIRMATION : null,
     },
   };
 }

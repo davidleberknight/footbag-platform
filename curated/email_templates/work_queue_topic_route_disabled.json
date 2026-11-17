@@ -1,0 +1,7 @@
+{
+  "templateKey": "work_queue_topic_route_disabled",
+  "subjectTemplate": "IFPA admin work queue: {areaLabel} digest switched off",
+  "bodyTemplate": "Mail to the {areaLabel} queue address was returned or reported as spam, so the platform has switched off that area's digest. Nothing else changes: every administrator still receives their own digest. Check the group in Google Workspace, then switch the digest back on.",
+  "piiClassification": "internal",
+  "isEnabled": true
+}

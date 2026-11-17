@@ -76,6 +76,8 @@ adminRouter.post('/members/:memberId/profile',               adminMemberControll
 adminRouter.post('/members/:memberId/profile/confirm',       adminMemberController.confirmProfile);
 adminRouter.post('/members/:memberId/avatar/remove',         adminMemberController.previewAvatarRemoval);
 adminRouter.post('/members/:memberId/avatar/remove/confirm', adminMemberController.confirmAvatarRemoval);
+adminRouter.post('/members/:memberId/bio/clear',             adminMemberController.previewBioClear);
+adminRouter.post('/members/:memberId/bio/clear/confirm',     adminMemberController.confirmBioClear);
 // Order matters: the two `/revert` paths must precede their shorter siblings,
 // or `/deceased/confirm` would swallow `/deceased/revert/confirm`. Each handler
 // is told here whether it is the marking or its reversal, rather than reading
@@ -102,6 +104,8 @@ adminRouter.post('/historical-records/:personId/deceased/revert',         adminH
 adminRouter.post('/historical-records/:personId/deceased/confirm',        adminHistoricalRecordController.confirm(true));
 adminRouter.post('/historical-records/:personId/deceased',                adminHistoricalRecordController.preview(true));
 adminRouter.get('/work-queue',                adminWorkQueueController.index);
+// The literal `owners` path precedes the `:id` item routes.
+adminRouter.post('/work-queue/owners',        adminWorkQueueController.saveOwners);
 adminRouter.post('/work-queue/:id/claim',     adminWorkQueueController.claim);
 adminRouter.post('/work-queue/:id/resolve',   adminWorkQueueController.resolve);
 adminRouter.post('/work-queue/:id/dismiss',   adminWorkQueueController.dismiss);

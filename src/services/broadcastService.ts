@@ -464,7 +464,7 @@ export const broadcastService = {
     const prior = priorSendUnder(validateCompose(input), actorMemberId);
     if (prior === 'same') return { status: 'noop', reason: 'already_sent' };
     if (prior === 'changed') throw new ValidationError(ALREADY_SENT_CHANGED);
-    const perDay = readIntConfig('announce_send_rate_limit_per_day', 2);
+    const perDay = readIntConfig('announce_send_rate_limit_per_day', 1);
     const rl = rateLimitHit(`announce-send:${actorMemberId}`, perDay, DAY_IN_MINUTES);
     if (!rl.allowed) {
       throw new RateLimitedError(

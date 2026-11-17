@@ -125,6 +125,7 @@ export const ROUTE_STORIES: Readonly<Record<string, RouteStory>> = {
   'GET /members/:memberKey/media/:mediaId/delete': { stories: ['M_Delete_Own_Media'] },
   'POST /members/:memberKey/media/:mediaId/delete': { stories: ['M_Delete_Own_Media'] },
   'GET /legal': { stories: ['V_Browse_Static_Content'] },
+  'GET /community-standards': { stories: ['V_View_Community_Standards'] },
 
   // Authentication, registration, onboarding
   'GET /login': { stories: ['M_Login'] },
@@ -195,6 +196,8 @@ export const ROUTE_STORIES: Readonly<Record<string, RouteStory>> = {
   'POST /admin/members/:memberId/profile/confirm': { stories: ['A_Override_Member_Data'] },
   'POST /admin/members/:memberId/avatar/remove': { stories: ['A_Override_Member_Data'] },
   'POST /admin/members/:memberId/avatar/remove/confirm': { stories: ['A_Override_Member_Data'] },
+  'POST /admin/members/:memberId/bio/clear': { stories: ['A_Override_Member_Data'] },
+  'POST /admin/members/:memberId/bio/clear/confirm': { stories: ['A_Override_Member_Data'] },
   'POST /admin/members/:memberId/deceased/revert/confirm': { stories: ['A_Mark_Member_Deceased'] },
   'POST /admin/members/:memberId/deceased/revert': { stories: ['A_Mark_Member_Deceased'] },
   'POST /admin/members/:memberId/deceased/confirm': { stories: ['A_Mark_Member_Deceased'] },
@@ -223,6 +226,7 @@ export const ROUTE_STORIES: Readonly<Record<string, RouteStory>> = {
   'POST /admin/work-queue/:id/resolve': { stories: ['A_Manage_Work_Queue', 'A_Resolve_Contact_IFPA_Admin_Request'] },
   'POST /admin/work-queue/:id/dismiss': { stories: ['A_Manage_Work_Queue'] },
   'POST /admin/work-queue/:id/park': { stories: ['A_Manage_Work_Queue'] },
+  'POST /admin/work-queue/owners': { stories: ['A_Manage_Work_Queue'] },
   'POST /admin/work-queue/:id/unpark': { stories: ['A_Manage_Work_Queue'] },
   'POST /admin/work-queue/:id/ask-member': { stories: ['A_Message_Member'] },
   'POST /admin/work-queue/:id/link-help/approve/confirm': { stories: ['A_Review_Member_Link_Help_Requests'] },
@@ -351,8 +355,8 @@ export const ROUTE_STORIES: Readonly<Record<string, RouteStory>> = {
   'GET /admin/curator/upload/jobs/:jobId/events': { stories: ['A_Upload_Curated_Media'] },
   'GET /admin/curator/upload/jobs/:jobId': { stories: ['A_Upload_Curated_Media'] },
   'GET /admin/curator/media': { stories: ['A_Upload_Curated_Media'] },
-  'GET /admin/curator/media/:id/edit': { stories: ['A_Upload_Curated_Media'] },
-  'POST /admin/curator/media/:id/edit': { stories: ['A_Upload_Curated_Media'] },
+  'GET /admin/curator/media/:id/edit': { stories: ['A_Upload_Curated_Media', 'A_Moderate_Media'] },
+  'POST /admin/curator/media/:id/edit': { stories: ['A_Upload_Curated_Media', 'A_Moderate_Media'] },
   'POST /admin/curator/media/:id/delete': { stories: ['A_Upload_Curated_Media'] },
   'GET /admin/curator/galleries': { stories: ['A_Manage_Curated_Gallery'] },
   'GET /admin/curator/galleries/:id/edit': { stories: ['A_Manage_Curated_Gallery', 'A_Moderate_Media'] },
@@ -385,6 +389,8 @@ export type StoryWithoutRoute = 'designed-not-deployed' | 'runtime-only' | 'no-r
 export const STORIES_WITHOUT_ROUTE: Readonly<Record<string, { status: StoryWithoutRoute; why: string }>> = {
   // Visitor
   'V_View_News_Feed': { status: 'designed-not-deployed', why: 'The news feed is second-version scope and no news route is mounted.' },
+  'M_Request_Video_Hosting': { status: 'designed-not-deployed', why: 'Member video hosting is second-version scope and no hosting-request route is mounted.' },
+  'A_Grant_Video_Hosting': { status: 'designed-not-deployed', why: 'Member video hosting is second-version scope and no grant route is mounted.' },
   'V_Access_Denied': { status: 'no-route-of-its-own', why: 'The access-denied page is rendered by the error handling of other routes.' },
   'V_Not_Found': { status: 'no-route-of-its-own', why: 'The not-found page is rendered by the fallback handler and by other routes on an unknown key.' },
   'V_Error_or_Maintenance_Mode': { status: 'no-route-of-its-own', why: 'The error page is rendered by the error handler for any route that fails.' },

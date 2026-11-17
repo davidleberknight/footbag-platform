@@ -3,8 +3,10 @@
  *
  * Owns: shaping and validation for the one admin view over the runtime-mutable
  * configuration store, and the audited writes that change a value. Covers the
- * membership prices, the outbox and reminder settings, and the retention
- * windows. Does not own the values' meaning at read time: each consuming
+ * membership prices, the outbox and reminder settings, the retention
+ * windows, and each work-queue area's digest switch (0 or 1, unset reading as
+ * off; a bounce from the area's address also sets it to 0, from the SES
+ * feedback service). Does not own the values' meaning at read time: each consuming
  * service still reads its own key through `configReader`, so a change here
  * reaches a job or a flow the next time it runs, with no redeploy.
  *
@@ -47,6 +49,7 @@ import { ConflictError, ValidationError } from './serviceErrors';
 import { isUniqueConstraintError, runSqliteRead } from './sqliteRetry';
 import type { PageViewModel } from '../types/page';
 import { INVALID_TEXT_ENCODING_MESSAGE, sanitizeUserText } from '../lib/textSanitizer';
+import { WORK_QUEUE_TOPICS, WORK_QUEUE_TOPIC_KEYS, topicRouteConfigKey } from './workQueueTaskTypes';
 
 const PAGE_HREF = '/admin/system-parameters';
 const PRICE_HREF = '/admin/system-parameters/pricing';
@@ -243,6 +246,24 @@ const SECTIONS: SectionSpec[] = [
         helpText: 'How long voting records must be kept. Nothing deletes them, because disposing of IFPA vote records is a decision for the association rather than a maintenance job. Seven years is the baseline.',
       },
     ],
+  },
+  {
+    title: 'Work-Queue Area Digests',
+    intro: "Whether each work-queue area's group address receives a daily list of that area's unclaimed items. Switch an area on only once its Google Workspace group exists and has received a test post.",
+    // Unseeded on purpose: no row reads as off, so a fresh database sends
+    // nothing extra until an administrator turns an area on here.
+    parameters: WORK_QUEUE_TOPIC_KEYS.map((topic) => {
+      const area = WORK_QUEUE_TOPICS[topic];
+      return {
+        key: topicRouteConfigKey(topic),
+        label: `${area.label} area digest`,
+        unit: '1 = on, 0 = off',
+        min: 0,
+        max: 1,
+        defaultValue: 0,
+        helpText: `1 sends the ${area.label} area's daily digest to ${area.address}; 0 sends nothing extra. A bounce or spam report from that address switches it back to 0.`,
+      };
+    }),
   },
 ];
 

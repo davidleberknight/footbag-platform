@@ -622,3 +622,55 @@ describe('POST /admin/system-parameters/pricing', () => {
     expect(added.map((r) => r.reason_text)).toEqual(['Board vote on dues.']);
   });
 });
+
+describe('work-queue area digest switches', () => {
+  const FINANCE = 'work_queue_topic_route_finance';
+
+  // Defect caught: an area that was never switched renders blank or as on, so
+  // an administrator cannot tell the digest is off or saves an empty value.
+  it('renders a switch nobody has set as 0, with no row behind it', async () => {
+    const res = await request(createApp()).get('/admin/system-parameters').set('Cookie', admin());
+    expect(res.status).toBe(200);
+    expect(configRows('work_queue_topic_route_sanctioning')).toHaveLength(0);
+    expect(res.text).toMatch(/name="work_queue_topic_route_sanctioning" value="0"/);
+  });
+
+  // Defect caught: the switch cannot be turned on, or once on cannot be turned
+  // back off, from the one screen that owns it.
+  it('saves an area switch on, then off, each as an audited superseding row', async () => {
+    const save = (value: string) => request(createApp())
+      .post('/admin/system-parameters').set('Cookie', admin()).type('form')
+      .send(saveBody({ [FINANCE]: value, reason: 'The finance group is ready.' }));
+
+    const on = await save('1');
+    expect(on.status).toBe(303);
+    expect(currentValue(FINANCE)).toBe('1');
+    const onAt = configRows(FINANCE)[0]!.effective_start_at;
+    // Two rows for one key may not share a start time; wait for the clock to
+    // move past the first save rather than for a fixed delay.
+    while (new Date().toISOString() === onAt) { /* the next millisecond */ }
+
+    const off = await save('0');
+    expect(off.status).toBe(303);
+    expect(currentValue(FINANCE)).toBe('0');
+    expect(configRows(FINANCE).map((r) => r.value_json)).toEqual(['1', '0']);
+    // The audit rows carry random ids, so they are compared as a set.
+    const audits = auditRowsFor(FINANCE).map((r) => JSON.parse(r.metadata_json) as Record<string, unknown>);
+    expect(audits).toHaveLength(2);
+    expect(audits).toEqual(expect.arrayContaining([
+      expect.objectContaining({ previousValue: 0, newValue: 1 }),
+      expect.objectContaining({ previousValue: 1, newValue: 0 }),
+    ]));
+  });
+
+  // Defect caught: a value other than on or off is stored, and the digest pass,
+  // which sends only on exactly 1, silently treats the area as off.
+  it('refuses a value above 1 and stores nothing', async () => {
+    const before = configRows(FINANCE).length;
+    const res = await request(createApp())
+      .post('/admin/system-parameters').set('Cookie', admin()).type('form')
+      .send(saveBody({ [FINANCE]: '2' }));
+    expect(res.status).toBe(422);
+    expect(configRows(FINANCE)).toHaveLength(before);
+  });
+});

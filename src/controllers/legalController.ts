@@ -11,4 +11,13 @@ export const legalController = {
       handleControllerError(err, res, next, 'legal controller');
     }
   },
+
+  communityStandards(_req: Request, res: Response, next: NextFunction): void {
+    try {
+      const vm = legalService.getCommunityStandardsPage();
+      res.render('legal/community-standards', vm);
+    } catch (err) {
+      handleControllerError(err, res, next, 'legal controller');
+    }
+  },
 };

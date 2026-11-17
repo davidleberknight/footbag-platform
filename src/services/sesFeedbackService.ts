@@ -29,15 +29,28 @@
  * outbox retention window -- and the address half of the work proceeds either
  * way, a dead mailbox being a fact about the mailbox and not about the message.
  *
+ * A bounce or complaint on a work-queue area's address (a group, not a member)
+ * switches that area's digest off by appending a config row, and emails every
+ * administrator once, naming the area; an area already off is left alone.
+ *
  * Persistence: writes members.email_status and mailing_list_subscriptions
  * status; reads outbox_emails to resolve the reported message; claims
- * ses_events; appends audit_entries.
+ * ses_events; appends audit_entries; appends system_config (an area switch set
+ * to 0); reads system_config_current.
+ *
+ * Side effects: admin-alerts outbox enqueue when an area is switched off.
  *
  * Transport auth (the shared-secret query key plus SNS signature verification
  * on the webhook request) is the IPC controller's concern, not this service's.
  */
-import { auth, sesFeedback, mailingListSubscriptions, sesEvents, outbox, transaction } from '../db/db';
+import { randomUUID } from 'crypto';
+import {
+  auth, sesFeedback, mailingListSubscriptions, sesEvents, outbox, systemConfig, transaction,
+} from '../db/db';
 import { appendAuditEntry } from './auditService';
+import { emailService } from './emailService';
+import { readIntConfig } from './configReader';
+import { WORK_QUEUE_TOPICS, WORK_QUEUE_TOPIC_KEYS, topicRouteConfigKey } from './workQueueTaskTypes';
 import { logger } from '../config/logger';
 import { safeSubscribeUrlForLog } from '../lib/snsSignature';
 
@@ -146,6 +159,39 @@ function processSnsMessage(rawBody: string): SesFeedbackResult {
   return { status: 'ignored', reason: 'unknown_type' };
 }
 
+/**
+ * A work-queue area's address is a group no member holds, so nothing above
+ * reaches it, and the outbox suppresses only member addresses. The platform
+ * cannot see which member of the group failed, so the remedy is the area's
+ * switch: it goes off with an appended config row, and every administrator is
+ * told once, naming the area. An area already off is left alone, so a burst of
+ * bounces from the last digest raises one alert, not several. Runs inside the
+ * caller's transaction, so the switch, the alert and the notification claim
+ * commit together.
+ */
+function switchOffTopicAddress(normalized: string, snsMessageId: string | null, now: string): void {
+  const topic = WORK_QUEUE_TOPIC_KEYS.find((t) => WORK_QUEUE_TOPICS[t].address === normalized);
+  if (!topic) return;
+  const key = topicRouteConfigKey(topic);
+  if (readIntConfig(key, 0) !== 1) return;
+  systemConfig.insert.run(
+    `cfg_${randomUUID().replace(/-/g, '').slice(0, 24)}`,
+    now,
+    key,
+    '0',
+    now,
+    'Mail to the queue address bounced or was reported as spam',
+    null,
+  );
+  const areaLabel = WORK_QUEUE_TOPICS[topic].label;
+  emailService.sendToAdmins({
+    template: 'work_queue_topic_route_disabled',
+    params: { areaLabel },
+    idempotencyKeyPrefix: `work-queue-topic-route-disabled:${snsMessageId ?? now}:${topic}`,
+  });
+  logger.warn('work-queue area digest switched off after a bounce or complaint', { topic });
+}
+
 function applyStatus(
   kind: 'bounce' | 'complaint',
   recipients: string[],
@@ -210,6 +256,7 @@ function applyStatus(
           metadata:      { outbox_email_id: outboxEmailId },
         });
       }
+      switchOffTopicAddress(normalized, snsMessageId, now);
     }
   });
   if (duplicate) {

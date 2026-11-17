@@ -102,12 +102,14 @@
                       <option value="{{value}}">{{label}}</option>
                     {{/each}}
                   </select>
+                  <p class="form-hint">Each reason is a rule of the <a href="{{siteHref content.flag.standardsHref}}">Community Standards</a>.</p>
                 </div>
                 <div class="form-field">
                   <label for="report-detail">Anything else we should know? (optional)</label>
                   <textarea id="report-detail" name="reason_text" rows="3" maxlength="{{content.flag.detailMaxLength}}"></textarea>
                 </div>
                 <p class="card-meta">The item stays visible until an administrator reviews it.</p>
+                {{> volunteer-admin-notice}}
                 <button type="submit" class="btn btn-outline btn-sm">Send Report</button>
               </form>
             </details>

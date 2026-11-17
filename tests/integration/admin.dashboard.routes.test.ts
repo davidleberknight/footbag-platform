@@ -18,6 +18,7 @@ import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/
 import {
   insertMember,
   insertWorkQueueItem,
+  insertWorkQueueTopicOwner,
   insertSystemAlarmEvent,
   createTestSessionJwt,
 } from '../fixtures/factories';
@@ -294,5 +295,71 @@ describe('the Go To tier', () => {
     ]) {
       expect(text, `${href} was reachable before the rebuild`).toContain(`href="${href}"`);
     }
+  });
+});
+
+describe('the areas this administrator owns', () => {
+  afterEach(() => {
+    withDb((db) => db.prepare('DELETE FROM work_queue_topic_owners').run());
+  });
+
+  function areaRow(text: string, topic: string): string | undefined {
+    return new RegExp(`<a class="admin-queue-row" href="/admin/work-queue\\?topic=${topic}">([\\s\\S]*?)</a>`)
+      .exec(text)?.[1];
+  }
+
+  // Defect caught: an administrator who owns nothing is shown an empty areas
+  // tile, or an owner is not shown theirs.
+  it('shows the areas tile only to an administrator who owns an area', async () => {
+    withDb((db) => insertWorkQueueTopicOwner(db, { topic: 'membership', owner_member_id: OTHER_ADMIN_ID }));
+    const tiles = (html: string) => html.split('<div class="admin-tile">').length - 1;
+    const text = await getDashboard();
+    expect(text).not.toContain('href="/admin/work-queue?topic=');
+
+    withDb((db) => insertWorkQueueTopicOwner(db, { topic: 'finance', owner_member_id: ADMIN_ID }));
+    const owner = await getDashboard();
+    expect(areaRow(owner, 'finance')).toBeDefined();
+    // Nothing in the area has waited, so the row carries no stale line.
+    expect(areaRow(owner, 'finance')).not.toContain('admin-queue-row-meta');
+    expect(areaRow(owner, 'membership')).toBeUndefined();
+    // Owning an area adds exactly one tile; owning none leaves no empty one.
+    expect(tiles(owner)).toBe(tiles(text) + 1);
+  });
+
+  // Defect caught: the owner's count includes parked items, or the stale line
+  // counts a fresh item or one a colleague is actively handling, so the owner
+  // chases work that is not neglected.
+  it('counts the area’s working items and those unclaimed past the stale threshold', async () => {
+    let claimedOld = '';
+    withDb((db) => {
+      insertWorkQueueTopicOwner(db, { topic: 'finance', owner_member_id: ADMIN_ID });
+      insertWorkQueueItem(db, {
+        queue_category: 'payments', task_type: 'reconciliation_discrepancy', entity_type: 'reconciliation_issue',
+        entity_id: 'ri-old', opened_at: '2020-01-01T00:00:00.000Z',
+      });
+      insertWorkQueueItem(db, {
+        queue_category: 'payments', task_type: 'payout_failed', entity_type: 'stripe_payout', entity_id: 'po-fresh',
+      });
+      claimedOld = insertWorkQueueItem(db, {
+        queue_category: 'payments', task_type: 'payout_failed', entity_type: 'stripe_payout',
+        entity_id: 'po-old-claimed', opened_at: '2020-01-01T00:00:00.000Z',
+      });
+      insertWorkQueueItem(db, {
+        queue_category: 'payments', task_type: 'partial_refund_review', entity_type: 'payment', entity_id: 'pay-parked',
+        opened_at: '2020-01-01T00:00:00.000Z', parked_at: '2020-01-02T00:00:00.000Z',
+        parked_by_member_id: OTHER_ADMIN_ID, park_reason: 'Waiting on the bank.',
+      });
+      // Another area's old item must not reach the finance row.
+      insertWorkQueueItem(db, {
+        queue_category: 'membership', task_type: 'member_contact_request', entity_id: MEMBER_ID,
+        opened_at: '2020-01-01T00:00:00.000Z',
+      });
+    });
+    workQueueService.claim({ queueItemId: claimedOld, adminMemberId: OTHER_ADMIN_ID });
+
+    const row = areaRow(await getDashboard(), 'finance');
+    expect(row).toBeDefined();
+    expect(row).toContain('3 open');
+    expect(row).toContain('1 unclaimed for 3+ days');
   });
 });

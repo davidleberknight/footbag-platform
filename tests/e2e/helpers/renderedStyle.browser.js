@@ -17,7 +17,7 @@
 (function () {
   'use strict';
 
-  var CAPTURE_SCHEMA = 2;
+  var CAPTURE_SCHEMA = 3;
 
   // Must match STYLE_PROPS in renderedStyle.ts, entry for entry; a unit test compares them.
   var STYLE_PROPS = [
@@ -31,7 +31,7 @@
     'border-top-style', 'border-right-style', 'border-bottom-style', 'border-left-style',
     'border-top-color', 'border-left-color', 'border-top-left-radius',
     'box-shadow', 'flex-direction', 'grid-template-columns', 'row-gap', 'column-gap',
-    'list-style-type', 'clip-path',
+    'list-style-type', 'list-style-position', 'clip-path',
     'overflow-y', 'text-overflow', '-webkit-line-clamp', 'float', 'aspect-ratio',
     'outline-style', 'outline-width', 'outline-color',
   ];
@@ -140,16 +140,61 @@
 
   var chCache = {};
   var ctx2d = null;
-  function zeroWidth(cs) {
-    var font = cs.fontStyle + ' ' + cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily;
-    if (font in chCache) return chCache[font];
+  function textWidth(cs, text) {
     if (ctx2d === null) {
       var canvas = document.createElement('canvas');
       ctx2d = (canvas.getContext && canvas.getContext('2d')) || false;
     }
-    var w = ctx2d ? (ctx2d.font = font, ctx2d.measureText('0').width) : 0;
+    if (!ctx2d) return 0;
+    ctx2d.font = cs.fontStyle + ' ' + cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily;
+    return ctx2d.measureText(text).width;
+  }
+
+  function zeroWidth(cs) {
+    var font = cs.fontStyle + ' ' + cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily;
+    if (font in chCache) return chCache[font];
+    var w = textWidth(cs, '0');
     chCache[font] = w > 0 ? round(w) : undefined;
     return chCache[font];
+  }
+
+  function alphaMarker(n) {
+    var s = '';
+    while (n > 0) { n -= 1; s = String.fromCharCode(97 + (n % 26)) + s; n = Math.floor(n / 26); }
+    return s;
+  }
+
+  function romanMarker(n) {
+    var vals = [1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1];
+    var syms = ['m', 'cm', 'd', 'cd', 'c', 'xc', 'l', 'xl', 'x', 'ix', 'v', 'iv', 'i'];
+    var s = '';
+    for (var k = 0; k < vals.length; k++) while (n >= vals[k]) { s += syms[k]; n -= vals[k]; }
+    return s;
+  }
+
+  // The text an outside list marker draws: the item's number in its list's
+  // style followed by ". ", or a bullet and a space. The browser exposes no
+  // box for a marker, so its width is measured as this text in the item's font.
+  function markerText(el, cs) {
+    var type = cs.listStyleType;
+    if (!type || type === 'none') return null;
+    if (type.charAt(0) === '"' || type.charAt(0) === "'") return type.slice(1, -1);
+    var n = 1;
+    var list = el.parentElement;
+    if (list && list.tagName === 'OL') {
+      n = list.start || 1;
+      for (var s = list.firstElementChild; s && s !== el; s = s.nextElementSibling) if (s.tagName === 'LI') n += 1;
+    }
+    if (el.hasAttribute('value')) n = parseInt(el.getAttribute('value'), 10) || n;
+    switch (type) {
+      case 'decimal': return n + '. ';
+      case 'decimal-leading-zero': return (n < 10 ? '0' + n : String(n)) + '. ';
+      case 'lower-alpha': case 'lower-latin': return alphaMarker(n) + '. ';
+      case 'upper-alpha': case 'upper-latin': return alphaMarker(n).toUpperCase() + '. ';
+      case 'lower-roman': return romanMarker(n) + '. ';
+      case 'upper-roman': return romanMarker(n).toUpperCase() + '. ';
+      default: return '• ';
+    }
   }
 
   // A background tab never fires animation frames, so a timer stands in rather
@@ -299,6 +344,11 @@
       if ((el.textContent || '').length >= CH_MIN_TEXT) {
         var ch = zeroWidth(cs);
         if (ch) rec.chPx = ch;
+      }
+      if (tag === 'li' && cs.display === 'list-item' && cs.listStylePosition === 'outside') {
+        var marker = markerText(el, cs);
+        var mw = marker ? textWidth(cs, marker) : 0;
+        if (mw > 0) rec.markerPx = round(mw);
       }
       elements.push(rec);
       // An svg's children are drawing primitives, not layout.

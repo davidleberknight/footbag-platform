@@ -852,8 +852,9 @@ CREATE VIEW email_templates_enabled AS
 -- Admin task queue for items requiring human review or decision across all
 -- platform domains (events, media, membership, payments, elections, system).
 -- Each item is categorized by queue_category and task_type, linked to an entity,
--- and resolved or dismissed by an admin. A notification is sent to the
--- admin-alerts mailing list when any item is enqueued.
+-- and resolved or dismissed by an admin. Only an urgent task type emails the
+-- admin-alerts mailing list when enqueued; routine items reach administrators
+-- through the queue page and the periodic digest.
 CREATE TABLE work_queue_items (
   id         TEXT PRIMARY KEY,
   created_at TEXT NOT NULL,
@@ -898,6 +899,28 @@ CREATE TABLE work_queue_items (
   parked_at             TEXT,
   parked_by_member_id   TEXT REFERENCES members(id),
   park_reason           TEXT
+);
+
+-- The one accountable owner of each work-queue area (routing topic). It drives
+-- the area line on each queue card and the administrator's "Your Areas" view;
+-- it decides nothing about who may act, since every administrator can act on
+-- every item, and nothing about who is mailed, since an area's digest goes to
+-- its group address and the group's membership is held outside the platform.
+-- An area with no row, or with no owner on its row, reads as having no owner.
+CREATE TABLE work_queue_topic_owners (
+  id         TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  updated_by TEXT NOT NULL,
+  version    INTEGER NOT NULL DEFAULT 1,
+
+  -- One row per area, keyed by the registry's area key.
+  topic TEXT NOT NULL UNIQUE
+    CHECK (topic IN ('finance','membership','platform','sanctioning','freestyle','moderation')),
+  -- The owning administrator. NULL once an administrator clears the owner.
+  -- An owner who has since lost the admin role reads as no owner.
+  owner_member_id TEXT REFERENCES members(id)
 );
 
 CREATE INDEX idx_work_queue_status ON work_queue_items(status, queue_category);
@@ -3242,7 +3265,7 @@ CREATE TABLE media_flags (
   reporter_member_id TEXT NOT NULL REFERENCES members(id),
   -- Which published conduct rule the reporter says the item breaks. A closed
   -- set so the queue can be triaged and repeat patterns counted; each value
-  -- maps to a clause of the terms of use the site publishes.
+  -- maps to a rule of the Community Standards the site publishes.
   reason_code TEXT NOT NULL
     CHECK (reason_code IN ('illegal_or_harassing','infringes_rights','impersonation',
                            'false_information','spam','other')),
@@ -3909,9 +3932,9 @@ VALUES
   (
    'seed-announce-send-rate-limit-per-day',
    '2000-01-01T00:00:00.000Z',
-   'announce_send_rate_limit_per_day', '2',
+   'announce_send_rate_limit_per_day', '1',
    '2000-01-01T00:00:00.000Z',
-   'Max community announcements one organizer member may send per day (default: 2).',
+   'Max community announcements one organizer member may send per day (default: 1).',
    NULL
   ),
 

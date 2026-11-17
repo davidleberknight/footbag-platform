@@ -221,6 +221,7 @@ const DECISIONS: Record<string, Decision> = {
   'vote_results.published_by_admin_member_id': ACTOR,
   'work_queue_items.claimed_by_member_id': ACTOR,
   'work_queue_items.parked_by_member_id': ACTOR,
+  'work_queue_topic_owners.owner_member_id': ACTOR,
   'work_queue_items.resolved_by_member_id': ACTOR,
 };
 

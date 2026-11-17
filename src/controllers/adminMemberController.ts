@@ -435,6 +435,36 @@ export const adminMemberController = {
     }
   },
 
+  /** POST /admin/members/:memberId/bio/clear */
+  previewBioClear(req: Request, res: Response, next: NextFunction): void {
+    const memberId = req.params['memberId'] ?? '';
+    const parsed = parseFormBody(reasonForm, req.body);
+    try {
+      res.render('admin/members/confirm', adminMemberService.previewBioClear(
+        memberId, accepted(parsed).reason,
+      ));
+    } catch (err) {
+      if (isHandled(err)) { renderRecordError(res, memberId, err, next, refusalOf('bio', parsed)); return; }
+      handleControllerError(err, res, next, CONTEXT);
+    }
+  },
+
+  /** POST /admin/members/:memberId/bio/clear/confirm */
+  confirmBioClear(req: Request, res: Response, next: NextFunction): void {
+    const memberId = req.params['memberId'] ?? '';
+    const parsed = parseFormBody(reasonForm, req.body);
+    try {
+      const outcome = adminMemberService.applyBioClear(
+        req.user!.userId, memberId, accepted(parsed).reason,
+      );
+      writeFlash(res, req, FLASH_KIND.MEMBER_RECORD_CORRECTED, outcome);
+      res.redirect(303, `/admin/members/${memberId}`);
+    } catch (err) {
+      if (isHandled(err)) { renderRecordError(res, memberId, err, next, refusalOf('bio', parsed)); return; }
+      handleControllerError(err, res, next, CONTEXT);
+    }
+  },
+
   /** POST /admin/members/:memberId/avatar/remove/confirm */
   async confirmAvatarRemoval(req: Request, res: Response, next: NextFunction): Promise<void> {
     const memberId = req.params['memberId'] ?? '';

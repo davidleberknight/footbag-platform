@@ -1929,6 +1929,42 @@ export const memberService = {
   },
 
   /**
+   * An administrator clears a member's biography. The bio is the member's own
+   * words, so the only thing anyone else may do to it is empty it; nothing here
+   * can put prose under their name. The correction records the text before and
+   * after, with the reason, and the member is told what was cleared and why, in
+   * one transaction. A bio already empty is not an event and writes nothing.
+   * With `preview`, nothing is written and the current text is returned.
+   */
+  clearBioByAdministrator(
+    slug: string,
+    actor: { memberId: string; reason: string },
+    opts: { preview?: boolean } = {},
+  ): { before: string; cleared: boolean } {
+    const row = fetchMemberBySlug(slug);
+    const before = row.bio ?? '';
+    if (before === '' || opts.preview) return { before, cleared: false };
+    let cleared = false;
+    transaction(() => {
+      const now = new Date().toISOString();
+      const res = account.clearMemberBio.run(now, actor.memberId, row.id);
+      if (res.changes === 0) return;
+      const correctionAuditId = appendAuditEntry({
+        actionType:    'member.profile_corrected',
+        actorType:     'admin',
+        actorMemberId: actor.memberId,
+        entityType:    'member',
+        entityId:      row.id,
+        reasonText:    actor.reason,
+        metadata:      { fields: ['bio'], before: { bio: before }, after: { bio: '' } },
+      });
+      notifyRecordCorrected(row, describeProfileChanges(['bio']), actor.reason, correctionAuditId);
+      cleared = true;
+    });
+    return { before, cleared };
+  },
+
+  /**
    * Write only the date of birth, for a member answering an administrator's
    * question about it.
    *
@@ -2622,6 +2658,7 @@ interface ProfileWriteValues {
  * recognise a column name to understand what was corrected on their own record.
  */
 const PROFILE_CHANGE_PHRASE: Record<string, string> = {
+  bio: 'your biography',
   city: 'your city',
   region: 'your region',
   country: 'your country',

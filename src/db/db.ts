@@ -4505,6 +4505,15 @@ export const account = {
     LIMIT ?
   `); },
 
+  // An administrator clearing a member's biography: the one write to the bio
+  // that is not the member's own, and it can only empty it, never set words.
+  // Params: (nowIso, actorId, memberId).
+  get clearMemberBio() { return db.prepare(`
+    UPDATE members
+    SET bio = '', updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ? AND COALESCE(bio, '') <> ''
+  `); },
+
   get updateMemberProfile() { return db.prepare(`
     UPDATE members
     SET
@@ -6569,6 +6578,16 @@ export const media = {
     WHERE mi.id = ?
   `); },
 
+  // An administrator clearing a member item's caption: it can only empty the
+  // member's words, never set new ones. A caption already empty changes nothing.
+  // Params: (nowIso, adminId, mediaId).
+  get clearCaptionByAdmin() { return db.prepare(`
+    UPDATE media_items
+       SET caption = NULL,
+           updated_at = ?, updated_by = ?, version = version + 1
+     WHERE id = ? AND COALESCE(caption, '') <> ''
+  `); },
+
   // The takedown write. Guarded on the current status so two administrators
   // deciding the same item cannot both report success: the second changes no
   // rows and the service reports the item already settled.
@@ -7405,6 +7424,13 @@ export const mediaFlags = {
   get findFlagById() { return db.prepare(`
     SELECT id, media_id, reporter_member_id, status FROM media_flags
     WHERE id = ?
+  `); },
+
+  // The members whose reports on an item are still open, read just before a
+  // decision closes them, so each one can be told the outcome.
+  get listOpenReporterIdsForMedia() { return db.prepare(`
+    SELECT DISTINCT reporter_member_id FROM media_flags
+    WHERE media_id = ? AND status = 'open'
   `); },
 
   get countOpenFlagsForMedia() { return db.prepare(`
@@ -9893,6 +9919,35 @@ export const adminRole = {
         OR COALESCE(last_login_at, created_at) < ?
       )
     ORDER BY id
+  `); },
+};
+
+// Each work-queue area's accountable owner. The owner's display name is read
+// only while the owner is still a current, onboarded administrator, so an
+// owner who lost the role, or whose account went, reads as no owner.
+export const workQueueTopicOwners = {
+  get listAll() { return db.prepare(`
+    SELECT o.topic, o.owner_member_id,
+           CASE WHEN m.is_admin = 1 AND m.personal_data_purged_at IS NULL
+                THEN m.display_name END AS owner_display_name,
+           CASE WHEN m.is_admin = 1 AND m.personal_data_purged_at IS NULL
+                THEN 1 ELSE 0 END AS owner_is_current_admin
+    FROM work_queue_topic_owners o
+    LEFT JOIN members_onboarded m ON m.id = o.owner_member_id
+  `); },
+
+  // Params: (id, nowIso, actorId, nowIso, actorId, topic, ownerMemberId).
+  get insert() { return db.prepare(`
+    INSERT INTO work_queue_topic_owners
+      (id, created_at, created_by, updated_at, updated_by, version, topic, owner_member_id)
+    VALUES (?, ?, ?, ?, ?, 1, ?, ?)
+  `); },
+
+  // Params: (ownerMemberId, nowIso, actorId, topic).
+  get updateOwner() { return db.prepare(`
+    UPDATE work_queue_topic_owners
+    SET owner_member_id = ?, updated_at = ?, updated_by = ?, version = version + 1
+    WHERE topic = ?
   `); },
 };
 

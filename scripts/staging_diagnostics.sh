@@ -676,21 +676,21 @@ JS
 
 cmd_work_queue() {
   # work_queue_items inspection across every work-queue-driven flow. Filter by
-  # item_type ('member_link_help_request', etc.) to focus on a specific producer.
-  local item_type="${1:-}"
-  banner "work_queue_items${item_type:+ type=$item_type}"
-  compose exec -T -e ITEM_TYPE="$item_type" web node <<'JS'
+  # task type ('member_link_help_request', etc.) to focus on a specific producer.
+  # The reason text is cut short because it can quote a member's own words.
+  local task_type="${1:-}"
+  banner "work_queue_items${task_type:+ type=$task_type}"
+  compose exec -T -e TASK_TYPE="$task_type" web node <<'JS'
 const db = require('better-sqlite3')('/app/db/footbag.db', { readonly: true });
-const t = process.env.ITEM_TYPE || '';
+const t = process.env.TASK_TYPE || '';
+const cols = `id, queue_category, task_type, entity_type, entity_id, status,
+              priority, opened_at, claimed_at, parked_at, resolved_at,
+              substr(reason_text, 1, 80) reason_text`;
 const sql = t
-  ? `SELECT id, queue, item_type, entity_type, entity_id, priority,
-            ready_at, started_at, completed_at, substr(notes, 1, 80) notes
-     FROM work_queue_items WHERE item_type = ?
-     ORDER BY ready_at DESC LIMIT 20`
-  : `SELECT id, queue, item_type, entity_type, entity_id, priority,
-            ready_at, started_at, completed_at
-     FROM work_queue_items
-     ORDER BY ready_at DESC LIMIT 20`;
+  ? `SELECT ${cols} FROM work_queue_items WHERE task_type = ?
+     ORDER BY opened_at DESC, id DESC LIMIT 20`
+  : `SELECT ${cols} FROM work_queue_items
+     ORDER BY opened_at DESC, id DESC LIMIT 20`;
 const rows = t ? db.prepare(sql).all(t) : db.prepare(sql).all();
 console.log(rows);
 JS
@@ -1073,7 +1073,7 @@ staging_diagnostics.sh — subcommands
     ap-expiry-health         single-purpose health gate for AP expiry worker
     stale-runs               'running' rows older than 1h (likely stale)
     ap-reminders [member]    active_player_reminder_sent rows
-    work-queue [item-type]   work_queue_items (optionally filtered)
+    work-queue [task-type]   work_queue_items (optionally filtered)
 
   AWS
     aws-whoami               aws sts get-caller-identity (inside web)

@@ -109,6 +109,9 @@ export interface AdminDashboardContent {
   hasNeedsYouNow: boolean;
   workWaiting: DashboardQueueRow[];
   ownWork: DashboardOwnWork;
+  /** One row per work-queue area this administrator owns; empty when none. */
+  yourAreas: DashboardQueueRow[];
+  hasYourAreas: boolean;
   systemStatus: DashboardSystemStatus;
   toolGroups: DashboardLinkGroup[];
 }
@@ -205,6 +208,20 @@ export const adminDashboardService = {
     const health = systemHealthService.getHealthBadges();
     const outstandingReconciliation = paymentReconciliationService.countOutstandingIssues();
 
+    // The areas this administrator owns, each linking to the queue narrowed to
+    // it, with how much of it has waited past the stale threshold unclaimed.
+    const yourAreas: DashboardQueueRow[] = adminWorkQueueService
+      .getOwnedAreaSummary(adminMemberId)
+      .map((a) => ({
+        key: `area_${a.topic}`,
+        label: a.label,
+        href: `/admin/work-queue?topic=${a.topic}`,
+        countLabel: openLabel(a.open),
+        metaLabel: a.unclaimedStale > 0 ? `${a.unclaimedStale} unclaimed for ${a.staleDays}+ days` : null,
+        isUrgent: false,
+        isZero: a.open === 0,
+      }));
+
     const needsYouNow: DashboardQueueRow[] = [];
     const workWaiting: DashboardQueueRow[] = [];
 
@@ -296,6 +313,8 @@ export const adminDashboardService = {
         hasNeedsYouNow: needsYouNow.length > 0,
         workWaiting,
         ownWork: ownWork(claims),
+        yourAreas,
+        hasYourAreas: yourAreas.length > 0,
         systemStatus: systemStatus(health),
         toolGroups: TOOL_GROUPS,
       },

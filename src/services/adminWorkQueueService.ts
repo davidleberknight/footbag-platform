@@ -5,7 +5,10 @@
  * Owns:
  *   - Contact-request submission (category-validated, per-member open-request cap),
  *     except the identity-link category, which is handed to the link-help
- *     workflow because an administrator answers it by applying a link
+ *     workflow because an administrator answers it by applying a link. The
+ *     community-standards category raises a content report, the same request
+ *     declared as its own type so it belongs to the moderation area while every
+ *     other category is a contact request in the membership area
  *   - Resolution of any item whose task type declares a decide action: the
  *     decision label and the administrator's note, recorded with admin identity
  *     and timestamp, and the member notification where that type says the answer
@@ -24,9 +27,18 @@
  *     each card from its type's declaration: one skeleton, one evidence block,
  *     one list of actions. A subject who is a prospective member is
  *     shown by id, never named or linked
- *   - The admin dashboard's two work-queue reads: the per-category open counts,
- *     and how much of the queue the viewing administrator is holding, decided by
- *     the digest's own claim rule so the page and the digest email agree
+ *   - The admin dashboard's work-queue reads: the per-category open counts,
+ *     how much of the queue the viewing administrator is holding, decided by
+ *     the digest's own claim rule so the page and the digest email agree, and
+ *     the areas that administrator owns with their open and stale-unclaimed
+ *     counts
+ *   - Work-queue areas on the page: each card's area and owner line (or that
+ *     it is shared), the area filter (all, the viewer's own areas, one area,
+ *     the shared items) combined with the category filter, and the Area Owners
+ *     form. Any administrator may set any area's owner; each changed area
+ *     appends an audit row with the owner before and after, and an unchanged
+ *     save writes nothing. Ownership orients and never restricts who may act.
+ *     An owner who no longer holds the admin role reads as no owner
  *
  * Does not own:
  *   - Link-help request workflow (IdentityAccessService; this service routes the
@@ -67,7 +79,8 @@
  *     answered, so a new type answers the question rather than inheriting an
  *     answer nobody chose.
  *   - Per-member open-request cap is 3, counted across every request the member
- *     raised themselves (contact requests and link-help requests alike) and
+ *     raised themselves (contact requests, content reports and link-help
+ *     requests alike) and
  *     freed as each is answered; the 4th open submission throws
  *     RateLimitedError. Items the platform raised about a member never count.
  *     Message body is capped at 2000 characters, the resolution note at 500.
@@ -76,14 +89,15 @@
  *     before validation, so the length caps and repeat checks judge what is stored.
  *
  * Persistence:
- *   work_queue_items, audit_entries.
+ *   work_queue_items, work_queue_topic_owners, audit_entries.
  *
  * Side effects:
  *   - audit_entries append (the event the acting action names on resolution:
  *     support.contact_request_resolved,
  *     payment.queue_item_resolved, or the dismissal event each internal-review
  *     type names for itself; work_queue.parked and work_queue.unparked when an
- *     administrator sets an item aside or takes it back)
+ *     administrator sets an item aside or takes it back;
+ *     work_queue.topic_owner_changed per area whose owner changes)
  *   - outbox_emails enqueue (member notification only where the acting action
  *     says the member is answered; a submitted contact request reaches
  *     administrators through the queue digest, never a per-request alert;
@@ -92,7 +106,9 @@
  *
  * Service shape: singleton object (no external adapters beyond db.ts).
  */
-import { workQueue, memberMessages, account, payments, outbox, transaction } from '../db/db';
+import {
+  workQueue, workQueueTopicOwners, memberMessages, account, payments, outbox, transaction,
+} from '../db/db';
 import {
   enforceWorkQueueResolveLimit, identityAccessService,
   type ClaimEvidence,
@@ -102,12 +118,15 @@ import { emailService, actNoticeKey } from './emailService';
 import { workQueueService, claimIsLive, claimStaleCutoffIso } from './workQueueService';
 import {
   workQueueDescriptorFor, workQueueActionFor, requireWorkQueueDescriptor,
-  type WorkQueueAction,
+  WORK_QUEUE_TASK_TYPES, WORK_QUEUE_TOPICS, WORK_QUEUE_TOPIC_KEYS, isWorkQueueTopic,
+  type WorkQueueAction, type WorkQueueTopic,
 } from './workQueueTaskTypes';
 import {
   questionRecipientFor, ANSWER_KINDS, type ExpectedAnswerKind,
 } from './memberMessageService';
+import { randomUUID } from 'crypto';
 import { runSqliteRead } from './sqliteRetry';
+import { readIntConfig } from './configReader';
 import { NotFoundError, RateLimitedError, ValidationError } from './serviceErrors';
 import { cleanUserText } from '../lib/textSanitizer';
 import { PageViewModel } from '../types/page';
@@ -118,6 +137,7 @@ export const CONTACT_CATEGORIES = [
   'profile_url_correction',
   'tier_status_question',
   'identity_link_issue',
+  'community_standards',
   'other',
 ] as const;
 export type ContactCategory = (typeof CONTACT_CATEGORIES)[number];
@@ -127,10 +147,22 @@ export const CONTACT_CATEGORY_LABELS: Record<ContactCategory, string> = {
   profile_url_correction:  'Profile URL correction',
   tier_status_question:    'Tier-status question',
   identity_link_issue:     'Old account or competition-record link',
+  community_standards:     'Content that breaks the community standards',
   other:                   'Other',
 };
 
+/** What a member reads after sending a contact request. It sets the
+ *  expectation the volunteer notice on the form makes: a person reads it, and
+ *  the reply takes days, not minutes. */
+export const CONTACT_REQUEST_CONFIRMATION =
+  "Your request has been sent to IFPA's volunteer administrators. We will reply by email, usually within a few days.";
+
 const TASK_TYPE = 'member_contact_request';
+// A contact request reporting content that breaks the community standards: the
+// same request, raised as its own type so that it belongs to the moderation area.
+const CONTENT_REPORT_TASK_TYPE = 'content_report';
+const contactTaskTypeFor = (category: ContactCategory): string =>
+  (category === 'community_standards' ? CONTENT_REPORT_TASK_TYPE : TASK_TYPE);
 // The other queue a member can put work into themselves. Everything else in the
 // queue is raised by the platform about a member, not by the member.
 const LINK_HELP_TASK_TYPE = 'member_link_help_request';
@@ -384,6 +416,7 @@ export interface DisputeRevertConfirmContent {
   historicalPersonId: string;
   reason: string;
   filterCategory: string;
+  filterTopic: string;
 }
 
 /** The two records a link-help approval is about to bind, shown before it is. */
@@ -407,6 +440,7 @@ export interface LinkHelpConfirmContent {
   legacyMemberId: string;
   historicalPersonId: string;
   filterCategory: string;
+  filterTopic: string;
 }
 
 /** One question put to the member on this item, as the administrator sees it. */
@@ -427,6 +461,11 @@ export interface WorkQueueViewItem {
   queueCategory: string;
   taskType: string;
   taskTypeLabel: string;
+  /** The area the item belongs to and its owner ("Finance · Tim Vozar's area"),
+   *  or that it is shared. Orientation only: any administrator may act on it. */
+  areaLine: string;
+  /** True when the viewing administrator owns the item's area. */
+  isViewerArea: boolean;
   openedAtIso: string;
   openedAtDisplay: string;
   entityType: string;
@@ -498,6 +537,8 @@ export interface WorkQueueGroup {
 export interface ParkedWorkQueueItemView {
   id: string;
   taskTypeLabel: string;
+  areaLine: string;
+  isViewerArea: boolean;
   categoryLabel: string;
   parkedAtDisplay: string;
   parkedByName: string | null;
@@ -524,7 +565,22 @@ export interface WorkQueueContent {
    *  working. Carried in the body rather than the action URL, because a
    *  template may not assemble a URL from more than one value. */
   filterCategory: string | null;
+  /** The area filter as its key, carried back by every form like the category. */
+  filterTopic: string | null;
+  /** The area filter named for the reader; null when showing every area. */
+  filterAreaLabel: string | null;
   isFiltered: boolean;
+  isCategoryFiltered: boolean;
+  clearCategoryHref: string;
+  /** Show: All | Your Areas | each area with task types | Shared. */
+  areaFilterLinks: Array<{ label: string; href: string; isActive: boolean }>;
+  /** One owner choice per area, every area included. */
+  areaOwnerFields: Array<{
+    topic: string;
+    label: string;
+    fieldName: string;
+    options: Array<{ value: string; label: string; selected: boolean }>;
+  }>;
   /** How many items the unfiltered queue holds, so a filtered state can say
    *  what it is a subset of rather than leaving the reader to guess. */
   wholeQueueTotal: number;
@@ -739,10 +795,90 @@ function shapeEvidence(raw: ContactRequestRow): WorkQueueEvidenceView {
   };
 }
 
+/** Each area's owner, only while that owner is still a current administrator. */
+type AreaOwners = Map<WorkQueueTopic, { memberId: string; displayName: string }>;
+
+function readAreaOwners(): AreaOwners {
+  const rows = workQueueTopicOwners.listAll.all() as Array<{
+    topic: string;
+    owner_member_id: string | null;
+    owner_display_name: string | null;
+    owner_is_current_admin: 0 | 1;
+  }>;
+  const owners: AreaOwners = new Map();
+  for (const r of rows) {
+    if (!isWorkQueueTopic(r.topic)) continue;
+    if (r.owner_member_id && r.owner_is_current_admin === 1 && r.owner_display_name) {
+      owners.set(r.topic, { memberId: r.owner_member_id, displayName: r.owner_display_name });
+    }
+  }
+  return owners;
+}
+
+/**
+ * The areas some task type belongs to today, in registry order. Only these get
+ * a filter link: an area nothing can land in yet (sanctioning, freestyle) would
+ * be a link that always shows an empty queue. Every area still appears in the
+ * owners form, because its owner is worth recording before its first type.
+ */
+function areasWithTaskTypes(): WorkQueueTopic[] {
+  const used = new Set(
+    Object.values(WORK_QUEUE_TASK_TYPES).map((d) => d.routeTopic).filter((t) => t !== null),
+  );
+  return WORK_QUEUE_TOPIC_KEYS.filter((t) => used.has(t));
+}
+
+/** How a card names its area: the area and its owner, or that it is shared. */
+function areaLineFor(
+  taskType: string,
+  owners: AreaOwners,
+  viewingAdminId: string,
+): { areaLine: string; isViewerArea: boolean } {
+  const topic = workQueueDescriptorFor(taskType)?.routeTopic ?? null;
+  if (topic === null) return { areaLine: 'Shared · any administrator', isViewerArea: false };
+  const label = WORK_QUEUE_TOPICS[topic].label;
+  const owner = owners.get(topic);
+  if (!owner) return { areaLine: `${label} · no owner set`, isViewerArea: false };
+  return {
+    areaLine: `${label} · ${owner.displayName}'s area`,
+    isViewerArea: owner.memberId === viewingAdminId,
+  };
+}
+
+/** The `?topic=` values the page honours; anything else shows every area. */
+type AreaFilter = 'mine' | 'shared' | WorkQueueTopic;
+
+function parseAreaFilter(raw: string | null | undefined): AreaFilter | null {
+  if (!raw) return null;
+  if (raw === 'mine' || raw === 'shared') return raw;
+  return isWorkQueueTopic(raw) && areasWithTaskTypes().includes(raw) ? raw : null;
+}
+
+function matchesAreaFilter(
+  taskType: string,
+  filter: AreaFilter,
+  owners: AreaOwners,
+  viewingAdminId: string,
+): boolean {
+  const topic = workQueueDescriptorFor(taskType)?.routeTopic ?? null;
+  if (filter === 'shared') return topic === null;
+  if (filter === 'mine') return topic !== null && owners.get(topic)?.memberId === viewingAdminId;
+  return topic === filter;
+}
+
+function queueHref(topic: AreaFilter | null, category: string | null): string {
+  const params = new URLSearchParams();
+  if (topic) params.set('topic', topic);
+  if (category) params.set('category', category);
+  const qs = params.toString();
+  return qs ? `/admin/work-queue?${qs}` : '/admin/work-queue';
+}
+
 function shapeWorkQueueItem(
   raw: ContactRequestRow,
   viewingAdminId: string,
   askItemId: string | null,
+  owners: AreaOwners,
 ): WorkQueueViewItem {
   // A claim expires, so an item whose holder never came back is offered to
   // everyone again rather than sitting silently under a name.
@@ -781,6 +917,7 @@ function shapeWorkQueueItem(
     queueCategory: raw.queueCategory,
     taskType: raw.taskType,
     taskTypeLabel: workQueueDescriptorFor(raw.taskType)?.label ?? raw.taskType,
+    ...areaLineFor(raw.taskType, owners, viewingAdminId),
     openedAtIso: raw.openedAtIso,
     openedAtDisplay: raw.openedAtIso.slice(0, 10),
     entityType: raw.entityType,
@@ -1000,7 +1137,7 @@ export const adminWorkQueueService = {
     // result, so nothing is opened, recorded or counted against the cap again.
     if (category !== 'identity_link_issue') {
       const sameOpen = workQueue.findOpenMemberRequestByText.get(
-        TASK_TYPE, 'member', input.requestingMemberId, reasonText, trimmed,
+        contactTaskTypeFor(category), 'member', input.requestingMemberId, reasonText, trimmed,
       ) as { id: string } | undefined;
       if (sameOpen) return { id: sameOpen.id };
     }
@@ -1017,7 +1154,8 @@ export const adminWorkQueueService = {
       return row?.c ?? 0;
     };
     const openLinkHelp = openRaisedByMember(LINK_HELP_TASK_TYPE);
-    const openTotal = openRaisedByMember(TASK_TYPE) + openLinkHelp;
+    const openTotal = openRaisedByMember(TASK_TYPE) + openRaisedByMember(CONTENT_REPORT_TASK_TYPE)
+      + openLinkHelp;
     // A second identity-link submission replaces the payload on the row the
     // member already holds rather than opening another, so it cannot push them
     // past the cap and must not be refused by it: refusing would strand a member
@@ -1046,7 +1184,7 @@ export const adminWorkQueueService = {
     const { id } = workQueueService.enqueue({
       actorId:       input.requestingMemberId,
       queueCategory: 'membership',
-      taskType:      TASK_TYPE,
+      taskType:      contactTaskTypeFor(category),
       entityType:    'member',
       entityId:      input.requestingMemberId,
       priority:      5,
@@ -1141,6 +1279,7 @@ export const adminWorkQueueService = {
     legacyMemberId: string;
     historicalPersonId: string;
     category?: string | null;
+    topic?: string | null;
   }): PageViewModel<LinkHelpConfirmContent> {
     const preview = identityAccessService.previewLinkHelpApproval(
       opts.adminMemberId,
@@ -1171,6 +1310,7 @@ export const adminWorkQueueService = {
         legacyMemberId:     preview.legacyMemberId ?? '',
         historicalPersonId: preview.historicalPersonId ?? '',
         filterCategory:     opts.category ?? '',
+        filterTopic:        opts.topic ?? '',
       },
     };
   },
@@ -1188,6 +1328,7 @@ export const adminWorkQueueService = {
     historicalPersonId: string;
     reason: string;
     category?: string | null;
+    topic?: string | null;
   }): PageViewModel<DisputeRevertConfirmContent> | null {
     const preview = identityAccessService.previewClaimDisputeRevert(
       opts.adminMemberId,
@@ -1234,6 +1375,7 @@ export const adminWorkQueueService = {
         historicalPersonId: opts.historicalPersonId,
         reason:             preview.reason,
         filterCategory:     opts.category ?? '',
+        filterTopic:        opts.topic ?? '',
       },
     };
   },
@@ -1243,7 +1385,10 @@ export const adminWorkQueueService = {
    * the working queue so a parked item stays visible without counting as work
    * waiting on anyone.
    */
-  listParkedForAdmin(): ParkedWorkQueueItemView[] {
+  listParkedForAdmin(
+    viewingAdminId: string,
+    owners: AreaOwners = readAreaOwners(),
+  ): ParkedWorkQueueItemView[] {
     const rows = workQueue.listParkedForAdmin.all() as Array<{
       id: string;
       queue_category: string;
@@ -1269,6 +1414,7 @@ export const adminWorkQueueService = {
       return {
         id:                r.id,
         taskTypeLabel:     workQueueDescriptorFor(r.task_type)?.label ?? r.task_type,
+        ...areaLineFor(r.task_type, owners, viewingAdminId),
         categoryLabel:     WORK_QUEUE_CATEGORY_LABELS[r.queue_category] ?? r.queue_category,
         parkedAtDisplay:   r.parked_at.slice(0, 10),
         parkedByName:      r.parked_by_name,
@@ -1438,6 +1584,8 @@ export const adminWorkQueueService = {
     askItemId?: string | null;
     /** Show one category alone. An unknown value shows the whole queue. */
     category?: string | null;
+    /** Show one area, the viewer's own areas, or the shared items. */
+    topic?: string | null;
     errorMessage?: string;
   }): PageViewModel<WorkQueueContent> {
     // A contended database renders the standard temporarily-unavailable page
@@ -1462,6 +1610,8 @@ export const adminWorkQueueService = {
     askItemId?: string | null;
     /** Show one category alone. An unknown value shows the whole queue. */
     category?: string | null;
+    /** Show one area, the viewer's own areas, or the shared items. */
+    topic?: string | null;
     errorMessage?: string;
   }): PageViewModel<WorkQueueContent> {
     // An unrecognized category shows the whole queue rather than an error page:
@@ -1472,17 +1622,46 @@ export const adminWorkQueueService = {
       ? opts.category
       : null;
 
+    // The area filter follows the same rule: an unknown value shows every area.
+    const filterTopic = parseAreaFilter(opts.topic);
+    const owners = readAreaOwners();
+
     const allRows = this.listOpenForAdmin();
-    const rows = filterCategory === null
-      ? allRows
-      : allRows.filter((r) => r.queueCategory === filterCategory);
+    const rows = allRows.filter((r) =>
+      (filterCategory === null || r.queueCategory === filterCategory)
+      && (filterTopic === null || matchesAreaFilter(r.taskType, filterTopic, owners, opts.adminMemberId)));
 
     const groupMap = new Map<string, WorkQueueViewItem[]>();
     for (const r of rows) {
       const arr = groupMap.get(r.queueCategory) ?? [];
-      arr.push(shapeWorkQueueItem(r, opts.adminMemberId, opts.askItemId ?? null));
+      arr.push(shapeWorkQueueItem(r, opts.adminMemberId, opts.askItemId ?? null, owners));
       groupMap.set(r.queueCategory, arr);
     }
+
+    const areaFilterLinks = [
+      { label: 'All', value: null as AreaFilter | null },
+      { label: 'Your Areas', value: 'mine' as AreaFilter },
+      ...areasWithTaskTypes().map((t) => ({ label: WORK_QUEUE_TOPICS[t].label, value: t as AreaFilter })),
+      { label: 'Shared', value: 'shared' as AreaFilter },
+    ].map((f) => ({
+      label: f.label,
+      href: queueHref(f.value, filterCategory),
+      isActive: f.value === filterTopic,
+    }));
+
+    const admins = account.listAdminsForDisplay.all() as Array<{ id: string; display_name: string }>;
+    const areaOwnerFields = WORK_QUEUE_TOPIC_KEYS.map((topic) => {
+      const ownerId = owners.get(topic)?.memberId ?? null;
+      return {
+        topic,
+        label: WORK_QUEUE_TOPICS[topic].label,
+        fieldName: `owner_${topic}`,
+        options: [
+          { value: '', label: 'No owner', selected: ownerId === null },
+          ...admins.map((a) => ({ value: a.id, label: a.display_name, selected: a.id === ownerId })),
+        ],
+      };
+    });
     const groups: WorkQueueGroup[] = [];
     for (const [category, items] of groupMap.entries()) {
       groups.push({
@@ -1494,7 +1673,10 @@ export const adminWorkQueueService = {
     // The parked listing is not filtered with the queue: it is a short list of
     // what is set aside across the whole queue, and hiding part of it behind the
     // category filter would let a parked item disappear from both views.
-    const parked = this.listParkedForAdmin();
+    const parked = this.listParkedForAdmin(opts.adminMemberId, owners);
+    const filterAreaLabel = filterTopic === null
+      ? null
+      : areaFilterLinks.find((l) => l.isActive)?.label ?? null;
     return {
       seo:  { title: 'Admin Work Queue' },
       page: {
@@ -1502,8 +1684,9 @@ export const adminWorkQueueService = {
         instructions: {
           what: 'Every open task the platform has raised for an administrator, grouped by kind.',
           why: 'A shared, current picture of what needs a person.',
-          how: 'Claim an item to show you are handling it, then resolve it, or park it if you cannot move it forward yet. Where one member is involved, you can ask them a question.',
+          how: 'Claim an item to show you are handling it, then resolve it, or park it if you cannot move it forward yet. Where one member is involved, you can ask them a question. Each item names the area it belongs to and that area\'s owner. Every administrator can still claim and settle any item, so cover for an owner who is away.',
           headsUp: [
+            'Changing an area\'s owner is recorded in the audit log.',
             'A claim tells other administrators you are on it. It does not lock the item, and it lapses.',
             'Resolving a member\'s contact request or link-help request emails them your answer.',
             'Upholding an identity dispute takes the record away from the member who holds it, after a confirm page.',
@@ -1521,11 +1704,20 @@ export const adminWorkQueueService = {
         totalOpen: rows.length,
         // A filtered state says where the reader is and how to leave it, so a
         // deep link never reads as an oddly short queue.
-        filterLabel: filterCategory === null
-          ? null
-          : WORK_QUEUE_CATEGORY_LABELS[filterCategory] ?? filterCategory,
+        filterLabel: [
+          filterAreaLabel,
+          filterCategory === null ? null : WORK_QUEUE_CATEGORY_LABELS[filterCategory] ?? filterCategory,
+        ].filter((l) => l !== null).join(', ') || null,
         filterCategory,
-        isFiltered: filterCategory !== null,
+        filterTopic,
+        filterAreaLabel,
+        isFiltered: filterCategory !== null || filterTopic !== null,
+        isCategoryFiltered: filterCategory !== null,
+        // Leaving the category keeps the area, and the reverse, so each filter
+        // is cleared on its own.
+        clearCategoryHref: queueHref(filterTopic, null),
+        areaFilterLinks,
+        areaOwnerFields,
         wholeQueueTotal: allRows.length,
         resolvedFlag: opts.resolvedFlag ?? false,
         resolvedQuietFlag: opts.resolvedQuietFlag ?? false,
@@ -1629,6 +1821,99 @@ export const adminWorkQueueService = {
         entityType:    'work_queue_item',
         entityId:      input.queueItemId,
       });
+    });
+  },
+
+  /**
+   * Record each area's accountable owner from the Area Owners form. Any
+   * administrator may change any area's owner: ownership orients the queue and
+   * never restricts who may act, so it carries no self-action bar. Each choice
+   * must be a current administrator or no owner; anything else refuses the whole
+   * save. Every changed area appends one audit row with the owner before and
+   * after, in one transaction with the owner rows. A submission that changes
+   * nothing writes nothing and says so. An area the form left out is left as it
+   * is.
+   */
+  saveTopicOwners(input: {
+    adminMemberId: string;
+    owners: Partial<Record<WorkQueueTopic, string>>;
+  }): { status: 'saved'; changed: number } | { status: 'unchanged' } {
+    const adminIds = new Set(
+      (account.listAdminsForDisplay.all() as Array<{ id: string }>).map((a) => a.id),
+    );
+    const stored = new Map(
+      (workQueueTopicOwners.listAll.all() as Array<{ topic: string; owner_member_id: string | null }>)
+        .map((r) => [r.topic, r.owner_member_id] as const),
+    );
+    const changes: Array<{ topic: WorkQueueTopic; before: string | null; after: string | null; hasRow: boolean }> = [];
+    for (const topic of WORK_QUEUE_TOPIC_KEYS) {
+      const submitted = input.owners[topic];
+      if (submitted === undefined) continue;
+      const after = submitted === '' ? null : submitted;
+      if (after !== null && !adminIds.has(after)) {
+        throw new ValidationError(
+          `${WORK_QUEUE_TOPICS[topic].label}: choose a current administrator, or No owner.`,
+        );
+      }
+      const before = stored.get(topic) ?? null;
+      if (before !== after) changes.push({ topic, before, after, hasRow: stored.has(topic) });
+    }
+    if (changes.length === 0) return { status: 'unchanged' };
+
+    const nowIso = new Date().toISOString();
+    transaction(() => {
+      for (const c of changes) {
+        if (c.hasRow) {
+          workQueueTopicOwners.updateOwner.run(c.after, nowIso, input.adminMemberId, c.topic);
+        } else {
+          workQueueTopicOwners.insert.run(
+            `wqto_${randomUUID().replace(/-/g, '').slice(0, 24)}`,
+            nowIso, input.adminMemberId, nowIso, input.adminMemberId, c.topic, c.after,
+          );
+        }
+        appendAuditEntry({
+          actionType:    'work_queue.topic_owner_changed',
+          actorType:     'admin',
+          actorMemberId: input.adminMemberId,
+          entityType:    'work_queue_topic',
+          entityId:      c.topic,
+          metadata:      { before: c.before, after: c.after },
+        });
+      }
+    });
+    return { status: 'saved', changed: changes.length };
+  },
+
+  /**
+   * The areas the given administrator owns, each with its open working items
+   * and how many of them have waited past the stale threshold with nobody
+   * holding a live claim. Empty for an administrator who owns no area. Parked
+   * items are not counted: they are waiting on something outside the queue.
+   */
+  getOwnedAreaSummary(adminMemberId: string): Array<{
+    topic: WorkQueueTopic;
+    label: string;
+    open: number;
+    unclaimedStale: number;
+    staleDays: number;
+  }> {
+    const owners = readAreaOwners();
+    const owned = WORK_QUEUE_TOPIC_KEYS.filter((t) => owners.get(t)?.memberId === adminMemberId);
+    if (owned.length === 0) return [];
+    const rows = this.listOpenForAdmin();
+    const cutoff = claimStaleCutoffIso();
+    const staleDays = readIntConfig('admin_queue_stale_escalation_days', 3);
+    return owned.map((topic) => {
+      const inArea = rows.filter((r) => workQueueDescriptorFor(r.taskType)?.routeTopic === topic);
+      return {
+        topic,
+        label: WORK_QUEUE_TOPICS[topic].label,
+        open: inArea.length,
+        unclaimedStale: inArea.filter(
+          (r) => r.openedAtIso < cutoff && !claimIsLive(r.claimedAt, cutoff),
+        ).length,
+        staleDays,
+      };
     });
   },
 

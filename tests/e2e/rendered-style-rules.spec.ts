@@ -187,6 +187,15 @@ const CASES: Case[] = [
     red: ['<main><img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" alt="Logo"></main>'],
     green: '<main><img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" alt="Logo" width="40" height="40"></main>',
   },
+  {
+    rule: 'list-marker-outside-column',
+    viewport: PHONE,
+    red: [
+      '<main><div class="wrapper"><ol class="planted-steps"><li>First step</li><li>Second step</li><li>Third step</li><li>Fourth step</li></ol></div></main>',
+      '<main><div class="wrapper"><ul class="planted-points"><li>A point</li><li>Another point</li></ul></div></main>',
+    ],
+    green: '<main><div class="wrapper"><ol><li>First step</li><li>Second step</li><li>Third step</li><li>Fourth step</li></ol><ul><li>A point</li><li>Another point</li></ul></div></main>',
+  },
 ];
 
 test('a control whose keyboard focus draws nothing is reported, and one with the site\'s focus style is not', async ({ page }) => {

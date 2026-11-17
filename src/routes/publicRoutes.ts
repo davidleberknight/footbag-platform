@@ -266,6 +266,7 @@ publicRouter.get('/members/:memberKey/media/:mediaId/delete',  requireMember, re
 publicRouter.post('/members/:memberKey/media/:mediaId/delete', requireMember, requireTier1Benefits('media'), refuseUploadAsMediaId, memberMediaEditController.postDelete);
 
 publicRouter.get('/legal',      legalController.index);
+publicRouter.get('/community-standards', legalController.communityStandards);
 publicRouter.get('/equipment',  equipmentController.index);
 
 publicRouter.get('/login',      authController.getLogin);

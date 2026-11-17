@@ -1336,6 +1336,22 @@ export function insertWorkQueueItem(
   return id;
 }
 
+/** One work-queue area's accountable owner, as the Area Owners form records it. */
+export function insertWorkQueueTopicOwner(
+  db: BetterSqlite3.Database,
+  o: { topic: string; owner_member_id: string | null; id?: string; actor?: string },
+): string {
+  const id = o.id ?? `wqto-test-${uid()}`;
+  const now = nowIso();
+  const actor = o.actor ?? o.owner_member_id ?? SYS;
+  db.prepare(`
+    INSERT INTO work_queue_topic_owners
+      (id, created_at, created_by, updated_at, updated_by, version, topic, owner_member_id)
+    VALUES (?, ?, ?, ?, ?, 1, ?, ?)
+  `).run(id, now, actor, now, actor, o.topic, o.owner_member_id);
+  return id;
+}
+
 // ── Administrator's question to one member ───────────────────────────────────
 
 export interface MemberMessageOverrides {

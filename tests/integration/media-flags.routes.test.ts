@@ -401,6 +401,25 @@ describe('the reporting control on the item page', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain(`/media/item/${SPARE_ITEMS[1]}/flag`);
     expect(res.text).toContain('Report This Item');
+    // A reporter who cannot reach the rules picks a reason without knowing
+    // what each one forbids. Within the report form: the site footer links
+    // the standards on every page.
+    const reportForm = res.text.slice(
+      res.text.indexOf(`action="/media/item/${SPARE_ITEMS[1]}/flag"`),
+      res.text.indexOf('</form>', res.text.indexOf(`action="/media/item/${SPARE_ITEMS[1]}/flag"`)),
+    );
+    expect(reportForm).toContain('href="/community-standards"');
+    // A reporter who is not told that volunteers review reports, before they
+    // send, expects a prompt answer and reports again. Within the report form:
+    // the site header carries a submit of its own.
+    const form = res.text.indexOf(`action="/media/item/${SPARE_ITEMS[1]}/flag"`);
+    const formEnd = res.text.indexOf('</form>', form);
+    const notice = res.text.indexOf('data-volunteer-notice', form);
+    const submit = res.text.indexOf('type="submit"', form);
+    expect(form).toBeGreaterThan(-1);
+    expect(notice).toBeGreaterThan(-1);
+    expect(notice).toBeLessThan(submit);
+    expect(submit).toBeLessThan(formEnd);
   });
 
   it('shows a member who already reported an item that they did, and no second form', async () => {

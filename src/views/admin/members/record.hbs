@@ -290,6 +290,21 @@
       </details>
     {{/if}}
 
+    {{#if content.canClearBio}}
+      <details class="admin-action-disclosure" {{#if content.openForm.bio}}open{{/if}}>
+        <summary>Clear the Biography</summary>
+        <p class="fs-sm">The biography is the member's own words, so it is cleared, never rewritten. The text is kept in the audit log, and the member is emailed the reason you give. They can write a new one.</p>
+        <form method="POST" action="{{content.bioClearAction}}" class="form-block">
+          <div class="form-field">
+            <label for="bio_reason">Reason (required)</label>
+            <input type="text" id="bio_reason" name="reason" value="{{content.reasons.bio}}" maxlength="500" required />
+            {{#if content.fieldErrors.bio.reason}}<p class="form-field-error" role="alert">{{content.fieldErrors.bio.reason}}</p>{{/if}}
+          </div>
+          <button type="submit" class="btn btn-outline">Review Clearing the Biography</button>
+        </form>
+      </details>
+    {{/if}}
+
     {{#if content.isDeceasedMarked}}
       <details class="admin-action-disclosure">
         <summary>Remove the Deceased Marking</summary>

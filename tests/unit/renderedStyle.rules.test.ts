@@ -824,6 +824,36 @@ describe('image-unsized', () => {
   });
 });
 
+describe('list-marker-outside-column', () => {
+  // A column with a 16px gutter, as the site wrapper has on a phone, holding one list.
+  const listIn = (liX: number, li: Partial<Record<StyleProp, string>> = {}, markerPx: number | null = 14) => buildCapture(
+    el('main', { rect: { x: 0, w: PHONE }, style: { 'padding-left': '16px' } },
+      el('ol', { rect: { x: 16, w: PHONE - 32 } },
+        el('li', { rect: { x: liX, w: 300 }, markerPx: markerPx ?? undefined, text: 'First step', style: { display: 'list-item', 'list-style-type': 'decimal', 'list-style-position': 'outside', ...li } }))),
+    { width: PHONE },
+  );
+
+  it('reports an item whose marker has less room than its width before the column\'s content edge', () => {
+    // A phone visitor would see the list's numbers cut off at, or past, the left edge of the screen.
+    expect(hits(listIn(16), 'list-marker-outside-column').map((f) => f.measured)).toEqual(['marker 14px wide with 0px of room']);
+    expect(hits(listIn(26), 'list-marker-outside-column')).toHaveLength(1);
+  });
+
+  it('passes an item indented at least its marker\'s width', () => {
+    // Flagging an indented list would bury the real cut-off lists under noise.
+    expect(hits(listIn(30), 'list-marker-outside-column')).toEqual([]);
+    expect(hits(listIn(40), 'list-marker-outside-column')).toEqual([]);
+  });
+
+  it('ignores items that draw no outside marker', () => {
+    // Menus and link lists set list-style none or lay items out as flex, and need no indent.
+    expect(hits(listIn(16, { 'list-style-type': 'none' }), 'list-marker-outside-column')).toEqual([]);
+    expect(hits(listIn(16, { display: 'flex' }), 'list-marker-outside-column')).toEqual([]);
+    expect(hits(listIn(16, { 'list-style-position': 'inside' }), 'list-marker-outside-column')).toEqual([]);
+    expect(hits(listIn(16, {}, null), 'list-marker-outside-column')).toEqual([]);
+  });
+});
+
 describe('layout-shift note', () => {
   it('names a page whose content jumped by more than 0.1 while loading, and not one that held still', () => {
     // Content moving under a reader's finger or eye makes them tap or read the wrong thing.
@@ -900,6 +930,10 @@ const PLANTED: Record<string, () => { capture: Capture; selectors: string[]; ctx
   'colour-off-palette': () => ({ capture: buildCapture(el('p', { text: 'x', style: { color: 'rgb(1, 2, 3)' } }), { palette: ['rgb(51, 51, 51)'] }), selectors: ['body>p'] }),
   'prose-leading-tight': () => ({ capture: buildCapture(el('p', { text: LONG, style: { 'line-height': '18px' } })), selectors: ['body>p'] }),
   'image-unsized': () => ({ capture: buildCapture(el('img')), selectors: ['body>img'] }),
+  'list-marker-outside-column': () => ({
+    capture: buildCapture(el('main', {}, el('ul', {}, el('li', { markerPx: 10, text: 'Item', style: { display: 'list-item', 'list-style-type': 'disc', 'list-style-position': 'outside' } }))), { width: PHONE }),
+    selectors: ['body>main>ul>li'],
+  }),
 };
 
 describe('every rule fires on a planted defect and names the element it found', () => {

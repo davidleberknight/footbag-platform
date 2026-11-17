@@ -95,7 +95,7 @@ import { publishedByExpectedTopic } from '../lib/snsSignature';
 import { workingSetPercent } from '../lib/containerMemory';
 import { sesFeedbackService } from './sesFeedbackService';
 import { systemAlarmService } from './systemAlarmService';
-import { workQueueService } from './workQueueService';
+import { workQueueService, type AdminQueueDigestResult } from './workQueueService';
 import { paymentReconciliationService } from './paymentReconciliationService';
 import { readIntConfig } from './configReader';
 import { config } from '../config/env';
@@ -488,7 +488,7 @@ export class OperationsPlatformService {
    */
   async runAdminQueueDigest(
     startTime?: Date,
-  ): Promise<{ admins: number; sent: number; openRoutineItems: number }> {
+  ): Promise<AdminQueueDigestResult> {
     return this.recordJobRun(
       'SYS_Admin_Queue_Digest',
       () => workQueueService.sendAdminQueueDigests(),

@@ -71,6 +71,9 @@ export const FLASH_KIND = {
   // change already made by another act. The payload is the sentence and its
   // tone, so the list page reports that nothing was changed.
   ADMIN_ROLE_OUTCOME: 'admin_role_outcome',
+  // An administrator clearing a member media item's caption, or finding it
+  // already empty. The payload is the sentence and its tone.
+  MEDIA_CAPTION_OUTCOME: 'media_caption_outcome',
   HONOR_GRANT_OUTCOME: 'honor_grant_outcome',
   // An administrator's change to a club's co-leaders, an event's organizers or
   // results, a historical person's deceased marking, or a freestyle trick's

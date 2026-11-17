@@ -47,6 +47,21 @@
         <p class="admin-tile-note">{{content.ownWork.detail}}</p>
       </div>
 
+      {{#if content.hasYourAreas}}
+      <div class="admin-tile">
+        <div class="section-heading">
+          <h2>Your Areas</h2>
+        </div>
+        {{#each content.yourAreas}}
+        <a class="admin-queue-row" href="{{this.href}}">
+          <span class="admin-queue-row-label">{{this.label}}</span>
+          <span class="badge{{#if this.isZero}} badge-muted{{/if}}">{{this.countLabel}}</span>
+          {{#if this.metaLabel}}<span class="admin-queue-row-meta">{{this.metaLabel}}</span>{{/if}}
+        </a>
+        {{/each}}
+      </div>
+      {{/if}}
+
       <div class="admin-tile">
         <div class="section-heading">
           <h2>System Health</h2>

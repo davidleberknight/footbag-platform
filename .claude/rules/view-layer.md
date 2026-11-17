@@ -309,6 +309,10 @@ an accessible name; only a narrow, record-like table stacks each row into a bloc
 Fixed-width preformatted text (ASCII notation and diagrams) scrolls inside its own labelled,
 keyboard-focusable box the same way.
 
+A list's numbers and bullets sit inside its content column, with visible space before them,
+at every width. A plain list takes the shared prose-list indent; a classed list that draws
+markers sets its own indent. The rendered-style check's list-marker rule enforces it.
+
 A section heading is an `h2` inside a `.section-heading` wrapper (`<div class="section-heading"><h2>
 …</h2></div>`); a sub-heading within a section is a plain `h3`, never a second `.section-heading`.
 

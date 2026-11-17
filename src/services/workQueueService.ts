@@ -24,7 +24,12 @@
  * task type and entity id only (no member personal data). The administrator-loss
  * recruitment alert is the one shipped urgent type; a future task type meeting
  * the same-day security, data-integrity, or continuity bar opts in by naming its
- * own notification in the table.
+ * own notification in the table. Area routing adds to this and changes none of
+ * it: each area (routing topic) whose runtime switch is on also receives, in the
+ * digest pass, one digest at its group address listing the area's open routine
+ * items under no live claim. With every switch off the pass sends exactly the
+ * per-administrator digests. An area address receives only that digest; a type
+ * needing same-day action is urgent instead.
  *
  * Transaction discipline: `enqueue` and `claim` perform only synchronous DB
  * writes and never open their own transaction; call them inside the caller's
@@ -33,18 +38,26 @@
  * plus best-effort outbox enqueues, run outside any caller transaction.
  *
  * Persistence: writes `work_queue_items` (insert, claim); reads it for the
- * digest and escalation passes. Enqueues to `outbox_emails` via emailService.
+ * digest and escalation passes; reads `system_config_current` for each area's
+ * switch. Enqueues to `outbox_emails` via emailService.
  *
  * Side effects: work-queue insert; work-queue claim; admin-alerts outbox
  * enqueue (urgent per-event, and stale escalation); per-administrator digest
- * outbox enqueue.
+ * outbox enqueue; per-area digest outbox enqueue to the area's group address.
  *
  * Service shape: singleton object.
  */
 import { randomUUID } from 'crypto';
 import { workQueue, mailingListSubscriptions } from '../db/db';
 import { emailService } from './emailService';
-import { requireWorkQueueDescriptor, workQueueDescriptorFor } from './workQueueTaskTypes';
+import {
+  requireWorkQueueDescriptor,
+  workQueueDescriptorFor,
+  WORK_QUEUE_TOPICS,
+  WORK_QUEUE_TOPIC_KEYS,
+  topicRouteConfigKey,
+  type WorkQueueTopic,
+} from './workQueueTaskTypes';
 import { readIntConfig } from './configReader';
 import { config } from '../config/env';
 import { logger } from '../config/logger';
@@ -113,6 +126,14 @@ export function claimStaleCutoffIso(nowMs: number = Date.now()): string {
 /** A claim counts only while it is younger than the staleness cutoff. */
 export function claimIsLive(claimedAt: string | null, staleCutoffIso: string): boolean {
   return claimedAt !== null && claimedAt >= staleCutoffIso;
+}
+
+export interface AdminQueueDigestResult {
+  admins: number;
+  sent: number;
+  openRoutineItems: number;
+  /** Per area whose switch is on and had something to list: the items sent. */
+  topicDigests: Partial<Record<WorkQueueTopic, number>>;
 }
 
 interface AdminSubscriberRow {
@@ -184,10 +205,10 @@ export const workQueueService = {
    *  work-queue items, excluding the items another administrator has claimed.
    *  Best-effort per administrator so one delivery problem never aborts the
    *  batch. Idempotent within a calendar day via a per-administrator key. */
-  sendAdminQueueDigests(): { admins: number; sent: number; openRoutineItems: number } {
+  sendAdminQueueDigests(): AdminQueueDigestResult {
     const open = workQueue.listOpenForDigest.all() as DigestRow[];
     const routine = open.filter((i) => !isUrgentTaskType(i.task_type));
-    if (routine.length === 0) return { admins: 0, sent: 0, openRoutineItems: 0 };
+    if (routine.length === 0) return { admins: 0, sent: 0, openRoutineItems: 0, topicDigests: {} };
 
     const admins = mailingListSubscriptions.listActiveSubscribersBySlug.all('admin-alerts') as AdminSubscriberRow[];
     const queueUrl = adminQueueUrl();
@@ -223,7 +244,46 @@ export const workQueueService = {
         });
       }
     }
-    return { admins: admins.length, sent, openRoutineItems: routine.length };
+
+    // The area pass: additive, and silent unless an area's switch is on, so with
+    // every switch off the outbox holds exactly the per-administrator digests
+    // above. Each area that is on gets one digest at its group address listing
+    // the area's routine items nobody holds a live claim on; parked items never
+    // reached this list. The group decides who reads it, so the send names no
+    // member and the outbox's member suppression does not apply to it.
+    const topicDigests: Partial<Record<WorkQueueTopic, number>> = {};
+    for (const topic of WORK_QUEUE_TOPIC_KEYS) {
+      if (readIntConfig(topicRouteConfigKey(topic), 0) !== 1) continue;
+      const forTopic = routine.filter(
+        (i) => workQueueDescriptorFor(i.task_type)?.routeTopic === topic
+          && !claimIsLive(i.claimed_at, staleCutoffIso),
+      );
+      if (forTopic.length === 0) continue;
+      const area = WORK_QUEUE_TOPICS[topic];
+      try {
+        emailService.send({
+          template: 'admin_queue_topic_digest',
+          params: {
+            areaLabel: area.label,
+            openCount: forTopic.length,
+            itemLines: forTopic
+              .map((i) => `Task type: ${i.task_type}, Entity ID: ${i.entity_id}`)
+              .join('\n'),
+            queueUrl: `${queueUrl}?topic=${topic}`,
+          },
+          recipientEmail: area.address,
+          recipientMemberId: null,
+          idempotencyKey: `admin-queue-topic-digest:${dateStamp}:${topic}`,
+        });
+        topicDigests[topic] = forTopic.length;
+      } catch (err) {
+        logger.warn('admin_queue_topic_digest enqueue failed for one area', {
+          topic,
+          err: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+    return { admins: admins.length, sent, openRoutineItems: routine.length, topicDigests };
   },
 
   /** Scheduled pass: for each open routine item older than the stale threshold

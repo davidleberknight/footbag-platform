@@ -19,6 +19,7 @@ each release contains is §1.3.
 - [2. Visitor Stories](#2-visitor-stories)
   - [2.1 Content Discovery](#21-content-discovery)
     - [V_Browse_Static_Content](#v_browse_static_content)
+    - [V_View_Community_Standards](#v_view_community_standards)
     - [V_Browse_Clubs](#v_browse_clubs)
     - [V_Browse_Upcoming_Events](#v_browse_upcoming_events)
     - [V_Browse_Past_Events](#v_browse_past_events)
@@ -88,6 +89,7 @@ each release contains is §1.3.
   - [3.8 Media Sharing](#38-media-sharing)
     - [M_Upload_Photo](#m_upload_photo)
     - [M_Submit_Video](#m_submit_video)
+    - [M_Request_Video_Hosting](#m_request_video_hosting)
     - [M_Organize_Media_Galleries](#m_organize_media_galleries)
     - [M_Delete_Own_Media](#m_delete_own_media)
     - [M_Flag_Media](#m_flag_media)
@@ -172,6 +174,7 @@ each release contains is §1.3.
     - [A_Periodic_Club_Cleanup](#a_periodic_club_cleanup)
   - [7.3 Content Moderation](#73-content-moderation)
     - [A_Moderate_Media](#a_moderate_media)
+    - [A_Grant_Video_Hosting](#a_grant_video_hosting)
     - [A_Retire_Tag](#a_retire_tag)
     - [A_Upload_Curated_Media](#a_upload_curated_media)
     - [A_Manage_Curated_Gallery](#a_manage_curated_gallery)
@@ -265,9 +268,9 @@ Reporting scope: Any dashboards/metrics described here are operational metrics (
 
 Times: every timestamp is stored and displayed in UTC, and every admin surface that renders one names the zone on the face of the figure (for example `2026-08-20 15:21:21 UTC`). The platform holds no per-member time zone and does not convert to a viewer's local clock: an admin reconstructing an incident, or reconciling against a payment provider's dashboard, must be able to read a time without knowing which clock produced it.
 
-Admin work-queue notifications are routed by urgency, never broadcast per event to every administrator, so the alert channel stays meaningful for a small volunteer team instead of training administrators to ignore it. Task types classified urgent (security, data-integrity, or administrative-continuity events needing same-day action) send an immediate email to the admin-alerts mailing list when enqueued. Routine task types send no per-event email: administrators read them on the work-queue dashboard, and a periodic digest emails each administrator a rollup of open routine items. An administrator who claims an item removes it from the other administrators' digests; an item unclaimed past a configured stale threshold escalates once with a single email to admin-alerts naming the item. Every such notification contains task type and entity ID only (no sensitive member data such as email addresses, payment amounts, personal information, or content details). Queue items can be viewed after resolution with status, admin who resolved, resolution timestamp, decision label, and reason text.
+Admin work-queue notifications are routed by urgency, never broadcast per event to every administrator, so the alert channel stays meaningful for a small volunteer team instead of training administrators to ignore it. Task types classified urgent (security, data-integrity, or administrative-continuity events needing same-day action) send an immediate email to the admin-alerts mailing list when enqueued. Routine task types send no per-event email: administrators read them on the work-queue dashboard, and a periodic digest emails each administrator a rollup of open routine items. An administrator who claims an item removes it from the other administrators' digests; an item unclaimed past a configured stale threshold escalates once with a single email to admin-alerts naming the item. A task type may also name a topic (finance, membership, platform, sanctioning, freestyle, moderation) with one accountable owner among the administrators; every administrator still sees and can act on every item, so the team covers for an owner who is away. A topic switched on also receives a daily digest of its own open, unclaimed routine items at its queue address, in addition to everything above; switched off, nothing changes. A topic address receives only the daily digest; a task type that needs same-day action is declared urgent instead, which emails every administrator when it is raised. Every such notification contains task type and entity ID only (no sensitive member data such as email addresses, payment amounts, personal information, or content details). Queue items can be viewed after resolution with status, admin who resolved, resolution timestamp, decision label, and reason text.
 
-Member action items follow the mirror-image rule. Anything the platform is waiting on a member for surfaces on that member's dashboard (`M_View_Dashboard`), which is where every login lands, so a member is shown what they owe rather than having to remember where to look for it. Urgency is set by the part of the platform that owns the obligation, since only it knows its deadline: needs-attention-now items lead the dashboard's action block and put a compact banner on every other member page, while pending items sit quietly on the dashboard alone. Neither the block nor the banner carries private content; each item shows a headline, an optional non-private detail line, and its options, and anything private is read on the owner-only surface the item links to. Notification email is unchanged by this: each obligation keeps whatever reminder its own story specifies, and members receive no rollup digest.
+Member action items follow the mirror-image rule. Anything the platform is waiting on a member for surfaces on that member's dashboard (`M_View_Dashboard`), which is where every login lands, so a member is shown what they owe rather than having to remember where to look for it. Urgency is set by the part of the platform that owns the obligation, since only it knows its deadline: needs-attention-now items lead the dashboard's action block and put a compact banner on every other member page, while pending items sit quietly on the dashboard alone. Neither the block nor the banner carries private content; each item shows a headline, an optional non-private detail line, and its options, and anything private is read on the owner-only surface the item links to. Notification email is unchanged by this: each obligation keeps whatever reminder its own story specifies, and members receive no rollup digest. Every form a member submits that waits on an administrator (the contact form, the media flag, an announcement for approval, a sanction request, a video-hosting request) shows, above its submit button, that IFPA's administrators are volunteers and a reply or action can take several days. The wording is written once and shared by every such form.
 
 ## 1.1 Hashtags and Slugs
 
@@ -418,6 +421,22 @@ Success Criteria:
 - `/consecutives` presents consecutives on one page: what it is, how it is contested, a featured demonstration video, and the official IFPA records (consecutive-kicks current world records, highest official scores, record progression, and milestone firsts). Freestyle passback records are freestyle records, not official IFPA records, and are not shown there. Record holders link per the standard person-link rule.
 - `/hof` and `/bap` are editorial landing pages telling each honor's history and linking to its authoritative external home; in-site inductee rosters and per-person honor pages are out of scope by design, and honor badges on member and historical-person surfaces are governed by the Hall of Fame and Big Add Posse global behavior.
 - The freestyle encyclopedia is a separate regime: its visitor surfaces are specified by the Freestyle Encyclopedia stories, and its content is curated in-app after cutover rather than served as read-only pipeline content.
+
+### V_View_Community_Standards
+
+Access: Any visitor can read the Community Standards.
+
+Story: As a visitor or member, I can read one plain-language page of the standards for everything footbag.org publishes on members' behalf, so that I know what is welcome, what is removed, and what happens when someone breaks the rules.
+
+Success Criteria:
+
+- One public page, readable without logging in and rendering identically for every viewer, holds the Community Standards. The Terms of Use make the standards part of the terms, so breaking them is a breach of the terms. The IFPA CTO adopts the wording.
+- General standards apply to all content: respect for other people, honesty about identity and records, safety, privacy, rights to what is posted (including music), keeping to footbag, and no spam or undisclosed commercial content.
+- Additions per kind of content are ordered from lightest to heaviest: links to video hosted elsewhere (the hosting platform's rules apply too, and the site removes the link, not the video), member-written text (bios, descriptions, captions, hashtags, gallery names), photos, community announcements, and hosted video. Identifiable people under 18 shown in a photo or video need a parent's or guardian's consent, and their names stay out of captions and hashtags.
+- One enforcement scale applies to every kind of content: removal of the item with a reason, a written warning, loss of the privilege involved for a period, and permanent loss of it, which for copyright is also the repeat-infringer policy, reaching the account itself in appropriate cases. The most serious harms (sexual content involving a minor, threats, publishing someone's private details) go straight to the last step. Account restriction, suspension and expulsion follow the account story and the bylaws.
+- The page says how to report: the flag on media for members, the content category of the member contact form for anything else (`M_Contact_IFPA_Admin`), and the administrator address on the legal page for visitors.
+- A member told of a decision on their content may appeal within 30 days through the member contact form; an administrator who did not make the decision reviews it and answers with reasons.
+- The forms that publish on IFPA's behalf link to this page from a required agreement box: the community announcement form (`M_Send_Announce_Email`) and the video hosting request (`M_Request_Video_Hosting`).
 
 ### V_Browse_Clubs
 
@@ -1130,10 +1149,11 @@ Success Criteria:
 
 - The form is available to members only; a prospective member is routed to their next outstanding onboarding task.
 - The profile edit page surfaces a "Contact IFPA admin" link next to the read-only identity block.
-- The link opens a slug-scoped owner-only form (`/members/:slug/contact-admin`) with: a category dropdown (Display name correction, Profile URL correction, Tier-status question, Old account or competition-record link, Other), a free-text message textarea (required, up to 2000 characters), and a submit button.
+- The link opens a slug-scoped owner-only form (`/members/:slug/contact-admin`) with: a category dropdown (Display name correction, Profile URL correction, Tier-status question, Old account or competition-record link, Content that breaks the community standards, Other), a free-text message textarea (required, up to 2000 characters), and a submit button.
 - << V2 SCOPE >> The dropdown gains Group creation request and Vote creation request, shipping with native groups and with voting respectively; each is answered through `A_Create_Group` or `A_Create_Vote`.
+- The Content that breaks the community standards category is how a member reports a profile, club, event, caption, gallery name or other text on the site that breaks the Community Standards (`V_View_Community_Standards`); media has its own flag (`M_Flag_Media`). The member names the page and what is wrong. The administrator acts through the admin correction or clearing action that reaches that content, and the resolution reply tells the member the outcome. It reaches the work queue as a content report in the moderation topic; every other category is a contact request in the membership topic.
 - The Tier-status question category covers a member's report that a held Hall of Fame or Big Add Posse honor, or a membership tier, is not reflected on their account (the case of an honoree with no claimable legacy or historical record). The admin resolves it through the honor grant in `A_Grant_HoF_BAP_Board_Status` (which auto-grants Tier 2) or a tier correction. The form routes the request for admin review and never lets a member self-assert an honor or tier.
-- On submit, the member sees a confirmation banner: "Your request has been sent to the IFPA administrator. We will reply by email."
+- On submit, the member sees a confirmation banner: "Your request has been sent to IFPA's volunteer administrators. We will reply by email, usually within a few days."
 - Submitting writes one `work_queue_items` row with `queue_category='membership'`, `task_type='member_contact_request'`, `entity_type='member'`, `entity_id=<requesting_member_id>`, `status='open'`, `priority=5`, `reason_text=<category-label>: <first 200 chars of message>` (operational summary), and `detail_text=<full message body>` (the admin reads the whole request from this purgeable column).
 - Submitting writes no `audit_entries` row: the work-queue row is the record of the request. The full message body is held in its purgeable `detail_text` column (cleared on account erasure), keeping member-authored free text out of the append-only audit ledger.
 - The old account or competition-record link category is the one exception to the work-queue row above, because an administrator answers it by applying a link rather than by writing back. It raises the link-help item instead (`task_type='member_link_help_request'`) and is governed by that workflow's own limits: one open request per member, a re-submission replacing the payload on the row already on file rather than stacking a second, and its own per-member rate limit. Whether the request is a conflict dispute is detected from the records at submission, never declared on the form, so the records an administrator's later revert is bound to are the ones the platform saw. Everything else about the submission is unchanged: the same form, the same confirmation banner, the same free text held in a purgeable column and kept out of the audit ledger.
@@ -1600,7 +1620,7 @@ Success Criteria:
 
 All member-published media is public from the moment it is saved. An Administrator can remove an item through moderation; that is the only visibility control, and members do not set per-item visibility. Members own their content: deleting a photo or a video link removes it permanently, while deleting a named gallery removes only that gallery's saved view and leaves its items in place.
 
-Named galleries are saved hashtag-query albums. Each gallery is defined by the hashtags its items must carry, optionally hashtags to exclude, and a sort order; any item whose hashtags satisfy that query appears in the gallery, and the same item can appear in several galleries at once. A member organizes media by hashtagging it and naming galleries rather than filing each item into a single folder. A search is an unnamed set of hashtags carried in its web address; a gallery is the same set of hashtags with a name and a permanent address that can be bookmarked. A member names one on the Share Media form from the hashtags given there, whether or not anything is shared in the same submit; whatever is shared in that submit carries those hashtags, so it shows in the gallery like anything else that carries them. A gallery's edit page holds its settings, where the criteria, exclusions, and sort sit behind an Advanced disclosure so the common path (hashtag what you share, and name a set of hashtags as a gallery) stays simple. The member gallery experience and the curator gallery experience share one interface; the differences are that the curator (the system member) may upload binary video and apply the curated marker, while members submit video as YouTube or Vimeo links and their uploads carry their own uploader hashtag.
+Named galleries are saved hashtag-query albums. Each gallery is defined by the hashtags its items must carry, optionally hashtags to exclude, and a sort order; any item whose hashtags satisfy that query appears in the gallery, and the same item can appear in several galleries at once. A member organizes media by hashtagging it and naming galleries rather than filing each item into a single folder. A search is an unnamed set of hashtags carried in its web address; a gallery is the same set of hashtags with a name and a permanent address that can be bookmarked. A member names one on the Share Media form from the hashtags given there, whether or not anything is shared in the same submit; whatever is shared in that submit carries those hashtags, so it shows in the gallery like anything else that carries them. A gallery's edit page holds its settings, where the criteria, exclusions, and sort sit behind an Advanced disclosure so the common path (hashtag what you share, and name a set of hashtags as a gallery) stays simple. The member gallery experience and the curator gallery experience share one interface; the differences are that the curator (the system member) may upload binary video and apply the curated marker, while members submit video as YouTube or Vimeo links and their uploads carry their own uploader hashtag. << V2 SCOPE >> A Tier 2 member an administrator has granted video hosting uploads video files as well (`M_Request_Video_Hosting`), still under their own uploader hashtag and never the curated marker.
 
 Popular-hashtag suggestions (shown near the hashtag field and on the empty-state teaching block) are composed in two priority tiers and capped at a short list. Real community-popular hashtags lead, ranked by usage; a hashtag becomes community-popular once at least two distinct members share it. Curator-published hashtags backfill any remaining slots. Every suggested hashtag is one that content already carries, so each suggestion leads to media; while nothing qualifies, the block shows its other teaching content and the suggestion list stays empty until real usage arrives. Beside the hashtag field, a separate Recent events group offers the hashtags of public events that started within the last year or start within the next, whether or not content carries them yet, so the first member to share from an event finds its hashtag rather than inventing a near-miss; this is the one exception to the content-already-carries rule. When a member's content area is empty, a teaching block shows recent example photos with their hashtags, the popular-hashtag suggestions, and aggregated hashtag statistics, each clickable to insert a hashtag.
 
@@ -1653,6 +1673,25 @@ Success Criteria:
 - Videos and photos can be mixed in named galleries.
 - Video link submission controls are rendered for members with Tier 1 benefits. A Tier 0 member without current Active Player status sees the benefit text in their place rather than the control.
 - Visitors (not logged in) never see video link submission controls.
+- << V2 SCOPE >> A member granted video hosting (`M_Request_Video_Hosting`) also uploads video files through the hosted path; every member without that grant keeps the link-only path and its boundary refusal of a binary upload.
+
+### M_Request_Video_Hosting
+
+<< V2 SCOPE >> Member video hosting is version-two scope. This story is design intent for that build and is not part of the v1 launch.
+
+Access: Members with Tier 2 benefits or above can ask to host video files.
+
+Story: As a Tier 2 member, I can ask an administrator to let me upload video files to footbag.org, so that I can share footage I own without first posting it on another platform.
+
+Success Criteria:
+
+- The request is made from the Share Media form, beside the video link field. The member says in their own words what they want to post, and ticks a box saying they have read and agree to the Community Standards (`V_View_Community_Standards`), which the box links to. A request without the tick is refused with a field error, and the form re-renders with what was typed.
+- Submitting raises one work-queue item for an administrator (`A_Grant_Video_Hosting`) and counts toward the member's limit on open requests (`M_Contact_IFPA_Admin`).
+- No minimum age applies to the requesting member. The Community Standards govern the people shown in a video, including the consent of a parent or guardian for any identifiable person under 18.
+- Once granted, the member's Share Media form offers a video file upload. The file goes through the same cleaning and conversion as curator video (DD §6.8), within member limits on file size, length and total stored video, each a configured value the upload form states. Each upload repeats the Community Standards tick.
+- The member's first hosted video is held for an administrator's review and is not public until approved. Every later video is public when saved, like every other member upload, and is open to flagging and takedown (`M_Flag_Media`, `A_Moderate_Media`).
+- A hosted video carries the member's own uploader hashtag and appears in their Personal Gallery, credited to the member.
+- A member without the grant, or whose grant has been revoked, sees the request control in place of the upload.
 
 ### M_Organize_Media_Galleries
 
@@ -1690,7 +1729,7 @@ Success Criteria:
 
 ### M_Flag_Media
 
-Access: Members with Tier 1 benefits can flag media they believe violates community guidelines. Visitors cannot flag content.
+Access: Members with Tier 1 benefits can flag media they believe breaks the Community Standards (`V_View_Community_Standards`). Visitors cannot flag content.
 
 Story: As a member, I can flag photos or videos so that harmful/low-quality content is reviewed.
 
@@ -1754,7 +1793,8 @@ Story: As a Tier 2 or Tier 3 member, I can send an email to the IFPA announce ma
 Success Criteria:  
 - Email form includes: subject, message body, preview.  
 - System sends to configured announce list address (default [announce@footbag.org](mailto:announce@footbag.org)).  
-- Rate limiting to prevent abuse (admin-configurable).  
+- Rate limiting to prevent abuse (admin-configurable, default one announcement per member per day).  
+- The form requires the member to tick a box saying they have read and agree to the Community Standards (`V_View_Community_Standards`), which the box links to. An announcement without the tick is refused with a field error, and the form re-renders with the subject and body as typed.
 - All sends audit-logged (actor ID, list, archive row, recipient counts, timestamp); the subject and body stay on the archive row.
 - An organizer of a sanctioned event can mark the announcement as that event's after-event summary, choosing from the sanctioned events they organize. A summary sent within 20 days of the event's last day meets that sanctioning obligation (`EO_Request_Sanction`); the event's work item clears only when the results are uploaded as well, and the "sanctioning requirements not met" badge follows the results alone.
 
@@ -3086,8 +3126,26 @@ Success Criteria:
 - An administrator cannot decide a report against an item they uploaded; the platform refuses and says another administrator must review it. An administrator who reports an item and then decides it is taking the designed moderation path, because the bar is on being the subject, not on having touched the item.
 - A report's reason text is the reporter's own words: an administrator can redact it but does not rewrite it.
 - System emails uploader with decision.
+- Each member who reported the item is emailed the outcome, removed or no action, without the administrator's reason, which is addressed to the uploader.
 - Administrators can set or unset any flags to maintain consistency; all changes audit-logged.
 - Moderation reaches a member's named gallery, not only individual items: an admin can act on a member-owned gallery through the same admin gallery URL that manages Footbag Hacky's own. The gallery's name and description are the member's own words, so an admin clears an abusive one rather than rewriting it under their name; the item ordering and the criteria and exclude hashtag sets are structure rather than words, and an admin may set them. This is moderation of a member's media, not curation; curation is an admin adding or editing Footbag Hacky's own media as the system member, specified in A_Upload_Curated_Media and A_Manage_Curated_Gallery. Deleting a member-owned gallery is not a moderation action and returns 404 there; removing a member's media is done per item through the takedown decision above. Every such act takes a mandatory reason and appends an audit row naming the acting admin, the affected gallery, and each changed value before and after.
+- Moderation reaches a member's media item the same way: through the admin media edit URL that manages Footbag Hacky's own items, an admin clears an item's caption, which is the member's own words, rather than rewriting it. The act takes a mandatory reason, appends an audit row naming the acting admin, the item, and the caption before and after, and emails the member.
+
+### A_Grant_Video_Hosting
+
+<< V2 SCOPE >> Member video hosting is version-two scope. This story is design intent for that build and is not part of the v1 launch.
+
+Access: Only admins can grant, decline or revoke a member's video hosting, and review a member's first hosted video.
+
+Story: As an administrator, I can decide a member's request to host video, review their first video, and revoke the permission, so that hosted video keeps to the Community Standards without anyone reviewing every upload.
+
+Success Criteria:
+
+- The request's work-queue card shows the member, their tier, any earlier moderation decisions on their content, and the purpose they gave, and offers Grant and Decline, each with a required reason. Granting sets a revocable permission on the member. The member is emailed either decision with the reason.
+- The member's first hosted video raises its own work-queue item. The administrator approves it, which makes it public, or removes it with a reason through the takedown decision in `A_Moderate_Media`.
+- An administrator can revoke the permission from the member's admin record, with a reason, for a set period or permanently, following the enforcement steps in the Community Standards. Videos already posted stay public unless removed one by one through takedown. The member is emailed the revocation and its reason.
+- An administrator cannot decide a request, review a first video, or revoke a permission that is their own; the platform refuses and says another administrator must act.
+- Every grant, decline, review decision and revocation appends an audit row naming the acting administrator, the member and the reason.
 
 ### A_Retire_Tag
 
@@ -3686,7 +3744,7 @@ Success Criteria:
 - Each mailing list has a configurable outbound alias/from-identity (e.g., directors@…, sanctioning@…), or the no-reply sender. Whichever is set, it sends without accepting replies.
 - Each sent mailing list email is archived (subject/body/sender/list/timestamp/recipient count) and browseable by admins.
 - Email body is plain text (no HTML).
-- No approval workflow is required; controls are permissions, audit logging, the one-click unsubscribe headers, and rate limits where applicable.
+- An administrator's own send needs no approval; its controls are permissions, audit logging, the one-click unsubscribe headers, and rate limits where applicable.
 
 ### A_Manage_Mailing_Lists
 
@@ -3864,7 +3922,7 @@ Seed these defaults into the database-backed configuration store during initial 
 - `media_flag_rate_limit_per_hour = 10` (maximum media flags per member per hour to prevent abuse)
 - `curator_write_rate_limit_per_hour = 60` (maximum curated-media writes per curator per hour)
 - `group_email_rate_limit_per_hour = 30` (maximum messages one member may post to one group per hour; an abuse ceiling, set well above what a live debate needs)
-- `announce_send_rate_limit_per_day = 2` (maximum community announcements one organizer member may send per day)
+- `announce_send_rate_limit_per_day = 1` (maximum community announcements one organizer member may send per day)
 - `media_edit_rate_limit_per_hour = 15` (maximum edits to a member's own media per hour)
 - `gallery_write_rate_limit_per_hour = 30` (maximum gallery creates, renames and deletes per member per hour)
 - `profile_edit_rate_limit_per_hour = 20` (maximum profile edits per member per hour)
@@ -3905,6 +3963,7 @@ Seed these defaults into the database-backed configuration store during initial 
 - `reconciliation_summary_interval_days = 30` (cadence in days for the automated reconciliation digest, sent to the IFPA treasurer contact address rather than to admin-alerts, because the person answerable for the money needs it whether or not they hold a platform account at all and should not have to take the rest of the admin alert traffic to get it; valid `>= 1`)
 - `admin_queue_digest_interval_days = 1` (cadence in days for the admin work-queue digest of open routine items sent to each admin)
 - `admin_queue_stale_escalation_days = 3` (days an unclaimed routine work-queue item may stay open before a one-time escalation email to all admins)
+- `work_queue_topic_route_<topic>` (one switch per work-queue topic: finance, membership, platform, sanctioning, freestyle, moderation; `1` sends that topic's daily digest to its queue address, and unset or `0` sends nothing extra, per `A_Manage_Work_Queue`)
 - `admin_inactivity_alert_days = 180 days` (days without a sign-in before an administrator is surfaced for recruitment follow-up, per `SYS_Detect_Admin_Loss`; valid `>= 1`)
 - `work_queue_resolve_rate_limit_per_hour = 120` (maximum work-queue resolutions per admin per hour)
 - `system_health_window_hours = 24` (the recent window, in hours, that the system-health view aggregates outbound-email and scheduled-job counts over, per `A_View_System_Health`; valid `1`–`8760`)
@@ -3925,6 +3984,7 @@ Success Criteria:
 - Items are grouped by category (Events, Media, Membership, Payments, Elections, System, Club Leadership) with clear labels.
 - Dashboard highlights any categories with urgent items (for example, failed backups, alarmed cost thresholds, many failed payments, email outbox dead-letter growth) using a simple visual indicator.
 - Admin sees only data they are permitted to act on; no member personal data beyond what existing admin stories allow.
+- The dashboard shows each work-queue topic the signed-in administrator owns, with its open count and how many of its items have gone unclaimed past the stale threshold, linking to the queue narrowed to that topic (`A_Manage_Work_Queue`).
 - Dashboard view is read-only; all state changes happen in the underlying queues and flows already defined in other admin stories.
 
 ### A_Manage_Work_Queue
@@ -3942,6 +4002,9 @@ Success Criteria:
 - Each administrator is emailed a periodic digest of the open routine items on a configured cadence. An item left open, unclaimed and unresolved past the stale threshold escalates once with a single email to the administrators' alert list. An urgent task type is in neither, because it emailed every administrator when it was raised.
 - An administrator can park an item they cannot advance yet, with a reason. A parked item leaves the working queue, every digest and the escalation sweep, and is listed separately with who parked it and why. Parking carries no deadline and no expiry: the item returns when the member answers a question on it, or when any administrator takes it back. Its status stays open throughout, so the duplicate probe that stops a second item being raised for the same matter, and both close paths, still see it.
 - Parking is offered only on the task types whose declaration allows it. A matter where the member is waiting for an answer is answered, not set aside.
+- Every task type declares its topic, or none for a matter every administrator shares, such as losing an administrator or an event with no organizer. Each topic has one accountable owner, an administrator whom any other administrator may change, with a mandatory audit row. Every card names its topic and owner, or says it is shared. Ownership is orientation, never a lock: every administrator can claim, park and resolve every item.
+- The queue opens on every item. Plain links narrow it to the signed-in administrator's own topics, to one topic, or to the shared items, and lead back to everything. Grouping by category and the oldest-first order stay as they are within every view.
+- Each topic has a fixed queue address, whose recipients are managed outside the platform and all hold the admin role, because the digest links into the queue. Each topic also has a switch that is off by default. While a topic is on, its address receives a daily digest of that topic's open, unparked items that no one holds a live claim on, in addition to each administrator's own digest. Urgent alerts and the stale escalation still reach every administrator. A bounce or complaint from a topic address switches that topic off and alerts every administrator. A topic address receives only the daily digest; a task type that needs same-day action is declared urgent instead, which emails every administrator when it is raised.
 - Non-admin authenticated users receive 403 from the queue and from every action on it; unauthenticated traffic is redirected to login.
 
 ### A_Resolve_Contact_IFPA_Admin_Request

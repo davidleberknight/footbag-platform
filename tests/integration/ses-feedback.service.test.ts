@@ -18,7 +18,9 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
-import { insertMailingListSubscription, insertMember, insertOutboxEmail } from '../fixtures/factories';
+import {
+  insertMailingListSubscription, insertMember, insertOutboxEmail, insertSystemConfig,
+} from '../fixtures/factories';
 import { rowPin, snapshotIds, oneRowAddedSince } from '../fixtures/rowPinning';
 
 const { dbPath } = setTestEnv('3083');
@@ -363,5 +365,119 @@ describe('tracing feedback to the send that caused it', () => {
       'SELECT COUNT(*) AS n FROM ses_events WHERE message_id = ?',
     ).get('sns-repeat') as { n: number };
     expect(rows.n).toBe(1);
+  });
+});
+
+/**
+ * A work-queue area's address is a group, not a member. A bounce or complaint
+ * from it switches that area's digest off and tells every administrator once;
+ * an area already off is left alone.
+ */
+describe('feedback on a work-queue area address', () => {
+  const ALERT = 'work_queue_topic_route_disabled';
+  let settingSeq = 0;
+
+  beforeAll(() => {
+    insertMember(db, { id: 'sf-area-admin', slug: 'sf_area_admin', login_email: 'area-admin@example.com', is_admin: 1 });
+    insertMailingListSubscription(db, {
+      id: 'mls-sf-area-admin', list_slug: 'admin-alerts', member_id: 'sf-area-admin', status: 'subscribed',
+    });
+  });
+
+  // The store is append-only: each setting supersedes the last by a strictly
+  // later start time, all in the past so the feedback's own row comes after.
+  function switchArea(topic: string, value: '0' | '1'): void {
+    settingSeq += 1;
+    const at = new Date(Date.UTC(2001, 0, 1) + settingSeq * 1000).toISOString();
+    insertSystemConfig(db, {
+      config_key: `work_queue_topic_route_${topic}`, value_json: value, created_at: at, effective_start_at: at,
+    });
+  }
+
+  function current(topic: string): string | undefined {
+    return (db.prepare('SELECT value_json FROM system_config_current WHERE config_key = ?')
+      .get(`work_queue_topic_route_${topic}`) as { value_json: string } | undefined)?.value_json;
+  }
+
+  function settingRows(topic: string): number {
+    return (db.prepare('SELECT COUNT(*) AS n FROM system_config WHERE config_key = ?')
+      .get(`work_queue_topic_route_${topic}`) as { n: number }).n;
+  }
+
+  function alertsFor(topic: string): Array<{ recipient_member_id: string }> {
+    return db.prepare(
+      `SELECT recipient_member_id FROM outbox_emails
+        WHERE template_key = ? AND idempotency_key LIKE ?`,
+    ).all(ALERT, `%:${topic}%`) as Array<{ recipient_member_id: string }>;
+  }
+
+  // Defect caught: the group bounces every digest and the platform keeps
+  // sending, with no administrator told the area went quiet.
+  it('a permanent bounce switches an area that is on to off and alerts the administrators once', () => {
+    switchArea('finance', '1');
+    const before = settingRows('finance');
+
+    feedback.processSnsMessage(bounceBody(['queue-finance@footbag.org'], 'Permanent', 'sns-area-bounce'));
+
+    expect(current('finance')).toBe('0');
+    expect(settingRows('finance')).toBe(before + 1);
+    expect(alertsFor('finance').map((r) => r.recipient_member_id)).toEqual(['sf-area-admin']);
+  });
+
+  // Defect caught: a spam report from the group is ignored, so the digest goes
+  // on landing as spam. The address arrives in the provider's own casing.
+  it('a complaint switches the area off the same way', () => {
+    switchArea('membership', '1');
+
+    feedback.processSnsMessage(complaintBody(['Queue-Membership@Footbag.org'], 'sns-area-complaint'));
+
+    expect(current('membership')).toBe('0');
+    expect(alertsFor('membership')).toHaveLength(1);
+  });
+
+  // Defect caught: a redelivered copy of an old bounce switches the area off
+  // again after an administrator turned it back on, and alerts everyone again.
+  it('a redelivered notification changes nothing more, even after the area was turned back on', () => {
+    switchArea('platform', '1');
+    const body = bounceBody(['queue-platform@footbag.org'], 'Permanent', 'sns-area-replay');
+    feedback.processSnsMessage(body);
+    expect(current('platform')).toBe('0');
+    // An administrator fixes the group and turns the area on again. The feedback
+    // row above was written at the real time, so this setting is placed after it.
+    const at = new Date(Date.now() + 1).toISOString();
+    insertSystemConfig(db, { config_key: 'work_queue_topic_route_platform', value_json: '1', created_at: at, effective_start_at: at });
+    while (new Date().toISOString() < at) { /* until the setting is in force */ }
+    const rowsBeforeReplay = settingRows('platform');
+
+    feedback.processSnsMessage(body);
+
+    expect(current('platform')).toBe('1');
+    expect(settingRows('platform')).toBe(rowsBeforeReplay);
+    expect(alertsFor('platform')).toHaveLength(1);
+  });
+
+  // Defect caught: a burst of bounces from one digest raises an alert per
+  // bounce, or writes a switch row for an area nobody had turned on.
+  it('leaves an area that is already off alone: no setting row and no alert', () => {
+    switchArea('sanctioning', '0');
+    const before = settingRows('sanctioning');
+
+    feedback.processSnsMessage(bounceBody(['queue-sanctioning@footbag.org'], 'Permanent', 'sns-area-off'));
+
+    expect(settingRows('sanctioning')).toBe(before);
+    expect(alertsFor('sanctioning')).toHaveLength(0);
+  });
+
+  // Defect caught: the area check swallows or disturbs ordinary member
+  // feedback, or switches an area off for a bounce that was not its address.
+  it('a member address bounce still marks the member and leaves every area switch as it was', () => {
+    switchArea('freestyle', '1');
+    insertMember(db, { id: 'sf-area-member', slug: 'sf_area_member', login_email: 'area-member@example.com' });
+
+    feedback.processSnsMessage(bounceBody(['area-member@example.com'], 'Permanent', 'sns-area-member'));
+
+    expect(statusOf('sf-area-member')).toBe('bounced');
+    expect(current('freestyle')).toBe('1');
+    expect(alertsFor('freestyle')).toHaveLength(0);
   });
 });

@@ -21,7 +21,7 @@ export const VIEWS_DIR = path.join(REPO_ROOT, 'src', 'views');
 export interface Viewer { name: string; persona: string | null; seeds: string[] }
 
 export const VIEWERS: readonly Viewer[] = [
-  { name: 'anonymous', persona: null, seeds: ['/', '/login', '/register', '/password/forgot', '/legal', '/crawl-probe-no-such-page'] },
+  { name: 'anonymous', persona: null, seeds: ['/', '/login', '/register', '/password/forgot', '/legal', '/community-standards', '/crawl-probe-no-such-page'] },
   { name: 'member', persona: 't1_paid', seeds: ['/', '/members/t1_paid', '/members/t1_paid/edit', '/members/t1_paid/payments', '/members/t1_paid/galleries'] },
   { name: 'club-leader', persona: 'club_leader', seeds: ['/clubs', '/members/club_leader'] },
   { name: 'admin', persona: 'admin_t2', seeds: ['/', '/admin', '/admin/bootstrap-claim'] },
@@ -134,6 +134,7 @@ export const REACH: readonly Reach[] = [
   { template: 'admin/event-results/entry', viewer: 'admin', url: `/admin/events/${R.eventId}/results/entries/${R.resultEntryId}`, why: 'linked only from an event\'s results page' },
   { template: 'admin/event-results/discipline', viewer: 'admin', url: `/admin/events/${R.eventId}/results/disciplines/${R.resultDisciplineId}`, why: 'linked only from an event\'s results page' },
   { template: 'admin/curator/edit', viewer: 'admin', url: `/admin/curator/media/${R.curatorMediaId}/edit`, why: 'linked from curated media the walk groups together' },
+  { template: 'admin/curator/moderate-item', viewer: 'admin', url: `/admin/curator/media/${R.memberMediaId}/edit`, why: 'linked from a reported item on the takedown queue only while its caption is under report' },
   { template: 'admin/curator/job-status', viewer: 'admin', url: `/admin/curator/upload/jobs/${R.curatorJobId}`, why: 'reached by redirect after an upload starts' },
   { template: 'admin/broadcasts/detail', viewer: 'admin', url: `/admin/broadcasts/${R.broadcastId}`, why: 'linked from the broadcast list only once a message was sent' },
   { template: 'admin/payments/report', viewer: 'admin', url: `/admin/payments/reports/${R.reconciliationRunId}`, why: 'linked only once the reconciliation job has run' },

@@ -411,10 +411,15 @@ p:last-child { margin-bottom: 0; }
 /* Lists, definition lists, quotes and preformatted text are running blocks
    like a paragraph and take its gap; an unclassed list spaces its items at the
    list-item step, and an open disclosure keeps its summary clear of what it
-   reveals. Zero specificity, so a component that spaces its own parts wins. */
+   reveals. An unclassed list is indented so its numbers and bullets stay
+   inside the content column; a number is wider than a bullet, so a numbered
+   list takes the wider step. Zero specificity, so a component that spaces its
+   own parts wins. */
 main :where(ul, ol, dl, blockquote, pre, details) { margin-bottom: var(--space-md); }
 main :where(ul, ol, dl, blockquote, pre, details):last-child { margin-bottom: 0; }
 main :where(ul:not([class]), ol:not([class])) > :where(li + li) { margin-top: var(--space-xs); }
+main :where(ul:not([class])) { padding-left: var(--space-xl); }
+main :where(ol:not([class])) { padding-left: var(--space-2xl); }
 main :where(hr) { margin: var(--space-xl) 0; }
 /* A section owns only the gap above it, so a closing line after the last
    section, such as a back link, takes its own block gap. */
@@ -427,6 +432,12 @@ main :where(legend) { margin-bottom: var(--space-xs); }
   .cross-base-list, .related-modifiers-list) > li + li,
 .register-form .card > ul > li + li {
   margin-top: var(--space-xs);
+}
+/* A classed list that keeps its bullets takes the plain list's indent, so its
+   markers stay inside the content column. */
+.cross-base-list,
+.register-form .card > ul {
+  padding-left: var(--space-xl);
 }
 main :where(dl:not([class])) > :where(dt + dd) { margin-top: var(--space-xs); }
 main :where(dl:not([class])) > :where(dd + dt) { margin-top: var(--space-sm); }
@@ -1255,6 +1266,9 @@ section { margin-top: var(--space-2xl); }
   transition: border-color 0.15s, background 0.15s;
 }
 .tag-chip:hover { background: var(--hover-tint); border-color: var(--primary); }
+/* The filter a chip row is showing now: marked by its border and weight, so
+   the reader can see which view they are in without reading the summary line. */
+.tag-chip[aria-current="page"] { border-color: var(--primary); background: var(--hover-tint); font-weight: 600; }
 /* Row scale. A dense list repeats its controls once per row, so the chip
    keeps its shape (the thing that says "clickable") and loses only the
    padding that would push the rows apart. */
@@ -4025,7 +4039,8 @@ a.hashtag--media:hover {
   margin-bottom: var(--space-xl);
   font-size: 0.9rem;
 }
-.legal-section {
+.legal-section,
+.legal-section .content-subheading {
   scroll-margin-top: var(--anchor-offset);
 }
 
@@ -4279,7 +4294,7 @@ a.hashtag--media:hover {
 .rules-detail .markdown-body h3 { margin: var(--space-xl) 0 var(--space-md); }
 .rules-detail .markdown-body p { margin: 0 0 var(--space-md); }
 .rules-detail .markdown-body ul,
-.rules-detail .markdown-body ol { margin: 0 0 var(--space-md) var(--space-xl); }
+.rules-detail .markdown-body ol { margin: 0 0 var(--space-md); }
 .rules-detail .markdown-body li { margin: 0 0 var(--space-xs); }
 .rules-detail .markdown-body table { margin: 0 0 var(--space-xl); }
 .rules-detail .markdown-body strong { font-weight: 600; }
@@ -7332,6 +7347,8 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   padding: var(--space-xs) 0;
   font-size: 1rem;
 }
+/* The list keeps its bullets, so it is indented like a plain list. */
+.set-detail-link-list { padding-left: var(--space-xl); }
 .set-detail-trick-list {
   list-style: none;
   padding-left: 0;

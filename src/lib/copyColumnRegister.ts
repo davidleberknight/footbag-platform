@@ -186,6 +186,10 @@ export const COPY_COLUMN_REGISTER: Readonly<Record<string, TableClassification>>
       'shared_structure', 'trick_page_note', 'created_at', 'created_by', 'updated_at', 'updated_by',
       'version'],
   },
+  work_queue_topic_owners: {
+    keep: ['id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version', 'topic',
+      'owner_member_id'],
+  },
   freestyle_family_sublabels: {
     keep: ['label', 'family_slug', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version'],
   },

@@ -161,7 +161,7 @@ When system events require administrator attention (event sanction requests, fla
 - Multi-language support (English only, except event info).
 - Advanced analytics and BI.
 - Third-party REST API.
-- Member video uploads (members link YouTube or Vimeo; the platform hosts only the system account's curated video and the legacy archive's videos).
+- Member video uploads in version one (members link YouTube or Vimeo; the platform hosts only the system account's curated video and the legacy archive's videos). Version two adds hosting for Tier 2 members an administrator grants it to, under the Community Standards.
 - Animated GIFs (use video links).
 - Direct organizer payouts (Stripe Connect).
 - Archive search.
@@ -651,7 +651,7 @@ Uniqueness is enforced via database constraints and case-insensitive unique inde
 
 ## 6.4 Video Content 
 
-The platform does not host member-uploaded video files; the system account's curated tutorial video is the one exception. Instead, members submit YouTube or Vimeo links, the system validates those URLs, extracts the video IDs, and embeds sandboxed players. This approach avoids the storage and transcoding complexity of hosting video, reduces infrastructure costs, and takes advantage of the global delivery and playback features provided by YouTube and Vimeo.
+The platform does not host member-uploaded video files; the system account's curated tutorial video is the one exception. Instead, members submit YouTube or Vimeo links, the system validates those URLs, extracts the video IDs, and embeds sandboxed players. This approach avoids the storage and transcoding complexity of hosting video, reduces infrastructure costs, and takes advantage of the global delivery and playback features provided by YouTube and Vimeo. In version two, a Tier 2 member an administrator has granted video hosting may upload video files through the same cleaning and conversion as curated video, within member limits on size and storage; their first video is reviewed before it is public.
 
 The legacy videos that have been hosted on footbag.org for decades are hosted on the archive. These have all been converted to mp4 format by the mirror program.
 
