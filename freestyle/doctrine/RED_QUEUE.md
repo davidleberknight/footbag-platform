@@ -105,7 +105,9 @@ defines the movement, and its weight where the weight is not yet evidenced.
   the splicing contribution is not independently verified).
 - **Spyro.** Spyro is ruled a trick, not a general modifier; the open question is
   what a spyro prefix means (registry Q14). Affected held names: spyro illusion,
-  spyro mirage, spyro whirl, fairy spyro mirage.
+  spyro mirage, spyro whirl, fairy spyro mirage. The active row Colossus
+  (`colossus`, 6 ADD, technical name Spyro Diving Symposium Whirl) waits on the same
+  answer: its opening stays held until the prefix is ruled.
 - **Surfing.** The operator form is undefined. Affected rows: surfing osis, surfing
   pickup same side (active canonical; the surfing contribution is not independently
   verified).
@@ -179,7 +181,8 @@ defines the movement, and its weight where the weight is not yet evidenced.
   the only unresolved atom on all six. Evidence on file: the published Chainsaw
   Massacre (7 ADD, symposium-eggbeater base) leaves a residue of 2 after paradox and
   symposium, which is bubba's own standalone value — corroboration for a +2 reading,
-  not a ruling. Unlock: the prefix contribution, which authors the Bubba-prefixed band
+  not a ruling. Chainsaw Massacre's own opening and Difficulty breakdown wait on the
+  same answer. Unlock: the prefix contribution, which authors the Bubba-prefixed band
   off the settled bubba structure. Close: Red rules what the bubba prefix contributes.
 - **The alpine prefix.** Define, as an operator: what does the alpine prefix
   contribute across the many bases it attaches to? Its separate directional-syntax
@@ -601,6 +604,29 @@ Each is separable and answered on its own.
   (flailing on eggbeater) or 7 (flailing, a symposium eggbeater and an X-Dex), and
   does the redundancy ruling stand? The row (`bill_ted_s_excellent_adventure`, 5 ADD,
   no notation) stays held, with no opening, until that is ruled.
+- **Whether Blizzard is already a symposium move.** Blizzard (`blizzard`, 3 ADD,
+  stepping on illusion) stores `SET > OP IN [DEX] > OP OUT [DEX] > OP TOE [DEL]`, with
+  the support foot planted, while its own opening, footbag.org's description, calls it
+  "a blurry reverse symposium mirage" and has the dexterity done "without planting the
+  left foot". Symposium Blizzard (`symposium_blizzard`, 4 ADD) adds exactly that
+  no-plant step: `SET > (no plant while) OP IN [BOD] [DEX] > OP OUT [DEX] > OP TOE [DEL]`.
+  If the description is right, Symposium Blizzard restates Blizzard and Blizzard's
+  notation and ADD are short a symposium; if the notation is right, the two are
+  distinct and Blizzard's opening is wrong to say symposium. Ask for the rules expert:
+  is Blizzard performed with the support foot planted or without it? Symposium
+  Blizzard's opening stays held until that is ruled. Close condition: record the
+  ruling, then either fold Symposium Blizzard into Blizzard and correct Blizzard's
+  notation and ADD, or correct Blizzard's opening; remove this entry.
+- **What "reverse" means in Reverse Magellan.** Reverse Magellan
+  (`reverse_magellan`, 3 ADD, built on magellan) stores
+  `TOE > OP IN [DEX] >> OP OUT [DEX] > OP TOE [DEL]`, the magellan's
+  `TOE > SAME IN [DEX] >> SAME OUT [DEX] > SAME TOE [DEL]` with every side flipped and
+  both directions kept. Its opening calls it "the reverse-direction form of the
+  magellan", and its Technique Notes run the circles out-in then in-out. Ask for the
+  rules expert: does Reverse Magellan reverse the dexterity directions, as its name
+  and prose say, or the sides, as its notation records? Close condition: record the
+  ruling, correct whichever of the notation or the prose is wrong, and remove this
+  entry.
 
 ## Scoring and structure questions
 
@@ -635,7 +661,9 @@ Each is separable and answered on its own.
   Double Guay and kin) dictionary rows at all? The drafted disposition routes them to
   internal renderer and parser cleanup rather than new trick rows. Double Dyno and
   Double Whip carry the additional ambiguity of their "(rev)" annotation; both are
-  records-only.
+  records-only. The active row Trixie (`trixie`, 5 ADD, technical name Triple Pixie)
+  waits on the same answer: its notation runs three pixie dexterities with an X-Dex on
+  the third, and its opening stays held until the triple count is ruled.
 - **Repeated same-operator scoring (registry Q04).** When the same scored operator
   appears twice in one compound (miraging then miraging), does the second occurrence
   add again? Four rows sit in this gate, plus the active canonical paradox blur, a
@@ -643,7 +671,9 @@ Each is separable and answered on its own.
 - **Terraging chain arithmetic (registry Q05).** The registry's +3, the shipped
   two-dex clipper notations, footbag.org's 3-bracket terrage, and Red's ruled 4
   cannot all be reconciled from the record; which value is authoritative for the
-  terraging chain?
+  terraging chain? Five active rows wait on it, each with its opening held: Terraging
+  Illusion, Terraging Legover and Terraging Mirage, which also have no execution
+  notation, and Terraging Opposite Clipper and Terraging Same Clipper.
 - **Cross-body rake base (registry Q06).** What is the cross-body rake base
   structurally, a terminal contact posture like clipper, or a raking path? One
   contract, and every rake compound composes defined operators onto it; Snowflake
@@ -694,7 +724,10 @@ Each is separable and answered on its own.
   Recommendation, by the Atom Smasher precedent and the agreement of both outside
   sources: yes.
 
-  Until he rules, all four rows and their current openings stay unchanged. Close
+  Until he rules, all four rows and their current openings stay unchanged. Ego
+  (`ego`, 6 ADD, technical name Atomic Ducking Whirl) carries the same X-Dex on its
+  whirl, so the same answer decides its score, and its opening stays held with them.
+  Close
   condition: record the ruling in the ratified-rulings record. If yes, fold
   `atomic_whirl` into Reactor and `atomic_symposium_whirl` into Gary Coleman as hidden
   redirect aliases, as Atomic Mirage is to Atom Smasher, so the two names score 5 and
@@ -743,3 +776,29 @@ in the maintainers' private tracker.
   `orbit_kick` embed the name. Closes when the curator rules whether the folk name
   stays canonical; if it does not, the slug-preserving correction plus
   display-name-exception mechanism is the one the reverse whirl rename used.
+
+- **Mind Bender and Ducking Paradox Blender.** Both are active 6-ADD blender
+  compounds with the same parts in the same order: a duck off the clipper set, a
+  paradox dexterity, the blender's spin and a same-side clipper catch. Mind Bender
+  stores `CLIP >> DUCK [BOD] >> SAME FRONT WHIRL [DEX] [PDX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]`,
+  Ducking Paradox Blender
+  `CLIP > DUCK [BOD] > OP IN [PDX] [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]`;
+  they differ only in how the dexterity is written. The curator rules whether Mind
+  Bender is the community name for Ducking Paradox Blender, to be folded into one
+  row, or a distinct trick. Mind Bender's opening stays held until then.
+
+- **Ripped Warrior and Stepping Ducking Butterfly.** Ripped Warrior's recorded
+  technical name is Stepping Ducking Far Butterfly, and the far butterfly is the
+  butterfly by the curator's butterfly-implies-far ruling. Its notation
+  `CLIP > OP IN [DEX] >> DUCK [BOD] >> OP OUT [DEX] > OP CLIP [XBD] [DEL]` differs from
+  Stepping Ducking Butterfly's
+  `CLIP > OP IN [DEX] > DUCK [BOD] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]` only in the
+  side of the butterfly dexterity. The curator rules whether the two are one trick or
+  a far and near pair, and if a pair, which name carries which side. Ripped Warrior's
+  opening stays held until then.
+
+- **Blurrier's base.** Blurrier (`blurrier`, 5 ADD) is filed on mirage with no
+  modifier links, but its footbag.org notation
+  `CLIP > OP IN [DEX] (plant) > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]`
+  ends in two same-side outward dexterities to a clipper, which no mirage does. The
+  curator assigns its base and family; its page has no opening until then.
