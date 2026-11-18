@@ -37,7 +37,8 @@ Validation (non-zero exit on any failure):
   - report row count == total freestyle_tricks row count
   - every curated media item's (non-blank) source_id is a recognized source
   - every embedded_coverage.csv slug (embedded + host) resolves to a real trick
-  (Non-resolving curated tags are surfaced in the Media-health section, not failed.)
+  (A curated tag that matches no trick slug is a freeform tag: it neither counts
+  as coverage nor fails the run.)
 
 Run:
   python freestyle/loaders/24_qc_freestyle_media_coverage.py
@@ -58,12 +59,6 @@ SCRIPT_DIR = Path(__file__).parent
 LEGACY_DATA_DIR = SCRIPT_DIR.parents[0]
 REPO_ROOT = SCRIPT_DIR.parents[1]
 SCHEMA_SQL = REPO_ROOT / "database" / "schema.sql"
-
-# Single source of truth for the media-tag vocabulary: import the live invariant's
-# sets rather than maintaining a drifting local copy (they had drifted — missing
-# the newer source tags + the concept_/discipline_ prefixes).
-sys.path.insert(0, str(REPO_ROOT / "scripts"))
-from _trick_tag_invariant import UTILITY_EXACT, SEMANTIC_PREFIXES  # noqa: E402
 
 # Curator-authored manifest of indirect (embedded) instructional coverage: a
 # trick taught INSIDE another trick's tutorial, with no dedicated clip of its
@@ -91,20 +86,12 @@ CONTENT_TYPE_TAGS = (TUTORIAL_TAG, DEMO_TAG, RECORD_TAG)
 # Strength labels that count as strong primary coverage.
 STRONG_STRENGTHS = {"STRONG_TUTORIAL", "HIGH_QUALITY_DEMO"}
 
-# Tag-shape vocabulary IS the live media-tag invariant (imported above), not a
-# local copy — exact utility words + snake_case domain prefixes are NOT trick
-# references; a bare underscore-slug tag is a trick slug.
-UTILITY_EXACT_TAGS = UTILITY_EXACT
-DOMAIN_PREFIXES = SEMANTIC_PREFIXES
-
-
 def trick_tag_body(tag_display: str) -> str | None:
-    """Return the trick-slug body of a media tag, or None if it is a utility /
-    domain-prefix tag (not a trick reference)."""
+    """Return a media tag's body, the form a trick slug takes, or None for an
+    empty tag. Whether it names a trick is decided where it meets the trick
+    rows: a tag that matches no trick slug is a freeform tag, never a trick."""
     body = tag_display.lstrip("#").strip().lower()
-    if not body or body in UTILITY_EXACT_TAGS or body.startswith(DOMAIN_PREFIXES):
-        return None
-    return body
+    return body or None
 
 
 # Temp-build loads only the trick dictionary; the unified curated media
@@ -310,27 +297,13 @@ def build_rows(conn: sqlite3.Connection) -> list[dict]:
     return rows
 
 
-def curated_trick_tags(conn: sqlite3.Connection) -> set[str]:
-    """Distinct trick-slug bodies tagged on curated media items."""
-    out: set[str] = set()
-    for (tag,) in conn.execute("""
-        SELECT DISTINCT lower(t.tag_display) FROM media_tags t
-        WHERE EXISTS (SELECT 1 FROM media_tags c
-                      WHERE c.media_id = t.media_id AND lower(c.tag_display) = '#curated')
-    """):
-        body = trick_tag_body(tag)
-        if body is not None:
-            out.add(body)
-    return out
-
-
 def validate(conn: sqlite3.Connection, rows: list[dict]) -> list[str]:
     errors: list[str] = []
 
-    # Non-resolving curated tags (source / status / topic / other-discipline tags
-    # such as #shred_global, #tutorial, #net) do NOT corrupt coverage — build_rows
-    # only reads tags that match a freestyle_tricks slug — so they are surfaced in
-    # the Media-health section, not hard-failed here.
+    # A curated tag that matches no trick slug (a source, content-type, topic or
+    # other-discipline tag such as #shred_global, #tutorial, #net) is a freeform
+    # tag. It does not corrupt coverage, since build_rows reads only tags that
+    # match a freestyle_tricks slug, so it is neither reported nor failed here.
 
     # 1. report row count == total freestyle_tricks
     n_tricks = conn.execute("SELECT COUNT(*) FROM freestyle_tricks").fetchone()[0]
@@ -439,8 +412,6 @@ def build_family_coverage(rows: list[dict]) -> dict:
 
 def build_link_health(conn: sqlite3.Connection) -> dict:
     """Media-health metrics for the unified curated graph."""
-    valid_slugs = {r[0] for r in conn.execute("SELECT slug FROM freestyle_tricks")}
-    orphan_tags = sorted(t for t in curated_trick_tags(conn) if t not in valid_slugs)
     # Curated trick clips carrying no content-type tag. Reported rather than
     # failed: they count as demonstrations, which is a defensible reading, but a
     # growing number means curation is drifting away from saying what a clip is
@@ -460,7 +431,6 @@ def build_link_health(conn: sqlite3.Connection) -> dict:
           AND COALESCE(mi.source_id, '') = ''
     """).fetchone()[0]
     return {
-        "orphan_curated_tags": orphan_tags,
         "curated_items_untyped": untyped_clips,
         "curated_items_blank_source": blank_source,
     }
@@ -578,8 +548,6 @@ def render_report(rows: list[dict], family_cov: dict, link_health: dict) -> str:
     push("")
     push("| Check | Count | Detail |")
     push("|---|---|---|")
-    orphan = link_health["orphan_curated_tags"]
-    push(f"| orphan_curated_tags | {len(orphan)} | {orphan or '-'} |")
     push(f"| curated_items_untyped | {link_health['curated_items_untyped']} | "
          f"(no content-type tag; counted as demonstrations) |")
     push(f"| curated_items_blank_source | {link_health['curated_items_blank_source']} | (counted as weak coverage) |")

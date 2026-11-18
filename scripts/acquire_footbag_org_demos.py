@@ -52,7 +52,7 @@ DEST_DIR = REPO_ROOT / "curated" / "freestyle_demos"
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _trick_tag_invariant import (  # noqa: E402
     MediaTagInvariantError,
-    load_slug_sets_from_csvs,
+    load_active_trick_slugs_from_csvs,
     validate_media_tags,
 )
 
@@ -128,20 +128,19 @@ def build_plan(rows: list[dict]) -> list[dict]:
 def validate(plan: list[dict]) -> list[str]:
     """Return a list of error strings; empty means clean."""
     errors: list[str] = []
-    active, pending, alias, nontrick = load_slug_sets_from_csvs(REPO_ROOT)
+    active = load_active_trick_slugs_from_csvs(REPO_ROOT)
     contributors = {p["contributor"] for p in plan if p["contributor"]}
 
     stems_seen: set[str] = set()
     for p in plan:
-        # Tag invariant (slug resolution + #footbag_org whitelist).
+        # Tag shape, and a trick tag that names an active trick: a retired row
+        # or an alias is not a trick, so a clip tagged with one credits nothing.
         try:
-            validate_media_tags(
-                p["sidecar_path"].name, p["tags"],
-                active_slugs=active, pending_slugs=pending, alias_slugs=alias,
-                nontrick_slugs=nontrick,
-            )
+            validate_media_tags(p["sidecar_path"].name, p["tags"])
         except MediaTagInvariantError as e:
             errors.append(f"tag invariant: {e}")
+        if p["slug"] not in active:
+            errors.append(f"{p['stem']}: trick_slug {p['slug']!r} is not an active freestyle trick slug")
         # Caption must be non-empty and must NOT leak a contributor name.
         if not p["caption"]:
             errors.append(f"{p['stem']}: empty caption")

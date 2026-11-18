@@ -70,6 +70,46 @@ describe('media-tag invariant with items present', () => {
     }
   });
 
+  // Defect caught: a ruled-out rule comes back, so a curated trick clip is
+  // refused for carrying a prefixed or unlisted freeform tag, a tag matching a
+  // retired trick name, or no content-type tag; under the standards every tag
+  // that is not a trick slug is freeform and nothing is required.
+  it('passes freeform and prefixed tags on a curated trick clip with no content type', () => {
+    const withItems = scratchPath('media-invariant-ruled-out', '.db');
+    const db = createTestDb(withItems);
+    const uploader = insertMember(db, { slug: 'media_invariant_ruled_out' });
+    const clip = insertMediaItem(db, { uploader_member_id: uploader, caption: 'trick clip' });
+    for (const tag of ['#curated', '#mirage', '#concept_learning', '#set_pixie', '#an_invented_tag', '#symposium_double_leg_over']) {
+      attachMediaTag(db, clip, insertFreeformTag(db, { tag_normalized: tag }));
+    }
+    db.close();
+    try {
+      const res = spawnSync('python3', [SCRIPT, '--db', withItems, '--require-items'], { encoding: 'utf8', ...SPAWN_GUARD });
+      expect(res.status, res.stdout + res.stderr).toBe(0);
+      expect(res.stdout).toContain('PASS: all 1 items');
+    } finally {
+      cleanupTestDb(withItems);
+    }
+  });
+
+  // Defect caught: the shape check is lost with the rest, so a tag stored with
+  // capitals, which matching would never find, passes.
+  it('fails an item whose stored tag is not lowercase', () => {
+    const withItem = scratchPath('media-invariant-uppercase', '.db');
+    const db = createTestDb(withItem);
+    const uploader = insertMember(db, { slug: 'media_invariant_uppercase' });
+    const item = insertMediaItem(db, { uploader_member_id: uploader, caption: 'uppercase tag clip' });
+    attachMediaTag(db, item, insertFreeformTag(db, { tag_normalized: '#mirage', tag_display: '#Mirage' }));
+    db.close();
+    try {
+      const res = spawnSync('python3', [SCRIPT, '--db', withItem], { encoding: 'utf8', ...SPAWN_GUARD });
+      expect(res.status, res.stdout + res.stderr).toBe(1);
+      expect(res.stderr).toContain("'#Mirage' must be lowercase");
+    } finally {
+      cleanupTestDb(withItem);
+    }
+  });
+
   // Defect caught: with --require-items the check stops at counting rows and no
   // longer examines them, so a malformed tag on a curated item passes.
   it('still examines every item, and fails one whose tag does not start with #', () => {

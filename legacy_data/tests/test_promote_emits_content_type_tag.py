@@ -5,11 +5,11 @@ test_promote_emits_content_type_tag.py
 A promoted sidecar says what its clip is for, as one of the three content-type
 tags, and it says so nowhere else.
 
-The tags are the only categorisation a member sees, and the media-tag invariant
-requires exactly one of them on every curated clip that names a trick. A
-promotion that emitted none would therefore write a sidecar the reset gate
-refuses; one that emitted a separate field beside the tag would give a reader
-two places to find one answer, and nothing downstream reads the field.
+The tags are the only categorisation a member sees. They are freeform, so
+nothing requires them, but a promotion gives every clip one so the trick page
+and the coverage report can say what it is for; one that emitted a separate
+field beside the tag would give a reader two places to find one answer, and
+nothing downstream reads the field.
 
 The source is where the default comes from and never the last word: a curator
 who knows a clip teaches, demonstrates or records something other than its
@@ -87,3 +87,16 @@ def test_the_emitted_sidecar_carries_the_tag_and_no_tier_field():
         "second home for the same answer is how two surfaces come to disagree"
     )
     assert "TIER_BY_SOURCE" not in source
+
+
+def test_a_row_naming_a_retired_trick_or_an_alias_is_refused():
+    # Defect: a promotion writes #<slug> for a name that is not an active trick
+    # (a retired row or an alias), so the clip's trick tag credits no trick.
+    import pytest
+    mod = _load_promote_module()
+    row = {"trick_slug": "symposium_double_leg_over", "source_id": "tt_youtube",
+           "url": "https://www.youtube.com/watch?v=PROMOTEREFUSE"}
+    with pytest.raises(mod.MediaTagInvariantError, match="not an active freestyle trick slug"):
+        mod.emit_sidecar(row, "youtube", "PROMOTEREFUSE", True, active_slugs={"nova"})
+    row["trick_slug"] = "nova"
+    assert mod.emit_sidecar(row, "youtube", "PROMOTEREFUSE", True, active_slugs={"nova"}) is not None

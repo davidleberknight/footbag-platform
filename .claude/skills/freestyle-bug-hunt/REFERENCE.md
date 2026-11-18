@@ -223,16 +223,16 @@ stated ADD or component that disagrees with the columns), which is a high-severi
 
 Before go-live, the intake pipeline is fixed: snippet candidates → promotion script → sidecars → seeder →
 media items + tags → tag-driven galleries. Invariants: every trick-media sidecar carries
-the canonical trick slug tag plus the freestyle and trick tags, and exactly one of
-`#tutorial`, `#demo` or `#record`; every trick-shaped tag resolves to an ACTIVE or PENDING
-dictionary slug (alias-only matches fail); no fake slugs; no silent drops (every candidate
+the canonical trick slug tag (an ACTIVE dictionary slug; a retired row or an alias is not a
+trick) plus the freestyle and trick tags; every other tag is freeform; no fake slugs; no silent drops (every candidate
 lands in a named bucket); duplicate (source, video URL) pairs are forbidden; curator
 data-prep artifacts and admin gallery-editor application code stay on their own sides of
 the boundary. A clip naming no trick (a shred routine, an event) carries no content-type
 tag, by design.
 
-- Signal: a tag with no matching slug; a trick clip with no content-type tag or more than
-  one; a gallery whose membership disagrees with its tag criteria; a sidecar edited in ways
+- Signal: a sidecar whose trick tag names a retired row or an alias; a trick clip carrying
+  more than one content-type tag; a gallery whose membership disagrees with its tag
+  criteria; a sidecar edited in ways
   the seeder cannot reproduce; media rows with no sidecar provenance.
 
 ### §F11 Media governance

@@ -48,13 +48,12 @@ def _is_tracked(path: Path) -> bool:
 
 def test_the_shared_slug_loader_reads_files_that_exist_and_are_committed():
     mod = _load("_trick_tag_invariant")
-    active, pending, aliases, nontrick = mod.load_slug_sets_from_csvs(REPO_ROOT)
+    active = mod.load_active_trick_slugs_from_csvs(REPO_ROOT)
     assert len(active) > 500, (
         f"the loader resolved but returned only {len(active)} active slugs; a path "
-        f"that resolves to something near-empty turns the tag validator into a "
-        f"check that accepts anything"
+        f"that resolves to something near-empty lets a promotion name a trick that "
+        f"is not one"
     )
-    assert aliases, "no aliases loaded; alias-only tags would stop being rejected"
 
 
 def test_the_promotion_script_can_find_its_staging_csv():

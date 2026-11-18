@@ -41,7 +41,7 @@ For record-categories that have no canonical `freestyle_tricks.slug`, see PassBa
 ## 2. Hard rules
 
 1. **No direct DB writes for media intake during data prep.** In the data-prep workflow, curated media enters via `seed_fh_curator.py` reading sidecars; manual `INSERT INTO media_items` is forbidden. (The admin curator UI writes `media_items` directly — the sanctioned runtime path, not data prep — per DD §1.13.)
-2. **No fake trick slugs.** A sidecar's `trick_slug` (and the `#<slug>` tag) must reference a real row in `freestyle_tricks` (active or pending). If the source name has no canonical slug, route to RECORD_CATEGORY (§5): never invent a placeholder slug.
+2. **No fake trick slugs.** A sidecar's `trick_slug` (and the `#<slug>` tag) must be an active `freestyle_tricks.slug`; a retired row or an alias is not a trick, and the promotion and acquisition scripts refuse one. If the source name has no canonical slug, route to RECORD_CATEGORY (§5): never invent a placeholder slug.
 3. **Do not drop legitimate source items silently.** Every source row gets classified into one of the 7 buckets in §5. REJECT is **not** a bucket; non-trick record categories are preserved in their own staging file.
 4. **Duplicate trick coverage is allowed.** The same `trick_slug` may have a TT tutorial sidecar AND a PassBack record sidecar AND an AnzTrikz tutorial sidecar. They are not duplicates of each other.
 5. **Duplicate media rows are not allowed.** A "true duplicate" is `(source_id, video_url)` already present as a sidecar or already in `snippet_candidates.csv`. Skip those.
@@ -50,19 +50,14 @@ For record-categories that have no canonical `freestyle_tricks.slug`, see PassBa
 
 ## 3. Tag rules
 
-Every trick-media sidecar **must** have, at minimum:
+A promoted trick-media sidecar carries:
 
 ```
 "#<canonical-trick-slug>"   ← matches freestyle_tricks.slug; e.g. "#double_leg_over"
 "#freestyle"                ← utility marker
 "#trick"                    ← utility marker
-"#tutorial"|"#demo"|"#record"  ← exactly one; what the clip is for (§11)
+"#tutorial"|"#demo"|"#record"  ← what the clip is for (§11); freeform
 ```
-
-The content type is not optional and not a convention. A curated clip that names
-a trick and carries none of the three, or more than one, is refused by
-`freestyle/loaders/25_qc_media_tag_invariant.py`, which is a hard gate on the
-freestyle refresh.
 
 Source/gallery tags **may** be added to mark the curated source the sidecar came from:
 
@@ -71,13 +66,13 @@ Source/gallery tags **may** be added to mark the curated source the sidecar came
 "#passback_records"         ← PassBack record clips
 ```
 
-A further source added before go-live (`shred_global`, `anz_trikz`, `footbag_finland`, `flipsider_footbag`, etc.) may want its own gallery: when introducing that, add the source tag to the **whitelist** in `scripts/_trick_tag_invariant.py` (`UTILITY_EXACT` frozenset, alongside `tricks_of_the_trade` and `passback_records`). The validator otherwise rejects tags that aren't a whitelisted utility tag, a recognized domain prefix, or an underscore-form `freestyle_tricks.slug`.
+A further source added before go-live (`shred_global`, `anz_trikz`, `footbag_finland`, `flipsider_footbag`, etc.) may want its own gallery tag `#<source>`; it needs no registration, since every tag that is not a trick slug is freeform.
 
-Tag-shape rules (enforced by `scripts/_trick_tag_invariant.py:validate_media_tags`):
+Tag rules (the hashtag standards; `scripts/_trick_tag_invariant.py:validate_media_tags` checks the first two):
 
-- All tags must start with `#` and be lowercase.
-- Trick-shaped tags (underscore-form alphanumeric, not in `UTILITY_EXACT`, not a recognized domain prefix) MUST resolve to an active or pending `freestyle_tricks.slug`. Alias-only matches fail.
-- Recognized domain prefixes (snake_case): `event_`, `demo_`, `fh_`, `player_`, `club_`, `set_`, `operator_`, `family_`, `concept_`, `discipline_`. Anything else needs to be in `UTILITY_EXACT`.
+- Every tag starts with `#` and is stored lowercase.
+- A trick tag is a tag that exactly matches an active `freestyle_tricks.slug`. Anything else is not a trick tag.
+- Every other tag is freeform: anyone may invent one, and an upload never blocks on its tags. There is no prefix vocabulary and no allow-list; `#event_` and `#club_` tags are the event's or club's standardized hashtag.
 - `#player_<slug>` is the one credit convention: the person performing in the clip, named by the historical-person record's folded name (`slugifyForTag`), or by the member's slug for a member; it never creates an identity. `#by_<slug>` is the system-applied uploader tag and is never written into a curated sidecar. Media has no credit field (see the user stories' hashtag rules).
 
 ## 4. PassBack-specific lessons (worked examples: do not re-litigate)
@@ -127,12 +122,10 @@ python3 scripts/promote_snippet_candidates.py --dry-run
 # Apply: emits sidecars under curated/freestyle_tricks/ from approved rows
 python3 scripts/promote_snippet_candidates.py
 
-# Tag-invariant library (sanity-only when run directly; the actual validator
-# is invoked at sidecar-emit time and at QC time)
+# Tag-shape library (the actual check is invoked at sidecar-emit time and at QC time)
 python3 scripts/_trick_tag_invariant.py
 
-# Post-load QC: validates every active media_items row's tag shape against
-# the dictionary; hard-fails on misroute, alias-only resolution, etc.
+# Post-load QC: every active media_items row's tags start with # and are lowercase
 python3 freestyle/loaders/25_qc_media_tag_invariant.py
 
 # Coverage dashboard: per-trick primary-strength + priority bucketing
@@ -155,9 +148,9 @@ Order of operations after staging new sidecars:
 Named-gallery membership is computed at request time by **tag-AND match** against `member_gallery_tags` (and `member_gallery_exclude_tags`) on each `media_items` row. For a new source/gallery to populate correctly:
 
 1. **Every intended sidecar must carry the source tag.** If you introduce `#<new_source>`, ensure both new emissions AND any pre-existing sidecars from that source carry the tag. Backfill is one-shot, idempotent, and limited to the `tags` array: never modify other sidecar fields.
-2. **Whitelist the source tag** in `scripts/_trick_tag_invariant.py:UTILITY_EXACT` before introducing it. Otherwise the validator rejects sidecar emissions and post-load QC fails.
+2. **A source tag needs no registration.** It is a freeform tag; only its spelling has to match across the sidecars and the gallery's criteria.
 3. **A captioned series depends on its sidecar titles.** The Tricks of the Trade sidecars carry `title` in `N - <lesson_title>` form, and each keeps `#tricks_of_the_trade`. `curated/galleries/tricks_of_the_trade.json` sorts `caption_asc`, which orders a leading number by its value, and matches tag-AND, so a changed or dropped lesson number reorders the series and a dropped tag removes the lesson from it. Preserve both whenever a tool rewrites a sidecar.
-4. **Gallery creation.** A named gallery can be created either via the admin UI or directly as a `curated/galleries/<name>.json` sidecar (tag-AND `member_galleries`; `id` = `gallery_<slug>`, `criteriaTags`, `excludeTags`), then landed by running `seed_fh_curator.py`. Whitelist any new source tag in `scripts/_trick_tag_invariant.py:UTILITY_EXACT` first.
+4. **Gallery creation.** A named gallery can be created either via the admin UI or directly as a `curated/galleries/<name>.json` sidecar (tag-AND `member_galleries`; `id` = `gallery_<slug>`, `criteriaTags`, `excludeTags`), then landed by running `seed_fh_curator.py`.
 
 ## 9. Safety boundaries
 
@@ -170,7 +163,7 @@ Named-gallery membership is computed at request time by **tag-AND match** agains
 | `freestyle/tools/trick_video_discovery/snippet_candidates.csv` | Append-only edits via `csv.writer` in append mode; never round-trip via DictReader/DictWriter (memory rule). |
 | `curated/freestyle_tricks/*.meta.json` | Promotion and backfill via `promote_snippet_candidates.py` and one-shot backfill scripts. Never rerun a sidecar-producing tool that does not preserve canonical `title` and `tags`; check its output against `curated/freestyle_media/tt_roster.csv` and `curated/freestyle_media/video_snippet_candidates.csv`. |
 | `scripts/promote_snippet_candidates.py` | Promotion script for snippet candidates. |
-| `scripts/_trick_tag_invariant.py` | Add new source tags to `UTILITY_EXACT` here. |
+| `scripts/_trick_tag_invariant.py` | The tag-shape check and the active-trick lookup. |
 | `freestyle/loaders/{24,25}_qc_*.py` + `legacy_data/event_results/scripts/28_qc_bap_coverage.py` | QC checks; run after a load. |
 
 When in doubt about whether a change reaches the application-code or schema layer rather than the data files, pause and confirm first. The cost of pausing is low; reverting an unwanted change is high.
@@ -235,8 +228,7 @@ No `trick_slug` column. No sidecar emission. Surfacing decision deferred: the fi
 
 ## 11. Content type: what a clip is for
 
-Every curated clip that names a trick carries exactly one of three tags, and that
-tag is the only thing that says what the clip is for:
+A curated trick clip says what it is for with one of three freeform tags:
 
 | Tag | Meaning |
 |---|---|
@@ -244,20 +236,15 @@ tag is the only thing that says what the clip is for:
 | `#demo` | The clip shows the trick performed clearly, without teaching it. |
 | `#record` | The clip is record evidence, with countable reps. |
 
-This is enforced, not conventional. `freestyle/loaders/25_qc_media_tag_invariant.py`
-refuses a curated clip that names a trick and carries none of the three or more
-than one, and it is a hard gate on the freestyle refresh. The gate is scoped by
-the presence of a trick tag, never by directory: a clip that names no trick (a
-shred routine, a chinlone film, a net demonstration, an event clip) carries none
-of the three and that is correct, while a set or concept lesson may carry one
-because it genuinely is one.
+Nothing requires them: they are freeform tags. A promotion gives every trick clip
+one, and a clip that names no trick (a shred routine, a chinlone film, a net
+demonstration, an event clip) usually carries none.
 
 ### The default
 
 A clip carrying no content type reads as a demonstration everywhere: both public
 readers and the coverage QC treat it that way. Teaching is a positive claim, so
-it is made rather than assumed. Never lean on the default for a trick clip, since
-the hard gate refuses it.
+it is made rather than assumed.
 
 ### Source is a starting point, never the last word
 
@@ -305,9 +292,9 @@ today is a sidecar with two places to answer one question.
 - **Multi-trick tutorial promotion:** only when each target trick is explicitly
   named in the title.
 
-## 12. Registering a new source — four coordinated points
+## 12. Registering a new source — three coordinated points
 
-A new `source_id` (e.g. `passback_demos`, `footbag_org`) requires four coordinated
+A new `source_id` (e.g. `passback_demos`, `footbag_org`) requires three coordinated
 edits. Doing only the obvious one causes failures partway through
 promote → seed → QC:
 
@@ -321,9 +308,6 @@ promote → seed → QC:
 3. `scripts/promote_snippet_candidates.py` `CONTENT_TYPE_BY_SOURCE` — the content
    type a promoted sidecar from this source starts with. Optional: omit it and
    the source falls to `#demo`, which is a correct default rather than an error.
-4. `scripts/_trick_tag_invariant.py` `UTILITY_EXACT` — only if the source emits a
-   gallery tag `#<source>`. Not needed when promote emits no source tag
-   (`passback_demos` emits only `#<slug> #freestyle #trick` plus its content type).
 
 Nothing registers a render bucket any more and no test carries a source count.
 Classification is the clip's own tag, so an unregistered source is no longer a

@@ -114,13 +114,13 @@ def test_classify_primary_strength_defaults_an_untyped_clip_to_demonstration():
     assert mod.classify_primary_strength({"#curated", "#freestyle"}) == "HIGH_QUALITY_DEMO"
 
 
-def test_trick_tag_body_filters_non_trick_tags():
-    assert mod.trick_tag_body("#double-leg-over") == "double-leg-over"
-    # utility, source/domain-prefix tags are not trick references
-    assert mod.trick_tag_body("#curated") is None
-    assert mod.trick_tag_body("#freestyle") is None
-    assert mod.trick_tag_body("#set_pixie") is None
-    assert mod.trick_tag_body("#by_someone") is None
+def test_trick_tag_body_reads_the_slug_form_and_decides_nothing():
+    # Defect: the coverage report keeps a private vocabulary of which tags are
+    # "not tricks", so a freeform tag that happens to match a trick slug is
+    # dropped. Whether a body names a trick is decided against the trick rows.
+    assert mod.trick_tag_body("#Double_Leg_Over") == "double_leg_over"
+    assert mod.trick_tag_body("#freestyle") == "freestyle"
+    assert mod.trick_tag_body("#") is None
 
 
 def _seed_minimal_db(path):

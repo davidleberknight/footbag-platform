@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""Script 25: QC the media-tag invariant. READ-ONLY hard fail.
+"""Script 25: QC the media-tag shape. READ-ONLY hard fail.
 
-Invariant (per scripts/_trick_tag_invariant.py):
-  1. Tag domains: TRICK (underscore slug, active or pending),
-     EVENT (event_*), SYSTEM (demo_*, fh_*), FUTURE (player_*, club_*, set_*).
-  2. Trick-shaped tags must resolve; alias-only or unknown bodies fail.
-  3. Utility tags (freestyle, trick, curated, tricks_of_the_trade) pass
-     through. An item with no tags passes: uploads never block on tags.
+Checks every active media item against the hashtag standards that bind a
+stored tag (per scripts/_trick_tag_invariant.py): every tag starts with '#'
+and is lowercase. Nothing else is required of a tag: one that is not a trick
+slug is a freeform tag, and an item with no tags passes, since uploads never
+block on tags.
 
 Tripwire for any ingestion path (curator seeder, sidecar promotion, member
 uploads). Run after a fresh DB reset.
@@ -31,14 +30,8 @@ REPO_ROOT = SCRIPT_DIR.parents[1]
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 from _trick_tag_invariant import (  # noqa: E402
     MediaTagInvariantError,
-    load_slug_sets_from_db,
     validate_media_tags,
 )
-
-# What a curated trick clip is for. The three replaced a sidecar `tier` field
-# that was a lookup from the source id, and they are the only categorisation a
-# member sees.
-CONTENT_TYPE_TAGS = frozenset({"#tutorial", "#demo", "#record"})
 
 
 def main() -> int:
@@ -71,7 +64,6 @@ def main() -> int:
     con = sqlite3.connect(db_path)
     con.row_factory = sqlite3.Row
     try:
-        active, pending, aliases, nontrick = load_slug_sets_from_db(con)
         items = list(con.execute(
             "SELECT id, source_filename, video_id "
             "FROM media_items "
@@ -87,39 +79,9 @@ def main() -> int:
     for it in items:
         label = it["source_filename"] or it["video_id"] or it["id"][-12:]
         try:
-            validate_media_tags(
-                label,
-                tags_by_media.get(it["id"], []),
-                active_slugs=active,
-                pending_slugs=pending,
-                alias_slugs=aliases,
-                nontrick_slugs=nontrick,
-            )
+            validate_media_tags(label, tags_by_media.get(it["id"], []))
         except MediaTagInvariantError as e:
             failures.append(str(e))
-
-        # Content type, for a curated clip that names a trick. Exactly one of the
-        # three, because the tags are the only categorisation a member sees and a
-        # clip carrying two would report whichever was read first. Scoped by the
-        # trick tag rather than by directory: a shred routine and a discipline or
-        # event clip name no trick and carry none of the three, which is the
-        # ruling for them rather than an oversight.
-        clip_tags = [t.lower() for t in tags_by_media.get(it["id"], [])]
-        if "#curated" not in clip_tags:
-            continue
-        names_a_trick = any(
-            t.lstrip("#") in active or t.lstrip("#") in pending or t.lstrip("#") in aliases
-            for t in clip_tags
-        )
-        if not names_a_trick:
-            continue
-        content_types = sorted({t for t in clip_tags if t in CONTENT_TYPE_TAGS})
-        if len(content_types) != 1:
-            failures.append(
-                f"{label}: names a trick and carries {content_types or 'no'} content-type "
-                f"tag; a curated trick clip carries exactly one of "
-                f"{', '.join(sorted(CONTENT_TYPE_TAGS))}"
-            )
 
     total = len(items)
     print("=" * 72)

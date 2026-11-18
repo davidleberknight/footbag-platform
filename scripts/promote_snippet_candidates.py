@@ -64,7 +64,7 @@ SIDECAR_DIR  = REPO_ROOT / "curated" / "freestyle_tricks"
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _trick_tag_invariant import (  # noqa: E402
     MediaTagInvariantError,
-    load_slug_sets_from_csvs,
+    load_active_trick_slugs_from_csvs,
     validate_media_tags,
 )
 
@@ -238,14 +238,18 @@ def emit_sidecar(
     dry_run: bool,
     *,
     active_slugs: set[str],
-    pending_slugs: set[str],
-    alias_slugs: dict[str, str],
-    nontrick_slugs: set[str],
 ) -> Path | None:
     slug = (row.get("trick_slug") or "").strip()
     if not slug:
         print(f"  SKIP: row has no trick_slug; url={row.get('url')!r}", file=sys.stderr)
         return None
+    # The sidecar's #<slug> is its trick tag, so the slug must be an active trick:
+    # a retired row or an alias is not one, and a tag naming it credits no trick.
+    if slug not in active_slugs:
+        raise MediaTagInvariantError(
+            f"trick_slug {slug!r} is not an active freestyle trick slug; "
+            f"url={row.get('url')!r}"
+        )
 
     source_id = (row.get("source_id") or "").strip()
     tags = [f"#{slug}", "#freestyle", "#trick", make_content_type_tag(row)]
@@ -280,14 +284,7 @@ def emit_sidecar(
         print(f"  SKIP: filename already exists ({out_path.name})", file=sys.stderr)
         return None
 
-    validate_media_tags(
-        out_path.name,
-        sidecar["tags"],
-        active_slugs=active_slugs,
-        pending_slugs=pending_slugs,
-        alias_slugs=alias_slugs,
-        nontrick_slugs=nontrick_slugs,
-    )
+    validate_media_tags(out_path.name, sidecar["tags"])
 
     if dry_run:
         return out_path
@@ -306,7 +303,7 @@ def main() -> int:
         print(f"ERROR: {SNIPPETS_CSV} not found", file=sys.stderr)
         return 2
 
-    active_slugs, pending_slugs, alias_slugs, nontrick_slugs = load_slug_sets_from_csvs(REPO_ROOT)
+    active_slugs = load_active_trick_slugs_from_csvs(REPO_ROOT)
 
     already_emitted = existing_video_ids()
     print(f"Existing sidecars on disk: {len(already_emitted)} unique (platform, video_id) pairs")
@@ -344,9 +341,6 @@ def main() -> int:
                 path = emit_sidecar(
                     row, platform, video_id, args.dry_run,
                     active_slugs=active_slugs,
-                    pending_slugs=pending_slugs,
-                    alias_slugs=alias_slugs,
-                    nontrick_slugs=nontrick_slugs,
                 )
             except MediaTagInvariantError as e:
                 print(f"ERROR: media-tag invariant violation: {e}", file=sys.stderr)
