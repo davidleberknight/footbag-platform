@@ -28,5 +28,19 @@
       </div>
     </div>
     {{/each}}
+    {{! Foundations of Freestyle: the twelve foundational moves' clips, in the
+        landing mosaic's reading order, as the shared gallery tile. The explicit
+        clip list owns membership, not a hashtag. }}
+    {{#if content.foundations}}
+    <div id="{{content.foundations.sectionId}}">
+      <div class="section-heading"><h2>{{content.foundations.heading}}</h2></div>
+      <p class="section-intro">{{content.foundations.intro}}</p>
+      <ul class="gallery-grid">
+        {{#each content.foundations.tiles}}
+          {{> _gallery-tile this}}
+        {{/each}}
+      </ul>
+    </div>
+    {{/if}}
   </section>
 </div>

@@ -25,6 +25,7 @@ import {
   insertGalleryCriterionTag,
   insertGalleryExcludeTag,
   insertGalleryExternalLink,
+  insertCuratorVideo,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3127');
@@ -387,25 +388,40 @@ describe('GET /freestyle/media (consolidated Freestyle Media section)', () => {
     attachTag(db, vid, CURATED_TAG_ID, '#curated');
     attachTag(db, vid, pbtTagId, '#passback_tutorials');
 
-    // Seed the Foundations gallery with one item so its folder card links.
-    const foundationsTagId = insertFreeformTag(db, {
-      id: 'tag-test-foundations',
-      tag_normalized: '#foundations',
-      tag_display: '#foundations',
+    // Two of the twelve Foundations clips, known by their mosaic file names and
+    // seeded against the mosaic's reading order (clipper before toe stall). No
+    // tag marks them as Foundations clips. A gallery holding both lets the
+    // caption mask be checked on a gallery tile and across previous/next.
+    const pairTagId = insertFreeformTag(db, {
+      id: 'tag-test-foundation-pair',
+      tag_normalized: '#foundation_pair',
+      tag_display: '#foundation_pair',
     });
     insertNamedGallery(db, {
-      id: 'gallery_foundations_of_freestyle',
+      id: 'gallery_foundation_pair',
       ownerId: SYSTEM_ID,
-      name: 'Foundations of Freestyle',
-      description: 'The twelve foundational freestyle moves.',
+      name: 'Foundation Pair',
+      description: 'Two foundational clips.',
     });
-    insertGalleryCriteria(db, 'gallery_foundations_of_freestyle', [CURATED_TAG_ID, foundationsTagId]);
-    const fvid = insertVideo(db, { id: 'media_video_found01', platform: 'youtube', caption: 'Toe Delay' });
-    attachTag(db, fvid, CURATED_TAG_ID, '#curated');
-    attachTag(db, fvid, foundationsTagId, '#foundations');
-    const fvid2 = insertVideo(db, { id: 'media_video_found02', platform: 'youtube', caption: 'Clipper Stall' });
-    attachTag(db, fvid2, CURATED_TAG_ID, '#curated');
-    attachTag(db, fvid2, foundationsTagId, '#foundations');
+    insertGalleryCriteria(db, 'gallery_foundation_pair', [CURATED_TAG_ID, pairTagId]);
+    const clipper = insertCuratorVideo(db, {
+      uploaderMemberId: SYSTEM_ID,
+      sourceFilename: 'mosaic-clipper-stall.mp4',
+      slotTag: '#clipper_stall',
+      caption: 'Clipper Stall',
+      mediaId: 'media_video_found02',
+    });
+    const toe = insertCuratorVideo(db, {
+      uploaderMemberId: SYSTEM_ID,
+      sourceFilename: 'mosaic-toe-stall.mp4',
+      slotTag: '#toe_stall',
+      caption: 'Toe Delay',
+      mediaId: 'media_video_found01',
+    });
+    for (const id of [clipper, toe]) {
+      attachTag(db, id, CURATED_TAG_ID, '#curated');
+      attachTag(db, id, pairTagId, '#foundation_pair');
+    }
     db.close();
   });
 
@@ -449,14 +465,53 @@ describe('GET /freestyle/media (consolidated Freestyle Media section)', () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/media');
     expect(res.text).toContain('href="/media/gallery_passback_tutorials"');
-    expect(res.text).toContain('href="/media/gallery_foundations_of_freestyle"');
     expect(res.text).not.toMatch(/coming soon/i);
-    // Every folder card the page renders opens a gallery.
+    // Every folder card the page renders opens a gallery or the page's own
+    // Foundations section.
     const cards = res.text.match(/<div class="card">[\s\S]*?<\/div>\s*<\/div>/g) ?? [];
     expect(cards.length).toBeGreaterThan(0);
     for (const card of cards) {
-      expect(card, 'a folder card with no gallery link').toMatch(/href="\/media\//);
+      expect(card, 'a folder card with no destination').toMatch(/href="(\/media\/|#foundations")/);
     }
+  });
+
+  // Defect caught: the Foundations card opens a gallery that no longer exists,
+  // or jumps to an anchor the page does not carry, so the twelve clips are
+  // unreachable from the page that lists them.
+  it('jumps from the Foundations card to the section showing the clips', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/media');
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('gallery_foundations_of_freestyle');
+    const card = (res.text.match(/<div class="card">[\s\S]*?<\/div>\s*<\/div>/g) ?? [])
+      .find((c) => c.includes('href="#foundations"'));
+    expect(card, 'a card jumping to the Foundations section').toBeDefined();
+    expect(res.text).toContain('<div id="foundations">');
+  });
+
+  // Defect caught: the section follows upload or file order instead of the
+  // mosaic's reading order, shows a still image that does not play, loses a
+  // clip's link to its trick page, or shows a clip that is not loaded as a
+  // broken tile.
+  it('shows the loaded Foundations clips in reading order, each playable and linked to its trick page', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/media');
+    const start = res.text.indexOf('<div id="foundations">');
+    expect(start).toBeGreaterThan(-1);
+    const section = res.text.slice(start);
+    // Each poster opens the clip in the item viewer, as a video tile.
+    const players = [...section.matchAll(/<a href="([^"]+)" class="gallery-tile-media gallery-tile-video">/g)]
+      .map((m) => m[1]);
+    // Toe stall reads first in the mosaic, though the clipper clip was seeded
+    // first; the ten clips not loaded render no tile at all.
+    expect(players).toEqual(['/media/item/media_video_found01', '/media/item/media_video_found02']);
+    expect(section.match(/class="gallery-tile-play"/g)?.length).toBe(2);
+    // Each poster's burnt-in caption is masked with the move's clean name.
+    const masks = [...section.matchAll(/class="gallery-tile-caption-mask"[^>]*>([^<]+)</g)].map((m) => m[1]);
+    expect(masks).toEqual(['Toe Stall', 'Clipper']);
+    // Under each tile, a link to the move's trick page.
+    const tricks = [...section.matchAll(/<a href="(\/freestyle\/tricks\/[a-z_]+)">Trick: /g)].map((m) => m[1]);
+    expect(tricks).toEqual(['/freestyle/tricks/toe_stall', '/freestyle/tricks/clipper_stall']);
   });
 });
 
@@ -485,9 +540,9 @@ describe('GET /media/:galleryId (named gallery)', () => {
     expect(heroBlock).not.toContain('Reference videos for freestyle footbag tricks');
   });
 
-  it('masks the burnt-in poster caption on a demo-mosaic gallery with a clean label overlay, suppressing the duplicate below-image caption', async () => {
+  it('masks the burnt-in poster caption on a Foundations clip, known by its file name, suppressing the duplicate below-image caption', async () => {
     const app = createApp();
-    const res = await request(app).get('/media/gallery_foundations_of_freestyle');
+    const res = await request(app).get('/media/gallery_foundation_pair');
     expect(res.status).toBe(200);
     // Demo-mosaic clips carry a burnt-in lower-left caption; the tile masks that
     // corner with an opaque label overlay carrying the clean trick name.
@@ -496,7 +551,7 @@ describe('GET /media/:galleryId (named gallery)', () => {
     expect(res.text).not.toContain('class="gallery-tile-caption"');
   });
 
-  it('does not mask captions on a named gallery built from non-mosaic clips', async () => {
+  it('does not mask captions on a named gallery built from clips outside the Foundations list', async () => {
     const app = createApp();
     const res = await request(app).get(`/media/${FH_GALLERY_ID}`);
     expect(res.status).toBe(200);
@@ -505,7 +560,7 @@ describe('GET /media/:galleryId (named gallery)', () => {
 
   it('renders the same caption correction on the item detail page (via the gallery route)', async () => {
     const app = createApp();
-    const res = await request(app).get('/media/gallery_foundations_of_freestyle/media_video_found01');
+    const res = await request(app).get('/media/gallery_foundation_pair/media_video_found01');
     expect(res.status).toBe(200);
     // The overlay travels to the detail viewer: the black mask carries the clean
     // trick name, and the media is pinned to its own square content rectangle so
@@ -542,7 +597,7 @@ describe('GET /media/:galleryId (named gallery)', () => {
 
   it('keeps each item-specific overlay across previous/next navigation', async () => {
     const app = createApp();
-    const res = await request(app).get('/media/gallery_foundations_of_freestyle/media_video_found02');
+    const res = await request(app).get('/media/gallery_foundation_pair/media_video_found02');
     expect(res.status).toBe(200);
     // The second Foundations item carries its own caption in the mask, not the
     // first item's, and the pager exposes previous/next within the twelve.

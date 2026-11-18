@@ -33,23 +33,29 @@ function sidecarFor(galleryId: string): GallerySidecar | null {
   return existsSync(path) ? (JSON.parse(readFileSync(path, 'utf8')) as GallerySidecar) : null;
 }
 
+// A gallery card's description comes from its gallery's sidecar; a card that
+// jumps to a section of the page itself carries its own.
+function descriptionFor(card: (typeof cards)[number]): string {
+  return 'pageSection' in card ? card.description : (sidecarFor(card.galleryId)?.description ?? '');
+}
+
 describe('Freestyle Media cards', () => {
-  it('every card resolves to a committed gallery sidecar', () => {
-    const missing = cards.filter(c => sidecarFor(c.galleryId) === null).map(c => c.label);
+  it('every gallery card resolves to a committed gallery sidecar', () => {
+    const missing = cards
+      .filter(c => 'galleryId' in c && sidecarFor(c.galleryId) === null)
+      .map(c => c.label);
     expect(missing).toEqual([]);
   });
 
   it('every card carries a description', () => {
-    const empty = cards
-      .filter(c => (sidecarFor(c.galleryId)?.description ?? '').trim().length === 0)
-      .map(c => c.label);
+    const empty = cards.filter(c => descriptionFor(c).trim().length === 0).map(c => c.label);
     expect(empty).toEqual([]);
   });
 
   it('the Records card describes the records collection, not the word passback', () => {
     const records = cards.find(c => c.label === 'Freestyle Records');
     expect(records, 'the Freestyle Records card is gone').toBeDefined();
-    const description = sidecarFor(records!.galleryId)!.description;
+    const description = descriptionFor(records!);
 
     expect(/record/i.test(description), `records card description: ${description}`).toBe(true);
     // The defect shape: a description whose whole subject is the jargon term.
@@ -60,7 +66,7 @@ describe('Freestyle Media cards', () => {
     // A description that begins "X is freestyle jargon for" is defining a word,
     // which is the glossary's job and not a card's.
     const defining = cards
-      .map(c => ({ label: c.label, description: sidecarFor(c.galleryId)?.description ?? '' }))
+      .map(c => ({ label: c.label, description: descriptionFor(c) }))
       .filter(c => /is freestyle jargon for/i.test(c.description))
       .map(c => c.label);
     expect(defining).toEqual([]);
@@ -71,7 +77,7 @@ describe('Freestyle Media cards', () => {
     const seen = new Map<string, string>();
     const collisions: string[] = [];
     for (const c of cards) {
-      const description = sidecarFor(c.galleryId)?.description ?? '';
+      const description = descriptionFor(c);
       if (description === '') continue;
       const prior = seen.get(description);
       if (prior) collisions.push(`${prior} / ${c.label}`);

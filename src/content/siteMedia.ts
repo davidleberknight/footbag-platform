@@ -57,11 +57,10 @@ export const SITE_MEDIA_SLOTS = {
 
 export type SiteMediaSlotKey = keyof typeof SITE_MEDIA_SLOTS;
 
-// What every foundational mosaic clip carries, whichever move it shows.
-// `#foundations` names the collection; it replaced a tag naming this page's
-// layout slot, which described where a clip was placed rather than what it shows
-// and reached visitors as a hashtag saying so.
-export const MOSAIC_SLOT_SHARED_TAGS: readonly string[] = ['#curated', '#freestyle', '#foundations'];
+// What every foundational mosaic clip carries, whichever move it shows. No tag
+// names the collection: the mosaic's atom list owns which clips belong, by file
+// name, so a tag would only be a second answer to the same question.
+export const MOSAIC_SLOT_SHARED_TAGS: readonly string[] = ['#curated', '#freestyle'];
 
 /**
  * What one mosaic clip must carry: the shared collection tags, plus the trick it

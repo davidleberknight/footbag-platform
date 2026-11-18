@@ -1,14 +1,13 @@
 /**
- * All twelve Foundations of Freestyle clips must carry the metadata that drives
- * the caption correction: the '#foundations' tag (which selects the mask on both
- * the gallery tile and the detail viewer) and a clean caption (the canonical
- * trick name rendered over the mask). If any clip loses the tag or the caption,
- * its obsolete burnt-in caption reappears uncorrected.
+ * All twelve Foundations of Freestyle clips must carry a clean caption, the
+ * canonical trick name rendered over the mask that hides each poster's burnt-in
+ * caption. The mask is chosen by the clip's file name, so no tag marks a clip as
+ * a Foundations clip, and none may: the mosaic's atom list is the one answer to
+ * which clips belong.
  *
  * Each clip also carries the trick it demonstrates. That is its semantic
- * identity, which every media item needs and which a collection tag cannot
- * supply: '#foundations' says which set a clip belongs to, never what it shows.
- * It is also what makes the clip reachable from the move it demonstrates.
+ * identity, and it is what makes the clip reachable from the move it
+ * demonstrates.
  *
  * These are the committed curator sidecars seeded into the media records; the
  * source video files themselves are immutable and are not read here.
@@ -49,12 +48,14 @@ describe('Foundations of Freestyle mosaic overlay metadata', () => {
   });
 
   for (const file of sidecars) {
-    it(`${file} carries #foundations and a caption for the correction overlay`, () => {
+    it(`${file} carries a caption for the correction overlay and no collection tag`, () => {
       const meta = JSON.parse(readFileSync(join(SITE_DIR, file), 'utf8')) as {
         tags?: string[];
         caption?: string;
       };
-      expect(meta.tags ?? [], `${file} tags`).toContain('#foundations');
+      // A collection tag would be a second, drifting answer to which clips are
+      // Foundations clips, and would let a gallery be built on it again.
+      expect(meta.tags ?? [], `${file} tags`).not.toContain('#foundations');
       expect(typeof meta.caption, `${file} caption`).toBe('string');
       expect((meta.caption ?? '').trim().length, `${file} caption non-empty`).toBeGreaterThan(0);
     });

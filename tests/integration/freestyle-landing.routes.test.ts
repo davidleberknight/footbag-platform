@@ -24,7 +24,7 @@ afterAll(() => {
 });
 
 describe('freestyle landing reference banners', () => {
-  it('embeds no foundations mosaic: the clips live in their own gallery', async () => {
+  it('embeds no foundations mosaic: the clips live on the Freestyle Media page', async () => {
     const res = await page('/freestyle');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('class="tricks-mosaic"');

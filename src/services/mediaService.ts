@@ -146,6 +146,7 @@
  */
 import {
   CuratorGalleryRow,
+  CuratorSlotMediaRow,
   FhNamedGalleryTagRow,
   GallerySortOrder,
   countGalleryItemsByCriteria,
@@ -188,7 +189,8 @@ import {
   tagToBrowseHref,
   type HashtagIndexContent,
 } from './hashtagDiscoveryService';
-import { FREESTYLE_MEDIA_STRUCTURE } from '../content/freestyleMedia';
+import { FOUNDATIONS_SECTION_ID, FREESTYLE_MEDIA_STRUCTURE } from '../content/freestyleMedia';
+import { TRICKS_MOSAIC, mosaicClipFilename, type MosaicAtom } from '../content/freestyleTricksMosaic';
 
 // Items per page on every paged media surface, an administrator-tunable value
 // kept inside a range the grid lays out well; out-of-range values fall back to
@@ -734,6 +736,17 @@ export interface FreestyleMediaSectionView {
 // FREESTYLE_MEDIA_STRUCTURE definition, so the two surfaces never diverge.
 export interface FreestyleMediaContent {
   sections: FreestyleMediaSectionView[];
+  // The Foundations of Freestyle section: the twelve foundational moves' clips,
+  // in the landing mosaic's reading order, each linking to its trick page. Null
+  // when none of the twelve clips is loaded yet.
+  foundations: FreestyleFoundationsView | null;
+}
+
+export interface FreestyleFoundationsView {
+  sectionId: string;
+  heading: string;
+  intro: string;
+  tiles: GalleryItem[];
 }
 
 
@@ -1344,13 +1357,66 @@ function resolveItemSet(ctx: GalleryContext, mediaId: string): ResolvedItemSet {
 // modulo the ordered set; lifts the item's `#by_<slug>` tag to an uploader chip
 // linked to that member's gallery, lifts `#curated` to a curated-collection
 // attribution, and renders the remaining hashtags as browseable chips.
+// The twelve Foundations of Freestyle clips, found by file name. The landing
+// mosaic's atom list owns their membership and order, never a hashtag; a clip
+// not loaded yet is left out.
+function foundationClips(): Array<{ atom: MosaicAtom; row: CuratorSlotMediaRow }> {
+  return TRICKS_MOSAIC.flatMap((atom) => {
+    const row = media.getCuratorMediaByFilename.get(mosaicClipFilename(atom.slug)) as
+      | CuratorSlotMediaRow
+      | undefined;
+    return row ? [{ atom, row }] : [];
+  });
+}
+
 // Shared decision for the caption-correction overlay: an item carries the mask
-// when it is one of the demo-mosaic clips, whose burnt-in lower-left caption is
-// obsolete. Keyed on the item's own tags so the gallery tile, the detail viewer,
-// and prev/next navigation all reach the same answer from one place, with the
-// clean title always coming from the media record's caption.
-function itemCarriesMosaicCaption(tagDisplays: readonly string[]): boolean {
-  return tagDisplays.some((d) => d.toLowerCase() === MOSAIC_CAPTION_TAG);
+// when it is one of the Foundations clips, whose burnt-in lower-left caption is
+// obsolete. Keyed on the same file-name list that defines the Foundations
+// section, so the section and the detail viewer reach the same answer from one
+// place, with the clean title always coming from the media record's caption.
+function itemCarriesMosaicCaption(mediaId: string): boolean {
+  return foundationClips().some((c) => c.row.id === mediaId);
+}
+
+// The Foundations of Freestyle section of the Freestyle Media page: each loaded
+// clip as the shared gallery tile, in the mosaic's reading order. The poster
+// opens the clip in the item viewer, its burnt-in caption masked with the move's
+// clean name, and a trick link under it opens that move's page. Null when none
+// of the twelve clips is loaded.
+function shapeFoundations(): FreestyleFoundationsView | null {
+  const adapter = getMediaStorageAdapter();
+  const tiles = foundationClips().flatMap(({ atom, row }): GalleryItem[] => {
+    if (row.media_type !== 'video') return [];
+    const video = expandVideoFromMediaItem(row, {
+      constructURL: (k) => adapter.constructURL(k),
+      videoTitle: atom.label,
+    });
+    if (!video) return [];
+    return [{
+      mediaId: row.id,
+      mediaType: 'video',
+      caption: atom.label,
+      alt: atom.label,
+      thumbnailUrl: video.thumbnailUrl,
+      displayHref: video.videoUrl,
+      width: null,
+      height: null,
+      uploadedAtIso: '',
+      uploadedAtDisplay: '',
+      tags: [],
+      destinations: [{ kind: 'trick', kindLabel: 'Trick', label: atom.label, href: `/freestyle/tricks/${atom.slug}` }],
+      media: video,
+      itemHref: `/media/item/${encodeURIComponent(row.id)}`,
+      captionMask: true,
+    }];
+  });
+  if (tiles.length === 0) return null;
+  return {
+    sectionId: FOUNDATIONS_SECTION_ID,
+    heading: 'Foundations of Freestyle',
+    intro: 'The twelve foundational freestyle footbag moves. Almost every trick is built from these core movements.',
+    tiles,
+  };
 }
 
 function buildItemPage(
@@ -1407,7 +1473,7 @@ function buildItemPage(
   const item = shapeItem(row, [], (k) => adapter.constructURL(k));
   // The detail viewer reuses the gallery tile's caption-correction overlay so
   // the obsolete burnt-in caption never reappears when an item is opened.
-  item.captionMask = itemCarriesMosaicCaption(itemTagRows.map((t) => t.tag_display));
+  item.captionMask = itemCarriesMosaicCaption(row.id);
   const showPager = set.total > 1;
   // The item's own title. When the item is viewed within a named gallery the
   // hero shows the gallery name and this sits as a heading above the media;
@@ -1671,9 +1737,17 @@ export const mediaService = {
       const byId = new Map(
         (media.listAllNamedGalleries.all() as NamedGalleryWithOwnerRow[]).map((g) => [g.id, g]),
       );
+      const foundations = shapeFoundations();
       const sections: FreestyleMediaSectionView[] = FREESTYLE_MEDIA_STRUCTURE.map((section) => ({
         heading: section.heading,
         folders: section.folders.flatMap((f): FreestyleMediaFolderView[] => {
+          // The Foundations card jumps to this page's own section, and shows
+          // only when that section has clips to show.
+          if ('pageSection' in f) {
+            return foundations
+              ? [{ label: f.label, description: f.description, itemCount: foundations.tiles.length, href: `#${foundations.sectionId}` }]
+              : [];
+          }
           const g = byId.get(f.galleryId);
           // A gallery not seeded yet, or one with no items, is left off.
           if (g == null) return [];
@@ -1697,7 +1771,7 @@ export const mediaService = {
           intro:
             'Tutorials and demos, records footage, curated trick videos, and individual shred clips.',
         },
-        content: { sections },
+        content: { sections, foundations },
       };
     });
   },
@@ -1835,14 +1909,14 @@ export const mediaService = {
 
       const adapter = getMediaStorageAdapter();
       const galleryIdToken = encodeURIComponent(gallery.id);
-      // A gallery built from the demo-mosaic clips inherits their burnt-in
-      // lower-left poster caption; mask it per tile with a clean label overlay,
-      // using the same decision the detail viewer applies per item.
-      const isMosaicGallery = itemCarriesMosaicCaption(tagRows.map((t) => t.tag_display));
+      // A Foundations clip carries a burnt-in lower-left poster caption; mask it
+      // per tile with a clean label overlay, using the same file-name list the
+      // detail viewer applies per item.
+      const foundationIds = new Set(foundationClips().map((c) => c.row.id));
       const items: GalleryItem[] = rows.map((row) => {
         const item = shapeItem(row, tagsByMediaId.get(row.id) ?? [], (k) => adapter.constructURL(k));
         item.itemHref = `/media/${galleryIdToken}/${encodeURIComponent(item.mediaId)}`;
-        if (isMosaicGallery) item.captionMask = true;
+        if (foundationIds.has(row.id)) item.captionMask = true;
         return item;
       });
       attachDestinations(items);
@@ -2340,12 +2414,6 @@ export const FILTER_SUGGESTION_LIMIT = 12;
 // axis, so it is surfaced as a dedicated always-on Source control rather than a
 // raw suggestion chip.
 const CURATED_TAG = '#curated';
-// The foundational mosaic clips, whose posters carry a burnt-in lower-left
-// caption. Tiles carrying this tag mask that corner with a clean trick-name label
-// overlay instead of exposing the burnt-in text. Keyed on the collection tag
-// rather than on each clip's trick tag: the burnt-in caption is a property of how
-// these twelve clips were produced, not of the moves they show.
-const MOSAIC_CAPTION_TAG = '#foundations';
 
 // Human-readable labels for known hashtags, so the filter reads as a product
 // surface rather than developer jargon. Unknown tags fall back to a title-cased
@@ -2371,7 +2439,6 @@ const TAG_LABELS: Record<string, string> = {
   '#anz_trikz': 'AnzTrikz',
   '#footbag_finland': 'Footbag Finland',
   '#footbag_org': 'footbag.org',
-  '#foundations': 'Foundations',
 };
 
 function friendlyTagLabel(display: string): string {

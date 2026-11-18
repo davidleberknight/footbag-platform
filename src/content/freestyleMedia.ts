@@ -5,15 +5,28 @@
  * cannot drift apart.
  *
  * Each folder names the Footbag-Hacky named gallery that backs it; the media
- * service resolves the live item count and link at read time. Order here is
- * display order. Labels stay beginner-friendly: no internal taxonomy terms.
+ * service resolves the live item count and link at read time. The one exception
+ * is Foundations of Freestyle, whose twelve clips are an explicit list (the
+ * landing mosaic's atoms, by file name) rather than a hashtag gallery: its card
+ * jumps to the section of this page that shows them. Order here is display
+ * order. Labels stay beginner-friendly: no internal taxonomy terms.
  */
-export interface FreestyleMediaFolderDef {
-  /** Backing FH named-gallery id (gallery_*). */
-  galleryId: string;
-  /** Visitor-facing folder label. */
-  label: string;
-}
+export type FreestyleMediaFolderDef =
+  | {
+      /** Backing FH named-gallery id (gallery_*). */
+      galleryId: string;
+      /** Visitor-facing folder label. */
+      label: string;
+    }
+  | {
+      /** The section of the Freestyle Media page this card jumps to. */
+      pageSection: 'foundations';
+      label: string;
+      description: string;
+    };
+
+/** The Foundations of Freestyle section's anchor on the Freestyle Media page. */
+export const FOUNDATIONS_SECTION_ID = 'foundations';
 
 export interface FreestyleMediaSectionDef {
   /** Group heading, or null when these folders render as top-level cards. */
@@ -25,7 +38,11 @@ export const FREESTYLE_MEDIA_STRUCTURE: FreestyleMediaSectionDef[] = [
   {
     heading: 'Tutorials & Demos',
     folders: [
-      { galleryId: 'gallery_foundations_of_freestyle', label: 'Foundations of Freestyle' },
+      {
+        pageSection: 'foundations',
+        label: 'Foundations of Freestyle',
+        description: 'The twelve foundational freestyle footbag moves. Almost every trick is built from these core movements.',
+      },
       { galleryId: 'gallery_tricks_of_the_trade', label: 'Tricks of the Trade' },
       { galleryId: 'gallery_anz_trikz', label: 'Anz Trikz' },
       { galleryId: 'gallery_shred_global', label: 'Shred Global' },
