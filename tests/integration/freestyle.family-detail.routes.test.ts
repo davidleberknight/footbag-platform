@@ -190,16 +190,6 @@ describe('GET /freestyle/families/:slug — family detail page', () => {
     expect(res.status).toBe(404);
   });
 
-  // Defect caught: the family page carries its anchor trick's bare hashtag
-  // (#whirl), so the family identity reads as the single trick's tag.
-  it('carries the family-role hashtag, distinct from the anchor trick\'s tag', async () => {
-    const res = await page('/freestyle/families/whirl');
-    expect(res.status).toBe(200);
-    const mediaLine = res.text.match(/<p class="media-line"[^>]*>([\s\S]*?)<\/p>/)?.[1] ?? '';
-    expect(mediaLine).toContain('#family_whirl');
-    expect(mediaLine).not.toMatch(/#whirl\b/);
-  });
-
   it('renders member tricks as links to their trick-detail pages', async () => {
     const res = await page('/freestyle/families/whirl');
     expect(res.text).toContain('href="/freestyle/tricks/whirl"');

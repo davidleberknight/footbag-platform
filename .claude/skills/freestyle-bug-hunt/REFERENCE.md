@@ -321,12 +321,10 @@ Maintainer-ratified rules:
 2. Slugs use underscores — that is the canonical convention across the dictionary,
    sidecars, and tags. A hyphenated slug anywhere in the chain (table, alias, sidecar, tag,
    URL) is a bug.
-3. A hashtag carries its role, per the trick-reference-videos story: a trick is `#{slug}`,
-   a set `#set_{slug}`, an operator or modifier `#operator_{slug}`, a family
-   `#family_{slug}`. The bare token is a trick's alone, so a set or operator showing a bare
-   hashtag is a bug; pixie and fairy show the bare hashtag on their trick surfaces and the
-   `#set_` one on set surfaces. Any other divergence between a hashtag and its slug is a
-   bug.
+3. A hashtag is a trick's alone, per the trick-reference-videos story: a trick is
+   `#{slug}`, and a set, operator, modifier or family page shows no hashtag. A set,
+   family or modifier page showing a hashtag is a bug, and so is any divergence between
+   a trick's hashtag and its slug.
 4. Display-format uniformity: per-card fields (the ADD chip, status badges, tier labels)
    come from one service mapping site; mixed formats across cards of the same view
    (labelled vs bare values, inconsistent casing of the same token) are findings under the
@@ -451,8 +449,7 @@ The trick-reference-videos story's criteria: the browser-tab title is
 `Footbag Trick #{slug}`; the Media section is omitted when the trick has no tagged videos;
 a trick with no media shows its hashtag as a plain, non-clickable token; a gallery link
 reached through an alias tag redirects (301) to the canonical slug's gallery, so one trick
-never has two galleries; pixie and fairy show both role hashtags, from the role registry
-in `src/content/freestyleHashtagRoles.ts`.
+never has two galleries.
 
 - Method: for the Media and Hashtag role axes of the sample matrix, fetch the trick page
   and the gallery link and check each criterion on the rendered HTML and status codes.

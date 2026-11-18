@@ -3,9 +3,9 @@
  *
  * Owns: every set the Set Encyclopedia lists and gives a page, with its name,
  * group, display order, formula, plain explanation, related sets and whether it
- * is held off the encyclopedia list; the set hashtag, always `#set_<slug>`; and
- * the decisions that depend on which sets exist (whether a slug folds to another
- * set, and whether an old set route redirects).
+ * is held off the encyclopedia list; and the decisions that depend on which
+ * sets exist (whether a slug folds to another set, and whether an old set route
+ * redirects).
  *
  * Does not own: the set editor's writes (freestyleCurationService), the set
  * groups and their text and the redirect maps (src/content/freestyleCanonicalSets.ts,
@@ -36,8 +36,6 @@ export interface StoredRelatedSet {
 /** One set with every curator-authored field, parsed. */
 export interface SetRecord {
   slug:                     string;
-  /** Always `#set_<slug>`. */
-  hashtag:                  string;
   displayName:              string;
   subtype:                  SetSubtype;
   sortOrder:                number;
@@ -80,7 +78,6 @@ function build(fingerprint: string): Snapshot {
     const stored = parseRelated(r.related_sets_json);
     return {
       slug:                     r.slug,
-      hashtag:                  `#set_${r.slug}`,
       displayName:              r.display_name,
       subtype:                  r.set_group as SetSubtype,
       sortOrder:                r.sort_order,

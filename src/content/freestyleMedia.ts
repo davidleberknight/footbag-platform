@@ -61,7 +61,6 @@ export const FREESTYLE_MEDIA_STRUCTURE: FreestyleMediaSectionDef[] = [
     heading: 'Records & Reference',
     folders: [
       { galleryId: 'gallery_passback_records', label: 'Freestyle Records' },
-      { galleryId: 'gallery_curated_freestyle_tricks', label: 'Curated Trick Videos' },
     ],
   },
   {

@@ -435,7 +435,6 @@ src/content/freestyleCompetitionFormats.ts
 src/content/freestyleDisplayNameExceptions.ts
 src/content/freestyleEvReviewHold.ts
 src/content/freestyleFamilyTiers.ts
-src/content/freestyleHashtagRoles.ts
 src/content/freestyleHistoryNarrative.ts
 src/content/freestyleLandingContent.ts
 src/content/freestyleMedia.ts

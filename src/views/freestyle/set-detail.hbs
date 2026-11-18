@@ -1,6 +1,6 @@
 {{!--
   Set detail page.
-  One page per canonical set: identity (name and hashtag), what it is, the
+  One page per canonical set: identity (its name), what it is, the
   formula, a worked example where a teaching guide supplies one, example
   tricks, related sets, then sibling navigation.
 --}}
@@ -23,8 +23,6 @@
 </div>
 
 <article class="wrapper set-detail" data-set-slug="{{content.slug}}">
-
-  {{> media-line id="media" display=content.mediaLine.display galleryHref=content.mediaLine.galleryHref galleryLabel=content.mediaLine.galleryLabel}}
 
   {{!-- Every set page has the same sections, in this order: what it is, the
         formula, a worked example (only where the set's teaching guide supplies

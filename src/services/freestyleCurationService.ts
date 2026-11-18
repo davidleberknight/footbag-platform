@@ -3574,7 +3574,7 @@ export const freestyleCurationService = {
           why: 'So a set missing from the encyclopedia is added in the running application.',
           how: 'Fill in the set and save. The page shows the standard set layout; a teaching guide is added separately in code.',
           headsUp: [
-            'The slug is permanent and becomes the page address and the #set_ hashtag.',
+            'The slug is permanent and becomes the page address.',
             'The set is live on its page, the encyclopedia list and the sitemap as soon as it is saved.',
           ],
         },

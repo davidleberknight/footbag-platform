@@ -168,7 +168,6 @@ import {
   resolveTrickTags,
 } from '../db/db';
 import { tierBadgeShort } from './membershipTieringService';
-import { findCanonicalSetBySlug } from './freestyleSetRegistry';
 import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { config } from '../config/env';
 import { isSafePath } from '../lib/safePath';
@@ -559,10 +558,10 @@ function shapeSetHeader(args: {
 
 // A resolved ontology cross-link from a media tag to a canonical freestyle page.
 export interface MediaDestination {
-  kind: 'trick' | 'set';
+  kind: 'trick';
   // The word the tile shows before the label, shaped here so the template never
   // derives a label from the raw kind.
-  kindLabel: 'Trick' | 'Set';
+  kindLabel: 'Trick';
   label: string;
   href: string;
 }
@@ -587,10 +586,9 @@ export interface GalleryItem {
   // the member's display name linked to that member's public gallery.
   tags: TagChip[];
   // Ontology cross-links resolved from this item's tags: trick tags (slug or
-  // alias) link to the trick page; set/concept tags link to the Set Encyclopedia
-  // page (set aliases resolved to canonical). Deduped by destination, so a tag
-  // and its alias pointing at the same page render once. Empty when nothing
-  // resolves (unknown/utility tags stay plain, never a broken link).
+  // alias) link to the trick page. Deduped by destination, so a tag and its
+  // alias pointing at the same page render once. Empty when nothing resolves
+  // (unknown/utility tags stay plain, never a broken link).
   destinations: MediaDestination[];
   // Video tiles render a click-to-play facade via partials/video-facade.hbs
   // fed by this canonical shape. Null for photos.
@@ -1066,27 +1064,15 @@ function tagBody(display: string): string {
   return display.replace(/^#/, '').toLowerCase().replace(/-/g, '_');
 }
 
-// Resolve a tag body to a Set Encyclopedia destination when it is `set_<slug>`
-// or `concept_<slug>_sets`. Unknown set -> null (no link).
-function setDestFromTagBody(body: string): MediaDestination | null {
-  let slug: string | null = null;
-  if (body.startsWith('set_')) slug = body.slice(4);
-  else if (body.startsWith('concept_') && body.endsWith('_sets')) slug = body.slice(8, -5);
-  if (!slug) return null;
-  const label = findCanonicalSetBySlug(slug)?.displayName;
-  return label ? { kind: 'set', kindLabel: 'Set', label, href: `/freestyle/sets/${slug}` } : null;
-}
-
 // A media tag name made readable for a cross-link label: underscores/hyphens to
 // spaces, title-cased ("pixie-barrage" -> "Pixie Barrage").
 function titleizeTrickName(name: string): string {
   return name.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()).trim();
 }
 
-// Resolve every item's tags to canonical freestyle destinations (trick + set),
-// deduped per item by href. Trick resolution is one batched DB query across all
-// items on the page. Set resolution is pure (content module). Unknown/utility
-// tags resolve to nothing and stay plain tags.
+// Resolve every item's tags to their trick pages, deduped per item by href, in
+// one batched DB query across all items on the page. A tag that names no trick
+// resolves to nothing and stays a plain tag.
 function attachDestinations(items: GalleryItem[]): void {
   if (items.length === 0) return;
   const candidateBodies = new Set<string>();
@@ -1100,8 +1086,6 @@ function attachDestinations(items: GalleryItem[]): void {
     const seen = new Set<string>();
     for (const t of it.tags) {
       const body = tagBody(t.display);
-      const set = setDestFromTagBody(body);
-      if (set && !seen.has(set.href)) { dests.push(set); seen.add(set.href); }
       const trick = trickByBody.get(body);
       if (trick) {
         const href = `/freestyle/tricks/${trick.canonicalSlug}`;
@@ -2075,16 +2059,15 @@ export const mediaService = {
 
       // The match set: each context token is a single-tag group; each visitor
       // include token is an OR-group of tag ids. A recognized set/style term
-      // matches its bare tag, its #<term>_* compounds, and its set/concept tags
-      // (token-based); any other token matches exactly. Groups AND together;
+      // matches its bare tag and its #<term>_* compounds (token-based); any
+      // other token matches exactly. Groups AND together;
       // criteriaTagIds (flat) drives the results-mode gate and the co-occurring
       // suggestions. The display chips above stay on the submitted tokens, so the
       // shown hashtags are unchanged.
       const expandIncludeTokenTagIds = (normalized: string): string[] => {
         const term = stripHash(normalized);
-        const setSlug = SET_STYLE_TERMS.get(term);
-        if (setSlug) {
-          const { exacts, prefix } = styleTermTagPatterns(term, setSlug);
+        if (SET_STYLE_TERMS.has(term)) {
+          const { exacts, prefix } = styleTermTagPatterns(term);
           // The term doubles as the modifier slug for the ontology link (pixie,
           // atomic, ...), so trick tags of #<slug> tricks carrying that modifier
           // (e.g. #pigbeater for pixie) are matched too.
@@ -2323,34 +2306,19 @@ function stripHash(t: string): string {
 
 // Token-based search expansion for /media/browse. A handful of recognized
 // set/style terms expand to ALL the tags that name them, so a visitor who
-// searches "pixie" finds every pixie and pixie-set video in one go: the bare
-// tag, its `#<term>_*` compounds (e.g. #pixie_barrage), and its set/concept
-// tags (#set_pixie, #concept_pixie_sets). The value is the canonical SET slug
-// for the term (the term itself for most; barraging for furious, whose set
-// folded into barraging). NOT a synonym engine and NOT folk-name resolution
-// (pigbeater = pixie eggbeater belongs to a later ontology-backed phase); it
-// does not rename tags, retag media, or change displayed hashtags. Any token
-// not in this table matches exactly, so other searches behave as before.
-const SET_STYLE_TERMS: ReadonlyMap<string, string> = new Map<string, string>([
-  ['pixie',     'pixie'],
-  ['fairy',     'fairy'],
-  ['atomic',    'atomic'],
-  ['miraging',  'miraging'],
-  ['stepping',  'stepping'],
-  ['barraging', 'barraging'],
-  ['furious',   'barraging'],
+// searches "pixie" finds every pixie video in one go: the bare tag and its
+// `#<term>_*` compounds (e.g. #pixie_barrage). NOT a synonym engine and NOT
+// folk-name resolution (pigbeater = pixie eggbeater belongs to a later
+// ontology-backed phase); it does not rename tags, retag media, or change
+// displayed hashtags. Any token not in this list matches exactly, so other
+// searches behave as before.
+const SET_STYLE_TERMS: ReadonlySet<string> = new Set<string>([
+  'pixie', 'fairy', 'atomic', 'miraging', 'stepping', 'barraging', 'furious',
 ]);
 
-// The exact tag forms and the `#<term>_*` compound prefix a set/style term
-// matches: its own bare/set/concept tags, plus (when the canonical set differs,
-// e.g. furious -> barraging) the canonical set's set/concept tags.
-function styleTermTagPatterns(term: string, setSlug: string): { exacts: string[]; prefix: string } {
-  const exacts = new Set<string>([
-    `#${term}`,
-    `#set_${term}`,    `#concept_${term}_sets`,
-    `#set_${setSlug}`, `#concept_${setSlug}_sets`,
-  ]);
-  return { exacts: [...exacts], prefix: `#${term}` };
+// The exact tag and the `#<term>_*` compound prefix a set/style term matches.
+function styleTermTagPatterns(term: string): { exacts: string[]; prefix: string } {
+  return { exacts: [`#${term}`], prefix: `#${term}` };
 }
 
 function notEmpty(s: string): boolean {

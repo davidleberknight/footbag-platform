@@ -6641,7 +6641,7 @@ export function queryTagIdsByNormalized(
 }
 
 // Resolve the tag ids for a set/style search term: the given exact tag forms
-// (e.g. #pixie, #set_pixie, #concept_pixie_sets), any underscore-delimited
+// (e.g. #pixie), any underscore-delimited
 // compound tag `#<term>_*` (e.g. #pixie_barrage), AND the trick tags of every
 // trick that carries `<modifierSlug>` as a modifier (the ontology link, e.g.
 // #pigbeater is a pixie trick by modifier even though its name has no "pixie").
@@ -7830,13 +7830,12 @@ export const tagStats = {
 
 // Tag autocomplete for /tags/suggest. Matches the bare term as a `#<term>%`
 // prefix, and applies the same ontology expansion the /media/browse search uses:
-// a set/style term also surfaces its set and concept tags (`#set_<term>`,
-// `#concept_<term>_sets`) and the trick tags of every trick that carries `<term>`
-// as a modifier (so typing "pixie" surfaces #set_pixie, #concept_pixie_sets, and
-// modifier-carrying folk names like #pigbeater, none of which share the `#pixie`
-// prefix). A term with no set/concept/modifier matches gains nothing from the
-// extra branches, so ordinary prefix suggestions are unchanged. A tag nobody may
-// apply is never suggested: a retired one, or a club hashtag no club holds.
+// a term also surfaces the trick tags of every trick that carries `<term>` as a
+// modifier (so typing "pixie" surfaces modifier-carrying folk names like
+// #pigbeater, which do not share the `#pixie` prefix). A term that is no
+// modifier gains nothing from that branch, so ordinary prefix suggestions are
+// unchanged. A tag nobody may apply is never suggested: a retired one, or a
+// club hashtag no club holds.
 export function suggestTagsForTerm(term: string, limit: number): TagSuggestRow[] {
   const escaped = term.replace(/[%_\\]/g, c => '\\' + c);
   const pattern = `#${escaped}%`;
@@ -7847,7 +7846,6 @@ export function suggestTagsForTerm(term: string, limit: number): TagSuggestRow[]
     LEFT JOIN tag_stats ts ON ts.tag_id = t.id
     WHERE (
         t.tag_normalized LIKE ? ESCAPE '\\'
-        OR t.tag_normalized IN ('#set_' || ?, '#concept_' || ? || '_sets')
         OR t.id IN (
           SELECT t2.id FROM tags t2
           JOIN freestyle_trick_modifier_links ml ON t2.tag_normalized = '#' || ml.trick_slug
@@ -7866,7 +7864,7 @@ export function suggestTagsForTerm(term: string, limit: number): TagSuggestRow[]
              COALESCE(ts.usage_count, 0) DESC,
              t.id DESC
     LIMIT ?
-  `).all(pattern, term, term, term, limit) as TagSuggestRow[];
+  `).all(pattern, term, limit) as TagSuggestRow[];
 }
 
 export interface MediaJobRow {

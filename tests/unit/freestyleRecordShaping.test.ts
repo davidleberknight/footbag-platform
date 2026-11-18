@@ -2,10 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
   shapeFreestyleRecord,
   slugToHashtag,
-  hashtagForRole,
-  structuralRoleForCategory,
-  trickSurfaceHashtag,
-  modifierSurfaceHashtag,
 } from '../../src/services/freestyleRecordShaping';
 import type { FreestyleRecordRow } from '../../src/db/db';
 
@@ -141,66 +137,6 @@ describe('slugToHashtag', () => {
 
   it('handles multi-hyphen slugs', () => {
     expect(slugToHashtag('reverse-around-the-world')).toBe('#reverse_around_the_world');
-  });
-});
-
-describe('hashtagForRole', () => {
-  it('renders a bare tag for the trick role and a prefix tag for the others', () => {
-    expect(hashtagForRole('mirage', 'trick')).toBe('#mirage');
-    expect(hashtagForRole('pixie', 'set')).toBe('#set_pixie');
-    expect(hashtagForRole('spinning', 'operator')).toBe('#operator_spinning');
-    expect(hashtagForRole('whirl', 'family')).toBe('#family_whirl');
-  });
-
-  it('normalizes the slug body (kebab to underscore) under every role', () => {
-    expect(hashtagForRole('around-the-world', 'set')).toBe('#set_around_the_world');
-    expect(hashtagForRole('Atom-Smasher', 'trick')).toBe('#atom_smasher');
-  });
-});
-
-describe('structuralRoleForCategory', () => {
-  it('maps freestyle_tricks.category to a role', () => {
-    expect(structuralRoleForCategory('modifier')).toBe('operator');
-    expect(structuralRoleForCategory('operator')).toBe('operator');
-    expect(structuralRoleForCategory('set')).toBe('set');
-    expect(structuralRoleForCategory('compound')).toBe('trick');
-    expect(structuralRoleForCategory('dex')).toBe('trick');
-    expect(structuralRoleForCategory(null)).toBe('trick');
-  });
-});
-
-describe('trickSurfaceHashtag', () => {
-  it('gives a real trick the bare tag', () => {
-    expect(trickSurfaceHashtag('mirage', 'compound')).toBe('#mirage');
-    expect(trickSurfaceHashtag('record-only-trick', null)).toBe('#record_only_trick');
-  });
-
-  it('gives a dual-role concept (pixie/fairy) the bare trick tag on a trick surface', () => {
-    expect(trickSurfaceHashtag('pixie', 'set')).toBe('#pixie');
-    expect(trickSurfaceHashtag('fairy', 'set')).toBe('#fairy');
-  });
-
-  it('gives a set-only concept its set tag, never a bare trick tag', () => {
-    expect(trickSurfaceHashtag('atomic', 'set')).toBe('#set_atomic');
-    expect(trickSurfaceHashtag('quantum', 'set')).toBe('#set_quantum');
-  });
-
-  it('gives a modifier that reaches a trick surface its operator tag', () => {
-    expect(trickSurfaceHashtag('spinning', 'modifier')).toBe('#operator_spinning');
-  });
-});
-
-describe('modifierSurfaceHashtag', () => {
-  it('renders operators with #operator_ and sets with #set_', () => {
-    expect(modifierSurfaceHashtag('spinning', 'body')).toBe('#operator_spinning');
-    expect(modifierSurfaceHashtag('paradox', 'body')).toBe('#operator_paradox');
-    expect(modifierSurfaceHashtag('pixie', 'set')).toBe('#set_pixie');
-  });
-
-  it('gives whirling, a body modifier and not a set, the operator hashtag', () => {
-    // Defect caught: the retired Whirling set coming back as a #set_ tag on the
-    // whirling modifier's own page.
-    expect(modifierSurfaceHashtag('whirling', 'body')).toBe('#operator_whirling');
   });
 });
 

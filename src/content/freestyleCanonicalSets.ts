@@ -10,8 +10,6 @@
  *
  * Forever-rules:
  *
- * - Set hashtags use the role-prefix pattern `#set_<slug>` to distinguish
- *   set ontology from trick ontology (`#set_pixie` ≠ `#pixie_mirage`).
  * - Surface mechanics (sole, cloud, head, etc.) are NOT sets.
  * - Component mechanics (ducking, diving, bare spinning/inspinning,
  *   gyro) are body modifiers, never sets.

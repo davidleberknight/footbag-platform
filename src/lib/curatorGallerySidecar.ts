@@ -199,8 +199,8 @@ export function validateGallerySidecarData(data: GallerySidecarData): void {
 }
 
 // Filename rule: <slug>.json where <slug> = id with the 'gallery_' prefix
-// stripped. So `gallery_curated_freestyle_tricks` lives at
-// `/curated/galleries/curated_freestyle_tricks.json`. Matches the
+// stripped. So `gallery_tricks_of_the_trade` lives at
+// `/curated/galleries/tricks_of_the_trade.json`. Matches the
 // Python seeder's expectation.
 export function deriveGallerySidecarPath(curatedRoot: string, id: string): string {
   if (!GALLERY_ID_RE.test(id)) {

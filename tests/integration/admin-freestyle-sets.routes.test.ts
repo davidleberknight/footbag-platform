@@ -180,7 +180,7 @@ describe('creating a set', () => {
 
     const page = await get('/freestyle/sets/zz_new_set');
     expect(page.status).toBe(200);
-    expect(page.text).toContain('#set_zz_new_set');
+    expect(page.text).toContain('Zz New Set');
     // An empty label shows the related set's own name.
     expect(page.text).toContain(`<a href="/freestyle/sets/pixie">${stagedSet('pixie').displayName}</a>`);
     // The last true-core set now points forward to the new one.

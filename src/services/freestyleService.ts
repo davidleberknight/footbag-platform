@@ -73,11 +73,8 @@ import {
   stripDisplaySideQualifier,
   trickNameToSlug,
   recordTrickNameToSlug,
-  trickSurfaceHashtag,
-  modifierSurfaceHashtag,
-  hashtagForRole,
+  slugToHashtag,
 } from './freestyleRecordShaping';
-import { modifierHashtagRole } from '../content/freestyleHashtagRoles';
 import { GENUINE_HYPHEN_TOKENS } from '../content/freestyleDisplayNameExceptions';
 import { toTitleCase } from '../lib/titleCase';
 import { buildActiveTrickAddsLookup, buildActiveTrickSlugResolver } from './freestyleResolvableSlugs';
@@ -228,23 +225,6 @@ import {
   type StartNextStep,
   type StartNextStepSource,
 } from '../content/freestyleStartNextSteps';
-import { mediaService } from './mediaService';
-
-// A set, family or modifier page's own media line: its hashtag, linked to the
-// hashtag's gallery with the gallery link beside it when media carries the tag,
-// a plain token otherwise. The same one-row existence read decides it as on an
-// event, club or player page, so media presence shows the same way everywhere.
-export interface FreestyleMediaLine {
-  display: string;
-  galleryHref: string | null;
-  // Null exactly when galleryHref is.
-  galleryLabel: string | null;
-}
-
-function freestyleMediaLine(hashtag: string, galleryLabel: string): FreestyleMediaLine {
-  const galleryHref = mediaService.getEntityGalleryHref(hashtag.toLowerCase());
-  return { display: hashtag, galleryHref, galleryLabel: galleryHref ? galleryLabel : null };
-}
 
 // ---------------------------------------------------------------------------
 // Record type labels
@@ -918,12 +898,12 @@ function operatorFeelCard(slug: string): ModifierFeelCard | undefined {
     ?? ENTRY_TOPOLOGY_FEEL_CARDS.find(c => c.slug === slug);
 }
 
-// Set-only notation: a modifier carries a notation line only when its hashtag
-// role is the set role, so a body modifier never shows a set formula even when a
-// Holden-only set reading of it exists. Tapping is the case in point: it is a
+// Set-only notation: a modifier carries a notation line only when its stored
+// modifier type is a set, so a body modifier never shows a set formula even when
+// a Holden-only set reading of it exists. Tapping is the case in point: it is a
 // body operator with a Holden-only set reading, so it shows no set formula here.
 function operatorNotation(slug: string, modifierType: string | null | undefined): string | null {
-  if (modifierHashtagRole(slug, modifierType) !== 'set') return null;
+  if (modifierType !== 'set') return null;
   return findCanonicalSetBySlug(slug)?.formula ?? null;
 }
 
@@ -1054,7 +1034,6 @@ function buildOperatorIndexAxes(
       return {
         slug,
         name:       row?.modifier_name ?? operatorFeelCard(slug)?.name ?? operatorTitleCase(slug),
-        hashtag:    modifierSurfaceHashtag(slug, row?.modifier_type),
         typeLabel:  axis.typeLabel,
         addLabel:   operatorAddLabel(row),
         notation:   operatorNotation(slug, row?.modifier_type),
@@ -1846,8 +1825,6 @@ export interface EncyclopediaCrossLinks {
 // supplies one), example tricks, related sets.
 export interface FreestyleSetDetailContent {
   slug:                 string;
-  hashtag:              string;
-  mediaLine:            FreestyleMediaLine;
   displayName:          string;
   subtype:              SetSubtypeKey;
   subtypeLabel:         string;
@@ -2096,8 +2073,6 @@ export interface FreestyleFamilyDetailContent {
   slug: string;
   displayName: string;
   displayArticle: string;          // 'a' | 'an'; shapes the "What is a/an <Name>?" heading
-  hashtag: string;                 // '#' + slug
-  mediaLine: FreestyleMediaLine;
   // For a derived branch family, the parent family it presents under
   // (barfly and double-over-down present as branches of Down).
   branchParent: { name: string; href: string } | null;
@@ -2629,7 +2604,6 @@ function shapeObservationalCard(
 export interface OperatorIndexRow {
   slug:        string;
   name:        string;
-  hashtag:     string;                       // '#paradox'
   typeLabel:   string;                        // 'Set' | 'Entry' | 'Body' | 'No-plant'
   addLabel:    string | null;                // '+1' | '+1 / +2 rot' | null when untracked
   notation:    string | null;                // canonical-set formula; set modifiers only
@@ -2667,8 +2641,6 @@ export interface FreestyleOperatorsContent {
 export interface ModifierStubContent {
   slug:        string;
   displayName: string;
-  hashtag:     string;
-  mediaLine:   FreestyleMediaLine;
   typeLabel:   string;
   addLabel:    string | null;
   notation:    string | null;
@@ -4004,7 +3976,7 @@ function shapeTrickIndexRow(
   return {
     slug:            row.slug,
     canonicalName:   row.canonical_name,
-    hashtag:         trickSurfaceHashtag(row.slug, row.category),
+    hashtag:         slugToHashtag(row.slug),
     trickFamily:     row.trick_family,
     adds:            row.adds,
     category:        row.category,
@@ -5011,9 +4983,9 @@ const RETIRED_SET_NICKNAME_REDIRECTS: ReadonlyMap<string, string> = new Map([
   ['barraging', 'furious'],
 ]);
 
-// A hand-authored modifier teaching page, carrying the modifier's role-aware
-// hashtag beside its authored content.
-export type ModifierTeachingPageContent = ModifierFamilyPageContent & { hashtag: string; mediaLine: FreestyleMediaLine };
+// A hand-authored modifier teaching page. A modifier carries no hashtag of its
+// own: only a trick has one.
+export type ModifierTeachingPageContent = ModifierFamilyPageContent;
 
 // A canonical set with no active trick row: a set that migrated out of, or never
 // entered, the trick corpus, so its set page is its one home. Pixie and fairy are
@@ -5040,7 +5012,7 @@ function modifierRouteTarget(slug: string): string | null {
     const row = runSqliteRead('freestyleTrickModifiers.getBySlug', () =>
       freestyleTrickModifiers.getBySlug.get(slug) as FreestyleTrickModifierRow | undefined,
     );
-    if (modifierHashtagRole(slug, row?.modifier_type) === 'set') return `/freestyle/sets/${slug}`;
+    if (row?.modifier_type === 'set') return `/freestyle/sets/${slug}`;
   }
   return null;
 }
@@ -5333,7 +5305,7 @@ export const freestyleService = {
 
     const hasDictEntry     = dictEntry !== null;
     const hasRecords       = currentRows.length > 0;
-    const trickTag         = trickSurfaceHashtag(slug, dictEntry?.category ?? null);
+    const trickTag         = slugToHashtag(slug);
     const seoTitle         = `Trick ${trickTag}`;
     // A structural-placeholder description (formula backfill or thin
     // restatement) must not leak into the meta description; fall back to the
@@ -6738,15 +6710,8 @@ export const freestyleService = {
       throw new NotFoundError(`No modifier-family page for slug "${slug}"`);
     }
     const atom = baseAtomCrossLinkFor(slug);
-    const modifierRow = runSqliteRead('freestyleTrickModifiers.getBySlug', () =>
-      freestyleTrickModifiers.getBySlug.get(slug) as FreestyleTrickModifierRow | undefined,
-    );
-    // The same role-aware hashtag the stub and the operators index show.
-    const teachingHashtag = modifierSurfaceHashtag(slug, modifierRow?.modifier_type);
     const content: ModifierTeachingPageContent = {
       ...built,
-      hashtag:   teachingHashtag,
-      mediaLine: freestyleMediaLine(teachingHashtag, 'View Modifier Gallery'),
       baseAtom: atom ? { label: `${operatorTitleCase(atom)} (base trick)`, href: `/freestyle/tricks/${atom}` } : null,
     };
     return {
@@ -7324,8 +7289,6 @@ export const freestyleService = {
       content: {
         slug,
         displayName,
-        hashtag:     modifierSurfaceHashtag(slug, row?.modifier_type),
-        mediaLine:   freestyleMediaLine(modifierSurfaceHashtag(slug, row?.modifier_type), 'View Modifier Gallery'),
         typeLabel,
         addLabel:    operatorAddLabel(row),
         notation:    operatorNotation(slug, row?.modifier_type),
@@ -7485,8 +7448,6 @@ export const freestyleService = {
         slug,
         displayName,
         displayArticle,
-        hashtag:              hashtagForRole(slug, 'family'),
-        mediaLine:            freestyleMediaLine(hashtagForRole(slug, 'family'), 'View Family Gallery'),
         branchParent,
         hook:                 record?.hook ?? null,
         plainLanguageReading: record?.plainLanguageReading ?? null,
@@ -7598,7 +7559,7 @@ export const freestyleService = {
       page: {
         sectionKey: 'freestyle',
         pageKey:    'freestyle_set_detail',
-        title:      `${set.displayName} ${set.hashtag}`,
+        title:      set.displayName,
         eyebrow:    subtypeLabel,
       },
       navigation: {
@@ -7610,8 +7571,6 @@ export const freestyleService = {
       },
       content: {
         slug:                  set.slug,
-        hashtag:               set.hashtag,
-        mediaLine:             freestyleMediaLine(set.hashtag, 'View Set Gallery'),
         displayName:           set.displayName,
         subtype:               set.subtype,
         subtypeLabel,

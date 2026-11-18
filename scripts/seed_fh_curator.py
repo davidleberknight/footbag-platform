@@ -102,8 +102,8 @@ VIMEO_HOSTS   = {"vimeo.com", "www.vimeo.com", "player.vimeo.com"}
 #                 newest photo stands in.
 #
 # Filename rule: <slug>.json where <slug> = id with the 'gallery_'
-# prefix stripped. So id 'gallery_curated_freestyle_tricks' lives in
-# /curated/galleries/curated_freestyle_tricks.json.
+# prefix stripped. So id 'gallery_tricks_of_the_trade' lives in
+# /curated/galleries/tricks_of_the_trade.json.
 GALLERY_ID_RE = re.compile(r"^gallery_[a-z0-9_]+$")
 GALLERY_SORT_ORDERS = ("upload_desc", "upload_asc", "caption_asc")
 GALLERY_NAME_MAX = 150
@@ -818,9 +818,8 @@ def _seed_one_sidecar(
 
     # INSERT OR REPLACE: ON DELETE CASCADE on media_tags.media_id wipes
     # prior tag rows for this media_id; we re-insert below.
-    # Curator URL-ref content surfaces in the named gallery at
-    # gallery_curated_freestyle_tricks purely via hashtag-AND match
-    # against the gallery's criteria-tag set.
+    # Curator URL-ref content surfaces in a named gallery purely via
+    # hashtag-AND match against that gallery's criteria-tag set.
     con.execute(
         """
         INSERT OR REPLACE INTO media_items (

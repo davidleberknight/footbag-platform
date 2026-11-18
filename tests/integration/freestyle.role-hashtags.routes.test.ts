@@ -1,12 +1,11 @@
 /**
- * Role-aware hashtags + modifier/operator routing.
+ * Modifier/operator routing.
  *
  * Modifiers and operators live in freestyle_tricks for decomposition and ADD
  * math, but they are not tricks. These tests pin the contract that:
- *   - a concept's hashtag is rendered from its role, never blindly from its slug:
- *     a trick is a bare tag, a set is #set_, an operator is #operator_;
- *   - whirling is a body modifier, not a set: it reads #operator_whirling, its
- *     modifier page renders, and only its retired set URL redirects (to Blazing);
+ *   - only a trick shows a hashtag, its bare slug; a modifier page shows none;
+ *   - whirling is a body modifier, not a set: its modifier page renders, and its
+ *     retired set address is not found;
  *   - the trick-detail route redirects a modifier/operator row, or an operator
  *     slug with no trick row, to its operator page; a set with no active trick
  *     row goes to its set page, while dual-role sets (pixie/fairy) still render
@@ -76,46 +75,21 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-// Slice one operator row's markup out of the flat operators-index HTML.
-function operatorRow(html: string, slug: string): string {
-  const start = html.indexOf(`id="operator-${slug}"`);
-  if (start < 0) return '';
-  const next = html.indexOf('id="operator-', start + 1);
-  return html.slice(start, next < 0 ? start + 1200 : next);
-}
-
-describe('GET /freestyle/operators — role-aware hashtags', () => {
-  it('renders a modifier as #operator_, never a bare trick tag', async () => {
-    const res = await page('/freestyle/operators');
-    expect(res.status).toBe(200);
-    expect(operatorRow(res.text, 'spinning')).toContain('#operator_spinning');
-    expect(operatorRow(res.text, 'spinning')).not.toContain('>#spinning<');
-  });
-
-  it('does not list set primitives, so their #set_ hashtags are not on this page', async () => {
-    const res = await page('/freestyle/operators');
-    expect(res.text).not.toContain('#set_pixie');
-    expect(res.text).not.toContain('#set_atomic');
-  });
-});
-
-describe('GET /freestyle/modifier/:slug — stub hashtag', () => {
-  it('renders the role-aware hashtag on a stub (slapping set → #set_slapping)', async () => {
-    // slapping is a set with no authored teaching page, so its modifier route
-    // still resolves to a data-driven stub (unlike pixie or atomic, which now
-    // redirect to their set-encyclopedia pages).
+describe('GET /freestyle/modifier/:slug — modifier pages', () => {
+  // Defect caught: a modifier page shows a hashtag, as if a modifier had media
+  // of its own the way a trick does.
+  it('renders a modifier stub with no hashtag (slapping, a set with no teaching page)', async () => {
     const res = await page('/freestyle/modifier/slapping');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('#set_slapping');
+    expect(res.text).not.toMatch(/#(set_|operator_)?slapping\b/);
   });
 
-  it('renders whirling as a body modifier with the operator hashtag, not as a set', async () => {
+  it('renders whirling as a body modifier page, not as a set', async () => {
     // Defect caught: the whirling modifier page sending readers to a set that
-    // no longer exists, or labelling a body modifier as a set.
+    // no longer exists.
     const res = await page('/freestyle/modifier/whirling');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('#operator_whirling');
-    expect(res.text).not.toContain('#set_whirling');
+    expect(res.text).not.toContain('href="/freestyle/sets/whirling"');
   });
 
   it('gives the retired Whirling set address the standard not-found page; whirling lives on its modifier page', async () => {
@@ -136,7 +110,7 @@ describe('GET /freestyle/tricks/:slug — modifier/operator redirect', () => {
   it('does NOT redirect a set primitive — pixie still renders as a trick (dual-role)', async () => {
     const res = await page('/freestyle/tricks/pixie');
     expect(res.status).toBe(200);
-    // On the trick surface, the dual-role concept shows its bare trick tag.
+    // An active trick shows its bare trick tag.
     expect(res.text).toContain('#pixie');
   });
 

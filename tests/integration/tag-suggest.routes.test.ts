@@ -167,21 +167,21 @@ describe('GET /tags/suggest', () => {
     expect(res.body[0].normalized).toBe('#freestyle');
   });
 
-  it('expands a set/style term to its set, concept, and modifier-carrying trick tags', async () => {
+  it('expands a term to its modifier-carrying trick tags, but not to prefixed set or concept tags', async () => {
     const app = createApp();
     const res = await request(app).get('/tags/suggest?q=pixie');
     expect(res.status).toBe(200);
     const normalized = res.body.map((t: { normalized: string }) => t.normalized);
-    // Defect caught: only the #pixie-prefixed tag surfaces. The ontology
-    // expansion must also surface the set, concept, and modifier-carrying tags
-    // that do not share the #pixie prefix.
+    // Defect caught: only the #pixie-prefixed tag surfaces, so a member typing
+    // the modifier never meets the folk-named tricks that carry it; or the
+    // retired prefixed tags are still suggested as if they named the set.
     expect(normalized).toContain('#pixie_barrage');     // #pixie_ prefix
-    expect(normalized).toContain('#set_pixie');          // set tag (exact)
-    expect(normalized).toContain('#concept_pixie_sets'); // concept tag (exact)
     expect(normalized).toContain('#pigbeater');          // pixie-modifier trick tag
+    expect(normalized).not.toContain('#set_pixie');
+    expect(normalized).not.toContain('#concept_pixie_sets');
   });
 
-  it('does not over-expand a plain term with no set/concept/modifier matches', async () => {
+  it('does not over-expand a plain term with no modifier matches', async () => {
     const app = createApp();
     const res = await request(app).get('/tags/suggest?q=free');
     expect(res.status).toBe(200);

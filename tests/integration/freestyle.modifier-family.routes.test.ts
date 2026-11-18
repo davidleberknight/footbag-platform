@@ -141,18 +141,6 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('GET /freestyle/modifier/spinning — happy path', () => {
-  // Defect caught: the teaching page carries no hashtag, while the stub and the
-  // operators index show the modifier's role-aware tag, so the same modifier
-  // reads with an identity on one surface and none on another.
-  it('carries the role-aware operator hashtag in its media line', async () => {
-    const res = await page('/freestyle/modifier/spinning');
-    expect(res.status).toBe(200);
-    const mediaLine = res.text.match(/<p class="media-line"[^>]*>([\s\S]*?)<\/p>/)?.[1] ?? '';
-    expect(mediaLine).toContain('#operator_spinning');
-  });
-});
-
 describe('GET /freestyle/modifier/paradox — happy path', () => {
   it('carries the prominent working-model caveat: our consistent reading, not universal community consensus', async () => {
     const res = await page('/freestyle/modifier/paradox');
@@ -254,8 +242,7 @@ describe('GET /freestyle/modifier/:slug — route ordering', () => {
 describe('GET /freestyle/modifier/:slug — first-class sets redirect to the Set Encyclopedia', () => {
   // Stepping has an authored set page; swirling is a route-migrated first-class
   // set. Both resolve to their set page, never a modifier stub. Whirling is a
-  // body modifier, not a set, so its modifier page renders (covered with the
-  // role-aware hashtags).
+  // body modifier, not a set, so its modifier page renders.
   for (const slug of ['stepping', 'swirling']) {
     it(`permanently redirects /freestyle/modifier/${slug} to /freestyle/sets/${slug}`, async () => {
       const res = await page(`/freestyle/modifier/${slug}`);

@@ -1460,9 +1460,8 @@ Freestyle, records and symbolic tables (nineteen):
 - **`freestyle_sets`** - the sets that begin tricks: each set's name,
   encyclopedia group, display order, formula (empty while its notation is
   pending), plain explanation, related sets (each with an optional link label)
-  and whether it is held off the encyclopedia list. A set's hashtag is always
-  `#set_<slug>`; the set groups and their text, and a set's teaching guide,
-  stay in code.
+  and whether it is held off the encyclopedia list. The set groups and their
+  text, and a set's teaching guide, stay in code.
 - **`freestyle_operators`** - what each freestyle operator is: its name, kind,
   definition and reference entry, and where the operators page lists it. An
   operator holds no ADD; a modifier's ADD lives in `freestyle_trick_modifiers`.

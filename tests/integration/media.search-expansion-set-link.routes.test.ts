@@ -1,12 +1,11 @@
 /**
  * GET /media/browse — two localized media patches.
  *
- * 1. Search expansion: a handful of bare style/set names also match their
- *    `#set_*` gallery tag, so searching "pixie" surfaces the pixie set galleries
- *    without exposing the ontology. Non-expanded searches are unchanged.
- * 2. Set-video linking: a media tile carrying a `#concept_<slug>_sets` tag links
- *    to that Set Encyclopedia page, resolving set aliases to the canonical set.
- * 3. Ontology-backed trick linking: a media tile whose hashtag matches a canonical
+ * 1. Search expansion: a handful of bare style/set names match their bare tag
+ *    and its `#<term>_*` compounds. A prefixed tag (`#set_*`, `#concept_*`) is an
+ *    ordinary freeform tag: no search term expands to it and it links nowhere.
+ *    Non-expanded searches are unchanged.
+ * 2. Ontology-backed trick linking: a media tile whose hashtag matches a canonical
  *    trick slug or an alias slug links to that trick's detail page, and a folk name
  *    carrying a modifier (e.g. pigbeater carries the pixie modifier) is reached when
  *    searching that modifier. Utility/source tags resolve to nothing — no link.
@@ -63,7 +62,9 @@ beforeAll(async () => {
     attachMediaTag(db, m, tagId);
   };
 
-  // Set galleries (only the `#set_*` tag; no bare trick tag), for search expansion.
+  // The bare pixie tag, which a "pixie" search matches.
+  seed('#pixie',         'm_pixie',         'pixie-bare-item',    '2026-12-31T00:00:00.000Z');
+  // Prefixed tags, which are ordinary freeform tags no search term expands to.
   seed('#set_pixie',     'm_set_pixie',     'pixie-set-item',     '2027-01-01T00:00:00.000Z');
   seed('#set_atomic',    'm_set_atomic',    'atomic-set-item',    '2027-01-02T00:00:00.000Z');
   seed('#set_fairy',     'm_set_fairy',     'fairy-set-item',     '2027-01-03T00:00:00.000Z');
@@ -76,7 +77,7 @@ beforeAll(async () => {
   // Unrelated tag, for the "non-expanded search is unchanged" case.
   seed('#spike',         'm_spike',         'spike-item',         '2027-01-05T00:00:00.000Z');
 
-  // Set-concept tutorial tiles, for the set-video cross-link.
+  // Set-concept tutorial tiles, which link to no set page.
   seed('#concept_pixie_sets',       'm_c_pixie',  'pixie-set-list-video',       '2027-02-01T00:00:00.000Z');
   seed('#concept_atomic_sets',      'm_c_atomic', 'atomic-set-list-video',      '2027-02-02T00:00:00.000Z');
   seed('#concept_illusioning_sets', 'm_c_illus',  'illusioning-set-list-video', '2027-02-03T00:00:00.000Z');
@@ -112,36 +113,32 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /media/browse — search expansion', () => {
-  it('searching "pixie" token-matches #pixie_*, #set_pixie, and #concept_pixie_sets', async () => {
+  // Defect caught: a style-term search misses the bare tag or its compounds, or
+  // still pulls in the retired prefixed set and concept tags.
+  it('searching "pixie" token-matches #pixie and #pixie_*, but no prefixed tag', async () => {
     const res = await request(createApp()).get('/media/browse?tag=pixie');
     expect(res.status).toBe(200);
+    expect(res.text).toContain('pixie-bare-item');       // #pixie
     expect(res.text).toContain('pixie-barrage-trick');   // #pixie_barrage compound
-    expect(res.text).toContain('pixie-set-item');        // #set_pixie
-    expect(res.text).toContain('pixie-set-list-video');  // #concept_pixie_sets
+    expect(res.text).not.toContain('pixie-set-item');        // #set_pixie
+    expect(res.text).not.toContain('pixie-set-list-video');  // #concept_pixie_sets
     // Token-bounded: a substring-only tag (#pixieish) must not be matched.
     expect(res.text).not.toContain('pixieish-noise');
     // And an unrelated item is never pulled in.
     expect(res.text).not.toContain('spike-item');
   });
 
-  it('searching "set_pixie" still works (direct)', async () => {
+  it('searching "set_pixie" still finds that freeform tag exactly', async () => {
     const res = await request(createApp()).get('/media/browse?tag=set_pixie');
     expect(res.text).toContain('pixie-set-item');
   });
 
-  it('searching "atomic" returns #set_atomic', async () => {
-    const res = await request(createApp()).get('/media/browse?tag=atomic');
-    expect(res.text).toContain('atomic-set-item');
-  });
-
-  it('searching "fairy" returns #set_fairy', async () => {
-    const res = await request(createApp()).get('/media/browse?tag=fairy');
-    expect(res.text).toContain('fairy-set-item');
-  });
-
-  it('searching "furious" returns #set_barraging', async () => {
-    const res = await request(createApp()).get('/media/browse?tag=furious');
-    expect(res.text).toContain('barraging-set-item');
+  it('a style term no longer expands to its set tag', async () => {
+    for (const [term, item] of [['atomic', 'atomic-set-item'], ['fairy', 'fairy-set-item'], ['furious', 'barraging-set-item']]) {
+      const res = await request(createApp()).get(`/media/browse?tag=${term}`);
+      expect(res.status, term).toBe(200);
+      expect(res.text, term).not.toContain(item);
+    }
   });
 
   it('unrelated searches are unchanged', async () => {
@@ -152,35 +149,23 @@ describe('GET /media/browse — search expansion', () => {
   });
 });
 
-describe('GET /media/browse — set-video cross-link', () => {
-  it('a tile tagged #concept_pixie_sets links to /freestyle/sets/pixie', async () => {
-    const res = await request(createApp()).get('/media/browse?tag=concept_pixie_sets');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('href="/freestyle/sets/pixie"');
-    expect(res.text).toContain('Set: Pixie');
-  });
-
-  it('a tile tagged #concept_atomic_sets links to /freestyle/sets/atomic', async () => {
-    const res = await request(createApp()).get('/media/browse?tag=concept_atomic_sets');
-    expect(res.text).toContain('href="/freestyle/sets/atomic"');
-  });
-
-  it('#concept_illusioning_sets renders no set link (illusioning is not a set under current doctrine)', async () => {
-    const res = await request(createApp()).get('/media/browse?tag=concept_illusioning_sets');
-    expect(res.status).toBe(200);
-    // The illusioning-tagged tile renders, but illusioning is a distinct
-    // downtime move, not a set, so it folds to no canonical set and shows no
-    // set cross-link.
-    expect(res.text).toContain('illusioning-set-list-video');
-    expect(res.text).not.toContain('gallery-tile-set-link');
-    expect(res.text).not.toContain('href="/freestyle/sets/');
-  });
-
-  it('a non-set concept tag renders no set link', async () => {
-    const res = await request(createApp()).get('/media/browse?tag=concept_records');
-    expect(res.text).toContain('records-concept-video');
-    expect(res.text).not.toContain('gallery-tile-set-link');
-    expect(res.text).not.toContain('/freestyle/sets/');
+describe('GET /media/browse — prefixed tags link nowhere', () => {
+  // Defect caught: a tile still decodes a set or concept prefix into a set-page
+  // link, so the retired tag forms keep acting as ontology.
+  it('a tile tagged with a set or concept prefix renders no set link', async () => {
+    for (const [tag, item] of [
+      ['concept_pixie_sets', 'pixie-set-list-video'],
+      ['concept_atomic_sets', 'atomic-set-list-video'],
+      ['concept_illusioning_sets', 'illusioning-set-list-video'],
+      ['concept_records', 'records-concept-video'],
+      ['set_pixie', 'pixie-set-item'],
+    ]) {
+      const res = await request(createApp()).get(`/media/browse?tag=${tag}`);
+      expect(res.status, tag).toBe(200);
+      expect(res.text, tag).toContain(item);
+      expect(res.text, tag).not.toContain('gallery-tile-set-link');
+      expect(res.text, tag).not.toContain('href="/freestyle/sets/');
+    }
   });
 });
 
@@ -220,8 +205,7 @@ describe('GET /media/browse — search reaches folk names via the ontology', () 
     const res = await request(createApp()).get('/media/browse?tag=pixie');
     expect(res.status).toBe(200);
     expect(res.text).toContain('pigbeater-trick-video');   // reached via modifier_links
-    // The earlier-asserted token-prefix and set matches still hold.
+    // The earlier-asserted token-prefix match still holds.
     expect(res.text).toContain('pixie-barrage-trick');
-    expect(res.text).toContain('pixie-set-item');
   });
 });
