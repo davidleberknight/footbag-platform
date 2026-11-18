@@ -1140,6 +1140,18 @@ describe('adapter-parity: CuratedAuthoringAdapter contract', () => {
     }
   });
 
+  // Defect: a backend declares a capability it does not have, so a service asks
+  // a curator for a category that is never written, or confirms a save as
+  // committed to the authoring tree when only the database changed.
+  it('each backend declares writesAuthoringFiles exactly when a save lands in a file', () => {
+    for (const [name, adapter] of backends) {
+      const target = path.join(tmpDir, `${name}-capability.json`);
+      adapter.writeAuthoringFile(() => target, '{}\n');
+      expect(adapter.writesAuthoringFiles, name).toBe(fs.existsSync(target));
+    }
+    expect(backends.map(([, a]) => a.writesAuthoringFiles)).toEqual([true, false]);
+  });
+
   it('both backends refuse a slug that could leave the folder and a field no save may carry', () => {
     // Defect: only a developer machine notices, so a bad caller passes on a host.
     const unknownField = { loaded_at: 'x' } as unknown as TrickSaveFields;

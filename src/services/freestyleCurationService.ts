@@ -260,7 +260,6 @@ import {
   type NotationConvention,
 } from '../content/freestyleNotationProvenance';
 import { countScoringBrackets } from '../lib/freestyleNotation';
-import { config } from '../config/env';
 import {
   getCuratedAuthoringAdapter,
   type CuratedSaveReceipt,
@@ -793,8 +792,9 @@ const ALIAS_TEXT_MAX = 200;
 
 // Pre-go-live guardrail, parallel to the curated-media one. It fires only where a
 // curator write touches the committed pre-go-live source of truth in a developer
-// checkout (config.allowCuratedSidecarWrites, which is on in dev and the
-// integration-test fixture and off in staging and production). There, a seeded
+// checkout (where the curated-authoring adapter declares writesAuthoringFiles:
+// on in dev and the integration-test fixture, off in staging and production).
+// There, a seeded
 // test persona must never author freestyle dictionary content; real maintainer
 // accounts carry ordinary member ids and pass. In staging and production this is
 // a no-op, so any admin may curate. The admin remains the audit actor of record.
@@ -829,7 +829,7 @@ function saveModifierLink(trickSlug: string, modifierSlug: string, applyOrder: n
 }
 
 function assertActorMayCurateFreestyle(actorMemberId: string): void {
-  if (config.allowCuratedSidecarWrites && isSeededTestPersonaMemberId(actorMemberId)) {
+  if (getCuratedAuthoringAdapter().writesAuthoringFiles && isSeededTestPersonaMemberId(actorMemberId)) {
     throw new ForbiddenError(
       'Freestyle dictionary content cannot be edited by a test persona in a pre-go-live developer checkout.',
     );

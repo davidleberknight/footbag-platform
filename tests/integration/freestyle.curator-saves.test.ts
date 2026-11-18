@@ -491,6 +491,7 @@ describe('a trick edit on a developer machine', () => {
     const before = readTrick(dbPath, failFileSlug);
     const audits = auditCount(failFileSlug);
     adapterModule.setCuratedAuthoringAdapterForTests({
+      writesAuthoringFiles: true,
       saveTrickFields() { throw new Error('disk full'); },
       saveRulingFields() { throw new Error('disk full'); },
       saveItem() { throw new Error('disk full'); },

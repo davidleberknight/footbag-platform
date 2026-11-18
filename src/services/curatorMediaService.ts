@@ -58,8 +58,9 @@
  *     deterministic `(video_platform, video_url)` id (`urlRefMediaId`, matching
  *     the seeder). The authoring sidecar at
  *     `/curated/{category}/<primarySlug>_<sha1(videoUrl)[:8]>.meta.json` (atomic
- *     temp + rename) is written only when `config.allowCuratedSidecarWrites`
- *     (dev only, the same gate as the FH gallery sidecar); in staging/prod the
+ *     temp + rename) is written only where the curated-authoring adapter
+ *     declares `writesAuthoringFiles` (a developer machine before go-live, the
+ *     same gate as the FH gallery sidecar); in staging/prod the
  *     `media_items` row is the only write (DD §1.13).
  *   - Photo/video uploads with a `category` additionally write the source binary
  *     plus a file-paired `<slug>.meta.json` sidecar under `/curated/{category}/`
@@ -139,8 +140,8 @@
  *     stores), and recognised again where the write meets the first submit's
  *     row: inside the video insert's transaction, and in the unique-name failure
  *     of a photo or a gallery. One recognised there gives back the slot it took.
- *   - Every write that touches the authoring tree is gated on
- *     `config.allowCuratedSidecarWrites` (dev only), decided in this service
+ *   - Every write that touches the authoring tree is gated on the
+ *     curated-authoring adapter's `writesAuthoringFiles` capability, decided in this service
  *     rather than by any caller: URL-reference, photo and video uploads, edits,
  *     and FH-owned gallery writes. A category supplied where the tree is not
  *     writable is accepted and unused, since it names a directory that does not
@@ -153,7 +154,8 @@
  *     sanitizer before validation, so limits and uniqueness apply to what is
  *     stored; a comparison with a stored value cleans both sides.
  *   - Pre-go-live guardrail: where curated sidecar writes are on (dev, and the
- *     integration-test fixture, which set `config.allowCuratedSidecarWrites`), a
+ *     integration-test fixture, where the adapter declares
+ *     `writesAuthoringFiles`), a
  *     curated/system write (curator photo/video/url-ref upload, edit, delete, and
  *     FH-owned gallery create/update/delete) refuses a seeded test-persona actor
  *     (`assertCuratorActorMayWriteCurated`); real maintainer accounts carry
@@ -1720,9 +1722,17 @@ function assertTier1Benefits(actorMemberId: string): void {
   }
 }
 
+// Whether a curated save also lands in the committed authoring tree: the
+// curated-authoring adapter's declared capability. This service reads it
+// wherever what a curator sees or must supply differs, and never reads the
+// config switch or asks which backend it holds.
+function writesAuthoringFiles(): boolean {
+  return getCuratedAuthoringAdapter().writesAuthoringFiles;
+}
+
 // Pre-go-live guardrail protecting the real /curated content. It only applies
 // where curated writes edit the persistent on-disk sidecar files, which is dev
-// (config.allowCuratedSidecarWrites): there /curated/ is the committed
+// (writesAuthoringFiles()): there /curated/ is the committed
 // source-of-truth working tree, so a curated write mutates real git-tracked
 // data. In staging and production the sidecar write is off (curated writes land
 // in the DB and object store only), so any admin may curate and this is a no-op.
@@ -1732,7 +1742,7 @@ function assertTier1Benefits(actorMemberId: string): void {
 // switchable seeded persona admin is refused. Member-owned media never calls
 // this (only the curated/system write paths do).
 function assertCuratorActorMayWriteCurated(actorMemberId: string): void {
-  if (config.allowCuratedSidecarWrites && isSeededTestPersonaMemberId(actorMemberId)) {
+  if (writesAuthoringFiles() && isSeededTestPersonaMemberId(actorMemberId)) {
     throw new ForbiddenError(
       'Curated media cannot be authored by a test persona in dev, where it would mutate the persistent /curated sidecar files (pre-go-live guardrail).',
     );
@@ -1868,7 +1878,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       // sidecar identity matches the inserted row.
       let recordedSourceFilename = input.sourceFilename;
       let curatedFiles: CuratedSaveReceipt | null = null;
-      if (config.allowCuratedSidecarWrites && input.category) {
+      if (writesAuthoringFiles() && input.category) {
         if (!isValidCategoryName(input.category)) {
           throw new ValidationError(
             'Category name must be lowercase letters, digits, or underscores.',
@@ -2004,7 +2014,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       // uploadPhoto is: the disk write is decided where the disk is touched.
       let recordedSourceFilename = input.sourceFilename;
       let curatedFiles: CuratedSaveReceipt | null = null;
-      if (config.allowCuratedSidecarWrites && input.category) {
+      if (writesAuthoringFiles() && input.category) {
         if (!isValidCategoryName(input.category)) {
           throw new ValidationError(
             'Category name must be lowercase letters, digits, or underscores.',
@@ -2409,7 +2419,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       // is the whole write and a category has nowhere to go: an absent one is
       // accepted, and a supplied one still has to be well formed rather than
       // silently ignored in a shape that would break a later authoring run.
-      if (config.allowCuratedSidecarWrites || input.category) {
+      if (writesAuthoringFiles() || input.category) {
         if (!isValidCategoryName(input.category)) {
           throw new ValidationError(
             `Category name must be lowercase letters, digits, or underscores: got ${JSON.stringify(input.category)}.`,
@@ -2492,14 +2502,14 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       const now = new Date().toISOString();
 
       // Whether to write the /curated/ authoring sidecar is a service-layer
-      // policy decision gated on config.allowCuratedSidecarWrites (dev only),
+      // policy decision gated on the adapter's writesAuthoringFiles capability,
       // the same purpose-named flag the FH gallery sidecar uses: in dev curator
       // content is committed to git and the seeder rebuilds the DB from it; in
       // staging/prod the persistent DB is the source of truth (DD §1.13) and
       // the media_items row is the only write. Filesystem I/O stays outside the
       // DB transaction.
       let sidecarResult: WriteUrlSidecarResult | null = null;
-      if (config.allowCuratedSidecarWrites) {
+      if (writesAuthoringFiles()) {
         let filename: string;
         try {
           filename = deriveUrlSidecarFilename(input.primarySlug, input.videoUrl);
@@ -2604,7 +2614,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       // change without waiting for the next seeder run. Where it is not writable
       // the tree does not exist at all and the DB write below is the whole edit,
       // which is the same gate every other write path in this service applies.
-      const editsAuthoringTree = isUrlReference && config.allowCuratedSidecarWrites;
+      const editsAuthoringTree = isUrlReference && writesAuthoringFiles();
 
       let auditEntityId = input.mediaId;
       let auditEntityType: 'curated_sidecar' | 'media_item' = 'media_item';
@@ -5445,7 +5455,7 @@ export async function shareCuratorMedia(
 
   // The sidecar's directory and file name, asked for only where one is written.
   let category: string | undefined;
-  if (hasMedia && config.allowCuratedSidecarWrites) {
+  if (hasMedia && writesAuthoringFiles()) {
     const resolved = resolveCuratorCategory({ category: input.category, newCategory: input.newCategory });
     if ('errorMessage' in resolved) return refuse(resolved.errorMessage, 'category');
     category = resolved.category;
@@ -5887,7 +5897,7 @@ export function getCuratorMediaListPage(
       savedWasEdit: savedFlag === 'edit',
       savedFoldLine: savedFlag === 'edit' ? foldedTagsLine(input.savedFolded ?? []) : null,
       savedWasDelete: savedFlag === 'delete',
-      sidecarWritesEnabled: config.allowCuratedSidecarWrites,
+      sidecarWritesEnabled: writesAuthoringFiles(),
       uploadHref: '/admin/curator/upload',
       listHref,
     },
@@ -5924,7 +5934,7 @@ export function getCuratorMediaNotFoundPage(
     media: null,
     cancelHref: '/admin/curator/media',
     formAction: `/admin/curator/media/${encodeURIComponent(mediaId)}/edit`,
-    sidecarWritesEnabled: config.allowCuratedSidecarWrites,
+    sidecarWritesEnabled: writesAuthoringFiles(),
     editFormId: CURATOR_EDIT_FORM_ID,
     playerSearch: null,
   });
@@ -5975,7 +5985,7 @@ export async function getCuratorMediaEditPage(
     media: { ...curatorMediaEditFields(item), ...kept },
     cancelHref: '/admin/curator/media',
     formAction,
-    sidecarWritesEnabled: config.allowCuratedSidecarWrites,
+    sidecarWritesEnabled: writesAuthoringFiles(),
     editFormId: CURATOR_EDIT_FORM_ID,
     playerSearch: buildPlayerSearchBlock(formAction, playerSearch),
   });
@@ -6008,7 +6018,7 @@ export async function getCuratorMediaEditErrorPage(
     media: { ...curatorMediaEditFields(item), ...typed },
     cancelHref: '/admin/curator/media',
     formAction: `/admin/curator/media/${encodeURIComponent(mediaId)}/edit`,
-    sidecarWritesEnabled: config.allowCuratedSidecarWrites,
+    sidecarWritesEnabled: writesAuthoringFiles(),
     editFormId: CURATOR_EDIT_FORM_ID,
     playerSearch: null,
   });
@@ -6047,7 +6057,7 @@ export function getCuratorGalleryListPage(
       emptyState: items.length === 0,
       savedFlag: input.savedFlag,
       savedFoldLine: input.savedFlag ? foldedTagsLine(input.savedFolded ?? []) : null,
-      sidecarWritesEnabled: config.allowCuratedSidecarWrites,
+      sidecarWritesEnabled: writesAuthoringFiles(),
       // A gallery is made on the curator Share Media form by naming hashtags.
       newGalleryHref: '/admin/curator/upload',
       listHref: '/admin/curator/galleries',
@@ -6695,12 +6705,12 @@ export function getCuratorSharePage(
         asyncEnabled: config.mediaStorageAdapter === 's3',
         videoMaxMb: VIDEO_MAX_MB,
         videoMaxBytes: VIDEO_MAX_BYTES,
-        sidecarWritesEnabled: config.allowCuratedSidecarWrites,
+        sidecarWritesEnabled: writesAuthoringFiles(),
         categories: (opts.existingCategories ?? []).map((c) => ({ value: c, checked: formValues.category === c })),
         sortOptions: GALLERY_SORT_ORDER_VALUES.map((v) => ({
           value: v, label: GALLERY_SORT_LABELS[v] ?? v, selected: v === sort,
         })),
-        notices: opts.outcome ? curatorShareNotices(opts.outcome, config.allowCuratedSidecarWrites) : null,
+        notices: opts.outcome ? curatorShareNotices(opts.outcome, writesAuthoringFiles()) : null,
       },
       shareDataJson: jsonForDataIsland({
         galleryIdPrefix: 'gallery_',

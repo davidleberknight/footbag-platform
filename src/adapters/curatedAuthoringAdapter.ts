@@ -6,7 +6,9 @@
  * write is the whole operation and there is no file to touch: a deployed host
  * carries no authoring tree, and after go-live the database is the only truth.
  * The backend is chosen once at startup from config, and a service never asks
- * which one it has.
+ * which one it has. Where what a curator sees or must supply differs, a service
+ * reads the declared capability `writesAuthoringFiles` instead; it never reads
+ * the config switch or tests which backend it holds.
  *
  * A trick's save file holds its slug and only the fields a curator has overridden,
  * with a null field marking a deliberate clear. Sources, aliases and links are saved
@@ -112,6 +114,14 @@ export type SaveItemBody = Record<
 >;
 
 export interface CuratedAuthoringAdapter {
+  /**
+   * Whether a save lands in the committed authoring files as well as the
+   * database. A service reads it where what a curator sees or must supply
+   * depends on it (whether a category is asked for, which notice confirms a
+   * save, whether a sidecar is written at all). It is a declared capability,
+   * not the backend's identity.
+   */
+  readonly writesAuthoringFiles: boolean;
   /** Records these fields for this trick, keeping fields saved earlier. */
   saveTrickFields(slug: string, fields: TrickSaveFields): CuratedSaveReceipt;
   /** Records these fields for this ruling, keeping fields saved earlier. */
@@ -178,6 +188,7 @@ function writeAtomically(filePath: string, content: string | Buffer): void {
 export function createFileCuratedAuthoringAdapter(opts: { rootDir: string | (() => string) }): CuratedAuthoringAdapter {
   const savesRoot = (): string => (typeof opts.rootDir === 'function' ? opts.rootDir() : opts.rootDir);
   return {
+    writesAuthoringFiles: true,
     saveTrickFields(slug, fields) {
       assertSaveShape(slug, fields);
       return mergeFields(path.join(savesRoot(), 'tricks', `${slug}.json`), { slug }, fields);
@@ -235,6 +246,7 @@ function receiptFor(filePath: string, before: string | Buffer | null): CuratedSa
 
 export function createDatabaseOnlyCuratedAuthoringAdapter(): CuratedAuthoringAdapter {
   return {
+    writesAuthoringFiles: false,
     saveTrickFields(slug, fields) {
       assertSaveShape(slug, fields);
       return NOTHING_TO_UNDO;

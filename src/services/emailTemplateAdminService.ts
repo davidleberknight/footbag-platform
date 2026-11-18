@@ -13,8 +13,8 @@
  * `audit_entries` row (`email_template.updated`) in the same transaction as the
  * update; a save that changes nothing writes nothing, neither the row, its
  * version, the audit log nor the sidecar, and reports `unchanged`. Where the
- * authoring tree is written (`allowCuratedSidecarWrites`, a developer machine
- * before go-live), a save also writes the template's committed sidecar,
+ * authoring tree is written (the curated authoring adapter declares
+ * `writesAuthoringFiles`: a developer machine before go-live), a save also writes the template's committed sidecar,
  * `curated/email_templates/<key>.json`, through the curated authoring adapter
  * before the transaction, so the edit survives the next seeding: a sidecar that
  * cannot be written refuses the save (ServiceUnavailableError), and a transaction
@@ -36,7 +36,6 @@
  * (credential-link) templates.
  */
 import { emailTemplates, transaction, type EmailTemplateRow } from '../db/db';
-import { config } from '../config/env';
 import { emailTemplateSidecarPath, formatEmailTemplateSidecar } from '../lib/emailTemplateSidecar';
 import { getCuratedAuthoringAdapter } from '../adapters/curatedAuthoringAdapter';
 import { writeFileThenCommit } from './curatedSaveFlow';
@@ -268,7 +267,7 @@ export const emailTemplateAdminService = {
   updateTemplate(templateKey: string, input: EmailTemplateEditInput, actorMemberId: string): UpdateTemplateResult {
     const current = emailTemplates.getByKey.get(templateKey) as EmailTemplateRow | undefined;
     if (!current) throw new NotFoundError(`No email template "${templateKey}"`);
-    if (config.allowCuratedSidecarWrites && isSeededTestPersonaMemberId(actorMemberId)) {
+    if (getCuratedAuthoringAdapter().writesAuthoringFiles && isSeededTestPersonaMemberId(actorMemberId)) {
       throw new ForbiddenError(
         'Email templates cannot be edited by a test persona on a developer machine, where the save would rewrite the committed template file.',
       );

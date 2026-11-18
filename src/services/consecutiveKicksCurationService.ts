@@ -33,7 +33,6 @@ import { consecutiveKicksRecords, transaction } from '../db/db';
 import { appendAuditEntry, findOwnLatestAudit } from './auditService';
 import { ForbiddenError, NotFoundError, ValidationError } from './serviceErrors';
 import { PageViewModel } from '../types/page';
-import { config } from '../config/env';
 import { getCuratedAuthoringAdapter, type CuratedSaveReceipt } from '../adapters/curatedAuthoringAdapter';
 import { writeFileThenCommit } from './curatedSaveFlow';
 import { isSeededTestPersonaMemberId } from '../lib/personaGuards';
@@ -184,7 +183,7 @@ interface ConsecutiveCurationDbRow {
 // seeded test persona must never author record content in a developer checkout. A
 // no-op in staging and production; the admin remains the audit actor of record.
 function assertActorMayCurateFreestyle(actorMemberId: string): void {
-  if (config.allowCuratedSidecarWrites && isSeededTestPersonaMemberId(actorMemberId)) {
+  if (getCuratedAuthoringAdapter().writesAuthoringFiles && isSeededTestPersonaMemberId(actorMemberId)) {
     throw new ForbiddenError(
       'Consecutive-kicks records cannot be edited by a test persona in a pre-go-live developer checkout.',
     );
