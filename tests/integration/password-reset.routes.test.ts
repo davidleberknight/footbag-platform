@@ -8,7 +8,6 @@ import { hashTestPassword } from '../fixtures/hashTestPassword';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, createTestSessionJwt, insertSystemConfig } from '../fixtures/factories';
-import { assertSecureSessionCookie } from '../fixtures/assertSecureSessionCookie';
 import { rowPin, snapshotIds, oneRowAddedSince, theOnlyRow } from '../fixtures/rowPinning';
 
 const { dbPath } = setTestEnv('3070');
@@ -73,6 +72,28 @@ async function issueAndExtractResetToken(app: ReturnType<typeof createApp>, emai
 afterEach(() => {
   vi.useRealTimers();
 });
+
+/**
+ * A completed reset, and a recognised repeat of one, sign nobody in: they send
+ * the browser to the login page with no session cookie.
+ */
+function expectSentToLogin(res: { status: number; headers: Record<string, string>; get(name: string): string[] | undefined }, label = ''): void {
+  expect(res.status, label).toBe(303);
+  expect(res.headers.location, label).toBe('/login');
+  expect(res.get('Set-Cookie')?.some((c) => c.startsWith('__Host-footbag_session=')) ?? false, label).toBe(false);
+}
+
+/** The login page the reset redirected to, carrying the one-shot notice cookie it set. */
+async function loginPageAfter(app: ReturnType<typeof createApp>, res: { get(name: string): string[] | undefined }): Promise<string> {
+  const flash = (res.get('Set-Cookie') ?? []).find((c) => c.startsWith('footbag_flash='));
+  const page = await request(app).get('/login').set('Cookie', flash ? flash.split(';')[0] : '');
+  expect(page.status).toBe(200);
+  return page.text;
+}
+
+// The success notice the login page shows after a reset, found by the outcome
+// partial's success treatment rather than by its wording.
+const SUCCESS_NOTICE = 'class="form-success-banner"';
 
 /**
  * Moves the faked clock just past the span within which a second request is
@@ -324,7 +345,9 @@ describe('POST /password/reset/:token', () => {
     expect(auditFor(auditedId)).toBe(1);
   });
 
-  it('valid token + matching passwords → 303 to /members/:slug, reissues session cookie, new password works, password_version bumped', async () => {
+  // A reset signs nobody in (OWASP advises against it): the person lands on the
+  // login page, told the password was reset, and logs in with the new one.
+  it('valid token + matching passwords → 303 to the login page with no session, the page says so, new password works, password_version bumped', async () => {
     const app = createApp();
     const token = await issueAndExtractResetToken(app, MEMBER_EMAIL);
 
@@ -332,13 +355,10 @@ describe('POST /password/reset/:token', () => {
       .post(`/password/reset/${token}`)
       .type('form')
       .send({ newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD });
-    expect(res.status).toBe(303);
-    expect(res.headers.location).toBe(`/members/${MEMBER_SLUG}`);
-    const cookies = res.get('Set-Cookie');
-    expect(cookies?.some((c) => c.startsWith('__Host-footbag_session='))).toBe(true);
-    assertSecureSessionCookie(res.headers['set-cookie']);
-    // A response that establishes a session must not be cacheable.
-    expect(res.headers['cache-control']).toMatch(/no-store/);
+    expectSentToLogin(res);
+    expect(await loginPageAfter(app, res)).toContain(SUCCESS_NOTICE);
+    // A plain visit to the login page carries no such notice.
+    expect((await request(app).get('/login')).text).not.toContain(SUCCESS_NOTICE);
 
     // DB: password_version should be 2.
     const db = new BetterSqlite3(dbPath, { readonly: true });
@@ -364,6 +384,89 @@ describe('POST /password/reset/:token', () => {
     expect(oldLogin.text).toContain('Invalid email or password. Please try again.');
   });
 
+  // A registrant who never opened the verification link, and lost it, is
+  // refused at login and has no other way back in: the reset must reach them,
+  // and completing it must prove the address exactly as verification would.
+  it('an account whose email was never verified gets a reset link, and completing it verifies the address and starts onboarding', async () => {
+    const app = createApp();
+    const email = 'pwreset-unverified@example.com';
+    const id = 'pwreset-unverified-001';
+    const slug = 'pwreset_unverified';
+    const seed = new BetterSqlite3(dbPath);
+    insertMember(seed, {
+      id, slug, login_email: email,
+      password_hash: await hashTestPassword(ORIGINAL_PASSWORD),
+      email_verified_at: null, onboarding: 'none',
+    });
+    seed.close();
+    const state = () => {
+      const ro = new BetterSqlite3(dbPath, { readonly: true });
+      const verified = (ro.prepare('SELECT email_verified_at FROM members WHERE id = ?').get(id) as
+        { email_verified_at: string | null }).email_verified_at;
+      const tasks = (ro.prepare('SELECT COUNT(*) AS n FROM member_onboarding_tasks WHERE member_id = ?').get(id) as
+        { n: number }).n;
+      ro.close();
+      return { verified, tasks };
+    };
+    expect(state()).toEqual({ verified: null, tasks: 0 });
+
+    const token = await issueAndExtractResetToken(app, email);
+    const res = await request(app).post(`/password/reset/${token}`).type('form')
+      .send({ newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD });
+
+    expectSentToLogin(res);
+    const after = state();
+    expect(after.verified).not.toBeNull();
+    expect(after.tasks).toBe(3);
+    // Logging in with the new password now works, and a pending account
+    // resumes onboarding in the wizard.
+    const login = await request(app).post('/login').type('form').send({ email, password: NEW_PASSWORD });
+    expect(login.status).toBe(303);
+    const session = (login.get('Set-Cookie') ?? []).find((c) => c.startsWith('__Host-footbag_session='));
+    expect(session).toBeTruthy();
+    const landing = await request(app).get(login.headers.location).set('Cookie', session!.split(';')[0]);
+    expect(landing.status).toBe(303);
+    expect(landing.headers.location).toMatch(/^\/register\/wizard\//);
+  });
+
+  // The reset lookup reaches unverified accounts, but never a deceased
+  // member's: nobody may take over that account by resetting its password.
+  it('a deceased member\'s address gets no reset token, while a live unverified one beside it does', async () => {
+    const app = createApp();
+    const seed = new BetterSqlite3(dbPath);
+    insertMember(seed, {
+      id: 'pwreset-deceased-001', slug: 'pwreset_deceased', login_email: 'pwreset-deceased@example.com',
+      is_deceased: 1,
+    });
+    insertMember(seed, {
+      id: 'pwreset-live-unverified-001', slug: 'pwreset_live_unverified',
+      login_email: 'pwreset-live-unverified@example.com', email_verified_at: null, onboarding: 'none',
+    });
+    seed.close();
+    await request(app).post('/password/forgot').type('form').send({ email: 'pwreset-deceased@example.com' });
+    await request(app).post('/password/forgot').type('form').send({ email: 'pwreset-live-unverified@example.com' });
+    expect(countResetTokensFor('pwreset-deceased-001')).toBe(0);
+    expect(countResetTokensFor('pwreset-live-unverified-001')).toBe(1);
+  });
+
+  it('a verified account\'s reset leaves its verified time as it was', async () => {
+    const app = createApp();
+    const read = () => {
+      const ro = new BetterSqlite3(dbPath, { readonly: true });
+      const v = (ro.prepare('SELECT email_verified_at FROM members WHERE id = ?').get(MEMBER_ID) as
+        { email_verified_at: string | null }).email_verified_at;
+      ro.close();
+      return v;
+    };
+    const before = read();
+    expect(before).not.toBeNull();
+    const token = await issueAndExtractResetToken(app, MEMBER_EMAIL);
+    const res = await request(app).post(`/password/reset/${token}`).type('form')
+      .send({ newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD });
+    expect(res.status).toBe(303);
+    expect(read()).toBe(before);
+  });
+
   it('token is single-use: a second submit reports the first outcome, changes nothing, and signs nobody in', async () => {
     const app = createApp();
     const token = await issueAndExtractResetToken(app, MEMBER_EMAIL);
@@ -381,12 +484,9 @@ describe('POST /password/reset/:token', () => {
     const second = await request(app).post(`/password/reset/${token}`).type('form').send({
       newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD,
     });
-    expect(second.status).toBe(200);
-    expect(second.text).toContain('Your password has been reset. Log in with your new password.');
-    expect(second.text).toContain('href="/login"');
-    expect(second.text).not.toContain('invalid, expired, or already used');
-    expect(second.get('Set-Cookie')?.some((c) => c.startsWith('__Host-footbag_session=')) ?? false).toBe(false);
-    expect(second.headers['cache-control']).toMatch(/no-store/);
+    // The same redirect and notice as the first submit.
+    expectSentToLogin(second);
+    expect(await loginPageAfter(app, second)).toContain(SUCCESS_NOTICE);
 
     // The repeat set nothing.
     const ro = new BetterSqlite3(dbPath, { readonly: true });
@@ -411,7 +511,7 @@ describe('POST /password/reset/:token', () => {
     });
     expect(other.status).toBe(422);
     expect(other.text).toContain('invalid, expired, or already used');
-    expect(other.text).not.toContain('Your password has been reset');
+    expect(other.text).not.toContain(SUCCESS_NOTICE);
 
     const withOther = await request(app).post('/login').type('form').send({ email: MEMBER_EMAIL, password: 'Another!3' });
     expect(withOther.status).toBe(200);   // refused: the login page re-renders
@@ -437,7 +537,7 @@ describe('POST /password/reset/:token', () => {
     // guesses leave the tenth attempt for the right password, which is still
     // recognised; the tenth wrong guess closes the window for it.
     for (let i = 0; i < 9; i += 1) await guess(`Wrong!guess${i}`);
-    expect((await guess(NEW_PASSWORD)).status).toBe(200);   // refunded, so the window still has one left
+    expectSentToLogin(await guess(NEW_PASSWORD));   // refunded, so the window still has one left
     await guess('Wrong!guess9');
     const right = await guess(NEW_PASSWORD);
     expect(right.status).toBe(422);
@@ -456,8 +556,7 @@ describe('POST /password/reset/:token', () => {
       .send({ newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD });
     expect((await send()).status).toBe(303);
     for (let i = 0; i < 12; i += 1) {
-      const repeat = await send();
-      expect(repeat.status, `repeat ${i + 1}`).toBe(200);
+      expectSentToLogin(await send(), `repeat ${i + 1}`);
     }
     rlMod.resetRateLimitForTests();
   });
@@ -478,9 +577,7 @@ describe('POST /password/reset/:token', () => {
       newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD,
       'cf-turnstile-response': STUB_CAPTCHA_FAIL_TOKEN,
     });
-    expect(repeat.status).toBe(200);
-    expect(repeat.text).toContain('Your password has been reset. Log in with your new password.');
-    expect(repeat.get('Set-Cookie')?.some((c) => c.startsWith('__Host-footbag_session=')) ?? false).toBe(false);
+    expectSentToLogin(repeat);
   });
 
   // Defect caught: two overlapping submits of one reset both pass the
@@ -494,11 +591,8 @@ describe('POST /password/reset/:token', () => {
       request(app).post(`/password/reset/${token}`).type('form').send(form),
       request(app).post(`/password/reset/${token}`).type('form').send(form),
     ]);
-    const statuses = [a.status, b.status].sort();
-    expect(statuses).toEqual([200, 303]);
-    const repeat = a.status === 200 ? a : b;
-    expect(repeat.text).toContain('Your password has been reset. Log in with your new password.');
-    expect(repeat.text).not.toContain('invalid, expired, or already used');
+    expectSentToLogin(a, 'first of the pair');
+    expectSentToLogin(b, 'second of the pair');
   });
 
   it('token issued before the member was marked deceased no longer consumes: 422, password unchanged, no session cookie', async () => {
@@ -673,7 +767,25 @@ describe('POST /password/forgot — outbox failure does not leak via 500', () =>
   });
 });
 
-describe('POST /password/reset/:token — session reissue failure', () => {
+describe('/password/reset/:token — referrer', () => {
+  // Defect caught: the reset page's address carries the single-use token, and
+  // the page loads the captcha script from another origin; the referrer it
+  // sends must be the bare origin, never the address. `no-referrer` is not used
+  // because a browser then sends `Origin: null` on the form post, which the
+  // origin pin refuses; the reset browser test covers that half.
+  it('the reset page sends only its origin as referrer on GET and POST, while other pages keep the site-wide policy', async () => {
+    const app = createApp();
+    const get = await request(app).get('/password/reset/some-token');
+    expect(get.headers['referrer-policy']).toBe('strict-origin');
+    const post = await request(app).post('/password/reset/some-token').type('form')
+      .send({ newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD });
+    expect(post.headers['referrer-policy']).toBe('strict-origin');
+    const login = await request(app).get('/login');
+    expect(login.headers['referrer-policy']).toBe('strict-origin-when-cross-origin');
+  });
+});
+
+describe('POST /password/reset/:token — signs no session', () => {
   // eslint-disable-next-line @typescript-eslint/consistent-type-imports
   let adapterMod: typeof import('../../src/adapters/jwtSigningAdapter');
   let realAdapter: import('../../src/adapters/jwtSigningAdapter').JwtSigningAdapter;
@@ -689,8 +801,11 @@ describe('POST /password/reset/:token — session reissue failure', () => {
     adapterMod.resetJwtSigningAdapterForTests();
   });
 
-  it('signJwt failure after token consumed and password_version commit → 503, no Set-Cookie, DB committed, actionable error', async () => {
-    expectLoggedError('password reset: session issue failed');
+  // Defect caught: a reset that signs a session again, which the OWASP
+  // guidance advises against, and which would fail the completed reset
+  // whenever the signer is down. With the signer failing, the reset still
+  // lands and sends the person to log in.
+  it('completes with the session signer failing: 303 to the login page, no session, password changed', async () => {
     const app = createApp();
     const token = await issueAndExtractResetToken(app, MEMBER_EMAIL);
 
@@ -711,45 +826,17 @@ describe('POST /password/reset/:token — session reissue failure', () => {
       .type('form')
       .send({ newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD });
 
-    expect(res.status).toBe(503);
-    expect(res.headers['retry-after']).toBe('30');
-    expect(res.text).toContain('Your password was reset');
-    expect(res.text).toContain('could not sign you in');
-    expect(res.text).toContain('login page');
-    // The reset happened, so the sentence carries the success treatment; red
-    // would tell the member their new password did not take.
-    expect(res.text).toMatch(/class="form-success-banner" role="status">Your password was reset/);
-    expect(res.text).not.toContain('form-error-banner');
-
-    const cookies = res.get('Set-Cookie');
-    const sessionCookieIssued = cookies?.some((c) =>
-      c.startsWith('__Host-footbag_session=') &&
-      !c.match(/Max-Age=0|Expires=Thu, 01 Jan 1970/i),
-    );
-    expect(sessionCookieIssued).toBeFalsy();
+    expectSentToLogin(res);
 
     // password_version was 1 at the start of the test (beforeEach restores
-    // it); a successful commit before the failed signing lands it at 2.
+    // it); the committed reset lands it at 2.
     const dbCheck = new BetterSqlite3(dbPath, { readonly: true });
     const row = dbCheck.prepare('SELECT password_version FROM members WHERE id=?')
       .get(MEMBER_ID) as { password_version: number };
+    dbCheck.close();
     expect(row.password_version).toBe(2);
 
-    // Token was consumed; a replay of the same submit reports the reset as done
-    // and sets nothing.
-    const replay = await request(app).post(`/password/reset/${token}`).type('form').send({
-      newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD,
-    });
-    expect(replay.status).toBe(200);
-    expect(replay.text).toContain('Your password has been reset.');
-    const afterReplay = dbCheck.prepare('SELECT password_version FROM members WHERE id=?')
-      .get(MEMBER_ID) as { password_version: number };
-    dbCheck.close();
-    expect(afterReplay.password_version).toBe(2);
-
-    expect(res.headers['cache-control']).toMatch(/no-store/);
-
-    // Simulate KMS recovery: a fresh login with the new password works.
+    // Once the signer works again, logging in with the new password works.
     adapterMod.resetJwtSigningAdapterForTests();
     const login = await request(app).post('/login').type('form').send({
       email: MEMBER_EMAIL, password: NEW_PASSWORD,
@@ -817,8 +904,7 @@ describe('POST /password/reset/:token — confirmation-email enqueue failure', (
       .send({ newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD });
 
     // The reset succeeds despite the failed confirmation enqueue.
-    expect(res.status).toBe(303);
-    expect(res.headers.location).toBe(`/members/${MEMBER_SLUG}`);
+    expectSentToLogin(res);
 
     // The password actually rotated (version bumped).
     const db = new BetterSqlite3(dbPath, { readonly: true });

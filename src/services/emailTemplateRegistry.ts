@@ -115,6 +115,7 @@ export const TEMPLATE_VARIANTS = {
   payment_receipt_succeeded_donation: v('confidential', DONATION_RECEIPT_FIELDS),
   payment_receipt_failed:          v('confidential', PAYMENT_RECEIPT_FIELDS),
   payment_receipt_failed_membership: v('confidential', PAYMENT_RECEIPT_FIELDS),
+  payment_receipt_failed_event_registration: v('confidential', PAYMENT_RECEIPT_FIELDS),
   donation_subscription_started:            v('confidential', RECURRING_DONATION_STARTED_FIELDS),
   donation_subscription_cancel_requested:   v('confidential', RECURRING_DONATION_FIELDS),
   donation_subscription_charge_failed:      v('confidential', RECURRING_DONATION_FIELDS),
@@ -131,6 +132,14 @@ export const TEMPLATE_VARIANTS = {
   club_membership_leader_leave:    v('confidential', ['leaderName', 'memberName', 'clubName']),
   club_volunteer_leadership:       v('confidential', ['leaderName', 'joinerName', 'clubName']),
   club_leaderless_contact:         v('confidential', ['memberName', 'clubName']),
+  event_created_confirmation:      v('internal',     ['eventTitle', 'eventDates']),
+  event_organizer_added:           v('internal',     ['actorName', 'eventTitle', 'eventDates']),
+  event_sanction_requested:        v('internal',     ['eventTitle', 'eventDates']),
+  event_sanctioned:                v('internal',     ['eventTitle', 'guidelinesUrl', 'decisionNoteLine']),
+  event_sanction_rejected:         v('internal',     ['eventTitle', 'reason', 'manageUrl']),
+  // Both name members: the registrant's partners, and the member who withdrew.
+  event_registration_confirmed:    v('confidential', ['eventTitle', 'eventDates', 'registrationSummary']),
+  event_registration_withdrawn:    v('confidential', ['memberName', 'eventTitle', 'eventDates']),
   contact_request_resolution:      v('confidential', ['memberName', 'displayDecision', 'note']),
   media_moderation_decision:       v('confidential', ['memberName', 'displayDecision', 'note']),
   avatar_removed_member:           v('confidential', ['memberName', 'note']),
@@ -139,12 +148,16 @@ export const TEMPLATE_VARIANTS = {
   club_record_corrected:           v('confidential', ['leaderName', 'clubName', 'whatChanged', 'note']),
   gallery_moderated_member:        v('confidential', ['memberName', 'galleryName', 'whatChanged', 'note']),
   link_help_request_resolution:    v('confidential', ['memberName', 'displayDecision', 'note']),
-  admin_loss_recruitment:          v('internal',     ['entityId', 'queueUrl']),
+  announce_approved:               v('confidential', ['memberName', 'subject']),
+  // Carries the administrator's comment and the subject the member chose, never
+  // the body: the member wrote it and still has it on the form.
+  announce_returned:               v('confidential', ['memberName', 'subject', 'comment']),
+  admin_loss_recruitment:         v('internal',     ['itemUrl']),
   admin_queue_digest:              v('internal',     ['countPhrase', 'itemLines', 'queueUrl']),
   admin_queue_topic_digest:        v('internal',     ['areaLabel', 'countPhrase', 'itemLines', 'queueUrl']),
   work_queue_topic_route_disabled: v('internal',     ['areaLabel']),
   media_report_outcome_reporter:   v('confidential', ['decisionSentence']),
-  admin_queue_stale_escalation:    v('internal',     ['taskType', 'entityId', 'agePhrase', 'queueUrl']),
+  admin_queue_stale_escalation:    v('internal',     ['taskLabel', 'kindLabel', 'agePhrase', 'itemUrl']),
 } satisfies Record<string, VariantDef>;
 
 export type EmailTemplateVariantKey = keyof typeof TEMPLATE_VARIANTS;
@@ -238,6 +251,7 @@ const SHAPERS = {
     outcome: 'succeeded' | 'failed';
     isMembership: boolean;
     isDonation: boolean;
+    isEventRegistration?: boolean;
     purchasedTier: 'tier1' | 'tier2' | null;
     donationNote: string | null;
     referenceId: string;
@@ -253,7 +267,9 @@ const SHAPERS = {
     // alone: a membership or an event fee buys something, so putting
     // deductibility language on those would be wrong.
     const variant = p.outcome === 'failed'
-      ? (p.isMembership ? 'payment_receipt_failed_membership' : 'payment_receipt_failed')
+      ? (p.isMembership
+        ? 'payment_receipt_failed_membership'
+        : p.isEventRegistration ? 'payment_receipt_failed_event_registration' : 'payment_receipt_failed')
       : p.isMembership && p.purchasedTier === 'tier1'
         ? 'payment_receipt_succeeded_tier1'
         : p.isMembership && p.purchasedTier === 'tier2'
@@ -385,6 +401,45 @@ const SHAPERS = {
     variant: 'club_leaderless_contact',
     merge: { memberName: p.memberName, clubName: p.clubName },
   }),
+  // Sent to every organizer of a free event once it opens for registration.
+  event_created_confirmation: (p: { eventTitle: string; eventDates: string }): ShapedEmail => ({
+    variant: 'event_created_confirmation',
+    merge: { eventTitle: p.eventTitle, eventDates: p.eventDates },
+  }),
+  // Sent to a member another organizer has added to an event's organizers.
+  event_organizer_added: (p: { actorName: string; eventTitle: string; eventDates: string }): ShapedEmail => ({
+    variant: 'event_organizer_added',
+    merge: { actorName: p.actorName, eventTitle: p.eventTitle, eventDates: p.eventDates },
+  }),
+  // Sent to every organizer when one of them submits the sanction request.
+  event_sanction_requested: (p: { eventTitle: string; eventDates: string }): ShapedEmail => ({
+    variant: 'event_sanction_requested',
+    merge: { eventTitle: p.eventTitle, eventDates: p.eventDates },
+  }),
+  // Sent to every organizer once the event is sanctioned, by an approved
+  // request or a Board award. The administrator's note, when there is one,
+  // follows on its own line.
+  event_sanctioned: (p: { eventTitle: string; guidelinesUrl: string; note: string | null }): ShapedEmail => ({
+    variant: 'event_sanctioned',
+    merge: {
+      eventTitle: p.eventTitle,
+      guidelinesUrl: p.guidelinesUrl,
+      decisionNoteLine: p.note ? `\n\nNote from IFPA: ${p.note}` : '',
+    },
+  }),
+  // Sent to every organizer when the request is rejected, with the reason.
+  event_sanction_rejected: (p: { eventTitle: string; reason: string; manageUrl: string }): ShapedEmail => ({
+    variant: 'event_sanction_rejected',
+    merge: { eventTitle: p.eventTitle, reason: p.reason, manageUrl: p.manageUrl },
+  }),
+  event_registration_confirmed: (p: { eventTitle: string; eventDates: string; registrationSummary: string }): ShapedEmail => ({
+    variant: 'event_registration_confirmed',
+    merge: { eventTitle: p.eventTitle, eventDates: p.eventDates, registrationSummary: p.registrationSummary },
+  }),
+  event_registration_withdrawn: (p: { memberName: string; eventTitle: string; eventDates: string }): ShapedEmail => ({
+    variant: 'event_registration_withdrawn',
+    merge: { memberName: p.memberName, eventTitle: p.eventTitle, eventDates: p.eventDates },
+  }),
   contact_request_resolution: (p: { memberName: string; displayDecision: string; note: string }): ShapedEmail => ({
     variant: 'contact_request_resolution',
     merge: { memberName: p.memberName, displayDecision: p.displayDecision, note: p.note },
@@ -453,23 +508,31 @@ const SHAPERS = {
   // writing back, so it resolves through its own queue and needs its own reply.
   // Without it a member is promised an answer on submission and hears nothing,
   // whether their records were linked or the request was refused.
+  announce_approved: (p: { memberName: string; subject: string }): ShapedEmail => ({
+    variant: 'announce_approved',
+    merge: { memberName: p.memberName, subject: p.subject },
+  }),
+  announce_returned: (p: { memberName: string; subject: string; comment: string }): ShapedEmail => ({
+    variant: 'announce_returned',
+    merge: { memberName: p.memberName, subject: p.subject, comment: p.comment },
+  }),
   link_help_request_resolution: (p: { memberName: string; displayDecision: string; note: string }): ShapedEmail => ({
     variant: 'link_help_request_resolution',
     merge: { memberName: p.memberName, displayDecision: p.displayDecision, note: p.note },
   }),
-  // The lost administrator is named by member id only: this fans out to the
-  // whole admin list, and the name and the reason belong on the queue card the
-  // link leads to, not in a broadcast.
-  admin_loss_recruitment: (p: { entityId: string; queueUrl: string }): ShapedEmail => ({
+  // The lost administrator is not named at all: this fans out to the whole
+  // admin list, and who it was and why belong on the item's page the link
+  // leads to, not in a broadcast.
+  admin_loss_recruitment: (p: { itemUrl: string }): ShapedEmail => ({
     variant: 'admin_loss_recruitment',
-    merge: { entityId: p.entityId, queueUrl: p.queueUrl },
+    merge: { itemUrl: p.itemUrl },
   }),
   admin_queue_digest: (p: { openCount: number; itemLines: string; queueUrl: string }): ShapedEmail => ({
     variant: 'admin_queue_digest',
     merge: { countPhrase: openItemPhrase(p.openCount), itemLines: p.itemLines, queueUrl: p.queueUrl },
   }),
-  // Goes to an area's group address, never to a member; carries task type and
-  // entity id lines only, like the per-administrator digest.
+  // Goes to an area's group address, never to a member; its lines name each
+  // item's task and link to it, like the per-administrator digest.
   admin_queue_topic_digest: (p: {
     areaLabel: string;
     openCount: number;
@@ -490,13 +553,13 @@ const SHAPERS = {
     merge: { decisionSentence: p.removed ? 'removed it.' : 'decided to leave it up.' },
   }),
   admin_queue_stale_escalation: (p: {
-    taskType: string;
-    entityId: string;
+    taskLabel: string;
+    kindLabel: string;
     ageDays: number;
-    queueUrl: string;
+    itemUrl: string;
   }): ShapedEmail => ({
     variant: 'admin_queue_stale_escalation',
-    merge: { taskType: p.taskType, entityId: p.entityId, agePhrase: dayPhrase(p.ageDays), queueUrl: p.queueUrl },
+    merge: { taskLabel: p.taskLabel, kindLabel: p.kindLabel, agePhrase: dayPhrase(p.ageDays), itemUrl: p.itemUrl },
   }),
 };
 

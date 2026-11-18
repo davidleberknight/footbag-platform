@@ -90,19 +90,92 @@ fi
 # not admit times out exactly like a host that is down, and blaming the sudo
 # password for either sends the operator to the wrong place. Any other status is
 # the remote command's, so the host was reached and the causes are on it.
+#
+# Which of those it is gets asked of the live firewall rather than listed: the
+# allow-list script's read-only check prints a banner naming this machine's
+# address and the command that admits it, or says the address is admitted, so
+# the cause is the host or the alias. Only when the check cannot tell are the
+# causes listed.
 host_ssh_failure_causes() {
   local alias="$1" status="$2" env_path="$3" target="<staging|production>"
   [[ "$alias" =~ ^footbag-(staging|production)$ ]] && target="${BASH_REMATCH[1]}"
   if [[ "$status" == 255 ]]; then
     echo "       ${alias} could not be reached: ssh itself failed, so nothing ran on" >&2
-    echo "       the host, and ssh's own message above says how. Causes: this" >&2
-    echo "       machine's address is not on the host's SSH allow-list (add it with" >&2
+    echo "       the host, and ssh's own message above says how." >&2
+    host_ssh_address_verdict "$target"
+    case "$HOST_SSH_ADDRESS_RC" in
+      1) return 0 ;;
+      0)
+        echo "       The firewall admits this machine's address, so the allow-list is" >&2
+        echo "       not the cause: the host is not answering on SSH, or the alias" >&2
+        echo "       names the wrong address." >&2
+        return 0
+        ;;
+    esac
+    echo "       Whether this machine's address is on the allow-list could not be" >&2
+    echo "       read, so the causes are: the address is not on the host's SSH" >&2
+    echo "       allow-list (add it with" >&2
     echo "       bash scripts/authorize-operator-address.sh --target ${target});" >&2
     echo "       the host is down; the alias names the wrong address." >&2
   else
     echo "       Causes: wrong sudo password on line 1 of the credential file;" >&2
     echo "       the operator account lacks sudo on the host; ${env_path} absent." >&2
   fi
+}
+
+# host_ssh_address_verdict <target>
+# Runs the allow-list script's --check for <target> and sets
+# HOST_SSH_ADDRESS_RC to its exit: 0 admitted, 1 not admitted (the check has
+# printed the banner), anything else could not tell. Its report goes to a
+# private file, because its outcome explains this failure rather than being a
+# second one, and stdin is closed to it so it can never consume a credential.
+#
+# Not asked when the ssh client is a stand-in, since the real firewall says
+# nothing about a host that does not exist. Test seam (CI only; operators never
+# set this): FOOTBAG_ADDRESS_CHECK_CMD replaces the check, and says so.
+HOST_SSH_ADDRESS_RC=""
+host_ssh_address_verdict() {
+  local target="$1" report rc=0
+  local -a check=(bash "${HOST_ENV_LIB_DIR}/../authorize-operator-address.sh")
+  HOST_SSH_ADDRESS_RC=""
+  [[ "$target" == staging || "$target" == production ]] || return 0
+  if [[ -n "${FOOTBAG_ADDRESS_CHECK_CMD:-}" ]]; then
+    echo "NOTE: the SSH allow-list check is a stand-in (FOOTBAG_ADDRESS_CHECK_CMD); it proves nothing about the firewall." >&2
+    check=("$FOOTBAG_ADDRESS_CHECK_CMD")
+  elif [[ -n "${FOOTBAG_HOST_SSH_BIN:-}" ]]; then
+    return 0
+  fi
+  report="$(mktemp)" || return 0
+  echo "       Checking this machine's address against the live firewall" >&2
+  echo "       (a few seconds):" >&2
+  # Shown as it is printed, so the wait never looks like a hang. The filter runs
+  # beside the check rather than after it in a pipeline, so the check's status
+  # is read directly whatever the caller's pipefail setting, and it is waited
+  # for so nothing it prints lands after the lines below.
+  # Opened on its own descriptor because that is what gives its process id to
+  # wait on; one attached to the check's redirect sets none.
+  local fd filter
+  exec {fd}> >(host_ssh_address_said)
+  filter=$!
+  FOOTBAG_CR_REPORT_TO="$report" "${check[@]}" --target "$target" --check \
+    < /dev/null > /dev/null 2>&"$fd" || rc=$?
+  exec {fd}>&-
+  # The filter's own exit: 1 means it had no line to pass on, which is fine.
+  wait "$filter" || [[ $? == 1 ]]
+  rm -f -- "$report"
+  HOST_SSH_ADDRESS_RC="$rc"
+  return 0
+}
+
+# host_ssh_address_said
+# What the check prints, line by line as it arrives, without the two lines its
+# nested report adds: the marked problem line and the tally saying the problem
+# is listed by the run that started it. Neither is true here, since that private
+# report is discarded once its exit is read, and the banner already says
+# everything they would.
+host_ssh_address_said() {
+  grep --line-buffered -v -e '^---FOOTBAG-PROBLEM--- ' \
+    -e '; listed in the closing report of the run that started it ====$' >&2
 }
 
 # Set by require_host_is to the address the confirmed host records; declared

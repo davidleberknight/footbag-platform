@@ -81,6 +81,7 @@
 #     [--for '<account>; <where>']
 #   bash scripts/authorize-operator-address.sh --target staging \
 #     --dev-tester <account> --remove
+#   bash scripts/authorize-operator-address.sh --target staging --check
 #
 # Flags:
 #   --target <staging|production>  deployed environment; no default
@@ -95,6 +96,13 @@
 #                                  add writes it ('<account>; <where>'). Reads
 #                                  the values file only and changes nothing; it
 #                                  is how an administrator's entries are found
+#   --check                        say whether the address this machine connects
+#                                  from (checkip.amazonaws.com) reaches the host:
+#                                  reads the live firewall, changes nothing. Any
+#                                  identity that can read the firewall may run
+#                                  it; a refusal prints the command that admits
+#                                  the address. A deploy runs it first, so a new
+#                                  network stops the run in seconds, not part-way
 #   --dev-tester <account>         act on that dev-and-tester's own address
 #                                  parameter instead of the values file
 #                                  (staging only; --for, when given, becomes the
@@ -104,10 +112,13 @@
 #   -h, --help                     this text
 #
 # Exit: 0 applied and proven, or already true on both sides; 1 refused or
-# unproven; 2 usage error.
+# unproven; 2 usage error. With --check: 0 the address reaches the deploy's SSH
+# port, 1 it does not, 3 it could not be told (a read failed).
 #
 # Test seams (CI only; operators never set these):
 #   AUTHORIZE_ADDRESS_AWS_BIN        replaces the aws CLI used for the live read
+#   AUTHORIZE_ADDRESS_FETCH          replaces the checkip read of this machine's
+#                                    address (--check)
 #   AUTHORIZE_ADDRESS_APPLY_CMD      replaces the apply this hands off to
 #   AUTHORIZE_ADDRESS_TERRAFORM_BIN  replaces the terraform used to syntax-check
 #                                    the rewritten file
@@ -160,6 +171,7 @@ ADDRESS_RAWS=()
 ATTRIBUTION=""
 REMOVE=0
 LIST_FOR=""
+CHECK=0
 # Set by --dev-tester: the account whose own address parameter this run writes
 # or deletes, instead of editing the values file.
 DEV_TESTER=""
@@ -185,6 +197,7 @@ while (( $# )); do
     --for) flag_value "$1" "${2:-}"; ATTRIBUTION="$2"; shift 2 ;;
     --remove) REMOVE=1; shift ;;
     --list-for) flag_value "$1" "${2:-}"; LIST_FOR="$2"; shift 2 ;;
+    --check) CHECK=1; shift ;;
     --dev-tester) flag_value "$1" "${2:-}"; DEV_TESTER="$2"; shift 2 ;;
     --yes) ASSUME_YES="yes"; shift ;;
     -h|--help) usage 0 ;;
@@ -193,6 +206,17 @@ while (( $# )); do
 done
 
 require_target "$TARGET" staging production || exit 2
+
+# The check reads, so it takes nothing that names a change: an address of its
+# own would answer a question about some other machine.
+if (( CHECK )); then
+  if [[ -n "$ADDRESS_RAW" || -n "$ATTRIBUTION" || -n "$LIST_FOR" || -n "$DEV_TESTER" \
+        || "$ASSUME_YES" == "yes" ]] || (( REMOVE )); then
+    echo "ERROR: --check only reads this machine's own address, and takes no --address," >&2
+    echo "       --for, --remove, --list-for, --dev-tester or --yes." >&2
+    exit 2
+  fi
+fi
 
 if [[ -n "$LIST_FOR" ]]; then
   if [[ -n "$ADDRESS_RAW" || -n "$ATTRIBUTION" ]] || (( REMOVE )); then
@@ -286,7 +310,7 @@ canonical_cidr() {
 ADDRESS=""
 # A dev-and-tester's addresses in canonical form, each once, in the order given.
 ADDRESSES=()
-if [[ -z "$LIST_FOR" ]] && ! { [[ -n "$DEV_TESTER" ]] && (( REMOVE )); }; then
+if [[ -z "$LIST_FOR" ]] && (( ! CHECK )) && ! { [[ -n "$DEV_TESTER" ]] && (( REMOVE )); }; then
   if [[ -z "$ADDRESS_RAW" ]]; then
     echo "ERROR: --address names the address to authorize or remove." >&2
     exit 2
@@ -309,7 +333,7 @@ if [[ -z "$LIST_FOR" ]] && ! { [[ -n "$DEV_TESTER" ]] && (( REMOVE )); }; then
   ADDRESS="${ADDRESSES[0]}"
 fi
 
-if [[ -z "$LIST_FOR" && -z "$DEV_TESTER" ]] && (( ! REMOVE )); then
+if [[ -z "$LIST_FOR" && -z "$DEV_TESTER" ]] && (( ! REMOVE )) && (( ! CHECK )); then
   ATTRIBUTION="${ATTRIBUTION#\#}"
   ATTRIBUTION="${ATTRIBUTION#"${ATTRIBUTION%%[![:space:]]*}"}"
   if [[ -z "$ATTRIBUTION" ]]; then
@@ -340,6 +364,9 @@ fi
   echo "==> NOTE: the terraform syntax check is replaced for this run (${TERRAFORM_BIN})." >&2
 [[ -n "${TFVARS_OVERRIDE:-}" ]] && \
   echo "==> NOTE: the values file is replaced for this run (${TFVARS_OVERRIDE})." >&2
+FETCH_CMD="${AUTHORIZE_ADDRESS_FETCH:-}"
+[[ -n "$FETCH_CMD" ]] && \
+  echo "==> NOTE: this machine's address is a stand-in for this run (${FETCH_CMD})." >&2
 
 # ── The live firewall ────────────────────────────────────────────────────────
 #
@@ -523,6 +550,114 @@ split_list() {
     printf '%s\n' "$entry"
   done
 }
+
+# ── The check ────────────────────────────────────────────────────────────────
+#
+# Whether this machine can reach the host, answered from the live firewall
+# rather than inferred from a connection that timed out: a timeout looks the
+# same whether the address is not admitted or the host is down, and the message
+# that lists both sends an operator on a new network looking in the wrong place.
+# The firewall is the control; this only says which side of it the run is on.
+#
+# Admitted means the deploy's port, 2222, admits the address, because that is
+# the one every routine connection uses. A read that fails is unknown, exit 3,
+# and is never reported as admitted or as refused.
+
+check_unknown() {
+  echo "ERROR: could not tell whether this machine's address reaches ${TARGET}: $1" >&2
+  cr_unproved "whether this machine's address is on the ${TARGET} SSH allow-list: $1"
+  cr_finish_with 3 UNKNOWN
+}
+
+if (( CHECK )); then
+  # The identity first: without one the firewall cannot be read, so nothing
+  # else is worth asking, and this machine's address is not looked up at all.
+  aws_profile_ensure || check_unknown "no AWS identity to read the firewall with"
+  [[ -n "${AWS_IDENTITY_ARN:-}" ]] || aws_identity_resolve "${AWS_PROFILE:-}" \
+    || check_unknown "the AWS identity could not be resolved"
+
+  if [[ -n "$FETCH_CMD" ]]; then
+    HERE="$("$FETCH_CMD" 2>&1)" || check_unknown "the address read failed: $(tail -n 1 <<<"$HERE")"
+  else
+    HERE="$(curl -fsS --max-time 10 https://checkip.amazonaws.com 2>&1)" \
+      || check_unknown "checkip.amazonaws.com did not answer: $(tail -n 1 <<<"$HERE")"
+  fi
+  HERE="${HERE//[[:space:]]/}"
+  WHY="$(canonical_cidr "$HERE")" || check_unknown "checkip answered something that is not an address: ${WHY}"
+  canonical_cidr "$HERE" >/dev/null
+  [[ "$CANON" == */32 ]] || check_unknown "checkip answered a range, ${CANON}, not one address"
+  ADDRESS="$CANON"
+  HERE="${ADDRESS%/32}"
+
+  # The instance is the one the deploy's alias reaches: the address the alias
+  # names, matched in one listing that also carries the host's state. That is
+  # the host the connection goes to, and it takes one call where reading the
+  # name from Terraform's state took most of the check's time. When the alias
+  # names no address, or the listing matches nothing, the name Terraform records
+  # is read instead, and the state is asked of that instance.
+  INSTANCE=""; STATE=""
+  ALIAS_ADDR="$(ssh -G "footbag-${TARGET}" 2>/dev/null | grep '^hostname ' | tail -1 | cut -d' ' -f2)" \
+    || ALIAS_ADDR=""
+  if [[ "$ALIAS_ADDR" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] \
+      && LISTING="$("$AWS_BIN" lightsail get-instances --region us-east-1 --output json 2>/dev/null)"; then
+    MATCH="$(jq -r --arg ip "$ALIAS_ADDR" '
+        [ .instances[]? | select(.publicIpAddress == $ip) ][0]
+        | if . == null then "" else "\(.name)\t\(.state.name // "")" end
+      ' <<<"$LISTING" 2>/dev/null)" || MATCH=""
+    if [[ -n "$MATCH" ]]; then
+      INSTANCE="${MATCH%%$'\t'*}"
+      STATE="${MATCH#*$'\t'}"
+    fi
+  fi
+  if [[ -z "$INSTANCE" ]]; then
+    tf_instance_name "$TARGET" || check_unknown "the ${TARGET} instance name could not be read from Terraform"
+    INSTANCE="$TF_INSTANCE_NAME"
+    # The host's own state, so a refusal and a stopped host are never confused.
+    # Informative only: the verdict is the firewall's.
+    STATE="$("$AWS_BIN" lightsail get-instance --region us-east-1 --instance-name "$INSTANCE" \
+      --output json 2>/dev/null | jq -r '.instance.state.name // empty' 2>/dev/null)" || STATE=""
+  fi
+  STATE="${STATE:-in an unknown state}"
+  live_read || check_unknown "the live firewall on ${INSTANCE} could not be read: ${LIVE_WHY}"
+
+  COVER_2222="$(covering "$LIVE_2222")" || check_unknown "a live range on port 2222 cannot be read"
+  COVER_22="$(covering "$LIVE_22")" || check_unknown "a live range on port 22 cannot be read"
+
+  if [[ -n "$COVER_2222" ]]; then
+    echo "==> this machine's address ${HERE} reaches ${INSTANCE} (${STATE}): port 2222 admits it through ${COVER_2222}." >&2
+    cr_proved "this machine's address ${HERE} is on the ${TARGET} SSH allow-list (port 2222, through ${COVER_2222})"
+    cr_finish
+  fi
+
+  if [[ -n "$COVER_22" ]]; then
+    PORTS_SAID="admits it on port 22 only, and the deploy connects on 2222"
+  else
+    PORTS_SAID="drops SSH on ports 22 and 2222 from this address"
+  fi
+  {
+    echo ""
+    echo "################################################################"
+    echo "## REFUSED: THIS MACHINE'S ADDRESS IS NOT ON THE ${TARGET} SSH ALLOW-LIST"
+    echo "##   This machine:  ${HERE}  (checkip.amazonaws.com)"
+    echo "##   Host:          ${INSTANCE}, ${STATE}; its firewall"
+    echo "##                  ${PORTS_SAID}"
+    echo "##   Nothing ran on the host. To admit this address:"
+    case "${AWS_IDENTITY_ARN:-}" in
+      *":assumed-role/${FOOTBAG_DEV_TESTER_ROLE}/"?*)
+        echo "##     ask a ${FOOTBAG_OPERATOR_USER} holder to re-run your onboarding"
+        echo "##     with --address ${HERE}/32 (it replaces your address list)"
+        ;;
+      *)
+        echo "##     bash scripts/authorize-operator-address.sh --target ${TARGET} \\"
+        echo "##       --address ${HERE}/32 --for '<you>; <where>'"
+        ;;
+    esac
+    echo "################################################################"
+    echo ""
+  } >&2
+  cr_error "this machine's address ${HERE} is not on the ${TARGET} SSH allow-list"
+  cr_finish_with 1 REFUSED
+fi
 
 if [[ -n "$DEV_TESTER" ]]; then
   if [[ "$ATTRIBUTION" =~ [[:cntrl:]] ]]; then

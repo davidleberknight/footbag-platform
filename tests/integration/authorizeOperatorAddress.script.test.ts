@@ -91,6 +91,8 @@ interface Estate {
   after?: string[];
   /** Ranges on port 2222 after the apply, when it differs from port 22. */
   after2222?: string[];
+  /** Ranges on port 2222 before the apply, when it differs from port 22. */
+  before2222?: string[];
   callerArn?: string;
   live?: LiveRead;
   /**
@@ -109,6 +111,8 @@ interface Estate {
   restoreFails?: boolean;
   /** The listing of every dev-and-tester's address refused. */
   ownersReadFails?: boolean;
+  /** What `lightsail get-instances` lists; absent, the call is not answered. */
+  listed?: Array<{ name: string; ip: string; state: string }>;
 }
 
 const paramDir = () => join(workDir, 'params');
@@ -125,7 +129,7 @@ const paramOf = (account: string) => (existsSync(paramFile(account)) ? readFileS
  */
 function awsStub(estate: Estate = {}): string {
   const {
-    before = [EXISTING], after, after2222, callerArn = OPERATOR_ARN, live = 'ok', warn = false, ssmReadFails = false,
+    before = [EXISTING], after, after2222, before2222, callerArn = OPERATOR_ARN, live = 'ok', warn = false, ssmReadFails = false,
     instance = 'footbag-staging-web', restoreFails = false, ownersReadFails = false,
   } = estate;
   const afterSet = after ?? before;
@@ -165,13 +169,23 @@ function awsStub(estate: Estate = {}): string {
       `  printf '%s\\n' ${JSON.stringify(callerArn)}`,
       '  exit 0',
       'fi',
+      ...(estate.listed
+        ? [
+            'if [[ "$1" == "lightsail" && "$2" == "get-instances" ]]; then',
+            `  printf '%s\\n' ${JSON.stringify(JSON.stringify({
+              instances: estate.listed.map((i) => ({ name: i.name, publicIpAddress: i.ip, state: { code: 16, name: i.state } })),
+            }))}`,
+            '  exit 0',
+            'fi',
+          ]
+        : []),
       'if [[ "$1" == "lightsail" && "$2" == "get-instance-port-states" ]]; then',
       // Lightsail answers for the instance named and no other.
       `  [[ "$*" == *"--instance-name ${instance} "* || "$*" == *"--instance-name ${instance}" ]] || { echo "An error occurred (NotFoundException) when calling the GetInstancePortStates operation" >&2; exit 254; }`,
       `  if [[ -e ${JSON.stringify(appliedMarker)} ]]; then`,
       ...liveAnswer(afterSet, after2222 ?? afterSet, true),
       '  fi',
-      ...liveAnswer(before, before),
+      ...liveAnswer(before, before2222 ?? before),
       'fi',
       // A parameter store on disk, one file per parameter, so a read after a
       // write sees what the write did, as the real service does.
@@ -249,6 +263,13 @@ function terraformStub(exitCode = 0, instance = 'footbag-staging-web'): string {
 
 interface RunOptions extends Estate {
   args?: string[];
+  /**
+   * What the checkip read answers: an address, printed as checkip prints it
+   * (the bare address and a newline), or null for a read that fails.
+   */
+  here?: string | null;
+  /** The address `ssh -G footbag-<target>` names; absent, the suite's stub ssh answers. */
+  aliasAddr?: string;
   applyExit?: number;
   terraformExit?: number;
   tfvars?: string;
@@ -260,8 +281,28 @@ const ADD = ['--target', 'staging', '--address', NEW_ADDRESS, '--for', ATTRIBUTI
 const removeArgs = (address: string) => ['--target', 'staging', '--address', address, '--remove', '--yes'];
 
 function run(options: RunOptions = {}) {
-  const { args = ADD, applyExit = 0, terraformExit = 0, tfvars = tfvarsLink, fileBody, ...estate } = options;
+  const { args = ADD, applyExit = 0, terraformExit = 0, tfvars = tfvarsLink, fileBody, here = '203.0.113.7', aliasAddr, ...estate } = options;
+  // An ssh in front of the suite's own stub, answering the alias's address,
+  // only for a case about the alias lookup.
+  const sshDir = join(workDir, 'ssh-bin');
+  if (aliasAddr) {
+    mkdirSync(sshDir, { recursive: true });
+    writeFileSync(
+      join(sshDir, 'ssh'),
+      `#!/usr/bin/env bash\n[[ "$1" == -G ]] || exit 255\nprintf 'hostname %s\\nport 2222\\n' '${aliasAddr}'\n`,
+      { mode: 0o755 },
+    );
+  }
   if (fileBody !== undefined) writeFileSync(tfvarsTarget, fileBody, 'utf-8');
+  const fetchStub = join(workDir, 'fetch-stub.sh');
+  writeFileSync(
+    fetchStub,
+    here === null
+      ? '#!/usr/bin/env bash\necho "curl: (28) Connection timed out after 10001 milliseconds" >&2\nexit 28\n'
+      : `#!/usr/bin/env bash\nprintf '%s\\n' '${here}'\n`,
+    'utf-8',
+  );
+  chmodSync(fetchStub, 0o755);
   for (const [account, value] of Object.entries(estate.params ?? {})) {
     mkdirSync(paramDir(), { recursive: true });
     writeFileSync(paramFile(account), value, 'utf-8');
@@ -279,6 +320,8 @@ function run(options: RunOptions = {}) {
       AUTHORIZE_ADDRESS_APPLY_CMD: applyStub(applyExit),
       AUTHORIZE_ADDRESS_TERRAFORM_BIN: terraformStub(terraformExit, estate.instance),
       TFVARS_OVERRIDE: tfvars,
+      ...(args.includes('--check') ? { AUTHORIZE_ADDRESS_FETCH: fetchStub } : {}),
+      ...(aliasAddr ? { PATH: `${sshDir}:${process.env.PATH ?? ''}` } : {}),
       HOME: workDir,
     },
     ...SPAWN_GUARD,
@@ -1112,5 +1155,112 @@ describe('authorize-operator-address checks every port the operator list opens',
     // Production reads no dev-and-tester address at all.
     const production = readFileSync(join(process.cwd(), 'terraform/production/lightsail.tf'), 'utf-8');
     expect(production).not.toMatch(/dev-testers|dev_tester/);
+  });
+});
+
+describe('authorize-operator-address --check says whether this machine reaches the host, from the live firewall', () => {
+  const CHECK = ['--target', 'staging', '--check'];
+  const HERE = '203.0.113.7';
+  /** The banner's lines only, so an assertion cannot be met by a NOTE or the report. */
+  const banner = (stderr: string) => stderr.split('\n').filter((l) => l.startsWith('##   ')).join('\n');
+
+  it('refuses an address neither SSH port admits, naming it and the add command that admits it', () => {
+    // An operator on a new network is otherwise told only that a connection
+    // timed out, and looks for a host that is down.
+    const r = run({ args: CHECK, before: [EXISTING], here: HERE });
+    expect(r.status).toBe(1);
+    expect(banner(r.stderr)).toContain(`This machine:  ${HERE}`);
+    expect(banner(r.stderr)).toContain('bash scripts/authorize-operator-address.sh --target staging');
+    expect(banner(r.stderr)).toContain(`--address ${HERE}/32 --for`);
+    expect(closingReport(r.stderr)).toContain(`${HERE} is not on the staging SSH allow-list`);
+  });
+
+  it('admits an address a wider range covers, and says through which', () => {
+    // An exact-string test would refuse an administrator whose entry is a range.
+    const r = run({ args: CHECK, before: ['203.0.113.0/24'], here: HERE });
+    expect(r.status).toBe(0);
+    expect(r.stderr).toContain('through 203.0.113.0/24');
+    expect(banner(r.stderr)).toBe('');
+  });
+
+  it('does not count a neighbouring address in the same range as this one', () => {
+    // Containment, not prefix matching: 203.0.113.70 is not inside 203.0.113.7/32.
+    const r = run({ args: CHECK, before: ['203.0.113.70/32'], here: HERE });
+    expect(r.status).toBe(1);
+  });
+
+  it('refuses an address admitted on port 22 only, since the deploy connects on 2222', () => {
+    const r = run({ args: CHECK, before: [`${HERE}/32`], before2222: [EXISTING], here: HERE });
+    expect(r.status).toBe(1);
+    expect(banner(r.stderr)).toContain('port 22 only');
+  });
+
+  it('reports a firewall it cannot read as could-not-tell, never as admitted or refused', () => {
+    const r = run({ args: CHECK, live: 'fails', here: HERE });
+    expect(r.status).toBe(3);
+    expect(banner(r.stderr)).toBe('');
+  });
+
+  it('reports a failed address lookup as could-not-tell, and does not judge a blank address', () => {
+    const r = run({ args: CHECK, here: null });
+    expect(r.status).toBe(3);
+    expect(banner(r.stderr)).toBe('');
+  });
+
+  it('refuses a lookup that answers something other than one address', () => {
+    const r = run({ args: CHECK, here: '<html>captive portal</html>' });
+    expect(r.status).toBe(3);
+  });
+
+  it('refuses a lookup that answers a range, which a wide entry would otherwise "admit"', () => {
+    const r = run({ args: CHECK, before: ['203.0.113.0/24'], here: '203.0.113.0/24' });
+    expect(r.status).toBe(3);
+  });
+
+  it('reads the firewall of the instance the alias reaches, which a restore can leave named apart from Terraform', () => {
+    // Terraform names footbag-staging-web; the alias reaches the restored copy,
+    // and the firewall answers only for the instance named. A check that read
+    // the wrong instance would report could-not-tell, or another host's rules.
+    const r = run({
+      args: CHECK, here: HERE, before: [`${HERE}/32`], instance: 'footbag-staging-web-restored',
+      aliasAddr: '192.0.2.50',
+      listed: [
+        { name: 'footbag-production-web', ip: '192.0.2.99', state: 'running' },
+        { name: 'footbag-staging-web-restored', ip: '192.0.2.50', state: 'stopped' },
+      ],
+    });
+    expect(r.status).toBe(0);
+    expect(r.stderr).toContain('footbag-staging-web-restored (stopped)');
+  });
+
+  it('falls back to the instance Terraform names when the listing matches no instance', () => {
+    const r = run({
+      args: CHECK, here: HERE, before: [`${HERE}/32`], aliasAddr: '192.0.2.50',
+      listed: [{ name: 'footbag-production-web', ip: '192.0.2.99', state: 'running' }],
+    });
+    expect(r.status).toBe(0);
+    expect(r.stderr).toContain('reaches footbag-staging-web');
+  });
+
+  it('tells a dev-and-tester session to be re-onboarded, not to run the add they are denied', () => {
+    const r = run({ args: CHECK, before: [EXISTING], callerArn: DEV_TESTER_ARN, here: HERE });
+    expect(r.status).toBe(1);
+    expect(banner(r.stderr)).toContain(`--address ${HERE}/32`);
+    expect(banner(r.stderr)).not.toContain('bash scripts/authorize-operator-address.sh');
+  });
+
+  it('changes nothing: the values file is byte for byte as it was and no apply runs', () => {
+    for (const before of [[EXISTING], [`${HERE}/32`]]) {
+      run({ args: CHECK, before, here: HERE });
+      expect(values(), `values file after a check against ${before.join(',')}`).toBe(TFVARS_BEFORE);
+      expect(applyRan(), `apply after a check against ${before.join(',')}`).toBe(false);
+    }
+  });
+
+  it('refuses a check that also names a change, since it answers for this machine only', () => {
+    for (const extra of [['--address', NEW_ADDRESS], ['--remove'], ['--for', ATTRIBUTION], ['--yes']]) {
+      const r = run({ args: [...CHECK, ...extra], here: HERE });
+      expect(r.status, `--check with ${extra.join(' ')}`).toBe(2);
+    }
   });
 });

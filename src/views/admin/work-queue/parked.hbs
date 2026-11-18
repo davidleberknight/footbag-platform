@@ -1,0 +1,36 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{> admin-instructions}}
+  {{> work-queue-outcomes content}}
+
+  <section>
+    {{#each content.parked}}
+      <div class="card work-queue-item">
+        <div class="card-title"><a href="{{siteHref this.openHref}}">{{this.taskTypeLabel}}</a></div>
+        {{> work-queue-topic-line}}
+        <p class="card-meta">
+          {{this.kindLabel}} &middot; Parked {{this.parkedAtDisplay}}{{#if this.parkedByName}} by {{this.parkedByName}}{{/if}}
+          {{#if this.entityDisplayName}}
+            &middot; {{#if this.entityHref}}<a href="{{this.entityHref}}">{{this.entityDisplayName}}</a>{{else}}{{this.entityDisplayName}}{{/if}}
+          {{/if}}
+        </p>
+        {{#if this.summary}}<p class="text-secondary">{{this.summary}}</p>{{/if}}
+        {{#if this.parkReason}}<p>{{this.parkReason}}</p>{{/if}}
+        <form method="POST" action="{{this.returnAction}}" class="form-block">
+          <input type="hidden" name="from" value="parked" />
+          <button type="submit" class="btn btn-outline btn-sm">Return to the Queue</button>
+        </form>
+      </div>
+    {{/each}}
+    {{#unless content.hasParked}}
+      <p class="text-muted">Nothing is parked.</p>
+    {{/unless}}
+  </section>
+
+  {{> back-link}}
+</div>

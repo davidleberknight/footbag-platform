@@ -56,6 +56,7 @@ import {
   insertAuditEntry,
   insertWorkQueueItem,
   insertMemberMessage,
+  insertMemberAnnouncement,
   insertRecurringDonationSubscription,
   insertGivenNameVariant,
   insertMemberDeclaredAnchor,
@@ -63,6 +64,10 @@ import {
   insertLegacyPersonClubAffiliation,
   insertPersonaNamedGallery,
   setOnboardingHeldAnswer,
+  insertTag,
+  insertEvent,
+  insertEventOrganizer,
+  insertDiscipline,
 } from './personaRowBuilders';
 import type {
   OnboardingTaskType,
@@ -475,6 +480,12 @@ export interface PersonaSpec {
   clubs?: PersonaClubAffiliationSpec[];
   /** One member-owned named gallery, seeded empty. */
   gallery?: PersonaGallerySpec;
+  /**
+   * One upcoming free event, open for registration, that this persona
+   * organizes. Its id and tag are fixed per persona (`personaEventId`), so a
+   * refresh removes it and another persona's spec can name it.
+   */
+  organizesEvent?: { title: string };
   /** Legacy-club-candidate cards (pending / declined / resolved / junk). */
   legacyClubCandidates?: PersonaLegacyClubCandidateSpec[];
   activePlayer?: PersonaActivePlayerSpec;
@@ -494,6 +505,18 @@ export interface PersonaSpec {
    * since a question always hangs off one of these.
    */
   linkHelpRequest?: boolean;
+  /**
+   * A community announcement the persona wrote, held for review. A waiting one
+   * also raises its review item on the admin work queue, as submitting does;
+   * a sent-back one carries the administrator's note and opens in the form.
+   */
+  heldAnnouncement?: {
+    status: 'pending' | 'returned';
+    subject: string;
+    body: string;
+    /** The administrator's note on a sent-back announcement. */
+    note?: string;
+  };
   /**
    * A prospective member holding a claim on another persona's old account, by
    * that account's legacy id. When the other persona already holds the account,
@@ -554,6 +577,20 @@ const PERSONA_CLUB_LOCATION = { region: 'CO', country: 'United States' } as cons
 /** The id of the club a persona's `club` spec seeds. */
 export function personaClubId(slug: string): string {
   return `club-test-persona-${slug}`;
+}
+
+/** The id of the event a persona's `organizesEvent` spec seeds, and of its tag. */
+export const PERSONA_EVENT_ID_PREFIX = 'event-test-persona-';
+export const PERSONA_EVENT_TAG_ID_PREFIX = 'tag-test-persona-event-';
+export function personaEventId(slug: string): string {
+  return `${PERSONA_EVENT_ID_PREFIX}${slug}`;
+}
+export function personaEventTagId(slug: string): string {
+  return `${PERSONA_EVENT_TAG_ID_PREFIX}${slug}`;
+}
+
+function isoDateDaysFromNow(days: number): string {
+  return new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
 }
 
 /** Another persona's seeded club, which must exist already. */
@@ -971,6 +1008,35 @@ export function seedPersona(
     });
   }
 
+  if (spec.organizesEvent) {
+    const eventId = personaEventId(spec.slug);
+    const startDate = isoDateDaysFromNow(60);
+    const tagId = insertTag(db, {
+      id: personaEventTagId(spec.slug),
+      tag_normalized: `#event_${startDate.slice(0, 4)}_persona_${spec.slug}`,
+      standard_type: 'event',
+    });
+    insertEvent(db, {
+      id: eventId,
+      hashtag_tag_id: tagId,
+      title: spec.organizesEvent.title,
+      start_date: startDate,
+      end_date: startDate,
+      status: 'reg_open',
+    });
+    insertEventOrganizer(db, eventId, memberId);
+    // A singles and a mixed doubles division, so another persona can register
+    // and try the partner and gender rules.
+    insertDiscipline(db, eventId, {
+      name: 'Open Singles Footbag Net', discipline_category: 'net', game_id: 'game_footbag_net',
+      team_type: 'singles', gender_eligibility: 'open', division_class: 'open',
+    });
+    insertDiscipline(db, eventId, {
+      name: 'Open Mixed Doubles Footbag Net', discipline_category: 'net', game_id: 'game_footbag_net',
+      team_type: 'doubles', gender_eligibility: 'mixed', division_class: 'open', sort_order: 2,
+    });
+  }
+
   // A prospective member's answered cards are held answers on the club step,
   // in the order the spec lists them; the suggestion rows themselves stay
   // pending, because nothing is written until onboarding completes.
@@ -1091,6 +1157,25 @@ export function seedPersona(
   // driven, because raising it means walking the whole wizard first, which is a
   // different persona's job. A question always hangs off one of these, so
   // declaring a question implies the item.
+  if (spec.heldAnnouncement) {
+    const held = spec.heldAnnouncement;
+    const announcementId = insertMemberAnnouncement(db, {
+      member_id:     memberId,
+      subject:       held.subject,
+      body_text:     held.body,
+      status:        held.status,
+      admin_comment: held.status === 'returned' ? (held.note ?? null) : null,
+    });
+    if (held.status === 'pending') {
+      insertWorkQueueItem(db, {
+        task_type:   'announcement_review',
+        entity_type: 'member_announcement',
+        entity_id:   announcementId,
+        created_by:  memberId,
+      });
+    }
+  }
+
   const wantsLinkHelpItem = spec.linkHelpRequest === true || spec.adminQuestion !== undefined;
   const linkHelpItemId = wantsLinkHelpItem
     ? insertWorkQueueItem(db, {

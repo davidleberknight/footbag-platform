@@ -22,23 +22,39 @@
  *     parked item keeps status 'open' and leaves the working list, every digest
  *     and the escalation sweep, with no deadline. It comes back when the member
  *     answers a question on it or when any administrator takes it back
- *   - Admin work-queue page shaping (open items grouped by category, optionally
- *     narrowed to one category, plus the unfiltered parked listing), rendering
- *     each card from its type's declaration: one skeleton, one evidence block,
- *     one list of actions. A subject who is a prospective member is
- *     shown by id, never named or linked
- *   - The admin dashboard's work-queue reads: the per-category open counts,
+ *   - The work-queue pages, all admin-only and not indexed:
+ *     - the list (GET /admin/work-queue): one kind at a time, oldest first, 25
+ *       to a page, one line per item naming its task, its area or Shared, how
+ *       long it has waited and who holds it, with a Claim button and an Open
+ *       link. With no kind asked for it shows the first kind in the registry's
+ *       order with anything open under the narrowing in force. Plain links
+ *       narrow it to the viewer's own areas, one area, the shared items or the
+ *       items nobody holds a live claim on, and lead back to everything. A page
+ *       past the last shows the last page, because a close can empty it while
+ *       an administrator is on it
+ *     - the item page (GET /admin/work-queue/:id), one skeleton for every
+ *       type: the type's declared what, why and what to do, who or what it
+ *       concerns, the evidence, who holds it, then the actions its type
+ *       declares. A parked item shows why it is parked and the control to take
+ *       it back instead of its actions. Null for a closed or unknown id. A
+ *       subject who is a prospective member is shown by id, never named or
+ *       linked
+ *     - the parked page (GET /admin/work-queue/parked), not narrowed
+ *     - the Area Owners page (GET /admin/work-queue-areas). Any administrator
+ *       may set any area's owner; each changed area appends an audit row with
+ *       the owner before and after, and an unchanged save writes nothing.
+ *       Ownership orients and never restricts who may act. An owner who no
+ *       longer holds the admin role reads as no owner
+ *   - Every list and item link and form carries the list state (kind, area,
+ *     unclaimed filter, page), and where an action returns: a closing action
+ *     to the list in that state, any other to the page it was taken on. Both
+ *     are built here from recognised values only, never from a submitted path
+ *   - The admin dashboard's work-queue reads: each kind's open count, oldest
+ *     age, items unclaimed past the stale threshold and open items per area;
  *     how much of the queue the viewing administrator is holding, decided by
- *     the digest's own claim rule so the page and the digest email agree, and
+ *     the digest's own claim rule so the page and the digest email agree; and
  *     the areas that administrator owns with their open and stale-unclaimed
  *     counts
- *   - Work-queue areas on the page: each card's area and owner line (or that
- *     it is shared), the area filter (all, the viewer's own areas, one area,
- *     the shared items) combined with the category filter, and the Area Owners
- *     form. Any administrator may set any area's owner; each changed area
- *     appends an audit row with the owner before and after, and an unchanged
- *     save writes nothing. Ownership orients and never restricts who may act.
- *     An owner who no longer holds the admin role reads as no owner
  *
  * Does not own:
  *   - Link-help request workflow (IdentityAccessService; this service routes the
@@ -89,7 +105,11 @@
  *     before validation, so the length caps and repeat checks judge what is stored.
  *
  * Persistence:
- *   work_queue_items, work_queue_topic_owners, audit_entries.
+ *   work_queue_items, work_queue_topic_owners, audit_entries;
+ *   member_announcements (read only: a held announcement's words and author on
+ *   its item page; the decisions on it belong to BroadcastService). A sanction
+ *   request's answers and its submitter are read through EventService, which
+ *   owns the decisions on it.
  *
  * Side effects:
  *   - audit_entries append (the event the acting action names on resolution:
@@ -108,6 +128,7 @@
  */
 import {
   workQueue, workQueueTopicOwners, memberMessages, account, payments, outbox, transaction,
+  memberAnnouncements,
 } from '../db/db';
 import {
   enforceWorkQueueResolveLimit, identityAccessService,
@@ -116,11 +137,16 @@ import {
 import { appendAuditEntry, findOwnLatestAudit } from './auditService';
 import { emailService, actNoticeKey } from './emailService';
 import { workQueueService, claimIsLive, claimStaleCutoffIso } from './workQueueService';
+import { eventService, type SanctionReviewEvidence } from './eventService';
 import {
   workQueueDescriptorFor, workQueueActionFor, requireWorkQueueDescriptor,
   WORK_QUEUE_TASK_TYPES, WORK_QUEUE_TOPICS, WORK_QUEUE_TOPIC_KEYS, isWorkQueueTopic,
-  type WorkQueueAction, type WorkQueueTopic,
+  WORK_QUEUE_KINDS, isWorkQueueKind, kindOf, workQueueKindDescriptor,
+  type WorkQueueAction, type WorkQueueActionField, type WorkQueueTopic, type WorkQueueKind,
+  type WorkQueueBrief,
 } from './workQueueTaskTypes';
+import { sanitizePage, shapePagination, type Pagination } from '../lib/pagination';
+import { toTitleCase } from '../lib/titleCase';
 import {
   questionRecipientFor, ANSWER_KINDS, type ExpectedAnswerKind,
 } from './memberMessageService';
@@ -166,6 +192,7 @@ const contactTaskTypeFor = (category: ContactCategory): string =>
 // The other queue a member can put work into themselves. Everything else in the
 // queue is raised by the platform about a member, not by the member.
 const LINK_HELP_TASK_TYPE = 'member_link_help_request';
+const SANCTION_REQUEST_TASK_TYPE = 'sanction_request';
 const DECISION_CONFIRM_INSTRUCTIONS = { what: 'Review this decision before it is written.' };
 
 // Human labels for the entity a queue card points at, so the admin sees "Stripe
@@ -180,6 +207,8 @@ const ENTITY_REFERENCE_LABELS: Record<string, string> = {
   stripe_payout:                   'Stripe payout',
   recurring_donation_subscription: 'Recurring donation',
   reconciliation_issue:            'Reconciliation issue',
+  member_announcement:             'Community announcement',
+  event:                           'Event',
 };
 const MAX_OPEN_PER_MEMBER = 3;
 const MAX_MESSAGE_LEN = 2000;
@@ -205,7 +234,8 @@ export interface WorkQueueResolveInput {
 export interface ContactRequestRow {
   id: string;
   openedAtIso: string;
-  queueCategory: string;
+  /** The kind the task type declares; an undeclared type reads as Housekeeping. */
+  kind: WorkQueueKind;
   taskType: string;
   entityType: string;
   entityId: string;
@@ -250,38 +280,13 @@ function validateDecisionAgainst(
   return match;
 }
 
-// Admin work-queue page-model builder. The work-queue groups every open
-// admin task by `queueCategory` and renders a uniform decision-action
-// form per row. Category and task-type display labels live here so the
-// admin controller stays a thin HTTP adapter.
 
-export const WORK_QUEUE_CATEGORY_LABELS: Record<string, string> = {
-  events:          'Events',
-  media:           'Media',
-  membership:      'Membership',
-  payments:        'Payments',
-  elections:       'Elections',
-  system:          'System',
-  club_leadership: 'Club leadership',
-};
-
-// The categories anything in `src/` can actually enqueue into today. The label
-// map above is wider because the schema's CHECK constraint is wider, and a
-// category no producer writes to is not an empty queue: it is a queue that
-// cannot exist yet, and showing a permanent zero for one tells an admin they
-// are up to date on work the platform has no way to create. Events joined the
-// list once account deletion could orphan an event by removing its last
-// organizer; elections wait on their own surface being built; club leadership
-// is different again, because that queue does exist and lives in the club
-// cleanup queue rather than here. A unit test reads every enqueue call site in
-// `src/` and fails if this list drifts from what the code can actually produce.
-export const LIVE_WORK_QUEUE_CATEGORIES: readonly string[] = [
-  'events',
-  'media',
-  'membership',
-  'payments',
-  'system',
-];
+/** The kind a row's task type declares. A row whose type has since been
+ *  withdrawn still has to render somewhere, and Housekeeping is where an item
+ *  nobody is waiting on belongs. */
+function kindForRow(taskType: string): WorkQueueKind {
+  return kindOf(taskType) ?? 'housekeeping';
+}
 
 /**
  * The close action of an internal-review type: an item an administrator ends
@@ -306,6 +311,7 @@ export interface WorkQueueActionFieldView {
   label: string;
   inputId: string;
   isTextarea: boolean;
+  isCheckbox: boolean;
   maxLength: number;
   required: boolean;
 }
@@ -352,6 +358,12 @@ export interface WorkQueueEvidenceView {
   isMemberMessage: boolean;
   /** A member's request to be linked to a record, with what they have tried. */
   isLinkHelp: boolean;
+  /** A member's held community announcement, in their own words. */
+  isAnnouncement: boolean;
+  announcement: { subject: string; bodyParagraphs: string[] } | null;
+  /** An organizer's sanction request, every answer the administrator decides on. */
+  isSanctionRequest: boolean;
+  sanctionRequest: SanctionReviewEvidence | null;
   reasonText: string | null;
   detailText: string | null;
   linkHelp: {
@@ -415,8 +427,7 @@ export interface DisputeRevertConfirmContent {
   legacyMemberId: string;
   historicalPersonId: string;
   reason: string;
-  filterCategory: string;
-  filterTopic: string;
+  state: WorkQueueFormState;
 }
 
 /** The two records a link-help approval is about to bind, shown before it is. */
@@ -439,8 +450,7 @@ export interface LinkHelpConfirmContent {
   cancelHref: string;
   legacyMemberId: string;
   historicalPersonId: string;
-  filterCategory: string;
-  filterTopic: string;
+  state: WorkQueueFormState;
 }
 
 /** One question put to the member on this item, as the administrator sees it. */
@@ -458,7 +468,7 @@ export interface MemberQuestionAdminView {
 
 export interface WorkQueueViewItem {
   id: string;
-  queueCategory: string;
+  kind: WorkQueueKind;
   taskType: string;
   taskTypeLabel: string;
   /** The area the item belongs to and its owner ("Finance · Tim Vozar's area"),
@@ -509,7 +519,7 @@ export interface WorkQueueViewItem {
   canAskMember: boolean;
   /** A draft question for this matter, or null where there is nothing to suggest. */
   askPrefill: { subject: string; body: string; answerKind: string } | null;
-  /** True on the card a deep link named, so its composer is already open. */
+  /** True when the page was opened by the ask deep link, so its composer is already open. */
   askOpen: boolean;
   /** Why the control is absent on an item that would otherwise carry it. Null
    *  when it is shown, and on every item the channel does not serve. */
@@ -523,12 +533,6 @@ export interface WorkQueueViewItem {
   memberQuestions: MemberQuestionAdminView[];
 }
 
-export interface WorkQueueGroup {
-  category: string;
-  categoryLabel: string;
-  items: WorkQueueViewItem[];
-}
-
 /**
  * An item an administrator set aside. It carries what it is and why it is
  * waiting, and one control to take it back; the actions that resolve it live on
@@ -539,7 +543,7 @@ export interface ParkedWorkQueueItemView {
   taskTypeLabel: string;
   areaLine: string;
   isViewerArea: boolean;
-  categoryLabel: string;
+  kindLabel: string;
   parkedAtDisplay: string;
   parkedByName: string | null;
   parkReason: string | null;
@@ -547,43 +551,53 @@ export interface ParkedWorkQueueItemView {
   entityDisplayName: string | null;
   entityHref: string | null;
   returnAction: string;
+  /** The item's own page, which shows it in full while it is parked. */
+  openHref: string;
 }
 
-export interface WorkQueueContent {
-  groups: WorkQueueGroup[];
-  /** Items waiting on something outside the queue, listed apart from the work. */
-  parked: ParkedWorkQueueItemView[];
-  hasParked: boolean;
-  parkedFlag: boolean;
-  unparkedFlag: boolean;
-  /** Items on the page, which is the filtered count when a filter is on. */
-  totalOpen: number;
-  /** The category being shown alone, named for the reader; null when showing all. */
-  filterLabel: string | null;
-  /** The same category as its key, for the forms that carry it back so an
-   *  action does not drop the administrator out of the category they are
-   *  working. Carried in the body rather than the action URL, because a
-   *  template may not assemble a URL from more than one value. */
-  filterCategory: string | null;
-  /** The area filter as its key, carried back by every form like the category. */
-  filterTopic: string | null;
-  /** The area filter named for the reader; null when showing every area. */
-  filterAreaLabel: string | null;
-  isFiltered: boolean;
-  isCategoryFiltered: boolean;
-  clearCategoryHref: string;
-  /** Show: All | Your Areas | each area with task types | Shared. */
-  areaFilterLinks: Array<{ label: string; href: string; isActive: boolean }>;
-  /** One owner choice per area, every area included. */
-  areaOwnerFields: Array<{
-    topic: string;
-    label: string;
-    fieldName: string;
-    options: Array<{ value: string; label: string; selected: boolean }>;
-  }>;
-  /** How many items the unfiltered queue holds, so a filtered state can say
-   *  what it is a subset of rather than leaving the reader to guess. */
-  wholeQueueTotal: number;
+/**
+ * The list state every work-queue form carries back, as the strings its hidden
+ * inputs hold, so an action returns the administrator to the kind, area, filter
+ * and page they were working in. Carried in the body rather than the action URL,
+ * because a template may not assemble a URL from more than one value.
+ */
+export interface WorkQueueFormState {
+  kind: string;
+  topic: string;
+  unclaimed: string;
+  page: string;
+}
+
+/** The list state as a request or a form delivers it, every part optional. */
+export interface WorkQueueListQuery {
+  kind?: string | null;
+  topic?: string | null;
+  unclaimed?: string | null;
+  page?: string | null;
+}
+
+/** One filter link on the list: a kind, an area, or the unclaimed switch. */
+export interface WorkQueueFilterLink {
+  label: string;
+  href: string;
+  isActive: boolean;
+}
+
+/** One line of the list: one item, named, placed and aged, with Claim and Open. */
+export interface WorkQueueRowViewModel {
+  id: string;
+  taskTypeLabel: string;
+  /** The item's area, or Shared. Never coloured: an area is a place, not a state. */
+  areaLabel: string;
+  waitingLabel: string;
+  claimLabel: string;
+  canClaim: boolean;
+  claimAction: string;
+  openHref: string;
+}
+
+/** The outcome of the last action, shared by every work-queue page. */
+export interface WorkQueueOutcomeContent {
   resolvedFlag: boolean;
   /** A resolution that notified no member (a system-raised payments task, or a
    *  contact request whose member has no email): confirmed without claiming an
@@ -602,6 +616,59 @@ export interface WorkQueueContent {
   /** An action that found its item already settled by another act, carried
    *  across the redirect with its informational tone. */
   outcome: OutcomeNoticeView | null;
+  parkedFlag: boolean;
+  unparkedFlag: boolean;
+  errorMessage: string | null;
+}
+
+/** The outcome flags a page is built with, read from the flash by the controller. */
+export type WorkQueueOutcomeOptions = Partial<Omit<WorkQueueOutcomeContent, 'outcome' | 'errorMessage'>> & {
+  outcome?: OutcomeNoticeView | null;
+  errorMessage?: string;
+};
+
+/** The queue list: one kind at a time, oldest first, paged. */
+export interface WorkQueueListContent extends WorkQueueOutcomeContent {
+  kindLabel: string;
+  kindWhat: string;
+  kindWhy: string;
+  /** "{n} open, oldest {d} days", or "Nothing open." for an empty view. */
+  countLine: string;
+  kindLinks: WorkQueueFilterLink[];
+  /** All, Your Areas, each area some task type belongs to, Shared. */
+  areaLinks: WorkQueueFilterLink[];
+  unclaimedLink: WorkQueueFilterLink;
+  rows: WorkQueueRowViewModel[];
+  isEmpty: boolean;
+  pagination: Pagination;
+  state: WorkQueueFormState;
+  parkedHref: string;
+  areasHref: string;
+}
+
+/** One identifying fact on an item page's facts strip. */
+export interface WorkQueueFact {
+  label: string;
+  value: string;
+}
+
+/** One item's page: what, why and what to do, then the evidence and the actions. */
+export interface WorkQueueItemContent extends WorkQueueOutcomeContent {
+  item: WorkQueueViewItem;
+  /** The type's declared brief; null only for a type since withdrawn. */
+  brief: WorkQueueBrief | null;
+  /** Kind, area and age: the identifying facts that open the page. */
+  facts: WorkQueueFact[];
+  /** Who is holding the item, in words, shown after the evidence. */
+  heldBy: string;
+  /** Set while the item is parked: it shows why and one control to take it
+   *  back, and its resolving actions wait until it is working again. */
+  parked: {
+    parkedAtDisplay: string;
+    parkedByName: string | null;
+    parkReason: string | null;
+    returnAction: string;
+  } | null;
   /**
    * The kinds of answer a question can ask for, as value-and-label pairs.
    *
@@ -609,16 +676,53 @@ export interface WorkQueueContent {
    * cannot come to offer a kind the service refuses, or miss one it accepts.
    */
   answerKindOptions: Array<{ value: string; label: string }>;
+  state: WorkQueueFormState;
+}
+
+/** The items an administrator set aside, on a page of their own. */
+export interface WorkQueueParkedContent extends WorkQueueOutcomeContent {
+  parked: ParkedWorkQueueItemView[];
+  hasParked: boolean;
+}
+
+/** Each area's accountable owner, set from one form. */
+export interface WorkQueueAreasContent {
+  /** One owner choice per area, every area included. */
+  areaOwnerFields: Array<{
+    topic: string;
+    label: string;
+    fieldName: string;
+    options: Array<{ value: string; label: string; selected: boolean }>;
+  }>;
+  outcome: OutcomeNoticeView | null;
   errorMessage: string | null;
 }
 
-// Per-category counts for the admin dashboard work-queue card. `hasUrgent` is
-// true when any open item in the category carries a non-default priority.
-export interface WorkQueueSummaryCategory {
-  category: string;
+/** One area's share of a kind's open items, for the dashboard card's rows. */
+export interface WorkQueueKindAreaCount {
+  key: string;
   label: string;
-  count: number;
-  hasUrgent: boolean;
+  open: number;
+  href: string;
+}
+
+/**
+ * One kind's facts for its dashboard card: what it is and why it matters, how
+ * much is open, how old the oldest is, how much has waited past the stale
+ * threshold with nobody holding it, and where it sits by area.
+ */
+export interface WorkQueueKindSummary {
+  kind: WorkQueueKind;
+  label: string;
+  what: string;
+  why: string;
+  open: number;
+  oldestDays: number | null;
+  unclaimedStale: number;
+  staleDays: number;
+  /** "{n} open, oldest {d} days; {m} unclaimed past {s} days", or "Nothing open." */
+  countLine: string;
+  perArea: WorkQueueKindAreaCount[];
   href: string;
 }
 
@@ -629,9 +733,9 @@ export interface WorkQueueClaimSummary {
 }
 
 export interface WorkQueueSummary {
-  categories: WorkQueueSummaryCategory[];
+  /** Every kind, in the kind registry's order, empty ones included. */
+  kinds: WorkQueueKindSummary[];
   totalOpen: number;
-  hasOpen: boolean;
 }
 
 function parseLinkHelpPayload(reasonText: string | null): WorkQueueEvidenceView['linkHelp'] {
@@ -665,13 +769,14 @@ function inputIdFor(itemId: string, actionKey: string, field: string): string {
 function shapeActionField(
   itemId: string,
   actionKey: string,
-  field: { name: string; label: string; input: 'text' | 'textarea'; maxLength: number; required: boolean },
+  field: { name: string; label: string; input: WorkQueueActionField['input']; maxLength: number; required: boolean },
 ): WorkQueueActionFieldView {
   return {
     name:       field.name,
     label:      field.label,
     inputId:    inputIdFor(itemId, actionKey, field.name),
     isTextarea: field.input === 'textarea',
+    isCheckbox: field.input === 'checkbox',
     maxLength:  field.maxLength,
     required:   field.required,
   };
@@ -695,7 +800,7 @@ function shapeActions(
   for (const action of descriptor.actions) {
     if (action.kind === 'elsewhere') {
       out.push({
-        key: 'elsewhere', label: action.label, buttonClass: 'btn btn-outline btn-sm',
+        key: 'elsewhere', label: action.label, buttonClass: 'btn btn-outline',
         isLink: true, href: action.href, actionPath: null,
         decisions: [], hasDecisions: false, decisionInputId: '',
         fields: [], hasFields: false, note: null, hint: null,
@@ -719,7 +824,9 @@ function shapeActions(
     out.push({
       key:             action.key,
       label:           action.label,
-      buttonClass:     action.style === 'primary' ? 'btn btn-primary btn-sm' : 'btn btn-outline btn-sm',
+      // Each action stands alone in its own form on the item's page, so it takes
+      // the full-size button rather than the compact row size.
+      buttonClass:     action.style === 'primary' ? 'btn btn-primary' : 'btn btn-outline',
       isLink:          false,
       href:            null,
       actionPath:      `/admin/work-queue/${itemId}/${action.key}`,
@@ -772,14 +879,38 @@ function shapeLinkCandidates(memberId: string): LinkCandidatesView {
   };
 }
 
+/**
+ * The announcement as the member wrote it: the subject, and the body split
+ * into its paragraphs so it reads as written. Null where the row has gone,
+ * which leaves the page showing the brief and the actions alone.
+ */
+function shapeAnnouncementEvidence(
+  announcementId: string,
+): { subject: string; bodyParagraphs: string[] } | null {
+  const row = memberAnnouncements.findById.get(announcementId) as
+    | { subject: string; body_text: string }
+    | undefined;
+  if (!row) return null;
+  return {
+    subject: row.subject,
+    bodyParagraphs: row.body_text.split(/\r?\n\s*\r?\n/).map((p) => p.trim()).filter((p) => p.length > 0),
+  };
+}
+
 /** What the card shows the decision being made on, per the type's declaration. */
 function shapeEvidence(raw: ContactRequestRow): WorkQueueEvidenceView {
   const evidence = workQueueDescriptorFor(raw.taskType)?.evidence ?? { kind: 'reason_text' as const };
   const isLinkHelp = evidence.kind === 'structured' && evidence.payload === 'link_help';
+  const isAnnouncement = evidence.kind === 'structured' && evidence.payload === 'announcement';
+  const isSanctionRequest = evidence.kind === 'structured' && evidence.payload === 'sanction_request';
   return {
     isReasonText:    evidence.kind === 'reason_text',
     isMemberMessage: evidence.kind === 'member_message',
     isLinkHelp,
+    isAnnouncement,
+    announcement: isAnnouncement ? shapeAnnouncementEvidence(raw.entityId) : null,
+    isSanctionRequest,
+    sanctionRequest: isSanctionRequest ? eventService.getSanctionReviewEvidence(raw.entityId) : null,
     // A structured payload holds JSON in the same column, so the raw text is
     // withheld there rather than printed as noise.
     reasonText: evidence.kind === 'structured' ? null : raw.reasonText,
@@ -866,18 +997,224 @@ function matchesAreaFilter(
   return topic === filter;
 }
 
-function queueHref(topic: AreaFilter | null, category: string | null): string {
+/** Items on one page of the queue list. */
+const LIST_PAGE_SIZE = 25;
+const LIST_PATH = '/admin/work-queue';
+const PARKED_PATH = '/admin/work-queue/parked';
+const AREAS_PATH = '/admin/work-queue-areas';
+
+/** The list state once read: each part either recognised or absent. */
+interface ListState {
+  kind: WorkQueueKind | null;
+  topic: AreaFilter | null;
+  unclaimed: boolean;
+  page: number;
+}
+
+/**
+ * Reads a list state from a request or a form. An unrecognised kind or area is
+ * treated as absent rather than refused: this is an administrator's read-only
+ * surface reached from a link, and a stale or mistyped one is better answered
+ * with the default view than with an error page.
+ */
+function parseListState(raw: WorkQueueListQuery): ListState {
+  return {
+    kind: raw.kind && isWorkQueueKind(raw.kind) ? raw.kind : null,
+    topic: parseAreaFilter(raw.topic),
+    unclaimed: raw.unclaimed === '1',
+    page: sanitizePage(raw.page),
+  };
+}
+
+/** The query string for a list state, leaving out every default. */
+function listQuery(state: ListState): string {
   const params = new URLSearchParams();
-  if (topic) params.set('topic', topic);
-  if (category) params.set('category', category);
+  if (state.kind) params.set('kind', state.kind);
+  if (state.topic) params.set('topic', state.topic);
+  if (state.unclaimed) params.set('unclaimed', '1');
+  if (state.page > 1) params.set('page', String(state.page));
   const qs = params.toString();
-  return qs ? `/admin/work-queue?${qs}` : '/admin/work-queue';
+  return qs ? `?${qs}` : '';
+}
+
+function listHref(state: ListState): string {
+  return `${LIST_PATH}${listQuery(state)}`;
+}
+
+/** An item's page, carrying the list state it was opened from. */
+function itemHref(id: string, state: ListState): string {
+  return `${LIST_PATH}/${encodeURIComponent(id)}${listQuery(state)}`;
+}
+
+function formStateOf(state: ListState): WorkQueueFormState {
+  return {
+    kind: state.kind ?? '',
+    topic: state.topic ?? '',
+    unclaimed: state.unclaimed ? '1' : '',
+    page: state.page > 1 ? String(state.page) : '',
+  };
+}
+
+/** "1 day", "4 days". */
+function dayCount(n: number): string {
+  return n === 1 ? '1 day' : `${n} days`;
+}
+
+/** Whole days an item has waited, counting a day begun as one, the escalation's rule. */
+function daysWaiting(openedAtIso: string, nowMs: number): number {
+  return Math.max(1, Math.floor((nowMs - Date.parse(openedAtIso)) / 86_400_000));
+}
+
+/** A kind's count line, said the same way on the dashboard card and the list. */
+function countLine(open: number, oldestDays: number | null, unclaimedStale: number, staleDays: number): string {
+  if (open === 0 || oldestDays === null) return 'Nothing open.';
+  const head = `${open} open, oldest ${dayCount(oldestDays)}`;
+  return unclaimedStale > 0
+    ? `${head}; ${unclaimedStale} unclaimed past ${dayCount(staleDays)}`
+    : head;
+}
+
+/** Whether a row falls in an area filter; no filter takes every row. */
+function inArea(
+  taskType: string,
+  filter: AreaFilter | null,
+  owners: AreaOwners,
+  viewingAdminId: string,
+): boolean {
+  return filter === null || matchesAreaFilter(taskType, filter, owners, viewingAdminId);
+}
+
+/** A row with nobody holding a live claim on it. */
+function isUnclaimed(row: ContactRequestRow, staleCutoffIso: string): boolean {
+  return !claimIsLive(row.claimedAt, staleCutoffIso);
+}
+
+/** The outcome block every work-queue page carries, from the controller's flags. */
+function shapeOutcomes(opts: WorkQueueOutcomeOptions): WorkQueueOutcomeContent {
+  return {
+    resolvedFlag: opts.resolvedFlag ?? false,
+    resolvedQuietFlag: opts.resolvedQuietFlag ?? false,
+    reviewedFlag: opts.reviewedFlag ?? false,
+    claimedFlag: opts.claimedFlag ?? false,
+    claimNoopFlag: opts.claimNoopFlag ?? false,
+    memberAskedFlag: opts.memberAskedFlag ?? false,
+    claimRevertedFlag: opts.claimRevertedFlag ?? false,
+    parkedFlag: opts.parkedFlag ?? false,
+    unparkedFlag: opts.unparkedFlag ?? false,
+    outcome: opts.outcome ?? null,
+    errorMessage: opts.errorMessage ?? null,
+  };
+}
+
+/** One row of the open listing, joined to the member it concerns where there is one. */
+interface OpenItemRow {
+  id: string;
+  opened_at: string;
+  task_type: string;
+  entity_type: string;
+  entity_id: string;
+  reason_text: string | null;
+  detail_text: string | null;
+  claimed_by_member_id: string | null;
+  claimed_by_name: string | null;
+  claimed_at: string | null;
+}
+
+/**
+ * A stored open item as the service reads it. Entity-display lookup belongs in
+ * the service (db.ts is the only SQL surface; controllers are HTTP glue). A
+ * Stripe-side entity has no row here and renders as its labelled reference alone.
+ */
+function toAdminRow(r: OpenItemRow): ContactRequestRow {
+  let entityHref: string | null = null;
+  let entityDisplayName: string | null = null;
+  let subjectMemberId: string | null = null;
+  if (r.entity_type === 'member') {
+    subjectMemberId = r.entity_id;
+  } else if (r.entity_type === 'payment') {
+    // A payment matter is about a person as much as about an amount, and
+    // the row names only the payment. Without this the administrator holds
+    // a payment id and has to go and find out whose money it was.
+    const p = payments.findById.get(r.entity_id) as { member_id: string } | undefined;
+    subjectMemberId = p?.member_id ?? null;
+  } else if (r.entity_type === 'member_announcement') {
+    // The announcement's author, named as a payment's payer is: the
+    // administrator judges the words knowing whose they are.
+    const a = memberAnnouncements.findById.get(r.entity_id) as { member_id: string } | undefined;
+    subjectMemberId = a?.member_id ?? null;
+  } else if (r.entity_type === 'event' && r.task_type === SANCTION_REQUEST_TASK_TYPE) {
+    // The organizer who sent the request, named so the administrator knows whom
+    // to contact before deciding.
+    subjectMemberId = eventService.sanctionRequesterId(r.entity_id);
+  }
+  // A prospective member is not a member: never named or linked on an admin
+  // page, so the item shows them by id with no profile or record link.
+  let subjectIsNameable = false;
+  if (subjectMemberId) {
+    const m = account.findContactInfoById.get(subjectMemberId) as
+      | { slug: string; display_name: string; is_nameable: 0 | 1 }
+      | undefined;
+    if (m && m.is_nameable) {
+      subjectIsNameable = true;
+      entityHref = `/members/${m.slug}`;
+      entityDisplayName = m.display_name;
+    }
+  }
+  return {
+    id: r.id,
+    openedAtIso: r.opened_at,
+    kind: kindForRow(r.task_type),
+    taskType: r.task_type,
+    entityType: r.entity_type,
+    entityId: r.entity_id,
+    entityHref,
+    entityDisplayName,
+    subjectMemberId,
+    subjectIsNameable,
+    reasonText: r.reason_text,
+    detailText: r.detail_text,
+    claimedByMemberId: r.claimed_by_member_id,
+    claimedByName: r.claimed_by_name,
+    claimedAt: r.claimed_at,
+  };
+}
+
+/** The open rows as stored, before any member lookup: enough to count and list. */
+function readOpenRows(): OpenItemRow[] {
+  return workQueue.listOpenForAdmin.all() as OpenItemRow[];
+}
+
+/** The parts of a stored row the list and the counts read, with no member lookup. */
+function toListRow(r: OpenItemRow): ContactRequestRow {
+  return {
+    id: r.id,
+    openedAtIso: r.opened_at,
+    kind: kindForRow(r.task_type),
+    taskType: r.task_type,
+    entityType: r.entity_type,
+    entityId: r.entity_id,
+    entityHref: null,
+    entityDisplayName: null,
+    subjectMemberId: null,
+    subjectIsNameable: false,
+    reasonText: r.reason_text,
+    detailText: r.detail_text,
+    claimedByMemberId: r.claimed_by_member_id,
+    claimedByName: r.claimed_by_name,
+    claimedAt: r.claimed_at,
+  };
+}
+
+/** An item's area as the list names it: the area, or Shared. */
+function areaLabelFor(taskType: string): string {
+  const topic = workQueueDescriptorFor(taskType)?.routeTopic ?? null;
+  return topic === null ? 'Shared' : WORK_QUEUE_TOPICS[topic].label;
 }
 
 function shapeWorkQueueItem(
   raw: ContactRequestRow,
   viewingAdminId: string,
-  askItemId: string | null,
+  askRequested: boolean,
   owners: AreaOwners,
 ): WorkQueueViewItem {
   // A claim expires, so an item whose holder never came back is offered to
@@ -902,8 +1239,10 @@ function shapeWorkQueueItem(
 
   // The member entity is identified by its name link, not a raw id; every other
   // entity shows a labelled reference so the admin can cross-reference in Stripe.
+  // A member who may not be named here (a registrant still onboarding) is shown
+  // by id with no link, so the page still says who the item concerns.
   const entityReference = raw.entityType === 'member'
-    ? null
+    ? (raw.entityDisplayName === null ? { label: 'Member', id: raw.entityId, href: null } : null)
     : {
       label: ENTITY_REFERENCE_LABELS[raw.entityType] ?? raw.entityType,
       id:    raw.entityId,
@@ -914,7 +1253,7 @@ function shapeWorkQueueItem(
 
   return {
     id: raw.id,
-    queueCategory: raw.queueCategory,
+    kind: raw.kind,
     taskType: raw.taskType,
     taskTypeLabel: workQueueDescriptorFor(raw.taskType)?.label ?? raw.taskType,
     ...areaLineFor(raw.taskType, owners, viewingAdminId),
@@ -943,7 +1282,7 @@ function shapeWorkQueueItem(
     awaitingMemberSince: questions.find((q) => !q.isAnswered)?.sentAtDisplay ?? null,
     memberQuestions: questions,
     askPrefill: canAskMember ? ASK_PREFILLS[raw.taskType] ?? null : null,
-    askOpen: canAskMember && raw.id === askItemId,
+    askOpen: canAskMember && askRequested,
   };
 }
 
@@ -1183,11 +1522,9 @@ export const adminWorkQueueService = {
     // when, and the message, so the submission writes no audit row.
     const { id } = workQueueService.enqueue({
       actorId:       input.requestingMemberId,
-      queueCategory: 'membership',
       taskType:      contactTaskTypeFor(category),
       entityType:    'member',
       entityId:      input.requestingMemberId,
-      priority:      5,
       reasonText,
       detailText:    trimmed,
     });
@@ -1278,9 +1615,10 @@ export const adminWorkQueueService = {
     queueItemId: string;
     legacyMemberId: string;
     historicalPersonId: string;
-    category?: string | null;
-    topic?: string | null;
+    /** The list state the item was opened from, carried back by both buttons. */
+    state: WorkQueueListQuery;
   }): PageViewModel<LinkHelpConfirmContent> {
+    const state = parseListState(opts.state);
     const preview = identityAccessService.previewLinkHelpApproval(
       opts.adminMemberId,
       opts.queueItemId,
@@ -1306,11 +1644,11 @@ export const adminWorkQueueService = {
         target: preview.target,
         confirmAction: `/admin/work-queue/${opts.queueItemId}/link-help/approve/confirm`,
         confirmLabel:  'Yes, Link Them',
-        cancelHref:    '/admin/work-queue',
+        // Cancelling goes back to the item the approval was started from.
+        cancelHref:    itemHref(opts.queueItemId, state),
         legacyMemberId:     preview.legacyMemberId ?? '',
         historicalPersonId: preview.historicalPersonId ?? '',
-        filterCategory:     opts.category ?? '',
-        filterTopic:        opts.topic ?? '',
+        state:              formStateOf(state),
       },
     };
   },
@@ -1327,9 +1665,10 @@ export const adminWorkQueueService = {
     legacyMemberId: string;
     historicalPersonId: string;
     reason: string;
-    category?: string | null;
-    topic?: string | null;
+    /** The list state the item was opened from, carried back by both buttons. */
+    state: WorkQueueListQuery;
   }): PageViewModel<DisputeRevertConfirmContent> | null {
+    const state = parseListState(opts.state);
     const preview = identityAccessService.previewClaimDisputeRevert(
       opts.adminMemberId,
       opts.queueItemId,
@@ -1370,12 +1709,12 @@ export const adminWorkQueueService = {
           + 'themselves stay as they are.',
         confirmAction: `/admin/work-queue/${opts.queueItemId}/link-help/dispute-revert/confirm`,
         confirmLabel:  'Revert the Claim',
-        cancelHref:    '/admin/work-queue',
+        // Cancelling goes back to the item the revert was started from.
+        cancelHref:    itemHref(opts.queueItemId, state),
         legacyMemberId:     opts.legacyMemberId,
         historicalPersonId: opts.historicalPersonId,
         reason:             preview.reason,
-        filterCategory:     opts.category ?? '',
-        filterTopic:        opts.topic ?? '',
+        state:              formStateOf(state),
       },
     };
   },
@@ -1391,7 +1730,6 @@ export const adminWorkQueueService = {
   ): ParkedWorkQueueItemView[] {
     const rows = workQueue.listParkedForAdmin.all() as Array<{
       id: string;
-      queue_category: string;
       task_type: string;
       entity_type: string;
       entity_id: string;
@@ -1415,7 +1753,7 @@ export const adminWorkQueueService = {
         id:                r.id,
         taskTypeLabel:     workQueueDescriptorFor(r.task_type)?.label ?? r.task_type,
         ...areaLineFor(r.task_type, owners, viewingAdminId),
-        categoryLabel:     WORK_QUEUE_CATEGORY_LABELS[r.queue_category] ?? r.queue_category,
+        kindLabel:         workQueueKindDescriptor(kindForRow(r.task_type)).label,
         parkedAtDisplay:   r.parked_at.slice(0, 10),
         parkedByName:      r.parked_by_name,
         parkReason:        r.park_reason,
@@ -1423,114 +1761,70 @@ export const adminWorkQueueService = {
         entityDisplayName: member?.display_name ?? null,
         entityHref:        member ? `/members/${member.slug}` : null,
         returnAction:      `/admin/work-queue/${r.id}/unpark`,
+        openHref:          itemHref(r.id, parseListState({})),
       };
     });
   },
 
   /**
-   * List all currently open work-queue items for the admin dashboard.
-   * Returns rows grouped server-side by category for view convenience.
+   * List all currently open, unparked work-queue items, oldest first, each
+   * carrying the kind its task type declares.
    */
   listOpenForAdmin(): ContactRequestRow[] {
-    const rows = workQueue.listOpenForAdmin.all() as Array<{
-      id: string;
-      opened_at: string;
-      queue_category: string;
-      task_type: string;
-      entity_type: string;
-      entity_id: string;
-      reason_text: string | null;
-      detail_text: string | null;
-      claimed_by_member_id: string | null;
-      claimed_by_name: string | null;
-      claimed_at: string | null;
-    }>;
-    return rows.map((r) => {
-      // Entity-display lookup belongs in the service (db.ts is the only SQL
-      // surface; controllers are HTTP glue). A Stripe-side entity has no row
-      // here and renders as its labelled reference alone.
-      let entityHref: string | null = null;
-      let entityDisplayName: string | null = null;
-      let subjectMemberId: string | null = null;
-      if (r.entity_type === 'member') {
-        subjectMemberId = r.entity_id;
-      } else if (r.entity_type === 'payment') {
-        // A payment matter is about a person as much as about an amount, and
-        // the row names only the payment. Without this the administrator holds
-        // a payment id and has to go and find out whose money it was.
-        const p = payments.findById.get(r.entity_id) as { member_id: string } | undefined;
-        subjectMemberId = p?.member_id ?? null;
-      }
-      // A prospective member is not a member: never named or linked on
-      // an admin page, so the item shows them by id with no profile or record
-      // link.
-      let subjectIsNameable = false;
-      if (subjectMemberId) {
-        const m = account.findContactInfoById.get(subjectMemberId) as
-          | { slug: string; display_name: string; is_nameable: 0 | 1 }
-          | undefined;
-        if (m && m.is_nameable) {
-          subjectIsNameable = true;
-          entityHref = `/members/${m.slug}`;
-          entityDisplayName = m.display_name;
-        }
-      }
-      return {
-        id: r.id,
-        openedAtIso: r.opened_at,
-        queueCategory: r.queue_category,
-        taskType: r.task_type,
-        entityType: r.entity_type,
-        entityId: r.entity_id,
-        entityHref,
-        entityDisplayName,
-        subjectMemberId,
-        subjectIsNameable,
-        reasonText: r.reason_text,
-        detailText: r.detail_text,
-        claimedByMemberId: r.claimed_by_member_id,
-        claimedByName: r.claimed_by_name,
-        claimedAt: r.claimed_at,
-      };
-    });
+    return readOpenRows().map(toAdminRow);
   },
 
   /**
-   * Per-category open-item counts for the admin dashboard work-queue card.
-   * Reads the raw open rows (which carry `priority`) so the card can flag
-   * categories with urgent items and link each to the full queue page. Only
-   * categories with at least one open item appear.
+   * Each kind's facts for its dashboard card, every kind in the registry's
+   * order, each linking to the queue showing that kind. Parked items are not
+   * counted: they wait on something outside the queue.
    */
-  getWorkQueueSummary(): WorkQueueSummary {
-    return runSqliteRead('admin dashboard work queue summary', () => this.readWorkQueueSummary());
+  getWorkQueueSummary(nowMs: number = Date.now()): WorkQueueSummary {
+    return runSqliteRead('admin dashboard work queue summary', () => this.readWorkQueueSummary(nowMs));
   },
 
-  readWorkQueueSummary(): WorkQueueSummary {
-    const rows = workQueue.listOpenForAdmin.all() as Array<{
-      queue_category: string;
-      priority: number;
-    }>;
-    const byCategory = new Map<string, { count: number; hasUrgent: boolean }>();
-    for (const r of rows) {
-      const acc = byCategory.get(r.queue_category) ?? { count: 0, hasUrgent: false };
-      acc.count += 1;
-      if (r.priority > 0) acc.hasUrgent = true;
-      byCategory.set(r.queue_category, acc);
-    }
-    const categories: WorkQueueSummaryCategory[] = [...byCategory.entries()]
-      .map(([category, acc]) => ({
-        category,
-        label: WORK_QUEUE_CATEGORY_LABELS[category] ?? category,
-        count: acc.count,
-        hasUrgent: acc.hasUrgent,
-        // Each count leads to its own category rather than to the queue root.
-        // Sending every count to one undifferentiated page makes the
-        // administrator find their category again by eye, which is the work the
-        // number was supposed to have saved them.
-        href: `/admin/work-queue?category=${category}`,
-      }))
-      .sort((a, b) => a.label.localeCompare(b.label));
-    return { categories, totalOpen: rows.length, hasOpen: rows.length > 0 };
+  readWorkQueueSummary(nowMs: number = Date.now()): WorkQueueSummary {
+    const rows = readOpenRows().map(toListRow);
+    const cutoff = claimStaleCutoffIso(nowMs);
+    const staleDays = readIntConfig('admin_queue_stale_escalation_days', 3);
+    const kinds: WorkQueueKindSummary[] = WORK_QUEUE_KINDS.map((k) => {
+      const ofKind = rows.filter((r) => r.kind === k.kind);
+      // The list is oldest first, so the first row of a kind is its oldest.
+      const oldestDays = ofKind.length > 0 ? daysWaiting(ofKind[0]!.openedAtIso, nowMs) : null;
+      const unclaimedStale = ofKind.filter(
+        (r) => r.openedAtIso < cutoff && isUnclaimed(r, cutoff),
+      ).length;
+      const byArea = new Map<WorkQueueTopic | 'shared', number>();
+      for (const r of ofKind) {
+        const area = workQueueDescriptorFor(r.taskType)?.routeTopic ?? 'shared';
+        byArea.set(area, (byArea.get(area) ?? 0) + 1);
+      }
+      // Areas in registry order, then the shared items, only where something is open.
+      const areaOrder: Array<WorkQueueTopic | 'shared'> = [...WORK_QUEUE_TOPIC_KEYS, 'shared'];
+      const perArea = areaOrder
+        .filter((a) => (byArea.get(a) ?? 0) > 0)
+        .map((a) => ({
+          key: a,
+          label: a === 'shared' ? 'Shared' : WORK_QUEUE_TOPICS[a].label,
+          open: byArea.get(a)!,
+          href: listHref({ kind: k.kind, topic: a, unclaimed: false, page: 1 }),
+        }));
+      return {
+        kind: k.kind,
+        label: k.label,
+        what: k.what,
+        why: k.why,
+        open: ofKind.length,
+        oldestDays,
+        unclaimedStale,
+        staleDays,
+        countLine: countLine(ofKind.length, oldestDays, unclaimedStale, staleDays),
+        perArea,
+        // Each card leads to its own kind rather than to the queue root.
+        href: listHref({ kind: k.kind, topic: null, unclaimed: false, page: 1 }),
+      };
+    });
+    return { kinds, totalOpen: rows.length };
   },
 
   /**
@@ -1563,174 +1857,294 @@ export const adminWorkQueueService = {
   },
 
   /**
-   * Build the full page view-model for the admin work queue. Groups all
-   * open items by `queueCategory`, applies display-label maps, and wraps
-   * the result in the standard `PageViewModel<WorkQueueContent>` envelope.
-   * Controllers call this directly and render the return value.
+   * The queue list: one kind at a time, oldest first, 25 to a page, optionally
+   * narrowed to an area, the viewer's own areas, the shared items, or the items
+   * nobody holds a live claim on. With no kind asked for, it shows the first
+   * kind in the registry's order that has anything open under the narrowing in
+   * force, so the most pressing work is what an administrator lands on.
    */
-  getAdminWorkQueuePage(opts: {
-    adminMemberId: string;
-    resolvedFlag?: boolean;
-    resolvedQuietFlag?: boolean;
-    reviewedFlag?: boolean;
-    claimedFlag?: boolean;
-    claimNoopFlag?: boolean;
-    memberAskedFlag?: boolean;
-    parkedFlag?: boolean;
-    unparkedFlag?: boolean;
-    claimRevertedFlag?: boolean;
-    outcome?: OutcomeNoticeView | null;
-    /** A deep link naming the item whose composer should open already drafted. */
-    askItemId?: string | null;
-    /** Show one category alone. An unknown value shows the whole queue. */
-    category?: string | null;
-    /** Show one area, the viewer's own areas, or the shared items. */
-    topic?: string | null;
-    errorMessage?: string;
-  }): PageViewModel<WorkQueueContent> {
+  getAdminWorkQueuePage(
+    opts: { adminMemberId: string; nowMs?: number } & WorkQueueListQuery & WorkQueueOutcomeOptions,
+  ): PageViewModel<WorkQueueListContent> {
     // A contended database renders the standard temporarily-unavailable page
     // rather than falling to the generic handler, which shows the same page
     // under a 500.
     return runSqliteRead('admin work queue page', () => this.readAdminWorkQueuePage(opts));
   },
 
-  readAdminWorkQueuePage(opts: {
-    adminMemberId: string;
-    resolvedFlag?: boolean;
-    resolvedQuietFlag?: boolean;
-    reviewedFlag?: boolean;
-    claimedFlag?: boolean;
-    claimNoopFlag?: boolean;
-    memberAskedFlag?: boolean;
-    parkedFlag?: boolean;
-    unparkedFlag?: boolean;
-    claimRevertedFlag?: boolean;
-    outcome?: OutcomeNoticeView | null;
-    /** A deep link naming the item whose composer should open already drafted. */
-    askItemId?: string | null;
-    /** Show one category alone. An unknown value shows the whole queue. */
-    category?: string | null;
-    /** Show one area, the viewer's own areas, or the shared items. */
-    topic?: string | null;
-    errorMessage?: string;
-  }): PageViewModel<WorkQueueContent> {
-    // An unrecognized category shows the whole queue rather than an error page:
-    // this is an administrator's read-only surface reached from a link, and a
-    // stale or mistyped one is better answered with everything than with a
-    // refusal.
-    const filterCategory = opts.category && WORK_QUEUE_CATEGORY_LABELS[opts.category]
-      ? opts.category
-      : null;
-
-    // The area filter follows the same rule: an unknown value shows every area.
-    const filterTopic = parseAreaFilter(opts.topic);
+  readAdminWorkQueuePage(
+    opts: { adminMemberId: string; nowMs?: number } & WorkQueueListQuery & WorkQueueOutcomeOptions,
+  ): PageViewModel<WorkQueueListContent> {
+    const nowMs = opts.nowMs ?? Date.now();
+    const asked = parseListState(opts);
     const owners = readAreaOwners();
+    const cutoff = claimStaleCutoffIso(nowMs);
+    const narrowed = readOpenRows().map(toListRow).filter((r) =>
+      inArea(r.taskType, asked.topic, owners, opts.adminMemberId)
+      && (!asked.unclaimed || isUnclaimed(r, cutoff)));
 
-    const allRows = this.listOpenForAdmin();
-    const rows = allRows.filter((r) =>
-      (filterCategory === null || r.queueCategory === filterCategory)
-      && (filterTopic === null || matchesAreaFilter(r.taskType, filterTopic, owners, opts.adminMemberId)));
+    const kind: WorkQueueKind = asked.kind
+      ?? WORK_QUEUE_KINDS.find((k) => narrowed.some((r) => r.kind === k.kind))?.kind
+      ?? WORK_QUEUE_KINDS[0]!.kind;
+    const ofKind = narrowed.filter((r) => r.kind === kind);
 
-    const groupMap = new Map<string, WorkQueueViewItem[]>();
-    for (const r of rows) {
-      const arr = groupMap.get(r.queueCategory) ?? [];
-      arr.push(shapeWorkQueueItem(r, opts.adminMemberId, opts.askItemId ?? null, owners));
-      groupMap.set(r.queueCategory, arr);
-    }
+    // A close can empty the last page while an administrator is on it, so a
+    // page past the end shows the last page rather than an empty one or a
+    // not-found answer to a link this list itself handed out.
+    const totalPages = Math.max(1, Math.ceil(ofKind.length / LIST_PAGE_SIZE));
+    const page = Math.min(asked.page, totalPages);
+    const state: ListState = { kind, topic: asked.topic, unclaimed: asked.unclaimed, page };
+    const onPage = ofKind.slice((page - 1) * LIST_PAGE_SIZE, page * LIST_PAGE_SIZE);
 
-    const areaFilterLinks = [
+    const rows: WorkQueueRowViewModel[] = onPage.map((r) => {
+      const live = claimIsLive(r.claimedAt, cutoff);
+      return {
+        id: r.id,
+        taskTypeLabel: workQueueDescriptorFor(r.taskType)?.label ?? r.taskType,
+        areaLabel: areaLabelFor(r.taskType),
+        waitingLabel: `waiting ${dayCount(daysWaiting(r.openedAtIso, nowMs))}`,
+        claimLabel: !live
+          ? 'Unclaimed'
+          : r.claimedByMemberId === opts.adminMemberId
+            ? 'Claimed by you'
+            : `Claimed by ${r.claimedByName ?? 'another administrator'}`,
+        canClaim: !live,
+        claimAction: `/admin/work-queue/${encodeURIComponent(r.id)}/claim`,
+        openHref: itemHref(r.id, state),
+      };
+    });
+
+    // Changing kind or area starts again at the first page; each link keeps the
+    // rest of the narrowing so one choice never silently drops another.
+    const kindLinks = WORK_QUEUE_KINDS.map((k) => ({
+      label: k.label,
+      href: listHref({ ...state, kind: k.kind, page: 1 }),
+      isActive: k.kind === kind,
+    }));
+    const areaLinks = [
       { label: 'All', value: null as AreaFilter | null },
       { label: 'Your Areas', value: 'mine' as AreaFilter },
       ...areasWithTaskTypes().map((t) => ({ label: WORK_QUEUE_TOPICS[t].label, value: t as AreaFilter })),
       { label: 'Shared', value: 'shared' as AreaFilter },
     ].map((f) => ({
       label: f.label,
-      href: queueHref(f.value, filterCategory),
-      isActive: f.value === filterTopic,
+      // All leads back to everything in this kind, the unclaimed filter included.
+      href: listHref(f.value === null
+        ? { kind, topic: null, unclaimed: false, page: 1 }
+        : { ...state, topic: f.value, page: 1 }),
+      isActive: f.value === null ? asked.topic === null && !asked.unclaimed : f.value === asked.topic,
     }));
+    const unclaimedLink = {
+      label: 'Unclaimed Only',
+      href: listHref({ ...state, unclaimed: !asked.unclaimed, page: 1 }),
+      isActive: asked.unclaimed,
+    };
 
-    const admins = account.listAdminsForDisplay.all() as Array<{ id: string; display_name: string }>;
-    const areaOwnerFields = WORK_QUEUE_TOPIC_KEYS.map((topic) => {
-      const ownerId = owners.get(topic)?.memberId ?? null;
-      return {
-        topic,
-        label: WORK_QUEUE_TOPICS[topic].label,
-        fieldName: `owner_${topic}`,
-        options: [
-          { value: '', label: 'No owner', selected: ownerId === null },
-          ...admins.map((a) => ({ value: a.id, label: a.display_name, selected: a.id === ownerId })),
-        ],
-      };
-    });
-    const groups: WorkQueueGroup[] = [];
-    for (const [category, items] of groupMap.entries()) {
-      groups.push({
-        category,
-        categoryLabel: WORK_QUEUE_CATEGORY_LABELS[category] ?? category,
-        items,
-      });
-    }
-    // The parked listing is not filtered with the queue: it is a short list of
-    // what is set aside across the whole queue, and hiding part of it behind the
-    // category filter would let a parked item disappear from both views.
-    const parked = this.listParkedForAdmin(opts.adminMemberId, owners);
-    const filterAreaLabel = filterTopic === null
-      ? null
-      : areaFilterLinks.find((l) => l.isActive)?.label ?? null;
+    const descriptor = workQueueKindDescriptor(kind);
+    const staleDays = readIntConfig('admin_queue_stale_escalation_days', 3);
+    const oldestDays = ofKind.length > 0 ? daysWaiting(ofKind[0]!.openedAtIso, nowMs) : null;
+    const unclaimedStale = ofKind.filter((r) => r.openedAtIso < cutoff && isUnclaimed(r, cutoff)).length;
+    const title = 'Admin Work Queue';
     return {
-      seo:  { title: 'Admin Work Queue' },
+      seo: { title, noindex: true, canonicalPath: listHref(state) },
       page: {
-        sectionKey: 'admin', pageKey: 'admin_work_queue', title: 'Admin Work Queue',
+        sectionKey: 'admin', pageKey: 'admin_work_queue', title,
         instructions: {
-          what: 'Every open task the platform has raised for an administrator, grouped by kind.',
+          what: 'Open work for administrators, one kind at a time, oldest first.',
           why: 'A shared, current picture of what needs a person.',
-          how: 'Claim an item to show you are handling it, then resolve it, or park it if you cannot move it forward yet. Where one member is involved, you can ask them a question. Each item names the area it belongs to and that area\'s owner. Every administrator can still claim and settle any item, so cover for an owner who is away.',
+          how: 'Pick a kind, narrow it to an area or to unclaimed items if you like, then open an item to see what it is, why it matters and what to do. Claim an item to show you are handling it.',
           headsUp: [
-            'Changing an area\'s owner is recorded in the audit log.',
+            'A claim tells other administrators you are on it. It does not lock the item, and it lapses.',
+          ],
+        },
+      },
+      content: {
+        ...shapeOutcomes(opts),
+        kindLabel: descriptor.label,
+        kindWhat: descriptor.what,
+        kindWhy: descriptor.why,
+        countLine: countLine(ofKind.length, oldestDays, unclaimedStale, staleDays),
+        kindLinks,
+        areaLinks,
+        unclaimedLink,
+        rows,
+        isEmpty: rows.length === 0,
+        pagination: shapePagination({
+          page, totalPages, pageSize: LIST_PAGE_SIZE, total: ofKind.length,
+          href: (p) => listHref({ ...state, page: p }),
+        }),
+        state: formStateOf(state),
+        parkedHref: PARKED_PATH,
+        areasHref: AREAS_PATH,
+      },
+    };
+  },
+
+  /**
+   * One open item's page, parked or not: what the task is, why it matters and
+   * what to do, who or what it concerns, the evidence, who is holding it, then
+   * the actions. Null for an unknown or closed id, which the controller answers
+   * with not-found. `ask` opens the question composer already drafted.
+   */
+  getWorkQueueItemPage(
+    queueItemId: string,
+    adminMemberId: string,
+    opts: { state?: WorkQueueListQuery; ask?: boolean; nowMs?: number } & WorkQueueOutcomeOptions = {},
+  ): PageViewModel<WorkQueueItemContent> | null {
+    return runSqliteRead('admin work queue item page', () => this.readWorkQueueItemPage(queueItemId, adminMemberId, opts));
+  },
+
+  readWorkQueueItemPage(
+    queueItemId: string,
+    adminMemberId: string,
+    opts: { state?: WorkQueueListQuery; ask?: boolean; nowMs?: number } & WorkQueueOutcomeOptions = {},
+  ): PageViewModel<WorkQueueItemContent> | null {
+    const found = workQueue.findOpenForAdminById.get(queueItemId) as
+      | (OpenItemRow & { parked_at: string | null; park_reason: string | null; parked_by_name: string | null })
+      | undefined;
+    if (!found) return null;
+    const nowMs = opts.nowMs ?? Date.now();
+    const state = parseListState(opts.state ?? {});
+    const owners = readAreaOwners();
+    const raw = toAdminRow(found);
+    const item = shapeWorkQueueItem(raw, adminMemberId, opts.ask ?? false, owners);
+    const descriptor = workQueueDescriptorFor(raw.taskType);
+    const isParked = found.parked_at !== null;
+    const heldBy = isParked
+      ? 'Nobody while it is parked'
+      : item.isClaimed
+        ? (item.claimedByMe ? 'You' : item.claimedByName ?? 'Another administrator')
+        : item.lapsedClaimByName
+          ? `Nobody. ${item.lapsedClaimByName} claimed it earlier and has not closed it.`
+          : 'Nobody';
+    const title = toTitleCase(item.taskTypeLabel);
+    return {
+      seo: { title, noindex: true, canonicalPath: `${LIST_PATH}/${encodeURIComponent(queueItemId)}` },
+      page: {
+        sectionKey: 'admin', pageKey: 'admin_work_queue_item', title,
+        instructions: {
+          what: 'One open work-queue item: what it is, the evidence, and what you can do about it.',
+          why: 'Every item reads the same way, so an administrator who learns one can work them all.',
+          how: 'Read the brief and the evidence, claim the item if you are taking it on, then use one of the actions at the end. Park it if you cannot move it forward yet.',
+          headsUp: [
             'A claim tells other administrators you are on it. It does not lock the item, and it lapses.',
             'Resolving a member\'s contact request or link-help request emails them your answer.',
+            'Approving a held announcement sends it to the whole announcements list at once and emails the member; sending one back emails them your note.',
             'Upholding an identity dispute takes the record away from the member who holds it, after a confirm page.',
             'You cannot decide a request about your own record or role.',
             'Asking a member a question emails them a short note to read it on the site. Their answer brings a parked item back.',
           ],
         },
       },
+      navigation: { contextLinks: [{ label: 'Back to Admin Work Queue', href: listHref(state) }] },
       content: {
-        groups,
-        parked,
-        hasParked: parked.length > 0,
-        parkedFlag: opts.parkedFlag ?? false,
-        unparkedFlag: opts.unparkedFlag ?? false,
-        totalOpen: rows.length,
-        // A filtered state says where the reader is and how to leave it, so a
-        // deep link never reads as an oddly short queue.
-        filterLabel: [
-          filterAreaLabel,
-          filterCategory === null ? null : WORK_QUEUE_CATEGORY_LABELS[filterCategory] ?? filterCategory,
-        ].filter((l) => l !== null).join(', ') || null,
-        filterCategory,
-        filterTopic,
-        filterAreaLabel,
-        isFiltered: filterCategory !== null || filterTopic !== null,
-        isCategoryFiltered: filterCategory !== null,
-        // Leaving the category keeps the area, and the reverse, so each filter
-        // is cleared on its own.
-        clearCategoryHref: queueHref(filterTopic, null),
-        areaFilterLinks,
-        areaOwnerFields,
-        wholeQueueTotal: allRows.length,
-        resolvedFlag: opts.resolvedFlag ?? false,
-        resolvedQuietFlag: opts.resolvedQuietFlag ?? false,
-        reviewedFlag: opts.reviewedFlag ?? false,
-        claimedFlag: opts.claimedFlag ?? false,
-        claimNoopFlag: opts.claimNoopFlag ?? false,
-        memberAskedFlag: opts.memberAskedFlag ?? false,
-        claimRevertedFlag: opts.claimRevertedFlag ?? false,
-        outcome: opts.outcome ?? null,
+        ...shapeOutcomes(opts),
+        item,
+        brief: descriptor?.brief ?? null,
+        facts: [
+          { label: 'Kind', value: workQueueKindDescriptor(raw.kind).label },
+          { label: 'Area', value: item.isViewerArea ? `${item.areaLine} (your area)` : item.areaLine },
+          { label: 'Waiting', value: `${dayCount(daysWaiting(raw.openedAtIso, nowMs))}, since ${item.openedAtDisplay}` },
+        ],
+        heldBy,
+        parked: isParked
+          ? {
+            parkedAtDisplay: found.parked_at!.slice(0, 10),
+            parkedByName: found.parked_by_name,
+            parkReason: found.park_reason,
+            returnAction: `/admin/work-queue/${encodeURIComponent(queueItemId)}/unpark`,
+          }
+          : null,
         answerKindOptions: ANSWER_KIND_OPTIONS,
-        errorMessage: opts.errorMessage ?? null,
+        state: formStateOf(state),
       },
     };
+  },
+
+  /**
+   * The items an administrator has set aside, on a page of their own, newest
+   * park first. Not narrowed by kind or area: it is a short list, and hiding
+   * part of it would let a parked item disappear from every view.
+   */
+  getParkedWorkQueuePage(
+    adminMemberId: string,
+    opts: WorkQueueOutcomeOptions = {},
+  ): PageViewModel<WorkQueueParkedContent> {
+    return runSqliteRead('admin work queue parked page', () => {
+      const parked = this.listParkedForAdmin(adminMemberId);
+      const title = 'Parked Work-queue Items';
+      return {
+        seo: { title, noindex: true },
+        page: {
+          sectionKey: 'admin', pageKey: 'admin_work_queue_parked', title,
+          instructions: {
+            what: 'Work-queue items an administrator set aside, newest first.',
+            why: 'A parked item waits on something outside the queue, so it is kept apart from the work without being lost.',
+            how: 'Each comes back on its own when the member answers a question on it. Return one to the queue sooner if it can move.',
+          },
+        },
+        navigation: { contextLinks: [{ label: 'Back to Admin Work Queue', href: LIST_PATH }] },
+        content: { ...shapeOutcomes(opts), parked, hasParked: parked.length > 0 },
+      };
+    });
+  },
+
+  /** The Area Owners form, every area included, each owner a current administrator or none. */
+  getWorkQueueAreasPage(opts: {
+    outcome?: OutcomeNoticeView | null;
+    errorMessage?: string;
+  } = {}): PageViewModel<WorkQueueAreasContent> {
+    return runSqliteRead('admin work queue areas page', () => {
+      const owners = readAreaOwners();
+      const admins = account.listAdminsForDisplay.all() as Array<{ id: string; display_name: string }>;
+      const areaOwnerFields = WORK_QUEUE_TOPIC_KEYS.map((topic) => {
+        const ownerId = owners.get(topic)?.memberId ?? null;
+        return {
+          topic,
+          label: WORK_QUEUE_TOPICS[topic].label,
+          fieldName: `owner_${topic}`,
+          options: [
+            { value: '', label: 'No owner', selected: ownerId === null },
+            ...admins.map((a) => ({ value: a.id, label: a.display_name, selected: a.id === ownerId })),
+          ],
+        };
+      });
+      const title = 'Work-queue Area Owners';
+      return {
+        seo: { title, noindex: true },
+        page: {
+          sectionKey: 'admin', pageKey: 'admin_work_queue_areas', title,
+          instructions: {
+            what: 'Names the one administrator accountable for each work-queue area.',
+            why: 'Each item names its area\'s owner, so the team knows who usually takes it.',
+            how: 'Choose an owner for each area, or No owner, and save. Every administrator can still claim and settle any item, so cover for an owner who is away.',
+            headsUp: ['Changing an area\'s owner is recorded in the audit log.'],
+          },
+        },
+        navigation: { contextLinks: [{ label: 'Back to Admin Work Queue', href: LIST_PATH }] },
+        content: {
+          areaOwnerFields,
+          outcome: opts.outcome ?? null,
+          errorMessage: opts.errorMessage ?? null,
+        },
+      };
+    });
+  },
+
+  /** Where a closing action returns: the list, in the state the form carried. */
+  listReturnPath(raw: WorkQueueListQuery): string {
+    return listHref(parseListState(raw));
+  },
+
+  /**
+   * Where a non-closing action returns: the page it was taken on. The item's own
+   * page and the parked page are named by fixed values, never by a submitted
+   * path, so the redirect cannot be pointed anywhere else.
+   */
+  originReturnPath(raw: WorkQueueListQuery & { from?: string | null }, queueItemId: string): string {
+    if (raw.from === 'item') return itemHref(queueItemId, parseListState(raw));
+    if (raw.from === 'parked') return PARKED_PATH;
+    return listHref(parseListState(raw));
   },
 
   /**

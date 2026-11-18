@@ -176,6 +176,12 @@ import { readIntConfig } from './configReader';
 import { hasTier1Benefits } from './tierPredicates';
 import { buildTierBenefitNotice } from './tierBenefitNotice';
 import { NotFoundError } from './serviceErrors';
+import {
+  type PageLink,
+  type Pagination,
+  resolvePage as resolveSharedPage,
+  shapePagination as shapeSharedPagination,
+} from '../lib/pagination';
 import { UPLOADER_TAG_PREFIX, foldedTagsLine, getDefaultCuratorMediaService } from './curatorMediaService';
 import type { ShareOutcome } from '../lib/flashCookie';
 import { PLAYER_TAG_PREFIX, slugifyForTag, typedTag } from './slugify';
@@ -203,51 +209,13 @@ export function mediaPageSize(): number {
   return Math.min(MAX_MEDIA_PAGE_SIZE, Math.max(MIN_MEDIA_PAGE_SIZE, n));
 }
 
-// One entry in the numbered pager: a page link, the current page, or a gap
-// standing for skipped pages. `isNeighbour` marks the pages beside the current
-// one, which a phone-width screen drops to keep the row on one line.
-export interface PageLink {
-  number: number | null;
-  href: string | null;
-  isCurrent: boolean;
-  isGap: boolean;
-  isNeighbour: boolean;
-}
+export type { PageLink };
 
-// The pager shows the first page, the last page, the current page and the pages on
-// either side of it, with a gap wherever pages are skipped.
-function buildPageLinks(page: number, totalPages: number, href: (p: number) => string): PageLink[] {
-  const shown = new Set<number>([1, totalPages, page, page - 1, page + 1]);
-  const numbers = [...shown].filter((p) => p >= 1 && p <= totalPages).sort((a, b) => a - b);
-  const links: PageLink[] = [];
-  let previous = 0;
-  for (const p of numbers) {
-    if (p - previous > 1) {
-      links.push({ number: null, href: null, isCurrent: false, isGap: true, isNeighbour: false });
-    }
-    const isCurrent = p === page;
-    links.push({
-      number: p,
-      href: isCurrent ? null : href(p),
-      isCurrent,
-      isGap: false,
-      isNeighbour: !isCurrent && p !== 1 && p !== totalPages,
-    });
-    previous = p;
-  }
-  return links;
-}
-
-// Resolves the requested page against the set size: a missing or malformed
-// page is the first, and a page past the last is not found, so a stale or
-// hand-edited link never renders a misleading empty set.
 function resolvePage(rawPage: unknown, total: number, pageSize: number): { page: number; totalPages: number } {
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const page = sanitizePage(rawPage);
-  if (page > totalPages) throw new NotFoundError(`media page ${page} out of range`);
-  return { page, totalPages };
+  return resolveSharedPage(rawPage, total, pageSize, 'media');
 }
 
+// The shared pager block plus the notice a multi-page hashtag result carries.
 function shapePagination(args: {
   page: number;
   totalPages: number;
@@ -256,24 +224,11 @@ function shapePagination(args: {
   href: (p: number) => string;
   withLargeSetNotice: boolean;
 }): GalleryPagination {
-  const { page, totalPages, pageSize, total, href } = args;
-  const hasPrev = page > 1;
-  const hasNext = page < totalPages;
-  const isMultiPage = totalPages > 1;
+  const shared = shapeSharedPagination(args);
   return {
-    page,
-    pageSize,
-    total,
-    totalPages,
-    hasNext,
-    hasPrev,
-    ...(hasPrev ? { prevHref: href(page - 1) } : {}),
-    ...(hasNext ? { nextHref: href(page + 1) } : {}),
-    isMultiPage,
-    pageLinks: isMultiPage ? buildPageLinks(page, totalPages, href) : [],
-    statusLabel: `Page ${page} of ${totalPages}`,
-    largeSetNotice: args.withLargeSetNotice && isMultiPage
-      ? `This is a large result set: ${total.toLocaleString('en-US')} items on ${totalPages} pages. To narrow it, add more hashtags to include or exclude in the hashtag filters.`
+    ...shared,
+    largeSetNotice: args.withLargeSetNotice && shared.isMultiPage
+      ? `This is a large result set: ${args.total.toLocaleString('en-US')} items on ${args.totalPages} pages. To narrow it, add more hashtags to include or exclude in the hashtag filters.`
       : null,
   };
 }
@@ -623,19 +578,7 @@ export interface EntityHashtag {
   galleryHref: string | null;
 }
 
-export interface GalleryPagination {
-  page: number;
-  pageSize: number;
-  total: number;
-  totalPages: number;
-  hasNext: boolean;
-  hasPrev: boolean;
-  nextHref?: string;
-  prevHref?: string;
-  // True when the set spans more than one page; the pager renders only then.
-  isMultiPage: boolean;
-  pageLinks: PageLink[];
-  statusLabel: string;
+export interface GalleryPagination extends Pagination {
   // The notice above the grid on a multi-page hashtag result; null otherwise.
   largeSetNotice: string | null;
 }
@@ -1047,15 +990,6 @@ function formatUploadedAt(iso: string): string {
   const day = parseInt(dd, 10);
   if (!month || !day) return year ?? iso;
   return `${day} ${MONTHS[month - 1]} ${year}`;
-}
-
-function sanitizePage(raw: unknown): number {
-  const n =
-    typeof raw === 'string' ? parseInt(raw, 10)
-    : typeof raw === 'number' ? raw
-    : NaN;
-  if (!Number.isFinite(n) || n < 1) return 1;
-  return Math.floor(n);
 }
 
 // Normalize a tag display to its slug body: drop a leading '#', lowercase, and

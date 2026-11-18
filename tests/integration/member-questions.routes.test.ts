@@ -238,7 +238,7 @@ describe('an administrator asks the member a question', () => {
   it('drafts the question for the matter, and opens the composer a deep link names', async () => {
     const itemId = seedItem();
     const res = await request(createApp())
-      .get(`/admin/work-queue?ask=${itemId}`).set('Cookie', adminCookie());
+      .get(`/admin/work-queue/${itemId}?ask=1`).set('Cookie', adminCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain('About your old footbag.org records');
     expect(res.text).toContain('we match on your date of birth');
@@ -263,9 +263,9 @@ describe('an administrator asks the member a question', () => {
   });
 
   it('does not offer the control on the card for such a member', async () => {
-    seedItemFor(PENDING_ID);
+    const itemId = seedItemFor(PENDING_ID);
     const res = await request(createApp())
-      .get('/admin/work-queue').set('Cookie', adminCookie());
+      .get(`/admin/work-queue/${itemId}`).set('Cookie', adminCookie());
     expect(res.text).not.toContain('ask-member');
     expect(res.text).toContain('not finished signing up');
   });
@@ -289,9 +289,11 @@ describe('an administrator asks the member a question', () => {
   });
 
   it('does not offer the control on the card for a member who has died', async () => {
-    seedItemFor(DECEASED_ID);
+    const itemId = seedItemFor(DECEASED_ID);
     const res = await request(createApp())
-      .get('/admin/work-queue').set('Cookie', adminCookie());
+      .get(`/admin/work-queue/${itemId}`).set('Cookie', adminCookie());
+    // The item's own page, with its other actions, is what lacks the control.
+    expect(res.text).toContain(`/admin/work-queue/${itemId}/link-help/reject`);
     expect(res.text).not.toContain('ask-member');
   });
 
@@ -311,7 +313,6 @@ describe('an administrator asks the member a question', () => {
       entity_type: 'stripe_payout',
       entity_id: 'po_test_nobody',
       task_type: 'payout_failed',
-      queue_category: 'payments',
     });
     conn.close();
     expect((await ask(itemId)).status).toBe(404);
@@ -762,7 +763,7 @@ describe('the member reads and answers', () => {
     expect(messageRow()!.note_text).toBe('alert(1)Thanks');
 
     const page = await request(createApp())
-      .get('/admin/work-queue')
+      .get(`/admin/work-queue/${itemId}`)
       .set('Cookie', adminCookie());
     expect(page.status).toBe(200);
     expect(page.text).toContain('alert(1)Thanks');
@@ -811,7 +812,7 @@ describe('the administrator sees the answer on the item they asked from', () => 
     await ask(itemId);
 
     const waiting = await request(createApp())
-      .get('/admin/work-queue').set('Cookie', adminCookie());
+      .get(`/admin/work-queue/${itemId}`).set('Cookie', adminCookie());
     expect(waiting.text).toContain('Waiting on the member since');
 
     const messageId = messageRow()!.id as string;
@@ -822,34 +823,33 @@ describe('the administrator sees the answer on the item they asked from', () => 
       .send({ dateAnswer: 'confirm', note: 'Yes that is right.' });
 
     const answered = await request(createApp())
-      .get('/admin/work-queue').set('Cookie', adminCookie());
+      .get(`/admin/work-queue/${itemId}`).set('Cookie', adminCookie());
     expect(answered.text).toContain('Confirmed the date on file is right');
     expect(answered.text).toContain('Yes that is right.');
     expect(answered.text).not.toContain('Waiting on the member since');
   });
 
   it('offers the ask control on any matter naming a signed-up member', async () => {
-    seedItem('admin_loss_recruitment');
+    const itemId = seedItem('admin_loss_recruitment');
     const res = await request(createApp())
-      .get('/admin/work-queue').set('Cookie', adminCookie());
-    expect(res.text).toContain('ask-member');
+      .get(`/admin/work-queue/${itemId}`).set('Cookie', adminCookie());
+    expect(res.text).toContain(`/admin/work-queue/${itemId}/ask-member`);
   });
 
   it('offers no ask control on a matter that names no single member', async () => {
     // The card and the send path answer the same question by asking the same
     // code, so a control cannot render on a matter the send path then refuses.
     const conn = db();
-    insertWorkQueueItem(conn, {
+    const itemId = insertWorkQueueItem(conn, {
       entity_type: 'reconciliation_issue',
       entity_id: 'recon-nobody',
       task_type: 'reconciliation_discrepancy',
-      queue_category: 'payments',
     });
     conn.close();
     const res = await request(createApp())
-      .get('/admin/work-queue').set('Cookie', adminCookie());
+      .get(`/admin/work-queue/${itemId}`).set('Cookie', adminCookie());
     expect(res.text).toContain('recon-nobody');
-    expect(res.text).not.toContain('/admin/work-queue/recon-nobody/ask-member');
+    expect(res.text).not.toContain(`/admin/work-queue/${itemId}/ask-member`);
   });
 });
 

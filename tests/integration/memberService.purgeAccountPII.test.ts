@@ -21,7 +21,7 @@ import {
   insertMember, insertLegacyMember, insertHistoricalPerson, insertOutboxEmail,
   insertPayment, insertRecurringDonationSubscription, insertMediaItem, insertMediaFlag,
   insertMemberDeclaredAnchor, insertWorkQueueItem, insertEmailArchive, insertMailingListSubscription,
-  insertOnboardingTask, setOnboardingHeldAnswer,
+  insertOnboardingTask, setOnboardingHeldAnswer, insertMemberAnnouncement,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3092');
@@ -248,17 +248,42 @@ describe('memberService.purgeAccountPII', () => {
     r.close();
   });
 
+  // Defect caught: an erased member's held announcement keeps their words on
+  // file, or stays in the queue where an administrator could still send it.
+  it('deletes the member\'s announcements and closes any open review, leaving no one else\'s', async () => {
+    seedClaimedMember('purge-ann');
+    const d = db();
+    insertMember(d, { id: 'purge-ann-other', slug: 'purge_ann_other', login_email: 'other-ann@example.com' });
+    const held = insertMemberAnnouncement(d, { member_id: 'purge-ann', subject: 'My held words' });
+    insertMemberAnnouncement(d, { member_id: 'purge-ann', status: 'returned', admin_comment: 'Add a date.' });
+    const others = insertMemberAnnouncement(d, { member_id: 'purge-ann-other' });
+    const item = insertWorkQueueItem(d, { task_type: 'announcement_review', entity_type: 'member_announcement', entity_id: held });
+    const otherItem = insertWorkQueueItem(d, { task_type: 'announcement_review', entity_type: 'member_announcement', entity_id: others });
+    d.close();
+
+    expect((await memberService.purgeAccountPII('purge-ann')).status).toBe('purged');
+
+    const r = new BetterSqlite3(dbPath, { readonly: true });
+    const rows = (memberId: string) => (r.prepare(
+      'SELECT COUNT(*) AS n FROM member_announcements WHERE member_id = ?',
+    ).get(memberId) as { n: number }).n;
+    const status = (id: string) => (r.prepare('SELECT status FROM work_queue_items WHERE id = ?').get(id) as { status: string }).status;
+    expect(rows('purge-ann')).toBe(0);
+    expect(rows('purge-ann-other')).toBe(1);
+    expect(status(item)).toBe('dismissed');
+    expect(status(otherItem)).toBe('open');
+    r.close();
+  });
+
   it('redacts member contact-request free text in work_queue_items on purge', async () => {
     seedClaimedMember('purge-contact');
     const d = db();
     insertWorkQueueItem(d, {
       id: 'wq-purge-contact',
-      queue_category: 'membership',
       task_type: 'member_contact_request',
       entity_type: 'member',
       entity_id: 'purge-contact',
       status: 'open',
-      priority: 5,
       created_at: '2026-01-01T00:00:00.000Z',
       opened_at: '2026-01-01T00:00:00.000Z',
       created_by: 'purge-contact',
@@ -351,11 +376,9 @@ describe('memberService.purgeAccountPII', () => {
     const { workQueueService } = await import('../../src/services/workQueueService');
     workQueueService.enqueue({
       actorId:       'purge-queue',
-      queueCategory: 'membership',
       taskType:      'member_contact_request',
       entityType:    'member',
       entityId:      'purge-queue',
-      priority:      5,
       reasonText:    'A question about legacy account LM-x from Dana Example.',
       detailText:    'Dana Example asked whether legacy account LM-x is theirs.',
     });

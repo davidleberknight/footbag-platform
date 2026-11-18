@@ -232,10 +232,9 @@ describe('POST /members/:slug/contact-admin', () => {
 
     const db = new BetterSqlite3(dbPath);
     const queueRow = db
-      .prepare(`SELECT id, queue_category, task_type, entity_type, entity_id, status, reason_text FROM work_queue_items WHERE entity_id = ?`)
+      .prepare(`SELECT id, task_type, entity_type, entity_id, status, reason_text FROM work_queue_items WHERE entity_id = ?`)
       .get(OWNER_ID) as Record<string, unknown> | undefined;
     expect(queueRow).toBeDefined();
-    expect(queueRow!.queue_category).toBe('membership');
     expect(queueRow!.task_type).toBe('member_contact_request');
     expect(queueRow!.entity_type).toBe('member');
     expect(queueRow!.status).toBe('open');
@@ -384,8 +383,8 @@ describe('POST /members/:slug/contact-admin', () => {
     expect(res.status).toBe(303);
     const db = new BetterSqlite3(dbPath);
     const queueRow = db
-      .prepare(`SELECT reason_text, detail_text FROM work_queue_items WHERE entity_id = ? AND status = 'open'`)
-      .get(OWNER_ID) as { reason_text: string; detail_text: string } | undefined;
+      .prepare(`SELECT id, reason_text, detail_text FROM work_queue_items WHERE entity_id = ? AND status = 'open'`)
+      .get(OWNER_ID) as { id: string; reason_text: string; detail_text: string } | undefined;
     expect(queueRow).toBeDefined();
     expect(queueRow!.detail_text).toBe(cleaned);
     expect(queueRow!.reason_text).toBe(`Other: ${cleaned}`);
@@ -395,7 +394,7 @@ describe('POST /members/:slug/contact-admin', () => {
     db.close();
 
     const adminCookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: ADMIN_SUBSCRIBER_ID, role: 'admin' })}`;
-    const page = await request(app).get('/admin/work-queue').set('Cookie', adminCookie);
+    const page = await request(app).get(`/admin/work-queue/${queueRow!.id}`).set('Cookie', adminCookie);
     expect(page.status).toBe(200);
     expect(page.text).toContain(cleaned);
     expect(page.text).not.toContain('<script>alert');

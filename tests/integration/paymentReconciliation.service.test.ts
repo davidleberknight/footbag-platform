@@ -1120,7 +1120,7 @@ describe('re-running the pass', () => {
     const db = openDb();
     try {
       const row = db.prepare(
-        "SELECT COUNT(*) AS c FROM work_queue_items WHERE queue_category = 'payments' AND task_type = 'reconciliation_discrepancy'",
+        "SELECT COUNT(*) AS c FROM work_queue_items WHERE task_type = 'reconciliation_discrepancy'",
       ).get() as { c: number };
       expect(row.c).toBe(1);
     } finally {

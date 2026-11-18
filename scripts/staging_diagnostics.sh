@@ -683,8 +683,8 @@ cmd_work_queue() {
   compose exec -T -e TASK_TYPE="$task_type" web node <<'JS'
 const db = require('better-sqlite3')('/app/db/footbag.db', { readonly: true });
 const t = process.env.TASK_TYPE || '';
-const cols = `id, queue_category, task_type, entity_type, entity_id, status,
-              priority, opened_at, claimed_at, parked_at, resolved_at,
+const cols = `id, task_type, entity_type, entity_id, status,
+              opened_at, claimed_at, parked_at, resolved_at,
               substr(reason_text, 1, 80) reason_text`;
 const sql = t
   ? `SELECT ${cols} FROM work_queue_items WHERE task_type = ?

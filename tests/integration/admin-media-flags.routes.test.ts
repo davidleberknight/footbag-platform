@@ -136,13 +136,11 @@ beforeAll(async () => {
     });
     insertWorkQueueItem(db, {
       id:             `wq_af_${id}`,
-      queue_category: 'media',
-      task_type:      'media_flag_review',
+        task_type:      'media_flag_review',
       entity_type:    'media_item',
       entity_id:      id,
       status:         'open',
-      priority:       0,
-      reason_text:    'A member reported this media item for review.',
+        reason_text:    'A member reported this media item for review.',
     });
   }
   // No report of its own: it exists for the administrator-raised report.
@@ -163,12 +161,10 @@ beforeAll(async () => {
   });
   insertWorkQueueItem(db, {
     id:             `wq_af_${ITEM_ADMIN_OWN}`,
-    queue_category: 'media',
     task_type:      'media_flag_review',
     entity_type:    'media_item',
     entity_id:      ITEM_ADMIN_OWN,
     status:         'open',
-    priority:       0,
     reason_text:    'A member reported this media item for review.',
   });
 
@@ -194,12 +190,10 @@ beforeAll(async () => {
     .run('Removed after review.', ITEM_FILES_OWED);
   insertWorkQueueItem(db, {
     id:             `wq_af_${ITEM_FILES_OWED}`,
-    queue_category: 'media',
     task_type:      'media_takedown_storage_removal',
     entity_type:    'media_item',
     entity_id:      ITEM_FILES_OWED,
     status:         'open',
-    priority:       0,
     reason_text:    'This item is hidden, but its stored files were not removed and are still served to anyone holding their address.',
   });
 

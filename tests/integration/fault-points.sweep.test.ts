@@ -21,7 +21,8 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import BetterSqlite3 from 'better-sqlite3';
-import { insertMember } from '../fixtures/factories';
+import { completeOnboarding, insertDiscipline, insertEvent, insertMember } from '../fixtures/factories';
+import { isoDaysFromNow } from '../fixtures/clock';
 import { armWriteFault } from '../fixtures/faultInjection';
 import { REPO_ROOT, scanSource } from '../fixtures/sourceTree';
 import {
@@ -236,6 +237,50 @@ const DRIVERS: Driver[] = [
         actionType: 'payment.donation_checkout_started',
         rows: (m) => count('SELECT COUNT(*) AS c FROM recurring_donation_subscriptions WHERE member_id = ?', m),
         start: (m) => paymentService.startDonation(m, 2500, null, true, '/x'),
+      });
+    },
+  },
+  {
+    operation: 'startEventRegistrationPayment',
+    name: 'paid event registration checkout start',
+    run: async () => {
+      const { eventService } = await import('../../src/services/eventService');
+      const onboarded = new Set<string>();
+      const db = openDb();
+      let eventKey: string;
+      let divisionId: string;
+      try {
+        const start = isoDaysFromNow(30).slice(0, 10);
+        const eventId = insertEvent(db, {
+          status: 'reg_open', registration_status: 'open', start_date: start, end_date: start,
+          sanction_status: 'approved', payment_enabled: 1, competitor_fee_cents: 2500,
+        });
+        divisionId = insertDiscipline(db, eventId, { name: 'Open Singles Footbag Net', discipline_category: 'net', team_type: 'singles', gender_eligibility: 'open', division_class: 'open', sort_order: 1 });
+        eventKey = (db.prepare('SELECT t.tag_normalized AS k FROM events e JOIN tags t ON t.id = e.hashtag_tag_id WHERE e.id = ?')
+          .get(eventId) as { k: string }).k.slice(1);
+      } finally {
+        db.close();
+      }
+      // A pending payment counts only with the pending registration it pays
+      // for, so a fault that left one without the other is counted as lost.
+      return checkoutStart({
+        actionType: 'payment.checkout_started',
+        rows: (m) => count(
+          "SELECT COUNT(*) AS c FROM payments p JOIN registrations r ON r.payment_id = p.id AND r.status = 'pending' WHERE p.member_id = ? AND p.status = 'pending'",
+          m,
+        ),
+        start: (m) => {
+          // Registering needs an onboarded member; the first attempt and the
+          // retry are the same member, so it is onboarded once.
+          if (!onboarded.has(m)) {
+            const seed = openDb();
+            try { completeOnboarding(seed, m); } finally { seed.close(); }
+            onboarded.add(m);
+          }
+          return eventService.register(m, eventKey, {
+            type: 'competitor', divisionIds: [divisionId], amateurIds: [], partners: [], tshirtSize: '',
+          });
+        },
       });
     },
   },

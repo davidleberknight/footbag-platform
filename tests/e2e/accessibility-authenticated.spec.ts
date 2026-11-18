@@ -39,6 +39,7 @@ import {
   insertFreestyleTrick,
   insertAuditEntry,
   insertOutboxEmail,
+  insertWorkQueueItem,
 } from '../fixtures/factories';
 
 // The curator upload page lists the galleries of the system member curated
@@ -153,6 +154,14 @@ test('admin surfaces have no WCAG 2.1 AA axe violations', { tag: ['@a11y'] }, as
   insertOutboxEmail(db, { subject: `A11y probe ${suffix}`, status: 'sent' });
   const clubTagId = insertTag(db, { standard_type: 'club', tag_normalized: `#club_admin_a11y_${suffix}` });
   insertClub(db, { hashtag_tag_id: clubTagId, name: `A11y Admin Club ${suffix}` });
+  // A link-help request is the densest item page: evidence, the ask-member
+  // composer, and three action forms with their own fields.
+  const requester = seedTier1Member(db, { slug: `a11y_requester_${suffix}` });
+  const queueItemId = insertWorkQueueItem(db, {
+    task_type: 'member_link_help_request', entity_type: 'member', entity_id: requester.memberId,
+    created_by: requester.memberId,
+    reason_text: JSON.stringify({ statement: 'Those old records are mine.', is_dispute: false }),
+  });
   db.close();
 
   const ctx = await createAuthenticatedContext(browser, baseURL!, admin);
@@ -160,6 +169,9 @@ test('admin surfaces have no WCAG 2.1 AA axe violations', { tag: ['@a11y'] }, as
     await scanPages(ctx, [
       { path: '/admin', name: 'admin dashboard' },
       { path: '/admin/work-queue', name: 'admin work queue' },
+      { path: `/admin/work-queue/${queueItemId}`, name: 'admin work-queue item' },
+      { path: '/admin/work-queue/parked', name: 'parked work-queue items' },
+      { path: '/admin/work-queue-areas', name: 'work-queue area owners' },
       { path: '/admin/admin-roles', name: 'admin roles' },
       { path: '/admin/audit-log', name: 'audit log' },
       { path: '/admin/email-log', name: 'email log' },

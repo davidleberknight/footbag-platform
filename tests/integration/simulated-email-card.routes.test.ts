@@ -212,3 +212,22 @@ describe('GET /register/check-email — dev mode (SES_ADAPTER=stub)', () => {
     db.close();
   });
 });
+
+describe('POST /password/forgot sent page — dev mode (SES_ADAPTER=stub)', () => {
+  // A visitor who asks to reset an address with no account gets no reset link,
+  // so the page itself must show them the address they typed (to spot a typo)
+  // and offer the two ways forward: another address, or creating an account.
+  it('for an address with no account, echoes the typed address and links to retry and to register', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/password/forgot')
+      .type('form')
+      .send({ email: 'no-account-here@example.com' });
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('<strong>no-account-here@example.com</strong>');
+    expect(res.text).toContain('href="/password/forgot"');
+    expect(res.text).toContain('href="/register"');
+    expect(res.text).toContain('Simulated Email (Dev)');
+    expect(res.text).not.toMatch(/\/password\/reset\/[A-Za-z0-9_-]+">CLICK THIS LINK</);
+  });
+});

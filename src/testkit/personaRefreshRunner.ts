@@ -72,6 +72,8 @@ import {
   seedPersona,
   PERSONA_SEED_CREATED_BY,
   PERSONA_SWITCH_AUDIT_ACTION_TYPE,
+  PERSONA_EVENT_ID_PREFIX,
+  PERSONA_EVENT_TAG_ID_PREFIX,
 } from './personaFactory';
 import type { PersonaSpec } from './personaFactory';
 import { clearStubPaymentLedger, stubPaymentLedgerDirBeside } from '../adapters/stubPaymentLedgerStore';
@@ -385,7 +387,34 @@ export function refreshAllPersonas(
     // and the archive of an announcement it sent.
     delIn('member_links', 'member_id', memberIds);
     delIn('event_organizers', 'member_id', memberIds);
+    // A persona's held announcements and their review items go before the
+    // archive rows an approved one points at. An announcement a persona
+    // administrator decided for someone else keeps its row and loses only the
+    // decider reference, as resolved work-queue items do.
+    if (memberIds.length > 0) {
+      db.prepare(
+        `DELETE FROM work_queue_items
+          WHERE entity_type = 'member_announcement' AND entity_id IN (
+            SELECT id FROM member_announcements WHERE member_id IN (${placeholders(memberIds.length)})
+          )`,
+      ).run(...memberIds);
+      db.prepare(
+        `UPDATE member_announcements SET decided_by_member_id = NULL
+          WHERE decided_by_member_id IN (${placeholders(memberIds.length)})`,
+      ).run(...memberIds);
+    }
+    delIn('member_announcements', 'member_id', memberIds);
     delIn('email_archives', 'sender_member_id', memberIds);
+    // An event a persona asked to have sanctioned, decided, or canceled through
+    // the real pages keeps its row and loses only the persona reference, as an
+    // announcement a persona decided does.
+    if (memberIds.length > 0) {
+      for (const column of ['sanction_requested_by_member_id', 'sanction_decided_by_member_id', 'canceled_by_member_id']) {
+        db.prepare(
+          `UPDATE events SET ${column} = NULL WHERE ${column} IN (${placeholders(memberIds.length)})`,
+        ).run(...memberIds);
+      }
+    }
     // Shared rows a persona administrator acted on keep their history and lose
     // only the actor reference, as resolved work-queue items do.
     if (memberIds.length > 0) {
@@ -457,19 +486,34 @@ export function refreshAllPersonas(
     // test event carries: entries, registrations, organizers, divisions, the
     // event and its tag. A registration names its fee payment, so it goes
     // before the payments.
+    // The events organizer personas run are removed the same way, found by
+    // their fixed id prefix.
+    const personaEventIds = col(
+      `SELECT id FROM events WHERE id GLOB ?`, [`${PERSONA_EVENT_ID_PREFIX}*`],
+    );
+    const personaEventTagIds = col(
+      `SELECT id FROM tags WHERE id GLOB ?`, [`${PERSONA_EVENT_TAG_ID_PREFIX}*`],
+    );
+    const removedEventIds = [FINANCE_DEMO_EVENT_ID, ...personaEventIds];
     const personaRegistrationIds = unique([
       ...(memberIds.length
         ? col(`SELECT id FROM registrations WHERE member_id IN (${placeholders(memberIds.length)})`, memberIds)
         : []),
-      ...col(`SELECT id FROM registrations WHERE event_id = ?`, [FINANCE_DEMO_EVENT_ID]),
+      ...col(
+        `SELECT id FROM registrations WHERE event_id IN (${placeholders(removedEventIds.length)})`,
+        removedEventIds,
+      ),
     ]);
     delIn('registration_discipline_selections', 'registration_id', personaRegistrationIds);
+    // An entry that named a persona as its doubles partner would block the
+    // persona's delete.
+    delIn('registration_discipline_selections', 'partner_member_id', memberIds);
     delIn('registrations', 'id', personaRegistrationIds);
-    delIn('event_organizers', 'event_id', [FINANCE_DEMO_EVENT_ID]);
-    delIn('event_disciplines', 'event_id', [FINANCE_DEMO_EVENT_ID]);
-    delIn('events', 'id', [FINANCE_DEMO_EVENT_ID]);
-    delIn('tag_stats', 'tag_id', [FINANCE_DEMO_EVENT_TAG_ID]);
-    delIn('tags', 'id', [FINANCE_DEMO_EVENT_TAG_ID]);
+    delIn('event_organizers', 'event_id', removedEventIds);
+    delIn('event_disciplines', 'event_id', removedEventIds);
+    delIn('events', 'id', removedEventIds);
+    delIn('tag_stats', 'tag_id', [FINANCE_DEMO_EVENT_TAG_ID, ...personaEventTagIds]);
+    delIn('tags', 'id', [FINANCE_DEMO_EVENT_TAG_ID, ...personaEventTagIds]);
     // Reconciliation issues about a persona payment or recurring donation, or
     // resolved by a persona administrator. The nightly pass raises each issue
     // with a work-queue card (and an administrator may have asked a member

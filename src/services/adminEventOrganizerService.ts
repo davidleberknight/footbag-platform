@@ -305,10 +305,8 @@ export const adminEventOrganizerService = {
       if (remaining === 0 && !workQueue.findOpenByEntity.get(NEEDS_ORGANIZER_TASK, 'event', eventId)) {
         workQueueService.enqueue({
           taskType:      NEEDS_ORGANIZER_TASK,
-          queueCategory: 'events',
           entityType:    'event',
           entityId:      eventId,
-          priority:      0,
           actorId:       adminMemberId,
           reasonText:    `${event.title} has no organizer.`,
           detailText:    null,

@@ -523,11 +523,9 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
       if (open) return;
       workQueueService.enqueue({
         actorId,
-        queueCategory: 'media',
         taskType:      STORAGE_TASK_TYPE,
         entityType:    'media_item',
         entityId:      row.id,
-        priority:      0,
         reasonText:    'This item is hidden, but its stored files were not removed and are still served to anyone holding their address.',
         detailText:    null,
       });
@@ -646,11 +644,9 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
       if (!openTwin) {
         workQueueService.enqueue({
           actorId:       input.actorMemberId,
-          queueCategory: 'media',
           taskType:      TASK_TYPE,
           entityType:    'media_item',
           entityId:      input.mediaId,
-          priority:      0,
           // Platform wording only. What the reporter wrote stays on the report.
           reasonText:    'A member reported this media item for review.',
           detailText:    null,

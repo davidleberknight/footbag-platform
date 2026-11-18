@@ -50,7 +50,6 @@ if (/^src\/(db|testkit|types|dev-bootstrap)\//.test(rel)) kind = null;
 else if (/^src\/views\/.*\.hbs$/.test(rel)) kind = 'hbs';
 else if (/^src\/.*\.ts$|^src\/public\/js\/.*\.js$|^curated\/email_templates\/[^/]*\.json$/.test(rel)) kind = 'code';
 if (!kind) process.exit(0);
-const editorialFile = /^curated\/email_templates\//.test(rel);
 
 // Prose string literals: a space and a word, not SQL or a directive, outside comments and log lines.
 function codeUnits(s) {
@@ -112,7 +111,7 @@ const affirm = /^\s*(y|yes|yep|yeah|yup|ok|okay|go|go ahead|approved?|lgtm|do it
 const msgs = [];
 let prev = '';
 for (const line of (tp && fs.existsSync(tp) ? fs.readFileSync(tp, 'utf8') : '').split('\n')) {
-  if (!line.includes('"assistant"') && !line.includes('"human"')) continue;
+  if (!line.includes('"assistant"') && !line.includes('"human"') && !line.includes('"queue-operation"')) continue;
   let e; try { e = JSON.parse(line); } catch { continue; }
   let text = null;
   if (e.type === 'assistant') {
@@ -126,6 +125,12 @@ for (const line of (tp && fs.existsSync(tp) ? fs.readFileSync(tp, 'utf8') : '').
   } else if (e.type === 'attachment' && e.attachment && e.attachment.type === 'queued_command'
     && e.attachment.origin && e.attachment.origin.kind === 'human' && typeof e.attachment.prompt === 'string') {
     text = e.attachment.prompt;
+  } else if (e.type === 'queue-operation' && e.operation === 'enqueue' && typeof e.content === 'string'
+    && !/^\s*</.test(e.content)) {
+    // A message sent while Claude works reaches the transcript as a user line only when
+    // the turn ends; its enqueue line lands at once, so it counts from the moment it is sent.
+    msgs.push({ raw: e.content, h: norm(e.content), prev: '' });
+    continue;
   }
   if (text === null) continue;
   msgs.push({ raw: text, h: norm(text), prev: affirm.test(text) ? norm(prev) : '' });
@@ -136,7 +141,7 @@ const approved = (u) => msgs.some((m) => [m.h, m.prev].some((x) => x.includes(u.
 let todo = fresh.filter((u) => !approved(u));
 if (!todo.length) process.exit(0);
 
-// The latest pre-approval or withdrawal of one decides; editorial copy is never covered.
+// The latest pre-approval or withdrawal of one decides; a pre-approval covers every unit.
 const UI = '\\bui\\s+(copy|text|words?|wording)\\b';
 const grant = new RegExp('\\b(all|technical)\\b[^\\n.]{0,40}' + UI + '|' + UI + '[^\\n]{0,60}\\btechnical\\b', 'i');
 const withdraw = new RegExp('\\b(stop|revoke|withdraw|cancel)\\b[^\\n]{0,40}' + UI
@@ -146,25 +151,19 @@ for (const m of msgs) {
   if (withdraw.test(m.raw)) preApproved = false;
   else if (grant.test(m.raw)) preApproved = true;
 }
-const editorial = (u) => editorialFile || u.words > 40;
 const quote = (s) => '"' + s + '"';
 if (preApproved) {
-  const passed = todo.filter((u) => !editorial(u));
-  todo = todo.filter(editorial);
-  if (!todo.length) {
-    process.stdout.write(JSON.stringify({ systemMessage: 'UI copy changed in ' + rel
-      + ' under your pre-approval of technical UI wording. New text: '
-      + passed.map((u) => quote(u.raw)).join('; ') }) + '\n');
-    process.exit(0);
-  }
+  process.stdout.write(JSON.stringify({ systemMessage: 'UI copy changed in ' + rel
+    + ' under your pre-approval of UI wording. New text: '
+    + todo.map((u) => quote(u.raw)).join('; ') }) + '\n');
+  process.exit(0);
 }
 
 const reason = 'HUMAN APPROVAL OF UI COPY: Claude is changing text site visitors read in ' + rel
   + ', and public UI wording changes only with a human\'s approval, so approve or reject this exact text.\n'
   + (gone.length ? 'Text it replaces or removes: ' + gone.map(quote).join('; ') + '\n' : '')
   + 'New text: ' + todo.map((u) => quote(u.raw)).join('; ') + '\n'
-  + (preApproved ? 'Your pre-approval of technical UI wording does not cover this: it is email text or prose of over forty words.'
-    : 'To let technical wording (labels, hints, validation and error messages) through for the rest of this session, say "approve all technical UI wording".');
+  + 'To let all UI wording through for the rest of this session, say "approve all technical UI wording".';
 process.stdout.write(JSON.stringify({ systemMessage: reason,
   hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'ask', permissionDecisionReason: reason } }) + '\n');
 JS

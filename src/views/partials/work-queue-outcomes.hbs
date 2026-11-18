@@ -1,0 +1,36 @@
+{{!-- The outcome of the last work-queue action, one copy for the list, the
+      item page and the parked page. Called with the page's content as its
+      context. --}}
+{{#if resolvedFlag}}
+  {{> outcome-notice text="Item resolved and email reply dispatched." tone='ok'}}
+{{/if}}
+{{#if resolvedQuietFlag}}
+  {{> outcome-notice text="Item resolved." tone='ok'}}
+{{/if}}
+{{! A revert strips a wrongly-held claim and settles nothing else: the
+    requester's own link is still undecided, so the item stays open and
+    nobody has been written to. The banner says both, rather than borrowing
+    the resolve message and claiming a resolution and an email. }}
+{{#if claimRevertedFlag}}
+  {{> outcome-notice text="Claim reverted. This request is still open, and still needs you to approve or reject the link." tone='ok'}}
+{{/if}}
+{{#if reviewedFlag}}
+  {{> outcome-notice text="Item marked reviewed." tone='ok'}}
+{{/if}}
+{{#if memberAskedFlag}}
+  {{> outcome-notice text="Question recorded, and it goes to the member by email where their address is deliverable. The item stays here until they answer." tone='ok'}}
+{{/if}}
+{{#if claimedFlag}}
+  {{> outcome-notice text="Item claimed. It is now off the other admins' digest." tone='ok'}}
+{{/if}}
+{{#if claimNoopFlag}}
+  {{> outcome-notice text="That item was already claimed or is no longer open." tone='info'}}
+{{/if}}
+{{#if parkedFlag}}
+  {{> outcome-notice text="Item parked. It is out of the queue, the digests and the escalation sweep until the member answers or you take it back." tone='ok'}}
+{{/if}}
+{{#if unparkedFlag}}
+  {{> outcome-notice text="Item back in the queue." tone='ok'}}
+{{/if}}
+{{> outcome-notice text=outcome.text tone=outcome.tone}}
+{{> outcome-notice text=errorMessage tone='no'}}

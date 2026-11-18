@@ -1,0 +1,7 @@
+{
+  "templateKey": "event_sanction_rejected",
+  "subjectTemplate": "Sanction request not approved: {eventTitle}",
+  "bodyTemplate": "IFPA did not approve the sanction request for {eventTitle}. Reason: {reason}. The event is back in draft; you can revise it and resubmit from the event's manage page: {manageUrl}\n\n-- IFPA platform",
+  "piiClassification": "internal",
+  "isEnabled": true
+}

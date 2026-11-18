@@ -43,8 +43,13 @@ test('forgot -> emailed link -> set new password -> authenticated on own profile
   await page.locator('#confirmPassword').fill(newPassword);
   await page.getByRole('button', { name: /Set New Password/i }).click();
 
-  // Success issues a session cookie and redirects to the member's own profile,
-  // matching the login and verify flows.
+  // Success signs nobody in: it lands on the login page with the success
+  // notice, and the new password then logs the member in to their profile.
+  await page.waitForURL(/\/login$/);
+  await expect(page.locator('.form-success-banner')).toHaveCount(1);
+  await page.locator('#email').fill(email);
+  await page.locator('#password').fill(newPassword);
+  await page.locator('.login-form button[type="submit"]').click();
   await page.waitForURL(/\/members\//);
   expect(page.url()).toContain(`/members/${persona.slug}`);
 });

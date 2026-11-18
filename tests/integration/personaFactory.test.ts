@@ -269,12 +269,12 @@ describe('work-queue item and administrator-question builders', () => {
     const memberId = insertMember(db, { slug: 'wq_subject_1' });
     const id = insertWorkQueueItem(db, { entity_id: memberId, reason_text: 'Asked for help' });
     const row = db.prepare(
-      `SELECT queue_category, task_type, entity_type, entity_id, status, priority,
+      `SELECT task_type, entity_type, entity_id, status,
               opened_at, reason_text, resolved_at, resolved_by_member_id
          FROM work_queue_items WHERE id = ?`,
     ).get(id) as {
-      queue_category: string; task_type: string; entity_type: string; entity_id: string;
-      status: string; priority: number; opened_at: string; reason_text: string;
+      task_type: string; entity_type: string; entity_id: string;
+      status: string; opened_at: string; reason_text: string;
       resolved_at: string | null; resolved_by_member_id: string | null;
     };
     expect(row.entity_type).toBe('member');

@@ -74,7 +74,10 @@ screen reader reliably reaches it.
 A **queue row** (`.admin-queue-row`) is one line naming a queue, its count as a badge, and an
 optional second line carrying an age or a split of that count, linking to the queue it counts. It is
 the primitive for a page listing many queues at once, where a card each would bury the counts in
-chrome and description. A **grouped link index** (`.admin-goto-grid`) is columns of plain links
+chrome and description. On the administrator's home page the queue rows sit inside the two work-kind
+cards, each card carrying one line of what and why and one button. On the work-queue list the same
+row, as a `div`, names one item, its area badge and how long it has waited, with a Claim button and
+an Open link. A **grouped link index** (`.admin-goto-grid`) is columns of plain links
 under group headings, carrying no counts and no descriptions, for the navigation half of a page
 whose destinations a reader learns the position of. Both are used on the administrator's home page.
 

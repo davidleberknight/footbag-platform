@@ -1,0 +1,7 @@
+{
+  "templateKey": "event_sanctioned",
+  "subjectTemplate": "{eventTitle} is IFPA-sanctioned",
+  "bodyTemplate": "{eventTitle} is now an IFPA-sanctioned event, and registration is open on footbag.org. You may use the IFPA logo in your publicity; download it from the sanctioning guidelines page, which also lists the after-event requirements: {guidelinesUrl}{decisionNoteLine}\n\n-- IFPA platform",
+  "piiClassification": "internal",
+  "isEnabled": true
+}

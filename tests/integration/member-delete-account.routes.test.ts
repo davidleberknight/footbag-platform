@@ -30,6 +30,8 @@ import {
   completeOnboarding,
   createTestSessionJwt,
   insertSystemConfig,
+  insertMemberAnnouncement,
+  insertWorkQueueItem,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('4184');
@@ -228,6 +230,28 @@ describe('the deletion itself', () => {
     });
   });
 
+  // Defect caught: an announcement still waiting for review goes out after the
+  // member deleted their account, or they get a second email about it.
+  it('withdraws an announcement awaiting review and closes its review, emailing nothing about it', async () => {
+    const slug = 'del_held_announcement';
+    const id = makeMember({ slug });
+    const { annId, itemId } = withDb((db) => {
+      const a = insertMemberAnnouncement(db, { member_id: id });
+      const i = insertWorkQueueItem(db, { task_type: 'announcement_review', entity_type: 'member_announcement', entity_id: a });
+      return { annId: a, itemId: i };
+    });
+    await deleteAccount(slug, id);
+    expect(deletedAtOf(id)).not.toBeNull();
+
+    withDb((db) => {
+      expect(db.prepare('SELECT status FROM member_announcements WHERE id = ?').get(annId)).toEqual({ status: 'returned' });
+      expect(db.prepare('SELECT status FROM work_queue_items WHERE id = ?').get(itemId)).toEqual({ status: 'dismissed' });
+      expect(db.prepare(
+        "SELECT COUNT(*) AS c FROM outbox_emails WHERE recipient_member_id = ? AND template_key LIKE 'announce_%'",
+      ).get(id)).toEqual({ c: 0 });
+    });
+  });
+
   it('sends the member the one message telling them the window exists', async () => {
     const slug = 'del_sends_notice';
     const id = makeMember({ slug });
@@ -269,10 +293,9 @@ describe('the deletion itself', () => {
     await deleteAccount(slug, id);
 
     const items = withDb((db) => db.prepare(
-      "SELECT queue_category, status FROM work_queue_items WHERE task_type = 'needs_organizer' AND entity_id = ?",
-    ).all(eventId) as { queue_category: string; status: string }[]);
+      "SELECT status FROM work_queue_items WHERE task_type = 'needs_organizer' AND entity_id = ?",
+    ).all(eventId) as { status: string }[]);
     expect(items).toHaveLength(1);
-    expect(items[0].queue_category).toBe('events');
     expect(items[0].status).toBe('open');
   });
 

@@ -130,6 +130,7 @@
  *   audit_entries,
  *   work_queue_items (every queue row about the member has its free text redacted on PII purge and deceased scrub, whatever the task type),
  *   member_messages (every question addressed to the member has its subject, body and note redacted on PII purge and deceased scrub),
+ *   member_announcements (deleted on PII purge; on deceased scrub the words of every unsent one cleared and the rows kept; on both, any open review item of theirs closed first, so nothing of theirs is sent afterwards),
  *   club_insight_notes (note text cleared on PII purge and deceased scrub; the row stays so the club evidence trail keeps its shape),
  *   member_onboarding_tasks (answers still held from an unfinished wizard cleared on PII purge and deceased scrub),
  *   outbox (recipient address, subject and rendered body scrubbed on PII purge and deceased scrub),
@@ -154,7 +155,9 @@
  */
 import { randomUUID } from 'crypto';
 import { logger } from '../config/logger';
-import { account, publicPlayers, memberClubAffiliations, memberLinks, clubLeaders, clubs as clubsDb, clubInsightNotes, declaredAnchors, emailArchives, erasureLog, legacyMembers, mailingListSubscriptions, memberPurge, memberMessages, mediaFlags, memberOnboarding, outbox, recurringDonationSubscriptions, workQueue, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
+import { account, publicPlayers, memberClubAffiliations, memberLinks, clubLeaders, clubs as clubsDb, clubInsightNotes, declaredAnchors, emailArchives, erasureLog, legacyMembers, mailingListSubscriptions, memberAnnouncements, memberPurge, memberMessages, mediaFlags, memberOnboarding, outbox, recurringDonationSubscriptions, workQueue, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
+import { eventOrganizers } from '../db/db';
+import { formatDateRange } from '../lib/handlebarsHelpers';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
 import { cleanUserText, sanitizeUserText, type TextShape } from '../lib/textSanitizer';
 import {
@@ -334,6 +337,22 @@ export interface MemberWelcomeTier {
 // A held co-leader/organizer role forces 'members' (enforced in updateOwnProfile).
 const VALID_EMAIL_VISIBILITY = new Set(['private', 'members']);
 
+/** One event the member organizes now, on their own profile. */
+export interface MyEventView {
+  title: string;
+  dates: string;
+  statusLabel: string;
+  manageHref: string;
+  stepDownAction: string;
+}
+
+/** The owner's My Events block: the events they organize and the way to create one. */
+export interface MyEventsView {
+  events: MyEventView[];
+  createEventHref: string | null;
+  createTierNotice: TierBenefitNotice | null;
+}
+
 export interface MyClubsClubView {
   clubName: string;
   clubHref: string;
@@ -423,6 +442,7 @@ export interface OwnProfileContent {
   search?: SearchBlockView;
   memberSlug?: string;
   myClubs?: MyClubsView;
+  myEvents?: MyEventsView;
   /** The member's own media, and the routes into it. Rendered whether or not
    *  they have any, because this section is where sharing media is found. */
   media?: OwnProfileMediaView;
@@ -1078,6 +1098,8 @@ function newErasureLogId(): string {
 // subject, so the value is replaced rather than preserved. It stays readable
 // because the admin email log renders it.
 const ERASED_SUBJECT_PLACEHOLDER = '(subject removed on erasure)';
+// The closing note on a held announcement's review when its author is erased.
+const ANNOUNCEMENT_ERASED_NOTE = 'Closed on account erasure; the announcement was not sent.';
 
 /**
  * Row-level PII erasure for a member whose grace period elapsed. Eligibility
@@ -1182,6 +1204,13 @@ async function purgeAccountPII(memberId: string): Promise<PurgeAccountPIIResult>
     const insightNotes = clubInsightNotes.clearNotesForMember.run(memberId);
     // Answers still held from an unfinished wizard can carry a note too.
     memberOnboarding.clearHeldAnswersForMember.run(now, 'operations_purge', memberId);
+    // Their held announcements go: nothing of theirs is sent after erasure, so
+    // any review still open is closed first, and the rows, which hold their
+    // own words, are deleted. What was already sent stays on the archive below.
+    workQueue.closeOpenAnnouncementReviewsForMember.run(
+      now, ANNOUNCEMENT_ERASED_NOTE, now, 'operations_purge', memberId,
+    );
+    memberAnnouncements.deleteForMember.run(memberId);
     // Anything they broadcast in IFPA's name stays exactly as it was sent,
     // subject, body and sending identity alike: it is a record of what went out,
     // and a group-backed list's archive is the group's own discussion, which a
@@ -1285,6 +1314,12 @@ async function scrubDeceasedMemberPII(memberId: string): Promise<ScrubDeceasedMe
     memberMessages.scrubTextForMember.run(now, memberId);
     // Anything they wrote reporting another member's media goes the same way.
     mediaFlags.scrubTextForMember.run(now, memberId);
+    // A held announcement is never sent for someone who has died: its review
+    // closes, and the words of anything unsent clear while the rows stay.
+    workQueue.closeOpenAnnouncementReviewsForMember.run(
+      now, ANNOUNCEMENT_ERASED_NOTE, now, 'operations_purge', memberId,
+    );
+    memberAnnouncements.clearOpenTextForMember.run(now, memberId);
     // Same treatment for the wizard's club insight notes: the words go, the
     // evidence row stays.
     const insightNotes = clubInsightNotes.clearNotesForMember.run(memberId);
@@ -1382,6 +1417,7 @@ export const memberService = {
         quickActions: buildQuickActions(row.id, slug),
         search,
         myClubs:      buildMyClubsView(row.id, slug),
+        myEvents:     buildMyEventsView(row.id, slug),
         media:        buildOwnProfileMediaView(row.id, slug),
         playerMedia:  playerMedia.media,
         playerMediaHeading: playerMedia.heading,
@@ -2517,6 +2553,38 @@ function buildPlayerMediaView(slug: string, displayName: string): PlayerMediaVie
   return {
     media: galleryHref ? { galleryHref, buttonLabel: 'View Player Gallery' } : null,
     heading: `Media Featuring ${displayName}`,
+  };
+}
+
+const MY_EVENT_STATUS_LABELS: Record<string, string> = {
+  draft: 'Draft',
+  pending_approval: 'Sanction pending',
+  reg_open: 'Registration open',
+  closed: 'Registration closed',
+};
+
+// The events the member organizes, each with its manage page and the step-down
+// control the organizer story places on the member's own dashboard, and the way
+// to create one. A member without Tier 1 benefits reads what the benefit is and
+// how to earn it instead.
+function buildMyEventsView(memberId: string, slug: string): MyEventsView {
+  const rows = eventOrganizers.listOpenEventsForMember.all(memberId) as Array<{
+    id: string; title: string; start_date: string; end_date: string; status: string; tag_normalized: string;
+  }>;
+  const canCreate = hasTier1Benefits(memberId);
+  return {
+    events: rows.map((r) => {
+      const base = `/events/${encodeURIComponent(r.tag_normalized.slice(1))}`;
+      return {
+        title: r.title,
+        dates: formatDateRange(r.start_date === r.end_date ? r.start_date : `${r.start_date}/${r.end_date}`),
+        statusLabel: MY_EVENT_STATUS_LABELS[r.status] ?? r.status,
+        manageHref: `${base}/manage`,
+        stepDownAction: `${base}/step-down`,
+      };
+    }),
+    createEventHref: canCreate ? '/events/create' : null,
+    createTierNotice: canCreate ? null : buildTierBenefitNotice(slug, 'event'),
   };
 }
 

@@ -1,0 +1,146 @@
+{{! An organizer's request that IFPA sanction their event }}
+
+<div class="hero hero-sm">
+  <div>
+    {{#if page.eyebrow}}<p class="hero-eyebrow">{{page.eyebrow}}</p>{{/if}}
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    {{#if content.errorMessage}}
+      {{> outcome-notice tone='no' text=content.errorMessage}}
+    {{/if}}
+    {{#if content.rejectionReason}}
+      <p class="notice-card notice-card--info">The last request was rejected: {{content.rejectionReason}}</p>
+    {{/if}}
+    {{#if content.divisionWarning}}
+      <p class="notice-card notice-card--warn">{{content.divisionWarning}}</p>
+    {{/if}}
+
+    <form method="POST" action="{{content.formAction}}" class="form-block">
+
+      <fieldset class="form-fieldset">
+        <legend>Divisions</legend>
+        {{#if content.divisions.length}}
+          <ul>
+            {{#each content.divisions}}
+              <li>{{this.name}}{{#if this.prizeLabel}} <span class="badge">{{this.prizeLabel}}</span>{{/if}}</li>
+            {{/each}}
+          </ul>
+        {{else}}
+          <p>This event has no divisions yet.</p>
+        {{/if}}
+        <small class="form-hint">Divisions, and whether each offers prize money, are set on the event's manage page.</small>
+      </fieldset>
+
+      {{! The attestation opens the form, so "below" points at the question
+          where the organizer states any difference from the official rules. }}
+      <div class="form-field">
+        <input type="hidden" name="attest" value="0" />
+        <label>
+          <input type="checkbox" name="attest" value="1"{{#if content.values.attest}} checked{{/if}} />
+          I agree that this event will follow IFPA's <a href="{{siteHref content.guidelinesHref}}">sanctioning guidelines</a>, will use the competition formats and judging systems in the Official Rules of Footbag Sports or state below where it differs, will tell all players about any alternative judging system before competition begins, and will meet the after-event requirements.
+        </label>
+        {{#if content.fieldErrors.attest}}<p class="form-field-error" role="alert">{{content.fieldErrors.attest}}</p>{{/if}}
+      </div>
+
+      <fieldset class="form-fieldset">
+        <legend>Official Formats and Judging</legend>
+        <p>Does the event differ from the official formats and judging systems?</p>
+        {{#each content.deviatesOptions}}
+          <div class="form-field"><label><input type="radio" name="deviates" value="{{this.value}}"{{#if this.checked}} checked{{/if}}> {{this.label}}</label></div>
+        {{/each}}
+        {{#if content.fieldErrors.deviates}}<p class="form-field-error" role="alert">{{content.fieldErrors.deviates}}</p>{{/if}}
+        <div class="form-field">
+          <label for="deviations">Where it differs</label>
+          <textarea id="deviations" name="deviations" rows="3" maxlength="2000">{{content.values.deviations}}</textarea>
+          {{#if content.fieldErrors.deviations}}<p class="form-field-error" role="alert">{{content.fieldErrors.deviations}}</p>{{/if}}
+        </div>
+      </fieldset>
+
+      <fieldset class="form-fieldset">
+        <legend>Prize Money</legend>
+        <p>Does the event offer prize money?</p>
+        {{#each content.prizeOptions}}
+          <div class="form-field"><label><input type="radio" name="prize_money" value="{{this.value}}"{{#if this.checked}} checked{{/if}}> {{this.label}}</label></div>
+        {{/each}}
+        {{#if content.fieldErrors.prize_money}}<p class="form-field-error" role="alert">{{content.fieldErrors.prize_money}}</p>{{/if}}
+        <div class="form-field">
+          <label for="prize_total">Total prize money</label>
+          <input type="text" id="prize_total" name="prize_total" value="{{content.values.prizeTotal}}" inputmode="decimal" />
+          {{#if content.fieldErrors.prize_total}}<p class="form-field-error" role="alert">{{content.fieldErrors.prize_total}}</p>{{/if}}
+        </div>
+        <div class="form-field">
+          <label for="prize_currency">Currency (three letters, such as USD)</label>
+          <input type="text" id="prize_currency" name="prize_currency" value="{{content.values.prizeCurrency}}" maxlength="3" />
+          {{#if content.fieldErrors.prize_currency}}<p class="form-field-error" role="alert">{{content.fieldErrors.prize_currency}}</p>{{/if}}
+        </div>
+      </fieldset>
+
+      <fieldset class="form-fieldset">
+        <legend>About the Event</legend>
+        <div class="form-field">
+          <label for="entry_fee_includes">What the entry fee includes (optional)</label>
+          <input type="text" id="entry_fee_includes" name="entry_fee_includes" value="{{content.values.entryFeeIncludes}}" maxlength="500" />
+          {{#if content.fieldErrors.entry_fee_includes}}<p class="form-field-error" role="alert">{{content.fieldErrors.entry_fee_includes}}</p>{{/if}}
+        </div>
+        <p>How often is the event held?</p>
+        {{#each content.frequencyOptions}}
+          <div class="form-field"><label><input type="radio" name="frequency" value="{{this.value}}"{{#if this.checked}} checked{{/if}}> {{this.label}}</label></div>
+        {{/each}}
+        {{#if content.fieldErrors.frequency}}<p class="form-field-error" role="alert">{{content.fieldErrors.frequency}}</p>{{/if}}
+        <div class="form-field">
+          <label for="years_held">If annually, the years it has been held</label>
+          <input type="text" id="years_held" name="years_held" value="{{content.values.yearsHeld}}" maxlength="500" />
+          {{#if content.fieldErrors.years_held}}<p class="form-field-error" role="alert">{{content.fieldErrors.years_held}}</p>{{/if}}
+        </div>
+        <div class="form-field">
+          <label for="expected_players">Expected number of players</label>
+          <input type="text" id="expected_players" name="expected_players" value="{{content.values.expectedPlayers}}" inputmode="numeric" />
+          {{#if content.fieldErrors.expected_players}}<p class="form-field-error" role="alert">{{content.fieldErrors.expected_players}}</p>{{/if}}
+        </div>
+        <div class="form-field">
+          <label for="expected_spectators">Expected number of spectators (optional)</label>
+          <input type="text" id="expected_spectators" name="expected_spectators" value="{{content.values.expectedSpectators}}" inputmode="numeric" />
+          {{#if content.fieldErrors.expected_spectators}}<p class="form-field-error" role="alert">{{content.fieldErrors.expected_spectators}}</p>{{/if}}
+        </div>
+      </fieldset>
+
+      <fieldset class="form-fieldset">
+        <legend>Permits and Insurance</legend>
+        <p>Permits in place?</p>
+        {{#each content.permitOptions}}
+          <div class="form-field"><label><input type="radio" name="permits" value="{{this.value}}"{{#if this.checked}} checked{{/if}}> {{this.label}}</label></div>
+        {{/each}}
+        {{#if content.fieldErrors.permits}}<p class="form-field-error" role="alert">{{content.fieldErrors.permits}}</p>{{/if}}
+        <p>Insurance in place?</p>
+        {{#each content.insuranceOptions}}
+          <div class="form-field"><label><input type="radio" name="insurance" value="{{this.value}}"{{#if this.checked}} checked{{/if}}> {{this.label}}</label></div>
+        {{/each}}
+        {{#if content.fieldErrors.insurance}}<p class="form-field-error" role="alert">{{content.fieldErrors.insurance}}</p>{{/if}}
+      </fieldset>
+
+      {{#if content.showJustification}}
+        <fieldset class="form-fieldset">
+          <legend>Registration Fees</legend>
+          <div class="form-field">
+            <label for="justification">Why the registration fees are set as they are</label>
+            <textarea id="justification" name="justification" rows="3" maxlength="2000">{{content.values.justification}}</textarea>
+            {{#if content.fieldErrors.justification}}<p class="form-field-error" role="alert">{{content.fieldErrors.justification}}</p>{{/if}}
+          </div>
+        </fieldset>
+      {{/if}}
+
+      {{> volunteer-admin-notice}}
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Submit Sanction Request</button>
+        <a href="{{siteHref content.cancelHref}}" class="action-link">Cancel</a>
+      </div>
+    </form>
+  </section>
+
+  {{> back-link}}
+</div>

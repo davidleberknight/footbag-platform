@@ -293,7 +293,7 @@ describe('POST /admin/email-templates/:key/edit', () => {
       .type('form')
       .send({
         subjectTemplate: 'IFPA admin team: please recruit a new admin volunteer',
-        bodyTemplate: 'Administrator member ID: {entityId}\nWork queue: {queueUrl}',
+        bodyTemplate: 'Please recruit a new admin volunteer. The item is at {itemUrl}.',
         piiClassification: 'internal',
         // isEnabled omitted: an unchecked checkbox posts nothing.
       });

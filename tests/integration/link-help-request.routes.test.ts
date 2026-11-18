@@ -62,6 +62,13 @@ function askAdminToLink(memberId: string, statement: string) {
     .send({ category: 'identity_link_issue', message: statement });
 }
 
+/** The member's open link-help request, on its own admin page. */
+function itemPageOf(memberId: string) {
+  const item = openItems(memberId).find((i) => i.status === 'open');
+  expect(item, `an open link-help request for ${memberId}`).toBeDefined();
+  return request(createApp()).get(`/admin/work-queue/${String(item!.id)}`);
+}
+
 function openItems(memberId: string): Array<Record<string, unknown>> {
   return db.prepare(`
     SELECT * FROM work_queue_items
@@ -111,7 +118,6 @@ describe('member intake', () => {
     const items = openItems(memberId);
     expect(items).toHaveLength(1);
     expect(items[0].status).toBe('open');
-    expect(items[0].queue_category).toBe('membership');
     const payload = JSON.parse(String(items[0].reason_text)) as Record<string, unknown>;
     expect(payload.statement).toBe('I competed at Worlds 2003 as Helper.');
     expect(payload.is_dispute).toBe(false);
@@ -646,11 +652,10 @@ describe('admin review', () => {
       .type('form')
       .send({ category: 'identity_link_issue', message: 'Render me.' });
 
-    const res = await request(createApp())
-      .get('/admin/work-queue')
-      .set('Cookie', adminCookie());
+    const res = await itemPageOf(memberId).set('Cookie', adminCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Member link help request');
+    // The type's label titles the page, re-cased as a heading.
+    expect(res.text.toLowerCase()).toContain('member link help request');
     expect(res.text).toContain('Render me.');
     expect(res.text).toContain('/link-help/approve');
     expect(res.text).toContain('/link-help/reject');
@@ -673,9 +678,7 @@ describe('admin review', () => {
     });
     await askAdminToLink(memberId, 'Please find my old records.');
 
-    const res = await request(createApp())
-      .get('/admin/work-queue')
-      .set('Cookie', adminCookie());
+    const res = await itemPageOf(memberId).set('Cookie', adminCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain(`LM-cand-${memberId}`);
     expect(res.text).toContain('Found through their sign-in address');
@@ -699,9 +702,7 @@ describe('admin review', () => {
     });
     await askAdminToLink(memberId, 'Someone else has my old account.');
 
-    const res = await request(createApp())
-      .get('/admin/work-queue')
-      .set('Cookie', adminCookie());
+    const res = await itemPageOf(memberId).set('Cookie', adminCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain(`LM-held-${memberId}`);
     expect(res.text).toContain('Held by another member: Other Holder');
@@ -711,9 +712,7 @@ describe('admin review', () => {
     const memberId = seedRequester('Nobody Findable');
     await askAdminToLink(memberId, 'I am sure I had an account.');
 
-    const res = await request(createApp())
-      .get('/admin/work-queue')
-      .set('Cookie', adminCookie());
+    const res = await itemPageOf(memberId).set('Cookie', adminCookie());
     expect(res.text).toContain('Nothing on file reaches an old account or a competition record');
   });
 
@@ -756,9 +755,7 @@ describe('admin review', () => {
       .set('Cookie', cookieFor(memberId))
       .type('form').send({ category: 'identity_link_issue', message: 'Please look at this.' });
 
-    const res = await request(createApp())
-      .get('/admin/work-queue')
-      .set('Cookie', adminCookie());
+    const res = await itemPageOf(memberId).set('Cookie', adminCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain('Refused: the member&#x27;s evidence no longer made it claimable');
     expect(res.text).toContain('Other Personsson');
@@ -780,9 +777,7 @@ describe('admin review', () => {
       .set('Cookie', cookieFor(memberId))
       .type('form').send({ category: 'identity_link_issue', message: 'Nothing tried yet.' });
 
-    const res = await request(createApp())
-      .get('/admin/work-queue')
-      .set('Cookie', adminCookie());
+    const res = await itemPageOf(memberId).set('Cookie', adminCookie());
     expect(res.text).toContain('has not attempted a claim');
   });
 });
@@ -916,10 +911,13 @@ describe('admin review: separation of duties', () => {
       .type('form')
       .send({ target_historical_person_id: personId, reason: 'Evidence favours the requester.' });
     expect(res.status).toBe(303);
+    // The request is still open, so the revert returns to its page, where the
+    // approve and reject actions are.
+    expect(res.headers.location).toBe(`/admin/work-queue/${String(item.id)}`);
 
     const flash = res.headers['set-cookie']!.toString().split(';')[0]!;
     const landing = await request(createApp())
-      .get('/admin/work-queue')
+      .get(res.headers.location!)
       .set('Cookie', `${adminCookie()}; ${flash}`);
 
     expect(landing.status).toBe(200);
@@ -1056,9 +1054,7 @@ describe('admin review: separation of duties', () => {
       .type('form')
       .send({ category: 'identity_link_issue', message:'That record is mine.' });
 
-    const res = await request(createApp())
-      .get('/admin/work-queue')
-      .set('Cookie', adminCookie());
+    const res = await itemPageOf(requesterId).set('Cookie', adminCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain(personId);
   });

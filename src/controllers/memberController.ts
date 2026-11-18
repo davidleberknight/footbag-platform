@@ -116,10 +116,11 @@ export const memberController = {
         if (flash?.kind === FLASH_KIND.PROFILE_UPDATED) {
           profileNotice = flash.payload || 'Profile updated.';
           clearFlash(res, req);
-        } else if (flash?.kind === FLASH_KIND.CLUB_ACTION) {
+        } else if (flash?.kind === FLASH_KIND.CLUB_ACTION || flash?.kind === FLASH_KIND.EVENT_ACTION) {
           // Leaving a club, swapping the primary, stepping down as co-leader,
-          // and parking or reactivating a club all land here, so this page is
-          // the one that has to say how they went. Cleared whatever the
+          // parking or reactivating a club, and stepping down as an event
+          // organizer all land here, so this page is the one that has to say
+          // how they went. Cleared whatever the
           // payload turns out to be: a note left behind in the cookie surfaces
           // on the next club page the member opens, telling them something
           // happened there that happened somewhere else.

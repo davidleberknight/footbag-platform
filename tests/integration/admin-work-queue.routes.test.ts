@@ -6,6 +6,7 @@ import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, insertWorkQueueItem, createTestSessionJwt, insertSystemConfig } from '../fixtures/factories';
 import { rowPin, theOnlyRow } from '../fixtures/rowPinning';
+import { workQueueKindDescriptor } from '../../src/services/workQueueTaskTypes';
 
 const { dbPath } = setTestEnv('3130');
 
@@ -139,30 +140,41 @@ describe('GET /admin/work-queue', () => {
     expect(res.status).toBe(403);
   });
 
-  it('admin, no open items → 200 with empty-state message', async () => {
+  it('admin, no open items → 200 with the empty state and no rows', async () => {
     const app = createApp();
     const res = await request(app)
       .get('/admin/work-queue')
       .set('Cookie', adminCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('No open work-queue items');
+    expect(res.text).not.toContain('class="admin-queue-row"');
+    expect(res.text).toContain('Nothing open.');
   });
 
-  it('admin, with one open contact request → 200 listing the item under Membership', async () => {
+  it('admin, with one open contact request → one compact row under Someone Is Waiting, opening the item', async () => {
     const app = createApp();
-    await postOneOpenRequest(app, MEMBER_ID, MEMBER_SLUG);
+    const queueId = await postOneOpenRequest(app, MEMBER_ID, MEMBER_SLUG);
     const res = await request(app)
       .get('/admin/work-queue')
       .set('Cookie', adminCookie());
     expect(res.status).toBe(200);
-    expect(res.text).not.toContain('No open work-queue items');
-    expect(res.text).toContain('Membership');
-    expect(res.text).toContain('Member contact request');
-    expect(res.text).toContain('Display name correction');
-    expect(res.text).toContain(`href="/members/${MEMBER_SLUG}"`);
+    expect(res.text).toContain(`<h2>${workQueueKindDescriptor('waiting').label}</h2>`);
+    const rows = res.text.split('<div class="admin-queue-row">').slice(1);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toContain('Member contact request');
+    expect(rows[0]).toContain('Membership');
+    expect(rows[0]).toContain('waiting 1 day');
+    expect(rows[0]).toContain('Unclaimed');
+    expect(rows[0]).toContain(`href="/admin/work-queue/${queueId}?kind=waiting"`);
+    // The list names the item and leaves the member's words to its page.
+    expect(rows[0]).not.toContain('please fix my name');
+
+    const item = await request(app).get(`/admin/work-queue/${queueId}`).set('Cookie', adminCookie());
+    expect(item.status).toBe(200);
+    expect(item.text).toContain('Display name correction');
+    expect(item.text).toContain(`href="/members/${MEMBER_SLUG}"`);
   });
 
-  it('shows the full member message body, untruncated', async () => {
+  it('shows the full member message body on the item page, untruncated', async () => {
     const app = createApp();
     const longMsg = 'C'.repeat(450);
     await request(app)
@@ -170,8 +182,12 @@ describe('GET /admin/work-queue', () => {
       .set('Cookie', memberCookie())
       .type('form')
       .send({ category: 'display_name_correction', message: longMsg });
+    const db = new BetterSqlite3(dbPath);
+    const { id } = db.prepare(`SELECT id FROM work_queue_items WHERE entity_id = ? AND status = 'open'`)
+      .get(MEMBER_ID) as { id: string };
+    db.close();
     const res = await request(app)
-      .get('/admin/work-queue')
+      .get(`/admin/work-queue/${id}`)
       .set('Cookie', adminCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain(longMsg);
@@ -200,7 +216,7 @@ describe('POST /admin/work-queue/:id/claim', () => {
     expect(row.claimed_by_member_id).toBe(ADMIN_ID);
 
     const after = await request(app).get('/admin/work-queue').set('Cookie', adminCookie());
-    expect(after.text).toContain('Claimed by you.');
+    expect(after.text).toContain('Claimed by you');
     // The claim control is gone once the item is claimed.
     expect(after.text).not.toContain(`/admin/work-queue/${queueId}/claim`);
   });
@@ -212,7 +228,8 @@ describe('POST /admin/work-queue/:id/claim', () => {
 
     // A second admin's queue view names the claimer rather than offering a Claim button.
     const view = await request(app).get('/admin/work-queue').set('Cookie', admin2Cookie());
-    expect(view.text).toContain('Claimed by WQ Admin.');
+    expect(view.text).toContain('Claimed by WQ Admin');
+    expect(view.text).not.toContain(`/admin/work-queue/${queueId}/claim`);
 
     // A second claim is a harmless no-op; the original claimer is unchanged.
     const steal = await request(app).post(`/admin/work-queue/${queueId}/claim`).set('Cookie', admin2Cookie()).type('form').send({});
@@ -765,11 +782,9 @@ describe('POST /admin/work-queue/:id/resolve — payments tasks', () => {
     const { workQueueService } = await import('../../src/services/workQueueService');
     const { id } = workQueueService.enqueue({
       actorId: 'system',
-      queueCategory: 'payments',
       taskType,
       entityType,
       entityId,
-      priority: 0,
       reasonText: 'seeded payments task',
       detailText,
     });
@@ -840,9 +855,9 @@ describe('POST /admin/work-queue/:id/resolve — payments tasks', () => {
     });
     db.close();
 
-    await seedPaymentsTask('partial_refund_review', 'payment', paymentId);
+    const itemId = await seedPaymentsTask('partial_refund_review', 'payment', paymentId);
 
-    const res = await request(app).get('/admin/work-queue').set('Cookie', adminCookie());
+    const res = await request(app).get(`/admin/work-queue/${itemId}`).set('Cookie', adminCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain(`href="/admin/payments/${paymentId}"`);
     expect(res.text).toContain('WQ Member');
@@ -854,14 +869,15 @@ describe('POST /admin/work-queue/:id/resolve — payments tasks', () => {
     // type whose actions nobody declared carries its detail and no way to act on
     // it: readable, and impossible to close. This one is real money owed back.
     const app = createApp();
-    await seedPaymentsTask(
+    const itemId = await seedPaymentsTask(
       'membership_overcharge_review', 'payment', 'pay_card_render',
       'Payment pay_card_render, paid for tier2, member already at tier2',
     );
 
-    const res = await request(app).get('/admin/work-queue').set('Cookie', adminCookie());
+    const res = await request(app).get(`/admin/work-queue/${itemId}`).set('Cookie', adminCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Membership paid for but not granted');
+    // The type's label titles the page, re-cased as a heading.
+    expect(res.text.toLowerCase()).toContain('membership paid for but not granted');
     expect(res.text).toContain('member already at tier2');
     expect(res.text).toContain('Handled in Stripe');
   });
@@ -1067,17 +1083,18 @@ describe('POST /admin/work-queue/:id/resolve — payments tasks', () => {
 
   it('renders the entity reference, the detail line, and the payments decisions on a payments card', async () => {
     const app = createApp();
-    await seedPaymentsTask('charge_dispute_review', 'stripe_dispute', 'di_render', 'Dispute di_render; amount 2500 USD');
+    const disputeId = await seedPaymentsTask('charge_dispute_review', 'stripe_dispute', 'di_render', 'Dispute di_render; amount 2500 USD');
     const reconId = await seedPaymentsTask('reconciliation_discrepancy', 'reconciliation_issue', 'rec_render');
 
-    const res = await request(app).get('/admin/work-queue').set('Cookie', adminCookie());
+    const res = await request(app).get(`/admin/work-queue/${disputeId}`).set('Cookie', adminCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain('Stripe dispute di_render');
     expect(res.text).toContain('Dispute di_render; amount 2500 USD');
     expect(res.text).toContain('Handled in Stripe');
     // The reconciliation twin points at its own page and offers no resolve form.
-    expect(res.text).toContain('Review on the Reconciliation Page');
-    expect(res.text).not.toContain(`action="/admin/work-queue/${reconId}/resolve"`);
+    const recon = await request(app).get(`/admin/work-queue/${reconId}`).set('Cookie', adminCookie());
+    expect(recon.text).toContain('Review on the Reconciliation Page');
+    expect(recon.text).not.toContain(`action="/admin/work-queue/${reconId}/resolve"`);
   });
 });
 
@@ -1092,7 +1109,6 @@ describe('POST /admin/work-queue/:id/park', () => {
     const db = new BetterSqlite3(dbPath);
     const { insertWorkQueueItem: insert } = await import('../fixtures/factories');
     const id = insert(db, {
-      queue_category: 'membership',
       task_type: 'member_link_help_request',
       entity_id: memberId,
       reason_text: JSON.stringify({ statement: 'I cannot find my old record', is_dispute: false }),
@@ -1115,7 +1131,7 @@ describe('POST /admin/work-queue/:id/park', () => {
   it('offers the control on a link-help request, which is where a story asks for it', async () => {
     const app = createApp();
     const queueId = await seedLinkHelpItem(MEMBER_ID);
-    const res = await request(app).get('/admin/work-queue').set('Cookie', adminCookie());
+    const res = await request(app).get(`/admin/work-queue/${queueId}`).set('Cookie', adminCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain(`action="/admin/work-queue/${queueId}/park"`);
   });
@@ -1138,12 +1154,18 @@ describe('POST /admin/work-queue/:id/park', () => {
     // paths, so the park is recorded beside the status rather than in it.
     expect(row.status).toBe('open');
 
-    const page = await request(app).get('/admin/work-queue').set('Cookie', adminCookie());
-    expect(page.text).toContain('Parked');
-    expect(page.text).toContain('Waiting for them to dig out the old email address.');
-    expect(page.text).toContain(`action="/admin/work-queue/${queueId}/unpark"`);
-    // Out of the working queue: the card's own resolve controls are gone with it.
-    expect(page.text).not.toContain(`action="/admin/work-queue/${queueId}/link-help/approve"`);
+    const parked = await request(app).get('/admin/work-queue/parked').set('Cookie', adminCookie());
+    expect(parked.text).toContain('Waiting for them to dig out the old email address.');
+    expect(parked.text).toContain(`action="/admin/work-queue/${queueId}/unpark"`);
+    // Out of the working list.
+    const list = await request(app).get('/admin/work-queue?kind=waiting').set('Cookie', adminCookie());
+    expect(list.text).not.toContain(`/admin/work-queue/${queueId}?`);
+    // Its own page says why it is parked and offers the way back, not its
+    // resolving actions.
+    const item = await request(app).get(`/admin/work-queue/${queueId}`).set('Cookie', adminCookie());
+    expect(item.status).toBe(200);
+    expect(item.text).toContain(`action="/admin/work-queue/${queueId}/unpark"`);
+    expect(item.text).not.toContain(`action="/admin/work-queue/${queueId}/link-help/approve"`);
   });
 
   // Defect caught: the item row keeps only its current park, so a park and its
@@ -1268,7 +1290,7 @@ describe('POST /admin/work-queue/:id/park', () => {
     expect(res.status).toBe(303);
     expect(parkedRow(queueId).parked_at).toBeNull();
 
-    const page = await request(app).get('/admin/work-queue').set('Cookie', adminCookie());
+    const page = await request(app).get(`/admin/work-queue/${queueId}`).set('Cookie', adminCookie());
     expect(page.text).toContain(`action="/admin/work-queue/${queueId}/link-help/approve"`);
   });
 
@@ -1314,11 +1336,9 @@ describe('work-queue claims lapse', () => {
     const { workQueueService } = await import('../../src/services/workQueueService');
     const { id } = workQueueService.enqueue({
       actorId: 'system',
-      queueCategory: 'membership',
       taskType: 'member_contact_request',
       entityType: 'member',
       entityId: MEMBER_ID,
-      priority: 5,
       reasonText: 'seeded for claim expiry',
       detailText: null,
     });
@@ -1344,8 +1364,10 @@ describe('work-queue claims lapse', () => {
     const app = createApp();
     const id = await seedClaimedItem(LONG_AGO, ADMIN2_ID);
     const res = await request(app).get('/admin/work-queue').set('Cookie', adminCookie());
-    expect(res.text).toContain('claimed this earlier and has not closed it');
     expect(res.text).toContain(`action="/admin/work-queue/${id}/claim"`);
+    const item = await request(app).get(`/admin/work-queue/${id}`).set('Cookie', adminCookie());
+    expect(item.text).toContain('WQ Admin Two claimed it earlier and has not closed it');
+    expect(item.text).toContain(`action="/admin/work-queue/${id}/claim"`);
   });
 
   it('another administrator can take over an item whose claim has lapsed', async () => {
@@ -1401,12 +1423,11 @@ describe('work-queue claims lapse', () => {
 // with no control can never leave the queue.
 describe('POST /admin/work-queue/:id/dismiss — internal review item', () => {
   // Seeded through the factory rather than the enqueue path, so the type's own
-  // urgent alert does not put mail in the outbox the email assertion counts.
+  // Team Alert email does not put mail in the outbox the email assertion counts.
   async function seedReviewItem(memberId: string): Promise<string> {
     const db = new BetterSqlite3(dbPath);
     const { insertWorkQueueItem: insert } = await import('../fixtures/factories');
     const id = insert(db, {
-      queue_category: 'system',
       task_type: 'admin_loss_recruitment',
       entity_id: memberId,
       reason_text: 'An administrator can no longer serve.',
@@ -1429,7 +1450,7 @@ describe('POST /admin/work-queue/:id/dismiss — internal review item', () => {
   it('renders a dismissal control the administrator can act on', async () => {
     const app = createApp();
     const queueId = await seedReviewItem(MEMBER_ID);
-    const res = await request(app).get('/admin/work-queue?category=system').set('Cookie', adminCookie());
+    const res = await request(app).get(`/admin/work-queue/${queueId}`).set('Cookie', adminCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain(`action="/admin/work-queue/${queueId}/dismiss"`);
   });
@@ -1527,74 +1548,149 @@ describe('POST /admin/work-queue/:id/dismiss — internal review item', () => {
   });
 });
 
-describe('working one category at a time', () => {
+describe('working one kind at a time', () => {
   function seedTwoCategories(): string {
     const db = new BetterSqlite3(dbPath);
     const membership = insertWorkQueueItem(db, {
-      queue_category: 'membership', task_type: 'member_contact_request',
+      task_type: 'member_contact_request',
       entity_id: MEMBER_ID, reason_text: 'A membership matter',
     });
     insertWorkQueueItem(db, {
-      queue_category: 'payments', task_type: 'reconciliation_discrepancy',
+      task_type: 'reconciliation_discrepancy',
       entity_id: MEMBER_ID, reason_text: 'A payments matter',
     });
     db.close();
     return membership;
   }
 
-  it('shows one category alone and says what it is a subset of', async () => {
-    seedTwoCategories();
+  /** The item ids a list page shows, in the order its rows give them. */
+  function listedIds(html: string): string[] {
+    return html.split('<div class="admin-queue-row">').slice(1)
+      .map((row) => /href="\/admin\/work-queue\/([^"?]+)\?/.exec(row)?.[1] ?? '');
+  }
 
-    const res = await request(createApp())
-      .get('/admin/work-queue?category=membership')
-      .set('Cookie', adminCookie());
+  async function list(query: string): Promise<string> {
+    const res = await request(createApp()).get(`/admin/work-queue${query}`).set('Cookie', adminCookie());
+    expect(res.status, query).toBe(200);
+    return res.text;
+  }
 
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('A membership matter');
-    expect(res.text).not.toContain('A payments matter');
-    // A deep link that just showed a short queue would read as a queue with
-    // less in it than there is.
-    expect(res.text).toContain('Showing Membership only');
-    expect(res.text).toContain('href="/admin/work-queue"');
+  it('shows one kind alone', async () => {
+    const membership = seedTwoCategories();
+    const html = await list('?kind=waiting');
+    expect(listedIds(html)).toEqual([membership]);
   });
 
-  it('shows the whole queue for a category that does not exist', async () => {
-    seedTwoCategories();
+  // Defect caught: an administrator lands on a quiet kind while a person waits,
+  // or on an empty page while work is open.
+  it('opens on the first kind with anything open, in the registry order', async () => {
+    const membership = seedTwoCategories();
+    // No Team Alert is open, so Someone Is Waiting comes first.
+    expect(listedIds(await list(''))).toEqual([membership]);
 
-    const res = await request(createApp())
-      .get('/admin/work-queue?category=not_a_category')
-      .set('Cookie', adminCookie());
-
-    // An administrator following a stale or mistyped link is better served
-    // everything than a refusal, on a read-only surface with nothing to protect.
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('A membership matter');
-    expect(res.text).toContain('A payments matter');
-    expect(res.text).not.toContain('Showing');
+    const db = new BetterSqlite3(dbPath);
+    const alert = insertWorkQueueItem(db, { task_type: 'admin_loss_recruitment', entity_id: MEMBER_ID });
+    db.close();
+    expect(listedIds(await list(''))).toEqual([alert]);
+    // A stale or mistyped kind gets the same default rather than a refusal.
+    expect(listedIds(await list('?kind=not_a_kind'))).toEqual([alert]);
   });
 
-  it('keeps the administrator in their category after acting on an item', async () => {
+  // Defect caught: the queue loads every item at once, or a page boundary
+  // drops or repeats an item.
+  it('pages 25 to a page, oldest first, and shows the last page for a page past it', async () => {
+    const db = new BetterSqlite3(dbPath);
+    const ids: string[] = [];
+    // ordering-is-the-contract: item i opened i minutes after the first.
+    for (let i = 0; i < 26; i++) {
+      ids.push(insertWorkQueueItem(db, {
+        id: `wq-page-${String(i).padStart(2, '0')}`,
+        task_type: 'payout_failed', entity_type: 'stripe_payout', entity_id: `po-page-${i}`,
+        opened_at: new Date(Date.UTC(2026, 0, 1, 0, i)).toISOString(),
+      }));
+    }
+    db.close();
+
+    const first = await list('?kind=housekeeping');
+    expect(listedIds(first)).toEqual(ids.slice(0, 25));
+    expect(first).toContain('Page 1 of 2');
+    const second = await list('?kind=housekeeping&page=2');
+    expect(listedIds(second)).toEqual([ids[25]]);
+    expect(second).toContain('Page 2 of 2');
+    // A close can empty the last page while an administrator is on it.
+    expect(listedIds(await list('?kind=housekeeping&page=3'))).toEqual([ids[25]]);
+    expect(listedIds(await list('?kind=housekeeping&page=abc'))).toEqual(ids.slice(0, 25));
+  });
+
+  // Defect caught: two items opened in the same instant swap places between
+  // requests, so one shows on two pages and the other on none.
+  it('breaks a tie in opening time by id', async () => {
+    const db = new BetterSqlite3(dbPath);
+    const at = '2026-02-01T00:00:00.000Z';
+    // ordering-is-the-contract: the ids decide the order of a tie.
+    insertWorkQueueItem(db, { id: 'wq-tie-b', task_type: 'payout_failed', entity_type: 'stripe_payout', entity_id: 'po-tb', opened_at: at });
+    insertWorkQueueItem(db, { id: 'wq-tie-a', task_type: 'payout_failed', entity_type: 'stripe_payout', entity_id: 'po-ta', opened_at: at });
+    db.close();
+    expect(listedIds(await list('?kind=housekeeping'))).toEqual(['wq-tie-a', 'wq-tie-b']);
+  });
+
+  // Defect caught: the unclaimed filter hides an item whose claim has lapsed,
+  // or shows one somebody is holding.
+  it('narrows to the items nobody holds a live claim on', async () => {
+    const db = new BetterSqlite3(dbPath);
+    const free = insertWorkQueueItem(db, { task_type: 'payout_failed', entity_type: 'stripe_payout', entity_id: 'po-free' });
+    const held = insertWorkQueueItem(db, { task_type: 'payout_failed', entity_type: 'stripe_payout', entity_id: 'po-held' });
+    const lapsed = insertWorkQueueItem(db, { task_type: 'payout_failed', entity_type: 'stripe_payout', entity_id: 'po-lapsed' });
+    db.prepare('UPDATE work_queue_items SET claimed_by_member_id = ?, claimed_at = ? WHERE id = ?')
+      .run(ADMIN2_ID, new Date().toISOString(), held);
+    db.prepare('UPDATE work_queue_items SET claimed_by_member_id = ?, claimed_at = ? WHERE id = ?')
+      .run(ADMIN2_ID, '2020-01-01T00:00:00.000Z', lapsed);
+    db.close();
+    expect(listedIds(await list('?kind=housekeeping')).sort()).toEqual([free, held, lapsed].sort());
+    expect(listedIds(await list('?kind=housekeeping&unclaimed=1')).sort()).toEqual([free, lapsed].sort());
+  });
+
+  // Defect caught: an item whose type has since been withdrawn disappears from
+  // every view, so nobody can ever close it.
+  it('lists an item of a withdrawn type under Housekeeping', async () => {
+    const db = new BetterSqlite3(dbPath);
+    const orphan = insertWorkQueueItem(db, { task_type: 'a_withdrawn_type', entity_type: 'member', entity_id: MEMBER_ID });
+    db.close();
+    expect(listedIds(await list('?kind=housekeeping'))).toEqual([orphan]);
+  });
+
+  // Defect caught: a filter or kind link reads as a count, which the action
+  // vocabulary keeps out of every chip and button.
+  it('carries no count on a kind or narrowing link', async () => {
+    seedTwoCategories();
+    const html = await list('?kind=waiting');
+    const chips = [...html.matchAll(/<a class="tag-chip"[^>]*>([^<]*)<\/a>/g)].map((m) => m[1]!);
+    expect(chips.length).toBeGreaterThan(0);
+    for (const label of chips) expect(label, label).not.toMatch(/\d/);
+  });
+
+  it('keeps the administrator in their kind after acting on an item', async () => {
     const membership = seedTwoCategories();
 
     const res = await request(createApp())
       .post(`/admin/work-queue/${membership}/claim`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ category: 'membership' });
+      .send({ kind: 'waiting', from: 'list' });
 
     // Losing the filter on every action would make it useless after one item.
     expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/admin/work-queue?category=membership');
+    expect(res.headers.location).toBe('/admin/work-queue?kind=waiting');
   });
 
-  it('returns to the whole queue when no category was being worked', async () => {
+  it('returns to the default view when no kind was being worked', async () => {
     const membership = seedTwoCategories();
 
     const res = await request(createApp())
       .post(`/admin/work-queue/${membership}/claim`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ category: '' });
+      .send({ kind: '' });
 
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/admin/work-queue');

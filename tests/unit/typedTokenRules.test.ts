@@ -74,9 +74,22 @@ describe('a typed slug', () => {
     expect(checkTypedSlug('a', 'club').ok).toBe(false);
   });
 
+  // Defect caught: an event hashtag longer than any hashtag may be is accepted
+  // and then refused by the tag store, or a legal one is refused, because the
+  // bound forgets the #event_ and four-digit year in front of the slug.
+  it('holds an event hashtag to its bounds, counting its #event_ and year', () => {
+    const room = TOKEN_RULES.tagMaxLength - '#event_2026_'.length;
+    expect(checkTypedSlug('a'.repeat(room), 'event')).toEqual({ ok: true, slug: 'a'.repeat(room) });
+    expect(checkTypedSlug('a'.repeat(room + 1), 'event').ok).toBe(false);
+    expect(checkTypedSlug('Swiss Jam Zürich', 'event')).toEqual({ ok: true, slug: 'swiss_jam_zurich' });
+    // Text that folds to nothing leaves no slug to put after the year.
+    expect(checkTypedSlug('---', 'event').ok).toBe(false);
+  });
+
   it('refuses a slug with letters that have no a to z form', () => {
     expect(checkTypedSlug('日本', 'profile').ok).toBe(false);
     expect(checkTypedSlug('ni_hao_你好', 'club').ok).toBe(false);
+    expect(checkTypedSlug('東京オープン', 'event').ok).toBe(false);
   });
 });
 

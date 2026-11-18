@@ -1275,12 +1275,10 @@ export interface AuditEntryOverrides {
 // raises it.
 export interface WorkQueueItemOverrides {
   id?: string;
-  queue_category?: string;
   task_type?: string;
   entity_type?: string;
   entity_id: string;
   status?: string;
-  priority?: number;
   reason_text?: string | null;
   detail_text?: string | null;
   /** When the item was raised, for a caller whose surface reports how long it
@@ -1312,18 +1310,16 @@ export function insertWorkQueueItem(
   db.prepare(`
     INSERT INTO work_queue_items
       (id, created_at, created_by, updated_at, updated_by, version,
-       queue_category, task_type, entity_type, entity_id, status, priority,
+       task_type, entity_type, entity_id, status,
        opened_at, reason_text, detail_text, resolved_at, resolved_by_member_id,
        parked_at, parked_by_member_id, park_reason)
-    VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id, createdAt, actor, createdAt, actor,
-    o.queue_category ?? 'membership',
     o.task_type ?? 'member_link_help_request',
     o.entity_type ?? 'member',
     o.entity_id,
     o.status ?? 'open',
-    o.priority ?? 5,
     o.opened_at ?? createdAt,
     o.reason_text ?? null,
     o.detail_text ?? null,
@@ -1376,6 +1372,53 @@ export interface MemberMessageOverrides {
     outcome: 'acknowledged' | 'confirmed' | 'corrected';
     note_text?: string | null;
   };
+}
+
+export interface MemberAnnouncementOverrides {
+  id?: string;
+  member_id: string;
+  submit_token?: string;
+  subject?: string;
+  body_text?: string;
+  status?: 'pending' | 'approved' | 'returned';
+  admin_comment?: string | null;
+  decided_by_member_id?: string | null;
+  decided_at?: string | null;
+  email_archive_id?: string | null;
+  created_at?: string;
+}
+
+/**
+ * A member's held community announcement. The write path stores the subject
+ * and body trimmed, as typed; a decided row carries its decider and time.
+ */
+export function insertMemberAnnouncement(
+  db: BetterSqlite3.Database,
+  o: MemberAnnouncementOverrides,
+): string {
+  const id = o.id ?? `mann-test-${uid()}`;
+  const created = o.created_at ?? nowIso();
+  const status = o.status ?? 'pending';
+  const decided = status !== 'pending';
+  db.prepare(`
+    INSERT INTO member_announcements (
+      id, created_at, created_by, updated_at, updated_by, version,
+      member_id, submit_token, subject, body_text, status, admin_comment,
+      decided_by_member_id, decided_at, email_archive_id
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id, created, o.member_id, created, o.member_id,
+    o.member_id,
+    o.submit_token ?? `tok-${uid()}`,
+    (o.subject ?? 'Club meetup on Saturday').trim(),
+    (o.body_text ?? 'Come and kick with us in the park at noon.').trim(),
+    status,
+    o.admin_comment ?? null,
+    o.decided_by_member_id ?? null,
+    o.decided_at ?? (decided ? nowIso() : null),
+    o.email_archive_id ?? null,
+  );
+  return id;
 }
 
 export function insertMemberMessage(
@@ -1988,13 +2031,20 @@ export interface EventOverrides {
   sanction_decided_at?: string | null;
   sanction_decided_by_member_id?: string | null;
   sanction_decision_reason?: string | null;
+  /** The organizer who requested the sanction, and the member who canceled the event. */
+  sanction_requested_by_member_id?: string | null;
+  canceled_by_member_id?: string | null;
   /** Paid registration is off by default; a paid event sets the flag, its
    *  currency and the fees an entrant is charged. */
   payment_enabled?: 0 | 1;
   currency?: string;
   competitor_fee_cents?: number | null;
   attendee_fee_cents?: number | null;
+  /** The event's total prize money and its currency, set together or not at all. */
+  prize_money_total_cents?: number | null;
+  prize_money_currency?: string | null;
   is_attendee_registration_open?: 0 | 1;
+  is_tshirt_size_collected?: 0 | 1;
   /** The club that hosted it, which is what gives a club its event history. */
   host_club_id?: string | null;
 }
@@ -2012,11 +2062,13 @@ export function insertEvent(db: BetterSqlite3.Database, o: EventOverrides = {}):
       city, region, country, status, registration_status,
       registration_deadline, reg_opened_at, sanction_status,
       sanction_decided_at, sanction_decided_by_member_id, sanction_decision_reason,
+      sanction_requested_by_member_id, canceled_by_member_id,
       host_club_id,
       payment_enabled, currency, competitor_fee_cents, attendee_fee_cents,
+      prize_money_total_cents, prize_money_currency,
       is_attendee_registration_open, is_tshirt_size_collected,
       created_at, created_by, updated_at, updated_by, version
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, 1)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
   `).run(
     id, tagId,
     o.title              ?? 'Test Event',
@@ -2034,12 +2086,17 @@ export function insertEvent(db: BetterSqlite3.Database, o: EventOverrides = {}):
     o.sanction_decided_at ?? null,
     o.sanction_decided_by_member_id ?? null,
     o.sanction_decision_reason ?? null,
+    o.sanction_requested_by_member_id ?? null,
+    o.canceled_by_member_id ?? null,
     o.host_club_id       !== undefined ? o.host_club_id : null,
     o.payment_enabled    ?? 0,
     o.currency           ?? 'USD',
     o.competitor_fee_cents ?? null,
     o.attendee_fee_cents ?? null,
+    o.prize_money_total_cents ?? null,
+    o.prize_money_currency ?? null,
     o.is_attendee_registration_open ?? 0,
+    o.is_tshirt_size_collected ?? 0,
     nowIso(), SYS, nowIso(), SYS,
   );
   return id;
@@ -2053,6 +2110,12 @@ export interface DisciplineOverrides {
   /** null only on a cross-discipline aggregate standing. */
   discipline_category?: string | null;
   team_type?: string;
+  /** The structured parts default to NULL, as the historical load leaves them. */
+  game_id?: string | null;
+  custom_game_name?: string | null;
+  gender_eligibility?: 'open' | 'women' | 'mixed' | null;
+  division_class?: 'novice' | 'intermediate' | 'open' | 'masters' | null;
+  offers_prize_money?: 0 | 1;
   sort_order?: number;
   is_aggregate_standing?: 0 | 1;
 }
@@ -2060,13 +2123,18 @@ export interface DisciplineOverrides {
 export function insertDiscipline(db: BetterSqlite3.Database, eventId: string, o: DisciplineOverrides = {}): string {
   const id = o.id ?? `disc-test-${uid()}`;
   db.prepare(`
-    INSERT INTO event_disciplines (id, event_id, name, discipline_category, team_type, sort_order, is_aggregate_standing, created_at, created_by, updated_at, updated_by, version)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    INSERT INTO event_disciplines (id, event_id, name, discipline_category, game_id, custom_game_name, team_type, gender_eligibility, division_class, offers_prize_money, sort_order, is_aggregate_standing, created_at, created_by, updated_at, updated_by, version)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
   `).run(
     id, eventId,
     o.name                ?? 'Freestyle',
     o.discipline_category === undefined ? 'freestyle' : o.discipline_category,
+    o.game_id             ?? null,
+    o.custom_game_name    ?? null,
     o.team_type           ?? 'singles',
+    o.gender_eligibility  ?? null,
+    o.division_class      ?? null,
+    o.offers_prize_money  ?? 0,
     o.sort_order          ?? 1,
     o.is_aggregate_standing ?? 0,
     nowIso(), SYS, nowIso(), SYS,
@@ -2118,6 +2186,10 @@ export interface RegistrationOverrides {
    *  reaches its event on the admin All Payments view, which joins through here
    *  rather than denormalising an event onto the payment. */
   payment_id?: string | null;
+  tshirt_size?: string | null;
+  /** Set together on a canceled registration, as a withdrawal or cancellation writes them. */
+  cancel_reason?: string | null;
+  canceled_at?: string | null;
 }
 
 export function insertRegistration(
@@ -2132,8 +2204,8 @@ export function insertRegistration(
     INSERT INTO registrations (
       id, created_at, created_by, updated_at, updated_by, version,
       event_id, member_id, registered_at, registration_type, status,
-      attended_at, payment_id
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)
+      attended_at, payment_id, tshirt_size, cancel_reason, canceled_at
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id, registeredAt, SYS, registeredAt, SYS,
     eventId, memberId, registeredAt,
@@ -2141,6 +2213,9 @@ export function insertRegistration(
     o.status ?? 'confirmed',
     o.attended_at ?? null,
     o.payment_id ?? null,
+    o.tshirt_size ?? null,
+    o.cancel_reason ?? null,
+    o.canceled_at ?? null,
   );
   return id;
 }
@@ -2154,6 +2229,7 @@ export interface RegistrationDisciplineSelectionOverrides {
   id?: string;
   partner_member_id?: string | null;
   partner_display_name?: string | null;
+  enters_as_amateur?: 0 | 1;
 }
 
 export function insertRegistrationDisciplineSelection(
@@ -2166,14 +2242,42 @@ export function insertRegistrationDisciplineSelection(
   db.prepare(`
     INSERT INTO registration_discipline_selections (
       id, created_at, created_by, updated_at, updated_by, version,
-      registration_id, discipline_id, partner_member_id, partner_display_name
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
+      registration_id, discipline_id, partner_member_id, partner_display_name,
+      enters_as_amateur
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
   `).run(
     id, nowIso(), SYS, nowIso(), SYS,
     registrationId, disciplineId,
     o.partner_member_id ?? null,
     o.partner_display_name ?? null,
+    o.enters_as_amateur ?? 0,
   );
+  return id;
+}
+
+// ── Event registration reminder ledger ───────────────────────────────────────
+//
+// One pre-event reminder the daily worker enqueued for a registration, keyed by
+// the event's start date at send time.
+
+export interface EventRegistrationReminderSentOverrides {
+  id?: string;
+  event_start_date?: string;
+  sent_at?: string;
+}
+
+export function insertEventRegistrationReminderSent(
+  db: BetterSqlite3.Database,
+  registrationId: string,
+  o: EventRegistrationReminderSentOverrides = {},
+): string {
+  const id = o.id ?? `errs-test-${uid()}`;
+  const at = o.sent_at ?? nowIso();
+  db.prepare(`
+    INSERT INTO event_registration_reminder_sent (
+      id, created_at, created_by, registration_id, event_start_date, sent_at
+    ) VALUES (?, ?, ?, ?, ?, ?)
+  `).run(id, at, SYS, registrationId, o.event_start_date ?? at.slice(0, 10), at);
   return id;
 }
 

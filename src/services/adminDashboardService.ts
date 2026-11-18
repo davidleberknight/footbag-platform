@@ -14,20 +14,23 @@
  *   - Counts and doors, never controls. The dashboard is a read-only view and
  *     every state change happens on the surface that owns the work, so nothing
  *     here submits anything and loading the page writes no audit row.
- *   - Needs You Now renders only rows that are non-zero, and disappears
- *     entirely when nothing needs a decision, because its absence is the
- *     fastest way to answer "is anything on fire".
- *   - Work Waiting always renders, zeros included, so the queue inventory is
- *     learned once rather than guessed at from what happens to be showing.
- *   - Only categories something can actually enqueue into appear. A permanent
- *     zero for a queue no producer writes to reads as "nothing waiting" when
- *     the truth is "this cannot happen yet".
+ *   - Work is shown as one card per work-queue kind. The Team Alert card
+ *     appears only while one is open, and its absence is the fastest way to
+ *     answer "is anything on fire". The Someone Is Waiting and Housekeeping
+ *     cards always render, empty or not, each saying in one line what the kind
+ *     is and why it matters, its count line (open, oldest, unclaimed past the
+ *     stale threshold), its open items per area, and one button to the queue
+ *     showing that kind. Club cleanup and reconciliation are housekeeping kept
+ *     outside the work queue, so they sit as rows on the Housekeeping card.
  *   - What is yours is decided by the digest's rule, read through the same two
  *     helpers, so this page and the digest email never disagree about it.
- *   - Colour marks only what wants acting on. A healthy platform is stated in
- *     words against the neutral treatment; there is no success colour in this
- *     design system and a green badge announcing that nothing happened teaches
- *     the reader to skip the block.
+ *   - Colour marks only what wants acting on: the Team Alert card and a System
+ *     Health block needing attention are the only coloured elements, and every
+ *     other state is said in words. A healthy platform is stated in words
+ *     against the neutral treatment; there is no success colour in this design
+ *     system and a green badge announcing that nothing happened teaches the
+ *     reader to skip the block. Area counts are neutral: an area is a place,
+ *     not a state.
  *   - The roster is a link here, never a figure: an admin opening their home
  *     page has not asked to look at the roster.
  *
@@ -42,11 +45,7 @@
  */
 import type { NavLink, PageViewModel } from '../types/page';
 import { clubCleanupService } from './clubCleanupService';
-import {
-  adminWorkQueueService,
-  LIVE_WORK_QUEUE_CATEGORIES,
-  WORK_QUEUE_CATEGORY_LABELS,
-} from './adminWorkQueueService';
+import { adminWorkQueueService, type WorkQueueKindSummary } from './adminWorkQueueService';
 import { paymentReconciliationService } from './paymentReconciliationService';
 import { systemHealthService } from './systemHealthService';
 import { runSqliteRead } from './sqliteRetry';
@@ -64,8 +63,25 @@ export interface DashboardQueueRow {
   countLabel: string;
   /** A second line where the queue has one: an age, or a split of the count. */
   metaLabel: string | null;
-  isUrgent: boolean;
   isZero: boolean;
+}
+
+/**
+ * One work-queue kind on the dashboard: what it is, why it matters, how much is
+ * open and how old, where it sits by area, and the one button to its queue.
+ */
+export interface DashboardKindCard {
+  key: string;
+  label: string;
+  what: string;
+  why: string;
+  countLine: string;
+  /** The kind's open items per area, each leading to the queue narrowed to it. */
+  areaRows: DashboardQueueRow[];
+  /** Housekeeping kept outside the work queue (club cleanup, reconciliation). */
+  extraRows: DashboardQueueRow[];
+  buttonLabel: string;
+  href: string;
 }
 
 /** One read-only figure in the system-status tile. */
@@ -105,9 +121,10 @@ export interface DashboardLinkGroup {
 }
 
 export interface AdminDashboardContent {
-  needsYouNow: DashboardQueueRow[];
-  hasNeedsYouNow: boolean;
-  workWaiting: DashboardQueueRow[];
+  /** The Team Alert card, present only while one is open. */
+  teamAlert: DashboardKindCard | null;
+  /** Someone Is Waiting, then Housekeeping, always shown. */
+  kindCards: DashboardKindCard[];
   ownWork: DashboardOwnWork;
   /** One row per work-queue area this administrator owns; empty when none. */
   yourAreas: DashboardQueueRow[];
@@ -135,6 +152,7 @@ const TOOL_GROUPS: DashboardLinkGroup[] = [
       { label: 'Official IFPA Roster', href: '/ifpa/roster' },
       { label: 'Historical Records', href: '/admin/historical-records' },
       { label: 'Event Results', href: '/admin/events/results' },
+      { label: 'Board-awarded Sanctions', href: '/admin/events/sanctions' },
       { label: 'Legacy Accounts', href: '/admin/legacy-accounts' },
       { label: 'Clubs', href: '/admin/clubs' },
       { label: 'Club Cleanup', href: '/admin/club-cleanup' },
@@ -215,86 +233,56 @@ export const adminDashboardService = {
       .map((a) => ({
         key: `area_${a.topic}`,
         label: a.label,
-        href: `/admin/work-queue?topic=${a.topic}`,
+        href: adminWorkQueueService.listReturnPath({ topic: a.topic }),
         countLabel: openLabel(a.open),
         metaLabel: a.unclaimedStale > 0 ? `${a.unclaimedStale} unclaimed for ${a.staleDays}+ days` : null,
-        isUrgent: false,
         isZero: a.open === 0,
       }));
 
-    const needsYouNow: DashboardQueueRow[] = [];
-    const workWaiting: DashboardQueueRow[] = [];
-
-    // Every category a producer can write to gets a row, whether or not it has
-    // anything in it today; a category carrying urgent work goes above instead.
-    const byCategory = new Map(workQueue.categories.map((c) => [c.category, c]));
-    for (const category of LIVE_WORK_QUEUE_CATEGORIES) {
-      const summary = byCategory.get(category);
-      const count = summary?.count ?? 0;
-      const row: DashboardQueueRow = {
-        key: `work_queue_${category}`,
-        label: WORK_QUEUE_CATEGORY_LABELS[category] ?? category,
-        // Built from the category rather than taken from the summary, which
-        // carries no entry for a queue that is currently empty. Falling back to
-        // the queue root would send a row labelled with one category to a page
-        // showing all of them.
-        href: `/admin/work-queue?category=${category}`,
-        countLabel: openLabel(count),
+    // Club cleanup and reconciliation are housekeeping that lives outside the
+    // work queue, so they sit on the Housekeeping card as rows of their own.
+    // Club cleanup carries no urgency signal by design: the queue is worked at
+    // the administrator's own cadence, with no deadline and no escalation.
+    const housekeepingExtras: DashboardQueueRow[] = [
+      {
+        key: 'club_cleanup',
+        label: 'Club Cleanup',
+        href: '/admin/club-cleanup',
+        countLabel: openLabel(backlog.reviewCount),
+        metaLabel: clubCleanupMeta(backlog.opportunityCount, backlog.oldestReviewOpenAgeLabel),
+        isZero: backlog.reviewCount === 0,
+      },
+      {
+        key: 'reconciliation',
+        label: 'Reconciliation',
+        href: '/admin/payments/reconciliation',
+        countLabel: openLabel(outstandingReconciliation),
         metaLabel: null,
-        isUrgent: summary?.hasUrgent === true,
-        isZero: count === 0,
-      };
-      if (row.isUrgent) needsYouNow.push(row);
-      else workWaiting.push(row);
-    }
+        isZero: outstandingReconciliation === 0,
+      },
+    ];
 
-    if (health.activeAlarmCount > 0) {
-      needsYouNow.push({
-        key: 'alarms',
-        label: 'Platform Alarms',
-        href: '/admin/alarms',
-        countLabel: `${health.activeAlarmCount} active`,
+    const toCard = (k: WorkQueueKindSummary): DashboardKindCard => ({
+      key: k.kind,
+      label: k.label,
+      what: k.what,
+      why: k.why,
+      countLine: k.countLine,
+      areaRows: k.perArea.map((a) => ({
+        key: `${k.kind}_${a.key}`,
+        label: a.label,
+        href: a.href,
+        countLabel: openLabel(a.open),
         metaLabel: null,
-        // An unacknowledged alarm is the dashboard story's own example of
-        // urgent, so it is never anything else.
-        isUrgent: true,
         isZero: false,
-      });
-    }
-
-    if (health.hasUrgent) {
-      needsYouNow.push({
-        key: 'system_health',
-        label: 'System Health',
-        href: '/admin/system-health',
-        countLabel: 'Needs attention',
-        metaLabel: health.attentionNotes.join(' '),
-        isUrgent: true,
-        isZero: false,
-      });
-    }
-
-    workWaiting.push({
-      key: 'club_cleanup',
-      label: 'Club Cleanup',
-      href: '/admin/club-cleanup',
-      countLabel: openLabel(backlog.reviewCount),
-      metaLabel: clubCleanupMeta(backlog.opportunityCount, backlog.oldestReviewOpenAgeLabel),
-      // Club cleanup carries no urgency signal by design: the queue is worked at
-      // the administrator's own cadence, with no deadline and no escalation.
-      isUrgent: false,
-      isZero: backlog.reviewCount === 0,
+      })),
+      extraRows: k.kind === 'housekeeping' ? housekeepingExtras : [],
+      buttonLabel: `Open ${k.label}`,
+      href: k.href,
     });
-
-    workWaiting.push({
-      key: 'reconciliation',
-      label: 'Reconciliation',
-      href: '/admin/payments/reconciliation',
-      countLabel: openLabel(outstandingReconciliation),
-      metaLabel: null,
-      isUrgent: false,
-      isZero: outstandingReconciliation === 0,
-    });
+    const alert = workQueue.kinds.find((k) => k.kind === 'team_alert');
+    const teamAlert = alert && alert.open > 0 ? toCard(alert) : null;
+    const kindCards = workQueue.kinds.filter((k) => k.kind !== 'team_alert').map(toCard);
 
     return {
       // An administrator's home page is authenticated and has nothing to offer
@@ -309,9 +297,8 @@ export const adminDashboardService = {
         },
       },
       content: {
-        needsYouNow,
-        hasNeedsYouNow: needsYouNow.length > 0,
-        workWaiting,
+        teamAlert,
+        kindCards,
         ownWork: ownWork(claims),
         yourAreas,
         hasYourAreas: yourAreas.length > 0,

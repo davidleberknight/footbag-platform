@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # deploy_to_aws.sh -- the only workstation-side AWS deploy entry point.
 #
-# Orchestrates: preflight (tools, ssh alias, disk, DB lock), credential pipe,
-# pre-deploy summary, delegation to scripts/deploy-to-aws.sh.
+# Orchestrates: preflight (tools, ssh alias, this machine's address on the SSH
+# allow-list, disk, DB lock), credential pipe, pre-deploy summary, delegation to
+# scripts/deploy-to-aws.sh.
 #
 # Where the host sudo password comes from depends on the target, and the
 # difference is the point. Staging reads it exactly once via shell `<`
@@ -515,6 +516,55 @@ if [[ -z "$RESOLVED_HOST" || "$RESOLVED_HOST" == "$DEPLOY_TARGET" ]]; then
   echo "Recommendation: add the deploy alias stanza to ~/.ssh/config." >&2
   exit 1
 fi
+
+# This machine's address against the target's SSH allow-list, before any step.
+# Otherwise a new network shows only at the first connection, after the local
+# rebuild has run, as a timeout that cannot say whether the address or the host
+# is at fault. The check reads the live firewall and changes nothing. Its report
+# goes to a private file, so its outcome is recorded once, here, as this
+# preflight's state. A check that cannot finish is not a refusal: the firewall is
+# the control, and the connection-failure message still explains a later stop.
+# stdin is closed to it, so it can never consume the credential pipe.
+#
+# Test seam (CI only; operators never set this): FOOTBAG_ADDRESS_CHECK_CMD
+# replaces the check, and the run says so, because a stand-in proves nothing
+# about the firewall.
+_addr_target="${DEPLOY_TARGET#footbag-}"
+_addr_check=(bash "${SCRIPT_DIR}/scripts/authorize-operator-address.sh")
+if [[ -n "${FOOTBAG_ADDRESS_CHECK_CMD:-}" ]]; then
+  echo "==> NOTE: the SSH allow-list check is a stand-in for this run (${FOOTBAG_ADDRESS_CHECK_CMD}); it proves nothing about the firewall." >&2
+  _addr_check=("$FOOTBAG_ADDRESS_CHECK_CMD")
+fi
+echo "==> Preflight: checking this machine's address against the ${_addr_target} SSH allow-list" >&2
+echo "    (reads this machine's address and the live firewall; a few seconds)" >&2
+_addr_report="$(mktemp)"
+_addr_rc=0
+# What the check says is shown as it says it, not held until it ends: held, the
+# run sat silent for the whole read and looked hung. Only the two lines its
+# private report adds are dropped: a marked problem line and a tally claiming
+# this run's report lists the problem. This run records the outcome once,
+# below, in its own words. The filter runs beside the check rather than after it
+# in a pipeline, so the check's own status is the verdict, and it is waited for
+# so nothing it prints lands after the lines below.
+# The filter is opened on its own descriptor because that is what gives its
+# process id to wait on; one attached to the check's redirect sets none.
+exec {_addr_fd}> >(grep --line-buffered -v -e '^---FOOTBAG-PROBLEM--- ' \
+  -e '; listed in the closing report of the run that started it ====$' >&2)
+_addr_filter=$!
+FOOTBAG_CR_REPORT_TO="$_addr_report" "${_addr_check[@]}" --target "$_addr_target" --check \
+  < /dev/null > /dev/null 2>&"$_addr_fd" || _addr_rc=$?
+exec {_addr_fd}>&-
+# The filter's own exit: 1 means it had no line to pass on, which is fine.
+wait "$_addr_filter" || [[ $? == 1 ]]
+rm -f -- "$_addr_report"
+case "$_addr_rc" in
+  0) cr_proved "this machine's address is on the ${_addr_target} SSH allow-list" ;;
+  1)
+    cr_error "this machine's address is not on the ${_addr_target} SSH allow-list; the banner above names it and the command that admits it. Nothing was deployed."
+    exit 1
+    ;;
+  *) cr_unproved "whether this machine's address is on the ${_addr_target} SSH allow-list: the check did not finish (exit ${_addr_rc}; its lines above say why)" ;;
+esac
 
 # Workstation disk-space preflight: docker save tarballs + sqlite rebuild
 # scratch can land 1-2 GB at peak.

@@ -307,12 +307,6 @@ describe('payment workflow (stub adapter, Stripe-flow mirror)', () => {
       testDb.close();
     }
   });
-
-  it('startEventRegistrationPayment throws a typed unavailable error (clean 503, not a stack-trace 500)', async () => {
-    const { paymentService } = await import('../../src/services/paymentService');
-    const { ServiceUnavailableError } = await import('../../src/services/serviceErrors');
-    expect(() => paymentService.startEventRegistrationPayment('m', 'e', 1000)).toThrow(ServiceUnavailableError);
-  });
 });
 
 describe('a checkout submitted twice, overlapping, or after it was paid', () => {

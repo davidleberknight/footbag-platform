@@ -72,11 +72,11 @@ function flagsFor(mediaId: string): FlagRow[] {
   return rows;
 }
 
-function queueRowsFor(mediaId: string): { id: string; queue_category: string; task_type: string; status: string; reason_text: string | null; detail_text: string | null }[] {
+function queueRowsFor(mediaId: string): { id: string; task_type: string; status: string; reason_text: string | null; detail_text: string | null }[] {
   const db = readDb();
   const rows = db
-    .prepare("SELECT id, queue_category, task_type, status, reason_text, detail_text FROM work_queue_items WHERE entity_type = 'media_item' AND entity_id = ? ORDER BY id")
-    .all(mediaId) as { id: string; queue_category: string; task_type: string; status: string; reason_text: string | null; detail_text: string | null }[];
+    .prepare("SELECT id, task_type, status, reason_text, detail_text FROM work_queue_items WHERE entity_type = 'media_item' AND entity_id = ? ORDER BY id")
+    .all(mediaId) as { id: string; task_type: string; status: string; reason_text: string | null; detail_text: string | null }[];
   db.close();
   return rows;
 }
@@ -174,7 +174,6 @@ describe('POST /media/item/:mediaId/flag — recording a report', () => {
 
     const queue = queueRowsFor(ITEM_ID);
     expect(queue).toHaveLength(1);
-    expect(queue[0].queue_category).toBe('media');
     expect(queue[0].task_type).toBe('media_flag_review');
     expect(queue[0].status).toBe('open');
 

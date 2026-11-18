@@ -10,6 +10,7 @@ import { adminClubLeadershipController } from '../controllers/adminClubLeadershi
 import { adminTagController } from '../controllers/adminTagController';
 import { adminEventOrganizerController } from '../controllers/adminEventOrganizerController';
 import { adminEventResultController } from '../controllers/adminEventResultController';
+import { adminEventSanctionController } from '../controllers/adminEventSanctionController';
 import { adminAdminRolesController } from '../controllers/adminAdminRolesController';
 import { adminHonorGrantsController } from '../controllers/adminHonorGrantsController';
 import { adminMemberController } from '../controllers/adminMemberController';
@@ -104,8 +105,11 @@ adminRouter.post('/historical-records/:personId/deceased/revert',         adminH
 adminRouter.post('/historical-records/:personId/deceased/confirm',        adminHistoricalRecordController.confirm(true));
 adminRouter.post('/historical-records/:personId/deceased',                adminHistoricalRecordController.preview(true));
 adminRouter.get('/work-queue',                adminWorkQueueController.index);
-// The literal `owners` path precedes the `:id` item routes.
-adminRouter.post('/work-queue/owners',        adminWorkQueueController.saveOwners);
+// The literal `parked` path precedes the `:id` item page, or it would be read as an item id.
+adminRouter.get('/work-queue/parked',         adminWorkQueueController.parked);
+adminRouter.get('/work-queue/:id',            adminWorkQueueController.item);
+adminRouter.get('/work-queue-areas',          adminWorkQueueController.areas);
+adminRouter.post('/work-queue-areas',         adminWorkQueueController.saveAreas);
 adminRouter.post('/work-queue/:id/claim',     adminWorkQueueController.claim);
 adminRouter.post('/work-queue/:id/resolve',   adminWorkQueueController.resolve);
 adminRouter.post('/work-queue/:id/dismiss',   adminWorkQueueController.dismiss);
@@ -119,6 +123,13 @@ adminRouter.post('/work-queue/:id/link-help/approve', adminWorkQueueController.l
 adminRouter.post('/work-queue/:id/link-help/reject',  adminWorkQueueController.linkHelpReject);
 adminRouter.post('/work-queue/:id/link-help/dispute-revert/confirm', adminWorkQueueController.linkHelpDisputeRevert);
 adminRouter.post('/work-queue/:id/link-help/dispute-revert', adminWorkQueueController.linkHelpDisputeRevertPreview);
+// A member's held community announcement: approved and sent as written, or
+// sent back with a note.
+adminRouter.post('/work-queue/:id/announcement/approve',   adminWorkQueueController.announcementApprove);
+adminRouter.post('/work-queue/:id/announcement/send-back', adminWorkQueueController.announcementSendBack);
+// An organizer's sanction request: approved, or rejected with a reason.
+adminRouter.post('/work-queue/:id/sanction/approve', adminWorkQueueController.sanctionApprove);
+adminRouter.post('/work-queue/:id/sanction/reject',  adminWorkQueueController.sanctionReject);
 // Inbound payments, the retained nightly reports, and the reconciliation queue.
 // Order matters: the literal `health`, `reports` and `reconciliation` paths must
 // precede `/payments/:paymentId`, or a payment id of "reconciliation" would be
@@ -173,6 +184,10 @@ adminRouter.get('/events/organizers',                  adminEventOrganizerContro
 adminRouter.get('/events/:eventId/organizers',         adminEventOrganizerController.detail);
 adminRouter.post('/events/:eventId/organizers/assign', adminEventOrganizerController.assign);
 adminRouter.post('/events/:eventId/organizers/remove', adminEventOrganizerController.remove);
+// Recording the sanction of a Board-awarded World Championships, which makes no
+// request: the list of drafts, then the write citing the Board decision.
+adminRouter.get('/events/sanctions',                   adminEventSanctionController.index);
+adminRouter.post('/events/:eventId/sanction-award',    adminEventSanctionController.award);
 // Correcting an event's published results: the finder, the event's results,
 // and for a result or a division the form, its preview, and the write on
 // confirm, longer path first.

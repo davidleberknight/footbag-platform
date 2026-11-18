@@ -173,14 +173,33 @@ CREATE TABLE events (
   sanction_decided_at             TEXT,
   sanction_decided_by_member_id   TEXT REFERENCES members(id),
   sanction_decision_reason        TEXT,
+  -- The organizer's answers on the sanction request, all shown to the reviewing
+  -- administrator. sanction_deviations states where the event differs from the
+  -- official competition formats and judging systems; it is required once the
+  -- organizer says the event deviates. Every answer is NULL on an event that
+  -- never asked for sanction.
+  sanction_deviations          TEXT,
+  sanction_entry_fee_includes  TEXT,
+  sanction_event_frequency     TEXT
+    CHECK (sanction_event_frequency IN ('first_time','annual','occasional')),
+  sanction_years_held          TEXT,
+  sanction_expected_players    INTEGER CHECK (sanction_expected_players >= 0),
+  sanction_expected_spectators INTEGER CHECK (sanction_expected_spectators >= 0),
+  sanction_permits   TEXT CHECK (sanction_permits IN ('yes','no','not_needed')),
+  sanction_insurance TEXT CHECK (sanction_insurance IN ('yes','no','not_needed')),
 
-  payment_enabled              INTEGER NOT NULL DEFAULT 0 CHECK (payment_enabled IN (0,1)),
-  payment_enabled_at           TEXT,
-  payment_enabled_by_member_id TEXT REFERENCES members(id),
+  -- Set by the administrator's sanction approval; there is no separate payment
+  -- approval.
+  payment_enabled INTEGER NOT NULL DEFAULT 0 CHECK (payment_enabled IN (0,1)),
 
   currency             TEXT NOT NULL DEFAULT 'USD',
   competitor_fee_cents INTEGER,
   attendee_fee_cents   INTEGER,
+
+  -- The event's total prize money, NULL when it offers none. Which divisions
+  -- offer it is event_disciplines.offers_prize_money.
+  prize_money_total_cents INTEGER CHECK (prize_money_total_cents > 0),
+  prize_money_currency    TEXT,
 
   -- Set when the event moves to 'canceled'. The reason is mandatory at
   -- cancellation and is included in the notice sent to every registrant.
@@ -188,7 +207,9 @@ CREATE TABLE events (
   cancel_reason          TEXT,
   canceled_by_member_id  TEXT REFERENCES members(id),
 
-  hashtag_tag_id TEXT NOT NULL REFERENCES tags(id)
+  hashtag_tag_id TEXT NOT NULL REFERENCES tags(id),
+
+  CHECK ((prize_money_total_cents IS NULL) = (prize_money_currency IS NULL))
 );
 
 CREATE INDEX        idx_events_start_date      ON events(start_date);
@@ -198,10 +219,47 @@ CREATE UNIQUE INDEX ux_events_hashtag          ON events(hashtag_tag_id);
 CREATE INDEX        idx_events_sanction_status ON events(sanction_status);
 CREATE INDEX        idx_events_host_club       ON events(host_club_id);
 
+-- The contested games an organizer picks from when adding a division, one row
+-- per game within its discipline. Reference data seeded below and maintained as
+-- data, so a change to the list needs no software release. Each flag says
+-- whether the game admits that entry size, gender eligibility or class; the
+-- event creation form offers only what the game admits.
+CREATE TABLE discipline_games (
+  id         TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  updated_by TEXT NOT NULL,
+  version    INTEGER NOT NULL DEFAULT 1,
+
+  discipline_category TEXT NOT NULL
+    CHECK (discipline_category IN ('net','freestyle','golf','consecutives','x_square')),
+  name       TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+
+  allows_singles      INTEGER NOT NULL CHECK (allows_singles IN (0,1)),
+  allows_doubles      INTEGER NOT NULL CHECK (allows_doubles IN (0,1)),
+  allows_open         INTEGER NOT NULL CHECK (allows_open IN (0,1)),
+  allows_women        INTEGER NOT NULL CHECK (allows_women IN (0,1)),
+  -- Mixed is the doubles entry size with mixed gender, so a game admitting
+  -- mixed admits doubles.
+  allows_mixed        INTEGER NOT NULL CHECK (allows_mixed IN (0,1)),
+  allows_novice       INTEGER NOT NULL CHECK (allows_novice IN (0,1)),
+  allows_intermediate INTEGER NOT NULL CHECK (allows_intermediate IN (0,1)),
+  allows_open_class   INTEGER NOT NULL CHECK (allows_open_class IN (0,1)),
+  allows_masters      INTEGER NOT NULL CHECK (allows_masters IN (0,1)),
+  CHECK (allows_singles = 1 OR allows_doubles = 1),
+  CHECK (allows_mixed = 0 OR allows_doubles = 1)
+);
+
+CREATE UNIQUE INDEX ux_discipline_games_name ON discipline_games(discipline_category, name);
+
 -- The competition categories offered at a specific event, one row per division
 -- of a category as played (e.g., Open Singles Net, Women's Doubles Net, Open Routines).
--- Each row defines the participation format (singles/doubles/mixed_doubles)
--- used at registration time to enforce partner requirements.
+-- A division is structured: its game, its entry size (team_type), its gender
+-- eligibility and its class, and registration enforces the partner and gender
+-- requirements from those parts. A historical row keeps the name it was run under
+-- and leaves a structured part NULL where the source does not say it.
 -- No soft-delete: rows are hard-deleted when removed from a draft event.
 CREATE TABLE event_disciplines (
   id         TEXT PRIMARY KEY,
@@ -213,18 +271,34 @@ CREATE TABLE event_disciplines (
 
   event_id            TEXT NOT NULL REFERENCES events(id),
   name                TEXT NOT NULL,
-  -- The IFPA discipline (net, freestyle, golf, consecutives, x_square). Empty only
-  -- on an aggregate standing that spans several disciplines; a contested row, and
-  -- a standing over one discipline, carry one.
-  discipline_category TEXT,
+  -- The IFPA discipline (net, freestyle, golf, consecutives, x_square; a
+  -- historical row may carry sideline). Empty only on an aggregate standing that
+  -- spans several disciplines; a contested row, and a standing over one
+  -- discipline, carry one.
+  discipline_category TEXT
+    CHECK (discipline_category IN ('net','freestyle','golf','consecutives','x_square','sideline')),
+  -- The listed game, or the organizer's own name for a game the list does not
+  -- carry; never both.
+  game_id          TEXT REFERENCES discipline_games(id),
+  custom_game_name TEXT,
   team_type TEXT NOT NULL DEFAULT 'singles'
-    CHECK (team_type IN ('singles', 'doubles', 'mixed_doubles')),
+    CHECK (team_type IN ('singles', 'doubles')),
+  -- Enforced at registration: women requires every member on the entry to have
+  -- declared female, mixed requires one male and one female member partner.
+  gender_eligibility TEXT CHECK (gender_eligibility IN ('open','women','mixed')),
+  -- Recorded as entered: class is the competitor's own choice of division.
+  division_class TEXT CHECK (division_class IN ('novice','intermediate','open','masters')),
+  -- A division offering prize money lets each entrant choose to enter as an
+  -- Amateur (registration_discipline_selections.enters_as_amateur).
+  offers_prize_money INTEGER NOT NULL DEFAULT 0 CHECK (offers_prize_money IN (0,1)),
   sort_order    INTEGER NOT NULL DEFAULT 0,
   -- 1 when the row ranks competitors over several of the event's contests
   -- (an overall or club standing) rather than in one contest.
   is_aggregate_standing INTEGER NOT NULL DEFAULT 0
     CHECK (is_aggregate_standing IN (0, 1)),
-  CHECK (discipline_category IS NOT NULL OR is_aggregate_standing = 1)
+  CHECK (discipline_category IS NOT NULL OR is_aggregate_standing = 1),
+  CHECK (game_id IS NULL OR custom_game_name IS NULL),
+  CHECK (gender_eligibility IS NOT 'mixed' OR team_type = 'doubles')
 );
 
 -- idx_event_disciplines_event dropped (left-prefix redundant with ux_event_discipline_name)
@@ -814,6 +888,40 @@ CREATE TABLE email_archives (
 CREATE INDEX idx_email_archives_sent  ON email_archives(sent_at);
 CREATE INDEX idx_email_archives_event ON email_archives(event_id);
 
+-- A community announcement a member submitted, held for an administrator's
+-- decision before anything reaches the announce list. Once approved, the
+-- email_archives row it produced is the record of what was sent; this row
+-- records the decision. Erasing the member deletes their rows.
+CREATE TABLE member_announcements (
+  id         TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  updated_by TEXT NOT NULL,
+  version    INTEGER NOT NULL DEFAULT 1,
+
+  member_id    TEXT NOT NULL REFERENCES members(id),
+  -- The submitting form's one-use token: the same form submitted twice
+  -- finds the row its first submit wrote.
+  submit_token TEXT NOT NULL UNIQUE,
+  subject      TEXT NOT NULL,
+  body_text    TEXT NOT NULL,
+  status       TEXT NOT NULL DEFAULT 'pending'
+    CHECK (status IN ('pending','approved','returned')),
+  -- The administrator's note to the member when sending it back.
+  admin_comment        TEXT,
+  decided_by_member_id TEXT REFERENCES members(id),
+  decided_at           TEXT,
+  -- The send an approval made; null until approved.
+  email_archive_id     TEXT REFERENCES email_archives(id)
+);
+
+-- A member may have one announcement awaiting review at a time.
+CREATE UNIQUE INDEX idx_member_announcements_one_pending
+  ON member_announcements(member_id) WHERE status = 'pending';
+CREATE INDEX idx_member_announcements_member
+  ON member_announcements(member_id, created_at, id);
+
 -- Admin-editable email subject and body templates keyed by template_key.
 -- The email_templates_enabled view exposes only enabled templates. Disabled templates
 -- suppress the corresponding automated email type without deleting the content.
@@ -851,10 +959,11 @@ CREATE VIEW email_templates_enabled AS
 
 -- Admin task queue for items requiring human review or decision across all
 -- platform domains (events, media, membership, payments, elections, system).
--- Each item is categorized by queue_category and task_type, linked to an entity,
--- and resolved or dismissed by an admin. Only an urgent task type emails the
--- admin-alerts mailing list when enqueued; routine items reach administrators
--- through the queue page and the periodic digest.
+-- Each item is keyed by task_type, linked to an entity, and resolved or
+-- dismissed by an admin. The task type's declaration in the application decides
+-- its kind and its area, so neither is stored on the row. Only a Team Alert type
+-- emails the admin-alerts mailing list when enqueued; routine items reach
+-- administrators through the queue page and the periodic digest.
 CREATE TABLE work_queue_items (
   id         TEXT PRIMARY KEY,
   created_at TEXT NOT NULL,
@@ -863,14 +972,11 @@ CREATE TABLE work_queue_items (
   updated_by TEXT NOT NULL,
   version    INTEGER NOT NULL DEFAULT 1,
 
-  queue_category TEXT NOT NULL
-    CHECK (queue_category IN ('events','media','membership','payments','elections','system','club_leadership')),
   task_type   TEXT NOT NULL,
   entity_type TEXT NOT NULL,
   entity_id   TEXT NOT NULL,
 
   status   TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','resolved','dismissed')),
-  priority INTEGER NOT NULL DEFAULT 0,
   opened_at             TEXT NOT NULL,
   resolved_at           TEXT,
   resolved_by_member_id TEXT REFERENCES members(id),
@@ -923,7 +1029,7 @@ CREATE TABLE work_queue_topic_owners (
   owner_member_id TEXT REFERENCES members(id)
 );
 
-CREATE INDEX idx_work_queue_status ON work_queue_items(status, queue_category);
+CREATE INDEX idx_work_queue_status ON work_queue_items(status, opened_at, id);
 CREATE INDEX idx_work_queue_entity ON work_queue_items(entity_type, entity_id);
 
 -- An administrator's direct question to one member, and that member's answer.
@@ -2606,7 +2712,7 @@ CREATE INDEX idx_member_links_member ON member_links(member_id);
 
 -- Division selections for a competitor registration: which event_disciplines rows
 -- (each a category's division) a competitor has entered, and partner info for
--- doubles/mixed_doubles entries.
+-- doubles entries.
 -- One row per (registration, event_disciplines row) pair.
 CREATE TABLE registration_discipline_selections (
   id         TEXT PRIMARY KEY,
@@ -2620,6 +2726,9 @@ CREATE TABLE registration_discipline_selections (
   discipline_id        TEXT NOT NULL REFERENCES event_disciplines(id),
   partner_member_id    TEXT REFERENCES members(id),
   partner_display_name TEXT,
+  -- 1 when the competitor enters a prize-money division as an Amateur: no prize
+  -- money, the same placing and ranking points.
+  enters_as_amateur INTEGER NOT NULL DEFAULT 0 CHECK (enters_as_amateur IN (0,1)),
   UNIQUE(registration_id, discipline_id)
 );
 
@@ -3178,6 +3287,40 @@ CREATE INDEX idx_registrations_attended
   ON registrations(event_id, attended_at)
   WHERE attended_at IS NOT NULL;
 
+-- ---------------------------------------------------------------------------
+-- event_registration_reminder_sent: one row each time the daily worker enqueues
+-- the pre-event reminder to a confirmed registrant, so a missed day still sends
+-- once and a repeat run sends nothing. event_start_date is the event's start
+-- date at send time, so an event moved to a new date reminds its registrants
+-- again: the (registration_id, event_start_date) key has not been used yet.
+-- ---------------------------------------------------------------------------
+CREATE TABLE event_registration_reminder_sent (
+  id         TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+
+  registration_id  TEXT NOT NULL REFERENCES registrations(id),
+  event_start_date TEXT NOT NULL,
+  sent_at          TEXT NOT NULL
+);
+
+CREATE UNIQUE INDEX ux_event_registration_reminder_sent
+  ON event_registration_reminder_sent(registration_id, event_start_date);
+
+-- Append-only: any UPDATE or DELETE breaks the dedup and risks reminding a
+-- registrant twice.
+CREATE TRIGGER trg_event_registration_reminder_sent_no_update
+BEFORE UPDATE ON event_registration_reminder_sent
+BEGIN
+  SELECT RAISE(ABORT, 'event_registration_reminder_sent rows are immutable (append-only dedup ledger)');
+END;
+
+CREATE TRIGGER trg_event_registration_reminder_sent_no_delete
+BEFORE DELETE ON event_registration_reminder_sent
+BEGIN
+  SELECT RAISE(ABORT, 'event_registration_reminder_sent rows are immutable (append-only dedup ledger)');
+END;
+
 -- =============================================================================
 -- SECTION 19: ACCOUNT TOKENS
 -- =============================================================================
@@ -3482,6 +3625,7 @@ VALUES
 --   profile_edit_rate_limit_per_hour Max profile edits per member per hour
 --   purchase_tier_rate_limit_per_hour Max tier-purchase attempts per member per hour
 --   donation_rate_limit_per_hour    Max donation checkout attempts per member per hour
+--   event_registration_rate_limit_per_hour Max paid event registration checkout attempts per member per hour
 --   reconciliation_window_days      Lookback window the nightly reconciliation compares
 --   reconciliation_grace_minutes    Age a record must reach before reconciliation judges it
 --   reconciliation_summary_interval_days Cadence for reconciliation digest email
@@ -3966,6 +4110,15 @@ VALUES
   ),
 
   (
+   'seed-event-registration-rate-limit-per-hour',
+   '2000-01-01T00:00:00.000Z',
+   'event_registration_rate_limit_per_hour', '20',
+   '2000-01-01T00:00:00.000Z',
+   'Max paid event registration checkout attempts per member per hour (default: 20).',
+   NULL
+  ),
+
+  (
    'seed-video-submission-rate-limit-per-hour',
    '2000-01-01T00:00:00.000Z',
    'video_submission_rate_limit_per_hour', '5',
@@ -4307,6 +4460,38 @@ VALUES
    'Items per page on every paged media surface: Browse Media, named galleries and the member-galleries list; valid 12 to 96 (default: 24).',
    NULL
   );
+
+-- ---------------------------------------------------------------------------
+-- DISCIPLINE GAMES
+-- The starting list of contested games. Every game admits open and women's
+-- divisions and all four classes, because a sanctioned event offers Women's and
+-- Intermediate divisions alongside Open in every category and class is
+-- self-selected. Doubles, and mixed with it, are admitted where the game is
+-- played in pairs. IFPA ratifies the list through the published competition
+-- rules; a correction is a change to these rows.
+-- Columns: id, discipline_category, name, sort_order, then the flags singles,
+-- doubles, open, women, mixed, novice, intermediate, open class, masters.
+-- ---------------------------------------------------------------------------
+INSERT OR IGNORE INTO discipline_games
+  (id, created_at, created_by, updated_at, updated_by, version,
+   discipline_category, name, sort_order,
+   allows_singles, allows_doubles, allows_open, allows_women, allows_mixed,
+   allows_novice, allows_intermediate, allows_open_class, allows_masters)
+VALUES
+  ('game_footbag_net',         '2000-01-01T00:00:00.000Z', 'system', '2000-01-01T00:00:00.000Z', 'system', 1, 'net',          'Footbag Net',        1,  1, 1, 1, 1, 1, 1, 1, 1, 1),
+  ('game_footbag_golf',        '2000-01-01T00:00:00.000Z', 'system', '2000-01-01T00:00:00.000Z', 'system', 1, 'golf',         'Footbag Golf',       1,  1, 1, 1, 1, 1, 1, 1, 1, 1),
+  ('game_routines',            '2000-01-01T00:00:00.000Z', 'system', '2000-01-01T00:00:00.000Z', 'system', 1, 'freestyle',    'Routines',           1,  1, 1, 1, 1, 1, 1, 1, 1, 1),
+  ('game_30_second_shred',     '2000-01-01T00:00:00.000Z', 'system', '2000-01-01T00:00:00.000Z', 'system', 1, 'freestyle',    '30 Second Shred',    2,  1, 0, 1, 1, 0, 1, 1, 1, 1),
+  ('game_sick_3',              '2000-01-01T00:00:00.000Z', 'system', '2000-01-01T00:00:00.000Z', 'system', 1, 'freestyle',    'Sick 3',             3,  1, 0, 1, 1, 0, 1, 1, 1, 1),
+  ('game_sick_trick',          '2000-01-01T00:00:00.000Z', 'system', '2000-01-01T00:00:00.000Z', 'system', 1, 'freestyle',    'Sick Trick',         4,  1, 0, 1, 1, 0, 1, 1, 1, 1),
+  ('game_circle',              '2000-01-01T00:00:00.000Z', 'system', '2000-01-01T00:00:00.000Z', 'system', 1, 'freestyle',    'Circle',             5,  1, 0, 1, 1, 0, 1, 1, 1, 1),
+  ('game_battle',              '2000-01-01T00:00:00.000Z', 'system', '2000-01-01T00:00:00.000Z', 'system', 1, 'freestyle',    'Battle',             6,  1, 1, 1, 1, 1, 1, 1, 1, 1),
+  ('game_last_man_standing',   '2000-01-01T00:00:00.000Z', 'system', '2000-01-01T00:00:00.000Z', 'system', 1, 'freestyle',    'Last Man Standing',  7,  1, 0, 1, 1, 0, 1, 1, 1, 1),
+  ('game_request',             '2000-01-01T00:00:00.000Z', 'system', '2000-01-01T00:00:00.000Z', 'system', 1, 'freestyle',    'Request',            8,  1, 0, 1, 1, 0, 1, 1, 1, 1),
+  ('game_2_square',            '2000-01-01T00:00:00.000Z', 'system', '2000-01-01T00:00:00.000Z', 'system', 1, 'x_square',     '2-Square',           1,  1, 0, 1, 1, 0, 1, 1, 1, 1),
+  ('game_4_square',            '2000-01-01T00:00:00.000Z', 'system', '2000-01-01T00:00:00.000Z', 'system', 1, 'x_square',     '4-Square',           2,  1, 0, 1, 1, 0, 1, 1, 1, 1),
+  ('game_5_square',            '2000-01-01T00:00:00.000Z', 'system', '2000-01-01T00:00:00.000Z', 'system', 1, 'x_square',     '5-Square',           3,  1, 0, 1, 1, 0, 1, 1, 1, 1),
+  ('game_timed_consecutives',  '2000-01-01T00:00:00.000Z', 'system', '2000-01-01T00:00:00.000Z', 'system', 1, 'consecutives', 'Timed Consecutives', 1,  1, 1, 1, 1, 1, 1, 1, 1, 1);
 
 -- =============================================================================
 -- SECTION 24: LEGACY DATA MIGRATION TABLES

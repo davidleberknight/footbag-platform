@@ -134,7 +134,6 @@ const DECISIONS: Record<string, Decision> = {
   },
   'event_results_uploads.uploaded_by_member_id': ACTOR,
   'events.canceled_by_member_id': ACTOR,
-  'events.payment_enabled_by_member_id': ACTOR,
   'events.sanction_decided_by_member_id': ACTOR,
   'events.sanction_requested_by_member_id': ACTOR,
   'hof_affidavits.submitted_by_member_id': { export: { noWriter: NO_WRITER }, erasure: { unruled: NO_ERASURE_RULE } },
@@ -180,6 +179,11 @@ const DECISIONS: Record<string, Decision> = {
     erasure: { cleared: 'memberMessages.scrubTextForMember', on: 'purge' },
   },
   'member_messages.sender_admin_member_id': ACTOR,
+  'member_announcements.member_id': {
+    export: { exported: 'memberExport.memberAnnouncements' },
+    erasure: { cleared: 'memberAnnouncements.deleteForMember', on: 'purge' },
+  },
+  'member_announcements.decided_by_member_id': ACTOR,
   'member_onboarding_tasks.member_id': {
     export: { exported: 'memberExport.onboardingTasks' },
     erasure: { cleared: 'memberOnboarding.clearHeldAnswersForMember', on: 'purge' },
@@ -205,7 +209,7 @@ const DECISIONS: Record<string, Decision> = {
     export: { exported: 'memberExport.recurringDonations' },
     erasure: { unruled: NO_ERASURE_RULE },
   },
-  'registration_discipline_selections.partner_member_id': { export: { noWriter: NO_WRITER }, erasure: { unruled: NO_ERASURE_RULE } },
+  'registration_discipline_selections.partner_member_id': { export: { exported: 'memberExport.partnerEntries' }, erasure: { unruled: NO_ERASURE_RULE } },
   'registrations.attended_marked_by_member_id': ACTOR,
   'registrations.member_id': {
     export: { exported: 'memberExport.registrations' },
@@ -247,7 +251,8 @@ const LINKS: Record<string, Export | Covered> = {
   'reconciliation_issues.payment_id': { withheld: 'an administrator\'s comparison of the platform against the payment provider, carrying provider identifiers; the payment and its transitions are in the download' },
   'reconciliation_issues.subscription_record_id': { withheld: 'an administrator\'s comparison of the platform against the payment provider, carrying provider identifiers; the gift and its transitions are in the download' },
   'ses_events.outbox_email_id': { withheld: 'the mail provider\'s delivery feedback, keyed by its message identifier; its effect on the member is the email status on their own row' },
-  'registration_discipline_selections.registration_id': { noWriter: NO_WRITER },
+  'registration_discipline_selections.registration_id': { exported: 'memberExport.registrationEntries' },
+  'event_registration_reminder_sent.registration_id': { withheld: OPERATIONAL },
 
   // Links between rows that are each in the download through their own member key.
   'active_player_grants.related_club_affiliation_id': { covered: 'active_player_grants.member_id' },

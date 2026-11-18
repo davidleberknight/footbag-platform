@@ -1,25 +1,20 @@
 /**
- * The community announcement an organizer-tier member sends.
+ * The community announcement an organizer-tier member submits for review.
  *
  * Contract verified:
  *   - the surface is organizer-tier and owner-only: a signed-out visitor, a
  *     Tier 1 member, and a member reaching for someone else's path are all
  *     refused, the last as a 404 so the path cannot be used to discover slugs
- *   - the send rides the same path an administrator's list send takes: one
- *     outbox row per deliverable subscriber to the announce list, on the bulk
- *     stream, from the list's own address
- *   - that address survives the drain and is the one handed to the sender, which
- *     is where it has to be right: the send permission is bounded by the From
- *     address, so a value lost between the row and the send is refused by the
- *     mail provider after the member has been told the announcement went out
- *   - the record says a member announced to the community, not that an
- *     administrator mailed a list: its own archive type, and the member as actor
- *   - the daily limit answers 429 with Retry-After and sends nothing
- *   - resubmitting the same rendered form sends once
+ *   - submitting holds the announcement and raises one review item for the
+ *     moderation area; nothing reaches the list or the archive
+ *   - the form requires the Community Standards agreement tick; without it the
+ *     submit is refused with the subject and body kept, and the corrected form
+ *     goes through
+ *   - a member may have one announcement awaiting review; a second is refused
+ *     with the text kept
+ *   - the same rendered form submitted twice holds one announcement
+ *   - one sent back opens in the form with its text and the administrator's note
  *   - the shortcut appears on an organizer's profile and not on a Tier 1 one
- *
- * The audit ledger is append-only and cannot be cleared between cases, so every
- * assertion about it is scoped to the announce list and counted as a delta.
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
@@ -30,8 +25,8 @@ import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/
 import {
   insertMember,
   insertMailingListSubscription,
+  insertMemberAnnouncement,
   insertMemberTierGrant,
-  insertSystemConfig,
   createTestSessionJwt,
 } from '../fixtures/factories';
 
@@ -42,19 +37,12 @@ const ORG_SLUG    = 'an_organizer';
 const PLAIN       = 'an_plain_001';
 const PLAIN_SLUG  = 'an_plain';
 const SUB_ONE     = 'an_sub_001';
-const SUB_TWO     = 'an_sub_002';
-const ADMIN       = 'an_admin_001';
 
 const ANNOUNCE = `/members/${ORG_SLUG}/announce`;
-/** Comfortably above what any single case sends, so the throttle case is the
- *  only one that meets it. */
-const PER_DAY = 5;
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-let getCommunicationService: typeof import('../../src/services/communicationService').getCommunicationService;
-// eslint-disable-next-line @typescript-eslint/consistent-type-imports
-let getStubSesAdapterForTests: typeof import('../../src/adapters/sesAdapter').getStubSesAdapterForTests;
+let WORK_QUEUE_TASK_TYPES: typeof import('../../src/services/workQueueTaskTypes').WORK_QUEUE_TASK_TYPES;
 
 function organizerCookie(): string {
   return `__Host-footbag_session=${createTestSessionJwt({ memberId: ORGANIZER })}`;
@@ -72,51 +60,29 @@ function withDb<T>(fn: (db: BetterSqlite3.Database) => T): T {
   }
 }
 
-interface OutboxRow {
-  recipient_member_id: string | null;
-  mailing_list_id: string | null;
-  subject: string;
-  stream: string;
-  from_identity: string | null;
+interface HeldRow { id: string; subject: string; body_text: string; status: string }
+
+function heldRows(): HeldRow[] {
+  return withDb((db) => db.prepare(
+    'SELECT id, subject, body_text, status FROM member_announcements WHERE member_id = ? ORDER BY created_at, id',
+  ).all(ORGANIZER) as HeldRow[]);
 }
 
-function outboxRows(): OutboxRow[] {
-  return withDb((db) => db.prepare(`
-    SELECT recipient_member_id, mailing_list_id, subject, stream, from_identity
-    FROM outbox_emails ORDER BY recipient_member_id
-  `).all() as OutboxRow[]);
+function reviewItems(): Array<{ entity_type: string; entity_id: string; reason_text: string | null; detail_text: string | null }> {
+  return withDb((db) => db.prepare(
+    `SELECT entity_type, entity_id, reason_text, detail_text FROM work_queue_items
+      WHERE task_type = 'announcement_review' AND status = 'open'`,
+  ).all() as Array<{ entity_type: string; entity_id: string; reason_text: string | null; detail_text: string | null }>);
 }
 
-interface ArchiveRow {
-  archive_type: string;
-  mailing_list_id: string | null;
-  sender_member_id: string | null;
-  from_identity: string | null;
-  subject: string;
-  recipient_count: number;
-}
-
-function archiveRows(): ArchiveRow[] {
-  return withDb((db) => db.prepare(`
-    SELECT archive_type, mailing_list_id, sender_member_id, from_identity, subject, recipient_count
-    FROM email_archives ORDER BY sent_at, id
-  `).all() as ArchiveRow[]);
-}
-
-/** Sends recorded against the announce list, which only grows. */
-function announceAuditCount(): number {
+function listMailCount(): number {
   return withDb((db) => (db.prepare(
-    `SELECT COUNT(*) AS c FROM audit_entries
-     WHERE action_type = 'mailing_list.broadcast_sent' AND entity_id = 'announce'`,
+    "SELECT COUNT(*) AS c FROM outbox_emails WHERE mailing_list_id = 'announce'",
   ).get() as { c: number }).c);
 }
 
-function memberActorCount(): number {
-  return withDb((db) => (db.prepare(
-    `SELECT COUNT(*) AS c FROM audit_entries
-     WHERE action_type = 'mailing_list.broadcast_sent' AND entity_id = 'announce'
-       AND actor_type = 'member' AND actor_member_id = ?`,
-  ).get(ORGANIZER) as { c: number }).c);
+function archiveCount(): number {
+  return withDb((db) => (db.prepare('SELECT COUNT(*) AS c FROM email_archives').get() as { c: number }).c);
 }
 
 /** The send token the rendered form carries. */
@@ -126,13 +92,26 @@ function tokenFrom(html: string): string {
   return m[1]!;
 }
 
+async function formToken(): Promise<string> {
+  const form = await request(createApp()).get(ANNOUNCE).set('Cookie', organizerCookie());
+  return tokenFrom(form.text);
+}
+
+/** The body a browser posts for the form as rendered, the box ticked or not:
+ *  the hidden "0" always, then the box's "1" when ticked. */
+function formBody(fields: { subject: string; bodyText: string; sendToken: string }, ticked: boolean): string {
+  const p = new URLSearchParams({ sendToken: fields.sendToken, subject: fields.subject, bodyText: fields.bodyText });
+  p.append('agree', '0');
+  if (ticked) p.append('agree', '1');
+  return p.toString();
+}
+
+function submit(body: string) {
+  return request(createApp()).post(ANNOUNCE).set('Cookie', organizerCookie()).type('form').send(body);
+}
+
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-  insertSystemConfig(db, {
-    config_key: 'announce_send_rate_limit_per_day',
-    value_json: String(PER_DAY),
-  });
-
   insertMember(db, { id: ORGANIZER, slug: ORG_SLUG,   login_email: 'an-org@example.com' });
   insertMember(db, { id: PLAIN,     slug: PLAIN_SLUG, login_email: 'an-plain@example.com' });
   // Tier is held in the append-only grant ledger the tier predicates read, not
@@ -145,75 +124,36 @@ beforeAll(async () => {
     member_id: PLAIN, new_tier_status: 'tier1',
     new_underlying_tier_status: 'tier1', reason_code: 'purchase.tier1',
   });
-  insertMember(db, { id: SUB_ONE,   slug: 'an_sub_one', login_email: 'an-one@example.com' });
-  insertMember(db, { id: SUB_TWO,   slug: 'an_sub_two', login_email: 'an-two@example.com' });
-  insertMember(db, { id: ADMIN,     slug: 'an_admin',   login_email: 'an-admin@example.com', is_admin: 1 });
+  insertMember(db, { id: SUB_ONE, slug: 'an_sub_one', login_email: 'an-one@example.com' });
+  insertMailingListSubscription(db, { member_id: SUB_ONE, list_slug: 'announce', status: 'subscribed' });
   db.close();
   createApp = await importApp();
-  const commsMod = await import('../../src/services/communicationService');
-  const sesMod = await import('../../src/adapters/sesAdapter');
-  getCommunicationService = commsMod.getCommunicationService;
-  getStubSesAdapterForTests = sesMod.getStubSesAdapterForTests;
+  WORK_QUEUE_TASK_TYPES = (await import('../../src/services/workQueueTaskTypes')).WORK_QUEUE_TASK_TYPES;
 });
 
 afterAll(() => cleanupTestDb(dbPath));
 
 beforeEach(() => {
   withDb((db) => {
+    db.prepare("DELETE FROM work_queue_items WHERE task_type = 'announcement_review'").run();
+    db.prepare('DELETE FROM member_announcements').run();
     db.prepare('DELETE FROM outbox_emails').run();
-    db.prepare('DELETE FROM email_archives').run();
-    db.prepare('DELETE FROM mailing_list_subscriptions').run();
   });
-  getStubSesAdapterForTests()?.clear();
 });
 
-function seedSubscribers(): void {
-  withDb((db) => {
-    insertMailingListSubscription(db, { member_id: SUB_ONE, list_slug: 'announce', status: 'subscribed' });
-    insertMailingListSubscription(db, { member_id: SUB_TWO, list_slug: 'announce', status: 'subscribed' });
-  });
-}
-
-async function formToken(): Promise<string> {
-  const form = await request(createApp()).get(ANNOUNCE).set('Cookie', organizerCookie());
-  return tokenFrom(form.text);
-}
-
-describe('who may send an announcement', () => {
+describe('who may submit an announcement', () => {
   it('sends an unauthenticated visitor to sign in', async () => {
     const res = await request(createApp()).get(ANNOUNCE);
     expect(res.status).toBe(302);
     expect(res.headers.location).toMatch(/^\/login/);
   });
 
-  it('refuses a member below organizer tier', async () => {
-    const res = await request(createApp())
-      .get(`/members/${PLAIN_SLUG}/announce`).set('Cookie', plainCookie());
-    expect(res.status).toBe(403);
-  });
-
-  it('refuses a Tier 1 member posting an announcement, and sends nothing', async () => {
-    seedSubscribers();
+  it('refuses a Tier 1 member posting an announcement, and holds nothing', async () => {
     const res = await request(createApp())
       .post(`/members/${PLAIN_SLUG}/announce`).set('Cookie', plainCookie()).type('form')
-      .send({ subject: 'Not mine to send', bodyText: 'Body', sendToken: 'tok-plain' });
-
+      .send(formBody({ subject: 'Not mine to send', bodyText: 'Body', sendToken: 'tok-plain' }, true));
     expect(res.status).toBe(403);
-    expect(outboxRows()).toHaveLength(0);
-  });
-
-  // Defect caught: an announcement repeating a field (a hand-made request)
-  // goes out with whichever value the code read, or throws, or the refused
-  // form comes back without the message the organizer wrote.
-  it('refuses a field posted twice at 422, keeps the message, and sends nothing', async () => {
-    seedSubscribers();
-    const outboxBefore = outboxRows().length;
-    const res = await request(createApp())
-      .post(ANNOUNCE).set('Cookie', organizerCookie()).type('form')
-      .send('subject=One&subject=Two&bodyText=Kept+typed+message&sendToken=tok-shape');
-    expect(res.status).toBe(422);
-    expect(res.text).toContain('Kept typed message');
-    expect(outboxRows()).toHaveLength(outboxBefore);
+    expect(withDb((db) => db.prepare('SELECT COUNT(*) AS c FROM member_announcements').get())).toEqual({ c: 0 });
   });
 
   it('404s an organizer reaching for another member\'s announce form', async () => {
@@ -221,302 +161,142 @@ describe('who may send an announcement', () => {
       .get(`/members/${PLAIN_SLUG}/announce`).set('Cookie', organizerCookie());
     expect(res.status).toBe(404);
   });
+
+  // Defect caught: a field repeated by a hand-made request goes in with
+  // whichever value the code read, or the refused form loses the message.
+  it('refuses a field posted twice at 422, keeps the message, and holds nothing', async () => {
+    const res = await submit('subject=One&subject=Two&bodyText=Kept+typed+message&sendToken=tok-shape&agree=0&agree=1');
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Kept typed message');
+    expect(heldRows()).toHaveLength(0);
+  });
 });
 
 describe('the announce form', () => {
-  it('names the list\'s own address and how many are subscribed', async () => {
-    seedSubscribers();
+  // Defect caught: the form has no agreement box, so no submit a member can
+  // make from the page is ever accepted; or the box posts somewhere else.
+  it('carries the agreement box linking the Community Standards, posting to the member\'s own path', async () => {
     const res = await request(createApp()).get(ANNOUNCE).set('Cookie', organizerCookie());
-
     expect(res.status).toBe(200);
-    expect(res.text).toContain('announce@footbag.org');
-    expect(res.text).toMatch(/2 members currently receive these/);
-  });
-
-  it('warns when nobody is subscribed', async () => {
-    const res = await request(createApp()).get(ANNOUNCE).set('Cookie', organizerCookie());
-    expect(res.text).toMatch(/Nobody is subscribed to community announcements/);
-  });
-
-  it('posts to the member\'s own announce path', async () => {
-    const res = await request(createApp()).get(ANNOUNCE).set('Cookie', organizerCookie());
     expect(res.text).toContain(`action="${ANNOUNCE}"`);
+    expect(res.text).toMatch(/<input type="checkbox" id="agree" name="agree" value="1"/);
+    expect(res.text).toContain('href="/community-standards"');
+    expect(res.text).toContain('data-volunteer-notice');
+    // One subscriber is counted in the singular.
+    expect(res.text).toContain('1 member currently receives these.');
   });
 });
 
-describe('sending an announcement', () => {
-  it('queues one message per subscriber, on the bulk stream, from the list address', async () => {
-    seedSubscribers();
-    const token = await formToken();
-
-    const res = await request(createApp())
-      .post(ANNOUNCE).set('Cookie', organizerCookie()).type('form')
-      .send({ subject: 'Worlds is open', bodyText: 'Registration opens Monday.', sendToken: token });
+describe('submitting an announcement', () => {
+  // Defect caught: the announcement still goes straight to the list, or is
+  // held with no review item, so nobody ever sees it.
+  it('holds it for review with one review item and sends nothing', async () => {
+    const res = await submit(formBody({ subject: 'Worlds is open', bodyText: 'Registration opens Monday.', sendToken: await formToken() }, true));
 
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe(ANNOUNCE);
-    expect(flashValueOf(res)).toBe('announce_result:sent');
+    expect(flashValueOf(res)).toBe('announce_result:submitted');
 
-    // The organizer lands on the form and is told the message is on its way.
+    const held = heldRows();
+    expect(held).toHaveLength(1);
+    expect(held[0]).toMatchObject({ subject: 'Worlds is open', body_text: 'Registration opens Monday.', status: 'pending' });
+
+    const items = reviewItems();
+    expect(items).toHaveLength(1);
+    expect(items[0]!.entity_type).toBe('member_announcement');
+    expect(items[0]!.entity_id).toBe(held[0]!.id);
+    // The queue row carries none of the member's words.
+    expect(items[0]!.reason_text).toBeNull();
+    expect(items[0]!.detail_text).toBeNull();
+    expect(WORK_QUEUE_TASK_TYPES.announcement_review!.kind).toBe('waiting');
+    expect(WORK_QUEUE_TASK_TYPES.announcement_review!.routeTopic).toBe('moderation');
+
+    expect(listMailCount()).toBe(0);
+    expect(archiveCount()).toBe(0);
+
+    // The member lands on the form told it was submitted.
     const page = await request(createApp()).get(ANNOUNCE)
       .set('Cookie', `${organizerCookie()}; ${flashCookieOf(res)}`);
-    expect(page.text).toMatch(/class="form-success-banner" role="status">Queued\./);
-
-    // The same address typed or shared without the cookie claims nothing.
-    const bare = await request(createApp()).get(`${ANNOUNCE}?notice=sent`).set('Cookie', organizerCookie());
-    expect(bare.status).toBe(200);
-    expect(bare.text).not.toContain('Queued.');
-
-    const rows = outboxRows();
-    expect(rows).toHaveLength(2);
-    expect(rows.map((r) => r.recipient_member_id).sort()).toEqual([SUB_ONE, SUB_TWO]);
-    expect(rows[0]!.mailing_list_id).toBe('announce');
-    expect(rows[0]!.stream).toBe('bulk');
-    expect(rows[0]!.from_identity).toBe('announce@footbag.org');
-    expect(rows[0]!.subject).toBe('Worlds is open');
+    expect(page.text).toContain('class="form-success-banner"');
   });
 
-  it('hands the sender the list address when the queue drains', async () => {
-    seedSubscribers();
+  // Defect caught: the box is not enforced, or a refusal loses what the
+  // member typed, or the corrected form is still refused.
+  it('refuses a submit without the tick, keeping the text, and takes the corrected form', async () => {
     const token = await formToken();
+    const fields = { subject: 'Club night', bodyText: 'Kept across the refusal', sendToken: token };
 
-    await request(createApp())
-      .post(ANNOUNCE).set('Cookie', organizerCookie()).type('form')
-      .send({ subject: 'Worlds is open', bodyText: 'Registration opens Monday.', sendToken: token });
+    const refused = await submit(formBody(fields, false));
+    expect(refused.status).toBe(422);
+    expect(refused.text).toContain('value="Club night"');
+    expect(refused.text).toContain('Kept across the refusal');
+    expect(refused.text).toContain('class="form-error-banner"');
+    expect(refused.text).not.toMatch(/name="agree" value="1" checked/);
+    expect(heldRows()).toHaveLength(0);
 
-    const drained = await getCommunicationService().processSendQueue();
-    expect(drained.sent).toBe(2);
-
-    const stub = getStubSesAdapterForTests();
-    expect(stub).not.toBeNull();
-    expect(stub!.sentMessages.map((m) => m.from)).toEqual([
-      'announce@footbag.org',
-      'announce@footbag.org',
-    ]);
+    // Resubmitted as rendered, with the box ticked.
+    const corrected = await submit(formBody({ ...fields, sendToken: tokenFrom(refused.text) }, true));
+    expect(corrected.status).toBe(303);
+    expect(heldRows()).toHaveLength(1);
   });
 
-  it('records it as a community announcement made by the member', async () => {
-    seedSubscribers();
-    const before = announceAuditCount();
-    const beforeMember = memberActorCount();
-
-    await request(createApp())
-      .post(ANNOUNCE).set('Cookie', organizerCookie()).type('form')
-      .send({ subject: 'Recorded', bodyText: 'Body', sendToken: await formToken() });
-
-    const archives = archiveRows();
-    expect(archives).toHaveLength(1);
-    // Its own archive type, so the record does not read as an administrator
-    // mailing a list.
-    expect(archives[0]!.archive_type).toBe('announce');
-    expect(archives[0]!.mailing_list_id).toBe('announce');
-    expect(archives[0]!.sender_member_id).toBe(ORGANIZER);
-    expect(archives[0]!.recipient_count).toBe(2);
-
-    expect(announceAuditCount()).toBe(before + 1);
-    expect(memberActorCount()).toBe(beforeMember + 1);
-  });
-
-  it('appears in the admin broadcast archive as a community announcement', async () => {
-    seedSubscribers();
-    await request(createApp())
-      .post(ANNOUNCE).set('Cookie', organizerCookie()).type('form')
-      .send({ subject: 'Visible to admins', bodyText: 'Body', sendToken: await formToken() });
-
-    const admin = `__Host-footbag_session=${createTestSessionJwt({ memberId: ADMIN, role: 'admin' })}`;
-    const res = await request(createApp()).get('/admin/broadcasts').set('Cookie', admin);
-
-    expect(res.text).toContain('Visible to admins');
-    expect(res.text).toContain('Community announcements');
-    // The subject is the member's own words: the archive holds it, the audit
-    // log, which outlives an erasure, does not.
-    const audit = withDb((db) => db.prepare(
-      `SELECT metadata_json FROM audit_entries
-        WHERE action_type = 'mailing_list.broadcast_sent' AND actor_member_id = ?`,
-    ).all(ORGANIZER)) as Array<{ metadata_json: string }>;
-    expect(audit.length).toBeGreaterThan(0);
-    expect(JSON.stringify(audit)).not.toContain('Visible to admins');
-  });
-
-  // Defect caught: a double click on Send mails the list twice, or tells the
-  // organizer their own send did not happen.
-  it('sends once when the same form is submitted twice, and reports the first send', async () => {
-    seedSubscribers();
-    const token = await formToken();
-    const body = { subject: 'Once only', bodyText: 'Body', sendToken: token };
-
-    const first = await request(createApp())
-      .post(ANNOUNCE).set('Cookie', organizerCookie()).type('form').send(body);
-    const second = await request(createApp())
-      .post(ANNOUNCE).set('Cookie', organizerCookie()).type('form').send(body);
-
-    expect(first.headers.location).toBe(ANNOUNCE);
-    expect(flashValueOf(first)).toBe('announce_result:sent');
-    expect(second.headers.location).toBe(first.headers.location);
-    expect(outboxRows()).toHaveLength(2);
-    expect(archiveRows()).toHaveLength(1);
-  });
-
-  // Defect caught: an organizer goes back, edits the announcement and sends
-  // again on the same form; the edit is reported as sent while nothing went
-  // out, so the correction never reaches the list.
-  it('an edited announcement resubmitted on the same form is refused, and nothing more is sent', async () => {
-    seedSubscribers();
-    const token = await formToken();
-    const first = await request(createApp())
-      .post(ANNOUNCE).set('Cookie', organizerCookie()).type('form')
-      .send({ subject: 'Original', bodyText: 'First text', sendToken: token });
-    expect(first.status).toBe(303);
-    const outboxAfterFirst = outboxRows().length;
-    const auditAfterFirst = announceAuditCount();
-
-    for (const edited of [
-      { subject: 'Original', bodyText: 'Corrected text', sendToken: token },
-      { subject: 'Corrected subject', bodyText: 'First text', sendToken: token },
-    ]) {
-      const res = await request(createApp())
-        .post(ANNOUNCE).set('Cookie', organizerCookie()).type('form').send(edited);
-      expect(res.status, JSON.stringify(edited)).toBe(422);
-      expect(res.text).toContain('This announcement was already sent, so your changes were not sent.');
-    }
-    expect(outboxRows()).toHaveLength(outboxAfterFirst);
-    expect(archiveRows()).toHaveLength(1);
-    expect(announceAuditCount()).toBe(auditAfterFirst);
-  });
-
-  // Defect caught: an organizer's markup, control characters or stacked blank
-  // lines go out to the whole community as typed, or a re-post differing only
-  // in what the cleaner removes is refused as an edited announcement.
-  it('sends the announcement cleaned, and takes a re-post that cleans the same as the same send', async () => {
-    seedSubscribers();
-    const token = await formToken();
-    const post = (subject: string, bodyText: string) => request(createApp())
-      .post(ANNOUNCE).set('Cookie', organizerCookie()).type('form')
-      .send({ subject, bodyText, sendToken: token });
-
-    const first = await post('Club <b>night</b>\u009b Café', 'First <i>para</i>\r\n\r\n\r\n\r\n\r\nSecond para');
-    expect(first.status).toBe(303);
-    const queued = withDb((db) => db.prepare('SELECT subject, body_text FROM outbox_emails').all() as
-      Array<{ subject: string; body_text: string }>);
-    expect(queued).toHaveLength(2);
-    for (const row of queued) {
-      expect(row.subject).toBe('Club night Café');
-      expect(row.body_text).toBe('First para\n\nSecond para');
-    }
-
-    const second = await post('Club <em>night</em> Café', 'First para\n\n\nSecond para');
-    expect(second.status).toBe(303);
-    expect(flashValueOf(second)).toBe('announce_result:sent');
-    expect(outboxRows()).toHaveLength(2);
-    expect(archiveRows()).toHaveLength(1);
-  });
-
-  it('refuses a send with no subject and keeps the text', async () => {
-    seedSubscribers();
-    const res = await request(createApp())
-      .post(ANNOUNCE).set('Cookie', organizerCookie()).type('form')
-      .send({ subject: '', bodyText: 'Kept across the failure', sendToken: await formToken() });
-
+  it('refuses a submit with no subject and keeps the text and the tick', async () => {
+    const res = await submit(formBody({ subject: '', bodyText: 'Kept across the failure', sendToken: await formToken() }, true));
     expect(res.status).toBe(422);
     expect(res.text).toMatch(/Subject: required/);
     expect(res.text).toContain('Kept across the failure');
-    expect(outboxRows()).toHaveLength(0);
+    expect(res.text).toMatch(/name="agree" value="1" checked/);
+    expect(heldRows()).toHaveLength(0);
   });
 
-  it('sends nothing when nobody is subscribed', async () => {
-    const res = await request(createApp())
-      .post(ANNOUNCE).set('Cookie', organizerCookie()).type('form')
-      .send({ subject: 'Into the void', bodyText: 'Body', sendToken: await formToken() });
-
-    expect(res.headers.location).toBe(ANNOUNCE);
-    expect(flashValueOf(res)).toBe('announce_result:no_recipients');
-    expect(outboxRows()).toHaveLength(0);
-    expect(archiveRows()).toHaveLength(0);
-  });
-});
-
-describe('the daily limit', () => {
-  it('refuses past the limit with Retry-After and sends nothing further', async () => {
-    seedSubscribers();
-
-    for (let i = 0; i < PER_DAY; i += 1) {
-      const res = await request(createApp())
-        .post(ANNOUNCE).set('Cookie', organizerCookie()).type('form')
-        .send({ subject: `Announcement ${i}`, bodyText: 'Body', sendToken: await formToken() });
-      expect(res.status, `send ${i} within the limit`).toBe(303);
-    }
-    const sentSoFar = outboxRows().length;
-
-    const blocked = await request(createApp())
-      .post(ANNOUNCE).set('Cookie', organizerCookie()).type('form')
-      .send({ subject: 'One too many', bodyText: 'Body', sendToken: await formToken() });
-
-    expect(blocked.status).toBe(429);
-    expect(blocked.headers['retry-after']).toBeDefined();
-    expect(outboxRows()).toHaveLength(sentSoFar);
+  // Defect caught: a double click holds two copies and raises two review items.
+  it('holds one announcement when the same form is submitted twice, reporting the first submit', async () => {
+    const body = formBody({ subject: 'Once only', bodyText: 'Body', sendToken: await formToken() }, true);
+    const first = await submit(body);
+    const second = await submit(body);
+    expect(first.status).toBe(303);
+    expect(second.status).toBe(303);
+    expect(flashValueOf(second)).toBe('announce_result:submitted');
+    expect(heldRows()).toHaveLength(1);
+    expect(reviewItems()).toHaveLength(1);
   });
 
-  // Defect caught: a double-click on Send spends one of the organizer's daily
-  // announcements, so a later genuine announcement is refused, or a repeat
-  // made at the limit is answered with a refusal for a send that went out.
-  it('a repeated send spends none of the daily allowance', async () => {
-    seedSubscribers();
-    const rl = await import('../../src/services/rateLimitService');
-    rl.resetRateLimitForTests();
-    try {
-      const post = (subject: string, sendToken: string) => request(createApp())
-        .post(ANNOUNCE).set('Cookie', organizerCookie()).type('form')
-        .send({ subject, bodyText: 'Body', sendToken });
+  // Defect caught: a member queues several announcements before anyone has
+  // looked at the first.
+  it('refuses a second announcement while one awaits review, keeping the text', async () => {
+    expect((await submit(formBody({ subject: 'First', bodyText: 'Body one', sendToken: await formToken() }, true))).status).toBe(303);
 
-      // Leave room for exactly two more sends today.
-      for (let i = 0; i < PER_DAY - 2; i += 1) {
-        expect((await post(`Filler ${i}`, await formToken())).status).toBe(303);
-      }
-      const tokenA = await formToken();
-      expect((await post('Announcement A', tokenA)).status).toBe(303);
-      const auditAfterA = announceAuditCount();
-      const outboxAfterA = outboxRows().length;
+    const page = await request(createApp()).get(ANNOUNCE).set('Cookie', organizerCookie());
+    expect(page.text).toContain('data-announce-pending');
 
-      const repeatA = await post('Announcement A', tokenA);
-      expect(repeatA.status).toBe(303);
-      expect(flashValueOf(repeatA)).toBe('announce_result:sent');
-      expect(outboxRows()).toHaveLength(outboxAfterA);
-      expect(announceAuditCount()).toBe(auditAfterA);
-
-      // The last slot is still free for a genuinely new announcement.
-      const sendB = await post('Announcement B', await formToken());
-      expect(sendB.status).toBe(303);
-      expect(flashValueOf(sendB)).toBe('announce_result:sent');
-
-      // B took the last slot, so the allowance is enforced as before.
-      expect((await post('Announcement C', await formToken())).status).toBe(429);
-    } finally {
-      rl.resetRateLimitForTests();
-    }
+    const second = await submit(formBody({ subject: 'Second', bodyText: 'Body kept', sendToken: tokenFrom(page.text) }, true));
+    expect(second.status).toBe(422);
+    expect(second.text).toContain('Body kept');
+    expect(second.text).toContain('class="form-error-banner"');
+    expect(heldRows()).toHaveLength(1);
+    expect(reviewItems()).toHaveLength(1);
   });
 
-  // Defect caught: once the allowance is spent, an organizer re-posting the
-  // announcement that used the last slot is shown a refusal for a send that
-  // went out.
-  it('a repeat at the limit reports the first send, not a refusal', async () => {
-    seedSubscribers();
-    const rl = await import('../../src/services/rateLimitService');
-    rl.resetRateLimitForTests();
-    try {
-      const post = (subject: string, sendToken: string) => request(createApp())
-        .post(ANNOUNCE).set('Cookie', organizerCookie()).type('form')
-        .send({ subject, bodyText: 'Body', sendToken });
-      let lastToken = '';
-      for (let i = 0; i < PER_DAY; i += 1) {
-        lastToken = await formToken();
-        expect((await post(`Send ${i}`, lastToken)).status).toBe(303);
-      }
-      const repeat = await post(`Send ${PER_DAY - 1}`, lastToken);
-      expect(repeat.status).toBe(303);
-      expect(flashValueOf(repeat)).toBe('announce_result:sent');
-    } finally {
-      rl.resetRateLimitForTests();
-    }
+  // Defect caught: a sent-back announcement leaves the member a blank form and
+  // no idea why, or still counts as waiting so they cannot resubmit.
+  it('opens a sent-back announcement in the form with the note, ready to resubmit', async () => {
+    withDb((db) => insertMemberAnnouncement(db, {
+      member_id: ORGANIZER, subject: 'Returned subject', body_text: 'Returned body text',
+      status: 'returned', admin_comment: 'Please add the venue.',
+    }));
+    const page = await request(createApp()).get(ANNOUNCE).set('Cookie', organizerCookie());
+    expect(page.text).toContain('value="Returned subject"');
+    expect(page.text).toContain('Returned body text');
+    expect(page.text).toContain('data-announce-returned');
+    expect(page.text).toContain('Please add the venue.');
+    // A note ending in its own full stop takes no second one after the quote.
+    expect(page.text).not.toContain('venue.&quot;.');
+    expect(page.text).not.toContain('venue.".');
+    expect(page.text).not.toContain('data-announce-pending');
+
+    const resubmit = await submit(formBody({ subject: 'Returned subject', bodyText: 'Returned body text, at the park.', sendToken: tokenFrom(page.text) }, true));
+    expect(resubmit.status).toBe(303);
+    expect(heldRows().map((r) => r.status)).toEqual(['returned', 'pending']);
   });
 });
 

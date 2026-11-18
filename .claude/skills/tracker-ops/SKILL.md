@@ -69,6 +69,18 @@ the human's instruction as given.
   subagent report, or the body alone is a lead to check, not the card. Read the card itself before
   stating, relying on or acting on what it says, and brief any subagent that relies on a card to
   read it the same way.
+- **Working a card: verify every claim before relying on it.** A card records scope, rulings and
+  deviations; it is never design intent, and its own `Settled from the sources` lines, its
+  descriptions of code and existing mechanisms, and the consequences it draws from a ruling can be
+  wrong or stale. Before planning, asking, or repeating any of them, list the card's load-bearing
+  claims and assumptions, your own included, and check each in the same turn: a design claim
+  against its governing passage (the `design-intent` skill, read now), a code or mechanism claim
+  against the current code, a fact about an outside system against live documentation. Report
+  each as checked or as a discrepancy. A card claim a passage contradicts goes to the human under
+  the asking rule's disagreement exception, with the answer the intent supports; it is never
+  carried forward. This governs the card itself, not a summary of it in the walk file. A
+  PostToolUse hook (`remind-card-verification.sh`) places this reminder beside every
+  `gh issue view` result.
 
 ## Drafting
 

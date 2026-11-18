@@ -210,10 +210,8 @@ export const deceasedMarkingService = {
         if (workQueue.findOpenByEntity.get(NEEDS_ORGANIZER_TASK, 'event', event.event_id)) continue;
         workQueueService.enqueue({
           taskType:      NEEDS_ORGANIZER_TASK,
-          queueCategory: 'events',
           entityType:    'event',
           entityId:      event.event_id,
-          priority:      0,
           actorId,
           reasonText:    `${event.event_title} has no organizer: the last one was marked deceased.`,
           detailText:    null,

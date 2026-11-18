@@ -170,9 +170,28 @@ publicRouter.get('/ifpa/:docSlug',  ifpaController.detail);
 // the literal segment "year" would be captured as the :eventKey param,
 // which would fail PUBLIC_EVENT_KEY_PATTERN validation and return 404
 // instead of routing to the year archive page.
+// /events/create is a literal segment too, so it also precedes /events/:eventKey.
 publicRouter.get('/events',              eventController.landing);
 publicRouter.get('/events/year/:year',   eventController.year);
+publicRouter.get('/events/create',       requireMember, requireTier1Benefits('event'), eventController.getCreate);
+publicRouter.post('/events/create',      requireMember, requireTier1Benefits('event'), eventController.postCreate);
 publicRouter.get('/events/:eventKey',    eventController.event);
+// An organizer's own surfaces. Whether the member organizes the event is the
+// service's check, answered as not-found for anyone who does not.
+publicRouter.get('/events/:eventKey/manage',                         requireMember, eventController.getManage);
+publicRouter.post('/events/:eventKey/edit',                          requireMember, eventController.postEdit);
+publicRouter.post('/events/:eventKey/divisions',                     requireMember, eventController.postDivision);
+publicRouter.post('/events/:eventKey/divisions/:divisionId/remove',  requireMember, eventController.postRemoveDivision);
+publicRouter.post('/events/:eventKey/organizers',                    requireMember, eventController.postAddOrganizer);
+publicRouter.post('/events/:eventKey/organizers/remove',             requireMember, eventController.postRemoveOrganizer);
+publicRouter.post('/events/:eventKey/step-down',                     requireMember, eventController.postStepDown);
+publicRouter.post('/events/:eventKey/registration-status',           requireMember, eventController.postRegistrationStatus);
+publicRouter.get('/events/:eventKey/sanction',                       requireMember, eventController.getSanction);
+publicRouter.post('/events/:eventKey/sanction',                      requireMember, eventController.postSanction);
+// A member's own registration, open to any signed-in member of any tier.
+publicRouter.get('/events/:eventKey/register',                       requireMember, eventController.getRegister);
+publicRouter.post('/events/:eventKey/register',                      requireMember, eventController.postRegister);
+publicRouter.post('/events/:eventKey/withdraw',                      requireMember, eventController.postWithdraw);
 
 // HP-only self-serve claim (scenarios D and E). Every claim flow, this one
 // included, belongs to the onboarding wizard at /register/wizard/legacy_claim:

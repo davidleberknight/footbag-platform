@@ -53,8 +53,9 @@
  * Persistence: reads members, member_tier_grants, active_player_grants,
  *   active_player_vouches, member_club_affiliations, club_leaders,
  *   club_insight_notes, club_viability_signals, registrations,
- *   event_organizers, mailing_list_subscriptions, outbox_emails,
- *   member_messages, work_queue_items, member_onboarding_tasks, media_items,
+ *   registration_discipline_selections, event_organizers, mailing_list_subscriptions, outbox_emails,
+ *   member_messages, member_announcements, work_queue_items,
+ *   member_onboarding_tasks, media_items,
  *   media_tags, media_flags, member_galleries, member_gallery_tags,
  *   member_gallery_exclude_tags, gallery_external_links, payments,
  *   payment_status_transitions, recurring_donation_subscriptions,
@@ -107,6 +108,7 @@ export interface MemberDataExport {
   emailSubscriptions: unknown[];
   mailReceived: unknown[];
   messagesReceived: unknown[];
+  announcements: unknown[];
   clubs: {
     affiliations: unknown[];
     leadership: unknown[];
@@ -114,6 +116,8 @@ export interface MemberDataExport {
     viabilitySignals: unknown[];
   };
   eventRegistrations: unknown[];
+  eventEntries: unknown[];
+  eventPartnerEntries: unknown[];
   eventsOrganized: unknown[];
   media: {
     items: unknown[];
@@ -208,6 +212,7 @@ export const memberDataExportService = {
       emailSubscriptions: capped('emailSubscriptions', memberExport.mailingListSubscriptions.all(memberId)),
       mailReceived:       capped('mailReceived', memberExport.mailReceived.all(memberId)),
       messagesReceived:   capped('messagesReceived', memberExport.messagesReceived.all(memberId)),
+      announcements:      capped('announcements', memberExport.memberAnnouncements.all(memberId)),
       clubs: {
         affiliations:     capped('clubs.affiliations', memberExport.clubAffiliations.all(memberId)),
         leadership:       capped('clubs.leadership', memberExport.clubLeadership.all(memberId)),
@@ -215,6 +220,8 @@ export const memberDataExportService = {
         viabilitySignals: capped('clubs.viabilitySignals', memberExport.clubViabilitySignals.all(memberId)),
       },
       eventRegistrations: capped('eventRegistrations', memberExport.registrations.all(memberId)),
+      eventEntries:        capped('eventEntries', memberExport.registrationEntries.all(memberId)),
+      eventPartnerEntries: capped('eventPartnerEntries', memberExport.partnerEntries.all(memberId)),
       eventsOrganized:    capped('eventsOrganized', memberExport.eventOrganizerRoles.all(memberId)),
       media: {
         items:                itemsWithTags,

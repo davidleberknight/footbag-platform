@@ -26,11 +26,12 @@ import { TierBenefitNotice } from '../types/page';
 import { paymentService } from './paymentService';
 
 /** Which benefit is out of reach, which decides only the opening sentence. */
-export type TierBenefitKind = 'media' | 'club' | 'general';
+export type TierBenefitKind = 'media' | 'club' | 'event' | 'general';
 
 const LEADS: Record<TierBenefitKind, string> = {
   media: 'Sharing media is a Tier 1 benefit.',
   club: "Starting a new club is a Tier 1 benefit, because you become the club's first leader.",
+  event: 'Creating an event is a Tier 1 benefit, because you become its first organizer.',
   general: 'This is a Tier 1 benefit.',
 };
 

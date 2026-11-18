@@ -65,9 +65,17 @@ describe('POST /password/forgot — production byte-identity for exists vs not-e
     const app = createApp();
     const known = await request(app).post('/password/forgot').type('form').send({ email: KNOWN_EMAIL });
     const unknown = await request(app).post('/password/forgot').type('form').send({ email: UNKNOWN_EMAIL });
+    // An account whose email is not verified yet is sent a reset link too, so
+    // its page must match the other two as well.
+    const unverified = await request(app).post('/password/forgot').type('form').send({ email: UNVERIFIED_EMAIL });
     expect(known.status).toBe(200);
     expect(unknown.status).toBe(200);
-    expect(normalize(known.text)).toBe(normalize(unknown.text));
+    expect(unverified.status).toBe(200);
+    // The sent page echoes the visitor's own typed address, which is input,
+    // not a lookup result, so it is the one thing allowed to differ.
+    const submitted = [KNOWN_EMAIL, UNKNOWN_EMAIL, UNVERIFIED_EMAIL];
+    expect(normalize(known.text, submitted)).toBe(normalize(unknown.text, submitted));
+    expect(normalize(unverified.text, submitted)).toBe(normalize(unknown.text, submitted));
     // No reset link ever reaches a live visitor.
     expect(known.text).not.toMatch(/\/password\/reset\/[A-Za-z0-9_-]+/);
   });

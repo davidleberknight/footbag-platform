@@ -201,16 +201,19 @@ describe('admin surfaces never find or name a prospective member', () => {
     expect(names).not.toContain(`Name ${PENDING.slug}`);
   });
 
-  it('the admin work queue names and links a member subject, and shows a pending one by id with no links', async () => {
-    insertWorkQueueItem(db, { queue_category: 'membership', entity_type: 'member', entity_id: MEMBER.id, reason_text: 'member item' });
-    insertWorkQueueItem(db, { queue_category: 'membership', entity_type: 'member', entity_id: PENDING.id, reason_text: 'pending item' });
-    const res = await request(createApp()).get('/admin/work-queue?category=membership').set('Cookie', adminCookie());
-    expect(res.status).toBe(200);
-    expect(res.text).toContain(`/admin/members/${MEMBER.id}`);
-    expect(res.text).toContain(`/members/${MEMBER.slug}`);
-    expect(res.text).not.toContain(`/admin/members/${PENDING.id}`);
-    expect(res.text).not.toContain(`/members/${PENDING.slug}`);
-    expect(res.text).not.toContain(`Name ${PENDING.slug}`);
+  it("a work-queue item's page names and links a member subject, and shows a pending one by id with no links", async () => {
+    const memberItem = insertWorkQueueItem(db, { entity_type: 'member', entity_id: MEMBER.id, reason_text: 'member item' });
+    const pendingItem = insertWorkQueueItem(db, { entity_type: 'member', entity_id: PENDING.id, reason_text: 'pending item' });
+    const member = await request(createApp()).get(`/admin/work-queue/${memberItem}`).set('Cookie', adminCookie());
+    expect(member.status).toBe(200);
+    expect(member.text).toContain(`/admin/members/${MEMBER.id}`);
+    expect(member.text).toContain(`/members/${MEMBER.slug}`);
+    const pending = await request(createApp()).get(`/admin/work-queue/${pendingItem}`).set('Cookie', adminCookie());
+    expect(pending.status).toBe(200);
+    expect(pending.text).toContain(PENDING.id);
+    expect(pending.text).not.toContain(`/admin/members/${PENDING.id}`);
+    expect(pending.text).not.toContain(`/members/${PENDING.slug}`);
+    expect(pending.text).not.toContain(`Name ${PENDING.slug}`);
   });
 
   it('an admin payment links a member payer and never a pending one', () => {

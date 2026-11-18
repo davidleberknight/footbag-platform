@@ -1,0 +1,91 @@
+{{!-- The event's own fields, shared by the creation form and the organizers'
+      edit form so the two never ask for an event differently. --}}
+<div class="form-field">
+  <label for="title">Event title</label>
+  <input type="text" id="title" name="title" value="{{values.title}}" maxlength="150" required />
+  {{#if fieldErrors.title}}<p class="form-field-error" role="alert">{{fieldErrors.title}}</p>{{/if}}
+</div>
+
+<div class="form-field">
+  <label for="description">Description <span class="text-muted">(optional)</span></label>
+  <textarea id="description" name="description" maxlength="5000" rows="5">{{values.description}}</textarea>
+  {{#if fieldErrors.description}}<p class="form-field-error" role="alert">{{fieldErrors.description}}</p>{{/if}}
+</div>
+
+<div class="form-field">
+  <label for="start_date">First day</label>
+  <input type="date" id="start_date" name="start_date" value="{{values.startDate}}" required />
+  {{#if fieldErrors.start_date}}<p class="form-field-error" role="alert">{{fieldErrors.start_date}}</p>{{/if}}
+</div>
+
+<div class="form-field">
+  <label for="end_date">Last day</label>
+  <input type="date" id="end_date" name="end_date" value="{{values.endDate}}" />
+  <small class="form-hint">Leave it blank for a one-day event.</small>
+  {{#if fieldErrors.end_date}}<p class="form-field-error" role="alert">{{fieldErrors.end_date}}</p>{{/if}}
+</div>
+
+<div class="form-field">
+  <label for="city">City</label>
+  <input type="text" id="city" name="city" value="{{values.city}}" required />
+  {{#if fieldErrors.city}}<p class="form-field-error" role="alert">{{fieldErrors.city}}</p>{{/if}}
+</div>
+
+<div class="form-field">
+  <label for="region">State or province <span class="text-muted">(optional)</span></label>
+  <input type="text" id="region" name="region" value="{{values.region}}" />
+  {{#if fieldErrors.region}}<p class="form-field-error" role="alert">{{fieldErrors.region}}</p>{{/if}}
+</div>
+
+<div class="form-field">
+  <label for="country">Country</label>
+  <select id="country" name="country" autocomplete="country-name" required>
+    <option value="">Select a country</option>
+    {{#each countryOptions}}
+      <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+    {{/each}}
+  </select>
+  {{#if fieldErrors.country}}<p class="form-field-error" role="alert">{{fieldErrors.country}}</p>{{/if}}
+</div>
+
+<div class="form-field">
+  <label for="registration_deadline">Registration deadline <span class="text-muted">(optional)</span></label>
+  <input type="date" id="registration_deadline" name="registration_deadline" value="{{values.registrationDeadline}}" />
+  {{#if fieldErrors.registration_deadline}}<p class="form-field-error" role="alert">{{fieldErrors.registration_deadline}}</p>{{/if}}
+</div>
+
+<div class="form-field">
+  <label>
+    <input type="hidden" name="tshirt_size_collected" value="0" />
+    <input type="checkbox" name="tshirt_size_collected" value="1"{{#if values.tshirtSizeCollected}} checked{{/if}} />
+    Ask registrants for a t-shirt size
+  </label>
+</div>
+
+<div class="form-field">
+  <label>
+    <input type="hidden" name="attendee_registration_open" value="0" />
+    <input type="checkbox" name="attendee_registration_open" value="1"{{#if values.attendeeRegistrationOpen}} checked{{/if}} />
+    Accept Attendee/Supporter registrations
+  </label>
+</div>
+
+{{#if showFees}}
+  <fieldset class="form-fieldset">
+    <legend>Registration Fees</legend>
+    <p class="form-hint">For a sanctioned event only. Leave a fee blank when there is none. Amounts are in US dollars.</p>
+    <div class="form-field">
+      <label for="competitor_fee">Competitor fee <span class="text-muted">(optional)</span></label>
+      <input type="text" id="competitor_fee" name="competitor_fee" value="{{values.competitorFee}}" inputmode="decimal"{{#unless canEditFees}} readonly{{/unless}} />
+      {{#if fieldErrors.competitor_fee}}<p class="form-field-error" role="alert">{{fieldErrors.competitor_fee}}</p>{{/if}}
+    </div>
+    <div class="form-field">
+      <label for="spectator_fee">Spectator fee <span class="text-muted">(optional)</span></label>
+      <input type="text" id="spectator_fee" name="spectator_fee" value="{{values.spectatorFee}}" inputmode="decimal"{{#unless canEditFees}} readonly{{/unless}} />
+      {{#if fieldErrors.spectator_fee}}<p class="form-field-error" role="alert">{{fieldErrors.spectator_fee}}</p>{{/if}}
+    </div>
+    {{#unless canEditFees}}
+      <small class="form-hint">Fees are fixed once the sanction request is submitted.</small>
+    {{/unless}}
+  </fieldset>
+{{/if}}

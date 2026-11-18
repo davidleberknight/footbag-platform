@@ -34,6 +34,9 @@
  *   - Tier-grant ledger writes (delegated to
  *     MembershipTieringService.applyPurchaseGrantInTx, called within the
  *     webhook-success transaction so the grant is atomic with the status change)
+ *   - The registration a registration fee pays for: its rules and its write are
+ *     the event service's, and its settlement is eventRegistrationSettlement's,
+ *     each run inside this service's transaction
  *   - The actual Stripe SDK calls (delegated to PaymentAdapter)
  *   - Sending the receipt email (the body is assembled here, then handed to
  *     the communication/outbox path for delivery; no template engine exists)
@@ -89,7 +92,17 @@
  *     refused while the provider holds it paid, so one gift is never paid twice.
  *     A refusal because an earlier checkout is still confirming opens nothing,
  *     so it gives its throttle slot back as well.
- *   - Payment kill-switch: startMembershipPurchase and startDonation throw
+ *   - A registration fee follows the same open-checkout rule per registration:
+ *     the same registration submitted again returns to its open checkout, a
+ *     changed one releases it first. The pending payment and the pending
+ *     registration it pays for are written in one transaction, the registration
+ *     by the event service's writer, and an overlapping submit that wrote the
+ *     registration first sends the loser to the winner's checkout. Settlement
+ *     confirms the registration, and an expiry or a release cancels it, inside
+ *     the payment's own transaction (eventRegistrationSettlement); a refund
+ *     changes no registration.
+ *   - Payment kill-switch: startMembershipPurchase, startDonation and
+ *     startEventRegistrationPayment throw
  *     ServiceUnavailableError when payments_paused=1 (runtime config), before
  *     any eligibility check, rate-limit token, or createCheckoutSession call,
  *     so an admin halts purchases without a redeploy.
@@ -325,6 +338,9 @@
  *   recurring_donation_subscription_transitions, members.stripe_customer_id,
  *   audit_entries, and reconciliation_issues through the reconciliation
  *   service's own raise path (the settlement-time amount mismatch).
+ *   registrations and registration_discipline_selections are written inside
+ *   this service's transactions by the event service's writer and by
+ *   eventRegistrationSettlement, never by this service's own statements.
  *
  * Side effects:
  *   - audit_entries append (checkout, status transitions, refunds and a refund
@@ -336,6 +352,8 @@
  *     settled event into an error). A payer who is deceased or no longer an active member
  *     is skipped with a warning, never failed, because the event has already
  *     applied; and a receipt the outbox suppressed is not recorded as sent.
+ *     A settled registration fee also enqueues the registration confirmation,
+ *     inside the settlement transaction, because it is part of the act.
  *   - work_queue_items insert in the `payments` category for the money events an
  *     administrator must see: a declined recurring charge, a partially refunded
  *     payment, a refund matching no local record, a refund the provider could
@@ -397,6 +415,10 @@ import { emailService } from './emailService';
 import { formatDateDisplay } from './dateFormat';
 import { workQueueService } from './workQueueService';
 import { paymentReconciliationService } from './paymentReconciliationService';
+import {
+  cancelRegistrationForClosedCheckoutInTx,
+  confirmPaidRegistrationInTx,
+} from './eventRegistrationSettlement';
 import { isSafePath } from '../lib/safePath';
 import type { PageViewModel } from '../types/page';
 import type { OutcomeNoticeView } from '../lib/outcomeNotice';
@@ -519,6 +541,8 @@ export interface CheckoutContent {
   cancelHref: string;
   declineHref: string;
   tier: 'tier1' | 'tier2' | null;
+  /** The stand-in checkout's note on what confirming applies. */
+  stubOutcome: string;
 }
 
 export interface SuccessContent {
@@ -906,30 +930,44 @@ function buildCancelUrl(returnTo: string): string {
  * because their new purchase is what released it.
  */
 function releaseClosedCheckout(payment: PaymentRow, memberId: string): void {
-  transaction(() => {
-    const now = new Date().toISOString();
-    const changed = paymentsDb.cancelPendingReleased.run(now, 'payment_service', payment.id).changes;
-    if (changed === 0) return;
-    recordTransition({
-      paymentId: payment.id,
-      fromStatus: 'pending',
-      toStatus: 'canceled',
-      stripeEventId: null,
-      eventType: 'checkout.session.expired',
-      reasonText: 'released by a new purchase',
-    });
-    appendAuditEntry({
-      actionType: 'payment.canceled',
-      actorType: 'member',
-      actorMemberId: memberId,
-      entityType: 'payment',
-      entityId: payment.id,
-      reasonText: 'released by a new purchase',
-      metadata: {
-        member_id: payment.member_id,
-        stripe_checkout_session_id: payment.stripe_checkout_session_id,
-      },
-    });
+  transaction(() => releaseClosedCheckoutInTx(payment, memberId));
+}
+
+/**
+ * The release itself, for a caller already inside a transaction. A registration
+ * fee's pending registration is canceled with its payment, as the expiry webhook
+ * cancels it, unless the caller has already moved it.
+ */
+function releaseClosedCheckoutInTx(
+  payment: PaymentRow,
+  memberId: string,
+  reason = 'released by a new purchase',
+): void {
+  const now = new Date().toISOString();
+  const changed = paymentsDb.cancelPendingReleased.run(now, 'payment_service', payment.id).changes;
+  if (changed === 0) return;
+  if (payment.payment_type === 'event_registration') {
+    cancelRegistrationForClosedCheckoutInTx(payment.id, now);
+  }
+  recordTransition({
+    paymentId: payment.id,
+    fromStatus: 'pending',
+    toStatus: 'canceled',
+    stripeEventId: null,
+    eventType: 'checkout.session.expired',
+    reasonText: reason,
+  });
+  appendAuditEntry({
+    actionType: 'payment.canceled',
+    actorType: 'member',
+    actorMemberId: memberId,
+    entityType: 'payment',
+    entityId: payment.id,
+    reasonText: reason,
+    metadata: {
+      member_id: payment.member_id,
+      stripe_checkout_session_id: payment.stripe_checkout_session_id,
+    },
   });
 }
 
@@ -1665,11 +1703,9 @@ function handlePaymentIntentSucceeded(event: StripeWebhookEvent): WebhookOutcome
       if (grant.status === 'noop') {
         workQueueService.enqueue({
           actorId: 'system',
-          queueCategory: 'payments',
           taskType: 'membership_overcharge_review',
           entityType: 'payment',
           entityId: payment.id,
-          priority: 0,
           reasonText:
             'A member paid for a membership tier they already held, so the payment '
             + 'settled and no tier was granted. A refund or credit decision is needed.',
@@ -1681,6 +1717,12 @@ function handlePaymentIntentSucceeded(event: StripeWebhookEvent): WebhookOutcome
           ].join('; '),
         });
       }
+    }
+    // A registration fee confirms the registration it pays for, in this same
+    // transaction, so a charged member is never left pending. One the member
+    // withdrew while paying stays withdrawn; the payment still settles.
+    if (payment.payment_type === 'event_registration') {
+      confirmPaidRegistrationInTx(payment.id, now);
     }
     // The event says what the provider actually collected; the row says what
     // the checkout asked for. The platform fixes the amount at checkout and the
@@ -1846,11 +1888,9 @@ function handleChargeRefunded(event: StripeWebhookEvent): WebhookOutcome {
     const raised = runNoopSideEffectOnce(event, () => {
       workQueueService.enqueue({
         actorId: 'system',
-        queueCategory: 'payments',
         taskType: 'unattributed_refund',
         entityType,
         entityId,
-        priority: 0,
         reasonText,
         detailText: [
           chargeId === null ? null : `Charge ${chargeId}`,
@@ -1939,11 +1979,9 @@ function handleChargeRefunded(event: StripeWebhookEvent): WebhookOutcome {
       });
       workQueueService.enqueue({
         actorId: 'system',
-        queueCategory: 'payments',
         taskType: 'partial_refund_review',
         entityType: 'payment',
         entityId: payment.id,
-        priority: 0,
         reasonText:
           chargeAmount === null || refundedAmount === null
             ? 'A refund was processed but its amount could not be read, so it was not recorded as a full refund.'
@@ -2117,11 +2155,9 @@ function handleChargeDispute(event: StripeWebhookEvent): WebhookOutcome {
     if (stage.workItemReason !== null) {
       workQueueService.enqueue({
         actorId: 'system',
-        queueCategory: 'payments',
         taskType: 'charge_dispute_review',
         entityType: 'stripe_dispute',
         entityId: disputeId,
-        priority: 0,
         reasonText: stage.workItemReason,
         detailText: [
           `Dispute ${disputeId}`,
@@ -2247,11 +2283,9 @@ function handleRefundOutcome(event: StripeWebhookEvent): WebhookOutcome {
     });
     workQueueService.enqueue({
       actorId: 'system',
-      queueCategory: 'payments',
       taskType: 'refund_failed_review',
       entityType: 'stripe_refund',
       entityId: refundId,
-      priority: 0,
       reasonText:
         'A refund could not be returned to the card at Stripe, so the money is still in the account and another way to return it is needed.',
       detailText: [
@@ -2328,11 +2362,9 @@ function handlePayoutFailed(event: StripeWebhookEvent): WebhookOutcome {
     });
     workQueueService.enqueue({
       actorId: 'system',
-      queueCategory: 'payments',
       taskType: 'payout_failed',
       entityType: 'stripe_payout',
       entityId: payoutId,
-      priority: 0,
       reasonText: 'A payout to the organization bank account failed at Stripe.',
       detailText: [
         `Payout ${payoutId}`,
@@ -2459,6 +2491,10 @@ function handleCheckoutExpired(event: StripeWebhookEvent): WebhookOutcome {
       eventType: event.type,
       reasonText: 'checkout.session.expired',
     });
+    // The pending registration an abandoned checkout was for is canceled with it.
+    if (payment.payment_type === 'event_registration') {
+      cancelRegistrationForClosedCheckoutInTx(payment.id, now);
+    }
     appendAuditEntry({
       actionType: 'payment.canceled',
       actorType: 'system',
@@ -2513,6 +2549,7 @@ function enqueueReceiptEmail(payment: PaymentRow, outcome: 'succeeded' | 'failed
         outcome,
         isMembership: payment.payment_type === 'membership',
         isDonation: payment.payment_type === 'donation',
+        isEventRegistration: payment.payment_type === 'event_registration',
         // Read from its own column rather than off the descriptor, which is a
         // neutral label. Only the gift acknowledgement renders it.
         donationNote: payment.donation_note,
@@ -3271,11 +3308,9 @@ function handleInvoicePaymentFailed(event: StripeWebhookEvent): WebhookOutcome {
     // duplicate and the declined charge would reach no administrator.
     workQueueService.enqueue({
       actorId: 'system',
-      queueCategory: 'payments',
       taskType: 'recurring_donation_charge_declined',
       entityType: 'recurring_donation_subscription',
       entityId: sub.id,
-      priority: 0,
       reasonText: 'A recurring donation renewal charge failed at Stripe.',
       detailText: [
         `Subscription ${stripeSubscriptionId}`,
@@ -3535,11 +3570,9 @@ function handleSubscriptionUpdated(event: StripeWebhookEvent): WebhookOutcome {
     if (rawStatus === 'paused' || collectionPaused) {
       workQueueService.enqueue({
         actorId: 'system',
-        queueCategory: 'payments',
         taskType: 'recurring_donation_paused',
         entityType: 'recurring_donation_subscription',
         entityId: sub.id,
-        priority: 0,
         reasonText: 'A recurring donation was paused at Stripe and is no longer collecting.',
         detailText: [
           `Subscription ${stripeSubscriptionId}`,
@@ -3681,6 +3714,7 @@ function getSubscriptionCheckoutPage(session: {
       cancelHref: `/payments/checkout/${session.sessionId}/cancel`,
       declineHref: `/payments/checkout/${session.sessionId}/decline`,
       tier: null,
+      stubOutcome: 'Confirming here records a successful payment.',
     },
   };
 }
@@ -3699,6 +3733,12 @@ function getCheckoutPage(payment: PaymentRow): PageViewModel<CheckoutContent> {
       cancelHref: `/payments/checkout/${payment.stripe_checkout_session_id}/cancel`,
       declineHref: `/payments/checkout/${payment.stripe_checkout_session_id}/decline`,
       tier: payment.purchased_tier_status,
+      // What confirming applies depends on what the checkout pays for.
+      stubOutcome: payment.payment_type === 'membership'
+        ? 'Confirming here records a successful payment and applies the membership tier change.'
+        : payment.payment_type === 'event_registration'
+          ? 'Confirming here records a successful payment and confirms the event registration.'
+          : 'Confirming here records a successful payment.',
     },
   };
 }
@@ -3723,14 +3763,18 @@ function getPaymentSuccessPage(
         message: 'Your payment is processing.',
         benefits: payment.payment_type === 'membership'
           ? "We'll activate your membership as soon as your payment is confirmed. You can refresh this page to check for updates."
-          : 'You can refresh this page to check for updates.',
+          : payment.payment_type === 'event_registration'
+            ? "We'll confirm your registration as soon as your payment is confirmed. You can refresh this page to check for updates."
+            : 'You can refresh this page to check for updates.',
         continueHref,
       },
     };
   }
   const { message, benefits } = payment.payment_type === 'membership'
     ? membershipSuccessMessage(payment.purchased_tier_status)
-    : { message: 'Payment received.', benefits: '' };
+    : payment.payment_type === 'event_registration'
+      ? { message: 'Payment received.', benefits: 'Your registration is confirmed.' }
+      : { message: 'Payment received.', benefits: '' };
   return {
     seo:  { title: 'Payment Confirmed' },
     page: { sectionKey: '', pageKey: 'payment_success', title: 'Payment Confirmed' },
@@ -4383,17 +4427,176 @@ async function cancelRecurringDonation(
   return { status: 'cancel_requested' };
 }
 
-function startEventRegistrationPayment(
-  _memberId: string,
-  _eventRegistrationId: string,
-  _amountCents: number,
-): never {
-  // Typed ServiceUnavailableError (503), not a bare Error: a stray call site
-  // must produce a clean HTTP response, not a stack-trace 500; bare Error is
-  // reserved for internal invariant assertions.
-  throw new ServiceUnavailableError(
-    'Event registration payments are not available yet.',
-  );
+const EVENT_CHECKOUT_UNSETTLED =
+  'We are still confirming your last registration payment. Please try again in a few minutes.';
+
+export interface StartEventRegistrationPaymentArgs {
+  memberId: string;
+  amountCents: number;
+  currency: string;
+  descriptor: string;
+  /** The event page, where the success and cancel pages lead back to. */
+  returnTo: string;
+  /** The pending payment the member's registration waits on now, if any. */
+  openPaymentId: string | null;
+  /** Whether this submit asks for exactly what that open checkout is for. */
+  samePurchase: boolean;
+  /**
+   * Writes the pending registration and its entries, linked to the new payment,
+   * inside the payment's own transaction. Returns false when another submit
+   * already holds the registration, which rolls this one back.
+   */
+  writeRegistration: (paymentId: string, now: string) => boolean;
+  /** The pending payment the registration waits on, read after an overlap. */
+  findOpenPaymentId: () => string | null;
+}
+
+class CheckoutOverlap extends Error {}
+
+/**
+ * Start the checkout for a registration fee, writing the pending payment and
+ * the pending registration it pays for together. The event service owns the
+ * registration's rules and hands in the write; this owns the money: the pause
+ * switch, the throttle, the provider session, and the release of a checkout
+ * the member is not going back to.
+ */
+async function startEventRegistrationPayment(
+  args: StartEventRegistrationPaymentArgs,
+): Promise<StartPurchaseResult> {
+  const { memberId } = args;
+  // Checked before the throttle or the provider call, as every purchase is.
+  if (readIntConfig('payments_paused', 0) === 1) {
+    throw new ServiceUnavailableError(
+      'Event registration payments are temporarily unavailable. Please try again later.',
+    );
+  }
+
+  const open = args.openPaymentId
+    ? paymentsDb.findById.get(args.openPaymentId) as PaymentRow | undefined
+    : undefined;
+  const openCheckout = open && open.status === 'pending' && open.member_id === memberId
+    && open.payment_type === 'event_registration' && open.stripe_checkout_session_id
+    ? open
+    : undefined;
+
+  // The same registration submitted again goes back to the checkout the first
+  // submit opened, while the buyer can still complete it. Spends nothing.
+  if (openCheckout && args.samePurchase) {
+    const redirectUrl = await reopenCheckout(openCheckout.stripe_checkout_session_id!);
+    if (redirectUrl) {
+      return { redirectUrl, paymentId: openCheckout.id, sessionId: openCheckout.stripe_checkout_session_id! };
+    }
+  }
+
+  const rateLimitKey = `event-registration:${memberId}`;
+  const rl = rateLimitHit(rateLimitKey, readIntConfig('event_registration_rate_limit_per_hour', 20), 60);
+  if (!rl.allowed) {
+    throw new RateLimitedError('Too many registration attempts. Please try again later.', rl.retryAfterSeconds);
+  }
+
+  // A changed registration releases the checkout the old one waited on: the
+  // provider is asked to close it, and once it holds the session expired the
+  // payment and its registration close as the expiry webhook would close them.
+  // A session the provider says was paid for stands, so the change is refused
+  // until its webhook settles it; so is one it could not be asked about.
+  if (openCheckout) {
+    if (!await closeCheckout(openCheckout.stripe_checkout_session_id!, openCheckout.id)) {
+      rateLimitRefund(rateLimitKey);
+      throw new ConflictError(EVENT_CHECKOUT_UNSETTLED);
+    }
+    releaseClosedCheckout(openCheckout, memberId);
+  }
+
+  const profile = lookupDonorProfile(memberId);
+  const paymentId = newPaymentId();
+  const currency = args.currency.toUpperCase();
+  const result = await getPaymentAdapter().createCheckoutSession({
+    memberId,
+    paymentId,
+    amountCents: args.amountCents,
+    currency,
+    descriptor: args.descriptor,
+    paymentType: 'event_registration',
+    successUrl: buildSuccessUrl(args.returnTo),
+    cancelUrl: buildCancelUrl(args.returnTo),
+    stripeCustomerId: profile.stripeCustomerId,
+    metadata: { paymentId, memberId },
+  });
+
+  try {
+    transaction(() => {
+      const now = new Date().toISOString();
+      paymentsDb.insertPayment.run(
+        paymentId,
+        now, memberId, now, memberId,
+        memberId,
+        'event_registration',
+        args.amountCents, currency,
+        'pending',
+        args.descriptor,
+        null,
+        '{}',
+        result.sessionId,
+        result.paymentIntentId,
+        result.livemode ? 1 : 0,
+      );
+      if (!args.writeRegistration(paymentId, now)) throw new CheckoutOverlap();
+      appendAuditEntry({
+        actionType: 'payment.checkout_started',
+        actorType: 'member',
+        actorMemberId: memberId,
+        entityType: 'payment',
+        entityId: paymentId,
+        reasonText: null,
+        metadata: {
+          payment_type: 'event_registration',
+          amount_cents: args.amountCents,
+          currency,
+          session_id: result.sessionId,
+          payment_intent_id: result.paymentIntentId,
+        },
+      });
+    });
+  } catch (err) {
+    const overlap = err instanceof CheckoutOverlap
+      || (err instanceof Error && (err as { code?: string }).code === 'SQLITE_CONSTRAINT_UNIQUE');
+    if (!overlap) throw err;
+    // An overlapping submit wrote the registration first. This request's
+    // session is closed rather than left open, and the member is sent to the
+    // checkout the other submit opened.
+    await closeCheckout(result.sessionId, null);
+    const winnerId = args.findOpenPaymentId();
+    const winner = winnerId ? paymentsDb.findById.get(winnerId) as PaymentRow | undefined : undefined;
+    if (winner?.stripe_checkout_session_id) {
+      const redirectUrl = await reopenCheckout(winner.stripe_checkout_session_id);
+      if (redirectUrl) {
+        rateLimitRefund(rateLimitKey);
+        return { redirectUrl, paymentId: winner.id, sessionId: winner.stripe_checkout_session_id };
+      }
+    }
+    throw new ConflictError(EVENT_CHECKOUT_UNSETTLED);
+  }
+
+  return { redirectUrl: result.redirectUrl, paymentId, sessionId: result.sessionId };
+}
+
+/**
+ * Close the open checkout of a registration the member is withdrawing. Returns
+ * true once the provider holds the session expired, so the caller can release
+ * the payment inside its own transaction; false when it was paid for or the
+ * provider could not be asked, and the payment then settles by its webhook.
+ */
+async function closeEventRegistrationCheckout(paymentId: string): Promise<boolean> {
+  const payment = paymentsDb.findById.get(paymentId) as PaymentRow | undefined;
+  if (!payment || payment.status !== 'pending' || !payment.stripe_checkout_session_id) return false;
+  return closeCheckout(payment.stripe_checkout_session_id, payment.id);
+}
+
+/** Cancel a withdrawn registration's payment whose checkout the provider closed. */
+function releaseEventRegistrationCheckoutInTx(paymentId: string, memberId: string): void {
+  const payment = paymentsDb.findById.get(paymentId) as PaymentRow | undefined;
+  if (!payment || payment.payment_type !== 'event_registration') return;
+  releaseClosedCheckoutInTx(payment, memberId, 'released by the member withdrawing the registration');
 }
 
 // ── Member obligations ───────────────────────────────────────────────────────
@@ -4623,6 +4826,8 @@ export const paymentService = {
   getDonatePage,
   startDonation,
   startEventRegistrationPayment,
+  closeEventRegistrationCheckout,
+  releaseEventRegistrationCheckoutInTx,
   cancelRecurringDonation,
   listRecurringDonationsForMember,
   linkTestClockCustomer,

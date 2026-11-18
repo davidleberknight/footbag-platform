@@ -15,7 +15,7 @@ import {
   insertMember, insertLegacyMember, insertHistoricalPerson,
   insertOutboxEmail, insertMediaItem,
   insertPayment, insertRecurringDonationSubscription, insertMemberDeclaredAnchor,
-  insertOnboardingTask, setOnboardingHeldAnswer,
+  insertOnboardingTask, setOnboardingHeldAnswer, insertMemberAnnouncement, insertWorkQueueItem,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3201');
@@ -185,6 +185,31 @@ describe('memberService.scrubDeceasedMemberPII', () => {
     r.close();
     expect(erased).toBeNull();
     expect(bystander).toContain('my own words');
+  });
+
+  // Defect caught: an announcement held for someone who has died is still
+  // sent, or the words of what never went out survive the scrub, or what did
+  // go out is altered.
+  it('closes their open review and clears the words of what was never sent, keeping what was', async () => {
+    seedDeceasedClaimedMember('scrub-ann');
+    const d = db();
+    const held = insertMemberAnnouncement(d, { member_id: 'scrub-ann', subject: 'Unsent words', body_text: 'Unsent body' });
+    const sent = insertMemberAnnouncement(d, { member_id: 'scrub-ann', status: 'approved', subject: 'Sent words' });
+    const item = insertWorkQueueItem(d, { task_type: 'announcement_review', entity_type: 'member_announcement', entity_id: held });
+    d.close();
+
+    expect((await memberService.scrubDeceasedMemberPII('scrub-ann')).status).toBe('scrubbed');
+
+    const r = new BetterSqlite3(dbPath, { readonly: true });
+    const ann = (id: string) => r.prepare('SELECT subject, body_text FROM member_announcements WHERE id = ?').get(id) as { subject: string; body_text: string };
+    const status = (r.prepare('SELECT status FROM work_queue_items WHERE id = ?').get(item) as { status: string }).status;
+    const unsent = ann(held);
+    const kept = ann(sent);
+    r.close();
+    expect(status).toBe('dismissed');
+    expect(unsent.subject).not.toContain('Unsent words');
+    expect(unsent.body_text).toBe('');
+    expect(kept.subject).toBe('Sent words');
   });
 
   it('is idempotent: a second scrub is a no-op', async () => {

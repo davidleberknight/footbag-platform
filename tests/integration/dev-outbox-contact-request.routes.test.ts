@@ -178,8 +178,15 @@ describe('Dev outbox captures the contact-request round trip', () => {
       .set('Cookie', adminCookie());
     expect(listed.status).toBe(200);
     expect(listed.text).toContain('Member contact request');
-    expect(listed.text).toContain('Display name correction');
-    expect(listed.text).toContain(`href="/members/${SUBMITTER_SLUG}"`);
+    expect(listed.text).toContain(`/admin/work-queue/${queueId}`);
+
+    // The request's own page carries the category and the member it concerns.
+    const opened = await request(createApp())
+      .get(`/admin/work-queue/${queueId}`)
+      .set('Cookie', adminCookie());
+    expect(opened.status).toBe(200);
+    expect(opened.text).toContain('Display name correction');
+    expect(opened.text).toContain(`href="/members/${SUBMITTER_SLUG}"`);
 
     const resolved = await request(createApp())
       .post(`/admin/work-queue/${queueId}/resolve`)

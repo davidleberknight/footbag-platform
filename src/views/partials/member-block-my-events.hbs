@@ -1,0 +1,35 @@
+<div class="profile-section">
+  <h2 class="profile-section-heading">My Events</h2>
+  <div class="my-clubs-block">
+    {{#if events.length}}
+      <ul class="my-clubs-list">
+        {{#each events}}
+          <li class="my-clubs-item">
+            <div class="my-clubs-item-header">
+              <a href="{{siteHref this.manageHref}}" class="my-clubs-name">{{this.title}}</a>
+              <span class="badge">{{this.statusLabel}}</span>
+              <span class="text-muted">{{this.dates}}</span>
+            </div>
+            <div class="my-clubs-actions">
+              <a href="{{siteHref this.manageHref}}" class="btn btn-outline btn-sm">Manage Event</a>
+              <form method="POST" action="{{this.stepDownAction}}" class="inline-form">
+                <button type="submit" class="btn btn-outline btn-sm">Step Down as Organizer</button>
+              </form>
+            </div>
+          </li>
+        {{/each}}
+      </ul>
+    {{else}}
+      <p>You are not organizing any events.</p>
+    {{/if}}
+
+    {{#if createEventHref}}
+      <div class="my-clubs-ctas">
+        <a href="{{createEventHref}}" class="btn btn-outline">Create an Event</a>
+      </div>
+    {{/if}}
+    {{#if createTierNotice}}
+      <div class="mt-2">{{> _tier-benefit-notice notice=createTierNotice}}</div>
+    {{/if}}
+  </div>
+</div>

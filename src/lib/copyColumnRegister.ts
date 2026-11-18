@@ -126,6 +126,12 @@ export const COPY_COLUMN_REGISTER: Readonly<Record<string, TableClassification>>
       'player_2', 'score', 'note', 'event_date', 'event_name', 'location', 'created_at',
       'updated_at'],
   },
+  discipline_games: {
+    keep: ['id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version',
+      'discipline_category', 'name', 'sort_order', 'allows_singles', 'allows_doubles',
+      'allows_open', 'allows_women', 'allows_mixed', 'allows_novice', 'allows_intermediate',
+      'allows_open_class', 'allows_masters'],
+  },
   email_archives: {
     keep: ['id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version', 'archive_type',
       'mailing_list_id', 'event_id', 'sender_member_id', 'from_identity', 'subject', 'body_text',
@@ -141,7 +147,12 @@ export const COPY_COLUMN_REGISTER: Readonly<Record<string, TableClassification>>
   },
   event_disciplines: {
     keep: ['id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version', 'event_id',
-      'name', 'discipline_category', 'team_type', 'sort_order', 'is_aggregate_standing'],
+      'name', 'discipline_category', 'game_id', 'custom_game_name', 'team_type',
+      'gender_eligibility', 'division_class', 'offers_prize_money', 'sort_order',
+      'is_aggregate_standing'],
+  },
+  event_registration_reminder_sent: {
+    keep: ['id', 'created_at', 'created_by', 'registration_id', 'event_start_date', 'sent_at'],
   },
   event_organizers: {
     keep: ['id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version', 'event_id',
@@ -166,9 +177,12 @@ export const COPY_COLUMN_REGISTER: Readonly<Record<string, TableClassification>>
       'is_attendee_registration_open', 'is_tshirt_size_collected', 'status', 'registration_status',
       'reg_opened_at', 'sanction_status', 'sanction_requested_at', 'sanction_requested_by_member_id',
       'sanction_justification', 'sanction_decided_at', 'sanction_decided_by_member_id',
-      'sanction_decision_reason', 'payment_enabled', 'payment_enabled_at',
-      'payment_enabled_by_member_id', 'currency', 'competitor_fee_cents', 'attendee_fee_cents',
-      'canceled_at', 'cancel_reason', 'canceled_by_member_id', 'hashtag_tag_id'],
+      'sanction_decision_reason', 'sanction_deviations', 'sanction_entry_fee_includes',
+      'sanction_event_frequency', 'sanction_years_held', 'sanction_expected_players',
+      'sanction_expected_spectators', 'sanction_permits', 'sanction_insurance', 'payment_enabled',
+      'currency', 'competitor_fee_cents', 'attendee_fee_cents', 'prize_money_total_cents',
+      'prize_money_currency', 'canceled_at', 'cancel_reason', 'canceled_by_member_id',
+      'hashtag_tag_id'],
   },
   freestyle_ev_adjudications: {
     keep: ['candidate_id', 'sequence_no', 'created_at', 'created_by', 'updated_at', 'updated_by',
@@ -328,6 +342,13 @@ export const COPY_COLUMN_REGISTER: Readonly<Record<string, TableClassification>>
     keep: ['id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version', 'media_id',
       'tag_id', 'tag_display'],
   },
+  // submit_token is a form's repeat-recognition key, not a credential: it
+  // grants nothing, like the outbox idempotency key.
+  member_announcements: {
+    keep: ['id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version', 'member_id',
+      'submit_token', 'subject', 'body_text', 'status', 'admin_comment',
+      'decided_by_member_id', 'decided_at', 'email_archive_id'],
+  },
   member_club_affiliations: {
     keep: ['id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version', 'member_id',
       'club_id', 'is_current', 'is_primary', 'source'],
@@ -481,7 +502,8 @@ export const COPY_COLUMN_REGISTER: Readonly<Record<string, TableClassification>>
   },
   registration_discipline_selections: {
     keep: ['id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version',
-      'registration_id', 'discipline_id', 'partner_member_id', 'partner_display_name'],
+      'registration_id', 'discipline_id', 'partner_member_id', 'partner_display_name',
+      'enters_as_amateur'],
   },
   registrations: {
     keep: ['id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version', 'event_id',
@@ -584,7 +606,7 @@ export const COPY_COLUMN_REGISTER: Readonly<Record<string, TableClassification>>
   },
   work_queue_items: {
     keep: ['id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version',
-      'queue_category', 'task_type', 'entity_type', 'status', 'priority', 'opened_at',
+      'task_type', 'entity_type', 'status', 'opened_at',
       'resolved_at', 'resolved_by_member_id', 'decision_label', 'reason_text',
       'claimed_by_member_id', 'claimed_at', 'parked_at', 'parked_by_member_id', 'park_reason'],
     rewrite: {

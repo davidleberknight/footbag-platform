@@ -1,0 +1,7 @@
+{
+  "templateKey": "event_created_confirmation",
+  "subjectTemplate": "{eventTitle} is open on footbag.org",
+  "bodyTemplate": "{eventTitle} ({eventDates}) is now listed under Upcoming Events.\n\nManage it from the My Events section of your profile.\n\n-- IFPA platform",
+  "piiClassification": "internal",
+  "isEnabled": true
+}

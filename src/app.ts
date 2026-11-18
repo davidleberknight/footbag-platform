@@ -198,6 +198,18 @@ export function createApp(): express.Express {
     referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
   }));
 
+  // The password-reset page carries its single-use token in its own address and
+  // loads the captcha script from another origin. `strict-origin` sends only the
+  // bare site origin as the referrer, to other sites and to this one, so the
+  // token never travels in a Referer header, which is what the OWASP Forgot
+  // Password guidance asks of its `no-referrer`. `no-referrer` itself would make
+  // the browser send `Origin: null` on the page's form post, which the
+  // origin-pinned cross-site-request check refuses.
+  app.use('/password/reset', (_req, res, next) => {
+    res.setHeader('Referrer-Policy', 'strict-origin');
+    next();
+  });
+
   // Permissions-Policy. Helmet ships no option for it, so it is set alongside
   // the rest of the header set rather than in another layer.
   //

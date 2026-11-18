@@ -13,6 +13,9 @@ export const FLASH_COOKIE = 'footbag_flash';
 export const FLASH_KIND = {
   LOGIN: 'login',
   LOGOUT: 'logout',
+  // A completed password reset, shown on the login page it redirects to: the
+  // reset issues no session, so the person logs in with the new password.
+  PASSWORD_RESET: 'password_reset',
   AVATAR_UPLOADED: 'avatar_uploaded',
   WIZARD_CLUB_CARD_RESOLVED: 'wizard_club_card_resolved',
   WIZARD_CLUB_CAP_HIT: 'wizard_club_cap_hit',
@@ -44,6 +47,10 @@ export const FLASH_KIND = {
   WORK_QUEUE_OUTCOME: 'work_queue_outcome',
   MEMBER_QUESTION_ANSWERED: 'member_question_answered',
   CLUB_ACTION: 'club_action',
+  // An organizer's act on their own event: creating it, editing it, changing
+  // its divisions or organizers, or stepping down. The payload is the sentence
+  // and its tone.
+  EVENT_ACTION: 'event_action',
   // A Tier 2 or Tier 3 member's vouch for Active Player status. The payload is
   // the outcome code the member service turns back into a sentence, so the
   // wording lives with the profile that shows it rather than in a cookie.
@@ -75,12 +82,13 @@ export const FLASH_KIND = {
   // already empty. The payload is the sentence and its tone.
   MEDIA_CAPTION_OUTCOME: 'media_caption_outcome',
   HONOR_GRANT_OUTCOME: 'honor_grant_outcome',
-  // An administrator's change to a club's co-leaders, an event's organizers or
-  // results, a historical person's deceased marking, or a freestyle trick's
-  // publication. The payload is the sentence and its tone, so the page reports
-  // what was done, or that nothing needed changing.
+  // An administrator's change to a club's co-leaders, an event's organizers,
+  // sanction or results, a historical person's deceased marking, or a freestyle
+  // trick's publication. The payload is the sentence and its tone, so the page
+  // reports what was done, or that nothing needed changing.
   CLUB_LEADERSHIP_OUTCOME: 'club_leadership_outcome',
   EVENT_ORGANIZER_OUTCOME: 'event_organizer_outcome',
+  EVENT_SANCTION_OUTCOME: 'event_sanction_outcome',
   EVENT_RESULT_OUTCOME: 'event_result_outcome',
   HISTORICAL_RECORD_OUTCOME: 'historical_record_outcome',
   TRICK_PUBLISHED: 'trick_published',

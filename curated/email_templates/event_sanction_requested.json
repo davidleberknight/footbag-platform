@@ -1,0 +1,7 @@
+{
+  "templateKey": "event_sanction_requested",
+  "subjectTemplate": "Sanction request received: {eventTitle}",
+  "bodyTemplate": "Your request to sanction {eventTitle} ({eventDates}) has been received. An IFPA administrator will review it, and the IFPA Sanctioning Director may contact you first. You will get an email with the decision. Administrators are volunteers, so please allow a few days.\n\n-- IFPA platform",
+  "piiClassification": "internal",
+  "isEnabled": true
+}

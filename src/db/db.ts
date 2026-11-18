@@ -157,8 +157,11 @@ export interface PublicEventDisciplineRow {
   name: string;
   discipline_category: string | null;
   team_type: string;
+  gender_eligibility: string | null;
   sort_order: number;
   is_aggregate_standing: number;
+  /** 1 when the division names its game, so its name was generated from its parts. */
+  is_structured: number;
 }
 
 export interface PublicEventResultRow {
@@ -421,8 +424,10 @@ export const publicEvents = {
       ed.name,
       ed.discipline_category,
       ed.team_type,
+      ed.gender_eligibility,
       ed.sort_order,
-      ed.is_aggregate_standing
+      ed.is_aggregate_standing,
+      (ed.game_id IS NOT NULL OR ed.custom_game_name IS NOT NULL) AS is_structured
     FROM events AS e
     INNER JOIN event_disciplines AS ed
       ON ed.event_id = e.id
@@ -4797,6 +4802,26 @@ export const auth = {
     WHERE
       m.login_email_normalized = ?
       AND m.email_verified_at IS NOT NULL
+      AND m.is_deceased = 0
+  `); },
+
+  // The account a password-reset request reaches. Unlike the login lookup it
+  // includes an account whose email is not verified yet: the reset link is
+  // emailed to that address, so completing the reset proves the address the
+  // same way the verification link does, and it is how a registrant who lost
+  // the verification email gets back in.
+  get findAccountForPasswordReset() { return db.prepare(`
+    SELECT
+      m.id,
+      m.slug,
+      m.display_name,
+      m.password_hash,
+      m.password_hash_version,
+      m.password_version,
+      m.is_admin
+    FROM members_active AS m
+    WHERE
+      m.login_email_normalized = ?
       AND m.is_deceased = 0
   `); },
 
@@ -9870,6 +9895,14 @@ export const emailArchives = {
     SELECT COUNT(*) AS n FROM email_archives
   `); },
 
+  // A member's announcements actually sent since a cutoff: the daily limit is
+  // counted at approval, from what went out, so an announcement sent back
+  // never counts. Params: (memberId, sinceIso).
+  get countAnnounceSentSince() { return db.prepare(`
+    SELECT COUNT(*) AS n FROM email_archives
+    WHERE archive_type = 'announce' AND sender_member_id = ? AND sent_at >= ?
+  `); },
+
   get getById() { return db.prepare(`
     SELECT
       a.id, a.created_at, a.archive_type, a.mailing_list_id, a.event_id,
@@ -9958,11 +9991,11 @@ export const workQueue = {
   get insertItem() { return db.prepare(`
     INSERT INTO work_queue_items (
       id, created_at, created_by, updated_at, updated_by, version,
-      queue_category, task_type, entity_type, entity_id,
-      status, priority, opened_at, reason_text, detail_text
+      task_type, entity_type, entity_id,
+      status, opened_at, reason_text, detail_text
     ) VALUES (?, ?, ?, ?, ?, 1,
-      ?, ?, ?, ?,
-      'open', ?, ?, ?, ?)
+      ?, ?, ?,
+      'open', ?, ?, ?)
   `); },
 
   // Clear member-authored free text on account erasure: the operational copy of
@@ -10034,16 +10067,16 @@ export const workQueue = {
     LIMIT 1
   `); },
 
-  // Admin-side listing of open items, ordered by category then opened_at. The
-  // LEFT JOIN resolves the claiming admin's display name for the queue view.
+  // Admin-side listing of open items, oldest first. The LEFT JOIN resolves the
+  // claiming admin's display name for the queue view.
   get listOpenForAdmin() { return db.prepare(`
-    SELECT wq.id, wq.created_at, wq.opened_at, wq.queue_category, wq.task_type,
-           wq.entity_type, wq.entity_id, wq.priority, wq.reason_text, wq.detail_text,
+    SELECT wq.id, wq.created_at, wq.opened_at, wq.task_type,
+           wq.entity_type, wq.entity_id, wq.reason_text, wq.detail_text,
            wq.claimed_by_member_id, wq.claimed_at, cm.display_name AS claimed_by_name
     FROM work_queue_items AS wq
     LEFT JOIN members AS cm ON cm.id = wq.claimed_by_member_id
     WHERE wq.status = 'open' AND wq.parked_at IS NULL
-    ORDER BY wq.queue_category, wq.opened_at
+    ORDER BY wq.opened_at, wq.id
   `); },
 
   // The parked half of the open queue: items an administrator set aside, newest
@@ -10051,13 +10084,27 @@ export const workQueue = {
   // queue so a parked item is visible rather than lost, and never mixed into the
   // counts an administrator reads as work waiting on them.
   get listParkedForAdmin() { return db.prepare(`
-    SELECT wq.id, wq.opened_at, wq.queue_category, wq.task_type,
+    SELECT wq.id, wq.opened_at, wq.task_type,
            wq.entity_type, wq.entity_id, wq.reason_text, wq.detail_text,
            wq.parked_at, wq.park_reason, pm.display_name AS parked_by_name
     FROM work_queue_items AS wq
     LEFT JOIN members AS pm ON pm.id = wq.parked_by_member_id
     WHERE wq.status = 'open' AND wq.parked_at IS NOT NULL
     ORDER BY wq.parked_at DESC
+  `); },
+
+  // One open item for its admin page, parked or not, with the claiming and the
+  // parking administrator's names. A closed item is not returned: its page is
+  // gone once the work is done.
+  get findOpenForAdminById() { return db.prepare(`
+    SELECT wq.id, wq.created_at, wq.opened_at, wq.task_type,
+           wq.entity_type, wq.entity_id, wq.reason_text, wq.detail_text,
+           wq.claimed_by_member_id, wq.claimed_at, cm.display_name AS claimed_by_name,
+           wq.parked_at, wq.park_reason, pm.display_name AS parked_by_name
+    FROM work_queue_items AS wq
+    LEFT JOIN members AS cm ON cm.id = wq.claimed_by_member_id
+    LEFT JOIN members AS pm ON pm.id = wq.parked_by_member_id
+    WHERE wq.id = ? AND wq.status = 'open'
   `); },
 
   // Park an open, unparked item. Parking twice is a no-op rather than a second
@@ -10098,11 +10145,11 @@ export const workQueue = {
   `); },
 
   // All open items with their claim state, for building each administrator's
-  // digest. The service filters out the urgent task types (they are emailed per
+  // digest. The service filters out the Team Alert task types (they are emailed per
   // event) and, per administrator, the items another administrator holds a live
   // claim on; `claimed_at` is returned so a stale claim stops suppressing.
   get listOpenForDigest() { return db.prepare(`
-    SELECT id, queue_category, task_type, entity_id, opened_at, claimed_by_member_id, claimed_at
+    SELECT id, task_type, entity_id, opened_at, claimed_by_member_id, claimed_at
     FROM work_queue_items
     WHERE status = 'open' AND parked_at IS NULL
     ORDER BY opened_at
@@ -10111,7 +10158,7 @@ export const workQueue = {
   // Open items older than the stale cutoff and not under a live claim, for the
   // one-time escalation email. An item whose claim has itself gone stale is
   // eligible again, so a forgotten claim cannot suppress escalation forever.
-  // The service filters out urgent task types and relies on the per-item outbox
+  // The service filters out Team Alert task types and relies on the per-item outbox
   // idempotency key so each item escalates only once.
   // Params: (openedBeforeIso, claimStaleBeforeIso).
   // An item nobody has picked up and nobody has closed, for the escalation that
@@ -10171,7 +10218,7 @@ export const workQueue = {
 
   // Look up a single queue row by id (for resolve-flow validation).
   get findById() { return db.prepare(`
-    SELECT id, queue_category, task_type, entity_type, entity_id, status,
+    SELECT id, task_type, entity_type, entity_id, status,
            reason_text, opened_at, parked_at, parked_by_member_id, park_reason,
            resolved_by_member_id, decision_label
     FROM work_queue_items
@@ -10194,6 +10241,114 @@ export const workQueue = {
         updated_by = ?,
         version = version + 1
     WHERE task_type = ? AND entity_type = ? AND entity_id = ? AND status = 'open'
+  `); },
+
+  // Close every open review of a member's held announcements, when the member
+  // asks for their account to be deleted or is erased: nothing of theirs may go
+  // out after that, and an item about an announcement that will never be sent
+  // is not work. Addressed through the announcement rows, since the queue item
+  // names the announcement rather than the member. No administrator settled
+  // it, so no resolver is named.
+  // Params: (nowIso, reasonText, nowIso, actorId, memberId).
+  get closeOpenAnnouncementReviewsForMember() { return db.prepare(`
+    UPDATE work_queue_items
+    SET status = 'dismissed',
+        resolved_at = ?,
+        resolved_by_member_id = NULL,
+        reason_text = ?,
+        updated_at = ?,
+        updated_by = ?,
+        version = version + 1
+    WHERE task_type = 'announcement_review' AND entity_type = 'member_announcement'
+      AND status = 'open'
+      AND entity_id IN (SELECT id FROM member_announcements WHERE member_id = ?)
+  `); },
+};
+
+// ── memberAnnouncements ─────────────────────────────────────────────────────
+//
+// A member's community announcement held for an administrator's decision. The
+// subject and body are the member's own words; an administrator approves them
+// as written or sends them back, and never edits them.
+export const memberAnnouncements = {
+  // Params: (id, nowIso, memberId, nowIso, memberId, memberId, submitToken,
+  //          subject, bodyText).
+  get insert() { return db.prepare(`
+    INSERT INTO member_announcements (
+      id, created_at, created_by, updated_at, updated_by, version,
+      member_id, submit_token, subject, body_text, status
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, 'pending')
+  `); },
+
+  // What a repeated submit of one form finds: the row its first submit wrote.
+  get findBySubmitToken() { return db.prepare(`
+    SELECT id, member_id, subject, body_text, status
+    FROM member_announcements
+    WHERE submit_token = ?
+  `); },
+
+  get findById() { return db.prepare(`
+    SELECT id, member_id, subject, body_text, status, admin_comment,
+           decided_by_member_id, decided_at, email_archive_id
+    FROM member_announcements
+    WHERE id = ?
+  `); },
+
+  get findPendingForMember() { return db.prepare(`
+    SELECT id FROM member_announcements
+    WHERE member_id = ? AND status = 'pending'
+  `); },
+
+  // The member's newest announcement, which decides what the form shows: a
+  // pending one, or a sent-back one to change and resubmit.
+  get findLatestForMember() { return db.prepare(`
+    SELECT id, subject, body_text, status, admin_comment
+    FROM member_announcements
+    WHERE member_id = ?
+    ORDER BY created_at DESC, id DESC
+    LIMIT 1
+  `); },
+
+  // Guarded on the pending status, so two decisions cannot both land.
+  // Params: (adminId, nowIso, archiveId, nowIso, adminId, id).
+  get markApproved() { return db.prepare(`
+    UPDATE member_announcements
+    SET status = 'approved', decided_by_member_id = ?, decided_at = ?,
+        email_archive_id = ?, updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ? AND status = 'pending'
+  `); },
+
+  // Params: (comment, adminId, nowIso, nowIso, adminId, id).
+  get markReturned() { return db.prepare(`
+    UPDATE member_announcements
+    SET status = 'returned', admin_comment = ?, decided_by_member_id = ?,
+        decided_at = ?, updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ? AND status = 'pending'
+  `); },
+
+  // An account deletion request withdraws the member's pending announcement:
+  // it can no longer be sent, so it is marked returned, with no comment.
+  // Params: (nowIso, actorId, memberId).
+  get withdrawPendingForMember() { return db.prepare(`
+    UPDATE member_announcements
+    SET status = 'returned', updated_at = ?, updated_by = ?, version = version + 1
+    WHERE member_id = ? AND status = 'pending'
+  `); },
+
+  // Full erasure removes the rows outright: what was sent stays on the email
+  // archive, whose sender link the same purge clears.
+  get deleteForMember() { return db.prepare(`
+    DELETE FROM member_announcements WHERE member_id = ?
+  `); },
+
+  // The deceased contact scrub keeps the rows' trail but clears the words of
+  // anything never sent; an approved row's text is the archive's to keep.
+  // Params: (nowIso, memberId).
+  get clearOpenTextForMember() { return db.prepare(`
+    UPDATE member_announcements
+    SET subject = '(removed on account erasure)', body_text = '', admin_comment = NULL,
+        updated_at = ?, updated_by = 'operations_purge', version = version + 1
+    WHERE member_id = ? AND status IN ('pending','returned')
   `); },
 };
 
@@ -11167,6 +11322,362 @@ export const eventOrganizers = {
     )
     ORDER BY e.start_date DESC, e.id
   `); },
+
+  // The event page's organizer list. The email is selected for the page to show
+  // signed-in members only; the service drops it for anyone else.
+  get listForEventPage() { return db.prepare(`
+    SELECT eo.member_id, m.display_name, m.slug, m.login_email
+    FROM event_organizers_current AS eo
+    INNER JOIN members_active AS m ON m.id = eo.member_id
+    WHERE eo.event_id = ?
+    ORDER BY m.display_name COLLATE NOCASE, eo.member_id
+  `); },
+
+  // The events a member organizes now, for the My Events block on their own
+  // profile. Canceled and completed events have nothing left to manage there.
+  get listOpenEventsForMember() { return db.prepare(`
+    SELECT e.id, e.title, e.start_date, e.end_date, e.status, t.tag_normalized
+    FROM event_organizers_current AS eo
+    INNER JOIN events AS e ON e.id = eo.event_id
+    INNER JOIN tags AS t ON t.id = e.hashtag_tag_id
+    WHERE eo.member_id = ?
+      AND e.status NOT IN ('completed', 'canceled')
+    ORDER BY e.start_date, e.id
+  `); },
+
+  get isCurrentOrganizer() { return db.prepare(`
+    SELECT 1 AS present FROM event_organizers_current WHERE event_id = ? AND member_id = ?
+  `); },
+};
+
+// Writes and reads for an organizer creating and running their own event: the
+// event row, its divisions, and the game list the division form offers.
+export const eventWrites = {
+  // Every column the organizer's own surfaces show, keyed by the event's stored
+  // standard tag, whatever its status: an organizer manages a draft the public
+  // page does not show.
+  get findByStandardTag() { return db.prepare(`
+    SELECT e.id, e.title, e.description, e.start_date, e.end_date,
+           e.city, e.region, e.country, e.registration_deadline,
+           e.is_tshirt_size_collected, e.is_attendee_registration_open,
+           e.status, e.registration_status, e.sanction_status, e.payment_enabled,
+           e.currency, e.competitor_fee_cents, e.attendee_fee_cents,
+           e.sanction_requested_by_member_id, e.sanction_decision_reason,
+           e.sanction_justification, e.sanction_deviations, e.sanction_entry_fee_includes,
+           e.sanction_event_frequency, e.sanction_years_held,
+           e.sanction_expected_players, e.sanction_expected_spectators,
+           e.sanction_permits, e.sanction_insurance,
+           e.prize_money_total_cents, e.prize_money_currency,
+           t.tag_normalized
+    FROM events AS e
+    INNER JOIN tags AS t ON t.id = e.hashtag_tag_id
+    WHERE t.tag_normalized = ?
+      AND t.is_standard = 1
+      AND t.standard_type = 'event'
+  `); },
+
+  // The same columns by the event's id, for the administrator's sanction
+  // decision, which holds the queue item's entity id rather than the key.
+  get findById() { return db.prepare(`
+    SELECT e.id, e.title, e.description, e.start_date, e.end_date,
+           e.city, e.region, e.country, e.registration_deadline,
+           e.is_tshirt_size_collected, e.is_attendee_registration_open,
+           e.status, e.registration_status, e.sanction_status, e.payment_enabled,
+           e.currency, e.competitor_fee_cents, e.attendee_fee_cents,
+           e.sanction_requested_by_member_id, e.sanction_decision_reason,
+           e.sanction_justification, e.sanction_deviations, e.sanction_entry_fee_includes,
+           e.sanction_event_frequency, e.sanction_years_held,
+           e.sanction_expected_players, e.sanction_expected_spectators,
+           e.sanction_permits, e.sanction_insurance,
+           e.prize_money_total_cents, e.prize_money_currency,
+           t.tag_normalized
+    FROM events AS e
+    INNER JOIN tags AS t ON t.id = e.hashtag_tag_id
+    WHERE e.id = ?
+  `); },
+
+  // An organizer submits, or resubmits after a rejection, the sanction request:
+  // the answers, who sent it, and the move to review. A resubmission clears the
+  // earlier decision, which the audit log keeps.
+  get submitSanctionRequest() { return db.prepare(`
+    UPDATE events
+       SET status = 'pending_approval', sanction_status = 'pending',
+           sanction_requested_at = ?, sanction_requested_by_member_id = ?,
+           sanction_justification = ?, sanction_deviations = ?, sanction_entry_fee_includes = ?,
+           sanction_event_frequency = ?, sanction_years_held = ?,
+           sanction_expected_players = ?, sanction_expected_spectators = ?,
+           sanction_permits = ?, sanction_insurance = ?,
+           prize_money_total_cents = ?, prize_money_currency = ?,
+           sanction_decided_at = NULL, sanction_decided_by_member_id = NULL,
+           sanction_decision_reason = NULL,
+           updated_at = ?, updated_by = ?, version = version + 1
+     WHERE id = ? AND status = 'draft' AND sanction_status IN ('none', 'rejected')
+  `); },
+
+  // An administrator approves a pending request, or records a Board-awarded
+  // sanction on a draft that made none. Either way the event is sanctioned and
+  // opens for registration, taking payment where it set a fee.
+  get grantSanction() { return db.prepare(`
+    UPDATE events
+       SET sanction_status = 'approved', status = 'reg_open', reg_opened_at = ?,
+           payment_enabled = ?,
+           sanction_decided_at = ?, sanction_decided_by_member_id = ?, sanction_decision_reason = ?,
+           updated_at = ?, updated_by = ?, version = version + 1
+     WHERE id = ?
+       AND ((status = 'pending_approval' AND sanction_status = 'pending')
+         OR (status = 'draft' AND sanction_status IN ('none', 'rejected')))
+  `); },
+
+  // An administrator rejects a pending request: back to draft, with the reason
+  // the organizers are sent.
+  get rejectSanction() { return db.prepare(`
+    UPDATE events
+       SET sanction_status = 'rejected', status = 'draft',
+           sanction_decided_at = ?, sanction_decided_by_member_id = ?, sanction_decision_reason = ?,
+           updated_at = ?, updated_by = ?, version = version + 1
+     WHERE id = ? AND status = 'pending_approval' AND sanction_status = 'pending'
+  `); },
+
+  // Drafts an administrator can record a Board-awarded sanction on: every event
+  // still a draft, which is only ever one created on the sanctioned path.
+  get listSanctionAwardCandidates() { return db.prepare(`
+    SELECT e.id, e.title, e.start_date, e.end_date, e.city, e.country, t.tag_normalized
+    FROM events AS e
+    INNER JOIN tags AS t ON t.id = e.hashtag_tag_id
+    WHERE e.status = 'draft' AND e.sanction_status IN ('none', 'rejected')
+    ORDER BY e.start_date, e.id
+  `); },
+
+  get insertEvent() { return db.prepare(`
+    INSERT INTO events (
+      id, created_at, created_by, updated_at, updated_by, version,
+      title, description, start_date, end_date, city, region, country,
+      registration_deadline, is_tshirt_size_collected, is_attendee_registration_open,
+      status, reg_opened_at, currency, competitor_fee_cents, attendee_fee_cents,
+      hashtag_tag_id
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `); },
+
+  get updateEventDetails() { return db.prepare(`
+    UPDATE events
+       SET title = ?, description = ?, start_date = ?, end_date = ?,
+           city = ?, region = ?, country = ?, registration_deadline = ?,
+           is_tshirt_size_collected = ?, is_attendee_registration_open = ?,
+           competitor_fee_cents = ?, attendee_fee_cents = ?,
+           updated_at = ?, updated_by = ?, version = version + 1
+     WHERE id = ?
+  `); },
+
+  // The organizer's switch that stops or resumes taking registrations without
+  // moving the event's status.
+  get setRegistrationStatus() { return db.prepare(`
+    UPDATE events
+       SET registration_status = ?, updated_at = ?, updated_by = ?, version = version + 1
+     WHERE id = ?
+  `); },
+
+  get listGames() { return db.prepare(`
+    SELECT id, discipline_category, name, sort_order,
+           allows_singles, allows_doubles, allows_open, allows_women, allows_mixed,
+           allows_novice, allows_intermediate, allows_open_class, allows_masters
+    FROM discipline_games
+    ORDER BY discipline_category, sort_order, name
+  `); },
+
+  get findGame() { return db.prepare(`
+    SELECT id, discipline_category, name,
+           allows_singles, allows_doubles, allows_open, allows_women, allows_mixed,
+           allows_novice, allows_intermediate, allows_open_class, allows_masters
+    FROM discipline_games
+    WHERE id = ?
+  `); },
+
+  get listDivisions() { return db.prepare(`
+    SELECT ed.id, ed.name, ed.discipline_category, ed.game_id, ed.custom_game_name,
+           ed.team_type, ed.gender_eligibility, ed.division_class, ed.offers_prize_money,
+           ed.sort_order,
+           (SELECT COUNT(*) FROM registration_discipline_selections AS rds
+              INNER JOIN registrations AS r ON r.id = rds.registration_id
+             WHERE rds.discipline_id = ed.id AND r.status = 'confirmed') AS confirmed_count
+    FROM event_disciplines AS ed
+    WHERE ed.event_id = ?
+    ORDER BY ed.sort_order, ed.name COLLATE NOCASE, ed.id
+  `); },
+
+  get nextDivisionSortOrder() { return db.prepare(`
+    SELECT COALESCE(MAX(sort_order), 0) + 1 AS next FROM event_disciplines WHERE event_id = ?
+  `); },
+
+  get insertDivision() { return db.prepare(`
+    INSERT INTO event_disciplines (
+      id, created_at, created_by, updated_at, updated_by, version,
+      event_id, name, discipline_category, game_id, custom_game_name,
+      team_type, gender_eligibility, division_class, offers_prize_money, sort_order
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `); },
+
+  get updateDivision() { return db.prepare(`
+    UPDATE event_disciplines
+       SET name = ?, team_type = ?, gender_eligibility = ?, division_class = ?,
+           offers_prize_money = ?,
+           updated_at = ?, updated_by = ?, version = version + 1
+     WHERE id = ? AND event_id = ?
+  `); },
+
+  // Divisions are removed outright: the service refuses once a confirmed
+  // registration has entered one, and first deletes any unconfirmed entries.
+  get deleteDivision() { return db.prepare(`
+    DELETE FROM event_disciplines WHERE id = ? AND event_id = ?
+  `); },
+};
+
+// A member's own registration for an event, the entries it makes, and the
+// event page's reads of who is registered. One row per member per event: a
+// member who withdraws and registers again reuses their row.
+export const eventRegistrations = {
+  // With the status of the payment the registration holds, which decides
+  // whether registering again needs no payment because the fee is already paid.
+  get findForMember() { return db.prepare(`
+    SELECT r.id, r.status, r.registration_type, r.tshirt_size, r.registered_at, r.canceled_at,
+           r.cancel_reason, r.payment_id,
+           p.status AS payment_status
+    FROM registrations AS r
+    LEFT JOIN payments AS p ON p.id = r.payment_id
+    WHERE r.event_id = ? AND r.member_id = ?
+  `); },
+
+  // The registration a payment pays for, with what its confirmation email names.
+  get findByPayment() { return db.prepare(`
+    SELECT r.id, r.event_id, r.member_id, r.status, r.registration_type, r.tshirt_size,
+           e.title AS event_title, e.start_date, e.end_date
+    FROM registrations AS r
+    INNER JOIN events AS e ON e.id = r.event_id
+    WHERE r.payment_id = ?
+  `); },
+
+  get insertWithPayment() { return db.prepare(`
+    INSERT INTO registrations (
+      id, created_at, created_by, updated_at, updated_by, version,
+      event_id, member_id, registered_at, registration_type, status, tshirt_size, payment_id
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, 'pending', ?, ?)
+  `); },
+
+  // Registering again with a new checkout: the row now waits on the new payment.
+  get reactivateWithPayment() { return db.prepare(`
+    UPDATE registrations
+       SET registration_type = ?, status = 'pending', tshirt_size = ?, registered_at = ?,
+           payment_id = ?, cancel_reason = NULL, canceled_at = NULL,
+           updated_at = ?, updated_by = ?, version = version + 1
+     WHERE id = ? AND status = 'canceled'
+  `); },
+
+  // Settlement moves only a registration still waiting on its payment, so a
+  // member's withdrawal during checkout stands.
+  get confirmByPayment() { return db.prepare(`
+    UPDATE registrations
+       SET status = 'confirmed', updated_at = ?, updated_by = ?, version = version + 1
+     WHERE payment_id = ? AND status = 'pending'
+  `); },
+
+  get cancelPendingByPayment() { return db.prepare(`
+    UPDATE registrations
+       SET status = 'canceled', cancel_reason = ?, canceled_at = ?,
+           updated_at = ?, updated_by = ?, version = version + 1
+     WHERE payment_id = ? AND status = 'pending'
+  `); },
+
+  // A registrant, or a member named as a doubles partner, by id or profile slug,
+  // with the gender a division's eligibility is checked against.
+  get findMemberByKey() { return db.prepare(`
+    SELECT id, display_name, slug, gender
+    FROM members_onboarded
+    WHERE (slug = ? OR id = ?) AND is_deceased = 0
+  `); },
+
+  get insert() { return db.prepare(`
+    INSERT INTO registrations (
+      id, created_at, created_by, updated_at, updated_by, version,
+      event_id, member_id, registered_at, registration_type, status, tshirt_size
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)
+  `); },
+
+  // Registering again after a withdrawal.
+  get reactivate() { return db.prepare(`
+    UPDATE registrations
+       SET registration_type = ?, status = ?, tshirt_size = ?, registered_at = ?,
+           cancel_reason = NULL, canceled_at = NULL,
+           updated_at = ?, updated_by = ?, version = version + 1
+     WHERE id = ? AND status = 'canceled'
+  `); },
+
+  get cancelOwn() { return db.prepare(`
+    UPDATE registrations
+       SET status = 'canceled', cancel_reason = ?, canceled_at = ?,
+           updated_at = ?, updated_by = ?, version = version + 1
+     WHERE id = ? AND status IN ('pending', 'confirmed')
+  `); },
+
+  // A registration's entries are replaced whole when the member registers again.
+  get deleteSelections() { return db.prepare(`
+    DELETE FROM registration_discipline_selections WHERE registration_id = ?
+  `); },
+
+  get insertSelection() { return db.prepare(`
+    INSERT INTO registration_discipline_selections (
+      id, created_at, created_by, updated_at, updated_by, version,
+      registration_id, discipline_id, partner_member_id, partner_display_name, enters_as_amateur
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
+  `); },
+
+  get listSelectionsForRegistration() { return db.prepare(`
+    SELECT rds.discipline_id, ed.name AS division_name, ed.sort_order,
+           rds.partner_member_id, rds.partner_display_name, rds.enters_as_amateur,
+           p.display_name AS partner_member_name, p.slug AS partner_member_slug
+    FROM registration_discipline_selections AS rds
+    INNER JOIN event_disciplines AS ed ON ed.id = rds.discipline_id
+    LEFT JOIN members_onboarded AS p ON p.id = rds.partner_member_id
+    WHERE rds.registration_id = ?
+    ORDER BY ed.sort_order, ed.name COLLATE NOCASE, ed.id
+  `); },
+
+  // The event page's registrant list: confirmed registrations of live members
+  // only, as every other member listing reads.
+  get listConfirmedForEvent() { return db.prepare(`
+    SELECT r.id, r.registration_type, m.display_name, m.slug
+    FROM registrations AS r
+    INNER JOIN members_onboarded AS m ON m.id = r.member_id AND m.is_deceased = 0
+    WHERE r.event_id = ? AND r.status = 'confirmed'
+    ORDER BY m.display_name COLLATE NOCASE, r.id
+  `); },
+
+  get listConfirmedSelectionsForEvent() { return db.prepare(`
+    SELECT rds.registration_id, ed.name AS division_name, ed.sort_order,
+           rds.partner_display_name,
+           p.display_name AS partner_member_name, p.slug AS partner_member_slug
+    FROM registration_discipline_selections AS rds
+    INNER JOIN registrations AS r ON r.id = rds.registration_id
+    INNER JOIN event_disciplines AS ed ON ed.id = rds.discipline_id
+    LEFT JOIN members_onboarded AS p ON p.id = rds.partner_member_id AND p.is_deceased = 0
+    WHERE r.event_id = ? AND r.status = 'confirmed'
+    ORDER BY ed.sort_order, ed.name COLLATE NOCASE, ed.id
+  `); },
+
+  get countConfirmedByDivision() { return db.prepare(`
+    SELECT rds.discipline_id, COUNT(*) AS registered
+    FROM registration_discipline_selections AS rds
+    INNER JOIN registrations AS r ON r.id = rds.registration_id
+    WHERE r.event_id = ? AND r.status = 'confirmed'
+    GROUP BY rds.discipline_id
+  `); },
+
+  // Removing a division takes with it the entries no confirmed registration
+  // holds: a pending or canceled registration's choice of a division that no
+  // longer exists.
+  get deleteUnconfirmedSelectionsForDivision() { return db.prepare(`
+    DELETE FROM registration_discipline_selections
+     WHERE discipline_id = ?
+       AND registration_id IN (SELECT id FROM registrations WHERE status <> 'confirmed')
+  `); },
 };
 
 // Reads that exist only to answer a member asking for a copy of their own data.
@@ -11227,6 +11738,31 @@ export const memberExport = {
     INNER JOIN events AS e ON e.id = r.event_id
     WHERE r.member_id = ?
     ORDER BY e.start_date, r.event_id
+  `); },
+
+  // The divisions the member's own registrations entered, with the partner each named.
+  get registrationEntries() { return db.prepare(`
+    SELECT r.event_id, e.title AS event_title, ed.name AS division_name,
+           rds.partner_member_id, rds.partner_display_name, rds.enters_as_amateur
+    FROM registration_discipline_selections AS rds
+    INNER JOIN registrations AS r ON r.id = rds.registration_id
+    INNER JOIN events AS e ON e.id = r.event_id
+    INNER JOIN event_disciplines AS ed ON ed.id = rds.discipline_id
+    WHERE r.member_id = ?
+    ORDER BY e.start_date, r.event_id, ed.sort_order, rds.id
+  `); },
+
+  // Entries another member made naming this member as their doubles partner.
+  // Who made each entry is that member's own record, so it is not carried here,
+  // as a vouch received does not name its voucher.
+  get partnerEntries() { return db.prepare(`
+    SELECT r.event_id, e.title AS event_title, e.start_date, ed.name AS division_name, r.status
+    FROM registration_discipline_selections AS rds
+    INNER JOIN registrations AS r ON r.id = rds.registration_id
+    INNER JOIN events AS e ON e.id = r.event_id
+    INNER JOIN event_disciplines AS ed ON ed.id = rds.discipline_id
+    WHERE rds.partner_member_id = ?
+    ORDER BY e.start_date, r.event_id, ed.sort_order, rds.id
   `); },
 
   // Every subscription row the member holds, whatever the list is now. The
@@ -11411,12 +11947,22 @@ export const memberExport = {
     ORDER BY sent_at, id
   `); },
 
+  // The member's community announcements and what became of each. The
+  // deciding administrator is never selected; the comment they wrote back is
+  // the member's to read.
+  get memberAnnouncements() { return db.prepare(`
+    SELECT subject, body_text, status, admin_comment, created_at, decided_at
+    FROM member_announcements
+    WHERE member_id = ?
+    ORDER BY created_at, id
+  `); },
+
   // Work-queue items about the member. No actor column is selected, and
   // neither is reason_text: an identity-link request stores its payload there,
   // and that payload names the other accounts holding the disputed records.
   get workQueueItemsAbout() { return db.prepare(`
     SELECT
-      queue_category, task_type, status, opened_at, resolved_at,
+      task_type, status, opened_at, resolved_at,
       decision_label, detail_text, parked_at, park_reason
     FROM work_queue_items
     WHERE entity_type = 'member' AND entity_id = ?

@@ -21,13 +21,12 @@ import { insertWorkQueueItem } from '../fixtures/factories';
 import { openLiveDb, createAuthenticatedContext } from './helpers/wizard-auth';
 
 /**
- * The one work-queue card for this item.
+ * This item's block on its own page.
  *
- * Every assertion about a card is scoped through this. The seeded persona
- * catalogue carries other members with questions waiting, so a page-wide match
- * for a card's own wording resolves to several and proves nothing about this
- * one. The link-help approve form is the anchor because it is on the card in
- * every state, unlike the ask form, which disappears once a question is sent.
+ * Every assertion about the item is scoped through this, so a match proves
+ * something about this item and not about the page around it. The link-help
+ * approve form is the anchor because it is there in every state, unlike the ask
+ * form, which disappears once a question is sent.
  */
 function cardFor(page: Page, queueItemId: string) {
   return page.locator('.work-queue-item').filter({
@@ -68,12 +67,10 @@ test('an administrator asks a member for their date of birth on a link-help requ
     id: queueItemId,
     created_at: nowIso,
     opened_at: nowIso,
-    queue_category: 'membership',
     task_type: 'member_link_help_request',
     entity_type: 'member',
     entity_id: member.memberId,
     status: 'open',
-    priority: 5,
     reason_text: 'The member asked for help linking their old account.',
     detail_text: 'The member could not find their record in the wizard.',
   });
@@ -85,12 +82,16 @@ test('an administrator asks a member for their date of birth on a link-help requ
   const adminCtx = await createAuthenticatedContext(browser, baseURL!, admin);
   const adminPage = await adminCtx.newPage();
 
+  // The administrator opens the item from the queue list, then asks on its page.
   await adminPage.goto('/admin/work-queue');
   await expect(adminPage.getByRole('heading', { level: 1, name: /Admin Work Queue/i }))
     .toBeVisible();
+  await adminPage.goto(`/admin/work-queue/${queueItemId}`);
+  await expect(adminPage.getByRole('heading', { level: 1, name: /Member Link Help Request/i }))
+    .toBeVisible();
 
-  // The queue holds every open item, so the disclosure is found through the
-  // form belonging to this one rather than by position on the page.
+  // The disclosure is found through the form belonging to this item rather
+  // than by position on the page.
   const card = adminPage.locator(`form[action="/admin/work-queue/${queueItemId}/ask-member"]`);
   await adminPage.locator('details.queue-ask-member', { has: card }).click();
   await expect(card).toBeVisible();
@@ -161,9 +162,8 @@ test('an administrator asks a member for their date of birth on a link-help requ
   }
 
   // ── The administrator sees the answer where they asked ────────────────────
-  await adminPage.goto('/admin/work-queue');
-  // Within this item's own card: the work queue also lists other members'
-  // answered questions, such as a seeded persona's.
+  await adminPage.goto(`/admin/work-queue/${queueItemId}`);
+  // Within this item's own block, found through its own approve form.
   await expect(cardFor(adminPage, queueItemId).getByText(/Corrected the date/i)).toBeVisible();
   await expect(cardFor(adminPage, queueItemId).getByText('The old record is the right one.')).toBeVisible();
   await expect(cardFor(adminPage, queueItemId).getByText(/Waiting on the member since/i)).toHaveCount(0);
@@ -187,12 +187,10 @@ test('the question is readable only by the member it was sent to', async ({ brow
     id: queueItemId,
     created_at: nowIso,
     opened_at: nowIso,
-    queue_category: 'membership',
     task_type: 'member_link_help_request',
     entity_type: 'member',
     entity_id: member.memberId,
     status: 'open',
-    priority: 5,
     reason_text: 'A link-help request was raised.',
     detail_text: null,
   });
@@ -200,7 +198,7 @@ test('the question is readable only by the member it was sent to', async ({ brow
 
   const adminCtx = await createAuthenticatedContext(browser, baseURL!, admin);
   const adminPage = await adminCtx.newPage();
-  await adminPage.goto('/admin/work-queue');
+  await adminPage.goto(`/admin/work-queue/${queueItemId}`);
   const card = adminPage.locator(`form[action="/admin/work-queue/${queueItemId}/ask-member"]`);
   await adminPage.locator('details.queue-ask-member', { has: card }).click();
   await card.locator('input[name="subject"]').fill(QUESTION_SUBJECT);

@@ -436,12 +436,10 @@ describe('identityAccessService.revertClaimForDispute (queue-item binding)', () 
     });
     insertWorkQueueItem(db, {
       id,
-      queue_category: 'membership',
       task_type: 'member_link_help_request',
       entity_type: 'member',
       entity_id: opts.entityId,
       status: 'open',
-      priority: 5,
       created_at: '2026-01-01T00:00:00.000Z',
       opened_at: '2026-01-01T00:00:00.000Z',
       reason_text: payloadWithHolders,

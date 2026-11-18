@@ -34,6 +34,7 @@ import {
   insertClubCleanupClaim,
   insertRecurringDonationSubscription,
   insertMemberLink,
+  insertMemberAnnouncement,
 } from '../../src/testkit/personaRowBuilders';
 import {
   insertOutboxEmail,
@@ -598,6 +599,54 @@ describe('refreshAllPersonas', () => {
     expect(count(`SELECT COUNT(*) AS n FROM email_archives WHERE sender_member_id = ?`, T2)).toBe(0);
     // The personas themselves come back, reseeded.
     expect(count(`SELECT COUNT(*) AS n FROM members WHERE id = ?`, T1)).toBe(1);
+    expect(db.pragma('foreign_key_check')).toEqual([]);
+  });
+
+  // Defect caught: a persona's community announcement, or the archive row an
+  // approved one points at, blocks the member delete, so the whole refresh
+  // fails and the dev stack never starts; or a real member's announcement a
+  // persona administrator decided is deleted along with the persona.
+  it('tears down a persona\'s held and sent announcements and their review items, keeping a real member\'s', () => {
+    const archiveId = insertEmailArchive(db, { sender_member_id: T2 });
+    const sentId = insertMemberAnnouncement(db, { member_id: T2, status: 'approved', email_archive_id: archiveId });
+    const heldId = insertMemberAnnouncement(db, { member_id: T1 });
+    const reviewId = insertWorkQueueItem(db, {
+      task_type: 'announcement_review', entity_type: 'member_announcement', entity_id: heldId,
+    });
+    const real = insertMember(db, { id: 'real-announcer', slug: 'real_announcer', login_email: 'real-announcer@example.com' });
+    const realId = insertMemberAnnouncement(db, {
+      member_id: real, status: 'returned', admin_comment: 'Add a date.', decided_by_member_id: T2,
+    });
+
+    refreshAllPersonas(db);
+
+    expect(count(`SELECT COUNT(*) AS n FROM member_announcements WHERE id IN (?, ?)`, sentId, heldId)).toBe(0);
+    expect(count(`SELECT COUNT(*) AS n FROM work_queue_items WHERE id = ?`, reviewId)).toBe(0);
+    expect(count(`SELECT COUNT(*) AS n FROM email_archives WHERE id = ?`, archiveId)).toBe(0);
+    expect(db.prepare(`SELECT status, decided_by_member_id FROM member_announcements WHERE id = ?`).get(realId))
+      .toEqual({ status: 'returned', decided_by_member_id: null });
+    expect(db.pragma('foreign_key_check')).toEqual([]);
+  });
+
+  // Defect caught: an event whose sanction a persona requested or decided, or
+  // which a persona canceled, blocks the member delete, so the whole refresh
+  // fails and the dev stack never starts; or the event itself is deleted with
+  // the persona.
+  it('keeps an event a persona asked to sanction, decided or canceled, dropping only the persona reference', () => {
+    const eventId = insertEvent(db, {
+      status: 'reg_open',
+      sanction_status: 'approved',
+      sanction_requested_by_member_id: T2,
+      sanction_decided_by_member_id: T1,
+      canceled_by_member_id: T1,
+    });
+
+    refreshAllPersonas(db);
+
+    expect(db.prepare(
+      `SELECT sanction_requested_by_member_id AS req, sanction_decided_by_member_id AS dec, canceled_by_member_id AS can
+         FROM events WHERE id = ?`,
+    ).get(eventId)).toEqual({ req: null, dec: null, can: null });
     expect(db.pragma('foreign_key_check')).toEqual([]);
   });
 });

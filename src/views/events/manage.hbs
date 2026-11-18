@@ -1,0 +1,217 @@
+{{! An event's organizers' page: its details, its divisions and its organizers }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
+  </div>
+</div>
+
+<div class="wrapper">
+  {{#if content.notice}}
+    {{> outcome-notice text=content.notice.text tone=content.notice.tone}}
+  {{/if}}
+
+  <section>
+    <div class="event-meta-row">
+      <span class="badge">{{content.typeLabel}}</span>
+      <span class="badge">{{content.statusLabel}}</span>
+      <span class="hashtag">{{content.hashtag}}</span>
+    </div>
+    {{#if content.publicHref}}
+      <p class="mt-2"><a href="{{content.publicHref}}" class="action-link">View the Public Event Page</a></p>
+    {{else}}
+      <p class="mt-2">This event is not public yet.</p>
+    {{/if}}
+  </section>
+
+  {{#if content.sanction}}
+    <section>
+      <div class="section-heading"><h2>Sanction</h2></div>
+      <p>{{content.sanction.statusLine}}</p>
+      {{#if content.sanction.requestHref}}
+        <p><a href="{{siteHref content.sanction.requestHref}}" class="btn btn-primary">Request Sanction</a></p>
+      {{/if}}
+      {{#if content.sanction.tierNote}}
+        <p>{{content.sanction.tierNote}}</p>
+      {{/if}}
+    </section>
+  {{/if}}
+
+  {{#if content.onlineRegistration}}
+    <section>
+      <div class="section-heading"><h2>Online Registration</h2></div>
+      <p>Online registration: <span class="badge">{{content.onlineRegistration.statusLabel}}</span></p>
+      <form method="POST" action="{{content.onlineRegistration.action}}" class="inline-form">
+        <input type="hidden" name="set_to" value="{{content.onlineRegistration.setTo}}" />
+        <button type="submit" class="btn btn-outline">{{content.onlineRegistration.buttonLabel}}</button>
+      </form>
+    </section>
+  {{/if}}
+
+  <section>
+    <div class="section-heading"><h2>Event Details</h2></div>
+    {{#if content.detailsMessage}}
+      {{> outcome-notice tone='no' text=content.detailsMessage}}
+    {{/if}}
+    <form method="POST" action="{{content.detailsAction}}" class="form-block">
+      {{> event-details-fields values=content.values fieldErrors=content.fieldErrors countryOptions=content.countryOptions showFees=content.showFees canEditFees=content.canEditFees}}
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+      </div>
+    </form>
+  </section>
+
+  <section id="division-form">
+    <div class="section-heading"><h2>Divisions</h2></div>
+    {{#if content.divisions.length}}
+      <div class="records-table-wrap" tabindex="0" role="region" aria-label="Divisions">
+      <table class="data-table">
+        <thead><tr><th scope="col">Division</th><th scope="col">Actions</th></tr></thead>
+        <tbody>
+          {{#each content.divisions}}
+            <tr>
+              <td>{{this.name}}{{#if this.prizeLabel}} <span class="badge">{{this.prizeLabel}}</span>{{/if}}</td>
+              <td>
+                {{#if this.isLocked}}
+                  <span class="text-muted">Has confirmed registrations</span>
+                {{else}}
+                  <a href="{{siteHref this.editHref}}" class="btn btn-outline btn-sm">Change Division</a>
+                  <form method="POST" action="{{this.removeAction}}" class="inline-form">
+                    <button type="submit" class="btn btn-outline btn-sm">Remove Division</button>
+                  </form>
+                {{/if}}
+              </td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+      </div>
+    {{else}}
+      <p>This event has no divisions yet. Add each competition the event runs.</p>
+    {{/if}}
+
+    {{#if content.partsStep}}
+      <form method="POST" action="{{content.partsStep.action}}" class="form-block">
+        <h3>{{content.partsStep.submitLabel}}: {{content.partsStep.gameName}}</h3>
+        {{#if content.partsStep.divisionId}}<input type="hidden" name="division_id" value="{{content.partsStep.divisionId}}" />{{/if}}
+        <input type="hidden" name="game_id" value="{{content.partsStep.gameId}}" />
+        <input type="hidden" name="custom_name" value="{{content.partsStep.customName}}" />
+        <input type="hidden" name="custom_discipline" value="{{content.partsStep.customDiscipline}}" />
+        <fieldset class="form-fieldset">
+          <legend>Class</legend>
+          {{#each content.partsStep.classes}}
+            <div class="form-field"><label><input type="radio" name="division_class" value="{{this.value}}"{{#if this.checked}} checked{{/if}}> {{this.label}}</label></div>
+          {{/each}}
+        </fieldset>
+        <fieldset class="form-fieldset">
+          <legend>Who May Enter</legend>
+          {{#each content.partsStep.genders}}
+            <div class="form-field"><label><input type="radio" name="gender" value="{{this.value}}"{{#if this.checked}} checked{{/if}}> {{this.label}}</label></div>
+          {{/each}}
+        </fieldset>
+        <fieldset class="form-fieldset">
+          <legend>Entry Size</legend>
+          {{#each content.partsStep.teamTypes}}
+            <div class="form-field"><label><input type="radio" name="team_type" value="{{this.value}}"{{#if this.checked}} checked{{/if}}> {{this.label}}</label></div>
+          {{/each}}
+        </fieldset>
+        <div class="form-field">
+          <label>
+            <input type="hidden" name="offers_prize_money" value="0" />
+            <input type="checkbox" name="offers_prize_money" value="1"{{#if content.partsStep.offersPrizeMoney}} checked{{/if}} />
+            This division offers prize money
+          </label>
+          <small class="form-hint">Entrants in a prize-money division can choose to enter as an Amateur, taking no prize money.</small>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">{{content.partsStep.submitLabel}}</button>
+          <a href="{{siteHref content.partsStep.cancelHref}}" class="btn btn-outline">Cancel</a>
+        </div>
+      </form>
+    {{else}}
+      <form method="GET" action="{{content.chooseGameAction}}#division-form" class="form-block">
+        <h3>Add a Division</h3>
+        <div class="form-field">
+          <label for="game">Game</label>
+          <select id="game" name="game">
+            {{#each content.gameGroups}}
+              <optgroup label="{{this.label}}">
+                {{#each this.options}}
+                  <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+                {{/each}}
+              </optgroup>
+            {{/each}}
+            <option value="custom">A game not on this list</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="custom_name">Game name, for a game not on the list</label>
+          <input type="text" id="custom_name" name="custom_name" value="{{content.customGameName}}" maxlength="60" />
+        </div>
+        <div class="form-field">
+          <label for="custom_discipline">Discipline, for a game not on the list</label>
+          <select id="custom_discipline" name="custom_discipline">
+            {{#each content.disciplineOptions}}
+              <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+            {{/each}}
+          </select>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-outline">Choose Game</button>
+        </div>
+      </form>
+    {{/if}}
+  </section>
+
+  <section>
+    <div class="section-heading"><h2>Organizers</h2></div>
+    <div class="records-table-wrap" tabindex="0" role="region" aria-label="Organizers">
+    <table class="data-table">
+      <thead><tr><th scope="col">Name</th><th scope="col">Member ID</th><th scope="col">Added</th><th scope="col">Actions</th></tr></thead>
+      <tbody>
+        {{#each content.organizers}}
+          <tr>
+            <td><a href="{{this.profileHref}}">{{this.name}}</a>{{#if this.isSelf}} <span class="badge">You</span>{{/if}}</td>
+            <td>{{this.memberId}}</td>
+            <td>{{formatDate this.addedOn}}</td>
+            <td>
+              {{#if this.canRemove}}
+                <form method="POST" action="{{this.removeAction}}" class="inline-form">
+                  <input type="hidden" name="member_id" value="{{this.memberId}}" />
+                  <button type="submit" class="btn btn-outline btn-sm">Remove Organizer</button>
+                </form>
+              {{/if}}
+            </td>
+          </tr>
+        {{/each}}
+      </tbody>
+    </table>
+    </div>
+
+    {{#if content.canAddOrganizer}}
+      <form method="POST" action="{{content.addOrganizerAction}}" class="form-block">
+        <div class="form-field">
+          <label for="member_key">Member ID or profile URL</label>
+          <input type="text" id="member_key" name="member_key" required />
+          <small class="form-hint">An event has at most {{content.organizerCap}} organizers, all with the same powers. The member you add is emailed.</small>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-outline">Add Organizer</button>
+        </div>
+      </form>
+    {{else}}
+      <p>This event has {{content.organizerCap}} organizers, the most an event can have.</p>
+    {{/if}}
+
+    {{#if content.stepDownAction}}
+      <form method="POST" action="{{content.stepDownAction}}" class="inline-form">
+        <button type="submit" class="btn btn-outline">Step Down as Organizer</button>
+      </form>
+    {{else}}
+      <p class="text-muted">You are the only organizer, so you cannot step down until you add another.</p>
+    {{/if}}
+  </section>
+
+  {{> back-link}}
+</div>

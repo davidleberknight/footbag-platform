@@ -66,8 +66,10 @@ import {
   insertEventOrganizer,
   insertRegistration,
   insertRegistrationDisciplineSelection,
+  insertEventRegistrationReminderSent,
   insertSystemJobRun,
   insertReconciliationIssue,
+  insertMemberAnnouncement,
 } from '../../src/testkit/personaRowBuilders';
 
 export {
@@ -117,8 +119,10 @@ export {
   insertEventOrganizer,
   insertRegistration,
   insertRegistrationDisciplineSelection,
+  insertEventRegistrationReminderSent,
   insertSystemJobRun,
   insertReconciliationIssue,
+  insertMemberAnnouncement,
 };
 
 export type {
@@ -168,6 +172,7 @@ export type {
   RegistrationDisciplineSelectionOverrides,
   SystemJobRunOverrides,
   ReconciliationIssueOverrides,
+  MemberAnnouncementOverrides,
 } from '../../src/testkit/personaRowBuilders';
 
 // Default timestamps are one second before the insert, read per call, for the
@@ -486,6 +491,7 @@ export function insertEmailArchive(
   );
   return id;
 }
+
 
 /**
  * A tag's usage record, the denormalized cache every discovery surface reads:

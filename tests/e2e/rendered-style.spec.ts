@@ -32,7 +32,7 @@ import { openLiveDb } from './helpers/liveDb';
 import { seedCrawlWorld } from '../fixtures/crawl/seedCrawlFixture';
 import { submitForm } from './helpers/submitForm';
 import {
-  insertAuditEntry, insertClub, insertClubLeader, insertCuratorVideo, insertDiscipline, insertEmailArchive, insertEvent, insertFreeformTag,
+  insertAuditEntry, insertClub, insertClubLeader, insertCuratorVideo, insertDiscipline, insertEmailArchive, insertEvent, insertEventOrganizer, insertFreeformTag,
   insertResultEntry, insertResultParticipant, insertResultsUpload,
   insertFreestyleEvAdjudication, insertFreestyleTrick, insertFreestyleTrickAlias, insertFreestyleTrickModifier,
   insertHistoricalPerson, insertLegacyMember, insertMediaItem, insertMediaJob, insertMember,
@@ -68,6 +68,14 @@ test.beforeAll(() => {
   const member = 'member_persona_t1_paid';
   const eventTag = insertTag(db, { standard_type: 'event', tag_normalized: `#${REACH_ROWS.eventKey}`, tag_display: `#${REACH_ROWS.eventKey}` });
   insertEvent(db, { id: REACH_ROWS.eventId, hashtag_tag_id: eventTag, title: 'Rendered Style Open' });
+  // The member viewer organizes it, so the organizers' manage page and its
+  // confirm step have a viewer allowed to open them.
+  insertEventOrganizer(db, REACH_ROWS.eventId, member);
+  // A sanctioned-path draft the administrator organizes, so the sanction
+  // request form has a Tier 2 organizer allowed to open it.
+  const sanctionTag = insertTag(db, { standard_type: 'event', tag_normalized: `#${REACH_ROWS.sanctionDraftKey}`, tag_display: `#${REACH_ROWS.sanctionDraftKey}` });
+  insertEvent(db, { id: REACH_ROWS.sanctionDraftId, hashtag_tag_id: sanctionTag, title: 'Rendered Style Sanction Draft', status: 'draft' });
+  insertEventOrganizer(db, REACH_ROWS.sanctionDraftId, 'member_persona_admin_t2');
   const playerA = insertHistoricalPerson(db, { person_id: REACH_ROWS.playerAId, person_name: 'Rendered Style Player A' });
   // One published result, so the administrator's correction pages have a row to open.
   insertDiscipline(db, REACH_ROWS.eventId, { id: REACH_ROWS.resultDisciplineId, name: 'Open Singles Net', discipline_category: 'net' });

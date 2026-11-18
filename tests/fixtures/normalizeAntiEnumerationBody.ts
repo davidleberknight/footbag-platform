@@ -7,10 +7,19 @@
  * words that leak. What legitimately varies between two such responses is the
  * per-request CSRF token and the address the form refills, both of which arrive
  * as input attribute values, plus incidental whitespace from the template.
- * Everything else must match byte for byte.
+ * A page that echoes the visitor's own typed address back in its text varies
+ * by that address too, so a caller names the addresses it submitted and each
+ * is replaced wherever it appears. Everything else must match byte for byte.
  */
-export function normalizeAntiEnumerationBody(text: string): string {
-  return text
+export function normalizeAntiEnumerationBody(
+  text: string,
+  submittedAddresses: readonly string[] = [],
+): string {
+  const withoutAddresses = submittedAddresses.reduce(
+    (body, address) => body.split(address).join('SUBMITTED_ADDRESS'),
+    text,
+  );
+  return withoutAddresses
     .replace(/value="[^"]*"/g, 'value="REDACTED"')
     .replace(/\s+/g, ' ')
     .trim();

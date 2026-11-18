@@ -1,13 +1,13 @@
 /**
- * Setting each work-queue area's owner: POST /admin/work-queue/owners.
+ * Setting each work-queue area's owner: POST /admin/work-queue-areas.
  *
  * Any administrator may set any area's owner to a current administrator or to
  * no owner. Each area whose owner changes writes one audit row with the owner
  * before and after; a save that changes nothing writes nothing and says so in
  * the informational tone. A choice that is not a current administrator refuses
  * the whole save, and the re-rendered page still offers a valid way forward.
- * Every queue action returns to the area and category the administrator was
- * working in.
+ * Every queue action returns to the area and kind the administrator was
+ * working in, on the page it was taken from.
  */
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
@@ -26,7 +26,7 @@ const { dbPath } = setTestEnv('4319');
 const ADMIN = 'wqo_admin';
 const COLLEAGUE = 'wqo_colleague';
 const MEMBER = 'wqo_member';
-const OWNERS_PATH = '/admin/work-queue/owners';
+const OWNERS_PATH = '/admin/work-queue-areas';
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
@@ -73,7 +73,6 @@ function auditIds(): Set<string> {
 function ownersBody(choices: Record<string, string> = {}): Record<string, string> {
   return {
     owner_finance: '', owner_membership: '', owner_platform: '', owner_sanctioning: '', owner_freestyle: '',
-    category: '', topic: '',
     ...choices,
   };
 }
@@ -134,13 +133,13 @@ describe('saving area owners', () => {
   // Defect caught: the page offers an owner choice for an area the save never
   // reads, so choosing that area's owner reports "no change" and keeps none.
   it('saves an owner for every area the form offers', async () => {
-    const page = await request(createApp()).get('/admin/work-queue').set('Cookie', cookieFor(ADMIN));
+    const page = await request(createApp()).get(OWNERS_PATH).set('Cookie', cookieFor(ADMIN));
     expect(page.status).toBe(200);
     const fields = [...page.text.matchAll(/<select id="owner_([a-z]+)" name="owner_\1">/g)].map((m) => m[1]!);
     // Every area the registry declares is offered.
     expect(fields.sort()).toEqual([...WORK_QUEUE_TOPIC_KEYS].sort());
 
-    const body: Record<string, string> = { category: '', topic: '' };
+    const body: Record<string, string> = {};
     for (const area of fields) body[`owner_${area}`] = ADMIN;
     const res = await postOwners(body);
     expect(res.status).toBe(303);
@@ -155,7 +154,7 @@ describe('saving area owners', () => {
     const res = await postOwners(ownersBody({ owner_finance: ADMIN, owner_membership: COLLEAGUE }));
 
     expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/admin/work-queue');
+    expect(res.headers.location).toBe(OWNERS_PATH);
     expect(tone(res)).toBe('ok');
     expect(owners()).toEqual({ finance: ADMIN, membership: COLLEAGUE });
     expect(auditsAddedSince(before)).toEqual({
@@ -219,25 +218,43 @@ describe('saving area owners', () => {
 });
 
 describe('returning to the view the administrator was working in', () => {
-  // Defect caught: saving owners from a narrowed view drops the reader back
-  // onto the whole queue.
-  it('returns from an owners save to the same area and category', async () => {
-    const res = await postOwners(ownersBody({ owner_finance: ADMIN, topic: 'finance', category: 'payments' }));
-    expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/admin/work-queue?topic=finance&category=payments');
-  });
-
   // Defect caught: acting on an item in a narrowed view loses the area filter,
   // so it is useless after one item.
-  it('returns from a claim to the same area and category', async () => {
+  it('returns from a claim on the list to the list, in the same kind, area and page', async () => {
     const item = withDb((db) => insertWorkQueueItem(db, {
-      queue_category: 'payments', task_type: 'reconciliation_discrepancy', entity_type: 'reconciliation_issue', entity_id: 'ri-claim',
+      task_type: 'reconciliation_discrepancy', entity_type: 'reconciliation_issue', entity_id: 'ri-claim',
     }));
     const res = await request(createApp())
       .post(`/admin/work-queue/${item}/claim`).set('Cookie', cookieFor(ADMIN)).type('form')
-      .send({ topic: 'finance', category: 'payments' });
+      .send({ kind: 'housekeeping', topic: 'finance', unclaimed: '1', page: '2', from: 'list' });
     expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/admin/work-queue?topic=finance&category=payments');
+    expect(res.headers.location).toBe('/admin/work-queue?kind=housekeeping&topic=finance&unclaimed=1&page=2');
+  });
+
+  // Defect caught: claiming from an item's page throws the reader back to the
+  // list, away from the item they were about to work.
+  it('returns from a claim on an item’s page to that page, still carrying the list state', async () => {
+    const item = withDb((db) => insertWorkQueueItem(db, {
+      task_type: 'reconciliation_discrepancy', entity_type: 'reconciliation_issue', entity_id: 'ri-claim-item',
+    }));
+    const res = await request(createApp())
+      .post(`/admin/work-queue/${item}/claim`).set('Cookie', cookieFor(ADMIN)).type('form')
+      .send({ kind: 'housekeeping', topic: 'finance', from: 'item' });
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe(`/admin/work-queue/${item}?kind=housekeeping&topic=finance`);
+  });
+
+  // Defect caught: a forged or unrecognised list state becomes part of the
+  // redirect, so a crafted form can send an administrator somewhere else.
+  it('builds the return address from recognised values only', async () => {
+    const item = withDb((db) => insertWorkQueueItem(db, {
+      task_type: 'reconciliation_discrepancy', entity_type: 'reconciliation_issue', entity_id: 'ri-claim-forged',
+    }));
+    const res = await request(createApp())
+      .post(`/admin/work-queue/${item}/claim`).set('Cookie', cookieFor(ADMIN)).type('form')
+      .send({ kind: '//evil.example', topic: 'x&kind=y', page: '-3', from: 'https://evil.example' });
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/admin/work-queue');
   });
 });
 

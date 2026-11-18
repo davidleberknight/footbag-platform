@@ -1,0 +1,31 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{> admin-instructions}}
+  {{> outcome-notice text=content.outcome.text tone=content.outcome.tone}}
+  {{> outcome-notice text=content.errorMessage tone='no'}}
+
+  <section>
+    <form method="POST" action="/admin/work-queue-areas" class="form-block">
+      {{#each content.areaOwnerFields}}
+        <div class="form-field">
+          <label for="{{fieldName}}">{{label}}</label>
+          <select id="{{fieldName}}" name="{{fieldName}}">
+            {{#each options}}
+              <option value="{{value}}"{{#if selected}} selected{{/if}}>{{label}}</option>
+            {{/each}}
+          </select>
+        </div>
+      {{/each}}
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Save Owners</button>
+      </div>
+    </form>
+  </section>
+
+  {{> back-link}}
+</div>

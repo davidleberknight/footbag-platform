@@ -2,13 +2,16 @@
  * WorkQueueTaskTypes -- the single declaration of what each admin work-queue
  * task type is and what an administrator can do about it.
  *
- * Owns: the task-type table. Each type declares its display label, the queue
- * category it belongs to, the entity types a row of that type may legitimately
- * point at, whether it fans an urgent notification out on enqueue, the area
- * (routing topic) it belongs to or none for a shared matter, how its evidence
- * renders, and its ordered list of actions. Also owns the area registry: each
- * area's label and fixed queue address. A new area is one registry entry plus
- * its canonical address; a new task type picks its area with one field.
+ * Owns: the task-type table. Each type declares its display label, its kind
+ * (Team Alert, Someone Is Waiting or Housekeeping), the alert a Team Alert
+ * emails on enqueue, one plain sentence each on what it is, why it matters and
+ * what to do about it, the entity types a row of that type may legitimately
+ * point at, the area (routing topic) it belongs to or none for a shared matter,
+ * how its evidence renders, and its ordered list of actions. Also owns the kind
+ * registry (each kind's label and its own what and why, in the order the queue
+ * shows them) and the area registry: each area's label and fixed queue address.
+ * A new area is one registry entry plus its canonical address; a new task type
+ * picks its kind and its area with one field each.
  *
  * Why it exists. Modelling each type as membership of a hardcoded family needs a
  * predicate deciding the family, a matching boolean on the view item, and a
@@ -74,7 +77,7 @@ export interface WorkQueueNoteField {
 export interface WorkQueueActionField {
   name: string;
   label: string;
-  input: 'text' | 'textarea';
+  input: 'text' | 'textarea' | 'checkbox';
   maxLength: number;
   required: boolean;
 }
@@ -93,7 +96,7 @@ export type WorkQueueEvidence =
   | { kind: 'member_message' }
   /** A payload the queue service builds for this type; the row's reason text
    *  holds JSON or a bare code and is never printed raw. */
-  | { kind: 'structured'; payload: 'link_help' };
+  | { kind: 'structured'; payload: 'link_help' | 'announcement' | 'sanction_request' };
 
 /**
  * What an administrator can do with an item.
@@ -169,13 +172,72 @@ export type WorkQueueAction =
     };
 
 /**
- * Templates an urgent task type fans out to the admin-alerts list on enqueue.
- * Every one takes the entity id and the queue link and nothing else, because an
- * admin notification carries task type and entity id only: no name, no amount,
- * no member data. A new urgent template joins this union rather than widening
- * what a notification may say.
+ * Templates a Team Alert fans out to the admin-alerts list on enqueue. Every
+ * one takes the link to the item and nothing else, because an admin
+ * notification carries no name, no amount and no member data. A new Team Alert
+ * template joins this union rather than widening what a notification may say.
  */
-export type UrgentAdminAlertTemplate = 'admin_loss_recruitment';
+export type TeamAlertTemplate = 'admin_loss_recruitment';
+
+/**
+ * How an item reaches the administrators, declared once per task type. A Team
+ * Alert is a security, data-integrity or administrative-continuity event that
+ * needs same-day action, so every administrator is emailed the moment it is
+ * raised. Someone Is Waiting means a person waits on an administrator's
+ * decision. Housekeeping means the platform found something to tidy. The last
+ * two are routine: read on the queue, rolled up in the periodic digest, and
+ * escalated once if left unclaimed too long.
+ */
+export type WorkQueueKind = 'team_alert' | 'waiting' | 'housekeeping';
+
+export interface WorkQueueKindDescriptor {
+  kind: WorkQueueKind;
+  label: string;
+  /** One sentence saying what this kind of work is. */
+  what: string;
+  /** One sentence saying why it matters. */
+  why: string;
+}
+
+/** Every kind, in the order the queue and the dashboard show them. */
+export const WORK_QUEUE_KINDS: readonly WorkQueueKindDescriptor[] = [
+  {
+    kind:  'team_alert',
+    label: 'Team Alert',
+    what:  'Something happened that the whole administrator team needs to deal with today.',
+    why:   'Every administrator is emailed the moment one is raised, because waiting for the digest would be too late.',
+  },
+  {
+    kind:  'waiting',
+    label: 'Someone Is Waiting',
+    what:  'A person asked for something and is waiting for an administrator to decide.',
+    why:   'Every day an item sits here is another day that person waits for an answer.',
+  },
+  {
+    kind:  'housekeeping',
+    label: 'Housekeeping',
+    what:  'The platform found something that needs tidying up.',
+    why:   'Left alone, these turn into wrong records, missing money or broken pages.',
+  },
+];
+
+export function isWorkQueueKind(value: string): value is WorkQueueKind {
+  return WORK_QUEUE_KINDS.some((k) => k.kind === value);
+}
+
+/** The registry entry for one kind. */
+export function workQueueKindDescriptor(kind: WorkQueueKind): WorkQueueKindDescriptor {
+  const found = WORK_QUEUE_KINDS.find((k) => k.kind === kind);
+  if (!found) throw new Error(`No work-queue kind: ${kind}`);
+  return found;
+}
+
+/** What one task type is, why it matters and what to do, each one short sentence. */
+export interface WorkQueueBrief {
+  what: string;
+  why: string;
+  todo: string;
+}
 
 /**
  * The areas a task type may belong to. Each has one accountable owner among the
@@ -183,8 +245,8 @@ export type UrgentAdminAlertTemplate = 'admin_loss_recruitment';
  * while the area's switch is on, receives a daily digest of the area's open,
  * unclaimed routine items. The address is a group held outside the platform, so
  * who reads an area's mail changes without a platform change. An area with no
- * task type yet (sanctioning, freestyle) still has an owner to show and an
- * address waiting for the types that will join it.
+ * task type yet (freestyle) still has an owner to show and an address waiting
+ * for the types that will join it.
  */
 export type WorkQueueTopic =
   | 'finance' | 'membership' | 'platform' | 'sanctioning' | 'freestyle' | 'moderation';
@@ -211,14 +273,17 @@ export function topicRouteConfigKey(topic: WorkQueueTopic): string {
 
 export interface WorkQueueTaskTypeDescriptor {
   label: string;
-  queueCategory: string;
+  kind: WorkQueueKind;
+  /** The notification every administrator is emailed the moment the item is
+   *  raised. Set exactly when the kind is a Team Alert; null for a routine
+   *  kind, which is read on the queue and rolled up in the periodic digest. */
+  alertTemplate: TeamAlertTemplate | null;
+  /** What the item is, why it matters and what to do, for an administrator
+   *  meeting the type for the first time. Carries no member data. */
+  brief: WorkQueueBrief;
   /** The entity types a row of this type may point at. A row outside the set is
    *  corrupt and is refused rather than acted on. */
   entityTypes: readonly string[];
-  /** Urgent: emails every administrator the moment the item is raised, because
-   *  the matter needs same-day action. Null is routine: read on the queue page
-   *  and rolled up in the periodic digest. */
-  urgentAdminAlert: UrgentAdminAlertTemplate | null;
   /** The area this type belongs to, or null for a matter every administrator
    *  shares. Ownership orients an item and never restricts who may act on it. */
   routeTopic: WorkQueueTopic | null;
@@ -258,12 +323,20 @@ const REVIEW_NOTE: WorkQueueNoteField = {
  * records which of the three outcomes it was. Written once so the eight entries
  * differ only in what they are and what they point at.
  */
-function paymentsTask(label: string, entityTypes: readonly string[]): WorkQueueTaskTypeDescriptor {
+const PAYMENTS_TODO =
+  'Look the record up in Stripe, put it right there or on the platform, then resolve this item with the outcome and a short note.';
+
+function paymentsTask(
+  label: string,
+  entityTypes: readonly string[],
+  brief: { what: string; why: string },
+): WorkQueueTaskTypeDescriptor {
   return {
     label,
-    queueCategory: 'payments',
+    kind: 'housekeeping',
+    alertTemplate: null,
+    brief: { ...brief, todo: PAYMENTS_TODO },
     entityTypes,
-    urgentAdminAlert: null,
     routeTopic: 'finance',
     evidence: { kind: 'reason_text' },
     actions: [{
@@ -292,12 +365,17 @@ function paymentsTask(label: string, entityTypes: readonly string[]): WorkQueueT
  * belong to the moderation area while every other contact topic stays with
  * membership.
  */
-function memberRequestTask(label: string, routeTopic: WorkQueueTopic): WorkQueueTaskTypeDescriptor {
+function memberRequestTask(
+  label: string,
+  routeTopic: WorkQueueTopic,
+  brief: WorkQueueBrief,
+): WorkQueueTaskTypeDescriptor {
   return {
     label,
-    queueCategory:    'membership',
-    entityTypes:      ['member'],
-    urgentAdminAlert: null,
+    kind:          'waiting',
+    alertTemplate: null,
+    brief,
+    entityTypes:   ['member'],
     routeTopic,
     evidence:         { kind: 'member_message' },
     actions: [{
@@ -320,15 +398,28 @@ function memberRequestTask(label: string, routeTopic: WorkQueueTopic): WorkQueue
 }
 
 export const WORK_QUEUE_TASK_TYPES: Readonly<Record<string, WorkQueueTaskTypeDescriptor>> = {
-  member_contact_request: memberRequestTask('Member contact request', 'membership'),
-  content_report:         memberRequestTask('Content report', 'moderation'),
+  member_contact_request: memberRequestTask('Member contact request', 'membership', {
+    what: 'A member wrote to the administrators through the contact form.',
+    why:  'The member is waiting for an answer, and their record may be wrong until someone looks.',
+    todo: 'Read the message, correct the record if it needs it, then choose a decision and write the reply the member gets by email.',
+  }),
+  content_report: memberRequestTask('Content report', 'moderation', {
+    what: 'A member reported something on the site they believe breaks the community standards.',
+    why:  'The member is waiting to hear back, and the content stays as it is until an administrator looks.',
+    todo: 'Look at the content they describe and deal with it, then choose a decision and write the reply the member gets by email.',
+  }),
 
   member_link_help_request: {
-    label:            'Member link help request',
-    queueCategory:    'membership',
-    entityTypes:      ['member'],
-    urgentAdminAlert: null,
-    routeTopic:       'membership',
+    label:         'Member link help request',
+    kind:          'waiting',
+    alertTemplate: null,
+    brief: {
+      what: 'A member asked for help linking their account to an old footbag.org account or to their competition record.',
+      why:  'Until the link is made or refused, the member cannot see that history on their profile.',
+      todo: 'Check what they told you against the records shown, then approve with exactly one id to link, or reject with a reason.',
+    },
+    entityTypes:   ['member'],
+    routeTopic:    'membership',
     evidence:         { kind: 'structured', payload: 'link_help' },
     actions: [
       {
@@ -381,13 +472,97 @@ export const WORK_QUEUE_TASK_TYPES: Readonly<Record<string, WorkQueueTaskTypeDes
     ],
   },
 
+  // A member's community announcement, held until another administrator reads
+  // it. Both actions do their work in the broadcast service, which owns the
+  // send, the member's email and the audit rows. There is no park action: the
+  // member is waiting for an answer, and a matter like that is answered, not
+  // set aside.
+  announcement_review: {
+    label:         'Held community announcement',
+    kind:          'waiting',
+    alertTemplate: null,
+    brief: {
+      what: 'A member wrote a community announcement and it waits for an administrator before it goes to the announcements list.',
+      why:  'The member is waiting, and nothing reaches the list until it is approved.',
+      todo: 'Read it against the Community Standards, then approve and send it as written, or send it back with a note saying what to change.',
+    },
+    entityTypes:   ['member_announcement'],
+    routeTopic:    'moderation',
+    evidence:      { kind: 'structured', payload: 'announcement' },
+    actions: [
+      {
+        kind:  'act',
+        key:   'announcement/approve',
+        label: 'Approve and Send',
+        style: 'primary',
+        fields: [
+          { name: 'allow_extra', label: 'Allow an Extra Announcement Today', input: 'checkbox', maxLength: 1, required: false },
+        ],
+      },
+      {
+        kind:  'act',
+        key:   'announcement/send-back',
+        label: 'Send Back to the Member',
+        style: 'outline',
+        fields: [
+          { name: 'comment', label: 'Note to the member', input: 'textarea', maxLength: 500, required: true },
+        ],
+      },
+    ],
+  },
+
+  // An organizer's request that IFPA sanction their event. The Sanctioning
+  // Director is an administrator and takes it up here like any other item,
+  // reached by the queue's own digest. Both actions do their work in the event
+  // service, which owns the sanction, the organizers' emails and the audit rows.
+  // It is routine: the organizer waits on an answer, and nothing is lost by a
+  // day in the queue.
+  sanction_request: {
+    label:         'Sanction Request',
+    kind:          'waiting',
+    alertTemplate: null,
+    brief: {
+      what: 'An event organizer asked IFPA to sanction their event.',
+      why:  'The event stays a draft, not public and taking no registrations, until the request is decided.',
+      todo: 'Read the request against the sanctioning guidelines, contact the organizer if anything needs settling, then approve it or reject it with a reason.',
+    },
+    entityTypes:   ['event'],
+    routeTopic:    'sanctioning',
+    evidence:      { kind: 'structured', payload: 'sanction_request' },
+    actions: [
+      {
+        kind:  'act',
+        key:   'sanction/approve',
+        label: 'Approve Sanction',
+        style: 'primary',
+        fields: [
+          { name: 'note', label: 'Note for the record (optional)', input: 'textarea', maxLength: 500, required: false },
+        ],
+      },
+      {
+        kind:  'act',
+        key:   'sanction/reject',
+        label: 'Reject Sanction',
+        style: 'outline',
+        fields: [
+          { name: 'reason', label: 'Reason, sent to the organizers', input: 'textarea', maxLength: 500, required: true },
+        ],
+      },
+    ],
+  },
+
   admin_loss_recruitment: {
     label:            'Administrator lost; recruit a replacement',
-    queueCategory:    'system',
-    entityTypes:      ['member'],
     // The people who must act on losing an administrator are exactly the
     // shrinking set the loss is about, and a digest entry days later is too late.
-    urgentAdminAlert: 'admin_loss_recruitment',
+    kind:             'team_alert',
+    alertTemplate:    'admin_loss_recruitment',
+    brief: {
+      what: 'An administrator left the team, so fewer people now share the work.',
+      why:  'With too few administrators, work waits longer and nobody can cover for someone who is away.',
+      todo: 'Agree as a team whether to recruit a replacement, grant the role on the admin roles page if you do, then mark this reviewed.',
+    },
+    entityTypes:      ['member'],
     // Shared: losing an administrator is every administrator's matter.
     routeTopic:       null,
     evidence:         { kind: 'reason_text' },
@@ -405,9 +580,14 @@ export const WORK_QUEUE_TASK_TYPES: Readonly<Record<string, WorkQueueTaskTypeDes
 
   media_flag_review: {
     label:            'Flagged media',
-    queueCategory:    'media',
+    kind:             'housekeeping',
+    alertTemplate:    null,
+    brief: {
+      what: 'Members flagged a photo or video as breaking the community standards.',
+      why:  'Members rely on administrators to keep shared media within the community standards.',
+      todo: 'Open the flagged media page, look at the item, and keep it or take it down there.',
+    },
     entityTypes:      ['media_item'],
-    urgentAdminAlert: null,
     routeTopic:       'moderation',
     evidence:         { kind: 'reason_text' },
     // The twin of an open report, closed when the item is decided on the page
@@ -423,9 +603,14 @@ export const WORK_QUEUE_TASK_TYPES: Readonly<Record<string, WorkQueueTaskTypeDes
 
   media_takedown_storage_removal: {
     label:            'Removed media with files still stored',
-    queueCategory:    'media',
+    kind:             'housekeeping',
+    alertTemplate:    null,
+    brief: {
+      what: 'A photo or video was taken down, but its stored files could not be deleted.',
+      why:  'Anyone who has the address of those files can still open them until they are removed.',
+      todo: 'Open the flagged media page and retry the removal; this item closes on its own once it works.',
+    },
     entityTypes:      ['media_item'],
-    urgentAdminAlert: null,
     routeTopic:       'platform',
     evidence:         { kind: 'reason_text' },
     // Raised when a takedown hid the item but its stored files survived, so the
@@ -442,9 +627,14 @@ export const WORK_QUEUE_TASK_TYPES: Readonly<Record<string, WorkQueueTaskTypeDes
 
   needs_organizer: {
     label:            'Event without an organizer',
-    queueCategory:    'events',
+    kind:             'housekeeping',
+    alertTemplate:    null,
+    brief: {
+      what: 'An event lost its last organizer, because their account was deleted or they were marked deceased.',
+      why:  'The event stays published, but nobody can enter its results until someone else organizes it.',
+      todo: 'Open the event organizers page and assign a new organizer to the event.',
+    },
     entityTypes:      ['event'],
-    urgentAdminAlert: null,
     routeTopic:       null,
     evidence:         { kind: 'reason_text' },
     // Raised when the last member organizing an event stops being one, by
@@ -463,9 +653,14 @@ export const WORK_QUEUE_TASK_TYPES: Readonly<Record<string, WorkQueueTaskTypeDes
 
   reconciliation_discrepancy: {
     label:            'Payment reconciliation discrepancy',
-    queueCategory:    'payments',
+    kind:             'housekeeping',
+    alertTemplate:    null,
+    brief: {
+      what: 'A check of the platform\'s payment records against Stripe found a mismatch.',
+      why:  'Until it is resolved, the money the platform thinks it received may not match what arrived.',
+      todo: 'Open the reconciliation page, find the cause, and resolve the issue there; this item then closes.',
+    },
     entityTypes:      ['reconciliation_issue'],
-    urgentAdminAlert: null,
     routeTopic:       'finance',
     evidence:         { kind: 'reason_text' },
     // The twin of a reconciliation issue, closed when the issue itself is
@@ -477,19 +672,64 @@ export const WORK_QUEUE_TASK_TYPES: Readonly<Record<string, WorkQueueTaskTypeDes
     }],
   },
 
-  membership_overcharge_review:       paymentsTask('Membership paid for but not granted', ['payment']),
-  unattributed_refund:                paymentsTask('Refund with no matching payment record', ['stripe_payment_intent', 'stripe_charge']),
-  partial_refund_review:              paymentsTask('Partially refunded payment', ['payment']),
-  refund_failed_review:               paymentsTask('Refund that could not be returned to the card', ['stripe_refund']),
-  charge_dispute_review:              paymentsTask('Card dispute raised against a payment', ['stripe_dispute']),
-  payout_failed:                      paymentsTask('Payout to the bank account failed', ['stripe_payout']),
-  recurring_donation_charge_declined: paymentsTask('Recurring donation renewal charge declined', ['recurring_donation_subscription']),
-  recurring_donation_paused:          paymentsTask('Recurring donation paused at Stripe', ['recurring_donation_subscription']),
+  membership_overcharge_review: paymentsTask('Membership paid for but not granted', ['payment'], {
+    what: 'A member paid for a membership, but the platform did not grant it.',
+    why:  'The member has paid and is not getting what they paid for.',
+  }),
+  unattributed_refund: paymentsTask('Refund with no matching payment record', ['stripe_payment_intent', 'stripe_charge'], {
+    what: 'Stripe reported a refund that matches no payment the platform has on record.',
+    why:  'Money left the account and nothing on the platform explains why.',
+  }),
+  partial_refund_review: paymentsTask('Partially refunded payment', ['payment'], {
+    what: 'Part of a payment was refunded.',
+    why:  'Now that some of the money went back, what the member paid for may need adjusting by hand.',
+  }),
+  refund_failed_review: paymentsTask('Refund that could not be returned to the card', ['stripe_refund'], {
+    what: 'A refund could not be returned to the card it came from.',
+    why:  'The person is still owed that money until it reaches them another way.',
+  }),
+  charge_dispute_review: paymentsTask('Card dispute raised against a payment', ['stripe_dispute'], {
+    what: 'A cardholder disputed a payment with their bank.',
+    why:  'The bank sets a deadline to respond, and a dispute left unanswered is lost.',
+  }),
+  payout_failed: paymentsTask('Payout to the bank account failed', ['stripe_payout'], {
+    what: 'Stripe could not pay the balance into the bank account.',
+    why:  'The money stays with Stripe until the bank details are fixed.',
+  }),
+  recurring_donation_charge_declined: paymentsTask('Recurring donation renewal charge declined', ['recurring_donation_subscription'], {
+    what: 'A card was declined when a recurring donation renewed.',
+    why:  'The donation may stop unless the donor updates their card.',
+  }),
+  recurring_donation_paused: paymentsTask('Recurring donation paused at Stripe', ['recurring_donation_subscription'], {
+    what: 'A recurring donation was paused at Stripe.',
+    why:  'No further donations arrive while it stays paused.',
+  }),
 };
 
 /** The descriptor for a task type, or null for one that has none. */
 export function workQueueDescriptorFor(taskType: string): WorkQueueTaskTypeDescriptor | null {
   return WORK_QUEUE_TASK_TYPES[taskType] ?? null;
+}
+
+/**
+ * The kind a task type declares, or null for an unknown type. A scheduled read
+ * meeting a row whose type has since been withdrawn treats it as routine rather
+ * than crashing; enqueue is where an undeclared type is refused.
+ */
+export function kindOf(taskType: string): WorkQueueKind | null {
+  return workQueueDescriptorFor(taskType)?.kind ?? null;
+}
+
+/**
+ * The task types of one kind, narrowed to one area, to the shared types (no
+ * area), or not narrowed at all (null), in the table's declaration order.
+ */
+export function taskTypesFor(kind: WorkQueueKind, area: WorkQueueTopic | 'shared' | null): string[] {
+  return Object.entries(WORK_QUEUE_TASK_TYPES)
+    .filter(([, d]) => d.kind === kind
+      && (area === null
+        || (area === 'shared' ? d.routeTopic === null : d.routeTopic === area)))
+    .map(([taskType]) => taskType);
 }
 
 /**

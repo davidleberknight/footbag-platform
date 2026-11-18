@@ -1,337 +1,52 @@
 <div class="hero hero-sm">
   <div>
     <h1>{{page.title}}</h1>
-    <p>{{content.totalOpen}} open item{{#unless (eq content.totalOpen 1)}}s{{/unless}}.</p>
   </div>
 </div>
 
 <div class="wrapper">
   {{> admin-instructions}}
-  <nav class="filter-bar" aria-label="Show items by area">
-    <span class="fs-sm">Show:</span>
-    {{#each content.areaFilterLinks}}
+  <nav class="filter-bar" aria-label="Show one kind of work">
+    {{#each content.kindLinks}}
       <a class="tag-chip" href="{{siteHref href}}"{{#if isActive}} aria-current="page"{{/if}}>{{label}}</a>
     {{/each}}
   </nav>
-  {{#if content.isFiltered}}
-    <p class="fs-sm">
-      Showing {{content.filterLabel}} only, out of {{content.wholeQueueTotal}} open across the whole queue.
-      {{#if content.isCategoryFiltered}}<a href="{{siteHref content.clearCategoryHref}}">Show every category</a>{{/if}}
-    </p>
-  {{/if}}
-  {{#if content.resolvedFlag}}
-    {{> outcome-notice text="Item resolved and email reply dispatched." tone='ok'}}
-  {{/if}}
-  {{#if content.resolvedQuietFlag}}
-    {{> outcome-notice text="Item resolved." tone='ok'}}
-  {{/if}}
-  {{! A revert strips a wrongly-held claim and settles nothing else: the
-      requester's own link is still undecided, so the item stays open and
-      nobody has been written to. The banner says both, rather than borrowing
-      the resolve message and claiming a resolution and an email. }}
-  {{#if content.claimRevertedFlag}}
-    {{> outcome-notice text="Claim reverted. This request is still open, and still needs you to approve or reject the link." tone='ok'}}
-  {{/if}}
-  {{#if content.reviewedFlag}}
-    {{> outcome-notice text="Item marked reviewed." tone='ok'}}
-  {{/if}}
-  {{#if content.memberAskedFlag}}
-    {{> outcome-notice text="Question recorded, and it goes to the member by email where their address is deliverable. The item stays here until they answer." tone='ok'}}
-  {{/if}}
-  {{#if content.claimedFlag}}
-    {{> outcome-notice text="Item claimed. It is now off the other admins' digest." tone='ok'}}
-  {{/if}}
-  {{#if content.claimNoopFlag}}
-    {{> outcome-notice text="That item was already claimed or is no longer open." tone='info'}}
-  {{/if}}
-  {{#if content.parkedFlag}}
-    {{> outcome-notice text="Item parked. It is out of the queue, the digests and the escalation sweep until the member answers or you take it back." tone='ok'}}
-  {{/if}}
-  {{#if content.unparkedFlag}}
-    {{> outcome-notice text="Item back in the queue." tone='ok'}}
-  {{/if}}
-  {{> outcome-notice text=content.outcome.text tone=content.outcome.tone}}
-  {{> outcome-notice text=content.errorMessage tone='no'}}
-
-  {{#unless content.groups.length}}
-    <section>
-      <p class="text-muted">No open work-queue items.</p>
-    </section>
-  {{/unless}}
-
-  {{#each content.groups}}
-    <section>
-      <div class="section-heading">
-        <h2>{{categoryLabel}}</h2>
-        <span class="section-count">{{items.length}}</span>
-      </div>
-      {{#each items}}
-        <div class="card work-queue-item">
-          <div class="card-title">{{taskTypeLabel}}</div>
-          {{> work-queue-topic-line}}
-          <p class="card-meta">
-            Opened {{openedAtDisplay}}
-            {{#if entityDisplayName}}
-              &middot; {{#if entityHref}}<a href="{{entityHref}}">{{entityDisplayName}}</a>{{else}}{{entityDisplayName}}{{/if}}
-            {{/if}}
-            {{#if memberRecordHref}}
-              &middot; <a href="{{memberRecordHref}}">Member record</a>
-            {{/if}}
-          </p>
-          {{#if evidence.reasonText}}
-            <p>{{evidence.reasonText}}</p>
-          {{/if}}
-          {{#if evidence.detailText}}
-            <p class="text-secondary">{{evidence.detailText}}</p>
-          {{/if}}
-          {{#if entityReference}}
-            {{#if entityReference.href}}
-              <p class="card-meta">{{entityReference.label}} <a href="{{entityReference.href}}">{{entityReference.id}}</a></p>
-            {{else}}
-              <p class="card-meta">{{entityReference.label}} {{entityReference.id}}</p>
-            {{/if}}
-          {{/if}}
-
-          {{#if isClaimed}}
-            <p class="card-meta">{{#if claimedByMe}}Claimed by you.{{else}}Claimed by {{claimedByName}}.{{/if}}</p>
-          {{else if lapsedClaimByName}}
-            <p class="fs-sm">{{lapsedClaimByName}} claimed this earlier and has not closed it. It is open to anyone again.</p>
-            <form method="POST" action="/admin/work-queue/{{id}}/claim" class="form-block">
-              <input type="hidden" name="category" value="{{@root.content.filterCategory}}" /><input type="hidden" name="topic" value="{{@root.content.filterTopic}}" />
-              <button type="submit" class="btn btn-outline btn-sm">Claim</button>
-            </form>
-          {{else}}
-            <form method="POST" action="/admin/work-queue/{{id}}/claim" class="form-block">
-              <input type="hidden" name="category" value="{{@root.content.filterCategory}}" /><input type="hidden" name="topic" value="{{@root.content.filterTopic}}" />
-              <button type="submit" class="btn btn-outline btn-sm">Claim</button>
-            </form>
-          {{/if}}
-
-          {{#if askBlockedReason}}
-            <p class="fs-sm">{{askBlockedReason}}</p>
-          {{/if}}
-
-          {{#if canAskMember}}
-            {{#each memberQuestions}}
-              <div class="queue-member-question">
-                <p class="card-meta">
-                  Asked {{this.sentAtDisplay}}: <strong>{{this.subject}}</strong> ({{this.answerKindLabel}})
-                </p>
-                {{! The question itself. Without it an administrator reads an
-                    answer without being able to see what was asked, which is
-                    unusable once more than a day has passed or the colleague who
-                    asked is not the one reading. }}
-                {{#if this.body}}<p class="queue-question-body">{{this.body}}</p>{{/if}}
-                {{#if this.isAnswered}}
-                  <p class="card-meta">Answered {{this.answeredAtDisplay}}: <strong>{{this.outcomeLabel}}</strong></p>
-                  {{#if this.note}}<p>{{this.note}}</p>{{/if}}
-                {{/if}}
-              </div>
-            {{/each}}
-
-            {{#if awaitingMemberSince}}
-              <p class="fs-sm">Waiting on the member since {{awaitingMemberSince}}. Nothing to do here until they answer.</p>
-            {{else}}
-              <details class="queue-ask-member" {{#if askOpen}}open{{/if}}>
-                <summary>Ask the member</summary>
-                <form method="POST" action="/admin/work-queue/{{id}}/ask-member" class="form-block">
-                  <input type="hidden" name="category" value="{{@root.content.filterCategory}}" /><input type="hidden" name="topic" value="{{@root.content.filterTopic}}" />
-                  <div class="form-field">
-                    <label for="ask_kind_{{id}}">What do you need back?</label>
-                    <select id="ask_kind_{{id}}" name="expectedAnswerKind" required>
-                      {{#each @root.content.answerKindOptions}}
-                        <option value="{{this.value}}" {{#if (eq this.value ../askPrefill.answerKind)}}selected{{/if}}>{{this.label}}</option>
-                      {{/each}}
-                    </select>
-                  </div>
-                  <div class="form-field">
-                    <label for="ask_subject_{{id}}">Subject</label>
-                    <input type="text" id="ask_subject_{{id}}" name="subject" maxlength="200" required value="{{askPrefill.subject}}" />
-                  </div>
-                  <div class="form-field">
-                    <label for="ask_body_{{id}}">Your question</label>
-                    <textarea id="ask_body_{{id}}" name="body" rows="4" maxlength="2000" required>{{askPrefill.body}}</textarea>
-                    <small class="form-hint">The member reads this after signing in. It is never sent by email, so it may refer to private details. They get a message telling them to log in and nothing more.</small>
-                  </div>
-                  <button type="submit" class="btn btn-outline btn-sm">Send Question</button>
-                </form>
-              </details>
-            {{/if}}
-          {{/if}}
-
-          {{! The evidence the decision is actually made on. Without it an
-              administrator adjudicates on what the member typed and nothing
-              else, then types an identifier found somewhere off this page. }}
-          {{#if evidence.isLinkHelp}}
-            {{#if evidence.linkHelp}}
-              {{#if evidence.linkHelp.isDispute}}<p class="badge">Conflict dispute</p>{{/if}}
-              <p>{{evidence.linkHelp.statement}}</p>
-            {{/if}}
-            {{#if evidence.claimEvidence.attempts.length}}
-              <h3>What This Member Has Already Tried</h3>
-              {{#if evidence.claimEvidence.memberBirthDate}}
-                <p class="card-meta claim-evidence-revealed">Date of birth on this account: <strong>{{evidence.claimEvidence.memberBirthDate}}</strong></p>
-              {{/if}}
-              <ul class="claim-evidence-list">
-                {{#each evidence.claimEvidence.attempts}}
-                  <li class="claim-evidence-item">
-                    <p class="claim-evidence-outcome">
-                      {{this.outcomeLabel}}{{#if this.targetLabel}}: {{this.targetLabel}}{{/if}}{{#if this.dataOriginLabel}} <span class="badge">{{this.dataOriginLabel}}</span>{{/if}}
-                    </p>
-                    <p class="card-meta">{{this.whenDisplay}}</p>
-                    <p class="fs-sm{{#if this.isContradicted}} claim-evidence-contradicted{{/if}}">{{this.comparisonLabel}}</p>
-                    {{#if this.recordBirthDate}}
-                      <p class="card-meta claim-evidence-revealed">Date on that record: <strong>{{this.recordBirthDate}}</strong></p>
-                    {{/if}}
-                    {{#if this.evidenceLabel}}
-                      <p class="fs-sm">{{this.evidenceLabel}}</p>
-                    {{/if}}
-                  </li>
-                {{/each}}
-              </ul>
-            {{else}}
-              <p class="fs-sm">This member has not attempted a claim, so there is no evidence on file yet.</p>
-            {{/if}}
-
-            {{! What the platform can already see for this member, with the ids
-                the approve form takes. Without it the administrator is asked to
-                type an identifier the admin interface never showed them. }}
-            <h3>What the Platform Can See for Them</h3>
-            {{#if evidence.candidates.hasLegacyAccounts}}
-              <p class="fs-sm">Old accounts their evidence reaches:</p>
-              <ul class="claim-evidence-list">
-                {{#each evidence.candidates.legacyAccounts}}
-                  <li class="claim-evidence-item">
-                    <p class="claim-evidence-outcome">{{this.displayName}}</p>
-                    <p class="card-meta">{{#each this.facts}}{{this}} &middot; {{/each}}</p>
-                    {{#if this.birthDate}}
-                      <p class="card-meta claim-evidence-revealed">Date of birth on that account: <strong>{{this.birthDate}}</strong></p>
-                    {{/if}}
-                  </li>
-                {{/each}}
-              </ul>
-            {{/if}}
-            {{#if evidence.candidates.hasHistoricalPersons}}
-              <p class="fs-sm">Competition records with no old account behind them that their evidence reaches:</p>
-              <ul>
-                {{#each evidence.candidates.historicalPersons}}
-                  <li>{{this.personName}} ({{this.personId}}){{#if this.matchNote}} &middot; {{this.matchNote}}{{/if}}</li>
-                {{/each}}
-              </ul>
-            {{/if}}
-            {{#each evidence.candidates.ambiguousNotes}}
-              <p class="fs-sm">{{this}}</p>
-            {{/each}}
-            {{#unless evidence.candidates.hasAny}}
-              <p class="fs-sm">Nothing on file reaches an old account or a competition record for this member.</p>
-            {{/unless}}
-            <p class="card-meta"><a href="{{evidence.candidates.lookupHref}}">Search the unclaimed legacy accounts</a></p>
-            {{#if evidence.linkHelp.isDispute}}
-              {{#if evidence.linkHelp.hasDisputedRecords}}
-                <p class="fs-sm">Records this dispute named when it was filed:</p>
-                <ul>
-                  {{#each evidence.linkHelp.disputedRecords}}
-                    <li>{{this.kindLabel}}: {{this.recordId}}</li>
-                  {{/each}}
-                </ul>
-              {{else}}
-                <p class="fs-sm">This dispute named no records, so no revert can be applied to it.</p>
-              {{/if}}
-            {{/if}}
-          {{/if}}
-
-          {{! One loop over what this type declares an administrator may do, so
-              every card in the queue reads and behaves the same way. }}
-          {{#each actions}}
-            {{#if this.isLink}}
-              <p><a href="{{this.href}}" class="{{this.buttonClass}}">{{this.label}}</a></p>
-            {{else}}
-              <form method="POST" action="{{this.actionPath}}" class="form-block">
-                <input type="hidden" name="category" value="{{@root.content.filterCategory}}" /><input type="hidden" name="topic" value="{{@root.content.filterTopic}}" />
-                {{#if this.hasDecisions}}
-                  <div class="form-field">
-                    <label for="{{this.decisionInputId}}">Decision</label>
-                    <select id="{{this.decisionInputId}}" name="decision_label" required>
-                      <option value="" disabled selected>Choose a decision&hellip;</option>
-                      {{#each this.decisions}}
-                        <option value="{{this.value}}">{{this.label}}</option>
-                      {{/each}}
-                    </select>
-                  </div>
-                {{/if}}
-                {{#each this.fields}}
-                  <div class="form-field">
-                    <label for="{{this.inputId}}">{{this.label}}</label>
-                    {{#if this.isTextarea}}
-                      <textarea id="{{this.inputId}}" name="{{this.name}}" rows="2" maxlength="{{this.maxLength}}" {{#if this.required}}required{{/if}}></textarea>
-                    {{else}}
-                      <input type="text" id="{{this.inputId}}" name="{{this.name}}" maxlength="{{this.maxLength}}" {{#if this.required}}required{{/if}} />
-                    {{/if}}
-                  </div>
-                {{/each}}
-                {{#if this.note}}
-                  <div class="form-field">
-                    <label for="{{this.note.inputId}}">{{this.note.label}}</label>
-                    <textarea id="{{this.note.inputId}}" name="{{this.note.name}}" rows="2" maxlength="{{this.note.maxLength}}" {{#if this.note.required}}required{{/if}} placeholder="{{this.note.placeholder}}"></textarea>
-                  </div>
-                {{/if}}
-                {{#if this.hint}}<p class="fs-sm">{{this.hint}}</p>{{/if}}
-                <button type="submit" class="{{this.buttonClass}}">{{this.label}}</button>
-              </form>
-            {{/if}}
-          {{/each}}
-        </div>
-      {{/each}}
-    </section>
-  {{/each}}
-
-  {{#if content.hasParked}}
-    <section>
-      <div class="section-heading">
-        <h2>Parked</h2>
-        <span class="section-count">{{content.parked.length}}</span>
-      </div>
-      <p class="fs-sm">Set aside with no deadline. Each comes back on its own when the member answers a question on it, and anyone can take one back sooner.</p>
-      {{#each content.parked}}
-        <div class="card work-queue-item">
-          <div class="card-title">{{this.taskTypeLabel}}</div>
-          {{> work-queue-topic-line}}
-          <p class="card-meta">
-            {{this.categoryLabel}} &middot; Parked {{this.parkedAtDisplay}}{{#if this.parkedByName}} by {{this.parkedByName}}{{/if}}
-            {{#if this.entityDisplayName}}
-              &middot; {{#if this.entityHref}}<a href="{{this.entityHref}}">{{this.entityDisplayName}}</a>{{else}}{{this.entityDisplayName}}{{/if}}
-            {{/if}}
-          </p>
-          {{#if this.summary}}<p class="text-secondary">{{this.summary}}</p>{{/if}}
-          {{#if this.parkReason}}<p>{{this.parkReason}}</p>{{/if}}
-          <form method="POST" action="{{this.returnAction}}" class="form-block">
-            <input type="hidden" name="category" value="{{@root.content.filterCategory}}" /><input type="hidden" name="topic" value="{{@root.content.filterTopic}}" />
-            <button type="submit" class="btn btn-outline btn-sm">Return to the Queue</button>
-          </form>
-        </div>
-      {{/each}}
-    </section>
-  {{/if}}
+  <nav class="filter-bar" aria-label="Narrow by area or claim">
+    {{#each content.areaLinks}}
+      <a class="tag-chip" href="{{siteHref href}}"{{#if isActive}} aria-current="page"{{/if}}>{{label}}</a>
+    {{/each}}
+    <a class="tag-chip" href="{{siteHref content.unclaimedLink.href}}"{{#if content.unclaimedLink.isActive}} aria-current="page"{{/if}}>{{content.unclaimedLink.label}}</a>
+  </nav>
+  {{> work-queue-outcomes content}}
 
   <section>
     <div class="section-heading">
-      <h2>Area Owners</h2>
+      <h2>{{content.kindLabel}}</h2>
     </div>
-    <form method="POST" action="/admin/work-queue/owners" class="form-block">
-      <input type="hidden" name="category" value="{{content.filterCategory}}" /><input type="hidden" name="topic" value="{{content.filterTopic}}" />
-      {{#each content.areaOwnerFields}}
-        <div class="form-field">
-          <label for="{{fieldName}}">{{label}}</label>
-          <select id="{{fieldName}}" name="{{fieldName}}">
-            {{#each options}}
-              <option value="{{value}}"{{#if selected}} selected{{/if}}>{{label}}</option>
-            {{/each}}
-          </select>
-        </div>
-      {{/each}}
-      <div class="form-actions">
-        <button type="submit" class="btn btn-primary">Save Owners</button>
+    <p>{{content.kindWhat}} {{content.kindWhy}}</p>
+    <p class="card-meta">{{content.countLine}}</p>
+    {{#each content.rows}}
+      <div class="admin-queue-row">
+        <span class="admin-queue-row-label">{{taskTypeLabel}}</span>
+        <span class="badge badge-muted">{{areaLabel}}</span>
+        <span class="admin-queue-row-meta">{{waitingLabel}} &middot; {{claimLabel}}</span>
+        {{#if canClaim}}
+          <form method="POST" action="{{claimAction}}">
+            <input type="hidden" name="kind" value="{{@root.content.state.kind}}" /><input type="hidden" name="topic" value="{{@root.content.state.topic}}" /><input type="hidden" name="unclaimed" value="{{@root.content.state.unclaimed}}" /><input type="hidden" name="page" value="{{@root.content.state.page}}" /><input type="hidden" name="from" value="list" />
+            <button type="submit" class="btn btn-outline btn-sm">Claim</button>
+          </form>
+        {{/if}}
+        <a href="{{siteHref openHref}}">Open</a>
       </div>
-    </form>
+    {{/each}}
+    {{#if content.isEmpty}}
+      <p class="text-muted">Nothing open.</p>
+    {{/if}}
+    {{> _pager pagination=content.pagination}}
+  </section>
+
+  <section>
+    <p><a class="action-link" href="{{siteHref content.parkedHref}}">Parked Items</a></p>
+    <p><a class="action-link" href="{{siteHref content.areasHref}}">Area Owners</a></p>
   </section>
 </div>

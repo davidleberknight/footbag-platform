@@ -75,15 +75,13 @@ def normalize_team_type(team_type: str, discipline_name: str = "") -> str:
     t = (team_type or "").strip().lower()
     dn = (discipline_name or "").strip().lower()
 
-    if t == "mixed_doubles":
-        return "mixed_doubles"
-    if t == "doubles":
+    # Entry size is singles or doubles; mixed is a gender eligibility on a
+    # doubles division, not an entry size of its own.
+    if t in ("doubles", "mixed_doubles"):
         return "doubles"
     if t == "singles":
         return "singles"
 
-    if "mixed" in dn and "double" in dn:
-        return "mixed_doubles"
     if "double" in dn or "pairs" in dn or "team" in dn:
         return "doubles"
     return "singles"
@@ -860,7 +858,7 @@ def main() -> None:
                   sanction_status, sanction_requested_at, sanction_requested_by_member_id,
                   sanction_justification, sanction_decided_at, sanction_decided_by_member_id,
                   sanction_decision_reason,
-                  payment_enabled, payment_enabled_at, payment_enabled_by_member_id,
+                  payment_enabled,
                   currency, competitor_fee_cents, attendee_fee_cents,
                   hashtag_tag_id
                 ) VALUES (
@@ -873,7 +871,7 @@ def main() -> None:
                   'none', NULL, NULL,
                   NULL, NULL, NULL,
                   NULL,
-                  0, NULL, NULL,
+                  0,
                   'USD', NULL, NULL,
                   ?
                 )
@@ -904,8 +902,14 @@ def main() -> None:
             # An aggregate standing over several sports carries no sport family; a
             # contested discipline always carries one.
             is_aggregate = 1 if (row.get("is_aggregate_standing") or "").strip() == "1" else 0
-            discipline_category = (row.get("discipline_category") or "").strip() or (
-                None if is_aggregate else "other")
+            discipline_category = (row.get("discipline_category") or "").strip() or None
+            if discipline_category is None and not is_aggregate:
+                raise SystemExit(
+                    f"ERROR: discipline {discipline_id} ({name!r}) is a contested row with no "
+                    "discipline_category. Fix it upstream in the canonical export "
+                    "(legacy_data/pipeline/platform/export_canonical_platform.py) and rebuild with "
+                    "./run_pipeline.sh full."
+                )
             team_type = normalize_team_type(row.get("team_type", ""), name)
 
             sort_order_raw = (row.get("sort_order") or "").strip()
@@ -1063,7 +1067,7 @@ def main() -> None:
               sanction_status, sanction_requested_at, sanction_requested_by_member_id,
               sanction_justification, sanction_decided_at, sanction_decided_by_member_id,
               sanction_decision_reason,
-              payment_enabled, payment_enabled_at, payment_enabled_by_member_id,
+              payment_enabled,
               currency, competitor_fee_cents, attendee_fee_cents,
               hashtag_tag_id
             ) VALUES (
@@ -1072,7 +1076,7 @@ def main() -> None:
               NULL, NULL, NULL, 0, 0,
               ?, ?,
               'none', NULL, NULL, NULL, NULL, NULL, NULL,
-              0, NULL, NULL, 'USD', NULL, NULL,
+              0, 'USD', NULL, NULL,
               ?
             )
             """,

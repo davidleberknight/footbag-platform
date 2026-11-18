@@ -66,7 +66,7 @@ beforeAll(async () => {
       is_aggregate_standing: 1, sort_order: 0,
     });
     const net = insertDiscipline(db, eventId, { name: 'Open Singles Net', discipline_category: 'net', sort_order: 5 });
-    const unrecognised = insertDiscipline(db, eventId, { name: 'Hacky Relay', discipline_category: 'other', sort_order: 6 });
+    const unrecognised = insertDiscipline(db, eventId, { name: 'Hacky Relay', discipline_category: 'sideline', sort_order: 6 });
     const routines = insertDiscipline(db, eventId, {
       name: 'Open Doubles Routines', discipline_category: 'freestyle', team_type: 'doubles', sort_order: 7,
     });

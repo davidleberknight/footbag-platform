@@ -1,0 +1,7 @@
+{
+  "templateKey": "announce_returned",
+  "subjectTemplate": "Your announcement was sent back",
+  "bodyTemplate": "Hi {memberName},\n\nAn administrator sent your community announcement \"{subject}\" back with this note:\n\n{comment}\n\nYou can change it and submit it again from your profile.\n\nInternational Footbag Players Association",
+  "piiClassification": "confidential",
+  "isEnabled": true
+}

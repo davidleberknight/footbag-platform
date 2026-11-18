@@ -1,29 +1,30 @@
 /**
- * The community announcement an organizer-tier member sends: the compose form
- * and the send.
+ * The community announcement an organizer-tier member submits for review: the
+ * form and the submit.
  *
  * The tier gate is applied at the route; ownership of the path's member key is
  * checked here, and a mismatch is a 404 rather than a 403, so the path cannot be
- * used to discover which member slugs exist. The send follows
- * post-redirect-get; a validation failure re-renders the form at 422 with the
- * text and the send token intact, and hitting the daily limit answers 429 with
- * Retry-After, which the error handler would otherwise turn into a 500.
+ * used to discover which member slugs exist. The submit follows
+ * post-redirect-get; a refusal (a missing agreement tick, a field error, or an
+ * announcement already waiting for review) re-renders the form at 422 with the
+ * text, the tick and the send token intact.
  */
 import type { NextFunction, Request, Response } from 'express';
 
-import { broadcastService, type ComposeInput } from '../services/broadcastService';
-import { NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
+import { broadcastService } from '../services/broadcastService';
+import { ConflictError, NotFoundError, ValidationError } from '../services/serviceErrors';
 import { renderNotFound } from '../lib/controllerErrors';
 import { isOwnMemberRoute } from '../lib/routeOwnership';
 import { FLASH_KIND, takeFlash, writeFlash } from '../lib/flashCookie';
 
 import { z } from 'zod';
-import { parseFormBody, formText } from '../lib/parseFormBody';
+import { parseFormBody, formText, formCheckbox } from '../lib/parseFormBody';
 
 const announceForm = z.object({
   subject: formText('Subject'),
   bodyText: formText('Message'),
   sendToken: formText('The send token'),
+  agree: formCheckbox('Community Standards agreement', '0'),
 });
 
 export const memberAnnounceController = {
@@ -35,7 +36,7 @@ export const memberAnnounceController = {
     }
     try {
       const notice = takeFlash(req, res, FLASH_KIND.ANNOUNCE_RESULT) ?? undefined;
-      const vm = broadcastService.getAnnouncePage(String(req.params.memberKey), { notice });
+      const vm = broadcastService.getAnnouncePage(String(req.params.memberKey), req.user!.userId, { notice });
       if (!vm) {
         renderNotFound(res);
         return;
@@ -53,53 +54,48 @@ export const memberAnnounceController = {
       return;
     }
     const memberKey = String(req.params.memberKey);
+    const memberId = req.user!.userId;
+    const rerender = (
+      submitted: { subject: string; bodyText: string; sendToken: string },
+      agreeChecked: boolean,
+      fieldErrors: Record<string, string>,
+    ): void => {
+      const vm = broadcastService.getAnnouncePage(memberKey, memberId, { submitted, agreeChecked, fieldErrors });
+      if (!vm) {
+        renderNotFound(res);
+        return;
+      }
+      res.status(422).render('members/announce', vm);
+    };
+
     const parsed = parseFormBody(announceForm, req.body);
     if (!parsed.ok) {
       const s = parsed.submitted;
       try {
-        const vm = broadcastService.getAnnouncePage(memberKey, {
-          submitted: { subject: s.subject ?? '', bodyText: s.bodyText ?? '', sendToken: s.sendToken ?? '' },
-          fieldErrors: parsed.fieldErrors,
-        });
-        if (!vm) { renderNotFound(res); return; }
-        res.status(422).render('members/announce', vm);
+        rerender(
+          { subject: s.subject ?? '', bodyText: s.bodyText ?? '', sendToken: s.sendToken ?? '' },
+          false,
+          parsed.fieldErrors,
+        );
       } catch (err) {
         next(err);
       }
       return;
     }
-    const input: ComposeInput = parsed.data;
+    const input = parsed.data;
 
     try {
-      const outcome = broadcastService.sendAnnouncement(input, req.user!.userId);
-      // The send token is minted with the form this member was shown, so a send
-      // already made under it was their own submit: the repeat reports that
-      // send's outcome rather than an informational no-op.
-      const notice = outcome.status === 'sent' || outcome.reason === 'already_sent' ? 'sent' : outcome.reason;
-      writeFlash(res, req, FLASH_KIND.ANNOUNCE_RESULT, notice);
+      // A repeat of this member's own submit reports the first submit's success.
+      broadcastService.submitAnnouncement(input, memberId);
+      writeFlash(res, req, FLASH_KIND.ANNOUNCE_RESULT, 'submitted');
       res.redirect(303, `/members/${memberKey}/announce`);
     } catch (err) {
-      if (err instanceof RateLimitedError) {
-        res.set('Retry-After', String(err.retryAfterSeconds));
-        res.status(429).render(
-          'members/announce',
-          broadcastService.getAnnouncePage(memberKey, {
-            submitted: input,
-            fieldErrors: { subject: err.message },
-          })!,
-        );
+      if (err instanceof ValidationError) {
+        rerender(input, input.agree === '1', err.fieldErrors ?? { subject: err.message });
         return;
       }
-      if (err instanceof ValidationError) {
-        const vm = broadcastService.getAnnouncePage(memberKey, {
-          submitted: input,
-          fieldErrors: err.fieldErrors ?? { subject: err.message },
-        });
-        if (!vm) {
-          renderNotFound(res);
-          return;
-        }
-        res.status(422).render('members/announce', vm);
+      if (err instanceof ConflictError) {
+        rerender(input, input.agree === '1', { subject: err.message });
         return;
       }
       if (err instanceof NotFoundError) {

@@ -502,6 +502,16 @@
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/track-doc-sync.sh"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(gh issue view *)",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/remind-card-verification.sh"
+          }
+        ]
       }
     ],
     "SessionStart": [

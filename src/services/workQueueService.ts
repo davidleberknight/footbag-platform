@@ -12,24 +12,27 @@
  * nobody declared is refused at the point of creation rather than becoming a card
  * an administrator can read and never close.
  *
- * Notification policy (routing by urgency, never a per-event broadcast to every
- * administrator): a task type whose declaration names an urgent notification
- * emails the admin-alerts mailing list immediately on enqueue with it; every
- * other (routine) task type sends no per-event email and is read on the
- * work-queue dashboard, with a periodic digest per administrator rolling up the
- * open routine items. An administrator who claims an item drops it from every
- * other administrator's digest. An item left open and unclaimed past the stale
- * threshold escalates once with a single email to admin-alerts, which an urgent
- * type skips because it already broadcast on enqueue. Every notification carries
- * task type and entity id only (no member personal data). The administrator-loss
- * recruitment alert is the one shipped urgent type; a future task type meeting
- * the same-day security, data-integrity, or continuity bar opts in by naming its
- * own notification in the table. Area routing adds to this and changes none of
- * it: each area (routing topic) whose runtime switch is on also receives, in the
- * digest pass, one digest at its group address listing the area's open routine
- * items under no live claim. With every switch off the pass sends exactly the
- * per-administrator digests. An area address receives only that digest; a type
- * needing same-day action is urgent instead.
+ * Notification policy (routing by kind, never a per-event broadcast to every
+ * administrator): a task type declared a Team Alert emails the admin-alerts
+ * mailing list immediately on enqueue with the alert template it names; every
+ * routine type (Someone Is Waiting or Housekeeping) sends no per-event email and
+ * is read on the work queue, with a periodic digest per administrator rolling up
+ * the open routine items. An administrator who claims an item drops it from
+ * every other administrator's digest. An item left open and unclaimed past the
+ * stale threshold escalates once with a single email to admin-alerts, which a
+ * Team Alert skips because it already broadcast on enqueue. Every notification
+ * names the task type and links to the item, and carries no entity id and no
+ * member personal data: the item's page is where the subject is named, behind
+ * the admin gate. The
+ * administrator-loss recruitment alert is the one shipped Team Alert; a future
+ * task type meeting the same-day security, data-integrity, or continuity bar
+ * opts in by declaring that kind and naming its own alert in the table. Area
+ * routing adds to this and changes none of it: each area (routing topic) whose
+ * runtime switch is on also receives, in the digest pass, one digest at its
+ * group address listing the area's open routine items under no live claim. With
+ * every switch off the pass sends exactly the per-administrator digests. An area
+ * address receives only that digest; a type needing same-day action is a Team
+ * Alert instead.
  *
  * Transaction discipline: `enqueue` and `claim` perform only synchronous DB
  * writes and never open their own transaction; call them inside the caller's
@@ -42,7 +45,7 @@
  * switch. Enqueues to `outbox_emails` via emailService.
  *
  * Side effects: work-queue insert; work-queue claim; admin-alerts outbox
- * enqueue (urgent per-event, and stale escalation); per-administrator digest
+ * enqueue (Team Alert per-event, and stale escalation); per-administrator digest
  * outbox enqueue; per-area digest outbox enqueue to the area's group address.
  *
  * Service shape: singleton object.
@@ -53,6 +56,9 @@ import { emailService } from './emailService';
 import {
   requireWorkQueueDescriptor,
   workQueueDescriptorFor,
+  workQueueKindDescriptor,
+  kindOf,
+  WORK_QUEUE_KINDS,
   WORK_QUEUE_TOPICS,
   WORK_QUEUE_TOPIC_KEYS,
   topicRouteConfigKey,
@@ -65,13 +71,10 @@ import { logger } from '../config/logger';
 export interface WorkQueueEnqueueInput {
   /** created_by / updated_by on the row; 'system' for automated producers. */
   actorId: string;
-  queueCategory: string;
   taskType: string;
   entityType: string;
-  /** The domain entity the task concerns (e.g. the member id); also the
-   *  entity id carried in the admin-alerts notification. */
+  /** The domain entity the task concerns (e.g. the member id). */
   entityId: string;
-  priority: number;
   reasonText: string | null;
   detailText: string | null;
 }
@@ -86,22 +89,60 @@ function adminQueueUrl(): string {
   return `${config.publicBaseUrl}/admin/work-queue`;
 }
 
+/** One item's own page, where an administrator reads it and acts on it. */
+function itemUrl(id: string): string {
+  return `${config.publicBaseUrl}/admin/work-queue/${encodeURIComponent(id)}`;
+}
+
+/** Whole days an item has waited, counting a day begun as one. */
+function daysWaiting(openedAtIso: string, nowMs: number): number {
+  return Math.max(1, Math.floor((nowMs - Date.parse(openedAtIso)) / 86_400_000));
+}
+
+/** A type withdrawn since its item was raised is listed as Housekeeping, as the queue lists it. */
+function kindLabelFor(taskType: string): string {
+  return workQueueKindDescriptor(kindOf(taskType) ?? 'housekeeping').label;
+}
+
+/**
+ * The digest's item list: one heading per routine kind, in the order the queue
+ * shows them, then one line per item naming its task, its area or Shared, and
+ * how long it has waited, with a link to its page. The line names no entity:
+ * an id identifies nothing an administrator can act on from an email, and the
+ * item's page names the subject behind the admin gate.
+ */
+function digestLines(items: DigestRow[], nowMs: number): string {
+  return WORK_QUEUE_KINDS
+    .filter((k) => k.kind !== 'team_alert')
+    .map((k) => {
+      const ofKind = items.filter((i) => (kindOf(i.task_type) ?? 'housekeeping') === k.kind);
+      if (ofKind.length === 0) return null;
+      const lines = ofKind.map((i) => {
+        const descriptor = workQueueDescriptorFor(i.task_type);
+        const area = descriptor?.routeTopic ? WORK_QUEUE_TOPICS[descriptor.routeTopic].label : 'Shared';
+        const days = daysWaiting(i.opened_at, nowMs);
+        return `${descriptor?.label ?? i.task_type} (${area}), waiting ${days} day${days === 1 ? '' : 's'}: ${itemUrl(i.id)}`;
+      });
+      return `${k.label}:\n${lines.join('\n')}`;
+    })
+    .filter((group): group is string => group !== null)
+    .join('\n\n');
+}
+
 /**
  * Whether a task type emails every administrator the moment an item is raised.
- * The task-type table decides it: an urgent type names the notification it
- * sends, and a type that names none is routine, read on the dashboard and rolled
- * up in the periodic digest. An unknown type is treated as routine here rather
- * than crashing the digest pass, because a scheduled read must survive a row
- * whose type has since been withdrawn; the enqueue path is where a type without
- * a declaration is refused.
+ * The task-type table decides it: a Team Alert broadcasts on enqueue, and every
+ * other kind is routine, read on the queue and rolled up in the periodic digest.
+ * An unknown type is treated as routine here rather than crashing the digest
+ * pass, because a scheduled read must survive a row whose type has since been
+ * withdrawn; the enqueue path is where a type without a declaration is refused.
  */
-function isUrgentTaskType(taskType: string): boolean {
-  return workQueueDescriptorFor(taskType)?.urgentAdminAlert != null;
+function isTeamAlertTaskType(taskType: string): boolean {
+  return kindOf(taskType) === 'team_alert';
 }
 
 interface DigestRow {
   id: string;
-  queue_category: string;
   task_type: string;
   entity_id: string;
   opened_at: string;
@@ -149,7 +190,7 @@ interface StaleRow {
 }
 
 export const workQueueService = {
-  /** Insert one work-queue item. An urgent task type also fans its admin-alerts
+  /** Insert one work-queue item. A Team Alert also fans its admin-alerts
    *  notification out in the same step; a routine task type sends no per-event
    *  email and is surfaced on the dashboard and the digest. Returns the
    *  generated work-item id for the caller's audit row / return. */
@@ -162,19 +203,17 @@ export const workQueueService = {
     const nowIso = new Date().toISOString();
     workQueue.insertItem.run(
       id, nowIso, input.actorId, nowIso, input.actorId,
-      input.queueCategory,
       input.taskType,
       input.entityType,
       input.entityId,
-      input.priority,
       nowIso,
       input.reasonText,
       input.detailText,
     );
-    if (descriptor.urgentAdminAlert) {
+    if (descriptor.kind === 'team_alert' && descriptor.alertTemplate) {
       emailService.sendToAdmins({
-        template: descriptor.urgentAdminAlert,
-        params:   { entityId: input.entityId, queueUrl: adminQueueUrl() },
+        template: descriptor.alertTemplate,
+        params:   { itemUrl: itemUrl(id) },
         idempotencyKeyPrefix: `admin-alerts:${input.taskType}:${id}`,
       });
     }
@@ -207,13 +246,14 @@ export const workQueueService = {
    *  batch. Idempotent within a calendar day via a per-administrator key. */
   sendAdminQueueDigests(): AdminQueueDigestResult {
     const open = workQueue.listOpenForDigest.all() as DigestRow[];
-    const routine = open.filter((i) => !isUrgentTaskType(i.task_type));
+    const routine = open.filter((i) => !isTeamAlertTaskType(i.task_type));
     if (routine.length === 0) return { admins: 0, sent: 0, openRoutineItems: 0, topicDigests: {} };
 
     const admins = mailingListSubscriptions.listActiveSubscribersBySlug.all('admin-alerts') as AdminSubscriberRow[];
     const queueUrl = adminQueueUrl();
-    const dateStamp = new Date().toISOString().slice(0, 10);
-    const staleCutoffIso = claimStaleCutoffIso();
+    const nowMs = Date.now();
+    const dateStamp = new Date(nowMs).toISOString().slice(0, 10);
+    const staleCutoffIso = claimStaleCutoffIso(nowMs);
     let sent = 0;
     for (const admin of admins) {
       // An item under another administrator's live claim drops out of this
@@ -225,9 +265,7 @@ export const workQueueService = {
           || i.claimed_by_member_id === admin.member_id,
       );
       if (forAdmin.length === 0) continue;
-      const itemLines = forAdmin
-        .map((i) => `Task type: ${i.task_type}, Entity ID: ${i.entity_id}`)
-        .join('\n');
+      const itemLines = digestLines(forAdmin, nowMs);
       try {
         emailService.send({
           template: 'admin_queue_digest',
@@ -266,9 +304,7 @@ export const workQueueService = {
           params: {
             areaLabel: area.label,
             openCount: forTopic.length,
-            itemLines: forTopic
-              .map((i) => `Task type: ${i.task_type}, Entity ID: ${i.entity_id}`)
-              .join('\n'),
+            itemLines: digestLines(forTopic, nowMs),
             queueUrl: `${queueUrl}?topic=${topic}`,
           },
           recipientEmail: area.address,
@@ -295,14 +331,18 @@ export const workQueueService = {
     const cutoffDays = readIntConfig('admin_queue_stale_escalation_days', 3);
     const cutoffIso = new Date(Date.now() - cutoffDays * 86_400_000).toISOString();
     const stale = workQueue.listStaleForEscalation.all(cutoffIso, claimStaleCutoffIso()) as StaleRow[];
-    const queueUrl = adminQueueUrl();
+    const nowMs = Date.now();
     let escalated = 0;
     for (const item of stale) {
-      if (isUrgentTaskType(item.task_type)) continue;
-      const ageDays = Math.max(1, Math.floor((Date.now() - Date.parse(item.opened_at)) / 86_400_000));
+      if (isTeamAlertTaskType(item.task_type)) continue;
       const result = emailService.sendToAdmins({
         template: 'admin_queue_stale_escalation',
-        params: { taskType: item.task_type, entityId: item.entity_id, ageDays, queueUrl },
+        params: {
+          taskLabel: workQueueDescriptorFor(item.task_type)?.label ?? item.task_type,
+          kindLabel: kindLabelFor(item.task_type),
+          ageDays:   daysWaiting(item.opened_at, nowMs),
+          itemUrl:   itemUrl(item.id),
+        },
         idempotencyKeyPrefix: `admin-queue-escalation:${item.id}`,
       });
       // Count only the first-time escalations; a re-run of the pass finds the

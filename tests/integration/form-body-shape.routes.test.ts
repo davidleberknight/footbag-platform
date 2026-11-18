@@ -281,10 +281,10 @@ describe('an administrator form refuses a field posted twice at 422 and changes 
     ['club cleanup delist residue', () => `/admin/club-cleanup/${clubId}/delist-residue`, 'reasonText=a&reasonText=b', adminCookie],
     ['club cleanup promote candidate', () => '/admin/club-cleanup/candidates/shape-candidate/promote', 'reasonText=r&region=a&region=b', adminCookie],
     ['club cleanup resolve candidate', () => '/admin/club-cleanup/candidates/shape-candidate/resolve', 'action=park&predicate=a&predicate=b', adminCookie],
-    ['work queue claim', () => '/admin/work-queue/shape-item/claim', 'category=a&category=b', adminCookie],
+    ['work queue claim', () => '/admin/work-queue/shape-item/claim', 'kind=a&kind=b', adminCookie],
     ['work queue resolve', () => '/admin/work-queue/shape-item/resolve', 'decision_label=a&decision_label=b&resolution_note=n', adminCookie],
     ['work queue park', () => '/admin/work-queue/shape-item/park', 'note=a&note=b', adminCookie],
-    ['work queue unpark', () => '/admin/work-queue/shape-item/unpark', 'category=a&category=b', adminCookie],
+    ['work queue unpark', () => '/admin/work-queue/shape-item/unpark', 'kind=a&kind=b', adminCookie],
     ['work queue dismiss', () => '/admin/work-queue/shape-item/dismiss', 'note=a&note=b', adminCookie],
     ['work queue ask member', () => '/admin/work-queue/shape-item/ask-member', 'subject=a&subject=b&body=x&expectedAnswerKind=free_text', adminCookie],
     ['link help approve preview', () => '/admin/work-queue/shape-item/link-help/approve', 'target_legacy_member_id=a&target_legacy_member_id=b', adminCookie],
@@ -292,6 +292,8 @@ describe('an administrator form refuses a field posted twice at 422 and changes 
     ['link help dispute preview', () => '/admin/work-queue/shape-item/link-help/dispute-revert', 'target_legacy_member_id=a&reason=a&reason=b', adminCookie],
     ['link help dispute confirm', () => '/admin/work-queue/shape-item/link-help/dispute-revert/confirm', 'target_legacy_member_id=a&reason=a&reason=b', adminCookie],
     ['link help reject', () => '/admin/work-queue/shape-item/link-help/reject', 'reason=a&reason=b', adminCookie],
+    ['announcement approve', () => '/admin/work-queue/shape-item/announcement/approve', 'kind=a&kind=b', adminCookie],
+    ['announcement send back', () => '/admin/work-queue/shape-item/announcement/send-back', 'comment=a&comment=b', adminCookie],
   ];
   it.each(cases)('%s', async (_name, path, body, cookie) => {
     const res = await request(app).post(path()).set('Cookie', cookie()).type('form').send(body);

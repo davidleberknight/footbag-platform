@@ -246,7 +246,6 @@ const AUDIENCE_ROWS: SenderRow[] = [
     run: (prefix) => {
       const matrix = withDb((db) => {
         insertWorkQueueItem(db, {
-          queue_category: 'membership',
           task_type: 'member_contact_request',
           entity_type: 'member',
           entity_id: `${prefix}-entity`,
@@ -333,7 +332,9 @@ const POLICY: Record<EmailTemplateKey, Route> = {
   account_deleted_by_admin:               { via: 'act' },
   contact_request_resolution:             { via: 'act' },
   link_help_request_resolution:           { via: 'act' },
-  media_moderation_decision:              { via: 'act' },
+  announce_approved:                      { via: 'act' },
+  announce_returned:                      { via: 'act' },
+  media_moderation_decision:             { via: 'act' },
   media_report_outcome_reporter:          { via: 'act' },
   member_question_waiting:                { via: 'member' },
   vouch_confirmation:                     { via: 'address' },
@@ -346,6 +347,13 @@ const POLICY: Record<EmailTemplateKey, Route> = {
   club_membership_member:                 { via: 'address' },
   club_membership_leader:                 { via: 'address' },
   club_volunteer_leadership:              { via: 'address' },
+  event_created_confirmation:             { via: 'member' },
+  event_organizer_added:                  { via: 'member' },
+  event_registration_confirmed:           { via: 'member' },
+  event_registration_withdrawn:           { via: 'member' },
+  event_sanction_requested:               { via: 'member' },
+  event_sanctioned:                       { via: 'act' },
+  event_sanction_rejected:                { via: 'act' },
   club_leaderless_contact:                { via: 'act' },
   active_player_expiry_reminder:          { via: 'address' },
   payment_receipt:                        { via: 'address' },
@@ -546,7 +554,7 @@ const ACT_FLOWS: Record<ActFlow, SenderRow> = {
       const { matrix, items } = withDb((db) => {
         const m = seedMemberStateMatrix(db, { prefix });
         const ids = MEMBER_STATES.map((state) => insertWorkQueueItem(db, {
-          queue_category: 'membership', task_type: 'member_contact_request',
+          task_type: 'member_contact_request',
           entity_type: 'member', entity_id: m[state], created_by: m[state],
           reason_text: 'Please correct my name.',
         }));
@@ -568,7 +576,7 @@ const ACT_FLOWS: Record<ActFlow, SenderRow> = {
       const { matrix, items } = withDb((db) => {
         const m = seedMemberStateMatrix(db, { prefix });
         const ids = MEMBER_STATES.map((state) => insertWorkQueueItem(db, {
-          queue_category: 'membership', task_type: 'member_link_help_request',
+          task_type: 'member_link_help_request',
           entity_type: 'member', entity_id: m[state], created_by: m[state],
         }));
         return { matrix: m, items: ids };
@@ -654,7 +662,7 @@ const ROUTE_PROOFS: Record<'member' | 'act' | 'admins' | 'address', SenderRow> =
       const matrix = withDb((db) => seedMemberStateMatrix(db, { prefix, lists: ['admin-alerts'] }));
       emailService.sendToAdmins({
         template: 'admin_queue_stale_escalation',
-        params: { taskType: 't', entityId: 'e', ageDays: 3, queueUrl: 'https://x/admin/work-queue' },
+        params: { taskLabel: 'Task', kindLabel: 'Housekeeping', ageDays: 3, itemUrl: 'https://x/admin/work-queue/wq_1' },
         idempotencyKeyPrefix: `${prefix}-alert`,
       });
       return matrix;

@@ -2,15 +2,15 @@
  * The admin work-queue service: enqueue routing, claim, and the two scheduled
  * notification passes.
  *
- * Enqueue routes by urgency: a routine task type inserts the work_queue_items
- * row and sends NO per-event email; admins read it on the dashboard and the
- * digest. An urgent task type also emails the admin list on enqueue, and is left
- * out of both the digest and the stale escalation because it has already
- * broadcast. An administrator claims an item to signal
- * they are handling it, which drops the item from every other administrator's
- * digest. An item left open and unclaimed past the stale threshold escalates
- * once with a single email to all admins. Every notification carries task type
- * and entity id only.
+ * Enqueue routes by kind: a routine task type inserts the work_queue_items row
+ * and sends NO per-event email; admins read it on the dashboard and the digest.
+ * A Team Alert also emails the admin list on enqueue, and is left out of both
+ * the digest and the stale escalation because it has already broadcast. An
+ * administrator claims an item to signal they are handling it, which drops the
+ * item from every other administrator's digest. An item left open and
+ * unclaimed past the stale threshold escalates once with a single email to all
+ * admins. Every notification names the task type and links to the item, and
+ * names no entity and no member.
  */
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
@@ -22,6 +22,13 @@ import {
   insertSystemConfig,
   insertWorkQueueItem,
 } from '../fixtures/factories';
+import { isoDaysAgo } from '../fixtures/clock';
+import { WORK_QUEUE_TASK_TYPES, WORK_QUEUE_TOPICS } from '../../src/services/workQueueTaskTypes';
+
+/** The address a notification links an item by. */
+function itemLink(id: string): string {
+  return `/admin/work-queue/${id}`;
+}
 
 const { dbPath } = setTestEnv('4012');
 
@@ -48,8 +55,8 @@ function subscribeToAdminAlerts(subId: string, memberId: string): void {
 
 function enqueueRoutine(entityId: string): string {
   return svc.enqueue({
-    actorId: entityId, queueCategory: 'membership', taskType: 'member_contact_request',
-    entityType: 'member', entityId, priority: 5, reasonText: 'Other: ping', detailText: 'ping',
+    actorId: entityId, taskType: 'member_contact_request',
+    entityType: 'member', entityId, reasonText: 'Other: ping', detailText: 'ping',
   }).id;
 }
 
@@ -94,7 +101,7 @@ describe('workQueueService.enqueue', () => {
   it('inserts the work item and sends no per-event email for a routine task type', () => {
     const id = enqueueRoutine(ENTITY_MEMBER_ID);
     const row = testDb
-      .prepare(`SELECT task_type, entity_type, entity_id, status, priority, queue_category, claimed_by_member_id FROM work_queue_items WHERE id = ?`)
+      .prepare(`SELECT task_type, entity_type, entity_id, status, claimed_by_member_id FROM work_queue_items WHERE id = ?`)
       .get(id) as Record<string, unknown> | undefined;
     expect(row).toBeDefined();
     expect(row!.task_type).toBe('member_contact_request');
@@ -112,8 +119,8 @@ describe('workQueueService.enqueue', () => {
     // card would reach an administrator with nothing on it to press. Refusing
     // the insert is what keeps that state from existing at all.
     expect(() => svc.enqueue({
-      actorId: 'system', queueCategory: 'membership', taskType: 'undeclared_task_type',
-      entityType: 'member', entityId: ENTITY_MEMBER_ID, priority: 0,
+      actorId: 'system', taskType: 'undeclared_task_type',
+      entityType: 'member', entityId: ENTITY_MEMBER_ID,
       reasonText: 'no descriptor', detailText: null,
     })).toThrow(/undeclared_task_type/);
 
@@ -154,12 +161,67 @@ describe('workQueueService.sendAdminQueueDigests', () => {
 
     // Admin A claimed item1, so A's digest carries both items.
     const aBody = digestBodyFor(ADMIN_A);
-    expect(aBody).toContain(`Entity ID: ${ENTITY_MEMBER_ID}`);
-    expect(aBody).toContain(`Entity ID: ${ADMIN_B}`);
+    expect(aBody).toContain(itemLink(item1));
+    expect(aBody).toContain(itemLink(item2));
     // Admin B's digest drops item1 (claimed by A) and keeps the unclaimed item2.
     const bBody = digestBodyFor(ADMIN_B);
-    expect(bBody).not.toContain(`Entity ID: ${ENTITY_MEMBER_ID}`);
-    expect(bBody).toContain(`Entity ID: ${ADMIN_B}`);
+    expect(bBody).not.toContain(itemLink(item1));
+    expect(bBody).toContain(itemLink(item2));
+  });
+
+  // Defect caught: a digest line prints a raw task code or the entity id, or
+  // names the member, so an administrator learns nothing they can act on from
+  // the email and member data leaves the admin gate; or the kinds run together
+  // so a person waiting is buried among housekeeping.
+  it('lists each item under its kind by label, area and age, linking to it and naming no member', () => {
+    const housekeeping = insertWorkQueueItem(testDb, {
+      task_type: 'reconciliation_discrepancy', entity_type: 'reconciliation_issue', entity_id: 'ri-digest',
+      opened_at: isoDaysAgo(6),
+    });
+    const waiting = insertWorkQueueItem(testDb, {
+      task_type: 'member_contact_request', entity_type: 'member', entity_id: ENTITY_MEMBER_ID,
+      created_by: ENTITY_MEMBER_ID, opened_at: isoDaysAgo(1.5),
+    });
+
+    svc.sendAdminQueueDigests();
+    const body = digestBodyFor(ADMIN_A)!;
+
+    const contact = WORK_QUEUE_TASK_TYPES['member_contact_request']!;
+    const recon = WORK_QUEUE_TASK_TYPES['reconciliation_discrepancy']!;
+    const areaOf = (t: typeof contact) => (t.routeTopic ? WORK_QUEUE_TOPICS[t.routeTopic].label : 'Shared');
+    expect(body).toContain(`${contact.label} (${areaOf(contact)}), waiting 1 day: `);
+    expect(body).toContain(`${recon.label} (${areaOf(recon)}), waiting 6 days: `);
+    expect(body).toContain(itemLink(waiting));
+    expect(body).toContain(itemLink(housekeeping));
+    // ordering-is-the-contract: Someone Is Waiting is listed before Housekeeping,
+    // though its item is the younger one.
+    expect(body.indexOf('Someone Is Waiting:')).toBeGreaterThanOrEqual(0);
+    expect(body.indexOf('Someone Is Waiting:')).toBeLessThan(body.indexOf('Housekeeping:'));
+    for (const absent of ['member_contact_request', 'reconciliation_discrepancy', ENTITY_MEMBER_ID, 'ri-digest', 'wq-entity@example.com', 'Team Alert:']) {
+      expect(body, `${absent} must not be in the digest`).not.toContain(absent);
+    }
+  });
+
+  // Defect caught: a member's held announcement never reaches an
+  // administrator's digest, so it waits unseen, or is filed under the wrong kind.
+  it('lists a held announcement under Someone Is Waiting', () => {
+    const held = insertWorkQueueItem(testDb, {
+      task_type: 'announcement_review', entity_type: 'member_announcement', entity_id: 'mann-digest',
+      created_by: ENTITY_MEMBER_ID, opened_at: isoDaysAgo(2.5),
+    });
+    svc.sendAdminQueueDigests();
+    const body = digestBodyFor(ADMIN_A)!;
+    const review = WORK_QUEUE_TASK_TYPES['announcement_review']!;
+    const line = `${review.label} (${WORK_QUEUE_TOPICS.moderation.label}), waiting 2 days: `;
+    expect(body).toContain(line);
+    expect(body).toContain(itemLink(held));
+    // ordering-is-the-contract: the line sits in the Someone Is Waiting group.
+    const groupStart = body.indexOf('Someone Is Waiting:');
+    expect(groupStart).toBeGreaterThanOrEqual(0);
+    expect(body.indexOf(line)).toBeGreaterThan(groupStart);
+    const next = body.indexOf('Housekeeping:');
+    if (next >= 0) expect(body.indexOf(line)).toBeLessThan(next);
+    expect(body).not.toContain('mann-digest');
   });
 
   it('sends nothing when there are no open routine items', () => {
@@ -180,7 +242,12 @@ describe('workQueueService.escalateStaleQueueItems', () => {
     const escBody = testDb.prepare(
       `SELECT body_text FROM outbox_emails WHERE template_key = 'admin_queue_stale_escalation' AND recipient_member_id = ?`,
     ).get(ADMIN_A) as { body_text: string } | undefined;
-    expect(escBody?.body_text).toContain(`Entity ID: ${ENTITY_MEMBER_ID}`);
+    // The escalation names the task and its kind and links to the item, never
+    // the member it concerns.
+    expect(escBody?.body_text).toContain(`${WORK_QUEUE_TASK_TYPES['member_contact_request']!.label}: `);
+    expect(escBody?.body_text).toContain('Someone Is Waiting');
+    expect(escBody?.body_text).toContain(itemLink(id));
+    expect(escBody?.body_text).not.toContain(ENTITY_MEMBER_ID);
 
     // A second pass finds the same still-open item but the idempotency key
     // suppresses a repeat send, so nothing new is escalated.
@@ -248,31 +315,35 @@ describe('area digests in the digest pass', () => {
     });
   }
 
-  /** One item in each position the area digest must tell apart. */
-  function seedAreaItems(): void {
-    insertWorkQueueItem(testDb, {
-      queue_category: 'payments', task_type: 'reconciliation_discrepancy', entity_id: 'fin-open',
+  /** One item in each position the area digest must tell apart, by name. */
+  function seedAreaItems(): Record<string, string> {
+    const finOpen = insertWorkQueueItem(testDb, {
+      task_type: 'reconciliation_discrepancy', entity_id: 'fin-open',
     });
     const claimedByB = insertWorkQueueItem(testDb, {
-      queue_category: 'payments', task_type: 'membership_overcharge_review', entity_id: 'fin-claimed',
+      task_type: 'membership_overcharge_review', entity_id: 'fin-claimed',
     });
     svc.claim({ queueItemId: claimedByB, adminMemberId: ADMIN_B });
     const lapsed = insertWorkQueueItem(testDb, {
-      queue_category: 'payments', task_type: 'payout_failed', entity_id: 'fin-lapsed-claim',
+      task_type: 'payout_failed', entity_id: 'fin-lapsed-claim',
     });
     svc.claim({ queueItemId: lapsed, adminMemberId: ADMIN_B });
     // No action can produce a claim already in the past, so it is aged here.
     testDb.prepare(`UPDATE work_queue_items SET claimed_at = '2020-01-01T00:00:00.000Z' WHERE id = ?`).run(lapsed);
-    insertWorkQueueItem(testDb, {
-      queue_category: 'payments', task_type: 'partial_refund_review', entity_id: 'fin-parked',
+    const finParked = insertWorkQueueItem(testDb, {
+      task_type: 'partial_refund_review', entity_id: 'fin-parked',
       parked_at: '2026-01-01T00:00:00.000Z', parked_by_member_id: ADMIN_A, park_reason: 'Waiting on the bank.',
     });
-    insertWorkQueueItem(testDb, {
-      queue_category: 'membership', task_type: 'member_contact_request', entity_id: 'mem-open',
+    const memOpen = insertWorkQueueItem(testDb, {
+      task_type: 'member_contact_request', entity_id: 'mem-open',
     });
-    insertWorkQueueItem(testDb, {
-      queue_category: 'media', task_type: 'media_flag_review', entity_type: 'media_item', entity_id: 'shared-open',
+    const sharedOpen = insertWorkQueueItem(testDb, {
+      task_type: 'media_flag_review', entity_type: 'media_item', entity_id: 'shared-open',
     });
+    return {
+      'fin-open': finOpen, 'fin-claimed': claimedByB, 'fin-lapsed-claim': lapsed,
+      'fin-parked': finParked, 'mem-open': memOpen, 'shared-open': sharedOpen,
+    };
   }
 
   function outboxRows(): Array<{ template_key: string; recipient_email: string; recipient_member_id: string | null; idempotency_key: string }> {
@@ -312,7 +383,7 @@ describe('area digests in the digest pass', () => {
   // work that is not theirs or not waiting.
   it("sends one digest to each switched-on area's address listing only its unclaimed, unparked items", () => {
     allAreasOff();
-    seedAreaItems();
+    const ids = seedAreaItems();
     switchArea('finance', '1');
     switchArea('membership', '1');
     // An area that is on with nothing to list gets no digest.
@@ -327,18 +398,18 @@ describe('area digests in the digest pass', () => {
     ).all() as Array<{ template_key: string; recipient_email: string; recipient_member_id: string | null; idempotency_key: string; body_text: string }>;
     expect(areaRows.map((r) => r.recipient_email).sort()).toEqual([FINANCE_ADDRESS, 'queue-membership@footbag.org']);
     const membership = areaRows.find((r) => r.recipient_email === 'queue-membership@footbag.org')!;
-    expect(membership.body_text).toContain('Entity ID: mem-open');
-    expect(membership.body_text).not.toContain('Entity ID: fin-open');
+    expect(membership.body_text).toContain(itemLink(ids['mem-open']!));
+    expect(membership.body_text).not.toContain(itemLink(ids['fin-open']!));
     const row = areaRows.find((r) => r.recipient_email === FINANCE_ADDRESS)!;
     expect(row.template_key).toBe('admin_queue_topic_digest');
     expect(row.recipient_email).toBe(FINANCE_ADDRESS);
     expect(row.recipient_member_id).toBeNull();
     expect(row.idempotency_key).toMatch(AREA_KEY);
-    expect(row.body_text).toContain('Entity ID: fin-open');
+    expect(row.body_text).toContain(itemLink(ids['fin-open']!));
     // A claim that has lapsed is nobody's live claim, so the item is listed.
-    expect(row.body_text).toContain('Entity ID: fin-lapsed-claim');
+    expect(row.body_text).toContain(itemLink(ids['fin-lapsed-claim']!));
     for (const absent of ['fin-claimed', 'fin-parked', 'mem-open', 'shared-open']) {
-      expect(row.body_text, `${absent} must not be in the finance digest`).not.toContain(`Entity ID: ${absent}`);
+      expect(row.body_text, `${absent} must not be in the finance digest`).not.toContain(itemLink(ids[absent]!));
     }
     // The per-administrator digests still go out beside it.
     expect(outboxRows().filter((r) => r.template_key === 'admin_queue_digest')).toHaveLength(2);
@@ -364,7 +435,7 @@ describe('area digests in the digest pass', () => {
   it('records the area digests in the job-run row when run through the job registry', async () => {
     allAreasOff();
     insertWorkQueueItem(testDb, {
-      queue_category: 'payments', task_type: 'reconciliation_discrepancy', entity_id: 'fin-scheduled',
+      task_type: 'reconciliation_discrepancy', entity_id: 'fin-scheduled',
     });
     switchArea('finance', '1');
 

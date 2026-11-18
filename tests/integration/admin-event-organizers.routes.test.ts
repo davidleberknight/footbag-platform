@@ -162,7 +162,7 @@ describe('assigning an organizer', () => {
     const member = makeMember('org_first');
     const eventId = withDb((db) => insertEvent(db, { title: 'Needs Someone', start_date: '2099-07-07' }));
     withDb((db) => insertWorkQueueItem(db, {
-      task_type: 'needs_organizer', queue_category: 'events',
+      task_type: 'needs_organizer',
       entity_type: 'event', entity_id: eventId, status: 'open',
     }));
 
@@ -223,7 +223,7 @@ describe('assigning an organizer', () => {
       const e = insertEvent(db, { title: 'Orphaned By Deletion', start_date: '2099-08-09' });
       insertEventOrganizer(db, e, gone);
       insertWorkQueueItem(db, {
-        task_type: 'needs_organizer', queue_category: 'events',
+        task_type: 'needs_organizer',
         entity_type: 'event', entity_id: e, status: 'open',
       });
       return e;
@@ -244,7 +244,7 @@ describe('assigning an organizer', () => {
       const e = insertEvent(db, { title: 'Orphaned By Death', start_date: '2099-08-10' });
       insertEventOrganizer(db, e, died);
       insertWorkQueueItem(db, {
-        task_type: 'needs_organizer', queue_category: 'events',
+        task_type: 'needs_organizer',
         entity_type: 'event', entity_id: e, status: 'open',
       });
       return e;

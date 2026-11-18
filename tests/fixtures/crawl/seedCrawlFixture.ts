@@ -27,6 +27,10 @@ import {
   insertClub,
   insertTag,
   insertEvent,
+  insertEventOrganizer,
+  insertDiscipline,
+  insertRegistration,
+  insertRegistrationDisciplineSelection,
   insertHistoricalPerson,
   insertFreestyleTrick,
   insertFreestyleTrickAlias,
@@ -40,6 +44,7 @@ import {
   insertMemberGallery,
   insertGalleryCriterionTag,
   insertMediaItem,
+  insertWorkQueueItem,
   completeOnboarding,
   seedPrivateFieldCanaries,
   type PrivateFieldCanaries,
@@ -121,7 +126,42 @@ export function seedCrawlWorld(db: BetterSqlite3.Database): PrivateFieldCanaries
   // resolve even though the persona fixtures are excluded from it.
   insertClub(db, { id: 'club-crawlville-real', name: 'Crawlville Footbag', city: 'Crawlville', country: 'United States', hashtag_tag_id: clubTag });
 
-  insertEvent(db, { title: 'Crawl Open', status: 'reg_open' });
+  const crawlEventId = insertEvent(db, { title: 'Crawl Open', status: 'reg_open' });
+  // The crawl member and the crawl administrator organize it together, so the
+  // profile's My Events block links the crawl to the organizers' manage page,
+  // and each sees the other's remove control and their own step-down control;
+  // one structured division puts its change and remove controls on that page.
+  insertEventOrganizer(db, crawlEventId, CRAWL_MEMBER_ID);
+  insertEventOrganizer(db, crawlEventId, CRAWL_ADMIN_ID);
+  insertDiscipline(db, crawlEventId, {
+    name: 'Open Singles Footbag Net', discipline_category: 'net', game_id: 'game_footbag_net',
+    team_type: 'singles', gender_eligibility: 'open', division_class: 'open',
+  });
+  // The crawl administrator is registered and the crawl member is not, so the
+  // event page offers one of them its withdraw form and the other its register
+  // link. The entry is in a second division, which it locks, so the first keeps
+  // its change and remove controls.
+  const enteredDivisionId = insertDiscipline(db, crawlEventId, {
+    name: 'Open Singles Footbag Golf', discipline_category: 'golf', game_id: 'game_footbag_golf',
+    team_type: 'singles', gender_eligibility: 'open', division_class: 'open', sort_order: 2,
+  });
+  const crawlRegistrationId = insertRegistration(db, crawlEventId, CRAWL_ADMIN_ID);
+  insertRegistrationDisciplineSelection(db, crawlRegistrationId, enteredDivisionId);
+  // A sanctioned-path draft the crawl administrator organizes, so its manage
+  // page offers the sanction request form and the administrators' award page
+  // lists it with its award form.
+  const sanctionDraftId = insertEvent(db, { title: 'Crawl Sanction Draft', status: 'draft' });
+  insertEventOrganizer(db, sanctionDraftId, CRAWL_ADMIN_ID);
+  // A request waiting for review, organized by the crawl member, so its queue
+  // item page offers the administrator the approve and reject forms.
+  const sanctionPendingId = insertEvent(db, {
+    title: 'Crawl Sanction Pending', status: 'pending_approval', sanction_status: 'pending',
+  });
+  insertEventOrganizer(db, sanctionPendingId, CRAWL_MEMBER_ID);
+  insertWorkQueueItem(db, {
+    task_type: 'sanction_request', entity_type: 'event', entity_id: sanctionPendingId,
+    created_by: CRAWL_MEMBER_ID,
+  });
   // The world record below credits this record, so the records page links the
   // crawl to a history page the way a visitor reaches one.
   const crawlPersonId = insertHistoricalPerson(db, { person_name: 'Historic Crawler', hof_member: 1 });
@@ -236,6 +276,13 @@ export function shouldSkip(p: string): boolean {
   if (p === '/dev/personas/refresh') return true;
   const trickDetail = p.match(/^\/freestyle\/tricks\/([^/?#]+)$/);
   if (trickDetail && !SEEDED_TRICK_SLUGS.has(decodeURIComponent(trickDetail[1]))) return true;
+  // A work-queue item's page is the same page whatever list state its address
+  // carries: the state only says where its forms return. Every list view links
+  // each of its items with its own state, so following them all visits each item
+  // once per list view and exhausts the page budget. The walk takes each item
+  // once per kind, which still reaches every item and every form on it.
+  const queueItem = p.match(/^\/admin\/work-queue\/[^/?#]+\?(.*)$/);
+  if (queueItem && [...new URLSearchParams(queueItem[1]).keys()].some((k) => k !== 'kind')) return true;
   return false;
 }
 

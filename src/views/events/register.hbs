@@ -1,0 +1,94 @@
+{{! A member registering themselves for an event }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p class="hero-subtitle">{{content.eventDates}}</p>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+
+    {{#if content.errorMessage}}
+      {{> outcome-notice tone='no' text=content.errorMessage}}
+    {{/if}}
+    {{#if content.pendingNote}}
+      <p>{{content.pendingNote}}</p>
+    {{/if}}
+
+    <form method="POST" action="{{content.formAction}}" class="form-block">
+
+      {{#if content.typeChoices}}
+        <fieldset class="form-fieldset">
+          <legend>Registering As</legend>
+          {{#each content.typeChoices}}
+            <div class="form-field"><label><input type="radio" name="registration_type" value="{{this.value}}"{{#if this.checked}} checked{{/if}}> {{this.label}}</label></div>
+          {{/each}}
+          <small class="form-hint">An attendee or supporter enters no divisions.</small>
+        </fieldset>
+      {{else}}
+        <input type="hidden" name="registration_type" value="{{content.impliedType}}" />
+        <p>Registering as: {{content.impliedTypeLabel}}</p>
+      {{/if}}
+
+      {{#if content.showDivisions}}
+        <fieldset class="form-fieldset">
+          <legend>Divisions</legend>
+          {{#each content.divisions}}
+            <div class="form-field">
+              <label>
+                <input type="checkbox" name="division" value="{{this.id}}"{{#if this.checked}} checked{{/if}} />
+                {{this.name}}
+              </label>
+              {{#if this.genderWarning}}
+                <p>{{this.genderWarning}}{{#if this.profileHref}} <a href="{{siteHref this.profileHref}}">Your profile</a>{{/if}}</p>
+              {{/if}}
+            </div>
+            {{#if this.isDoubles}}
+              <input type="hidden" name="partner_division" value="{{this.id}}" />
+              <div class="form-field">
+                <label for="partner_key_{{this.id}}">Partner's member id or profile URL</label>
+                <input type="text" id="partner_key_{{this.id}}" name="partner_key" value="{{this.partnerKey}}" />
+              </div>
+              <div class="form-field">
+                <label for="partner_name_{{this.id}}">Or partner's name, if not a member</label>
+                <input type="text" id="partner_name_{{this.id}}" name="partner_name" value="{{this.partnerName}}" maxlength="100" />
+              </div>
+            {{/if}}
+            {{#if this.offersPrizeMoney}}
+              <div class="form-field">
+                <label>
+                  <input type="checkbox" name="amateur" value="{{this.id}}"{{#if this.amateur}} checked{{/if}} />
+                  Enter as an Amateur (no prize money)
+                </label>
+              </div>
+            {{/if}}
+          {{/each}}
+        </fieldset>
+        <div class="form-field">
+          <small class="form-hint">A competitor enters at least one division.</small>
+        </div>
+      {{/if}}
+
+      {{#if content.tshirtOptions}}
+        <div class="form-field">
+          <label for="tshirt_size">T-shirt size</label>
+          <select id="tshirt_size" name="tshirt_size">
+            {{#each content.tshirtOptions}}
+              <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+            {{/each}}
+          </select>
+        </div>
+      {{/if}}
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">{{content.submitLabel}}</button>
+        <a href="{{siteHref content.cancelHref}}" class="btn btn-outline">Cancel</a>
+      </div>
+
+    </form>
+  </section>
+
+  {{> back-link}}
+</div>

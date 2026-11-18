@@ -7,7 +7,8 @@
  *     folded, because folding would drop part of what was written.
  *   - A tag is at most 100 characters; an item or tag set carries at most 30 tags.
  *   - A profile URL is 2 to 70 characters; a club hashtag is at least 2, and with
- *     its `#club_` at most 100.
+ *     its `#club_` at most 100; an event hashtag, with its `#event_` and year,
+ *     at most 100.
  * Domain rules stay with the services that own them: reserved tags (passed in as
  * `refuse`), role words and the family name on a profile URL, uniqueness.
  */
@@ -68,14 +69,22 @@ export function assertTypedTags(
  */
 export function checkTypedSlug(
   typed: string,
-  kind: 'profile' | 'club',
+  kind: 'profile' | 'club' | 'event',
 ): { ok: true; slug: string } | { ok: false; message: string } {
   const what = kind === 'profile' ? 'Your profile URL' : 'The hashtag';
   if (hasUnconvertibleLetters(typed)) {
     return { ok: false, message: `${what} needs letters a to z or digits, and these letters have no a to z form.` };
   }
   const slug = slugifyForTag(typed);
-  if (kind === 'profile') {
+  if (kind === 'event') {
+    if (slug.length === 0) {
+      return { ok: false, message: 'The hashtag needs at least one letter or digit after the year.' };
+    }
+    // The year is always four digits, so `#event_2026_` is the fixed prefix.
+    if (`#event_0000_${slug}`.length > TOKEN_RULES.tagMaxLength) {
+      return { ok: false, message: 'The hashtag is too long. Including #event_ and the year, it must be 100 characters or fewer.' };
+    }
+  } else if (kind === 'profile') {
     if (slug.length < TOKEN_RULES.profileUrlMinLength) {
       return { ok: false, message: `Profile URL must be at least ${TOKEN_RULES.profileUrlMinLength} characters.` };
     }

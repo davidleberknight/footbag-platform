@@ -40,6 +40,8 @@ export const VIEWERS: readonly Viewer[] = [
 export const REACH_ROWS = {
   eventKey: 'event_2026_rendered_style_open',
   eventId: 'event-rs-open',
+  sanctionDraftKey: 'event_2026_rendered_style_sanction_draft',
+  sanctionDraftId: 'event-rs-sanction-draft',
   resultDisciplineId: 'disc-rs-open-singles',
   resultEntryId: 'entry-rs-open-1',
   memberGalleryId: 'gallery_rs_member',
@@ -110,6 +112,9 @@ export function forMember(text: string, slug: string | null): string {
 const R = REACH_ROWS;
 export const REACH: readonly Reach[] = [
   { template: 'events/detail', viewer: 'anonymous', url: `/events/${R.eventKey}`, why: 'the events landing links only upcoming events' },
+  { template: 'events/manage', viewer: 'member', url: `/events/${R.eventKey}/manage`, why: 'the organizers\' page, open only to the event\'s organizers' },
+  { template: 'events/confirm', viewer: 'member', url: `/events/${R.eventKey}/manage`, why: 'answers the remove-division form', submit: { action: `/events/${R.eventKey}/divisions/${R.resultDisciplineId}/remove` } },
+  { template: 'events/sanction', viewer: 'admin', url: `/events/${R.sanctionDraftKey}/sanction`, why: 'the sanction request, open only to a Tier 2 or Tier 3 organizer of a sanctioned-path draft' },
   { template: 'events/year', viewer: 'anonymous', url: '/events/year/2026', why: 'year archives are linked only once results exist' },
   { template: 'auth/check-email', viewer: 'anonymous', url: '/register/check-email', why: 'reached by redirect after registering' },
   { template: 'auth/password-reset', viewer: 'anonymous', url: '/password/reset/rendered-style-unknown-token', why: 'reached from an emailed link' },
@@ -159,8 +164,8 @@ export const REACH: readonly Reach[] = [
   { template: 'admin/event-results/confirm', viewer: 'admin', url: `/admin/events/${R.eventId}/results/entries/${R.resultEntryId}`, why: 'answers the result correction form', submit: { action: `/admin/events/${R.eventId}/results/entries/${R.resultEntryId}`, fields: { placement: '2', reason: 'Rendered style check correction preview.' } } },
   { template: 'admin/freestyle-modifier-add-confirm', viewer: 'admin', url: `/admin/freestyle/modifiers/${R.modifierSlug}/edit`, why: 'answers an ADD change on the modifier form', submit: { action: `/admin/freestyle/modifiers/${R.modifierSlug}/edit`, fields: { modifierName: 'Rendered Style Modifier', addBonus: '2', modifierType: 'body', notes: '' } } },
   { template: 'admin/tags/confirm', viewer: 'admin', url: `/admin/tags?q=${R.retirableTag}`, why: 'answers the retire form', submit: { action: '/admin/tags/retire', fields: { reason: 'Rendered style check retire preview.' } } },
-  { template: 'admin/work-queue/link-help-confirm', viewer: 'admin', url: '/admin/work-queue?category=membership', why: 'answers the link-help approve form', submit: { action: `/admin/work-queue/${R.linkHelpItemId}/link-help/approve`, fields: { target_legacy_member_id: R.linkHelpLegacyId } } },
-  { template: 'admin/work-queue/dispute-revert-confirm', viewer: 'admin', url: '/admin/work-queue?category=membership', why: 'answers the dispute revert form', submit: { action: `/admin/work-queue/${R.disputeItemId}/link-help/dispute-revert`, fields: { target_legacy_member_id: R.disputedLegacyId, reason: 'Rendered style check revert preview.' } } },
+  { template: 'admin/work-queue/link-help-confirm', viewer: 'admin', url: `/admin/work-queue/${R.linkHelpItemId}`, why: 'answers the link-help approve form', submit: { action: `/admin/work-queue/${R.linkHelpItemId}/link-help/approve`, fields: { target_legacy_member_id: R.linkHelpLegacyId } } },
+  { template: 'admin/work-queue/dispute-revert-confirm', viewer: 'admin', url: `/admin/work-queue/${R.disputeItemId}`, why: 'answers the dispute revert form', submit: { action: `/admin/work-queue/${R.disputeItemId}/link-help/dispute-revert`, fields: { target_legacy_member_id: R.disputedLegacyId, reason: 'Rendered style check revert preview.' } } },
   { template: 'clubs/leave-confirm', viewer: 'club-leader', url: `/members/${R.leaderSlug}`, why: 'answers the leave form', submit: { action: `/clubs/${R.leaderClubKey}/leave` }, signInPerWidth: [R.leaderSlug, R.leaderSlug] },
   { template: 'clubs/step-down-confirm', viewer: 'club-leader', url: `/members/${R.leaderSlug}`, why: 'answers the step-down form', submit: { action: `/clubs/${R.leaderClubKey}/step-down` }, signInPerWidth: [R.leaderSlug, R.leaderSlug] },
   // An unknown address writes nothing and gets the same page a known one does.

@@ -20,10 +20,12 @@ import {
   WORK_QUEUE_TASK_TYPES,
   WORK_QUEUE_TOPICS,
   WORK_QUEUE_TOPIC_KEYS,
+  WORK_QUEUE_KINDS,
   workQueueDescriptorFor,
   workQueueActionFor,
+  kindOf,
+  taskTypesFor,
 } from '../../src/services/workQueueTaskTypes';
-import { WORK_QUEUE_CATEGORY_LABELS } from '../../src/services/adminWorkQueueService';
 
 const SRC = path.join(process.cwd(), 'src');
 
@@ -71,12 +73,71 @@ describe('work-queue task-type declarations', () => {
     }
   });
 
-  it('puts every declared type in a category the queue page can label', () => {
+  // A type whose kind is missing from the registry has no place on the queue
+  // page or the dashboard, and a type with an empty brief reaches a new
+  // administrator with nothing saying what it is or what to do about it.
+  it('gives every declared type a registered kind and a what, why and what-to-do sentence', () => {
+    const registered = new Set(WORK_QUEUE_KINDS.map((k) => k.kind));
+    for (const [taskType, descriptor] of Object.entries(WORK_QUEUE_TASK_TYPES)) {
+      expect(registered.has(descriptor.kind), `${taskType} declares unregistered kind ${descriptor.kind}`).toBe(true);
+      for (const part of ['what', 'why', 'todo'] as const) {
+        const text = descriptor.brief[part];
+        expect(text.trim().length, `${taskType} has an empty brief.${part}`).toBeGreaterThan(0);
+        // Administrator-facing text follows the site's em-dash restriction.
+        expect(text.includes('—'), `${taskType} brief.${part} carries an em dash`).toBe(false);
+      }
+    }
+  });
+
+  // A Team Alert with no template would be promised to every administrator's
+  // inbox and never sent; a routine type naming a template would email the
+  // whole team about something the digest is meant to carry.
+  it('names an alert template exactly on the Team Alert types', () => {
     for (const [taskType, descriptor] of Object.entries(WORK_QUEUE_TASK_TYPES)) {
       expect(
-        WORK_QUEUE_CATEGORY_LABELS[descriptor.queueCategory],
-        `${taskType} sits in category ${descriptor.queueCategory}, which has no label`,
-      ).toBeTruthy();
+        descriptor.alertTemplate !== null,
+        `${taskType} is ${descriptor.kind} with alert template ${String(descriptor.alertTemplate)}`,
+      ).toBe(descriptor.kind === 'team_alert');
+    }
+  });
+
+  // A request a member is waiting on that sat under Housekeeping would drop out
+  // of the band the dashboard raises for people waiting; a routine type filed
+  // as a Team Alert would skip the digest and the stale escalation.
+  it('files the member requests as Someone Is Waiting and the administrator loss as the one Team Alert', () => {
+    expect(taskTypesFor('waiting', null).sort()).toEqual(
+      ['announcement_review', 'content_report', 'member_contact_request', 'member_link_help_request', 'sanction_request'],
+    );
+    expect(taskTypesFor('team_alert', null)).toEqual(['admin_loss_recruitment']);
+    expect(kindOf('payout_failed')).toBe('housekeeping');
+    expect(kindOf('needs_organizer')).toBe('housekeeping');
+    expect(kindOf('not_a_task_type')).toBeNull();
+  });
+
+  // The queue narrows a kind to one area or to the shared items; a wrong
+  // narrowing would show an area owner another area's work, or hide a shared
+  // matter from the Shared view.
+  it('narrows a kind to one area, to the shared types, or not at all', () => {
+    expect(taskTypesFor('waiting', 'membership').sort()).toEqual(
+      ['member_contact_request', 'member_link_help_request'],
+    );
+    expect(taskTypesFor('waiting', 'moderation').sort()).toEqual(['announcement_review', 'content_report']);
+    // A sanction request filed anywhere but the sanctioning area would miss the
+    // Sanctioning filter, its owner's view and the area's digest.
+    expect(taskTypesFor('waiting', 'sanctioning')).toEqual(['sanction_request']);
+    expect(taskTypesFor('team_alert', 'shared')).toEqual(['admin_loss_recruitment']);
+    expect(taskTypesFor('team_alert', 'finance')).toEqual([]);
+    expect(taskTypesFor('housekeeping', 'shared')).toEqual(['needs_organizer']);
+    expect(taskTypesFor('housekeeping', 'platform')).toEqual(['media_takedown_storage_removal']);
+  });
+
+  // ordering-is-the-contract: the queue and the dashboard show the kinds in
+  // this order, Team Alert first, so the most pressing work is read first.
+  it('registers the kinds Team Alert first, then Someone Is Waiting, then Housekeeping', () => {
+    expect(WORK_QUEUE_KINDS.map((k) => k.kind)).toEqual(['team_alert', 'waiting', 'housekeeping']);
+    for (const k of WORK_QUEUE_KINDS) {
+      expect(k.what.trim().length, `${k.kind} has no what`).toBeGreaterThan(0);
+      expect(k.why.trim().length, `${k.kind} has no why`).toBeGreaterThan(0);
     }
   });
 

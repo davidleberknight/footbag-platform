@@ -14,7 +14,7 @@ import { RateLimitedError, ServiceUnavailableError, ValidationError } from '../s
 import { renderServiceUnavailable, setRetryAfter } from '../lib/controllerErrors';
 import { simulatedEmailService, type SimulatedEmailPreview } from '../services/simulatedEmailService';
 import { PageViewModel } from '../types/page';
-import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
+import { FLASH_KIND, writeFlash, readFlash, clearFlash, takeFlash } from '../lib/flashCookie';
 import { logger } from '../config/logger';
 import { config } from '../config/env';
 import { memberOnboardingService } from '../services/memberOnboardingService';
@@ -38,6 +38,7 @@ const CAPTCHA_FAILED_MESSAGE = 'Please complete the verification challenge and t
 function buildLoginViewModel(opts: {
   returnTo?: string;
   authReason?: string;
+  passwordReset?: boolean;
   error?: string;
   fieldErrors?: Record<string, string>;
 }): PageViewModel<LoginContent> {
@@ -47,6 +48,7 @@ function buildLoginViewModel(opts: {
     content: {
       returnTo: opts.returnTo,
       authReason: opts.authReason,
+      passwordReset: opts.passwordReset,
       error: opts.error,
       fieldErrors: opts.fieldErrors,
       turnstileSiteKey: config.turnstileSiteKey,
@@ -64,6 +66,7 @@ function getLogin(req: Request, res: Response): void {
   res.render('auth/login', buildLoginViewModel({
     returnTo,
     authReason: returnTo ? 'The content you are trying to reach requires an IFPA Member account.' : undefined,
+    passwordReset: takeFlash(req, res, FLASH_KIND.PASSWORD_RESET) !== null,
   }));
 }
 
@@ -480,8 +483,8 @@ async function postPasswordForgot(req: Request, res: Response, next: NextFunctio
       })) ?? undefined;
     res.render('auth/password-forgot-sent', {
       seo: { title: 'Reset Your Password', noindex: true },
-      page: { sectionKey: '', pageKey: 'password_forgot_sent', title: 'Reset Your Password' },
-      content: { emailPreview },
+      page: { sectionKey: '', pageKey: 'password_forgot_sent', title: 'Check Your Email' },
+      content: { email, emailPreview },
     } satisfies PageViewModel<PasswordForgotSentContent>);
   } catch (err) {
     if (err instanceof ServiceUnavailableError) {
@@ -530,18 +533,18 @@ async function postPasswordReset(req: Request, res: Response, next: NextFunction
   }
   const { newPassword, confirmPassword } = parsed.data;
 
-  const renderAlreadyReset = (): void => {
-    setNoStore(res);
-    res.render('auth/password-reset', {
-      seo: { title: 'Set a New Password', noindex: true },
-      page: { sectionKey: '', pageKey: 'password_reset', title: 'Set a New Password' },
-      content: { token: undefined, alreadyReset: true },
-    } satisfies PageViewModel<PasswordResetContent>);
+  // A completed reset issues no session: the person is sent to the login page,
+  // which says the password was reset, and logs in with the new one. Signing in
+  // straight from a reset is what the OWASP Forgot Password guidance advises
+  // against, and it leaves nothing to fail once the single-use link is spent.
+  const redirectToLogin = (): void => {
+    writeFlash(res, req, FLASH_KIND.PASSWORD_RESET);
+    res.redirect(303, '/login');
   };
 
   // A link that already reset the password to the one submitted is a repeat (a
-  // double submit, a back-button re-post): report the first outcome and prompt
-  // sign-in, starting no session. A different password is not a repeat and goes
+  // double submit, a back-button re-post): it takes the first outcome's redirect
+  // and notice, and changes nothing. A different password is not a repeat and goes
   // on to meet the spent link's invalid-link answer. Checked before the captcha,
   // because a captcha token is good for one check and the repeat carries the one
   // its first submit spent. It tells only the link's holder that the link was
@@ -550,7 +553,7 @@ async function postPasswordReset(req: Request, res: Response, next: NextFunction
   try {
     firstCheck = await identityAccessService.recognisesResetRepeat(token, newPassword);
     if (firstCheck === 'repeat') {
-      renderAlreadyReset();
+      redirectToLogin();
       return;
     }
 
@@ -560,42 +563,8 @@ async function postPasswordReset(req: Request, res: Response, next: NextFunction
       return;
     }
 
-    const result = await identityAccessService.completePasswordReset(token, newPassword, confirmPassword);
-    // Failure mode (KMS Sign error, IAM regression, KMS key rotation
-    // mid-flight): the reset already committed (password_version bumped,
-    // single-use token consumed). All prior sessions are invalid by the
-    // per-request password_version check. Letting the signing error fall
-    // through to the 500 handler would lock the member out with no recovery
-    // path visible. Render a 503 with an actionable message — the new
-    // password is already active, so the recovery path is the login page,
-    // not another forgot-password round trip.
-    let cookieValue: string;
-    try {
-      cookieValue = await createSessionJwt(result.memberId, result.role, result.newPasswordVersion);
-    } catch (jwtErr) {
-      logger.error('password reset: session issue failed after token consumed and password_version commit', {
-        memberId: result.memberId,
-        error: jwtErr instanceof Error ? jwtErr.message : String(jwtErr),
-      });
-      setNoStore(res);
-      setRetryAfter(res);
-      res.status(503).render('auth/password-reset', {
-        seo: { title: 'Set a New Password', noindex: true },
-        page: { sectionKey: '', pageKey: 'password_reset', title: 'Set a New Password' },
-        content: {
-          token: undefined,
-          resetButSignedOut:
-            'Your password was reset, but we could not sign you in. ' +
-            'Please go to the login page and sign in with your new password.',
-        },
-      } satisfies PageViewModel<PasswordResetContent>);
-      return;
-    }
-    issueSessionCookie(res, cookieValue, req, {
-      archiveAccess: memberOnboardingService.isOnboardingComplete(result.memberId),
-    });
-    // Redirect to the member's own profile to match the login and verify flows.
-    res.redirect(303, `/members/${encodeURIComponent(result.slug)}`);
+    await identityAccessService.completePasswordReset(token, newPassword, confirmPassword);
+    redirectToLogin();
   } catch (err) {
     // A submit overlapping its own twin found the link unspent above, then met
     // it used once the twin consumed it; that is the same repeat. Only that case
@@ -609,7 +578,7 @@ async function postPasswordReset(req: Request, res: Response, next: NextFunction
         return;
       }
       if (secondCheck === 'repeat') {
-        renderAlreadyReset();
+        redirectToLogin();
         return;
       }
     }

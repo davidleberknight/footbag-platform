@@ -375,9 +375,10 @@ a:focus-visible { outline: 2px solid var(--secondary); outline-offset: 2px; }
    unchanged. */
 p a:not(.btn) { text-decoration: underline; }
 /* The same cue for a bare prose link inside the other running-text blocks of
-   the page body. A link carrying a class is a control of its own tier (chip,
+   the page body, a form label among them (an agreement box names what it
+   links to). A link carrying a class is a control of its own tier (chip,
    action link, button) and keeps that tier's treatment. */
-main :is(li, dd, td, figcaption, blockquote) a:not([class]) { text-decoration: underline; }
+main :is(li, dd, td, figcaption, blockquote, label) a:not([class]) { text-decoration: underline; }
 
 img { max-width: 100%; height: auto; border-radius: var(--radius-sm); }
 
@@ -3207,6 +3208,11 @@ main fieldset > :not(:has(~ :not([type="hidden"]))) { margin-bottom: 0; }
   color: var(--text-muted);
   margin: var(--space-xs) 0 0 var(--space-md);
 }
+/* A work-kind tile stacks its count line, its area rows and its button; each
+   step keeps the tile's own small gap so the rows never butt against the text. */
+.admin-tile-note + .admin-queue-row,
+.admin-tile-note + p:not(.admin-tile-note),
+.admin-queue-row + p:not(.admin-tile-note) { margin-top: var(--space-sm); }
 
 /* The navigation half. Groups size themselves to the content rather than to a
    fixed column count, so adding a surface to one group never reflows the rest

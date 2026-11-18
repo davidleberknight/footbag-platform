@@ -980,7 +980,7 @@ describe('invoice.payment_succeeded', () => {
       // other test rather than about this one.
       const notices = db.prepare(
         `SELECT COUNT(*) AS c FROM work_queue_items
-          WHERE queue_category = 'payments' AND entity_id = ?`,
+          WHERE entity_type = 'recurring_donation_subscription' AND entity_id = ?`,
       ).get(subscriptionId) as { c: number };
       expect(notices.c).toBe(0);
     } finally {
@@ -1031,7 +1031,7 @@ describe('invoice.payment_failed', () => {
     expect(sub.failure_count).toBe(1);
 
     expect(countRows(
-      "SELECT COUNT(*) AS c FROM work_queue_items WHERE queue_category = 'payments' AND task_type = 'recurring_donation_charge_declined' AND entity_id = ?",
+      "SELECT COUNT(*) AS c FROM work_queue_items WHERE task_type = 'recurring_donation_charge_declined' AND entity_id = ?",
       subscriptionId,
     )).toBe(1);
   });

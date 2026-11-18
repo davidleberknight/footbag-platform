@@ -35,11 +35,13 @@
       <input type="hidden" name="target_legacy_member_id" value="{{content.legacyMemberId}}" />
       <input type="hidden" name="target_historical_person_id" value="{{content.historicalPersonId}}" />
       <input type="hidden" name="reason" value="{{content.reason}}" />
-      <input type="hidden" name="category" value="{{content.filterCategory}}" />
-      <input type="hidden" name="topic" value="{{content.filterTopic}}" />
+      <input type="hidden" name="kind" value="{{content.state.kind}}" />
+      <input type="hidden" name="topic" value="{{content.state.topic}}" />
+      <input type="hidden" name="unclaimed" value="{{content.state.unclaimed}}" />
+      <input type="hidden" name="page" value="{{content.state.page}}" />
       <button type="submit" class="btn btn-primary">{{content.confirmLabel}}</button>
     </form>
 
-    <p class="mt-4"><a href="{{content.cancelHref}}">Cancel</a></p>
+    <p class="mt-4"><a href="{{siteHref content.cancelHref}}">Cancel</a></p>
   </section>
 </div>

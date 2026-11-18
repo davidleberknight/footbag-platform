@@ -7,6 +7,9 @@
 </div>
 
 <div class="wrapper">
+  {{#if content.notice}}
+    {{> outcome-notice text=content.notice.text tone=content.notice.tone}}
+  {{/if}}
   <section>
     <div class="event-detail">
 
@@ -19,6 +22,7 @@
             <span>&#127968; {{content.event.hostClub}}</span>
           {{/if}}
           <span class="badge {{content.event.statusCssClass}}">{{content.event.statusLabel}}</span>
+          {{#if content.event.isSanctioned}}<span class="badge">IFPA-sanctioned</span>{{/if}}
         </div>
 
         {{#if content.event.externalUrl}}
@@ -33,16 +37,76 @@
         <p>{{content.event.description}}</p>
       {{/if}}
 
+      {{! ── Organizers ────────────────────────────────────────── }}
+      {{#if content.organizers.length}}
+        <div>
+          <h2>Organizers</h2>
+          <ul>
+            {{#each content.organizers}}
+              <li>{{this.name}}{{#if this.contactEmail}}, <a href="mailto:{{this.contactEmail}}">{{this.contactEmail}}</a>{{/if}}</li>
+            {{/each}}
+          </ul>
+        </div>
+      {{/if}}
+
       {{! ── Competition categories ────────────────────────────── }}
       {{#if content.disciplines.length}}
         <div>
           <h2>Competition Categories</h2>
           <ul class="disciplines-list">
             {{#each content.disciplines}}
-              <li class="discipline-tag">{{name}}{{#if teamTypeLabel}} ({{teamTypeLabel}}){{/if}}</li>
+              <li class="discipline-tag">{{name}}{{#if teamTypeLabel}} ({{teamTypeLabel}}){{/if}}{{#if registeredLabel}} <span class="text-muted">{{registeredLabel}}</span>{{/if}}</li>
             {{/each}}
           </ul>
         </div>
+      {{/if}}
+
+      {{! ── Registration, for a signed-in member ──────────────── }}
+      {{#if content.registration}}
+        {{#with content.registration}}
+          {{#if mine}}
+            <div>
+              <h2>Your Registration</h2>
+              <p>{{mine.typeLabel}}{{#if mine.statusLabel}} <span class="badge">{{mine.statusLabel}}</span>{{/if}}</p>
+              {{#if mine.entries.length}}
+                <ul>
+                  {{#each mine.entries}}
+                    <li>{{divisionName}}{{#if partnerName}}, with {{partnerName}}{{/if}}{{#if isAmateur}}, as an Amateur{{/if}}</li>
+                  {{/each}}
+                </ul>
+              {{/if}}
+              {{#if mine.tshirtSize}}<p>T-shirt size: {{mine.tshirtSize}}</p>{{/if}}
+              {{#if mine.completePaymentHref}}
+                <p><a href="{{siteHref mine.completePaymentHref}}" class="btn btn-primary">Complete Payment</a></p>
+              {{/if}}
+              {{#if mine.withdrawAction}}
+                <form method="POST" action="{{mine.withdrawAction}}" class="inline-form">
+                  <button type="submit" class="btn btn-outline">Withdraw Registration</button>
+                </form>
+              {{else}}
+                <p>Registration has closed. To withdraw now, contact an organizer.</p>
+              {{/if}}
+            </div>
+          {{/if}}
+          {{#if registerHref}}
+            <p><a href="{{siteHref registerHref}}" class="btn btn-primary">Register for This Event</a></p>
+          {{/if}}
+          {{#if closedNote}}<p>{{closedNote}}</p>{{/if}}
+          {{#if registrants.length}}
+            <div>
+              <h2>{{registrantsHeading}}</h2>
+              <ul>
+                {{#each registrants}}
+                  <li>
+                    <a href="{{siteHref profileHref}}">{{name}}</a>, {{typeLabel}}{{#if entries.length}}:
+                      {{#each entries}}{{#unless @first}}; {{/unless}}{{divisionName}}{{#if partnerName}} with {{#if partnerHref}}<a href="{{siteHref partnerHref}}">{{partnerName}}</a>{{else}}{{partnerName}}{{/if}}{{/if}}{{/each}}
+                    {{/if}}
+                  </li>
+                {{/each}}
+              </ul>
+            </div>
+          {{/if}}
+        {{/with}}
       {{/if}}
 
       {{! ── Results ───────────────────────────────────────────── }}

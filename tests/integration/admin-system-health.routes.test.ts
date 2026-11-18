@@ -312,12 +312,13 @@ describe('the admin dashboard surfaces the same health signals', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('href="/admin/system-health"');
     expect(res.text).toContain('href="/admin/alarms"');
-    expect(res.text).toContain('Needs attention');
+    // The health card's warning badge is the dashboard's one coloured flag.
+    expect(res.text.match(/badge-warn/g)?.length).toBe(1);
     expect(res.text).toContain('One message was dead-lettered.');
-    // An unacknowledged alarm reaches the administrator as its own row with a
-    // count and a link to the surface that acknowledges it, not as a second
-    // sentence under system health that leads somewhere unable to act on it.
-    expect(res.text).toContain('1 active');
+    // An unacknowledged alarm is counted as a fact on the health card beside the
+    // link to the surface that acknowledges it, not as a second sentence under
+    // system health that leads somewhere unable to act on it.
+    expect(res.text).toContain('<strong>Unacknowledged alarms:</strong> 1');
     expect(res.text).not.toContain('One alarm is waiting for an administrator.');
   });
 
@@ -366,7 +367,7 @@ describe('the admin dashboard surfaces the same health signals', () => {
     });
     const res = await request(createApp()).get('/admin').set('Cookie', adminCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Needs attention');
+    expect(res.text.match(/badge-warn/g)?.length).toBe(1);
     expect(res.text).toContain('scheduled jobs failed recently');
     expect(res.text).toContain('scheduled jobs have never succeeded');
     expect(res.text).toContain('One scheduled job is still marked as running.');
@@ -409,7 +410,7 @@ describe('the admin dashboard surfaces the same health signals', () => {
     const res = await request(createApp()).get('/admin').set('Cookie', adminCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain('href="/admin/system-health"');
-    expect(res.text).not.toContain('Needs attention');
+    expect(res.text).not.toContain('badge-warn');
   });
 });
 

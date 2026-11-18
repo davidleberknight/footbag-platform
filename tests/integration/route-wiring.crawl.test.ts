@@ -89,11 +89,11 @@ let watcher: BetterSqlite3.Database | null = null;
 
 // Hard bound per persona so a link explosion fails fast instead of hanging the
 // suite. The widest run (the administrator, who sees every member record) sits
-// near 700 pages with the full persona catalog and the canaries seeded; the
-// bound keeps headroom so a persona or two costs nothing while a genuine link
-// explosion still trips it. Raise it when the crawl reports the cap, never
-// lower it to make a run fit.
-const MAX_PAGES = 1000;
+// just over 1,000 pages with the full persona catalog and the canaries seeded,
+// most of them the freestyle editor; the bound keeps headroom so a persona or
+// two costs nothing while a genuine link explosion still trips it. Raise it
+// when the crawl reports the cap, never lower it to make a run fit.
+const MAX_PAGES = 1300;
 
 /**
  * Ceiling for the case that runs the crawls, derived from the crawls' own

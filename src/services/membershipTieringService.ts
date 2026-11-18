@@ -786,11 +786,9 @@ function raiseAdminLossAlertInTx(
 
   const { id } = workQueueService.enqueue({
     actorId,
-    queueCategory: 'system',
     taskType:      ADMIN_LOSS_TASK_TYPE,
     entityType:    'member',
     entityId:      lostMemberId,
-    priority:      5,
     reasonText:    ADMIN_LOSS_REASON_TEXT[reason],
     detailText:    null,
   });

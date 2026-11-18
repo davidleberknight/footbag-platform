@@ -78,15 +78,16 @@ describe('password-reset token temporal + single-use contract', () => {
   it('accepts a valid reset token and bumps password_version', async () => {
     const before = passwordVersion();
     const res = await reset(validToken);
-    expect(res.status, 'valid reset redirects to profile').toBe(303);
+    expect(res.status, 'valid reset redirects to the login page').toBe(303);
+    expect(res.headers.location).toBe('/login');
     expect(passwordVersion(), 'password_version bumped on reset').toBe(before + 1);
   });
 
   it('a replayed (already-consumed) reset token reports the first outcome and sets nothing', async () => {
     const before = passwordVersion();
     const res = await reset(validToken);
-    expect(res.status, 'replay reports the reset as done').toBe(200);
-    expect(res.text).toContain('Your password has been reset.');
+    expect(res.status, 'replay takes the first outcome redirect').toBe(303);
+    expect(res.headers.location).toBe('/login');
     expect(passwordVersion(), 'password_version unchanged on replay').toBe(before);
   });
 });

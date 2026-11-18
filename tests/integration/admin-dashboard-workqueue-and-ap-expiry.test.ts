@@ -1,8 +1,8 @@
 /**
  * Two dashboard completions:
- *   - The admin dashboard work-queue summary counts open items per category and
- *     flags categories with urgent (non-default priority) items; resolved items
- *     and empty categories do not appear.
+ *   - The admin dashboard work-queue summary counts open items per kind, every
+ *     kind listed in order with empty ones at zero, and flags a Team Alert or
+ *     Someone Is Waiting kind that has anything open; resolved items never count.
  *   - A member whose Active Player status has lapsed sees an explanation that
  *     Tier 1 benefits and the Official IFPA Roster listing have ended; a member
  *     who never earned it, or whose status is current, sees no such message.
@@ -22,27 +22,26 @@ let adminWorkQueueService: typeof import('../../src/services/adminWorkQueueServi
 let memberService: typeof import('../../src/services/memberService').memberService;
 
 let _w = 0;
-function insertWorkItem(category: string, status: 'open' | 'resolved', priority: number): void {
+function insertWorkItem(taskType: string, entityType: string, status: 'open' | 'resolved'): void {
   _w += 1;
   insertWorkQueueItem(db, {
     id: `wq-${_w}`,
-    queue_category: category,
-    task_type: 'generic_task',
-    entity_type: 'member',
+    task_type: taskType,
+    entity_type: entityType,
     entity_id: `ent-${_w}`,
     status,
-    priority,
   });
 }
 
 beforeAll(async () => {
   db = createTestDb(dbPath);
 
-  // Work-queue rows for the dashboard summary.
-  insertWorkItem('membership', 'open', 0);
-  insertWorkItem('membership', 'open', 5);   // urgent
-  insertWorkItem('events', 'open', 0);
-  insertWorkItem('media', 'resolved', 9);     // resolved: must not count
+  // Work-queue rows for the dashboard summary: two a member is waiting on, one
+  // housekeeping item, and a resolved housekeeping item that must not count.
+  insertWorkItem('member_contact_request', 'member', 'open');
+  insertWorkItem('member_link_help_request', 'member', 'open');
+  insertWorkItem('payout_failed', 'stripe_payout', 'open');
+  insertWorkItem('payout_failed', 'stripe_payout', 'resolved');
 
   // Active Player states for the lapsed-explanation tests.
   createTier0WithActivePlayer(db, { id: 'ap-lapsed', slug: 'ap_lapsed', expiresAt: '2020-06-01T00:00:00.000Z' });
@@ -58,26 +57,28 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('admin dashboard work-queue summary', () => {
-  it('counts open items per category, flags urgent, and omits resolved/empty categories', () => {
+  it('counts open items per kind and per area, and never counts a resolved item', () => {
     const summary = adminWorkQueueService.getWorkQueueSummary();
-    expect(summary.hasOpen).toBe(true);
     expect(summary.totalOpen).toBe(3);
 
-    const byCategory = Object.fromEntries(summary.categories.map((c) => [c.category, c]));
-    expect(byCategory.membership.count).toBe(2);
-    expect(byCategory.membership.hasUrgent).toBe(true);
-    expect(byCategory.membership.label).toBe('Membership');
-    // Each count leads to its own category. Sending them all to the queue root
-    // makes the administrator find their category again by eye, which is the
-    // work the number was meant to save.
-    expect(byCategory.membership.href).toBe('/admin/work-queue?category=membership');
-    expect(byCategory.events.href).toBe('/admin/work-queue?category=events');
-
-    expect(byCategory.events.count).toBe(1);
-    expect(byCategory.events.hasUrgent).toBe(false);
-
-    // 'media' had only a resolved item, so the category does not appear.
-    expect(byCategory.media).toBeUndefined();
+    // ordering-is-the-contract: every kind is listed in the registry's order,
+    // an empty one at zero, so the dashboard cards never shuffle.
+    expect(summary.kinds.map((k) => [k.kind, k.open])).toEqual([
+      ['team_alert', 0],
+      ['waiting', 2],
+      ['housekeeping', 1],
+    ]);
+    // A contact request is membership's; a link-help request is too.
+    expect(summary.kinds[1]!.perArea.map((a) => [a.key, a.open])).toEqual([['membership', 2]]);
+    expect(summary.kinds[0]!.oldestDays).toBeNull();
+    // Each card leads to its own kind. Sending them all to the queue root
+    // makes the administrator find their kind again by eye, which is the work
+    // the card was meant to save.
+    expect(summary.kinds.map((k) => k.href)).toEqual([
+      '/admin/work-queue?kind=team_alert',
+      '/admin/work-queue?kind=waiting',
+      '/admin/work-queue?kind=housekeeping',
+    ]);
   });
 });
 

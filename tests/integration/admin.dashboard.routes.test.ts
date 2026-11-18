@@ -2,14 +2,12 @@
  * The admin dashboard: what an administrator is shown on arrival, and in what
  * order.
  *
- * The page ranks by what needs a decision rather than listing every admin
- * surface at equal weight. Action Required carries only queues that are both
- * non-empty and urgent, and the whole section is absent when nothing is, so
- * its presence is itself the answer to "is anything on fire". Routine Queues
- * always render, zeros included, so the queue inventory is learned once. Go To
- * is navigation only. A category nothing can enqueue into never appears at
- * all, because a permanent zero would read as work an administrator had
- * finished.
+ * Work is shown as one card per work-queue kind. The Team Alert card appears
+ * only while one is open, so its presence is itself the answer to "is anything
+ * on fire". The Someone Is Waiting and Housekeeping cards always render, each
+ * with its count line, its open items per area and one button to its own kind.
+ * The Team Alert card and a System Health block needing attention are the only
+ * coloured elements. Go To is navigation only.
  */
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
@@ -22,6 +20,8 @@ import {
   insertSystemAlarmEvent,
   createTestSessionJwt,
 } from '../fixtures/factories';
+import { WORK_QUEUE_KINDS } from '../../src/services/workQueueTaskTypes';
+import { isoDaysAgo } from '../fixtures/clock';
 
 const { dbPath } = setTestEnv('3098');
 
@@ -103,34 +103,27 @@ describe('GET /admin access', () => {
 });
 
 describe('the dashboard with nothing waiting', () => {
-  it('omits the urgent section entirely', async () => {
+  it('omits the Team Alert card entirely', async () => {
     const text = await getDashboard();
-    // Its absence is the signal. A section reading "nothing urgent" would take
-    // the same glance to read as one listing real work.
-    expect(text).not.toContain('Needs You Now');
+    // Its absence is the signal. A card reading "no alert" would take the same
+    // glance to read as one announcing a real one.
+    expect(text).not.toContain('notice-card--warn-strong');
+    expect(text).not.toContain('href="/admin/work-queue?kind=team_alert"');
   });
 
-  it('still renders every live queue, at zero', async () => {
+  it('still renders the two routine kind cards, empty, each leading to its own kind', async () => {
     const text = await getDashboard();
-    expect(text).toContain('Work Waiting');
-    expect(text).toContain('Media');
-    expect(text).toContain('Membership');
-    expect(text).toContain('Payments');
-    expect(text).toContain('System');
-    expect(text).toContain('Club Cleanup');
-    expect(text).toContain('Reconciliation');
-    expect(text).toContain('0 open');
-  });
-
-  it('sends an empty queue to its own category, not to the whole queue', async () => {
-    const text = await getDashboard();
-    // A row labelled with one category that lands on a page showing all of them
-    // makes the reader find their category again by eye, which is exactly what
-    // the row was for.
-    for (const category of ['media', 'membership', 'payments', 'system']) {
-      expect(text, `${category} at zero must still link to itself`)
-        .toContain(`href="/admin/work-queue?category=${category}"`);
+    // A card labelled with one kind that lands on a page showing another makes
+    // the reader find their kind again by eye, which is what the card was for.
+    for (const k of WORK_QUEUE_KINDS.filter((x) => x.kind !== 'team_alert')) {
+      expect(text, `${k.kind} at zero must still render`).toContain(`<h2>${k.label}</h2>`);
+      expect(text, `${k.kind} at zero must still link to itself`)
+        .toContain(`href="/admin/work-queue?kind=${k.kind}"`);
     }
+    expect(text.match(/Nothing open\./g)?.length).toBe(2);
+    // Housekeeping kept outside the work queue sits on the Housekeeping card.
+    expect(text).toContain('href="/admin/club-cleanup"');
+    expect(text).toContain('href="/admin/payments/reconciliation"');
   });
 
   it('reports the platform healthy in one word and lists no figures', async () => {
@@ -143,76 +136,77 @@ describe('the dashboard with nothing waiting', () => {
     expect(text).not.toContain('Unacknowledged alarms');
     expect(text).not.toContain('Email sending');
   });
-
-  it('never shows a category nothing can enqueue into', async () => {
-    const text = await getDashboard();
-    for (const dead of ['Elections', 'Club leadership']) {
-      expect(text, `${dead} has no producer and must not render as a queue`).not.toContain(dead);
-    }
-  });
 });
 
 describe('the dashboard with work waiting', () => {
-  it('lifts an urgent category into the urgent tier and does not repeat it below', async () => {
+  it('shows the Team Alert card while one is open, leading to the Team Alert queue', async () => {
     withDb((db) => {
-      insertWorkQueueItem(db, { queue_category: 'membership', entity_id: MEMBER_ID, priority: 5 });
-      insertWorkQueueItem(db, { queue_category: 'membership', entity_id: MEMBER_ID, priority: 0 });
+      insertWorkQueueItem(db, { task_type: 'admin_loss_recruitment', entity_id: MEMBER_ID });
     });
 
     const text = await getDashboard();
-    expect(text).toContain('Needs You Now');
-    expect(text).toContain('2 open');
-    // One row per queue, wherever it sits: a queue shown twice makes the
-    // administrator check whether they are two different numbers.
-    expect(text.match(/Membership/g)?.length).toBe(1);
+    expect(text).toContain('notice-card--warn-strong');
+    expect(text).toContain('href="/admin/work-queue?kind=team_alert"');
+    // The health block is fine, so the alert card is the one coloured element.
+    expect(text).not.toContain('badge-warn');
   });
 
-  it('leaves a non-urgent category in the waiting tier', async () => {
+  it('gives a kind its count line and one row per area, each leading to that area', async () => {
     withDb((db) => {
-      insertWorkQueueItem(db, { queue_category: 'payments', entity_id: MEMBER_ID, priority: 0 });
+      insertWorkQueueItem(db, {
+        task_type: 'member_contact_request', entity_id: MEMBER_ID, opened_at: isoDaysAgo(6),
+      });
+      insertWorkQueueItem(db, { task_type: 'content_report', entity_id: MEMBER_ID });
     });
 
     const text = await getDashboard();
+    // Two open, the older six days old and unclaimed past the three-day stale
+    // threshold, the newer still inside it.
+    expect(text).toContain('2 open, oldest 6 days; 1 unclaimed past 3 days');
+    expect(text).toContain('href="/admin/work-queue?kind=waiting&amp;topic=membership"');
+    expect(text).toContain('href="/admin/work-queue?kind=waiting&amp;topic=moderation"');
+    // An area with nothing open gets no row.
+    expect(text).not.toContain('href="/admin/work-queue?kind=waiting&amp;topic=finance"');
+  });
+
+  it('does not count a claimed item as unclaimed past the threshold', async () => {
+    let claimedId = '';
+    withDb((db) => {
+      claimedId = insertWorkQueueItem(db, {
+        task_type: 'payout_failed', entity_type: 'stripe_payout', entity_id: 'po-1', opened_at: isoDaysAgo(5),
+      });
+      insertWorkQueueItem(db, {
+        task_type: 'payout_failed', entity_type: 'stripe_payout', entity_id: 'po-2', opened_at: isoDaysAgo(4),
+      });
+    });
+    workQueueService.claim({ queueItemId: claimedId, adminMemberId: OTHER_ADMIN_ID });
+
+    const text = await getDashboard();
+    expect(text).toContain('2 open, oldest 5 days; 1 unclaimed past 3 days');
+  });
+
+  it('reports an unacknowledged alarm in the System Health block, its one coloured badge', async () => {
+    withDb((db) => {
+      insertSystemAlarmEvent(db, { status: 'active' });
+    });
+
+    const text = await getDashboard();
+    expect(text).toContain('Unacknowledged alarms');
+    expect(text.match(/badge-warn/g)?.length).toBe(1);
     expect(text).not.toContain('Needs You Now');
-    expect(text).toContain('1 open');
-  });
-
-  it('gives unacknowledged alarms their own urgent row', async () => {
-    withDb((db) => {
-      insertSystemAlarmEvent(db, { status: 'active' });
-    });
-
-    const text = await getDashboard();
-    expect(text).toContain('Needs You Now');
-    expect(text).toContain('Platform Alarms');
-    expect(text).toContain('1 active');
-  });
-
-  it('does not also report an alarm as a system-health condition', async () => {
-    withDb((db) => {
-      insertSystemAlarmEvent(db, { status: 'active' });
-    });
-
-    const text = await getDashboard();
-    // The alarm row links to the surface that acknowledges alarms. A second
-    // row saying the same thing would lead somewhere that cannot act on it.
-    // "Needs attention" is the system-health row's own count label, so its
-    // absence is that row's absence.
-    expect(text).not.toContain('Needs attention');
-    expect(text).not.toContain('waiting for an administrator');
   });
 
   it('ignores a resolved item and an acknowledged alarm', async () => {
     withDb((db) => {
       insertWorkQueueItem(db, {
-        queue_category: 'membership', entity_id: MEMBER_ID, priority: 9, status: 'resolved',
+        task_type: 'member_contact_request', entity_id: MEMBER_ID, status: 'resolved',
       });
       insertSystemAlarmEvent(db, { status: 'acknowledged' });
     });
 
     const text = await getDashboard();
-    expect(text).not.toContain('Needs You Now');
-    expect(text).not.toContain('1 active');
+    expect(text.match(/Nothing open\./g)?.length).toBe(2);
+    expect(text).not.toContain('Unacknowledged alarms');
   });
 });
 
@@ -221,8 +215,8 @@ describe('what this administrator is holding', () => {
     let mine = '';
     let theirs = '';
     withDb((db) => {
-      mine = insertWorkQueueItem(db, { queue_category: 'membership', entity_id: MEMBER_ID });
-      theirs = insertWorkQueueItem(db, { queue_category: 'payments', entity_id: MEMBER_ID });
+      mine = insertWorkQueueItem(db, { entity_id: MEMBER_ID });
+      theirs = insertWorkQueueItem(db, { entity_id: MEMBER_ID });
     });
     // Claimed through the real path, so the page is reading the state the claim
     // action actually writes rather than a shape invented by the test.
@@ -241,7 +235,7 @@ describe('what this administrator is holding', () => {
   it('stops counting a claim once it has gone stale', async () => {
     let old = '';
     withDb((db) => {
-      old = insertWorkQueueItem(db, { queue_category: 'membership', entity_id: MEMBER_ID });
+      old = insertWorkQueueItem(db, { entity_id: MEMBER_ID });
     });
     workQueueService.claim({ queueItemId: old, adminMemberId: ADMIN_ID });
     // A claim is a coordination signal with a shelf life, not a lock. One left
@@ -334,24 +328,24 @@ describe('the areas this administrator owns', () => {
     withDb((db) => {
       insertWorkQueueTopicOwner(db, { topic: 'finance', owner_member_id: ADMIN_ID });
       insertWorkQueueItem(db, {
-        queue_category: 'payments', task_type: 'reconciliation_discrepancy', entity_type: 'reconciliation_issue',
+        task_type: 'reconciliation_discrepancy', entity_type: 'reconciliation_issue',
         entity_id: 'ri-old', opened_at: '2020-01-01T00:00:00.000Z',
       });
       insertWorkQueueItem(db, {
-        queue_category: 'payments', task_type: 'payout_failed', entity_type: 'stripe_payout', entity_id: 'po-fresh',
+        task_type: 'payout_failed', entity_type: 'stripe_payout', entity_id: 'po-fresh',
       });
       claimedOld = insertWorkQueueItem(db, {
-        queue_category: 'payments', task_type: 'payout_failed', entity_type: 'stripe_payout',
+        task_type: 'payout_failed', entity_type: 'stripe_payout',
         entity_id: 'po-old-claimed', opened_at: '2020-01-01T00:00:00.000Z',
       });
       insertWorkQueueItem(db, {
-        queue_category: 'payments', task_type: 'partial_refund_review', entity_type: 'payment', entity_id: 'pay-parked',
+        task_type: 'partial_refund_review', entity_type: 'payment', entity_id: 'pay-parked',
         opened_at: '2020-01-01T00:00:00.000Z', parked_at: '2020-01-02T00:00:00.000Z',
         parked_by_member_id: OTHER_ADMIN_ID, park_reason: 'Waiting on the bank.',
       });
       // Another area's old item must not reach the finance row.
       insertWorkQueueItem(db, {
-        queue_category: 'membership', task_type: 'member_contact_request', entity_id: MEMBER_ID,
+        task_type: 'member_contact_request', entity_id: MEMBER_ID,
         opened_at: '2020-01-01T00:00:00.000Z',
       });
     });

@@ -8,7 +8,8 @@
  *     decision, the hard deletion of the member's media and galleries, the
  *     withdrawal from upcoming events, the withdrawal of open suggested matches
  *     (performed by IdentityAccessService in the same transaction), the
- *     stopping of queued mail, the
+ *     stopping of queued mail, the withdrawal of a community announcement still
+ *     awaiting review (its review item closed, no email), the
  *     work-queue item for an event left with no organizer, the soft-delete write
  *     and its audit row, and the one message that tells the member what was
  *     deleted and how long their personal details are held before erasure. An
@@ -38,7 +39,8 @@
  *
  * Persistence:
  *   members (soft-delete columns), media_items, media_tags, member_galleries,
- *   registrations, outbox_emails, work_queue_items, audit_entries.
+ *   registrations, outbox_emails, work_queue_items, member_announcements,
+ *   audit_entries.
  *
  * Side effects:
  *   - audit_entries append (`auth.account_deleted`)
@@ -57,6 +59,7 @@ import {
   deceasedMarking,
   media,
   mediaTags,
+  memberAnnouncements,
   outbox,
   recurringDonationSubscriptions,
   tagStats,
@@ -266,6 +269,14 @@ export function createAccountDeletionService(deps: AccountDeletionServiceDeps) {
         const withdrawn = deceasedMarking.cancelUpcomingRegistrations.run(
           'Account deleted', nowIso, nowIso, input.memberId, input.memberId, nowIso.slice(0, 10),
         );
+        // A deleted account has no restore, so an announcement still waiting
+        // for review will never be sent: its review closes and it is withdrawn,
+        // with no email, since the member has just been told what deletion does.
+        workQueue.closeOpenAnnouncementReviewsForMember.run(
+          nowIso, 'Closed: the member deleted their account; the announcement was not sent.',
+          nowIso, actorId, input.memberId,
+        );
+        memberAnnouncements.withdrawPendingForMember.run(nowIso, actorId, input.memberId);
         // Enqueued after the dead-letter sweep below, or it would be caught by
         // it, and addressed by the literal address read before the soft delete,
         // because the member-resolving send path reads the active view and would
@@ -297,10 +308,8 @@ export function createAccountDeletionService(deps: AccountDeletionServiceDeps) {
           if (workQueue.findOpenByEntity.get('needs_organizer', 'event', event.event_id)) continue;
           workQueueService.enqueue({
             taskType:      'needs_organizer',
-            queueCategory: 'events',
             entityType:    'event',
             entityId:      event.event_id,
-            priority:      0,
             actorId:       'system',
             reasonText:    byAdmin
               ? `${event.event_title} has no organizer: an administrator deleted the last one's account.`

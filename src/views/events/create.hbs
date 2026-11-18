@@ -1,0 +1,65 @@
+{{! Event creation form: the member who submits it becomes the event's first organizer }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p class="hero-subtitle">Hold a tournament or gathering, and run it on footbag.org.</p>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+
+    <p>You become the event's first organizer. After creating it, you add its divisions and any co-organizers on the event's manage page.</p>
+
+    {{#if content.errorMessage}}
+      {{> outcome-notice tone=content.errorTone text=content.errorMessage}}
+    {{/if}}
+
+    <form method="POST" action="{{content.formAction}}" class="form-block">
+
+      <fieldset class="form-fieldset">
+        <legend>Free or Sanctioned</legend>
+        <div class="form-field">
+          <label>
+            <input type="radio" name="event_type" value="free"{{#unless content.isSanctioned}} checked{{/unless}}>
+            Free event: it opens for registration as soon as you create it.
+          </label>
+        </div>
+        {{#if content.canChooseSanctioned}}
+          <div class="form-field">
+            <label>
+              <input type="radio" name="event_type" value="sanctioned"{{#if content.isSanctioned}} checked{{/if}}>
+              Sanctioned event: it stays a draft until IFPA approves its sanction request. Registration fees need a sanctioned event.
+            </label>
+          </div>
+        {{/if}}
+        <small class="form-hint">This cannot be changed after the event is created.</small>
+        {{#if content.canChooseSanctioned}}
+          <small class="form-hint">See the <a href="{{siteHref content.guidelinesHref}}">sanctioning guidelines</a> for what sanctioning requires.</small>
+        {{/if}}
+        {{#if content.fieldErrors.event_type}}
+          <p class="form-field-error" role="alert">{{content.fieldErrors.event_type}}</p>
+        {{/if}}
+      </fieldset>
+
+      {{> event-details-fields values=content.values fieldErrors=content.fieldErrors countryOptions=content.countryOptions showFees=content.canChooseSanctioned canEditFees=content.canChooseSanctioned}}
+
+      <div class="form-field">
+        <label for="slug">Event hashtag, after #event_ and the year</label>
+        <input type="text" id="slug" name="slug" value="{{content.values.slug}}" maxlength="88" />
+        <small class="form-hint">This is your event's permanent hashtag and the address of its page. It cannot be changed after the event is created. Leave it blank to make it from the title.</small>
+        {{> hashtag-slug-help}}
+        {{#if content.fieldErrors.slug}}
+          <p class="form-field-error" role="alert">{{content.fieldErrors.slug}}</p>
+        {{/if}}
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Create Event</button>
+        <a href="{{content.cancelHref}}" class="btn btn-outline">Cancel</a>
+      </div>
+
+    </form>
+  </section>
+</div>

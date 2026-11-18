@@ -1,0 +1,7 @@
+{
+  "templateKey": "payment_receipt_failed_event_registration",
+  "subjectTemplate": "Payment failed: {descriptor}",
+  "bodyTemplate": "Your payment could not be completed.\n\nItem:     {descriptor}\nAmount:   {amountDisplay}\nDate:     {paymentDate}\nInterval: {intervalPhrase}\n\nNo charge was applied.\nYour registration is not confirmed yet. You can try again from the event page while registration is open.\n\nReference: {referenceId}",
+  "piiClassification": "confidential",
+  "isEnabled": true
+}

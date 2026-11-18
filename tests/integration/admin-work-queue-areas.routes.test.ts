@@ -1,17 +1,17 @@
 /**
- * Work-queue areas on the administrator queue page: GET /admin/work-queue.
+ * Work-queue areas: GET /admin/work-queue, an item's page, the parked page and
+ * the Area Owners page.
  *
  * Every task type belongs to one area or is shared by every administrator.
- * Each card, working or parked, names its area and that area's owner, or that
- * it is shared, and marks the areas the viewing administrator owns. An owner
- * who no longer holds the admin role reads as no owner. Plain links narrow the
- * queue to the viewer's own areas, to one area, or to the shared items, and
- * combine with the category filter; an unrecognised area shows everything.
- * Ownership orients and never restricts: every card keeps its actions.
+ * Each item's page, and each parked item, names its area and that area's
+ * owner, or that it is shared, and marks the areas the viewing administrator
+ * owns. An owner who no longer holds the admin role reads as no owner. Plain
+ * links narrow the list to the viewer's own areas, to one area, or to the
+ * shared items, keeping the kind in view; an unrecognised area shows every
+ * area. Ownership orients and never restricts: every item keeps its actions.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
-import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import {
   insertMember, insertWorkQueueItem, insertWorkQueueTopicOwner, createTestSessionJwt,
@@ -28,19 +28,8 @@ const VIEWER_NAME = 'Area Viewer';
 const COLLEAGUE_NAME = 'Area Colleague';
 const FORMER_NAME = 'Former Owner';
 
-// Each item carries its own reason text, so its card is found by its data.
-const ITEMS = {
-  finA:   'area-marker-finance-a',
-  finB:   'area-marker-finance-b',
-  mem:    'area-marker-membership',
-  plat:   'area-marker-platform',
-  flag:   'area-marker-moderation-flag',
-  report: 'area-marker-moderation-report',
-  shared: 'area-marker-shared',
-  parked: 'area-marker-parked-finance',
-} as const;
-type ItemKey = keyof typeof ITEMS;
-const WORKING: ItemKey[] = ['finA', 'finB', 'mem', 'plat', 'flag', 'report', 'shared'];
+type ItemKey = 'finA' | 'finB' | 'mem' | 'plat' | 'flag' | 'report' | 'shared' | 'parked';
+const ID = {} as Record<ItemKey, string>;
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
@@ -48,41 +37,34 @@ function cookieFor(memberId: string, role: 'admin' | 'member' = 'admin'): string
   return `__Host-footbag_session=${createTestSessionJwt({ memberId, role })}`;
 }
 
-async function queuePage(query: string, viewer = VIEWER): Promise<string> {
-  const res = await request(createApp()).get(`/admin/work-queue${query}`).set('Cookie', cookieFor(viewer));
-  expect(res.status).toBe(200);
-  // Handlebars escapes `=` inside an attribute, which the browser decodes.
-  return res.text.replace(/&#x3D;/g, '=');
+async function page(path: string, viewer = VIEWER): Promise<string> {
+  const res = await request(createApp()).get(path).set('Cookie', cookieFor(viewer));
+  expect(res.status, path).toBe(200);
+  // Handlebars escapes `=` and `&` inside an attribute, which the browser decodes.
+  return res.text.replace(/&#x3D;/g, '=').replace(/&amp;/g, '&');
 }
 
-function cards(html: string): string[] {
-  return html.split('<div class="card work-queue-item">').slice(1);
+/** The items the list shows, found by the Open link each row carries. */
+function listedItems(html: string): ItemKey[] {
+  const rows = html.split('<div class="admin-queue-row">').slice(1);
+  return (Object.keys(ID) as ItemKey[])
+    .filter((k) => rows.some((r) => r.includes(`href="/admin/work-queue/${ID[k]}`)))
+    .sort();
 }
 
-function cardFor(html: string, key: ItemKey): string {
-  const found = cards(html).filter((c) => c.includes(ITEMS[key]));
-  expect(found, `exactly one card for ${key}`).toHaveLength(1);
-  return found[0]!;
-}
-
-/** The items in the working queue, leaving out the parked listing. */
-function workingItems(html: string): ItemKey[] {
-  const working = cards(html).filter((c) => !c.includes('/unpark"'));
-  return (Object.keys(ITEMS) as ItemKey[]).filter((k) => working.some((c) => c.includes(ITEMS[k])));
-}
-
-/** The card's area line: the first meta line under its title. */
-function areaLine(card: string): { text: string; viewerBadge: boolean } {
-  const m = /<p class="card-meta">([^<]*)(<span class="badge">[^<]*<\/span>)?<\/p>/.exec(card);
-  expect(m, 'the card carries an area line').not.toBeNull();
-  return { text: m![1]!, viewerBadge: m![2] !== undefined };
+/** The Area fact on an item's page. */
+async function areaFact(key: ItemKey): Promise<string> {
+  const html = await page(`/admin/work-queue/${ID[key]}`);
+  const m = /<dt>Area<\/dt>\s*<dd>([^<]*)<\/dd>/.exec(html);
+  expect(m, `${key} names its area`).not.toBeNull();
+  return m![1]!;
 }
 
 function areaChips(html: string): Array<{ href: string; current: boolean }> {
-  const nav = /<nav[^>]*aria-label="Show items by area"[^>]*>([\s\S]*?)<\/nav>/.exec(html);
+  const nav = /<nav[^>]*aria-label="Narrow by area or claim"[^>]*>([\s\S]*?)<\/nav>/.exec(html);
   expect(nav, 'the area filter links are on the page').not.toBeNull();
   return [...nav![1]!.matchAll(/<a class="tag-chip" href="([^"]*)"( aria-current="page")?>/g)]
-    .map((m) => ({ href: m[1]!.replace(/&amp;/g, '&'), current: m[2] !== undefined }));
+    .map((m) => ({ href: m[1]!, current: m[2] !== undefined }));
 }
 
 beforeAll(async () => {
@@ -97,18 +79,20 @@ beforeAll(async () => {
   insertWorkQueueTopicOwner(db, { topic: 'membership', owner_member_id: COLLEAGUE });
   insertWorkQueueTopicOwner(db, { topic: 'platform', owner_member_id: FORMER });
 
-  insertWorkQueueItem(db, { queue_category: 'payments', task_type: 'reconciliation_discrepancy', entity_type: 'reconciliation_issue', entity_id: 'ri-1', reason_text: ITEMS.finA });
-  insertWorkQueueItem(db, { queue_category: 'payments', task_type: 'payout_failed', entity_type: 'stripe_payout', entity_id: 'po-1', reason_text: ITEMS.finB });
-  insertWorkQueueItem(db, { queue_category: 'membership', task_type: 'member_contact_request', entity_type: 'member', entity_id: MEMBER, created_by: MEMBER, reason_text: ITEMS.mem });
-  insertWorkQueueItem(db, { queue_category: 'media', task_type: 'media_takedown_storage_removal', entity_type: 'media_item', entity_id: 'mi-1', reason_text: ITEMS.plat });
+  // Housekeeping: finance's two, platform's one, the flagged media and the shared item.
+  ID.finA = insertWorkQueueItem(db, { task_type: 'reconciliation_discrepancy', entity_type: 'reconciliation_issue', entity_id: 'ri-1' });
+  ID.finB = insertWorkQueueItem(db, { task_type: 'payout_failed', entity_type: 'stripe_payout', entity_id: 'po-1' });
+  ID.plat = insertWorkQueueItem(db, { task_type: 'media_takedown_storage_removal', entity_type: 'media_item', entity_id: 'mi-1' });
   // Moderation: a flagged media item, and a contact-form report of content that
   // breaks the community standards. Neither has an owner set.
-  insertWorkQueueItem(db, { queue_category: 'media', task_type: 'media_flag_review', entity_type: 'media_item', entity_id: 'mi-2', reason_text: ITEMS.flag });
-  insertWorkQueueItem(db, { queue_category: 'membership', task_type: 'content_report', entity_type: 'member', entity_id: MEMBER, created_by: MEMBER, reason_text: ITEMS.report });
-  insertWorkQueueItem(db, { queue_category: 'events', task_type: 'needs_organizer', entity_type: 'event', entity_id: 'ev-1', reason_text: ITEMS.shared });
-  insertWorkQueueItem(db, {
-    queue_category: 'payments', task_type: 'partial_refund_review', entity_type: 'payment', entity_id: 'pay-1',
-    reason_text: ITEMS.parked, parked_at: '2026-01-01T00:00:00.000Z', parked_by_member_id: COLLEAGUE, park_reason: 'Waiting on the bank.',
+  ID.flag = insertWorkQueueItem(db, { task_type: 'media_flag_review', entity_type: 'media_item', entity_id: 'mi-2' });
+  ID.shared = insertWorkQueueItem(db, { task_type: 'needs_organizer', entity_type: 'event', entity_id: 'ev-1' });
+  // Someone Is Waiting: a contact request and a content report.
+  ID.mem = insertWorkQueueItem(db, { task_type: 'member_contact_request', entity_type: 'member', entity_id: MEMBER, created_by: MEMBER });
+  ID.report = insertWorkQueueItem(db, { task_type: 'content_report', entity_type: 'member', entity_id: MEMBER, created_by: MEMBER });
+  ID.parked = insertWorkQueueItem(db, {
+    task_type: 'partial_refund_review', entity_type: 'payment', entity_id: 'pay-1',
+    parked_at: '2026-01-01T00:00:00.000Z', parked_by_member_id: COLLEAGUE, park_reason: 'Waiting on the bank.',
   });
   db.close();
   createApp = await importApp();
@@ -116,54 +100,55 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('each card names its area and owner', () => {
+describe('each item names its area and owner', () => {
   // Defect caught: an administrator cannot tell whose area an item is in, or
   // which items are theirs to keep moving, so owned work waits unnoticed and a
   // departed administrator is still shown as the one responsible.
   it('shows the owner and marks the viewer’s own area, reads a former administrator as no owner, and names shared items as no area', async () => {
-    const html = await queuePage('');
+    const own = await areaFact('finA');
+    expect(own).toContain(WORK_QUEUE_TOPICS.finance.label);
+    expect(own).toContain(VIEWER_NAME);
+    expect(own).toContain('(your area)');
 
-    const own = areaLine(cardFor(html, 'finA'));
-    expect(own.text).toContain(WORK_QUEUE_TOPICS.finance.label);
-    expect(own.text).toContain(VIEWER_NAME);
-    expect(own.viewerBadge).toBe(true);
+    const theirs = await areaFact('mem');
+    expect(theirs).toContain(WORK_QUEUE_TOPICS.membership.label);
+    expect(theirs).toContain(COLLEAGUE_NAME);
+    expect(theirs).not.toContain('(your area)');
 
-    const theirs = areaLine(cardFor(html, 'mem'));
-    expect(theirs.text).toContain(WORK_QUEUE_TOPICS.membership.label);
-    expect(theirs.text).toContain(COLLEAGUE_NAME);
-    expect(theirs.viewerBadge).toBe(false);
-
-    const lapsed = areaLine(cardFor(html, 'plat'));
-    expect(lapsed.text).toContain(WORK_QUEUE_TOPICS.platform.label);
-    expect(lapsed.text).not.toContain(FORMER_NAME);
-    expect(lapsed.viewerBadge).toBe(false);
+    const lapsed = await areaFact('plat');
+    expect(lapsed).toContain(WORK_QUEUE_TOPICS.platform.label);
+    expect(lapsed).not.toContain(FORMER_NAME);
 
     // Defect caught: a moderation item filed as shared or under membership, so
     // the moderation owner never sees it as theirs.
     for (const key of ['flag', 'report'] as const) {
-      const line = areaLine(cardFor(html, key));
-      expect(line.text, key).toContain(WORK_QUEUE_TOPICS.moderation.label);
-      expect(line.text, key).not.toContain(WORK_QUEUE_TOPICS.membership.label);
-      expect(line.viewerBadge, key).toBe(false);
+      const line = await areaFact(key);
+      expect(line, key).toContain(WORK_QUEUE_TOPICS.moderation.label);
+      expect(line, key).not.toContain(WORK_QUEUE_TOPICS.membership.label);
     }
 
-    const shared = areaLine(cardFor(html, 'shared'));
+    const shared = await areaFact('shared');
     for (const topic of Object.values(WORK_QUEUE_TOPICS)) {
-      expect(shared.text, `shared item is not filed under ${topic.label}`).not.toContain(topic.label);
+      expect(shared, `shared item is not filed under ${topic.label}`).not.toContain(topic.label);
     }
     for (const name of [VIEWER_NAME, COLLEAGUE_NAME, FORMER_NAME]) {
-      expect(shared.text).not.toContain(name);
+      expect(shared).not.toContain(name);
     }
-    expect(shared.viewerBadge).toBe(false);
+  });
 
-    // A parked item keeps its area line, so setting it aside does not hide
-    // whose it is.
-    const parked = areaLine(cardFor(html, 'parked'));
-    expect(parked.text).toContain(VIEWER_NAME);
-    expect(parked.viewerBadge).toBe(true);
+  // Defect caught: setting an item aside hides whose it is.
+  it('keeps the area line on a parked item', async () => {
+    const html = await page('/admin/work-queue/parked');
+    const card = html.split('<div class="card work-queue-item">').slice(1).find((c) => c.includes(ID.parked));
+    expect(card, 'the parked item is listed').toBeDefined();
+    expect(card).toContain(VIEWER_NAME);
+    expect(card).toContain('<span class="badge">Your Area</span>');
+  });
 
-    // The owners form offers current administrators only, shows each area's
-    // current owner chosen, and shows a former administrator's area as unowned.
+  // Defect caught: the owners form offers someone who is not an administrator,
+  // or shows a departed administrator as still owning an area.
+  it('offers current administrators only on the Area Owners page, with each area’s owner chosen', async () => {
+    const html = await page('/admin/work-queue-areas');
     const select = (field: string) => {
       const m = new RegExp(`<select id="${field}" name="${field}">([\\s\\S]*?)</select>`).exec(html);
       expect(m, `${field} select`).not.toBeNull();
@@ -172,78 +157,89 @@ describe('each card names its area and owner', () => {
     expect(select('owner_finance').filter((o) => o.selected).map((o) => o.value)).toEqual([VIEWER]);
     expect(select('owner_platform').filter((o) => o.selected).map((o) => o.value)).toEqual(['']);
     expect(select('owner_platform').map((o) => o.value).sort()).toEqual(['', COLLEAGUE, VIEWER].sort());
-    expect(html).toContain('action="/admin/work-queue/owners"');
+    expect(html).toContain('action="/admin/work-queue-areas"');
   });
 });
 
-describe('narrowing the queue by area', () => {
+describe('narrowing the list by area', () => {
   // Defect caught: the filter offers an area nothing can land in, drops one an
   // item can, or loses track of which view the reader is in.
-  it('offers All, the viewer’s own areas, each area with task types, and the shared items, with All current by default', async () => {
-    const chips = areaChips(await queuePage(''));
+  it('offers All, the viewer’s own areas, each area with task types, the shared items and unclaimed, with All current by default', async () => {
+    // With no Team Alert open, the list opens on Someone Is Waiting.
+    const chips = areaChips(await page('/admin/work-queue'));
     expect(chips.map((c) => c.href)).toEqual([
-      '/admin/work-queue',
-      '/admin/work-queue?topic=mine',
-      '/admin/work-queue?topic=finance',
-      '/admin/work-queue?topic=membership',
-      '/admin/work-queue?topic=platform',
-      '/admin/work-queue?topic=moderation',
-      '/admin/work-queue?topic=shared',
+      '/admin/work-queue?kind=waiting',
+      '/admin/work-queue?kind=waiting&topic=mine',
+      '/admin/work-queue?kind=waiting&topic=finance',
+      '/admin/work-queue?kind=waiting&topic=membership',
+      '/admin/work-queue?kind=waiting&topic=platform',
+      '/admin/work-queue?kind=waiting&topic=sanctioning',
+      '/admin/work-queue?kind=waiting&topic=moderation',
+      '/admin/work-queue?kind=waiting&topic=shared',
+      '/admin/work-queue?kind=waiting&unclaimed=1',
     ]);
-    expect(chips.filter((c) => c.current).map((c) => c.href)).toEqual(['/admin/work-queue']);
+    expect(chips.filter((c) => c.current).map((c) => c.href)).toEqual(['/admin/work-queue?kind=waiting']);
   });
 
   // Defect caught: "my areas" shows another administrator's items, or the same
   // list whoever is looking.
   it('shows each administrator only the areas they own under their own view', async () => {
-    const mine = await queuePage('?topic=mine');
-    expect(workingItems(mine)).toEqual(['finA', 'finB']);
-    expect(areaChips(mine).filter((c) => c.current).map((c) => c.href)).toEqual(['/admin/work-queue?topic=mine']);
+    const mine = await page('/admin/work-queue?kind=housekeeping&topic=mine');
+    expect(listedItems(mine)).toEqual(['finA', 'finB']);
+    expect(areaChips(mine).filter((c) => c.current).map((c) => c.href))
+      .toEqual(['/admin/work-queue?kind=housekeeping&topic=mine']);
 
-    expect(workingItems(await queuePage('?topic=mine', COLLEAGUE))).toEqual(['mem']);
+    expect(listedItems(await page('/admin/work-queue?kind=waiting&topic=mine', COLLEAGUE))).toEqual(['mem']);
   });
 
   // Defect caught: one area's view leaks another area's or a shared item, or
   // the shared view shows an item that belongs to an area.
-  it('shows one area alone, and the shared items alone', async () => {
-    expect(workingItems(await queuePage('?topic=finance'))).toEqual(['finA', 'finB']);
+  it('shows one area alone, and the shared items alone, within the kind', async () => {
+    expect(listedItems(await page('/admin/work-queue?kind=housekeeping&topic=finance'))).toEqual(['finA', 'finB']);
     // A former administrator's area still has its items; only the owner lapsed.
-    expect(workingItems(await queuePage('?topic=platform'))).toEqual(['plat']);
-    expect(workingItems(await queuePage('?topic=moderation'))).toEqual(['flag', 'report']);
-    expect(workingItems(await queuePage('?topic=membership'))).toEqual(['mem']);
-    expect(workingItems(await queuePage('?topic=shared'))).toEqual(['shared']);
+    expect(listedItems(await page('/admin/work-queue?kind=housekeeping&topic=platform'))).toEqual(['plat']);
+    expect(listedItems(await page('/admin/work-queue?kind=housekeeping&topic=moderation'))).toEqual(['flag']);
+    expect(listedItems(await page('/admin/work-queue?kind=waiting&topic=moderation'))).toEqual(['report']);
+    expect(listedItems(await page('/admin/work-queue?kind=waiting&topic=membership'))).toEqual(['mem']);
+    expect(listedItems(await page('/admin/work-queue?kind=housekeeping&topic=shared'))).toEqual(['shared']);
+    expect(listedItems(await page('/admin/work-queue?kind=housekeeping&topic=membership'))).toEqual([]);
   });
 
   // Defect caught: a stale or mistyped link, or an area no task type uses yet,
-  // shows an empty queue that reads as no work.
-  it('shows the whole queue for an area value it does not offer', async () => {
-    for (const query of ['?topic=sanctioning', '?topic=not_an_area']) {
-      const html = await queuePage(query);
-      expect(workingItems(html), query).toEqual(WORKING);
-      expect(areaChips(html).filter((c) => c.current).map((c) => c.href), query).toEqual(['/admin/work-queue']);
+  // shows an empty list that reads as no work.
+  it('shows every area for an area value it does not offer', async () => {
+    for (const query of ['?kind=housekeeping&topic=freestyle', '?kind=housekeeping&topic=not_an_area']) {
+      const html = await page(`/admin/work-queue${query}`);
+      expect(listedItems(html), query).toEqual(['finA', 'finB', 'flag', 'plat', 'shared']);
+      expect(areaChips(html).filter((c) => c.current).map((c) => c.href), query)
+        .toEqual(['/admin/work-queue?kind=housekeeping']);
     }
   });
 
-  // Defect caught: the two filters override each other instead of narrowing
-  // together, or switching area drops the category the reader was in.
-  it('combines an area with a category, and keeps the category on the area links', async () => {
-    const both = await queuePage('?topic=finance&category=payments');
-    expect(workingItems(both)).toEqual(['finA', 'finB']);
-    expect(areaChips(both).map((c) => c.href)).toContain('/admin/work-queue?topic=membership&category=payments');
-
-    expect(workingItems(await queuePage('?topic=membership&category=payments'))).toEqual([]);
-    expect(workingItems(await queuePage('?topic=moderation&category=media'))).toEqual(['flag']);
-    expect(workingItems(await queuePage('?topic=shared&category=events'))).toEqual(['shared']);
+  // Defect caught: switching area drops the kind the reader was in.
+  it('keeps the kind on the area links', async () => {
+    const html = await page('/admin/work-queue?kind=housekeeping&topic=finance');
+    expect(areaChips(html).map((c) => c.href)).toContain('/admin/work-queue?kind=housekeeping&topic=membership');
   });
 
   // Defect caught: an action taken in a narrowed view returns the reader to the
   // whole queue, so the filter is lost after every item.
-  it('carries the area on every form in a narrowed view', async () => {
-    const html = await queuePage('?topic=finance&category=payments');
+  it('carries the area and kind on every form and item link in a narrowed view', async () => {
+    const html = await page('/admin/work-queue?kind=housekeeping&topic=finance');
     const forms = [...html.matchAll(/<form method="POST" action="\/admin\/work-queue[\s\S]*?<\/form>/g)].map((m) => m[0]);
-    expect(forms.length).toBeGreaterThan(1);
+    expect(forms).toHaveLength(2);
     for (const form of forms) {
-      expect(form, 'every queue form carries the area').toContain('<input type="hidden" name="topic" value="finance" />');
+      expect(form, 'every list form carries the area').toContain('<input type="hidden" name="topic" value="finance" />');
+      expect(form, 'every list form carries the kind').toContain('<input type="hidden" name="kind" value="housekeeping" />');
+    }
+    expect(html).toContain(`href="/admin/work-queue/${ID.finA}?kind=housekeeping&topic=finance"`);
+
+    // And the item's page carries them on its own forms.
+    const item = await page(`/admin/work-queue/${ID.finA}?kind=housekeeping&topic=finance`);
+    const itemForms = [...item.matchAll(/<form method="POST" action="\/admin\/work-queue[\s\S]*?<\/form>/g)].map((m) => m[0]);
+    expect(itemForms.length).toBeGreaterThan(0);
+    for (const form of itemForms) {
+      expect(form, 'every item form carries the area').toContain('<input type="hidden" name="topic" value="finance" />');
     }
   });
 });

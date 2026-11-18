@@ -365,14 +365,11 @@ describe('GET /health/ready', () => {
 // ── Events landing ─────────────────────────────────────────────────────────────
 
 describe('GET /events', () => {
-  // Upcoming-events region intentionally omitted from /events while only the
-  // featured promo (Worlds 2026) is highlighted. The data path
-  // (eventService.listPublicUpcomingEvents) remains intact and is exercised
-  // via getPublicEventsLandingPage shape.
-  it('does not currently render the upcoming-events region', async () => {
+  // Defect caught: the events landing stops listing an event that is open for
+  // registration, so a visitor cannot find it to plan or register.
+  it('lists an upcoming event open for registration', async () => {
     const res = await page('/events');
-    expect(res.text).not.toContain('2026 Spring Classic');
-    expect(res.text).not.toContain('Portland');
+    expect(res.text).toContain('2026 Spring Classic');
   });
 
   it('includes archive year link for 2025 (completed events)', async () => {

@@ -39,7 +39,7 @@ Session cookies are set or cleared exclusively through `issueSessionCookie(res, 
 
 ## Password change
 
-Any POST that changes a password (login-after-rotate, password-edit, password-reset-complete) leaves the current browser holding a session JWT carrying the new `password_version`; the bump invalidates every other session. The controller sets the cookie through `issueSessionCookie()`. Where the bump is the irreversible step, the service signs the replacement token before committing and returns it, so a signing outage fails the request with nothing changed and the controller issues only what it was handed; the remaining paths mint the token in the controller via `createSessionJwt()`.
+Any POST that changes a password while signed in (login-after-rotate, password-edit) leaves the current browser holding a session JWT carrying the new `password_version`; the bump invalidates every other session. Completing a password reset bumps the version too but issues no session: it redirects to the login page, following the OWASP Forgot Password Cheat Sheet. The controller sets the cookie through `issueSessionCookie()`. Where the bump is the irreversible step, the service signs the replacement token before committing and returns it, so a signing outage fails the request with nothing changed and the controller issues only what it was handed; the remaining paths mint the token in the controller via `createSessionJwt()`.
 
 ## State-changing POSTs
 

@@ -30,6 +30,8 @@ import {
   insertClubLeader,
   insertEvent,
   insertRegistration,
+  insertDiscipline,
+  insertRegistrationDisciplineSelection,
   insertMailingListSubscription,
   insertMemberLink,
   insertMemberDeclaredAnchor,
@@ -343,6 +345,33 @@ describe('what the document carries', () => {
     expect(body).not.toContain('not-my-caption');
     expect(body).not.toContain('theirs.jpg');
     expect(body).not.toContain(theirs);
+  });
+
+  // Defect caught: the divisions a member entered, or an entry that names them
+  // as a partner, are missing from their copy, or the entry's maker is named.
+  it('carries the member entries and the entries naming them as partner, without the maker', async () => {
+    const slug = 'exp_entries';
+    const { id, maker } = withDb((db) => {
+      const id = insertMember(db, { slug, display_name: slug, login_email: `${slug}@example.com` });
+      const maker = insertMember(db, { slug: 'exp_entries_maker', display_name: 'Entry Maker Zq' });
+      const eventId = insertEvent(db, { title: 'Entries Event' });
+      const singles = insertDiscipline(db, eventId, { name: 'Entries Singles', discipline_category: 'net' });
+      const doubles = insertDiscipline(db, eventId, { name: 'Entries Doubles', discipline_category: 'net', team_type: 'doubles' });
+      const mine = insertRegistration(db, eventId, id);
+      insertRegistrationDisciplineSelection(db, mine, singles);
+      const theirs = insertRegistration(db, eventId, maker);
+      insertRegistrationDisciplineSelection(db, theirs, doubles, { partner_member_id: id });
+      return { id, maker };
+    });
+
+    const res = await download(slug, id);
+    const doc = JSON.parse(res.text);
+
+    expect(res.status).toBe(200);
+    expect(doc.eventEntries.map((r: { division_name: string }) => r.division_name)).toEqual(['Entries Singles']);
+    expect(doc.eventPartnerEntries.map((r: { division_name: string }) => r.division_name)).toEqual(['Entries Doubles']);
+    expect(res.text).not.toContain(maker);
+    expect(res.text).not.toContain('Entry Maker Zq');
   });
 
   // Defect caught: a section the document has always claimed to carry is wired

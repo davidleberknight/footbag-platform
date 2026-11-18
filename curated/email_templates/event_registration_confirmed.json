@@ -1,0 +1,7 @@
+{
+  "templateKey": "event_registration_confirmed",
+  "subjectTemplate": "You are registered for {eventTitle}",
+  "bodyTemplate": "You are registered for {eventTitle} ({eventDates}).\n\n{registrationSummary}\n\nYour registration is on the event's page, where you can withdraw it until registration closes.\n\n-- IFPA platform",
+  "piiClassification": "confidential",
+  "isEnabled": true
+}

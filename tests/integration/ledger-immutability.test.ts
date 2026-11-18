@@ -28,6 +28,7 @@ const LEDGER_TABLES = [
   'active_player_grants',
   'active_player_vouches',
   'active_player_reminder_sent',
+  'event_registration_reminder_sent',
   'system_config',
   'erasure_log',
   'payment_status_transitions',

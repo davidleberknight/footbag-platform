@@ -1,0 +1,7 @@
+{
+  "templateKey": "event_registration_withdrawn",
+  "subjectTemplate": "{memberName} withdrew from {eventTitle}",
+  "bodyTemplate": "{memberName} withdrew their registration for {eventTitle} ({eventDates}). They no longer appear on the participant list.\n\n-- IFPA platform",
+  "piiClassification": "confidential",
+  "isEnabled": true
+}

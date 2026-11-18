@@ -4,7 +4,7 @@
 # must exist in database/schema.sql. A schema refactor or table rebuild that
 # silently drops one removes a permanent immutability guard on an audit, ballot,
 # tier-grant, payment, vouch, or config ledger, corrupting a record that must
-# never change. The canonical list below mirrors the 26 triggers in DATA_MODEL
+# never change. The canonical list below mirrors the 28 triggers in DATA_MODEL
 # §7; when a new immutable ledger is introduced, add its trigger to both places.
 set -euo pipefail
 ROOT="$(git rev-parse --show-toplevel)"
@@ -23,6 +23,7 @@ triggers=(
   trg_active_player_vouches_no_update trg_active_player_vouches_no_delete
   trg_active_player_grants_no_update trg_active_player_grants_no_delete
   trg_active_player_reminder_sent_no_update trg_active_player_reminder_sent_no_delete
+  trg_event_registration_reminder_sent_no_update trg_event_registration_reminder_sent_no_delete
   trg_vote_options_lock_insert trg_vote_options_lock_update trg_vote_options_lock_delete
   trg_payments_status_monotonicity
 )

@@ -19,6 +19,10 @@
 <section class="sec-card sec-card-dev" aria-label="Simulated Email (Dev)">
   <h2>Simulated Email (Dev)</h2>
   <p>
+    This is a test site, so no real email was sent. The email you would have
+    received appears below: click its link to continue.
+  </p>
+  <p>
     <code>SES_ADAPTER=stub</code>, so no real mail was sent.
     Showing {{messages.length}} captured message(s); newest first.
     Restarting the server clears the buffer.
@@ -45,7 +49,11 @@
   {{else}}
     <div class="empty-state">
       No messages sent yet.
-      <p class="fs-sm mt-2">If you just registered, this usually means the email address is already in use (anti-enumeration: no visible difference). Try resetting the database or using a different email.</p>
+      {{#if emptyHint}}
+        <p class="fs-sm mt-2">{{emptyHint}}</p>
+      {{else}}
+        <p class="fs-sm mt-2">If you just registered, this usually means the email address is already in use (anti-enumeration: no visible difference). Try resetting the database or using a different email.</p>
+      {{/if}}
     </div>
   {{/if}}
 </section>

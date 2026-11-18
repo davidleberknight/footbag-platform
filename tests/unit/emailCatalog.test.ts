@@ -56,15 +56,15 @@ const CATALOG: CatalogEntry[] = [
   ] },
   // Admin-alerts fan-out, sent from the single work-queue enqueue path.
   { template: 'admin_loss_recruitment', services: ['workQueueService'], samples: [
-    { params: { entityId: 'e', queueUrl: 'https://x/admin/work-queue' }, variant: 'admin_loss_recruitment' },
+    { params: { itemUrl: 'https://x/admin/work-queue/wq_1' }, variant: 'admin_loss_recruitment' },
   ] },
   // Routine work-queue items: the per-admin digest and the one-time stale
   // escalation, both sent from the work-queue service's scheduled passes.
   { template: 'admin_queue_digest', services: ['workQueueService'], samples: [
-    { params: { openCount: 3, itemLines: 'Task type: t, Entity ID: e', queueUrl: 'https://x/admin/work-queue' }, variant: 'admin_queue_digest' },
+    { params: { openCount: 3, itemLines: 'Housekeeping:\nTask (Shared), waiting 2 days: https://x/admin/work-queue/wq_1', queueUrl: 'https://x/admin/work-queue' }, variant: 'admin_queue_digest' },
   ] },
   { template: 'admin_queue_topic_digest', services: ['workQueueService'], samples: [
-    { params: { areaLabel: 'Finance', openCount: 2, itemLines: 'Task type: t, Entity ID: e', queueUrl: 'https://x/admin/work-queue?topic=finance' }, variant: 'admin_queue_topic_digest' },
+    { params: { areaLabel: 'Finance', openCount: 2, itemLines: 'Housekeeping:\nTask (Finance), waiting 2 days: https://x/admin/work-queue/wq_1', queueUrl: 'https://x/admin/work-queue?topic=finance' }, variant: 'admin_queue_topic_digest' },
   ] },
   { template: 'work_queue_topic_route_disabled', services: ['sesFeedbackService'], samples: [
     { params: { areaLabel: 'Finance' }, variant: 'work_queue_topic_route_disabled' },
@@ -74,7 +74,7 @@ const CATALOG: CatalogEntry[] = [
     { params: { removed: false }, variant: 'media_report_outcome_reporter' },
   ] },
   { template: 'admin_queue_stale_escalation', services: ['workQueueService'], samples: [
-    { params: { taskType: 't', entityId: 'e', ageDays: 3, queueUrl: 'https://x/admin/work-queue' }, variant: 'admin_queue_stale_escalation' },
+    { params: { taskLabel: 'Task', kindLabel: 'Housekeeping', ageDays: 3, itemUrl: 'https://x/admin/work-queue/wq_1' }, variant: 'admin_queue_stale_escalation' },
   ] },
   // adminWorkQueueService — member-facing resolution reply.
   { template: 'contact_request_resolution', services: ['adminWorkQueueService'], samples: [
@@ -124,6 +124,14 @@ const CATALOG: CatalogEntry[] = [
   { template: 'link_help_request_resolution', services: ['identityAccessService'], samples: [
     { params: { memberName: 'M', displayDecision: 'D', note: 'n' }, variant: 'link_help_request_resolution' },
   ] },
+  // broadcastService — the member told what became of their held community
+  // announcement: sent, or sent back with the administrator's note.
+  { template: 'announce_approved', services: ['broadcastService'], samples: [
+    { params: { memberName: 'M', subject: 'S' }, variant: 'announce_approved' },
+  ] },
+  { template: 'announce_returned', services: ['broadcastService'], samples: [
+    { params: { memberName: 'M', subject: 'S', comment: 'c' }, variant: 'announce_returned' },
+  ] },
   // clubService / clubCleanupService — club operational notifications.
   { template: 'club_membership_member', services: ['clubService'], samples: [
     { params: { kind: 'join', memberName: 'M', clubName: 'C' }, variant: 'club_membership_member_join' },
@@ -135,6 +143,27 @@ const CATALOG: CatalogEntry[] = [
   ] },
   { template: 'club_volunteer_leadership', services: ['clubService'], samples: [
     { params: { leaderName: 'L', joinerName: 'J', clubName: 'C' }, variant: 'club_volunteer_leadership' },
+  ] },
+  { template: 'event_created_confirmation', services: ['eventService'], samples: [
+    { params: { eventTitle: 'E', eventDates: 'D' }, variant: 'event_created_confirmation' },
+  ] },
+  { template: 'event_organizer_added', services: ['eventService'], samples: [
+    { params: { actorName: 'A', eventTitle: 'E', eventDates: 'D' }, variant: 'event_organizer_added' },
+  ] },
+  { template: 'event_sanction_requested', services: ['eventService'], samples: [
+    { params: { eventTitle: 'E', eventDates: 'D' }, variant: 'event_sanction_requested' },
+  ] },
+  { template: 'event_sanctioned', services: ['eventService'], samples: [
+    { params: { eventTitle: 'E', guidelinesUrl: 'U', note: 'N' }, variant: 'event_sanctioned' },
+  ] },
+  { template: 'event_sanction_rejected', services: ['eventService'], samples: [
+    { params: { eventTitle: 'E', reason: 'R', manageUrl: 'U' }, variant: 'event_sanction_rejected' },
+  ] },
+  { template: 'event_registration_confirmed', services: ['eventService'], samples: [
+    { params: { eventTitle: 'E', eventDates: 'D', registrationSummary: 'S' }, variant: 'event_registration_confirmed' },
+  ] },
+  { template: 'event_registration_withdrawn', services: ['eventService'], samples: [
+    { params: { memberName: 'M', eventTitle: 'E', eventDates: 'D' }, variant: 'event_registration_withdrawn' },
   ] },
   { template: 'club_leaderless_contact', services: ['clubCleanupService'], samples: [
     { params: { memberName: 'M', clubName: 'C' }, variant: 'club_leaderless_contact' },
@@ -151,6 +180,7 @@ const CATALOG: CatalogEntry[] = [
     { params: { descriptor: 'd', amountDisplay: '$1.00 USD', paymentDate: '1 January 2030', intervalPhrase: 'Yearly recurring donation', outcome: 'succeeded', isMembership: false, isDonation: true, purchasedTier: null, donationNote: 'In memory of my coach', referenceId: 'r' }, variant: 'payment_receipt_succeeded_donation' },
     { params: { descriptor: 'd', amountDisplay: '$1.00 USD', paymentDate: '1 January 2030', intervalPhrase: 'One-time payment', outcome: 'failed', isMembership: true, isDonation: false, purchasedTier: 'tier1', donationNote: null, referenceId: 'r' }, variant: 'payment_receipt_failed_membership' },
     { params: { descriptor: 'd', amountDisplay: '$1.00 USD', paymentDate: '1 January 2030', intervalPhrase: 'One-time payment', outcome: 'failed', isMembership: false, isDonation: false, purchasedTier: null, donationNote: null, referenceId: 'r' }, variant: 'payment_receipt_failed' },
+    { params: { descriptor: 'd', amountDisplay: '$1.00 USD', paymentDate: '1 January 2030', intervalPhrase: 'One-time payment', outcome: 'failed', isMembership: false, isDonation: false, isEventRegistration: true, purchasedTier: null, donationNote: null, referenceId: 'r' }, variant: 'payment_receipt_failed_event_registration' },
   ] },
   { template: 'donation_subscription_started', services: ['paymentService'], samples: [
     { params: { amountDisplay: '$25.00 USD', donationNote: 'HoF Fund', referenceId: 'r', startedDate: '1 January 2030' }, variant: 'donation_subscription_started' },

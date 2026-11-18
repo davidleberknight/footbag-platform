@@ -4,7 +4,10 @@
  * Owns:
  *   - Registration, email verification, credential check, password change/reset
  *   - Creating the member's onboarding checklist rows, pending, inside the
- *     transaction that verifies the email, so no wizard page has to create them
+ *     transaction that verifies the email (spending a verification link, or a
+ *     password-reset link, which proves the address the same way, so a
+ *     registrant who never verified recovers through the reset), so no wizard
+ *     page has to create them
  *     (MemberOnboardingService owns everything those rows do afterwards)
  *   - Re-verifying a bounced address on its member's request: the verification
  *     link that proves the address works, and the call, inside the
@@ -382,6 +385,9 @@ export type FormFieldErrors = Record<string, string>;
 export interface LoginContent {
   returnTo?: string;
   authReason?: string;
+  /** Arrived from a completed password reset, which signs nobody in: the page
+   *  says the password was reset and the person logs in with the new one. */
+  passwordReset?: boolean;
   error?: string;
   fieldErrors?: FormFieldErrors;
   turnstileSiteKey?: string | null;
@@ -450,12 +456,6 @@ export interface PasswordResetContent {
   token: string | undefined;
   error?: string;
   fieldErrors?: FormFieldErrors;
-  /** The link already reset the password: a repeat, reported as the first
-   *  outcome with a sign-in prompt rather than as an error. */
-  alreadyReset?: boolean;
-  /** The reset landed but the sign-in after it failed. The password did
-   *  change, so this reports a success, never an error. */
-  resetButSignedOut?: string;
   turnstileSiteKey?: string | null;
   captchaStubbed?: boolean;
 }
@@ -1315,6 +1315,28 @@ async function issueAndEnqueueVerifyEmail(memberId: string, recipientEmail: stri
 }
 
 /**
+ * The writes that follow from proving an account's address receives mail, run
+ * inside the transaction that spends the proof: a verification link, or a
+ * password-reset link, both emailed to that address and nowhere else.
+ *
+ * For a registrant, proving the address starts onboarding; a registrant is not
+ * a member, so the audit log takes no row and the account row records when the
+ * address was verified. An account already verified, holding its checklist,
+ * changes nothing here: the verified mark and the checklist insert are each
+ * conditional on the state they create being absent.
+ */
+function markAddressProvenInTx(memberId: string, now: string): void {
+  auth.markEmailVerified.run(now, now, memberId);
+  const by = 'onboarding_service';
+  const taskId = () => `mot_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
+  memberOnboarding.insertTaskListIfMissing.run(
+    taskId(), now, by, now, by, memberId,
+    taskId(), now, by, now, by, memberId,
+    taskId(), now, by, now, by, memberId,
+  );
+}
+
+/**
  * Consume an email_verify token, mark the member verified, and return the
  * session inputs the controller needs to issue a JWT. Matching against the old
  * records happens in the wizard's claim step and nowhere else. Returns null if
@@ -1332,24 +1354,11 @@ async function verifyEmailByToken(rawToken: string): Promise<VerifyEmailResult |
   const consumed = transaction(() => {
     const c = accountTokenService.consumeIfUnusedInTx(rawToken, 'email_verify');
     if (!c) return null;
-
     const now = new Date().toISOString();
-    // For a registrant, verifying the address starts onboarding; a registrant
-    // is not a member, so the audit log takes no row and the account row
-    // records when the address was verified. A member opening an address
-    // recovery link is already verified and already holds the checklist, so
-    // the verified mark and the checklist insert below change nothing for them.
-    auth.markEmailVerified.run(now, now, c.memberId);
+    markAddressProvenInTx(c.memberId, now);
     // Opening a link sent to the address proves it receives mail, so a bounce
     // on it clears here, in the same transaction that spends the proof.
     recoverBouncedAddressInTx(c.memberId, now);
-    const by = 'onboarding_service';
-    const taskId = () => `mot_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
-    memberOnboarding.insertTaskListIfMissing.run(
-      taskId(), now, by, now, by, c.memberId,
-      taskId(), now, by, now, by, c.memberId,
-      taskId(), now, by, now, by, c.memberId,
-    );
     return c;
   });
   if (!consumed) return null;
@@ -3123,7 +3132,7 @@ async function requestPasswordReset(email: string): Promise<PasswordResetRequest
   if (!rl.allowed) {
     return { responseSent: true };
   }
-  const row = auth.findMemberByEmail.get(normalized) as MemberAuthRow | undefined;
+  const row = auth.findAccountForPasswordReset.get(normalized) as MemberAuthRow | undefined;
   // No match, or the same request submitted twice within seconds (its reset
   // email is already on its way): either way nothing is issued, and the same
   // token-generation work runs so the response time does not leak which.
@@ -3174,11 +3183,9 @@ async function requestPasswordReset(email: string): Promise<PasswordResetRequest
   return { responseSent: true };
 }
 
+/** A completed reset issues no session, so the caller needs only whose it was. */
 export interface PasswordResetCompletionResult {
   memberId: string;
-  newPasswordVersion: number;
-  role: 'admin' | 'member';
-  slug: string;
 }
 
 async function completePasswordReset(
@@ -3205,14 +3212,14 @@ async function completePasswordReset(
   // Consume the token and write the new password in one transaction. A crash
   // between consume and update would otherwise burn the single-use token
   // without changing the password, locking the member out of the reset.
-  const { consumed, member, newPasswordVersion } = transaction(() => {
+  const { consumed, member } = transaction(() => {
     const consumed = accountTokenService.consumeToken(rawToken, 'password_reset');
     if (!consumed) {
       throw new ValidationError('This reset link is invalid, expired, or already used.');
     }
 
     const member = auth.findMemberForSessionAfterVerify.get(consumed.memberId) as
-      | { id: string; slug: string | null; login_email: string | null; password_version: number; is_admin: number }
+      | { id: string; login_email: string | null; password_version: number }
       | undefined;
     if (!member) {
       throw new ValidationError('This reset link is invalid, expired, or already used.');
@@ -3237,16 +3244,10 @@ async function completePasswordReset(
       );
     }
 
-    // Re-read password_version post-UPDATE rather than computing
-    // `member.password_version + 1` from the pre-UPDATE snapshot. The
-    // computed value happens to be correct under the current sync UPDATE
-    // (the only writer of password_version, atomic +1), but the pattern
-    // is fragile to any future refactor that interleaves writes; reading
-    // the live value removes the trap.
-    const after = auth.findMemberForSessionAfterVerify.get(consumed.memberId) as
-      | { password_version: number }
-      | undefined;
-    const newPasswordVersion = after?.password_version ?? member.password_version + 1;
+    // The reset link was emailed to the account's address, so spending it
+    // proves the address as the verification link would: a registrant who
+    // never verified is verified here and starts onboarding.
+    markAddressProvenInTx(consumed.memberId, now);
 
     // An unfinished account can reset its password too; only a member's reset
     // is audited.
@@ -3260,7 +3261,7 @@ async function completePasswordReset(
       });
     }
 
-    return { consumed, member, newPasswordVersion };
+    return { consumed, member };
   });
 
   // Confirmation email. Use the strict enqueue + operational-error pattern
@@ -3269,8 +3270,8 @@ async function completePasswordReset(
   // notice is the only out-of-band cue a member gets if the forgot-password
   // flow is abused during an outbox-degradation window. Unlike changePassword,
   // the failure is NOT re-thrown — the reset token is single-use and already
-  // consumed, so the caller must still complete the success path (session
-  // re-issue + redirect); the audit row carries the operator signal.
+  // consumed, so the caller must still complete the success path (the
+  // redirect to the login page); the audit row carries the operator signal.
   if (member.login_email) {
     try {
       emailService.send({
@@ -3295,15 +3296,7 @@ async function completePasswordReset(
     }
   }
 
-  return {
-    memberId: consumed.memberId,
-    newPasswordVersion,
-    role: member.is_admin ? 'admin' : 'member',
-    // Return the slug so the controller can redirect to /members/:slug
-    // (matching the login and verify flows) instead of the generic /members
-    // landing page.
-    slug: member.slug ?? consumed.memberId,
-  };
+  return { memberId: consumed.memberId };
 }
 
 /**
@@ -4174,11 +4167,9 @@ function submitLinkHelpRequest(
   const result = transaction(() => {
     const { id } = workQueueService.enqueue({
       actorId:       memberId,
-      queueCategory: 'membership',
       taskType:      'member_link_help_request',
       entityType:    'member',
       entityId:      memberId,
-      priority:      5,
       reasonText:    JSON.stringify(payload),
       detailText:    null,
     });

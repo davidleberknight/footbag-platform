@@ -60,14 +60,13 @@ const NONE_LEFT = 'admin.none_left';
 
 interface QueueRow {
   entity_id: string;
-  queue_category: string;
   status: string;
   reason_text: string | null;
 }
 
 function openAlerts(): QueueRow[] {
   return testDb.prepare(`
-    SELECT entity_id, queue_category, status, reason_text
+    SELECT entity_id, status, reason_text
     FROM work_queue_items
     WHERE task_type = ? AND status = 'open'
     ORDER BY entity_id
@@ -169,7 +168,6 @@ describe('revoking the admin role raises the recruitment alert', () => {
     const alerts = openAlerts();
     expect(alerts).toHaveLength(1);
     expect(alerts[0]!.entity_id).toBe(REVOKED);
-    expect(alerts[0]!.queue_category).toBe('system');
     expect(alerts[0]!.reason_text).toContain('revoked');
     expect(recruitmentEmailCount()).toBeGreaterThan(0);
   });
@@ -188,15 +186,22 @@ describe('revoking the admin role raises the recruitment alert', () => {
     expect(JSON.parse(row!.metadata_json).loss_reason).toBe('revoked');
   });
 
-  it('sends the recruitment email with the member id and no display name', () => {
+  // Defect caught: the broadcast names the lost administrator, by name or by
+  // id, to the whole admin list, or gives no way to reach the item itself.
+  it('sends the recruitment email linking the item and naming nobody', () => {
     tiering.revokeAdminRole(ACTOR, REVOKED, 'Stepping down from the admin team.');
 
     const body = testDb.prepare(
       `SELECT body_text FROM outbox_emails WHERE template_key = ? LIMIT 1`,
     ).get(TASK_TYPE) as { body_text: string } | undefined;
+    const item = testDb.prepare(
+      `SELECT id FROM work_queue_items WHERE task_type = ? AND entity_id = ? AND status = 'open'`,
+    ).get(TASK_TYPE, REVOKED) as { id: string } | undefined;
 
     expect(body).toBeDefined();
-    expect(body!.body_text).toContain(REVOKED);
+    expect(item).toBeDefined();
+    expect(body!.body_text).toContain(`/admin/work-queue/${item!.id}`);
+    expect(body!.body_text).not.toContain(REVOKED);
     expect(body!.body_text).not.toContain('Test User');
   });
 

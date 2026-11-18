@@ -142,6 +142,36 @@ const CLASSIFIED: Record<string, Classification> = {
         unknown: { url: '/events/event_2026_no_such_event', key: 'event_2026_no_such_event' },
       }))),
   },
+  'GET /events/:eventKey/manage': {
+    // An organizer's page: a member who does not organize the event, and a
+    // visitor, learn nothing about a draft or canceled event from its key.
+    probes: () => (['anonymous', 'member'] as Viewer[]).flatMap((viewer) =>
+      [hidden.draftEvent, hidden.canceledEvent].map((key) => ({
+        viewer,
+        existing: () => ({ url: `/events/${key}/manage`, key }),
+        unknown: { url: '/events/event_2026_no_such_event/manage', key: 'event_2026_no_such_event' },
+      }))),
+  },
+  'GET /events/:eventKey/sanction': {
+    // An organizer's sanction request: a member who does not organize the
+    // event, and a visitor, learn nothing about a draft or canceled event.
+    probes: () => (['anonymous', 'member'] as Viewer[]).flatMap((viewer) =>
+      [hidden.draftEvent, hidden.canceledEvent].map((key) => ({
+        viewer,
+        existing: () => ({ url: `/events/${key}/sanction`, key }),
+        unknown: { url: '/events/event_2026_no_such_event/sanction', key: 'event_2026_no_such_event' },
+      }))),
+  },
+  'GET /events/:eventKey/register': {
+    // The registration form: a draft or canceled event takes no registrations
+    // and answers as an event that does not exist.
+    probes: () => (['anonymous', 'member'] as Viewer[]).flatMap((viewer) =>
+      [hidden.draftEvent, hidden.canceledEvent].map((key) => ({
+        viewer,
+        existing: () => ({ url: `/events/${key}/register`, key }),
+        unknown: { url: '/events/event_2026_no_such_event/register', key: 'event_2026_no_such_event' },
+      }))),
+  },
   'GET /media/item/:mediaId': {
     probes: () => (['anonymous', 'member'] as Viewer[]).map((viewer) => ({
       viewer,

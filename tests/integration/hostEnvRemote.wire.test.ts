@@ -272,6 +272,92 @@ describe('the wire carries the password as stdin line one, and nothing else', ()
     expect(r.stderr).not.toMatch(/sudo password/);
   });
 
+  describe('an unreachable host is explained by the live allow-list check, when it can answer', () => {
+    /**
+     * A stand-in for the allow-list script's read-only check: it records what it
+     * was asked, prints one verdict line and the two lines a nested closing
+     * report adds, and exits with the verdict under test.
+     */
+    function checkStub(exitCode: number): { path: string; asked: string } {
+      const path = join(workDir, `address-check-${exitCode}.sh`);
+      const asked = join(workDir, `address-check-${exitCode}.args`);
+      writeFileSync(
+        path,
+        [
+          '#!/usr/bin/env bash',
+          `printf '%s' "$*" > ${JSON.stringify(asked)}`,
+          `echo "STAND-IN VERDICT ${exitCode}" >&2`,
+          'echo "---FOOTBAG-PROBLEM--- LISTED ERROR stand-in problem" >&2',
+          'echo "==== authorize-operator-address.sh: 1 error(s), 0 warning(s), exit 1; listed in the closing report of the run that started it ====" >&2',
+          `exit ${exitCode}`,
+        ].join('\n') + '\n',
+        'utf-8',
+      );
+      chmodSync(path, 0o755);
+      rmSync(asked, { force: true });
+      return { path, asked };
+    }
+    const unreachable = (checkExit: number) => {
+      const stub = checkStub(checkExit);
+      const r = runWithLib(
+        `require_operator_stdin "x" footbag-staging staging && host_env_fetch footbag-staging "${join(workDir, `out-c${checkExit}`)}" ""`,
+        `${PASSWORD}\n`,
+        { FAKE_SSH_EXIT: '255', FOOTBAG_ADDRESS_CHECK_CMD: stub.path },
+      );
+      return { ...r, asked: existsSync(stub.asked) ? readFileSync(stub.asked, 'utf-8') : '' };
+    };
+    const FALLBACK = /could not be\s+read, so the causes are/;
+
+    it('asks the check about the alias\'s own environment, and shows what it said', () => {
+      const r = unreachable(1);
+      expect(r.exitCode).not.toBe(0);
+      expect(r.asked).toBe('--target staging --check');
+      expect(r.stderr).toContain('STAND-IN VERDICT 1');
+    });
+
+    it('lists no other cause once the check has proved the address is not admitted', () => {
+      // Listing "the host is down" beside a proven refusal sends the operator
+      // looking at the host.
+      const r = unreachable(1);
+      expect(r.stderr).not.toMatch(FALLBACK);
+      expect(r.stderr).not.toMatch(/the host is down/);
+    });
+
+    it('drops the nested report\'s marked line and tally, which no report of the caller lists', () => {
+      // The tally says the problem is listed by the run that started the check;
+      // that private report is discarded, so the line would be false.
+      const r = unreachable(1);
+      expect(r.stderr).toContain('STAND-IN VERDICT 1');
+      expect(r.stderr).not.toContain('---FOOTBAG-PROBLEM---');
+      expect(r.stderr).not.toContain('listed in the closing report of the run that started it');
+    });
+
+    it('rules the allow-list out when the check proves the address admitted', () => {
+      const r = unreachable(0);
+      expect(r.stderr).toMatch(/admits this machine's address/);
+      expect(r.stderr).not.toMatch(FALLBACK);
+    });
+
+    it('falls back to every cause when the check cannot tell', () => {
+      const r = unreachable(3);
+      expect(r.stderr).toMatch(FALLBACK);
+      expect(r.stderr).toMatch(/authorize-operator-address\.sh --target staging/);
+    });
+
+    it('does not ask the firewall about a host reached through a stand-in ssh client', () => {
+      // The real check runs here, against the suite's credential-less AWS, so
+      // when it is asked it says it could not tell. The control shows that line
+      // appears without the stand-in, so its absence beside one is meaningful.
+      const REAL_CHECK_RAN = /could not tell whether this machine's address reaches staging/;
+      const call = 'host_ssh_failure_causes footbag-staging 255 /srv/footbag/env';
+      const control = runWithLib(call, '');
+      expect(control.stderr).toMatch(REAL_CHECK_RAN);
+      const r = runWithLib(call, '', { FOOTBAG_HOST_SSH_BIN: join(binDir, 'ssh') });
+      expect(r.stderr).not.toMatch(REAL_CHECK_RAN);
+      expect(r.stderr).toMatch(FALLBACK);
+    });
+  });
+
   it('keeps the sudo explanation for a host that was reached and refused', () => {
     const r = runWithLib(
       `require_operator_stdin "x" host staging && host_env_fetch host "${join(workDir, 'out-s')}" ""`,

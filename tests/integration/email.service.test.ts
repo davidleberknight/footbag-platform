@@ -70,20 +70,20 @@ describe('emailService render-from-DB contract', () => {
     const db = new BetterSqlite3(dbPath);
     insertEmailTemplate(db, {
       template_key: 'admin_loss_recruitment',
-      subject_template: 'EDITED alert: {entityId}',
-      body_template: 'Edited body. Member {entityId}, queue {queueUrl}.',
+      subject_template: 'EDITED alert: {itemUrl}',
+      body_template: 'Edited body. Item {itemUrl}.',
     });
     db.close();
 
     email.emailService.send({
       template: 'admin_loss_recruitment',
-      params: { entityId: 'ee', queueUrl: 'https://x/admin/work-queue' },
+      params: { itemUrl: 'https://x/admin/work-queue/wq_ee' },
       recipientEmail: 'edited-target@example.com',
       recipientMemberId: RECIPIENT_ID,
     });
-    const row = outboxRows().find((r) => r.subject === 'EDITED alert: ee');
+    const row = outboxRows().find((r) => r.subject === 'EDITED alert: https://x/admin/work-queue/wq_ee');
     expect(row).toBeDefined();
-    expect(row!.body_text).toBe('Edited body. Member ee, queue https://x/admin/work-queue.');
+    expect(row!.body_text).toBe('Edited body. Item https://x/admin/work-queue/wq_ee.');
   });
 
   it('a disabled template suppresses the send and enqueues nothing', () => {

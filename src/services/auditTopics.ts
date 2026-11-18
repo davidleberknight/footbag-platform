@@ -26,6 +26,7 @@ const AUDIT_TOPIC_BY_PREFIX: ReadonlyArray<readonly [string, AuditTopic]> = [
   ['admin.club_cleanup.', 'clubs'],
   ['admin.loss_alert_', 'alarms'],
   ['alarm.', 'alarms'],
+  ['announce.', 'moderation'],
   ['auth.', 'auth'],
   ['claim.', 'identity'],
   ['club.', 'clubs'],

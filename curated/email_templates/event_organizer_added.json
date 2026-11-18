@@ -1,0 +1,7 @@
+{
+  "templateKey": "event_organizer_added",
+  "subjectTemplate": "You are now an organizer of {eventTitle}",
+  "bodyTemplate": "{actorName} added you as an organizer of {eventTitle} ({eventDates}).\n\nEvery organizer of an event can edit it, manage its divisions and organizers, and will run its registration and results. You can manage the event from the My Events section of your profile, where you can also step down.\n\n-- IFPA platform",
+  "piiClassification": "internal",
+  "isEnabled": true
+}

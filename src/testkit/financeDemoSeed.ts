@@ -189,12 +189,14 @@ const PAYMENTS: DemoPayment[] = [
 /** Cents returned on a payment that was only partly refunded. */
 const PARTIAL_REFUNDS: Record<string, number> = { w_hal: 2000 };
 
+/** Each division structured as event creation writes one: game, entry size,
+ *  gender eligibility and class. */
 const DISCIPLINES = [
-  { key: 'singles_net', name: 'Open Singles Net', category: 'net', team: 'singles' },
-  { key: 'doubles_net', name: 'Open Doubles Net', category: 'net', team: 'doubles' },
-  { key: 'routines', name: 'Open Routines', category: 'freestyle', team: 'singles' },
-  { key: 'shred30', name: 'Shred 30', category: 'freestyle', team: 'singles' },
-  { key: 'circle', name: 'Open Circle', category: 'freestyle', team: 'singles' },
+  { key: 'singles_net', name: 'Open Singles Net', category: 'net', game: 'game_footbag_net', team: 'singles' },
+  { key: 'doubles_net', name: 'Open Doubles Net', category: 'net', game: 'game_footbag_net', team: 'doubles' },
+  { key: 'routines', name: 'Open Routines', category: 'freestyle', game: 'game_routines', team: 'singles' },
+  { key: 'shred30', name: 'Shred 30', category: 'freestyle', game: 'game_30_second_shred', team: 'singles' },
+  { key: 'circle', name: 'Open Circle', category: 'freestyle', game: 'game_circle', team: 'singles' },
 ] as const;
 type DisciplineKey = typeof DISCIPLINES[number]['key'];
 
@@ -277,7 +279,10 @@ export function seedFinanceDemo(
       id: `disc_persona_finance_${d.key}`,
       name: d.name,
       discipline_category: d.category,
+      game_id: d.game,
       team_type: d.team,
+      gender_eligibility: 'open',
+      division_class: 'open',
       sort_order: i + 1,
     });
   });
@@ -320,7 +325,7 @@ export function seedFinanceDemo(
       descriptor: p.kind === 'membership'
         ? `IFPA ${p.tier === 'tier2' ? 'Tier 2' : 'Tier 1'} Membership`
         : p.kind === 'event_registration'
-          ? `Event Registration: World Footbag Championships (${p.entry === 'spectator' ? 'Spectator' : 'Competitor'})`
+          ? `Event Registration: World Footbag Championships (${p.entry === 'spectator' ? 'Attendee or Supporter' : 'Competitor'})`
           : (p.recurring ? 'Recurring Donation' : 'Donation'),
       purchased_tier_status: p.kind === 'membership' ? (p.tier ?? 'tier1') : null,
       created_at: at(p.daysAgo),

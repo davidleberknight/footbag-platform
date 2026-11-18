@@ -552,11 +552,9 @@ function raiseIssueRow(draft: IssueDraft, now: Date): RaiseOutcome {
   // page, so a discrepancy is noticed without anyone going looking.
   workQueueService.enqueue({
     actorId: 'system',
-    queueCategory: 'payments',
     taskType: 'reconciliation_discrepancy',
     entityType: 'reconciliation_issue',
     entityId: id,
-    priority: 0,
     reasonText: `Payment reconciliation found a discrepancy: ${draft.issueType}.`,
     detailText: null,
   });

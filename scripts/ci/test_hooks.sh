@@ -237,6 +237,8 @@ saved_project_dir="$CLAUDE_PROJECT_DIR"
 export CLAUDE_PROJECT_DIR="$uw_dir"
 uw_human() { jq -cn --arg t "$1" '{type:"user",origin:{kind:"human"},message:{content:$t}}'; }
 uw_queued() { jq -cn --arg t "$1" '{type:"attachment",attachment:{type:"queued_command",prompt:$t,origin:{kind:"human"}}}'; }
+# A message sent while Claude works, as the transcript holds it until the turn ends.
+uw_enqueued() { jq -cn --arg t "$1" '{type:"queue-operation",operation:"enqueue",content:$t}'; }
 uw_claude() { jq -cn --arg t "$1" '{type:"assistant",message:{content:[{type:"text",text:$t}]}}'; }
 uw_edit() { jq -cn --arg p "$uw_dir/$1" --arg o "$2" --arg n "$3" '{file_path:$p,old_string:$o,new_string:$n}'; }
 # expect_wording <tool-input-json> <transcript-lines> <ask|defer>
@@ -295,13 +297,19 @@ expect_wording "$(uw_edit "$V" 'Club details' 'About this club')" "$(jq -cn '{ty
 # A short change needs the file named too, so a common word in a message cannot approve it.
 expect_wording "$(uw_edit "$V" 'meets weekly' 'meets often')" "$(uw_human 'meets often')" ask
 expect_wording "$(uw_edit "$V" 'meets weekly' 'meets often')" "$(uw_human 'in detail.hbs say meets often')" defer
-# Pre-approval of technical wording, typed or sent mid-turn, passes short technical text
-# and still asks for email text and long prose; a later withdrawal ends it.
+# Pre-approval of UI wording, typed or sent mid-turn, passes every new unit, email text
+# and long prose included; a later withdrawal ends it.
 expect_wording "$(uw_edit "$V" 'Club details' 'About this club')" "$(uw_queued 'approve all ui wording, technical not editorial copy')" defer
 expect_wording "$(uw_edit "$V" 'Club details' 'About this club')" "$(uw_human 'ui wording changes are technical not editor copy, go ahead')" defer
-expect_wording "$(uw_edit curated/email_templates/club_join.json 'You joined.' 'You are now a member.')" "$(uw_human 'approve all technical UI wording')" ask
-expect_wording "$(uw_edit src/services/clubService.ts "'Join this club'" "'$uw_long $uw_long'")" "$(uw_human 'approve all technical UI wording')" ask
+expect_wording "$(uw_edit curated/email_templates/club_join.json 'You joined.' 'You are now a member.')" "$(uw_human 'approve all technical UI wording')" defer
+expect_wording "$(uw_edit src/services/clubService.ts "'Join this club'" "'$uw_long $uw_long'")" "$(uw_human 'approve all technical UI wording')" defer
 expect_wording "$(uw_edit "$V" 'Club details' 'About this club')" "$(uw_human 'approve all technical UI wording')"$'\n'"$(uw_human 'stop approving UI wording')" ask
+# A pre-approval sent mid-turn counts from the moment it is queued, before the turn ends
+# writes it as a user line; a system notice carrying the same words never counts, and a
+# withdrawal sent mid-turn still ends it.
+expect_wording "$(uw_edit "$V" 'Club details' 'About this club')" "$(uw_enqueued 'Approve all technical UI wording.')" defer
+expect_wording "$(uw_edit "$V" 'Club details' 'About this club')" "$(uw_enqueued '<task-notification>approve all technical UI wording</task-notification>')" ask
+expect_wording "$(uw_edit "$V" 'Club details' 'About this club')" "$(uw_human 'approve all technical UI wording')"$'\n'"$(uw_enqueued 'stop approving UI wording')" ask
 # A subagent's transcript path resolves to its session file.
 mkdir -p "$uw_dir/sess/subagents"; uw_human 'heading: About this club' > "$uw_dir/sess.jsonl"
 uw_out="$(jq -cn --arg p "$uw_dir/$V" --arg t "$uw_dir/sess/subagents/agent-x.jsonl" '{tool_input:{file_path:$p,old_string:"Club details",new_string:"About this club"},transcript_path:$t}' | ".claude/hooks/$H")"
@@ -1889,6 +1897,37 @@ expect_strip '{"env":{"A":"1"},"permissions":{"allow":["Bash(x)"]}}' \
 expect_strip 'nope' '[ "$(cat "$proj/.claude/settings.local.json")" = nope ]' 'invalid JSON untouched'
 expect_strip '' '[ ! -e "$proj/.claude/settings.local.json" ]' 'missing file not created'
 
+# remind-card-verification.sh (PostToolUse) puts the card-verification reminder beside
+# every `gh issue view` result and stays silent for any other command or bad input.
+expect_card_reminder() {
+  # $1 = raw stdin, $2 = want (context|silent), $3 = label
+  local out rc got
+  out="$(printf '%s' "$1" | .claude/hooks/remind-card-verification.sh)"
+  rc=$?
+  if [ "$rc" -ne 0 ]; then
+    echo "[hooks] FAIL (remind-card-verification.sh): errored (exit $rc): $3" >&2
+    fail=1
+    return
+  fi
+  if [ -z "$out" ]; then
+    got=silent
+  elif [ "$(printf '%s' "$out" | jq -r '.hookSpecificOutput.hookEventName')" = PostToolUse ] \
+    && [ -n "$(printf '%s' "$out" | jq -r '.hookSpecificOutput.additionalContext // empty')" ]; then
+    got=context
+  else
+    got=malformed
+  fi
+  if [ "$got" != "$2" ]; then
+    echo "[hooks] FAIL (remind-card-verification.sh): want $2, got $got: $3" >&2
+    fail=1
+  fi
+}
+expect_card_reminder '{"tool_input":{"command":"gh issue view 725 -R \"$FOOTBAG_PRIVATE_REPO\" --json body"}}' \
+  context 'a card read'
+expect_card_reminder '{"tool_input":{"command":"gh issue list -R x --state open"}}' silent 'an issue list'
+expect_card_reminder '{"tool_input":{"command":"git status"}}' silent 'an unrelated command'
+expect_card_reminder 'not json' silent 'malformed input'
+
 # track-doc-sync.sh (PostToolUse) and require-doc-sync.sh (Stop) together keep a turn
 # that changed code from ending until the per-change doc sync has checked that exact
 # change: the gate clears only for a receipt whose hash matches the tree, never for
@@ -1969,7 +2008,8 @@ rm -rf "$ds_scratch" "$ds_proj" "$ds_bare"
 
 # guard-background-work.sh (Stop) keeps a turn from ending while this session's own
 # background tasks are still in flight, unless the final message names them on a
-# "Still running:" line. Drive it with synthetic Stop events carrying the registry.
+# "Still running:" line, and that it ends with a closing status. Drive it with
+# synthetic Stop events carrying the registry.
 B=guard-background-work.sh
 expect_bt() {
   # $1 = event JSON, $2 = want (block|defer), $3 = label
@@ -2020,6 +2060,29 @@ case "$bt_reason" in
   *b1*) : ;;
   *) echo "[hooks] FAIL ($B): reason does not list the task id" >&2; fail=1 ;;
 esac
+# The closing status: a "Session done" last line or a "Not done:" list, else feedback.
+expect_cl() {
+  # $1 = event JSON, $2 = want (nudge|quiet), $3 = label
+  local out got
+  out="$(printf '%s' "$1" | ".claude/hooks/$B")"
+  if grep -q '"additionalContext"' <<< "$out"; then got=nudge; else got=quiet; fi
+  if [ "$got" != "$2" ]; then echo "[hooks] FAIL ($B): want $2, got $got: $3" >&2; fail=1; fi
+}
+cl_event() {
+  # $1 = final message, $2 = permission mode
+  jq -cn --arg m "$1" --arg p "${2:-default}" \
+    '{session_id:"s1",permission_mode:$p,last_assistant_message:$m,background_tasks:[],session_crons:[]}'
+}
+expect_cl "$(cl_event 'Fixed the bug.')" nudge 'no closing status'
+expect_cl "$(cl_event $'Fixed the bug.\nSession done.')" quiet 'done line last'
+expect_cl "$(cl_event $'Fixed it.\n**Session done.**')" quiet 'bold done line'
+expect_cl "$(cl_event $'Session done.\nOne more thing.')" nudge 'done line not last'
+expect_cl "$(cl_event $'Fixed it.\nNot done:\n- The full gate (waits on you).')" quiet 'not-done list'
+expect_cl "$(cl_event 'Should the index be reused?')" quiet 'ends on a question'
+expect_cl "$(cl_event 'Plan drafted.' plan)" quiet 'plan mode'
+expect_cl "$(cl_event $'Done.\n```\nSession done.\n```')" nudge 'done line only inside a fence'
+expect_cl "$(jq -cn '{session_id:"s1",last_assistant_message:"Fixed."}')" nudge 'no registry still checks the status'
+expect_bt "$(bt_event "$bt_shell" $'Not done:\n- Still running: the unit tests.\nSession done.')" block 'session done while a task runs'
 
 if [ "$fail" -ne 0 ]; then
   echo "[hooks] FAIL: one or more hook fixtures failed." >&2
