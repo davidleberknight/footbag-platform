@@ -119,7 +119,7 @@ def author_on(db: Path, candidate_id: str) -> None:
 
 class TestAFreshDatabaseIsUnchanged:
     def test_it_seeds_every_ruling_in_the_ledger(self, seeded):
-        assert len(rows(seeded)) == 871
+        assert len(rows(seeded)) == 874
 
     def test_it_seeds_the_historical_links(self, seeded):
         linked = {r["candidate_id"] for r in rows(seeded).values()

@@ -111,7 +111,7 @@ def test_the_rows_the_copy_targets_are_the_ruled_ones():
     curator decision and should be visible as one.
     """
     ruled = {"big_applesauce", "frigidosis", "infinity", "whirlwalk",
-             "reverse_around_the_world"}
+             "reverse_around_the_world", "stepping_superfly"}
     assert {r["alias_slug"] for r in _diverging(_rows())} == ruled
 
 

@@ -157,10 +157,10 @@ class TestOneRefreshReachesTheRightAliasSet:
     def test_the_base_dictionary_carries_no_alias_repeating_a_canonical_name(self, built):
         """Scoped to this loader, which is the one that skips a self-alias.
 
-        Seven rows written by the expert overlay are also textually identical to
-        their target's canonical name. That predates this work, was eight before
-        the ruled removal, and belongs to a different alias path with no such
-        skip; all seven are display-off, so none reaches a reader. Pinned narrowly
+        Six rows written by the expert overlay are also textually identical to
+        their target's canonical name. That predates this work and belongs to a
+        different alias path with no such skip; all six are display-off, so none
+        reaches a reader. Pinned narrowly
         here rather than asserted globally, so the count cannot grow unnoticed
         through this loader while the wider question stays open.
         """
@@ -180,7 +180,7 @@ class TestOneRefreshReachesTheRightAliasSet:
         finally:
             conn.close()
         assert offenders == []
-        assert elsewhere == 7, "the pre-existing overlay self-aliases have moved"
+        assert elsewhere == 6, "the pre-existing overlay self-aliases have moved"
 
 
 class TestTheIntakeIsUnaffected:

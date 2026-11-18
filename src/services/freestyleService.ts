@@ -711,14 +711,32 @@ function familyViewHref(slug: string): string {
   return `/freestyle/tricks?view=family&family=${encodeURIComponent(slug)}`;
 }
 
-// Where the trick dictionary lists a family's tricks. Every family parent and
-// minor lineage has its own page in the family view; a foundational catch
-// surface gets no family-view page, so it goes to the family-filtered
-// dictionary instead.
+// Where the trick dictionary lists a family's tricks: the family's own page in
+// the family view when that view renders it, and otherwise the family-filtered
+// dictionary, which lists any family. A foundational catch surface gets no
+// family-view page, and a family below the view's member floor is not rendered,
+// so a link to its family-view page would land on a not-found page.
 function familyBrowseHref(slug: string): string {
-  return familyTier(slug) === 'foundational-terminal-surface'
-    ? `/freestyle/tricks?family=${encodeURIComponent(slug)}`
-    : familyViewHref(slug);
+  return familyTier(slug) !== 'foundational-terminal-surface' && familyViewRenders(slug)
+    ? familyViewHref(slug)
+    : `/freestyle/tricks?family=${encodeURIComponent(slug)}`;
+}
+
+// A public family renders in the family view only with more than two active
+// members (the >2 hard rule). The view and every link into it ask this one
+// question, so a link never points at a family the view does not render.
+function rendersInFamilyView(members: readonly unknown[] | undefined): boolean {
+  return (members?.length ?? 0) > 2;
+}
+
+// Whether the family view renders this family, measured from the active
+// dictionary per request, as the view itself measures it.
+function familyViewRenders(slug: string): boolean {
+  if (!publicFamilyOrder().includes(slug)) return false;
+  const allRows = runSqliteRead('freestyleTricks.listAllWithPending', () =>
+    freestyleTricks.listAllWithPending.all() as FreestyleTrickRowWithStatus[],
+  );
+  return rendersInFamilyView(buildFamilyMembershipMap(allRows.filter(r => r.is_active === 1)).get(slug));
 }
 
 // Getting-started page content: the frame's copy is in the template; the
@@ -1013,11 +1031,31 @@ function operatorReferenceHref(slug: string): string | null {
 
 // Where a modifier's tricks are listed in the dictionary: a launch set has a
 // page in the set view, a first-class browse modifier has one in the modifier
-// view, and any other modifier has none, so null.
-function modifierBrowseHref(slug: string, browse: ModifierBrowse): string | null {
+// view, and any other modifier has none, so null. Both views hide a section
+// with no tricks and answer a not-found page for it, so a modifier no active
+// trick carries also has none.
+function modifierBrowseHref(
+  slug: string,
+  browse: ModifierBrowse,
+  carried: ReadonlySet<string>,
+): string | null {
+  if (!carried.has(slug)) return null;
   if (browse.groupOf(slug) === SET_UPTIME_CLUSTER) return setViewHref(slug);
   if (browse.hasFullSection(slug)) return modifierViewHref(slug);
   return null;
+}
+
+// The modifiers at least one active trick carries: the ones whose section the
+// set and modifier views render.
+function modifiersCarriedByActiveTricks(): ReadonlySet<string> {
+  const allRows = runSqliteRead('freestyleTricks.listAllWithPending', () =>
+    freestyleTricks.listAllWithPending.all() as FreestyleTrickRowWithStatus[],
+  );
+  const active = new Set(allRows.filter(r => r.is_active === 1).map(r => r.slug));
+  const linkRows = runSqliteRead('freestyleTrickModifiers.listTricksByModifier', () =>
+    freestyleTrickModifiers.listTricksByModifier.all() as FreestyleTrickModifierLinkRow[],
+  );
+  return new Set(linkRows.filter(l => active.has(l.trick_slug)).map(l => l.modifier_slug));
 }
 
 function buildOperatorIndexAxes(
@@ -1025,6 +1063,7 @@ function buildOperatorIndexAxes(
 ): OperatorIndexAxisGroup[] {
   const rowBySlug = new Map(modifierRows.map(r => [r.slug, r]));
   const browse = modifierBrowse();
+  const carried = modifiersCarriedByActiveTricks();
   return OPERATOR_INDEX_AXES.map(axis => ({
     axisKey:  axis.axisKey,
     axisName: axis.axisName,
@@ -1041,7 +1080,7 @@ function buildOperatorIndexAxes(
         status:     operatorStatus(slug),
         // An operator with no dictionary section falls back to the dictionary
         // search, so the action is never a dead anchor.
-        browseHref: modifierBrowseHref(slug, browse) ?? `/freestyle/search?q=${encodeURIComponent(slug)}`,
+        browseHref: modifierBrowseHref(slug, browse, carried) ?? `/freestyle/search?q=${encodeURIComponent(slug)}`,
       };
     }),
   }));
@@ -6132,7 +6171,7 @@ export const freestyleService = {
       // for the family (overrides, branch folds, umbrella aggregation already
       // applied), derived at render time, so a family drops below the floor or
       // reappears automatically as its membership changes.
-      if (rows && rows.length > 2) {
+      if (rows && rendersInFamilyView(rows)) {
         familyGroups.push(buildFamilyGroup(fslug, rows, ctx, rungOf));
       }
     }
@@ -6334,7 +6373,9 @@ export const freestyleService = {
     const browse = modifierBrowse();
     const relatedModifierGroups: FreestyleRelatedModifierLink[] = activeFamily
       ? [...modifierGroupAccumulator.values()].flatMap(b => {
-          const href = modifierBrowseHref(b.modifierSlug, browse);
+          // A bucket here is non-empty by construction, so its modifier is
+          // carried by an active trick and its section renders.
+          const href = modifierBrowseHref(b.modifierSlug, browse, new Set([b.modifierSlug]));
           return href ? [{
             modifierSlug: b.modifierSlug,
             modifierName: b.modifierName,
@@ -7299,7 +7340,7 @@ export const freestyleService = {
         statusLabel: status.label,
         commonTricks,
         relatedModifiers,
-        browseHref:  modifierBrowseHref(slug, modifierBrowse()) ?? `/freestyle/search?q=${encodeURIComponent(slug)}`,
+        browseHref:  modifierBrowseHref(slug, modifierBrowse(), modifiersCarriedByActiveTricks()) ?? `/freestyle/search?q=${encodeURIComponent(slug)}`,
         baseAtom:    (() => {
           const atom = baseAtomCrossLinkFor(slug);
           return atom ? { label: `${operatorTitleCase(atom)} (base trick)`, href: `/freestyle/tricks/${atom}` } : null;
@@ -7532,7 +7573,9 @@ export const freestyleService = {
     // Only a set with its own section in the dictionary's By set view links to it.
     const browse = modifierBrowse();
     const setBrowseHref =
-      browse.groupOf(set.slug) === SET_UPTIME_CLUSTER ? modifierBrowseHref(set.slug, browse) : null;
+      browse.groupOf(set.slug) === SET_UPTIME_CLUSTER
+        ? modifierBrowseHref(set.slug, browse, modifiersCarriedByActiveTricks())
+        : null;
     const education = buildSetEducationContent(set.slug, allActiveRows);
 
     // S5 sibling navigation: previous / next set within the same subtype,

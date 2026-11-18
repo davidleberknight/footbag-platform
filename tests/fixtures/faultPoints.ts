@@ -47,7 +47,8 @@ const ADDRESS_ONLY = 'builds a public address from a storage key; no call leaves
 const CURATOR_SAVES = 'tests/integration/freestyle.curator-saves.test.ts';
 const CURATED_WRITE_BACK = 'tests/integration/curatedWriteBack.service.test.ts';
 const SAVE_THEN_COMMIT = 'writes a curated save file and then commits the row through the same put-back helper the swept saves use; a commit failure on this operation is not yet injected';
-const CONSTRUCTS_SERVICE = 'hands the adapter to a service factory; the calls it makes are the factory\'s own sites below it';
+const READS_CAPABILITY = 'reads the adapter\'s declared writesAuthoringFiles capability to decide a guard or a form; no call leaves the process';
+const CONSTRUCTS_SERVICE ='hands the adapter to a service factory; the calls it makes are the factory\'s own sites below it';
 
 export const ADAPTER_SITES: AdapterSite[] = [
   // ── Payments ──────────────────────────────────────────────────────────────
@@ -153,6 +154,7 @@ export const ADAPTER_SITES: AdapterSite[] = [
   { file: 'src/services/mediaService.ts', getter: 'getMediaStorageAdapter', operation: 'getMediaBrowsePage', status: { noWriteAfter: ADDRESS_ONLY } },
   { file: 'src/services/mediaService.ts', getter: 'getMediaStorageAdapter', operation: 'listRecentCommunityMedia', status: { noWriteAfter: ADDRESS_ONLY } },
   { file: 'src/services/mediaService.ts', getter: 'getMediaStorageAdapter', operation: 'galleryCoverThumbUrls', status: { noWriteAfter: ADDRESS_ONLY } },
+  { file: 'src/services/mediaService.ts', getter: 'getMediaStorageAdapter', operation: 'shapeFoundations', status: { noWriteAfter: ADDRESS_ONLY } },
   { file: 'src/services/freestyleService.ts', getter: 'getMediaStorageAdapter', operation: 'shapeReferenceMedia', status: { noWriteAfter: ADDRESS_ONLY } },
   { file: 'src/services/siteMediaService.ts', getter: 'getMediaStorageAdapter', operation: 'shapeVideo', status: { noWriteAfter: ADDRESS_ONLY } },
   { file: 'src/services/siteMediaService.ts', getter: 'getMediaStorageAdapter', operation: 'shapePhotoUrl', status: { noWriteAfter: ADDRESS_ONLY } },
@@ -190,6 +192,11 @@ export const ADAPTER_SITES: AdapterSite[] = [
   { file: 'src/services/curatorMediaService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'uploadVideo binary', status: { pending: SAVE_THEN_COMMIT } },
   { file: 'src/services/curatorMediaService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'uploadVideo poster', status: { pending: SAVE_THEN_COMMIT } },
   { file: 'src/services/curatorMediaService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'uploadVideo sidecar', status: { pending: SAVE_THEN_COMMIT } },
+  { file: 'src/services/curatorMediaService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'writesAuthoringFiles', status: { noWriteAfter: READS_CAPABILITY } },
+  { file: 'src/services/freestyleCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'assertActorMayCurateFreestyle', status: { noWriteAfter: READS_CAPABILITY } },
+  { file: 'src/services/freestyleRecordCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'assertActorMayCurateFreestyle', status: { noWriteAfter: READS_CAPABILITY } },
+  { file: 'src/services/consecutiveKicksCurationService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'assertActorMayCurateFreestyle', status: { noWriteAfter: READS_CAPABILITY } },
+  { file: 'src/services/emailTemplateAdminService.ts', getter: 'getCuratedAuthoringAdapter', operation: 'updateTemplate persona guard', status: { noWriteAfter: READS_CAPABILITY } },
 
   // ── Secrets, signing and verification ─────────────────────────────────────
   {
