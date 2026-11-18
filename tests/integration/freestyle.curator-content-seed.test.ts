@@ -229,6 +229,30 @@ describe('seeding the staged curator content', () => {
     expect(offenders).toEqual([]);
   });
 
+  // Defect caught: a trick page's Difficulty line naming a part with no value
+  // ("stepping(+1) + mirage"), or parts that add up to something other than the
+  // trick's ADD, so a reader cannot follow the breakdown to the total beside it.
+  // Each part is a named value, "mirage(2)" or "stepping(+1)", or a scored
+  // notation mark worth one, "[DEX]".
+  it('seeds every breakdown as parts that each carry a value and add up to the total', () => {
+    seedCuratorContent(db);
+    const offenders: string[] = [];
+    for (const formula of content.formulas) {
+      const total = Number(/=\s*(\d+)\s*ADD/.exec(formula.derivation)?.[1]);
+      const seeded = value('SELECT add_derivation AS v FROM freestyle_tricks WHERE slug = ?', formula.slug) as string;
+      // A breakdown may keep a closing "= N ADD (marks)" note; the parts are what precedes it.
+      let sum = 0;
+      for (const part of seeded.split('=')[0]!.split(' + ')) {
+        const named = /^[A-Za-z][A-Za-z0-9 _-]*\(\+?(\d+)\)$/.exec(part.trim());
+        if (named) sum += Number(named[1]);
+        else if (/^\[[A-Z]+\]$/.test(part.trim())) sum += 1;
+        else { offenders.push(`${formula.slug}: part "${part.trim()}" carries no value`); sum = NaN; break; }
+      }
+      if (!Number.isNaN(sum) && sum !== total) offenders.push(`${formula.slug}: parts add up to ${sum}, not ${total}`);
+    }
+    expect(offenders).toEqual([]);
+  });
+
   // Defect caught: a family or folded label removed from the staged roster
   // living on in the database after the next refresh, so a dropped family keeps
   // its page.
