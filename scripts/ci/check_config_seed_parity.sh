@@ -73,9 +73,6 @@ UNREAD_ALLOWED = {
     'ballot_retention_days':
         'a stated archive obligation, not a deletion schedule: disposing of vote '
         'records is a governance decision and the cleanup sweep never touches them',
-    'event_registration_reminder_days':
-        'the reminder is sent by event registration, which is not built; the '
-        'reader lands with that feature',
     'group_email_rate_limit_per_hour':
         'the ceiling applies when a member posts to a group, and native groups '
         'are not built; the reader lands with that feature',

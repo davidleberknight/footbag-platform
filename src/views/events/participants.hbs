@@ -1,0 +1,97 @@
+{{! An event's participant list, for its organizers only }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
+  </div>
+</div>
+
+<div class="wrapper">
+  {{#if content.notice}}
+    {{> outcome-notice text=content.notice.text tone=content.notice.tone}}
+  {{/if}}
+
+  <section>
+    <p><span class="fw-600">{{content.confirmedCount}}</span> confirmed{{#if content.pendingCount}}, <span class="fw-600">{{content.pendingCount}}</span> awaiting payment{{/if}}.</p>
+    <div class="form-actions">
+      <a href="{{siteHref content.csvHref}}" class="btn btn-outline">Download Participants (CSV)</a>
+      <a href="{{siteHref content.checkInByNameHref}}" class="btn btn-outline">Download Check-in Sheet (PDF)</a>
+      <a href="{{siteHref content.checkInByTypeHref}}" class="btn btn-outline">Check-in Sheet by Type (PDF)</a>
+      <a href="{{siteHref content.summaryHref}}" class="btn btn-outline">Registration Summary</a>
+      <a href="{{siteHref content.emailHref}}" class="btn btn-outline">Email Participants</a>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-heading"><h2>Registered</h2></div>
+    {{#if content.hasRows}}
+      <p>
+        {{#each content.sortLinks}}
+          {{#if this.isActive}}<span class="badge">{{this.label}}</span>{{else}}<a href="{{siteHref this.href}}" class="tag-chip">{{this.label}}</a>{{/if}}
+        {{/each}}
+      </p>
+      <div class="records-table-wrap" tabindex="0" role="region" aria-label="Participants">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th scope="col">Name</th>
+            <th scope="col">Registration</th>
+            <th scope="col">Divisions</th>
+            <th scope="col">Member</th>
+            <th scope="col">Location</th>
+            <th scope="col">Email</th>
+            {{#if content.showPayment}}<th scope="col">Payment</th>{{/if}}
+            {{#if content.showTshirt}}<th scope="col">T-shirt</th>{{/if}}
+            <th scope="col">Attendance and Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.rows}}
+            <tr>
+              <td><a href="{{this.profileHref}}">{{this.name}}</a></td>
+              <td>{{this.typeLabel}}<br><span class="text-muted fs-sm">{{this.statusLabel}}, {{formatDate this.registeredOn}}</span></td>
+              <td>
+                {{#each this.entries}}
+                  <div>{{this.divisionName}}{{#if this.partner}} with {{this.partner}}{{/if}}{{#if this.amateurLabel}} <span class="badge">{{this.amateurLabel}}</span>{{/if}}</div>
+                {{/each}}
+              </td>
+              <td>{{this.tierLabel}}{{#if this.activePlayerLabel}}<br><span class="fs-sm">{{this.activePlayerLabel}}</span>{{/if}}</td>
+              <td>{{this.location}}</td>
+              <td>{{#if this.email}}{{this.email}}{{else}}<span class="text-muted fs-sm">Not shared</span>{{/if}}</td>
+              {{#if ../content.showPayment}}<td>{{this.paymentLabel}}</td>{{/if}}
+              {{#if ../content.showTshirt}}<td>{{this.tshirtSize}}</td>{{/if}}
+              <td>
+                {{#if this.attendedLabel}}<span class="badge">{{this.attendedLabel}}</span>{{/if}}
+                {{#if this.canMarkAttended}}
+                  <label>
+                    <input type="checkbox" name="registration" value="{{this.registrationId}}" form="attendance-form" />
+                    Attended
+                  </label>
+                {{/if}}
+                {{#if this.cancelAction}}
+                  <form method="POST" action="{{this.cancelAction}}" class="inline-form">
+                    <button type="submit" class="btn btn-outline btn-sm">Cancel Registration</button>
+                  </form>
+                {{/if}}
+              </td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+      </div>
+      {{#if content.attendanceAction}}
+        <form method="POST" action="{{content.attendanceAction}}" id="attendance-form" class="form-block mt-2">
+          <p>Tick everyone who took part, then mark them attended. Attendance gives a Tier 0 member Active Player status.</p>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Mark Attended</button>
+          </div>
+        </form>
+      {{/if}}
+    {{else}}
+      <p class="empty-state">Nobody is registered yet.</p>
+    {{/if}}
+  </section>
+
+  {{> back-link}}
+</div>

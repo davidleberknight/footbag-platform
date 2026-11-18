@@ -1,26 +1,41 @@
-# Group-attached files a public visitor could reach, which earlier crawls missed.
-#
-# Derived from the legacy group-file and committee tables, not authored. A file
-# is listed here only when its group is publicly visible AND the file itself
-# carries no per-file scope. That second condition is the one that matters: the
-# legacy schema scopes an individual file to a single committee independently of
-# whether the group is publicly listed, so a public group holds members-only
-# documents too. Board minutes, financial statements and reimbursement forms all
-# sit in a publicly listed group and were never publicly readable.
-#
-# Of the files earlier identified as belonging to public groups, most carry such
-# a scope and are therefore kept out by the crawl exclusion list. Only these four
-# are unscoped. The two derivations agree exactly: every scoped file is excluded
-# and every unscoped one is not.
-#
-# A row proves a database entry, not that the file still exists. Expect some to
-# 404 and treat that as an ordinary miss.
-#
-# A fourth unscoped file exists, the marketing committee's IFPA_LOGO_EPS.zip, and
-# is deliberately absent. The crawler never captures archive, executable, audio or
-# vector formats, so seeding a .zip only produces a refusal warning on every run.
-# Restoring it means changing that format policy, not this list.
-
+http://www.footbag.org/ifpa/groups/AFFC/World%20Regions.pdf
+http://www.footbag.org/ifpa/groups/ASFC/World%20Regions.pdf
+http://www.footbag.org/ifpa/groups/Event%20Resources/THE%20TEXAS%20FOOTBAG%20LEAGUE%202004%20Nov%20.pdf
+http://www.footbag.org/ifpa/groups/GFA/Checkliste%20Footbag%20Veranstaltung.pdf
+http://www.footbag.org/ifpa/groups/GFA/GFO%20Guideline.pdf
+http://www.footbag.org/ifpa/groups/GFA/GFO_Netz%20Sheet.pdf
+http://www.footbag.org/ifpa/groups/MEFC/World%20Regions.pdf
+http://www.footbag.org/ifpa/groups/PFC/World%20Regions.pdf
+http://www.footbag.org/ifpa/groups/SAFC/South%20America%20Regions%20Reference.pdf
+http://www.footbag.org/ifpa/groups/SAFC/World%20Regions.pdf
+http://www.footbag.org/ifpa/groups/WRC/IFPA%205%20year%20plan%2C%202006.pdf
+http://www.footbag.org/ifpa/groups/WRC/IFPA%20Brochure-4.pdf
+http://www.footbag.org/ifpa/groups/WRC/School%20flyer.pdf
+http://www.footbag.org/ifpa/groups/WRC/World%20Regions.pdf
+http://www.footbag.org/ifpa/groups/auschamps07/Australian%20Freestyle%20Footbag%20Championships%202007.doc.pdf
+http://www.footbag.org/ifpa/groups/directors/Footbag%20Club%20flyer.pdf
+http://www.footbag.org/ifpa/groups/directors/Future%20of%20Footbag%20by%20Wiktor%20Debski.pdf
+http://www.footbag.org/ifpa/groups/doubles/Command%20System%20for%20Footbag%20Doubles%20Freestyle.pdf
+http://www.footbag.org/ifpa/groups/dsffe/DS%20-%20Explanation%201.0.pdf
+http://www.footbag.org/ifpa/groups/dsffe/DS%201.0.pdf
+http://www.footbag.org/ifpa/groups/efc/IFPA%20Brochure_German.pdf
 http://www.footbag.org/ifpa/groups/efc/eurologo.gif
 http://www.footbag.org/ifpa/groups/efc/new%20EFC%20logo%20-%20small.jpg
-http://www.footbag.org/ifpa/groups/Event%20Resources/THE%20TEXAS%20FOOTBAG%20LEAGUE%202004%20Nov%20.pdf
+http://www.footbag.org/ifpa/groups/ifc-freestyle/IFPA%20Shred%2030%20Form.pdf
+http://www.footbag.org/ifpa/groups/ifc-net/GSM%20Announce%202-11-16.pdf
+http://www.footbag.org/ifpa/groups/ifc-ranking/2003%20Rankings%20-%20Open%20Singles%20Net.pdf
+http://www.footbag.org/ifpa/groups/ifc-ranking/2004%20Rankings%20-%20Open%20Singles%20Net.pdf
+http://www.footbag.org/ifpa/groups/ifc-ranking/2005%20Rankings%20-%20Open%20Singles%20Net.pdf
+http://www.footbag.org/ifpa/groups/ifc/IFC%20Rulebook%20-v10-2006.pdf
+http://www.footbag.org/ifpa/groups/ifc/IFPA%20Circle%20Judging%20Sheet%201%20Phase.pdf
+http://www.footbag.org/ifpa/groups/ifc/IFPA%20Circle%20Judging%20Sheet%202%20Phases.pdf
+http://www.footbag.org/ifpa/groups/ifc/IFPA%20Routines%20Judging%20Sheet%20Doubles.pdf
+http://www.footbag.org/ifpa/groups/ifc/IFPA%20Routines%20Judging%20Sheet%20Singles.pdf
+http://www.footbag.org/ifpa/groups/ifc/IFPA_Net_Sheet_Pool_of_3.pdf
+http://www.footbag.org/ifpa/groups/marketing/IFPA%205%20year%20plan%2C%202006.pdf
+http://www.footbag.org/ifpa/groups/marketing/IFPA%20Brochure-4.pdf
+http://www.footbag.org/ifpa/groups/marketing/School%20club%20flyer.pdf
+http://www.footbag.org/ifpa/groups/marketing/World%20Regions-2.pdf
+http://www.footbag.org/ifpa/groups/nafc/World%20Regions.pdf
+http://www.footbag.org/ifpa/groups/worlds04/2004-02-26%20Sponsorship%20Kit%20complete%20small.pdf
+http://www.footbag.org/ifpa/groups/worlds04/Kit%20de%20commandite%20W2004%20fr.pdf

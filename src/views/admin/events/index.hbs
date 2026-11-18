@@ -1,0 +1,41 @@
+{{! The administrator's event lookup: any event, any status }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{> admin-instructions}}
+
+  <section>
+    <div class="section-heading"><h2>Find an Event</h2></div>
+    <div class="search-box-section">
+      <form method="GET" action="/admin/events" class="search-box-form" role="search">
+        <input type="text" name="q" maxlength="200"
+               placeholder="Event id, hashtag, or part of the title"
+               value="{{content.query}}"
+               aria-label="Find an event by id, hashtag or title"
+               class="search-box-input" />
+        <button type="submit" class="btn btn-primary">Search</button>
+      </form>
+    </div>
+
+    {{#if content.hasResults}}
+      <div class="search-box-results">
+        {{#each content.results}}
+          <div class="search-box-result">
+            <a href="{{siteHref recordHref}}">{{title}}</a>
+            {{#each facts}}<span class="text-muted">{{this}}</span>{{/each}}
+            <span class="badge">{{statusLabel}}</span>
+          </div>
+        {{/each}}
+      </div>
+    {{else}}
+      <p>{{content.emptyMessage}}</p>
+    {{/if}}
+  </section>
+
+  <p class="mt-4"><a href="/admin">Back to the admin dashboard</a></p>
+</div>

@@ -1,0 +1,7 @@
+{
+  "templateKey": "event_registration_reminder",
+  "subjectTemplate": "Reminder: {eventTitle} is coming up",
+  "bodyTemplate": "This is a reminder that you are registered for {eventTitle} ({eventDates}).\n\n{registrationSummary}\n\nYour registration and the event's details are on the event's page.\n\n-- IFPA platform",
+  "piiClassification": "confidential",
+  "isEnabled": true
+}

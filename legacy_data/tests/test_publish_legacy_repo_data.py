@@ -93,11 +93,25 @@ def tree(tmp_path, monkeypatch):
          [["1", "1", "board", "Board"], ["5", "0", "secret", "Secret Group"],
           ["9", "0", "", "Nameless"], ["12", "1", "open", "Open Group"]])
     _csv(ex / "groups/ifpa_group_files.csv",
-         ["FileID", "FileVisible", "FileGroupID", "FileLocation", "FileScope"],
-         [["10", "1", "12", "/ifpa/groups/open/scoped.pdf", "2"],  # scoped in a public group
-          ["3", "1", "5", "/ifpa/groups/secret/a.txt", "0"],       # any file of a private committee
-          ["4", "0", "12", "/ifpa/groups/open/public.pdf", "0"],   # public: not excluded
-          ["6", "1", "44", "/ifpa/groups/gone/b.txt", "0"]])       # its committee is not in the export
+         ["FileID", "FileVisible", "FileGroupID", "FileLocation", "FileScope",
+          "FileName", "FileDescription"],
+         [["10", "1", "12", "/ifpa/groups/open/scoped.pdf", "2", "Scoped", "minutes"],  # scoped in a public group
+          ["3", "1", "5", "/ifpa/groups/secret/a.txt", "0", "A", ""],       # any file of a private committee
+          ["4", "1", "12", "/ifpa/groups/open/public.pdf", "0", "Public plan", "the plan"],   # public: not excluded
+          ["9", "0", "12", "/ifpa/groups/open/hidden.pdf", "0", "Hidden", ""],    # hidden by its uploader
+          ["6", "1", "44", "/ifpa/groups/gone/b.txt", "0", "B", ""],        # its committee is not in the export
+          ["7", "1", "12", "/ifpa/groups/open/logo pack.zip", "0", "Logos", ""],  # a type the crawl never captures
+          ["8", "1", "12", "/ifpa/groups/open/roster.rtf", "0", "Roster", ""],  # withheld into custody by ruling
+          ["11", "1", "12", "/ifpa/groups/open/finances.pdf", "0", "Finances", ""],  # ruled to custody
+          ["12", "1", "12", "/ifpa/groups/open/old-form.pdf", "0", "Old form", ""],  # ruled dropped
+          ["13", "1", "12", "/ifpa/groups/open/flyer.pdf", "0", "Flyer", ""]])  # ruled to the archive
+    held = private / "private-custody/ifpa-group-files/www.footbag.org/ifpa/groups/open/roster.rtf"
+    held.parent.mkdir(parents=True, exist_ok=True)
+    held.write_text("held", encoding="utf-8")
+    _csv(private / "private-custody/ifpa-group-files/PLACEMENT_RULINGS.csv",
+         ["FileID", "path", "placement", "reason"],
+         [["11", "", "custody", "an IFPA record"], ["12", "", "drop", "obsolete"],
+          ["13", "", "archive", "kept"]])
     _csv(ex / "clubs/clubs.csv", ["Approved", "ClubID"],
          [["1", "9"], ["0", "10"], ["1", "abc"], ["1", "9"]])
     _csv(ex / "gallery/sets.csv", ["RealSetID", "SetVisible"],
@@ -186,8 +200,51 @@ def test_publish_writes_exactly_the_seeded_classes(tree):
     private, mirror = tree
     _, public = pub.build(private, mirror, CUTOVER)
     assert sorted(p.name for p in public if p.parent.name == "mirror_seeds") == [
-        "clubs.txt", "events.txt", "faq.txt", "gallery.txt", "members.txt", "moves.txt",
-        "rules.txt"]
+        "clubs.txt", "events.txt", "faq.txt", "gallery.txt", "groups.txt", "members.txt",
+        "moves.txt", "rules.txt"]
+
+
+def test_group_seeds_list_only_files_a_member_could_open_and_the_crawl_captures(tree):
+    # A scoped, private-committee or custody-held file seeded here is crawled
+    # into the member archive against the IFPA ruling; a member-visible file
+    # missing here is never captured, because no page the crawl can read links it.
+    private, mirror = tree
+    _, public = pub.build(private, mirror, CUTOVER)
+    # Ruled to custody or dropped: never seeded, though the metadata says
+    # members could open them.
+    assert public[mirror / "mirror_seeds" / "groups.txt"].splitlines() == [
+        f"{BASE}/ifpa/groups/gone/b.txt",
+        f"{BASE}/ifpa/groups/open/flyer.pdf",
+        f"{BASE}/ifpa/groups/open/public.pdf",
+    ]
+
+
+def test_a_missing_rulings_record_refuses_rather_than_seeding_ruled_files(tree):
+    # Without the rulings every file the maintainer ruled private or dropped
+    # would be seeded back into the member archive.
+    private, mirror = tree
+    (private / "private-custody/ifpa-group-files/PLACEMENT_RULINGS.csv").unlink()
+    with pytest.raises(pub.Refused, match="PLACEMENT_RULINGS.csv is missing"):
+        pub.build(private, mirror, CUTOVER)
+
+
+def test_a_missing_custody_tree_refuses_rather_than_seeding_withheld_files(tree):
+    # Without the custody tree a file withheld by ruling looks member-visible,
+    # and seeding it would put it back in the member archive.
+    private, mirror = tree
+    held = private / "private-custody/ifpa-group-files/www.footbag.org"
+    (held / "ifpa/groups/open/roster.rtf").unlink()
+    for folder in (held / "ifpa/groups/open", held / "ifpa/groups", held / "ifpa", held):
+        folder.rmdir()
+    with pytest.raises(pub.Refused, match="www.footbag.org is missing"):
+        pub.build(private, mirror, CUTOVER)
+
+
+def test_group_seeds_skip_exactly_what_the_crawler_never_captures():
+    # Publish keeps its own copy of the crawler's never-capture list; if the two
+    # drift, a seed either earns a refusal warning on every crawl or a newly
+    # capturable type is never seeded.
+    assert sorted(pub.CRAWL_NEVER_CAPTURES) == sorted(crawler.SKIP_EXTENSIONS)
 
 
 def test_crawl_exclusions_cover_scoped_and_private_committee_content(tree):
@@ -199,6 +256,7 @@ def test_crawl_exclusions_cover_scoped_and_private_committee_content(tree):
     entries = [x for x in text.splitlines() if not x.startswith("#")]
     assert entries == [
         "ifpa/groups/secret/a.txt", "groups/showfile/3",
+        "ifpa/groups/open/hidden.pdf", "groups/showfile/9",   # shown only to its owner
         "ifpa/groups/open/scoped.pdf", "groups/showfile/10",
         "groups/listfiles/5", "groups/list/secret", "groups/home/secret",
         "groups/listfiles/9",                    # private, but no keyword to address it by
@@ -213,12 +271,30 @@ def test_group_file_inventory_carries_each_file_with_its_committee_visibility(tr
     private, mirror = tree
     priv, _ = pub.build(private, mirror, CUTOVER)
     rows = list(csv.DictReader(io.StringIO(priv[private / pub.INVENTORY_REL])))
+    # The name and description are what the archive's rebuilt group page lists;
+    # the keyword is the second address the group's captured page lives at.
     assert [(r["FileID"], r["FileVisible"], r["FileGroupID"], r["FileLocation"],
-             r["FileScope"], r["CommitteeName"], r["CommitteePublic"]) for r in rows] == [
-        ("10", "1", "12", "/ifpa/groups/open/scoped.pdf", "2", "Open Group", "1"),
-        ("3", "1", "5", "/ifpa/groups/secret/a.txt", "0", "Secret Group", "0"),
-        ("4", "0", "12", "/ifpa/groups/open/public.pdf", "0", "Open Group", "1"),
-        ("6", "1", "44", "/ifpa/groups/gone/b.txt", "0", "", ""),
+             r["FileScope"], r["CommitteeName"], r["CommitteePublic"],
+             r["FileName"], r["FileDescription"], r["CommitteeKeyword"]) for r in rows] == [
+        ("10", "1", "12", "/ifpa/groups/open/scoped.pdf", "2", "Open Group", "1",
+         "Scoped", "minutes", "open"),
+        ("3", "1", "5", "/ifpa/groups/secret/a.txt", "0", "Secret Group", "0", "A", "",
+         "secret"),
+        ("4", "1", "12", "/ifpa/groups/open/public.pdf", "0", "Open Group", "1",
+         "Public plan", "the plan", "open"),
+        ("9", "0", "12", "/ifpa/groups/open/hidden.pdf", "0", "Open Group", "1",
+         "Hidden", "", "open"),
+        ("6", "1", "44", "/ifpa/groups/gone/b.txt", "0", "", "", "B", "", ""),
+        ("7", "1", "12", "/ifpa/groups/open/logo pack.zip", "0", "Open Group", "1", "Logos",
+         "", "open"),
+        ("8", "1", "12", "/ifpa/groups/open/roster.rtf", "0", "Open Group", "1", "Roster", "",
+         "open"),
+        ("11", "1", "12", "/ifpa/groups/open/finances.pdf", "0", "Open Group", "1",
+         "Finances", "", "open"),
+        ("12", "1", "12", "/ifpa/groups/open/old-form.pdf", "0", "Open Group", "1",
+         "Old form", "", "open"),
+        ("13", "1", "12", "/ifpa/groups/open/flyer.pdf", "0", "Open Group", "1",
+         "Flyer", "", "open"),
     ]
 
 
@@ -431,7 +507,7 @@ def test_a_run_writes_private_files_owner_only_and_reruns_identically(tree):
     # The exclusion list already exists in a real checkout, and rewriting a file
     # keeps its old mode whatever the umask says.
     existing = private / pub.EXCLUSIONS_REL
-    existing.parent.mkdir(parents=True)
+    existing.parent.mkdir(parents=True, exist_ok=True)
     existing.write_text("old\n")
     existing.chmod(0o644)
     assert pub.main(["--cutover-date", CUTOVER]) == 0

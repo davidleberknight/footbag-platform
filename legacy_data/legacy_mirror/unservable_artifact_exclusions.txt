@@ -5,23 +5,57 @@
 # here is applied by the strip pass at the end of every crawl, and over a
 # finished tree with --strip-unservable-only.
 #
-# This list is not the publisher's exclusion list and the two are not
-# interchangeable. The publisher's list is the home for "captured, and
-# deliberately not served": the bytes stay in the capture, which is the only
-# surviving copy of a site being switched off, and a Word document or a layered
-# image nobody can scan is still IFPA history worth keeping locally. THIS list
-# is narrower and harsher: a type here cannot be served by a static archive by
-# its own nature, not merely unscanned, so keeping the bytes serves nobody and
-# keeping the links that point at them actively misleads a reader.
+# The capture holds exactly what the archive serves. The strip pass removes
+# everything here AND every file the publisher would not upload (its served
+# types, minus its own exclusion list), so a file is served, held privately in
+# IFPA custody, or gone. A group file worth keeping but not serving is ruled to
+# custody before the strip runs; nothing is "captured but not served".
 #
-# The test for adding a pattern: name what would have to exist for the archive
-# to serve this file usefully. If the answer is a program running on the server,
-# it belongs here. If the answer is a reader with the right application, it
-# belongs in the publisher's list instead.
+# What this list adds on its own is the floor that holds even if the
+# publisher's declarations change: code of every kind, and types that only ever
+# meant something to the old server.
 #
 # Removing a pattern does not bring anything back. The strip deletes, and the
 # dead-link pass that follows it rewrites the pages that pointed at what it
 # removed. Recovering a stripped file means re-capturing it.
+
+# Code of every kind. The archive is static pages and media and runs nothing:
+# every script is stripped from every page at capture. A standalone script, a
+# Flash movie, a browser behaviour file, a macro-enabled Office file or a
+# server program is code whose only purpose is to run, so the capture keeps
+# none, exactly as the published archive serves none. The ones a capture has
+# held: the JavaScript libraries the WordPress microsites referenced, Flash
+# movies, an Internet Explorer behaviour file and a macro-enabled Excel
+# judging template.
+*.js
+*.mjs
+*.swf
+*.htc
+*.xltm
+*.xlsm
+*.xlam
+*.docm
+*.dotm
+*.pptm
+*.php
+*.phtml
+*.cgi
+*.pl
+*.py
+*.sh
+*.asp
+*.aspx
+*.jsp
+*.exe
+*.dll
+*.bat
+*.cmd
+*.vbs
+*.wsf
+*.hta
+*.jar
+*.class
+*.ps1
 
 # Server-side imagemaps. A .map file is a coordinate table that only ever had
 # meaning to the CGI imagemap handler the old server ran: the ones in this

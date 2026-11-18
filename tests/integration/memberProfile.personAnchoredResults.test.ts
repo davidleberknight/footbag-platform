@@ -2,17 +2,14 @@
  * Competition results on a member profile, reached by the identity the member
  * claimed rather than by an old-site account.
  *
- * The profile looks up results in three steps, each running only when the one
- * before it found nothing: rows linked directly to the member, then rows under
- * their legacy account, then rows under the historical person they claimed. The
- * third step is the one under test. Without it a member who claimed an archival
- * identity that never had an account sees "no competitive results" while the
- * archive holds them, and the claim page that persuaded them to claim said the
- * opposite would happen.
- *
- * The ordering matters as much as the branch. A member whose account already
- * returns results must not fall through, or a change meant to fill an empty
- * section would quietly rewrite a populated one.
+ * The profile shows the rows linked directly to the member together with the
+ * archive's: the rows under their legacy account, or, when that finds nothing,
+ * the rows under the historical person they claimed. The claimed-person step is
+ * the one under test. Without it a member who claimed an archival identity that
+ * never had an account sees "no competitive results" while the archive holds
+ * them, and the claim page that persuaded them to claim said the opposite would
+ * happen. A member's own results never hide the archive's, and a result that
+ * names both the member and their historical person shows once.
  *
  * The leak direction is the one worth most of the attention here. Results are
  * keyed on the viewed member's own anchor, so a person nobody claimed, and a
@@ -171,10 +168,11 @@ describe('the branch cannot reach results that are not this member\'s', () => {
   });
 });
 
-describe('a member whose earlier lookup already succeeded does not fall through', () => {
-  it('a direct member-linked result is not replaced by the person branch', () => {
-    // Both anchors present and both carry results. The direct link wins, so a
-    // populated section keeps exactly what it had.
+describe('a member with results of their own and an archive', () => {
+  it('shows a direct member-linked result beside the archived ones, each once', () => {
+    // Both anchors present and both carry results. A member's first result
+    // uploaded on this site must not hide everything the archive holds, and a
+    // result carrying both the member and the person shows once, not twice.
     const personId = insertHistoricalPerson(db, { person_name: 'Dual Anchored' });
     const slug = 'dual_anchored';
     const memberId = insertMember(db, {
@@ -183,12 +181,13 @@ describe('a member whose earlier lookup already succeeded does not fall through'
       historical_person_id: personId,
       legacy_member_id: null,
     });
-    seedResult([{ name: 'Dual Anchored', memberId }], { title: 'Direct Link Open' });
+    seedResult([{ name: 'Dual Anchored', memberId, personId }], { title: 'Direct Link Open' });
     seedResult([{ name: 'Dual Anchored', personId }], { title: 'Person Anchor Open' });
 
-    const titles = resultsFor(slug).map((g: { eventTitle: string }) => g.eventTitle);
-    expect(titles).toEqual(['Direct Link Open']);
-    expect(titles).not.toContain('Person Anchor Open');
+    const titles = resultsFor(slug).map((g: { eventTitle: string }) => g.eventTitle).sort();
+    expect(titles).toEqual(['Direct Link Open', 'Person Anchor Open']);
+    const direct = resultsFor(slug).find((g: { eventTitle: string }) => g.eventTitle === 'Direct Link Open');
+    expect(direct?.results).toHaveLength(1);
   });
 
   it('a legacy-account result is not replaced by the person branch', () => {

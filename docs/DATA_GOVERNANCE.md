@@ -91,7 +91,7 @@ Club rosters and event participant lists beyond official results are member-only
 - **Raw legacy dumps** are never committed to the public repository or pasted into public issues, logs, tests or screenshots; password material is never imported, stored, logged or used. Raw legacy data and its extracts live in the maintainers' private repository and on maintainer machines. The public repository never holds member personal data.
 - **Sealed legacy email archive.** The legacy group-message corpus is sealed and held privately under IFPA custody, never imported or exposed; privately cast votes are never publishable.
 - **Legacy consent flags** (mailing opt-ins and per-field publish flags) are never imported as active consent; members set their preferences fresh after claiming.
-- **IFPA authority.** The disposition, release, redaction or destruction of IFPA-owned legacy records is the IFPA secretary's decision, never a maintainer's.
+- **IFPA authority.** The disposition, release, redaction or destruction of IFPA-owned legacy records is the project maintainer's decision, recorded per file in the maintainers' private repository.
 
 ---
 

@@ -32,6 +32,9 @@ import {
   insertRegistration,
   insertDiscipline,
   insertRegistrationDisciplineSelection,
+  insertResultsUpload,
+  insertResultEntry,
+  insertResultParticipant,
   insertMailingListSubscription,
   insertMemberLink,
   insertMemberDeclaredAnchor,
@@ -372,6 +375,28 @@ describe('what the document carries', () => {
     expect(doc.eventPartnerEntries.map((r: { division_name: string }) => r.division_name)).toEqual(['Entries Doubles']);
     expect(res.text).not.toContain(maker);
     expect(res.text).not.toContain('Entry Maker Zq');
+  });
+
+  // Defect caught: a result an organizer's upload linked to the member is
+  // missing from their copy, or another member's result rides along.
+  it('carries the results linked to the member and no one else\'s', async () => {
+    const slug = 'exp_results';
+    const id = withDb((db) => {
+      const id = insertMember(db, { slug, display_name: slug, login_email: `${slug}@example.com` });
+      const other = insertMember(db, { slug: 'exp_results_other', display_name: 'Other Placer Zq' });
+      const eventId = insertEvent(db, { title: 'Results Export Event' });
+      const division = insertDiscipline(db, eventId, { name: 'Results Export Singles', discipline_category: 'net' });
+      const upload = insertResultsUpload(db, eventId, id);
+      insertResultParticipant(db, insertResultEntry(db, eventId, upload, division, { placement: 2, score_text: '15-11' }), slug, { member_id: id });
+      insertResultParticipant(db, insertResultEntry(db, eventId, upload, division, { placement: 1 }), 'Other Placer Zq', { member_id: other });
+      return id;
+    });
+
+    const res = await download(slug, id);
+    const doc = JSON.parse(res.text);
+    expect(doc.competitionResults.map((r: { division_name: string; placement: number; score_text: string }) =>
+      [r.division_name, r.placement, r.score_text])).toEqual([['Results Export Singles', 2, '15-11']]);
+    expect(res.text).not.toContain('Other Placer Zq');
   });
 
   // Defect caught: a section the document has always claimed to carry is wired

@@ -1,0 +1,40 @@
+{{! The preview of an administrator's event correction or cancellation, before it is written }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{> admin-instructions}}
+  <section>
+    {{#if content.caution}}
+      <p class="notice notice-warn" role="alert">{{content.caution}}</p>
+    {{/if}}
+    <div class="card mb-6">
+      <p class="m-0 fw-500">{{content.eventTitle}}</p>
+      {{#if content.hasChanges}}
+        <dl class="trick-structural-facts-list mt-1">
+          {{#each content.changes}}
+            <dt>{{label}}</dt><dd>{{before}} &rarr; {{after}}</dd>
+          {{/each}}
+        </dl>
+      {{else if content.noChangeMessage}}
+        <p class="m-0 mt-1">{{content.noChangeMessage}}</p>
+      {{/if}}
+      <p class="m-0 mt-1 text-muted">Reason: {{content.reason}}</p>
+    </div>
+
+    <p>{{content.summary}}</p>
+
+    <form method="POST" action="{{content.confirmAction}}">
+      {{#each content.hiddenFields}}
+        <input type="hidden" name="{{name}}" value="{{value}}" />
+      {{/each}}
+      <button type="submit" class="btn btn-primary">{{content.confirmLabel}}</button>
+    </form>
+
+    <p class="mt-4"><a href="{{siteHref content.cancelHref}}">Cancel</a></p>
+  </section>
+</div>

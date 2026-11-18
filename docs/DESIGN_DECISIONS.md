@@ -2982,6 +2982,26 @@ Impact:
 
 - A new admin list or search follows this rule, with its span chosen for its topic.
 
+## 4.19 Printable Documents
+
+Decision:
+
+A page meant for paper (a check-in roster, a results sheet, a division roster) is a PDF the server generates and the member downloads. A service builds a declarative document model (headings, paragraphs, key-value lists and tables with typed columns, a header row repeated on every page, group rows and write-in columns) from its own data, and one shared renderer turns the model into a PDF with an embedded font that covers Latin, Greek and Cyrillic names. A new printout is a service method returning a model; no page has its own PDF code.
+
+Rationale:
+
+- Organizers print rosters and sheets for use at the venue, and need the same layout and a predictable file name on every device, phones included, which browser printing does not give.
+- A pure-JavaScript renderer fits the web container's memory budget, where a headless browser does not.
+- Building from data rather than HTML keeps member-entered text out of any markup interpreter.
+
+Trade-offs:
+
+- One runtime dependency, `pdfmake`, kept current with the others.
+
+Impact:
+
+- Every printable output goes through the printable-document facility in `src/lib/`.
+
 # 5. Back-End Services and Patterns
 
 ## 5.1 Node.js with TypeScript
@@ -3901,7 +3921,7 @@ Rationale:
 
 - The few legacy URLs that Wikipedia articles and other outside references still cite each answer a 301 to the public platform page carrying the same content, so those citations keep working for the readers who follow them. The list is fixed in code, holds only URLs with a verified outside citation and a true content match, and grows only by a deliberate addition.
 
-- Archive HTML uses mp4 video and jpg images, and contains no JavaScript, so the mirror is fully static.
+- The archive holds pages, jpg images, mp4 video, PDF documents and the stylesheets and fonts they use, and no code of any kind (no script, applet, macro-enabled document or server directive), so the mirror is fully static. The capture is identical to what is served: nothing is captured but withheld. A legacy file worth keeping but not serving is held privately under IFPA custody, and the rest is dropped.
 
 - The archive preserves both live footbag.org content hosts as one served site: the main site at the archive root and the WordPress championship-microsite host under a reserved `sites/` path prefix, so no legacy hostname survives in served HTML and all links resolve within the single archive host.
 
@@ -3931,7 +3951,9 @@ Requirements:
 
 - Key rotation follows the multi-key pattern: add the new public key to the key group, the app starts signing with the new private key, the old public key stays in the group during a grace period equal to the cookie TTL, then the old key is removed.
 
-- Documents the legacy site scoped to a group's own membership (every private group's files, and committee-scoped files in public groups) are excluded from the member-visible archive and held privately under IFPA custody, together with the captured pages that exposed their names and descriptions; the member-gated archive never widens a group-scoped audience.
+- Documents the legacy site scoped to a group's own membership (every private group's files, and committee-scoped files in public groups) are excluded from the member-visible archive and held privately under IFPA custody, together with the captured pages that exposed their names and descriptions; the member-gated archive never widens a group-scoped audience. A file its uploader hid from the group is treated as group-scoped. IFPA's own records (minutes, finances, budgets, internal policy) are held privately under IFPA custody even where the legacy site showed them to members, and the project maintainer rules on each group file's placement.
+
+- A legacy page built as a frameset is rendered as an ordinary page carrying the archive header and footer, its panes laid out as inline frames at their original sizes.
 
 - A photo-gallery set the legacy site named after a member's e-mail address or a club's web address is stored under a stand-in name derived from the original, with the address replaced in the page text, so the set keeps its photographs while the address appears in neither path nor page. The e-mail address identifies nothing the page does not already say; a lapsed club domain can be re-registered by anyone, so the archive carries no path or link pointing at whatever now answers there.
 

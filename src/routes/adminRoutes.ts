@@ -11,6 +11,7 @@ import { adminTagController } from '../controllers/adminTagController';
 import { adminEventOrganizerController } from '../controllers/adminEventOrganizerController';
 import { adminEventResultController } from '../controllers/adminEventResultController';
 import { adminEventSanctionController } from '../controllers/adminEventSanctionController';
+import { adminEventController } from '../controllers/adminEventController';
 import { adminAdminRolesController } from '../controllers/adminAdminRolesController';
 import { adminHonorGrantsController } from '../controllers/adminHonorGrantsController';
 import { adminMemberController } from '../controllers/adminMemberController';
@@ -199,6 +200,24 @@ adminRouter.post('/events/:eventId/results/entries/:entryId',         adminEvent
 adminRouter.get('/events/:eventId/results/disciplines/:disciplineId',          adminEventResultController.discipline);
 adminRouter.post('/events/:eventId/results/disciplines/:disciplineId/confirm', adminEventResultController.confirmDiscipline);
 adminRouter.post('/events/:eventId/results/disciplines/:disciplineId',         adminEventResultController.previewDiscipline);
+// An event's record: the lookup, then the record, after every literal
+// /events/* page above so none of them is read as an event id. Each
+// correction previews and writes only on confirm, longer path first.
+adminRouter.get('/events',                            adminEventController.index);
+adminRouter.get('/events/:eventId',                   adminEventController.record);
+adminRouter.post('/events/:eventId/details/confirm',  adminEventController.details(true));
+adminRouter.post('/events/:eventId/details',          adminEventController.details(false));
+adminRouter.post('/events/:eventId/description/clear/confirm', adminEventController.clearDescription(true));
+adminRouter.post('/events/:eventId/description/clear',         adminEventController.clearDescription(false));
+adminRouter.get('/events/:eventId/divisions/:divisionId',                  adminEventController.division);
+adminRouter.post('/events/:eventId/divisions/:divisionId/remove/confirm',  adminEventController.removeDivision(true));
+adminRouter.post('/events/:eventId/divisions/:divisionId/remove',          adminEventController.removeDivision(false));
+adminRouter.post('/events/:eventId/divisions/:divisionId/confirm',         adminEventController.correctDivision(true));
+adminRouter.post('/events/:eventId/divisions/:divisionId',                 adminEventController.correctDivision(false));
+adminRouter.post('/events/:eventId/cancel',           adminEventController.cancelEvent);
+adminRouter.post('/events/:eventId/registrations/:registrationId/cancel', adminEventController.cancelRegistration);
+adminRouter.post('/events/:eventId/registrations/:registrationId/attendance/confirm', adminEventController.correctAttendance(true));
+adminRouter.post('/events/:eventId/registrations/:registrationId/attendance',         adminEventController.correctAttendance(false));
 adminRouter.get('/clubs',                     adminClubController.index);
 adminRouter.get('/clubs/:clubId',             adminClubController.record);
 // The longer confirm path first, as elsewhere: each correction previews and

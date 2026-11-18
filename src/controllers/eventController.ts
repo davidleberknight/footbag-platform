@@ -1,8 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import {
-  eventService, type EventFormValues, type RegistrationInput, type SanctionFormValues,
+  eventService, resultsDecisionsFromFields,
+  type EventFormValues, type RegistrationInput, type ResultsUploadInput, type SanctionFormValues,
 } from '../services/eventService';
+import { RESULTS_FILE_MAX_BYTES, RESULTS_FILE_MAX_ROWS } from '../services/eventResultsFile';
+import { readMultipart } from '../lib/multipartForm';
 import { ConflictError, ForbiddenError, RateLimitedError, ValidationError } from '../services/serviceErrors';
 import {
   handleControllerError, renderForbidden, renderInvalidRequest, renderNotFound, renderRateLimited,
@@ -11,6 +14,7 @@ import { parseFormBody, formText, formOptionalText, formCheckbox, formList } fro
 import { FLASH_KIND, readFlash, clearFlash } from '../lib/flashCookie';
 import { redirectWithOutcome, type ActionEnding } from '../lib/actionOutcome';
 import { outcomeNotice, type OutcomeNoticeView } from '../lib/outcomeNotice';
+import { renderPdf, sendPdfDownload } from '../lib/printableDocument';
 
 /**
  * Thin controller layer for the Events routes: the public pages, and an
@@ -73,6 +77,25 @@ const registerForm = z.object({
 });
 
 const registrationStatusForm = z.object({ set_to: formText('Online registration') });
+
+const attendanceForm = z.object({ registration: formList('Participants') });
+
+// The results forms are multipart, so the file and the preview's text travel
+// past the urlencoded body limit. One file part at most; the field count
+// covers a tie or contested-division box per row of the largest file.
+const RESULTS_MULTIPART_LIMITS = { fileSize: RESULTS_FILE_MAX_BYTES, files: 1, fields: RESULTS_FILE_MAX_ROWS * 2 + 10 };
+
+const reasonConfirmForm = z.object({
+  confirmed: formOptionalText('The confirmation'),
+  reason: formText('Reason'),
+});
+
+const participantEmailForm = z.object({
+  subject: formText('Subject'),
+  body_text: formText('Message'),
+  send_token: formText('The form'),
+  step: formText('The button'),
+});
 
 const sanctionForm = z.object({
   attest: formCheckbox('The sanctioning attestation', '0'),
@@ -170,6 +193,41 @@ function takeEventNotice(req: Request, res: Response): OutcomeNoticeView | null 
 
 function flashTo(req: Request, res: Response, to: string, ending: ActionEnding, text: string): void {
   redirectWithOutcome(req, res, { flash: FLASH_KIND.EVENT_ACTION, to, ending, text });
+}
+
+function participantsHref(eventKey: string): string {
+  return `/events/${encodeURIComponent(eventKey)}/participants`;
+}
+
+// The results upload's second half, shared by the file upload and the
+// preview's own form: show the preview, or on a commit publish it and move on
+// to attendance. A refused commit shows the preview again with the reason.
+function renderResultsStep(req: Request, res: Response, eventKey: string, input: ResultsUploadInput, commit: boolean): void {
+  const userId = req.user!.userId;
+  try {
+    if (commit) {
+      const result = eventService.commitResults(userId, eventKey, input);
+      flashTo(req, res, `${eventHref(eventKey)}/attendance`, result.branch === 'committed' ? 'advance' : 'own_repeat',
+        `Results published: ${result.rowCount} placing${result.rowCount === 1 ? '' : 's'}. Now confirm who else attended.`);
+      return;
+    }
+    const result = eventService.previewResults(userId, eventKey, input);
+    const status = result.fileErrors.length > 0 ? 422 : 200;
+    res.status(status).render('events/results', eventService.getResultsUploadPage(eventKey, userId, { preview: { input, result } }));
+  } catch (err) {
+    if (!(err instanceof ValidationError)) throw err;
+    res.status(422).render('events/results', eventService.getResultsUploadPage(eventKey, userId, {
+      errorMessage: err.message,
+      preview: commit ? { input, result: eventService.previewResults(userId, eventKey, input) } : null,
+    }));
+  }
+}
+
+// The reason field of a confirm page, carrying what was typed and, after a
+// refused submit, why it was refused.
+function reasonField(label: string, value: string, err: unknown): { label: string; value: string; error: string | null } {
+  const error = err instanceof ValidationError ? (err.fieldErrors?.reason ?? err.message) : null;
+  return { label, value, error };
 }
 
 export const eventController = {
@@ -605,6 +663,362 @@ export const eventController = {
         'Sanction request submitted. IFPA will review it and email you the decision.');
     } catch (err) {
       if (err instanceof ForbiddenError) { renderForbidden(res); return; }
+      handleControllerError(err, res, next, 'events controller');
+    }
+  },
+
+  /** POST /events/:eventKey/close-registration */
+  postCloseRegistration(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const eventKey = eventKeyParam(req);
+      const parsed = parseFormBody(confirmForm, req.body);
+      if (!parsed.ok) { renderInvalidRequest(res, { title: parsed.message }); return; }
+      let result;
+      try {
+        result = eventService.closeRegistration(req.user!.userId, eventKey, parsed.data.confirmed === '1');
+      } catch (err) {
+        if (err instanceof ValidationError) { flashTo(req, res, manageHref(eventKey), 'refused', err.message); return; }
+        throw err;
+      }
+      if (result.branch === 'needs_confirmation') {
+        res.render('events/confirm', eventService.getConfirmPage({
+          title: `Close Registration for ${result.eventTitle}`,
+          caution: `Close registration for ${result.eventTitle}? Nobody can register after this, and it cannot be reopened. To pause registration instead, use Stop Taking Registrations.`,
+          action: `${eventHref(eventKey)}/close-registration`,
+          buttonLabel: 'Close Registration',
+          cancelHref: manageHref(eventKey),
+        }));
+        return;
+      }
+      const endings: Record<typeof result.branch, [ActionEnding, string]> = {
+        closed: ['advance', 'Registration is closed.'],
+        own_repeat: ['own_repeat', 'Registration is closed.'],
+        already_held: ['already_held', 'Registration for this event is already closed.'],
+      };
+      const [ending, text] = endings[result.branch];
+      flashTo(req, res, manageHref(eventKey), ending, text);
+    } catch (err) {
+      handleControllerError(err, res, next, 'events controller');
+    }
+  },
+
+  /** POST /events/:eventKey/cancel */
+  async postCancelEvent(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const eventKey = eventKeyParam(req);
+      const parsed = parseFormBody(reasonConfirmForm, req.body);
+      if (!parsed.ok) { renderInvalidRequest(res, { title: parsed.message }); return; }
+      const userId = req.user!.userId;
+      const renderConfirm = async (status: number, err: unknown): Promise<void> => {
+        const step = await eventService.cancelEvent(userId, eventKey, '', false);
+        if (step.branch !== 'needs_confirmation') { flashTo(req, res, manageHref(eventKey), 'already_held', 'This event is already canceled.'); return; }
+        const count = step.registrantCount;
+        res.status(status).render('events/confirm', eventService.getConfirmPage({
+          title: `Cancel ${step.eventTitle}`,
+          caution: `Cancel ${step.eventTitle}? This notifies all ${count} registered participant${count === 1 ? '' : 's'} and cannot be undone.`
+            + (step.hasPaid ? ' Canceling does not refund anyone by itself: refunds are arranged by the IFPA Treasurer outside the platform.' : ''),
+          action: `${eventHref(eventKey)}/cancel`,
+          buttonLabel: 'Cancel Event',
+          cancelHref: manageHref(eventKey),
+          reasonField: reasonField('Reason, sent to everyone registered', parsed.data.reason, err),
+        }));
+      };
+      let result;
+      try {
+        result = await eventService.cancelEvent(userId, eventKey, parsed.data.reason, parsed.data.confirmed === '1');
+      } catch (err) {
+        if (err instanceof ValidationError && err.fieldErrors?.reason) { await renderConfirm(422, err); return; }
+        if (err instanceof ValidationError) { flashTo(req, res, manageHref(eventKey), 'refused', err.message); return; }
+        throw err;
+      }
+      if (result.branch === 'needs_confirmation') { await renderConfirm(200, null); return; }
+      const endings: Record<typeof result.branch, [ActionEnding, string]> = {
+        canceled: ['advance', `${result.eventTitle} is canceled. Everyone registered has been emailed.`],
+        own_repeat: ['own_repeat', `${result.eventTitle} is canceled. Everyone registered has been emailed.`],
+        already_held: ['already_held', 'This event is already canceled.'],
+      };
+      const [ending, text] = endings[result.branch];
+      flashTo(req, res, manageHref(eventKey), ending, text);
+    } catch (err) {
+      handleControllerError(err, res, next, 'events controller');
+    }
+  },
+
+  /** POST /events/:eventKey/delete */
+  postDeleteEvent(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const eventKey = eventKeyParam(req);
+      const parsed = parseFormBody(reasonConfirmForm, req.body);
+      if (!parsed.ok) { renderInvalidRequest(res, { title: parsed.message }); return; }
+      const userId = req.user!.userId;
+      const renderConfirm = (status: number, err: unknown): void => {
+        const step = eventService.deleteEvent(userId, eventKey, '', false);
+        if (step.branch !== 'needs_confirmation') { flashTo(req, res, profileHref(req), 'already_held', 'That event is already deleted.'); return; }
+        res.status(status).render('events/confirm', eventService.getConfirmPage({
+          title: `Delete ${step.eventTitle}`,
+          caution: `Delete ${step.eventTitle}? This permanently removes the event and cannot be undone.`,
+          action: `${eventHref(eventKey)}/delete`,
+          buttonLabel: 'Delete Event',
+          cancelHref: manageHref(eventKey),
+          reasonField: reasonField('Reason, kept in the record of who deleted it', parsed.data.reason, err),
+        }));
+      };
+      let result;
+      try {
+        result = eventService.deleteEvent(userId, eventKey, parsed.data.reason, parsed.data.confirmed === '1');
+      } catch (err) {
+        if (err instanceof ValidationError && err.fieldErrors?.reason) { renderConfirm(422, err); return; }
+        if (err instanceof ValidationError) { flashTo(req, res, manageHref(eventKey), 'refused', err.message); return; }
+        throw err;
+      }
+      if (result.branch === 'needs_confirmation') { renderConfirm(200, null); return; }
+      flashTo(req, res, profileHref(req), result.branch === 'deleted' ? 'advance' : 'already_held', 'The event is deleted.');
+    } catch (err) {
+      handleControllerError(err, res, next, 'events controller');
+    }
+  },
+
+  /** POST /events/:eventKey/registrations/:registrationId/cancel */
+  async postCancelRegistration(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const eventKey = eventKeyParam(req);
+      const registrationId = typeof req.params.registrationId === 'string' ? req.params.registrationId : '';
+      const parsed = parseFormBody(reasonConfirmForm, req.body);
+      if (!parsed.ok) { renderInvalidRequest(res, { title: parsed.message }); return; }
+      const userId = req.user!.userId;
+      const back = participantsHref(eventKey);
+      const renderConfirm = async (status: number, err: unknown): Promise<void> => {
+        const step = await eventService.cancelRegistration(userId, eventKey, registrationId, '', false);
+        if (step.branch !== 'needs_confirmation') { flashTo(req, res, back, 'already_held', 'That registration is already canceled.'); return; }
+        res.status(status).render('events/confirm', eventService.getConfirmPage({
+          title: `Cancel ${step.memberName}'s Registration`,
+          caution: `Cancel ${step.memberName}'s registration for ${step.eventTitle}? They are emailed with your reason, and they leave the participant list, the exports and event email.`
+            + (step.isPaid ? ' Any refund is arranged by the IFPA Treasurer outside the platform.' : ''),
+          action: `${eventHref(eventKey)}/registrations/${encodeURIComponent(registrationId)}/cancel`,
+          buttonLabel: 'Cancel Registration',
+          cancelHref: back,
+          reasonField: reasonField('Reason, sent to the member', parsed.data.reason, err),
+        }));
+      };
+      let result;
+      try {
+        result = await eventService.cancelRegistration(userId, eventKey, registrationId, parsed.data.reason, parsed.data.confirmed === '1');
+      } catch (err) {
+        if (err instanceof ValidationError && err.fieldErrors?.reason) { await renderConfirm(422, err); return; }
+        if (err instanceof ValidationError) { flashTo(req, res, back, 'refused', err.message); return; }
+        throw err;
+      }
+      if (result.branch === 'needs_confirmation') { await renderConfirm(200, null); return; }
+      const endings: Record<typeof result.branch, [ActionEnding, string]> = {
+        canceled: ['advance', `${result.memberName}'s registration is canceled, and they have been emailed.`],
+        own_repeat: ['own_repeat', `${result.memberName}'s registration is canceled, and they have been emailed.`],
+        already_held: ['already_held', `${result.memberName}'s registration is already canceled.`],
+      };
+      const [ending, text] = endings[result.branch];
+      flashTo(req, res, back, ending, text);
+    } catch (err) {
+      handleControllerError(err, res, next, 'events controller');
+    }
+  },
+
+  /** GET /events/:eventKey/participants */
+  getParticipants(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const sort = typeof req.query.sort === 'string' ? req.query.sort : undefined;
+      res.render('events/participants', eventService.getParticipantsPage(
+        eventKeyParam(req), req.user!.userId, sort, { notice: takeEventNotice(req, res) },
+      ));
+    } catch (err) {
+      handleControllerError(err, res, next, 'events controller');
+    }
+  },
+
+  /** GET /events/:eventKey/participants.csv */
+  getParticipantsCsv(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const out = eventService.getParticipantsCsv(eventKeyParam(req), req.user!.userId);
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${out.filename}"`);
+      res.setHeader('Cache-Control', 'no-store');
+      res.send(out.body);
+    } catch (err) {
+      handleControllerError(err, res, next, 'events controller');
+    }
+  },
+
+  /** GET /events/:eventKey/summary */
+  getSummary(req: Request, res: Response, next: NextFunction): void {
+    try {
+      res.render('events/summary', eventService.getRegistrationSummaryPage(eventKeyParam(req), req.user!.userId));
+    } catch (err) {
+      handleControllerError(err, res, next, 'events controller');
+    }
+  },
+
+  /** GET /events/:eventKey/check-in-sheet */
+  async getCheckInSheet(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const sort = typeof req.query.sort === 'string' ? req.query.sort : undefined;
+      const sheet = eventService.getCheckInSheet(eventKeyParam(req), req.user!.userId, sort);
+      sendPdfDownload(res, { filename: sheet.filename, body: await renderPdf(sheet.document) });
+    } catch (err) {
+      handleControllerError(err, res, next, 'events controller');
+    }
+  },
+
+  /** GET /events/:eventKey/email */
+  getEmail(req: Request, res: Response, next: NextFunction): void {
+    try {
+      res.render('events/email', eventService.getEmailParticipantsPage(
+        eventKeyParam(req), req.user!.userId, { notice: takeEventNotice(req, res) },
+      ));
+    } catch (err) {
+      handleControllerError(err, res, next, 'events controller');
+    }
+  },
+
+  /** POST /events/:eventKey/email: preview, then send. */
+  postEmail(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const eventKey = eventKeyParam(req);
+      const userId = req.user!.userId;
+      const parsed = parseFormBody(participantEmailForm, req.body);
+      const typed = parsed.ok ? parsed.data : parsed.submitted;
+      const values = { subject: typed.subject ?? '', bodyText: typed.body_text ?? '', sendToken: typed.send_token ?? '' };
+      if (!parsed.ok) {
+        res.status(422).render('events/email', eventService.getEmailParticipantsPage(eventKey, userId, { values, message: parsed.message }));
+        return;
+      }
+      const previewOnly = parsed.data.step !== 'send';
+      let result;
+      try {
+        result = eventService.emailParticipants(userId, eventKey, values, previewOnly);
+      } catch (err) {
+        if (err instanceof ValidationError) {
+          res.status(422).render('events/email', eventService.getEmailParticipantsPage(eventKey, userId, {
+            values, fieldErrors: err.fieldErrors ?? {}, message: err.message,
+          }));
+          return;
+        }
+        throw err;
+      }
+      if (result.branch === 'preview') {
+        res.render('events/email', eventService.getEmailParticipantsPage(eventKey, userId, { values, preview: true }));
+        return;
+      }
+      if (result.branch === 'no_recipients') {
+        flashTo(req, res, `${eventHref(eventKey)}/email`, 'already_held', 'Nobody is confirmed for this event yet, so the email was not sent.');
+        return;
+      }
+      flashTo(req, res, participantsHref(eventKey), result.branch === 'sent' ? 'advance' : 'own_repeat',
+        `Email sent to ${result.recipients} participant${result.recipients === 1 ? '' : 's'}.`);
+    } catch (err) {
+      handleControllerError(err, res, next, 'events controller');
+    }
+  },
+
+  /** GET /events/:eventKey/results */
+  getResults(req: Request, res: Response, next: NextFunction): void {
+    try {
+      res.render('events/results', eventService.getResultsUploadPage(
+        eventKeyParam(req), req.user!.userId, { notice: takeEventNotice(req, res) },
+      ));
+    } catch (err) {
+      handleControllerError(err, res, next, 'events controller');
+    }
+  },
+
+  /** GET /events/:eventKey/results/template.csv */
+  getResultsTemplate(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const out = eventService.getResultsTemplate(eventKeyParam(req), req.user!.userId);
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${out.filename}"`);
+      res.setHeader('Cache-Control', 'no-store');
+      res.send(out.body);
+    } catch (err) {
+      handleControllerError(err, res, next, 'events controller');
+    }
+  },
+
+  /** POST /events/:eventKey/results/preview: read the chosen file into a preview. */
+  postResultsPreview(req: Request, res: Response, next: NextFunction): void {
+    const eventKey = eventKeyParam(req);
+    const userId = req.user!.userId;
+    readMultipart(req, { limits: RESULTS_MULTIPART_LIMITS, fileFields: ['results_file'] }, (parsed) => {
+      try {
+        const file = parsed.files.results_file?.[0];
+        if (parsed.limitExceeded || !file || file.buffer.length === 0) {
+          res.status(422).render('events/results', eventService.getResultsUploadPage(eventKey, userId, {
+            errorMessage: parsed.limitExceeded
+              ? 'The file is too large. Split it, or remove anything that is not a result.'
+              : 'Choose a results file to preview.',
+          }));
+          return;
+        }
+        const input: ResultsUploadInput = {
+          text: file.buffer.toString('utf8'), filename: file.filename, ties: [], contested: [], acceptUnmatched: false,
+        };
+        renderResultsStep(req, res, eventKey, input, false);
+      } catch (err) {
+        handleControllerError(err, res, next, 'events controller');
+      }
+    }, (err) => next(err));
+  },
+
+  /** POST /events/:eventKey/results: check the preview again, or publish it. */
+  postResults(req: Request, res: Response, next: NextFunction): void {
+    const eventKey = eventKeyParam(req);
+    readMultipart(req, { limits: RESULTS_MULTIPART_LIMITS, fileFields: [] }, (parsed) => {
+      try {
+        const decisions = resultsDecisionsFromFields(parsed.fields);
+        const input: ResultsUploadInput = {
+          text: parsed.fields.results_text ?? '',
+          filename: parsed.fields.filename ?? '',
+          ties: decisions.ties,
+          contested: decisions.contested,
+          acceptUnmatched: parsed.fields.accept_unmatched === '1',
+        };
+        renderResultsStep(req, res, eventKey, input, parsed.fields.step === 'commit');
+      } catch (err) {
+        handleControllerError(err, res, next, 'events controller');
+      }
+    }, (err) => next(err));
+  },
+
+  /** GET /events/:eventKey/attendance */
+  getAttendance(req: Request, res: Response, next: NextFunction): void {
+    try {
+      res.render('events/attendance', eventService.getAttendancePage(
+        eventKeyParam(req), req.user!.userId, { notice: takeEventNotice(req, res) },
+      ));
+    } catch (err) {
+      handleControllerError(err, res, next, 'events controller');
+    }
+  },
+
+  /** POST /events/:eventKey/attendance: from the attendance screen or the participant list. */
+  postAttendance(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const eventKey = eventKeyParam(req);
+      const to = `${eventHref(eventKey)}/attendance`;
+      const parsed = parseFormBody(attendanceForm, req.body);
+      if (!parsed.ok) { flashTo(req, res, to, 'refused', parsed.message); return; }
+      let result;
+      try {
+        result = eventService.markAttended(req.user!.userId, eventKey, parsed.data.registration);
+      } catch (err) {
+        if (err instanceof ValidationError) { flashTo(req, res, to, 'refused', err.message); return; }
+        throw err;
+      }
+      const text = result.branch === 'already_held'
+        ? 'Everyone ticked was already marked attended.'
+        : result.branch === 'own_repeat'
+          ? 'Marked attended.'
+          : `${result.marked} marked attended.`;
+      const ending: ActionEnding = result.branch === 'marked' ? 'advance' : result.branch;
+      flashTo(req, res, to, ending, text);
+    } catch (err) {
       handleControllerError(err, res, next, 'events controller');
     }
   },

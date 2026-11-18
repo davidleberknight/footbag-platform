@@ -29,14 +29,12 @@
 #      refuses, naming them. Any other media extension on disk is an
 #      unconverted crawler leftover and always fatal.
 #      The sidecars themselves are crawl bookkeeping and are never uploaded.
-#      A type nothing can scan splits two ways, and the refusal text asks the
-#      question that sorts them: a type that would need a program running on the
-#      server to mean anything is stripped from the capture by the crawler
-#      (--strip-unservable-only, and every crawl does it at its end), because
-#      only the crawler can also settle the pages that linked it; a file a reader
-#      with the right application could open stays in the capture, which is the
-#      only surviving copy of the site, and is withheld here by
-#      archive-publish-exclusions.txt.
+#      The capture holds exactly what the archive serves: the crawler's strip
+#      (every crawl, settle and video backfill ends with it) deletes every file
+#      whose type this publish does not serve or that
+#      archive-publish-exclusions.txt names, and settles the pages that linked
+#      it. A type that reaches this gate unscanned is therefore a capture that
+#      was not settled, or a type nobody has ruled on yet.
 #   3. Independent verification of the finished tree, by the mirror's own
 #      verifier (legacy_data/legacy_mirror/verify_mirror.sh). The gates above
 #      are this script's reading of the capture; that one is the capture's
@@ -352,22 +350,14 @@ UNKNOWN_COUNT="$(wc -l < "$KNOWN_LIST")"
 if [[ "$UNKNOWN_COUNT" -gt 0 ]]; then
   echo "REFUSING: ${UNKNOWN_COUNT} files of types nothing has scanned." >&2
   echo "Neither the crawler's re-encode nor the checks above look at these." >&2
-  echo "Read the list, and answer one question about each type: what would have" >&2
-  echo "to exist for the archive to serve it usefully?" >&2
-  echo "  A program running on the server (an imagemap handler, a CGI) — the type" >&2
-  echo "  is inert wherever it sits, so it comes out of the capture rather than" >&2
-  echo "  being hidden at publish. Add the pattern to the crawler's" >&2
-  echo "  unservable_artifact_exclusions.txt and strip it:" >&2
-  echo "    python legacy_data/legacy_mirror/create_mirror_footbag_org.py \\" >&2
-  echo "      --strip-unservable-only --dry-run   (then again without --dry-run)" >&2
-  echo "  That also settles the pages that linked it, which this list cannot do:" >&2
-  echo "  an excluded file still leaves every reference to it offering a reader a" >&2
-  echo "  link that can only fail." >&2
-  echo "  A reader with the right application (a document, a layered image) — the" >&2
-  echo "  bytes are worth keeping in the only surviving copy of the site, so add" >&2
-  echo "  the path to ${EXCLUSION_LIST##*/}, which withholds it from the" >&2
-  echo "  publish and records the decision once instead of per run." >&2
-  echo "  A browser, and it simply was not scanned — then the capture needs fixing." >&2
+  echo "The capture holds only what the archive serves, so these files mean the" >&2
+  echo "capture was not settled. Settle it, which strips every type the archive" >&2
+  echo "does not serve and settles the pages that linked it:" >&2
+  echo "    bash legacy_data/legacy_mirror/create_mirror.sh --settle-for-publication-only" >&2
+  echo "A group file that should be kept rather than dropped needs a ruling first," >&2
+  echo "in PLACEMENT_RULINGS.csv in the private custody folder." >&2
+  echo "A type a browser does display but nothing scanned means the capture needs" >&2
+  echo "fixing, not this list." >&2
   cat "$KNOWN_LIST" >&2
   cr_die "${UNKNOWN_COUNT} files of types nothing has scanned"
 fi

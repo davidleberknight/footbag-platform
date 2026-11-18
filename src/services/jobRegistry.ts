@@ -102,6 +102,12 @@ export const JOBS: readonly JobDefinition[] = [
     run: (ctx) => operationsPlatformService.runActivePlayerExpiryCheck({ now: ctx.now }),
   },
   {
+    name: 'SYS_Send_Event_Registration_Reminders',
+    cadence: { kind: 'daily' },
+    runRetentionDays: fixedDays(DEFAULT_RUN_RETENTION_DAYS),
+    run: (ctx) => operationsPlatformService.runEventRegistrationReminders(ctx.now),
+  },
+  {
     name: 'SYS_Detect_Admin_Loss',
     cadence: { kind: 'daily' },
     runRetentionDays: fixedDays(DEFAULT_RUN_RETENTION_DAYS),

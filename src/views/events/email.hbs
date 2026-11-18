@@ -1,0 +1,69 @@
+{{! An event's organizers email its confirmed participants }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
+  </div>
+</div>
+
+<div class="wrapper">
+  {{#if content.notice}}
+    {{> outcome-notice text=content.notice.text tone=content.notice.tone}}
+  {{/if}}
+  {{#if content.errorMessage}}
+    {{> outcome-notice tone='no' text=content.errorMessage}}
+  {{/if}}
+
+  <section>
+    <p>It goes to every confirmed participant, with a line saying you sent it as an organizer of this event. Confirmed participants: {{content.recipientCount}}.</p>
+
+    {{#if content.preview}}
+      <div class="card card-static">
+        <h3 class="card-title">{{content.preview.subject}}</h3>
+        <pre class="broadcast-body">{{content.preview.bodyText}}</pre>
+      </div>
+    {{/if}}
+
+    <form method="POST" action="{{content.formAction}}" class="form-block">
+      <input type="hidden" name="send_token" value="{{content.values.sendToken}}" />
+      <div class="form-field">
+        <label for="subject">Subject</label>
+        <input type="text" id="subject" name="subject" value="{{content.values.subject}}" maxlength="200" required />
+        {{#if content.fieldErrors.subject}}<p class="form-field-error" role="alert">{{content.fieldErrors.subject}}</p>{{/if}}
+      </div>
+      <div class="form-field">
+        <label for="body_text">Message</label>
+        <textarea id="body_text" name="body_text" rows="10" maxlength="10000" required>{{content.values.bodyText}}</textarea>
+        <small class="form-hint">Plain text only.</small>
+        {{#if content.fieldErrors.bodyText}}<p class="form-field-error" role="alert">{{content.fieldErrors.bodyText}}</p>{{/if}}
+      </div>
+      {{#if content.sendBlockedText}}
+        <p>{{content.sendBlockedText}}</p>
+      {{else}}
+        <div class="form-actions">
+          <button type="submit" name="step" value="preview" class="btn btn-outline">Preview Email</button>
+          {{#if content.preview}}
+            <button type="submit" name="step" value="send" class="btn btn-primary">Send Email</button>
+          {{/if}}
+        </div>
+      {{/if}}
+    </form>
+  </section>
+
+  <section>
+    <div class="section-heading"><h2>Sent Emails</h2></div>
+    {{#if content.hasSent}}
+      {{#each content.sent}}
+        <details class="card card-static">
+          <summary>{{this.subject}} <span class="text-muted fs-sm">{{formatDate this.sentOn}}, by {{this.senderName}}, to {{this.recipientCount}}</span></summary>
+          <pre class="broadcast-body">{{this.bodyText}}</pre>
+        </details>
+      {{/each}}
+    {{else}}
+      <p class="empty-state">No email has gone to this event's participants yet.</p>
+    {{/if}}
+  </section>
+
+  {{> back-link}}
+</div>

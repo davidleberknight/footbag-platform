@@ -102,6 +102,7 @@ export const TEMPLATE_VARIANTS = {
   // the application. No merge fields, and deliberately no link.
   member_question_waiting:         v('internal',     []),
   vouch_confirmation:              v('confidential', ['voucherName', 'expiryDate']),
+  event_attendance_active_player:  v('internal',     ['eventTitle', 'expiryDate']),
   honor_congratulation_hof:        v('internal',     []),
   honor_congratulation_hof_tier3:  v('internal',     []),
   honor_congratulation_bap:        v('internal',     []),
@@ -139,8 +140,13 @@ export const TEMPLATE_VARIANTS = {
   event_sanction_rejected:         v('internal',     ['eventTitle', 'reason', 'manageUrl']),
   // Both name members: the registrant's partners, and the member who withdrew.
   event_registration_confirmed:    v('confidential', ['eventTitle', 'eventDates', 'registrationSummary']),
+  event_registration_reminder:     v('confidential', ['eventTitle', 'eventDates', 'registrationSummary']),
   event_registration_withdrawn:    v('confidential', ['memberName', 'eventTitle', 'eventDates']),
-  contact_request_resolution:      v('confidential', ['memberName', 'displayDecision', 'note']),
+  // Both carry the reason an organizer or administrator typed.
+  event_canceled:                  v('confidential', ['memberName', 'eventTitle', 'eventDates', 'canceledBy', 'reason', 'refundNote']),
+  event_registration_canceled:     v('confidential', ['memberName', 'eventTitle', 'eventDates', 'canceledBy', 'reason', 'refundNote']),
+  event_record_corrected:          v('confidential', ['organizerName', 'eventTitle', 'whatChanged', 'note']),
+  contact_request_resolution:     v('confidential', ['memberName', 'displayDecision', 'note']),
   media_moderation_decision:       v('confidential', ['memberName', 'displayDecision', 'note']),
   avatar_removed_member:           v('confidential', ['memberName', 'note']),
   media_removed_member:            v('confidential', ['memberName', 'note']),
@@ -228,6 +234,12 @@ const SHAPERS = {
   vouch_confirmation: (p: { voucherName: string; expiryDate: string }): ShapedEmail => ({
     variant: 'vouch_confirmation',
     merge: { voucherName: p.voucherName, expiryDate: p.expiryDate },
+  }),
+  // Sent when attendance at an event grants or extends a Tier 0 member's
+  // Active Player status, in the vouch confirmation's words.
+  event_attendance_active_player: (p: { eventTitle: string; expiryDate: string }): ShapedEmail => ({
+    variant: 'event_attendance_active_player',
+    merge: { eventTitle: p.eventTitle, expiryDate: p.expiryDate },
   }),
   honor_congratulation: (p: { honor: 'hof' | 'bap'; staysTier3: boolean }): ShapedEmail => ({
     variant: p.honor === 'hof'
@@ -436,9 +448,57 @@ const SHAPERS = {
     variant: 'event_registration_confirmed',
     merge: { eventTitle: p.eventTitle, eventDates: p.eventDates, registrationSummary: p.registrationSummary },
   }),
+  // Sent by the daily reminder job, in the confirmation's own words.
+  event_registration_reminder: (p: { eventTitle: string; eventDates: string; registrationSummary: string }): ShapedEmail => ({
+    variant: 'event_registration_reminder',
+    merge: { eventTitle: p.eventTitle, eventDates: p.eventDates, registrationSummary: p.registrationSummary },
+  }),
   event_registration_withdrawn: (p: { memberName: string; eventTitle: string; eventDates: string }): ShapedEmail => ({
     variant: 'event_registration_withdrawn',
     merge: { memberName: p.memberName, eventTitle: p.eventTitle, eventDates: p.eventDates },
+  }),
+  // Sent to every registrant and organizer when the event is canceled. A
+  // registrant who paid is told that canceling refunds nobody by itself.
+  event_canceled: (p: {
+    memberName: string; eventTitle: string; eventDates: string;
+    byAdministrator: boolean; reason: string; paid: boolean;
+  }): ShapedEmail => ({
+    variant: 'event_canceled',
+    merge: {
+      memberName: p.memberName,
+      eventTitle: p.eventTitle,
+      eventDates: p.eventDates,
+      canceledBy: p.byAdministrator ? 'an IFPA administrator' : 'its organizers',
+      reason: p.reason,
+      refundNote: p.paid
+        ? 'Canceling the event does not refund anyone by itself: the IFPA Treasurer arranges any refund outside footbag.org.\n\n'
+        : '',
+    },
+  }),
+  // Sent to the member whose registration an organizer or administrator canceled.
+  event_registration_canceled: (p: {
+    memberName: string; eventTitle: string; eventDates: string;
+    byAdministrator: boolean; reason: string; paid: boolean;
+  }): ShapedEmail => ({
+    variant: 'event_registration_canceled',
+    merge: {
+      memberName: p.memberName,
+      eventTitle: p.eventTitle,
+      eventDates: p.eventDates,
+      canceledBy: p.byAdministrator ? 'an IFPA administrator' : 'its organizers',
+      reason: p.reason,
+      refundNote: p.paid ? 'Any refund is arranged by the IFPA Treasurer outside footbag.org.\n\n' : '',
+    },
+  }),
+  // The club correction notice's event counterpart, to every current
+  // organizer, naming what changed but never the values.
+  event_record_corrected: (
+    p: { organizerName: string; eventTitle: string; whatChanged: string; note: string },
+  ): ShapedEmail => ({
+    variant: 'event_record_corrected',
+    merge: {
+      organizerName: p.organizerName, eventTitle: p.eventTitle, whatChanged: p.whatChanged, note: p.note,
+    },
   }),
   contact_request_resolution: (p: { memberName: string; displayDecision: string; note: string }): ShapedEmail => ({
     variant: 'contact_request_resolution',

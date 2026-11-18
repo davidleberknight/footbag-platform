@@ -1,0 +1,52 @@
+{{! An administrator corrects one division's parts }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{> admin-instructions}}
+
+  <section>
+    <form method="POST" action="{{content.step.action}}" class="form-block">
+      <h3>{{content.step.gameName}}</h3>
+      <fieldset class="form-fieldset">
+        <legend>Class</legend>
+        {{#each content.step.classes}}
+          <div class="form-field"><label><input type="radio" name="division_class" value="{{this.value}}"{{#if this.checked}} checked{{/if}}> {{this.label}}</label></div>
+        {{/each}}
+      </fieldset>
+      <fieldset class="form-fieldset">
+        <legend>Who May Enter</legend>
+        {{#each content.step.genders}}
+          <div class="form-field"><label><input type="radio" name="gender" value="{{this.value}}"{{#if this.checked}} checked{{/if}}> {{this.label}}</label></div>
+        {{/each}}
+      </fieldset>
+      <fieldset class="form-fieldset">
+        <legend>Entry Size</legend>
+        {{#each content.step.teamTypes}}
+          <div class="form-field"><label><input type="radio" name="team_type" value="{{this.value}}"{{#if this.checked}} checked{{/if}}> {{this.label}}</label></div>
+        {{/each}}
+      </fieldset>
+      <div class="form-field">
+        <label>
+          <input type="hidden" name="offers_prize_money" value="0" />
+          <input type="checkbox" name="offers_prize_money" value="1"{{#if content.step.offersPrizeMoney}} checked{{/if}} />
+          This division offers prize money
+        </label>
+      </div>
+      <div class="form-field">
+        <label for="division_reason">Reason (required)</label>
+        <input type="text" id="division_reason" name="reason" maxlength="500" required />
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">{{content.step.submitLabel}}</button>
+        <a href="{{siteHref content.step.cancelHref}}" class="btn btn-outline">Cancel</a>
+      </div>
+    </form>
+  </section>
+
+  {{> back-link}}
+</div>

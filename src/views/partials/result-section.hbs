@@ -8,12 +8,12 @@
 
   {{#if placements.length}}
     <div class="records-table-wrap" tabindex="0" role="region" aria-label="{{#if disciplineName}}{{disciplineName}}{{else}}Results{{/if}}">
-    <table class="data-table">
+    <table class="data-table" data-sortable>
       <thead>
         <tr>
-          <th class="w-12">#</th>
-          <th>Name</th>
-          <th class="w-20">Score</th>
+          <th class="w-12" data-sort-type="number">#</th>
+          <th data-sort-type="text">Name</th>
+          <th class="w-20" data-sort-type="text">Score</th>
         </tr>
       </thead>
       <tbody>
@@ -30,6 +30,7 @@
                       {{else}}
                         {{participantDisplayName}}
                       {{/if}}
+                      {{#if amateurLabel}} <span class="badge">{{amateurLabel}}</span>{{/if}}
                     </li>
                   {{/each}}
                 </ul>

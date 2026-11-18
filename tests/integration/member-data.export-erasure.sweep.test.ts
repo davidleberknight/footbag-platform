@@ -126,10 +126,10 @@ const DECISIONS: Record<string, Decision> = {
     erasure: { cleared: 'emailArchives.clearSenderForMember', on: 'purge' },
   },
   'event_organizers.member_id': { export: { exported: 'memberExport.eventOrganizerRoles' }, erasure: { unruled: NO_ERASURE_RULE } },
-  // The results loader inserts every participant with this column empty; the
-  // historical-person link carries the association instead.
+  // An organizer's results upload links a placing member; the results loader
+  // leaves it empty and carries the association on the historical person.
   'event_result_entry_participants.member_id': {
-    export: { noWriter: NO_WRITER },
+    export: { exported: 'memberExport.competitionResults' },
     erasure: { retained: PUBLIC_RESULTS },
   },
   'event_results_uploads.uploaded_by_member_id': ACTOR,

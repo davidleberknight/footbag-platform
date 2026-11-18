@@ -12,6 +12,7 @@ The shared technical approach (the job registry, the scheduler, run records and 
 - [Story Form](#story-form)
 - [Scheduled Jobs](#scheduled-jobs)
     - [SYS_Check_Active_Player_Expiry](#sys_check_active_player_expiry)
+    - [SYS_Send_Event_Registration_Reminders](#sys_send_event_registration_reminders)
     - [SYS_Detect_Admin_Loss](#sys_detect_admin_loss)
     - [SYS_Cleanup_Soft_Deleted_Records](#sys_cleanup_soft_deleted_records)
     - [SYS_Cleanup_Expired_Tokens](#sys_cleanup_expired_tokens)
@@ -48,6 +49,7 @@ Every background job the platform runs. A scheduled job runs from the job regist
 | Story | What it does | Cadence | Missed-run grace | Failure alarm | Missed-run alarm | Configuration | Run record |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | SYS_Check_Active_Player_Expiry | Sends Active Player reminders and ends lapsed Active Player status | Daily | 2 hours | Error alarm | Heartbeat alarm | `active_player_expiry_reminder_days_1`, `active_player_expiry_reminder_days_2` | Job-run row |
+| SYS_Send_Event_Registration_Reminders | Reminds each confirmed registrant of an upcoming event | Daily | 2 hours | Error alarm | Heartbeat alarm | `event_registration_reminder_days` | Job-run row |
 | SYS_Detect_Admin_Loss | Raises the recruit-a-replacement alert for a lost administrator | Daily | 2 hours | Error alarm | Heartbeat alarm | `admin_inactivity_alert_days` | Job-run row |
 | SYS_Cleanup_Soft_Deleted_Records | Purges personal data past its grace period and retention windows | Daily | 2 hours | Error alarm | Heartbeat alarm | `member_cleanup_grace_days`, `deceased_cleanup_grace_days`, `payment_retention_days`, `outbox_retention_days` | Job-run row |
 | SYS_Cleanup_Expired_Tokens | Deletes spent and expired account tokens | Daily | 2 hours | Error alarm | Heartbeat alarm | `token_cleanup_threshold_days` | Job-run row |
@@ -112,6 +114,31 @@ Operation:
 - Failure alarm: the error alarm.
 - Missed-run alarm: the heartbeat alarm.
 - Audit trail: each Active Player expiry writes an audit entry including member ID, previous Active Player expiry date, reason `active_player_expired`, and the entry's own timestamp.
+- Retention: 400 days.
+
+### SYS_Send_Event_Registration_Reminders
+
+Access: This scheduled process runs under the system role.
+
+Story: The system reminds every member with a confirmed registration that their event is coming up, so that registrants arrive prepared and the reminder `M_Register_For_Event` promises is sent.
+
+Success Criteria:
+
+- A confirmed registration on an event that is open for registration or has closed registration is due a reminder from `event_registration_reminder_days` before the event's start date until the day before it. A pass that did not run on the first day still sends it on the next pass, and no reminder is sent on or after the start date.
+- Each registration is reminded once for each start date: a repeat run sends nothing, and an event moved to a new date reminds its registrants again.
+- The reminder names the event, its dates, and what the member registered for, in the same words as the registration confirmation.
+- A pending or canceled registration, a canceled event, and a member marked deceased receive nothing.
+- The reminder is part of the member's registration, so it is sent as transactional mail and is not governed by a mailing-list subscription.
+
+Operation:
+
+- Cadence: daily.
+- Configuration: `event_registration_reminder_days` (default 7).
+- Catch-up: the first pass after a missed day sends every reminder still due and not yet sent.
+- Run record: its job-run row, carrying the counts of candidates scanned, reminders enqueued, reminders already sent, members skipped as deceased, and candidates that failed.
+- Failure alarm: the error alarm.
+- Missed-run alarm: the heartbeat alarm.
+- Audit trail: none; the job changes no record other than its sent ledger, and its trail is its run record.
 - Retention: 400 days.
 
 ### SYS_Detect_Admin_Loss

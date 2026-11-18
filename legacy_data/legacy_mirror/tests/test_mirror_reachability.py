@@ -38,6 +38,10 @@ def env(tmp_path, monkeypatch):
     # allowed to change any result here, so the answer is always supplied; a test
     # that wants events listed says which ids the calendar carried.
     monkeypatch.setattr(mirror_script, '_calendar_listed_event_ids', lambda: None)
+    # Run state the banding reads: what this run wrote and fetched. Fresh per
+    # case, so no case dates a page by another case's writes.
+    monkeypatch.setattr(mirror_script, '_pre_write_state', {})
+    monkeypatch.setattr(mirror_script, 'mirror_state', mirror_script.MirrorState())
     (tmp_path / 'seeds').mkdir()
     return tmp_path
 
@@ -174,8 +178,7 @@ def test_what_the_archive_is_is_stated_by_the_banner_not_a_second_card(env):
     text = home.read_text()
     assert text.count('class="indexEvents"') == 1
     assert 'About This Archive' not in text
-    assert 'static, read-only snapshot' in text          # said once, by the banner
-    assert text.count(mirror_script.ARCHIVE_BANNER_MARKER) == 1
+    assert text.count(mirror_script.ARCHIVE_BANNER_MARKER) == 1   # said once, by the banner
 
 
 def test_a_worlds_year_captured_as_a_redirect_stub_lists_the_real_page(env):
@@ -221,10 +224,10 @@ def test_directory_dedups_a_year_captured_in_both_trees(env):
     assert 'sites/worlds2015/index.html' not in page   # www copy preferred
 
 
-# The archive banner. What the archive is, said once at every door a reader can
-# come in by: the homepage, everything its own navigation links, each microsite
-# and championship root, and the generated listing page. Deep pages get nothing —
-# a reader on an event page has already come through one of these.
+# The archive header and footer. What the archive is, said at the top and the
+# bottom of every page: a reader arrives anywhere, from a bookmark, a shared
+# link or an old search result, and every page must say it is not the live site
+# and offer the way there.
 
 def _www(env):
     return Path(mirror_script._www_root())
@@ -237,43 +240,190 @@ def _make(env, rel, body):
     return p
 
 
-def test_banner_lands_on_the_homepage_and_what_its_nav_links(env):
-    _make(env, 'index.html',
-          '<div id="MainMenu"><ul><li><a href="faq/index.html">FAQ</a></li>'
-          '<li><a href="clubs/index.html">CLUBS</a></li></ul></div><p>Home</p>')
-    faq = _make(env, 'faq/index.html', '<p>FAQ</p>')
-    clubs = _make(env, 'clubs/index.html', '<p>Clubs</p>')
-    deep = _make(env, 'events/show/1/index.html', '<p>An event</p>')
-
-    mirror_script.insert_archive_banner()
-
-    for p in (Path(mirror_script._www_root()) / 'index.html', faq, clubs):
-        assert mirror_script.ARCHIVE_BANNER_MARKER in p.read_text(encoding='utf-8')
-    assert mirror_script.ARCHIVE_BANNER_MARKER not in deep.read_text(encoding='utf-8')
+def _bands(raw):
+    return (list(mirror_script._HEADER_BAND_RE.finditer(raw)),
+            list(mirror_script._FOOTER_BAND_RE.finditer(raw)))
 
 
-def test_banner_carries_the_live_site_link(env):
-    _make(env, 'index.html', '<p>Home</p>')
-    mirror_script.insert_archive_banner()
-    text = (Path(mirror_script._www_root()) / 'index.html').read_text(encoding='utf-8')
-    assert mirror_script.LIVE_SITE_URL in text
-    assert 'static, read-only snapshot' in text
-
-
-def test_banner_is_not_stacked_by_a_second_run(env):
+def test_every_page_gets_one_header_at_the_top_and_one_footer_at_the_bottom(env):
+    # A deep page without the bands looks like the live site to a reader who
+    # arrived on it directly; a band placed mid-page is missed.
     home = _make(env, 'index.html', '<p>Home</p>')
-    mirror_script.insert_archive_banner()
-    first = home.read_text(encoding='utf-8')
-    mirror_script.insert_archive_banner()
-    assert home.read_text(encoding='utf-8') == first
-    assert first.count(mirror_script.ARCHIVE_BANNER_MARKER) == 1
+    deep = _make(env, 'events/show/1/index.html', '<p>An event</p>')
+    assert mirror_script.insert_archive_banner() == 2
+    for page in (home, deep):
+        raw = page.read_bytes()
+        heads, foots = _bands(raw)
+        assert (len(heads), len(foots)) == (1, 1), page
+        assert raw.startswith(b'<html><body>' + heads[0].group(0)), page
+        assert raw.endswith(foots[0].group(0) + b'</body></html>'), page
 
 
-def test_banner_reaches_a_microsite_root_the_homepage_never_links(env):
-    _make(env, 'index.html', '<p>Home</p>')
-    worlds = _make(env, 'worlds2012/index.html', '<p>Worlds 2012</p>')
+def test_both_bands_link_the_live_site(env):
+    # A reader who wanted the live site and finds no way there is stranded in
+    # an archive that says it is not the live site.
+    page = _make(env, 'clubs/show/9/index.html', '<p>A club</p>')
     mirror_script.insert_archive_banner()
-    assert mirror_script.ARCHIVE_BANNER_MARKER in worlds.read_text(encoding='utf-8')
+    heads, foots = _bands(page.read_bytes())
+    for band in heads + foots:
+        assert f'href="{mirror_script.LIVE_SITE_URL}"'.encode() in band.group(0)
+
+
+def test_a_second_run_changes_nothing(env, monkeypatch):
+    # A rerun that rewrites every page churns the whole archive on the next
+    # publish; one that stacks bands shows each statement twice.
+    monkeypatch.setattr(mirror_script, '_pre_write_state', {})
+    page = _make(env, 'faq/show/1/index.html', '<p>Q</p>')
+    mirror_script.insert_archive_banner()
+    first = page.read_bytes()
+    assert mirror_script.insert_archive_banner() == 0
+    assert page.read_bytes() == first
+
+
+def test_a_page_with_the_old_banner_ends_with_only_the_new_bands(env):
+    # A page banded by an earlier crawl would otherwise keep the old wording,
+    # or carry it beside the new header.
+    old = (f'<div id="{mirror_script.ARCHIVE_BANNER_MARKER}" style="x">'
+           '<b>OLD-BANNER</b><br><a href="https://www.footbag.org">site</a></div>')
+    page = _make(env, 'index.html', old + '<p>Home</p>')
+    mirror_script.insert_archive_banner()
+    raw = page.read_bytes()
+    assert b'OLD-BANNER' not in raw
+    heads, foots = _bands(raw)
+    assert (len(heads), len(foots)) == (1, 1)
+    assert b'<p>Home</p>' in raw
+
+
+def test_extra_copies_of_a_band_collapse_to_one(env):
+    # A page carrying a band twice, from a copy saved under two names or an
+    # interrupted run, must still show each statement once.
+    band = (f'<div id="{mirror_script.ARCHIVE_FOOTER_MARKER}" style="x">'
+            'OLD-FOOTER</div>')
+    page = _make(env, 'news/1/index.html', band + '<p>x</p>' + band)
+    mirror_script.insert_archive_banner()
+    heads, foots = _bands(page.read_bytes())
+    assert (len(heads), len(foots)) == (1, 1)
+    assert b'OLD-FOOTER' not in page.read_bytes()
+
+
+CAPTURED = 1577923200                            # 2 January 2020, 00:00 UTC
+
+
+def _day(timestamp):
+    return mirror_script.datetime.fromtimestamp(timestamp).strftime('%-d %B %Y').encode()
+
+
+def test_banding_states_the_capture_date_on_both_bands(env, monkeypatch):
+    # The header and footer state when the page was captured: its modification
+    # time from before this run. A wrong date tells the reader the snapshot is
+    # from somewhere it is not.
+    monkeypatch.setattr(mirror_script, '_pre_write_state', {})
+    page = _make(env, 'rules/chapter/2/index.html', '<p>Rules</p>')
+    os.utime(page, (CAPTURED, CAPTURED))
+    mirror_script.insert_archive_banner()
+    heads, foots = _bands(page.read_bytes())
+    assert _day(CAPTURED) in heads[0].group(0)
+    assert _day(CAPTURED) in foots[0].group(0)
+
+
+def test_a_page_another_pass_rewrote_this_run_keeps_its_original_date(env, monkeypatch):
+    # The settling passes rewrite pages before the bands go on; reading the
+    # time after them would date those pages to the day of the rewrite.
+    monkeypatch.setattr(mirror_script, '_pre_write_state', {})
+    page = _make(env, 'members/profile/5/index.html', '<p>Profile</p>')
+    os.utime(page, (CAPTURED, CAPTURED))
+    mirror_script._atomic_write_text(str(page), '<html><body><p>Settled</p></body></html>')
+    mirror_script.insert_archive_banner()
+    assert _day(CAPTURED) in _bands(page.read_bytes())[0][0].group(0)
+
+
+def test_a_page_this_run_fetched_again_is_dated_today(env, monkeypatch):
+    # A recaptured page holds today's content; stating the earlier capture's
+    # date on it misdates what the reader sees.
+    monkeypatch.setattr(mirror_script, '_pre_write_state', {})
+    page = _make(env, 'news/show/9/index.html', '<p>Old</p>')
+    os.utime(page, (CAPTURED, CAPTURED))
+    mirror_script._atomic_write_text(str(page), '<html><body><p>New</p></body></html>')
+    monkeypatch.setattr(mirror_script.mirror_state, 'captured_this_run',
+                        {os.path.abspath(page)})
+    mirror_script.insert_archive_banner()
+    today = mirror_script.datetime.now().strftime('%-d %B %Y').encode()
+    assert today in _bands(page.read_bytes())[0][0].group(0)
+
+
+def test_the_stated_date_survives_a_rerun_after_the_file_time_moved(env, monkeypatch):
+    # Banding leaves the file's time at the moment of the write, so a publish
+    # sees the page changed; the date the bands state must not follow it.
+    monkeypatch.setattr(mirror_script, '_pre_write_state', {})
+    page = _make(env, 'faq/show/3/index.html', '<p>Q</p>')
+    os.utime(page, (CAPTURED, CAPTURED))
+    mirror_script.insert_archive_banner()
+    first = page.read_bytes()
+    later = CAPTURED + 400 * 86400
+    os.utime(page, (later, later))
+    monkeypatch.setattr(mirror_script, '_pre_write_state', {})
+    assert mirror_script.insert_archive_banner() == 0
+    assert page.read_bytes() == first
+
+
+def test_a_page_with_the_old_banner_keeps_the_date_that_banner_stated(env, monkeypatch):
+    # The old banner told readers when the page was captured; the file's time
+    # since moved, and restating the page with that time would change the date.
+    old = (f'<div id="{mirror_script.ARCHIVE_BANNER_MARKER}" style="x">'
+           '<b>footbag.org archive</b> &mdash; page captured 26 September 2026.</div>')
+    page = _make(env, 'events/show/5/index.html', old + '<p>x</p>')
+    os.utime(page, (CAPTURED, CAPTURED))
+    mirror_script.insert_archive_banner()
+    assert b'26 September 2026' in _bands(page.read_bytes())[0][0].group(0)
+
+
+def test_a_fragment_keeps_its_character_set_declaration_first(env):
+    # A browser reads the character set only near the top; a band placed before
+    # the declaration can push it out of reach and garble the page.
+    notice = _www(env) / 'faq/records.html'
+    notice.parent.mkdir(parents=True, exist_ok=True)
+    notice.write_bytes(b'<!DOCTYPE html>\n<meta charset="utf-8"/>\n<p>Records</p>')
+    mirror_script.insert_archive_banner()
+    raw = notice.read_bytes()
+    assert raw.startswith(b'<!DOCTYPE html>\n<meta charset="utf-8"/>\n<div id="'
+                          + mirror_script.ARCHIVE_BANNER_MARKER.encode())
+
+
+def test_a_frameset_and_the_pages_in_its_frames_are_left_as_captured(env):
+    # A band spliced into a frameset comes before it and the browser then shows
+    # no frames at all; one in a menu frame covers the menu.
+    frameset = _www(env) / 'worlds2000/index.html'
+    frameset.parent.mkdir(parents=True, exist_ok=True)
+    frameset_bytes = (b'<!DOCTYPE html><html><frameset cols="110,*">'
+                      b'<frame name="menu" scrolling="no" src="menubar.html">'
+                      b'<frame name="main" src="mainwin.html"></frameset></html>')
+    frameset.write_bytes(frameset_bytes)
+    menu = _make(env, 'worlds2000/menubar.html', '<p>Menu</p>')
+    main = _make(env, 'worlds2000/mainwin.html', '<p>Main</p>')
+    menu_bytes, main_bytes = menu.read_bytes(), main.read_bytes()
+    elsewhere = _make(env, 'worlds2000/results.html', '<p>Results</p>')
+
+    mirror_script.insert_archive_banner()
+
+    assert frameset.read_bytes() == frameset_bytes
+    assert menu.read_bytes() == menu_bytes
+    assert main.read_bytes() == main_bytes
+    assert _bands(elsewhere.read_bytes())[0], 'an ordinary page beside them is banded'
+
+
+def test_a_page_in_another_encoding_keeps_its_own_bytes(env):
+    # Decoding a Latin-1 page as UTF-8 and writing it back replaces every
+    # accented letter with a replacement character.
+    page = _www(env) / 'clubs/show/7/index.html'
+    page.parent.mkdir(parents=True, exist_ok=True)
+    original = '<html><body><p>Montréal</p></body></html>'.encode('latin-1')
+    page.write_bytes(original)
+    mirror_script.insert_archive_banner()
+    raw = page.read_bytes()
+    assert b'<p>Montr\xe9al</p>' in raw
+    heads, foots = _bands(raw)
+    assert raw == (b'<html><body>' + heads[0].group(0) + b'<p>Montr\xe9al</p>'
+                   + foots[0].group(0) + b'</body></html>')
 
 
 def test_xml_stored_under_an_html_name_is_left_alone(env):
@@ -527,36 +677,34 @@ def test_every_section_states_how_much_it_holds(env, monkeypatch):
     assert '<h2>World Championships</h2>\n<p class="count">1 page(s).</p>' in page
 
 
-def test_a_front_door_the_site_served_as_a_bare_fragment_still_says_what_it_is(env):
+def test_a_page_the_site_served_as_a_bare_fragment_still_says_what_it_is(env):
     # The retired-forum notice has no <body> of its own, and the main menu of
-    # every page in the archive links it. A reader arriving there with no banner
+    # every page in the archive links it. A reader arriving there with no bands
     # has no statement of what they have reached and no way back to the live
     # site.
-    _make(env, 'index.html',
-          '<div id="MainMenu"><a href="forum-down.html">FORUM</a></div>')
     notice = Path(mirror_script._www_root()) / 'forum-down.html'
-    notice.write_text('<meta charset="utf-8"/><div><h2>We\'re Sorry</h2></div>',
-                      encoding='utf-8')
+    notice.parent.mkdir(parents=True, exist_ok=True)
+    lead, content = b'<meta charset="utf-8"/>', b'<div><h2>We\'re Sorry</h2></div>'
+    notice.write_bytes(lead + content)
 
     mirror_script.insert_archive_banner()
-    out = notice.read_text(encoding='utf-8')
+    raw = notice.read_bytes()
+    heads, foots = _bands(raw)
 
-    assert mirror_script.ARCHIVE_BANNER_MARKER in out
-    assert mirror_script.LIVE_SITE_URL in out
-    assert "We're Sorry" in out
+    # The character set declaration stays first; the bands frame the content.
+    assert raw == lead + heads[0].group(0) + content + foots[0].group(0)
 
 
 def test_a_bare_fragment_is_not_banded_twice(env):
-    _make(env, 'index.html',
-          '<div id="MainMenu"><a href="forum-down.html">FORUM</a></div>')
     notice = Path(mirror_script._www_root()) / 'forum-down.html'
+    notice.parent.mkdir(parents=True, exist_ok=True)
     notice.write_text('<meta charset="utf-8"/><div>notice</div>', encoding='utf-8')
 
     mirror_script.insert_archive_banner()
     mirror_script.insert_archive_banner()
 
-    assert notice.read_text(encoding='utf-8').count(
-        mirror_script.ARCHIVE_BANNER_MARKER) == 1
+    heads, foots = _bands(notice.read_bytes())
+    assert (len(heads), len(foots)) == (1, 1)
 
 
 def test_a_reference_site_is_listed_once_not_as_a_microsite_as_well(env):

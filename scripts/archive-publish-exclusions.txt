@@ -6,9 +6,11 @@
 # from the unscanned-types refusal, so a path listed here is simply not part of
 # the archive rather than something an operator has to keep waving through.
 #
-# This is the home for "captured, but deliberately not served". A path belongs
-# here when the capture is worth keeping locally but has no place in the
-# published archive. Removing an entry publishes those files on the next sync.
+# The capture holds exactly what the archive serves: the crawler's strip pass
+# reads this list and deletes every matching file from the capture, so an entry
+# here is a type or path the archive does not hold at all. A group file worth
+# keeping but not serving is ruled to IFPA custody before that strip runs.
+# Removing an entry lets those files be captured and published again.
 
 # JavaScript. The archive runs no script: every <script> element is stripped
 # from every page at capture, and the publish refuses a tree where any survived.
@@ -22,8 +24,8 @@
 # fonts; everything below is a file a reader can only download and open in
 # something else, if they still have something else that opens it. Camera
 # thumbnail sidecars, Photoshop and Windows Metafile sources, Flash, HyperCard,
-# and the audio and video formats outside the converted set are all captured and
-# kept locally, and none of them belong in what the archive serves. The same
+# and the audio and video formats outside the converted set have no place in
+# what the archive serves, and so none in the capture either. The same
 # reasoning already governs the gallery audio tracks the media policy excludes.
 *.THM
 *.psd
@@ -59,6 +61,13 @@
 *.rtf
 *.eps
 *.ai
+
+# Packed archives. The crawler never captures one, but the group-file recovery
+# brings in a group's recorded upload whatever its type so the capture holds
+# every file IFPA members could open. Nothing in the capture or the publish
+# looks inside an archive, and its contents here are vector logo sources the
+# entries above already keep out, so it stays local like them.
+*.zip
 
 # Macro-enabled Office files. Everything else the archive serves is inert once
 # it reaches a reader; a macro-enabled template is code that offers to run on

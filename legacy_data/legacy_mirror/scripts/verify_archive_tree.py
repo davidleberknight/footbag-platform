@@ -8,8 +8,8 @@ before publishing, and it is read-only: it never writes into the capture.
 
 Every rule comes from the crawler module itself rather than being restated
 here, so a rule that changes there cannot leave a stale copy passing here.
-That includes the exclusion entries, the personal-detail matchers, the banner
-marker, the live-site URL and the front-door derivation.
+That includes the exclusion entries, the personal-detail matchers, the header
+and footer bands, the live-site URL and the members-only refusal matcher.
 
 Two checks need what the operator supplies at runtime and say so loudly rather
 than passing quietly when it is missing: the personal-detail scrub needs the
@@ -200,35 +200,63 @@ def check_no_credentials(report, html_pages, www_root):
 
 
 def check_banner(report, html_pages, www_root):
-    marker = crawler.ARCHIVE_BANNER_MARKER
-    front_doors = {Path(p).resolve() for p in crawler._front_door_pages()}
-    if not front_doors:
-        report.add('archive banner on every front door', [],
-                   'no front doors derived; is the capture complete?', skipped=True)
-        return
-
-    missing = []
-    for door in sorted(front_doors):
-        if not door.is_file() or is_xml(door):
+    # Every page states what the archive is, top and bottom, exactly once, and
+    # both bands offer the way to the live site.
+    header, footer = crawler.ARCHIVE_BANNER_MARKER, crawler.ARCHIVE_FOOTER_MARKER
+    missing, stacked, unlinked = [], [], []
+    pages_checked = 0
+    # The pages shown inside a frame layout's panes carry no band of their own;
+    # the page laying them out carries it. The crawler's own rule, read here.
+    framed = crawler._framed_pages(html_pages, www_root)
+    for page in html_pages:
+        if is_xml(page) or os.path.abspath(page) in framed:
             continue
-        if marker not in read(door):
-            missing.append(rel(door, www_root))
-    report.add('archive banner on every front door', missing,
-               f'{len(front_doors)} doors derived from the capture')
-
-    stacked = [rel(p, www_root) for p in html_pages if read(p).count(marker) > 1]
-    report.add('archive banner never stacked', stacked)
-
-    deep = [rel(p, www_root) for p in html_pages
-            if p.resolve() not in front_doors and marker in read(p)]
-    report.add('archive banner nowhere but the front doors', deep)
-
-    doors_without_link = [
-        rel(door, www_root) for door in sorted(front_doors)
-        if door.is_file() and not is_xml(door)
-        and marker in read(door) and crawler.LIVE_SITE_URL not in read(door)]
-    report.add('every banner links the live site', doors_without_link,
+        pages_checked += 1
+        raw = page.read_bytes()
+        name = rel(page, www_root)
+        heads = list(crawler._HEADER_BAND_RE.finditer(raw))
+        foots = list(crawler._FOOTER_BAND_RE.finditer(raw))
+        if not heads or not foots:
+            missing.append(f"{name} ({'header' if not heads else 'footer'})")
+        if len(heads) > 1 or len(foots) > 1:
+            stacked.append(name)
+        live = crawler.LIVE_SITE_URL.encode()
+        if any(live not in band.group(0) for band in heads + foots):
+            unlinked.append(name)
+    report.add('archive header and footer on every page', missing,
+               f'{pages_checked} pages checked ({header}, {footer}); '
+               f'{len(framed)} frameset or framed page(s) exempt')
+    report.add('archive header and footer never stacked', stacked)
+    report.add('every header and footer links the live site', unlinked,
                crawler.LIVE_SITE_URL)
+
+
+def check_no_code(report, html_pages, www_root):
+    # The capture holds what the archive serves and nothing that runs: no
+    # script, applet, behaviour file, macro-enabled document or server program,
+    # and no server directive left in a page's comments. The types are the
+    # crawler's own strip list, so a type added there is checked here too.
+    patterns = crawler.load_unservable_patterns()
+    files = [rel(p, www_root) for p in sorted(www_root.rglob('*'))
+             if p.is_file() and any(crawler.fnmatch.fnmatch(p.name, pat)
+                                    or crawler.fnmatch.fnmatch(rel(p, www_root), pat)
+                                    for pat in patterns)]
+    report.add('no code or unservable file in the capture', files,
+               f'{len(patterns)} pattern(s) from the crawler strip list')
+    # The capture holds exactly what the archive serves: a file the publish
+    # would leave out has no place in it.
+    withheld = crawler._publish_withheld_patterns()
+    if withheld is None:
+        report.add('every captured file is one the archive serves', [],
+                   'the publish exclusion list cannot be read', skipped=True)
+    else:
+        unserved = [rel(p, www_root) for p in sorted(www_root.rglob('*'))
+                    if p.is_file()
+                    and crawler.publish_would_withhold(rel(p, www_root), withheld)]
+        report.add('every captured file is one the archive serves', unserved)
+    directives = [rel(p, www_root) for p in html_pages
+                  if crawler.SERVER_DIRECTIVE_RE.search(p.read_bytes())]
+    report.add('no server directive in any page', directives)
 
 
 def check_xml_untouched(report, html_pages, www_root):
@@ -314,14 +342,19 @@ def check_member_notice(report, www_root):
 def check_nothing_stored_that_should_have_been_refused(report, html_pages, www_root):
     """The tree half of the refusal rules: nothing they forbid survived a run.
 
-    Three separate promises, reported separately so a failure names which rule
-    did not hold: no page is the legacy application reporting failure, no HTML
-    document sits under a media extension, and no page still carries the
-    server's own diagnostics or the absolute filesystem paths inside them.
+    Four separate promises, reported separately so a failure names which rule
+    did not hold: no page is the legacy application reporting failure, no page
+    is its members-only refusal, no HTML document sits under a media extension,
+    and no page still carries the server's own diagnostics or the absolute
+    filesystem paths inside them.
     """
     errors = [rel(p, www_root) for p in html_pages
               if not is_xml(p) and crawler.is_error_body(read(p))]
     report.add('no page is the site reporting its own failure', errors)
+
+    refusals = [rel(p, www_root) for p in html_pages
+                if not is_xml(p) and crawler._is_ifpa_refusal(read(p))]
+    report.add('no page is the members-only refusal', refusals)
 
     media_suffixes = {s.lower() for s in crawler.MEDIA_FORMATS}
     disguised = []
@@ -483,7 +516,10 @@ def check_no_empty_pages(report, html_pages, www_root):
     for page in html_pages:
         if is_xml(page):
             continue
-        body = read(page)
+        # The archive's own header and footer are not the page's content: with
+        # them counted, every banded page would read as having text.
+        raw = crawler._HEADER_BAND_RE.sub(b'', crawler._FOOTER_BAND_RE.sub(b'', page.read_bytes()))
+        body = raw.decode('utf-8', errors='replace')
         if re.sub(r'<[^>]*>', '', body).strip():
             continue
         if re.search(r'<(?:img|a|video|embed|object|iframe|frame)\b', body, re.I):
@@ -670,6 +706,7 @@ def main():
     check_no_javascript(report, html_pages, www_root)
     check_no_credentials(report, html_pages, www_root)
     check_banner(report, html_pages, www_root)
+    check_no_code(report, html_pages, www_root)
     check_xml_untouched(report, html_pages, www_root)
     check_listing_page(report, www_root)
     check_member_notice(report, www_root)

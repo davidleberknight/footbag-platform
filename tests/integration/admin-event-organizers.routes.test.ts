@@ -190,6 +190,42 @@ describe('assigning an organizer', () => {
     expect(organizersOf(eventId).map((r) => r.role)).toEqual(['organizer', 'organizer']);
   });
 
+  // Defect caught: an administrator gives an orphaned event a new organizer,
+  // but that member still cannot open or change the event, so it stays
+  // unrunnable.
+  it('lets the assignee run the event as any organizer would', async () => {
+    const member = makeMember('org_runner');
+    const { eventId, key } = withDb((db) => {
+      const id = insertEvent(db, { title: 'Rescued Open', start_date: '2099-07-08', end_date: '2099-07-09' });
+      const tag = (db.prepare(
+        'SELECT t.tag_normalized FROM events e JOIN tags t ON t.id = e.hashtag_tag_id WHERE e.id = ?',
+      ).get(id) as { tag_normalized: string }).tag_normalized;
+      return { eventId: id, key: tag.slice(1) };
+    });
+    const asMember = () => cookieFor(member);
+
+    expect((await request(createApp()).get(`/events/${key}/manage`).set('Cookie', asMember())).status).toBe(404);
+
+    expect((await assign(eventId, 'org_runner', 'Took over from the departed organizer.')).status).toBe(303);
+
+    expect((await request(createApp()).get(`/events/${key}/manage`).set('Cookie', asMember())).status).toBe(200);
+    const edit = await request(createApp())
+      .post(`/events/${key}/edit`)
+      .set('Cookie', asMember())
+      .type('form')
+      .send({
+        title: 'Rescued Open Renamed', description: 'A rescued event.', start_date: '2099-07-08', end_date: '2099-07-09',
+        city: 'Testville', region: '', country: 'United States', registration_deadline: '',
+        tshirt_size_collected: '0', competitor_fee: '', spectator_fee: '',
+      });
+    expect(edit.status).toBe(303);
+    expect(withDb((db) => db.prepare('SELECT title FROM events WHERE id = ?').get(eventId))).toEqual({ title: 'Rescued Open Renamed' });
+    const actors = withDb((db) => db.prepare(
+      "SELECT actor_member_id FROM audit_entries WHERE entity_id = ? AND action_type = 'event.details_edited'",
+    ).all(eventId));
+    expect(actors).toEqual([{ actor_member_id: member }]);
+  });
+
   // Defect caught: an admin gives an event a sixth current organizer, past
   // the five the event story allows; or an organizer who has died still
   // counts against the five, so a real fifth is refused.

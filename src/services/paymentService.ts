@@ -942,6 +942,7 @@ function releaseClosedCheckoutInTx(
   payment: PaymentRow,
   memberId: string,
   reason = 'released by a new purchase',
+  actorType: 'member' | 'admin' = 'member',
 ): void {
   const now = new Date().toISOString();
   const changed = paymentsDb.cancelPendingReleased.run(now, 'payment_service', payment.id).changes;
@@ -959,7 +960,7 @@ function releaseClosedCheckoutInTx(
   });
   appendAuditEntry({
     actionType: 'payment.canceled',
-    actorType: 'member',
+    actorType,
     actorMemberId: memberId,
     entityType: 'payment',
     entityId: payment.id,
@@ -4592,11 +4593,20 @@ async function closeEventRegistrationCheckout(paymentId: string): Promise<boolea
   return closeCheckout(payment.stripe_checkout_session_id, payment.id);
 }
 
-/** Cancel a withdrawn registration's payment whose checkout the provider closed. */
-function releaseEventRegistrationCheckoutInTx(paymentId: string, memberId: string): void {
+/**
+ * Cancel the payment of a registration whose checkout the provider closed:
+ * by default the member's own withdrawal, or an organizer's or
+ * administrator's cancellation, which names itself in `reason`.
+ */
+function releaseEventRegistrationCheckoutInTx(
+  paymentId: string,
+  actorMemberId: string,
+  reason = 'released by the member withdrawing the registration',
+  actorType: 'member' | 'admin' = 'member',
+): void {
   const payment = paymentsDb.findById.get(paymentId) as PaymentRow | undefined;
   if (!payment || payment.payment_type !== 'event_registration') return;
-  releaseClosedCheckoutInTx(payment, memberId, 'released by the member withdrawing the registration');
+  releaseClosedCheckoutInTx(payment, actorMemberId, reason, actorType);
 }
 
 // ── Member obligations ───────────────────────────────────────────────────────

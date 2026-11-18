@@ -105,6 +105,10 @@ import {
   type RunDailyPassResult,
   type RunOpts as ActivePlayerExpiryRunOpts,
 } from './activePlayerExpiryService';
+import {
+  runDailyPass as runEventRegistrationReminderPass,
+  type RunDailyPassResult as EventRegistrationReminderResult,
+} from './eventRegistrationReminderService';
 import { runAdminLossSweep } from './membershipTieringService';
 
 export interface PiiPurgeScanResult {
@@ -394,6 +398,18 @@ export class OperationsPlatformService {
       'SYS_Check_Active_Player_Expiry',
       () => runActivePlayerExpiryDailyPass(opts),
       opts.now,
+    );
+  }
+
+  /**
+   * SYS_Send_Event_Registration_Reminders daily entry point: the pre-event
+   * reminder pass, recorded as one `system_job_runs` row with its counters.
+   */
+  async runEventRegistrationReminders(now?: Date): Promise<EventRegistrationReminderResult> {
+    return this.recordJobRun(
+      'SYS_Send_Event_Registration_Reminders',
+      () => runEventRegistrationReminderPass({ now }),
+      now,
     );
   }
 

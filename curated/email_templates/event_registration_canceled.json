@@ -1,0 +1,7 @@
+{
+  "templateKey": "event_registration_canceled",
+  "subjectTemplate": "Your registration for {eventTitle} was canceled",
+  "bodyTemplate": "Hi {memberName},\n\nYour registration for {eventTitle} ({eventDates}) was canceled by {canceledBy}. The reason given:\n\n{reason}\n\n{refundNote}If you think this is a mistake, contact the event's organizers from the event page on footbag.org.\n\nInternational Footbag Players Association",
+  "piiClassification": "confidential",
+  "isEnabled": true
+}

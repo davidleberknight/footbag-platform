@@ -90,10 +90,11 @@ import {
 /**
  * The append-only BEFORE DELETE triggers covering tables a persona writes. These
  * are dropped for the duration of the teardown and recreated from their captured
- * sqlite_master definitions. The payment-transition, expiry-reminder, vouch and
- * recurring-donation-transition ledgers are included because deployed flows
- * (tier purchase, the expiry worker, a vouch, a donation) append rows for
- * personas; leaving any of those triggers in place would abort the teardown.
+ * sqlite_master definitions. The payment-transition, expiry-reminder,
+ * event-reminder, vouch and recurring-donation-transition ledgers are included
+ * because deployed flows (tier purchase, the expiry worker, the event reminder
+ * job, a vouch, a donation) append rows for personas; leaving any of those
+ * triggers in place would abort the teardown.
  */
 const APPEND_ONLY_DELETE_TRIGGERS = [
   'trg_tier_grants_no_delete',
@@ -101,6 +102,7 @@ const APPEND_ONLY_DELETE_TRIGGERS = [
   'trg_audit_no_delete',
   'trg_payment_transitions_no_delete',
   'trg_active_player_reminder_sent_no_delete',
+  'trg_event_registration_reminder_sent_no_delete',
   'trg_active_player_vouches_no_delete',
   'trg_recurring_sub_transitions_no_delete',
 ];
@@ -504,6 +506,7 @@ export function refreshAllPersonas(
         removedEventIds,
       ),
     ]);
+    delIn('event_registration_reminder_sent', 'registration_id', personaRegistrationIds); // guard dropped
     delIn('registration_discipline_selections', 'registration_id', personaRegistrationIds);
     // An entry that named a persona as its doubles partner would block the
     // persona's delete.

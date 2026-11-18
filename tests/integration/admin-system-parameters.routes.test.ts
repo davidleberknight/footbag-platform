@@ -102,6 +102,7 @@ function saveBody(overrides: Record<string, string> = {}): Record<string, string
     outbox_poll_interval_seconds: '30',
     active_player_expiry_reminder_days_1: '30',
     active_player_expiry_reminder_days_2: '7',
+    event_registration_reminder_days: '7',
     member_cleanup_grace_days: '90',
     deceased_cleanup_grace_days: '30',
     payment_retention_days: '2555',
@@ -290,6 +291,24 @@ describe('POST /admin/system-parameters', () => {
     const audit = auditRowsFor('photo_upload_rate_limit_per_hour');
     expect(audit.length).toBe(1);
     expect(JSON.parse(audit[0]!.metadata_json)).toMatchObject({ previousValue: 30, newValue: 40 });
+  });
+
+  it('offers the event registration reminder window and stores an audited change to it', async () => {
+    // An administrator who cannot reach this setting cannot change when registrants are reminded.
+    const page = await request(createApp()).get('/admin/system-parameters').set('Cookie', admin());
+    expect(page.text).toMatch(/name="event_registration_reminder_days"[^>]*value="7"/);
+
+    const res = await request(createApp())
+      .post('/admin/system-parameters')
+      .set('Cookie', admin())
+      .type('form')
+      .send(saveBody({ event_registration_reminder_days: '3', reason: 'Remind closer to the event.' }));
+
+    expect(res.status).toBe(303);
+    expect(currentValue('event_registration_reminder_days')).toBe('3');
+    const audit = auditRowsFor('event_registration_reminder_days');
+    expect(audit.length).toBe(1);
+    expect(JSON.parse(audit[0]!.metadata_json)).toMatchObject({ previousValue: 7, newValue: 3 });
   });
 
   it('ignores a posted field naming a switch the application does not own', async () => {

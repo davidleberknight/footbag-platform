@@ -147,6 +147,7 @@ def test_a_finished_crawl_leaves_no_unwrapped_capture(tmp_path, monkeypatch):
     monkeypatch.setattr(m, 'load_seed_urls', lambda *a, **k: [])
     monkeypatch.setattr(m, 'generate_reachability_pages', lambda *a, **k: None)
     monkeypatch.setattr(m, 'create_root_index', lambda *a, **k: None)
+    monkeypatch.setattr(m, 'run_group_file_fetch', lambda *a, **k: None)
 
     exclusions = tmp_path / 'exclusions.txt'   # network modes require the list
     exclusions.write_text('groups/showfile/208\n')

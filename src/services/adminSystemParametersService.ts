@@ -99,7 +99,7 @@ const DISCLOSURE_THRESHOLD_CENTS = 7500;
 const SECTIONS: SectionSpec[] = [
   {
     title: 'Email and Notifications',
-    intro: 'How often the platform sends, how hard it tries, and when a member hears that their Active Player status is running out.',
+    intro: 'How often the platform sends, how hard it tries, and when a member is reminded of an event they registered for or hears that their Active Player status is running out.',
     parameters: [
       {
         key: 'outbox_max_retry_attempts',
@@ -136,6 +136,15 @@ const SECTIONS: SectionSpec[] = [
         max: 365,
         defaultValue: 7,
         helpText: 'The second warning, which has to fall closer to the end date than the first one. A notice on the day itself is always sent and is not set here.',
+      },
+      {
+        key: 'event_registration_reminder_days',
+        label: 'Event registration reminder',
+        unit: 'days before the event',
+        min: 1,
+        max: 365,
+        defaultValue: 7,
+        helpText: 'How long before an event starts each confirmed registrant is reminded of it. Each registrant is reminded once.',
       },
     ],
   },

@@ -1198,10 +1198,10 @@ Success Criteria:
 - The action block and the banner carry only non-private content: a headline, an optional detail line, and the options. Private content, including an administrator's message body, is read on the owner-only surface the item links to.
 - Ordering is needs-attention-now before pending, then soonest deadline first, then a stable order among items with no deadline.
 - Every item resolves in exactly one of two ways, and its options follow from which one it is.
-- **Resolved by acting.** One option, and the item clears when the underlying record changes, with no separate dismissal step: an unanswered administrator message, "Answer" (`A_Message_Member`); a completed event the member organizes with no results uploaded, "Upload results" (`EO_Upload_Results`); routine music missing on a registration before its upload deadline, "Upload music" (`M_Upload_Routine_Music`); a failed membership purchase, "Try again" (`M_Purchase_Tier_1`, `M_Purchase_Tier_2`); an approved Hall of Fame nomination with no affidavit while the nomination window is open, "Submit affidavit" (`M_Submit_HoF_Affidavit`).
+- **Resolved by acting.** One option, and the item clears when the underlying record changes, with no separate dismissal step: an unanswered administrator message, "Answer" (`A_Message_Member`); an event the member organizes that has ended with no results uploaded, "Upload results" (`EO_Upload_Results`); routine music missing on a registration before its upload deadline, "Upload music" (`M_Upload_Routine_Music`); a failed membership purchase, "Try again" (`M_Purchase_Tier_1`, `M_Purchase_Tier_2`); an approved Hall of Fame nomination with no affidavit while the nomination window is open, "Submit affidavit" (`M_Submit_HoF_Affidavit`).
 - **Resolved by acting, or by time.** Active Player status approaching or past expiry appears from the first reminder offset through 30 days past the expiry date, pending while the status still stands and needs-attention-now once it has lapsed (`M_Active_Player_Expiry`). It offers the two routes back the member can take for themselves: an upgrade naming both paid tiers, which removes the dependence on the status altogether and points at the membership block that sells them, and the events list, since attendance earns the status again. A vouch is the third route the rules allow and is stated on the item's detail line rather than offered as a control, because a Tier 2 or Tier 3 member gives a vouch and it is not this member's action to take. The one-time club-join grant is not offered, because it reaches only a member who has never previously been an Active Player and every member this item can appear for already has been. A recurring donation whose charge failed stays pending, offers "View your recurring donation" on the payment-history page, and clears when Stripe collects or cancels, since retries run on Stripe's dunning schedule (`M_Donate`).
 - An open vote the member is eligible for and has not cast appears as a pending item with a "Vote" option (`M_Vote`). It never escalates to needs-attention-now and carries no decline option, so the platform creates no record of a member's abstention; it clears when the member votes or the vote closes.
-- A completed event with no uploaded results raises one item for each of that event's organizers, and the item clears when results are uploaded.
+- An event that has ended with no uploaded results raises one item for each of that event's organizers, and the item clears when results are uploaded.
 - Actions the member takes from the dashboard are audit-logged by the stories that own them.
 - Each obligation keeps whatever reminder email its own story specifies; appearing on the dashboard changes no email behaviour.
 
@@ -1964,10 +1964,10 @@ Valid event statuses and their transitions:
 - `pending_approval`; sanction request submitted for admin review (from `draft`). Taking any fee through footbag.org requires sanctioning, so every event that takes fees on the platform is a sanctioned event and one approval decides both. Fees an organizer collects in person, outside the platform, need no sanction.
 - `reg_open`; visible and open for registration. Free events transition `draft → reg_open` on creation. Sanctioned events, which includes every event that takes fees through footbag.org, transition `pending_approval → reg_open` on admin approval. A rejected request returns to `draft` (`pending_approval → draft`), where the organizer can revise it and resubmit.
 - `closed`; registration deadline passed or organiser manually closed registration (from `reg_open`).
-- `completed`; event has concluded and results may be posted (from `closed`). The `completed` state is terminal. Events with published results cannot be canceled, deleted, or transitioned to any other status.
+- `completed`; the event's results have been uploaded (from `reg_open` or `closed`, on the first committed upload). The `completed` state is terminal. Events with published results cannot be canceled, deleted, or transitioned to any other status.
 - `canceled`; event canceled at any point before `completed`; registrants are notified. The `canceled` state is terminal; canceled events cannot be re-opened or completed. A canceled event never surfaces publicly: no event detail page, no year-archive listing, and no result rows on any public results view (historical-person and player pages included), regardless of how result rows came to exist.
 
-No other status values are valid. All queries and conditional logic must use only these canonical strings. The status names the registration lifecycle, distinct from results publication: `reg_open` means registration is open, and results are published separately once the event is `completed`.
+No other status values are valid. All queries and conditional logic must use only these canonical strings. The status names the registration lifecycle, distinct from results publication: `reg_open` means registration is open, and uploading the event's results is what moves it to `completed`.
 
 Every event created on the platform is an event officially registered through the IFPA website, which is the qualifying condition the IFPA membership structure sets for Active Player grants. Attendance marking therefore applies to every platform event.
 
@@ -2059,12 +2059,11 @@ Story: As an event organizer, I can delete my event so that I can remove cancele
 
 Success Criteria:
 
-- Cannot delete event with confirmed registrations; an event that has taken registrations is canceled rather than deleted (see `EO_Cancel_Event`), so the record and its registrants' history survive.
+- An event can be deleted only if it has never taken a registration, has no results, and has sent no participant email, and is neither awaiting sanction approval nor `completed`. An event that has taken registrations is canceled rather than deleted (see `EO_Cancel_Event`), so the record and its registrants' history survive.
 - Deletion is permanent (hard delete). The event record is immediately removed from the database, except that events with published results are never deleted, as they are preserved permanently for historical record.
 - Deleted events are hidden from public listings immediately upon deletion.
-- All participants notified via email of event deletion.
 - Deletion audit-logged with organizer ID, reason, timestamp.
-- Organizer sees confirmation dialog before deletion: "Delete Event Name? This permanently removes the event and notifies all X registered participants."
+- Organizer sees confirmation dialog before deletion: "Delete Event Name? This permanently removes the event and cannot be undone."
 
 ### EO_Cancel_Event
 
@@ -2192,10 +2191,10 @@ Story: As an event organizer, I can export a printable check-in template so that
 
 Success Criteria:
 
-- Export generates a print-styled HTML page or PDF, admin-configurable via `checkin_template_format` (default `html`). Distinct from the CSV produced by `EO_Export_Participants`.
+- Export downloads a PDF roster. Distinct from the CSV produced by `EO_Export_Participants`.
 - Each row includes: participant display name, registration type, selected competition categories and divisions, partner or team info if applicable, payment status, a check-in checkbox column, and a notes column.
 - Rows are sorted alphabetically by participant display name (default) or by registration type.
-- Document title or filename format: `eventname_checkin_YYYYMMDD`.
+- Filename format: `eventname_checkin_YYYYMMDD.pdf`.
 
 ## 4.3 Communication
 
@@ -2242,7 +2241,7 @@ Success Criteria:
 - Results upload audit-logged, including the committed upload's row count and the count accepted without a registration match.
 - An entrant who entered a prize-money division as an Amateur is marked as Amateur in that division's results; the mark changes neither the placing nor the ranking points.
 - For a sanctioned event, uploading complete results for every competition category and division in the platform within 20 days of the event's last day is a sanctioning requirement, one deadline for every discipline. Sending the event summary to the announce list within the same 20 days is the other (`EO_Request_Sanction`).
-- A sanctioned event whose complete results are not uploaded within those 20 days shows a "sanctioning requirements not met" badge, on its event page and on the organizer's results-upload surface for that event where the organizer acts on it; the badge clears once the results are uploaded. A summary not yet sent keeps the event's work item open but does not show the badge.
+- A sanctioned event whose complete results are not uploaded within those 20 days shows its organizers a "sanctioning requirements not met" badge, on the event's manage page and on its results-upload page where the organizer acts on it, never on the public event page; the badge clears once the results are uploaded. A summary not yet sent keeps the event's work item open but does not show the badge.
 - Results can be uploaded for any event (sanctioned status does not affect results posting).
 Impact:
 

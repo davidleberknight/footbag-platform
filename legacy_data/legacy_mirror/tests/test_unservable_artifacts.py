@@ -181,7 +181,8 @@ def test_every_settling_path_strips_before_it_settles_links():
     source = SCRIPT_PATH.read_text(encoding='utf-8')
 
     crawl_end = _block(source, 'def generate_reachability_pages(', '\ndef ')
-    settle_only = _block(source, 'if args.settle_for_publication_only:', '\n    if args.')
+    # The settle-only mode and the end of every video backfill share one pass.
+    settle_only = _block(source, 'def settle_for_publication(', '\ndef ')
 
     for where, block in (('the crawl end', crawl_end), ('the settle pass', settle_only)):
         assert 'strip_unservable_artifacts()' in block, where

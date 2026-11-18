@@ -19,6 +19,9 @@
  *   - Scheduling expiry passes (ActivePlayerExpiryService orchestrates; this
  *     service exposes `applyExpiry`, and `applyExpiryInTx` for an orchestrator
  *     that commits the expiry together with its day-of notice)
+ *   - Event-attendance grants (`applyAttendance`, and `applyAttendanceInTx` for
+ *     EventService, which commits the grant together with the attendance mark,
+ *     the results that caused it and the member's notice)
  *
  * Required patterns:
  *   - Append-only ledgers. UPDATE/DELETE blocked by DB triggers.
@@ -362,7 +365,28 @@ export function applyAttendance(
   memberId: string,
   registrationId: string,
   eventEndDate: string,
-): ApplyResult {
+): AttendanceResult {
+  return transaction(() => applyAttendanceInTx(actorId, memberId, registrationId, eventEndDate));
+}
+
+/** What one attendance did to a member's Active Player standing. */
+export type AttendanceResult =
+  | { status: 'granted' | 'extended'; expiresAt: string; oldExpiresAt: string | null }
+  | { status: 'noop'; reason: 'tier1_plus_no_op' | 'no_shorten' | 'already_processed' };
+
+/**
+ * The same attendance grant for a caller that already holds an open
+ * transaction, so the grant, its audit entry and whatever the caller writes
+ * beside them (the attendance mark, the results, the notice) commit or roll
+ * back together. better-sqlite3 forbids nested transactions, so this must not
+ * open its own.
+ */
+export function applyAttendanceInTx(
+  actorId: string,
+  memberId: string,
+  registrationId: string,
+  eventEndDate: string,
+): AttendanceResult {
   // Look up registration to derive event_id and validate it belongs to memberId.
   const reg = activePlayer.getRegistrationEventId.get(registrationId) as
     | { event_id: string; member_id: string }
@@ -390,63 +414,60 @@ export function applyAttendance(
   }
   const newExpiresAt = isoFromDateAddDays(anchor, durationDays());
 
-  return transaction(() => {
-    const now = new Date().toISOString();
-    const latest = readLatestGrant(memberId);
+  const now = new Date().toISOString();
+  const latest = readLatestGrant(memberId);
 
-    const isExtend = !!latest;
-    const oldExpires = latest?.new_active_player_expires_at ?? null;
+  const isExtend = !!latest;
+  const oldExpires = latest?.new_active_player_expires_at ?? null;
 
-    // No-shorten rule: never write an AP row whose new_expires_at is earlier
-    // than the latest row's. Returns noop without erroring (caller can retry
-    // a later attendance later).
-    if (oldExpires && newExpiresAt <= oldExpires) {
-      return { status: 'noop' as const, reason: 'no_shorten' };
-    }
+  // No-shorten rule: never write an AP row whose new_expires_at is earlier
+  // than the latest row's. Returns noop without erroring (caller can retry
+  // a later attendance later).
+  if (oldExpires && newExpiresAt <= oldExpires) {
+    return { status: 'noop', reason: 'no_shorten' };
+  }
 
-    const id = newGrantId();
-    try {
-      insertGrant({
-        id,
-        now,
-        memberId,
-        actorId,
-        changeType: isExtend ? 'extend' : 'grant',
-        oldExpiresAt: oldExpires,
-        newExpiresAt,
-        reasonCode: 'official_event_attendance',
-        reasonText: null,
-        relatedEventId: reg.event_id,
-        relatedRegistrationId: registrationId,
-      });
-    } catch (err) {
-      if (isUniqueViolation(err)) {
-        // Idempotent retry for the same registration: return noop.
-        return { status: 'noop' as const, reason: 'already_processed' };
-      }
-      throw err;
-    }
-
-    appendAuditEntry({
-      actionType: isExtend ? 'active_player.extend' : 'active_player.grant',
-      actorType: 'system',
-      actorMemberId: actorId,
-      entityType: 'member',
-      entityId: memberId,
+  const id = newGrantId();
+  try {
+    insertGrant({
+      id,
+      now,
+      memberId,
+      actorId,
+      changeType: isExtend ? 'extend' : 'grant',
+      oldExpiresAt: oldExpires,
+      newExpiresAt,
+      reasonCode: 'official_event_attendance',
       reasonText: null,
-      metadata: {
-        reason_code: 'official_event_attendance',
-        registration_id: registrationId,
-        event_id: reg.event_id,
-        old_expires_at: oldExpires,
-        new_expires_at: newExpiresAt,
-      },
+      relatedEventId: reg.event_id,
+      relatedRegistrationId: registrationId,
     });
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      // Idempotent retry for the same registration: return noop. SQLite
+      // undoes only the refused statement, so a caller's transaction goes on.
+      return { status: 'noop', reason: 'already_processed' };
+    }
+    throw err;
+  }
 
-    return isExtend
-      ? { status: 'extended' as const, expiresAt: newExpiresAt }
-      : { status: 'granted' as const, expiresAt: newExpiresAt };
+  appendAuditEntry({
+    actionType: isExtend ? 'active_player.extend' : 'active_player.grant',
+    actorType: 'system',
+    actorMemberId: actorId,
+    entityType: 'member',
+    entityId: memberId,
+    reasonText: null,
+    metadata: {
+      reason_code: 'official_event_attendance',
+      registration_id: registrationId,
+      event_id: reg.event_id,
+      old_expires_at: oldExpires,
+      new_expires_at: newExpiresAt,
+    },
   });
+
+  return { status: isExtend ? 'extended' : 'granted', expiresAt: newExpiresAt, oldExpiresAt: oldExpires };
 }
 
 /**

@@ -85,6 +85,11 @@ A **pager** (the `_pager` partial) closes every paged list: numbered page links 
 Y" status, shaped by the page service as its pagination block. A paged hashtag-media result also
 shows the large-result notice above its grid whenever the set spans more than one page.
 
+A **sortable data table** carries `data-sortable` on its `.data-table`; the shared
+`sortable-table.js` reorders its rows when a reader activates a column header, and without
+JavaScript the table reads in the order the service shaped. It is the one sorting treatment
+for a client-side reorder; a list the server sorts keeps its query-string sort.
+
 An **admin instructions block** (the `admin-instructions` partial) opens every administrator page,
 directly below the hero: what the screen does, why it exists, how to use it, and a heads-up list of
 the consequences a reader would not guess, such as a member being emailed, the act being permanent,
@@ -458,3 +463,9 @@ is known); a list or table shows the text alone. Admin pages show the stored val
   file-header JSDoc.
 - Privacy, visibility, and anti-enumeration rendering rules: `DATA_GOVERNANCE.md`, plus the owning
   service's JSDoc and route/template tests.
+
+## Printable documents
+
+A printable output (roster, sheet) is a PDF download built from a document model by the shared
+renderer in `src/lib/printableDocument.ts`, never a print stylesheet or page-specific PDF code. The
+service returns the model; the controller sends it with `sendPdfDownload`.

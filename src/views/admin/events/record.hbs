@@ -1,0 +1,152 @@
+{{! One event's record and the administrator's corrections and cancellations }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{> admin-instructions}}
+  {{> outcome-notice text=page.notice tone=page.noticeTone}}
+  {{> outcome-notice text=content.errorMessage tone='no'}}
+
+  <div class="event-meta-row">
+    {{#each content.identifyingFacts}}<span>{{this}}</span>{{/each}}
+    <span class="badge">{{content.statusLabel}}</span>
+  </div>
+
+  {{#if content.publicHref}}<p><a href="{{siteHref content.publicHref}}">View the public event page</a></p>{{/if}}
+  <p><a href="{{siteHref content.auditHistoryHref}}">This event's history in the audit log</a></p>
+
+  <section>
+    <div class="section-heading"><h2>Organizers</h2></div>
+    {{#if content.hasOrganizers}}
+      <p class="fs-sm">These are the members emailed when a correction is made here.</p>
+      <ul>
+        {{#each content.organizers}}<li><a href="{{siteHref recordHref}}">{{name}}</a></li>{{/each}}
+      </ul>
+    {{else}}
+      <p>This event has no organizer, so a correction made here reaches nobody by email.</p>
+    {{/if}}
+    <p><a href="{{siteHref content.organizersHref}}">Assign or remove organizers</a></p>
+  </section>
+
+  <section>
+    <div class="section-heading"><h2>Corrections</h2></div>
+
+    <details class="admin-action-disclosure">
+      <summary>Correct the Event's Details</summary>
+      <p class="fs-sm">The event's organizers are the ordinary path for these fields. Every value is held to the rules their own form applies.</p>
+      <form method="POST" action="{{content.detailsAction}}" class="form-block">
+        {{> event-details-fields values=content.values countryOptions=content.countryOptions showFees=true canEditFees=true}}
+        {{#if content.sanctionOptions}}
+          <div class="form-field">
+            <label for="sanction_state">IFPA sanction</label>
+            <select id="sanction_state" name="sanction_state">
+              {{#each content.sanctionOptions}}
+                <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+              {{/each}}
+            </select>
+            <small class="form-hint">Granting sanction enables online payment when a fee is set; revoking it stops payment for new registrations.</small>
+          </div>
+        {{else}}
+          <input type="hidden" name="sanction_state" value="" />
+        {{/if}}
+        <div class="form-field">
+          <label for="details_reason">Reason (required)</label>
+          <input type="text" id="details_reason" name="reason" maxlength="500" required />
+        </div>
+        <button type="submit" class="btn btn-primary">Review the Event Correction</button>
+      </form>
+    </details>
+
+    {{#if content.clearDescriptionAction}}
+      <details class="admin-action-disclosure">
+        <summary>Clear the Description</summary>
+        <p class="fs-sm">Removes the whole description from the event page. The organizers are emailed and can write a new one.</p>
+        <form method="POST" action="{{content.clearDescriptionAction}}" class="form-block">
+          <div class="form-field">
+            <label for="clear_reason">Reason (required)</label>
+            <input type="text" id="clear_reason" name="reason" maxlength="500" required />
+          </div>
+          <button type="submit" class="btn btn-primary">Review Clearing the Description</button>
+        </form>
+      </details>
+    {{/if}}
+  </section>
+
+  <section>
+    <div class="section-heading"><h2>Divisions</h2></div>
+    {{#if content.hasDivisions}}
+      {{#each content.divisions}}
+        <div class="card card-static">
+          <div class="card-title">{{name}}</div>
+          <p class="card-meta">{{entriesLabel}}</p>
+          <p><a href="{{siteHref correctHref}}" class="btn btn-outline btn-sm">Correct Division</a></p>
+          <details class="admin-action-disclosure">
+            <summary>Remove This Division</summary>
+            <form method="POST" action="{{removeAction}}" class="form-block">
+              <div class="form-field">
+                <label>Reason (required) <input type="text" name="reason" maxlength="500" required /></label>
+              </div>
+              <button type="submit" class="btn btn-outline btn-sm">Review Removing the Division</button>
+            </form>
+          </details>
+        </div>
+      {{/each}}
+    {{else}}
+      <p>This event has no divisions.</p>
+    {{/if}}
+  </section>
+
+  <section>
+    <div class="section-heading"><h2>Registrations</h2></div>
+    {{#if content.hasRegistrations}}
+      {{#each content.registrations}}
+        <div class="card card-static">
+          <div class="card-title"><a href="{{memberRecordHref}}">{{name}}</a> <span class="badge">{{statusLabel}}</span>{{#if attendedLabel}} <span class="badge">{{attendedLabel}}</span>{{/if}}</div>
+          {{#if attendance}}
+            <details class="admin-action-disclosure">
+              <summary>{{attendance.summary}}</summary>
+              <form method="POST" action="{{attendance.action}}" class="form-block">
+                <input type="hidden" name="attended" value="{{attendance.setTo}}" />
+                <div class="form-field">
+                  <label>Reason (required) <input type="text" name="reason" maxlength="500" required /></label>
+                </div>
+                <button type="submit" class="btn btn-outline btn-sm">{{attendance.buttonLabel}}</button>
+              </form>
+            </details>
+          {{/if}}
+          <details class="admin-action-disclosure">
+            <summary>Cancel This Registration</summary>
+            <form method="POST" action="{{cancelAction}}" class="form-block">
+              <div class="form-field">
+                <label>Reason, sent to the member (required) <input type="text" name="reason" maxlength="500" required /></label>
+              </div>
+              <button type="submit" class="btn btn-outline btn-sm">Review Canceling the Registration</button>
+            </form>
+          </details>
+        </div>
+      {{/each}}
+    {{else}}
+      <p>This event has no standing registrations.</p>
+    {{/if}}
+  </section>
+
+  {{#if content.cancelEventAction}}
+    <section>
+      <div class="section-heading"><h2>Cancel This Event</h2></div>
+      <p>Canceling emails everyone registered and the organizers with your reason, takes the event off the public pages, and keeps its record. It cannot be undone.</p>
+      <form method="POST" action="{{content.cancelEventAction}}" class="form-block">
+        <div class="form-field">
+          <label for="cancel_reason">Reason, sent to everyone registered (required)</label>
+          <input type="text" id="cancel_reason" name="reason" maxlength="500" required />
+        </div>
+        <button type="submit" class="btn btn-outline">Review Canceling the Event</button>
+      </form>
+    </section>
+  {{/if}}
+
+  {{> back-link}}
+</div>

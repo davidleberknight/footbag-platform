@@ -38,6 +38,45 @@
     </section>
   {{/if}}
 
+  {{#if content.terminalNote}}
+    <section>
+      <p>{{content.terminalNote}}</p>
+    </section>
+  {{/if}}
+
+  {{#if content.results}}
+    <section>
+      <div class="section-heading"><h2>Results and Attendance</h2></div>
+      {{#if content.results.badge}}<p><span class="badge">{{content.results.badge}}</span></p>{{/if}}
+      <p>{{content.results.statusLine}}</p>
+      {{#if content.results.uploadHref}}
+        <div class="form-actions">
+          <a href="{{siteHref content.results.uploadHref}}" class="btn btn-primary">Upload Results</a>
+          <a href="{{siteHref content.results.attendanceHref}}" class="btn btn-outline">Confirm Attendance</a>
+        </div>
+      {{/if}}
+      {{#if content.results.summaryLine}}
+        <p>{{content.results.summaryLine}}</p>
+        {{#if content.results.summaryHref}}
+          <p><a href="{{siteHref content.results.summaryHref}}" class="action-link">Send the Event Summary</a></p>
+        {{/if}}
+      {{/if}}
+    </section>
+  {{/if}}
+
+  {{#if content.participants}}
+    <section>
+      <div class="section-heading"><h2>Participants</h2></div>
+      <p>See who is registered, download the list, print the check-in sheet, or email everyone confirmed.</p>
+      <div class="form-actions">
+        <a href="{{siteHref content.participants.participantsHref}}" class="btn btn-primary">View Participants</a>
+        <a href="{{siteHref content.participants.summaryHref}}" class="btn btn-outline">Registration Summary</a>
+        <a href="{{siteHref content.participants.checkInHref}}" class="btn btn-outline">Download Check-in Sheet (PDF)</a>
+        <a href="{{siteHref content.participants.emailHref}}" class="btn btn-outline">Email Participants</a>
+      </div>
+    </section>
+  {{/if}}
+
   {{#if content.onlineRegistration}}
     <section>
       <div class="section-heading"><h2>Online Registration</h2></div>
@@ -46,6 +85,12 @@
         <input type="hidden" name="set_to" value="{{content.onlineRegistration.setTo}}" />
         <button type="submit" class="btn btn-outline">{{content.onlineRegistration.buttonLabel}}</button>
       </form>
+      {{#if content.closeRegistrationAction}}
+        <p class="mt-4">Closing registration ends it for good: nobody can register again, and the event page says registration is closed.</p>
+        <form method="POST" action="{{content.closeRegistrationAction}}" class="inline-form">
+          <button type="submit" class="btn btn-outline">Close Registration</button>
+        </form>
+      {{/if}}
     </section>
   {{/if}}
 
@@ -212,6 +257,30 @@
       <p class="text-muted">You are the only organizer, so you cannot step down until you add another.</p>
     {{/if}}
   </section>
+
+  {{#if content.cancelEventAction}}
+    <section>
+      <div class="section-heading"><h2>Cancel or Delete This Event</h2></div>
+      <p>Canceling tells everyone registered, with your reason, and takes the event off the public pages. Its record is kept.</p>
+      <form method="POST" action="{{content.cancelEventAction}}" class="inline-form">
+        <button type="submit" class="btn btn-outline">Cancel Event</button>
+      </form>
+      {{#if content.deleteEventAction}}
+        <p class="mt-4">An event that has never taken a registration can be deleted instead, for example a duplicate created by mistake.</p>
+        <form method="POST" action="{{content.deleteEventAction}}" class="inline-form">
+          <button type="submit" class="btn btn-outline">Delete Event</button>
+        </form>
+      {{/if}}
+    </section>
+  {{else if content.deleteEventAction}}
+    <section>
+      <div class="section-heading"><h2>Delete This Event</h2></div>
+      <p>This canceled event never took a registration, so it can be deleted.</p>
+      <form method="POST" action="{{content.deleteEventAction}}" class="inline-form">
+        <button type="submit" class="btn btn-outline">Delete Event</button>
+      </form>
+    </section>
+  {{/if}}
 
   {{> back-link}}
 </div>

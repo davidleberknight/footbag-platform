@@ -1,11 +1,13 @@
 # Archive crawl seed lists
 
 Plain seed-URL lists for the footbag.org archive crawl, one file per content
-class. `clubs.txt`, `events.txt`, `faq.txt`, `gallery.txt`, `members.txt`,
-`moves.txt` and `rules.txt` are written by
+class. `clubs.txt`, `events.txt`, `faq.txt`, `gallery.txt`, `groups.txt`,
+`members.txt`, `moves.txt` and `rules.txt` are written by
 `legacy_data/scripts/publish_legacy_repo_data.py` from the vetted legacy export;
 the `vhost_*.txt` lists by `legacy_data/legacy_mirror/scripts/build_vhost_seed_lists.py`
-from the WordPress vhost; `groups.txt` is maintained by hand.
+from the WordPress vhost. `groups.txt` lists every group file a member could
+open (unscoped, in a committee that is not private, not held in IFPA custody,
+and of a type the crawler captures).
 
 The archive crawler finds pages by following links out from a few index pages.
 Some content is linked from no index page, so link-following never reaches it.

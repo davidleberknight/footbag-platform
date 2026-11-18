@@ -1385,6 +1385,7 @@ export interface MemberAnnouncementOverrides {
   decided_by_member_id?: string | null;
   decided_at?: string | null;
   email_archive_id?: string | null;
+  summary_event_id?: string | null;
   created_at?: string;
 }
 
@@ -1404,8 +1405,8 @@ export function insertMemberAnnouncement(
     INSERT INTO member_announcements (
       id, created_at, created_by, updated_at, updated_by, version,
       member_id, submit_token, subject, body_text, status, admin_comment,
-      decided_by_member_id, decided_at, email_archive_id
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      decided_by_member_id, decided_at, email_archive_id, summary_event_id
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id, created, o.member_id, created, o.member_id,
     o.member_id,
@@ -1417,6 +1418,7 @@ export function insertMemberAnnouncement(
     o.decided_by_member_id ?? null,
     o.decided_at ?? (decided ? nowIso() : null),
     o.email_archive_id ?? null,
+    o.summary_event_id ?? null,
   );
   return id;
 }

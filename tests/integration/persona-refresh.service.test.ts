@@ -47,6 +47,7 @@ import {
   insertActivePlayerVouch,
   insertEvent,
   insertRegistration,
+  insertEventRegistrationReminderSent,
   insertEventOrganizer,
   insertEmailArchive,
   insertResultsUpload,
@@ -588,10 +589,13 @@ describe('refreshAllPersonas', () => {
     // and the member delete.
     const feeId = insertPayment(db, { member_id: T1, payment_type: 'event_registration' });
     const registrationId = insertRegistration(db, insertEvent(db), T1, { payment_id: feeId });
+    // The reminder job's append-only sent row would block the registration delete.
+    insertEventRegistrationReminderSent(db, registrationId);
 
     refreshAllPersonas(db);
 
     expect(count(`SELECT COUNT(*) AS n FROM registrations WHERE id = ?`, registrationId)).toBe(0);
+    expect(count(`SELECT COUNT(*) AS n FROM event_registration_reminder_sent WHERE registration_id = ?`, registrationId)).toBe(0);
     expect(count(`SELECT COUNT(*) AS n FROM active_player_vouches WHERE id = 'apv-persona-1'`)).toBe(0);
     expect(count(`SELECT COUNT(*) AS n FROM recurring_donation_subscriptions WHERE id = 'rds-persona-1'`)).toBe(0);
     expect(count(`SELECT COUNT(*) AS n FROM member_links WHERE member_id = ?`, T1)).toBe(0);

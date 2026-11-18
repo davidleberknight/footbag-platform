@@ -562,6 +562,11 @@ def test_crawl_run_enforces_the_exclusions_before_generating_pages(
                         lambda _s: order.append('crawl'))
     monkeypatch.setattr(mirror_script, 'apply_exclusions_sweep',
                         lambda *a, **k: order.append('sweep'))
+    # The group-file recovery files private documents into custody and the rest
+    # into the capture: after the sweep, so nothing it files is swept again, and
+    # before the generated pages, so the rebuilt group lists see what it brought.
+    monkeypatch.setattr(mirror_script, 'run_group_file_fetch',
+                        lambda *a, **k: order.append('group files'))
     monkeypatch.setattr(mirror_script, 'generate_reachability_pages',
                         lambda *a, **k: order.append('generate'))
     monkeypatch.setattr(mirror_script, 'create_root_index', lambda: None)
@@ -572,7 +577,7 @@ def test_crawl_run_enforces_the_exclusions_before_generating_pages(
 
     mirror_script.main()
 
-    assert order == ['crawl', 'sweep', 'generate']
+    assert order == ['crawl', 'sweep', 'group files', 'generate']
 
 
 # The member-account exclusions apply to every run, named or not. A crawl runs

@@ -34,6 +34,18 @@
         <textarea id="bodyText" name="bodyText" rows="16" maxlength="{{content.bodyMax}}" required>{{content.bodyText}}</textarea>
         <p class="fs-sm">Plain text only. Every recipient chose to receive these and can stop at any time from their own email preferences, so there is no need to write an unsubscribe line.</p>
       </div>
+      {{#if content.hasSummaryEventOptions}}
+        <div class="form-field">
+          <label for="summaryEventId">This is the after-event summary for</label>
+          <select id="summaryEventId" name="summaryEventId">
+            <option value="">No event: an ordinary announcement</option>
+            {{#each content.summaryEventOptions}}
+              <option value="{{this.value}}"{{#if this.selected}} selected{{/if}}>{{this.label}}</option>
+            {{/each}}
+          </select>
+          <p class="fs-sm">A sanctioned event's organizers send a short summary of it to this list within 20 days of its last day. Choose the event when this is that summary.</p>
+        </div>
+      {{/if}}
       <div class="form-field">
         <input type="hidden" name="agree" value="0" />
         <label><input type="checkbox" id="agree" name="agree" value="1" {{#if content.agreeChecked}}checked{{/if}} /> I have read and agree to the <a href="/community-standards">Community Standards</a>.</label>

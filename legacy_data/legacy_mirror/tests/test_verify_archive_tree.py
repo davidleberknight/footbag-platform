@@ -87,6 +87,113 @@ def _row(report, name):
     return next(r for r in report.rows if r[0] == name)
 
 
+# ---- header, footer and the members-only refusal ----
+
+def _banded_page(root, rel_path, header=True, footer=True):
+    day = verify_tree.crawler.datetime(2020, 1, 2)
+    body = (verify_tree.crawler._header_html(day) if header else '') + '<p>x</p>' \
+        + (verify_tree.crawler._footer_html(day) if footer else '')
+    return _page(root, rel_path, f'<html><body>{body}</body></html>')
+
+
+def _banner_failures(www):
+    report = verify_tree.Report(examples=5)
+    verify_tree.check_banner(report, verify_tree.pages(www), www)
+    return {row[0]: row[1] for row in report.rows}
+
+
+def test_a_page_missing_its_footer_fails_and_a_banded_page_passes(tmp_path):
+    # A page the publish ships without the footer, or the header, reads as the
+    # live site to whoever lands on it.
+    www = tmp_path / 'www.footbag.org'
+    _banded_page(www, 'events/show/1/index.html')
+    _banded_page(www, 'clubs/show/2/index.html', footer=False)
+    failures = _banner_failures(www)
+    assert failures['archive header and footer on every page'] == [
+        'clubs/show/2/index.html (footer)']
+    assert failures['every header and footer links the live site'] == []
+
+
+def test_a_frameset_and_its_frames_are_exempt_from_the_band_check(tmp_path):
+    # The crawler leaves these unbanded on purpose; failing them would block
+    # every publish of a correct capture.
+    www = tmp_path / 'www.footbag.org'
+    _page(www, 'worlds2000/index.html',
+          '<html><frameset cols="110,*"><frame src="menubar.html">'
+          '<frame src="mainwin.html"></frameset></html>')
+    _page(www, 'worlds2000/menubar.html', '<html><body>menu</body></html>')
+    _page(www, 'worlds2000/mainwin.html', '<html><body>main</body></html>')
+    _page(www, 'worlds2000/results.html', '<html><body>results</body></html>')
+    failures = _banner_failures(www)
+    assert failures['archive header and footer on every page'] == [
+        'worlds2000/results.html (header)']
+
+
+def test_any_code_file_or_server_directive_fails_and_plain_content_passes(tmp_path):
+    # The capture must hold no code at all: a script library, a Flash movie, a
+    # macro-enabled template or a server include left in a comment would ship
+    # code in an archive that promises none.
+    www = tmp_path / 'www.footbag.org'
+    for name in ('sites/w/theme.js', 'worlds2008/alive.swf', 'worlds2008/hover.htc',
+                 'ifpa/groups/ifc/template.xltm', 'old/admin.php'):
+        _page(www, name, b'x')
+    _page(www, 'ifpa/groups/ifc/results.pdf', b'%PDF')
+    _page(www, 'gallery/a.jpg', b'\xff\xd8\xff')
+    _page(www, 'video.html', '<!--#include virtual="http://<%=$gHostName%>/ads" --><p>x</p>')
+    _page(www, 'faq/index.html', '<!-- an ordinary comment --><p>x</p>')
+    report = verify_tree.Report(examples=10)
+    verify_tree.check_no_code(report, verify_tree.pages(www), www)
+    assert sorted(_row(report, 'no code or unservable file in the capture')[1]) == [
+        'ifpa/groups/ifc/template.xltm', 'old/admin.php', 'sites/w/theme.js',
+        'worlds2008/alive.swf', 'worlds2008/hover.htc']
+    assert _row(report, 'no server directive in any page')[1] == ['video.html']
+
+
+def test_a_file_the_archive_does_not_serve_fails_the_gate(tmp_path):
+    # The capture must hold exactly what the archive serves; a Word file left in
+    # it is the "captured but not served" state that was ruled out.
+    www = tmp_path / 'www.footbag.org'
+    _page(www, 'ifpa/groups/x/minutes.doc', b'doc')
+    _page(www, 'ifpa/groups/x/plan.pdf', b'%PDF')
+    _page(www, 'gallery/a.jpg', b'\xff\xd8\xff')
+    _page(www, 'gallery/a.jpg.sanitized', b'')
+    report = verify_tree.Report(examples=10)
+    verify_tree.check_no_code(report, verify_tree.pages(www), www)
+    assert _row(report, 'every captured file is one the archive serves')[1] == [
+        'ifpa/groups/x/minutes.doc']
+
+
+def test_a_banded_husk_is_still_a_husk(tmp_path):
+    # The bands are the archive's own text; counted as content, no emptied page
+    # could ever fail this check again.
+    www = tmp_path / 'www.footbag.org'
+    _banded_page(www, 'events/show/9/index.html')
+    husk = www / 'events/show/9/index.html'
+    day = verify_tree.crawler.datetime(2020, 1, 2)
+    husk.write_text('<html><body>' + verify_tree.crawler._header_html(day)
+                    + verify_tree.crawler._footer_html(day) + '</body></html>',
+                    encoding='utf-8')
+    _banded_page(www, 'faq/index.html')
+    report = verify_tree.Report(examples=5)
+    verify_tree.check_no_empty_pages(report, verify_tree.pages(www), www)
+    assert _row(report, 'no page is an empty husk')[1] == ['events/show/9/index.html']
+
+
+def test_a_saved_members_only_refusal_fails_the_gate(tmp_path):
+    # A refusal published in place of a group file's page shows members the old
+    # site's sign-up nag where the archive promised content.
+    www = tmp_path / 'www.footbag.org'
+    _page(www, 'groups/showfile/271/index.html',
+          '<meta charset="utf-8"/><p>IFPA Members Only!!</p><p>Sorry, but the function '
+          'you requested is only available to active IFPA members.</p>')
+    _page(www, 'faq/index.html', '<meta charset="utf-8"/><p>An answer</p>')
+    report = verify_tree.Report(examples=5)
+    verify_tree.check_nothing_stored_that_should_have_been_refused(
+        report, verify_tree.pages(www), www)
+    assert _row(report, 'no page is the members-only refusal')[1] == [
+        'groups/showfile/271/index.html']
+
+
 # ---- charset ----
 
 def test_a_page_without_a_charset_fails_the_gate(tmp_path):

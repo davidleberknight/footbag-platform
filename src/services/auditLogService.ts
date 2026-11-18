@@ -33,6 +33,7 @@ import {
 } from '../db/db';
 import { runSqliteRead } from './sqliteRetry';
 import { ValidationError } from './serviceErrors';
+import { csvCell } from '../lib/csv';
 import type { PageViewModel } from '../types/page';
 
 const PAGE_SIZE = 50;
@@ -250,20 +251,6 @@ function defaultSummaryFrom(nowMs: number): string {
   d.setUTCHours(0, 0, 0, 0);
   d.setUTCMonth(d.getUTCMonth() - (SUMMARY_DEFAULT_MONTHS - 1));
   return d.toISOString();
-}
-
-// Quote a CSV cell when it carries a delimiter, quote, or newline; an internal
-// quote is escaped by doubling, per RFC 4180. A leading '=', '+', '-', '@', tab
-// or carriage return is neutralised with a leading apostrophe first: spreadsheet
-// applications read those as the start of a formula, and this export carries
-// member-chosen display names, whose validation constrains only length. Without
-// it a member can plant a formula that runs on the administrator's machine when
-// they open the file.
-const FORMULA_LEAD = /^[=+\-@\t\r]/;
-function csvCell(v: string | null): string {
-  const raw = v ?? '';
-  const s = FORMULA_LEAD.test(raw) ? `'${raw}` : raw;
-  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
 function actorLabel(row: AuditLogQueryRow): string {

@@ -151,6 +151,7 @@ const TOOL_GROUPS: DashboardLinkGroup[] = [
       { label: 'Members', href: '/admin/members' },
       { label: 'Official IFPA Roster', href: '/ifpa/roster' },
       { label: 'Historical Records', href: '/admin/historical-records' },
+      { label: 'Event Records', href: '/admin/events' },
       { label: 'Event Results', href: '/admin/events/results' },
       { label: 'Board-awarded Sanctions', href: '/admin/events/sanctions' },
       { label: 'Legacy Accounts', href: '/admin/legacy-accounts' },

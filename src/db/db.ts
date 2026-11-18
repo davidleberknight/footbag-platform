@@ -182,6 +182,7 @@ export interface PublicEventResultRow {
   participant_member_slug: string | null;
   participant_display_name: string;
   participant_historical_person_id: string | null;
+  participant_is_amateur: number;
 }
 
 export interface PublicPlayerRow {
@@ -458,7 +459,15 @@ export const publicEvents = {
       erp.member_id,
       COALESCE(m_linked.slug, m_via_hp.slug) AS participant_member_slug,
       erp.display_name AS participant_display_name,
-      erp.historical_person_id AS participant_historical_person_id
+      erp.historical_person_id AS participant_historical_person_id,
+      -- Entered this prize-money division as an Amateur, on a confirmed registration.
+      EXISTS (
+        SELECT 1 FROM registrations AS r
+        INNER JOIN registration_discipline_selections AS rds ON rds.registration_id = r.id
+        WHERE r.event_id = e.id AND r.member_id = erp.member_id AND r.status = 'confirmed'
+          AND rds.discipline_id = ere.discipline_id AND rds.enters_as_amateur = 1
+          AND ed.offers_prize_money = 1
+      ) AS participant_is_amateur
     FROM events AS e
     INNER JOIN event_result_entries AS ere
       ON ere.event_id = e.id
@@ -9508,6 +9517,58 @@ export const activePlayerExpiry = {
   `); },
 };
 
+export interface EventRegistrationReminderCandidateRow {
+  registration_id:   string;
+  member_id:         string;
+  registration_type: 'competitor' | 'attendee_supporter';
+  tshirt_size:       string | null;
+  event_title:       string;
+  start_date:        string;
+  end_date:          string;
+  login_email:       string | null;
+  is_deceased:       number;
+}
+
+export const eventRegistrationReminders = {
+  // Candidate set for SYS_Send_Event_Registration_Reminders: confirmed
+  // registrations of live members on events still running registration or
+  // closed to it, starting after today and no later than the last day the
+  // reminder window reaches, not yet reminded for that start date. Deceased
+  // members stay in the set so the run record counts them; the service sends
+  // them nothing.
+  get listCandidates() { return db.prepare(`
+    SELECT r.id AS registration_id,
+           r.member_id,
+           r.registration_type,
+           r.tshirt_size,
+           e.title AS event_title,
+           e.start_date,
+           e.end_date,
+           m.login_email,
+           m.is_deceased
+    FROM registrations AS r
+    INNER JOIN events AS e ON e.id = r.event_id
+    INNER JOIN members_onboarded AS m ON m.id = r.member_id
+    WHERE r.status = 'confirmed'
+      AND e.status IN ('reg_open', 'closed')
+      AND e.start_date > ?
+      AND e.start_date <= ?
+      AND NOT EXISTS (
+        SELECT 1 FROM event_registration_reminder_sent AS s
+        WHERE s.registration_id = r.id AND s.event_start_date = e.start_date
+      )
+    ORDER BY e.start_date, r.id
+  `); },
+
+  // INSERT only; a duplicate (registration_id, event_start_date) raises
+  // SQLITE_CONSTRAINT_UNIQUE, which the service treats as "already sent."
+  get insertSent() { return db.prepare(`
+    INSERT INTO event_registration_reminder_sent (
+      id, created_at, created_by, registration_id, event_start_date, sent_at
+    ) VALUES (?, ?, 'system', ?, ?, ?)
+  `); },
+};
+
 export const mailingListSubscriptions = {
   // PII purge: every subscription row the member holds, bounce and complaint
   // state included, goes with the rest of their personal data.
@@ -9858,8 +9919,25 @@ export const emailArchives = {
       archive_type, mailing_list_id, event_id,
       sender_member_id, from_identity, subject, body_text, sent_at, recipient_count
     ) VALUES (?, ?, ?, ?, ?, 1,
-              ?, ?, NULL,
+              ?, ?, ?,
               ?, ?, ?, ?, ?, ?)
+  `); },
+
+  // An event's participant emails since a cutoff: one a day is the limit.
+  // Params: (eventId, sinceIso).
+  get countEventSentSince() { return db.prepare(`
+    SELECT COUNT(*) AS n FROM email_archives
+    WHERE archive_type = 'event_participants' AND event_id = ? AND sent_at >= ?
+  `); },
+
+  // An event's own sent participant emails, newest first, for its organizers.
+  get listForEvent() { return db.prepare(`
+    SELECT a.id, a.subject, a.body_text, a.sent_at, a.recipient_count,
+           m.display_name AS sender_name
+    FROM email_archives AS a
+    LEFT JOIN members AS m ON m.id = a.sender_member_id
+    WHERE a.archive_type = 'event_participants' AND a.event_id = ?
+    ORDER BY a.sent_at DESC, a.id DESC
   `); },
 
   // Account erasure's reach into the archive. The message itself is never
@@ -10272,12 +10350,29 @@ export const workQueue = {
 // as written or sends them back, and never edits them.
 export const memberAnnouncements = {
   // Params: (id, nowIso, memberId, nowIso, memberId, memberId, submitToken,
-  //          subject, bodyText).
+  //          subject, bodyText, summaryEventId).
   get insert() { return db.prepare(`
     INSERT INTO member_announcements (
       id, created_at, created_by, updated_at, updated_by, version,
-      member_id, submit_token, subject, body_text, status
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, 'pending')
+      member_id, submit_token, subject, body_text, status, summary_event_id
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, 'pending', ?)
+  `); },
+
+  // The sanctioned events a member organizes that have ended and still owe
+  // their after-event summary: what the announcement form offers to mark its
+  // text as. Params: (memberId, today).
+  get listSummaryEventChoices() { return db.prepare(`
+    SELECT e.id, e.title, e.end_date
+    FROM event_organizers_current AS eo
+    INNER JOIN events AS e ON e.id = eo.event_id
+    WHERE eo.member_id = ? AND e.end_date < ?
+      AND e.sanction_status = 'approved'
+      AND e.status IN ('reg_open', 'closed', 'completed')
+      AND NOT EXISTS (
+        SELECT 1 FROM member_announcements AS a
+        WHERE a.summary_event_id = e.id AND a.status = 'approved'
+      )
+    ORDER BY e.end_date DESC, e.id DESC
   `); },
 
   // What a repeated submit of one form finds: the row its first submit wrote.
@@ -11368,6 +11463,7 @@ export const eventWrites = {
            e.sanction_expected_players, e.sanction_expected_spectators,
            e.sanction_permits, e.sanction_insurance,
            e.prize_money_total_cents, e.prize_money_currency,
+           e.cancel_reason,
            t.tag_normalized
     FROM events AS e
     INNER JOIN tags AS t ON t.id = e.hashtag_tag_id
@@ -11390,6 +11486,7 @@ export const eventWrites = {
            e.sanction_expected_players, e.sanction_expected_spectators,
            e.sanction_permits, e.sanction_insurance,
            e.prize_money_total_cents, e.prize_money_currency,
+           e.cancel_reason,
            t.tag_normalized
     FROM events AS e
     INNER JOIN tags AS t ON t.id = e.hashtag_tag_id
@@ -11474,6 +11571,91 @@ export const eventWrites = {
     UPDATE events
        SET registration_status = ?, updated_at = ?, updated_by = ?, version = version + 1
      WHERE id = ?
+  `); },
+
+  // The irreversible close of the registration window: the event moves on
+  // from taking registrations, which the online-registration switch does not.
+  get closeRegistration() { return db.prepare(`
+    UPDATE events
+       SET status = 'closed', updated_at = ?, updated_by = ?, version = version + 1
+     WHERE id = ? AND status = 'reg_open'
+  `); },
+
+  // Cancellation, by an organizer or an administrator, with the reason every
+  // registrant is sent. Params: (canceledAt, reason, actorId, now, actorId, id).
+  get cancelEvent() { return db.prepare(`
+    UPDATE events
+       SET status = 'canceled', canceled_at = ?, cancel_reason = ?, canceled_by_member_id = ?,
+           updated_at = ?, updated_by = ?, version = version + 1
+     WHERE id = ? AND status IN ('draft', 'pending_approval', 'reg_open', 'closed')
+  `); },
+
+  // What stands between an event and its deletion: any registration it ever
+  // took, any result it carries, any attendance it granted, and any email
+  // sent to its participants. Params: the event id, five times.
+  get deletionBlockers() { return db.prepare(`
+    SELECT
+      (SELECT COUNT(*) FROM registrations WHERE event_id = ?) AS registrations,
+      (SELECT COUNT(*) FROM event_results_uploads WHERE event_id = ?)
+        + (SELECT COUNT(*) FROM event_result_entries WHERE event_id = ?) AS results,
+      (SELECT COUNT(*) FROM active_player_grants WHERE related_event_id = ?) AS attendance_grants,
+      (SELECT COUNT(*) FROM email_archives WHERE event_id = ?) AS participant_emails
+  `); },
+
+  // The three deletes of an event with none of the blockers above: its
+  // divisions and its organizer rows, then the event itself. The event's
+  // hashtag stays reserved, as every standard tag does.
+  get deleteDivisionsForEvent() { return db.prepare(`
+    DELETE FROM event_disciplines WHERE event_id = ?
+  `); },
+  get deleteOrganizersForEvent() { return db.prepare(`
+    DELETE FROM event_organizers WHERE event_id = ?
+  `); },
+  get deleteEvent() { return db.prepare(`
+    DELETE FROM events WHERE id = ? AND status NOT IN ('pending_approval', 'completed')
+  `); },
+
+  // The first committed results upload completes the event. Params:
+  // (now, actorId, id).
+  get completeOnResults() { return db.prepare(`
+    UPDATE events
+       SET status = 'completed', updated_at = ?, updated_by = ?, version = version + 1
+     WHERE id = ? AND status IN ('reg_open', 'closed')
+  `); },
+
+  // A member's own deletion of the event a hashtag named, so a repeated delete
+  // can recognise its own act once the event row is gone. Params: (actorId, tag).
+  get findOwnDeletionByTag() { return db.prepare(`
+    SELECT id FROM audit_entries
+    WHERE action_type = 'event.deleted' AND entity_type = 'event' AND actor_member_id = ?
+      AND json_extract(metadata_json, '$.tag_normalized') = ?
+    LIMIT 1
+  `); },
+
+  // An administrator's correction of the event's fields, its fees and its
+  // sanction state together. Params: (title, description, startDate, endDate,
+  // city, region, country, deadline, tshirt, attendee, competitorFee,
+  // attendeeFee, sanctionStatus, paymentEnabled, now, actorId, id).
+  get correctEvent() { return db.prepare(`
+    UPDATE events
+       SET title = ?, description = ?, start_date = ?, end_date = ?,
+           city = ?, region = ?, country = ?, registration_deadline = ?,
+           is_tshirt_size_collected = ?, is_attendee_registration_open = ?,
+           competitor_fee_cents = ?, attendee_fee_cents = ?,
+           sanction_status = ?, payment_enabled = ?,
+           updated_at = ?, updated_by = ?, version = version + 1
+     WHERE id = ?
+  `); },
+
+  // Events an administrator can open for correction, any status, newest first.
+  // Params: (likePattern, likePattern, exactId, limit).
+  get searchForAdmin() { return db.prepare(`
+    SELECT e.id, e.title, e.start_date, e.end_date, e.city, e.country, e.status, t.tag_normalized
+    FROM events AS e
+    INNER JOIN tags AS t ON t.id = e.hashtag_tag_id
+    WHERE e.title LIKE ? ESCAPE '\\' OR t.tag_normalized LIKE ? ESCAPE '\\' OR e.id = ?
+    ORDER BY e.start_date DESC, e.id DESC
+    LIMIT ?
   `); },
 
   get listGames() { return db.prepare(`
@@ -11610,11 +11792,106 @@ export const eventRegistrations = {
      WHERE id = ? AND status = 'canceled'
   `); },
 
-  get cancelOwn() { return db.prepare(`
+  // A member's own withdrawal, or an organizer's or administrator's
+  // cancellation: the actor rides in updated_by and the reason in cancel_reason.
+  // Params: (reason, canceledAt, now, actorId, id).
+  get cancel() { return db.prepare(`
     UPDATE registrations
        SET status = 'canceled', cancel_reason = ?, canceled_at = ?,
            updated_at = ?, updated_by = ?, version = version + 1
      WHERE id = ? AND status IN ('pending', 'confirmed')
+  `); },
+
+  // One registration of an event, as its organizers and administrators see
+  // it: the member, the status and the payment it holds.
+  get findForEventById() { return db.prepare(`
+    SELECT r.id, r.member_id, r.status, r.registration_type, r.cancel_reason, r.payment_id,
+           r.updated_by,
+           p.status AS payment_status,
+           m.display_name
+    FROM registrations AS r
+    INNER JOIN members AS m ON m.id = r.member_id
+    LEFT JOIN payments AS p ON p.id = r.payment_id
+    WHERE r.id = ? AND r.event_id = ?
+  `); },
+
+  // The registrations still standing on an event, with the payment each holds:
+  // what an event's cancellation tells and what it ends at checkout.
+  get listStandingForEvent() { return db.prepare(`
+    SELECT r.id, r.member_id, r.status, r.payment_id, p.status AS payment_status,
+           r.attended_at, m.display_name
+    FROM registrations AS r
+    INNER JOIN members AS m ON m.id = r.member_id
+    LEFT JOIN payments AS p ON p.id = r.payment_id
+    WHERE r.event_id = ? AND r.status IN ('pending', 'confirmed')
+    ORDER BY r.registered_at, r.id
+  `); },
+
+  // The organizers' participant list: every registration still standing, with
+  // the member's location, standing, contact choice and payment. Canceled
+  // registrations leave the list.
+  get listParticipantsForEvent() { return db.prepare(`
+    SELECT r.id, r.member_id, r.status, r.registration_type, r.registered_at, r.tshirt_size,
+           r.attended_at,
+           m.display_name, m.slug, m.city, m.region, m.country,
+           m.email_visibility, m.login_email,
+           ms.tier_status, ms.is_active_player,
+           p.status AS payment_status, p.amount_cents, p.currency AS payment_currency
+    FROM registrations AS r
+    INNER JOIN members_onboarded AS m ON m.id = r.member_id AND m.is_deceased = 0
+    LEFT JOIN member_membership_status_current AS ms ON ms.member_id = r.member_id
+    LEFT JOIN payments AS p ON p.id = r.payment_id
+    WHERE r.event_id = ? AND r.status IN ('pending', 'confirmed')
+    ORDER BY m.display_name COLLATE NOCASE, r.id
+  `); },
+
+  // Every entry of the standing registrations, with the division's parts and
+  // the partner it names.
+  get listParticipantEntriesForEvent() { return db.prepare(`
+    SELECT rds.registration_id, ed.name AS division_name, ed.sort_order, ed.gender_eligibility,
+           ed.discipline_category, ed.offers_prize_money,
+           rds.partner_display_name, rds.enters_as_amateur,
+           p.display_name AS partner_member_name
+    FROM registration_discipline_selections AS rds
+    INNER JOIN registrations AS r ON r.id = rds.registration_id
+    INNER JOIN event_disciplines AS ed ON ed.id = rds.discipline_id
+    LEFT JOIN members_onboarded AS p ON p.id = rds.partner_member_id AND p.is_deceased = 0
+    WHERE r.event_id = ? AND r.status IN ('pending', 'confirmed')
+    ORDER BY ed.sort_order, ed.name COLLATE NOCASE, ed.id
+  `); },
+
+  // The registration summary's payment line: every registration's payment by
+  // its status, with the amounts.
+  get summarizePaymentsForEvent() { return db.prepare(`
+    SELECT p.status, COUNT(*) AS registrations, COALESCE(SUM(p.amount_cents), 0) AS amount_cents
+    FROM registrations AS r
+    INNER JOIN payments AS p ON p.id = r.payment_id
+    WHERE r.event_id = ?
+    GROUP BY p.status
+    ORDER BY p.status
+  `); },
+
+  // Confirmed registrations per day, from the first to the latest.
+  get countConfirmedByDay() { return db.prepare(`
+    SELECT substr(registered_at, 1, 10) AS day, COUNT(*) AS registered
+    FROM registrations
+    WHERE event_id = ? AND status = 'confirmed'
+    GROUP BY day
+    ORDER BY day
+  `); },
+
+  // An administrator's removal of a division whose entries are confirmed:
+  // the entries go with it. Listed first, so the preview and the audit row
+  // can name them.
+  get listSelectionsForDivision() { return db.prepare(`
+    SELECT rds.id, rds.registration_id, r.member_id, r.status
+    FROM registration_discipline_selections AS rds
+    INNER JOIN registrations AS r ON r.id = rds.registration_id
+    WHERE rds.discipline_id = ?
+    ORDER BY rds.id
+  `); },
+  get deleteSelectionsForDivision() { return db.prepare(`
+    DELETE FROM registration_discipline_selections WHERE discipline_id = ?
   `); },
 
   // A registration's entries are replaced whole when the member registers again.
@@ -11677,6 +11954,109 @@ export const eventRegistrations = {
     DELETE FROM registration_discipline_selections
      WHERE discipline_id = ?
        AND registration_id IN (SELECT id FROM registrations WHERE status <> 'confirmed')
+  `); },
+
+  // Marks a confirmed registration attended, once. Params:
+  // (attendedAt, actorId, now, actorId, registrationId, eventId).
+  get markAttended() { return db.prepare(`
+    UPDATE registrations
+       SET attended_at = ?, attended_marked_by_member_id = ?,
+           updated_at = ?, updated_by = ?, version = version + 1
+     WHERE id = ? AND event_id = ? AND status = 'confirmed' AND attended_at IS NULL
+  `); },
+
+  // An administrator's correction taking an attendance mark back. The Active
+  // Player grant it caused is a ledger row and stays. Params:
+  // (now, actorId, registrationId, eventId).
+  get unmarkAttended() { return db.prepare(`
+    UPDATE registrations
+       SET attended_at = NULL, attended_marked_by_member_id = NULL,
+           updated_at = ?, updated_by = ?, version = version + 1
+     WHERE id = ? AND event_id = ? AND attended_at IS NOT NULL
+  `); },
+
+  // Every confirmed registration of an event with its member and attendance:
+  // what a results upload matches names against, and what the attendance
+  // screens list. The member's historical identity rides along so a matched
+  // result links both.
+  get listConfirmedForAttendance() { return db.prepare(`
+    SELECT r.id, r.member_id, r.registration_type, r.attended_at, r.attended_marked_by_member_id,
+           m.display_name, m.historical_person_id,
+           ms.tier_status
+    FROM registrations AS r
+    INNER JOIN members AS m ON m.id = r.member_id AND m.deleted_at IS NULL
+    LEFT JOIN member_membership_status_current AS ms ON ms.member_id = r.member_id
+    WHERE r.event_id = ? AND r.status = 'confirmed'
+    ORDER BY m.display_name COLLATE NOCASE, r.id
+  `); },
+};
+
+// An organizer's results upload: the upload row, one entry per placement and
+// one participant row per named competitor, written together when the
+// organizer commits the preview. Corrections afterwards are the
+// administrator's (eventResultCorrection).
+export const eventResults = {
+  // The divisions of an event that already carry results, which a later
+  // upload may not add to.
+  get listDivisionsWithResults() { return db.prepare(`
+    SELECT DISTINCT discipline_id FROM event_result_entries
+    WHERE event_id = ? AND discipline_id IS NOT NULL
+  `); },
+
+  get countEntries() { return db.prepare(`
+    SELECT COUNT(*) AS n FROM event_result_entries WHERE event_id = ?
+  `); },
+
+  // Params: (id, now, actorId, now, actorId, eventId, actorId, uploadedAt,
+  // originalFilename, notes).
+  get insertUpload() { return db.prepare(`
+    INSERT INTO event_results_uploads (
+      id, created_at, created_by, updated_at, updated_by, version,
+      event_id, uploaded_by_member_id, uploaded_at, original_filename, notes
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
+  `); },
+
+  // Params: (id, now, actorId, now, actorId, eventId, disciplineId,
+  // uploadId, placement, scoreText).
+  get insertEntry() { return db.prepare(`
+    INSERT INTO event_result_entries (
+      id, created_at, created_by, updated_at, updated_by, version,
+      event_id, discipline_id, results_upload_id, placement, score_text
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
+  `); },
+
+  // Params: (id, now, actorId, now, actorId, entryId, order, memberId,
+  // displayName, historicalPersonId).
+  get insertParticipant() { return db.prepare(`
+    INSERT INTO event_result_entry_participants (
+      id, created_at, created_by, updated_at, updated_by, version,
+      result_entry_id, participant_order, member_id, display_name, historical_person_id
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
+  `); },
+
+  // The events a member currently organizes that have ended, with what their
+  // after-event obligations stand at: whether results are committed and
+  // whether an after-event summary went out. Params: (memberId, today).
+  get listEndedForOrganizer() { return db.prepare(`
+    SELECT e.id, e.title, e.end_date, e.sanction_status, e.status, t.tag_normalized,
+           EXISTS (SELECT 1 FROM event_result_entries WHERE event_id = e.id) AS has_results,
+           EXISTS (
+             SELECT 1 FROM member_announcements
+             WHERE summary_event_id = e.id AND status = 'approved'
+           ) AS summary_sent
+    FROM event_organizers_current AS eo
+    INNER JOIN events AS e ON e.id = eo.event_id
+    INNER JOIN tags AS t ON t.id = e.hashtag_tag_id
+    WHERE eo.member_id = ? AND e.end_date < ?
+      AND e.status IN ('reg_open', 'closed', 'completed')
+    ORDER BY e.end_date, e.id
+  `); },
+
+  // Whether an approved announcement carries this event's after-event summary.
+  get hasSummarySent() { return db.prepare(`
+    SELECT EXISTS (
+      SELECT 1 FROM member_announcements WHERE summary_event_id = ? AND status = 'approved'
+    ) AS sent
   `); },
 };
 
@@ -11763,6 +12143,20 @@ export const memberExport = {
     INNER JOIN event_disciplines AS ed ON ed.id = rds.discipline_id
     WHERE rds.partner_member_id = ?
     ORDER BY e.start_date, r.event_id, ed.sort_order, rds.id
+  `); },
+
+  // Every result an organizer's upload linked to the member: the event, the
+  // division, the place and the score. The other names on a doubles entry
+  // are left out, as the partner entries leave out who made them.
+  get competitionResults() { return db.prepare(`
+    SELECT ere.event_id, e.title AS event_title, e.start_date, ed.name AS division_name,
+           ere.placement, ere.score_text, erp.display_name
+    FROM event_result_entry_participants AS erp
+    INNER JOIN event_result_entries AS ere ON ere.id = erp.result_entry_id
+    INNER JOIN events AS e ON e.id = ere.event_id
+    LEFT JOIN event_disciplines AS ed ON ed.id = ere.discipline_id
+    WHERE erp.member_id = ?
+    ORDER BY e.start_date, ere.event_id, ere.placement, erp.id
   `); },
 
   // Every subscription row the member holds, whatever the list is now. The

@@ -186,6 +186,22 @@ publicRouter.post('/events/:eventKey/organizers',                    requireMemb
 publicRouter.post('/events/:eventKey/organizers/remove',             requireMember, eventController.postRemoveOrganizer);
 publicRouter.post('/events/:eventKey/step-down',                     requireMember, eventController.postStepDown);
 publicRouter.post('/events/:eventKey/registration-status',           requireMember, eventController.postRegistrationStatus);
+publicRouter.post('/events/:eventKey/close-registration',            requireMember, eventController.postCloseRegistration);
+publicRouter.post('/events/:eventKey/cancel',                        requireMember, eventController.postCancelEvent);
+publicRouter.post('/events/:eventKey/delete',                        requireMember, eventController.postDeleteEvent);
+publicRouter.get('/events/:eventKey/participants',                   requireMember, eventController.getParticipants);
+publicRouter.get('/events/:eventKey/participants.csv',               requireMember, eventController.getParticipantsCsv);
+publicRouter.post('/events/:eventKey/registrations/:registrationId/cancel', requireMember, eventController.postCancelRegistration);
+publicRouter.get('/events/:eventKey/summary',                        requireMember, eventController.getSummary);
+publicRouter.get('/events/:eventKey/check-in-sheet',                 requireMember, eventController.getCheckInSheet);
+publicRouter.get('/events/:eventKey/results',                        requireMember, eventController.getResults);
+publicRouter.get('/events/:eventKey/results/template.csv',           requireMember, eventController.getResultsTemplate);
+publicRouter.post('/events/:eventKey/results/preview',               requireMember, eventController.postResultsPreview);
+publicRouter.post('/events/:eventKey/results',                       requireMember, eventController.postResults);
+publicRouter.get('/events/:eventKey/attendance',                     requireMember, eventController.getAttendance);
+publicRouter.post('/events/:eventKey/attendance',                    requireMember, eventController.postAttendance);
+publicRouter.get('/events/:eventKey/email',                          requireMember, eventController.getEmail);
+publicRouter.post('/events/:eventKey/email',                         requireMember, eventController.postEmail);
 publicRouter.get('/events/:eventKey/sanction',                       requireMember, eventController.getSanction);
 publicRouter.post('/events/:eventKey/sanction',                      requireMember, eventController.postSanction);
 // A member's own registration, open to any signed-in member of any tier.

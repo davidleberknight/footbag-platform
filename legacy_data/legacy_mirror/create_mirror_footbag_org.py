@@ -127,6 +127,7 @@ import logging
 import mimetypes
 import hashlib
 import argparse
+import csv
 import html
 import fnmatch
 import json
@@ -682,6 +683,8 @@ SKIP_EXTENSIONS = [
     '.exe', '.dmg', '.msi', '.asx', '.php', '.sh', '.xml',
     '.mp3', '.ogg', '.wav', '.aac', '.m4a',
     '.svg',
+    # Code: the archive runs none, so none is downloaded (see the strip list).
+    '.js', '.mjs', '.swf', '.htc', '.xltm', '.xlsm', '.xlam', '.docm', '.dotm', '.pptm',
 ]
 RESUME_ON_RESTART = True
 # This is the IFPA's own sanctioned full-archive backup of sites it owns, run by
@@ -905,6 +908,15 @@ class MirrorState:
         self.stats['css_offsite_refs_dropped'] = 0
         self.stats['revisit_failures_made_permanent'] = 0
         self.stats['redirect_loops_settled'] = 0
+        # What this run's closing passes did, and the problems that must fail
+        # it. Never saved with the progress file: these describe one run, and a
+        # count carried into the next would report work it did not do.
+        self.stats_run = {}
+        # Pages this run fetched from the site, by absolute path: the bands
+        # date them today rather than carrying an earlier capture's date.
+        self.captured_this_run = set()
+        self.run_errors = []
+        self.run_warnings = []
         self.session_start = time.time()
         self.duplicate_redirects = {}
 
@@ -1964,9 +1976,22 @@ def strip_unservable_artifacts(dry_run=False, patterns=None):
     # every capture, and the next crawl would quietly restore what the last one
     # cleaned.
     #
+    # The capture holds exactly what the archive serves, so a real run also
+    # removes every file the publish would not upload (publish_would_withhold),
+    # whatever this list says. Placement runs first, so a file ruled private is
+    # already in custody. A caller naming its own patterns gets only those.
+    #
     # Returns the files removed, for the caller's log and for the tests.
+    match_publish = patterns is None
     patterns = load_unservable_patterns() if patterns is None else frozenset(patterns)
-    if not patterns:
+    withheld = _publish_withheld_patterns() if match_publish else []
+    if match_publish and withheld is None:
+        message = (f"The capture keeps files the archive may not serve: "
+                   f"{ARCHIVE_PUBLISH_EXCLUSIONS} cannot be read")
+        logging.error(message)
+        mirror_state.run_errors.append(message)
+        match_publish, withheld = False, []
+    if not patterns and not match_publish:
         return []
     root = Path(_www_root()).resolve()
     if not root.is_dir():
@@ -1976,8 +2001,9 @@ def strip_unservable_artifacts(dry_run=False, patterns=None):
     removed = []
     for path in sorted(p for p in root.rglob('*') if p.is_file()):
         rel = path.relative_to(root).as_posix()
-        if not any(fnmatch.fnmatch(rel, pat) or fnmatch.fnmatch(path.name, pat)
-                   for pat in patterns):
+        listed = any(fnmatch.fnmatch(rel, pat) or fnmatch.fnmatch(path.name, pat)
+                     for pat in patterns)
+        if not listed and not (match_publish and publish_would_withhold(rel, withheld)):
             continue
         removed.append(path)
         if not dry_run:
@@ -2013,6 +2039,8 @@ def strip_unservable_artifacts(dry_run=False, patterns=None):
         state_pruned = before - (len(mirror_state.sitemap) + len(mirror_state.content_hashes))
         mirror_state.save_progress()
 
+    if not dry_run:
+        mirror_state.stats_run['unservable_files_stripped'] = len(removed)
     verb = "would remove" if dry_run else "removed"
     logging.info(f"Unservable-artifact strip: {verb} {len(removed)} file(s) "
                  f"matching {len(patterns)} pattern(s), pruned {state_pruned} "
@@ -5746,6 +5774,39 @@ def print_stats():
         print(f"URLs settled as redirect loops: "
               f"{s.get('redirect_loops_settled', 0):,}")
     print(f"Regsummaries added: {s.get('regsummary_links_detected', 0):,}")
+    print(f"Members-only refusal pages not saved: "
+          f"{s.get('ifpa_refusal_pages_refused', 0):,}")
+    run = mirror_state.stats_run
+    if run:
+        print("-- this run's closing passes --")
+        if 'group_fetch' in run:
+            print(f"Group files: {run['group_fetch']}")
+        if 'refusal_pages_swept' in run:
+            print(f"Members-only refusal pages removed: {run['refusal_pages_swept']:,}")
+        if 'unservable_files_stripped' in run:
+            print(f"Code and other unservable files removed from the capture: "
+                  f"{run['unservable_files_stripped']:,}")
+        if 'framesets_converted' in run:
+            print(f"Frameset pages turned into ordinary pages: "
+                  f"{run['framesets_converted']:,}")
+        if 'server_directives_stripped' in run:
+            print(f"Pages cleared of server-side include directives: "
+                  f"{run['server_directives_stripped']:,}")
+        if 'group_pages_written' in run:
+            print(f"Group file pages current: {run['group_pages_written']:,}")
+            print(f"Group file pages withdrawn: {run['group_pages_withdrawn']:,}")
+        if 'pages_banded' in run:
+            print(f"Pages given the header and footer: {run['pages_banded']:,}")
+            print(f"Pages whose header and footer were rewritten: "
+                  f"{run['bands_rewritten']:,}")
+            print(f"Pages shown inside frame panes, left without bands of their own: "
+                  f"{run['framed_pages_left']:,}")
+    for warning in mirror_state.run_warnings:
+        print(f"WARNING: {warning}")
+    for error in mirror_state.run_errors:
+        print(f"ERROR: {error}")
+    if mirror_state.run_errors:
+        print(f"FAILED: {len(mirror_state.run_errors)} error(s) above")
     print("========================\n")
 
 def save_redirect_map():
@@ -5904,28 +5965,71 @@ def _www_root():
 
 
 ARCHIVE_BANNER_MARKER = 'mirror-archive-banner'
+ARCHIVE_FOOTER_MARKER = 'mirror-archive-footer'
 LIVE_SITE_URL = 'https://www.footbag.org'
 
-# The banner sits above the captured page's own header, so it is styled to read
-# as a masthead strip in the legacy palette rather than as a browser warning.
-# Inline, because the pages it lands on sit at every depth of the tree and an
-# external stylesheet would need a relative path computed per page; inline also
-# survives a page whose own stylesheet never captured.
-_BANNER_STYLE = (
-    'font-family:Verdana,Arial,sans-serif;font-size:8pt;line-height:1.5;'
-    'background:#f4f4f4;border-bottom:1px solid #999;color:#333;'
-    'padding:6px 10px;margin:0'
+# The header and footer are a dark band with white text, set apart from every
+# legacy page's own palette so no reader mistakes an archived page for the live
+# site. Inline, because the pages sit at every depth of the tree and an external
+# stylesheet would need a relative path computed per page; inline also survives
+# a page whose own stylesheet never captured.
+_BAND_STYLE = (
+    'display:block;box-sizing:border-box;width:100%;margin:0;'
+    'background:#1f2a36;color:#fff;font-family:Verdana,Arial,sans-serif;'
+    'line-height:1.5;text-align:left'
 )
+_HEADER_STYLE = _BAND_STYLE + ';font-size:12px;padding:10px 16px'
+_FOOTER_STYLE = _BAND_STYLE + ';font-size:11px;padding:8px 16px'
+_LIVE_BUTTON_STYLE = (
+    'display:inline-block;margin-top:6px;padding:4px 12px;background:#fff;'
+    'color:#1f2a36;font-weight:bold;text-decoration:none;border-radius:3px'
+)
+# The button's text names the address, so a reader sees where it goes.
+_LIVE_BUTTON = (f'<a href="{LIVE_SITE_URL}" style="{_LIVE_BUTTON_STYLE}">'
+                f'Go to the live site: {LIVE_SITE_URL}</a>')
 
 
-def _banner_html(captured_on):
+# Both builders return ASCII only, so the band can be spliced into a page's raw
+# bytes whatever encoding the page was captured in. Neither holds a nested
+# <div>, so the first closing tag after the marker ends it, which is what lets a
+# rerun find and replace it exactly.
+def _captured_on(day):
+    return day.strftime('%-d %B %Y')
+
+
+# The capture date rides on the band itself, machine-readable, so a rerun reads
+# it back from the page rather than from the file's modification time, which
+# every rewrite moves.
+_CAPTURED_ATTR = 'data-captured'
+
+
+def _header_html(day):
+    captured_on = _captured_on(day)
     return (
-        f'<div id="{ARCHIVE_BANNER_MARKER}" style="{_BANNER_STYLE}">'
-        f'<b>footbag.org archive</b> &mdash; page captured {captured_on}.<br>'
-        'A static, read-only snapshot of the legacy footbag.org, preserved by '
-        'the IFPA. Sign-in, search and forms are gone, videos are MP4, and links '
-        'to other sites appear as plain text.<br>'
-        f'Live site: <a href="{LIVE_SITE_URL}">www.footbag.org</a>'
+        f'<div id="{ARCHIVE_BANNER_MARKER}" {_CAPTURED_ATTR}="{day:%Y-%m-%d}" '
+        f'style="{_HEADER_STYLE}">'
+        '<strong style="display:block;font-size:15px;margin-bottom:4px">'
+        'This is the footbag.org Archive, not the live site.</strong>'
+        'You are on archive.footbag.org, a read-only snapshot of the original '
+        f'footbag.org as it stood on {captured_on}. The original site has been '
+        'retired and replaced by the new footbag.org. Nothing here is kept up to '
+        'date. The IFPA may correct, update or remove archived pages, so this '
+        'snapshot is not guaranteed to stay exactly as it is. Sign-in, search and '
+        'forms do not work here. Videos play as MP4, and links to other websites '
+        f'show as plain text.<br>{_LIVE_BUTTON}'
+        '</div>'
+    )
+
+
+def _footer_html(day):
+    captured_on = _captured_on(day)
+    return (
+        f'<div id="{ARCHIVE_FOOTER_MARKER}" {_CAPTURED_ATTR}="{day:%Y-%m-%d}" '
+        f'style="{_FOOTER_STYLE}">'
+        '<strong>footbag.org Archive</strong> &middot; read-only snapshot of the '
+        f'original footbag.org, captured {captured_on} &middot; not kept up to '
+        'date, and archived pages may be corrected or removed.'
+        f'<br>{_LIVE_BUTTON}'
         '</div>'
     )
 
@@ -6164,20 +6268,20 @@ _ARCHIVE_PAGE_STYLE = (
 )
 
 
-def _archive_page(title, body_html):
+def _archive_page(title, body_html, asset_prefix=''):
     # Dressed as the pages it sits among rather than as a bare document: a
     # generated page with no stylesheet renders in the browser's defaults and
     # reads as something that wandered in from another site. The site stylesheet
     # comes first so the page-specific block below can still override it, and the
-    # header element is what the stylesheet hangs the wordmark on. Relative paths
-    # suit a page written at the archive root, which is where the one caller
-    # writes; the stylesheet's own image URLs resolve against the stylesheet, so
-    # they hold wherever the page lives.
+    # header element is what the stylesheet hangs the wordmark on. The asset
+    # prefix climbs from the page's own folder back to the archive root, empty
+    # for a page written there; the stylesheet's own image URLs resolve against
+    # the stylesheet, so they hold wherever the page lives.
     return (
         '<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="UTF-8">\n'
-        f'<title>{title}</title>\n'
-        '<link href="css/fw.ico" rel="shortcut icon" type="image/x-icon"/>\n'
-        '<link href="global2/html/global.css" rel="stylesheet" type="text/css"/>\n'
+        f'<title>{html.escape(title, quote=False)}</title>\n'
+        f'<link href="{asset_prefix}css/fw.ico" rel="shortcut icon" type="image/x-icon"/>\n'
+        f'<link href="{asset_prefix}global2/html/global.css" rel="stylesheet" type="text/css"/>\n'
         f'<style>{_ARCHIVE_PAGE_STYLE}</style>\n'
         '</head>\n<body>\n'
         '<div id="MainHeader"></div>\n'
@@ -6833,112 +6937,259 @@ def _dangling_refs(page, www_root):
     return out
 
 
-def _front_door_pages():
-    """The pages a reader actually arrives on, resolved from the tree itself.
-
-    The homepage, everything its own main navigation links, the vhost root, each
-    championship-microsite and reference-wiki root, and the generated listing
-    page. Derived rather than listed: the navigation is the site's own statement
-    of its front doors, so this follows the capture instead of a hardcoded set
-    that rots the first time a menu changes.
-
-    Deep pages get no banner. Someone reading an event page has already come
-    through one of these, and a strip on all fifty thousand pages is a change to
-    every page of the archive to say something the entry points already said.
-    """
-    www = Path(_www_root())
-    home = www / 'index.html'
-    doors = []
-    if home.is_file():
-        doors.append(home)
-        soup = BeautifulSoup(home.read_text(encoding='utf-8', errors='replace'),
-                             'html.parser')
-        nav = soup.find(id='MainMenu') or soup
-        for anchor in nav.find_all('a', href=True):
-            href = anchor['href'].strip()
-            if not href or href.startswith(('#', 'http:', 'https:', 'mailto:')):
-                continue
-            target = (home.parent / unquote(urlparse(href).path)).resolve()
-            if target.is_file() and target.suffix.lower() in ('.html', '.htm'):
-                doors.append(target)
-    else:
-        logging.warning(
-            "Homepage not captured; the archive banner has no navigation to "
-            "derive its front doors from and lands only on the roots below")
-
-    # Every microsite and per-year championship root, plus the vhost root. These
-    # are entry points in their own right: a reader can arrive at a Worlds site
-    # without passing the archive homepage at all.
-    for candidate in sorted(www.glob('*/index.html')):
-        parent = candidate.parent.name.lower()
-        if parent == 'sites' or _worlds_year(parent) or parent.startswith('reference'):
-            doors.append(candidate)
-    for candidate in sorted(www.glob('sites/*/index.html')):
-        doors.append(candidate)
-
-    listing = www / ARCHIVE_DIRECTORY_FILENAME
-    if listing.is_file():
-        doors.append(listing)
-
-    seen, unique = set(), []
-    for d in doors:
-        key = str(d.resolve())
-        if key not in seen:
-            seen.add(key)
-            unique.append(d)
-    return unique
+def _band_re(marker):
+    # The band from its opening tag to the first closing </div>: neither band
+    # holds a nested div, so that is the whole band and nothing past it.
+    return re.compile(
+        rb'<div\b[^>]*\bid=["\']' + re.escape(marker.encode()) + rb'["\'][^>]*>.*?</div>',
+        re.S | re.I)
 
 
-def insert_archive_banner():
-    # What the archive is, said once at every door a reader can come in by: a
-    # frozen snapshot, nothing here updates, the controls are gone, and here is
-    # the live site. Without it a visitor arriving from a search engine or an old
-    # bookmark sees a page that looks live and has no way back.
-    #
-    # Runs at the end of a crawl rather than at capture time because the front
-    # doors are read from the homepage's own navigation, which has to exist on
-    # disk first. Marker-guarded, so a repeated run neither stacks banners nor
-    # rewrites a page it already did.
-    doors = _front_door_pages()
-    added = already = skipped = 0
-    for page in doors:
+_HEADER_BAND_RE = _band_re(ARCHIVE_BANNER_MARKER)
+_FOOTER_BAND_RE = _band_re(ARCHIVE_FOOTER_MARKER)
+_BODY_OPEN_RE = re.compile(rb'<body\b[^>]*>', re.I)
+_FRAGMENT_LEAD_RE = re.compile(rb'\s*(?:<!DOCTYPE[^>]*>\s*)?(?:<meta\b[^>]*>\s*)*', re.I)
+_BODY_CLOSE = b'</body>'
+
+
+def _banded(raw, header, footer):
+    """The page's bytes with exactly one header and one footer.
+
+    A band already present is replaced where it stands, so a rerun carries new
+    wording onto every page without stacking a second band; any extra copy is
+    dropped. Otherwise the header goes right after the opening <body> tag and
+    the footer right before the last </body>. A page the site served as a bare
+    fragment, with no body of its own, gets them at its start and end."""
+    header, footer = header.encode('ascii'), footer.encode('ascii')
+
+    def place(blob, pattern, band, at_start):
+        found = list(pattern.finditer(blob))
+        if found:
+            # Drop every copy after the first, back to front so the earlier
+            # offsets stay valid, then replace the first in place.
+            for extra in reversed(found[1:]):
+                blob = blob[:extra.start()] + blob[extra.end():]
+            first = found[0]
+            return blob[:first.start()] + band + blob[first.end():]
+        if at_start:
+            opening = _BODY_OPEN_RE.search(blob)
+            # A fragment's leading doctype and meta tags stay first: a browser
+            # looks for the character set only in the first kilobyte.
+            cut = opening.end() if opening else _FRAGMENT_LEAD_RE.match(blob).end()
+        else:
+            closing = blob.lower().rfind(_BODY_CLOSE)
+            cut = closing if closing != -1 else len(blob)
+        return blob[:cut] + band + blob[cut:]
+
+    banded = place(raw, _HEADER_BAND_RE, header, at_start=True)
+    return place(banded, _FOOTER_BAND_RE, footer, at_start=False)
+
+
+_OLD_BAND_DATE_RE = re.compile(rb'page captured (\d{1,2} [A-Z][a-z]+ \d{4})')
+_FRAMESET_RE = re.compile(rb'<frameset\b', re.I)
+_FRAME_SRC_RE = re.compile(rb'<frame\b[^>]*?\bsrc\s*=\s*["\']?([^"\'\s>]+)', re.I)
+_BAND_DATE_RE = re.compile(
+    rb'<div\b[^>]*\bid=["\']' + re.escape(ARCHIVE_BANNER_MARKER.encode())
+    + rb'["\'][^>]*\b' + re.escape(_CAPTURED_ATTR.encode())
+    + rb'=["\'](\d{4}-\d{2}-\d{2})["\']', re.I)
+
+
+FRAMES_LAYOUT_MARKER = 'mirror-frames'
+_PANE_SRC_RE = re.compile(rb'<iframe\b[^>]*?\bsrc\s*=\s*["\']([^"\']+)', re.I)
+
+
+def _framed_pages(pages, www):
+    """The pages a frame layout shows in its panes, and any frameset left
+    unconverted.
+
+    convert_framesets turns each frameset into an ordinary page that carries
+    the bands and lays its panes out as inline frames. The pages inside the
+    panes are slivers sized for a menu, a title strip or one sheet, where a
+    band of their own would cover what the pane exists to show, so they are
+    left as captured. A frameset still unconverted cannot carry a band at all:
+    one spliced in comes before it and the browser drops every frame."""
+    framed = set()
+    for page in pages:
         try:
             raw = page.read_bytes()
         except OSError:
             continue
-        # XML stored under an .html name (a feed, a WordPress API response) must
-        # never reach an HTML parser: parsing and re-serializing it would corrupt
-        # the document it is.
+        if _FRAMESET_RE.search(raw):
+            framed.add(os.path.abspath(page))
+            sources = _FRAME_SRC_RE.finditer(raw)
+        elif FRAMES_LAYOUT_MARKER.encode() in raw:
+            sources = _PANE_SRC_RE.finditer(raw)
+        else:
+            continue
+        for match in sources:
+            target = _resolve_local_ref(match.group(1).decode('utf-8', 'replace'),
+                                        page.parent, www)
+            if target is not None:
+                framed.add(os.path.abspath(target))
+    return framed
+
+
+def _pane_size(size):
+    # A frameset size is pixels ('110'), a percentage ('20%'), or a share of
+    # what is left ('*', '2*'); a site that wrote '100%' meant "the rest".
+    size = size.strip()
+    if size in ('*', '100%') or size.endswith('*'):
+        return f'flex:{size[:-1] or "1"} 1 0' if size.endswith('*') else 'flex:1 1 0'
+    if size.endswith('%'):
+        return f'flex:0 0 {size}'
+    digits = size.rstrip('px')
+    return f'flex:0 0 {digits}px' if digits.isdigit() else 'flex:1 1 0'
+
+
+def _frames_layout(frameset):
+    """A frameset as nested flex boxes of inline frames, at the original sizes.
+
+    Each pane keeps its name, so a menu link aimed at the content pane still
+    opens there. Plain HTML and CSS: nothing runs."""
+    vertical = not frameset.get('cols')
+    sizes = (frameset.get('rows') if vertical else frameset.get('cols')) or '*'
+    sizes = [s for s in sizes.split(',')]
+    children = [c for c in frameset.children if getattr(c, 'name', None) in ('frame', 'frameset')]
+    parts = []
+    for index, child in enumerate(children):
+        flex = _pane_size(sizes[index] if index < len(sizes) else '*')
+        if child.name == 'frameset':
+            inner = _frames_layout(child)
+        else:
+            src = html.escape(child.get('src') or '')
+            name = html.escape(child.get('name') or '')
+            scrolling = 'no' if (child.get('scrolling') or '').strip().lower() == 'no' else 'auto'
+            inner = (f'<iframe src="{src}" name="{name}" title="{name or src}" '
+                     f'scrolling="{scrolling}" style="display:block;width:100%;'
+                     'height:100%;border:0"></iframe>')
+        parts.append(f'<div style="{flex};display:flex;min-width:0;min-height:0">'
+                     f'{inner}</div>')
+    direction = 'column' if vertical else 'row'
+    return (f'<div style="display:flex;flex-direction:{direction};width:100%;'
+            f'height:100%">' + ''.join(parts) + '</div>')
+
+
+def convert_framesets():
+    """Turn every frameset into an ordinary page that carries the bands.
+
+    A frameset page has no body, so the archive's header and footer cannot sit
+    on it, and the frame sites would look unlike every other page. Each one
+    keeps its own head (title, character set) and gets a body holding its panes
+    as inline frames at the original sizes. The pages inside stay as captured.
+    Returns the pages converted."""
+    www = Path(_www_root())
+    converted = []
+    if not www.is_dir():
+        return converted
+    for page in sorted(p for p in www.rglob('*')
+                       if p.suffix.lower() in ('.html', '.htm') and p.is_file()):
+        raw = page.read_bytes()
+        start = _FRAMESET_RE.search(raw)
+        if not start:
+            continue
+        soup = BeautifulSoup(raw.decode('utf-8', errors='replace'), 'html.parser')
+        frameset = soup.find('frameset')
+        if frameset is None:
+            continue
+        layout = (f'<body style="margin:0">\n<div id="{FRAMES_LAYOUT_MARKER}" '
+                  'style="height:85vh;min-height:480px">'
+                  + _frames_layout(frameset) + '</div>\n</body>\n</html>\n')
+        head = raw[:start.start()]
+        _write_bytes_replacing(page, head + layout.encode('ascii', 'xmlcharrefreplace'))
+        converted.append(page)
+    mirror_state.stats_run['framesets_converted'] = len(converted)
+    logging.info(f"Frameset pages turned into ordinary pages: {len(converted)}")
+    return converted
+
+
+def _capture_day(page, raw, mtime):
+    """When this page was captured, as the bands state it.
+
+    A page this run fetched was captured today. Otherwise the date a band
+    already on the page records stands, so reruns and later rewrites never
+    move it. A page with no dated band takes its modification time from before
+    this run touched it: the settling passes rewrite pages without
+    recapturing them, and that rewrite is not a capture."""
+    key = os.path.abspath(page)
+    if key in mirror_state.captured_this_run:
+        return datetime.now()
+    recorded = _BAND_DATE_RE.search(raw)
+    if recorded:
+        try:
+            return datetime.strptime(recorded.group(1).decode(), '%Y-%m-%d')
+        except ValueError:
+            pass
+    # A band from before the date was carried as data said it in words; that
+    # statement is the capture date the page has always shown.
+    old_band = _HEADER_BAND_RE.search(raw)
+    stated = _OLD_BAND_DATE_RE.search(old_band.group(0)) if old_band else None
+    if stated:
+        try:
+            return datetime.strptime(stated.group(1).decode(), '%d %B %Y')
+        except ValueError:
+            pass
+    before = _pre_write_state.get(os.fspath(page))
+    return datetime.fromtimestamp(before[0] if before else mtime)
+
+
+def insert_archive_banner():
+    # What the archive is, said on every page: a frozen snapshot, nothing here
+    # updates, the controls are gone, and here is the live site. Every page
+    # rather than the entry points, because a reader arrives anywhere: a
+    # bookmark, a link a member shares, a search result from before the archive
+    # was gated. Without it such a page looks live and has no way back.
+    #
+    # Runs last, after every pass that writes pages, so generated pages carry
+    # the bands too. Works on raw bytes rather than a parsed tree: the band is
+    # ASCII, so splicing it in leaves every captured page's own markup and
+    # encoding exactly as captured, and it keeps a pass over the whole archive
+    # fast. A banded page keeps the modification time the write gives it, so a
+    # publish sees it changed; the capture date the bands state comes from
+    # _capture_day, never from that time.
+    www = Path(_www_root())
+    added = updated = unchanged = skipped = 0
+    if not www.is_dir():
+        logging.warning("Archive banner: no served tree to band")
+        return 0
+    pages = sorted(p for p in www.rglob('*')
+                   if p.suffix.lower() in ('.html', '.htm') and p.is_file())
+    framed = _framed_pages(pages, www)
+    for page in pages:
+        if os.path.abspath(page) in framed:
+            continue
+        try:
+            raw = page.read_bytes()
+            mtime = page.stat().st_mtime
+        except OSError:
+            continue
+        # XML stored under an .html name (a feed, a WordPress API response) is
+        # data, not a page: a band spliced into it breaks the document it is.
         if raw.lstrip()[:5].lower() == b'<?xml':
             skipped += 1
             continue
-        text = raw.decode('utf-8', errors='replace')
-        if ARCHIVE_BANNER_MARKER in text:
-            already += 1
+        day = _capture_day(page, raw, mtime)
+        banded = _banded(raw, _header_html(day), _footer_html(day))
+        if banded == raw:
+            unchanged += 1
             continue
-        soup = BeautifulSoup(text, 'html.parser')
-        if soup.body is None:
-            # A page the site served as a bare fragment, with no <body> of its
-            # own: the retired-forum notice is one, and it is on the main menu of
-            # every page in the archive. Skipping it leaves a front door with no
-            # statement of what the reader has arrived at, so the banner goes at
-            # the top of the fragment instead.
-            banner = BeautifulSoup(
-                _banner_html(datetime.fromtimestamp(page.stat().st_mtime)
-                             .strftime('%-d %B %Y')), 'html.parser')
-            soup.insert(0, banner)
-            _atomic_write_text(str(page), str(soup))
+        had_band = _HEADER_BAND_RE.search(raw) or _FOOTER_BAND_RE.search(raw)
+        _remember_pre_write_state(page)
+        temp_path = str(page) + '.tmp'
+        with open(temp_path, 'wb') as fh:
+            fh.write(banded)
+        os.replace(temp_path, page)
+        if had_band:
+            updated += 1
+        else:
             added += 1
-            continue
-        captured_on = datetime.fromtimestamp(page.stat().st_mtime).strftime('%-d %B %Y')
-        banner = BeautifulSoup(_banner_html(captured_on), 'html.parser')
-        soup.body.insert(0, banner)
-        _atomic_write_text(str(page), str(soup))
-        added += 1
+    mirror_state.stats_run['pages_banded'] = added
+    mirror_state.stats_run['bands_rewritten'] = updated
+    mirror_state.stats_run['framed_pages_left'] = len(framed)
     logging.info(
-        f"Archive banner: {added} page(s) banded, {already} already carried it, "
-        f"{skipped} skipped as non-HTML ({len(doors)} front door(s) found)")
-    return added
+        f"Archive header and footer: {added} page(s) banded, {updated} rewritten "
+        f"in place, {unchanged} already current, {skipped} skipped as XML, "
+        f"{len(framed)} frameset or framed page(s) left as captured")
+    return added + updated
 
 
 # Nav-menu items whose target was once excluded from the archive and a later
@@ -8075,7 +8326,460 @@ def neutralize_retired_host_links():
     return touched
 
 
+# The legacy site's answer to an account that is not an active IFPA member: a
+# full page in the site frame saying the function needs membership. The crawl
+# account is such an account, so every page gated that way (each group file's
+# detail page, the group index, a group's member view, the photo-set manager)
+# came back as this page. Both phrases are required, whitespace folded: the
+# headline alone could appear in an article, the sentence is the refusal's own.
+_IFPA_REFUSAL_MARKERS = ('IFPA Members Only', 'only available to active')
+
+
+def _is_ifpa_refusal(text):
+    # The cheap test first: almost no page carries the headline at all, and
+    # folding whitespace across every page of the archive is the costly part.
+    if 'Members Only' not in text:
+        return False
+    flat = ' '.join(text.split())
+    return all(marker in flat for marker in _IFPA_REFUSAL_MARKERS)
+
+
+def sweep_saved_refusal_pages():
+    """Delete every saved page that is the members-only refusal.
+
+    The crawl now refuses these as it meets them, but a resumed run never
+    refetches a page it already visited, so refusals an earlier run saved stay
+    on disk until this removes them. Runs before every pass that reads links,
+    so the dead-link pass settles each reference to a removed page. Returns the
+    pages removed."""
+    www = Path(_www_root())
+    removed = []
+    if not www.is_dir():
+        return removed
+    for page in sorted(p for p in www.rglob('*')
+                       if p.suffix.lower() in ('.html', '.htm') and p.is_file()):
+        try:
+            text = page.read_text(encoding='utf-8', errors='replace')
+        except OSError:
+            continue
+        if not _is_ifpa_refusal(text):
+            continue
+        page.unlink()
+        removed.append(page)
+        # A detail page is saved as <id>/index.html; an emptied folder would
+        # otherwise publish as nothing but still list in the tree.
+        try:
+            page.parent.rmdir()
+        except OSError:
+            pass
+    mirror_state.stats_run['refusal_pages_swept'] = len(removed)
+    logging.info(f"Members-only refusal pages removed from the capture: {len(removed)}")
+    return removed
+
+
+# A server-side include directive: an instruction to the old web server, kept
+# in a comment, such as the advert slot the site chrome carried on every page
+# ('<!--#include virtual="http://<%=$gHostName%>/ads/show/home" -->'). No
+# browser runs or shows it, but it is server code, and the archive holds none.
+SERVER_DIRECTIVE_RE = re.compile(
+    rb'<!--\s*#\s*(?:include|exec|echo|config|set|if|elif|else|endif|flastmod|'
+    rb'fsize|printenv)\b.*?-->', re.S | re.I)
+
+
+def strip_server_directives():
+    """Remove every server-side include directive from every page.
+
+    Returns the pages changed. Runs with the other settling passes, so a page
+    captured from now on is cleaned the same way as one already held."""
+    www = Path(_www_root())
+    changed = 0
+    if not www.is_dir():
+        return changed
+    for page in sorted(p for p in www.rglob('*')
+                       if p.suffix.lower() in ('.html', '.htm') and p.is_file()):
+        try:
+            raw = page.read_bytes()
+        except OSError:
+            continue
+        if b'<!--' not in raw:
+            continue
+        cleaned = SERVER_DIRECTIVE_RE.sub(b'', raw)
+        if cleaned != raw:
+            _write_bytes_replacing(page, cleaned)
+            changed += 1
+    mirror_state.stats_run['server_directives_stripped'] = changed
+    logging.info(f"Server-side include directives removed from {changed} page(s)")
+    return changed
+
+
+# The legacy group-file inventory and the program that recovers the files,
+# both outside the crawl: the inventory is written into the maintainers'
+# private checkout by legacy_data/scripts/publish_legacy_repo_data.py.
+_REPO_ROOT = SCRIPT_DIR.parent.parent
+GROUP_FILES_INVENTORY = (_REPO_ROOT / 'footbag_private_repo' / 'private-custody'
+                         / 'ifpa-group-files' / 'GROUP_FILES_INVENTORY.csv')
+FETCH_GROUP_FILES = SCRIPT_DIR / 'scripts' / 'fetch_group_files.py'
+# What the archive publish serves: its known types (the find in
+# scripts/publish-archive.sh) minus its exclusion list. A group page links a
+# file only if a member following the link would receive it.
+ARCHIVE_PUBLISH_EXCLUSIONS = _REPO_ROOT / 'scripts' / 'archive-publish-exclusions.txt'
+ARCHIVE_SERVED_SUFFIXES = frozenset({
+    '.html', '.htm', '.jpg', '.gif', '.mp4', '.css', '.pdf', '.ics', '.ttf',
+    '.eot', '.woff', '.woff2', '.ico', '.txt', '.ps',
+})
+GROUP_FILES_LINK_MARKER = 'mirror-group-files-link'
+# Marks a page this pass generated, so a later run can tell its own pages from
+# captured ones and withdraw one whose group no longer qualifies.
+GROUP_FILES_PAGE_MARKER = 'mirror-group-files'
+_GROUP_LINK_RE = re.compile(
+    rb'<p\b[^>]*\bid=["\']' + re.escape(GROUP_FILES_LINK_MARKER.encode())
+    + rb'["\'][^>]*>.*?</p>', re.S | re.I)
+# Where a group page lists its files, best first: the line it showed the crawl
+# account in place of the files, then the list's own column heading. The link
+# goes after the font tag closing that text, so it sits inside the same cell.
+_FILE_LIST_ANCHORS = (re.compile(rb'no files in working area', re.I),
+                      re.compile(rb'<b>\s*Name:\s*</b>', re.I))
+
+
+def _publish_withheld_patterns():
+    """The publish exclusion list's patterns, or None when it cannot be read:
+    without it nothing says which files the publish withholds."""
+    try:
+        lines = ARCHIVE_PUBLISH_EXCLUSIONS.read_text(encoding='utf-8').splitlines()
+    except OSError:
+        return None
+    return [line.strip() for line in lines
+            if line.strip() and not line.lstrip().startswith('#')]
+
+
+def _archive_serves(rel, withheld):
+    if Path(rel).suffix.lower() not in ARCHIVE_SERVED_SUFFIXES:
+        return False
+    name = Path(rel).name
+    return not any(fnmatch.fnmatch(rel, pat) or fnmatch.fnmatch(name, pat)
+                   for pat in withheld)
+
+
+def publish_would_withhold(rel, withheld):
+    """Whether the archive publish would leave this captured file out. A
+    re-encode sidecar travels with its media and is never itself withheld."""
+    if rel.endswith('.sanitized'):
+        return False
+    return not _archive_serves(rel, withheld)
+
+
+def _write_bytes_replacing(page, data):
+    _remember_pre_write_state(page)
+    temp_path = str(page) + '.tmp'
+    with open(temp_path, 'wb') as fh:
+        fh.write(data)
+    os.replace(temp_path, page)
+
+
+def _link_group_list_page(page, group_id):
+    """Point one captured copy of a group's page at its rebuilt file list, once.
+
+    The link goes inside the cell where the group's files were listed, after
+    the line the site showed the crawl account there, or after the list's
+    column heading when the page listed files. Returns 'linked', 'already',
+    'no page' or 'appended'."""
+    if not page.is_file():
+        return 'no page'
+    raw = page.read_bytes()
+    if GROUP_FILES_LINK_MARKER.encode() in raw:
+        return 'already'
+    link = (f'<p id="{GROUP_FILES_LINK_MARKER}">'
+            f'<a href="../../home/{group_id}/index.html">'
+            'Files posted to this group</a></p>').encode('ascii')
+    cut = None
+    for anchor_re in _FILE_LIST_ANCHORS:
+        anchor = anchor_re.search(raw)
+        if anchor:
+            closing_font = raw.lower().find(b'</font>', anchor.end())
+            cut = closing_font + len(b'</font>') if closing_font != -1 else anchor.end()
+            break
+    outcome = 'linked'
+    if cut is None:
+        closing = raw.lower().rfind(_BODY_CLOSE)
+        cut, outcome = (closing if closing != -1 else len(raw)), 'appended'
+    _write_bytes_replacing(page, raw[:cut] + link + raw[cut:])
+    return outcome
+
+
+def _unlink_group_list_pages(www, group_id):
+    """Withdraw the link to a withdrawn list from every captured group page.
+
+    Found by where the link points rather than by the inventory, which may no
+    longer name the group at all. Returns the pages changed."""
+    target = f'../../home/{group_id}/index.html'.encode()
+    changed = 0
+    listing = www / 'groups' / 'list'
+    for page in sorted(listing.glob('*/index.html')) if listing.is_dir() else []:
+        raw = page.read_bytes()
+        cleaned = _GROUP_LINK_RE.sub(
+            lambda m: b'' if target in m.group(0) else m.group(0), raw)
+        if cleaned != raw:
+            _write_bytes_replacing(page, cleaned)
+            changed += 1
+    return changed
+
+
+def _group_list_pages(www, group_id, keyword):
+    # The site served each group's page at its number and at its keyword, and
+    # other pages link both, so both copies carry the link.
+    # The keyword's case in the export need not match the folder the capture
+    # saved (SAFC against safc), so the folder is found without regard to case.
+    listing = www / 'groups' / 'list'
+    pages = [listing / group_id / 'index.html']
+    if keyword and keyword.lower() != group_id.lower() and '/' not in keyword:
+        folders = ({d.name.lower(): d.name for d in listing.iterdir() if d.is_dir()}
+                   if listing.is_dir() else {})
+        pages.append(listing / folders.get(keyword.lower(), keyword) / 'index.html')
+    return pages
+
+
+def generate_group_file_pages(inventory_path=None):
+    """Rebuild each public group's file list from the inventory.
+
+    The legacy site listed a group's files only on its member view, which
+    refused the crawl account, so the archive held the files with nothing
+    pointing at them. One page per public committee that has member-visible
+    files in the capture, at the member view's own address
+    (groups/home/<CommitteeID>), listing each file's name and description. A
+    file the archive publish serves is linked; one it withholds keeps its name
+    without a link, as the dead-link pass leaves any link it cannot honour.
+
+    A scoped file, a private committee's file, or a file not in the capture is
+    never named: the page lists only what the capture holds, after the
+    exclusion sweep and the group-file fetch have filed everything private
+    away. Needs no network, so a settle-only run rebuilds it too. Returns the
+    pages written."""
+    path = Path(inventory_path) if inventory_path else GROUP_FILES_INVENTORY
+    if not path.is_file():
+        message = (f"Group file pages not rebuilt: {path} is missing; "
+                   "legacy_data/scripts/publish_legacy_repo_data.py writes it")
+        logging.warning(message)
+        mirror_state.run_warnings.append(message)
+        return []
+    with path.open(encoding='utf-8', errors='replace', newline='') as fh:
+        rows = list(csv.DictReader(fh))
+    www = Path(_www_root())
+    withheld = _publish_withheld_patterns()
+    if withheld is None:
+        # Fail closed: list every file by name, link none, and fail the run, so
+        # no page offers a file the publish may withhold.
+        message = (f"Group file pages link no file: {ARCHIVE_PUBLISH_EXCLUSIONS} cannot "
+                   "be read, so which files the publish withholds is unknown")
+        logging.error(message)
+        mirror_state.run_errors.append(message)
+    keywords = {row['FileGroupID']: (row.get('CommitteeKeyword') or '').strip()
+                for row in rows if row.get('FileGroupID')}
+    by_group = {}
+    for row in rows:
+        rel = (row.get('FileLocation') or '').strip().lstrip('/')
+        if not rel or (row.get('FileScope') or '0') != '0':
+            continue
+        # Hidden by its uploader: the legacy group page showed it to its owner,
+        # the group's owner and administrators only.
+        if row.get('FileVisible') == '0':
+            continue
+        if row.get('CommitteePublic') != '1':
+            continue
+        if is_excluded_url(f'{BASE_URL}/{quote(rel)}'):
+            continue
+        if rel.lower().endswith('.zip'):
+            # A logo pack is held privately; what the archive serves is each
+            # logo converted from it, named <pack>-<logo>.jpg where it was posted.
+            folder, pack = (www / rel).parent, Path(rel).stem
+            for image in (sorted(folder.iterdir()) if folder.is_dir() else []):
+                if not (image.name.startswith(f'{pack}-') and image.suffix == '.jpg'):
+                    continue
+                label = f"{(row.get('FileName') or pack).strip()} ({image.stem[len(pack) + 1:]})"
+                by_group.setdefault(row['FileGroupID'], []).append(
+                    (image.relative_to(www).as_posix(), {**row, 'FileName': label}))
+            continue
+        if not (www / rel).is_file():
+            continue
+        by_group.setdefault(row['FileGroupID'], []).append((rel, row))
+
+    # A page an earlier run wrote for a group that no longer qualifies (its
+    # last file filed into custody, its committee made private) is withdrawn
+    # with the links to it, so no page goes on naming what members may not see.
+    withdrawn = 0
+    home = www / 'groups' / 'home'
+    for page in sorted(home.glob('*/index.html')) if home.is_dir() else []:
+        group_id = page.parent.name
+        if group_id in by_group:
+            continue
+        if GROUP_FILES_PAGE_MARKER.encode() not in page.read_bytes():
+            continue
+        page.unlink()
+        try:
+            page.parent.rmdir()
+        except OSError:
+            pass
+        _unlink_group_list_pages(www, group_id)
+        withdrawn += 1
+
+    written, appended = [], 0
+    prefix = '../../../'
+    for group_id in sorted(by_group, key=lambda g: (len(g), g)):
+        files = sorted(by_group[group_id],
+                       key=lambda item: ((item[1].get('FileName') or '').casefold(),
+                                         item[0]))
+        committee = files[0][1].get('CommitteeName') or f'Group {group_id}'
+        items = []
+        for rel, row in files:
+            label = html.escape((row.get('FileName') or '').strip() or Path(rel).name)
+            linked = withheld is not None and _archive_serves(rel, withheld)
+            entry = f'<a href="{prefix}{quote(rel)}">{label}</a>' if linked else label
+            description = (row.get('FileDescription') or '').strip()
+            if description:
+                entry += f' &mdash; {html.escape(description)}'
+            items.append(f'<li>{entry}</li>')
+        body = (f'<h1>{html.escape(committee)}</h1>\n'
+                '<p>Files posted to this group on the original footbag.org.</p>\n'
+                f'<ul id="{GROUP_FILES_PAGE_MARKER}">\n' + '\n'.join(items) + '\n</ul>')
+        page = www / 'groups' / 'home' / group_id / 'index.html'
+        page.parent.mkdir(parents=True, exist_ok=True)
+        new_page = _archive_page(committee, body, asset_prefix=prefix)
+        # Rewritten only when it changes, so a rerun leaves its bands and date alone.
+        current = page.read_text(encoding='utf-8', errors='replace') if page.is_file() else ''
+        if _HEADER_BAND_RE.sub(b'', _FOOTER_BAND_RE.sub(b'', current.encode())) \
+                != new_page.encode():
+            _atomic_write_text(str(page), new_page)
+        written.append(page)
+        for list_page in _group_list_pages(www, group_id, keywords.get(group_id, '')):
+            if _link_group_list_page(list_page, group_id) == 'appended':
+                appended += 1
+                message = (f"{list_page.relative_to(www)}: no file list found on the "
+                           "page, so the link to the group's files went at its end")
+                logging.warning(message)
+                mirror_state.run_warnings.append(message)
+    mirror_state.stats_run['group_pages_written'] = len(written)
+    mirror_state.stats_run['group_pages_withdrawn'] = withdrawn
+    logging.info(f"Group file pages: {len(written)} current, {withdrawn} withdrawn, "
+                 f"{appended} linked from a page end")
+    return written
+
+
+def _smoke_capped():
+    # A crawl capped for a smoke run is not a capture: recovering every group
+    # file into it would turn a short check into a long download.
+    return MAX_DEPTH < 50 or MAX_URLS < 1_000_000
+
+
+def run_group_file_fetch(offline=False):
+    """Recover every inventoried group file into the capture or custody, and
+    apply the maintainer's placement rulings.
+
+    Runs the recovery program as its own process, because it loads this module
+    itself, against this crawl's own tree. Its exit status is the inventory
+    check: non-zero means a file is held nowhere, which fails this run. Offline
+    (a settle-only run) it fetches nothing and only applies the rulings; a file
+    it could not fetch is then a warning naming the network crawl that brings
+    it in. Returns the exit status, or None when skipped."""
+    if not offline and _smoke_capped():
+        logging.info("Group file recovery skipped: this crawl is capped for a smoke run")
+        mirror_state.stats_run['group_fetch'] = 'skipped (smoke-capped crawl)'
+        return None
+    if not GROUP_FILES_INVENTORY.is_file():
+        message = (f"Group file recovery not run: {GROUP_FILES_INVENTORY} is missing; "
+                   "legacy_data/scripts/publish_legacy_repo_data.py writes it")
+        logging.error(message)
+        mirror_state.run_errors.append(message)
+        mirror_state.stats_run['group_fetch'] = 'not run (inventory missing)'
+        return None
+    archive = Path(_www_root())
+    archive.mkdir(parents=True, exist_ok=True)
+    command = [sys.executable, str(FETCH_GROUP_FILES), '--archive', str(archive)]
+    if offline:
+        command.append('--offline')
+    logging.info("Group file recovery: " + ' '.join(command))
+    # Streamed line by line into this run's log as the recovery goes, so a
+    # recovery that takes hours shows its progress and an interrupted one keeps
+    # everything it reported up to that point.
+    summary = None
+    with subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                          text=True, errors='replace', bufsize=1,
+                          env={**os.environ, 'PYTHONUNBUFFERED': '1'}) as proc:
+        for line in proc.stdout:
+            line = line.rstrip('\n')
+            logging.info(f"  group files | {line}")
+            if line.startswith('in the archive:'):
+                summary = line.strip()
+        returncode = proc.wait()
+    mirror_state.stats_run['group_fetch'] = (
+        (summary or 'no inventory summary printed')
+        + ('' if returncode == 0 else f' (exit {returncode})'))
+    if offline and returncode == 3:
+        message = ("Group files not yet held stay missing: a settle-only run fetches "
+                   "nothing, and a network crawl brings them in; the output above "
+                   "names each one")
+        logging.warning(message)
+        mirror_state.run_warnings.append(message)
+    elif returncode != 0:
+        message = (f"Group file recovery failed (exit {returncode}): "
+                   "a group file is held nowhere or could not be placed; its output "
+                   "above names each one")
+        logging.error(message)
+        mirror_state.run_errors.append(message)
+    return returncode
+
+
+def settle_for_publication(load_manifest=True):
+    """Bring a finished capture to publication state, offline.
+
+    The same passes a crawl ends with, minus everything that needs the live
+    site: the placement rulings, the refusal and server-directive sweeps, frame
+    conversion, the strip of everything the archive does not serve, the link
+    passes, the rebuilt group pages and the bands. Run by the settle-only mode
+    and at the end of every video backfill, whose referrer repairs rewrite
+    pages after the crawl settled them."""
+    if load_manifest:
+        # The pass that clears references to the retired host leaves a video
+        # still awaiting the backfill alone, and without the manifest it cannot
+        # tell which those are.
+        try:
+            mirror_state.skipped_videos = _load_skipped_video_manifest()
+        except SystemExit:
+            logging.info("No skipped-video manifest; nothing is awaiting backfill")
+    # The placement rulings first, offline: a file ruled private has to reach
+    # custody before the strip below deletes every type the archive does not
+    # serve.
+    run_group_file_fetch(offline=True)
+    sweep_saved_refusal_pages()
+    strip_server_directives()
+    convert_framesets()
+    wrap_plain_text_captures()
+    convert_dead_redirect_stubs()
+    # The strip runs wherever the tree is settled, not only at the end of a
+    # crawl, so it is never a step anyone has to remember before a publish.
+    strip_unservable_artifacts()
+    render_postscript_patterns()
+    settle_vhost_placeholder_pages()
+    relink_restored_nav_items()
+    neutralize_dead_script_controls()
+    drop_withheld_post_entries()
+    generate_group_file_pages()
+    # No network here, so a picture from another site not yet captured is left
+    # for --capture-offsite-images-only; embeds still go.
+    settle_offsite_resources(capture=False)
+    neutralize_dead_internal_links()
+    neutralize_retired_host_links()
+    insert_archive_banner()
+
+
 def generate_reachability_pages(seeds_dir=None):
+    # Refusal pages an earlier run saved go first: they are not content, and
+    # every pass below that reads links must see them gone so the references to
+    # them are settled.
+    sweep_saved_refusal_pages()
+    # Server code left in comments goes with them: the archive holds no code.
+    strip_server_directives()
+    # Frame sites become ordinary pages before any pass reads links, so the
+    # dead-link pass judges their panes like any other reference.
+    convert_framesets()
     # A stub whose destination is missing is settled before anything reads the
     # tree: the listing follows stubs to label their rows, and the dead-link pass
     # would otherwise leave the refresh in place while neutralizing only the
@@ -8110,6 +8814,9 @@ def generate_reachability_pages(seeds_dir=None):
     # A withheld post's listing entries go before the dead-link pass, which then
     # settles the links that remain to it, such as a neighbour's "newer post".
     drop_withheld_post_entries()
+    # The rebuilt group file lists before the dead-link pass, which then judges
+    # their links and the link added to each group's captured page like any other.
+    generate_group_file_pages()
     # Resources from other websites before the dead-link pass, so a captured
     # picture is already on disk when that pass judges what is missing. A crawl
     # has the network, so pictures that still load are captured here.
@@ -8129,8 +8836,8 @@ def generate_reachability_pages(seeds_dir=None):
     # nothing if generation failed, and the pass that turns a dead link into text
     # has already run by then.
     insert_homepage_directory_card()
-    # Last: the banner reads the homepage's navigation to find the front doors,
-    # and lands on the listing page too, so both have to be final first.
+    # Last: every page gets the header and footer, generated pages included, so
+    # every pass that writes a page has to be done first.
     insert_archive_banner()
 
 
@@ -9007,6 +9714,18 @@ def _ensure_start_urls(start_urls):
     mirror_state.queue[:0] = front
 
 
+def _held_sanitized_image(url):
+    """Whether this image URL's re-encoded output and sidecar are already held,
+    the same test the media step makes before it would read a download."""
+    if not is_media_file(url) or is_video_file(url):
+        return False
+    filepath = url_to_filepath(strip_query(_collapse_amp_entities(url)))
+    if not filepath:
+        return False
+    target = '.gif' if get_extension(url) == '.gif' else '.jpg'
+    return _is_already_sanitized(str(Path(filepath).with_suffix(target)))
+
+
 def crawl(start_urls):
     _ensure_start_urls(start_urls)
 
@@ -9022,6 +9741,13 @@ def crawl(start_urls):
         # BUG FIX: Mark as visited immediately after pop to prevent loss if crash occurs
         # before periodic save. This ensures queue and visited stay consistent.
         mirror_state.visited.add(visited_key)
+
+        # An image the capture already holds, re-encoded, is never requested
+        # again: the media step would discard the download unread, and a
+        # refresh of the whole archive would otherwise fetch every picture's
+        # bytes once more for nothing.
+        if _held_sanitized_image(original_url):
+            continue
 
         current_depth = mirror_state.url_depth.get(original_url, 0)
         if current_depth > MAX_DEPTH:
@@ -9165,6 +9891,20 @@ def crawl(start_urls):
                     mirror_state.stats.get('error_pages_refused', 0) + 1)
                 mirror_state.refused_pages.append((final_url, 'site-error-page'))
                 continue
+
+        # The site's members-only page is not the page asked for: the crawl
+        # account is not an active IFPA member. Never saved, and its links are
+        # not followed, since they are the upgrade and sign-in chrome.
+        if is_html and _is_ifpa_refusal(resp.text):
+            logging.warning(
+                f"Not saved, the site answered with its members-only page: {final_url}")
+            mirror_state.stats['ifpa_refusal_pages_refused'] = (
+                mirror_state.stats.get('ifpa_refusal_pages_refused', 0) + 1)
+            mirror_state.refused_pages.append((final_url, 'ifpa-members-only'))
+            continue
+        if is_html:
+            mirror_state.captured_this_run.add(
+                os.path.abspath(url_to_filepath(final_url)))
 
         # Special handlers below are all www app routes: a vhost path of the
         # same shape must take the general save path instead.
@@ -9402,6 +10142,10 @@ def main():
         _run_crawler()
     finally:
         restore_unchanged_mtimes()
+    # A problem the closing report listed fails the run, so a wrapper or an
+    # operator reading only the exit status sees it too.
+    if mirror_state.run_errors:
+        sys.exit(1)
 
 
 def _run_crawler():
@@ -9539,31 +10283,8 @@ def _run_crawler():
         # reads the tree and rewrites it, and the live site would tell them
         # nothing they do not already know, so a correction to any of them
         # belongs on the capture rather than on another eight-hour re-read.
-        # Manifest state is loaded first: the pass that clears references to the
-        # retired host leaves a video still awaiting the backfill alone, and
-        # without the manifest it cannot tell which those are.
-        try:
-            mirror_state.skipped_videos = _load_skipped_video_manifest()
-        except SystemExit:
-            logging.info("No skipped-video manifest; nothing is awaiting backfill")
-        convert_dead_redirect_stubs()
-        # The strip runs here too, and first, for the same reason it runs inside a
-        # crawl's own settling: this mode is how a finished capture is brought to
-        # publication state, and a type the archive cannot serve is exactly what
-        # "settle what the archive cannot deliver" means. Running it anywhere the
-        # tree is settled, rather than only at the end of a crawl, is what keeps it
-        # from being a step anyone has to remember before a publish.
-        strip_unservable_artifacts()
-        render_postscript_patterns()
-        settle_vhost_placeholder_pages()
-        relink_restored_nav_items()
-        neutralize_dead_script_controls()
-        drop_withheld_post_entries()
-        # No network here, so a picture from another site not yet captured is
-        # left for --capture-offsite-images-only; embeds still go.
-        settle_offsite_resources(capture=False)
-        neutralize_dead_internal_links()
-        neutralize_retired_host_links()
+        settle_for_publication()
+        print_stats()
         return
 
     if args.capture_offsite_images_only:
@@ -9589,9 +10310,9 @@ def _run_crawler():
         seed_paths = args.seeds if args.seeds else [SEEDS_DIR]
         generate_archive_directory(seed_paths[0] if len(seed_paths) == 1
                                    and os.path.isdir(seed_paths[0]) else None)
-        # The listing is a front door and is written fresh here, so it loses the
-        # banner the crawl gave it. Re-banding is marker-guarded, so every other
-        # door keeps the one it already carries and is not rewritten.
+        # The listing is written fresh here, so it loses the header and footer
+        # the crawl gave it. Banding leaves a page already carrying the current
+        # bands untouched, so no other page is rewritten.
         insert_archive_banner()
         return
 
@@ -9683,6 +10404,10 @@ def _run_crawler():
             run_video_backfill(seed_from=args.seed_videos_from,
                                retry_failed=args.retry_failed_videos)
             robot_checker.save_cache()
+            # The backfill rewrites the pages that refer to each video, so the
+            # tree is settled again before anything publishes it; no separate
+            # settle run is left for the operator to remember.
+            settle_for_publication(load_manifest=False)
             print_stats()
             logging.info("Video backfill run complete")
             return
@@ -9717,6 +10442,13 @@ def _run_crawler():
         # before the generated pages so those never link something it removed.
         mirror_state.save_progress()
         apply_exclusions_sweep()
+        # Every inventoried group file, recovered into this capture or into
+        # custody. The pages that link group files refuse the crawl account, so
+        # following links never reaches them; this is the step that does, and
+        # the inventory check it ends with is part of this run's verdict. After
+        # the exclusion sweep, so nothing it files is swept again, and before
+        # the generated pages, so the rebuilt group lists see what it brought in.
+        run_group_file_fetch()
         # Wrap the markup-free captures for the same reason the sweep runs here:
         # publishing is what happens next, and it refuses a whole capture over a
         # page that declares no character set. The legacy site serves some pages

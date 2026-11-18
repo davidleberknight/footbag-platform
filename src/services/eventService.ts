@@ -6,6 +6,10 @@
  *   - Management of the event's categories and divisions (event_disciplines rows)
  *   - Co-organizer management
  *   - Sanction requests
+ *   - Cancellation, closing and deletion of events, and cancellation of registrations
+ *   - The organizers' participant list, exports, check-in sheet and participant email
+ *   - The writes of an administrator's event corrections (AdminEventService shapes
+ *     their pages)
  *   - Results upload
  *   - Public event browse and detail page reads
  *
@@ -22,12 +26,12 @@
  *     before DB lookup; no aliasing, no fuzzy match.
  *   - Status state machine: `draft -> pending_approval -> reg_open -> closed ->
  *     completed | canceled`; a rejected sanction request returns `pending_approval ->
- *     draft`. `completed` and `canceled` are terminal. The status names the
- *     registration lifecycle; results publication is a separate concern.
+ *     draft`. `completed` and `canceled` are terminal. The first committed results
+ *     upload moves an event to `completed`, from `reg_open` or `closed`.
  *   - Public detail visibility limited to `reg_open`, `closed`, `completed`. Other
  *     statuses resolve through standard not-found behavior.
- *   - HD guard: events with public result rows are preserved permanently. Draft and
- *     canceled events HD immediately. Cannot delete an event with confirmed registrations.
+ *   - HD guard: an event is hard-deleted only if it never took a registration, has no
+ *     result rows and sent no participant email, and is not pending_approval or completed.
  *   - Creating a free event takes Tier 1 benefits and opens it at once
  *     (`draft -> reg_open` in the creating transaction, emailing its organizers).
  *     Choosing the sanctioned path, and with it any registration fee, takes Tier 2
@@ -94,42 +98,107 @@
  *     division has. A signed-in member also sees who is registered (confirmed
  *     registrations only, no contact details) and their own registration.
  *   - Removing a division takes with it the entries no confirmed registration holds.
+ *   - Cancellation of an event or a registration is one method each with two doors:
+ *     an organizer on an event they organize, found by key, and an administrator
+ *     on any event, found by id. Both take a reason, which goes into the audit row
+ *     and the notice. Canceling an event keeps its confirmed registrations as the
+ *     record of who entered, ends the open checkouts, cancels the pending ones,
+ *     closes its open sanction item, and emails every registrant and organizer.
+ *     Canceling a registration emails its member. A paid registrant is told that
+ *     the Treasurer arranges any refund outside the platform.
+ *   - Closing registration (`reg_open -> closed`) is irreversible; the
+ *     online-registration switch is the reversible pause.
+ *   - The participant list, its CSV export, the registration summary, the
+ *     check-in sheet and participant email are for the event's organizers only.
+ *     The export, the sheet and the email reach confirmed registrations only. A
+ *     participant's email shows only where they made it visible to members.
+ *     Participant email goes to the event audience through the outbox, plain
+ *     text with a sender line, archived, one per event in any 24 hours.
+ *   - Administrator corrections reach any field of any event, its sanction once
+ *     it has opened, divisions with confirmed entries, and a registration's
+ *     attendance. Each takes a reason, previews before it writes, writes nothing
+ *     when nothing changes, records each changed value before and after, and
+ *     emails the current organizers. Taking an attendance mark back leaves the
+ *     Active Player grant it caused, which is corrected on the member record.
+ *   - Results upload: an organizer uploads a CSV file from the event's last day
+ *     onward, on an event that opened. The file is read into a preview that
+ *     writes nothing; the preview's text travels in the form, so nothing is held
+ *     between the steps, and the commit reads it again with the organizer's
+ *     decisions (declared ties, unadvertised divisions confirmed as contested,
+ *     unmatched names accepted). A malformed file, a cell a spreadsheet would run
+ *     as a formula, an undeclared repeated place and a division that already has
+ *     results are refused. Names are matched against confirmed registrations as
+ *     a check, not a gate. The commit writes the upload, its entries and
+ *     competitors, any unadvertised division, the event's completion and the
+ *     attendance of every placing member with a confirmed registration, in one
+ *     transaction. Published results are corrected by an administrator
+ *     (AdminEventResultService), never by a second upload.
+ *   - Attendance: from the event's last day, organizers mark confirmed
+ *     registrations attended, once each. Each mark grants or extends a Tier 0
+ *     member's Active Player standing (ActivePlayerService.applyAttendanceInTx,
+ *     in the mark's transaction) and emails a member whose standing changed.
+ *   - After-event obligations: an event that has ended owes its results; a
+ *     sanctioned one also owes its after-event summary, an approved announcement
+ *     marked as its summary. Both are due within twenty days of the last day. A
+ *     sanctioned event past that with no results shows its organizers
+ *     "Sanctioning requirements not met" on its manage page and its upload page,
+ *     never on the public event page, and every current organizer has a
+ *     dashboard item (eventActionSource) until what is owed is done.
  *
  * Persistence:
  *   events, event_disciplines, discipline_games (read), event_organizers, event_results_uploads,
  *   event_result_entries, event_result_entry_participants, tags, registrations,
- *   registration_discipline_selections, audit_entries, outbox_emails, work_queue_items.
+ *   registration_discipline_selections, email_archives, audit_entries, outbox_emails,
+ *   work_queue_items, active_player_grants (through ActivePlayerService),
+ *   member_announcements (read: whether an after-event summary was sent).
  *
  * Side effects:
  *   - audit_entries append (event.created, event.details_edited,
  *     event.division_added / _changed / _removed, event.organizer_assigned,
  *     event.organizer_removed, event.organizer_stepped_down,
  *     event.registration_withdrawn, event.registration_status_changed,
+ *     event.registration_closed, event.registration_canceled, event.canceled,
+ *     event.deleted, event.participants_emailed, event.corrected,
+ *     event.description_cleared, event.division_corrected,
  *     event.sanction_requested, event.sanction_approved, event.sanction_rejected,
- *     event.sanction_awarded)
+ *     event.sanction_awarded, event.results_uploaded, event.attendance_marked,
+ *     event.attendance_corrected; active_player.grant and _extend through
+ *     ActivePlayerService)
  *   - outbox_emails enqueue (organizer confirmations, participant notices, sanction
- *     request and decisions), inside the act's transaction
+ *     request and decisions, cancellations, correction notices, participant
+ *     email, the Active Player notice an attendance grant sends), inside the
+ *     act's transaction
  *   - work_queue_items insert (`sanction_request`, routine: read on the queue and
- *     rolled up in the administrators' digest) and resolve on its decision
+ *     rolled up in the administrators' digest), resolved on its decision and
+ *     dismissed when the event is canceled
  *
  * Service shape: singleton object. It reaches the payment provider only through
- * PaymentService, never an adapter of its own.
+ * PaymentService and the outbox only through EmailService and the
+ * communication service's event audience, never an adapter of its own.
  */
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import {
   PublicCompletedEventSummaryRow,
   PublicEventDetailRow,
   PublicEventDisciplineRow,
   PublicEventResultRow,
   PublicEventSummaryRow,
+  emailArchives,
   eventOrganizers,
   eventRegistrations,
+  eventResults,
   eventWrites,
   mediaTags,
+  outbox,
   publicEvents,
   transaction,
   workQueue,
 } from '../db/db';
+import { getCommunicationService } from './communicationService';
+import { tierBadgeShort } from './membershipTieringService';
+import { csvRow } from '../lib/csv';
+import { downloadFilename } from '../lib/downloadFilename';
+import type { PrintColumn, PrintRow, PrintableDocument } from '../lib/printableDocument';
 import { config } from '../config/env';
 import { workQueueService } from './workQueueService';
 import { enforceWorkQueueResolveLimit } from './identityAccessService';
@@ -144,11 +213,20 @@ import { hasTier1Benefits, isTier2Plus } from './tierPredicates';
 import { checkTypedSlug } from './typedTokenRules';
 import { slugifyForTag } from './slugify';
 import { INVALID_TEXT_ENCODING_MESSAGE, sanitizeUserText } from '../lib/textSanitizer';
-import { canonicalCountryName } from './countryUtils';
+import { canonicalCountryName, personLocation } from './countryUtils';
 import { COUNTRY_CHOICE_MESSAGE } from './memberLocationRules';
 import { emailService } from './emailService';
 import { locationPickers } from './memberService';
 import { paymentService } from './paymentService';
+import { applyAttendanceInTx } from './activePlayerService';
+import { formatDateDisplay } from './dateFormat';
+import {
+  navigateTo, pendingAction, urgentAction,
+  type MemberActionContext, type MemberActionItem, type MemberActionSource,
+} from './memberActionItem';
+import {
+  RESULTS_FILE_MAX_BYTES, RESULTS_FILE_MAX_ROWS, readResultsFile, resultsFileTemplate, type ResultsPreview,
+} from './eventResultsFile';
 import {
   REGISTRATION_TYPE_LABELS,
   eventDatesPhrase,
@@ -213,6 +291,8 @@ export interface PublicEventResultParticipant {
   participantDisplayName: string;
   participantOrder: number;
   participantHref: string | null;
+  /** "Amateur" for an entrant who entered this prize-money division as one; null otherwise. */
+  amateurLabel: string | null;
 }
 
 export interface PublicResultPlacement {
@@ -560,6 +640,7 @@ function groupPublicResultRows(resultRows: PublicEventResultRow[]): PublicResult
       participantDisplayName: row.participant_display_name,
       participantOrder: row.participant_order,
       participantHref,
+      amateurLabel: row.participant_is_amateur === 1 ? 'Amateur' : null,
     });
   }
 
@@ -794,6 +875,31 @@ export interface ManageEventContent {
     /** Said instead of the button to an organizer below Tier 2. */
     tierNote: string | null;
   } | null;
+  /** Results and attendance, once the event has opened for registration. */
+  results: {
+    statusLine: string;
+    badge: string | null;
+    /** The upload page, from the event's last day. */
+    uploadHref: string | null;
+    attendanceHref: string | null;
+    /** For a sanctioned event that has ended and not yet sent its after-event summary. */
+    summaryLine: string | null;
+    summaryHref: string | null;
+  } | null;
+  /** The participant tools, once the event has opened for registration. */
+  participants: {
+    participantsHref: string;
+    summaryHref: string;
+    emailHref: string;
+    checkInHref: string;
+  } | null;
+  /** The irreversible close, while registration is open. */
+  closeRegistrationAction: string | null;
+  /** Cancel or delete, offered only where the act is allowed. */
+  cancelEventAction: string | null;
+  deleteEventAction: string | null;
+  /** Why the event takes no further changes, on a canceled or completed event. */
+  terminalNote: string | null;
 }
 
 /** The sanction request form as typed: every field a string, as the browser sends it. */
@@ -879,7 +985,179 @@ export interface EventConfirmContent {
   buttonLabel: string;
   cancelHref: string;
   hiddenMemberId: string | null;
+  /** The typed reason an act whose motive the audit trail needs asks for. */
+  reasonField: { label: string; value: string; error: string | null } | null;
 }
+
+/** Who cancels: one of the event's organizers, or an administrator on any event. */
+export type EventActor = { kind: 'organizer' | 'admin'; memberId: string };
+
+export type CancelEventResult =
+  | { branch: 'needs_confirmation'; eventTitle: string; registrantCount: number; hasPaid: boolean }
+  | { branch: 'canceled' | 'own_repeat' | 'already_held'; eventTitle: string; notified: number };
+
+export type CancelRegistrationResult =
+  | { branch: 'needs_confirmation'; eventTitle: string; memberName: string; isPaid: boolean }
+  | { branch: 'canceled' | 'own_repeat' | 'already_held'; eventTitle: string; memberName: string };
+
+export type DeleteEventResult =
+  | { branch: 'needs_confirmation'; eventTitle: string }
+  | { branch: 'deleted' | 'already_held' };
+
+export interface ParticipantEntryView {
+  divisionName: string;
+  partner: string | null;
+  amateurLabel: string | null;
+}
+
+export interface ParticipantRowView {
+  registrationId: string;
+  name: string;
+  profileHref: string;
+  registeredOn: string;
+  statusLabel: string;
+  typeLabel: string;
+  tierLabel: string;
+  activePlayerLabel: string;
+  location: string;
+  email: string | null;
+  paymentLabel: string | null;
+  tshirtSize: string | null;
+  entries: ParticipantEntryView[];
+  cancelAction: string | null;
+  /** "Attended" once marked; null until then. */
+  attendedLabel: string | null;
+  /** True for a confirmed registration the organizers can still mark attended. */
+  canMarkAttended: boolean;
+}
+
+export interface ParticipantsContent {
+  notice: OutcomeNoticeView | null;
+  eventTitle: string;
+  confirmedCount: number;
+  pendingCount: number;
+  /** The form action marking attendance, once the event's last day has come; null before. */
+  attendanceAction: string | null;
+  showPayment: boolean;
+  showTshirt: boolean;
+  sortLinks: Array<{ label: string; href: string; isActive: boolean }>;
+  rows: ParticipantRowView[];
+  hasRows: boolean;
+  csvHref: string;
+  checkInByNameHref: string;
+  checkInByTypeHref: string;
+  summaryHref: string;
+  emailHref: string;
+  manageHref: string;
+}
+
+/** What an event owes after it ends, and whether the badge shows. */
+export interface EventObligations {
+  /** The day after the event's last day has come. */
+  ended: boolean;
+  isSanctioned: boolean;
+  resultsOwed: boolean;
+  summaryOwed: boolean;
+  /** The last day of the twenty days after the event's last day. */
+  deadline: string;
+  /** Past the deadline: the twentieth day after the last day has gone by. */
+  overdue: boolean;
+  /** "Sanctioning requirements not met", shown to its organizers only: a sanctioned event past its deadline with no results. */
+  showBadge: boolean;
+}
+
+export interface ResultsPreviewView {
+  /** The file's text, carried to the next step so nothing is stored between them. */
+  text: string;
+  filename: string;
+  fileErrors: string[];
+  problems: string[];
+  hasProblems: boolean;
+  groups: Array<{
+    name: string;
+    /** "Not advertised: Net", for a division the event did not carry. */
+    newLabel: string | null;
+    rows: Array<{
+      place: number;
+      tieLabel: string | null;
+      competitors: Array<{ name: string; matchLabel: string; isMatched: boolean }>;
+      score: string | null;
+    }>;
+  }>;
+  ties: Array<{ field: string; value: string; label: string; checked: boolean }>;
+  contested: Array<{ field: string; value: string; label: string; checked: boolean }>;
+  unmatchedCount: number;
+  acceptUnmatchedChecked: boolean;
+  missingDivisionsText: string | null;
+  rowCount: number;
+  committable: boolean;
+}
+
+export interface ResultsUploadContent {
+  notice: OutcomeNoticeView | null;
+  errorMessage: string | null;
+  eventTitle: string;
+  badge: string | null;
+  /** Why results cannot be uploaded yet; null once they can. */
+  notYetText: string | null;
+  canUpload: boolean;
+  hasResults: boolean;
+  previewAction: string;
+  commitAction: string;
+  templateHref: string;
+  eventHref: string;
+  attendanceHref: string;
+  maxSizeText: string;
+  preview: ResultsPreviewView | null;
+}
+
+export interface AttendanceContent {
+  notice: OutcomeNoticeView | null;
+  eventTitle: string;
+  markAction: string;
+  /** Confirmed registrations not yet marked attended, to tick. */
+  unmarked: Array<{ registrationId: string; name: string; field: string; tierLabel: string }>;
+  marked: Array<{ name: string; markedOn: string }>;
+  hasUnmarked: boolean;
+  hasMarked: boolean;
+  participantsHref: string;
+}
+
+export interface RegistrationSummaryContent {
+  eventTitle: string;
+  confirmedCount: number;
+  pendingCount: number;
+  byType: Array<{ label: string; count: number }>;
+  byDivision: Array<{ name: string; count: number }>;
+  hasDivisions: boolean;
+  payments: Array<{ label: string; count: number; amount: string }>;
+  hasPayments: boolean;
+  timeline: Array<{ day: string; count: number }>;
+  hasTimeline: boolean;
+  tshirts: Array<{ size: string; count: number }> | null;
+  participantsHref: string;
+}
+
+export interface EmailParticipantsContent {
+  notice: OutcomeNoticeView | null;
+  eventTitle: string;
+  formAction: string;
+  values: { subject: string; bodyText: string; sendToken: string };
+  fieldErrors: Record<string, string>;
+  errorMessage: string | null;
+  recipientCount: number;
+  /** Set once the organizer asks to preview: the message as it will go out. */
+  preview: { subject: string; bodyText: string } | null;
+  /** Why no email can be sent today, in place of the form's send button. */
+  sendBlockedText: string | null;
+  sent: Array<{ subject: string; bodyText: string; sentOn: string; senderName: string; recipientCount: number }>;
+  hasSent: boolean;
+  participantsHref: string;
+}
+
+export type EmailParticipantsResult =
+  | { branch: 'sent' | 'own_repeat'; recipients: number }
+  | { branch: 'no_recipients' };
 
 interface EventRow {
   id: string;
@@ -913,6 +1191,7 @@ interface EventRow {
   sanction_insurance: string | null;
   prize_money_total_cents: number | null;
   prize_money_currency: string | null;
+  cancel_reason: string | null;
   tag_normalized: string;
 }
 
@@ -1735,6 +2014,379 @@ function absoluteUrl(path: string): string {
   return `${config.publicBaseUrl.replace(/\/+$/, '')}${path}`;
 }
 
+// ── Organizer management helpers ──────────────────────────────────────────────
+
+/** Stored on a pending registration the event's cancellation ends. */
+const EVENT_CANCELED = 'Event canceled';
+const REASON_MAX = 500;
+const DELETE_HAS_REGISTRATIONS =
+  'This event has taken registrations, so it is kept as a record and cannot be deleted. You can cancel it instead.';
+const PARTICIPANT_EMAIL_DAILY =
+  'An email already went to this event\'s participants in the last 24 hours. The next one can go 24 hours after it.';
+const PARTICIPANT_SUBJECT_MAX = 200;
+const PARTICIPANT_BODY_MAX = 10000;
+
+interface StandingRegistrationRow {
+  id: string;
+  member_id: string;
+  status: 'pending' | 'confirmed';
+  payment_id: string | null;
+  payment_status: string | null;
+  display_name: string;
+}
+
+interface EventRegistrationRow {
+  id: string;
+  member_id: string;
+  status: string;
+  registration_type: RegistrationType;
+  cancel_reason: string | null;
+  payment_id: string | null;
+  payment_status: string | null;
+  display_name: string;
+}
+
+interface ParticipantRow {
+  id: string;
+  member_id: string;
+  status: 'pending' | 'confirmed';
+  registration_type: RegistrationType;
+  registered_at: string;
+  tshirt_size: string | null;
+  attended_at: string | null;
+  display_name: string;
+  slug: string;
+  city: string | null;
+  region: string | null;
+  country: string | null;
+  email_visibility: string;
+  login_email: string | null;
+  tier_status: string | null;
+  is_active_player: number | null;
+  payment_status: string | null;
+  entries: ParticipantEntryView[];
+}
+
+/** A typed reason, cleaned; empty when nothing usable was typed. */
+function cleanReason(raw: string): string {
+  const cleaned = sanitizeUserText(raw ?? '', 'single_line');
+  return cleaned.status === 'ok' ? cleaned.text : '';
+}
+
+/** The reason an act whose motive the audit trail needs must carry. */
+function requireReason(raw: string): string {
+  const cleaned = sanitizeUserText(raw ?? '', 'single_line');
+  if (cleaned.status !== 'ok') {
+    throw new ValidationError(INVALID_TEXT_ENCODING_MESSAGE, { fieldErrors: { reason: INVALID_TEXT_ENCODING_MESSAGE } });
+  }
+  if (cleaned.text === '') {
+    throw new ValidationError('Enter a reason.', { fieldErrors: { reason: 'Enter a reason.' } });
+  }
+  if (cleaned.text.length > REASON_MAX) {
+    const message = `The reason can be at most ${REASON_MAX} characters.`;
+    throw new ValidationError(message, { fieldErrors: { reason: message } });
+  }
+  return cleaned.text;
+}
+
+/** How a registration's payment reads to its organizers. */
+function paymentLabel(status: string | null): string {
+  switch (status) {
+    case null: return 'No fee';
+    case 'succeeded': return 'Paid';
+    case 'pending': return 'Awaiting payment';
+    case 'failed': return 'Failed';
+    case 'canceled': return 'Canceled';
+    case 'refunded': return 'Refunded';
+    default: return status;
+  }
+}
+
+function eventBasePath(event: { tag_normalized: string }): string {
+  return `/events/${encodeURIComponent(event.tag_normalized.slice(1))}`;
+}
+
+// ── Results and attendance helpers ─────────────────────────────────────────
+
+/** Days a sanctioned event has after its last day to meet its after-event requirements. */
+export const RESULTS_DEADLINE_DAYS = 20;
+const SANCTION_BADGE_TEXT = 'Sanctioning requirements not met';
+
+function todayUtc(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function addDays(isoDate: string, days: number): string {
+  const d = new Date(`${isoDate}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * What an event owes once it has ended. Results are owed by every event that
+ * has ended; a sanctioned event also owes its after-event summary. Both are
+ * due within twenty days of the event's last day, and a sanctioned event
+ * with no results by then shows the badge until they are uploaded; a summary
+ * not yet sent keeps the work item open without the badge. Exported for unit
+ * testing.
+ */
+export function eventObligations(
+  event: { end_date: string; sanction_status: string },
+  hasResults: boolean,
+  summarySent: boolean,
+  today: string,
+): EventObligations {
+  const ended = event.end_date < today;
+  const isSanctioned = event.sanction_status === 'approved';
+  const deadline = addDays(event.end_date, RESULTS_DEADLINE_DAYS);
+  const overdue = today > deadline;
+  return {
+    ended,
+    isSanctioned,
+    resultsOwed: ended && !hasResults,
+    summaryOwed: ended && isSanctioned && !summarySent,
+    deadline,
+    overdue,
+    showBadge: isSanctioned && !hasResults && overdue,
+  };
+}
+
+/** True once an event's last day has come, from when results and attendance can be recorded. */
+function lastDayHasCome(event: { end_date: string }): boolean {
+  return event.end_date <= todayUtc();
+}
+
+interface AttendanceCandidateRow {
+  id: string;
+  member_id: string;
+  registration_type: RegistrationType;
+  attended_at: string | null;
+  attended_marked_by_member_id: string | null;
+  display_name: string;
+  historical_person_id: string | null;
+  tier_status: string | null;
+}
+
+/** The organizer's preview decisions, as the form sends them. */
+export interface ResultsUploadInput {
+  text: string;
+  filename: string;
+  ties: string[];
+  contested: string[];
+  acceptUnmatched: boolean;
+}
+
+export type CommitResultsResult = {
+  branch: 'committed' | 'own_repeat';
+  rowCount: number;
+  attendedCount: number;
+};
+
+export type MarkAttendedResult = { branch: 'marked' | 'own_repeat' | 'already_held'; marked: number };
+
+/** Statuses of an event that ran: results and attendance can be recorded once its last day comes. */
+const ATTENDANCE_STATUSES = ['reg_open', 'closed', 'completed'];
+
+const CONTEST_FIELD = 'contested';
+const TIE_FIELD = 'tie';
+
+/** The preview as the page shows it, with the form fields its decisions post back as. */
+function toResultsPreviewView(input: ResultsUploadInput, result: ResultsPreview, isSanctioned: boolean): ResultsPreviewView {
+  const ties: ResultsPreviewView['ties'] = [];
+  const contested: ResultsPreviewView['contested'] = [];
+  for (const g of result.groups) {
+    for (const r of g.repeatedPlaces) {
+      ties.push({
+        field: `${TIE_FIELD}:${ties.length}`, value: r.tieKey, checked: r.declared,
+        label: `${g.name}: place ${r.place} is a tie`,
+      });
+    }
+  }
+  for (const u of result.unknownDivisions) {
+    contested.push({
+      field: `${CONTEST_FIELD}:${contested.length}`, value: u.key, checked: u.confirmed,
+      label: `${u.name} was contested at this event`,
+    });
+  }
+  return {
+    text: input.text,
+    filename: input.filename,
+    fileErrors: result.fileErrors,
+    problems: result.problems,
+    hasProblems: result.fileErrors.length + result.problems.length > 0,
+    groups: result.groups.map((g) => ({
+      name: g.name,
+      newLabel: g.divisionId === null ? `Not advertised${g.categoryLabel ? `: ${g.categoryLabel}` : ''}` : null,
+      rows: g.placements.map((p) => ({
+        place: p.place,
+        tieLabel: p.isTie ? 'Tie' : null,
+        competitors: p.competitors.map((c) => ({
+          name: c.name,
+          isMatched: c.match !== null,
+          matchLabel: c.match ? 'Registered' : 'No registration found',
+        })),
+        score: p.score,
+      })),
+    })),
+    ties,
+    contested,
+    unmatchedCount: result.unmatchedCount,
+    acceptUnmatchedChecked: input.acceptUnmatched,
+    // Only sanctioning makes every division's results owed, so only a
+    // sanctioned event is told so.
+    missingDivisionsText: result.missingDivisions.length > 0
+      ? `No results for: ${result.missingDivisions.join(', ')}. `
+        + (isSanctioned
+          ? 'A sanctioned event owes results for every division it ran; leave out only a division that did not run.'
+          : 'Leave out only a division that did not run.')
+      : null,
+    rowCount: result.rowCount,
+    committable: result.committable,
+  };
+}
+
+/**
+ * The form's decision fields back into the organizer's decisions: each tie
+ * and each contested division posts under its own numbered field, because
+ * the upload form is multipart and keeps one value per field name.
+ */
+export function resultsDecisionsFromFields(fields: Record<string, string>): { ties: string[]; contested: string[] } {
+  const ties: string[] = [];
+  const contested: string[] = [];
+  for (const [name, value] of Object.entries(fields)) {
+    if (name.startsWith(`${TIE_FIELD}:`)) ties.push(value);
+    if (name.startsWith(`${CONTEST_FIELD}:`)) contested.push(value);
+  }
+  return { ties, contested };
+}
+
+/** Statuses whose sanction an administrator may grant or revoke by correction. */
+const SANCTION_CORRECTABLE_STATUSES = ['reg_open', 'closed', 'completed'];
+
+/** What an administrator's correction changed, or would change. */
+export interface EventCorrection {
+  /** 'preview' before confirming; 'unchanged' when the submission changes nothing. */
+  outcome: 'preview' | 'corrected' | 'unchanged';
+  changes: Array<{ label: string; before: string; after: string }>;
+}
+
+// Each stored field's name in words, as a sentence names it: field, label.
+const CORRECTION_LABELS: Record<string, string> = Object.fromEntries([
+  ['title', 'title'],
+  ['description', 'description'],
+  ['start_date', 'first day'],
+  ['end_date', 'last day'],
+  ['city', 'city'],
+  ['region', 'region'],
+  ['country', 'country'],
+  ['registration_deadline', 'registration deadline'],
+  ['is_tshirt_size_collected', 'collecting t-shirt sizes'],
+  ['is_attendee_registration_open', 'accepting Attendee/Supporter registrations'],
+  ['competitor_fee_cents', 'competitor fee'],
+  ['attendee_fee_cents', 'Attendee or Supporter fee'],
+  ['sanction_status', 'IFPA sanction'],
+  ['payment_enabled', 'online payment'],
+  ['division_name', 'division name'],
+  ['team_type', 'entry size'],
+  ['gender_eligibility', 'who may enter'],
+  ['division_class', 'class'],
+  ['offers_prize_money', 'prize money'],
+  ['division', 'division'],
+  ['division_entries', 'entries in the division'],
+]);
+
+const FLAG_FIELDS = new Set(['is_tshirt_size_collected', 'is_attendee_registration_open', 'payment_enabled', 'offers_prize_money']);
+const FEE_FIELDS = new Set(['competitor_fee_cents', 'attendee_fee_cents']);
+
+// Collects the fields a correction changes, with their stored values for the
+// audit row and readable values for the preview.
+class CorrectionChanges {
+  private readonly stored: Record<string, { before: unknown; after: unknown }> = {};
+  constructor(private readonly currency: string) {}
+
+  note(field: string, before: unknown, after: unknown): void {
+    if (before !== after) this.stored[field] = { before, after };
+  }
+
+  isEmpty(): boolean {
+    return Object.keys(this.stored).length === 0;
+  }
+
+  forAudit(): Record<string, { before: unknown; after: unknown }> {
+    return this.stored;
+  }
+
+  /** "title, city and competitor fee": the changed fields in words, for the organizers' notice. */
+  phrase(): string {
+    const labels = Object.keys(this.stored).map((f) => CORRECTION_LABELS[f] ?? f);
+    return labels.length <= 1 ? labels.join('') : `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`;
+  }
+
+  result(preview: boolean): EventCorrection {
+    return {
+      outcome: preview ? 'preview' : this.isEmpty() ? 'unchanged' : 'corrected',
+      changes: Object.entries(this.stored).map(([field, v]) => {
+        const label = CORRECTION_LABELS[field] ?? field;
+        return {
+          label: label.charAt(0).toUpperCase() + label.slice(1),
+          before: this.show(field, v.before),
+          after: this.show(field, v.after),
+        };
+      }),
+    };
+  }
+
+  private show(field: string, value: unknown): string {
+    if (value === null || value === undefined || value === '') return '(none)';
+    if (FLAG_FIELDS.has(field)) return value === 1 ? 'Yes' : 'No';
+    if (FEE_FIELDS.has(field)) return formatFee(value as number, this.currency);
+    if (field === 'sanction_status') return value === 'approved' ? 'Sanctioned' : value === 'none' ? 'Not sanctioned' : String(value);
+    return String(value);
+  }
+}
+
+/** The participant email as typed, checked and cleaned. */
+function readParticipantEmail(input: { subject: string; bodyText: string; sendToken: string }): {
+  subject: string; bodyText: string; sendToken: string;
+} {
+  const subject = sanitizeUserText(input.subject ?? '', 'single_line');
+  const body = sanitizeUserText(input.bodyText ?? '', 'multi_line');
+  const fieldErrors: Record<string, string> = {};
+  if (subject.status !== 'ok') fieldErrors.subject = INVALID_TEXT_ENCODING_MESSAGE;
+  else if (subject.text === '') fieldErrors.subject = 'Enter a subject.';
+  else if (subject.text.length > PARTICIPANT_SUBJECT_MAX) fieldErrors.subject = `The subject can be at most ${PARTICIPANT_SUBJECT_MAX} characters.`;
+  if (body.status !== 'ok') fieldErrors.bodyText = INVALID_TEXT_ENCODING_MESSAGE;
+  else if (body.text === '') fieldErrors.bodyText = 'Enter a message.';
+  else if (body.text.length > PARTICIPANT_BODY_MAX) fieldErrors.bodyText = `The message can be at most ${PARTICIPANT_BODY_MAX} characters.`;
+  const sendToken = (input.sendToken ?? '').trim();
+  // Without it the send has no key, and the same form submitted twice would
+  // mail every participant twice.
+  if (!sendToken) fieldErrors.bodyText = 'This form has expired. Open the email page again and resend.';
+  if (Object.keys(fieldErrors).length > 0) {
+    throw new ValidationError('Please fix the errors below.', { fieldErrors });
+  }
+  return {
+    subject: subject.status === 'ok' ? subject.text : '',
+    bodyText: body.status === 'ok' ? body.text : '',
+    sendToken,
+  };
+}
+
+/** The outbox key of one send: the form's token and what it says. */
+function participantEmailKey(eventId: string, senderId: string, compose: { subject: string; bodyText: string; sendToken: string }): string {
+  const fingerprint = createHash('sha256')
+    .update(JSON.stringify([senderId, compose.subject, compose.bodyText]))
+    .digest('hex')
+    .slice(0, 16);
+  return `event-email:${eventId}:${compose.sendToken}:${fingerprint}`;
+}
+
+/** The message as participants receive it: the organizer's words, then who sent it and why. */
+function participantEmailBody(body: string, eventTitle: string, senderName?: string): string {
+  const sender = senderName ? `${senderName}, an organizer of ${eventTitle},` : `An organizer of ${eventTitle}`;
+  return `${body}\n\n--\n${sender} sent this to the event's confirmed participants through footbag.org. You received it because you registered for the event.`;
+}
+
 export class EventService {
   listPublicUpcomingEvents(nowIso: string): PublicEventSummary[] {
     return runSqliteRead('listPublicUpcomingEvents', () => {
@@ -2253,7 +2905,7 @@ export class EventService {
     const self = eventRegistrations.findMemberByKey.get(memberId, memberId) as MemberRow | undefined;
     const organizers = eventOrganizers.listForEvent.all(event.id) as Array<{ member_id: string }>;
     transaction(() => {
-      eventRegistrations.cancelOwn.run(WITHDRAWN_BY_MEMBER, now, now, memberId, own.id);
+      eventRegistrations.cancel.run(WITHDRAWN_BY_MEMBER, now, now, memberId, own.id);
       if (releasePayment && own.payment_id) {
         paymentService.releaseEventRegistrationCheckoutInTx(own.payment_id, memberId);
       }
@@ -2559,6 +3211,43 @@ export class EventService {
               tierNote: canRequest && !tierOk ? SANCTION_TIER_NOTE : null,
             };
           })(),
+        results: ATTENDANCE_STATUSES.includes(event.status)
+          ? (() => {
+            const obligations = this.getEventObligations(event);
+            const open = lastDayHasCome(event);
+            const hasResults = (eventResults.countEntries.get(event.id) as { n: number }).n > 0;
+            return {
+              statusLine: !open
+                ? `Results can be uploaded from the event's last day, ${event.end_date}.`
+                : hasResults
+                  ? 'Results are published on the event page. You can upload results for a division that has none yet, and confirm who attended.'
+                  : `Upload the results, then confirm who attended. Results are due by ${obligations.deadline}.`,
+              badge: obligations.showBadge ? SANCTION_BADGE_TEXT : null,
+              uploadHref: open ? `${base}/results` : null,
+              attendanceHref: open ? `${base}/attendance` : null,
+              summaryLine: obligations.summaryOwed
+                ? `Send a short summary of the event to the IFPA announce list by ${obligations.deadline}, marked as this event's summary on the Send Announcement form.`
+                : null,
+              summaryHref: obligations.summaryOwed && isTier2Plus(viewerMemberId)
+                ? `/members/${encodeURIComponent(this.slugFor(organizers, viewerMemberId))}/announce`
+                : null,
+            };
+          })()
+          : null,
+        participants: isPublic
+          ? {
+            participantsHref: `${base}/participants`,
+            summaryHref: `${base}/summary`,
+            emailHref: `${base}/email`,
+            checkInHref: `${base}/check-in-sheet`,
+          }
+          : null,
+        closeRegistrationAction: event.status === 'reg_open' ? `${base}/close-registration` : null,
+        cancelEventAction: event.status === 'completed' || event.status === 'canceled' ? null : `${base}/cancel`,
+        deleteEventAction: this.deletionBlockedText(event) === null ? `${base}/delete` : null,
+        terminalNote: event.status === 'canceled'
+          ? 'This event was canceled. Its record is kept, and it takes no further changes.'
+          : event.status === 'completed' ? 'This event\'s results are published, so it can no longer be canceled or deleted.' : null,
       },
     };
   }
@@ -3245,10 +3934,1207 @@ export class EventService {
     return null;
   }
 
+  // ── Organizer management: cancel, close, delete ────────────────────────────
+  //
+  // Each cancellation is one method with two doors: an organizer acts on an
+  // event they organize, found by its key, and an administrator on any event,
+  // found by its id. Only who may act and how the event is found differ; the
+  // reason, the notices, the status move and the audit row are the same.
+
+  /** An organizer cancels their event, after confirming with a reason. */
+  cancelEvent(memberId: string, eventKey: string, rawReason: string, confirmed: boolean): Promise<CancelEventResult> {
+    const event = this.requireOrganizedEvent(eventKey, memberId);
+    return this.cancelEventAs({ kind: 'organizer', memberId }, event, rawReason, confirmed);
+  }
+
+  /** An administrator cancels any event, with the organizer's own notices and trail. */
+  adminCancelEvent(adminMemberId: string, eventId: string, rawReason: string, confirmed: boolean): Promise<CancelEventResult> {
+    return this.cancelEventAs({ kind: 'admin', memberId: adminMemberId }, this.requireEventById(eventId), rawReason, confirmed);
+  }
+
+  /** An organizer cancels one registration in their event. */
+  cancelRegistration(
+    memberId: string, eventKey: string, registrationId: string, rawReason: string, confirmed: boolean,
+  ): Promise<CancelRegistrationResult> {
+    const event = this.requireOrganizedEvent(eventKey, memberId);
+    return this.cancelRegistrationAs({ kind: 'organizer', memberId }, event, registrationId, rawReason, confirmed);
+  }
+
+  /** An administrator cancels any registration, as an organizer would. */
+  adminCancelRegistration(
+    adminMemberId: string, eventId: string, registrationId: string, rawReason: string, confirmed: boolean,
+  ): Promise<CancelRegistrationResult> {
+    return this.cancelRegistrationAs(
+      { kind: 'admin', memberId: adminMemberId }, this.requireEventById(eventId), registrationId, rawReason, confirmed,
+    );
+  }
+
+  /**
+   * Close the registration window for good: the event moves from `reg_open`
+   * to `closed`. The online-registration switch is the reversible pause.
+   */
+  closeRegistration(
+    memberId: string, eventKey: string, confirmed: boolean,
+  ): { branch: 'needs_confirmation' | 'closed' | 'own_repeat' | 'already_held'; eventTitle: string } {
+    const event = this.requireOrganizedEvent(eventKey, memberId);
+    if (event.status === 'closed') {
+      const own = findStandingOwnAct(memberId, 'event.registration_closed', 'event.registration_closed', 'event', event.id);
+      return { branch: own ? 'own_repeat' : 'already_held', eventTitle: event.title };
+    }
+    if (event.status !== 'reg_open') {
+      throw new ValidationError('Registration can be closed only while the event is open for registration.');
+    }
+    if (!confirmed) return { branch: 'needs_confirmation', eventTitle: event.title };
+    const now = new Date().toISOString();
+    let closed = false;
+    transaction(() => {
+      closed = eventWrites.closeRegistration.run(now, memberId, event.id).changes === 1;
+      if (!closed) return;
+      appendAuditEntry({
+        actionType: 'event.registration_closed',
+        actorType: 'member',
+        actorMemberId: memberId,
+        entityType: 'event',
+        entityId: event.id,
+        metadata: { before: 'reg_open', after: 'closed' },
+      });
+    });
+    return { branch: closed ? 'closed' : 'already_held', eventTitle: event.title };
+  }
+
+  /**
+   * Delete an event that never took a registration, carries no results, granted
+   * no attendance and sent no participant email, in any status but awaiting
+   * sanction approval or completed. Anything else is canceled instead, so its
+   * record and its registrants' history survive. Nobody is emailed: an event
+   * that never took a registration has no registrant to tell.
+   */
+  deleteEvent(memberId: string, eventKey: string, rawReason: string, confirmed: boolean): DeleteEventResult {
+    const event = this.findEventByKey(eventKey);
+    if (!event) {
+      // The event row is gone: this organizer's own deletion is the first
+      // submit's success, and anything else is the standard not-found.
+      if (PUBLIC_EVENT_KEY_PATTERN.test(eventKey) && eventWrites.findOwnDeletionByTag.get(memberId, `#${eventKey}`)) {
+        return { branch: 'deleted' };
+      }
+      throw new NotFoundError('Event not found.');
+    }
+    if (!eventOrganizers.isCurrentOrganizer.get(event.id, memberId)) throw new NotFoundError('Event not found.');
+    const blocked = this.deletionBlockedText(event);
+    if (blocked) throw new ValidationError(blocked);
+    if (!confirmed) return { branch: 'needs_confirmation', eventTitle: event.title };
+    const reason = requireReason(rawReason);
+    let deleted = false;
+    transaction(() => {
+      // Read again inside the transaction: a registration that landed since
+      // the check above keeps the event.
+      if (this.deletionBlockedText(event)) return;
+      eventWrites.deleteDivisionsForEvent.run(event.id);
+      eventWrites.deleteOrganizersForEvent.run(event.id);
+      deleted = eventWrites.deleteEvent.run(event.id).changes === 1;
+      if (!deleted) throw new Error(`event ${event.id} changed between its read and its deletion`);
+      appendAuditEntry({
+        actionType: 'event.deleted',
+        actorType: 'member',
+        actorMemberId: memberId,
+        entityType: 'event',
+        entityId: event.id,
+        reasonText: reason,
+        metadata: { tag_normalized: event.tag_normalized, title: event.title, before_status: event.status },
+      });
+    });
+    if (!deleted) throw new ValidationError(DELETE_HAS_REGISTRATIONS);
+    return { branch: 'deleted' };
+  }
+
+  private deletionBlockedText(event: EventRow): string | null {
+    if (event.status === 'pending_approval') {
+      return 'This event is waiting for its sanction decision, so it cannot be deleted now. You can cancel it instead.';
+    }
+    if (event.status === 'completed') return 'A completed event is kept as a permanent record and cannot be deleted.';
+    const b = eventWrites.deletionBlockers.get(event.id, event.id, event.id, event.id, event.id) as {
+      registrations: number; results: number; attendance_grants: number; participant_emails: number;
+    };
+    if (b.registrations > 0) return DELETE_HAS_REGISTRATIONS;
+    if (b.results > 0 || b.attendance_grants > 0) return 'This event has results, so it is kept as a permanent record and cannot be deleted.';
+    if (b.participant_emails > 0) return 'This event has emailed its participants, so it is kept and cannot be deleted. You can cancel it instead.';
+    return null;
+  }
+
+  private async cancelEventAs(
+    actor: EventActor, event: EventRow, rawReason: string, confirmed: boolean,
+  ): Promise<CancelEventResult> {
+    if (event.status === 'canceled') {
+      const own = findStandingOwnAct(actor.memberId, 'event.canceled', 'event.canceled', 'event', event.id);
+      const same = cleanReason(rawReason) === (event.cancel_reason ?? '');
+      return { branch: own && same ? 'own_repeat' : 'already_held', eventTitle: event.title, notified: 0 };
+    }
+    if (event.status === 'completed') throw new ValidationError('A completed event cannot be canceled.');
+    const standing = eventRegistrations.listStandingForEvent.all(event.id) as StandingRegistrationRow[];
+    // An administrator gives the reason on the record before the confirm
+    // page; an organizer gives it on the confirm page itself.
+    if (!confirmed && actor.kind === 'admin') requireReason(rawReason);
+    if (!confirmed) {
+      return {
+        branch: 'needs_confirmation',
+        eventTitle: event.title,
+        registrantCount: standing.length,
+        hasPaid: standing.some((r) => r.payment_status === 'succeeded'),
+      };
+    }
+    const reason = requireReason(rawReason);
+
+    // A registration waiting at checkout ends its checkout first, as a
+    // withdrawal does; one paid meanwhile settles by its webhook and is told
+    // of the cancellation with everyone else.
+    const released = new Set<string>();
+    for (const r of standing) {
+      if (r.status === 'pending' && r.payment_id && await paymentService.closeEventRegistrationCheckout(r.payment_id)) {
+        released.add(r.payment_id);
+      }
+    }
+
+    const actorType = actor.kind === 'admin' ? 'admin' : 'member';
+    const organizers = eventOrganizers.listForEvent.all(event.id) as Array<{ member_id: string; display_name: string }>;
+    const eventDates = eventDatesPhrase(event.start_date, event.end_date);
+    const now = new Date().toISOString();
+    let canceled = false;
+    let notified = 0;
+    transaction(() => {
+      canceled = eventWrites.cancelEvent.run(now, reason, actor.memberId, now, actor.memberId, event.id).changes === 1;
+      if (!canceled) return;
+      let pendingCanceled = 0;
+      for (const r of standing) {
+        if (r.status !== 'pending') continue;
+        pendingCanceled += eventRegistrations.cancel.run(EVENT_CANCELED, now, now, actor.memberId, r.id).changes;
+        if (r.payment_id && released.has(r.payment_id)) {
+          paymentService.releaseEventRegistrationCheckoutInTx(r.payment_id, actor.memberId, 'released by the event being canceled', actorType);
+        }
+      }
+      const item = workQueue.findOpenByEntity.get(SANCTION_TASK_TYPE, 'event', event.id) as { id: string } | undefined;
+      if (item) workQueue.closeReview.run(now, actor.memberId, 'The event was canceled.', now, actor.memberId, item.id);
+
+      // Every registrant and every organizer, once each.
+      const recipients = new Map<string, { name: string; paid: boolean }>();
+      for (const r of standing) recipients.set(r.member_id, { name: r.display_name, paid: r.payment_status === 'succeeded' });
+      for (const o of organizers) {
+        if (!recipients.has(o.member_id)) recipients.set(o.member_id, { name: o.display_name, paid: false });
+      }
+      const auditId = appendAuditEntry({
+        actionType: 'event.canceled',
+        actorType,
+        actorMemberId: actor.memberId,
+        entityType: 'event',
+        entityId: event.id,
+        reasonText: reason,
+        metadata: {
+          before_status: event.status,
+          registrants: standing.length,
+          pending_canceled: pendingCanceled,
+          work_queue_item_id: item?.id ?? null,
+        },
+      });
+      for (const [memberId, r] of recipients) {
+        const sent = emailService.sendActNotice({
+          template: 'event_canceled',
+          params: {
+            memberName: r.name, eventTitle: event.title, eventDates,
+            byAdministrator: actor.kind === 'admin', reason, paid: r.paid,
+          },
+          memberId,
+          actId: auditId,
+        });
+        if (sent) notified += 1;
+      }
+    });
+    return { branch: canceled ? 'canceled' : 'already_held', eventTitle: event.title, notified };
+  }
+
+  private async cancelRegistrationAs(
+    actor: EventActor, event: EventRow, registrationId: string, rawReason: string, confirmed: boolean,
+  ): Promise<CancelRegistrationResult> {
+    const reg = eventRegistrations.findForEventById.get(registrationId, event.id) as EventRegistrationRow | undefined;
+    if (!reg) throw new NotFoundError('Registration not found.');
+    if (reg.status === 'canceled') {
+      const own = findStandingOwnAct(
+        actor.memberId, 'event.registration_canceled', 'event.registration_canceled', 'event', event.id,
+        { metadataKey: 'registration_id', id: reg.id },
+      );
+      const same = cleanReason(rawReason) === (reg.cancel_reason ?? '');
+      return { branch: own && same ? 'own_repeat' : 'already_held', eventTitle: event.title, memberName: reg.display_name };
+    }
+    assertManageable(event);
+    const isPaid = reg.payment_status === 'succeeded';
+    if (!confirmed && actor.kind === 'admin') requireReason(rawReason);
+    if (!confirmed) return { branch: 'needs_confirmation', eventTitle: event.title, memberName: reg.display_name, isPaid };
+    const reason = requireReason(rawReason);
+    const release = reg.status === 'pending' && reg.payment_id !== null
+      && await paymentService.closeEventRegistrationCheckout(reg.payment_id);
+    const actorType = actor.kind === 'admin' ? 'admin' : 'member';
+    const now = new Date().toISOString();
+    let canceled = false;
+    transaction(() => {
+      canceled = eventRegistrations.cancel.run(reason, now, now, actor.memberId, reg.id).changes === 1;
+      if (!canceled) return;
+      if (release && reg.payment_id) {
+        paymentService.releaseEventRegistrationCheckoutInTx(
+          reg.payment_id, actor.memberId, 'released by the registration being canceled', actorType,
+        );
+      }
+      const auditId = appendAuditEntry({
+        actionType: 'event.registration_canceled',
+        actorType,
+        actorMemberId: actor.memberId,
+        entityType: 'event',
+        entityId: event.id,
+        reasonText: reason,
+        metadata: { registration_id: reg.id, member_id: reg.member_id, before_status: reg.status },
+      });
+      emailService.sendActNotice({
+        template: 'event_registration_canceled',
+        params: {
+          memberName: reg.display_name,
+          eventTitle: event.title,
+          eventDates: eventDatesPhrase(event.start_date, event.end_date),
+          byAdministrator: actor.kind === 'admin',
+          reason,
+          paid: isPaid,
+        },
+        memberId: reg.member_id,
+        actId: auditId,
+      });
+    });
+    return { branch: canceled ? 'canceled' : 'already_held', eventTitle: event.title, memberName: reg.display_name };
+  }
+
+  // ── Organizer management: participants, exports, email ─────────────────────
+
+  /** The organizers' participant list: every registration still standing. */
+  getParticipantsPage(
+    eventKey: string, viewerMemberId: string, sort: string | undefined,
+    opts: { notice?: OutcomeNoticeView | null } = {},
+  ): PageViewModel<ParticipantsContent> {
+    const event = this.requireOrganizedEvent(eventKey, viewerMemberId);
+    const base = eventBasePath(event);
+    const bySort = sort === 'date' ? 'date' : 'name';
+    const rows = this.participantRows(event);
+    if (bySort === 'date') rows.sort((a, b) => a.registered_at.localeCompare(b.registered_at) || a.id.localeCompare(b.id));
+    const showPayment = hasFees(event);
+    const canCancel = event.status !== 'completed' && event.status !== 'canceled';
+    const canMark = ATTENDANCE_STATUSES.includes(event.status) && lastDayHasCome(event);
+    return {
+      seo: { title: `Participants: ${event.title}`, noindex: true },
+      page: {
+        sectionKey: 'events',
+        pageKey: 'event_participants',
+        title: 'Participants',
+        intro: `Everyone registered for ${event.title}. Only this event's organizers see this page.`,
+      },
+      navigation: { contextLinks: [{ label: `Back to Manage ${event.title}`, href: `${base}/manage` }] },
+      content: {
+        notice: opts.notice ?? null,
+        eventTitle: event.title,
+        confirmedCount: rows.filter((r) => r.status === 'confirmed').length,
+        pendingCount: rows.filter((r) => r.status === 'pending').length,
+        attendanceAction: canMark ? `${base}/attendance` : null,
+        showPayment,
+        showTshirt: event.is_tshirt_size_collected === 1,
+        sortLinks: [
+          { label: 'Sort by Name', href: `${base}/participants`, isActive: bySort === 'name' },
+          { label: 'Sort by Registration Date', href: `${base}/participants?sort=date`, isActive: bySort === 'date' },
+        ],
+        rows: rows.map((r) => ({
+          registrationId: r.id,
+          name: r.display_name,
+          profileHref: `/members/${encodeURIComponent(r.slug)}`,
+          registeredOn: r.registered_at.slice(0, 10),
+          statusLabel: r.status === 'confirmed' ? 'Confirmed' : 'Awaiting payment',
+          typeLabel: REGISTRATION_TYPE_LABELS[r.registration_type],
+          tierLabel: tierBadgeShort(r.tier_status) ?? 'Tier 0',
+          activePlayerLabel: r.is_active_player === 1 ? 'Active Player' : '',
+          location: personLocation(r.city, r.region, r.country)?.text ?? '',
+          email: r.email_visibility === 'members' ? r.login_email : null,
+          paymentLabel: showPayment ? paymentLabel(r.payment_status) : null,
+          tshirtSize: r.tshirt_size,
+          entries: r.entries,
+          cancelAction: canCancel ? `${base}/registrations/${encodeURIComponent(r.id)}/cancel` : null,
+          attendedLabel: r.attended_at ? 'Attended' : null,
+          canMarkAttended: canMark && r.status === 'confirmed' && !r.attended_at,
+        })),
+        hasRows: rows.length > 0,
+        csvHref: `${base}/participants.csv`,
+        checkInByNameHref: `${base}/check-in-sheet`,
+        checkInByTypeHref: `${base}/check-in-sheet?sort=type`,
+        summaryHref: `${base}/summary`,
+        emailHref: `${base}/email`,
+        manageHref: `${base}/manage`,
+      },
+    };
+  }
+
+  /** The confirmed participants as a CSV download. */
+  getParticipantsCsv(eventKey: string, viewerMemberId: string): { filename: string; body: string } {
+    const event = this.requireOrganizedEvent(eventKey, viewerMemberId);
+    const rows = this.participantRows(event).filter((r) => r.status === 'confirmed');
+    const lines = [csvRow([
+      'Name', 'Email', 'City', 'Country', 'Registered', 'Tier', 'Active Player', 'Payment',
+      'Registration Type', 'Divisions', 'Partners', 'Amateur Entries', 'T-shirt Size',
+    ])];
+    for (const r of rows) {
+      lines.push(csvRow([
+        r.display_name,
+        r.email_visibility === 'members' ? r.login_email : '',
+        r.city,
+        r.country ? (canonicalCountryName(r.country) ?? r.country) : '',
+        r.registered_at.slice(0, 10),
+        tierBadgeShort(r.tier_status) ?? 'Tier 0',
+        r.is_active_player === 1 ? 'Yes' : 'No',
+        paymentLabel(r.payment_status),
+        REGISTRATION_TYPE_LABELS[r.registration_type],
+        r.entries.map((e) => e.divisionName).join('; '),
+        r.entries.filter((e) => e.partner).map((e) => `${e.divisionName}: ${e.partner}`).join('; '),
+        r.entries.filter((e) => e.amateurLabel).map((e) => e.divisionName).join('; '),
+        r.tshirt_size ?? '',
+      ]));
+    }
+    return {
+      filename: downloadFilename(event.title, 'participants', new Date().toISOString(), 'csv'),
+      body: lines.join(''),
+    };
+  }
+
+  /** The registration summary dashboard, counted from the tables on each request. */
+  getRegistrationSummaryPage(eventKey: string, viewerMemberId: string): PageViewModel<RegistrationSummaryContent> {
+    const event = this.requireOrganizedEvent(eventKey, viewerMemberId);
+    const base = eventBasePath(event);
+    const rows = this.participantRows(event);
+    const confirmed = rows.filter((r) => r.status === 'confirmed');
+    const divisions = eventWrites.listDivisions.all(event.id) as DivisionRow[];
+    const payments = eventRegistrations.summarizePaymentsForEvent.all(event.id) as Array<{
+      status: string; registrations: number; amount_cents: number;
+    }>;
+    const days = eventRegistrations.countConfirmedByDay.all(event.id) as Array<{ day: string; registered: number }>;
+    const tshirtCounts = new Map<string, number>();
+    for (const r of confirmed) if (r.tshirt_size) tshirtCounts.set(r.tshirt_size, (tshirtCounts.get(r.tshirt_size) ?? 0) + 1);
+    return {
+      seo: { title: `Registration Summary: ${event.title}`, noindex: true },
+      page: {
+        sectionKey: 'events',
+        pageKey: 'event_registration_summary',
+        title: 'Registration Summary',
+        intro: `How registration for ${event.title} stands right now. Counts are confirmed registrations unless a line says otherwise.`,
+      },
+      navigation: { contextLinks: [{ label: 'Back to Participants', href: `${base}/participants` }] },
+      content: {
+        eventTitle: event.title,
+        confirmedCount: confirmed.length,
+        pendingCount: rows.length - confirmed.length,
+        byType: (Object.keys(REGISTRATION_TYPE_LABELS) as RegistrationType[]).map((t) => ({
+          label: REGISTRATION_TYPE_LABELS[t],
+          count: confirmed.filter((r) => r.registration_type === t).length,
+        })),
+        byDivision: divisions.map((d) => ({ name: d.name, count: d.confirmed_count })),
+        hasDivisions: divisions.length > 0,
+        payments: payments.map((p) => ({
+          label: paymentLabel(p.status),
+          count: p.registrations,
+          amount: formatFee(p.amount_cents, event.currency),
+        })),
+        hasPayments: payments.length > 0,
+        timeline: days.map((d) => ({ day: d.day, count: d.registered })),
+        hasTimeline: days.length > 0,
+        tshirts: event.is_tshirt_size_collected === 1
+          ? TSHIRT_SIZES.map((size) => ({ size, count: tshirtCounts.get(size) ?? 0 }))
+          : null,
+        participantsHref: `${base}/participants`,
+      },
+    };
+  }
+
+  /**
+   * The check-in sheet for the venue, as a printable document: every
+   * confirmed participant with a box to tick and room for notes, sorted by
+   * name or grouped by registration type.
+   */
+  getCheckInSheet(eventKey: string, viewerMemberId: string, sort: string | undefined): { filename: string; document: PrintableDocument } {
+    const event = this.requireOrganizedEvent(eventKey, viewerMemberId);
+    const byType = sort === 'type';
+    const rows = this.participantRows(event).filter((r) => r.status === 'confirmed');
+    const showTshirt = event.is_tshirt_size_collected === 1;
+    const now = new Date().toISOString();
+    const columns: PrintColumn[] = [
+      { header: 'Name', width: 3, kind: 'text' },
+      { header: 'Type', width: 1.6, kind: 'text' },
+      { header: 'Divisions', width: 4, kind: 'text' },
+      { header: 'Partner', width: 2.4, kind: 'text' },
+      { header: 'Payment', width: 1.4, kind: 'text' },
+      ...(showTshirt ? [{ header: 'T-shirt', width: 0.9, kind: 'text' as const }] : []),
+      { header: 'In', width: 0.6, kind: 'checkbox' },
+      { header: 'Notes', width: 3, kind: 'writeIn' },
+    ];
+    const toRow = (r: ParticipantRow): PrintRow => ({
+      kind: 'row',
+      cells: [
+        r.display_name,
+        REGISTRATION_TYPE_LABELS[r.registration_type],
+        r.entries.map((e) => e.divisionName + (e.amateurLabel ? ` (${e.amateurLabel})` : '')).join('\n'),
+        r.entries.map((e) => e.partner ?? '').filter((p) => p !== '').join('\n'),
+        paymentLabel(r.payment_status),
+        ...(showTshirt ? [r.tshirt_size ?? ''] : []),
+        null,
+        null,
+      ],
+    });
+    const printRows: PrintRow[] = [];
+    if (byType) {
+      for (const t of Object.keys(REGISTRATION_TYPE_LABELS) as RegistrationType[]) {
+        const group = rows.filter((r) => r.registration_type === t);
+        if (group.length === 0) continue;
+        printRows.push({ kind: 'group', label: `${REGISTRATION_TYPE_LABELS[t]} (${group.length})` });
+        for (const r of group) printRows.push(toRow(r));
+      }
+    } else {
+      for (const r of rows) printRows.push(toRow(r));
+    }
+    const place = [event.city, event.country ? (canonicalCountryName(event.country) ?? event.country) : ''].filter(Boolean).join(', ');
+    return {
+      filename: downloadFilename(event.title, 'checkin', now, 'pdf'),
+      document: {
+        title: `Check-in Sheet: ${event.title}`,
+        subtitle: `${eventDatesPhrase(event.start_date, event.end_date)}${place ? `, ${place}` : ''}. ${rows.length} confirmed participant${rows.length === 1 ? '' : 's'}.`,
+        orientation: 'landscape',
+        runningHeader: `${event.title}: check-in sheet`,
+        generatedLabel: `Printed from footbag.org on ${now.slice(0, 10)}`,
+        blocks: [{
+          kind: 'table',
+          columns,
+          rows: printRows,
+          emptyText: 'No confirmed participants yet.',
+        }],
+      },
+    };
+  }
+
+  /** The participant email form, with the event's sent emails beneath it. */
+  getEmailParticipantsPage(
+    eventKey: string, viewerMemberId: string,
+    form: {
+      values?: { subject: string; bodyText: string; sendToken: string };
+      fieldErrors?: Record<string, string>; message?: string; preview?: boolean;
+      notice?: OutcomeNoticeView | null;
+    } = {},
+  ): PageViewModel<EmailParticipantsContent> {
+    const event = this.requireOrganizedEvent(eventKey, viewerMemberId);
+    const base = eventBasePath(event);
+    const values = form.values ?? { subject: '', bodyText: '', sendToken: randomUUID() };
+    const recipients = this.participantRows(event).filter((r) => r.status === 'confirmed').length;
+    const sent = emailArchives.listForEvent.all(event.id) as Array<{
+      subject: string; body_text: string; sent_at: string; recipient_count: number; sender_name: string | null;
+    }>;
+    return {
+      seo: { title: `Email Participants: ${event.title}`, noindex: true },
+      page: {
+        sectionKey: 'events',
+        pageKey: 'event_email_participants',
+        title: 'Email Participants',
+        intro: `Send a plain-text email to everyone confirmed for ${event.title}. One email can go out per event each day.`,
+      },
+      navigation: { contextLinks: [{ label: 'Back to Participants', href: `${base}/participants` }] },
+      content: {
+        notice: form.notice ?? null,
+        eventTitle: event.title,
+        formAction: `${base}/email`,
+        values,
+        fieldErrors: form.fieldErrors ?? {},
+        errorMessage: form.message ?? null,
+        recipientCount: recipients,
+        preview: form.preview && !form.message
+          ? {
+            subject: values.subject,
+            bodyText: participantEmailBody(
+              values.bodyText, event.title,
+              (eventRegistrations.findMemberByKey.get(viewerMemberId, viewerMemberId) as MemberRow | undefined)?.display_name,
+            ),
+          }
+          : null,
+        sendBlockedText: this.participantEmailBlockedText(event, new Date().toISOString()),
+        sent: sent.map((s) => ({
+          subject: s.subject,
+          bodyText: s.body_text,
+          sentOn: s.sent_at.slice(0, 10),
+          senderName: s.sender_name ?? 'A former organizer',
+          recipientCount: s.recipient_count,
+        })),
+        hasSent: sent.length > 0,
+        participantsHref: `${base}/participants`,
+      },
+    };
+  }
+
+  /**
+   * Check the participant email and, unless only previewing, send it to every
+   * confirmed participant through the outbox, archived and audited. One send
+   * per event in any 24 hours. The same form submitted again reports its
+   * first send.
+   */
+  emailParticipants(
+    memberId: string, eventKey: string,
+    input: { subject: string; bodyText: string; sendToken: string }, previewOnly: boolean,
+  ): { branch: 'preview' } | EmailParticipantsResult {
+    const event = this.requireOrganizedEvent(eventKey, memberId);
+    const compose = readParticipantEmail(input);
+    const key = participantEmailKey(event.id, memberId, compose);
+    if (outbox.findAnyInKeyRange.get(`${key}:`, `${key};`)) {
+      // The first submit's send is the event's newest archived email.
+      const latest = emailArchives.listForEvent.get(event.id) as { recipient_count: number } | undefined;
+      return { branch: 'own_repeat', recipients: latest?.recipient_count ?? 0 };
+    }
+    const tokenKey = `event-email:${event.id}:${compose.sendToken}`;
+    if (outbox.findAnyInKeyRange.get(`${tokenKey}:`, `${tokenKey};`)) {
+      throw new ValidationError('This message was already sent. Open the email page again to write a new one.');
+    }
+    const now = new Date().toISOString();
+    const blocked = this.participantEmailBlockedText(event, now);
+    if (blocked) throw new ValidationError(blocked);
+    if (previewOnly) return { branch: 'preview' };
+
+    const sender = eventRegistrations.findMemberByKey.get(memberId, memberId) as MemberRow | undefined;
+    const bodyText = participantEmailBody(compose.bodyText, event.title, sender?.display_name);
+    let result: EmailParticipantsResult = { branch: 'no_recipients' };
+    transaction(() => {
+      // Counted again inside the transaction, so two overlapping sends cannot
+      // both pass the daily limit.
+      if (this.participantEmailBlockedText(event, now)) throw new ValidationError(PARTICIPANT_EMAIL_DAILY);
+      const enqueued = getCommunicationService().enqueue({
+        audience: { kind: 'event', eventId: event.id },
+        subject: compose.subject,
+        bodyText,
+        idempotencyKey: key,
+      });
+      if (enqueued.recipients === 0) return;
+      const archiveId = `bcast_${newId()}`;
+      emailArchives.insertArchive.run(
+        archiveId, now, memberId, now, memberId,
+        'event_participants', null, event.id,
+        memberId, null, compose.subject, bodyText, now, enqueued.enqueued,
+      );
+      appendAuditEntry({
+        actionType: 'event.participants_emailed',
+        actorType: 'member',
+        actorMemberId: memberId,
+        entityType: 'event',
+        entityId: event.id,
+        // The message lives on the archive row this names.
+        metadata: {
+          archive_id: archiveId,
+          recipients: enqueued.recipients,
+          enqueued: enqueued.enqueued,
+          suppressed: enqueued.suppressed,
+        },
+      });
+      result = { branch: 'sent', recipients: enqueued.recipients };
+    });
+    return result;
+  }
+
+  private participantEmailBlockedText(event: EventRow, nowIso: string): string | null {
+    if (event.status === 'canceled' || event.status === 'draft' || event.status === 'pending_approval') {
+      return 'Participant email is available once the event is open for registration.';
+    }
+    const since = new Date(Date.parse(nowIso) - 24 * 60 * 60 * 1000).toISOString();
+    const { n } = emailArchives.countEventSentSince.get(event.id, since) as { n: number };
+    return n > 0 ? PARTICIPANT_EMAIL_DAILY : null;
+  }
+
+  // Every registration still standing, with the member's details and the
+  // entries each makes, sorted by name.
+  private participantRows(event: EventRow): ParticipantRow[] {
+    const rows = eventRegistrations.listParticipantsForEvent.all(event.id) as Array<Omit<ParticipantRow, 'entries'>>;
+    const entries = eventRegistrations.listParticipantEntriesForEvent.all(event.id) as Array<{
+      registration_id: string; division_name: string; offers_prize_money: number;
+      partner_display_name: string | null; partner_member_name: string | null; enters_as_amateur: number;
+    }>;
+    const byRegistration = new Map<string, ParticipantEntryView[]>();
+    for (const e of entries) {
+      const list = byRegistration.get(e.registration_id) ?? [];
+      list.push({
+        divisionName: e.division_name,
+        partner: e.partner_member_name ?? e.partner_display_name,
+        amateurLabel: e.offers_prize_money === 1 && e.enters_as_amateur === 1 ? 'Amateur' : null,
+      });
+      byRegistration.set(e.registration_id, list);
+    }
+    return rows.map((r) => ({ ...r, entries: byRegistration.get(r.id) ?? [] }));
+  }
+
+  // ── Results upload and attendance ──────────────────────────────────────────
+  //
+  // An organizer uploads results from the event's last day onward, as a file
+  // read into a preview and written only when the organizer commits it. The
+  // commit writes the results, completes the event, and marks every placing
+  // member with a confirmed registration attended; the attendance screen and
+  // the participant list mark the rest. Each attendance grants or extends a
+  // Tier 0 member's Active Player standing in the same transaction.
+
+  /** What an event owes after it ends, read now. */
+  getEventObligations(event: { id: string; end_date: string; sanction_status: string }): EventObligations {
+    const hasResults = (eventResults.countEntries.get(event.id) as { n: number }).n > 0;
+    const summarySent = (eventResults.hasSummarySent.get(event.id) as { sent: number }).sent === 1;
+    return eventObligations(event, hasResults, summarySent, todayUtc());
+  }
+
+  /** The results upload page, with the preview when the organizer has asked for one. */
+  getResultsUploadPage(
+    eventKey: string, viewerMemberId: string,
+    opts: {
+      notice?: OutcomeNoticeView | null;
+      errorMessage?: string | null;
+      preview?: { input: ResultsUploadInput; result: ResultsPreview } | null;
+    } = {},
+  ): PageViewModel<ResultsUploadContent> {
+    const event = this.requireOrganizedEvent(eventKey, viewerMemberId);
+    const base = eventBasePath(event);
+    const obligations = this.getEventObligations(event);
+    const notYetText = this.resultsClosedText(event);
+    return {
+      seo: { title: `Upload Results: ${event.title}`, noindex: true },
+      page: {
+        sectionKey: 'events',
+        pageKey: 'event_results_upload',
+        title: 'Upload Results',
+        intro: `Upload the results of ${event.title} as a CSV file. You check a preview first, and nothing is published until you commit it.`,
+      },
+      navigation: { contextLinks: [{ label: `Back to Manage ${event.title}`, href: `${base}/manage` }] },
+      content: {
+        notice: opts.notice ?? null,
+        errorMessage: opts.errorMessage ?? null,
+        eventTitle: event.title,
+        badge: obligations.showBadge ? SANCTION_BADGE_TEXT : null,
+        notYetText,
+        canUpload: notYetText === null,
+        hasResults: (eventResults.countEntries.get(event.id) as { n: number }).n > 0,
+        previewAction: `${base}/results/preview`,
+        commitAction: `${base}/results`,
+        templateHref: `${base}/results/template.csv`,
+        eventHref: base,
+        attendanceHref: `${base}/attendance`,
+        maxSizeText: `${RESULTS_FILE_MAX_BYTES / 1024} KB and ${RESULTS_FILE_MAX_ROWS} rows`,
+        preview: opts.preview ? toResultsPreviewView(opts.preview.input, opts.preview.result, obligations.isSanctioned) : null,
+      },
+    };
+  }
+
+  /** The blank results file, its columns named. */
+  getResultsTemplate(eventKey: string, viewerMemberId: string): { filename: string; body: string } {
+    const event = this.requireOrganizedEvent(eventKey, viewerMemberId);
+    return {
+      filename: downloadFilename(event.title, 'results', new Date().toISOString(), 'csv'),
+      body: resultsFileTemplate(),
+    };
+  }
+
+  /** Read an uploaded results file into its preview. Writes nothing. */
+  previewResults(memberId: string, eventKey: string, input: ResultsUploadInput): ResultsPreview {
+    const event = this.requireOrganizedEvent(eventKey, memberId);
+    const closed = this.resultsClosedText(event);
+    if (closed) throw new ValidationError(closed);
+    return this.readResults(event, input);
+  }
+
+  /**
+   * Commit a previewed results file: the upload, its entries and their
+   * competitors, any division that ran unadvertised, the event's completion,
+   * and the attendance of every placing member with a confirmed registration,
+   * in one transaction. The write path takes the file and the organizer's
+   * decisions, not a request, so another caller can use it.
+   */
+  commitResults(memberId: string, eventKey: string, input: ResultsUploadInput): CommitResultsResult {
+    const event = this.requireOrganizedEvent(eventKey, memberId);
+    const closed = this.resultsClosedText(event);
+    if (closed) throw new ValidationError(closed);
+    const preview = this.readResults(event, input);
+    const fileHash = createHash('sha256').update(input.text).digest('hex');
+    if (!preview.committable) {
+      const own = findStandingOwnAct(
+        memberId, 'event.results_uploaded', 'event.results_uploaded', 'event', event.id,
+        { metadataKey: 'file_sha256', id: fileHash },
+      );
+      if (own) return { branch: 'own_repeat', rowCount: preview.rowCount, attendedCount: 0 };
+      throw new ValidationError(preview.fileErrors[0] ?? preview.problems[0] ?? 'The file has no results to commit.');
+    }
+    const candidates = eventRegistrations.listConfirmedForAttendance.all(event.id) as AttendanceCandidateRow[];
+    const byRegistration = new Map(candidates.map((c) => [c.id, c]));
+    const now = new Date().toISOString();
+    let attendedCount = 0;
+    transaction(() => {
+      const uploadId = newId();
+      eventResults.insertUpload.run(
+        uploadId, now, memberId, now, memberId, event.id, memberId, now, input.filename.slice(0, 200) || null, null,
+      );
+      let sortOrder = (eventWrites.nextDivisionSortOrder.get(event.id) as { next: number }).next;
+      const placed = new Set<string>();
+      const newDivisions: string[] = [];
+      for (const group of preview.groups) {
+        let divisionId = group.divisionId;
+        if (!divisionId) {
+          divisionId = newId();
+          eventWrites.insertDivision.run(
+            divisionId, now, memberId, now, memberId, event.id, group.name, group.category,
+            null, null, group.teamType, null, null, 0, sortOrder,
+          );
+          sortOrder += 1;
+          newDivisions.push(group.name);
+        }
+        for (const p of group.placements) {
+          const entryId = newId();
+          eventResults.insertEntry.run(entryId, now, memberId, now, memberId, event.id, divisionId, uploadId, p.place, p.score);
+          p.competitors.forEach((c, i) => {
+            eventResults.insertParticipant.run(
+              newId(), now, memberId, now, memberId, entryId, i + 1,
+              c.match?.memberId ?? null, c.match?.displayName ?? c.name, c.match?.historicalPersonId ?? null,
+            );
+            if (c.match) placed.add(c.match.registrationId);
+          });
+        }
+      }
+      const completed = eventWrites.completeOnResults.run(now, memberId, event.id).changes === 1;
+      for (const registrationId of placed) {
+        const row = byRegistration.get(registrationId);
+        if (row && this.markAttendedInTx(event, row, memberId, 'member', 'event.attendance_marked', null, now)) {
+          attendedCount += 1;
+        }
+      }
+      appendAuditEntry({
+        actionType: 'event.results_uploaded',
+        actorType: 'member',
+        actorMemberId: memberId,
+        entityType: 'event',
+        entityId: event.id,
+        metadata: {
+          upload_id: uploadId,
+          rows: preview.rowCount,
+          unmatched: preview.unmatchedCount,
+          new_divisions: newDivisions,
+          attended: attendedCount,
+          before_status: event.status,
+          after_status: completed ? 'completed' : event.status,
+          file_sha256: fileHash,
+        },
+      });
+    });
+    return { branch: 'committed', rowCount: preview.rowCount, attendedCount };
+  }
+
+  /** The attendance screen: confirmed registrants still to mark, and those already marked. */
+  getAttendancePage(
+    eventKey: string, viewerMemberId: string, opts: { notice?: OutcomeNoticeView | null } = {},
+  ): PageViewModel<AttendanceContent> {
+    const event = this.requireOrganizedEvent(eventKey, viewerMemberId);
+    const base = eventBasePath(event);
+    const rows = eventRegistrations.listConfirmedForAttendance.all(event.id) as AttendanceCandidateRow[];
+    const unmarked = rows.filter((r) => r.attended_at === null);
+    const marked = rows.filter((r) => r.attended_at !== null);
+    return {
+      seo: { title: `Attendance: ${event.title}`, noindex: true },
+      page: {
+        sectionKey: 'events',
+        pageKey: 'event_attendance',
+        title: 'Confirm Attendance',
+        intro: `Tick everyone registered for ${event.title} who took part. Members in the results are marked already. Attendance at an IFPA-registered event gives a Tier 0 member Active Player status.`,
+      },
+      navigation: { contextLinks: [{ label: 'Back to Participants', href: `${base}/participants` }] },
+      content: {
+        notice: opts.notice ?? null,
+        eventTitle: event.title,
+        markAction: `${base}/attendance`,
+        unmarked: unmarked.map((r) => ({
+          registrationId: r.id,
+          name: r.display_name,
+          field: 'registration',
+          tierLabel: tierBadgeShort(r.tier_status) ?? 'Tier 0',
+        })),
+        marked: marked.map((r) => ({ name: r.display_name, markedOn: (r.attended_at ?? '').slice(0, 10) })),
+        hasUnmarked: unmarked.length > 0,
+        hasMarked: marked.length > 0,
+        participantsHref: `${base}/participants`,
+      },
+    };
+  }
+
+  /** Mark confirmed registrations attended, from the attendance screen or the participant list. */
+  markAttended(memberId: string, eventKey: string, registrationIds: string[]): MarkAttendedResult {
+    const event = this.requireOrganizedEvent(eventKey, memberId);
+    if (!ATTENDANCE_STATUSES.includes(event.status) || !lastDayHasCome(event)) {
+      throw new ValidationError('Attendance can be marked from the event\'s last day.');
+    }
+    const wanted = new Set(registrationIds.filter((id) => id !== ''));
+    if (wanted.size === 0) throw new ValidationError('Tick at least one participant.');
+    const rows = (eventRegistrations.listConfirmedForAttendance.all(event.id) as AttendanceCandidateRow[])
+      .filter((r) => wanted.has(r.id));
+    if (rows.length === 0) throw new NotFoundError('Registration not found.');
+    const now = new Date().toISOString();
+    let marked = 0;
+    transaction(() => {
+      for (const row of rows) {
+        if (this.markAttendedInTx(event, row, memberId, 'member', 'event.attendance_marked', null, now)) marked += 1;
+      }
+    });
+    if (marked > 0) return { branch: 'marked', marked };
+    const allMine = rows.every((r) => r.attended_marked_by_member_id === memberId);
+    return { branch: allMine ? 'own_repeat' : 'already_held', marked: 0 };
+  }
+
+  /**
+   * An administrator marks a registration attended, granting what an
+   * organizer's mark would, or takes a mark back. Taking it back leaves any
+   * Active Player grant it caused: the grant is a ledger row, corrected on the
+   * member record.
+   */
+  correctAttendance(
+    adminMemberId: string, eventId: string, registrationId: string, attended: boolean,
+    rawReason: string, opts: { preview: boolean },
+  ): EventCorrection {
+    const event = this.requireEventById(eventId);
+    const row = (eventRegistrations.listConfirmedForAttendance.all(event.id) as AttendanceCandidateRow[])
+      .find((r) => r.id === registrationId);
+    if (!row) throw new NotFoundError('Registration not found.');
+    const reason = requireReason(rawReason);
+    const was = row.attended_at !== null;
+    if (was === attended) return { outcome: 'unchanged', changes: [] };
+    if (attended && (!ATTENDANCE_STATUSES.includes(event.status) || !lastDayHasCome(event))) {
+      throw new ValidationError('Attendance can be marked from the event\'s last day.');
+    }
+    const label = (v: boolean) => (v ? 'Attended' : 'Not attended');
+    const changes = [{ label: `attendance of ${row.display_name}`, before: label(was), after: label(attended) }];
+    if (opts.preview) return { outcome: 'preview', changes };
+    const now = new Date().toISOString();
+    transaction(() => {
+      let auditId: string | null;
+      if (attended) {
+        auditId = this.markAttendedInTx(event, row, adminMemberId, 'admin', 'event.attendance_corrected', reason, now);
+      } else {
+        auditId = null;
+        if (eventRegistrations.unmarkAttended.run(now, adminMemberId, row.id, event.id).changes === 1) {
+          auditId = appendAuditEntry({
+            actionType: 'event.attendance_corrected',
+            actorType: 'admin',
+            actorMemberId: adminMemberId,
+            entityType: 'event',
+            entityId: event.id,
+            reasonText: reason,
+            metadata: {
+              registration_id: row.id,
+              member_id: row.member_id,
+              changes: { attended: { before: row.attended_at, after: null } },
+            },
+          });
+        }
+      }
+      if (auditId) this.notifyOrganizersOfCorrectionInTx(event, `the attendance of ${row.display_name}`, reason, auditId);
+    });
+    return { outcome: 'corrected', changes };
+  }
+
+  // Why results cannot be uploaded now, or null while they can.
+  private resultsClosedText(event: EventRow): string | null {
+    if (!ATTENDANCE_STATUSES.includes(event.status)) return 'Results can be uploaded only for an event that has opened.';
+    if (!lastDayHasCome(event)) return `Results can be uploaded from the event's last day, ${event.end_date}.`;
+    return null;
+  }
+
+  private readResults(event: EventRow, input: ResultsUploadInput): ResultsPreview {
+    const withResults = new Set(
+      (eventResults.listDivisionsWithResults.all(event.id) as Array<{ discipline_id: string }>).map((r) => r.discipline_id),
+    );
+    const divisions = (eventWrites.listDivisions.all(event.id) as DivisionRow[]).map((d) => ({
+      id: d.id, name: d.name, teamType: d.team_type, hasResults: withResults.has(d.id),
+    }));
+    const candidates = (eventRegistrations.listConfirmedForAttendance.all(event.id) as AttendanceCandidateRow[]).map((c) => ({
+      registrationId: c.id, memberId: c.member_id, displayName: c.display_name, historicalPersonId: c.historical_person_id,
+    }));
+    return readResultsFile(input.text, divisions, candidates, {
+      ties: new Set(input.ties),
+      newDivisions: new Set(input.contested),
+      acceptUnmatched: input.acceptUnmatched,
+    });
+  }
+
+  // One attendance mark inside the caller's transaction: the registration is
+  // marked, a Tier 0 member's standing granted or extended, the act audited
+  // with the standing before and after, and a member whose standing changed
+  // is told. Returns the audit row's id, or null when the registration was
+  // already marked.
+  private markAttendedInTx(
+    event: EventRow, row: AttendanceCandidateRow, actorId: string, actorType: 'member' | 'admin',
+    actionType: 'event.attendance_marked' | 'event.attendance_corrected', reason: string | null, now: string,
+  ): string | null {
+    if (eventRegistrations.markAttended.run(now, actorId, now, actorId, row.id, event.id).changes !== 1) return null;
+    const grant = applyAttendanceInTx(actorId, row.member_id, row.id, event.end_date);
+    const changed = grant.status === 'granted' || grant.status === 'extended';
+    const auditId = appendAuditEntry({
+      actionType,
+      actorType,
+      actorMemberId: actorId,
+      entityType: 'event',
+      entityId: event.id,
+      reasonText: reason,
+      metadata: {
+        registration_id: row.id,
+        member_id: row.member_id,
+        reason_code: 'official_event_attendance',
+        active_player: grant.status === 'noop' ? grant.reason : grant.status,
+        old_expires_at: changed ? grant.oldExpiresAt : null,
+        new_expires_at: changed ? grant.expiresAt : null,
+        ...(actionType === 'event.attendance_corrected'
+          ? { changes: { attended: { before: null, after: now } } }
+          : {}),
+      },
+    });
+    if (changed) {
+      emailService.sendActNotice({
+        template: 'event_attendance_active_player',
+        params: { eventTitle: event.title, expiryDate: grant.expiresAt.slice(0, 10) },
+        memberId: row.member_id,
+        actId: auditId,
+      });
+    }
+    return auditId;
+  }
+
+  // ── Administrator corrections ──────────────────────────────────────────────
+  //
+  // The backstop for what an organizer's own surfaces do not reach: any field
+  // on any event, the sanction state, and divisions whose entries are
+  // confirmed. Each takes a reason, previews before it writes, writes nothing
+  // when nothing changes, records every changed value before and after, and
+  // emails the event's current organizers.
+
+  /**
+   * Correct an event's details, fees and, once it has opened, its sanction
+   * state: granting sanction to a free event or revoking an approved one.
+   */
+  correctEventDetails(
+    adminMemberId: string, eventId: string, values: EventFormValues, sanctionState: string,
+    rawReason: string, opts: { preview: boolean },
+  ): EventCorrection {
+    const event = this.requireEventById(eventId);
+    const reason = requireReason(rawReason);
+    const sanctionEditable = SANCTION_CORRECTABLE_STATUSES.includes(event.status);
+    const nextSanction = sanctionEditable && (sanctionState === 'approved' || sanctionState === 'none')
+      ? sanctionState
+      : event.sanction_status;
+    const isSanctioned = sanctionEditable ? nextSanction === 'approved' : !isFreeEvent(event);
+    const fieldErrors: Record<string, string> = {};
+    const details = readEventDetails(values, isSanctioned, fieldErrors);
+    if (Object.keys(fieldErrors).length > 0) throw new ValidationError('Please fix the errors below.', { fieldErrors });
+    const paymentEnabled = sanctionEditable
+      ? (nextSanction === 'approved' && (details.competitorFeeCents !== null || details.attendeeFeeCents !== null) ? 1 : 0)
+      : event.payment_enabled;
+
+    const changes = new CorrectionChanges(event.currency);
+    changes.note('title', event.title, details.title);
+    changes.note('description', event.description, details.description);
+    changes.note('start_date', event.start_date, details.startDate);
+    changes.note('end_date', event.end_date, details.endDate);
+    changes.note('city', event.city, details.city);
+    changes.note('region', event.region, details.region);
+    changes.note('country', event.country, details.country);
+    changes.note('registration_deadline', event.registration_deadline, details.registrationDeadline);
+    changes.note('is_tshirt_size_collected', event.is_tshirt_size_collected, details.tshirtSizeCollected ? 1 : 0);
+    changes.note('is_attendee_registration_open', event.is_attendee_registration_open, details.attendeeRegistrationOpen ? 1 : 0);
+    changes.note('competitor_fee_cents', event.competitor_fee_cents, details.competitorFeeCents);
+    changes.note('attendee_fee_cents', event.attendee_fee_cents, details.attendeeFeeCents);
+    changes.note('sanction_status', event.sanction_status, nextSanction);
+    changes.note('payment_enabled', event.payment_enabled, paymentEnabled);
+    if (opts.preview || changes.isEmpty()) return changes.result(opts.preview);
+
+    const now = new Date().toISOString();
+    transaction(() => {
+      eventWrites.correctEvent.run(
+        details.title, details.description, details.startDate, details.endDate,
+        details.city, details.region, details.country, details.registrationDeadline,
+        details.tshirtSizeCollected ? 1 : 0, details.attendeeRegistrationOpen ? 1 : 0,
+        details.competitorFeeCents, details.attendeeFeeCents,
+        nextSanction, paymentEnabled,
+        now, adminMemberId, event.id,
+      );
+      const auditId = appendAuditEntry({
+        actionType: 'event.corrected',
+        actorType: 'admin',
+        actorMemberId: adminMemberId,
+        entityType: 'event',
+        entityId: event.id,
+        reasonText: reason,
+        metadata: { changes: changes.forAudit() },
+      });
+      this.notifyOrganizersOfCorrectionInTx(event, `its ${changes.phrase()}`, reason, auditId);
+    });
+    return changes.result(false);
+  }
+
+  /** Clear an event's description, which only an administrator can do on an organizer's behalf. */
+  clearDescription(adminMemberId: string, eventId: string, rawReason: string, opts: { preview: boolean }): EventCorrection {
+    const event = this.requireEventById(eventId);
+    const reason = requireReason(rawReason);
+    const changes = new CorrectionChanges(event.currency);
+    changes.note('description', event.description, '');
+    if (opts.preview || changes.isEmpty()) return changes.result(opts.preview);
+    const now = new Date().toISOString();
+    transaction(() => {
+      eventWrites.correctEvent.run(
+        event.title, '', event.start_date, event.end_date,
+        event.city, event.region, event.country, event.registration_deadline,
+        event.is_tshirt_size_collected, event.is_attendee_registration_open,
+        event.competitor_fee_cents, event.attendee_fee_cents,
+        event.sanction_status, event.payment_enabled,
+        now, adminMemberId, event.id,
+      );
+      const auditId = appendAuditEntry({
+        actionType: 'event.description_cleared',
+        actorType: 'admin',
+        actorMemberId: adminMemberId,
+        entityType: 'event',
+        entityId: event.id,
+        reasonText: reason,
+        metadata: { changes: changes.forAudit() },
+      });
+      this.notifyOrganizersOfCorrectionInTx(event, 'the event description, which has been cleared', reason, auditId);
+    });
+    return changes.result(false);
+  }
+
+  /** Correct a division's parts, including one whose entries are confirmed. */
+  correctDivision(
+    adminMemberId: string, eventId: string, input: DivisionInput & { divisionId: string },
+    rawReason: string, opts: { preview: boolean },
+  ): EventCorrection {
+    const event = this.requireEventById(eventId);
+    const reason = requireReason(rawReason);
+    const divisions = eventWrites.listDivisions.all(event.id) as DivisionRow[];
+    const existing = divisions.find((d) => d.id === input.divisionId);
+    if (!existing) throw new ValidationError('That division is no longer on this event.');
+    const resolved = resolveDivisionGame({
+      gameId: existing.game_id, customName: existing.custom_game_name, customDiscipline: existing.discipline_category,
+    });
+    const parts = validateDivisionParts(resolved, input);
+    const name = divisionName(parts.divisionClass, parts.gender, parts.teamType, resolved.gameName);
+    const clash = divisions.find((d) => d.name.toLowerCase() === name.toLowerCase() && d.id !== existing.id);
+    if (clash) throw new ValidationError(`This event already has a division named ${clash.name}.`);
+
+    const changes = new CorrectionChanges(event.currency);
+    changes.note('division_name', existing.name, name);
+    changes.note('team_type', existing.team_type, parts.teamType);
+    changes.note('gender_eligibility', existing.gender_eligibility, parts.gender);
+    changes.note('division_class', existing.division_class, parts.divisionClass);
+    changes.note('offers_prize_money', existing.offers_prize_money, parts.offersPrizeMoney ? 1 : 0);
+    if (opts.preview || changes.isEmpty()) return changes.result(opts.preview);
+    const now = new Date().toISOString();
+    transaction(() => {
+      eventWrites.updateDivision.run(
+        name, parts.teamType, parts.gender, parts.divisionClass, parts.offersPrizeMoney ? 1 : 0,
+        now, adminMemberId, existing.id, event.id,
+      );
+      const auditId = appendAuditEntry({
+        actionType: 'event.division_corrected',
+        actorType: 'admin',
+        actorMemberId: adminMemberId,
+        entityType: 'event',
+        entityId: event.id,
+        reasonText: reason,
+        metadata: { division_id: existing.id, changes: changes.forAudit() },
+      });
+      this.notifyOrganizersOfCorrectionInTx(event, `the division ${existing.name}`, reason, auditId);
+    });
+    return changes.result(false);
+  }
+
+  /**
+   * Remove a division, including one whose entries are confirmed. Its entries
+   * go with it; the preview counts them and the audit row names each one.
+   */
+  removeDivisionAsAdmin(
+    adminMemberId: string, eventId: string, divisionId: string, rawReason: string, opts: { preview: boolean },
+  ): EventCorrection {
+    const event = this.requireEventById(eventId);
+    const reason = requireReason(rawReason);
+    const division = (eventWrites.listDivisions.all(event.id) as DivisionRow[]).find((d) => d.id === divisionId);
+    const changes = new CorrectionChanges(event.currency);
+    if (!division) return changes.result(opts.preview);
+    const entries = eventRegistrations.listSelectionsForDivision.all(division.id) as Array<{
+      id: string; registration_id: string; member_id: string; status: string;
+    }>;
+    changes.note('division', division.name, null);
+    changes.note('division_entries', entries.length, 0);
+    if (opts.preview) return changes.result(true);
+    transaction(() => {
+      eventRegistrations.deleteSelectionsForDivision.run(division.id);
+      eventWrites.deleteDivision.run(division.id, event.id);
+      const auditId = appendAuditEntry({
+        actionType: 'event.division_corrected',
+        actorType: 'admin',
+        actorMemberId: adminMemberId,
+        entityType: 'event',
+        entityId: event.id,
+        reasonText: reason,
+        metadata: {
+          division_id: division.id,
+          removed: true,
+          changes: changes.forAudit(),
+          entries: entries.map((e) => ({ registration_id: e.registration_id, member_id: e.member_id, status: e.status })),
+        },
+      });
+      this.notifyOrganizersOfCorrectionInTx(event, `the division ${division.name}, which has been removed`, reason, auditId);
+    });
+    return changes.result(false);
+  }
+
+  /** The parts form for an administrator's correction of one division. */
+  getDivisionCorrectionStep(eventId: string, divisionId: string): { eventTitle: string; divisionName: string; step: DivisionPartsStep } {
+    const event = this.requireEventById(eventId);
+    const division = (eventWrites.listDivisions.all(event.id) as DivisionRow[]).find((d) => d.id === divisionId);
+    if (!division) throw new NotFoundError('Division not found.');
+    const games = eventWrites.listGames.all() as GameRow[];
+    const adminBase = `/admin/events/${encodeURIComponent(event.id)}`;
+    const step = divisionPartsStep(adminBase, games, {
+      gameId: division.game_id, customName: division.custom_game_name, customDiscipline: division.discipline_category,
+    }, division);
+    if (!step) throw new NotFoundError('Division not found.');
+    return {
+      eventTitle: event.title,
+      divisionName: division.name,
+      step: {
+        ...step,
+        action: `${adminBase}/divisions/${encodeURIComponent(division.id)}`,
+        cancelHref: adminBase,
+        submitLabel: 'Review the Division Correction',
+      },
+    };
+  }
+
+  private notifyOrganizersOfCorrectionInTx(event: EventRow, whatChanged: string, note: string, auditId: string): void {
+    const organizers = eventOrganizers.listForEvent.all(event.id) as Array<{ member_id: string; display_name: string }>;
+    for (const o of organizers) {
+      emailService.sendActNotice({
+        template: 'event_record_corrected',
+        params: { organizerName: o.display_name, eventTitle: event.title, whatChanged, note },
+        memberId: o.member_id,
+        actId: auditId,
+      });
+    }
+  }
+
+  // An event by its id, whatever its status, for an administrator's door.
+  private requireEventById(eventId: string): EventRow {
+    const event = eventWrites.findById.get(eventId) as EventRow | undefined;
+    if (!event) throw new NotFoundError('Event not found.');
+    return event;
+  }
+
   /** The confirm step every removal on an organizer surface passes through. */
   getConfirmPage(opts: {
     title: string; caution: string; action: string; buttonLabel: string; cancelHref: string;
     hiddenMemberId?: string;
+    reasonField?: { label: string; value: string; error: string | null };
   }): PageViewModel<EventConfirmContent> {
     return {
       seo: { title: opts.title, noindex: true },
@@ -3259,6 +5145,7 @@ export class EventService {
         buttonLabel: opts.buttonLabel,
         cancelHref: opts.cancelHref,
         hiddenMemberId: opts.hiddenMemberId ?? null,
+        reasonField: opts.reasonField ?? null,
       },
     };
   }
@@ -3294,3 +5181,53 @@ export class EventService {
 }
 
 export const eventService = new EventService();
+
+/**
+ * The organizers' dashboard item for an event that has ended with something
+ * still owed: its results, and for a sanctioned event its after-event summary.
+ * Every current organizer sees it, pending until the twenty days after the
+ * event's last day run out and needing attention now after that. It clears
+ * when what it asks for is done.
+ */
+export const eventActionSource: MemberActionSource = {
+  sourceKey: 'event',
+
+  itemsFor(ctx: MemberActionContext): MemberActionItem[] {
+    const today = todayUtc();
+    const rows = eventResults.listEndedForOrganizer.all(ctx.memberId, today) as Array<{
+      id: string; title: string; end_date: string; sanction_status: string; tag_normalized: string;
+      has_results: number; summary_sent: number;
+    }>;
+    const items: MemberActionItem[] = [];
+    for (const row of rows) {
+      const o = eventObligations(row, row.has_results === 1, row.summary_sent === 1, today);
+      if (!o.resultsOwed && !o.summaryOwed) continue;
+      const base = eventBasePath(row);
+      const by = formatDateDisplay(o.deadline, { style: 'long' });
+      // The announcement form takes Tier 2 or 3; a co-organizer below that
+      // sees the summary named in the headline and leaves sending it to one who can.
+      const canAnnounce = isTier2Plus(ctx.memberId);
+      const options = [
+        ...(o.resultsOwed ? [navigateTo('Upload Results', `${base}/results`)] : []),
+        ...(o.summaryOwed && canAnnounce
+          ? [navigateTo('Send the Event Summary', `/members/${encodeURIComponent(ctx.slug)}/announce`)]
+          : []),
+      ];
+      if (options.length === 0) continue;
+      const input = {
+        kind: 'event_results_owed',
+        headline: o.resultsOwed && o.summaryOwed
+          ? `Upload results and send the event summary for ${row.title}`
+          : o.resultsOwed ? `Upload results for ${row.title}` : `Send the event summary for ${row.title}`,
+        detail: o.isSanctioned
+          ? `IFPA sanctioning asks for both by ${by}.`
+          : `The event has ended; its results belong on its page.`,
+        // Only sanctioning sets a deadline; an unsanctioned event's results are owed without one.
+        deadline: o.isSanctioned ? o.deadline : null,
+        options,
+      };
+      items.push(o.overdue && o.isSanctioned ? urgentAction(input) : pendingAction(input));
+    }
+    return items;
+  },
+};

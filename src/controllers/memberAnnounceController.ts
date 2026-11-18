@@ -18,13 +18,14 @@ import { isOwnMemberRoute } from '../lib/routeOwnership';
 import { FLASH_KIND, takeFlash, writeFlash } from '../lib/flashCookie';
 
 import { z } from 'zod';
-import { parseFormBody, formText, formCheckbox } from '../lib/parseFormBody';
+import { parseFormBody, formText, formCheckbox, formOptionalText } from '../lib/parseFormBody';
 
 const announceForm = z.object({
   subject: formText('Subject'),
   bodyText: formText('Message'),
   sendToken: formText('The send token'),
   agree: formCheckbox('Community Standards agreement', '0'),
+  summaryEventId: formOptionalText('After-event summary for'),
 });
 
 export const memberAnnounceController = {
@@ -56,11 +57,13 @@ export const memberAnnounceController = {
     const memberKey = String(req.params.memberKey);
     const memberId = req.user!.userId;
     const rerender = (
-      submitted: { subject: string; bodyText: string; sendToken: string },
+      submitted: { subject: string; bodyText: string; sendToken: string; summaryEventId?: string },
       agreeChecked: boolean,
       fieldErrors: Record<string, string>,
     ): void => {
-      const vm = broadcastService.getAnnouncePage(memberKey, memberId, { submitted, agreeChecked, fieldErrors });
+      const vm = broadcastService.getAnnouncePage(memberKey, memberId, {
+        submitted, agreeChecked, fieldErrors, summaryEventId: submitted.summaryEventId,
+      });
       if (!vm) {
         renderNotFound(res);
         return;
@@ -73,7 +76,10 @@ export const memberAnnounceController = {
       const s = parsed.submitted;
       try {
         rerender(
-          { subject: s.subject ?? '', bodyText: s.bodyText ?? '', sendToken: s.sendToken ?? '' },
+          {
+            subject: s.subject ?? '', bodyText: s.bodyText ?? '', sendToken: s.sendToken ?? '',
+            summaryEventId: s.summaryEventId ?? '',
+          },
           false,
           parsed.fieldErrors,
         );

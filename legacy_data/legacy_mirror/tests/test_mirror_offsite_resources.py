@@ -418,7 +418,7 @@ def test_every_settling_path_handles_other_sites_before_judging_dead_links():
     for where, text, call in (
             ('the crawl end', block('def generate_reachability_pages(', '\ndef '),
              'settle_offsite_resources(capture=True)'),
-            ('the settle pass', block('if args.settle_for_publication_only:', '\n    if args.'),
+            ('the settle pass', block('def settle_for_publication(', '\ndef '),
              'settle_offsite_resources(capture=False)'),
             ('the capture mode', block('if args.capture_offsite_images_only:', '\n    if args.'),
              'settle_offsite_resources(capture=True)')):

@@ -162,8 +162,20 @@ const CATALOG: CatalogEntry[] = [
   { template: 'event_registration_confirmed', services: ['eventService'], samples: [
     { params: { eventTitle: 'E', eventDates: 'D', registrationSummary: 'S' }, variant: 'event_registration_confirmed' },
   ] },
+  { template: 'event_registration_reminder', services: ['eventRegistrationReminderService'], samples: [
+    { params: { eventTitle: 'E', eventDates: 'D', registrationSummary: 'S' }, variant: 'event_registration_reminder' },
+  ] },
   { template: 'event_registration_withdrawn', services: ['eventService'], samples: [
     { params: { memberName: 'M', eventTitle: 'E', eventDates: 'D' }, variant: 'event_registration_withdrawn' },
+  ] },
+  { template: 'event_canceled', services: ['eventService'], samples: [
+    { params: { memberName: 'M', eventTitle: 'E', eventDates: 'D', byAdministrator: false, reason: 'R', paid: true }, variant: 'event_canceled' },
+  ] },
+  { template: 'event_registration_canceled', services: ['eventService'], samples: [
+    { params: { memberName: 'M', eventTitle: 'E', eventDates: 'D', byAdministrator: true, reason: 'R', paid: true }, variant: 'event_registration_canceled' },
+  ] },
+  { template: 'event_record_corrected', services: ['eventService'], samples: [
+    { params: { organizerName: 'O', eventTitle: 'E', whatChanged: 'its title', note: 'n' }, variant: 'event_record_corrected' },
   ] },
   { template: 'club_leaderless_contact', services: ['clubCleanupService'], samples: [
     { params: { memberName: 'M', clubName: 'C' }, variant: 'club_leaderless_contact' },
@@ -203,6 +215,9 @@ const CATALOG: CatalogEntry[] = [
     // is sent on every clean period and is the only thing telling the reader
     // the check still runs.
     { params: { outstandingCount: 0, resolvedCount: 0, periodDays: 30, oldestOutstandingAgeDays: null, needsAttentionLines: '', forTheRecordLines: '', comparisonLine: null, donationCommentLines: '', totalsLines: null, carriedForwardLines: '', reviewUrl: '/admin/payments/reconciliation', reportsUrl: '/admin/payments/reports' }, variant: 'reconciliation_digest' },
+  ] },
+  { template: 'event_attendance_active_player', services: ['eventService'], samples: [
+    { params: { eventTitle: 'E', expiryDate: '2030-01-01' }, variant: 'event_attendance_active_player' },
   ] },
   { template: 'vouch_confirmation', services: ['activePlayerService'], samples: [
     { params: { voucherName: 'V', expiryDate: '2030-01-01' }, variant: 'vouch_confirmation' },

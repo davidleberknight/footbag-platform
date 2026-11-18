@@ -1,0 +1,88 @@
+{{! An event's registration summary dashboard, for its organizers only }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    <p><span class="fw-600">{{content.confirmedCount}}</span> confirmed{{#if content.pendingCount}}, <span class="fw-600">{{content.pendingCount}}</span> awaiting payment{{/if}}.</p>
+  </section>
+
+  <section>
+    <div class="section-heading"><h2>By Registration Type</h2></div>
+    <div class="records-table-wrap" tabindex="0" role="region" aria-label="Registrations by type">
+    <table class="data-table">
+      <thead><tr><th scope="col">Type</th><th scope="col">Confirmed</th></tr></thead>
+      <tbody>
+        {{#each content.byType}}<tr><td>{{this.label}}</td><td>{{this.count}}</td></tr>{{/each}}
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-heading"><h2>By Division</h2></div>
+    {{#if content.hasDivisions}}
+      <div class="records-table-wrap" tabindex="0" role="region" aria-label="Registrations by division">
+      <table class="data-table">
+        <thead><tr><th scope="col">Division</th><th scope="col">Confirmed Entries</th></tr></thead>
+        <tbody>
+          {{#each content.byDivision}}<tr><td>{{this.name}}</td><td>{{this.count}}</td></tr>{{/each}}
+        </tbody>
+      </table>
+      </div>
+    {{else}}
+      <p class="empty-state">This event has no divisions.</p>
+    {{/if}}
+  </section>
+
+  {{#if content.hasPayments}}
+    <section>
+      <div class="section-heading"><h2>Payments</h2></div>
+      <div class="records-table-wrap" tabindex="0" role="region" aria-label="Payments by status">
+      <table class="data-table">
+        <thead><tr><th scope="col">Status</th><th scope="col">Registrations</th><th scope="col">Amount</th></tr></thead>
+        <tbody>
+          {{#each content.payments}}<tr><td>{{this.label}}</td><td>{{this.count}}</td><td>{{this.amount}}</td></tr>{{/each}}
+        </tbody>
+      </table>
+      </div>
+    </section>
+  {{/if}}
+
+  {{#if content.tshirts}}
+    <section>
+      <div class="section-heading"><h2>T-shirt Sizes</h2></div>
+      <div class="records-table-wrap" tabindex="0" role="region" aria-label="T-shirt sizes">
+      <table class="data-table">
+        <thead><tr><th scope="col">Size</th><th scope="col">Confirmed</th></tr></thead>
+        <tbody>
+          {{#each content.tshirts}}<tr><td>{{this.size}}</td><td>{{this.count}}</td></tr>{{/each}}
+        </tbody>
+      </table>
+      </div>
+    </section>
+  {{/if}}
+
+  <section>
+    <div class="section-heading"><h2>Registrations by Day</h2></div>
+    {{#if content.hasTimeline}}
+      <div class="records-table-wrap" tabindex="0" role="region" aria-label="Confirmed registrations by day">
+      <table class="data-table">
+        <thead><tr><th scope="col">Day</th><th scope="col">Confirmed</th></tr></thead>
+        <tbody>
+          {{#each content.timeline}}<tr><td>{{formatDate this.day}}</td><td>{{this.count}}</td></tr>{{/each}}
+        </tbody>
+      </table>
+      </div>
+    {{else}}
+      <p class="empty-state">No confirmed registrations yet.</p>
+    {{/if}}
+  </section>
+
+  {{> back-link}}
+</div>

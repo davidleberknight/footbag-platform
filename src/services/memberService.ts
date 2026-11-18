@@ -1007,12 +1007,16 @@ function rowToContent(row: MemberProfileRow): OwnProfileContent {
 }
 
 function fetchEventGroups(row: MemberProfileRow): PlayerEventGroup[] {
-  let resultRows = runSqliteRead('listResultsByMemberId', () =>
+  // Results an organizer uploaded name the member directly. They are added to
+  // the archive's, never in place of it: a member's first result on this site
+  // must not hide everything they placed before it.
+  const ownRows = runSqliteRead('listResultsByMemberId', () =>
     account.listResultsByMemberId.all(row.id),
   ) as MemberResultRow[];
+  let resultRows: MemberResultRow[] = [];
 
   let selfPersonId: string | null = null;
-  if (resultRows.length === 0 && row.legacy_member_id) {
+  if (row.legacy_member_id) {
     resultRows = runSqliteRead('listResultsByLegacyMemberId', () =>
       account.listResultsByLegacyMemberId.all(row.legacy_member_id),
     ) as MemberResultRow[];
@@ -1042,7 +1046,20 @@ function fetchEventGroups(row: MemberProfileRow): PlayerEventGroup[] {
     selfPersonId = row.historical_person_id;
   }
 
-  return groupPlayerResults(resultRows, { selfMemberId: row.id, selfPersonId });
+  // An uploaded result also carries the member's historical identity, so the
+  // archive reads above can find it again: each result row counts once.
+  const seen = new Set<string>();
+  const merged: MemberResultRow[] = [];
+  for (const r of [...ownRows, ...resultRows]) {
+    const key = [
+      r.event_id, r.discipline_name ?? '', r.placement,
+      r.participant_display_name, r.participant_member_id ?? '', r.participant_person_id ?? '',
+    ].join('\u0000');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(r);
+  }
+  return groupPlayerResults(merged, { selfMemberId: row.id, selfPersonId: selfPersonId ?? row.historical_person_id ?? null });
 }
 
 function fetchMemberBySlug(slug: string): MemberProfileRow {

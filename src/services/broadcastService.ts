@@ -12,7 +12,11 @@
  *     raises an `announcement_review` work-queue item; nothing is sent. Another
  *     administrator approves it as written, which sends it to the announce list
  *     under the member's name, or sends it back with a note the member is
- *     emailed. A member has at most one awaiting review.
+ *     emailed. A member has at most one awaiting review. An organizer of a
+ *     sanctioned event that has ended may mark the announcement as that
+ *     event's after-event summary; only an event the member currently
+ *     organizes and whose summary has not been sent is accepted, and once the
+ *     announcement is approved and sent it meets that sanctioning obligation.
  *   - The broadcast archive: one row per send, written when the send lands, and
  *     the admin surfaces that read it back.
  *
@@ -60,7 +64,8 @@
  *     and archive rows, which erasure reaches and the ledger does not.
  *
  * Persistence: email_archives (write/read), mailing_lists (read),
- * member_announcements (write/read), work_queue_items (resolve, through the
+ * member_announcements (write/read), events and event_organizers (read: the
+ * summary choices), work_queue_items (resolve, through the
  * work-queue enqueue for the review item), outbox_emails (through the enqueue
  * path, never directly).
  *
@@ -125,6 +130,16 @@ const OVER_LIMIT =
   'This member has had an announcement sent in the last 24 hours. Tick Allow an Extra Announcement Today to send it anyway.';
 const TIER_LAPSED =
   'This member no longer holds Tier 2 or Tier 3, so the announcement cannot be sent. Send it back to the member.';
+
+const SUMMARY_EVENT_UNAVAILABLE =
+  'That event cannot take an after-event summary from you: you do not organize it, or its summary has already been sent.';
+
+/** The sanctioned events a member organizes that have ended and still owe their summary. */
+function summaryEventChoices(memberId: string): Array<{ id: string; title: string; end_date: string }> {
+  return memberAnnouncements.listSummaryEventChoices.all(memberId, new Date().toISOString().slice(0, 10)) as Array<{
+    id: string; title: string; end_date: string;
+  }>;
+}
 
 export type SubmitAnnouncementResult =
   /** The announcement is held for review and its review item raised. */
@@ -317,6 +332,10 @@ export interface AnnounceContent extends ComposeContent {
   returnedNotice: string | null;
   /** How many subscribers receive these, in the singular for one. */
   recipientLine: string;
+  /** The sanctioned events whose after-event summary this can be, for one of
+   *  their organizers; empty for everyone else, and the choice is not shown. */
+  summaryEventOptions: Array<{ value: string; label: string; selected: boolean }>;
+  hasSummaryEventOptions: boolean;
 }
 
 export interface BroadcastRowViewModel {
@@ -439,7 +458,7 @@ function sendToListInTx(
 
   emailArchives.insertArchive.run(
     archiveId, now, actorMemberId, now, actorMemberId,
-    opts.archiveType ?? 'mailing_list', list.slug,
+    opts.archiveType ?? 'mailing_list', list.slug, null,
     senderMemberId, list.from_identity, sentSubject, bodyText, now, enqueued.enqueued,
   );
 
@@ -573,10 +592,12 @@ export const broadcastService = {
     opts: {
       submitted?: ComposeInput;
       agreeChecked?: boolean;
+      summaryEventId?: string;
       fieldErrors?: Record<string, string>;
       notice?: string;
     } = {},
   ): PageViewModel<AnnounceContent> | null {
+    const summaryChoices = summaryEventChoices(memberId);
     const latest = memberAnnouncements.findLatestForMember.get(memberId) as
       | { subject: string; body_text: string; status: string; admin_comment: string | null }
       | undefined;
@@ -613,6 +634,12 @@ export const broadcastService = {
         recipientLine: n === 1
           ? '1 member currently receives these.'
           : `${n} members currently receive these.`,
+        summaryEventOptions: summaryChoices.map((e) => ({
+          value: e.id,
+          label: `${e.title} (ended ${e.end_date})`,
+          selected: e.id === opts.summaryEventId,
+        })),
+        hasSummaryEventOptions: summaryChoices.length > 0,
       },
     };
   },
@@ -625,7 +652,7 @@ export const broadcastService = {
    * reports that success; a member already waiting on one is refused a second.
    */
   submitAnnouncement(
-    input: ComposeInput & { agree?: string },
+    input: ComposeInput & { agree?: string; summaryEventId?: string },
     memberId: string,
   ): SubmitAnnouncementResult {
     let compose: ValidCompose | null = null;
@@ -637,6 +664,12 @@ export const broadcastService = {
       fieldErrors = { ...(err.fieldErrors ?? {}) };
     }
     if (input.agree !== '1') fieldErrors.agree = AGREE_REQUIRED;
+    // Marked as an event's after-event summary only for an event this member
+    // organizes that still owes one.
+    const summaryEventId = input.summaryEventId ? input.summaryEventId : null;
+    if (summaryEventId && !summaryEventChoices(memberId).some((e) => e.id === summaryEventId)) {
+      fieldErrors.summaryEventId = SUMMARY_EVENT_UNAVAILABLE;
+    }
     if (!compose || Object.keys(fieldErrors).length) {
       throw new ValidationError('Some fields need attention.', { fieldErrors });
     }
@@ -667,7 +700,7 @@ export const broadcastService = {
         const now = new Date().toISOString();
         memberAnnouncements.insert.run(
           id, now, memberId, now, memberId,
-          memberId, valid.sendToken, valid.subject, valid.bodyText,
+          memberId, valid.sendToken, valid.subject, valid.bodyText, summaryEventId,
         );
         // The queue row names the announcement and carries none of its words,
         // which stay on the announcement row the item page reads.

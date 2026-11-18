@@ -1,0 +1,7 @@
+{
+  "templateKey": "event_canceled",
+  "subjectTemplate": "{eventTitle} has been canceled",
+  "bodyTemplate": "Hi {memberName},\n\n{eventTitle} ({eventDates}) has been canceled by {canceledBy}. The reason given:\n\n{reason}\n\n{refundNote}International Footbag Players Association",
+  "piiClassification": "confidential",
+  "isEnabled": true
+}

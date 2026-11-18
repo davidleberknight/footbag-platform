@@ -1,4 +1,4 @@
-"""The content-level backstop in the group-file recovery script.
+"""The group-file recovery script: its content-level backstop and its run.
 
 A file's recorded scope and its committee's public flag are what fetch_group_
 files.py routes on, and this session that missed two real files: a committee
@@ -12,9 +12,15 @@ Run from repo root:
     legacy_data/footbag_venv/bin/python -m pytest \\
         legacy_data/legacy_mirror/tests/test_fetch_group_files.py -v
 """
+import csv
 import importlib.util
+import io
 import sys
+import zipfile
 from pathlib import Path
+from urllib.parse import unquote
+
+import requests
 
 SCRIPT_PATH = (Path(__file__).resolve().parent.parent / 'scripts' / 'fetch_group_files.py')
 spec = importlib.util.spec_from_file_location('fetch_group_files', str(SCRIPT_PATH))
@@ -138,3 +144,288 @@ def test_the_real_recovered_files_from_this_session_still_match():
         return
     assert fgf.looks_like_member_roster(ga.read_bytes(), str(ga))
     assert fgf.looks_like_member_roster(sc.read_bytes(), str(sc))
+
+
+# The recovery run end to end, against a stand-in for the live site. Each case
+# owns its tree: an archive, a custody folder with its inventory and exclusion
+# list, and the gone-from-live record, all under tmp_path.
+
+class _Response:
+    def __init__(self, body, status=200):
+        self.content = body
+        self.headers = {}
+        self.status_code = status
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise requests.HTTPError(f'{self.status_code}', response=self)
+
+
+class _Site:
+    """The live site: path -> bytes, or an HTTP status for a missing file.
+    A path it does not know is a connection failure. Records every request."""
+
+    def __init__(self, files):
+        self.files = files
+        self.requested = []
+        self.headers = {}
+
+    def get(self, url, timeout=None):
+        rel = unquote(url[len(fgf.BASE):])
+        self.requested.append(rel)
+        answer = self.files.get(rel)
+        if answer is None:
+            raise requests.ConnectionError(f'{rel}: no route')
+        if isinstance(answer, int):
+            return _Response(b'', status=answer)
+        return _Response(answer)
+
+
+def _recovery_tree(tmp_path, monkeypatch, rows, site_files, rulings=()):
+    custody = tmp_path / 'custody'
+    custody.mkdir()
+    with (custody / 'PLACEMENT_RULINGS.csv').open('w', newline='', encoding='utf-8') as fh:
+        writer = csv.writer(fh, lineterminator='\n')
+        writer.writerow(['FileID', 'path', 'placement', 'reason'])
+        writer.writerows(rulings)
+    monkeypatch.setattr(fgf, 'RULINGS', custody / 'PLACEMENT_RULINGS.csv')
+    archive = tmp_path / 'archive'
+    archive.mkdir()
+    with (custody / 'GROUP_FILES_INVENTORY.csv').open('w', newline='', encoding='utf-8') as fh:
+        writer = csv.writer(fh, lineterminator='\n')
+        writer.writerow(['FileID', 'FileVisible', 'FileGroupID', 'FileLocation', 'FileScope',
+                         'CommitteeName', 'CommitteePublic', 'FileName', 'FileDescription'])
+        writer.writerows(rows)
+    (custody / 'CRAWL_EXCLUSIONS.txt').write_text('# none\n', encoding='utf-8')
+    monkeypatch.setattr(fgf, 'CUSTODY', custody)
+    monkeypatch.setattr(fgf, 'ARCHIVE', archive)
+    monkeypatch.setattr(fgf, 'PREVIOUS', None)
+    monkeypatch.setattr(fgf, 'INVENTORY', custody / 'GROUP_FILES_INVENTORY.csv')
+    monkeypatch.setattr(fgf, 'EXCLUSIONS', custody / 'CRAWL_EXCLUSIONS.txt')
+    monkeypatch.setattr(fgf, 'GONE_FROM_LIVE', custody / 'GONE_FROM_LIVE.csv')
+    monkeypatch.setattr(fgf, 'DELAY', 0)
+    site = _Site(site_files)
+    monkeypatch.setattr(fgf.requests, 'Session', lambda: site)
+    return archive, custody, site
+
+
+def _run(monkeypatch, *args):
+    monkeypatch.setattr(sys, 'argv', ['fetch_group_files.py', *args])
+    return fgf.main()
+
+
+def _public(file_id, rel):
+    return [file_id, '1', '14', '/' + rel, '0', 'Marketing Committee', '1', 'A file', '']
+
+
+def test_a_file_held_nowhere_fails_the_run_and_every_one_is_named(tmp_path, monkeypatch,
+                                                                   capsys):
+    # An operator told the run passed while files are missing ships an archive
+    # without them; a list cut short hides which ones. Twenty-five missing
+    # files, more than any shortened listing would show.
+    rels = [f'ifpa/groups/marketing/doc{n:02d}.pdf' for n in range(25)]
+    _recovery_tree(tmp_path, monkeypatch,
+                   [_public(str(100 + n), rel) for n, rel in enumerate(rels)], {})
+    assert _run(monkeypatch) == 1
+    out = capsys.readouterr().out
+    # Only the closing list counts: the per-file failure lines above it name
+    # each file too, but an operator reads the verdict at the end.
+    closing = out[out.index('STILL HELD NOWHERE: 25'):]
+    missing = [rel for rel in rels if rel not in closing]
+    assert missing == [], f'not named in the closing check: {missing}'
+
+
+def test_a_file_the_live_site_no_longer_serves_is_recorded_and_accounted_for(
+        tmp_path, monkeypatch):
+    # Without the record, a file deleted from the old site fails every run
+    # forever and the check stops meaning anything; recorded, it is accounted for.
+    rel = 'ifpa/groups/marketing/withdrawn.pdf'
+    archive, custody, site = _recovery_tree(
+        tmp_path, monkeypatch, [_public('300', rel)], {rel: 404})
+    assert _run(monkeypatch) == 0
+    with (custody / 'GONE_FROM_LIVE.csv').open(encoding='utf-8', newline='') as fh:
+        recorded = list(csv.DictReader(fh))
+    assert [(r['path'], r['http_status']) for r in recorded] == [(rel, '404')]
+    assert recorded[0]['checked_on']
+    assert not (archive / rel).exists()
+    # A second run takes the record as the answer and asks the site nothing.
+    site.requested.clear()
+    assert _run(monkeypatch) == 0
+    assert site.requested == []
+
+
+def test_a_server_error_is_a_failure_not_a_gone_file(tmp_path, monkeypatch):
+    # A file the site could not serve just now is not gone; recording it would
+    # drop it from the archive for good.
+    rel = 'ifpa/groups/marketing/flaky.pdf'
+    _, custody, _ = _recovery_tree(tmp_path, monkeypatch, [_public('301', rel)], {rel: 503})
+    assert _run(monkeypatch) == 1
+    assert not (custody / 'GONE_FROM_LIVE.csv').exists()
+
+
+def test_a_file_already_held_is_never_requested_again(tmp_path, monkeypatch):
+    # A rerun that downloads what it holds repeats the whole recovery against
+    # a site being retired, and could replace a kept copy with a changed one.
+    rel = 'ifpa/groups/marketing/plan.pdf'
+    archive, _, site = _recovery_tree(tmp_path, monkeypatch, [_public('298', rel)],
+                                      {rel: b'%PDF-new'})
+    (archive / rel).parent.mkdir(parents=True)
+    (archive / rel).write_bytes(b'%PDF-kept')
+    assert _run(monkeypatch) == 0
+    assert site.requested == []
+    assert (archive / rel).read_bytes() == b'%PDF-kept'
+
+
+# A one-shape EPS logo, as a vector logo pack carries.
+LOGO_EPS = (b'%!PS-Adobe-3.0 EPSF-3.0\n%%BoundingBox: 0 0 40 20\n'
+            b'newpath 0 0 moveto 40 0 lineto 40 20 lineto closepath fill\nshowpage\n')
+
+
+def _logo_pack():
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, 'w') as pack:
+        pack.writestr('IFPA_logo_vector.eps', LOGO_EPS)
+        pack.writestr('IFPA_logo_vector_BW.eps', LOGO_EPS)
+        pack.writestr('__MACOSX/._IFPA_logo_vector.eps', b'resource fork')
+    return buffer.getvalue()
+
+
+def test_a_logo_pack_ruled_for_conversion_is_served_as_images_and_held_privately(
+        tmp_path, monkeypatch):
+    # The pack is the only copy of the logos on a site being retired; the
+    # archive serves images, not a zip nothing has looked inside.
+    rel = 'ifpa/groups/marketing/IFPA_LOGO_EPS.zip'
+    pack = _logo_pack()
+    archive, custody, _ = _recovery_tree(
+        tmp_path, monkeypatch, [_public('442', rel)], {rel: pack},
+        rulings=[('442', '', 'convert-logo', 'logos as images')])
+    assert _run(monkeypatch) == 0
+    assert (custody / 'www.footbag.org' / rel).read_bytes() == pack
+    assert not (archive / rel).exists()
+    folder = archive / 'ifpa/groups/marketing'
+    images = sorted(p.name for p in folder.iterdir())
+    assert images == ['IFPA_LOGO_EPS-IFPA_logo_vector.jpg',
+                      'IFPA_LOGO_EPS-IFPA_logo_vector.jpg.sanitized',
+                      'IFPA_LOGO_EPS-IFPA_logo_vector_BW.jpg',
+                      'IFPA_LOGO_EPS-IFPA_logo_vector_BW.jpg.sanitized']
+    assert (folder / 'IFPA_LOGO_EPS-IFPA_logo_vector.jpg').read_bytes()[:3] == b'\xff\xd8\xff'
+
+
+def test_a_dropped_file_leaves_the_capture_and_is_accounted_for(tmp_path, monkeypatch):
+    # A dropped file left in the capture is served after the maintainer ruled it
+    # out; one counted as missing fails every run forever.
+    rel = 'ifpa/groups/marketing/old-form.pdf'
+    stray = 'ifpa/groups/Event Resources/copy.pdf'
+    archive, _, site = _recovery_tree(
+        tmp_path, monkeypatch, [_public('146', rel)], {},
+        rulings=[('146', '', 'drop', 'obsolete'), ('', stray, 'drop', 'stray copy')])
+    for path in (rel, stray):
+        (archive / path).parent.mkdir(parents=True, exist_ok=True)
+        (archive / path).write_bytes(b'%PDF')
+    assert _run(monkeypatch) == 0
+    assert not (archive / rel).exists() and not (archive / stray).exists()
+    assert site.requested == []
+
+
+def test_a_file_ruled_private_moves_from_the_capture_to_custody(tmp_path, monkeypatch):
+    # IFPA's own records were member-visible on the old site; the ruling, not
+    # the metadata, decides that they leave the archive.
+    rel = 'ifpa/groups/directors/finances.pdf'
+    archive, custody, _ = _recovery_tree(
+        tmp_path, monkeypatch, [_public('29', rel)], {},
+        rulings=[('29', '', 'custody', "IFPA's own records")])
+    (archive / rel).parent.mkdir(parents=True)
+    (archive / rel).write_bytes(b'%PDF-finances')
+    assert _run(monkeypatch) == 0
+    assert not (archive / rel).exists()
+    assert (custody / 'www.footbag.org' / rel).read_bytes() == b'%PDF-finances'
+
+
+def test_a_member_visible_file_the_archive_cannot_serve_needs_a_ruling(
+        tmp_path, monkeypatch, capsys):
+    # Unruled, it would be fetched, stripped and fetched again on every run,
+    # and nobody would ever decide where it belongs.
+    rel = 'ifpa/groups/marketing/minutes.doc'
+    _, _, site = _recovery_tree(tmp_path, monkeypatch, [_public('77', rel)], {rel: b'doc'})
+    assert _run(monkeypatch) == 1
+    assert 'NEEDS A RULING ' + rel in capsys.readouterr().out
+    assert site.requested == []
+
+
+def test_offline_applies_rulings_fetches_nothing_and_reports_what_is_missing(
+        tmp_path, monkeypatch):
+    # A settle-only run has no network; it must still apply every ruling, and
+    # must not pass a capture that is missing files as complete.
+    missing = 'ifpa/groups/marketing/brochure.pdf'
+    dropped = 'ifpa/groups/marketing/form.pdf'
+    archive, _, site = _recovery_tree(
+        tmp_path, monkeypatch, [_public('271', missing), _public('146', dropped)],
+        {missing: b'%PDF'}, rulings=[('146', '', 'drop', 'obsolete')])
+    (archive / dropped).parent.mkdir(parents=True)
+    (archive / dropped).write_bytes(b'%PDF')
+    assert _run(monkeypatch, '--offline') == 3
+    assert site.requested == []
+    assert not (archive / dropped).exists()
+
+
+def test_a_missing_or_unreadable_rulings_record_refuses(tmp_path, monkeypatch):
+    # Run without the rulings, every file ruled private would be filed in the
+    # member archive by its metadata alone.
+    _recovery_tree(tmp_path, monkeypatch, [], {})
+    monkeypatch.setattr(fgf, 'RULINGS', tmp_path / 'absent.csv')
+    try:
+        _run(monkeypatch)
+    except SystemExit as exc:
+        assert 'PLACEMENT_RULINGS' in str(exc) or 'absent.csv' in str(exc)
+    else:
+        raise AssertionError('ran without its rulings')
+    bad = tmp_path / 'bad.csv'
+    bad.write_text('FileID,path,placement,reason\n7,,publish,typo\n', encoding='utf-8')
+    monkeypatch.setattr(fgf, 'RULINGS', bad)
+    try:
+        _run(monkeypatch)
+    except SystemExit as exc:
+        assert "'publish'" in str(exc)
+    else:
+        raise AssertionError('accepted an unknown placement')
+
+
+def test_a_kept_copy_is_filed_even_after_the_site_was_recorded_as_gone(tmp_path,
+                                                                       monkeypatch):
+    # The gone record says the site stopped serving the file, not that no copy
+    # exists; skipping the earlier capture's copy loses the only one there is.
+    rel = 'ifpa/groups/marketing/withdrawn.pdf'
+    archive, custody, _ = _recovery_tree(tmp_path, monkeypatch, [_public('300', rel)],
+                                         {rel: 404})
+    (custody / 'GONE_FROM_LIVE.csv').write_text(
+        f'path,http_status,checked_on\n{rel},404,2026-11-01\n', encoding='utf-8')
+    previous = tmp_path / 'previous'
+    (previous / rel).parent.mkdir(parents=True)
+    (previous / rel).write_bytes(b'%PDF-kept')
+    assert _run(monkeypatch, '--previous', str(previous)) == 0
+    assert (archive / rel).read_bytes() == b'%PDF-kept'
+
+
+def test_a_file_its_uploader_hid_goes_to_custody_not_the_archive(tmp_path, monkeypatch):
+    # The legacy site showed a hidden file only to its owner, the group's owner
+    # and administrators; filing it in the member archive shows it to every member.
+    rel = 'ifpa/groups/marketing/draft.pdf'
+    row = _public('302', rel)
+    row[1] = '0'
+    archive, custody, _ = _recovery_tree(tmp_path, monkeypatch, [row], {rel: b'%PDF-draft'})
+    assert _run(monkeypatch) == 0
+    assert not (archive / rel).exists()
+    assert (custody / 'www.footbag.org' / rel).read_bytes() == b'%PDF-draft'
+
+
+def test_member_visible_files_land_in_the_tree_the_crawl_names(tmp_path, monkeypatch):
+    # The crawl runs this against its own capture; a file filed into another
+    # tree is missing from the capture that gets published.
+    rel = 'ifpa/groups/marketing/brochure one.pdf'
+    default_archive, _, _ = _recovery_tree(tmp_path, monkeypatch, [_public('271', rel)],
+                                           {rel: b'%PDF-brochure'})
+    named = tmp_path / 'crawl-tree'
+    named.mkdir()
+    assert _run(monkeypatch, '--archive', str(named)) == 0
+    assert (named / rel).read_bytes() == b'%PDF-brochure'
+    assert not (default_archive / rel).exists()

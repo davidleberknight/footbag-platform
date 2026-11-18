@@ -913,8 +913,15 @@ CREATE TABLE member_announcements (
   decided_by_member_id TEXT REFERENCES members(id),
   decided_at           TEXT,
   -- The send an approval made; null until approved.
-  email_archive_id     TEXT REFERENCES email_archives(id)
+  email_archive_id     TEXT REFERENCES email_archives(id),
+  -- The sanctioned event this announcement is the after-event summary of,
+  -- chosen by one of its organizers; null for an ordinary announcement. Once
+  -- approved and sent it meets that sanctioning obligation.
+  summary_event_id     TEXT REFERENCES events(id)
 );
+
+CREATE INDEX idx_member_announcements_summary_event
+  ON member_announcements(summary_event_id) WHERE summary_event_id IS NOT NULL;
 
 -- A member may have one announcement awaiting review at a time.
 CREATE UNIQUE INDEX idx_member_announcements_one_pending

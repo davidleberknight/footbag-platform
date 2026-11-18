@@ -347,7 +347,7 @@ export const COPY_COLUMN_REGISTER: Readonly<Record<string, TableClassification>>
   member_announcements: {
     keep: ['id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version', 'member_id',
       'submit_token', 'subject', 'body_text', 'status', 'admin_comment',
-      'decided_by_member_id', 'decided_at', 'email_archive_id'],
+      'decided_by_member_id', 'decided_at', 'email_archive_id', 'summary_event_id'],
   },
   member_club_affiliations: {
     keep: ['id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version', 'member_id',

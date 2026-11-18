@@ -68,6 +68,7 @@ import unicodedata
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import quote
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
@@ -82,6 +83,23 @@ EXPORT_DIR = 'legacy-export'
 PUBLISH_DIR = 'legacy-publish'
 EXCLUSIONS_REL = 'private-custody/ifpa-group-files/CRAWL_EXCLUSIONS.txt'
 INVENTORY_REL = 'private-custody/ifpa-group-files/GROUP_FILES_INVENTORY.csv'
+# The custody copy of the legacy site tree: a group file held here was withheld
+# from the member archive and is never seeded for capture.
+CUSTODY_TREE_REL = 'private-custody/ifpa-group-files/www.footbag.org'
+# The maintainer's per-file placement rulings: a file ruled to custody, dropped,
+# or kept only as a conversion is never seeded for capture.
+RULINGS_REL = 'private-custody/ifpa-group-files/PLACEMENT_RULINGS.csv'
+# The crawler's own never-capture list (SKIP_EXTENSIONS in
+# create_mirror_footbag_org.py), held here so publish need not load the crawler.
+# A seed of one of these only earns a refusal warning on every crawl; the group
+# file fetch brings such a file in instead.
+CRAWL_NEVER_CAPTURES = (
+    '.zip', '.tar.gz', '.tar', '.tgz', '.bz2', '.rar', '.7z', '.gz',
+    '.exe', '.dmg', '.msi', '.asx', '.php', '.sh', '.xml',
+    '.mp3', '.ogg', '.wav', '.aac', '.m4a',
+    '.svg',
+    '.js', '.mjs', '.swf', '.htc', '.xltm', '.xlsm', '.xlam', '.docm', '.dotm', '.pptm',
+)
 TALLIES_DIR = 'vote-tallies'
 # The capture's per-option counts, the independent third record of each vote.
 # Not produced by any dump: the IFPA secretary read them off the rendered result
@@ -105,8 +123,9 @@ EXCLUSIONS_HEADER = (
     '# One site-root-relative URL path per line, percent-decoded; an entry matches itself\n'
     '# and everything beneath it. Consumed by create_mirror_footbag_org.py --exclusion-list.\n'
     '# Written by publish_legacy_repo_data.py from the legacy export (ifpa_group_files x ifpa_committees:\n'
-    '# FileScope != 0 in any group, or any file of a CommitteePublic = 0 committee, plus\n'
-    "# their showfile pages and every private committee's list/home/listfiles pages).\n"
+    '# FileScope != 0 in any group, FileVisible = 0 (shown only to its owner), or any file\n'
+    '# of a CommitteePublic = 0 committee, plus their showfile pages and every private\n'
+    "# committee's list/home/listfiles pages).\n"
 )
 
 
@@ -715,7 +734,10 @@ def crawl_exclusions(export: Path) -> str:
     files = read_table(export, 'groups/ifpa_group_files.csv')
     committees = {r['CommitteeID']: r for r in read_table(export, 'groups/ifpa_committees.csv')}
     private = {cid for cid, r in committees.items() if r['CommitteePublic'] == '0'}
-    chosen = [r for r in files if r['FileScope'] != '0' or r['FileGroupID'] in private]
+    # A file its uploader hid (FileVisible 0) was shown only to its owner, the
+    # group's owner and administrators, so it is as private as a scoped one.
+    chosen = [r for r in files if r['FileScope'] != '0' or r['FileGroupID'] in private
+              or r['FileVisible'] == '0']
     lines = []
     for r in sorted(chosen, key=lambda r: int(r['FileID'])):
         lines += [r['FileLocation'].lstrip('/'), f'groups/showfile/{r["FileID"]}']
@@ -728,7 +750,8 @@ def crawl_exclusions(export: Path) -> str:
 
 
 INVENTORY_FIELDS = ['FileID', 'FileVisible', 'FileGroupID', 'FileLocation', 'FileScope',
-                    'CommitteeName', 'CommitteePublic']
+                    'CommitteeName', 'CommitteePublic', 'FileName', 'FileDescription',
+                    'CommitteeKeyword']
 
 
 def group_file_inventory(export: Path) -> str:
@@ -747,8 +770,61 @@ def group_file_inventory(export: Path) -> str:
             'FileScope': r['FileScope'],
             'CommitteeName': committee.get('CommitteeName', ''),
             'CommitteePublic': committee.get('CommitteePublic', ''),
+            'FileName': r.get('FileName', ''),
+            'FileDescription': r.get('FileDescription', ''),
+            # The second address the site served the group's page at; the
+            # archive links the group's files from both.
+            'CommitteeKeyword': committee.get('CommitteeKeyword', ''),
         })
     return _csv_text(rows, INVENTORY_FIELDS)
+
+
+def not_for_capture(rulings_path: Path) -> set[str]:
+    """FileIDs the maintainer ruled out of the capture: to custody, dropped, or
+    kept only as a conversion. Refuses without the rulings record, since every
+    one of those files would otherwise be seeded back into the member archive."""
+    if not rulings_path.is_file():
+        raise Refused(f'{rulings_path} is missing: it records where each group file '
+                      'was ruled to go. Restore it from the private repository, then '
+                      're-run.')
+    with rulings_path.open(encoding='utf-8', newline='') as fh:
+        return {(row.get('FileID') or '').strip() for row in csv.DictReader(fh)
+                if (row.get('placement') or '').strip() in ('custody', 'drop',
+                                                            'convert-logo')
+                and (row.get('FileID') or '').strip()}
+
+
+def group_file_seeds(export: Path, custody_tree: Path,
+                     ruled_out: set[str] = frozenset()) -> list[str]:
+    """Every group file a member could open, as a crawl seed: unscoped, not
+    hidden by its uploader, in a committee that is not private, and not
+    already in IFPA custody. The crawl
+    reaches none of them by following links, because the only pages that link a
+    group file refused the crawl account, and seeding them is what brings their
+    images and videos through the crawl's own re-encode. A file in custody was
+    withheld by a ruling the metadata does not carry (a roster, governance
+    minutes), so seeding it would put it back in the member archive."""
+    if not custody_tree.is_dir():
+        # Without the custody tree nothing says which member-visible-looking
+        # files were withheld by ruling, and seeding them would publish them.
+        raise Refused(f'{custody_tree} is missing, so the files withheld into IFPA '
+                      'custody cannot be kept out of the group-file seeds. Check out '
+                      'the private operations repository in full, then re-run.')
+    committees = {r['CommitteeID']: r for r in read_table(export, 'groups/ifpa_committees.csv')}
+    private = {cid for cid, r in committees.items() if r['CommitteePublic'] == '0'}
+    urls = []
+    for r in read_table(export, 'groups/ifpa_group_files.csv'):
+        rel = r['FileLocation'].strip().lstrip('/')
+        if not rel or r['FileScope'] != '0' or r['FileGroupID'] in private:
+            continue
+        if r['FileVisible'] == '0' or r['FileID'] in ruled_out:
+            continue
+        if (custody_tree / rel).is_file():
+            continue
+        if any(rel.lower().endswith(ext) for ext in CRAWL_NEVER_CAPTURES):
+            continue
+        urls.append(f'{BASE_URL}/{quote(rel)}')
+    return sorted(urls)
 
 
 NO_ANSWER = '(no numbered answer)'
@@ -1097,6 +1173,8 @@ def build(private: Path, mirror: Path, cutover_date: str | None) -> tuple[dict, 
     members_csv, problems_csv, stats = member_csvs(
         members, epoch, admins, board_ids if board_current else None, name_encodings)
     seeds = seed_lists(export, members)
+    seeds['groups.txt'] = group_file_seeds(
+        export, private / CUSTODY_TREE_REL, not_for_capture(private / RULINGS_REL))
     events = approved_event_ids(export)
     exclusions = crawl_exclusions(export)
     tallies_csv, reconciliation_csv, tally_stats = vote_tallies(export, private)

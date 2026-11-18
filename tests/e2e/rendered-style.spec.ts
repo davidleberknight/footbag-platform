@@ -77,8 +77,10 @@ test.beforeAll(() => {
   insertEvent(db, { id: REACH_ROWS.sanctionDraftId, hashtag_tag_id: sanctionTag, title: 'Rendered Style Sanction Draft', status: 'draft' });
   insertEventOrganizer(db, REACH_ROWS.sanctionDraftId, 'member_persona_admin_t2');
   const playerA = insertHistoricalPerson(db, { person_id: REACH_ROWS.playerAId, person_name: 'Rendered Style Player A' });
-  // One published result, so the administrator's correction pages have a row to open.
-  insertDiscipline(db, REACH_ROWS.eventId, { id: REACH_ROWS.resultDisciplineId, name: 'Open Singles Net', discipline_category: 'net' });
+  // One published result, so the administrator's correction pages have a row to
+  // open; its game is what the administrator's division correction form offers
+  // parts for.
+  insertDiscipline(db, REACH_ROWS.eventId, { id: REACH_ROWS.resultDisciplineId, name: 'Open Singles Net', discipline_category: 'net', game_id: 'game_footbag_net' });
   const upload = insertResultsUpload(db, REACH_ROWS.eventId, 'member_persona_admin_t2');
   insertResultEntry(db, REACH_ROWS.eventId, upload, REACH_ROWS.resultDisciplineId, { id: REACH_ROWS.resultEntryId, score_text: '15-11' });
   insertResultParticipant(db, REACH_ROWS.resultEntryId, 'Rendered Style Player A', { historical_person_id: playerA });

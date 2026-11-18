@@ -118,6 +118,7 @@ export interface MemberDataExport {
   eventRegistrations: unknown[];
   eventEntries: unknown[];
   eventPartnerEntries: unknown[];
+  competitionResults: unknown[];
   eventsOrganized: unknown[];
   media: {
     items: unknown[];
@@ -222,6 +223,7 @@ export const memberDataExportService = {
       eventRegistrations: capped('eventRegistrations', memberExport.registrations.all(memberId)),
       eventEntries:        capped('eventEntries', memberExport.registrationEntries.all(memberId)),
       eventPartnerEntries: capped('eventPartnerEntries', memberExport.partnerEntries.all(memberId)),
+      competitionResults:  capped('competitionResults', memberExport.competitionResults.all(memberId)),
       eventsOrganized:    capped('eventsOrganized', memberExport.eventOrganizerRoles.all(memberId)),
       media: {
         items:                itemsWithTags,

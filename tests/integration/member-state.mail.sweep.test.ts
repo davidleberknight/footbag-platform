@@ -58,6 +58,7 @@ let createCommunicationService: typeof import('../../src/services/communicationS
 let createStubSesAdapter: typeof import('../../src/adapters/sesAdapter').createStubSesAdapter;
 let workQueueService: typeof import('../../src/services/workQueueService').workQueueService;
 let runDailyPass: typeof import('../../src/services/activePlayerExpiryService').runDailyPass;
+let runEventReminderPass: typeof import('../../src/services/eventRegistrationReminderService').runDailyPass;
 let emailService: typeof import('../../src/services/emailService').emailService;
 let transaction: typeof import('../../src/db/db').transaction;
 let identityAccessService: typeof import('../../src/services/identityAccessService').identityAccessService;
@@ -79,6 +80,7 @@ beforeAll(async () => {
   createStubSesAdapter = (await import('../../src/adapters/sesAdapter')).createStubSesAdapter;
   workQueueService = (await import('../../src/services/workQueueService')).workQueueService;
   runDailyPass = (await import('../../src/services/activePlayerExpiryService')).runDailyPass;
+  runEventReminderPass = (await import('../../src/services/eventRegistrationReminderService')).runDailyPass;
   emailService = (await import('../../src/services/emailService')).emailService;
   transaction = (await import('../../src/db/db')).transaction;
   identityAccessService = (await import('../../src/services/identityAccessService')).identityAccessService;
@@ -280,6 +282,22 @@ const AUDIENCE_ROWS: SenderRow[] = [
       return matrix;
     },
   },
+  {
+    // Every state holds a confirmed registration for an event three days out,
+    // inside the default seven-day window, so only the member's state decides.
+    name: 'event registration reminder',
+    excludes: [...GATE_EXCLUDED, 'pending'],
+    run: (prefix) => {
+      const now = new Date();
+      const startDate = new Date(now.getTime() + 3 * DAY_MS).toISOString().slice(0, 10);
+      const matrix = withDb((db) => {
+        const eventId = insertEvent(db, { start_date: startDate, end_date: startDate });
+        return seedMemberStateMatrix(db, { prefix, eventId });
+      });
+      runEventReminderPass({ now });
+      return matrix;
+    },
+  },
 ];
 
 // ── Routes a templated send can take ────────────────────────────────────────
@@ -350,10 +368,15 @@ const POLICY: Record<EmailTemplateKey, Route> = {
   event_created_confirmation:             { via: 'member' },
   event_organizer_added:                  { via: 'member' },
   event_registration_confirmed:           { via: 'member' },
+  event_registration_reminder:            { via: 'address' },
   event_registration_withdrawn:           { via: 'member' },
   event_sanction_requested:               { via: 'member' },
   event_sanctioned:                       { via: 'act' },
   event_sanction_rejected:                { via: 'act' },
+  event_canceled:                         { via: 'act' },
+  event_registration_canceled:            { via: 'act' },
+  event_record_corrected:                 { via: 'act' },
+  event_attendance_active_player:         { via: 'act' },
   club_leaderless_contact:                { via: 'act' },
   active_player_expiry_reminder:          { via: 'address' },
   payment_receipt:                        { via: 'address' },

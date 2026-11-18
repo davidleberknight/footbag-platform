@@ -1,4 +1,4 @@
-{{! The confirm step before an organizer removes a division or an organizer, or steps down }}
+{{! The confirm step before an organizer removes, closes, cancels or deletes, or steps down }}
 
 <div class="hero hero-sm">
   <div>
@@ -10,13 +10,28 @@
   <section>
     <p class="notice notice-warn" role="alert">{{content.caution}}</p>
 
-    <div class="form-actions">
-      <form method="POST" action="{{content.action}}" class="inline-form">
-        {{#if content.hiddenMemberId}}<input type="hidden" name="member_id" value="{{content.hiddenMemberId}}" />{{/if}}
+    {{#if content.reasonField}}
+      <form method="POST" action="{{content.action}}" class="form-block">
         <input type="hidden" name="confirmed" value="1" />
-        <button type="submit" class="btn btn-outline">{{content.buttonLabel}}</button>
+        <div class="form-field">
+          <label for="reason">{{content.reasonField.label}}</label>
+          <textarea id="reason" name="reason" rows="3" maxlength="500" required>{{content.reasonField.value}}</textarea>
+          {{#if content.reasonField.error}}<p class="form-field-error" role="alert">{{content.reasonField.error}}</p>{{/if}}
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-outline">{{content.buttonLabel}}</button>
+          <a href="{{siteHref content.cancelHref}}" class="btn btn-outline">Go Back</a>
+        </div>
       </form>
-      <a href="{{siteHref content.cancelHref}}" class="btn btn-outline">Cancel</a>
-    </div>
+    {{else}}
+      <div class="form-actions">
+        <form method="POST" action="{{content.action}}" class="inline-form">
+          {{#if content.hiddenMemberId}}<input type="hidden" name="member_id" value="{{content.hiddenMemberId}}" />{{/if}}
+          <input type="hidden" name="confirmed" value="1" />
+          <button type="submit" class="btn btn-outline">{{content.buttonLabel}}</button>
+        </form>
+        <a href="{{siteHref content.cancelHref}}" class="btn btn-outline">Cancel</a>
+      </div>
+    {{/if}}
   </section>
 </div>

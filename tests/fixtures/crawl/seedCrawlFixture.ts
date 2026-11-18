@@ -147,6 +147,20 @@ export function seedCrawlWorld(db: BetterSqlite3.Database): PrivateFieldCanaries
   });
   const crawlRegistrationId = insertRegistration(db, crawlEventId, CRAWL_ADMIN_ID);
   insertRegistrationDisciplineSelection(db, crawlRegistrationId, enteredDivisionId);
+  // An event whose last day has passed and that has no results yet, so its
+  // manage page links the results upload and the attendance screen, and the
+  // attendance screen and participant list offer the crawl administrator's
+  // registration to mark.
+  const finishedDay = new Date(Date.now() - 3 * 86_400_000).toISOString().slice(0, 10);
+  const finishedEventId = insertEvent(db, {
+    title: 'Crawl Finished', status: 'reg_open', start_date: finishedDay, end_date: finishedDay,
+  });
+  insertEventOrganizer(db, finishedEventId, CRAWL_MEMBER_ID);
+  const finishedDivisionId = insertDiscipline(db, finishedEventId, {
+    name: 'Open Singles Footbag Net', discipline_category: 'net', game_id: 'game_footbag_net',
+    team_type: 'singles', gender_eligibility: 'open', division_class: 'open',
+  });
+  insertRegistrationDisciplineSelection(db, insertRegistration(db, finishedEventId, CRAWL_ADMIN_ID), finishedDivisionId);
   // A sanctioned-path draft the crawl administrator organizes, so its manage
   // page offers the sanction request form and the administrators' award page
   // lists it with its award form.

@@ -1,0 +1,51 @@
+{{! An event's organizers confirm who attended }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
+  </div>
+</div>
+
+<div class="wrapper">
+  {{#if content.notice}}
+    {{> outcome-notice text=content.notice.text tone=content.notice.tone}}
+  {{/if}}
+
+  <section>
+    <div class="section-heading"><h2>Not Yet Marked</h2></div>
+    {{#if content.hasUnmarked}}
+      <form method="POST" action="{{content.markAction}}" class="form-block">
+        <fieldset class="form-fieldset">
+          <legend>Took part in {{content.eventTitle}}</legend>
+          {{#each content.unmarked}}
+            <div class="form-field">
+              <label>
+                <input type="checkbox" name="{{this.field}}" value="{{this.registrationId}}" />
+                {{this.name}} <span class="text-muted fs-sm">{{this.tierLabel}}</span>
+              </label>
+            </div>
+          {{/each}}
+        </fieldset>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Mark Attended</button>
+        </div>
+      </form>
+    {{else}}
+      <p class="empty-state">Everyone confirmed is marked attended.</p>
+    {{/if}}
+  </section>
+
+  {{#if content.hasMarked}}
+    <section>
+      <div class="section-heading"><h2>Attended</h2></div>
+      <ul>
+        {{#each content.marked}}
+          <li>{{this.name}} <span class="text-muted fs-sm">marked {{formatDate this.markedOn}}</span></li>
+        {{/each}}
+      </ul>
+    </section>
+  {{/if}}
+
+  {{> back-link}}
+</div>

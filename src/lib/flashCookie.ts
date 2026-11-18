@@ -70,6 +70,9 @@ export const FLASH_KIND = {
   // code the admin club service turns back into a sentence, so the wording
   // lives with the surface rather than in a cookie.
   CLUB_RECORD_CORRECTED: 'club_record_corrected',
+  // An administrator's correction or cancellation on an event record, carried
+  // as an outcome payload: the sentence and its tone.
+  EVENT_RECORD_CORRECTED: 'event_record_corrected',
   // An administrator retiring an abusive hashtag. The payload is the outcome
   // code the admin tag service turns back into a sentence, so the wording lives
   // with the surface rather than in a cookie.
