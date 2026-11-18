@@ -44,6 +44,14 @@ describe('isDescriptionStructuralPlaceholder — thin auto-generated restatement
     expect(isDescriptionStructuralPlaceholder('Popular freestyle trick.')).toBe(true);
     expect(isDescriptionStructuralPlaceholder('Common freestyle trick')).toBe(true);
   });
+
+  // Defect caught: a folk-named trick's page opening with the loader's template
+  // "Folk name; decomposes to <modifiers> <base>.", which reads as a curation
+  // note rather than an explanation of the move.
+  it('flags the "Folk name; decomposes to X." template', () => {
+    expect(isDescriptionStructuralPlaceholder('Folk name; decomposes to atomic eggbeater.')).toBe(true);
+    expect(isDescriptionStructuralPlaceholder('Folk name; decomposes to spinning ducking paradox whirl')).toBe(true);
+  });
 });
 
 describe('isDescriptionStructuralPlaceholder — ordinary instructional prose', () => {

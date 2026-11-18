@@ -36,7 +36,7 @@ export function isDescriptionRedundantWithNotation(
  *
  * Two placeholder shapes:
  *   - Thin auto-generated restatements ("Atomic-modified barrage.", "Popular
- *     freestyle trick.").
+ *     freestyle trick.", "Folk name; decomposes to atomic eggbeater.").
  *   - Formula-embedded backfills that belong in the notation column, not in
  *     prose: a JOB-notation chain, bracket tokens ([DEX], [BOD], ...), or
  *     ADD-arithmetic shorthand ("5 ADD = atomic(1) + blender(4)", or a bare
@@ -51,6 +51,7 @@ export function isDescriptionStructuralPlaceholder(description: string | null): 
   if (/^[A-Z][a-zA-Z-]+(?:-modified|-and-[a-zA-Z-]+ modified) [a-zA-Z][a-zA-Z -]*\.?$/.test(trimmed)) return true;
   if (/^Popular freestyle trick\.?$/i.test(trimmed)) return true;
   if (/^Common freestyle trick\.?$/i.test(trimmed)) return true;
+  if (/^Folk name; decomposes to [a-z][a-z -]*\.?$/i.test(trimmed)) return true;
   if (/; JOB /.test(trimmed)) return true;
   if (/\[(DEX|BOD|PDX|XBD|DEL|UNS|XDEX)\]/.test(trimmed)) return true;
   if (/\bADD\s*=/.test(trimmed)) return true;
