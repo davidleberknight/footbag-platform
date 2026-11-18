@@ -4,15 +4,15 @@
 # after first apply. user_data is intentionally not used (DD §7.2).
 # =============================================================================
 
-# CloudFront origin-facing IPv4 CIDRs, fetched at apply time from the AWS-
-# published prefix list. Pins port 80 ingress to actual CloudFront edges so
-# direct-to-origin probes from arbitrary IPs are dropped at the firewall
-# before they can reach nginx. Belt-and-suspenders with the X-Origin-Verify
-# nginx gate (rendered into nginx.conf by docker/nginx/40-render-nginx-conf.sh):
-# firewall rejects most direct probes; the secret header rejects anything that
-# slipped through (e.g. a CloudFront edge IP that isn't ours).
+# CloudFront's IPv4 ranges, fetched at plan time from the AWS-published list.
+# They pin port 80 ingress to CloudFront so direct-to-origin probes from
+# arbitrary IPs are dropped at the firewall before they can reach nginx.
+# Belt-and-suspenders with the X-Origin-Verify nginx gate (rendered into
+# nginx.conf by docker/nginx/40-render-nginx-conf.sh): the firewall rejects most
+# direct probes; the secret header rejects anything that slipped through (e.g. a
+# CloudFront edge IP that isn't ours).
 #
-# List refreshes on every `terraform apply`. AWS publishes prefix changes a
+# The list refreshes on every `terraform apply`. AWS publishes prefix changes a
 # few times per year; re-applying after a published syncToken bump keeps the
 # allowlist fresh.
 data "http" "aws_ip_ranges" {
@@ -26,12 +26,77 @@ data "http" "aws_ip_ranges" {
   }
 }
 
+# A Lightsail instance's IPv4 firewall holds at most 60 address entries across
+# all its ports, and one entry per origin-facing range left too few for SSH.
+# Port 80 therefore admits, for each origin-facing range, the widest range AWS
+# publishes as CloudFront's own (service CLOUDFRONT, region GLOBAL) that
+# contains it, or the range itself where none does. AWS states that a range
+# listed under a service is used by that service exclusively, so every address
+# admitted is still CloudFront's and port 80 stays closed to everything else;
+# a container wider than /16 is never used, so one broad block in a future list
+# cannot widen the rule. A new origin-facing range inside an admitted block
+# costs no new entry.
+#
+# Selection is integer arithmetic on each range's network number. The coverage
+# precondition below checks the result a different way, with cidrhost, so a
+# mistake in one cannot pass the other.
 locals {
-  cloudfront_origin_facing_cidrs = [
-    for prefix in jsondecode(data.http.aws_ip_ranges.response_body).prefixes :
+  aws_ip_prefixes = jsondecode(data.http.aws_ip_ranges.response_body).prefixes
+
+  cloudfront_origin_facing_cidrs = distinct([
+    for prefix in local.aws_ip_prefixes :
     prefix.ip_prefix
     if prefix.service == "CLOUDFRONT_ORIGIN_FACING"
+  ])
+
+  cloudfront_origin_facing_blocks = [
+    for cidr in local.cloudfront_origin_facing_cidrs : {
+      cidr = cidr
+      len  = tonumber(split("/", cidr)[1])
+      net  = sum([for i, octet in split(".", split("/", cidr)[0]) : tonumber(octet) * pow(256, 3 - i)])
+    }
   ]
+
+  cloudfront_edge_blocks = [
+    for cidr in distinct([
+      for prefix in local.aws_ip_prefixes :
+      prefix.ip_prefix
+      if prefix.service == "CLOUDFRONT" && prefix.region == "GLOBAL"
+      ]) : {
+      cidr = cidr
+      len  = tonumber(split("/", cidr)[1])
+      net  = sum([for i, octet in split(".", split("/", cidr)[0]) : tonumber(octet) * pow(256, 3 - i)])
+    }
+    if tonumber(split("/", cidr)[1]) >= 16
+  ]
+
+  cloudfront_origin_containers = [
+    for o in local.cloudfront_origin_facing_blocks : {
+      origin = o.cidr
+      containers = [
+        for c in local.cloudfront_edge_blocks : c
+        if c.len <= o.len && floor(o.net / pow(2, 32 - c.len)) == floor(c.net / pow(2, 32 - c.len))
+      ]
+    }
+  ]
+
+  # The widest container, or the range itself. The 33 keeps min() from being
+  # called on nothing when a range has no container; no prefix length equals it.
+  cloudfront_port_cidrs = distinct([
+    for e in local.cloudfront_origin_containers :
+    concat(
+      [for c in e.containers : c.cidr if c.len == min(concat([for d in e.containers : d.len], [33])...)],
+      [e.origin],
+    )[0]
+  ])
+
+  cloudfront_origin_facing_covered = alltrue([
+    for o in local.cloudfront_origin_facing_blocks : anytrue([
+      for cidr in local.cloudfront_port_cidrs :
+      tonumber(split("/", cidr)[1]) <= o.len
+      && cidrhost("${split("/", o.cidr)[0]}/${split("/", cidr)[1]}", 0) == split("/", cidr)[0]
+    ])
+  ])
 }
 
 resource "aws_lightsail_key_pair" "operator" {
@@ -128,23 +193,38 @@ resource "aws_lightsail_instance_public_ports" "web" {
     cidrs     = var.operator_cidrs
   }
 
-  # HTTP — CloudFront origins only. The CloudFront origin-facing prefix list
-  # comes from data.http.aws_ip_ranges (above). Direct-to-origin traffic from
-  # any other source is refused at the Lightsail firewall, so the
-  # X-Forwarded-For chain only ever comes from CloudFront.
+  # HTTP — CloudFront only. The ranges come from data.http.aws_ip_ranges and
+  # are collapsed as described above it. Direct-to-origin traffic from any
+  # other source is refused at the Lightsail firewall, so the X-Forwarded-For
+  # chain only ever comes from CloudFront.
   # Belt-and-suspenders with the nginx-layer X-Origin-Verify shared-secret
   # gate.
   port_info {
     protocol  = "tcp"
     from_port = 80
     to_port   = 80
-    cidrs     = local.cloudfront_origin_facing_cidrs
+    cidrs     = local.cloudfront_port_cidrs
   }
 
   lifecycle {
     precondition {
       condition     = length(local.cloudfront_origin_facing_cidrs) > 0
       error_message = "No CloudFront origin-facing CIDRs in AWS IP ranges; refusing to apply (would close port 80 entirely)."
+    }
+
+    # Every range CloudFront reaches the origin from must stay admitted, or part
+    # of the site's traffic is dropped at the firewall with a clean plan.
+    precondition {
+      condition     = local.cloudfront_origin_facing_covered
+      error_message = "The collapsed CloudFront list on port 80 no longer covers every CloudFront origin-facing range; refusing to apply (CloudFront requests from the uncovered ranges would be dropped)."
+    }
+
+    # Lightsail refuses the whole port set above 60 entries, and the refusal
+    # otherwise arrives mid-apply. Every port_info's cidrs are counted here, so a
+    # port added above must be added to this sum.
+    precondition {
+      condition     = 2 * length(var.operator_cidrs) + length(local.cloudfront_port_cidrs) <= 60
+      error_message = "The firewall would hold ${2 * length(var.operator_cidrs) + length(local.cloudfront_port_cidrs)} address entries (ports 22 and 2222: ${length(var.operator_cidrs)} each, port 80: ${length(local.cloudfront_port_cidrs)}); a Lightsail instance allows at most 60. Remove a stale SSH address first."
     }
 
     # A new instance starts on Lightsail's default firewall, SSH and HTTP open to

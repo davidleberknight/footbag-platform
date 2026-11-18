@@ -107,10 +107,17 @@ check_status() {
 # comparing: the simulated-email tester card (stub-adapter hosts render it only
 # for an address with captured mail, so it tracks account existence by design,
 # and production never renders it) and per-render attribute values (form value
-# refill), then collapse whitespace. What remains is the structural/content
-# difference that would leak account existence.
+# refill), then collapse whitespace. The page also echoes the address the
+# visitor typed in its text, and the two probes type different addresses, so
+# the caller passes the address it submitted and every literal occurrence is
+# replaced by a placeholder. What remains is the structural/content difference
+# that would leak account existence.
 normalize_body() {
-  sed '/<section class="sec-card sec-card-dev"/,/<\/section>/d' \
+  local body
+  body=$(cat)
+  body="${body//"$1"/SUBMITTED_ADDRESS}"
+  printf '%s' "$body" \
+    | sed '/<section class="sec-card sec-card-dev"/,/<\/section>/d' \
     | sed 's/value="[^"]*"//g' | tr -s '[:space:]' ' '
 }
 
@@ -141,12 +148,15 @@ else
       -w '\n%{http_code}' \
       "${BASE_URL}/password/forgot"
   }
+  UNREGISTERED_PROBE_EMAIL="smoke-probe-unregistered@example.com"
   registered_raw=$(post_forgot "$REGISTERED_PROBE_EMAIL")
-  unregistered_raw=$(post_forgot "smoke-probe-unregistered@example.com")
+  unregistered_raw=$(post_forgot "$UNREGISTERED_PROBE_EMAIL")
   registered_status="${registered_raw##*$'\n'}"
   unregistered_status="${unregistered_raw##*$'\n'}"
-  registered_body=$(printf '%s' "${registered_raw%$'\n'*}" | normalize_body)
-  unregistered_body=$(printf '%s' "${unregistered_raw%$'\n'*}" | normalize_body)
+  registered_body=$(printf '%s' "${registered_raw%$'\n'*}" \
+    | normalize_body "$REGISTERED_PROBE_EMAIL")
+  unregistered_body=$(printf '%s' "${unregistered_raw%$'\n'*}" \
+    | normalize_body "$UNREGISTERED_PROBE_EMAIL")
   if [[ "$registered_status" != "$unregistered_status" ]]; then
     fail "password-forgot equivalence — status differs by account existence (${registered_status} vs ${unregistered_status})"
   elif [[ "$registered_body" != "$unregistered_body" ]]; then

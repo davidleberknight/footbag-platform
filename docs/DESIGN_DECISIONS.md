@@ -2091,7 +2091,7 @@ Requirements:
 
 Trade-offs:
 
-- The secret is one of three access controls at the perimeter, alongside the Lightsail CloudFront-prefix-list firewall and the trust-proxy named-range trust set, and is rotated by runbook. TLS on the edge-to-origin hop is the fourth layer: those three decide who may connect, and TLS decides who may read.
+- The secret is one of three access controls at the perimeter, alongside the Lightsail CloudFront firewall (port 80 admits only the address blocks AWS publishes as CloudFront's own that contain its origin-facing ranges, so the list fits Lightsail's 60-entry firewall cap) and the trust-proxy named-range trust set, and is rotated by runbook. TLS on the edge-to-origin hop is the fourth layer: those three decide who may connect, and TLS decides who may read.
 - Rotating the origin-verify secret is part of the origin-TLS cutover rather than a separate task, and the runbook sequences it as the last step of first issuance.
 - A 30-to-90-second window exists during rotation where CloudFront sends the new secret and nginx still expects the old (every CloudFront request returns 444). Acceptable for an infrequent per-environment rotation; the rotation runbook (DEVOPS_GUIDE.md (private GitHub repo), "Origin-verify shared-secret rotation runbook") sequences the two commands adjacent.
 

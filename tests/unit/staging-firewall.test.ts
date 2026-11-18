@@ -52,6 +52,57 @@ describe('the staging firewall keeps the administrators on SSH', () => {
   });
 });
 
+describe('port 80 admits CloudFront within the instance address cap, in both trees', () => {
+  for (const tree of ['staging', 'production']) {
+    const tf = readFileSync(resolve(__dirname, `../../terraform/${tree}/lightsail.tf`), 'utf-8');
+    const ports = new Map<number, string>();
+    for (const m of tf.matchAll(/\n\s+port_info \{([\s\S]*?)\n\s+\}/g)) {
+      ports.set(Number(/from_port\s+=\s+(\d+)/.exec(m[1])![1]), m[1]);
+    }
+    const preconditions = [...tf.matchAll(/\n\s+precondition \{([\s\S]*?)\n\s+\}/g)].map((m) => m[1]);
+
+    // Defect caught: port 80 goes back to one entry per origin-facing range, the
+    // firewall overruns Lightsail's 60-entry cap, and every apply is refused.
+    it(`${tree}: port 80 reads the collapsed CloudFront list`, () => {
+      expect(ports.get(80), 'port 80').toMatch(/\n\s+cidrs\s+=\s+local\.cloudfront_port_cidrs\s*(\n|$)/);
+    });
+
+    // Defect caught: a container from another service, another region's list, or
+    // wider than /16 is admitted, opening port 80 beyond CloudFront's own space.
+    it(`${tree}: widens only to CloudFront's own GLOBAL ranges of /16 or narrower`, () => {
+      const edge = /\n\s+cloudfront_edge_blocks\s+=\s+\[([\s\S]*?)\n\s{2}\]/.exec(tf);
+      expect(edge, 'no cloudfront_edge_blocks local').toBeTruthy();
+      expect(edge![1]).toMatch(/if prefix\.service == "CLOUDFRONT" && prefix\.region == "GLOBAL"\n/);
+      expect(edge![1]).toMatch(/\n\s+if tonumber\(split\("\/", cidr\)\[1\]\) >= 16$/);
+    });
+
+    // Defect caught: a selection mistake leaves an origin-facing range uncovered
+    // and CloudFront's requests from it are dropped while the plan reads clean.
+    it(`${tree}: refuses to apply a port-80 list that leaves an origin-facing range out`, () => {
+      expect(preconditions.some((p) => /condition\s+=\s+local\.cloudfront_origin_facing_covered\n/.test(p))).toBe(true);
+    });
+
+    // Defect caught: a port is added, or one's address list changes, without the
+    // cap check counting it, so an overrun is refused mid-apply rather than at plan.
+    it(`${tree}: the 60-entry cap check counts every port's addresses, each as often as it is used`, () => {
+      const cap = preconditions.find((p) => /<= 60\n/.test(p));
+      expect(cap, 'no precondition capping the firewall at 60 entries').toBeTruthy();
+      const condition = /condition\s+=\s+(.*?) <= 60\n/.exec(cap!)![1];
+      const uses = new Map<string, number>();
+      for (const [port, block] of ports) {
+        const cidrs = /\n\s+cidrs\s+=\s+(\S+)/.exec(block);
+        expect(cidrs, `port ${port} has no cidrs`).toBeTruthy();
+        uses.set(cidrs![1], (uses.get(cidrs![1]) ?? 0) + 1);
+      }
+      const counted = new Map<string, number>();
+      for (const m of condition.matchAll(/(?:(\d+) \* )?length\(([^)]+)\)/g)) {
+        counted.set(m[2], (counted.get(m[2]) ?? 0) + Number(m[1] ?? 1));
+      }
+      expect(Object.fromEntries(counted)).toEqual(Object.fromEntries(uses));
+    });
+  }
+});
+
 describe('a replaced instance keeps its address and its firewall, in both trees', () => {
   // A replacement keeps the instance's name, so neither the static address's
   // attachment nor the firewall plans a change from instance_name alone, while

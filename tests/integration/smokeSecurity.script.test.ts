@@ -76,7 +76,11 @@ const srv = http.createServer((req, res) => {
     }
     if (req.url === '/password/forgot' && req.method === 'POST') {
       const registered = body.includes('personas.test');
-      let page = '<html>\\n<form><input value="x"></form>\\nIf the address exists, mail was sent.\\n</html>';
+      // The real page echoes the address the visitor typed, so the two probes'
+      // pages differ by their own input; only a difference beyond it leaks.
+      const typed = new URLSearchParams(body).get('email') || '';
+      let page = '<html>\\n<form><input value="x"></form>\\nIf the address exists, mail was sent to <strong>' +
+        typed + '</strong>.\\n</html>';
       if (mode === 'leaky-forgot' && registered) {
         page = '<html>\\n<form><input value="x"></form>\\nA reset link was sent to your address.\\n</html>';
       }
