@@ -145,7 +145,13 @@ describe('GET /freestyle/sets/:slug — set detail page', () => {
     const res = await page('/freestyle/sets/pixie');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('class="set-detail-trick-list"');
-    expect(res.text).toContain('href="/freestyle/tricks?view=set#set-pixie">Browse This Set in the Dictionary<');
+    expect(res.text).toContain('href="/freestyle/tricks?view=set&amp;set=pixie">Browse This Set in the Dictionary<');
+    // The link lands on Pixie's own page in the set view, listing its trick.
+    const target = await page('/freestyle/tricks?view=set&set=pixie');
+    expect(target.status).toBe(200);
+    const at = target.text.indexOf('id="set-pixie"');
+    expect(at, 'the Pixie group renders').toBeGreaterThanOrEqual(0);
+    expect(target.text.slice(at)).toContain('data-trick-slug="pixie_mirage"');
   });
 
   it('renders example-tricks empty state for holden-only sets with no linked tricks', async () => {

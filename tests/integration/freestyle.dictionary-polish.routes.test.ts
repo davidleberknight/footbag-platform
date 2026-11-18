@@ -1,7 +1,6 @@
 /**
  * Dictionary polish and terminology-correctness contract:
- *   - the ADD view defaults to alphabetical ordering within each ADD tier,
- *     with the By-family bands reachable via an explicit toggle;
+ *   - the ADD view lists each level's tricks alphabetically;
  *   - the trick-search box shows a short, non-truncating placeholder while
  *     keeping the full description in the accessible label;
  *   - Torque's public scoring / component label is the canonical set
@@ -39,23 +38,17 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('ADD view defaults to alphabetical ordering', () => {
-  it('opens alphabetical, with By family reachable via an explicit toggle', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks');
+describe('ADD view lists each level alphabetically', () => {
+  // Defect caught: a level orders its tricks by family or insertion order, so
+  // a reader looking a trick up by name cannot scan for it.
+  it('renders the names at one level A-Z', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/2');
     expect(res.status).toBe(200);
     const html = res.text;
-    // Alphabetical is the active default; By family is the opt-in link.
-    expect(html).toContain('trick-view-toggle-active">Alphabetical');
-    expect(html).toContain('sort=family">By family');
-    // Within the shared ADD tier, names render A-Z.
-    expect(html.indexOf('Alpha Aaa')).toBeLessThan(html.indexOf('Zulu Zzz'));
-  });
-
-  it('still serves the By family bands when explicitly requested', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?sort=family');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('trick-view-toggle-active">By family');
-    expect(res.text).toContain('add-lineage-header');
+    const alpha = html.indexOf('Alpha Aaa');
+    expect(alpha, 'Alpha Aaa is listed at its level').toBeGreaterThanOrEqual(0);
+    // ordering-is-the-contract: a level lists its tricks alphabetically.
+    expect(alpha).toBeLessThan(html.indexOf('Zulu Zzz'));
   });
 });
 

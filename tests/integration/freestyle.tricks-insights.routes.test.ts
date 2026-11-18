@@ -494,11 +494,17 @@ describe('GET /freestyle/tricks?family=… — hashtag filter', () => {
     // Whirl-family fixture seeds spinning-whirl with a modifier_link to spinning.
     expect(res.text).toContain('class="related-modifier-groups"');
     expect(res.text).toContain('Related set/modifier groups:');
-    // Deep-link into the modifier projection at the matching per-modifier
-    // anchor (a launch set would deep-link into its ?view=set section instead).
-    expect(res.text).toContain('href="/freestyle/tricks?view=modifier#modifier-spinning"');
-    // The link carries the modifier name alone: a control never carries a count.
-    expect(res.text).toMatch(/<a href="\/freestyle\/tricks\?view=modifier#modifier-spinning">spinning<\/a>/);
+    // Links to the modifier's own page in the modifier view (a launch set
+    // would link to its own page in the set view instead). The link carries
+    // the modifier name alone: a control never carries a count.
+    expect(res.text).toContain('<a href="/freestyle/tricks?view=modifier&amp;modifier=spinning">spinning</a>');
+    // The link lands on a page that renders the Spinning group with the
+    // family's linked trick in it.
+    const target = await page('/freestyle/tricks?view=modifier&modifier=spinning');
+    expect(target.status).toBe(200);
+    const at = target.text.indexOf('id="modifier-spinning"');
+    expect(at, 'the Spinning group renders').toBeGreaterThanOrEqual(0);
+    expect(target.text.slice(at)).toContain('data-trick-slug="spinning-whirl"');
   });
 
   it('does NOT render the Related set/modifier groups block when no family is active', async () => {
@@ -755,18 +761,14 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
 // ---------------------------------------------------------------------------
 
 describe('GET /freestyle/tricks?view=modifier — the modifier-grouped browse', () => {
-  // ?view=modifier activates the modifier-grouped browse with its own
-  // cluster sections.
+  // ?view=modifier activates the modifier-grouped browse, one modifier at a
+  // time; the dedicated modifier-view suites cover its groups.
 
   it('returns 200 and renders the modifier browse', async () => {
     const res = await page('/freestyle/tricks?view=modifier');
     expect(res.status).toBe(200);
     // Active-state toggle entry confirms the view took effect.
     expect(res.text).toMatch(/class="trick-view-toggle-active">By modifier</);
-    // Cluster sections render conditional on having modifier-linked tricks;
-    // this fixture doesn't seed set modifier links, so the cluster headings
-    // may be empty. Full cluster rendering is exercised in the dedicated
-    // modifier-view suite.
   });
 });
 

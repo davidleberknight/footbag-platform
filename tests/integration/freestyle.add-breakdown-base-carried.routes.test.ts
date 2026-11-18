@@ -103,9 +103,10 @@ describe('the ADD breakdown sums to the stored ADD', () => {
   // Defect caught: fixing the breakdown by deleting the link would drop the
   // trick from the Paradox group when browsing by modifier.
   it('still lists the compound under its paradox modifier when browsing', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=modifier');
+    const res = await request(createApp()).get('/freestyle/tricks?view=modifier&modifier=paradox');
     expect(res.status).toBe(200);
-    const paradoxGroup = res.text.slice(res.text.indexOf('id="modifier-paradox"'));
-    expect(paradoxGroup).toContain('data-trick-slug="spinning_paradox_mirage"');
+    const at = res.text.indexOf('id="modifier-paradox"');
+    expect(at, 'the Paradox group renders').toBeGreaterThanOrEqual(0);
+    expect(res.text.slice(at)).toContain('data-trick-slug="spinning_paradox_mirage"');
   });
 });

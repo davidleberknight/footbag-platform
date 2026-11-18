@@ -15,7 +15,6 @@ add-analysis-page
 add-analysis-why-line
 add-analysis-worked-example
 add-analysis-worked-examples
-add-lineage-header
 admin-action-disclosure
 admin-goto-grid
 admin-goto-group
@@ -52,7 +51,6 @@ browse-search-input
 browse-section-heading
 browse-tags-help
 browse-view-intro
-browse-view-scale
 browse-view-why
 browse-view-why-body
 btn
@@ -335,7 +333,6 @@ identity-note
 identity-row
 inline-form
 jump-bar
-jump-bar--inline
 jump-bar--wide
 jump-bar-label
 jump-bar-sep
@@ -374,7 +371,6 @@ membership-tiers-link
 membership-upgrade-form
 membership-upgrade-price
 ml-2
-modifier-cluster-blurb
 modifier-glossary-link
 modifier-layer-head
 modifier-layer-name
@@ -633,7 +629,6 @@ trick-add-analysis-derivation
 trick-add-analysis-fields
 trick-add-analysis-total
 trick-add-group
-trick-add-lineage
 trick-also-family
 trick-description
 trick-family-branch-of
@@ -646,11 +641,6 @@ trick-hero-meta-chip-adds
 trick-hero-meta-chip-modifier
 trick-hero-meta-chip-pronunciation
 trick-hero-meta-ribbon
-trick-minor-lineage-band
-trick-minor-lineage-count
-trick-minor-lineage-intro
-trick-minor-lineage-list
-trick-modifier-cluster-section
 trick-modifier-group
 trick-modifier-layering-panel
 trick-name

@@ -11,10 +11,10 @@
  *      (The ADD view uses a distinct two-line `.dict-trick-row` contract,
  *      pinned separately in freestyle.add-view-rows.routes.test.ts.)
  *
- *   2. /freestyle/tricks?view=modifier renders LINKED trick cards
- *      (dictionary-trick-card partial with DictionaryTrickCard view-model)
- *      — title is an <a href="/freestyle/tricks/...">, ADD chip present,
- *      operational notation inside the JOB-block. NOT just hashtag text.
+ *   2. A modifier's page in the By modifier view renders LINKED trick rows
+ *      — title is an <a href="/freestyle/tricks/...">, difficulty value
+ *      present, operational notation inside the JOB-block. NOT just hashtag
+ *      text.
  *
  *   3. Emerging Vocabulary copy says "observational" / "awaiting review",
  *      not "more documented names"; Stanford appears as a source chip.
@@ -134,18 +134,21 @@ describe('JOB-block rendering across browse views (no raw operational notation o
 
   it('By set (two-line): each row renders its JOB inside the resolved line-2 JOB value', async () => {
     // Set view uses the two-line dict-trick-row contract; fairy and quantum
-    // are set modifiers, so these rows list on By set rather than By modifier.
-    const res = await getPage('/freestyle/tricks?view=set');
-    expect(res.status).toBe(200);
-    expectTwoLineJob(res.text, 'fairy_mirage');
-    expectTwoLineJob(res.text, 'quantum_mirage');
+    // are set modifiers, so these rows list on By set rather than By modifier,
+    // each on its own set's page.
+    const fairy = await getPage('/freestyle/tricks?view=set&set=fairy');
+    expect(fairy.status).toBe(200);
+    expectTwoLineJob(fairy.text, 'fairy_mirage');
+    const quantum = await getPage('/freestyle/tricks?view=set&set=quantum');
+    expect(quantum.status).toBe(200);
+    expectTwoLineJob(quantum.text, 'quantum_mirage');
   });
 
   it('By set and By modifier: cards with operational notation render the JOB-block label', async () => {
-    const setRes = await getPage('/freestyle/tricks?view=set');
+    const setRes = await getPage('/freestyle/tricks?view=set&set=fairy');
     expect(setRes.status).toBe(200);
     expectJobBlockRender(setRes.text, 'fairy_mirage');
-    const modRes = await getPage('/freestyle/tricks?view=modifier');
+    const modRes = await getPage('/freestyle/tricks?view=modifier&modifier=spinning');
     expect(modRes.status).toBe(200);
     expectJobBlockRender(modRes.text, 'spinning_paradox_mirage');
   });
@@ -184,14 +187,14 @@ describe('/freestyle/tricks?view=modifier — shared rows (not bare hashtags)', 
     // The name opens the trick's page and so does the Detail control; the two
     // agree on the destination, which is what a reader relies on. Set-linked
     // tricks list on By set; body-modifier tricks list on By modifier.
-    const res = await getPage('/freestyle/tricks?view=modifier');
+    const res = await getPage('/freestyle/tricks?view=modifier&modifier=spinning');
     expect(res.text).toMatch(/<a[^>]*href="\/freestyle\/tricks\/spinning_paradox_mirage"[^>]*>\s*Detail\s*<\/a>/);
-    const setRes = await getPage('/freestyle/tricks?view=set');
+    const setRes = await getPage('/freestyle/tricks?view=set&set=fairy');
     expect(setRes.text).toMatch(/<a[^>]*href="\/freestyle\/tricks\/fairy_mirage"[^>]*>\s*Detail\s*<\/a>/);
   });
 
   it('renders the difficulty value + hashtag per row (no green chip), and the derivation on the page', async () => {
-    const res = await getPage('/freestyle/tricks?view=modifier');
+    const res = await getPage('/freestyle/tricks?view=modifier&modifier=spinning');
     const slugIdx = res.text.indexOf('data-trick-slug="spinning_paradox_mirage"');
     expect(slugIdx).toBeGreaterThan(-1);
     const window = res.text.substring(slugIdx, slugIdx + 2000);
@@ -206,7 +209,7 @@ describe('/freestyle/tricks?view=modifier — shared rows (not bare hashtags)', 
   });
 
   it('renders the trick name first, then the hashtag, then the Detail control', async () => {
-    const res = await getPage('/freestyle/tricks?view=modifier');
+    const res = await getPage('/freestyle/tricks?view=modifier&modifier=ducking');
     const slugIdx = res.text.indexOf('data-trick-slug="ducking_toe_stall"');
     expect(slugIdx).toBeGreaterThan(-1);
     const window = res.text.substring(slugIdx, slugIdx + 2000);
@@ -219,15 +222,6 @@ describe('/freestyle/tricks?view=modifier — shared rows (not bare hashtags)', 
     // DOM order: name → hashtag → Detail.
     expect(titleIdx).toBeLessThan(hashtagIdx);
     expect(hashtagIdx).toBeLessThan(detailIdx);
-  });
-});
-
-describe('By-set / By-modifier axis disambiguation', () => {
-  it('By modifier intro names "which tricks use this modifier?" + cross-links to By set and the Set Encyclopedia', async () => {
-    const res = await getPage('/freestyle/tricks?view=modifier');
-    expect(res.text).toMatch(/which tricks use this modifier/i);
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\?view=set"/);
-    expect(res.text).toMatch(/href="\/freestyle\/sets"/);
   });
 });
 

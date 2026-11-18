@@ -143,21 +143,23 @@ export const freestyleController = {
    *
    * Renders the dictionary landing surface when no ?view= and no ?family=
    * parameter is supplied. Otherwise renders the browse-view chain
-   * (?view=add, ?view=family, ?view=set, ?view=modifier). ?view=emerging
+   * (?view=add, ?view=family, ?view=set, ?view=modifier), where ?family=,
+   * ?set= and ?modifier= name the one group a view shows. ?view=emerging
    * redirects permanently to /freestyle/observational, and any other value
    * renders the default ADD view.
    */
   tricksIndex(req: Request, res: Response, next: NextFunction): void {
     try {
-      const family = typeof req.query['family'] === 'string' ? req.query['family'] : undefined;
-      const view   = typeof req.query['view']   === 'string' ? req.query['view']   : undefined;
+      const family   = typeof req.query['family']   === 'string' ? req.query['family']   : undefined;
+      const view     = typeof req.query['view']     === 'string' ? req.query['view']     : undefined;
+      const set      = typeof req.query['set']      === 'string' ? req.query['set']      : undefined;
+      const modifier = typeof req.query['modifier'] === 'string' ? req.query['modifier'] : undefined;
       const redirectTo = freestyleService.tricksIndexRedirectTarget(view);
       if (redirectTo) {
         res.redirect(301, redirectTo);
         return;
       }
-      const sort = typeof req.query['sort'] === 'string' ? req.query['sort'] : undefined;
-      const vm = freestyleService.getFreestyleTricksIndexPage(family, view, sort);
+      const vm = freestyleService.getFreestyleTricksIndexPage(family, view, undefined, set, modifier);
       res.render('freestyle/tricks', vm);
     } catch (err) {
       handleControllerError(err, res, next, 'freestyle controller');
@@ -171,8 +173,7 @@ export const freestyleController = {
   tricksByAdd(req: Request, res: Response, next: NextFunction): void {
     try {
       const addTier = Number.parseInt(req.params['add'] ?? '', 10);
-      const sort = typeof req.query['sort'] === 'string' ? req.query['sort'] : undefined;
-      const vm = freestyleService.getFreestyleTricksIndexPage(undefined, 'add', sort, addTier);
+      const vm = freestyleService.getFreestyleTricksIndexPage(undefined, 'add', addTier);
       res.render('freestyle/tricks', vm);
     } catch (err) {
       handleControllerError(err, res, next, 'freestyle controller');

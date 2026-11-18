@@ -3941,24 +3941,6 @@ a.hashtag--media:hover {
 .trick-family-minor-tag { font-size: 0.9rem; color: var(--text-muted); }
 .trick-hero-meta-chip-family--minor { opacity: 0.85; }
 
-/* Minor-lineage band in the By-family browse: conserved-terminal families below
-   the current first-class threshold, shown compactly rather than as sections. */
-.trick-minor-lineage-band { margin-top: var(--space-xl); }
-.trick-minor-lineage-intro {
-  font-size: 0.9rem;
-  color: var(--text);
-  margin: 0 0 var(--space-sm);
-}
-.trick-minor-lineage-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-sm) var(--space-lg);
-}
-.trick-minor-lineage-list a { font-weight: 500; }
-.trick-minor-lineage-count { font-size: 0.9rem; color: var(--text-muted); margin-left: var(--space-xs); }
 
 
 .related-modifier-groups {
@@ -6221,14 +6203,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 /* The family axis lists far more anchors than the others and needs the
    extra leading to stay readable when it wraps to several lines. */
 .jump-bar--wide { line-height: 1.9; }
-.jump-bar--inline {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-sm);
-  margin: 0 0 var(--space-lg);
-  padding: 0;
-  border-bottom: none;
-}
 .jump-bar a {
   color: var(--primary-ink);
   text-decoration: none;
@@ -6243,15 +6217,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   margin: 0 var(--space-xs);
 }
 .trick-family-rung { margin-top: var(--space-md); }
-.trick-add-lineage { margin-top: var(--space-md); }
-.add-lineage-header {
-  margin: var(--space-lg) 0 var(--space-sm) 0;
-  font-size: 0.9rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
-}
 .family-rung-header {
   margin: var(--space-lg) 0 var(--space-sm) 0;
   font-size: 1.25rem;
@@ -6694,16 +6659,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   color: var(--text);
   font-size: 1rem;
   line-height: 1.5;
-}
-/* Orientation prose, not a metadata line: several sentences a visitor is
-   meant to read. It takes the section-intro treatment rather than the
-   subtle metadata scale, which rendered a paragraph at chip size in the
-   lightest text token. */
-.browse-view-scale {
-  margin: 0 0 var(--space-xl);
-  color: var(--text);
-  font-size: 1rem;
-  line-height: 1.55;
 }
 @media (max-width: 480px) {
   .browse-view-intro {
@@ -7505,11 +7460,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   .dict-onboarding-lenses { flex-direction: column; gap: var(--space-sm); }
 }
 
-.modifier-cluster-blurb {
-  margin: 0 0 var(--space-md);
-  font-size: 0.9rem;
-}
-
 /* ── Freestyle partial section identifiers and notes ───────────────────────
    Trick-detail and glossary partials carry section-identifier and note
    classes whose layout comes from the shared section/card primitives; these
@@ -7575,7 +7525,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .trick-add-group,
 .trick-family-group,
 .trick-set-group,
-.trick-modifier-cluster-section,
 .trick-modifier-group {
   scroll-margin-top: var(--anchor-offset);
 }

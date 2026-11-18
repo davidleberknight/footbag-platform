@@ -71,13 +71,15 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 // Every browse view the dictionary offers, by UI label and the page that lists
-// ducking-whirl. The ADD view shows one level per page, so its entry is the
-// 4-ADD level page that holds ducking-whirl.
+// ducking-whirl. The ADD, set and modifier views each show one group per page,
+// so each entry is the page of the group that holds ducking-whirl: the 4-ADD
+// level, the Pixie set (the view's only set with tricks, so its default page),
+// and the Ducking modifier.
 const BROWSE_VIEWS: Array<[string, string]> = [
   ['By ADD', '/freestyle/tricks/4'],
   ['By family', '/freestyle/tricks?view=family'],
   ['By set', '/freestyle/tricks?view=set'],
-  ['By Modifier', '/freestyle/tricks?view=modifier'],
+  ['By Modifier', '/freestyle/tricks?view=modifier&modifier=ducking'],
 ];
 
 describe('Browse-shell row-contract stability guard — every browse view uses the two-line dict-trick-row', () => {

@@ -88,13 +88,6 @@ describe('GET /freestyle/tricks/:add — canonical per-tier view', () => {
     expect(html).toContain('class="dict-tile-grid"');
   });
 
-  it('keeps the sort toggle on the canonical tier path', async () => {
-    const alpha = await page('/freestyle/tricks/5');
-    expect(alpha).toContain('href="/freestyle/tricks/5?sort=family"');
-    const byFamily = await page('/freestyle/tricks/5?sort=family');
-    expect(byFamily).toContain('href="/freestyle/tricks/5?sort=alpha"');
-  });
-
   it('carries the tier breadcrumb back to the full dictionary', async () => {
     const html = await page('/freestyle/tricks/5');
     expect(html).toContain('<a href="/freestyle/tricks">Trick Dictionary</a>');

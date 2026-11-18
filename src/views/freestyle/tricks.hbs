@@ -138,21 +138,6 @@
   </nav>
 
   {{#if (eq content.activeView "add")}}
-  {{! Within-tier browse mode: Alphabetical (default, flat A-Z for lookup) or
-      By family (nearest-anchor family bands in public-family order). Selected
-      via ?sort=; server-rendered, no JavaScript. }}
-  <nav class="trick-view-toggle" aria-label="Sort within each ADD tier">
-    <span class="dict-nav-label">{{content.navSection.sortLabel}}</span>
-    {{#if (eq content.addSort "alpha")}}
-      <a href="{{siteHref content.addSortToggle.familyHref}}">By family</a>
-      <span class="trick-view-toggle-sep" aria-hidden="true">·</span>
-      <span aria-current="true" class="trick-view-toggle-active">Alphabetical</span>
-    {{else}}
-      <span aria-current="true" class="trick-view-toggle-active">By family</span>
-      <span class="trick-view-toggle-sep" aria-hidden="true">·</span>
-      <a href="{{siteHref content.addSortToggle.alphaHref}}">Alphabetical</a>
-    {{/if}}
-  </nav>
   {{#if content.addJumpChips.length}}
   <nav class="jump-bar" aria-label="Browse by ADD level">
     <span class="jump-bar-label">ADD levels:</span>
@@ -175,74 +160,39 @@
       <h2>{{addLabel}}</h2>
       <span class="section-count">{{countLabel}}</span>
     </div>
-    {{#if (eq @root.content.addSort "alpha")}}
-    {{! Alphabetical: flat A-Z across the whole tier, by canonical name. }}
     <ul class="dict-trick-row-stack" role="list">
       {{#each cards}}
         {{> dictionary-trick-row}}
       {{/each}}
     </ul>
-    {{else}}
-    {{! By family: nearest-anchor family bands in public-family order; the
-        "Other / standalone tricks" band trails, alphabetized. Family parents
-        / minor lineages only — no surface/root buckets. }}
-    {{#each lineageBands}}
-    <div class="trick-add-lineage">
-      <h3 class="add-lineage-header">{{rootLabel}}</h3>
-      <ul class="dict-trick-row-stack" role="list">
-        {{#each cards}}
-          {{> dictionary-trick-row}}
-        {{/each}}
-      </ul>
-    </div>
-    {{/each}}
-    {{/if}}
   </section>
   {{/each}}
   {{/if}}
 
-  {{! ── By modifier view — modifier-grouped trick lists (answers "which
-       tricks use this modifier?"). The launch sets browse at ?view=set; the
-       Set Encyclopedia at /freestyle/sets stays the set-definition surface.
-       Clusters organize the sections; each modifier is its own subsection
-       with a modifier-{slug} anchor, and the jump index lists every rendered
-       modifier so common ones (paradox, symposium) are one click away. }}
+  {{! ── By modifier view — one modifier at a time ("which tricks use this
+       modifier?"), chosen from the modifier chips. The launch sets browse
+       under By set. Same two-line row contract as the other views. }}
   {{#if (eq content.activeView "modifier")}}
-  {{#if content.modifierIntro}}<p class="browse-view-intro">{{content.modifierIntro}} For the launch sets, use <a href="/freestyle/tricks?view=set">By set</a>. For what a set system actually is, see the <a href="/freestyle/sets">Set Encyclopedia</a>.</p>{{/if}}
-  {{#if content.modifierScale}}<p class="browse-view-scale">{{content.modifierScale}}</p>{{/if}}
-  {{! Collapsed curation-rationale disclosure; closed by default, native marker. }}
-  <details class="browse-view-why">
-    <summary>{{content.modifierWhyDisclosure.summary}}</summary>
-    <div class="browse-view-why-body">
-      {{#each content.modifierWhyDisclosure.paragraphs}}<p>{{this}}</p>{{/each}}
-      <p>The broader modifier and operator vocabulary lives in the <a href="/freestyle/operators">Operators &amp; Modifiers reference</a>.</p>
-    </div>
-  </details>
-  {{#if content.modifierClusterView.length}}
-
-  <nav class="jump-bar jump-bar--inline" aria-label="Modifier jump">
-    {{#each content.modifierJumpIndex}}
-      <a href="{{anchor}}">{{name}}</a>{{#unless @last}} <span class="jump-bar-sep">·</span> {{/unless}}
+  {{#if content.modifierIntro}}<p class="browse-view-intro">{{content.modifierIntro}}</p>{{/if}}
+  {{#if content.modifierViewGroups.length}}
+  <nav class="jump-bar jump-bar--wide" aria-label="Browse by modifier">
+    <span class="jump-bar-label">Modifiers:</span>
+    {{#each content.modifierChips}}
+      {{#if isCurrent}}<span aria-current="page" class="trick-view-toggle-active">{{label}}</span>{{else}}<a href="{{siteHref href}}">{{label}}</a>{{/if}}{{#unless @last}} <span class="jump-bar-sep">·</span> {{/unless}}
     {{/each}}
   </nav>
 
-  {{#each content.modifierClusterView}}
-  <section class="content-section trick-modifier-cluster-section" id="cluster-{{key}}">
+  {{#each content.modifierViewGroups}}
+  <section class="content-section trick-modifier-group" id="modifier-{{slug}}">
     <div class="section-heading">
-      <h2>{{label}}</h2>
+      <h2>{{#if referenceHref}}<a href="{{siteHref referenceHref}}">{{label}}</a>{{else}}{{label}}{{/if}}</h2>
       <span class="section-count">{{trickCount}}</span>
     </div>
-    <p class="modifier-cluster-blurb detail-muted">{{blurb}}</p>
-    {{#each groups}}
-    <section class="trick-modifier-group" id="modifier-{{slug}}">
-      <h3><a href="{{siteHref href}}">{{name}}</a> <span class="section-count">{{trickCount}}</span></h3>
-      <ul class="dict-trick-row-stack" role="list">
-        {{#each cards}}
-          {{> dictionary-trick-row}}
-        {{/each}}
-      </ul>
-    </section>
-    {{/each}}
+    <ul class="dict-trick-row-stack" role="list">
+      {{#each cards}}
+        {{> dictionary-trick-row}}
+      {{/each}}
+    </ul>
   </section>
   {{/each}}
   {{else}}
@@ -250,53 +200,25 @@
     <div class="empty-state"><p>No tricks are listed by modifier yet.</p></div>
   </section>
   {{/if}}
-
-  {{! Compact band for linked groups outside the first-class roster: name and
-      count only, each linking to the reference surface that documents it. }}
-  {{#if content.modifierOtherGroups.length}}
-  <section class="content-section trick-minor-lineage-band" id="modifier-other-groups" aria-label="Other tracked groups">
-    <div class="section-heading">
-      <h2>Other tracked groups</h2>
-      <span class="section-count">{{content.modifierOtherGroups.length}}</span>
-    </div>
-    <p class="trick-minor-lineage-intro">Tracked groups without full browse sections. Their placement is an editorial classification rather than a threshold based on the number of tricks.</p>
-    <ul class="trick-minor-lineage-list">
-      {{#each content.modifierOtherGroups}}
-      <li>{{#if href}}<a href="{{href}}">{{name}}</a>{{else}}{{name}}{{/if}} <span class="trick-minor-lineage-count">{{count}}</span></li>
-      {{/each}}
-    </ul>
-  </section>
-  {{/if}}
   {{/if}}
 
-  {{! ── By set view — the set / uptime systems as first-class sections
-      ("which tricks begin with this set?"). Split from the modifier view
-      along the set-uptime cluster seam; body and timing operators stay in
-      ?view=modifier, and the Set Encyclopedia at /freestyle/sets remains the
-      set-definition reference. Same two-line row contract as the other
-      row-density views. }}
+  {{! ── By set view — one set at a time ("which tricks begin with this
+      set?"), chosen from the set chips. Body and timing operators browse
+      under By modifier. Same two-line row contract as the other views. }}
   {{#if (eq content.activeView "set")}}
-  {{#if content.setViewIntro}}<p class="browse-view-intro">{{content.setViewIntro}} The <a href="/freestyle/sets">Set Encyclopedia</a> holds the full set vocabulary and what each set is. For body and timing operators, use <a href="/freestyle/tricks?view=modifier">By modifier</a>.</p>{{/if}}
-  {{#if content.setScale}}<p class="browse-view-scale">{{content.setScale}}</p>{{/if}}
-  {{! Collapsed curation-rationale disclosure; closed by default, native marker. }}
-  <details class="browse-view-why">
-    <summary>{{content.setWhyDisclosure.summary}}</summary>
-    <div class="browse-view-why-body">
-      {{#each content.setWhyDisclosure.paragraphs}}<p>{{this}}</p>{{/each}}
-      <p>The <a href="/freestyle/sets">Set Encyclopedia</a> covers the complete set vocabulary.</p>
-    </div>
-  </details>
+  {{#if content.setViewIntro}}<p class="browse-view-intro">{{content.setViewIntro}}</p>{{/if}}
   {{#if content.setViewGroups.length}}
-  <nav class="jump-bar jump-bar--inline" aria-label="Set jump">
-    {{#each content.setViewGroups}}
-      <a href="#set-{{slug}}">{{label}}</a>{{#unless @last}} <span class="jump-bar-sep">·</span> {{/unless}}
+  <nav class="jump-bar jump-bar--wide" aria-label="Browse by set">
+    <span class="jump-bar-label">Sets:</span>
+    {{#each content.setChips}}
+      {{#if isCurrent}}<span aria-current="page" class="trick-view-toggle-active">{{label}}</span>{{else}}<a href="{{siteHref href}}">{{label}}</a>{{/if}}{{#unless @last}} <span class="jump-bar-sep">·</span> {{/unless}}
     {{/each}}
   </nav>
 
   {{#each content.setViewGroups}}
   <section class="content-section trick-set-group" id="set-{{slug}}">
     <div class="section-heading">
-      <h2><a href="{{siteHref href}}">{{label}}</a></h2>
+      <h2>{{#if referenceHref}}<a href="{{siteHref referenceHref}}">{{label}}</a>{{else}}{{label}}{{/if}}</h2>
       <span class="section-count">{{trickCount}}</span>
     </div>
     <ul class="dict-trick-row-stack" role="list">

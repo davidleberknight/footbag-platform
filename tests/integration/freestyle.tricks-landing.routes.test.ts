@@ -59,9 +59,8 @@ beforeAll(async () => {
     add_bonus:     1,
     modifier_type: 'body',
   });
-  // A set-uptime modifier linked to an active trick, so the By-modifier
-  // landing card surfaces the set-uptime cluster (and its #cluster-set-uptime
-  // anchor) rather than rendering empty.
+  // A set-uptime modifier linked to an active trick, so the By set view has a
+  // set to show rather than rendering empty.
   insertFreestyleTrickModifier(db, {
     slug:          'pixie',
     modifier_name: 'pixie',
@@ -106,8 +105,8 @@ beforeAll(async () => {
   insertFreestyleTrickModifierLink(db, 'inspinning-whirl', 'inspinning');
   insertFreestyleTrickModifierLink(db, 'double-spinning-whirl', 'spinning', 1);
   insertFreestyleTrickModifierLink(db, 'double-spinning-whirl', 'spinning', 2);
-  // Two mirage-family ADD-4 tricks so the ADD-4 bucket spans two lineages
-  // (whirl + mirage) and the By-ADD lineage sub-bands render headers.
+  // Two mirage-family ADD-4 tricks, so the 4-ADD level holds tricks from more
+  // than one family and its count is plural.
   insertFreestyleTrick(db, {
     slug: 'ducking-paradox-mirage', canonical_name: 'ducking-paradox mirage', adds: '4',
     base_trick: 'mirage', trick_family: 'mirage', category: 'compound',
@@ -116,7 +115,6 @@ beforeAll(async () => {
     slug: 'spinning-paradox-mirage', canonical_name: 'spinning-paradox mirage', adds: '4',
     base_trick: 'mirage', trick_family: 'mirage', category: 'compound',
   });
-
   db.close();
   createApp = await importApp();
 });
@@ -234,19 +232,6 @@ describe('GET /freestyle/tricks — browse axes and their explanations', () => {
     const html = (await page('/freestyle/tricks?view=family&family=whirl')).text;
     expect(html).toContain('class="family-rung-header"');
     expect(html).toContain('2 operators');
-  });
-
-  it('By ADD groups each bucket into lineage sub-bands with headers', async () => {
-    // The 4-ADD level spans the whirl and mirage lineages in this seed.
-    const html = (await page('/freestyle/tricks/4?sort=family')).text;
-    // The By-family ADD-view mode (?sort=family) sub-groups each tier into
-    // nearest-anchor family bands with a plain family-name header (no
-    // "-derived" suffix, and no surface/root bands).
-    expect(html).toContain('class="add-lineage-header"');
-    expect(html).toContain('add-lineage-header">Whirl');
-    expect(html).toContain('add-lineage-header">Mirage');
-    // the mirage ADD-4 tricks sit in the Mirage band of the ADD-4 bucket
-    expect(html).toContain('data-trick-slug="ducking-paradox-mirage"');
   });
 
   it('each browse axis explains what it is for, without spending a line of layout', async () => {
@@ -396,10 +381,20 @@ describe('GET /freestyle/tricks — one orienting lede per state', () => {
     expect(unfiltered.text).not.toContain('class="dict-header-count"');
   });
 
+  // Defect caught: a secondary view loses its lede, or shows another view's,
+  // so a reader arriving there is not told what the grouping is.
   it('a secondary view shows its own state-specific lede', async () => {
-    const res = await page('/freestyle/tricks?view=modifier');
-    expect(res.status).toBe(200);
-    expect(res.text).toMatch(/Tricks grouped by the modifier they use/);
+    const lede = async (url: string): Promise<string> => {
+      const res = await page(url);
+      expect(res.status, url).toBe(200);
+      const ledes = [...res.text.matchAll(/<p class="browse-view-intro">([^<]+)<\/p>/g)].map(m => m[1]!.trim());
+      expect(ledes, `${url} renders exactly one lede`).toHaveLength(1);
+      return ledes[0]!;
+    };
+    const modifierLede = await lede('/freestyle/tricks?view=modifier');
+    const setLede = await lede('/freestyle/tricks?view=set');
+    expect(modifierLede.length).toBeGreaterThan(0);
+    expect(modifierLede, 'the modifier and set views each carry their own lede').not.toBe(setLede);
   });
 
   it('the family filter shows the family header', async () => {
@@ -481,14 +476,12 @@ describe('GET /freestyle/tricks — orientation tiles and search section', () =>
     const cardIdx = res.text.indexOf('class="card dict-nav-card"');
     expect(cardIdx).toBeGreaterThan(-1);
     expect(res.text).toContain('<h2 class="card-title">Navigate the Trick Dictionary</h2>');
-    // All three control rows live inside that card, before the trick list.
+    // Both control rows live inside that card, before the trick list.
     const viewIdx = res.text.indexOf('aria-label="Browse the dictionary"');
-    const sortIdx = res.text.indexOf('aria-label="Sort within each ADD tier"');
     const jumpIdx = res.text.indexOf('aria-label="Browse by ADD level"');
     const listIdx = res.text.indexOf('data-trick-slug=');
     expect(viewIdx).toBeGreaterThan(cardIdx);
-    expect(sortIdx).toBeGreaterThan(viewIdx);
-    expect(jumpIdx).toBeGreaterThan(sortIdx);
+    expect(jumpIdx).toBeGreaterThan(viewIdx);
     expect(listIdx).toBeGreaterThan(jumpIdx);
   });
 

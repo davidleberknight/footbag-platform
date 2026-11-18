@@ -61,6 +61,10 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'dimwalk', canonical_name: 'dimwalk', adds: '4', base_trick: 'butterfly', trick_family: 'butterfly' });
   insertFreestyleTrickModifierLink(db, 'smear',   'miraging');
   insertFreestyleTrickModifierLink(db, 'dimwalk', 'miraging');
+  // A paradox-linked trick, so Paradox's page in the modifier view has a row
+  // and the operator row's browse link lands on a rendered group.
+  insertFreestyleTrick(db, { slug: 'paradox_mirage', canonical_name: 'paradox mirage', adds: '3', base_trick: 'mirage', trick_family: 'mirage' });
+  insertFreestyleTrickModifierLink(db, 'paradox_mirage', 'paradox');
   // The glossary entries that link to the provisional operator pages live in the
   // database, seeded as the rebuild seeds them.
   seedStagedGlossary(db);
@@ -129,8 +133,13 @@ describe('GET /freestyle/operators — compact modifier index', () => {
     for (const slug of ['paradox', 'spinning', 'symposium', 'ducking']) {
       expect(res.text, `row ${slug}`).toContain(`id="operator-${slug}"`);
     }
-    // A modifier with a section in the modifier view browses straight to it.
-    expect(res.text).toContain('href="/freestyle/tricks?view=modifier#modifier-paradox"');
+    // A modifier with a section in the modifier view browses straight to its
+    // own page there, and that page renders the modifier's group.
+    expect(rowSlice(res.text, 'paradox'))
+      .toContain('href="/freestyle/tricks?view=modifier&amp;modifier=paradox"');
+    const target = await page('/freestyle/tricks?view=modifier&modifier=paradox');
+    expect(target.status).toBe(200);
+    expect(target.text).toContain('id="modifier-paradox"');
     expect(res.text).not.toMatch(/\/freestyle\/tricks\?view=(movement-system|topology)/);
   });
 

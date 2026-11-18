@@ -1,15 +1,15 @@
 /**
- * ADD-view within-tier grouping: Alphabetical (flat A-Z, the default) +
- * By family (nearest-anchor bands, ?sort=family).
+ * ADD view: one level lists its tricks as one flat alphabetical list, whatever
+ * family each trick belongs to.
  *
- * The ADD view must group by the nearest public family (the same model the
- * Family view uses), not by the top source-root ancestor, and must not surface
- * foundational surfaces (clipper-stall) or a raw root as a public band:
- *   - no "Clipper-stall" / "-derived" band headers
- *   - branch anchors own their tricks (Torque/Blender/Double Legover/Eggbeater)
- *   - drifter-family tricks band under Drifter
- *   - non-public-family tricks collect in "Other / standalone tricks"
- *   - Alphabetical mode is a flat A-Z list (no family headers) for lookup
+ * The fixture seeds one ADD level holding tricks from every family shape the
+ * dictionary has: branch anchors that carry their root's structural label and
+ * a public family override (torque, blender, double leg over, eggbeater), a
+ * plain public family (drifter, whirl), a member tagged with a foundational
+ * surface but overridden to a public family (high plains drifter), a family
+ * whose display name is not its slug (Dada Curve), and a trick with no public
+ * family at all (stepping reaper). Every one of them must be listed, in
+ * canonical-name order, so a reader can look a trick up by name.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -31,77 +31,44 @@ beforeAll(async () => {
       base_trick: family, trick_family: family, category: 'compound',
       review_status: 'curated', is_active: 1, family_override: family_override ?? null,
     });
-  // Each branch anchor carries the root's structural label and a public family
-  // override, as the real dictionary does.
   t('torque', 'osis', undefined, 'torque');
   t('blender', 'osis', undefined, 'blender');
   t('double_leg_over', 'legover', undefined, 'double_leg_over');
   t('eggbeater', 'legover', undefined, 'eggbeater');
-  t('drifter', 'drifter');                   // public family
-  t('high_plains_drifter', 'clipper_stall', undefined, 'drifter'); // NOT clipper-stall
-  t('dada_curve', 'dada_curve', 'Dada Curve');// public family
-  t('whirl', 'whirl');                       // ordinary public family
-  t('stepping_reaper', 'clipper_stall');     // no override -> Other / standalone
+  t('drifter', 'drifter');
+  t('high_plains_drifter', 'clipper_stall', undefined, 'drifter');
+  t('dada_curve', 'dada_curve', 'Dada Curve');
+  t('whirl', 'whirl');
+  t('stepping_reaper', 'clipper_stall');
   db.close();
   createApp = await importApp();
 });
 afterAll(() => cleanupTestDb(dbPath));
 
-async function addView(sort?: 'alpha' | 'family'): Promise<string> {
-  const url = sort ? `/freestyle/tricks?view=add&sort=${sort}` : '/freestyle/tricks?view=add';
-  const res = await request(await createApp()).get(url);
-  expect(res.status).toBe(200);
-  return res.text;
-}
-const header = (slug: string) => `add-lineage-header">${slug}`;
-
-describe('ADD view — By family (?sort=family)', () => {
-  it('has no "Clipper-stall" band and no "-derived" headers', async () => {
-    const html = await addView('family');
-    expect(html).not.toContain('-derived');
-    expect(html).not.toContain(header('Clipper-stall'));
-    expect(html).not.toContain('add-lineage-header">Clipper'); // no surface/root band
-  });
-
-  it('bands branch anchors under their own families (not Osis/Legover)', async () => {
-    const html = await addView('family');
-    for (const label of ['Torque', 'Blender', 'Double Legover', 'Eggbeater']) {
-      expect(html).toContain(header(label));
-    }
-  });
-
-  it('drifter-family tricks band under Drifter', async () => {
-    const html = await addView('family');
-    expect(html).toContain(header('Drifter'));
-    // both the drifter anchor and the clipper-stall-tagged member are reachable
-    expect(html).toContain('href="/freestyle/tricks/high_plains_drifter"');
-  });
-
-  it('non-public-family tricks collect in "Other / standalone tricks"', async () => {
-    const html = await addView('family');
-    expect(html).toContain(header('Other / standalone tricks'));
-    expect(html).toContain('href="/freestyle/tricks/stepping_reaper"');
-  });
-
-  it('Dada Curve appears in its own Dada-Curve family band', async () => {
-    const html = await addView('family');
-    expect(html).toContain(header('Dada-Curve'));
+describe('ADD view: a level is one alphabetical list', () => {
+  // Defect caught: a level drops a trick whose family is not public, or groups
+  // the level by family again, so a reader scanning by name finds the tricks
+  // out of order or not at all.
+  it('lists every trick at the level, in canonical-name order', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/4');
+    expect(res.status).toBe(200);
+    // Hand-sorted canonical names: blender, Dada Curve, double_leg_over,
+    // drifter, eggbeater, high_plains_drifter, stepping_reaper, torque, whirl.
+    const expected = [
+      'blender', 'dada_curve', 'double_leg_over', 'drifter', 'eggbeater',
+      'high_plains_drifter', 'stepping_reaper', 'torque', 'whirl',
+    ];
+    const positions = expected.map(slug => {
+      const at = res.text.indexOf(`href="/freestyle/tricks/${slug}"`);
+      expect(at, `${slug} is listed at its ADD level`).toBeGreaterThanOrEqual(0);
+      return at;
+    });
+    // ordering-is-the-contract: a level lists its tricks alphabetically.
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
   });
 });
 
-describe('ADD view — Alphabetical (?sort=alpha)', () => {
-  it('renders a flat list with no family headers', async () => {
-    const html = await addView('alpha');
-    expect(html).not.toContain('add-lineage-header');
-  });
-
-  it('Dada Curve is findable in the flat A-Z list', async () => {
-    const html = await addView('alpha');
-    expect(html).toContain('href="/freestyle/tricks/dada_curve"');
-  });
-});
-
-describe('Search unaffected by the ADD-view change', () => {
+describe('Search unaffected by the ADD view', () => {
   it('the suggest endpoint still resolves a trick', async () => {
     const res = await request(await createApp()).get('/freestyle/search/suggest').query({ q: 'torque' });
     expect(res.status).toBe(200);

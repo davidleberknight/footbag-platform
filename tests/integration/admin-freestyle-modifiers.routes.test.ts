@@ -251,7 +251,8 @@ describe('a modifier\'s place in the browse-by-modifier view', () => {
   });
   const placement = () => query<{ browse_group: string | null; browse_order: number | null; browse_full_section: number }>(
     'SELECT browse_group, browse_order, browse_full_section FROM freestyle_trick_modifiers WHERE slug = ?', 'browse_mod');
-  const browsePage = async () => (await request(await app()).get('/freestyle/tricks?view=modifier')).text;
+  // The modifier's own page in the browse-by-modifier view.
+  const browsePage = async () => request(await app()).get('/freestyle/tricks?view=modifier&modifier=browse_mod');
 
   // Defect caught: the edit form loses the stored placement, so the next save of
   // an unrelated field moves the modifier out of its group.
@@ -278,7 +279,9 @@ describe('a modifier\'s place in the browse-by-modifier view', () => {
   // Defect caught: a placement edit reaches only the database, so the next
   // rebuild puts the seeded placement back, or the browse view ignores it.
   it('saves a placement change to the row, its save file and the audit row, and the browse view follows it', async () => {
-    expect(await browsePage()).toContain('href="#modifier-browse_mod"');
+    const before = await browsePage();
+    expect(before.status).toBe(200);
+    expect(before.text).toContain('id="modifier-browse_mod"');
     const res = await editBrowse(browseFields({ browseFullSection: '' }));
     expect(res.status).toBe(303);
     expect(placement()).toEqual({ browse_group: 'rotational-body', browse_order: 10, browse_full_section: 0 });
@@ -288,7 +291,8 @@ describe('a modifier\'s place in the browse-by-modifier view', () => {
     const latest = query<{ metadata_json: string }>(
       "SELECT metadata_json FROM audit_entries WHERE entity_id = 'browse_mod' AND action_type = 'freestyle.modifier.updated' ORDER BY rowid DESC LIMIT 1")!;
     expect(JSON.parse(latest.metadata_json).changedFields).toEqual(['browse_full_section']);
-    expect(await browsePage()).not.toContain('href="#modifier-browse_mod"');
+    // With no section of its own, the modifier has no page in the view.
+    expect((await browsePage()).status).toBe(404);
   });
 
   // Defect caught: a modifier filed under a group the browse view never shows, or

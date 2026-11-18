@@ -31,6 +31,7 @@ import {
   insertMember,
   insertFreestyleTrick,
   insertFreestyleTrickAlias,
+  insertFreestyleTrickModifierLink,
   insertTtLesson,
 } from '../fixtures/factories';
 import { FREESTYLE_ADD_ANALYSIS_CONTENT } from '../../src/content/freestyleAddAnalysisContent';
@@ -239,6 +240,8 @@ beforeAll(async () => {
 
   // The operators and the placed modifiers the pages link, as the rebuild seeds them.
   seedStagedOperatorsAndModifiers(db);
+  // paradox-mirage uses paradox, so Paradox has a page in the modifier view.
+  insertFreestyleTrickModifierLink(db, 'paradox-mirage', 'paradox');
   db.close();
   createApp = await importApp();
 });
@@ -503,9 +506,17 @@ describe('GET /freestyle/operators — compact modifier index + advanced referen
     expect(res.text).not.toContain('class="glossary-intermediate-operators"');
   });
 
-  it('cross-links the dictionary modifier view', async () => {
+  // Defect caught: an operator's browse link points at an address the modifier
+  // view does not render, so a reader following it lands on a 404 or on some
+  // other modifier's page.
+  it('cross-links a modifier to its own page in the dictionary modifier view', async () => {
     const res = await page('/freestyle/operators');
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\?view=modifier#modifier-[a-z_]+"/);
+    expect(res.text).toContain('href="/freestyle/tricks?view=modifier&amp;modifier=paradox"');
+    const target = await page('/freestyle/tricks?view=modifier&modifier=paradox');
+    expect(target.status).toBe(200);
+    const at = target.text.indexOf('id="modifier-paradox"');
+    expect(at, 'the Paradox group renders').toBeGreaterThanOrEqual(0);
+    expect(target.text.slice(at)).toContain('data-trick-slug="paradox-mirage"');
   });
 });
 

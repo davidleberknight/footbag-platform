@@ -13,7 +13,7 @@ Use this skill (not general editing) when a task does any of the following:
 - Renames a view (an unknown `?view=` value falls through to ADD, so an inbound link to the old name needs an explicit redirect; the precedent is `freestyleService.tricksIndexRedirectTarget`)
 - Adds a new grouping wrapper that consumes existing `DictionaryTrickCard[]` data
 - Changes within-group ordering rules for any browse view
-- Touches the ADD view's per-tier URL (`/freestyle/tricks/:add`, `tricksByAdd`) or its `?sort=` mode, which render the same ADD branch
+- Touches the ADD view's per-tier URL (`/freestyle/tricks/:add`, `tricksByAdd`), which renders the ADD branch
 
 Do **not** use this skill to:
 - Modify the `<dictionary-trick-row>` partial itself. That changes every browse view at once, so it is a row-contract change: route through `extend-service-contract` + `add-public-page`
@@ -44,10 +44,10 @@ Step 6 → VERIFY and hand off
   contract across every view. Read it before changing a view; it is what will fail if the change
   breaks uniformity.
 - One shipped view whose shape resembles the new work, read in `src/views/freestyle/tricks.hbs`:
-  By modifier for cluster-then-group nesting, By family for banded sub-groups, By set for flat
-  per-set sections.
+  By family for one group with banded sub-groups, By set or By modifier for one flat group, each
+  chosen from a chip row and given its own address.
 - The existing group type for the view being changed (`FreestyleTrickAddGroup`,
-  `FreestyleFamilyGroup`, `FreestyleSetViewGroup`, `FreestyleModifierGroup`).
+  `FreestyleFamilyGroup`, `FreestyleBrowseGroup` for the set and modifier views).
 
 A new browse view needs curator approval before it joins `allowedViews`. That is a decision for the
 human, not something this skill authorises.
@@ -133,7 +133,10 @@ The branch owns grouping, headings and prose; the row owns everything inside a r
   leaves `=` as written and escapes what could close the attribute.
 - **Section ID format `{view}-{slug}`.** Anchor IDs are public API. Never rename one without
   updating every cross-link in the same change.
-- **Heading wraps the label in a self-anchored link**, so a reader can copy a deep link to a group.
+- **Heading link.** The family view's heading links to the family's own page. A set or modifier
+  heading links to that group's reference entry (its Set Encyclopedia page, or its entry on the
+  Operators & Modifiers page), and stays plain text when the reference holds none; the chip row
+  and the page's own address give the shareable link.
 - **Update the view toggle** unless the view is deliberately unlisted. A renamed view also needs an
   explicit redirect for the old value.
 - **No row-internal markup.** The template never renders a name, difficulty value, hashtag, control
@@ -167,7 +170,7 @@ Each view ships a focused integration test under `tests/integration/` (see the e
 family-, set- and modifier-view suites) covering:
 
 1. **Route + view toggle**: the view's toggle entry is active (or deliberately absent), asserted in the same case as the 200 rather than in a standalone status test
-2. **Grouping wrapper**: anchor IDs render; the heading carries its self-anchor link and count chip
+2. **Grouping wrapper**: anchor IDs render; the heading carries its link (per the heading-link rule) and count chip
 3. **Heading system**: the group heading uses `.section-heading`, so a bespoke one cannot creep back
 4. **Within-group ordering**: assert the sort with an example spanning three or more ADD values
 5. **Empty-group hiding**: groups with zero members render no anchor
