@@ -531,6 +531,27 @@ describe('POST /admin/work-queue/:id/resolve', () => {
     expect(replyCountFor(queueId)).toBe(1);
   });
 
+  it('a repeated resolve still reports its own email after the same admin resolves a later request from the same member', async () => {
+    // Defect caught: the repeat reads the admin's latest resolve on the member,
+    // which is the later request's, and tells the admin no email went out.
+    const app = createApp();
+    const body = { decision_label: 'corrected', resolution_note: 'Fixed it.' };
+    const resolve = (id: string) => request(app).post(`/admin/work-queue/${id}/resolve`)
+      .set('Cookie', adminCookie()).type('form').send(body);
+
+    const firstId = await postOneOpenRequest(app, MEMBER_ID, MEMBER_SLUG);
+    const first = await resolve(firstId);
+    expect(first.status).toBe(303);
+    const laterId = await postOneOpenRequest(app, MEMBER_ID, MEMBER_SLUG);
+    expect((await resolve(laterId)).status).toBe(303);
+
+    const repeat = await resolve(firstId);
+    expect(repeat.status).toBe(303);
+    expect(flashOf(repeat)).toBe(flashOf(first));
+    expect(resolveAuditCount(firstId)).toBe(1);
+    expect(replyCountFor(firstId)).toBe(1);
+  });
+
   it("another admin re-posting a resolve this admin made gets the closed item's not-found answer, and nothing is written", async () => {
     // Defect caught: a second admin is told they resolved an item they did not.
     const app = createApp();

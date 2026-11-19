@@ -59,8 +59,9 @@ c4=$(run_count "created_by dev-shortcuts/*" \
 c5=$(run_count "reason_code dev_persona_seed" \
   "SELECT COUNT(*) FROM member_tier_grants WHERE reason_code = 'dev_persona_seed.tier_grant';")
 
-c6=$(run_count "action_type testkit.persona_seed/switch" \
-  "SELECT COUNT(*) FROM audit_entries WHERE action_type IN ('testkit.persona_seed','testkit.persona_switch');")
+# Every persona harness audit marker: seed, switch, login and refresh.
+c6=$(run_count "action_type testkit.persona_*" \
+  "SELECT COUNT(*) FROM audit_entries WHERE action_type LIKE 'testkit.persona\\_%' ESCAPE '\\';")
 
 # The persona harness's own rows. The system member that owns the curated
 # content is permanent production data and never matches: it is excluded by its
@@ -80,7 +81,18 @@ c10=$(run_count "legacy_members import_source test" \
 c11=$(run_count "system_config cfg_dev_outbox_poll" \
   "SELECT COUNT(*) FROM system_config WHERE id = 'cfg_dev_outbox_poll';")
 
-total=$((c1 + c2 + c4 + c5 + c6 + c7 + c8 + c9 + c10 + c11))
+# Rows the persona seed makes under its own fixed id prefixes: clubs, events
+# and old-site records.
+c12=$(run_count "clubs.id club-test-persona-*" \
+  "SELECT COUNT(*) FROM clubs WHERE id LIKE 'club-test-persona-%';")
+
+c13=$(run_count "events.id event-test-persona-*" \
+  "SELECT COUNT(*) FROM events WHERE id LIKE 'event-test-persona-%';")
+
+c14=$(run_count "historical_persons persona ids" \
+  "SELECT COUNT(*) FROM historical_persons WHERE person_id LIKE 'person\\_persona\\_%' ESCAPE '\\' OR legacy_member_id LIKE 'legmem\\_persona\\_%' ESCAPE '\\';")
+
+total=$((c1 + c2 + c4 + c5 + c6 + c7 + c8 + c9 + c10 + c11 + c12 + c13 + c14))
 
 echo
 if [[ "${total}" -eq 0 ]]; then

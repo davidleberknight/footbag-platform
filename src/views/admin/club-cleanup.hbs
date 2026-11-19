@@ -111,6 +111,11 @@
                       <button type="submit" class="btn btn-outline btn-sm">Contact Members</button>
                     </form>
                     {{/if}}
+                    {{#if this.showQuietControls}}
+                    <form method="POST" action="/admin/club-cleanup/{{this.clubId}}/contact-coleaders" class="cleanup-action-form mt-1">
+                      <button type="submit" class="btn btn-primary btn-sm">Ask the Co-leaders</button>
+                    </form>
+                    {{/if}}
                     <form method="POST" action="/admin/club-cleanup/{{this.clubId}}/resolve" class="cleanup-action-form">
                       <input type="hidden" name="predicate" value="{{this.predicate}}" />
                       <label>Action <select name="action" class="cleanup-action-select">

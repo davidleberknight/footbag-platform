@@ -28,8 +28,12 @@ beforeAll(async () => {
   const db = createTestDb(dbPath);
   seedPersona(db, { slug: 'sw_member', displayName: 'Switch Member', tier: 'tier1', testingUsage: 'Switch route fixture.', coverageNotes: ['switch member'] });
   seedPersona(db, { slug: 'sw_admin', displayName: 'Switch Admin', tier: 'tier2', isAdmin: true, testingUsage: 'Switch route fixture.', coverageNotes: ['switch admin'] });
+  seedPersona(db, { slug: 'sw_restricted', displayName: 'Switch Restricted', tier: 'tier1', testingUsage: 'Switch route fixture.', coverageNotes: ['switch restricted'] });
   db.close();
   createApp = await importApp();
+  // Restricted through the administrator's real entry, as on the record page.
+  const { memberDisciplineService } = await import('../../src/services/memberDisciplineService');
+  memberDisciplineService.restrict('member_persona_sw_admin', 'member_persona_sw_restricted', 'Switch route fixture.');
 });
 
 afterAll(() => {
@@ -59,6 +63,16 @@ describe('GET /dev/switch', () => {
     // requireAdmin), proving the cookie verifies and carries role=admin.
     const adminRes = await request(createApp()).get('/admin').set('Cookie', cookie);
     expect(adminRes.status).toBe(200);
+  });
+
+  // Defect caught: the switch mints a cookie for a restricted account that the
+  // per-request session check then refuses, so the tester lands signed out with
+  // no reason and a restricted persona can never be explored.
+  it('refuses a restricted persona with no session, like an unknown slug', async () => {
+    const res = await request(createApp()).get('/dev/switch?as=sw_restricted');
+    expect(res.status).toBe(404);
+    expect((res.headers['set-cookie'] as unknown as string[] | undefined ?? [])
+      .some((c) => c.startsWith('__Host-footbag_session='))).toBe(false);
   });
 
   it('returns 404 for an unknown persona slug', async () => {

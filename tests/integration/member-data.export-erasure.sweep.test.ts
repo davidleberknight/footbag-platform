@@ -95,6 +95,11 @@ const DECISIONS: Record<string, Decision> = {
   'active_player_reminder_sent.member_id': { export: { withheld: OPERATIONAL }, erasure: { unruled: NO_ERASURE_RULE } },
   'active_player_vouches.target_member_id': { export: { exported: 'memberExport.vouchesReceived' }, erasure: { unruled: NO_ERASURE_RULE } },
   'active_player_vouches.voucher_member_id': ACTOR,
+  'members.restricted_by': ACTOR,
+  'membership_discipline_decisions.member_id': {
+    export: { exported: 'memberExport.disciplineDecisions' },
+    erasure: { retained: 'a decision is kept until a year after the purge, the bylaws\' window for challenging it, and then deleted by the daily discipline pass' },
+  },
   'audit_entries.actor_member_id': {
     export: { exported: 'memberExport.ownAuditActions' },
     erasure: { retained: 'erasure does not delete audit history' },

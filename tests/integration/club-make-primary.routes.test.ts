@@ -1,7 +1,7 @@
 /**
- * Making one of a member's two clubs primary. The profile offers a Make
- * Primary control beside the club that is not primary, and the form names the
- * club it makes primary, so a member can move their primary back and forth as
+ * Making one of a member's clubs primary. The profile offers a Make Primary
+ * control beside each club that is not primary, and the form names the club
+ * it makes primary, so a member can move their primary back and forth as
  * often as they like, and a second submit of the same page asks for the state
  * the first one made rather than flipping it back. One partial unique index
  * allows a single primary per member and SQLite checks it per row as a
@@ -18,7 +18,7 @@ import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/
 const { dbPath } = setTestEnv('3993');
 
 import BetterSqlite3 from 'better-sqlite3';
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import {
   insertTag,
@@ -36,8 +36,14 @@ const HOLDER   = 'make-primary-held-001';
 const OUTSIDER = 'make-primary-outsider-001';
 const VIEWER   = 'make-primary-viewer-001';
 const LONE     = 'make-primary-lone-001';
+const TRIO     = 'make-primary-trio-001';
+const LEAVES_PRIMARY   = 'make-primary-leaves-primary-001';
+const LEAVES_SECONDARY = 'make-primary-leaves-secondary-001';
 const SLUG: Record<string, string> = {
   [LONE]:     'make_primary_lone',
+  [TRIO]:     'make_primary_trio',
+  [LEAVES_PRIMARY]:   'make_primary_leaves_primary',
+  [LEAVES_SECONDARY]: 'make_primary_leaves_secondary',
   [MEMBER]:   'make_primary_member',
   [SOLO]:     'make_primary_solo',
   [REPEATER]: 'make_primary_repeat',
@@ -140,10 +146,39 @@ async function makePrimaryControls(memberId: string): Promise<{ block: string; c
   return { block, controls };
 }
 
+/**
+ * An affiliation whose join time is the given instant. The factory stamps its
+ * rows from the clock, so the clock is held at that instant for the insert
+ * alone.
+ */
+function insertAffiliationJoinedAt(
+  db: BetterSqlite3.Database,
+  iso: string,
+  memberId: string,
+  clubId: string,
+  overrides: Parameters<typeof insertMemberClubAffiliation>[3] = {},
+): void {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  try {
+    vi.setSystemTime(new Date(iso));
+    insertMemberClubAffiliation(db, memberId, clubId, overrides);
+  } finally {
+    vi.useRealTimers();
+  }
+}
+
+function leave(memberId: string, clubKey: string) {
+  return request(createApp())
+    .post(`/clubs/${clubKey}/leave`)
+    .set('Cookie', cookieFor(memberId))
+    .type('form')
+    .send({ confirmed: '1' });
+}
+
 beforeAll(async () => {
   const db = createTestDb(dbPath);
 
-  for (const id of [MEMBER, SOLO, REPEATER, HOLDER, OUTSIDER, VIEWER, LONE]) {
+  for (const id of [MEMBER, SOLO, REPEATER, HOLDER, OUTSIDER, VIEWER, LONE, TRIO, LEAVES_PRIMARY, LEAVES_SECONDARY]) {
     insertMember(db, { id, slug: SLUG[id], display_name: SLUG[id], login_email: `${SLUG[id]}@example.com` });
     completeOnboarding(db, id);
   }
@@ -175,6 +210,21 @@ beforeAll(async () => {
   // must still not offer an action the route can only refuse.
   insertMemberClubAffiliation(db, LONE, CLUB_ONE, { is_primary: 0 });
 
+  insertMemberClubAffiliation(db, TRIO, CLUB_ONE, { is_primary: 1 });
+  insertMemberClubAffiliation(db, TRIO, CLUB_TWO, { is_primary: 0 });
+  insertMemberClubAffiliation(db, TRIO, CLUB_THREE, { is_primary: 0 });
+
+  // Two members in all three clubs, joined in the order One, Three, Two. Each
+  // later join's affiliation id sorts before the earlier one's, so only the
+  // join time can tell which remaining club was joined first. The member who
+  // leaves a secondary club holds the last-joined club as primary, so a leave
+  // that wrongly re-picks a primary would move it to the earliest.
+  for (const [n, id, primary] of [[1, LEAVES_PRIMARY, CLUB_ONE], [2, LEAVES_SECONDARY, CLUB_TWO]] as const) {
+    insertAffiliationJoinedAt(db, '2026-01-01T00:00:00.000Z', id, CLUB_ONE, { id: `mca-mp-${n}-z`, is_primary: primary === CLUB_ONE ? 1 : 0 });
+    insertAffiliationJoinedAt(db, '2026-02-01T00:00:00.000Z', id, CLUB_THREE, { id: `mca-mp-${n}-y` });
+    insertAffiliationJoinedAt(db, '2026-03-01T00:00:00.000Z', id, CLUB_TWO, { id: `mca-mp-${n}-a`, is_primary: primary === CLUB_TWO ? 1 : 0 });
+  }
+
   db.close();
   createApp = await importApp();
 });
@@ -195,6 +245,17 @@ describe('the Make Primary control on the member profile', () => {
 
     const after = await makePrimaryControls(VIEWER);
     expect(after.controls).toEqual({ [KEY[CLUB_ONE]]: KEY[CLUB_ONE], [KEY[CLUB_TWO]]: null });
+  });
+
+  // Defect caught: a member in three clubs is offered Make Primary beside only
+  // one of their two secondary clubs, or beside the primary.
+  it('appears beside each secondary club for a member in three clubs, each naming its own club', async () => {
+    const { controls } = await makePrimaryControls(TRIO);
+    expect(controls).toEqual({
+      [KEY[CLUB_ONE]]: null,
+      [KEY[CLUB_TWO]]: KEY[CLUB_TWO],
+      [KEY[CLUB_THREE]]: KEY[CLUB_THREE],
+    });
   });
 
   // Defect caught: a member with one club is offered a control that can only
@@ -238,6 +299,16 @@ describe('making a club primary', () => {
     }
   });
 
+  // Defect caught: with three clubs, a change touches only two rows, leaving
+  // the member with two primaries or none, or names the wrong club primary.
+  it('moves the primary among three clubs, one at a time, keeping exactly one primary', async () => {
+    for (const target of [CLUB_THREE, CLUB_TWO, CLUB_ONE, CLUB_THREE]) {
+      const res = await makePrimary(TRIO, KEY[target]);
+      expect(res.status).toBe(303);
+      expect(primaryClubIds(TRIO)).toEqual([target]);
+    }
+  });
+
   // Defect caught: a member with one club is told they changed something, or
   // loses the primary flag on the only club they hold.
   it('a member with one club is refused and nothing changes', async () => {
@@ -267,6 +338,28 @@ describe('making a club primary', () => {
       `${CLUB_ONE}>${CLUB_TWO}`,
       `${CLUB_TWO}>${CLUB_ONE}`,
     ].sort());
+  });
+});
+
+describe('leaving a club among three', () => {
+  // Defect caught: leaving the primary club leaves the member with no primary,
+  // or promotes a club other than the one they joined earliest.
+  it('leaving the primary makes the earliest-joined remaining club primary, and only it', async () => {
+    const res = await leave(LEAVES_PRIMARY, KEY[CLUB_ONE]);
+    expect(res.status).toBe(303);
+    expect(primaryClubIds(LEAVES_PRIMARY)).toEqual([CLUB_THREE]);
+    const current = readDb((db) => db.prepare(
+      'SELECT club_id FROM member_club_affiliations WHERE member_id = ? AND is_current = 1',
+    ).all(LEAVES_PRIMARY) as Array<{ club_id: string }>);
+    expect(current.map((r) => r.club_id).sort()).toEqual([CLUB_THREE, CLUB_TWO].sort());
+  });
+
+  // Defect caught: leaving a secondary club moves the primary the member
+  // still holds.
+  it('leaving a secondary club leaves the primary where it was', async () => {
+    const res = await leave(LEAVES_SECONDARY, KEY[CLUB_THREE]);
+    expect(res.status).toBe(303);
+    expect(primaryClubIds(LEAVES_SECONDARY)).toEqual([CLUB_TWO]);
   });
 });
 

@@ -228,6 +228,16 @@ export interface PersonaLegacySpec {
    * club answers, which is how a new member can lead a club in the same step.
    */
   everPaidTier1Lifetime?: boolean;
+  /** The old account's billing history shows a Tier 2 purchase, so a claim grants Tier 2. */
+  everPaidTier2?: boolean;
+  /**
+   * The old account's Tier 1 Annual membership: 'active' at cutover grants
+   * Tier 1 on claim. 'expired' writes no flag, because the import marks only an
+   * Annual still running at cutover; a claim of such an account grants Tier 0.
+   */
+  tier1Annual?: 'active' | 'expired';
+  /** The old account's holder sat on the old Board roster at cutover: a claim confers Board standing and Tier 3. */
+  wasBoardAtCutover?: boolean;
 }
 
 export interface PersonaAdminQuestionSpec {
@@ -261,7 +271,8 @@ export interface PersonaClubSpec {
   /**
    * When set, writes a live club_leaders co-leader row — the table the
    * club-content authorization gate reads. Co-leaders are a flat equal set
-   * (the only role); a member co-leads at most one club. Distinct from
+   * (the only role); a member co-leads at most three clubs, the others
+   * declared through `clubs` entries with `role`. Distinct from
    * `leader` (the bootstrap claim).
    */
   role?: 'co-leader';
@@ -293,6 +304,12 @@ export interface PersonaClubAffiliationSpec {
   /** Current membership (is_current=1) when true/omitted; former (0) when false. */
   current?: boolean;
   primary?: boolean;
+  /**
+   * When set, also writes a live club_leaders co-leader row for this club, so
+   * a persona can co-lead more than one club. A co-leader is always a current
+   * member, so it requires `current` to be true or omitted.
+   */
+  role?: 'co-leader';
 }
 
 /**
@@ -429,6 +446,14 @@ export interface PersonaSpec {
    * catalog so it reads as a coverage matrix.
    */
   dimension?: string;
+  /**
+   * Where /dev/personas lists the persona. 'start_here' puts it in the first
+   * group, the everyday members, organizer and administrators a tester starts
+   * with; 'regression' puts it in the collapsed section at the bottom, for a
+   * persona whose difference only a job or an automated check sees. Omitted,
+   * it is listed under its dimension.
+   */
+  listing?: 'start_here' | 'regression';
   /** One sentence: what code path / gate this persona exists to exercise. */
   purpose?: string;
   /**
@@ -538,6 +563,18 @@ export interface PersonaSpec {
    * carry it, and only one, since the rows it seeds have fixed ids.
    */
   financeDemo?: true;
+  /**
+   * State reached only through an act, which the persona journeys perform
+   * through the real entries after the seed commits (see personaJourneys):
+   * the erasure of a deleted account's personal data or a deceased member's
+   * contact details; open contact requests the member filed; a registration
+   * for another persona's event.
+   */
+  postSeed?: {
+    erase?: 'account' | 'deceased_contact';
+    openContactRequests?: number;
+    registersFor?: { eventOfPersona: string };
+  };
   /** Testing dimensions this persona exercises. Must be non-empty. */
   coverageNotes: string[];
 }
@@ -622,6 +659,21 @@ function profileColumns(p: PersonaProfileSpec | undefined) {
   return Object.fromEntries(Object.entries(cols).filter(([, v]) => v !== undefined));
 }
 
+/**
+ * The old account's admin flag and paid and Board standing, as the import
+ * records them and the claim reads them. Both writes of the account carry
+ * them, because the upsert rewrites every column it is given.
+ */
+function legacyStandingColumns(l: PersonaLegacySpec) {
+  return {
+    ...(l.legacyIsAdmin ? { legacy_is_admin: 1 as const } : {}),
+    ...(l.everPaidTier1Lifetime ? { legacy_ever_paid_tier1_lifetime: 1 as const } : {}),
+    ...(l.everPaidTier2 ? { legacy_ever_paid_tier2: 1 as const } : {}),
+    ...(l.tier1Annual === 'active' ? { legacy_tier1_annual_active_at_cutover: 1 as const } : {}),
+    ...(l.wasBoardAtCutover ? { legacy_was_board_at_cutover: 1 as const } : {}),
+  };
+}
+
 export function composePersonaBio(spec: PersonaSpec): string {
   return spec.purpose
     ? `${TEST_PERSONA_BIO_PREFIX} ${spec.purpose}`
@@ -668,8 +720,7 @@ export function seedPersona(
         real_name: legacyDisplayName,
         ...(legacyEmail ? { legacy_email: legacyEmail.toLowerCase() } : {}),
         ...(accountBirthDate ? { birth_date: accountBirthDate } : {}),
-        ...(spec.legacy.legacyIsAdmin ? { legacy_is_admin: 1 as const } : {}),
-        ...(spec.legacy.everPaidTier1Lifetime ? { legacy_ever_paid_tier1_lifetime: 1 as const } : {}),
+        ...legacyStandingColumns(spec.legacy),
       });
     }
     const recordDeceased = spec.legacy.recordDeceased ? { is_deceased: 1 as const } : {};
@@ -723,7 +774,12 @@ export function seedPersona(
     deletion_grace_expires_at?: string;
   } = {};
   if (spec.deletionState) {
-    const GRACE_DAYS = 90; // member_cleanup_grace_days default
+    // The grace length this database is configured with, so the pair keeps
+    // straddling the boundary when an administrator changes it.
+    const graceRow = db
+      .prepare(`SELECT value_json FROM system_config_current WHERE config_key = 'member_cleanup_grace_days'`)
+      .get() as { value_json: string } | undefined;
+    const GRACE_DAYS = graceRow ? Number(JSON.parse(graceRow.value_json)) : 90;
     const DAY_MS = 86_400_000;
     const now = Date.now();
     if (spec.deletionState === 'grace_open') {
@@ -732,10 +788,11 @@ export function seedPersona(
       deletionFields.deletion_requested_at = deletedAt;
       deletionFields.deletion_grace_expires_at = new Date(now + (GRACE_DAYS - 1) * DAY_MS).toISOString();
     } else {
-      const deletedAt = new Date(now - (GRACE_DAYS + 30) * DAY_MS).toISOString();
+      // The grace period ended yesterday: the first day the erasure may run.
+      const deletedAt = new Date(now - (GRACE_DAYS + 1) * DAY_MS).toISOString();
       deletionFields.deleted_at = deletedAt;
       deletionFields.deletion_requested_at = deletedAt;
-      deletionFields.deletion_grace_expires_at = new Date(now - 30 * DAY_MS).toISOString();
+      deletionFields.deletion_grace_expires_at = new Date(now - DAY_MS).toISOString();
     }
   }
 
@@ -813,8 +870,7 @@ export function seedPersona(
       real_name: legacyDisplayName,
       ...(legacyEmail ? { legacy_email: legacyEmail.toLowerCase() } : {}),
       ...(accountBirthDate ? { birth_date: accountBirthDate } : {}),
-      ...(spec.legacy.legacyIsAdmin ? { legacy_is_admin: 1 as const } : {}),
-      ...(spec.legacy.everPaidTier1Lifetime ? { legacy_ever_paid_tier1_lifetime: 1 as const } : {}),
+      ...legacyStandingColumns(spec.legacy),
       claimed_by_member_id: memberId,
       claimed_at: new Date().toISOString(),
     });
@@ -954,14 +1010,24 @@ export function seedPersona(
       // ensure a legacy identity exists to hang the leadership claim on.
       const leaderLegacyId = legacyMemberId ?? `legmem_persona_${spec.slug}_club`;
       if (!legacyMemberId) {
+        // The old account the leadership row names is the persona's own, claimed
+        // and linked as a real claim leaves it, so it never shows up as a
+        // claimable stranger in the legacy-account search.
         insertLegacyMember(db, {
           legacy_member_id: leaderLegacyId,
           real_name: spec.realName ?? spec.displayName,
+          claimed_by_member_id: memberId,
+          claimed_at: new Date().toISOString(),
         });
-        insertHistoricalPerson(db, {
+        const leaderPersonId = insertHistoricalPerson(db, {
           legacy_member_id: leaderLegacyId,
           person_name: spec.realName ?? spec.displayName,
         });
+        db.prepare(
+          `UPDATE members SET legacy_member_id = ?, historical_person_id = ?,
+                  updated_at = ?, updated_by = ?, version = version + 1
+            WHERE id = ?`,
+        ).run(leaderLegacyId, leaderPersonId, new Date().toISOString(), PERSONA_SEED_CREATED_BY, memberId);
       }
       const bootstrapLeaderId = insertClubBootstrapLeader(db, {
         club_id: clubId,
@@ -996,6 +1062,12 @@ export function seedPersona(
       is_primary: derivePrimary(c.current !== false, c.primary === true),
       source: 'member_self_service',
     });
+    if (c.role) {
+      if (c.current === false) {
+        throw new Error(`persona '${spec.slug}': a co-leader is a current member; drop current: false or role`);
+      }
+      insertClubLeader(db, { club_id: cid, member_id: memberId });
+    }
   }
 
   if (spec.gallery) {
@@ -1231,15 +1303,20 @@ export function seedPersona(
     });
   }
 
-  insertAuditEntry(db, {
-    created_by: PERSONA_SEED_CREATED_BY,
-    actor_type: 'system',
-    action_type: PERSONA_SEED_AUDIT_ACTION_TYPE,
-    entity_type: 'member',
-    entity_id: memberId,
-    reason_text: PERSONA_SEED_REASON_TEXT,
-    metadata: { slug: spec.slug, tier: spec.tier },
-  });
+  // The audit log holds no row about someone who has not finished signing up,
+  // and no administrator sees one, so a prospective persona gets no seed row:
+  // its member-id prefix and its test address already mark it as harness data.
+  if (!prospective) {
+    insertAuditEntry(db, {
+      created_by: PERSONA_SEED_CREATED_BY,
+      actor_type: 'system',
+      action_type: PERSONA_SEED_AUDIT_ACTION_TYPE,
+      entity_type: 'member',
+      entity_id: memberId,
+      reason_text: PERSONA_SEED_REASON_TEXT,
+      metadata: { slug: spec.slug, tier: spec.tier },
+    });
+  }
 
   return {
     slug: spec.slug,

@@ -127,8 +127,8 @@ test.beforeAll(() => {
   // A record another member already holds, for the claim conflict page. It
   // carries the conflict viewer's own name, because a held record answers as
   // held only to a registrant whose evidence reaches it.
-  insertHistoricalPerson(db, { person_id: REACH_ROWS.heldPersonId, person_name: 'Sue Claimed' });
-  insertMember(db, { real_name: 'Sue Claimed', historical_person_id: REACH_ROWS.heldPersonId });
+  insertHistoricalPerson(db, { person_id: REACH_ROWS.heldPersonId, person_name: 'Cora Claimed' });
+  insertMember(db, { real_name: 'Cora Claimed', historical_person_id: REACH_ROWS.heldPersonId });
   for (const slug of [REACH_ROWS.deletePhoneSlug, REACH_ROWS.deleteDesktopSlug]) insertMember(db, { slug, real_name: 'Rendered Style Departing' });
   db.close();
 });

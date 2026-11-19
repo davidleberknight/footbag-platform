@@ -1282,6 +1282,39 @@ export interface AccountTokenOverrides {
   token_hash?: string;
 }
 
+/** One barred-address row, holding the keyed hash an expulsion records. */
+export function insertBarredEmailHash(db: BetterSqlite3.Database, emailHash: string): void {
+  db.prepare(`
+    INSERT INTO barred_email_hashes (email_hash, created_at, created_by) VALUES (?, ?, ?)
+  `).run(emailHash, nowIso(), SYS);
+}
+
+/** A recorded IFPA board decision on a member, as an administrator records it. */
+export function insertMembershipDisciplineDecision(
+  db: BetterSqlite3.Database,
+  o: {
+    member_id: string;
+    outcome?: 'suspended' | 'expelled' | 'other_sanction' | 'no_action';
+    decision_date?: string;
+    suspended_until?: string | null;
+    created_by?: string;
+  },
+): string {
+  const id = `discipline-test-${uid()}`;
+  const outcome = o.outcome ?? 'other_sanction';
+  db.prepare(`
+    INSERT INTO membership_discipline_decisions (
+      id, created_at, created_by, member_id, decided_by, outcome,
+      notice_date, hearing_date, decision_date, suspended_until, reason
+    ) VALUES (?, ?, ?, ?, 'IFPA board', ?, '2020-01-01', '2020-01-10', ?, ?, 'Test decision')
+  `).run(
+    id, nowIso(), o.created_by ?? SYS, o.member_id, outcome,
+    o.decision_date ?? '2020-02-01',
+    outcome === 'suspended' ? (o.suspended_until ?? '2020-03-01') : null,
+  );
+  return id;
+}
+
 export function insertAccountToken(
   db: BetterSqlite3.Database,
   memberId: string,

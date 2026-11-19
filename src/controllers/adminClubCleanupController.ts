@@ -123,6 +123,20 @@ export const adminClubCleanupController = {
     }
   },
 
+  contactCoLeaders(req: Request, res: Response, next: NextFunction): void {
+    const clubId = req.params.clubId;
+    try {
+      clubCleanupService.contactCoLeadersToConfirm(req.user!.userId, clubId);
+      res.redirect(303, '/admin/club-cleanup');
+    } catch (err) {
+      if (err instanceof NotFoundError) {
+        renderNotFound(res);
+        return;
+      }
+      next(err);
+    }
+  },
+
   async promote(req: Request, res: Response, next: NextFunction): Promise<void> {
     const candidateId = req.params.candidateId;
     const form = readOrRefuse(promoteForm, req, res);

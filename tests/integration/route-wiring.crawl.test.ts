@@ -418,10 +418,11 @@ function extractControls(html: string): LabelledControl[] {
 }
 
 // An identity-switch verb is legitimately polymorphic: "Switch" means "become
-// this identity", and the persona harness offers more than one switch mechanism
-// (a seeded persona via /dev/switch, a real claimed member via /dev/build-claim).
-// Both honour the label, so a Switch control may fan out to more than one switch
-// endpoint without lying about where the click lands. Exempt that label from the
+// this identity", and the persona harness has more than one switch mechanism
+// (each seeded persona's own /dev/switch link, and the build-claim route the
+// real-data tests drive by address). Each honours the label, so a Switch control
+// may fan out to more than one switch endpoint without lying about where the
+// click lands. Exempt that label from the
 // single-destination promise; every other label still promises one destination.
 const LABELS_ALLOWED_MULTIPLE_DESTINATIONS = new Set(['Switch']);
 

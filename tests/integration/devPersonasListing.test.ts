@@ -22,7 +22,6 @@ import request from 'supertest';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { CANONICAL_PERSONAS } from '../../src/testkit/canonicalPersonas';
 import { seedPersona } from '../../src/testkit/personaFactory';
-
 const { dbPath } = setTestEnv('3437');
 
 // Full, valid FOOTBAG_ENV=staging baseline. Staging requires NODE_ENV=production
@@ -151,24 +150,88 @@ describe('GET /dev/personas (staging boot)', () => {
     expect(res.text).toContain('club co-leader');
   });
 
-  it('offers a real-member switch card that targets the build-claim route by legacy id', async () => {
+  // Defect caught: the page offers testers a control that builds and claims an
+  // account for a real member, a change on shared staging the persona refresh
+  // never undoes. The build-claim route stays for the real-data tests alone.
+  it('offers no control that builds an account for a real member', async () => {
     const res = await request(createApp()).get('/dev/personas');
     expect(res.status).toBe(200);
-    // The card lets a tester enter a legacy member id and switch into the real
-    // claimed account, driving the same build-claim journey the crawl exercises.
-    expect(res.text).toContain('action="/dev/build-claim"');
-    expect(res.text).toContain('name="as"');
+    expect(res.text).toContain('action="/dev/personas/refresh"');
+    expect(res.text).not.toContain('/dev/build-claim');
   });
-
   it('groups personas under their authorization-axis headings', async () => {
     const res = await request(createApp()).get('/dev/personas');
+    // Start here and the collapsed section take their personas out of their
+    // own dimension's group, so a heading exists for every dimension left.
     const dimensions = new Set(
-      CANONICAL_PERSONAS.map((p) => p.dimension).filter((d): d is string => Boolean(d)),
+      CANONICAL_PERSONAS.filter((p) => !p.listing && !p.blockedBy)
+        .map((p) => p.dimension).filter((d): d is string => Boolean(d)),
     );
     expect(dimensions.size).toBeGreaterThan(1);
     for (const dimension of dimensions) {
       // Handlebars HTML-escapes '&' in headings to '&amp;'.
       expect(res.text).toContain(dimension.replace(/&/g, '&amp;'));
     }
+  });
+
+  /** The slugs rendered inside one region of the page, in order. */
+  const slugsIn = (html: string): string[] =>
+    [...html.matchAll(/<code class="font-mono">([a-z0-9_]+)<\/code>/g)].map((m) => m[1]);
+  const region = (html: string, startId: string, endId?: string): string => {
+    const start = html.indexOf(`id="${startId}"`);
+    const end = endId ? html.indexOf(`id="${endId}"`) : html.length;
+    expect(start, `region ${startId} rendered`).toBeGreaterThan(-1);
+    return html.slice(start, end > start ? end : html.length);
+  };
+
+  // Defect caught: a tester opening the page meets the specialist groups first
+  // and cannot tell which handful of personas covers everyday testing.
+  it('opens with the guidance, then a Start here group holding exactly the everyday personas', async () => {
+    const res = await request(createApp()).get('/dev/personas');
+    const guidance = res.text.indexOf('id="dev-personas-guidance"');
+    const startHereAt = res.text.indexOf('id="dev-personas-start-here"');
+    expect(guidance).toBeGreaterThan(-1);
+    expect(guidance).toBeLessThan(startHereAt);
+    const startHere = slugsIn(region(res.text, 'dev-personas-start-here', 'dev-personas-groups'));
+    expect(startHere).toEqual(
+      CANONICAL_PERSONAS.filter((p) => p.listing === 'start_here').map((p) => p.slug),
+    );
+    expect(startHere.length).toBeGreaterThanOrEqual(10);
+  });
+
+  // Defect caught: regression-only and blocked personas sit among the cards a
+  // tester works through, or the collapsed section needs JavaScript to open.
+  it('puts regression-only and blocked personas in one collapsed section at the bottom', async () => {
+    const res = await request(createApp()).get('/dev/personas');
+    const bottom = region(res.text, 'dev-personas-regression');
+    expect(bottom.startsWith('id="dev-personas-regression"')).toBe(true);
+    expect(res.text).toMatch(/<details[^>]*id="dev-personas-regression"/);
+    const expected = CANONICAL_PERSONAS
+      .filter((p) => p.listing === 'regression' || p.blockedBy).map((p) => p.slug).sort();
+    expect(slugsIn(bottom).sort()).toEqual(expected);
+    const middle = slugsIn(region(res.text, 'dev-personas-groups', 'dev-personas-regression'));
+    expect(middle.filter((s) => expected.includes(s))).toEqual([]);
+  });
+
+  // Defect caught: a persona journey fails during a refresh and the tester
+  // sees nothing, then trusts a card whose state was never built.
+  it('names the personas whose journey failed, and only real catalog personas', async () => {
+    const res = await request(createApp()).get('/dev/personas?journeys_failed=purged_member,not_a_persona');
+    const banner = res.text.match(/<div class="form-error-banner" role="alert">([\s\S]*?)<\/div>/);
+    expect(banner, 'a refusal banner is shown').not.toBeNull();
+    expect(banner![1]).toContain('Perry Purged');
+    expect(banner![1]).not.toContain('not_a_persona');
+    const clean = await request(createApp()).get('/dev/personas');
+    expect(clean.text).not.toContain('form-error-banner');
+  });
+
+  // Defect caught: once its journey erases the account (which clears the slug),
+  // the erased persona's card greys out as never seeded, so the tester cannot
+  // try its refused sign-in. Kept last: it erases a persona the cases above read.
+  it('keeps an erased persona listed as seeded, with its Log In control', async () => {
+    const { memberService } = await import('../../src/services/memberService');
+    await memberService.purgeAccountPII('member_persona_purged_member');
+    const res = await request(createApp()).get('/dev/personas');
+    expect(res.text).toMatch(/\/dev\/login\?as(=|&#x3D;)purged_member\b/);
   });
 });

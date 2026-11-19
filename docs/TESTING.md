@@ -517,7 +517,7 @@ Staging needs synthetic personas that cover the persona suite derived in §4.6 (
 
 Persona contract:
 
-- Synthetic identities. Display names and email addresses are obviously test data (prefix `staging-test-` or equivalent), never resembling real member data.
+- Synthetic identities. Email addresses use the reserved persona domain and slugs are unmistakably test data. Display names may be realistic, because duplicate, accented and colliding names can be tested only with names that resemble real ones; no persona takes a real member's name.
 - Verified-status pre-seeded. Routine login does not depend on receiving an email.
 - Stored credentials. Passwords live in an approved secret channel (an operator-local file outside every checkout, or AWS Secrets Manager). Never committed.
 - Tier and role grants. Assigned through the persona seed pipeline (`reason_code` carries `dev_persona_seed.tier_grant` and similar markers) so the prod-cleanliness audit catches them.
@@ -525,14 +525,14 @@ Persona contract:
 Reset semantics:
 
 - An operator-runnable reset that re-creates the persona set from the gitignored or secret-manager seed file.
-- The reset is `bash scripts/manage-test-personas.sh --refresh-test-personas --apply`, which tears down the persona-owned rows and rebuilds every persona from its current spec. It reports what it would change and writes nothing until `--apply` is given, and it leaves a database holding no personas untouched. No password as command-line argument.
+- The reset is `bash scripts/manage-test-personas.sh --refresh-test-personas --apply`, which tears down the persona-owned rows and rebuilds every persona from its current spec. It is not a complete reset: `/dev/personas` lists what it leaves behind, and only a database rebuild clears it. It reports what it would change and writes nothing until `--apply` is given, and it leaves a database holding no personas untouched. No password as command-line argument.
 - The seed runner is self-healing on the password hash: a persona kept across code-only deploys whose stored hash predates the current scheme is re-hashed in place on the next seed run, its accumulated rows untouched. Restoring a persona's fuller baseline (reverting tester-driven ledger changes) still needs the delete-and-reseed reset.
 
 ### 7.5 Test scaffolding and dev-bootstrap conveniences
 
 Two env-gated subtrees hold all dev-or-staging-only code. Both are active under `FOOTBAG_ENV ∈ {development, staging}` and excluded from the production image at build time; they differ in lifecycle.
 
-- `src/testkit/` is **permanent, first-class test infrastructure**: the persona harness (row builders, factory, canonical catalog, seed runner), the persona-switch route (`GET /dev/switch`), the persona listing (`GET /dev/personas`), the on-demand job runner (`runRegistryJobNow`, which runs any registry job at the current time through its registry entry and the run recorder, and refuses production), the persona journeys that use it, and the dev-router mount glue. It is never source-deleted; features keep shipping with tests against it after production launch.
+- `src/testkit/` is **permanent, first-class test infrastructure**: the persona harness (row builders, factory, canonical catalog, seed runner), the persona-switch route (`GET /dev/switch`), the persona listing (`GET /dev/personas`), the real-record claim route (`GET /dev/build-claim`, which the real-data leg drives by address and no page offers, because the claim it builds on shared staging is one the persona refresh never undoes), the on-demand job runner (`runRegistryJobNow`, which runs any registry job at the current time through its registry entry and the run recorder, and refuses production), the persona journeys that use it, and the dev-router mount glue. It is never source-deleted; features keep shipping with tests against it after production launch.
 - `src/dev-bootstrap/` holds the **permanent** registration-time admin email-allowlist bootstrap: a member registering in development or staging with an allowlisted email is promoted to admin. Like the persona harness it is never source-deleted; it is environment-isolated and excluded from the production image. It is the dev/staging peer of the production first-admin mechanism (the single-shot SSM-token claim), used at platform inception and thereafter only as a break-glass path for total admin loss.
 
 No dev-or-staging-only code path lives outside these two subtrees. A test-only HTTP endpoint, a test-only middleware bypass, or a test-only persona-issue helper belongs in `src/testkit/` (the persona harness) or `src/dev-bootstrap/` (the admin bootstrap). Keeping each subtree self-contained and independent of the other keeps both excluded from the production image by a single build-time strip.
@@ -1228,7 +1228,7 @@ A per-story charter names only the cases specific to that story; the cross-cutti
 
 **M_Join_Club** and **M_Leave_Club** (dims 1, 5, 7, 9, 11, 13, 15). Authenticated members join and leave; the onboarding gate redirects a not-yet-onboarded member off club paths. Business rules: the two-club affiliation cap, primary versus secondary, idempotent re-join. Concurrency: a double-submit join does not create duplicate affiliations. Audit on each transition.
 
-**M_Create_Club** (dims 1, 3, 5, 8, 13, 15). Authenticated Tier-1-benefits members only; a Tier-0 member without Active Player is denied at the gate. Validation: name, country, and near-match confirmation, with the duplicate-name, already-co-leader, and affiliation-cap branches. Audit on creation.
+**M_Create_Club** (dims 1, 3, 5, 8, 13, 15). Authenticated Tier-1-benefits members only; a Tier-0 member without Active Player is denied at the gate. Validation: name, country, and near-match confirmation, with the duplicate-name, co-lead-cap, and affiliation-cap branches. Audit on creation.
 
 **CL_Edit_Club** (dims 1, 5, 7, 13, 15). Only a club's co-leader edits its content; a co-leader of a different club is denied (adjacent-owner). External-URL changes are validated before persistence. Audit on the content edit.
 

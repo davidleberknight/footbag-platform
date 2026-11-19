@@ -10,7 +10,7 @@ import {
   PasswordForgotSentContent,
   PasswordResetContent,
 } from '../services/identityAccessService';
-import { RateLimitedError, ServiceUnavailableError, ValidationError } from '../services/serviceErrors';
+import { ForbiddenError, RateLimitedError, ServiceUnavailableError, ValidationError } from '../services/serviceErrors';
 import { renderServiceUnavailable, setRetryAfter } from '../lib/controllerErrors';
 import { simulatedEmailService, type SimulatedEmailPreview } from '../services/simulatedEmailService';
 import { PageViewModel } from '../types/page';
@@ -124,6 +124,10 @@ async function postLogin(req: Request, res: Response, next: NextFunction): Promi
 
     renderError('Invalid email or password. Please try again.');
   } catch (err) {
+    if (err instanceof ForbiddenError) {
+      renderError(err.message, 403);
+      return;
+    }
     if (err instanceof RateLimitedError) {
       if (err.retryAfterSeconds) res.setHeader('Retry-After', String(err.retryAfterSeconds));
       renderError(err.message, 429);

@@ -1,0 +1,7 @@
+{
+  "templateKey": "media_report_received_reporter",
+  "subjectTemplate": "We received your report on footbag.org",
+  "bodyTemplate": "Thank you for your report. An IFPA administrator will review the media you flagged, and we will email you the outcome.",
+  "piiClassification": "confidential",
+  "isEnabled": true
+}

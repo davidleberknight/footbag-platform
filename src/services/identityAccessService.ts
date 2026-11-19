@@ -139,6 +139,11 @@
  *   - Tokens stored as SHA-256 hashes only; plaintext never persisted.
  *   - JWT payload embeds password_version; bumping it invalidates all outstanding JWTs.
  *   - Deceased members cannot log in regardless of credentials.
+ *   - A restricted account cannot log in. The refusal names the restriction only
+ *     after the password verifies, so it reveals nothing to someone without it;
+ *     a verification link opens no session for a restricted account either.
+ *   - An address an expulsion barred (held as a keyed hash) registers nothing
+ *     and gets the identical "check your email" response.
  *   - A historical record flagged deceased is not self-claimable on any path. The
  *     direct historical-record claim refuses it, and so does a legacy-account
  *     claim whose account transitively links to it, because that claim sets the
@@ -242,7 +247,8 @@
  *   member_onboarding_tasks (the checklist rows inserted at verification),
  *   audit_entries, outbox_emails,
  *   member_declared_anchors (add-only; deleted wholesale on PII purge by
- *   MemberService), work_queue_items (link help requests: insert + resolve).
+ *   MemberService), work_queue_items (link help requests: insert + resolve),
+ *   barred_email_hashes (read at registration; written by MemberDisciplineService).
  *   Tier-grant writes delegated to MembershipTieringService.
  *
  * Side effects:
@@ -255,7 +261,8 @@
  *   - SES suppression lift for a bounced address, on its member's request,
  *     through EmailSubscriptionService
  *   - outbox_emails enqueue (verification, account-exists notice on a duplicate
- *     registration, reset, password-change confirmation, resend,
+ *     registration, the barred-address notice on a registration an expulsion
+ *     barred, reset, password-change confirmation, resend,
  *     and the reply telling a
  *     member their link request was answered, which carries the decision and,
  *     on a refusal, the administrator's reason, and the notice telling a member
@@ -280,7 +287,8 @@ import { accountExistsAttemptHash } from '../lib/accountExistsNoticeKey';
 // a further request as the same request submitted twice. The rate-limit bucket
 // still counts every request, as anti-enumeration needs.
 import { REPEAT_REQUEST_SECONDS } from '../lib/repeatRequest';
-import { auth, registration, legacyClaim, legacyMembers, account, memberOnboarding, workQueue, declaredAnchors, MemberAuthRow, LegacyMemberRow, AlreadyClaimedRow, HistoricalPersonClaimRow } from '../db/db';
+import { auth, registration, legacyClaim, legacyMembers, account, memberOnboarding, memberDiscipline, workQueue, declaredAnchors, MemberAuthRow, LegacyMemberRow, AlreadyClaimedRow, HistoricalPersonClaimRow } from '../db/db';
+import { barredEmailHash } from '../lib/barredEmailHash';
 import { legacyMatchingService, type Candidate, type Confidence } from './legacyMatchingService';
 import { transaction, rehearse, auditEntries } from '../db/db';
 import { accountTokenService } from './accountTokenService';
@@ -297,7 +305,7 @@ import { getCaptchaAdapter } from '../adapters/captchaAdapter';
 // from being set in production, where the single-shot SSM-token claim is the
 // first-admin (and break-glass recovery) path.
 import { applyDevStagingBootstrapAdmin } from '../dev-bootstrap/runtime';
-import { ConflictError, NotFoundError, RateLimitedError, ServiceUnavailableError, ValidationError } from './serviceErrors';
+import { ConflictError, ForbiddenError, NotFoundError, RateLimitedError, ServiceUnavailableError, ValidationError } from './serviceErrors';
 import { createSessionJwt } from './jwtService';
 import { compareBirthDates, type RecordedBirthDateComparison } from '../lib/birthDate';
 import { cleanUserText } from '../lib/textSanitizer';
@@ -631,6 +639,10 @@ function burnTokenIssuanceTiming(): void {
   createHash('sha256').update(raw).digest('hex');
 }
 
+/** The refusal a restricted member sees on signing in with the right password. */
+export const RESTRICTED_SIGN_IN_MESSAGE =
+  'This account is restricted. The email IFPA sent you explains why and how to respond.';
+
 async function verifyMemberCredentials(
   email: string,
   password: string,
@@ -655,6 +667,12 @@ async function verifyMemberCredentials(
   const valid = await argon2.verify(member.password_hash, password);
   if (!valid) {
     return null;
+  }
+
+  // Only someone holding the password reaches this line, so naming the
+  // restriction tells an outsider nothing about which addresses have accounts.
+  if (member.restricted_at) {
+    throw new ForbiddenError(RESTRICTED_SIGN_IN_MESSAGE);
   }
 
   const now = new Date().toISOString();
@@ -1026,6 +1044,24 @@ function enqueueAccountExistsNotice(
 }
 
 /**
+ * Tell the holder of an address an expulsion barred that it cannot register,
+ * out of band, the way the account-exists notice is sent: one notice per
+ * attempt, keyed on the barred hash and the attempt, strict so an outbox outage
+ * fails as the other registration paths do. The address belongs to no member,
+ * so the row names none.
+ */
+function enqueueBarredRegistrationNotice(address: string, barredHash: string, attemptHash: string): void {
+  emailService.send({
+    template: 'registration_refused_barred',
+    params: {},
+    recipientEmail: address,
+    recipientMemberId: null,
+    idempotencyKey: `registration_refused_barred:${barredHash}:${attemptHash}`,
+    strict: true,
+  });
+}
+
+/**
  * An unverified account whose verify email was queued seconds ago is the same
  * registration submitted again (a double click, a back-button re-post, two
  * submits racing): the first submit already sent the one email it needed, so
@@ -1142,6 +1178,17 @@ async function registerMember(
   const attemptHash = accountExistsAttemptHash(
     trimmedGivenNames, trimmedFamilyName, trimmedDisplayName, normalizedEmail,
   );
+  // An address an expulsion barred creates nothing and gets the same response
+  // as every other address, so the form tells nobody who was expelled. Checked
+  // before the duplicate lookup, because the expelled account itself is still
+  // inside its deletion grace period and would otherwise draw the ordinary
+  // account-exists notice.
+  const barredHash = barredEmailHash(normalizedEmail);
+  if (memberDiscipline.findBarredHash.get(barredHash)) {
+    enqueueBarredRegistrationNotice(trimmedEmail, barredHash, attemptHash);
+    return { status: 'registered' };
+  }
+
   const existingAccount = registration.findForDuplicateNotice.get(normalizedEmail) as
     | { id: string; login_email: string; email_verified_at: string | null }
     | undefined;

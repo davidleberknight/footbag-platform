@@ -134,7 +134,7 @@ import {
   enforceWorkQueueResolveLimit, identityAccessService,
   type ClaimEvidence,
 } from './identityAccessService';
-import { appendAuditEntry, findOwnLatestAudit } from './auditService';
+import { appendAuditEntry, findStandingOwnAct } from './auditService';
 import { emailService, actNoticeKey } from './emailService';
 import { workQueueService, claimIsLive, claimStaleCutoffIso } from './workQueueService';
 import { eventService, type SanctionReviewEvidence } from './eventService';
@@ -1582,12 +1582,16 @@ export const adminWorkQueueService = {
     if (row && row.status === 'resolved' && row.resolved_by_member_id === input.adminMemberId
       && action?.kind === 'decide'
       && row.decision_label === input.decisionLabel && row.reason_text === note) {
-      const resolve = findOwnLatestAudit(
-        input.adminMemberId, action.auditActionType, row.entity_type, row.entity_id,
+      // The resolve is found by its queue item, not as the actor's latest on the
+      // member: a later request from the same member, resolved since, would
+      // otherwise stand in for this one. A resolve has no reversal, so the act
+      // is passed as its own reversing action.
+      const resolve = findStandingOwnAct(
+        input.adminMemberId, action.auditActionType, action.auditActionType,
+        row.entity_type, row.entity_id,
+        { metadataKey: 'queue_item_id', id: input.queueItemId },
       );
       const queued = action.notifiesSubject && resolve !== null
-        && (JSON.parse(resolve.metadata_json) as { queue_item_id?: string }).queue_item_id
-          === input.queueItemId
         && outbox.findByIdempotencyKey.get(
           actNoticeKey('contact_request_resolution', resolve.id, row.entity_id),
         ) !== undefined;

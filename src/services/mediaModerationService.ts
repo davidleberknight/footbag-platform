@@ -87,7 +87,8 @@
  *   - work-queue insert of `media_flag_review`, and its close on a decision
  *   - work-queue insert of `media_takedown_storage_removal` on a failed object
  *     removal, and its close on a removal that succeeds
- *   - outbox enqueue of the uploader's decision mail
+ *   - outbox enqueue of a receipt to a member who files a report
+ *   - outbox enqueue of the uploader's decision mail, naming the item
  *   - outbox enqueue of the outcome (removed, or left up) to each member whose
  *     report the decision closes, never carrying the administrator's reason;
  *     an administrator who reported and then decided the item is not mailed
@@ -109,6 +110,7 @@ import { runSqliteRead } from './sqliteRetry';
 import { INVALID_TEXT_ENCODING_MESSAGE, sanitizeUserText, type TextShape } from '../lib/textSanitizer';
 import { emailService } from './emailService';
 import { workQueueService } from './workQueueService';
+import { formatDateDisplay } from './dateFormat';
 import type { PageViewModel } from '../types/page';
 import type { OutcomeNoticeView, OutcomeTone } from '../lib/outcomeNotice';
 
@@ -288,6 +290,7 @@ interface ModerationRow {
   video_url: string | null;
   thumbnail_url: string | null;
   is_avatar: number;
+  uploaded_at: string;
   moderation_status: string;
   moderation_reason: string | null;
   uploader_display_name: string;
@@ -424,6 +427,23 @@ function assertNotDecidingOwnUpload(row: ModerationRow, adminMemberId: string): 
       'You cannot decide a report about your own upload. Another administrator must review it.',
     );
   }
+}
+
+/**
+ * Which item a decision mail is about, in words the uploader recognises. The
+ * Community Standards promise to say what was removed, and a member with many
+ * uploads cannot tell from "one of your media items" which one it was; the
+ * removed item is no longer viewable, so a link would not tell them either.
+ */
+function describeItemForUploader(row: {
+  media_type: string;
+  caption: string | null;
+  uploaded_at: string;
+}): string {
+  const kind = row.media_type === 'video' ? 'video' : 'photo';
+  const caption = (row.caption ?? '').trim();
+  const captionPart = caption ? `captioned "${caption}"` : 'with no caption';
+  return `your ${kind} ${captionPart}, uploaded on ${formatDateDisplay(row.uploaded_at, { style: 'long' })}`;
 }
 
 function loadItemForModeration(mediaId: string): ModerationRow {
@@ -571,6 +591,7 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
       template: 'media_moderation_decision',
       params: {
         memberName: row.uploader_display_name,
+        itemDescription: describeItemForUploader(row),
         displayDecision,
         note: reason,
         wasReported,
@@ -653,7 +674,7 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
         });
       }
 
-      appendAuditEntry({
+      const auditId = appendAuditEntry({
         actionType: 'media.flagged',
         actorType:  input.actorIsAdmin ? 'admin' : 'member',
         actorMemberId: input.actorMemberId,
@@ -662,6 +683,18 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
         reasonText: `Reported as: ${REASON_LABELS[reasonCode]}`,
         metadata:   { flagId, reasonCode, mediaType: row.media_type },
       });
+
+      // A member who reports is told the report arrived, queued with the report
+      // so a rolled-back report sends nothing. An administrator reporting an item
+      // is the first step of deciding it and needs no receipt.
+      if (!input.actorIsAdmin) {
+        emailService.sendActNotice({
+          template: 'media_report_received_reporter',
+          params:   {},
+          memberId: input.actorMemberId,
+          actId:    auditId,
+        });
+      }
     });
 
     return { status: 'recorded', flagId };

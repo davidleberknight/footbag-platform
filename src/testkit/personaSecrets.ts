@@ -2,8 +2,8 @@
  * Persona-harness secret literal.
  *
  * Lives in src/testkit/ (permanent test scaffolding), kept separate from the
- * removable dev-bootstrap seed constants so the testkit never imports from the
- * dev-bootstrap subtree (dev-bootstrap is deleted at cutover; testkit is not).
+ * dev-bootstrap seed constants so the two permanent subtrees stay independent
+ * and the testkit never imports from dev-bootstrap.
  *
  * Module-load guard: throws on import unless FOOTBAG_ENV is 'development' or
  * 'staging', so a production process can never load the persona password

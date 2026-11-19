@@ -137,7 +137,7 @@ Members can upload media content (photos and links to videos), lead clubs, and l
 
 # 3. Functionality
 
-Complete functional requirements with success criteria are in the User Stories document. Not everything here ships at launch: the Release Scope section of User Stories names what follows in later releases, voting and elections and the news feed among them, and those stories are written in full as settled design for that build. The functionality closely follows the legacy footbag.org site, but with usability improvements for members, payments and email integration, secure voting, and much improved admin powers.
+Complete functional requirements with success criteria are in the User Stories document. Not everything here ships at launch: the Release Scope section of User Stories names what follows in later releases, voting and elections among them, and those stories are written in full as settled design for that build. The functionality closely follows the legacy footbag.org site, but with usability improvements for members, payments and email integration, secure voting, and much improved admin powers.
 
 The site is a public-facing community hub with a tiered membership model: Visitors can browse public clubs, events, news, tutorials, media, the freestyle trick dictionary, official rules, and public historical records (competition results, world records, Hall of Fame). Members (Tier 0+) authenticate to participate (create a profile, club affiliation, event registration, email preferences, donations/payments, and personal data controls). Tier 1+ Members add community creation (media uploads, galleries/hashtags) and can take on leadership roles by creating clubs and free events. Tier 2+ members unlock advanced eligibility, including the ability to apply for IFPA event sanctioning and sponsorship; payments are a separate capability that may be enabled for events via admin approval.
 
@@ -375,7 +375,7 @@ Login and logout flows use the same form + controller + template pattern. After 
 
 **Services Layer (Business Logic):**
 
-Contains all domain logic and business rules (documented in each service's file-header JSDoc, derived from User Stories). Performs authorization checks beyond basic authentication. Validates business constraints (the two-current-club membership cap, single-club leadership, event capacity, email uniqueness, hashtag uniqueness, etcetera). Reads and writes data via prepared SQL statements (and transaction helpers) exposed by the shared db.ts code module. Manages cross-cutting concerns: email queueing and audit logging. Services are the back office; they do the actual work while controllers handle communication.
+Contains all domain logic and business rules (documented in each service's file-header JSDoc, derived from User Stories). Performs authorization checks beyond basic authentication. Validates business constraints (the three-current-club membership cap, the three-club co-leadership cap, event capacity, email uniqueness, hashtag uniqueness, etcetera). Reads and writes data via prepared SQL statements (and transaction helpers) exposed by the shared db.ts code module. Manages cross-cutting concerns: email queueing and audit logging. Services are the back office; they do the actual work while controllers handle communication.
 
 **Infrastructure Layer:**
 

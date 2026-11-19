@@ -37,6 +37,7 @@
   - [4.13d Official IFPA Roster Current View](#413d-official-ifpa-roster-current-view)
   - [4.14 Members & Authentication](#414-members--authentication)
   - [4.14b Legacy Members](#414b-legacy-members)
+  - [4.14c Account Restriction and Membership Discipline](#414c-account-restriction-and-membership-discipline)
   - [4.15 Member Links](#415-member-links)
   - [4.16 Registrations & Event Results](#416-registrations--event-results)
   - [4.17 Media & Galleries](#417-media--galleries)
@@ -107,7 +108,7 @@ This schema is intentionally minimal for a volunteer-maintained SQLite project.
 
 **Core principle:** the database enforces structural integrity; the application enforces workflow, business rules, and limits.
 
-- **Declarative first.** Use `PRIMARY KEY`, `FOREIGN KEY`, `UNIQUE`, `NOT NULL`, and `CHECK` constraints before reaching for triggers. Partial `UNIQUE` indexes encode important structural invariants (a member co-leads at most one club, one current avatar per member, etc.) declaratively.
+- **Declarative first.** Use `PRIMARY KEY`, `FOREIGN KEY`, `UNIQUE`, `NOT NULL`, and `CHECK` constraints before reaching for triggers. Partial `UNIQUE` indexes encode important structural invariants (one current avatar per member, etc.) declaratively.
 
 - **Triggers only for genuine integrity guards.** Triggers remain for append-only/immutability invariants on tables where a missed write or an accidental UPDATE/DELETE would corrupt auditable history that cannot be reconstructed (ballots, audit log, tier grants, transition ledgers, system config). The payment status state machine trigger is retained because multiple independent code paths mutate `payments.status`; a DB guard is the last line of defence regardless of which path runs.
 
@@ -183,7 +184,7 @@ Two actor column patterns are used and are intentionally distinct:
 |-----------|---------|
 | `PRIMARY KEY` | Row identity uniqueness |
 | `NOT NULL` | Required fields |
-| `UNIQUE` / partial `UNIQUE` index | A member co-leads at most one club, one avatar per member, email uniqueness for un-purged members |
+| `UNIQUE` / partial `UNIQUE` index | One avatar per member, email uniqueness for un-purged members |
 | `CHECK` | Enum values, boolean shape, conditional NOT NULL (PII purge invariant) |
 | `FOREIGN KEY` + `ON DELETE SET NULL` | Avatar/gallery detachment on media delete |
 | `FOREIGN KEY` + `ON DELETE CASCADE` | Media flags/tags cascade-delete with media |
@@ -350,7 +351,9 @@ Affidavits are one-per-nomination (`UNIQUE` on `nomination_id`).
 
 News items are hard-deleted immediately on admin action (US `A_Moderate_News_Item`; DD §2.3). No soft-delete grace period applies.
 
-News items are auto-generated as side effects of primary entity flows (event published, results posted, club created, HoF/BAP status granted, vote results published). Admins can also create manual announcements.
+News items are auto-generated as side effects of primary entity flows (event published, results posted, club created, HoF/BAP status granted, vote results published). Admins can also create manual announcements. An approved member announcement whose author chose the news feed becomes a Community post.
+
+An item written by a person records its author, and a Community post records the member announcement it came from. An automatic item is unique per type and source entity, so one event yields at most one item of each type. Deleting an event deletes its items, and deleting a member's account deletes their Community posts.
 
 `news_type` values map to triggering events:
 
@@ -363,6 +366,7 @@ News items are auto-generated as side effects of primary entity flows (event pub
 | `member_honor` | HoF induction, BAP award, or board appointment |
 | `vote_results` | Election/vote results published |
 | `announcement` | Admin-authored manual announcement |
+| `community_post` | A member's announcement approved with the news feed among its places |
 | `system` | System-generated operational notice |
 
 ### 4.8 Mailing Lists & Email
@@ -390,7 +394,7 @@ The sender worker scrubs `outbox_emails.body_text` (sets it to `NULL`) on every 
 `email_archives` stores a record of bulk sends (mailing list blasts, event participant emails, announcements). `CHECK` constraints enforce that mailing-list sends reference a list and event-participant sends reference an event. Every row is retained indefinitely as the record of what the platform sent in IFPA's name; a row names no recipient, so erasure has nothing in it to reach beyond clearing `sender_member_id`.
 
 #### Member announcements
-`member_announcements` holds each community announcement a member submits while it waits for an administrator's decision: the member, the subject and body as typed, the status (`pending`, `approved` or `returned`), the administrator's comment and who decided and when, and the `email_archives` row the approved send produced, and `summary_event_id`, the sanctioned event an organizer marked it as the after-event summary of; an approved row carrying it meets that event's summary obligation. At most one row per member is pending. The archive row stays the record of what was sent; account erasure deletes the member's rows and closes any open review item.
+`member_announcements` holds each community announcement a member submits while it waits for an administrator's decision: the member, the subject and body as typed, the status (`pending`, `approved` or `returned`), the administrator's comment and who decided and when, the places the member chose to publish it (the announce list, the news feed, or both), the news item an approved post produced, and the `email_archives` row the approved send produced, and `summary_event_id`, the sanctioned event an organizer marked it as the after-event summary of; an approved row carrying it meets that event's summary obligation. At most one row per member is pending. The archive row stays the record of what was sent; account erasure deletes the member's rows and closes any open review item.
 
 For a group-backed list these rows are not only a send log: they are the group's discussion, read on the group page per `M_Read_Group_Discussion`. `email_archives.parent_archive_id`, a nullable self-reference, carries the threading: a row with no parent opens a thread and a reply names the message it answers. Only sends to a group-backed list may set it, and a parent must belong to the same list, which the service enforces. The rows are retained indefinitely and are never edited or deleted, so a correction to a group message is a further message rather than a rewrite; account erasure clears `sender_member_id` and leaves the message standing.
 
@@ -448,7 +452,7 @@ One row per applied file: its name, a checksum of its bytes, when it was applied
 
 Emitted values, grouped by namespace:
 
-- **`auth.*`**: `login_rate_limited`, `password_change`, `password_change_notification_failed`, `password_reset` (a member's reset; an unfinished account's is not audited), `password_reset_notification_failed`, `register_notification_failed` (named on the operator alarm line only: the account is a registrant, so no row is written), `account_deleted` (a member deleting their own account; the metadata records the grace period they were told, how much media and how many galleries went with it, how many upcoming registrations were withdrawn, how many events were left without an organizer, whether a recurring gift was cancelled, and whether the record keeps publishing under an honour).
+- **`auth.*`**: `login_rate_limited`, `password_change`, `password_change_notification_failed`, `password_reset` (a member's reset; an unfinished account's is not audited), `password_reset_notification_failed`, `register_notification_failed` (named on the operator alarm line only: the account is a registrant, so no row is written), `account_deleted` (a member deleting their own account; the metadata records the grace period they were told, how much media and how many galleries went with it, how many upcoming registrations were withdrawn, how many events were left without an organizer, whether a recurring gift was cancelled, and whether the record keeps publishing under an honour), `account_restricted` and `account_restriction_lifted` (an administrator restricting an account, or lifting the restriction, with the reason; a lift by the daily discipline pass when a board suspension ends is written by the system actor).
 - **`claim.*`**: `legacy_account` (legacy-account claim completed), `historical_person` (direct historical-record claim completed), `refused` (a claim submit the server-side re-check refused, with the reason and the evidence block), `dispute_opened` and `revert_applied` (the forensic pair written when a conflict dispute is upheld and the holder's claim is stripped; both land together with the state change, per A_Review_Member_Link_Help_Requests).
 - **`legacy.*`**: `anchor_declared` (a former surname or old email added, by anchor id), `auto_link_revert`, `historical_person_corrected` (an administrator's correction of an unclaimed historical-person record, carrying each changed value before and after). Every claim, refusal and answer row carries the claim evidence block described under `M_Claim_Legacy_Account`: email addresses as keyed hashes and anchors by id, never a name or a date of birth.
 - **`wizard.*`**: `complete`, `club_affiliations.confirmed`, `club_affiliations.declined`, `club_affiliations.cap_hit`, `club_affiliations.promoted`, `legacy_claim.never_had_account` and `legacy_claim.cannot_find_record` (which of the two non-claiming answers finished the claim task, with the candidates shown, written in the transaction that completes it; two values rather than one carrying the answer in metadata, because the ledger is read back by action type and the members who held an old account and cannot find it are the population an administrator can help, marked nowhere else), `held_answer.dropped` (an answer held during onboarding that could not be applied when completion ran, because the rules refused it or its replay faulted, with the step, the answer kind and the reason; the club-affiliation and promotion rows are written in the completion transaction).
@@ -458,7 +462,7 @@ Emitted values, grouped by namespace:
 - **`active_player.*`**: `grant`, `extend` (a grant that lengthens an existing period rather than opening a new one), `expire`, `end`, `admin_correction` (an administrator correcting an expiry from the member record, the one write allowed to move an expiry earlier, which is how a standing granted in error is taken back).
 - **`support.*`**: `contact_request_resolved`, `help_request_approved`, `help_request_rejected` (an admin approving or rejecting a member's link-help request, each answer notifying the member; the request itself is its work-queue row, and the member's own submitted payload never enters the metadata, because the ledger is exempt from the PII purge).
 - **`member_message.*`**: `sent`, `answered` (an administrator putting a direct question to one member from the work-queue item that raised it, and the member's answer). The metadata carries the expected answer kind, the structured outcome, and the lengths of the question and the note, never their text: the subject, the body and the note are owner-and-admin private and live only in the purgeable columns on `member_messages`.
-- **`member.*`**: `profile_updated`, `pii_purged`, `deceased_pii_scrubbed`, `pii_erasure_failed`, `name_corrected` (an administrator correcting a member's recorded legal name and display name from the member record; the metadata carries each changed name before and after, because a correction made on someone else's behalf is reviewable and reversible only from a trail that says what the name actually was, and the surface that reads it is admin-only), `slug_corrected` (an administrator moving a member's profile URL, recorded with the old and the new value; the metadata also records whether the member's uploader tag moved with them and how many media rows followed it, because that is what keeps their uploads and galleries resolving), `deceased_marked` and `deceased_reverted` (an administrator recording that a member has died, and removing a marking made in error inside the grace period; the metadata records whether a linked historical record followed, how many future event registrations were withdrawn, and, on a marking, which active recurring donations were set to cancel at period end, and the same pair carries the affirmative-only flag on an unlinked historical record, where `entity_type` is `historical_person`), `profile_corrected` (an administrator correcting a member's profile on their behalf, carrying the mandatory reason and each changed field's value before and after; it is distinct from `profile_updated`, which is the member editing their own record and records field names alone, because the exception that records values is for a correction made on somebody else's behalf).
+- **`member.*`**: `profile_updated`, `pii_purged`, `deceased_pii_scrubbed`, `pii_erasure_failed`, `name_corrected` (an administrator correcting a member's recorded legal name and display name from the member record; the metadata carries each changed name before and after, because a correction made on someone else's behalf is reviewable and reversible only from a trail that says what the name actually was, and the surface that reads it is admin-only), `slug_corrected` (an administrator moving a member's profile URL, recorded with the old and the new value; the metadata also records whether the member's uploader tag moved with them and how many media rows followed it, because that is what keeps their uploads and galleries resolving), `deceased_marked` and `deceased_reverted` (an administrator recording that a member has died, and removing a marking made in error inside the grace period; the metadata records whether a linked historical record followed, how many future event registrations were withdrawn, and, on a marking, which active recurring donations were set to cancel at period end, and the same pair carries the affirmative-only flag on an unlinked historical record, where `entity_type` is `historical_person`), `profile_corrected` (an administrator correcting a member's profile on their behalf, carrying the mandatory reason and each changed field's value before and after; it is distinct from `profile_updated`, which is the member editing their own record and records field names alone, because the exception that records values is for a correction made on somebody else's behalf), `discipline_recorded` (an administrator recording the IFPA board's decision under Article X of the bylaws, with the board's reason; the metadata records the decision row, the outcome and its dates, and never who decided or the member's login address).
 - **`admin.*`**: `role_granted`, `role_revoked` (steady-state admin-role grant and revoke via A_Manage_Admin_Role), `bootstrap_grant` (production single-shot SSM-token first-admin), `dev_register_allowlist_grant` (dev/staging register-allowlist admin bootstrap), `loss_alert_raised` and `loss_alert_dismissed` (the administrator-loss recruitment alert raised and closed via SYS_Detect_Admin_Loss), `loss_alert_failed` (a raise the daily sweep could not complete), `bootstrap_token_delete_failed` (the first-admin grant committed but its single-shot token could not be deleted, so an operator must remove the parameter by hand).
 - **`admin.club_cleanup.*`**: enumerated rather than left open, so the inventory can be checked rather than merely read. Club-level resolutions `demote_inactive`, `archive`, `dismiss`, `park`, `promote`; candidate resolutions `candidate_park`, `candidate_dismiss`, `candidate_demote`, `candidate_archive`, `candidate_confirm_junk`, `candidate_promote_dormant`; plus `contact_members` (a leader-recruitment mailing to a club's members) and `delist_residue` (unconfirmed legacy affiliations moved to former-only). The club and candidate action names are interpolated into the value at the call site, so they are not literals the convention gate can see; this list is what a reader and a reviewer check against.
 - **`config.*`**: `updated` (an administrator changing a runtime-tunable value from the System Parameters screen, under the `configuration` category, with the old and the new value and the reason given in the metadata), `price_scheduled` (a membership price added to a product's schedule, under the `pricing` category as the pricing section of this document requires, with the old and the new amount in cents and the date the new price starts).
@@ -889,6 +893,29 @@ The legacy dump's committee tables record the IFPA Board of Directors. When they
 - `idx_legacy_members_birth_date`; partial non-unique index on `birth_date` where non-NULL. Supports M_Claim_Legacy_Account surname-plus-date-of-birth matching.
 - `ux_legacy_members_legacy_user_id`; partial UNIQUE on `legacy_user_id` where non-NULL. Keeps the old-site username unique; usernames are not a claim matching key.
 
+### 4.14c Account Restriction and Membership Discipline
+
+**Columns:** `members.restricted_at`, `members.restricted_by`, `members.restriction_reason`, `members.restricted_until`  
+**Tables:** `membership_discipline_decisions`, `barred_email_hashes`
+
+A restriction is a state on the member row (A_Restrict_Member_Account): `restricted_at` set means the account is restricted, with `restricted_by` the administrator who restricted it or recorded the board's suspension, and `restriction_reason` the administrator's reason. `restricted_until` is set only by a board suspension and is the date the restriction lifts by itself; a restriction an administrator sets has none. Session and sign-in reads refuse a restricted row.
+
+`membership_discipline_decisions` records each Article X decision of the IFPA board, or a committee or person it authorizes (A_Record_Membership_Discipline): who decided, the notice, hearing and decision dates, the outcome, the suspension end date, the reason, and the recording administrator. `barred_email_hashes` holds the keyed hash of each expelled member's login address, which registration refuses.
+
+#### DB-enforced structural constraints
+- `membership_discipline_decisions.outcome` `CHECK IN ('suspended','expelled','other_sanction','no_action')`; `suspended_until` is non-NULL exactly when the outcome is `suspended`.
+- `CHECK (restricted_at IS NOT NULL OR (restricted_by IS NULL AND restriction_reason IS NULL AND restricted_until IS NULL))` on `members`: no restriction detail without a restriction.
+- `trg_membership_discipline_decisions_no_update` blocks UPDATE: a wrong decision is answered by a later one. DELETE is left to the retention job.
+- `trg_barred_email_hashes_no_update` blocks UPDATE.
+- `idx_membership_discipline_decisions_member` on `member_id`.
+
+#### Application responsibilities (app-enforced values/workflow)
+- Refuse a suspension or expulsion whose decision date is less than 15 days after its notice date, and an expulsion whose hearing date is less than 5 days before its decision date.
+- Refuse a restriction or decision on the acting administrator, another administrator, the system account, or a deleted account; refuse an administrator's lift while `restricted_until` is in the future.
+- A restriction increments `password_version`, ending every session.
+- Hash a barred address with the keyed hash, never storing the address.
+- SYS_Apply_Membership_Discipline lifts restrictions whose `restricted_until` has passed and deletes decisions one year after the member's personal data is purged.
+
 ### 4.15 Member Links
 
 **Table:** `member_links`
@@ -1080,10 +1107,11 @@ A club's leadership is a flat set of equal co-leaders (all `role = 'co-leader'`)
 A leadership row outlives the member's account, so that historical leadership stays attributable. The table therefore answers who has ever led a club, and the `club_leaders_current` view answers who leads it now: rows whose member is neither soft-deleted nor deceased and has finished onboarding. Every read meaning current leadership selects from the view, including the needs-leader predicate, the public club page's leadership block, and the co-leader count the cap is enforced against. Reads that must find a row in order to delete it use the table.
 
 DB-enforced structural invariants:
-- `ux_one_club_leader_per_member`: a member co-leads at most one club.
 - `ux_club_leaders (club_id, member_id)`: a member appears at most once per club.
 
 **Max-5 cap is application-enforced** (APP-010). The application must reject inserts and `club_id` reassignments that would exceed 5 current co-leaders per club.
+
+- Three-club co-lead cap: a member co-leads at most three clubs, enforced at the service layer (count-before-insert in `ClubService`, matching the 5-leader-cap pattern).
 
 #### Event organizers
 An event's organizers are a flat set of equals (all `role = 'organizer'`), **max 5 per event** (US §4.1 EO_Manage_CoOrganizers). There is no primary organizer.
@@ -1281,8 +1309,8 @@ Pricing keys are seeded at platform-epoch defaults. Insert a new `system_config`
 
 Permanent operational table recording live club membership for members. Written at legacy claim time, or by admin or member self-service. Never dropped.
 
-- Two-current-club cap: at most two `is_current = 1` rows per member, enforced at the service layer (count-before-insert in `ClubService`, matching the 5-leader-cap pattern). Joining a second club does not convert the first to former. Joining a third current club is blocked.
-- `is_primary`: designates the member's primary club among current affiliations. The first current club is primary (`is_primary = 1`); the second is secondary (`is_primary = 0`). At most one primary per member, enforced by `ux_member_club_affiliations_one_primary` (partial unique index on `member_id WHERE is_primary = 1 AND is_current = 1`). When leaving the primary club leaves exactly one current affiliation, that affiliation is promoted to primary in the same transaction, so a member holding any current affiliation always holds exactly one primary. A member holding two makes either one primary through the explicit Make Primary control, never automatically.
+- Three-current-club cap: at most three `is_current = 1` rows per member, enforced at the service layer (count-before-insert in `ClubService`, matching the 5-leader-cap pattern). Joining another club does not convert an earlier one to former. Joining a fourth current club is blocked.
+- `is_primary`: designates the member's primary club among current affiliations. The first current club is primary (`is_primary = 1`); each later one is secondary (`is_primary = 0`). At most one primary per member, enforced by `ux_member_club_affiliations_one_primary` (partial unique index on `member_id WHERE is_primary = 1 AND is_current = 1`). When leaving the primary club leaves one or more current affiliations, the earliest-joined of them is promoted to primary in the same transaction, so a member holding any current affiliation always holds exactly one primary. A member holding two or more makes any one primary through the explicit Make Primary control, and the site never moves a primary the member holds.
 - `source` enum: `legacy_claim` (written when the onboarding wizard is completed), `admin` (admin-assigned), `member_self_service` (member-initiated after claim).
 - A member-club pair is unique (`UNIQUE(member_id, club_id)`); subsequent changes update the existing row.
 
@@ -1377,7 +1405,7 @@ Mirror-derived scored person-to-club affiliation suggestions. Each row links a p
 
 - `pending` (schema default): the affiliation is inferred from the mirror and has not been confirmed by anyone. All loader-imported rows from the mirror pipeline arrive in this state.
 - `confirmed_current`: written when a member who confirmed current affiliation in the wizard (Stage 1A / Stage 1B membership confirmation per `M_Complete_Onboarding_Wizard`) completes it, or when an admin manually confirms. The wizard-driven `former_only`, `not_mine` and `superseded` writes below likewise land when the wizard is completed.
-- `former_only`: written in two cases. The member acknowledges historical affiliation but is no longer involved (Stage 1A path 2, Stage 1B path 2); or the member confirmed current affiliation in the wizard while already holding two current clubs, so the cap recorded the Yes as a former membership rather than blocking the answer. The second case keeps the member's answer and its activity signal, and the card resolves.
+- `former_only`: written in two cases. The member acknowledges historical affiliation but is no longer involved (Stage 1A path 2, Stage 1B path 2); or the member confirmed current affiliation in the wizard while already holding three current clubs, so the cap recorded the Yes as a former membership rather than blocking the answer. The second case keeps the member's answer and its activity signal, and the card resolves.
 - `not_mine`: the member rejects the inferred affiliation (Stage 1B path 4; Stage 1A path 4 escalates to admin).
 - `needs_review`: admin has marked the row for further review.
 - `promoted`: the candidate this row links to has been promoted to a live `clubs` row, and this affiliation has been carried forward to `member_club_affiliations`.
@@ -1658,7 +1686,7 @@ active | past_due → canceled (on customer.subscription.deleted)
 
 ### APP-010 — Max 5 club leaders
 
-**Reject inserts and `club_id` reassignments on `club_leaders` that would result in more than 5 current co-leaders per club.** Source: US §5.2 CL_Manage_CoLeaders (a flat set of up to 5 co-leaders). The DB enforces structural uniqueness (a member co-leads at most one club; a member appears at most once per club) but not the total count cap.
+**Reject inserts and `club_id` reassignments on `club_leaders` that would result in more than 5 current co-leaders per club.** Source: US §5.2 CL_Manage_CoLeaders (a flat set of up to 5 co-leaders). The DB enforces structural uniqueness (a member appears at most once per club) but not the total count cap.
 
 ---
 
@@ -1807,6 +1835,8 @@ These prevent UPDATE and DELETE on tables that must be permanent historical reco
 | `trg_active_player_grants_no_update` / `_no_delete` | `active_player_grants` | Active Player grant ledger integrity |
 | `trg_active_player_reminder_sent_no_update` / `_no_delete` | `active_player_reminder_sent` | Reminder-sent ledger integrity |
 | `trg_event_registration_reminder_sent_no_update` / `_no_delete` | `event_registration_reminder_sent` | Pre-event reminder ledger integrity |
+| `trg_membership_discipline_decisions_no_update` | `membership_discipline_decisions` | Discipline decision integrity; deletes are retention |
+| `trg_barred_email_hashes_no_update` | `barred_email_hashes` | Barred-address integrity |
 
 ### Vote options lock triggers (3)
 

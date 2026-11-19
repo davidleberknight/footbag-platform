@@ -83,6 +83,9 @@ export const COPY_COLUMN_REGISTER: Readonly<Record<string, TableClassification>>
   ballots: {
     notCopied: 'encrypted ballots and their receipt token hashes; a vote is secret and a receipt is a credential',
   },
+  barred_email_hashes: {
+    keep: ['email_hash', 'created_at', 'created_by'],
+  },
   candidate_cleanup_resolutions: {
     keep: ['id', 'created_at', 'created_by', 'candidate_id', 'predicate_name', 'resolution',
       'parked_by_member_id', 'reason_text'],
@@ -396,6 +399,7 @@ export const COPY_COLUMN_REGISTER: Readonly<Record<string, TableClassification>>
       'email_visibility', 'phone_visible', 'whatsapp_visible', 'searchable', 'avatar_media_id',
       'is_admin', 'is_system', 'is_board', 'is_hof', 'hof_last_nominated_year',
       'hof_inducted_year', 'is_bap', 'bap_inducted_year', 'is_deceased', 'deceased_at',
+      'restricted_at', 'restricted_by', 'restriction_reason', 'restricted_until',
       'deletion_requested_at', 'deletion_grace_expires_at', 'personal_data_purged_at',
       'first_competition_year', 'show_competitive_results', 'show_first_competition_year',
       'show_gender', 'legacy_member_id', 'legacy_user_id', 'legacy_email', 'ifpa_join_date',
@@ -407,6 +411,10 @@ export const COPY_COLUMN_REGISTER: Readonly<Record<string, TableClassification>>
       password_hash:
         'a copied hash is a working credential; the copy writes a value that can never verify, because the credential constraint refuses an empty hash on a live account',
     },
+  },
+  membership_discipline_decisions: {
+    keep: ['id', 'created_at', 'created_by', 'member_id', 'decided_by', 'outcome', 'notice_date',
+      'hearing_date', 'decision_date', 'suspended_until', 'reason'],
   },
   name_variants: {
     keep: ['canonical_normalized', 'variant_normalized', 'source', 'created_at'],

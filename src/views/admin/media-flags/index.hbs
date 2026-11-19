@@ -72,7 +72,7 @@
 
         <form method="POST" action="{{deleteHref}}" class="form-block">
           <div class="form-field">
-            <label for="remove-reason-{{mediaId}}">Reason for removing the item</label>
+            <label for="remove-reason-{{mediaId}}">Reason for removing the item, naming the Community Standard it broke</label>
             <textarea id="remove-reason-{{mediaId}}" name="reason" rows="2" maxlength="{{@root.content.reasonMaxLength}}" required placeholder="Sent to the uploader with the decision"></textarea>
           </div>
           <p class="card-meta">Removing hides the item everywhere and deletes its stored files. Copies already cached at the edge can persist until they expire.</p>

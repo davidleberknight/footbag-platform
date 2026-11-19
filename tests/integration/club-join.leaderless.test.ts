@@ -89,6 +89,20 @@ function slugOf(memberId: string): string {
   return withDb((db) => (db.prepare('SELECT slug FROM members WHERE id = ?').get(memberId) as { slug: string }).slug);
 }
 
+/**
+ * The text of the paragraph that replaces the Join control, found by the
+ * upgrade link it carries to this viewer's own membership section, with that
+ * viewer's slug blanked so two viewers' notes compare.
+ */
+function blockedNoteText(html: string, slug: string): string {
+  const link = `href="/members/${slug}#membership"`;
+  const at = html.indexOf(link);
+  expect(at, `no upgrade link for ${slug}`).toBeGreaterThan(-1);
+  const start = html.lastIndexOf('<p>', at);
+  const end = html.indexOf('</p>', at);
+  return html.slice(start, end).split(slug).join('').replace(/<[^>]+>/g, '');
+}
+
 function postJoin(clubKey: string, memberId: string) {
   return request(createApp()).post(`/clubs/${clubKey}/join`).set('Cookie', cookieFor(memberId)).type('form').send({});
 }
@@ -206,23 +220,28 @@ describe('a member without Tier 1 benefits on a club with no co-leader', () => {
     expect(open.text).not.toContain(`/members/${slugOf(tier1)}#membership`);
   });
 
-  // Defect caught: a member already in two clubs is told they can join any
-  // club with a co-leader, which the two-club limit refuses.
-  it('tells a member below the two-club limit they can join any club with a co-leader, and not one at it', async () => {
-    const pointer = 'You can also join any club that has a co-leader.';
+  // Defect caught: a member already in three clubs is pointed at other clubs
+  // with a co-leader, which the three-club limit refuses; or a member in two,
+  // who has room for a third, is not.
+  it('points a member in two clubs at other clubs with a co-leader, and not a member in three', async () => {
     const free = seedMember();
     const capped = seedMember();
-    for (let i = 0; i < 2; i += 1) {
-      const { clubId } = seedClub();
-      withDb((db) => insertMemberClubAffiliation(db, capped, clubId, { is_primary: i === 0 ? 1 : 0, source: 'legacy_claim' }));
+    for (const [memberId, count] of [[free, 2], [capped, 3]] as const) {
+      for (let i = 0; i < count; i += 1) {
+        const { clubId } = seedClub();
+        withDb((db) => insertMemberClubAffiliation(db, memberId, clubId, { is_primary: i === 0 ? 1 : 0, source: 'legacy_claim' }));
+      }
     }
     const { clubKey } = seedClub();
 
     const freePage = await request(createApp()).get(`/clubs/${clubKey}`).set('Cookie', cookieFor(free));
-    expect(freePage.text).toContain(pointer);
     const cappedPage = await request(createApp()).get(`/clubs/${clubKey}`).set('Cookie', cookieFor(capped));
-    expect(cappedPage.text).toContain(`/members/${slugOf(capped)}#membership`);
-    expect(cappedPage.text).not.toContain(pointer);
+    const freeNote = blockedNoteText(freePage.text, slugOf(free));
+    const cappedNote = blockedNoteText(cappedPage.text, slugOf(capped));
+    // The two notes are the same up to the pointer at other clubs, which only
+    // the member with room for another club is shown.
+    expect(freeNote.startsWith(cappedNote)).toBe(true);
+    expect(freeNote.length).toBeGreaterThan(cappedNote.length);
   });
 });
 
@@ -259,11 +278,11 @@ describe('the order of the refusals', () => {
     expect(flashValueOf(res)).toContain('You are already a member of this club.');
   });
 
-  // Defect caught: a member at the two-club cap is told to leave a club, when
+  // Defect caught: a member at the three-club cap is told to leave a club, when
   // leaving one would still not let them join this one.
-  it('reports the leaderless refusal ahead of the two-club cap', async () => {
+  it('reports the leaderless refusal ahead of the three-club cap', async () => {
     const memberId = seedMember();
-    for (let i = 0; i < 2; i += 1) {
+    for (let i = 0; i < 3; i += 1) {
       const { clubId } = seedClub();
       withDb((db) => insertMemberClubAffiliation(db, memberId, clubId, { is_primary: i === 0 ? 1 : 0, source: 'legacy_claim' }));
     }

@@ -1,0 +1,7 @@
+{
+  "templateKey": "membership_discipline_suspended",
+  "subjectTemplate": "A decision on your IFPA membership",
+  "bodyTemplate": "Hi {memberName},\n\nThe IFPA board has suspended your membership until {untilDate}. The reason given: {note}\n\nWhile suspended you are not an IFPA member and cannot sign in; your account is restored on {untilDate}. Under the IFPA bylaws, any challenge to this decision must be brought within one year.",
+  "piiClassification": "restricted",
+  "isEnabled": true
+}

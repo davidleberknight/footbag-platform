@@ -238,7 +238,7 @@ anti-enumeration messages, dispute and revert, no legacy credentials or admin
 auto-promotion, tier grant from claim, onboarding skip and resume, audit); membership
 (Tier 0 to 3 semantics, Active Player as temporary status, lifetime membership, Hall of Fame
 and BAP, board-at-cutover, migration-derived grants, admin overrides); clubs (one club asked
-at onboarding, two current clubs allowed and a third blocked, one leader role, dormant and
+at onboarding, three current clubs allowed and a fourth blocked, one leader role, dormant and
 junk clubs, pending roster, contact privacy, stale URLs); groups and committees (not clubs,
 membership source, board semantics, aliases, ballots); events and results (approval,
 registration, payment dependency, results to profiles, historical source authority,

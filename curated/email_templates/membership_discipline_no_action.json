@@ -1,0 +1,7 @@
+{
+  "templateKey": "membership_discipline_no_action",
+  "subjectTemplate": "A decision on your IFPA membership",
+  "bodyTemplate": "Hi {memberName},\n\nThe IFPA board has decided to take no action on your membership, and your account is no longer restricted.",
+  "piiClassification": "restricted",
+  "isEnabled": true
+}

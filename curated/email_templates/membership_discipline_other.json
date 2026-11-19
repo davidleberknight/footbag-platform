@@ -1,0 +1,7 @@
+{
+  "templateKey": "membership_discipline_other",
+  "subjectTemplate": "A decision on your IFPA membership",
+  "bodyTemplate": "Hi {memberName},\n\nThe IFPA board has decided on your membership. The decision: {note}\n\nYour account is no longer restricted. Under the IFPA bylaws, any challenge to this decision must be brought within one year.",
+  "piiClassification": "restricted",
+  "isEnabled": true
+}

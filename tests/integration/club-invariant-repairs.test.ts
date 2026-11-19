@@ -2,7 +2,7 @@ import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/
 
 const { dbPath } = setTestEnv('4041');
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import {
   insertMember,
@@ -10,7 +10,6 @@ import {
   insertClub,
   insertClubBootstrapLeader,
   insertLegacyClubCandidate,
-  insertMemberClubAffiliation,
   completeOnboarding,
 } from '../fixtures/factories';
 
@@ -77,7 +76,7 @@ function primaryCount(memberId: string): number {
   return affiliations(memberId).filter((a) => a.is_current === 1 && a.is_primary === 1).length;
 }
 
-describe('a main club is chosen automatically only for a lone remaining club', () => {
+describe('leaving the main club makes the earliest-joined remaining club main', () => {
   // Defect caught: leaving the main club leaves the member's only remaining
   // club designated secondary, with no main club at all.
   it('leaving the main club makes a lone remaining club main', () => {
@@ -93,24 +92,35 @@ describe('a main club is chosen automatically only for a lone remaining club', (
     expect(current).toEqual([{ club_id: clubY, is_current: 1, is_primary: 1 }]);
   });
 
-  // Defect caught: the leave picks one of two remaining clubs as main itself,
-  // a choice that belongs to the member.
-  it('leaving the main club with two remaining makes neither main', () => {
-    const memberId = seedMember();
+  // Defect caught: leaving the main club with two clubs remaining leaves the
+  // member with no main club, or makes main a club other than the one they
+  // joined first among those left.
+  it('leaving the main club with two remaining makes the earlier-joined of them main', () => {
+    const memberId = seedJoiner();
     const clubX = seedClub('Repair X');
     const clubY = seedClub('Repair Y');
     const clubZ = seedClub('Repair Z');
-    // Seeded past the two-club limit, which no member or admin path reaches,
-    // because that is the only way two clubs survive a leave.
-    insertMemberClubAffiliation(db, memberId, clubX, { is_primary: 1 });
-    insertMemberClubAffiliation(db, memberId, clubY, { is_primary: 0 });
-    insertMemberClubAffiliation(db, memberId, clubZ, { is_primary: 0 });
+    // Joined X, then Z, then Y, so the earlier-joined survivor is not the one
+    // whose id sorts first.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(new Date('2030-01-01T00:00:00.000Z'));
+      clubSvc.joinClub(memberId, clubX);
+      vi.setSystemTime(new Date('2030-02-01T00:00:00.000Z'));
+      clubSvc.joinClub(memberId, clubZ);
+      vi.setSystemTime(new Date('2030-03-01T00:00:00.000Z'));
+      clubSvc.joinClub(memberId, clubY);
+    } finally {
+      vi.useRealTimers();
+    }
 
     clubSvc.leaveClub(memberId, clubX, { confirmed: true });
 
     const current = affiliations(memberId).filter((a) => a.is_current === 1);
-    expect(current).toHaveLength(2);
-    expect(primaryCount(memberId)).toBe(0);
+    expect(current).toEqual([
+      { club_id: clubY, is_current: 1, is_primary: 0 },
+      { club_id: clubZ, is_current: 1, is_primary: 1 },
+    ]);
   });
 
   it('an admin demote that removes the affiliation makes the lone remaining club main', () => {

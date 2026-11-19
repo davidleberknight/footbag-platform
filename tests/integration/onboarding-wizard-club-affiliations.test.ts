@@ -218,12 +218,11 @@ const IDEMPOTENT_MEMBER = 'member-idempotent';
 let idempotentClubId = '';
 let idempotentCandidateId = '';
 
-// One-club fence: member co-leads one club; a second club's claim affiliates only.
+// Co-lead cap: one member holds a card for each of four clubs. The first
+// three claims make them a co-leader; the fourth is refused leadership.
 const CROSS_CLUB_MEMBER = 'member-cross-club';
-let crossClubA = '';
-let crossClubB = '';
-let crossCandidateA = '';
-let crossCandidateB = '';
+const crossClubs: string[] = [];
+const crossCandidates: string[] = [];
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -280,7 +279,7 @@ beforeAll(async () => {
     classification: 'strong',
   });
 
-  // One-club fence: member co-leads club A, then claims club B (affiliate only).
+  // Co-lead cap: four cards for one member, one per club.
   insertMember(db, {
     id: CROSS_CLUB_MEMBER,
     slug: 'member_cross_club',
@@ -288,21 +287,18 @@ beforeAll(async () => {
     legacy_member_id: 'lm-cross',
   });
   grantTier1(db, CROSS_CLUB_MEMBER);
-  crossClubA = insertClub(db, { name: 'Cross Club A' });
-  crossClubB = insertClub(db, { name: 'Cross Club B' });
-  // Both candidates carry this member's one legacy anchor. A member holds a
-  // single legacy account, so two cards for them differ by club, never by
-  // which legacy account they came from.
-  crossCandidateA = seedCandidate(db, {
-    clubId: crossClubA,
-    legacyMemberId: 'lm-cross',
-    classification: 'strong',
-  });
-  crossCandidateB = seedCandidate(db, {
-    clubId: crossClubB,
-    legacyMemberId: 'lm-cross',
-    classification: 'strong',
-  });
+  // Every candidate carries this member's one legacy anchor. A member holds a
+  // single legacy account, so their cards differ by club, never by which
+  // legacy account they came from.
+  for (const letter of ['A', 'B', 'C', 'D']) {
+    const clubId = insertClub(db, { name: `Cross Club ${letter}` });
+    crossClubs.push(clubId);
+    crossCandidates.push(seedCandidate(db, {
+      clubId,
+      legacyMemberId: 'lm-cross',
+      classification: 'strong',
+    }));
+  }
 
   db.close();
 
@@ -435,46 +431,49 @@ describe('memberOnboardingService.submitClubAffiliationsResponse — multi-membe
   });
 });
 
-describe('memberOnboardingService.submitClubAffiliationsResponse — one-club co-leader fence', () => {
-  it('member already co-leading club A claims club B → affiliated only at B (ux_one_club_leader_per_member fence)', () => {
-    // Claim club A: becomes a co-leader.
-    const a = svc.submitClubAffiliationsResponse(CROSS_CLUB_MEMBER, {
-      candidateId: crossCandidateA,
+describe('memberOnboardingService.submitClubAffiliationsResponse — co-lead cap', () => {
+  // Catches a co-lead cap below three (a member co-leading two clubs refused a
+  // third through the wizard) and one that lets a fourth leadership claim land.
+  it('a member co-leading two clubs claims a third as co-leader; a fourth claim leads nothing and adds no current club', () => {
+    const [clubA, clubB, clubC, clubD] = crossClubs;
+    for (const candidateId of crossCandidates.slice(0, 3)) {
+      const r = svc.submitClubAffiliationsResponse(CROSS_CLUB_MEMBER, {
+        candidateId,
+        userDecision: 'confirm',
+        activitySignal: 'active',
+      });
+      expect(r.branch).toBe('promoted_co_leader');
+      expect(r.actualRole).toBe('co-leader');
+    }
+    for (const clubId of [clubA, clubB, clubC]) {
+      expect(readClubLeaders(clubId).map((l) => l.member_id)).toEqual([CROSS_CLUB_MEMBER]);
+    }
+
+    // The fourth claim: the member already co-leads three clubs and, as a
+    // co-leader is always a current member, holds three current ones. The
+    // claim reports the cap and lands no leadership row and no current
+    // affiliation at the fourth club.
+    const d = svc.submitClubAffiliationsResponse(CROSS_CLUB_MEMBER, {
+      candidateId: crossCandidates[3],
       userDecision: 'confirm',
       activitySignal: 'active',
     });
-    expect(a.branch).toBe('promoted_co_leader');
-    expect(a.actualRole).toBe('co-leader');
+    expect(d.branch).toBe('cap_hit');
+    expect(d.actualRole).toBeNull();
+    expect(readClubLeaders(clubD)).toHaveLength(0);
 
-    // Claim club B: a member co-leads at most one club, so B affiliates the
-    // member but writes no club_leaders row.
-    const b = svc.submitClubAffiliationsResponse(CROSS_CLUB_MEMBER, {
-      candidateId: crossCandidateB,
-      userDecision: 'confirm',
-      activitySignal: 'active',
-    });
-    expect(b.branch).toBe('affiliated_only');
-    expect(b.actualRole).toBeNull();
+    const current = readAffiliations(CROSS_CLUB_MEMBER).filter((a) => a.is_current === 1);
+    expect(current.map((a) => a.club_id).sort()).toEqual([clubA, clubB, clubC].sort());
+    expect(current.filter((a) => a.is_primary === 1)).toHaveLength(1);
 
-    const aLeaders = readClubLeaders(crossClubA);
-    const bLeaders = readClubLeaders(crossClubB);
-    expect(aLeaders).toHaveLength(1);
-    expect(aLeaders[0].role).toBe('co-leader');
-    expect(bLeaders).toHaveLength(0);
-
-    // Two-current-club cap: both affiliations land.
-    const affs = readAffiliations(CROSS_CLUB_MEMBER);
-    expect(affs).toHaveLength(2);
-    expect(affs.map((a) => a.club_id).sort()).toEqual([crossClubA, crossClubB].sort());
-    expect(affs.every((a) => a.is_current === 1)).toBe(true);
-
-    // The B claim is recorded as a promotion attempt that fell through to
-    // affiliate-only.
+    // The fourth claim is recorded as a promotion attempt that fell through
+    // to affiliate-only at the cap.
     const audits = readClubAffiliationsAudits(CROSS_CLUB_MEMBER);
     const latest = audits[audits.length - 1];
     expect(latest.action_type).toBe('wizard.club_affiliations.promoted');
     const meta = JSON.parse(latest.metadata_json);
     expect(meta.promote_branch).toBe('affiliated_only');
+    expect(meta.cap_hit).toBe(true);
   });
 });
 
@@ -538,9 +537,9 @@ describe('memberOnboardingService.submitClubAffiliationsResponse — affiliation
     expect(readClubLeaders(clubY)).toHaveLength(1);
     expect(readClubLeaders(clubX)).toHaveLength(0);
 
-    // Member's affiliation state: two-current-club cap allows both.
-    // Original is_current=1 at clubX preserved; new is_current=1 at clubY
-    // also lands (under the two-club cap).
+    // Member's affiliation state: both clubs are current, within the
+    // current-club cap. The original is_current=1 at clubX is preserved and
+    // the new is_current=1 at clubY lands beside it.
     const affs = readAffiliations(memberId);
     expect(affs).toHaveLength(2);
     expect(affs.map((a) => a.club_id).sort()).toEqual([clubX, clubY].sort());

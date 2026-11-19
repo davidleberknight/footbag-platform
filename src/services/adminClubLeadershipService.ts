@@ -17,19 +17,16 @@
  * leader.
  *
  * Non-negotiable invariants:
- *   - Schema invariants stand: a member co-leads at most one club
- *     (ux_one_club_leader_per_member); a member appears at most once per club
- *     (ux_club_leaders). Assigning a member who already co-leads another club
- *     is refused: a club is a local group, so a member leads the club they are
- *     local to and is a guest at any other. Changing which club a member
- *     co-leads is that member's own action, taken by stepping down first.
- *   - A member holds at most two current clubs, so assigning a member who
- *     already holds two others is refused.
+ *   - A member appears at most once per club (ux_club_leaders). A member
+ *     co-leads at most three clubs, counted before insert, so assigning a
+ *     member who already co-leads three is refused with direction.
+ *   - A member holds at most three current clubs, so assigning a member who
+ *     already holds three others is refused.
  *   - A member holding any current club affiliation holds exactly one primary.
  *     An affiliation this service creates or reactivates is primary when the
- *     member held no other current club, and removing one promotes a lone
- *     survivor, so neither admin path can leave a member with a club but no
- *     primary club. A member left holding two picks the primary themselves.
+ *     member held no other current club, and removing the primary promotes
+ *     the earliest-joined survivor, so neither admin path can leave a member
+ *     with a club but no primary club.
  *   - Every action writes one audit row with actor_type='admin',
  *     before/after values, and reason text; an assignment that revives a club
  *     writes a second row recording the revival. The audit trail is the
@@ -54,14 +51,13 @@
 import { randomUUID } from 'crypto';
 import { account, clubLeaders, clubs as clubsDb, memberClubAffiliations, transaction } from '../db/db';
 import { appendAuditEntry, findStandingOwnAct } from './auditService';
+import { MAX_COLEADERS_PER_CLUB, MAX_CURRENT_CLUBS_PER_MEMBER, memberAtColeadCap } from './clubCaps';
+import { promotePrimarySuccessorInTx } from './clubService';
 import { NotFoundError, ValidationError } from './serviceErrors';
 import { cleanUserText } from '../lib/textSanitizer';
 import { PageViewModel } from '../types/page';
 import type { OutcomeNoticeView } from '../lib/outcomeNotice';
 import type { ActionEnding } from '../lib/actionOutcome';
-
-const LEADERSHIP_CAP = 5;
-const CURRENT_CLUB_CAP = 2;
 
 export interface ClubLeadershipContent {
   clubId: string;
@@ -135,8 +131,8 @@ function getClubLeadershipPage(
         what: 'Shows a club\'s co-leaders, and assigns or removes one.',
         how: 'Enter any member\'s id or profile address and a reason to assign them, or remove a co-leader with a reason.',
         headsUp: [
-          'A club has at most five co-leaders, and a member co-leads at most one club.',
-          'Assigning a co-leader to an inactive club makes it active again. An archived club accepts no assignment, and a member who already holds two clubs cannot be assigned.',
+          'A club has at most five co-leaders, and a member co-leads at most three clubs.',
+          'Assigning a co-leader to an inactive club makes it active again. An archived club accepts no assignment, and a member who already holds three clubs cannot be assigned.',
           'Assigning and removing both take a reason and are recorded in the audit log.',
           'Nobody is emailed.',
         ],
@@ -188,11 +184,11 @@ function audit(
 
 /**
  * Assign a member from the member base as a co-leader. Creates or reactivates
- * the affiliation when absent. A member co-leads at most one club, so a member
- * who already co-leads another club is refused with direction (remove them
- * there first). A club at five co-leaders refuses a sixth, a member who
- * already holds two other current clubs is refused a third, and an archived
- * club refuses any assignment.
+ * the affiliation when absent. A member co-leads at most three clubs, so a
+ * member who already co-leads three is refused with direction (step down at
+ * one first). A club at five co-leaders refuses a sixth, a member who already
+ * holds three other current clubs is refused a fourth, and an archived club
+ * refuses any assignment.
  *
  * A member who already co-leads this club is a repeat, not an error: this
  * admin's own standing assignment of them reports the first submit's success,
@@ -232,31 +228,30 @@ function assignLeader(
   // The limits are read inside the write's transaction, so the counts they
   // check are the ones the insert lands against.
   transaction(() => {
-    // A member co-leads at most one club; the existingRow check above already
-    // cleared this club, so any co-leadership is elsewhere.
-    const coLeadsElsewhere = clubLeaders.memberCoLeadsAnyClub.get(member.id) as { x: number } | undefined;
-    if (coLeadsElsewhere) {
+    // A member co-leads at most three clubs; the existingRow check above
+    // already cleared this club, so every co-leadership counted is elsewhere.
+    if (memberAtColeadCap(member.id)) {
       throw new ValidationError(
-        'That member already co-leads another club. Clubs are local groups, so a member leads their own club and is a guest at any other. They step down at their club first if they want to lead this one.',
+        'That member already co-leads three clubs, the most a member can lead. They step down at one of them first if they want to lead this one.',
       );
     }
 
     const count = (clubLeaders.countByClubId.get(clubId) as { c: number }).c;
-    if (count >= LEADERSHIP_CAP) {
+    if (count >= MAX_COLEADERS_PER_CLUB) {
       throw new ValidationError(
-        `This club already has ${LEADERSHIP_CAP} co-leaders, the most a club can have.`,
+        `This club already has ${MAX_COLEADERS_PER_CLUB} co-leaders, the most a club can have.`,
       );
     }
 
     // Leading a club puts the member on its roster, so a member who is not
-    // already a current member here and holds two other clubs would reach three.
+    // already a current member here and holds three other clubs would reach four.
     const aff = clubLeaders.findCurrentAffiliation.get(member.id, clubId) as
       | { id: string; is_current: number }
       | undefined;
     const currentCount = (memberClubAffiliations.countCurrentByMemberId.get(member.id) as { c: number }).c;
-    if (!aff?.is_current && currentCount >= CURRENT_CLUB_CAP) {
+    if (!aff?.is_current && currentCount >= MAX_CURRENT_CLUBS_PER_MEMBER) {
       throw new ValidationError(
-        'That member already belongs to two clubs, the most a member can hold. They leave one first if they want to lead this one.',
+        'That member already belongs to three clubs, the most a member can hold. They leave one first if they want to lead this one.',
       );
     }
 
@@ -398,15 +393,10 @@ function demoteLeader(
       affiliationEnded = clubLeaders.endAffiliation
         .run(now, adminMemberId, memberId, clubId).changes > 0;
 
-      // Ending an affiliation clears its primary flag. A lone surviving club is
-      // the member's only club, so it becomes primary, exactly as the member's
-      // own leave does; a member left holding two picks which is primary
-      // themselves, never automatically.
-      const remaining = memberClubAffiliations.listCurrentWithClubName.all(memberId) as
-        Array<{ club_id: string; is_primary: number }>;
-      if (remaining.length === 1 && remaining[0].is_primary !== 1) {
-        memberClubAffiliations.setPrimary.run(now, adminMemberId, memberId, remaining[0].club_id);
-      }
+      // Ending an affiliation clears its primary flag. When it was the
+      // member's primary, the surviving club joined earliest becomes primary,
+      // exactly as the member's own leave does.
+      promotePrimarySuccessorInTx(memberId, now, adminMemberId);
     }
     audit(adminMemberId, 'club.admin_leader_demoted', clubId, trimmedReason, {
       member_id:     memberId,

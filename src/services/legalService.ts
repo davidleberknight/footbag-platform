@@ -67,7 +67,7 @@ export interface LegalContent {
 // Static content
 // ---------------------------------------------------------------------------
 
-const LAST_UPDATED = '2026-11-16';
+const LAST_UPDATED = '2026-11-18';
 
 const COMMUNITY_STANDARDS_PATH = '/community-standards';
 const COMMUNITY_STANDARDS_LAST_UPDATED = '2026-11-16';
@@ -162,7 +162,7 @@ const TERMS_SECTION: LegalSection = {
     {
       subheading: 'Acceptable use',
       body: prose(
-        'You agree not to: (a) impersonate another person or misrepresent your identity; (b) submit content that is illegal, harassing, defamatory, or infringes others\' rights; (c) attempt to gain unauthorized access to member accounts, data, or infrastructure; (d) scrape, mass-download, or re-publish site content at scale; (e) submit false or manipulated historical, competitive, or identity information; (f) use the site to send spam or unsolicited commercial messages. Violations may result in content removal, account suspension, or account termination at IFPA\'s discretion.'),
+        'You agree not to: (a) impersonate another person or misrepresent your identity; (b) submit content that is illegal, harassing, defamatory, or infringes others\' rights; (c) attempt to gain unauthorized access to member accounts, data, or infrastructure; (d) scrape, mass-download, or re-publish site content at scale; (e) submit false or manipulated historical, competitive, or identity information; (f) use the site to send spam or unsolicited commercial messages. Violations may result in content removal, or in an immediate restriction of your account while the IFPA board decides on suspension or expulsion under Article X of the IFPA bylaws.'),
     },
     {
       subheading: 'Community Standards',
@@ -239,9 +239,19 @@ const COPYRIGHT_SECTION: LegalSection = {
       ],
     },
     {
+      subheading: 'Copyright notices',
+      body: [
+        { text: 'If you believe something on footbag.org infringes your copyright, send a notice to ' },
+        { text: 'admin@footbag.org', email: 'admin@footbag.org' },
+        { text: '. Under the US Digital Millennium Copyright Act the notice must include: your physical or electronic signature; the work you say is infringed; the material on footbag.org you say infringes it, with its page address; your name, address, phone number and email; a statement that you believe in good faith the use is not authorized by you, your agent or the law; and a statement, under penalty of perjury, that the notice is accurate and that you are the owner or authorized to act for the owner. We remove the material and tell the member who posted it. A member who repeatedly posts work they have no right to share loses the right to post, as the ' },
+        { text: 'Community Standards', path: `${COMMUNITY_STANDARDS_PATH}#enforcement` },
+        { text: ' set out.' },
+      ],
+    },
+    {
       subheading: 'Contact',
       body: [
-        { text: 'For copyright or trademark inquiries, contact ' },
+        { text: 'For trademark inquiries, contact ' },
         { text: 'admin@footbag.org', email: 'admin@footbag.org' },
         { text: '.' },
       ],

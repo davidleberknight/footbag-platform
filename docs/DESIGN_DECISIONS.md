@@ -1114,6 +1114,8 @@ Member personal data: retained for a configurable grace period (Administrator-co
 
 - Unfinished accounts: a prospective member's account (registered, onboarding not finished) idle for a configurable period (parameter key: `unfinished_account_cleanup_days`, default 90) is hard-deleted with every row it owns. It holds no shared row, because everything reaching beyond the account is held on its onboarding task rows until onboarding completes, so nothing is anonymized or kept, and no audit row is written about it.
 
+- Membership discipline: a record of an IFPA board decision under Article X of the IFPA bylaws is kept until one year after the member's personal data is purged, the bylaws' window for challenging the decision, then deleted by a daily job. A barred-address hash, the keyed hash of an expelled member's login address that registration refuses, is kept indefinitely, because an expulsion does not end; it holds no address. The hash key is derived from the session secret, as the other keyed hashes are.
+
 - Club records: Club records are never permanently deleted and do not use the deleted_at soft-delete pattern. Club archival is performed by setting status = 'archived'. The deleted_at column is not present on the clubs database table. A club persists whether or not it has co-leaders, and a successful leadership claim or a new current affiliation returns a club of any status to `'active'`.  
 
 - Media, news items, and events without published results: hard-deleted under the hard-delete pattern above, with no grace period; events with published results are never deleted. Deleted media persists in backups until backup retention expiry (operational constraint).

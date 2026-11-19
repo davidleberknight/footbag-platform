@@ -316,6 +316,10 @@ const AUDIENCE_ROWS: SenderRow[] = [
  * - `address`: `send` to an address the caller resolved, best-effort, naming
  *   the member, so the enqueue gate holds whatever lookup the caller used.
  * - `role`: `send` to a platform role address that belongs to no member.
+ * - `nonmember`: a strict `send` to an address that belongs to no member: the
+ *   holder of an address an expulsion barred, told it cannot register. Strict
+ *   so an outbox outage fails as every other registration path does. No member
+ *   state reaches it, because the address names no member.
  * - `strict`: `send` with the gate bypassed. Nothing downstream re-checks the
  *   member, so the caller's own lookup is the only filter and each key carries
  *   a driver that runs its real flow.
@@ -324,7 +328,7 @@ const AUDIENCE_ROWS: SenderRow[] = [
  *   member-state authentication sweep proves no excluded state can do.
  */
 type Route =
-  | { via: 'member' | 'act' | 'admins' | 'address' | 'role' }
+  | { via: 'member' | 'act' | 'admins' | 'address' | 'role' | 'nonmember' }
   | { via: 'strict'; driver: StrictDriver }
   | { via: 'self'; why: string };
 
@@ -348,12 +352,18 @@ const POLICY: Record<EmailTemplateKey, Route> = {
   // deletion itself, addressed to the account it has just made unreachable.
   account_deletion_requested:             { via: 'self', why: SELF_ACTED },
   account_deleted_by_admin:               { via: 'act' },
+  membership_expelled:                    { via: 'act' },
+  account_restricted:                     { via: 'act' },
+  account_restriction_lifted:             { via: 'act' },
+  membership_discipline_decided:          { via: 'act' },
+  registration_refused_barred:            { via: 'nonmember' },
   contact_request_resolution:             { via: 'act' },
   link_help_request_resolution:           { via: 'act' },
   announce_approved:                      { via: 'act' },
   announce_returned:                      { via: 'act' },
   media_moderation_decision:             { via: 'act' },
   media_report_outcome_reporter:          { via: 'act' },
+  media_report_received_reporter:         { via: 'act' },
   member_question_waiting:                { via: 'member' },
   vouch_confirmation:                     { via: 'address' },
   honor_congratulation:                   { via: 'act' },
@@ -378,6 +388,7 @@ const POLICY: Record<EmailTemplateKey, Route> = {
   event_record_corrected:                 { via: 'act' },
   event_attendance_active_player:         { via: 'act' },
   club_leaderless_contact:                { via: 'act' },
+  club_quiet_contact:                     { via: 'act' },
   active_player_expiry_reminder:          { via: 'address' },
   payment_receipt:                        { via: 'address' },
   donation_subscription_started:          { via: 'address' },
@@ -400,6 +411,7 @@ const ROUTE_SHAPE: Record<Route['via'], { methods: string[]; strict: boolean; me
   admins:  { methods: ['sendToAdmins', 'sendToMailingList'], strict: false, memberIdNull: false },
   address: { methods: ['send'], strict: false, memberIdNull: false },
   role:    { methods: ['send'], strict: false, memberIdNull: true },
+  nonmember: { methods: ['send'], strict: true, memberIdNull: true },
   strict:  { methods: ['send'], strict: true, memberIdNull: false },
   self:    { methods: ['send'], strict: true, memberIdNull: false },
 };

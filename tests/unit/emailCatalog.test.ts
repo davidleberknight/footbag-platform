@@ -54,6 +54,28 @@ const CATALOG: CatalogEntry[] = [
   { template: 'account_deleted_by_admin', services: ['accountDeletionService'], samples: [
     { params: { memberName: 'A Member', graceDays: 90, note: 'Not a real full name' }, variant: 'account_deleted_by_admin' },
   ] },
+  // memberDisciplineService — an administrator's restriction and its lifting,
+  // and the board's discipline decision, one variant per outcome. The expulsion
+  // notice is sent by the deletion it carries out.
+  { template: 'account_restricted', services: ['memberDisciplineService'], samples: [
+    { params: { memberName: 'M', note: 'n' }, variant: 'account_restricted' },
+  ] },
+  { template: 'account_restriction_lifted', services: ['memberDisciplineService'], samples: [
+    { params: { memberName: 'M', note: 'n' }, variant: 'account_restriction_lifted' },
+  ] },
+  { template: 'membership_discipline_decided', services: ['memberDisciplineService'], samples: [
+    { params: { memberName: 'M', outcome: 'suspended', untilDate: '1 March 2027', note: 'n' }, variant: 'membership_discipline_suspended' },
+    { params: { memberName: 'M', outcome: 'other_sanction', untilDate: '', note: 'n' }, variant: 'membership_discipline_other' },
+    { params: { memberName: 'M', outcome: 'no_action', untilDate: '', note: 'n' }, variant: 'membership_discipline_no_action' },
+  ] },
+  { template: 'membership_expelled', services: ['accountDeletionService'], samples: [
+    { params: { memberName: 'M', note: 'n' }, variant: 'membership_expelled' },
+  ] },
+  // identityAccessService — sent to an address an expulsion barred when someone
+  // tries to register with it.
+  { template: 'registration_refused_barred', services: ['identityAccessService'], samples: [
+    { params: {}, variant: 'registration_refused_barred' },
+  ] },
   // Admin-alerts fan-out, sent from the single work-queue enqueue path.
   { template: 'admin_loss_recruitment', services: ['workQueueService'], samples: [
     { params: { itemUrl: 'https://x/admin/work-queue/wq_1' }, variant: 'admin_loss_recruitment' },
@@ -72,6 +94,9 @@ const CATALOG: CatalogEntry[] = [
   { template: 'media_report_outcome_reporter', services: ['mediaModerationService'], samples: [
     { params: { removed: true }, variant: 'media_report_outcome_reporter' },
     { params: { removed: false }, variant: 'media_report_outcome_reporter' },
+  ] },
+  { template: 'media_report_received_reporter', services: ['mediaModerationService'], samples: [
+    { params: {}, variant: 'media_report_received_reporter' },
   ] },
   { template: 'admin_queue_stale_escalation', services: ['workQueueService'], samples: [
     { params: { taskLabel: 'Task', kindLabel: 'Housekeeping', ageDays: 3, itemUrl: 'https://x/admin/work-queue/wq_1' }, variant: 'admin_queue_stale_escalation' },
@@ -112,11 +137,11 @@ const CATALOG: CatalogEntry[] = [
   // administrator acting with no report in front of them names none, and quotes
   // no reporter, because there was not one.
   { template: 'media_moderation_decision', services: ['mediaModerationService'], samples: [
-    { params: { memberName: 'M', displayDecision: 'Removed', note: 'n', wasReported: true, isAvatar: false },
+    { params: { memberName: 'M', itemDescription: 'i', displayDecision: 'Removed', note: 'n', wasReported: true, isAvatar: false },
       variant: 'media_moderation_decision' },
-    { params: { memberName: 'M', displayDecision: 'Removed', note: 'n', wasReported: false, isAvatar: true },
+    { params: { memberName: 'M', itemDescription: 'i', displayDecision: 'Removed', note: 'n', wasReported: false, isAvatar: true },
       variant: 'avatar_removed_member' },
-    { params: { memberName: 'M', displayDecision: 'Removed', note: 'n', wasReported: false, isAvatar: false },
+    { params: { memberName: 'M', itemDescription: 'i', displayDecision: 'Removed', note: 'n', wasReported: false, isAvatar: false },
       variant: 'media_removed_member' },
   ] },
   // identityAccessService — the reply for the one contact category answered by
@@ -179,6 +204,9 @@ const CATALOG: CatalogEntry[] = [
   ] },
   { template: 'club_leaderless_contact', services: ['clubCleanupService'], samples: [
     { params: { memberName: 'M', clubName: 'C' }, variant: 'club_leaderless_contact' },
+  ] },
+  { template: 'club_quiet_contact', services: ['clubCleanupService'], samples: [
+    { params: { memberName: 'M', clubName: 'C' }, variant: 'club_quiet_contact' },
   ] },
   // Membership, Active Player, payment notifications.
   { template: 'active_player_expiry_reminder', services: ['activePlayerExpiryService'], samples: [

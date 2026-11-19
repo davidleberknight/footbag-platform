@@ -1,6 +1,6 @@
 /**
  * Integration tests covering remaining gaps identified in the adversarial
- * review: two-current-club cap on affiliation confirm, Tier 0
+ * review: three-current-club cap on affiliation confirm, Tier 0
  * leadership gate, and dashboard task widget content.
  *
  * User story anchors: M_Complete_Onboarding_Wizard, M_Join_Club.
@@ -68,17 +68,22 @@ function getTaskState(memberId: string, taskType: string): string {
   return row?.state ?? 'pending';
 }
 
-// ── One-current-club invariant ───────────────────────────────────────────────
+// ── Current-club cap ─────────────────────────────────────────────────────────
 
-describe('two-current-club cap: second current affiliation succeeds, third would be blocked', () => {
-  it('member already current at club A, confirming club B via wizard -> both affiliations land (under two-club cap)', async () => {
+describe('three-current-club cap: third current affiliation succeeds, fourth is blocked', () => {
+  // Defect caught: a member in two clubs is refused a third through the
+  // wizard, or a member in three gains a fourth current club.
+  it('member current at two clubs confirms a third via the wizard and it lands; a fourth is recorded but not current', async () => {
     const stamp = Date.now();
     const legacyId = `LM-ONEC-${stamp}`;
     const memberId = `onec-${stamp}`;
     const slug = `onec_${stamp}`;
 
     const clubA = insertClub(db, { id: `club-a-${stamp}` });
-    const clubB = insertClub(db, { id: `club-b-${stamp}` });
+    const clubA2 = insertClub(db, { id: `club-a2-${stamp}` });
+    // Different places, so each suggestion is its own card.
+    const clubB = insertClub(db, { id: `club-b-${stamp}`, city: 'Ottawa' });
+    const clubC = insertClub(db, { id: `club-c-${stamp}`, city: 'Halifax' });
 
     createMemberAtTier(db, {
       id: memberId,
@@ -88,43 +93,49 @@ describe('two-current-club cap: second current affiliation succeeds, third would
     });
 
     insertMemberClubAffiliation(db, memberId, clubA, { is_current: 1, is_primary: 1, source: 'member_self_service' });
+    insertMemberClubAffiliation(db, memberId, clubA2, { is_current: 1, is_primary: 0, source: 'member_self_service' });
 
     const personId = insertHistoricalPerson(db, {
       legacy_member_id: legacyId,
       person_name: 'One Club',
     });
 
-    const candidateId = insertLegacyClubCandidate(db, {
-      classification: 'pre_populate',
-      mapped_club_id: clubB,
-    });
-    insertLegacyPersonClubAffiliation(db, {
+    const cardFor = (clubId: string): string => insertLegacyPersonClubAffiliation(db, {
       historical_person_id: personId,
       legacy_member_id: legacyId,
-      legacy_club_candidate_id: candidateId,
+      legacy_club_candidate_id: insertLegacyClubCandidate(db, {
+        classification: 'pre_populate',
+        mapped_club_id: clubId,
+      }),
       inferred_role: 'member',
     });
+    const thirdCard = cardFor(clubB);
+    const fourthCard = cardFor(clubC);
 
+    // Both cards are offered as the wizard draws them.
+    const offered = svc.listWizardCardsForMember(memberId)
+      .filter((c) => c.kind === 'membership')
+      .map((c) => c.candidateId);
+    expect(offered.sort()).toEqual([thirdCard, fourthCard].sort());
 
-    const cards = svc.listWizardCardsForMember(memberId);
-    const membershipCard = cards.find((c) => c.kind === 'membership');
-    if (!membershipCard) {
-      throw new Error('Expected a membership card for this setup');
-    }
-
-    const result = svc.submitClubAffiliationsResponse(memberId, {
+    const third = svc.submitClubAffiliationsResponse(memberId, {
       kind: 'membership',
-      candidateId: membershipCard.candidateId,
+      candidateId: thirdCard,
       userDecision: 'confirm',
       activitySignal: 'active',
     });
+    expect(third.branch).toBe('confirmed');
 
-    expect(result.branch).toBe('confirmed');
+    const fourth = svc.submitClubAffiliationsResponse(memberId, {
+      kind: 'membership',
+      candidateId: fourthCard,
+      userDecision: 'confirm',
+      activitySignal: 'active',
+    });
+    expect(fourth.branch).toBe('cap_hit');
 
-    const afterAffs = getAffiliations(memberId);
-    const currentAffs = afterAffs.filter((a) => a.is_current === 1);
-    expect(currentAffs).toHaveLength(2);
-    expect(currentAffs.map((a) => a.club_id).sort()).toEqual([clubA, clubB].sort());
+    const currentAffs = getAffiliations(memberId).filter((a) => a.is_current === 1);
+    expect(currentAffs.map((a) => a.club_id).sort()).toEqual([clubA, clubA2, clubB].sort());
   });
 });
 

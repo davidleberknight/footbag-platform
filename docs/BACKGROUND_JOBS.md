@@ -17,6 +17,7 @@ The shared technical approach (the job registry, the scheduler, run records and 
     - [SYS_Cleanup_Soft_Deleted_Records](#sys_cleanup_soft_deleted_records)
     - [SYS_Cleanup_Expired_Tokens](#sys_cleanup_expired_tokens)
     - [SYS_Delete_Unfinished_Accounts](#sys_delete_unfinished_accounts)
+    - [SYS_Apply_Membership_Discipline](#sys_apply_membership_discipline)
     - [SYS_Rebuild_Hashtag_Stats](#sys_rebuild_hashtag_stats)
     - [SYS_Admin_Queue_Digest](#sys_admin_queue_digest)
     - [SYS_Admin_Queue_Escalation](#sys_admin_queue_escalation)
@@ -54,6 +55,7 @@ Every background job the platform runs. A scheduled job runs from the job regist
 | SYS_Cleanup_Soft_Deleted_Records | Purges personal data past its grace period and retention windows | Daily | 2 hours | Error alarm | Heartbeat alarm | `member_cleanup_grace_days`, `deceased_cleanup_grace_days`, `payment_retention_days`, `outbox_retention_days` | Job-run row |
 | SYS_Cleanup_Expired_Tokens | Deletes spent and expired account tokens | Daily | 2 hours | Error alarm | Heartbeat alarm | `token_cleanup_threshold_days` | Job-run row |
 | SYS_Delete_Unfinished_Accounts | Deletes a prospective member's account left unfinished | Daily | 2 hours | Error alarm | Heartbeat alarm | `unfinished_account_cleanup_days` | Job-run row |
+| SYS_Apply_Membership_Discipline | Lifts ended board suspensions and deletes discipline decisions past retention | Daily | 2 hours | Error alarm | Heartbeat alarm | None (the bylaws fix the one-year window) | Job-run row |
 | SYS_Rebuild_Hashtag_Stats | Recomputes hashtag usage counts | Daily | 2 hours | Error alarm | Heartbeat alarm | None | Job-run row |
 | SYS_Admin_Queue_Digest | Mails each administrator the open routine work-queue items | Every `admin_queue_digest_interval_days` | 15 minutes | Error alarm | Heartbeat alarm | `admin_queue_digest_interval_days` | Job-run row |
 | SYS_Admin_Queue_Escalation | Escalates routine work-queue items left unclaimed | Daily | 2 hours | Error alarm | Heartbeat alarm | `admin_queue_stale_escalation_days` | Job-run row |
@@ -248,6 +250,30 @@ Operation:
 - Failure alarm: the error alarm.
 - Missed-run alarm: the heartbeat alarm.
 - Audit trail: none, because the audit log holds no row about a prospective member.
+- Retention: 400 days.
+
+### SYS_Apply_Membership_Discipline
+
+Access: This scheduled process runs under the system role.
+
+Story: The system lifts a board suspension on its end date and deletes a membership discipline decision once the bylaws' challenge window has passed, so that a suspended member is restored without waiting on an administrator and the record of the decision is not kept longer than it is needed (`A_Record_Membership_Discipline`).
+
+Success Criteria:
+
+- An account restricted by a board suspension whose end date has passed has its restriction lifted, and the member is emailed that they can sign in again.
+- A restriction an administrator set without a board suspension has no end date and is never lifted by this job.
+- A discipline decision is deleted once the member's personal data has been purged and one year more has passed, the bylaws' window for challenging the decision. A barred-address hash is kept.
+- Each lift is re-read inside its transaction, so a restriction changed after the listing is left as it now stands.
+
+Operation:
+
+- Cadence: daily.
+- Configuration: none; the one-year window is the bylaws', counted from the purge of the member's personal data.
+- Catch-up: a cutoff on date, so the first pass after a missed day lifts every suspension and deletes every decision that came due meanwhile.
+- Run record: its job-run row, with the counts of restrictions lifted and decisions deleted.
+- Failure alarm: the error alarm.
+- Missed-run alarm: the heartbeat alarm.
+- Audit trail: one row for each restriction lifted, naming the system actor and the ended suspension; none for a deleted decision, which is retention.
 - Retention: 400 days.
 
 ### SYS_Rebuild_Hashtag_Stats

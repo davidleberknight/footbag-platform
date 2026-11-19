@@ -2,8 +2,8 @@
  * Integration tests for POST /clubs/create (M_Create_Club).
  *
  * Verifies auth gates, tier gates, happy path (club + tag + leader +
- * affiliation rows), validation errors, business rule errors (already
- * leader, affiliation cap, exact duplicate, tag collision), and work
+ * affiliation rows), validation errors, business rule errors (co-lead
+ * cap, current-club cap, exact duplicate, tag collision), and work
  * queue item insertion when no contact method is provided.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -43,6 +43,8 @@ const TIER0_NEVER_ID    = 'cc-tier0-never';
 const TIER0_NEVER_SLUG  = 'cc_tier0_never';
 const LEADER_ID       = 'cc-leader';
 const LEADER_SLUG     = 'cc_leader';
+const COLEAD_TWO_ID   = 'cc-colead-two';
+const COLEAD_TWO_SLUG = 'cc_colead_two';
 const CAPPED_ID       = 'cc-capped';
 const CAPPED_SLUG     = 'cc_capped';
 const VALID_ERR_ID    = 'cc-valid-err';
@@ -60,6 +62,22 @@ const REPEAT_SLUG     = 'cc_repeat';
 
 function authCookie(memberId: string): string {
   return `__Host-footbag_session=${createTestSessionJwt({ memberId })}`;
+}
+
+/** What a create would add for this member: the club's tag, their co-leader rows, their current clubs. */
+function rowCounts(memberId: string, tagNormalized: string): { tags: number; leaders: number; current: number } {
+  const db = new BetterSqlite3(dbPath, { readonly: true });
+  try {
+    const count = (sql: string, ...params: unknown[]): number =>
+      (db.prepare(sql).get(...params) as { n: number }).n;
+    return {
+      tags:    count('SELECT COUNT(*) AS n FROM tags WHERE tag_normalized = ?', tagNormalized),
+      leaders: count('SELECT COUNT(*) AS n FROM club_leaders WHERE member_id = ?', memberId),
+      current: count('SELECT COUNT(*) AS n FROM member_club_affiliations WHERE member_id = ? AND is_current = 1', memberId),
+    };
+  } finally {
+    db.close();
+  }
 }
 
 function formData(overrides: Record<string, string> = {}): string {
@@ -104,19 +122,37 @@ beforeAll(async () => {
     completeOnboarding(db, mid);
   }
 
-  // Member who already co-leads a club
+  // Member who already co-leads three clubs, a current member of each. The
+  // first is stored under the country the create form stores, so the same
+  // name typed on the form is an exact match for it.
   createMemberAtTier(db, { id: LEADER_ID, slug: LEADER_SLUG, tier: 'tier1' });
   completeOnboarding(db, LEADER_ID);
-  const leaderClubId = insertClub(db, { name: 'Existing Leader Club', city: 'Portland', country: 'USA' });
-  insertClubLeader(db, { id: 'cl-leader-test', club_id: leaderClubId, member_id: LEADER_ID });
+  const leaderClubs = [
+    insertClub(db, { name: 'Existing Leader Club', city: 'Portland', region: 'Oregon', country: 'United States' }),
+    insertClub(db, { name: 'Second Leader Club', city: 'Salem', country: 'United States' }),
+    insertClub(db, { name: 'Third Leader Club', city: 'Eugene', country: 'United States' }),
+  ];
+  for (const [i, clubId] of leaderClubs.entries()) {
+    insertMemberClubAffiliation(db, LEADER_ID, clubId, { is_primary: i === 0 ? 1 : 0 });
+    insertClubLeader(db, { club_id: clubId, member_id: LEADER_ID });
+  }
 
-  // Capped member: already has 2 club affiliations
+  // Member who co-leads two clubs, a current member of each.
+  createMemberAtTier(db, { id: COLEAD_TWO_ID, slug: COLEAD_TWO_SLUG, tier: 'tier1' });
+  completeOnboarding(db, COLEAD_TWO_ID);
+  for (const [i, name] of ['Two Led Club A', 'Two Led Club B'].entries()) {
+    const clubId = insertClub(db, { name, city: 'Tacoma', country: 'United States' });
+    insertMemberClubAffiliation(db, COLEAD_TWO_ID, clubId, { is_primary: i === 0 ? 1 : 0 });
+    insertClubLeader(db, { club_id: clubId, member_id: COLEAD_TWO_ID });
+  }
+
+  // Capped member: already has 3 club affiliations
   createMemberAtTier(db, { id: CAPPED_ID, slug: CAPPED_SLUG, tier: 'tier1' });
   completeOnboarding(db, CAPPED_ID);
-  const capClub1 = insertClub(db, { name: 'Cap Club 1', city: 'City1', country: 'Country1' });
-  const capClub2 = insertClub(db, { name: 'Cap Club 2', city: 'City2', country: 'Country2' });
-  insertMemberClubAffiliation(db, CAPPED_ID, capClub1, { is_primary: 1 });
-  insertMemberClubAffiliation(db, CAPPED_ID, capClub2, { is_primary: 0 });
+  for (let i = 1; i <= 3; i += 1) {
+    const capClub = insertClub(db, { name: `Cap Club ${i}`, city: `City${i}`, country: `Country${i}` });
+    insertMemberClubAffiliation(db, CAPPED_ID, capClub, { is_primary: i === 1 ? 1 : 0 });
+  }
 
   // Existing club for duplicate-name check
   insertClub(db, {
@@ -414,28 +450,51 @@ describe('POST /clubs/create', () => {
     expect(made.n).toBe(0);
   });
 
-  it('returns 422 when member is already a club leader', async () => {
-    const app = createApp();
-    const res = await request(app)
+  // Defect caught: a member co-leading two clubs is refused a third below the
+  // three-club co-lead limit; or one co-leading three creates a fourth.
+  it('a member co-leading two clubs creates a third, and is then refused a fourth', async () => {
+    const third = await request(createApp())
+      .post('/clubs/create')
+      .set('Cookie', authCookie(COLEAD_TWO_ID))
+      .set('Content-Type', 'application/x-www-form-urlencoded')
+      .send(formData({ name: 'Two Led Third Club', city: 'Tacoma', slug: 'two_led_third' }));
+    expect(third.status).toBe(303);
+    expect(third.headers.location).toBe('/clubs/club_two_led_third');
+    expect(rowCounts(COLEAD_TWO_ID, '#club_two_led_third')).toEqual({ tags: 1, leaders: 3, current: 3 });
+
+    const fourth = await request(createApp())
+      .post('/clubs/create')
+      .set('Cookie', authCookie(COLEAD_TWO_ID))
+      .set('Content-Type', 'application/x-www-form-urlencoded')
+      .send(formData({ name: 'Two Led Fourth Club', city: 'Tacoma', slug: 'two_led_fourth' }));
+    expect(fourth.status).toBe(422);
+    expect(rowCounts(COLEAD_TWO_ID, '#club_two_led_fourth')).toEqual({ tags: 0, leaders: 3, current: 3 });
+  });
+
+  // Defect caught: a member already co-leading three clubs creates a fourth.
+  it('returns 422 when member already co-leads three clubs, and creates nothing', async () => {
+    const res = await request(createApp())
       .post('/clubs/create')
       .set('Cookie', authCookie(LEADER_ID))
       .set('Content-Type', 'application/x-www-form-urlencoded')
       .send(formData({ name: 'New Club', slug: 'leader_new' }));
     expect(res.status).toBe(422);
-    expect(res.text).toContain('You already co-lead');
-    expect(res.text).toContain('Clubs are local groups');
-    expect(res.text).toContain('Existing Leader Club');
+    expect(rowCounts(LEADER_ID, '#club_leader_new')).toEqual({ tags: 0, leaders: 3, current: 3 });
+    // The refused form is drawn again, filled in, to post to the same handler.
+    expect(res.text).toContain('action="/clubs/create"');
+    expect(res.text).toContain('value="New Club"');
   });
 
-  it('returns 422 when member has 2 club affiliations', async () => {
-    const app = createApp();
-    const res = await request(app)
+  // Defect caught: a member already in three clubs creates a fourth, which
+  // would make them a current member of four.
+  it('returns 422 when member has 3 club affiliations, and creates nothing', async () => {
+    const res = await request(createApp())
       .post('/clubs/create')
       .set('Cookie', authCookie(CAPPED_ID))
       .set('Content-Type', 'application/x-www-form-urlencoded')
       .send(formData({ name: 'Cap Club New', slug: 'cap_new' }));
     expect(res.status).toBe(422);
-    expect(res.text).toContain('already in 2 clubs');
+    expect(rowCounts(CAPPED_ID, '#club_cap_new')).toEqual({ tags: 0, leaders: 0, current: 3 });
   });
 
   it('returns 422 for exact name+country duplicate', async () => {
@@ -565,23 +624,24 @@ describe('POST /clubs/create submitted twice', () => {
         description: 'Edited after the first submit.',
       }));
     expect(res.status).toBe(422);
-    expect(res.text).toContain('You already co-lead');
+    expect(res.headers.location).toBeUndefined();
+    expect(res.text).not.toContain('form-success-banner');
     expect(createState(REPEAT_ID, '#club_repeat_boulder')).toEqual(before);
   });
 
   // Defect caught: a member who co-leads a club somebody else created can
   // "create" it again by typing its name and country, and is sent to it as if
-  // they had founded it instead of being told they already co-lead a club.
-  it('a co-leader of a same-named club they did not create is still told they already co-lead', async () => {
+  // they had founded it instead of being refused.
+  it('a co-leader of a same-named club they did not create is refused, not taken for a repeat', async () => {
     const before = createState(LEADER_ID, '#club_leader_same_name');
     const res = await request(createApp())
       .post('/clubs/create')
       .set('Cookie', authCookie(LEADER_ID))
       .set('Content-Type', 'application/x-www-form-urlencoded')
-      .send(formData({ name: 'Existing Leader Club', country: 'USA', city: 'Portland', region: 'Oregon', slug: 'leader_same_name' }));
+      .send(formData({ name: 'Existing Leader Club', country: 'United States', city: 'Portland', region: 'Oregon', slug: 'leader_same_name' }));
     expect(res.status).toBe(422);
-    expect(res.text).toContain('You already co-lead');
-    expect(res.text).not.toContain('Club created.');
+    expect(res.headers.location).toBeUndefined();
+    expect(res.text).not.toContain('form-success-banner');
     expect(createState(LEADER_ID, '#club_leader_same_name')).toEqual(before);
   });
 });

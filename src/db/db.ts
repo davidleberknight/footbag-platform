@@ -1359,7 +1359,7 @@ export const legacyPersonClubAffiliations = {
        )
   `); },
 
-  // The same close as above for a leadership claim at the two-current-club
+  // The same close as above for a leadership claim at the current-club
   // cap: the claim lands no current membership, so the member's open
   // membership suggestions about the club are kept as former membership, the
   // record a membership Yes at the cap leaves.
@@ -1466,7 +1466,7 @@ export const legacyPersonClubAffiliations = {
        AND id != ?
   `); },
 
-  // Cap-hit confirm: the member said Yes but already holds two current clubs,
+  // Cap-hit confirm: the member said Yes but already holds three current clubs,
   // so the Yes is recorded as former membership rather than a current one.
   // Preserves the historical fact, resolves the card, and never blocks
   // onboarding on a slot the member cannot free mid-wizard. Guarded by
@@ -1649,11 +1649,11 @@ export const clubBootstrapLeaderSignals = {
 // clubLeaders + memberClubAffiliations -- writes invoked by
 // ClubService.claimLeadership and ClubService.confirmAffiliation. Schema
 // uniques enforce:
-//   - club_leaders ux_one_club_leader_per_member (a member co-leads at most
-//     one club), ux_club_leaders (a member appears at most once per club)
+//   - club_leaders ux_club_leaders (a member appears at most once per club)
+//     Three-club co-lead cap: service-enforced (count-before-insert, max 3)
 //   - member_club_affiliations UNIQUE(member_id, club_id),
 //     ux_member_club_affiliations_one_primary (at most one primary)
-//     Two-current-club cap: service-enforced (count-before-insert, max 2)
+//     Three-current-club cap: service-enforced (count-before-insert, max 3)
 // SqliteError SQLITE_CONSTRAINT_UNIQUE on either is the conflict signal.
 // ---------------------------------------------------------------------------
 
@@ -1700,10 +1700,16 @@ export const clubLeaders = {
     SELECT COUNT(*) AS c FROM club_leaders_current WHERE club_id = ?
   `); },
 
-  // Does this member already co-lead any club? A member co-leads at most one
-  // club (ux_one_club_leader_per_member), so this gates a second co-leadership.
+  // Does this member co-lead any club? A co-leader's contact email is visible
+  // to members while the role is held, so this gates hiding it.
   get memberCoLeadsAnyClub() { return db.prepare(`
     SELECT 1 AS x FROM club_leaders WHERE member_id = ? LIMIT 1
+  `); },
+
+  // How many clubs this member co-leads. A member co-leads at most three, and
+  // every path that adds a co-leadership counts against that cap first.
+  get countClubsLedByMember() { return db.prepare(`
+    SELECT COUNT(*) AS c FROM club_leaders WHERE member_id = ?
   `); },
 
   // Admin leadership remediation lookups.
@@ -1813,14 +1819,6 @@ export const clubLeaders = {
     WHERE member_id = ? AND club_id = ? AND is_current = 1
   `); },
 
-  get leaderClubNameForMember() { return db.prepare(`
-    SELECT c.name AS club_name
-      FROM club_leaders_current AS cl
-      INNER JOIN clubs AS c ON c.id = cl.club_id
-     WHERE cl.member_id = ?
-     LIMIT 1
-  `); },
-
   // Is this member already in this club's leadership (any role)? Idempotency probe.
   get memberInClubLeadership() { return db.prepare(`
     SELECT id, role FROM club_leaders WHERE club_id = ? AND member_id = ?
@@ -1850,6 +1848,19 @@ export const memberClubAffiliations = {
     SELECT COUNT(*) AS c
       FROM member_club_affiliations
      WHERE club_id = ? AND is_current = 1
+  `); },
+
+  // The member's current affiliation joined earliest, and whether any current
+  // one is already primary: the club that becomes primary when the member's
+  // primary club is left and others remain.
+  get findPrimarySuccessor() { return db.prepare(`
+    SELECT club_id,
+           (SELECT MAX(is_primary) FROM member_club_affiliations
+             WHERE member_id = ? AND is_current = 1) AS has_primary
+      FROM member_club_affiliations
+     WHERE member_id = ? AND is_current = 1
+     ORDER BY created_at ASC, id ASC
+     LIMIT 1
   `); },
 
   get listCurrentWithClubName() { return db.prepare(`
@@ -3990,6 +4001,8 @@ export interface MemberAuthRow {
   password_hash_version: number;
   password_version: number;
   is_admin: number;
+  /** Read by the sign-in lookup only; set when an administrator restricted the account. */
+  restricted_at?: string | null;
 }
 
 export interface MemberProfileRow {
@@ -4267,6 +4280,7 @@ export const account = {
            show_first_competition_year, show_gender,
            searchable, is_admin, is_system, is_board, is_hof, is_bap,
            is_deceased, deceased_at,
+           restricted_at, restriction_reason, restricted_until,
            deleted_at, deletion_grace_expires_at, personal_data_purged_at,
            legacy_member_id, historical_person_id, ifpa_join_date
     FROM members
@@ -4784,11 +4798,13 @@ export const auth = {
     WHERE id = ? AND email_verified_at IS NULL
   `); },
 
+  // A restricted account gets no session from a verification link either.
   get findMemberForSessionAfterVerify() { return db.prepare(`
     SELECT id, slug, login_email, real_name, password_version, is_admin, birth_date
     FROM members_active
     WHERE id = ?
       AND is_deceased = 0
+      AND restricted_at IS NULL
   `); },
 
   // A member's id by login address, for naming the member in a login lockout
@@ -4806,7 +4822,8 @@ export const auth = {
       m.password_hash,
       m.password_hash_version,
       m.password_version,
-      m.is_admin
+      m.is_admin,
+      m.restricted_at
     FROM members_active AS m
     WHERE
       m.login_email_normalized = ?
@@ -4859,6 +4876,7 @@ export const auth = {
     WHERE m.id = ?
       AND m.email_verified_at IS NOT NULL
       AND m.is_deceased = 0
+      AND m.restricted_at IS NULL
   `); },
 
   // Look a member up by slug for session issuance. Returns the same row shape
@@ -4876,6 +4894,7 @@ export const auth = {
     WHERE m.slug = ?
       AND m.email_verified_at IS NOT NULL
       AND m.is_deceased = 0
+      AND m.restricted_at IS NULL
   `); },
 
   // Dev persona harness only: a raw existence probe the /dev/personas listing
@@ -4886,6 +4905,12 @@ export const auth = {
   // are not greyed, they are simply not switchable.
   get personaMemberExistsBySlug() { return db.prepare(`
     SELECT 1 FROM members WHERE slug = ?
+  `); },
+
+  // Dev persona harness only: the same probe by member id, for a persona whose
+  // erasure replaced its slug with a placeholder.
+  get personaMemberExistsById() { return db.prepare(`
+    SELECT 1 FROM members WHERE id = ?
   `); },
 
   // Dev persona harness only: the login email for a seeded persona, so the
@@ -6606,7 +6631,7 @@ export const media = {
   get getMediaItemForModeration() { return db.prepare(`
     SELECT mi.id, mi.uploader_member_id, mi.media_type, mi.caption,
            mi.s3_key_thumb, mi.s3_key_display, mi.video_platform, mi.video_url,
-           mi.thumbnail_url, mi.is_avatar,
+           mi.thumbnail_url, mi.is_avatar, mi.uploaded_at,
            mi.moderation_status, mi.moderation_reason,
            m.display_name AS uploader_display_name,
            m.slug         AS uploader_slug,
@@ -8973,6 +8998,12 @@ export const memberPurge = {
       given_names             = NULL,
       street_address          = NULL,
       postal_code             = NULL,
+      -- An administrator's reason for a restriction is text about the person;
+      -- the restriction itself ends with the account.
+      restricted_at           = NULL,
+      restricted_by           = NULL,
+      restriction_reason      = NULL,
+      restricted_until        = NULL,
       city                    = NULL,
       region                  = NULL,
       -- The public honor record shows a country and no finer locality, so an
@@ -9413,6 +9444,95 @@ export const activePlayer = {
     SELECT club_id, member_id
     FROM member_club_affiliations
     WHERE id = ?
+  `); },
+};
+
+// Account restriction and the board's Article X decisions. The restriction is
+// state on the member row; the decisions and the barred-address hashes are
+// their own tables.
+export const memberDiscipline = {
+  get readMember() { return db.prepare(`
+    SELECT id, display_name, login_email_normalized, is_admin, is_system,
+           deleted_at, personal_data_purged_at,
+           restricted_at, restricted_by, restriction_reason, restricted_until
+    FROM members
+    WHERE id = ?
+  `); },
+
+  // Sets the restriction and ends every session in one write: a token carries
+  // the password version it was signed with, so moving the version on refuses
+  // every token already issued. Params: restrictedAt, restrictedBy, reason,
+  // restrictedUntil, updatedAt, updatedBy, memberId.
+  get restrict() { return db.prepare(`
+    UPDATE members
+    SET restricted_at      = ?,
+        restricted_by      = ?,
+        restriction_reason = ?,
+        restricted_until   = ?,
+        password_version   = password_version + 1,
+        updated_at         = ?,
+        updated_by         = ?,
+        version            = version + 1
+    WHERE id = ? AND deleted_at IS NULL
+  `); },
+
+  // Params: updatedAt, updatedBy, memberId.
+  get lift() { return db.prepare(`
+    UPDATE members
+    SET restricted_at      = NULL,
+        restricted_by      = NULL,
+        restriction_reason = NULL,
+        restricted_until   = NULL,
+        updated_at         = ?,
+        updated_by         = ?,
+        version            = version + 1
+    WHERE id = ? AND restricted_at IS NOT NULL
+  `); },
+
+  // Board suspensions whose end date has come. Param: today's date.
+  get listEndedSuspensions() { return db.prepare(`
+    SELECT id FROM members
+    WHERE restricted_until IS NOT NULL
+      AND restricted_until <= ?
+      AND deleted_at IS NULL
+  `); },
+
+  // Params: id, createdAt, createdBy, memberId, decidedBy, outcome, noticeDate,
+  // hearingDate, decisionDate, suspendedUntil, reason.
+  get insertDecision() { return db.prepare(`
+    INSERT INTO membership_discipline_decisions (
+      id, created_at, created_by, member_id, decided_by, outcome,
+      notice_date, hearing_date, decision_date, suspended_until, reason
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `); },
+
+  get listDecisionsForMember() { return db.prepare(`
+    SELECT id, decided_by, outcome, notice_date, hearing_date, decision_date,
+           suspended_until, reason, created_at
+    FROM membership_discipline_decisions
+    WHERE member_id = ?
+    ORDER BY decision_date DESC, created_at DESC, id DESC
+  `); },
+
+  // Decisions about members whose personal data was purged before the cutoff,
+  // which is the purge moment plus the bylaws' one-year challenge window.
+  get deleteDecisionsPastRetention() { return db.prepare(`
+    DELETE FROM membership_discipline_decisions
+    WHERE member_id IN (
+      SELECT id FROM members
+      WHERE personal_data_purged_at IS NOT NULL
+        AND personal_data_purged_at <= ?
+    )
+  `); },
+
+  // Params: emailHash, createdAt, createdBy.
+  get insertBarredHash() { return db.prepare(`
+    INSERT OR IGNORE INTO barred_email_hashes (email_hash, created_at, created_by)
+    VALUES (?, ?, ?)
+  `); },
+
+  get findBarredHash() { return db.prepare(`
+    SELECT email_hash FROM barred_email_hashes WHERE email_hash = ?
   `); },
 };
 
@@ -11231,6 +11351,42 @@ export const clubCleanupPredicates = {
     WHERE cbl.status = 'provisional'
     ORDER BY cbl.created_at ASC
   `); },
+
+  // Every active club with a co-leader able to act, with the latest moment the
+  // site saw a sign of life from it: an event it hosts (posted, or begun), a
+  // member joining, a co-leader added, a member's own act on the club record
+  // (an edit, a reactivation; leaving and making it inactive are not life), an
+  // "active" activity signal, or a current co-leader signing in. The club's
+  // own creation is the floor. A club with no co-leader is the leaderless item's.
+  get quietClubCandidates() { return db.prepare(`
+    SELECT c.id AS club_id, c.name AS club_name,
+           c.city, c.region, c.country, c.status,
+           MAX(
+             c.created_at,
+             -- Multi-argument MAX is NULL when any argument is, so each part
+             -- is defaulted before they are compared.
+             COALESCE((SELECT MAX(COALESCE(MAX(e.created_at), ''),
+                                  COALESCE(MAX(CASE WHEN e.start_date <= strftime('%Y-%m-%d','now')
+                                                    THEN e.start_date END), ''))
+                         FROM events AS e WHERE e.host_club_id = c.id), ''),
+             COALESCE((SELECT MAX(mca.created_at) FROM member_club_affiliations AS mca
+                        WHERE mca.club_id = c.id), ''),
+             COALESCE((SELECT MAX(cl.created_at) FROM club_leaders AS cl
+                        WHERE cl.club_id = c.id), ''),
+             COALESCE((SELECT MAX(ae.occurred_at) FROM audit_entries AS ae
+                        WHERE ae.entity_type = 'club' AND ae.entity_id = c.id
+                          AND ae.actor_type = 'member'
+                          AND ae.action_type NOT IN ('club.member_left', 'club.marked_inactive')), ''),
+             COALESCE((SELECT MAX(s.created_at) FROM club_viability_signals AS s
+                        WHERE s.club_id = c.id AND s.activity_signal = 'active'), ''),
+             COALESCE((SELECT MAX(m.last_login_at) FROM club_leaders_current AS cl
+                        INNER JOIN members AS m ON m.id = cl.member_id
+                        WHERE cl.club_id = c.id), '')
+           ) AS latest_sign_at
+    FROM clubs AS c
+    WHERE c.status = 'active'
+      AND EXISTS (SELECT 1 FROM club_leaders_current AS cl WHERE cl.club_id = c.id)
+  `); },
 };
 
 // One row per live club carrying every piece of evidence a viability verdict
@@ -12260,6 +12416,15 @@ export const memberExport = {
     FROM active_player_vouches
     WHERE target_member_id = ?
     ORDER BY vouched_at, id
+  `); },
+
+  // The board's decisions about the member, without who decided, which may
+  // name another person.
+  get disciplineDecisions() { return db.prepare(`
+    SELECT outcome, notice_date, hearing_date, decision_date, suspended_until, reason
+    FROM membership_discipline_decisions
+    WHERE member_id = ?
+    ORDER BY decision_date, id
   `); },
 
   get eventOrganizerRoles() { return db.prepare(`

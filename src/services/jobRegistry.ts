@@ -132,6 +132,12 @@ export const JOBS: readonly JobDefinition[] = [
     run: (ctx) => operationsPlatformService.runUnfinishedAccountCleanup(ctx.now),
   },
   {
+    name: 'SYS_Apply_Membership_Discipline',
+    cadence: { kind: 'daily' },
+    runRetentionDays: fixedDays(DEFAULT_RUN_RETENTION_DAYS),
+    run: (ctx) => operationsPlatformService.runMembershipDiscipline(ctx.now),
+  },
+  {
     name: 'SYS_Rebuild_Hashtag_Stats',
     cadence: { kind: 'daily' },
     runRetentionDays: fixedDays(DEFAULT_RUN_RETENTION_DAYS),

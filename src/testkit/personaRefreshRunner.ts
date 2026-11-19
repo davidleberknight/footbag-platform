@@ -47,8 +47,10 @@
  * persona identity is detached from it before the persona rows go. Clubs are
  * deleted only when persona-seeded (the deterministic club-test- id prefix):
  * a real club a persona joined keeps its row and loses only the persona's
- * membership/leader rows, and a club a persona created through the app
- * survives leaderless rather than risk deleting a shared row. Shared parents
+ * membership/leader rows, and a club or event a persona created through the
+ * app survives (a club leaderless): the refresh is deliberately not a complete
+ * reset, and the persona listing page tells testers what it leaves behind.
+ * Shared parents
  * (e.g. the announce mailing_lists row) and any non-persona data are never
  * touched, with one counted exception: tier/active-player grants a persona
  * AUTHORED on other members are removed (reverting those members to pre-test
@@ -105,7 +107,103 @@ const APPEND_ONLY_DELETE_TRIGGERS = [
   'trg_event_registration_reminder_sent_no_delete',
   'trg_active_player_vouches_no_delete',
   'trg_recurring_sub_transitions_no_delete',
+  // A persona administrator's change to a system parameter is a row this ledger
+  // keeps forever; the refresh removes it so the setting returns to the value
+  // it held before the tester changed it.
+  'trg_system_config_no_delete',
+  // The erasure log keeps one entry per member and erasure kind. A persona's
+  // entry goes with the persona, or the rebuilt persona reads as already
+  // erased and its erasure journey silently does nothing.
+  'trg_erasure_log_no_delete',
 ];
+
+/**
+ * Every column in the schema that references a member, and what the refresh
+ * does with a row whose value is a persona. The delete of the persona members
+ * runs with foreign keys enforced, so a referencing row the refresh leaves in
+ * place makes the whole refresh roll back and leaves the stack stuck in a
+ * tester's state for everyone. This ledger is checked against the schema, so a
+ * new referencing column fails that check until its handling is written here
+ * and in the teardown below.
+ */
+export const MEMBER_REFERENCE_TEARDOWN: Readonly<Record<string, string>> = {
+  'account_tokens.member_id': 'deleted',
+  'active_player_grants.actor_member_id': 'deleted, counted',
+  'active_player_grants.member_id': 'deleted',
+  'active_player_reminder_sent.member_id': 'deleted',
+  'active_player_vouches.target_member_id': 'deleted',
+  'active_player_vouches.voucher_member_id': 'deleted',
+  'audit_entries.actor_member_id': 'deleted',
+  'candidate_cleanup_resolutions.parked_by_member_id': 'deleted',
+  'club_bootstrap_leaders.claimed_member_id': 'deleted',
+  'club_bootstrap_leaders.imported_member_id': 'set null by the schema',
+  'club_cleanup_claims.claimed_by_member_id': 'deleted',
+  'club_cleanup_resolutions.parked_by_member_id': 'reference cleared',
+  'club_insight_notes.member_id': 'deleted',
+  'club_leaders.member_id': 'deleted',
+  'club_viability_signals.member_id': 'deleted',
+  'email_archives.sender_member_id': 'deleted',
+  'event_organizers.member_id': 'deleted',
+  'event_result_entry_participants.member_id': 'reference cleared; a persona event\'s entries deleted',
+  'events.canceled_by_member_id': 'reference cleared',
+  'events.sanction_decided_by_member_id': 'reference cleared',
+  'events.sanction_requested_by_member_id': 'reference cleared',
+  'legacy_members.claimed_by_member_id': 'claim released',
+  'mailing_list_subscriptions.member_id': 'deleted',
+  'media_flags.reporter_member_id': 'deleted',
+  'media_flags.resolved_by_admin_member_id': 'reference cleared',
+  'media_items.uploader_member_id': 'deleted',
+  'media_jobs.admin_member_id': 'deleted',
+  'member_announcements.decided_by_member_id': 'reference cleared',
+  'member_announcements.member_id': 'deleted',
+  'member_club_affiliations.member_id': 'deleted',
+  'member_declared_anchors.member_id': 'deleted',
+  'member_galleries.owner_member_id': 'deleted',
+  'member_links.member_id': 'deleted',
+  'member_messages.recipient_member_id': 'deleted',
+  'member_messages.sender_admin_member_id': 'deleted',
+  'member_onboarding_tasks.member_id': 'deleted',
+  'member_tier_grants.actor_member_id': 'deleted, counted',
+  'member_tier_grants.member_id': 'deleted',
+  'members.restricted_by': 'reference cleared',
+  'membership_discipline_decisions.member_id': 'deleted',
+  'outbox_emails.recipient_member_id': 'deleted',
+  'outbox_emails.reviewed_by_member_id': 'reference cleared',
+  'outbox_emails.sender_member_id': 'deleted',
+  'payments.member_id': 'deleted',
+  'reconciliation_issues.resolved_by_member_id': 'deleted',
+  'recurring_donation_subscription_transitions.member_id': 'deleted with the subscription',
+  'recurring_donation_subscriptions.member_id': 'deleted',
+  'registration_discipline_selections.partner_member_id': 'deleted',
+  'registrations.attended_marked_by_member_id': 'reference cleared',
+  'registrations.member_id': 'deleted',
+  'system_alarm_events.acknowledged_by_member_id': 'reference cleared',
+  'system_config.changed_by_member_id': 'deleted, counted',
+  'tags.retired_by_member_id': 'reference cleared',
+  'work_queue_items.claimed_by_member_id': 'reference cleared',
+  'work_queue_items.parked_by_member_id': 'reference cleared',
+  'work_queue_items.resolved_by_member_id': 'reference cleared',
+  'work_queue_topic_owners.owner_member_id': 'reference cleared',
+};
+
+/**
+ * Member references the refresh deliberately leaves alone, each with why no
+ * persona row can sit there. A row that does turns up still rolls the refresh
+ * back loudly, which is the intended failure for a flow nobody expected.
+ */
+export const MEMBER_REFERENCE_EXEMPTIONS: Readonly<Record<string, string>> = {
+  'event_results_uploads.uploaded_by_member_id':
+    'only an event organizer uploads results; a persona event\'s uploads go with the event, and a '
+    + 'persona is never an organizer of a real event without an administrator assigning it',
+  'ballots.voter_member_id': 'voting is not deployed',
+  'vote_eligibility_snapshot.member_id': 'voting is not deployed',
+  'vote_options.nominee_member_id': 'voting is not deployed',
+  'vote_results.published_by_admin_member_id': 'voting is not deployed',
+  'hof_affidavits.submitted_by_member_id': 'Hall of Fame nomination is not deployed',
+  'hof_nominations.decided_by_admin_member_id': 'Hall of Fame nomination is not deployed',
+  'hof_nominations.nominator_member_id': 'Hall of Fame nomination is not deployed',
+  'hof_nominations.nominee_member_id': 'Hall of Fame nomination is not deployed',
+};
 
 export interface RefreshPersonasOptions {
   /**
@@ -114,6 +212,15 @@ export interface RefreshPersonasOptions {
    * placeholder hash and authenticate via cookie issuance instead).
    */
   passwordHash?: string;
+  /**
+   * The keyed hash registration checks an address against once its owner is
+   * expelled. When given, the refresh removes the bar on every catalog
+   * persona's login address, so expelling a persona in a test session does not
+   * outlive the refresh. The route and the command-line refresh pass the real
+   * helper; it is an option because that helper reads the session secret, and
+   * this module stays loadable without the application's configuration.
+   */
+  barredEmailHash?: (address: string) => string;
 }
 
 export interface RefreshResult {
@@ -126,6 +233,12 @@ export interface RefreshResult {
    * refresh audit row instead of silent.
    */
   actorGrantRowsRemoved: number;
+  /**
+   * System parameter changes a persona administrator made, removed so each
+   * setting returns to its earlier value; counted for the same reason as the
+   * grants above.
+   */
+  configRowsRemoved: number;
   /**
    * Media-store object keys (thumb/display) for every media_item a persona
    * uploaded, captured before the rows are deleted. This routine is DB-only;
@@ -201,10 +314,15 @@ export function refreshAllPersonas(
     const memberIds = memberRows.map((r) => r.id);
     // Deterministic legacy roots per slug: the legacy-claim identity, the second
     // account sharing the login address, and the club-leader fallback identity.
-    const legacyRoots = memberRows.flatMap((r) => [
-      `legmem_persona_${r.slug}`,
-      `legmem_persona_${r.slug}_twin`,
-      `legmem_persona_${r.slug}_club`,
+    // Taken from the catalog as well as from the members present: the
+    // abandoned-signup job deletes a prospective persona's account but none of
+    // the old-site rows its seed made, and a reseed beside those would show the
+    // claim step two copies of the persona's old account.
+    const rootSlugs = unique([...memberRows.map((r) => r.slug), ...specs.map((s) => s.slug)]);
+    const legacyRoots = rootSlugs.flatMap((slug) => [
+      `legmem_persona_${slug}`,
+      `legmem_persona_${slug}_twin`,
+      `legmem_persona_${slug}_club`,
     ]);
 
     // 2. Snapshot random-id rows reachable only by FK from the persona roots,
@@ -217,7 +335,9 @@ export function refreshAllPersonas(
     let personaPaymentIds: string[] = [];
     let personHpIds: string[] = [];
 
-    if (memberIds.length > 0) {
+    let candidateClubIds: string[] = [];
+    let resolvedClubIds: string[] = [];
+    {
       // A persona's records: the ones linked to its legacy roots, and the
       // record-only and namesake ones it seeds under its own id prefix, which
       // carry no account link. GLOB so the literal underscores are not
@@ -227,9 +347,9 @@ export function refreshAllPersonas(
           `SELECT person_id FROM historical_persons WHERE legacy_member_id IN (${placeholders(legacyRoots.length)})`,
           legacyRoots,
         ),
-        ...memberRows.flatMap((r) => col(
+        ...rootSlugs.flatMap((slug) => col(
           `SELECT person_id FROM historical_persons WHERE person_id GLOB ?`,
-          [`person_persona_${r.slug}_*`],
+          [`person_persona_${slug}_*`],
         )),
       ]);
 
@@ -255,30 +375,36 @@ export function refreshAllPersonas(
       candidateIds = unique(
         lpcaRows.map((r) => r.legacy_club_candidate_id).filter((v): v is string => v != null),
       );
-      const resolvedClubIds = lpcaRows
+      resolvedClubIds = lpcaRows
         .map((r) => r.resolved_club_id)
         .filter((v): v is string => v != null);
 
-      const candidateClubIds = candidateIds.length
+      candidateClubIds = candidateIds.length
         ? col(
             `SELECT mapped_club_id FROM legacy_club_candidates
               WHERE id IN (${placeholders(candidateIds.length)}) AND mapped_club_id IS NOT NULL`,
             candidateIds,
           )
         : [];
+    }
 
+    {
+      // With no persona member present (every account removed by a job), an id
+      // no member carries keeps these lookups valid SQL while the legacy-root
+      // side still finds the orphaned rows.
+      const lookupIds = memberIds.length ? memberIds : [''];
       const affiliationClubIds = col(
-        `SELECT club_id FROM member_club_affiliations WHERE member_id IN (${placeholders(memberIds.length)})`,
-        memberIds,
+        `SELECT club_id FROM member_club_affiliations WHERE member_id IN (${placeholders(lookupIds.length)})`,
+        lookupIds,
       );
 
       const leaderRows = db
         .prepare(
           `SELECT id, club_id FROM club_bootstrap_leaders
-            WHERE claimed_member_id IN (${placeholders(memberIds.length)})
+            WHERE claimed_member_id IN (${placeholders(lookupIds.length)})
                OR legacy_member_id IN (${placeholders(legacyRoots.length)})`,
         )
-        .all(...memberIds, ...legacyRoots) as { id: string; club_id: string }[];
+        .all(...lookupIds, ...legacyRoots) as { id: string; club_id: string }[];
       leaderIds = leaderRows.map((r) => r.id);
       const leaderClubIds = leaderRows.map((r) => r.club_id).filter((v): v is string => v != null);
 
@@ -307,8 +433,8 @@ export function refreshAllPersonas(
       // Captured before the payments delete; the transition rows are reachable
       // only through their payment ids.
       personaPaymentIds = col(
-        `SELECT id FROM payments WHERE member_id IN (${placeholders(memberIds.length)})`,
-        memberIds,
+        `SELECT id FROM payments WHERE member_id IN (${placeholders(lookupIds.length)})`,
+        lookupIds,
       );
       const clubTagIds = clubIds.length
         ? col(
@@ -316,14 +442,19 @@ export function refreshAllPersonas(
             clubIds,
           )
         : [];
-      // Member-owned named galleries seeded for a persona carry a `#by_<slug>`
-      // uploader tag; include those so the tag and its links are torn down too.
+      // A persona's galleries carry its own `#by_<slug>` uploader tag; that tag
+      // and its links are torn down too. Only that tag: a member can put any
+      // existing hashtag in a gallery's criteria, and a shared one must keep its
+      // row and its links on everyone else's media.
       const galleryTagIds = memberIds.length
         ? col(
             `SELECT DISTINCT mgt.tag_id
                FROM member_gallery_tags mgt
                JOIN member_galleries g ON g.id = mgt.gallery_id
-              WHERE g.owner_member_id IN (${placeholders(memberIds.length)})`,
+               JOIN members m ON m.id = g.owner_member_id
+               JOIN tags t ON t.id = mgt.tag_id
+              WHERE g.owner_member_id IN (${placeholders(memberIds.length)})
+                AND t.tag_normalized = '#by_' || m.slug`,
             memberIds,
           )
         : [];
@@ -428,7 +559,33 @@ export function refreshAllPersonas(
         `UPDATE tags SET retired_by_member_id = NULL
           WHERE retired_by_member_id IN (${placeholders(memberIds.length)})`,
       ).run(...memberIds);
+      for (const [table, column] of [
+        ['work_queue_items', 'claimed_by_member_id'],
+        ['work_queue_items', 'parked_by_member_id'],
+        ['work_queue_topic_owners', 'owner_member_id'],
+        ['outbox_emails', 'reviewed_by_member_id'],
+        ['media_flags', 'resolved_by_admin_member_id'],
+        ['registrations', 'attended_marked_by_member_id'],
+        ['club_cleanup_resolutions', 'parked_by_member_id'],
+        // A real member a persona administrator restricted keeps the restriction
+        // and loses only the reference to who applied it.
+        ['members', 'restricted_by'],
+        // A persona named in a real event's results stays in them by name only.
+        ['event_result_entry_participants', 'member_id'],
+      ] as const) {
+        db.prepare(
+          `UPDATE ${table} SET ${column} = NULL WHERE ${column} IN (${placeholders(memberIds.length)})`,
+        ).run(...memberIds);
+      }
     }
+    // Board decisions recorded about a persona, and a flag a persona raised on
+    // anyone's media, go with the persona.
+    delIn('membership_discipline_decisions', 'member_id', memberIds);
+    delIn('media_flags', 'reporter_member_id', memberIds);
+    // Erasure entries about a persona (guard dropped).
+    delIn('erasure_log', 'entity_id', memberIds);
+    // A persona administrator's system parameter changes (guard dropped).
+    const configRowsRemoved = delIn('system_config', 'changed_by_member_id', memberIds);
     // media_tags and media_flags cascade; members.avatar_media_id is SET NULL,
     // so no ordering hazard. The uploaded
     // media's storage-object keys are captured first so the async refresh route
@@ -507,6 +664,27 @@ export function refreshAllPersonas(
       ),
     ]);
     delIn('event_registration_reminder_sent', 'registration_id', personaRegistrationIds); // guard dropped
+    // An Active Player period another member earned by attending a persona
+    // event names that event and registration (guard dropped).
+    delIn2(
+      'active_player_grants', 'related_registration_id', personaRegistrationIds,
+      'related_event_id', removedEventIds,
+    );
+    // Results uploaded for a persona event: participants, entries, uploads.
+    const personaResultEntryIds = col(
+      `SELECT id FROM event_result_entries WHERE event_id IN (${placeholders(removedEventIds.length)})`,
+      removedEventIds,
+    );
+    delIn('event_result_entry_participants', 'result_entry_id', personaResultEntryIds);
+    delIn('event_result_entries', 'id', personaResultEntryIds);
+    delIn('event_results_uploads', 'event_id', removedEventIds);
+    // Mail an organizer sent to a persona event's registrants, and an
+    // announcement that named the event as the one it summarises.
+    delIn('email_archives', 'event_id', removedEventIds);
+    db.prepare(
+      `UPDATE member_announcements SET summary_event_id = NULL
+        WHERE summary_event_id IN (${placeholders(removedEventIds.length)})`,
+    ).run(...removedEventIds);
     delIn('registration_discipline_selections', 'registration_id', personaRegistrationIds);
     // An entry that named a persona as its doubles partner would block the
     // persona's delete.
@@ -686,6 +864,15 @@ export function refreshAllPersonas(
       ).run(pair.short, pair.long);
     }
 
+    // The bar an expulsion leaves on a persona's login address holds only a
+    // keyed hash, so it is found by hashing each catalog address the same way.
+    if (opts.barredEmailHash) {
+      const hashes = unique(
+        specs.map((s) => opts.barredEmailHash!(s.loginEmail ?? `${s.slug}@personas.test`)),
+      );
+      delIn('barred_email_hashes', 'email_hash', hashes);
+    }
+
     for (const { sql } of triggerRows) {
       db.exec(sql);
     }
@@ -704,6 +891,7 @@ export function refreshAllPersonas(
       deletedMembers,
       reseeded,
       actorGrantRowsRemoved: tierActorRowsRemoved + apActorRowsRemoved,
+      configRowsRemoved,
       deletedMediaKeys,
     };
   });

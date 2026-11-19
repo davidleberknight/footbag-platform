@@ -40,6 +40,24 @@ export async function financeDemoJourneyDatabaseMatches(dbPath: string, tag: str
   return false;
 }
 
+/**
+ * Runs the persona journeys (personaJourneys) the same way, for the personas
+ * this command just built. A journey that failed is an error, named with its
+ * message, and the other personas still ran.
+ */
+export async function runPersonaJourneysFromCli(tag: string, slugs?: string[]): Promise<number> {
+  const { runPersonaJourneys } = await import('./personaJourneys');
+  const { CANONICAL_PERSONAS } = await import('./canonicalPersonas');
+  databaseModule = await import('../db/db');
+  const specs = slugs ? CANONICAL_PERSONAS.filter((s) => slugs.includes(s.slug)) : undefined;
+  const report = await runPersonaJourneys(specs ? { specs } : {});
+  console.log(`[${tag}] persona journeys ran: ${report.ran.join(', ') || 'none'}.`);
+  for (const f of report.failed) {
+    console.error(`[${tag}] persona journey for ${f.slug} (${f.step}) failed: ${f.error}`);
+  }
+  return report.failed.length > 0 ? 1 : 0;
+}
+
 export async function runFinanceDemoJourneyFromCli(tag: string): Promise<number> {
   const { runFinanceDemoJourney } = await import('./financeDemoJourney');
   databaseModule = await import('../db/db');

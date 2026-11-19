@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { clubService, NO_LEADER_JOIN_REFUSAL } from '../services/clubService';
+import { clubService, COLEAD_CAP_VOLUNTEER_REFUSAL, NO_LEADER_JOIN_REFUSAL } from '../services/clubService';
 import { locationPickers } from '../services/memberService';
 import { ValidationError } from '../services/serviceErrors';
 import { handleControllerError, renderInvalidRequest, renderNotFound } from '../lib/controllerErrors';
@@ -224,11 +224,11 @@ export const clubController = {
           writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('ok', 'Club created.'));
           res.redirect(303, `/clubs/${encodeURIComponent(result.clubKey)}`);
           return;
-        case 'already_leader':
-          renderForm(422, `You already co-lead ${result.existingClubName}. Clubs are local groups, so you lead your own club and are a guest at any other. To create a new club, step down there first.`);
+        case 'colead_cap_reached':
+          renderForm(422, 'You already co-lead three clubs, the most a member can lead. To create a new club, step down at one of them first.');
           return;
         case 'affiliation_cap':
-          renderForm(422, 'You are already in 2 clubs. Leave one before creating a new club.');
+          renderForm(422, 'You are already in 3 clubs. Leave one before creating a new club.');
           return;
         case 'exact_name_exists':
           renderForm(422, `A club named "${result.existingClubName}" already exists in that country.`, undefined, {
@@ -270,7 +270,7 @@ export const clubController = {
       if (result.branch === 'no_leader') {
         writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('no', NO_LEADER_JOIN_REFUSAL));
       } else if (result.branch === 'cap_reached') {
-        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('no', 'You are already in 2 clubs. Leave one before joining another.'));
+        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('no', 'You are already in 3 clubs. Leave one before joining another.'));
       } else if (result.branch === 'already_member') {
         writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('info', 'You are already a member of this club.'));
       } else {
@@ -402,7 +402,7 @@ export const clubController = {
         not_member:         ['no',   'Join this club before volunteering to co-lead it.'],
         not_eligible:       ['no',   'Co-leading requires Tier 1 benefits: a paid Tier 1 membership or a current Active Player period.'],
         already_coleader:   ['info', 'You already co-lead this club.'],
-        coleads_other_club: ['no',   'You already co-lead another club. Clubs are local groups, so you lead your own club and are a guest at any other. To lead this one instead, step down at your club first.'],
+        colead_cap_reached: ['no',   COLEAD_CAP_VOLUNTEER_REFUSAL],
         cap_reached:        ['no',   'This club already has the maximum of 5 co-leaders.'],
       };
       const outcome = messages[result.branch] ?? (['no', 'Could not volunteer.'] as [OutcomeTone, string]);

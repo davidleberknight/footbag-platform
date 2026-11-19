@@ -14,9 +14,9 @@
  */
 import { Request, Response, NextFunction } from 'express';
 import { auth } from '../db/db';
-import { CANONICAL_PERSONAS } from './canonicalPersonas';
+import { SEEDED_PERSONA_MEMBER_ID_PREFIX } from '../lib/personaGuards';
+import { CANONICAL_PERSONAS, PERSONA_GROUP_ORDER } from './canonicalPersonas';
 import type { PersonaSpec } from './personaFactory';
-
 /** A pre-shaped state chip the card renders; muted ones read as inactive. */
 interface PersonaStatusBadge {
   text: string;
@@ -98,6 +98,7 @@ function deriveStatusBadges(spec: PersonaSpec): PersonaStatusBadge[] {
   if (spec.profile?.emailStatus && spec.profile.emailStatus !== 'ok') {
     badges.push({ text: `email ${spec.profile.emailStatus}`, muted: false });
   }
+  if (spec.postSeed?.erase === 'account') badges.push({ text: 'personal data erased', muted: false });
   if (spec.blockedBy) badges.push({ text: 'blocked', muted: true });
   return badges;
 }
@@ -147,7 +148,11 @@ function toRow(
     ...(backed && !switchable
       ? {
         loginHref: `/dev/login?as=${encodeURIComponent(spec.slug)}`,
-        ...(signInNote(spec) ? { signInNote: signInNote(spec) } : {}),
+        // A persona a tester restricted, deleted or marked deceased on this site
+        // has no note in its spec; say so plainly rather than leave the card
+        // unexplained.
+        signInNote: signInNote(spec)
+          ?? 'Cannot sign in now: someone on this site changed this persona (restricted it, deleted it or marked it deceased). Refresh the personas to restore it.',
       }
       : {}),
     switchHref: `/dev/switch?as=${encodeURIComponent(spec.slug)}`,
@@ -161,7 +166,10 @@ function toRow(
  */
 function isPersonaBacked(spec: PersonaSpec): boolean {
   if (spec.blockedBy) return false;
-  return Boolean(auth.personaMemberExistsBySlug.get(spec.slug));
+  if (auth.personaMemberExistsBySlug.get(spec.slug)) return true;
+  // An erased account keeps its member id but not its slug.
+  return spec.postSeed?.erase === 'account'
+    && Boolean(auth.personaMemberExistsById.get(`${SEEDED_PERSONA_MEMBER_ID_PREFIX}${spec.slug}`));
 }
 
 /**
@@ -192,7 +200,30 @@ function groupByDimension(specs: PersonaSpec[], rows: PersonaListRow[]): Persona
   return groups;
 }
 
-export function getDevPersonas(_req: Request, res: Response, next: NextFunction): void {
+/** Specialist groups in the walkthrough's order; a dimension it does not name goes last. */
+function orderGroups(groups: PersonaGroup[]): PersonaGroup[] {
+  const rank = (d: string) => {
+    const i = PERSONA_GROUP_ORDER.indexOf(d);
+    return i === -1 ? PERSONA_GROUP_ORDER.length : i;
+  };
+  return groups.slice().sort((a, b) => rank(a.dimension) - rank(b.dimension));
+}
+
+/**
+ * The refusal banner after a refresh whose persona journeys failed. The
+ * refresh names the failed personas in the redirect's query; only slugs in the
+ * catalog are read, so the banner can name nothing a request made up.
+ */
+function journeyFailureText(query: unknown): string | undefined {
+  if (typeof query !== 'string' || query === '') return undefined;
+  const wanted = new Set(query.split(','));
+  const names = CANONICAL_PERSONAS.filter((s) => wanted.has(s.slug)).map((s) => s.displayName);
+  if (names.length === 0) return undefined;
+  return `The refresh finished, but building these personas' starting state failed: ${names.join(', ')}. `
+    + 'Their cards may not match what you see. Tell the maintainer.';
+}
+
+export function getDevPersonas(req: Request, res: Response, next: NextFunction): void {
   try {
     // A persona offers a Switch only when its row is seeded and switchable; a
     // login-blocked but backed persona offers /dev/login instead.
@@ -200,16 +231,29 @@ export function getDevPersonas(_req: Request, res: Response, next: NextFunction)
       toRow(spec, isPersonaBacked(spec), isPersonaSwitchable(spec)),
     );
     const seededCount = rows.filter((r) => r.backed).length;
+    // Start here first, then the specialist groups, then the collapsed
+    // section holding regression-only and blocked personas.
+    const section = (spec: PersonaSpec) => (spec.blockedBy || spec.listing === 'regression'
+      ? 'regression' : spec.listing === 'start_here' ? 'start_here' : 'group');
+    const pick = (which: string) => {
+      const specs = CANONICAL_PERSONAS.filter((s) => section(s) === which);
+      return { specs, rows: specs.map((s) => rows[CANONICAL_PERSONAS.indexOf(s)]) };
+    };
+    const startHere = pick('start_here');
+    const grouped = pick('group');
+    const regression = pick('regression');
     // With no persona seeded the page says so and offers nothing else: every
     // control on it would lead to a persona that does not exist.
     res.render('dev/persona-listing', {
       seo: { title: 'Test personas' },
       page: { sectionKey: '', pageKey: 'dev_personas', title: 'Test personas' },
       personasLoaded: seededCount > 0,
-      groups: groupByDimension(CANONICAL_PERSONAS, rows),
+      startHere: startHere.rows,
+      groups: orderGroups(groupByDimension(grouped.specs, grouped.rows)),
+      regressionGroups: groupByDimension(regression.specs, regression.rows),
+      journeyFailureText: journeyFailureText(req.query['journeys_failed']),
       personaCount: rows.length,
-      seededCount,
-    });
+      seededCount,    });
   } catch (err) {
     next(err);
   }

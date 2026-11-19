@@ -2517,6 +2517,17 @@ CREATE TABLE members (
   -- collects none and its audit row carries the structured consequences.
   deceased_at   TEXT,
 
+  -- A protective restriction: set, the account holds no session and cannot
+  -- sign in, while its membership, tier and public content stand untouched
+  -- until the IFPA board decides under the bylaws' discipline article.
+  -- restricted_by is the administrator who restricted it or recorded the
+  -- board's suspension. restricted_until is set only by a board suspension, the day
+  -- the restriction lifts by itself; an administrator's restriction has none.
+  restricted_at      TEXT,
+  restricted_by      TEXT REFERENCES members(id),
+  restriction_reason TEXT,
+  restricted_until   TEXT,
+
   stripe_customer_id TEXT,
 
   deletion_requested_at     TEXT,
@@ -2547,6 +2558,11 @@ CREATE TABLE members (
   -- to a matching HP, or direct HP claim for a competitor with no legacy account).
   -- Partial UNIQUE index below enforces at most one member per HP.
   historical_person_id TEXT REFERENCES historical_persons(person_id) ON DELETE NO ACTION,
+
+  -- No restriction detail without a restriction.
+  CHECK (restricted_at IS NOT NULL
+         OR (restricted_by IS NULL AND restriction_reason IS NULL
+             AND restricted_until IS NULL)),
 
   -- Three-branch credential-state invariant:
   -- (1) live non-system account: is_system=0, all credentials present, not purged
@@ -2627,6 +2643,59 @@ CREATE UNIQUE INDEX ux_members_historical_person_id
 CREATE INDEX idx_members_historical_person_id
   ON members(historical_person_id)
   WHERE historical_person_id IS NOT NULL;
+CREATE INDEX idx_members_restricted_until
+  ON members(restricted_until)
+  WHERE restricted_until IS NOT NULL;
+
+-- A decision of the IFPA board, or a committee or person it authorizes, under
+-- the bylaws' discipline article, as an administrator recorded it. The platform
+-- records the decision and does not run the notice or the hearing. A wrong
+-- entry is answered by a later decision, so rows are never updated; they are
+-- deleted only by the retention job, a year after the member's personal data
+-- is purged, which is the bylaws' window for challenging a decision.
+CREATE TABLE membership_discipline_decisions (
+  id         TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+
+  member_id     TEXT NOT NULL REFERENCES members(id),
+  decided_by    TEXT NOT NULL,
+  outcome       TEXT NOT NULL
+    CHECK (outcome IN ('suspended','expelled','other_sanction','no_action')),
+  notice_date   TEXT NOT NULL,
+  hearing_date  TEXT NOT NULL,
+  decision_date TEXT NOT NULL,
+  suspended_until TEXT,
+  reason        TEXT NOT NULL,
+
+  CHECK ((outcome = 'suspended') = (suspended_until IS NOT NULL))
+);
+
+CREATE TRIGGER trg_membership_discipline_decisions_no_update
+BEFORE UPDATE ON membership_discipline_decisions
+BEGIN
+  SELECT RAISE(ABORT,
+    'membership_discipline_decisions is append-only: UPDATE not permitted');
+END;
+
+CREATE INDEX idx_membership_discipline_decisions_member
+  ON membership_discipline_decisions(member_id, decision_date);
+
+-- The keyed hash of each expelled member's login address. Registration refuses
+-- an address whose hash is here. The address itself is never stored, and the
+-- hash outlives the decision row, because an expulsion does not end.
+CREATE TABLE barred_email_hashes (
+  email_hash TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL,
+  created_by TEXT NOT NULL
+);
+
+CREATE TRIGGER trg_barred_email_hashes_no_update
+BEFORE UPDATE ON barred_email_hashes
+BEGIN
+  SELECT RAISE(ABORT,
+    'barred_email_hashes is append-only: UPDATE not permitted');
+END;
 
 -- members_active: active rows (excludes soft-deleted accounts)
 CREATE VIEW members_active AS
@@ -3178,11 +3247,13 @@ CREATE INDEX idx_media_jobs_lease_recovery ON media_jobs(lease_expires_at)
 -- Club leadership assignments: a flat set of equal co-leaders per club (max 5
 -- current; application-enforced). There is no head-leader role; every row is
 -- role='co-leader'.
--- Uniqueness invariants (DB-enforced):
---   ux_one_club_leader_per_member → a member co-leads at most one club
---   ux_club_leaders               → a member appears at most once per club
+-- Uniqueness invariant (DB-enforced):
+--   ux_club_leaders → a member appears at most once per club
 -- Max-5 cap is application-enforced; the application MUST reject inserts and
 -- club_id reassignments that would exceed 5 current co-leaders per club.
+-- A member co-leads at most three clubs, application-enforced by a count
+-- before insert: SQLite cannot express "at most three rows per member" as an
+-- index.
 CREATE TABLE club_leaders (
   id         TEXT PRIMARY KEY,
   created_at TEXT NOT NULL,
@@ -3198,8 +3269,7 @@ CREATE TABLE club_leaders (
 
 CREATE UNIQUE INDEX ux_club_leaders               ON club_leaders(club_id, member_id);
 -- idx_club_leaders_club dropped (left-prefix redundant with ux_club_leaders)
--- idx_club_leaders_member dropped (left-prefix redundant with the member_id unique below)
-CREATE UNIQUE INDEX ux_one_club_leader_per_member  ON club_leaders(member_id);
+CREATE INDEX idx_club_leaders_member              ON club_leaders(member_id);
 
 -- Leadership a club can actually rely on: rows whose member is a live,
 -- non-deceased member who has finished onboarding. A leadership row outlives
@@ -4526,7 +4596,7 @@ CREATE TABLE member_club_affiliations (
 
 CREATE INDEX idx_member_club_affiliations_member ON member_club_affiliations(member_id);
 CREATE INDEX idx_member_club_affiliations_club   ON member_club_affiliations(club_id);
--- Two-current-club cap: at most two is_current=1 rows per member.
+-- Three-current-club cap: at most three is_current=1 rows per member.
 -- Service-enforced (ClubService count-before-insert, matching the
 -- 5-leader-cap pattern). Partial unique index was dropped because
 -- SQLite partial unique indexes only enforce N=1.

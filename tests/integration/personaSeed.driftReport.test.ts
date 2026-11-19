@@ -95,6 +95,15 @@ describe('persona seed runner: drift reporting', () => {
     expect(code).toBe(0);
     expect(out).toContain(`orphan (no longer in the catalog): ${RETIRED_SLUG}`);
     expect(out).toContain('orphaned=1');
+    // Defect caught: the summary prints "orphaned=1 failed=0", which the
+    // runners' failure grammar reads as "1 failed", so a clean seed with an
+    // orphan fails ./run_dev.sh and the deploy that seeds personas.
+    const summary = out.split('\n').find((l) => l.includes('[persona-seed] done.'));
+    expect(summary).toBeDefined();
+    expect(summary).not.toMatch(/[1-9][0-9]* failed/);
+    // Nor "healed=0 skipped=3", which the notice grammar reads as a skip, so
+    // every seed that keeps its existing personas ends with a warning.
+    expect(summary).not.toMatch(/[0-9]+ skipped/);
   }, 60_000);
 
   it('names a persona it cannot seed, seeds the rest, and exits non-zero', async () => {

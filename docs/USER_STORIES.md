@@ -161,6 +161,8 @@ each release contains is §1.3.
     - [A_Reconcile_Payments](#a_reconcile_payments)
   - [7.2 Data Management](#72-data-management)
     - [A_Override_Member_Data](#a_override_member_data)
+    - [A_Restrict_Member_Account](#a_restrict_member_account)
+    - [A_Record_Membership_Discipline](#a_record_membership_discipline)
     - [A_Message_Member](#a_message_member)
     - [A_Grant_HoF_BAP_Board_Status](#a_grant_hof_bap_board_status)
     - [A_View_Member_History](#a_view_member_history)
@@ -384,9 +386,8 @@ the build is not; the remaining deferred items are defined by their rulings on t
 
 **v2**, built first after launch, in this order: voting and elections; then the Hall of Fame
 nomination and voting flow, the first real consumer of that subsystem. Independent of that
-order: IFPA rankings computed from sanctioned-event results, the news feed with its authoring
-and moderation surfaces, the curated net topic gallery, per-division routine music on
-events, and native groups and committees.
+order: IFPA rankings computed from sanctioned-event results, the curated net topic gallery,
+per-division routine music on events, and native groups and committees.
 
 **v3**, unordered: administrator authority split into named lanes of expertise rather than one
 flat role; the Big Add Posse nomination and voting flow; and native tournament-day operations.
@@ -487,10 +488,6 @@ Success Criteria:
 
 ### V_View_News_Feed
 
-<< V2 SCOPE >> The news feed is version-two scope. This story is design intent for that build and
-is not part of the v1 launch. The v1 flows whose success criteria name a news item as a side effect
-are built without a news dependency and begin emitting news items when the feed lands.
-
 Access: Any visitor can read the main news feed.
 
 Story: As a visitor, I want to read the news feed so that I stay informed.
@@ -499,8 +496,18 @@ Success Criteria:
 
 - Auto-generated chronological feed of upcoming events, event results published, new clubs, new Hall of Fame (HoF) members, new Big Add Posse (BAP) members, vote results, and any other IFPA announcements.
 - The system provides a news view grouped by year, with navigation between current and previous years and one year's news per page.
+- `/news` shows the current year and `/news/year/:year` any other year. The current year shows an empty state when it has no items; any other year with no items, or a year that is not a four-digit number, answers the standard not-found page. The year navigation links to an adjacent year only when that year holds items.
+- Within a year, items are listed newest first by publication date. Each entry shows its date, its label, its headline linking to the item's own page, and a short plain-text excerpt from the opening of its body.
 - Each news feed item is backed by a NewsItem record that links to a specific underlying entity (for example an event, club, member, vote, or announcement).
-- NewsItems are created or updated automatically as side effects of those primary flows (e.g., when an event is published, results are posted, a club is created or archived, HoF/BAP/Board Member status is granted, or vote results are published). Admins can create or edit news stories (see separate story below).
+- NewsItems are created or updated automatically as side effects of those primary flows (e.g., when an event is published, results are posted, a club is created or archived, HoF/BAP/Board Member status is granted, or vote results are published). Admins can create or edit news stories (see separate story below). A Tier 2 or Tier 3 member can submit a post through the announcement form (`M_Send_Announce_Email`).
+- Every item carries one of two labels, set by whose voice it is and never chosen: News, for an item an administrator writes or the platform creates automatically, shown with no personal byline; and Community, for a member's post an administrator approved, shown with the member's display name linking to their profile.
+- The automatic items at launch are three: a free public event opening for registration when it is created; a public sanctioned event opening on its sanction approval, or on the Board's award of a World Championships (one item, since the approval is what opens it); and an event's results published for the first time. Each names the event and links to its page. Automatic items for clubs, honors and vote results follow the same rules when their flows emit them.
+- One source event yields at most one item of each kind, however often its flow runs: uploading results again or correcting them keeps the one item. An item about an event appears only while that event is publicly visible, so a cancelled event's items leave every public news surface, as the event itself does. Deleting an event deletes its items with it. A private or unpublished event never produces an item.
+- Each item has its own permanent page at `/news/:newsId`, showing its title, label, publication date, the byline for a Community post, its body, a link to the entity it is about when it has one, and a back link to its year's page. A hidden item, an item whose publication date has not arrived, and an unknown id each answer the standard not-found page.
+- A post's body is text written in Markdown (headings, emphasis, lists and links) and cleaned against an allowlist before it is shown, so no script, style, frame or raw markup reaches a page. Its links may point to other pages on the site, such as a media gallery, a club or an event, or to outside pages, which open as external links. Photos and video reach a post as links to their gallery.
+- The newest 20 published items are also offered as an RSS feed at `/news/feed.xml`. Each entry carries the title, the permanent page address, the publication date, the label, the member's display name for a Community post, and the body as plain text. The news pages advertise the feed to feed readers.
+- The home page shows, directly under its hero, a compact band of two lists side by side: the five newest published news items, each with its date, label and headline linking to its page, and the next five upcoming public events. Each list ends in a link to its full page, and a list with nothing to show says so in one line. The two lists stack on a narrow screen.
+- A hidden item, and an item whose publication date has not arrived, appear on no public surface: not the year pages, the item page, the home page band, or the RSS feed. Every news surface renders identically for every viewer, signed in or not.
 
 ### V_View_Tutorials
 
@@ -629,6 +636,7 @@ Success Criteria:
 - After clicking the link the prospective member is signed in and routed to the onboarding wizard; there is no profile page until all three tasks are answered.
 - Email must be unique across all members including accounts in their deletion grace period (reuse only after the grace period completes and PII is cleared).
 - Registration enforces email uniqueness without disclosing account existence. The form responds identically whether or not the submitted email already belongs to an account (active or in its deletion grace period): the same generic "check your email" confirmation, with no inline indication that the address is already registered, so registration cannot be used to probe which emails have accounts. When the address already has an account, the platform emails that address an "account already exists" notice telling them how to log in or reset the password from the site (never a link), so the legitimate owner is helped through a channel only they control. Rate limiting and the server-side CAPTCHA apply regardless of match.
+- An email address barred by an expulsion (`A_Record_Membership_Discipline`) cannot register. The form responds exactly as it does for any other address, no account is created, and the address is emailed that it belongs to a membership the IFPA board ended under Article X of the IFPA bylaws and cannot be used to register, throttled as the "account already exists" notice is.
 - Registration submissions are gated by a Cloudflare Turnstile CAPTCHA verified server-side before any DB read.
 - Name lengths follow the UK Government Data Standards Catalogue person-name standard: family name at most 35 characters, given names at most 35, and the assembled name and the display name at most 70, counted after normalization; a display name has at least 2 characters.
 - Display names are constrained to prevent homograph and impersonation attacks. Each display name is NFC-normalized, must carry no invisible or control characters, and must draw its letters from a single writing system, so a name that mixes Latin and Cyrillic letters is rejected.
@@ -900,6 +908,7 @@ Success Criteria:
 - Audit log rows are kept for a configurable period (default and minimum: 7 years) and then deleted by a daily job; they name people by member id, and account erasure does not reach a row inside that period.
 - Attempts to access the profile of a member in the deletion grace period, other than an HoF or BAP honoree whose profile keeps publishing, answer as a page that does not exist: the standard not-found page for a signed-in viewer and the sign-in page for a signed-out one. This would be an exceptional error case, as links to deleted members should not be shown.
 - Media uploaded by the deleted member (photos, videos, and galleries) is deleted immediately and permanently at the deletion request (no soft delete for photo data). The media is gone at the moment of the request and nothing brings it back.
+- The member's Community posts in the news feed are deleted immediately and permanently at the deletion request, as their media is. A post that was also mailed to the announce list keeps its broadcast record, with the sender cleared at the purge.
 - Member receives email confirmation that the account is deleted, stating that the deletion is permanent, how long their personal details are held before erasure, how long the email address stays reserved, and that anyone who did not ask for this should contact IFPA.
 - Member sees a confirmation screen before deletion that asks whether they are sure and states plainly that deletion is permanent, that their photos, videos and galleries go now, that upcoming event registrations are withdrawn, that their personal details are erased within the configured grace period, and that the email address cannot be reused for that long.
 - Member sees a confirmation after deletion stating that the account is deleted, that it cannot be undone from the site, and how long their personal details are held before erasure.
@@ -1084,8 +1093,8 @@ Club-affiliation task acceptance criteria:
 - The wizard does not offer in-wizard club search. After every Stage 1 card resolves, the task completes if a club affiliation was confirmed during the run; otherwise it advances to the wrap-up landing. The wizard never creates a `clubs` row except by promoting a confirmed candidate.
 - Per-card answers are saved at once on the member's own task row; on resume, the task re-renders only the cards with no signal recorded yet, starting at the first. The no-club answer is offered only on the wrap-up landing, where no card is left open, so a member with a suggestion answers it on its own card and every answer carries an activity signal; the answer still resolves any remaining un-signaled card in the same transaction.
 - Bootstrap leadership candidates carry a strong / weak / none classification derived at read time from structural signals recorded per (member, club): `listed_contact` (the legacy club page names the person as contact), `affiliation` (a legacy person-club affiliation row links them), `hosting` (the club hosted IFPA-registered events during the person's active competitive years), `roster` (the legacy member roster lists the person), and `mirror_text` (the club page narrative mentions the person by name or known alias). Strong requires `(listed_contact AND affiliation)` or `(hosting AND roster)` or `(listed_contact AND hosting)`; weak is any structural signal set that satisfies no strong gate; none is zero structural signals. Context modifiers (`tier_signal`, `recent_activity`, `geographic_alignment`) display alongside the signals but never change the classification. The classification is display-only: it labels the candidate badge and audit metadata and never gates promotion.
-- Confirmed (or corrected) leadership is recorded when the prospective member completes the wizard: only then does it promote the bootstrap row (if any) into a live `club_leaders` co-leader row, because only a member can lead a club. Co-leaders are a flat equal set, capped at five per club; a member co-leads at most one club (`ux_one_club_leader_per_member`), so a prospective member who already co-leads another club is affiliated to this club but not made a co-leader. Cap-hit or already-co-leading claims still affiliate the member but insert no `club_leaders` row. A co-leader is always a current member of the club, so a prospective member already holding two other current clubs is made neither: the claim is recorded as a former membership, and the card says so rather than reporting the club added. Leading takes Tier 1 benefits held before the claim. Confirming the affiliation grants the one-time club-join Active Player period, but that period is earned by belonging to the club and never counts toward leading it in the same step, so a Tier 0 member without a current Active Player period becomes a club member and not a co-leader. A successful claim of an inactive club returns the club to `'active'` in the same transaction, audit-logged as a revival. Archiving is final, so an archived club's leadership is never offered or claimed.
-- Completing the wizard creates, for each confirmed club, a new `member_club_affiliations` row with `source='legacy_claim'`. A member may hold at most two current club affiliations (primary and secondary); the first confirmed club is primary, the second is secondary. When the prospective member has already confirmed two clubs as current, the cap is hit: no `member_club_affiliations` row is written, and the confirmed Yes is recorded as former membership (the legacy affiliation row resolves `'former_only'`, keeping the answer and its activity signal), so the card resolves and never blocks completing the task. The card surfaces a cap message ("You are at the two current-club limit; this club is recorded as a former membership"). A member who wants this club current instead swaps affiliations themselves through the explicit `M_Join_Club` / `M_Leave_Club` surface after onboarding.
+- Confirmed (or corrected) leadership is recorded when the prospective member completes the wizard: only then does it promote the bootstrap row (if any) into a live `club_leaders` co-leader row, because only a member can lead a club. Co-leaders are a flat equal set, capped at five per club; a member co-leads at most three clubs, so a prospective member who already co-leads three other clubs is affiliated to this club but not made a co-leader. Cap-hit or already-co-leading claims still affiliate the member but insert no `club_leaders` row. A co-leader is always a current member of the club, so a prospective member already holding three other current clubs is made neither: the claim is recorded as a former membership, and the card says so rather than reporting the club added. Leading takes Tier 1 benefits held before the claim. Confirming the affiliation grants the one-time club-join Active Player period, but that period is earned by belonging to the club and never counts toward leading it in the same step, so a Tier 0 member without a current Active Player period becomes a club member and not a co-leader. A successful claim of an inactive club returns the club to `'active'` in the same transaction, audit-logged as a revival. Archiving is final, so an archived club's leadership is never offered or claimed.
+- Completing the wizard creates, for each confirmed club, a new `member_club_affiliations` row with `source='legacy_claim'`. A member may hold at most three current club affiliations, exactly one of them primary; the first confirmed club is primary and each later one is secondary. When the prospective member has already confirmed three clubs as current, the cap is hit: no `member_club_affiliations` row is written, and the confirmed Yes is recorded as former membership (the legacy affiliation row resolves `'former_only'`, keeping the answer and its activity signal), so the card resolves and never blocks completing the task. The card surfaces a cap message ("You are at the three current-club limit; this club is recorded as a former membership"). A member who wants this club current instead swaps affiliations themselves through the explicit `M_Join_Club` / `M_Leave_Club` surface after onboarding.
 - The wizard carries no path to `M_Join_Club` or `M_Create_Club` and no outward links at all: joining and creating clubs are member capabilities, fenced until onboarding completes, so the wizard never links a prospective member to an action they cannot yet take. A prospective member who navigates away on their own leaves the task `pending`; unsignaled cards remain unsignaled, signaled cards retain their signals, and their next request to any member capability returns them to the first un-signaled card.
 - Club cards derive from the member's whole claimed identity, not one anchor of it: a suggestion anchored on the member's historical record surfaces even when they hold no old-site account, so a member who claims a competition record still resolves that record's club data. The claimed identity includes a claim held in the wizard. A card is the member's own only when an anchor on the row matches the member's own anchor of the same kind, or the anchor the held claim would give them.
 - One club, one question: while a leadership card for a club is open, the membership suggestion for that same club is not also shown. Confirming leadership answers the relationship and collects the club's activity signal, and the membership suggestion no longer shows; its status becomes superseded when the wizard is completed; declining leadership leaves it pending, so the membership question then surfaces on its own card.
@@ -1229,13 +1238,13 @@ Success Criteria:
 
 ### M_Join_Club
 
-Access: Members can join up to two clubs.
+Access: Members can join up to three clubs.
 
 Story: As a member, I can join a club so that I appear on its roster.
 
 Success Criteria:
 
-- A member may hold at most two current club memberships (primary and secondary). The first club joined is primary; the second is secondary. Joining a second club does not affect the first. Attempting to join a third current club is blocked with a clear message directing the member to leave an existing club first.
+- A member may hold at most three current club memberships, exactly one of them primary. The first club joined is primary; each later one is secondary. Joining another club does not affect the clubs already held. Attempting to join a fourth current club is blocked with a clear message directing the member to leave an existing club first.
 - Club roster retrieved by aggregating members (never prospective members) where clubId matches.
 - Club member roster visible to all logged-in members (not visitors).
 - Roster shows member display name, membership tier badge, current Active Player badge where applicable, any special flags (HoF, BAP, Board), and city/country.
@@ -1257,7 +1266,7 @@ Story: As a member, I can leave a current club to be removed from the roster.
 Success Criteria:
 
 - Leaving sets `member_club_affiliations.is_current=0` and `is_primary=0` for the member-club pair.
-- A member who holds any current club affiliation holds exactly one primary. If leaving the primary club leaves exactly one current affiliation, that affiliation becomes primary in the same transaction. A member holding two current affiliations makes either one primary through the Make Primary control beside that club, never automatically.
+- A member who holds any current club affiliation holds exactly one primary. If leaving the primary club leaves one or more current affiliations, the one the member joined earliest becomes primary in the same transaction; the member can change it with Make Primary. A member holding two or more current affiliations makes any one of them primary through the Make Primary control beside that club, and the site never moves a primary the member holds.
 - A member who is the club's only co-leader is warned before leaving ("You are the only co-leader; the club will have no member-visible contact until someone steps up") and may proceed. Leaving as the last co-leader leaves the club leaderless, a tolerated state per the Club Lifecycle section, not blocked.
 - Leaving a club where the member also held a `club_leaders` row removes that co-leader row in the same transaction.
 - Leaving sends an email notification to the leaving member and to all current co-leaders.
@@ -1744,6 +1753,7 @@ Success Criteria:
 - A work queue item is created and its notification is routed per the Global Behaviors work-queue rules (it names the task type and links to the item; no sensitive member data).
 - Uploader can remove own media anytime without admin approval.
 - Multiple flags from same user for same media not counted separately.
+- The reporting member is emailed a receipt when the report is filed; a repeat report sends none, and an administrator reporting from the takedown queue is not sent one.
 - Flagging is rate-limited to prevent abuse; limit is admin-configurable via `media_flag_rate_limit_per_hour` (default: 10 flags per member per hour).
 - Flagging is available to members with Tier 1 benefits.
 
@@ -1796,13 +1806,14 @@ Story: As a Tier 2 or Tier 3 member, I can send an email to the IFPA announce ma
 
 Success Criteria:  
 - Email form includes: subject, message body, preview.  
-- Submitting holds the announcement for an administrator's approval and raises a Someone Is Waiting work-queue item in the moderation topic; nothing reaches the list until it is approved.
-- An administrator approves it as written, which sends it to the configured announce list address (default [announce@footbag.org](mailto:announce@footbag.org)) under the member's name, or sends it back with a required comment that the member receives by email. The administrator never edits the member's text, and cannot approve their own announcement.
-- The member is emailed when the announcement is approved and sent, or sent back; a sent-back announcement opens in the form with its text, ready to change and resubmit.
-- A member may have one announcement awaiting review at a time. At most one announcement per member is sent per day (admin-configurable); an administrator approving a further one that day ticks a box to allow it, and the override is audit-logged. A sent-back announcement does not count.
+- The form asks where the announcement is published: the announce list, the news feed as a Community post (`V_View_News_Feed`), or both, and refuses a submission that chooses neither. The subject and body are written once: the post takes the subject as its title and renders the body as Markdown, and the email sends the body as typed.
+- Submitting holds the announcement for an administrator's approval and raises a Someone Is Waiting work-queue item in the moderation topic; nothing is published until it is approved. The review item shows the places the member chose.
+- An administrator approves it as written, which publishes it to each place the member chose: the configured announce list address (default [announce@footbag.org](mailto:announce@footbag.org)) under the member's name, the news feed, or both, in one step. Or the administrator sends it back with a required comment that the member receives by email. The administrator never edits the member's text, never changes the places chosen, and cannot approve their own announcement.
+- The member is emailed when the announcement is approved, naming where it was published and linking to the news post when the feed was chosen, or when it is sent back; a sent-back announcement opens in the form with its text and its places, ready to change and resubmit.
+- A member may have one announcement awaiting review at a time. At most one announcement per member is approved per day, whichever places it goes to (admin-configurable); an administrator approving a further one that day ticks a box to allow it, and the override is audit-logged. A sent-back announcement does not count.
 - The form requires the member to tick a box saying they have read and agree to the Community Standards (`V_View_Community_Standards`), which the box links to. An announcement without the tick is refused with a field error, and the form re-renders with the subject and body as typed.
 - All sends audit-logged (actor ID, list, archive row, recipient counts, timestamp); the subject and body stay on the archive row.
-- An organizer of a sanctioned event can mark the announcement as that event's after-event summary, choosing from the sanctioned events they organize. A summary sent within 20 days of the event's last day meets that sanctioning obligation (`EO_Request_Sanction`); the event's work item clears only when the results are uploaded as well, and the "sanctioning requirements not met" badge follows the results alone.
+- An organizer of a sanctioned event can mark the announcement as that event's after-event summary, choosing from the sanctioned events they organize. A summary sent within 20 days of the event's last day meets that sanctioning obligation (`EO_Request_Sanction`); the event's work item clears only when the results are uploaded as well, and the "sanctioning requirements not met" badge follows the results alone. A summary must include the announce list among its places, because the obligation is a summary sent to the list.
 
 ## 3.10 Group Membership
 
@@ -1810,7 +1821,7 @@ Success Criteria:
 design intent for that build and are not part of the v1 launch. Board standing itself, set through
 `A_Grant_HoF_BAP_Board_Status`, is v1.
 
-Groups (also called committees) are governance, working-group, or social entities distinct from clubs. A member may belong to many groups simultaneously; clubs are capped at two current memberships per member (primary and secondary). Group entities have configurable properties controlled by Admins: `type`, `official` flag, visibility (`policy`), `restrict_membership`, email enable, lifecycle `state`, and optional `parent_group_id` for subcommittees.
+Groups (also called committees) are governance, working-group, or social entities distinct from clubs. A member may belong to many groups simultaneously; clubs are capped at three current memberships per member, exactly one of them primary. Group entities have configurable properties controlled by Admins: `type`, `official` flag, visibility (`policy`), `restrict_membership`, email enable, lifecycle `state`, and optional `parent_group_id` for subcommittees.
 
 One group is planned first: the IFPA Board of Directors. The European Footbag Committee, the Worlds Operating Committee and the International Footbag Committee are archived rather than carried onto the platform. The mechanism is general: administrators stand up any further group through `A_Create_Group` without new code, so which groups exist is data an administrator enters rather than a property of the design, and a body that would rather keep its conversation where its members already are is not argued with. Exactly one group may carry `type='board'`, and that group is the IFPA Board of Directors; only board standing, set by an administrator, confers a flag and a tier, and a committee's roster confers neither.
 
@@ -1999,7 +2010,7 @@ Social kicking, also called free-flow or cooperative kicking, and circle kicking
 - Member gains Event Organizer status for this event (only).
 - Creating the event writes its permanent standard hashtag, `#event_{year}_{event_slug}`, where the year is the event's start year and the slug is suggested from the title, editable before saving, and folded by the slug rule; once made it never changes, even when the event's dates move.
 - An Event Organizer may organize more than one event at a time.
-- For free events, event status changes to `reg_open`, Email sent to all event organizers to confirm. Event will appear in Upcoming Events list. For sanctioned events, which includes every event that takes fees through footbag.org, these actions wait for Admin approval. The news item this emits ships with the news feed in v2.
+- For free events, event status changes to `reg_open`, Email sent to all event organizers to confirm. Event will appear in Upcoming Events list. For sanctioned events, which includes every event that takes fees through footbag.org, these actions wait for Admin approval. Opening a free public event emits a news item announcing it (`V_View_News_Feed`).
 
 ### EO_Request_Sanction
 
@@ -2236,7 +2247,7 @@ Success Criteria:
 - Results visible on event detail page after commit.
 - Results displayed as sortable table.
 - Results also added to participant profiles (if participant linked to member account).
-- Results publication emits a news feed item, which ships with the news feed in v2; in v1 results publish on the event page directly.
+- The first publication of an event's results emits a news feed item linking to them; a later upload or correction keeps that one item (`V_View_News_Feed`).
 - Only organizers can upload results.
 - Results upload audit-logged, including the committed upload's row count and the count accepted without a registration match.
 - An entrant who entered a prize-money division as an Amateur is marked as Amateur in that division's results; the mark changes neither the placing nor the ranking points.
@@ -2595,7 +2606,7 @@ Success Criteria:
 
 # 5. Club Leader Stories
 
-Club leadership is a flat set of equal co-leaders (up to 5 per club), each with identical club-editing and member-visible-contact powers; there is no separate head-leader role. The member who creates a club becomes its first co-leader, and a member co-leads at most one club: a club is a local group, so a member leads the club they are local to and is a guest at any other. This is why a member may hold two current club affiliations but only one co-leadership.
+Club leadership is a flat set of equal co-leaders (up to 5 per club), each with identical club-editing and member-visible-contact powers; there is no separate head-leader role. The member who creates a club becomes its first co-leader. A club is a local group, and a member may be local to more than one place, such as a member who lives in two cities, so a member may hold up to three current club affiliations and co-lead up to three clubs, each of them one of their current clubs.
 
 ## 5.1 Club Lifecycle
 
@@ -2603,7 +2614,7 @@ Club leadership rule: a club should have at least one co-leader, but a club with
 
 ### M_Create_Club
 
-Access: Members who do not already co-lead a club and who hold Tier 1 benefits can create a new club. A Tier 0 member without current Active Player status cannot create a club; they first earn Active Player by joining an existing club that has a co-leader, attending a qualifying event, or being vouched for.
+Access: Members who co-lead fewer than three clubs, hold fewer than three current club affiliations, and hold Tier 1 benefits can create a new club. A Tier 0 member without current Active Player status cannot create a club; they first earn Active Player by joining an existing club that has a co-leader, attending a qualifying event, or being vouched for.
 
 Story: As an eligible member, I can create a club so that I can become its first co-leader, and organize a local footbag community.
 
@@ -2621,8 +2632,8 @@ Success Criteria:
 - Creating a club requires Tier 1 benefits and grants no Active Player period. A Tier 0 member without current Active Player status cannot create a club and is shown that creating requires Tier 1 benefits, with a pointer to the ways to earn Active Player (join an existing club that has a co-leader, attend a qualifying event, or be vouched for) or to upgrade their membership tier.
 - Leader sees a clear success message when club is created.
 - Leader sees clear error messages for validation failures.
-- Member becomes the club's first co-leader. A member may co-lead only one club at a time.
-- If the authenticated member already co-leads any club, the create-club option is not shown in the UI. If attempted via direct URL or API, the member is shown: "You already co-lead [Club Name]. Clubs are local groups, so you lead your own club and are a guest at any other. To create a new club, step down there first." A member who already holds two current club affiliations is refused for that reason instead, and is asked to leave one first.
+- Member becomes the club's first co-leader. A member may co-lead up to three clubs at a time.
+- If the authenticated member already co-leads three clubs, the create-club option is not shown in the UI. If attempted via direct URL or API, the member is shown: "You already co-lead three clubs, the most a member can lead. To create a new club, step down at one of them first." A member who already holds three current club affiliations is refused for that reason instead, and is asked to leave one first.
 - Club display names are not required to be globally unique (for example the name could be "Hacky Crew"). Two clubs may share the same display name. The standardised club hashtag, globally unique, is the canonical identifier. The UI makes the club hashtag visible at creation so leaders understand it is the persistent unique handle.
 
 ### CL_Edit_Club
@@ -2678,11 +2689,11 @@ Story: As a current member of a club, I can volunteer to become a co-leader so t
 Success Criteria:
 
 - One service operation backs the volunteer write, reached via the standing "volunteer to co-lead" affordance on the club detail page. The admin "contact members" action in the cleanup queue (A_Periodic_Club_Cleanup) sends an invitation that routes members to the standing affordance; it is not a separate write path.
-- Eligibility (all required): the member is a current, confirmed affiliate of the club, or joins it in the same step under every rule of joining, the two-current-club limit included (Tier 1 benefits are those held before that join); has Tier 1 benefits; does not already co-lead another club; the club has fewer than 5 co-leaders; the member is not already a co-leader of this club.
+- Eligibility (all required): the member is a current, confirmed affiliate of the club, or joins it in the same step under every rule of joining, the three-current-club limit included (Tier 1 benefits are those held before that join); has Tier 1 benefits; co-leads fewer than three clubs; the club has fewer than 5 co-leaders; the member is not already a co-leader of this club.
 - Volunteering is immediate: an eligible member self-adds as a co-leader of any club, at any time, whether the club is leaderless or already has co-leaders. There is no approval step.
 - On a self-add to a club that already has co-leaders, all existing co-leaders are notified that the member joined the leadership. Every volunteer add is audit-logged.
 - The new co-leader gains club-editing permissions, and their contact email becomes visible to authenticated members (holding the role is the consent; the email cannot be hidden while the role is held). The member may additionally opt their WhatsApp visible.
-- A member who already co-leads another club is shown the one-club rule and directed to step down there first; the standing affordance is not offered to them.
+- A member who already co-leads three clubs is shown the three-club limit and directed to step down at one of them first; the standing affordance is not offered to them.
 - When a club becomes leaderless, it surfaces in the admin club-cleanup queue (A_Periodic_Club_Cleanup), where an admin can send the volunteer-to-co-lead invitation to the club's current members or park the item; the standing affordance remains available for members to self-volunteer at any time.
 - The standing club-page affordance is shown only to a viewer who meets the eligibility rules above.
 
@@ -2795,7 +2806,7 @@ Success Criteria:
 - See the event's competition categories and divisions, each division with its game, entry size, gender, class, and whether it offers prize money.
 - Review checklist: a sanctioned tournament must offer a Women's division and an Intermediate division in every competition category it offers. A request missing any is flagged in the queue; the administrator decides, and a rejection names what is missing.
 - Approve or reject with reason.
-- On approval: event status changes to `reg_open`, payment configuration enabled where the organizer configured fees, Email sent to all event organizers to confirm. The approval email links to the published sanctioning guidelines (`/ifpa/sanctioning-guidelines`), states that the event may now use the IFPA logo in its publicity, and points to the logo download on that page. Event will appear in Upcoming Events list. The news item this emits ships with the news feed in v2.
+- On approval: event status changes to `reg_open`, payment configuration enabled where the organizer configured fees, Email sent to all event organizers to confirm. The approval email links to the published sanctioning guidelines (`/ifpa/sanctioning-guidelines`), states that the event may now use the IFPA logo in its publicity, and points to the logo download on that page. Event will appear in Upcoming Events list. Approval of a public event emits one news item announcing the sanctioned event (`V_View_News_Feed`).
 - On rejection: event status returns to `draft`, Outbox sends organizer notification with reason, and the organizer can revise and resubmit.
 - Payment approval is event-specific configuration, not persistent eventOrganizer permission (which is separate).
 - All approval actions logged.
@@ -2861,6 +2872,40 @@ Success Criteria:
 - Admin can delete a registration that breaks the registration rules from the member detail view, with a mandatory reason. The preview names everything that goes before anything is written. The deletion is refused for an administrator, the platform's own system account, and an account already deleted or erased, and the control is not offered for them. Any recurring gift is cancelled, one audit row names the administrator and the reason, and the member is emailed that an administrator deleted the account, with the reason, unless they are deceased or their mailbox is undeliverable. Otherwise it is the same deletion a member's own request performs (M_Delete_Account): media gone at once, upcoming registrations withdrawn, sign-in ended, and personal data purged after the grace period.
 - Admin sees a clear success message when adjustment completes successfully.
 - Admin sees a clear error message when adjustment fails, including a short explanation.
+
+### A_Restrict_Member_Account
+
+Access: Only admins can restrict or lift the restriction on a member's account.
+
+Story: As an Admin, I can restrict an abusive member's account at once, so that the member cannot act on the site while the IFPA board decides under Article X of the IFPA bylaws whether to suspend or expel them.
+
+Success Criteria:
+
+- The restriction is reached from the member detail view (`A_Override_Member_Data`), takes a mandatory reason, and previews before it writes, naming what it does.
+- A restriction ends every session the member holds and refuses every later sign-in, including through an email-verification link. A sign-in with the correct password tells the person the account is restricted and that the email IFPA sent explains why and how to respond; a wrong password gets the ordinary refusal.
+- A restriction is protective, not a sanction: it changes no membership tier, cancels nothing, and leaves the member's public profile, media, results and published Community posts as they are, since content is either fully public or removed item by item through the moderation actions.
+- An announcement the member has waiting for administrator approval is returned when the restriction is applied, whichever places it was meant for.
+- The member is emailed that the account is restricted, with the administrator's reason, that the IFPA board decides any further action under Article X, and how to respond. The email carries everything the member needs, because a restricted member cannot sign in to read anything.
+- Lifting the restriction is the same shape: from the member detail view, with a mandatory reason, a preview, an audit row and an email telling the member they can sign in again. A restriction set by a board suspension cannot be lifted by an administrator, because the board's decision is final; it lifts on the suspension's end date (`SYS_Apply_Membership_Discipline`).
+- An administrator cannot restrict their own account, another administrator, the platform's own system account, or an account already deleted, and the control is not offered for them.
+- The restriction and its lifting each append an audit row naming the administrator, the member and the reason. The restriction is visible to administrators only; nothing on any public or member-facing page shows it.
+
+### A_Record_Membership_Discipline
+
+Access: Only admins can record a membership discipline decision, and only one the IFPA board, or a committee or person the board authorizes, has already made under Article X of the IFPA bylaws.
+
+Story: As an Admin, I can record the board's Article X decision on a member, so that the site carries out a suspension or expulsion and keeps the record the bylaws require.
+
+Success Criteria:
+
+- The decision is recorded from the member detail view with: who decided, the date the member was given notice, the date of their opportunity to be heard, the decision date, the outcome (suspended until a date, expelled, sanctioned in some other way, or no action), and the reason. It previews before it writes.
+- The platform records the decision; it does not run the notice or the hearing. It refuses a suspension or expulsion whose decision date is less than 15 days after the notice date, and an expulsion whose hearing date is less than 5 days before the decision date, as Article X Section 3 requires.
+- A suspension restricts the account (`A_Restrict_Member_Account`) until its end date, when it lifts by itself. An expulsion deletes the account through the same deletion an administrator's deletion performs (`A_Override_Member_Data`) and bars its email address from registering again. Any other outcome lifts a standing restriction, since the board has ruled.
+- The member is emailed the decision, the reason, and that any challenge must be brought within one year. An expelled member's email says the account is deleted and the address cannot register again, in place of the ordinary deletion notice.
+- A barred address is held only as a keyed hash, never as the address itself.
+- The decision appends an audit row naming the administrator, the member and the outcome, carrying neither the email address nor the member's own words. The member detail view lists the member's recorded decisions and any restriction, to administrators only.
+- A decision record is kept until one year after the member's personal data is purged, the bylaws' window for challenging it, and then deleted; a barred-address hash is kept indefinitely.
+- An administrator cannot record a decision on their own account, another administrator or the platform's own system account.
 
 ### A_Message_Member
 
@@ -2939,7 +2984,7 @@ Success Criteria:
 
 - Admin can add a co-leader from the member base (audit-logged); the added member becomes a current affiliate if not already.
 - Admin can remove a co-leader (returning them to ordinary club member), or remove their affiliation entirely (audit-logged with mandatory reason text). Admin removal is the only way to remove a co-leader other than the co-leader stepping down themselves.
-- A member co-leads at most one club. Changing which club a member co-leads is the member's own action: they step down at their current club, then volunteer at the other.
+- A member co-leads at most three clubs and holds at most three current clubs; an admin add that would exceed either is refused with the reason.
 - Admin can make an affiliated-only member (one whose wizard claim was capped out) a co-leader whenever the club has fewer than five co-leaders.
 - Clubs with zero co-leaders are flagged "Needs Leader" and surface on the low-priority admin opportunity list (§5.1).
 - Admin can resolve a "Needs Leader" item by adding a co-leader, or by archiving the club only if it is confirmed junk. Leaderless is a tolerated state (§5.1), so this is an opportunity, not an obligation.
@@ -3080,6 +3125,7 @@ Success Criteria; On-demand evaluation:
 - The queue runs no unattended background process. When an admin opens it, the platform evaluates the following predicates fresh against current data, lists the clubs whose own record leaves nothing to decide, and surfaces the clubs that need a human decision; when the admin presses "Apply the rules", the rules make the listed clubs inactive, writing one `audit_entries` row with `actor_type='admin'` for each; every remaining item carries a recommended one-click action that only an admin applies. The rules never archive a club, because making it inactive keeps it revivable while archival is final. Each admin action writes one `audit_entries` row with `actor_type='admin'`.
   - `leaderless_active_club`: a live `clubs` row with `status='active'` that has no co-leader able to act surfaces as a low-priority "could use a leader" opportunity item. A leadership row whose member has deleted their account or died does not count, because the club has nobody who can lead it; the row itself is kept so historical leadership stays attributable. Leaderless is a tolerated state (§5.1), so the recommended action is to add a co-leader (via `A_Reassign_Club_Leader`), not to make it inactive; making a club inactive is driven only by the `crowdsource_club_viability` inactivity signals below. The item offers two further one-click choices: **contact members** (sends the volunteer-to-co-lead invitation, see `V_Volunteer_To_CoLead`, to the club's current members, audit-logged) or **park** (take no action now; the item leaves the working queue and waits in the parked listing). As soon as anyone becomes a co-leader (self-volunteer, invite-accept, or admin add), the club is no longer leaderless and the item drops from the queue automatically on the next evaluation (the predicate is computed fresh on each open). A member stepping up to co-lead is also a strong positive viability signal, equivalent to a member-reported "active" signal: it resets the club's inactivity staleness, so the `crowdsource_club_viability` gates do not recommend making it inactive. Any future co-leader claim or current-affiliation insert is recorded normally and the club stays `'active'`.
   - `stale_provisional_leader`: `club_bootstrap_leaders` rows still `status='provisional'`, grouped by club, surface as a review-or-dismiss item.
+  - `quiet_club`: a live `clubs` row with `status='active'` and at least one co-leader able to act, with no sign of life for 730 days (the IFPA Active Player period), surfaces as a review item. A sign of life is any of: an event on the site hosted by the club, counted at its creation and at its start date once passed; a member joining the club; a member's own action on the club record, such as a co-leader's edit, a volunteer to co-lead, a reactivation or a revival (an admin correction is not one); an "active" activity signal; or a co-leader signing in. The quiet period runs from the club's latest sign of life, or from its creation when it has none. The recommended action is **ask the co-leaders**: one click emails each current co-leader asking them to sign in and make any small edit to the club, linking only to pages the site already has, and is audit-logged; the item then shows when they were asked. Any sign of life clears the item on the next evaluation. The rules never apply this item: there is no deadline, and the admin makes the club inactive, parks the item or dismisses it at their judgment.
   - `crowdsource_club_viability`: one verdict per club, from facts that are true or false rather than from weighted signals. Activity signals are counted one per member, a member's latest signal superseding their earlier ones. The queue item names the members whose latest signal was negative, because negative signals are rare and the admin judges them by who sent them; authorship renders only on this admin surface. The first matching rule wins:
     - Alive: the club has a current co-leader, a current member, or a member who answered "active". Nothing surfaces and nothing changes.
     - Inactive: a member answered "not active" and the club's own record agrees, meaning it never hosted an event, the import pipeline did not classify it `pre_populate`, no admin promoted it from the legacy record, and no member left a note about it. The club is made inactive, and its unconfirmed legacy residue is de-listed with it.
@@ -3132,7 +3178,7 @@ Success Criteria:
 - All actions append to immutable audit log with actor, reason, and affected mediaId.
 - An administrator cannot decide a report against an item they uploaded; the platform refuses and says another administrator must review it. An administrator who reports an item and then decides it is taking the designed moderation path, because the bar is on being the subject, not on having touched the item.
 - A report's reason text is the reporter's own words: an administrator can redact it but does not rewrite it.
-- System emails uploader with decision.
+- System emails uploader with decision, naming the item by its kind, caption and upload date, and the 30-day appeal to an administrator who did not make the decision (`V_View_Community_Standards`).
 - Each member who reported the item is emailed the outcome, removed or no action, without the administrator's reason, which is addressed to the uploader.
 - Administrators can set or unset any flags to maintain consistency; all changes audit-logged.
 - Moderation reaches a member's named gallery, not only individual items: an admin can act on a member-owned gallery through the same admin gallery URL that manages Footbag Hacky's own. The gallery's name and description are the member's own words, so an admin clears an abusive one rather than rewriting it under their name; the item ordering and the criteria and exclude hashtag sets are structure rather than words, and an admin may set them. This is moderation of a member's media, not curation; curation is an admin adding or editing Footbag Hacky's own media as the system member, specified in A_Upload_Curated_Media and A_Manage_Curated_Gallery. Deleting a member-owned gallery is not a moderation action and returns 404 there; removing a member's media is done per item through the takedown decision above. Every such act takes a mandatory reason and appends an audit row naming the acting admin, the affected gallery, and each changed value before and after.
@@ -3612,22 +3658,20 @@ Audit:
 
 ### A_Create_News_Item
 
-<< V2 SCOPE >> Ships with the news feed in v2; not part of the v1 launch.
-
 Access: Only admins can manually create a news item.
 
 Story: As an admin, I can manually author a news item so that I can publish announcements not auto-generated by system events.
 
 Success Criteria:
 
-- Admin can create a news item with: title (required, max 200 chars), body text (required, Markdown-safe), optional linked entity reference (event ID, club ID, vote ID, or none), and publish date (defaults to now).
+- Admin can create a news item with: title (required, max 200 chars), body text (required, Markdown, whose links may point to pages on the site or outside it), optional linked entity reference (event ID, club ID, vote ID, or none), and publish date (defaults to now).
+- The form shows a preview of the item as it will appear before it is saved, and a refused form re-renders with every field as typed and a field error on each problem.
+- An admin-created item is labelled News and shows no byline.
 - Created news item is immediately visible in the news feed (or at the specified publish date if future-dated).
 - Creation is audit-logged with admin ID, timestamp, and news item ID.
 - Manually created news items can be edited or deleted via A_Moderate_News_Item.
 
 ### A_Moderate_News_Item
-
-<< V2 SCOPE >> Ships with the news feed in v2; not part of the v1 launch.
 
 Access: Only admins can edit, or remove news feed items.
 
@@ -3635,13 +3679,15 @@ Story: As an admin, I can review and moderate auto-generated news feed items so 
 
 Success Criteria:
 
-- Admin can edit, or reject news items.
-- Rejected items are hidden from news feed.
+- The admin news list shows every item, newest first, with its label, its publication date, whether it is hidden or still to be published, and where it came from (written by an administrator, created automatically, or a member's post), each linking to its actions.
+- Admin can edit a News item's title, body, linked entity and publish date. A Community post keeps its member's words: an admin may reject or delete it, never edit it.
 - Edited items will reflect updated text in news feed.
+- Admin can reject an item, which hides it from every public news surface, and can restore a rejected item. Rejecting takes a mandatory reason (max 500 chars).
 - Admin can delete a NewsItem permanently (hard delete). Deletion is immediate and irreversible.
 - Delete action requires a reason (mandatory text field, max 500 chars).
-- Confirmation dialog before deletion, clearly stating the action is permanent.
+- Deletion goes through a confirmation page that states the action is permanent before the final button.
 - On delete: NewsItem is immediately and permanently removed from the database and hidden from the public feed. The deletion is recorded in the audit log with admin ID, news item ID, reason, and timestamp.
+- When an admin rejects or deletes a Community post, its member is emailed with the reason and told they may appeal (`V_View_Community_Standards`).
 - All actions audit-logged.
 
 ### A_Archive_Club
@@ -3653,7 +3699,7 @@ Story: As an admin, I can archive a junk club so that directories stay accurate.
 Success Criteria:
 
 - Sets status: "archived" in club data.
-- Archiving is refused while the club still has a current member or co-leader. Archiving a club its members still hold would leave them attached to something they can neither open nor leave, holding one of their two club slots. A club that looks junk but still has people is made inactive instead, which takes it off the public club list and lets any member who joins or claims it revive it.
+- Archiving is refused while the club still has a current member or co-leader. Archiving a club its members still hold would leave them attached to something they can neither open nor leave, holding one of their three club slots. A club that looks junk but still has people is made inactive instead, which takes it off the public club list and lets any member who joins or claims it revive it.
 - Preserves club data for 7 years per retention policy.
 - Records an audit log entry.
 

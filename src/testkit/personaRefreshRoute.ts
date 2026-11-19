@@ -21,6 +21,8 @@ import { appendAuditEntry } from '../services/auditService';
 import { refreshAllPersonas } from './personaRefreshRunner';
 import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { runFinanceDemoJourney } from './financeDemoJourney';
+import { barredEmailHash } from '../lib/barredEmailHash';
+import { runPersonaJourneys } from './personaJourneys';
 import { PERSONA_REFRESH_AUDIT_ACTION_TYPE, PERSONA_SEED_CREATED_BY } from './personaFactory';
 
 export async function postDevPersonasRefresh(
@@ -32,7 +34,7 @@ export async function postDevPersonasRefresh(
     const { TEST_PERSONA_SEED_PASSWORD_LITERAL } = await import('./personaSecrets');
     const passwordHash = await argon2.hash(TEST_PERSONA_SEED_PASSWORD_LITERAL);
 
-    const result = refreshAllPersonas(db, { passwordHash });
+    const result = refreshAllPersonas(db, { passwordHash, barredEmailHash });
 
     // The runner is DB-only, so delete the uploaded media's bytes here to return
     // the media store to its seeded (empty) state. Best-effort per key: a missing
@@ -45,6 +47,8 @@ export async function postDevPersonasRefresh(
     // The finance persona's reports and digest come from the real jobs, run
     // once the reseed has committed, so they total the money it just wrote.
     const financeJourney = await runFinanceDemoJourney();
+    // Then the personas whose state is reached only through an act.
+    const journeys = await runPersonaJourneys();
 
     appendAuditEntry({
       actionType: PERSONA_REFRESH_AUDIT_ACTION_TYPE,
@@ -57,12 +61,20 @@ export async function postDevPersonasRefresh(
         reseeded: result.reseeded,
         deletedMembers: result.deletedMembers,
         actorGrantRowsRemoved: result.actorGrantRowsRemoved,
+        configRowsRemoved: result.configRowsRemoved,
         deletedMediaObjects: result.deletedMediaKeys.length,
         financeJourney: financeJourney.status,
+        journeysRan: journeys.ran.length,
+        journeysFailed: journeys.failed.map((f) => f.slug),
       },
     });
 
-    res.redirect(302, '/dev/personas');
+    // A journey that failed is named on the page the refresh lands on, so the
+    // tester knows which cards may not match what they see.
+    const failed = journeys.failed.map((f) => f.slug).filter((s) => s !== '(all)');
+    res.redirect(302, failed.length > 0
+      ? `/dev/personas?journeys_failed=${encodeURIComponent(failed.join(','))}`
+      : '/dev/personas');
   } catch (err) {
     next(err);
   }

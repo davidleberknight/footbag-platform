@@ -10,7 +10,9 @@
  * ActivePlayerService, the profile-picture removal to MediaModerationService,
  * which owns every takedown whether or not a report led to it, and the deletion
  * of a registration that broke the rules to AccountDeletionService, the one path
- * every account deletion takes. Keeping the
+ * every account deletion takes, and an account restriction, its lifting and the
+ * recording of the IFPA board's discipline decision to MemberDisciplineService.
+ * Keeping the
  * writes there is what stops this surface becoming a second home for member
  * rules.
  *
@@ -42,6 +44,10 @@ import { identityAccessService } from './identityAccessService';
 import { locationPickers, memberService, type ProfileEditInput, type RegionOption } from './memberService';
 import { deceasedMarkingService } from './deceasedMarkingService';
 import { getDefaultAccountDeletionService } from './accountDeletionService';
+import {
+  checkDecision, memberDisciplineService, refuseDisciplineTarget,
+  type CheckedDecision, type DecisionInput, type DisciplineOutcome,
+} from './memberDisciplineService';
 import { findOwnLatestAudit } from './auditService';
 import { memberOnboardingService } from './memberOnboardingService';
 import { buildAvatarUrl } from './avatarService';
@@ -93,7 +99,14 @@ export type CorrectionOutcome =
   | 'profile_corrected'
   | 'profile_unchanged'
   | 'bio_cleared'
-  | 'bio_already_empty';
+  | 'bio_already_empty'
+  | 'account_restricted'
+  | 'account_already_restricted'
+  | 'restriction_lifted'
+  | 'account_not_restricted'
+  | 'discipline_recorded'
+  | 'member_expelled'
+  | 'member_expelled_storage_failed';
 
 // Each outcome carries its tone. A correction that landed and a correction that
 // found nothing to change are different events, and painting both of them, plus
@@ -132,6 +145,18 @@ const OUTCOME_NOTICE: Record<CorrectionOutcome, [OutcomeTone, string]> = {
   bio_cleared:
     ['ok', "The member's biography has been cleared, the text is recorded in the audit log, and the member has been emailed your reason."],
   bio_already_empty: ['info', 'The biography was already empty, so nothing changed.'],
+  account_restricted:
+    ['ok', 'The account is restricted. The member is signed out, cannot sign in, and has been emailed your reason.'],
+  account_already_restricted: ['info', 'This account was already restricted, so nothing changed.'],
+  restriction_lifted:
+    ['ok', 'The restriction is lifted. The member can sign in again and has been emailed your reason.'],
+  account_not_restricted: ['info', 'This account was not restricted, so nothing changed.'],
+  discipline_recorded:
+    ['ok', "The board's decision is recorded and carried out, and the member has been emailed it."],
+  member_expelled:
+    ['ok', 'The expulsion is recorded. The account is deleted, its email address cannot register again, and the member has been emailed the decision.'],
+  member_expelled_storage_failed:
+    ['no', "The expulsion is recorded, the account is restricted and its email address barred, but some of the member's media could not be removed from storage, so the account is not deleted yet. Record the same decision again to finish."],
   avatar_already_removed: ['info', 'That picture has already been taken down.'],
   avatar_removed_storage_pending:
     ['ok', 'The profile picture has been removed and the member has been told. Its stored files could not be deleted and the failure is logged for an operator; the member\'s next upload writes over them.'],
@@ -202,6 +227,9 @@ interface AdminMemberRow {
   is_bap: number;
   is_deceased: number;
   deceased_at: string | null;
+  restricted_at: string | null;
+  restriction_reason: string | null;
+  restricted_until: string | null;
   deleted_at: string | null;
   deletion_grace_expires_at: string | null;
   personal_data_purged_at: string | null;
@@ -241,7 +269,9 @@ interface FactRow {
 }
 
 /** The record's correction forms that carry typed fields, by the action each posts. */
-export type MemberCorrectionForm = 'name' | 'slug' | 'tier' | 'activePlayer' | 'profile' | 'avatar' | 'bio' | 'delete';
+export type MemberCorrectionForm =
+  | 'name' | 'slug' | 'tier' | 'activePlayer' | 'profile' | 'avatar' | 'bio' | 'delete'
+  | 'restrict' | 'lift' | 'discipline';
 
 /**
  * A refused correction, handed back to the record so the form the
@@ -356,6 +386,31 @@ export interface AdminMemberRecordContent {
    */
   canDeleteAccount: boolean;
   deleteAccountAction: string;
+  /**
+   * The restriction and the board's decisions. Offered only for an account an
+   * administrator may act on: not an administrator, the platform's own
+   * account, or a deleted one.
+   */
+  canRestrict: boolean;
+  restrictAction: string;
+  /** Whether a standing restriction may be lifted from here; a board suspension cannot. */
+  canLift: boolean;
+  liftAction: string;
+  /** Why a standing restriction cannot be lifted here, or null. */
+  liftBlockedNote: string | null;
+  canRecordDiscipline: boolean;
+  disciplineAction: string;
+  disciplineForm: {
+    decidedBy: string;
+    outcomeOptions: Array<{ value: string; label: string; selected: boolean }>;
+    noticeDate: string;
+    hearingDate: string;
+    decisionDate: string;
+    suspendedUntil: string;
+  };
+  /** The member's recorded board decisions, newest first. */
+  decisions: Array<{ heading: string; facts: FactRow[] }>;
+  hasDecisions: boolean;
   /** Named for where each one goes, since all three leave this record. */
   elsewhereLinks: Array<{ label: string; href: string }>;
   errorMessage?: string;
@@ -443,9 +498,11 @@ function stateLabelsFor(row: {
   searchable: number;
   email_verified_at: string | null;
   is_admin: number;
+  restricted_at: string | null;
 }): string[] {
   const labels: string[] = [];
   if (row.is_system === 1) labels.push('System account');
+  if (row.restricted_at) labels.push('Restricted');
   if (row.is_deceased === 1) labels.push('Deceased');
   if (row.deleted_at) labels.push('Deleted');
   if (row.personal_data_purged_at) labels.push('Personal data purged');
@@ -819,6 +876,58 @@ function expiryDateToMoment(dateValue: string): string | null {
   return moment.toISOString();
 }
 
+/** Whether an administrator may restrict this account or record a board decision on it. */
+function accountIsDisciplinable(row: AdminMemberRow): boolean {
+  return row.is_admin === 0 && row.is_system === 0 && !row.deleted_at && !row.personal_data_purged_at;
+}
+
+const DISCIPLINE_OUTCOME_LABEL: Record<DisciplineOutcome, string> = {
+  suspended:      'Suspended',
+  expelled:       'Expelled',
+  other_sanction: 'Sanctioned in another way',
+  no_action:      'No action',
+};
+
+const DISCIPLINE_OUTCOME_ORDER: readonly DisciplineOutcome[] = ['suspended', 'expelled', 'other_sanction', 'no_action'];
+
+/** The decision form's fields as typed, cleaned the way every admin text field is. */
+function cleanDecisionInput(input: DecisionInput): DecisionInput {
+  return {
+    ...input,
+    decidedBy: cleanUserText(input.decidedBy, 'single_line', 'decided_by'),
+    reason:    cleanUserText(input.reason, 'single_line', 'reason'),
+  };
+}
+
+function outcomeLabel(d: { outcome: DisciplineOutcome; suspendedUntil: string | null }): string {
+  return d.outcome === 'suspended' && d.suspendedUntil
+    ? `Suspended until ${formatDateDisplay(d.suspendedUntil)}`
+    : DISCIPLINE_OUTCOME_LABEL[d.outcome];
+}
+
+/** What recording each outcome does to the account, said before it is done. */
+function decisionSummary(d: CheckedDecision): string {
+  switch (d.outcome) {
+    case 'suspended':
+      return 'The account is restricted until the end date: the member is signed out and cannot sign '
+        + 'in, and the restriction lifts by itself on that date. No administrator can lift it sooner, '
+        + "because the board's decision is final. The member is emailed the decision, the reason, and "
+        + 'that any challenge must be brought within one year.';
+    case 'expelled':
+      return "The member's email address is barred from registering again, and the account is deleted "
+        + 'as an administrator deletion deletes it: media at once, upcoming registrations withdrawn, any '
+        + 'recurring donation cancelled, and personal details erased after the grace period. Past '
+        + 'competition results stay. The member is emailed the decision in place of the ordinary deletion notice.';
+    case 'other_sanction':
+      return 'The decision is recorded and any restriction on the account is lifted, since the board has '
+        + 'ruled. Carry out the sanction itself with the corrections on the record. The member is emailed '
+        + 'the decision.';
+    case 'no_action':
+      return 'The decision is recorded and any restriction on the account is lifted, since the board has '
+        + 'ruled. The member is emailed that no action is taken.';
+  }
+}
+
 export const adminMemberService = {
   /**
    * The lookup. An administrator names a member by exact id, profile URL or
@@ -931,6 +1040,7 @@ export const adminMemberService = {
     }
 
     const expiresAt = activePlayer.active_player_expires_at;
+    const decisionRows = memberDisciplineService.listDecisions(row.id);
     const location = [row.city, row.region, row.country].filter(Boolean).join(', ');
     // A correction just applied outranks the account's standing state, because
     // it is the answer to what the administrator did a moment ago.
@@ -961,6 +1071,7 @@ export const adminMemberService = {
             'Correcting the name, profile address, tier, Active Player standing or profile, or removing the profile photo, emails the member, and the email includes the reason you give.',
             'Removing a profile photo deletes the files for good.',
             'Deleting an account is permanent: their media goes at once, and the member is emailed your reason.',
+            'Restricting an account signs the member out at once and emails them your reason. Record a suspension or expulsion only once the IFPA board has decided it.',
             'Marking someone deceased sends nothing.',
           ],
         },
@@ -1017,6 +1128,11 @@ export const adminMemberService = {
           { label: 'Email delivery', value: emailStatusLabel(row.email_status) },
           { label: 'Last signed in', value: dateOrDash(row.last_login_at) },
           { label: 'Deceased', value: row.is_deceased === 1 ? dateOrDash(row.deceased_at) : 'No' },
+          { label: 'Restricted', value: row.restricted_at ? dateOrDash(row.restricted_at) : 'No' },
+          ...(row.restricted_at ? [
+            { label: 'Restriction reason', value: displayOrDash(row.restriction_reason) },
+            { label: 'Board suspension ends', value: dateOrDash(row.restricted_until) },
+          ] : []),
           { label: 'Deleted', value: dateOrDash(row.deleted_at) },
           { label: 'Deletion grace ends', value: dateOrDash(row.deletion_grace_expires_at) },
           { label: 'Personal data purged', value: dateOrDash(row.personal_data_purged_at) },
@@ -1059,6 +1175,38 @@ export const adminMemberService = {
         deceasedGraceNote:    deceasedGraceNote(),
         canDeleteAccount:     accountIsDeletable(row),
         deleteAccountAction:  `/admin/members/${row.id}/delete`,
+        canRestrict:          accountIsDisciplinable(row) && !row.restricted_at,
+        restrictAction:       `/admin/members/${row.id}/restrict`,
+        canLift:              accountIsDisciplinable(row) && memberDisciplineService.canLift(row),
+        liftAction:           `/admin/members/${row.id}/restrict/lift`,
+        liftBlockedNote:      row.restricted_at && !memberDisciplineService.canLift(row)
+          ? `This restriction is a suspension the board decided. It lifts by itself on ${dateOrDash(row.restricted_until)}, and no administrator can lift it sooner.`
+          : null,
+        canRecordDiscipline:  accountIsDisciplinable(row),
+        disciplineAction:     `/admin/members/${row.id}/discipline`,
+        disciplineForm: {
+          decidedBy:      kept('discipline', 'decided_by', ''),
+          outcomeOptions: DISCIPLINE_OUTCOME_ORDER.map((value) => ({
+            value,
+            label:    DISCIPLINE_OUTCOME_LABEL[value],
+            selected: refusal?.form === 'discipline' && refusal.values['outcome'] === value,
+          })),
+          noticeDate:     kept('discipline', 'notice_date', ''),
+          hearingDate:    kept('discipline', 'hearing_date', ''),
+          decisionDate:   kept('discipline', 'decision_date', ''),
+          suspendedUntil: kept('discipline', 'suspended_until', ''),
+        },
+        decisions: decisionRows.map((d) => ({
+          heading: `${outcomeLabel({ outcome: d.outcome, suspendedUntil: d.suspended_until })}, decided ${dateOrDash(d.decision_date)}`,
+          facts: [
+            { label: 'Decided by', value: d.decided_by },
+            { label: 'Notice given', value: dateOrDash(d.notice_date) },
+            { label: 'Opportunity to be heard', value: dateOrDash(d.hearing_date) },
+            { label: 'Reason', value: d.reason },
+            { label: 'Recorded', value: dateOrDash(d.created_at) },
+          ],
+        })),
+        hasDecisions: decisionRows.length > 0,
         elsewhereLinks: [
           { label: "This member's history in the audit log", href: `/admin/audit-log?member=${row.id}` },
           { label: 'The honour tier grant page, where a grant names its own member', href: '/admin/honor-grants' },
@@ -1076,6 +1224,9 @@ export const adminMemberService = {
           avatar:       kept('avatar', 'reason', ''),
           bio:          kept('bio', 'reason', ''),
           delete:      kept('delete', 'reason', ''),
+          restrict:     kept('restrict', 'reason', ''),
+          lift:         kept('lift', 'reason', ''),
+          discipline:   kept('discipline', 'reason', ''),
         },
       },
     };
@@ -1402,6 +1553,142 @@ export const adminMemberService = {
       case 'not_found':        throw new NotFoundError('member not found');
       case 'administrator':
         throw new ValidationError("An administrator's account cannot be deleted. Remove their administrator role first.");
+    }
+  },
+
+  /**
+   * Preview restricting the account. Nothing is written. A restriction is
+   * protective and reversible, so the confirmation carries no caution.
+   */
+  previewRestriction(
+    actorId: string,
+    memberId: string,
+    rawReason: string,
+  ): PageViewModel<AdminMemberConfirmContent> {
+    const row = readMember(memberId);
+    const reason = requireReason(rawReason);
+    refuseDisciplineTarget(actorId, row);
+    if (row.restricted_at) throw new ValidationError('This account is already restricted.');
+    return confirmEnvelope('Confirm: Restrict the Account', {
+      memberId:    row.id,
+      displayName: row.display_name,
+      slugLabel:   displayOrDash(row.slug),
+      summary: 'The member is signed out at once and cannot sign in while the restriction stands. '
+        + 'Their membership, tier, profile, media and results are unchanged, and an announcement '
+        + 'waiting for approval is returned unsent. The member is emailed your reason, that the IFPA '
+        + 'board decides any further action under Article X of the bylaws, and how to respond.',
+      changes: [{ label: 'Account', before: 'Active', after: 'Restricted' }],
+      hasChanges:      true,
+      noChangeMessage: null,
+      reason,
+      hiddenFields: [{ name: 'reason', value: reason }],
+      confirmAction: `/admin/members/${row.id}/restrict/confirm`,
+      confirmLabel:  'Yes, Restrict the Account',
+      cancelHref:    recordHref(row.id),
+    });
+  },
+
+  applyRestriction(actorId: string, memberId: string, rawReason: string): CorrectionOutcome {
+    readMember(memberId);
+    const reason = requireReason(rawReason);
+    const result = memberDisciplineService.restrict(actorId, memberId, reason);
+    return result.status === 'restricted' ? 'account_restricted' : 'account_already_restricted';
+  },
+
+  /** Preview lifting the restriction. Nothing is written. */
+  previewLift(
+    actorId: string,
+    memberId: string,
+    rawReason: string,
+  ): PageViewModel<AdminMemberConfirmContent> {
+    const row = readMember(memberId);
+    const reason = requireReason(rawReason);
+    refuseDisciplineTarget(actorId, row);
+    if (!row.restricted_at) throw new ValidationError('This account is not restricted.');
+    if (!memberDisciplineService.canLift(row)) {
+      throw new ValidationError(
+        "This restriction is a suspension the board decided, and the board's decision is final. "
+        + 'It lifts by itself on its end date.',
+      );
+    }
+    return confirmEnvelope('Confirm: Lift the Restriction', {
+      memberId:    row.id,
+      displayName: row.display_name,
+      slugLabel:   displayOrDash(row.slug),
+      summary: 'The member can sign in again at once. The member is emailed that the restriction is '
+        + 'lifted, with your reason.',
+      changes: [{ label: 'Account', before: 'Restricted', after: 'Active' }],
+      hasChanges:      true,
+      noChangeMessage: null,
+      reason,
+      hiddenFields: [{ name: 'reason', value: reason }],
+      confirmAction: `/admin/members/${row.id}/restrict/lift/confirm`,
+      confirmLabel:  'Yes, Lift the Restriction',
+      cancelHref:    recordHref(row.id),
+    });
+  },
+
+  applyLift(actorId: string, memberId: string, rawReason: string): CorrectionOutcome {
+    readMember(memberId);
+    const reason = requireReason(rawReason);
+    const result = memberDisciplineService.lift(actorId, memberId, reason);
+    return result.status === 'lifted' ? 'restriction_lifted' : 'account_not_restricted';
+  },
+
+  /**
+   * Preview recording the board's decision. Nothing is written. The bylaws'
+   * notice and hearing checks run here as they run at the write, so a decision
+   * the bylaws did not allow never reaches the confirmation.
+   */
+  previewDiscipline(
+    actorId: string,
+    memberId: string,
+    input: DecisionInput,
+  ): PageViewModel<AdminMemberConfirmContent> {
+    const row = readMember(memberId);
+    refuseDisciplineTarget(actorId, row);
+    const d = checkDecision(cleanDecisionInput(input));
+    return confirmEnvelope("Confirm: Record the Board's Decision", {
+      memberId:    row.id,
+      displayName: row.display_name,
+      slugLabel:   displayOrDash(row.slug),
+      summary:     decisionSummary(d),
+      changes: [
+        { label: 'Outcome', before: '—', after: outcomeLabel(d) },
+        { label: 'Decided by', before: '—', after: d.decidedBy },
+        { label: 'Notice given', before: '—', after: dateOrDash(d.noticeDate) },
+        { label: 'Opportunity to be heard', before: '—', after: dateOrDash(d.hearingDate) },
+        { label: 'Decision date', before: '—', after: dateOrDash(d.decisionDate) },
+      ],
+      hasChanges:      true,
+      noChangeMessage: null,
+      ...(d.outcome === 'expelled' ? {
+        caution: 'This cannot be undone. The account and its media are deleted, and the email address '
+          + 'can never register again.',
+      } : {}),
+      reason: d.reason,
+      hiddenFields: [
+        { name: 'decided_by',      value: d.decidedBy },
+        { name: 'outcome',         value: d.outcome },
+        { name: 'notice_date',     value: d.noticeDate },
+        { name: 'hearing_date',    value: d.hearingDate },
+        { name: 'decision_date',   value: d.decisionDate },
+        { name: 'suspended_until', value: d.suspendedUntil ?? '' },
+        { name: 'reason',          value: d.reason },
+      ],
+      confirmAction: `/admin/members/${row.id}/discipline/confirm`,
+      confirmLabel:  'Yes, Record the Decision',
+      cancelHref:    recordHref(row.id),
+    });
+  },
+
+  async applyDiscipline(actorId: string, memberId: string, input: DecisionInput): Promise<CorrectionOutcome> {
+    readMember(memberId);
+    const result = await memberDisciplineService.recordDecision(actorId, memberId, cleanDecisionInput(input));
+    switch (result.status) {
+      case 'recorded':                return 'discipline_recorded';
+      case 'expelled':                return 'member_expelled';
+      case 'expelled_storage_failed': return 'member_expelled_storage_failed';
     }
   },
 

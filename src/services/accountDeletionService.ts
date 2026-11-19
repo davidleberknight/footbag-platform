@@ -44,8 +44,9 @@
  *
  * Side effects:
  *   - audit_entries append (`auth.account_deleted`)
- *   - outbox enqueue (the deletion confirmation, or the administrator's
- *     deletion notice)
+ *   - outbox enqueue (the deletion confirmation, the administrator's
+ *     deletion notice, or the expulsion notice when the deletion carries out a
+ *     board expulsion)
  *   - work-queue insert (an event left without an organizer)
  *   - object-storage deletes (the member's media), each cleared from the edge
  *     cache in the same adapter call
@@ -167,8 +168,9 @@ export function createAccountDeletionService(deps: AccountDeletionServiceDeps) {
       memberId: string;
       recurringDonationChoice: RecurringDonationChoice;
       /** An administrator deleting a registration that broke the rules, with
-       *  their reason. Absent when the member deletes their own account. */
-      byAdmin?: { adminMemberId: string; reason: string };
+       *  their reason, or carrying out a board expulsion (`notice: 'expelled'`).
+       *  Absent when the member deletes their own account. */
+      byAdmin?: { adminMemberId: string; reason: string; notice?: 'expelled' };
     }): Promise<RequestAccountDeletionResult> {
       const row = account.readForDeletionRequest.get(input.memberId) as DeletionMemberRow | undefined;
       const graceDays = readIntConfig('member_cleanup_grace_days', 90);
@@ -249,14 +251,26 @@ export function createAccountDeletionService(deps: AccountDeletionServiceDeps) {
           // not catch the notice. The soft delete then commits with it, or the
           // whole act rolls back.
           outbox.deadLetterQueuedForMember.run('recipient_soft_deleted', nowIso, input.memberId);
-          emailService.sendActNotice({
-            template: 'account_deleted_by_admin',
-            params:   { memberName: row.display_name, graceDays, note: byAdmin.reason },
-            memberId: input.memberId,
-            // An account is deleted once and never restored, so the member
-            // alone identifies the act.
-            actId:    input.memberId,
-          });
+          // An expulsion's notice replaces the ordinary one: it says the
+          // address can never register again, where the ordinary notice says
+          // it can once the grace period ends.
+          if (byAdmin.notice === 'expelled') {
+            emailService.sendActNotice({
+              template: 'membership_expelled',
+              params:   { memberName: row.display_name, note: byAdmin.reason },
+              memberId: input.memberId,
+              actId:    input.memberId,
+            });
+          } else {
+            emailService.sendActNotice({
+              template: 'account_deleted_by_admin',
+              params:   { memberName: row.display_name, graceDays, note: byAdmin.reason },
+              memberId: input.memberId,
+              // An account is deleted once and never restored, so the member
+              // alone identifies the act.
+              actId:    input.memberId,
+            });
+          }
         }
         const res = account.softDeleteMember.run(
           nowIso, actorId, nowIso, graceExpiresAt, nowIso, byAdmin ? actorId : 'member', input.memberId,

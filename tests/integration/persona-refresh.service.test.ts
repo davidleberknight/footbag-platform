@@ -51,7 +51,23 @@ import {
   insertEventOrganizer,
   insertEmailArchive,
   insertResultsUpload,
+  insertResultEntry,
+  insertResultParticipant,
+  insertSystemConfig,
+  insertMembershipDisciplineDecision,
+  insertMediaFlag,
+  insertBarredEmailHash,
 } from '../fixtures/factories';
+import {
+  insertWorkQueueTopicOwner,
+  insertDiscipline,
+  insertFreeformTag,
+  attachMediaTag,
+} from '../../src/testkit/personaRowBuilders';
+import {
+  MEMBER_REFERENCE_TEARDOWN,
+  MEMBER_REFERENCE_EXEMPTIONS,
+} from '../../src/testkit/personaRefreshRunner';
 
 const { dbPath } = setTestEnv('3097');
 
@@ -651,6 +667,143 @@ describe('refreshAllPersonas', () => {
       `SELECT sanction_requested_by_member_id AS req, sanction_decided_by_member_id AS dec, canceled_by_member_id AS can
          FROM events WHERE id = ?`,
     ).get(eventId)).toEqual({ req: null, dec: null, can: null });
+    expect(db.pragma('foreign_key_check')).toEqual([]);
+  });
+
+  // A member can put any existing hashtag in a gallery's criteria. If the
+  // refresh deleted every criteria tag of a persona's gallery, a tester who
+  // built one on a shared hashtag would wipe that hashtag from real members'
+  // media on the next refresh, which runs on every staging deploy.
+  it('keeps a shared hashtag in a persona gallery\'s criteria, removing only the persona\'s own uploader tag', () => {
+    const { slug } = db.prepare(`SELECT slug FROM members WHERE id = ?`).get(T1) as { slug: string };
+    const ownTag = `#by_${slug}`;
+    const ownTagId = insertFreeformTag(db, { id: 'tag-persona-uploader', tag_normalized: ownTag });
+    const sharedTagId = insertFreeformTag(db, { id: 'tag-shared-real', tag_normalized: '#shared_real_tag' });
+    insertMember(db, { id: 'member-outsider-tags', slug: 'outsider_tags' });
+    insertMediaItem(db, {
+      id: 'media-outsider-tagged',
+      uploader_member_id: 'member-outsider-tags',
+      s3_key_thumb: 'o/thumb.jpg',
+      s3_key_display: 'o/display.jpg',
+    });
+    attachMediaTag(db, 'media-outsider-tagged', sharedTagId);
+    insertMemberGallery(db, { id: 'gal-persona-shared', owner_member_id: T1, name: 'Shared Tag Gallery' });
+    insertGalleryCriterionTag(db, 'gal-persona-shared', ownTagId);
+    insertGalleryCriterionTag(db, 'gal-persona-shared', sharedTagId);
+
+    refreshAllPersonas(db);
+
+    expect(count(`SELECT COUNT(*) AS n FROM tags WHERE id = 'tag-shared-real'`)).toBe(1);
+    expect(count(
+      `SELECT COUNT(*) AS n FROM media_tags WHERE media_id = 'media-outsider-tagged' AND tag_id = 'tag-shared-real'`,
+    )).toBe(1);
+    expect(count(`SELECT COUNT(*) AS n FROM tags WHERE id = 'tag-persona-uploader'`)).toBe(0);
+    expect(count(`SELECT COUNT(*) AS n FROM member_galleries WHERE id = 'gal-persona-shared'`)).toBe(0);
+    expect(db.pragma('foreign_key_check')).toEqual([]);
+  });
+});
+
+describe('refreshAllPersonas: every member reference has a teardown', () => {
+  // Defect caught: a table added to the schema with a column referencing a
+  // member, which the refresh does not know, makes every refresh roll back the
+  // first time a tester acting as a persona writes a row there, leaving the
+  // shared staging personas stuck in that tester's state.
+  it('declares a handling or a reasoned exemption for exactly the schema\'s member references', () => {
+    const tables = db.prepare(`SELECT name FROM sqlite_master WHERE type = 'table'`).all() as { name: string }[];
+    const inSchema = tables.flatMap(({ name }) =>
+      (db.pragma(`foreign_key_list(${JSON.stringify(name)})`) as { table: string; from: string }[])
+        .filter((fk) => fk.table === 'members')
+        .map((fk) => `${name}.${fk.from}`),
+    ).sort();
+    const declared = [
+      ...Object.keys(MEMBER_REFERENCE_TEARDOWN),
+      ...Object.keys(MEMBER_REFERENCE_EXEMPTIONS),
+    ].sort();
+    expect(declared).toEqual(inSchema);
+    const both = Object.keys(MEMBER_REFERENCE_TEARDOWN).filter((k) => k in MEMBER_REFERENCE_EXEMPTIONS);
+    expect(both).toEqual([]);
+  });
+
+  // Defect caught: a persona administrator who changes a system parameter,
+  // assigns a work-queue area, records a board decision, flags media, or a
+  // persona organizer who uploads results, blocks the persona delete and the
+  // refresh rolls back; or an expelled persona's address stays barred after it.
+  it('removes or detaches the rows a tester writes as an administrator or organizer persona', () => {
+    const admin = 'member_persona_admin_t2';
+    const configId = insertSystemConfig(db, {
+      config_key: 'member_cleanup_grace_days', value_json: '120', changed_by_member_id: admin,
+    });
+    const ownerId = insertWorkQueueTopicOwner(db, { topic: 'moderation', owner_member_id: admin });
+    const decisionId = insertMembershipDisciplineDecision(db, { member_id: T1, created_by: admin });
+    const realUploader = insertMember(db, {});
+    const realMediaId = insertMediaItem(db, { uploader_member_id: realUploader });
+    const flagId = insertMediaFlag(db, { media_id: realMediaId, reporter_member_id: T1 });
+    // Results on the organizer persona's own event, and a persona named in a
+    // real event's results.
+    const personaEvent = 'event-test-persona-eo_organizer';
+    const disciplineId = (db.prepare(`SELECT id FROM event_disciplines WHERE event_id = ? LIMIT 1`)
+      .get(personaEvent) as { id: string }).id;
+    const uploadId = insertResultsUpload(db, personaEvent, 'member_persona_eo_organizer');
+    const entryId = insertResultEntry(db, personaEvent, uploadId, disciplineId);
+    insertResultParticipant(db, entryId, 'Won Paid', { member_id: T1 });
+    const realEvent = insertEvent(db);
+    const realDiscipline = insertDiscipline(db, realEvent);
+    const realUpload = insertResultsUpload(db, realEvent, realUploader);
+    const realEntry = insertResultEntry(db, realEvent, realUpload, realDiscipline);
+    const realParticipant = insertResultParticipant(db, realEntry, 'Won Paid', { member_id: T1 });
+    const personaHash = 'hash-of-expelled-persona-address';
+    const realHash = 'hash-of-a-real-expelled-address';
+    insertBarredEmailHash(db, personaHash);
+    insertBarredEmailHash(db, realHash);
+
+    const result = refreshAllPersonas(db, {
+      barredEmailHash: (address) => (address === 't1_paid@personas.test' ? personaHash : `other:${address}`),
+    });
+
+    expect(result.configRowsRemoved).toBe(1);
+    expect(count(`SELECT COUNT(*) AS n FROM system_config WHERE id = ?`, configId)).toBe(0);
+    expect(db.prepare(`SELECT owner_member_id FROM work_queue_topic_owners WHERE id = ?`).get(ownerId))
+      .toEqual({ owner_member_id: null });
+    expect(count(`SELECT COUNT(*) AS n FROM membership_discipline_decisions WHERE id = ?`, decisionId)).toBe(0);
+    expect(count(`SELECT COUNT(*) AS n FROM media_flags WHERE id = ?`, flagId)).toBe(0);
+    expect(count(`SELECT COUNT(*) AS n FROM media_items WHERE id = ?`, realMediaId)).toBe(1);
+    expect(count(`SELECT COUNT(*) AS n FROM event_results_uploads WHERE id = ?`, uploadId)).toBe(0);
+    expect(count(`SELECT COUNT(*) AS n FROM event_result_entries WHERE id = ?`, entryId)).toBe(0);
+    expect(db.prepare(`SELECT member_id, display_name FROM event_result_entry_participants WHERE id = ?`)
+      .get(realParticipant)).toEqual({ member_id: null, display_name: 'Won Paid' });
+    expect(count(`SELECT COUNT(*) AS n FROM barred_email_hashes WHERE email_hash = ?`, personaHash)).toBe(0);
+    expect(count(`SELECT COUNT(*) AS n FROM barred_email_hashes WHERE email_hash = ?`, realHash)).toBe(1);
+    // The append-only guard on parameter history is back in place.
+    expect(count(`SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'trigger' AND name = 'trg_system_config_no_delete'`))
+      .toBe(1);
+    expect(db.pragma('foreign_key_check')).toEqual([]);
+  });
+
+  // Defect caught: the abandoned-signup job deletes a prospective persona's
+  // account but not its old-site rows; a refresh that finds roots only from the
+  // members present leaves them, and the reseed adds a second copy beside them.
+  it('removes a persona\'s old-site rows even when its account is already gone', () => {
+    const slug = 'claim_email_pair';
+    const recordsOf = () => count(
+      `SELECT COUNT(*) AS n FROM historical_persons WHERE legacy_member_id = ?`, `legmem_persona_${slug}`,
+    );
+    expect(recordsOf()).toBe(1);
+    // The job's own deletion: every row the account holds goes, the old-site
+    // rows its seed made stay.
+    const memberId = `member_persona_${slug}`;
+    const auditGuard = (db.prepare(`SELECT sql FROM sqlite_master WHERE name = 'trg_audit_no_delete'`)
+      .get() as { sql: string }).sql;
+    db.exec(`DROP TRIGGER trg_audit_no_delete`);
+    for (const table of ['member_onboarding_tasks', 'member_declared_anchors', 'mailing_list_subscriptions']) {
+      db.prepare(`DELETE FROM ${table} WHERE member_id = ?`).run(memberId); // factory-cannot-express: the abandoned-signup job's hard delete
+    }
+    db.prepare(`DELETE FROM audit_entries WHERE entity_id = ?`).run(memberId); // factory-cannot-express: the abandoned-signup job's hard delete
+    db.prepare(`DELETE FROM members WHERE id = ?`).run(memberId); // factory-cannot-express: the abandoned-signup job's hard delete
+    db.exec(auditGuard);
+
+    refreshAllPersonas(db);
+
+    expect(recordsOf()).toBe(1);
     expect(db.pragma('foreign_key_check')).toEqual([]);
   });
 });

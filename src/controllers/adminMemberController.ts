@@ -41,6 +41,28 @@ const reasonForm = z.object({
   reason: formText('Reason'),
 });
 
+const disciplineForm = z.object({
+  decided_by: formText('Who decided'),
+  outcome: formText('Outcome'),
+  notice_date: formText('Date notice was given'),
+  hearing_date: formText('Date of the opportunity to be heard'),
+  decision_date: formText('Decision date'),
+  suspended_until: formText('Suspension ends'),
+  reason: formText("The board's reason"),
+});
+
+function decisionInputFrom(f: z.output<typeof disciplineForm>) {
+  return {
+    decidedBy: f.decided_by,
+    outcome: f.outcome,
+    noticeDate: f.notice_date,
+    hearingDate: f.hearing_date,
+    decisionDate: f.decision_date,
+    suspendedUntil: f.suspended_until,
+    reason: f.reason,
+  };
+}
+
 // The profile correction. Its checkboxes have no hidden "0" beside them, so an
 // unticked box is absent and reads as blank, which the save stores as unticked.
 // The link inputs repeat, one label and one address per slot. The field names
@@ -353,6 +375,92 @@ export const adminMemberController = {
       res.redirect(303, `/admin/members/${memberId}`);
     } catch (err) {
       if (isHandled(err)) { renderRecordError(res, memberId, err, next, refusalOf('delete', parsed)); return; }
+      handleControllerError(err, res, next, CONTEXT);
+    }
+  },
+
+  /** POST /admin/members/:memberId/restrict */
+  previewRestrict(req: Request, res: Response, next: NextFunction): void {
+    const memberId = req.params['memberId'] ?? '';
+    const parsed = parseFormBody(reasonForm, req.body);
+    try {
+      res.render('admin/members/confirm', adminMemberService.previewRestriction(
+        req.user!.userId, memberId, accepted(parsed).reason,
+      ));
+    } catch (err) {
+      if (isHandled(err)) { renderRecordError(res, memberId, err, next, refusalOf('restrict', parsed)); return; }
+      handleControllerError(err, res, next, CONTEXT);
+    }
+  },
+
+  /** POST /admin/members/:memberId/restrict/confirm */
+  confirmRestrict(req: Request, res: Response, next: NextFunction): void {
+    const memberId = req.params['memberId'] ?? '';
+    const parsed = parseFormBody(reasonForm, req.body);
+    try {
+      const outcome = adminMemberService.applyRestriction(req.user!.userId, memberId, accepted(parsed).reason);
+      writeFlash(res, req, FLASH_KIND.MEMBER_RECORD_CORRECTED, outcome);
+      res.redirect(303, `/admin/members/${memberId}`);
+    } catch (err) {
+      if (isHandled(err)) { renderRecordError(res, memberId, err, next, refusalOf('restrict', parsed)); return; }
+      handleControllerError(err, res, next, CONTEXT);
+    }
+  },
+
+  /** POST /admin/members/:memberId/restrict/lift */
+  previewLift(req: Request, res: Response, next: NextFunction): void {
+    const memberId = req.params['memberId'] ?? '';
+    const parsed = parseFormBody(reasonForm, req.body);
+    try {
+      res.render('admin/members/confirm', adminMemberService.previewLift(
+        req.user!.userId, memberId, accepted(parsed).reason,
+      ));
+    } catch (err) {
+      if (isHandled(err)) { renderRecordError(res, memberId, err, next, refusalOf('lift', parsed)); return; }
+      handleControllerError(err, res, next, CONTEXT);
+    }
+  },
+
+  /** POST /admin/members/:memberId/restrict/lift/confirm */
+  confirmLift(req: Request, res: Response, next: NextFunction): void {
+    const memberId = req.params['memberId'] ?? '';
+    const parsed = parseFormBody(reasonForm, req.body);
+    try {
+      const outcome = adminMemberService.applyLift(req.user!.userId, memberId, accepted(parsed).reason);
+      writeFlash(res, req, FLASH_KIND.MEMBER_RECORD_CORRECTED, outcome);
+      res.redirect(303, `/admin/members/${memberId}`);
+    } catch (err) {
+      if (isHandled(err)) { renderRecordError(res, memberId, err, next, refusalOf('lift', parsed)); return; }
+      handleControllerError(err, res, next, CONTEXT);
+    }
+  },
+
+  /** POST /admin/members/:memberId/discipline */
+  previewDiscipline(req: Request, res: Response, next: NextFunction): void {
+    const memberId = req.params['memberId'] ?? '';
+    const parsed = parseFormBody(disciplineForm, req.body);
+    try {
+      res.render('admin/members/confirm', adminMemberService.previewDiscipline(
+        req.user!.userId, memberId, decisionInputFrom(accepted(parsed)),
+      ));
+    } catch (err) {
+      if (isHandled(err)) { renderRecordError(res, memberId, err, next, refusalOf('discipline', parsed)); return; }
+      handleControllerError(err, res, next, CONTEXT);
+    }
+  },
+
+  /** POST /admin/members/:memberId/discipline/confirm */
+  async confirmDiscipline(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const memberId = req.params['memberId'] ?? '';
+    const parsed = parseFormBody(disciplineForm, req.body);
+    try {
+      const outcome = await adminMemberService.applyDiscipline(
+        req.user!.userId, memberId, decisionInputFrom(accepted(parsed)),
+      );
+      writeFlash(res, req, FLASH_KIND.MEMBER_RECORD_CORRECTED, outcome);
+      res.redirect(303, `/admin/members/${memberId}`);
+    } catch (err) {
+      if (isHandled(err)) { renderRecordError(res, memberId, err, next, refusalOf('discipline', parsed)); return; }
       handleControllerError(err, res, next, CONTEXT);
     }
   },

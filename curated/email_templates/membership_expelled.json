@@ -1,0 +1,7 @@
+{
+  "templateKey": "membership_expelled",
+  "subjectTemplate": "Your IFPA membership has ended",
+  "bodyTemplate": "Hi {memberName},\n\nThe IFPA board has expelled you from IFPA under Article X of the IFPA bylaws. The reason given: {note}\n\nYour IFPA Footbag account is deleted, you are signed out, and this email address cannot be used to register again. Your past competition results stay on the site as part of the record. Under the IFPA bylaws, any challenge to this decision must be brought within one year.",
+  "piiClassification": "restricted",
+  "isEnabled": true
+}

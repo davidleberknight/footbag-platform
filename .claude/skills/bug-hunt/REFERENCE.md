@@ -216,7 +216,7 @@ Email normalization is consistent across register, login, reset, verify and clai
 
 #### 4.4.36 Footbag-domain invariant violations
 
-Clubs and groups/committees are distinct; a member may belong to two current clubs and lead one; Tier 1 and 2 are lifetime; BAP and Hall of Fame induction grant Tier 2 with an audit row; Active Player is separate from tier and never shortened by an older event; the legacy media archive is read-only; outbound email is the new platform's, inbound is Google-managed. Freestyle-dictionary and curated-media domain invariants belong to the `freestyle-bug-hunt` skill; hand those candidates there.
+Clubs and groups/committees are distinct; a member may belong to three current clubs and lead up to three; Tier 1 and 2 are lifetime; BAP and Hall of Fame induction grant Tier 2 with an audit row; Active Player is separate from tier and never shortened by an older event; the legacy media archive is read-only; outbound email is the new platform's, inbound is Google-managed. Freestyle-dictionary and curated-media domain invariants belong to the `freestyle-bug-hunt` skill; hand those candidates there.
 
 #### 4.4.37 Legacy migration and archive-boundary bugs
 

@@ -1,49 +1,4 @@
-<div class="hero hero-sm">
-  <div>
-    <h1>{{page.title}}</h1>
-    {{#if personasLoaded}}
-    <p class="hero-subtitle">
-      Permanent persona harness, development and staging only. Pick a persona and
-      click Switch to act as them.
-    </p>
-    {{/if}}
-  </div>
-</div>
-
-<div class="wrapper">
-  {{#if personasLoaded}}
-  <p class="fs-sm mb-4">
-    Each persona below is a member you can act as, grouped by what it tests. Its Verify line
-    names the page to open, what to do and what you should see. A persona marked blocked waits
-    on a feature that is not built and is not seeded. Every seeded persona's starting state is
-    checked by the catalog test, every one that can sign in is switched in and its own pages
-    loaded by the persona crawl, and each meets the admin and owner checks of the authorization
-    matrix. Loaded from the canonical catalog: {{personaCount}} personas, {{seededCount}} seeded.
-  </p>
-
-  <section class="card card-static mb-8">
-    <div class="card-title">Switch to a Real Member</div>
-    <p class="card-description mb-2">
-      <label for="dev-build-claim-as">Enter a real migrated legacy record's member id to build and act as its claimed account.</label>
-    </p>
-    <form method="get" action="/dev/build-claim" class="search-box-form">
-      <input type="text" id="dev-build-claim-as" name="as" required
-             pattern="[A-Za-z0-9_-]{1,64}" autocomplete="off"
-             placeholder="Legacy member ID"
-             class="search-box-input" />
-      <button type="submit" class="btn btn-primary">Switch</button>
-    </form>
-  </section>
-
-  <form method="post" action="/dev/personas/refresh" class="mb-8">
-    <button type="submit" class="btn btn-outline">Refresh All Personas to Initial State</button>
-  </form>
-
-  {{#each groups}}
-    <section class="mb-8">
-      <h2 class="section-heading">{{dimension}}</h2>
-      <div class="card-grid">
-        {{#each personas}}
+{{#*inline "personaCard"}}
           <div class="card">
             <div class="card-title">{{displayName}}</div>
             <div class="card-meta">
@@ -82,10 +37,86 @@
               {{/if}}
             </div>
           </div>
-        {{/each}}
+{{/inline}}
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    {{#if personasLoaded}}
+    <p class="hero-subtitle">
+      Permanent persona harness, development and staging only. Pick a persona and
+      click Switch to act as them.
+    </p>
+    {{/if}}
+  </div>
+</div>
+
+<div class="wrapper">
+  {{#if personasLoaded}}
+  {{#if journeyFailureText}}{{> outcome-notice text=journeyFailureText tone='no'}}{{/if}}
+
+  <section class="card card-static mb-8" id="dev-personas-guidance">
+    <div class="card-title">How to use this page</div>
+    <ul>
+      <li>Start with Start here: everyday members, an organizer and the administrators. The groups below cover special cases.</li>
+      <li>Switch makes you that person, with no password. Log In appears instead for someone who cannot sign in, and shows what they would see at the login page.</li>
+      <li>Each card's Verify line says where to go, what to do and what you should see.</li>
+      <li>Email the site would send appears on the page that waits for it, and every message is listed on the Outbox page, /dev/outbox.</li>
+      <li>Refresh All Personas to Initial State puts every persona back as it started, for every tester on this site. Post a heads-up before you press it.</li>
+      <li id="dev-personas-refresh-residue">The refresh is not a complete reset. These stay after it:
+        <ul>
+          <li>Clubs and events created through the site's forms (a club is left with no leader).</li>
+          <li>Administrator changes to real members, records, events, results, clubs and work-queue items.</li>
+          <li>Retired hashtags, and real members who were purged, deleted or disciplined.</li>
+          <li>Edits to freestyle tricks, email templates and curated media.</li>
+        </ul>
+        Only a full reset clears them: on staging, a redeploy that rebuilds the database; on your own computer, resetting the local database. A full reset also deletes the accounts testers registered for themselves.
+      </li>
+      <li>These are made-up people. Never act on a real member.</li>
+    </ul>
+  </section>
+
+  <p class="fs-sm mb-4">
+    Each persona below is a member you can act as, grouped by what it tests. Its Verify line
+    names the page to open, what to do and what you should see. A persona marked blocked waits
+    on a feature that is not built and is not seeded. Every seeded persona's starting state is
+    checked by the catalog test, every one that can sign in is switched in and its own pages
+    loaded by the persona crawl, and each meets the admin and owner checks of the authorization
+    matrix. Loaded from the canonical catalog: {{personaCount}} personas, {{seededCount}} seeded.
+  </p>
+
+  <form method="post" action="/dev/personas/refresh" class="mb-8">
+    <button type="submit" class="btn btn-outline">Refresh All Personas to Initial State</button>
+  </form>
+
+  <section class="mb-8" id="dev-personas-start-here">
+    <h2 class="section-heading">Start Here</h2>
+    <div class="card-grid">
+      {{#each startHere}}{{> personaCard}}{{/each}}
+    </div>
+  </section>
+
+  <div id="dev-personas-groups">
+  {{#each groups}}
+    <section class="mb-8">
+      <h2 class="section-heading">{{dimension}}</h2>
+      <div class="card-grid">
+        {{#each personas}}{{> personaCard}}{{/each}}
       </div>
     </section>
   {{/each}}
+  </div>
+
+  <details id="dev-personas-regression">
+    <summary>Regression-only and blocked personas</summary>
+    {{#each regressionGroups}}
+      <section class="mb-8">
+        <h3>{{dimension}}</h3>
+        <div class="card-grid">
+          {{#each personas}}{{> personaCard}}{{/each}}
+        </div>
+      </section>
+    {{/each}}
+  </details>
   {{else}}
     <div class="empty-state">No test personas are loaded in this database.</div>
   {{/if}}

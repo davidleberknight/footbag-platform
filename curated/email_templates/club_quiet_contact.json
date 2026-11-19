@@ -1,0 +1,7 @@
+{
+  "templateKey": "club_quiet_contact",
+  "subjectTemplate": "Is {clubName} still active?",
+  "bodyTemplate": "Hi {memberName},\n\nYou are a co-leader of the footbag club \"{clubName}\". The site has not seen any activity from the club for two years, so an IFPA administrator is checking that it is still active.\n\nIf the club is still going, log in to your account, open Clubs, find \"{clubName}\", and make any small change to its page, such as bringing its description up to date. That tells us the club is active, and nothing more is needed.\n\nIf the club has stopped meeting, you can mark it inactive from the same page. It stays on record and can be reactivated at any time.\n\n-- IFPA platform",
+  "piiClassification": "confidential",
+  "isEnabled": true
+}

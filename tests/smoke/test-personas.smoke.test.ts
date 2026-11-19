@@ -35,9 +35,9 @@
  *     denominator excludes the rows the members credential constraint leaves
  *     without a password: the purged persona, the system member, and the
  *     deceased persona whose scrub cleared its credentials.
- *   - auditRowsSeeded !== personasSeeded: idempotency broken. A re-run inserted
- *     duplicate audit rows; the existsBySlug skip in personaSeedRunner.ts was
- *     bypassed.
+ *   - auditRowsSeeded !== onboardedPersonasSeeded: idempotency broken. A re-run
+ *     inserted duplicate audit rows, or a seed row was written about a persona
+ *     still in signup, which the audit log never holds.
  *   - tierGrantsSeeded !== expectedTierGrants: the tier-grant ledger row was
  *     not written for each tier1+ persona (tier0 personas carry no grant).
  *
@@ -66,6 +66,7 @@ const expectedTierGrants = BACKED_PERSONAS.filter((p) => p.tier !== 'tier0').len
 interface VerifyResult {
   personasSeeded: number;
   personasExpectingCredentials: number;
+  onboardedPersonasSeeded: number;
   auditRowsSeeded: number;
   tierGrantsSeeded: number;
   passwordHashesArgon2: number;
@@ -124,8 +125,8 @@ describe.skipIf(!RUN)(
       ).toBe(result.personasExpectingCredentials);
     });
 
-    it('re-running the seed is idempotent (one audit row per seeded persona)', () => {
-      expect(result.auditRowsSeeded).toBe(result.personasSeeded);
+    it('re-running the seed is idempotent (one audit row per persona that finished signup)', () => {
+      expect(result.auditRowsSeeded).toBe(result.onboardedPersonasSeeded);
     });
 
     it('each tier1+ persona carries a dev_persona_seed tier-grant ledger row', () => {

@@ -184,7 +184,10 @@ describe('authentication-state axis', () => {
     const cannot = CANONICAL_PERSONAS.filter((p) => !canHoldSession(p));
     // The account-state personas the catalog carries for this purpose.
     expect(cannot.map((p) => p.slug).sort()).toEqual(
-      ['deceased', 'deceased_past_revert', 'deceased_with_record', 'del_grace_elapsed', 'del_grace_open', 'unverified'],
+      [
+        'deceased', 'deceased_past_revert', 'deceased_with_record', 'del_grace_elapsed', 'del_grace_hof',
+        'del_grace_open', 'purged_hof', 'purged_member', 'unverified',
+      ],
     );
     for (const p of cannot) {
       const res = await request(createApp()).get(`/dev/switch?as=${p.slug}`);
@@ -406,6 +409,7 @@ describe('admin gate — POST (every state-changing admin route sits behind the 
     '/admin/club-cleanup/bulk-resolve',
     '/admin/club-cleanup/ph/resolve',
     '/admin/club-cleanup/ph/contact-members',
+    '/admin/club-cleanup/ph/contact-coleaders',
     '/admin/club-cleanup/ph/delist-residue',
     '/admin/club-cleanup/candidates/ph/promote',
     '/admin/club-cleanup/candidates/ph/resolve',

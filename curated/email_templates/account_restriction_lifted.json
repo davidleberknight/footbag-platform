@@ -1,0 +1,7 @@
+{
+  "templateKey": "account_restriction_lifted",
+  "subjectTemplate": "Your IFPA Footbag account is no longer restricted",
+  "bodyTemplate": "Hi {memberName},\n\nThe restriction on your IFPA Footbag account has been lifted, and you can sign in again. The reason given: {note}",
+  "piiClassification": "restricted",
+  "isEnabled": true
+}

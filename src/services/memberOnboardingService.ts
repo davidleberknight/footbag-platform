@@ -329,7 +329,7 @@ export type OnboardingTaskState = typeof TASK_STATES[number];
 // A capped membership Yes and a capped leadership claim record the same thing,
 // a former membership, because a co-leader is always a current member.
 function buildClubCapHitNoticeMessage(clubName: string): string {
-  return `You are at the two current-club limit, so ${clubName} was recorded as a former membership. To make it current, leave one of your current clubs from your profile after onboarding.`;
+  return `You are at the three current-club limit, so ${clubName} was recorded as a former membership. To make it current, leave one of your current clubs from your profile after onboarding.`;
 }
 
 function buildClubResolvedNoticeMessage(
@@ -1122,7 +1122,7 @@ function listWizardCardsForMember(memberId: string): WizardCard[] {
       isLeadership:        true as const,
       isDisambiguation:    false as const,
       questionLabel:       `Were you a leader or organizer of ${r.club_name}?`,
-      consequencesNote:    `The old footbag.org site listed you as a contact for ${r.club_name}. Confirming makes you a co-leader of the club, brings it back to active if it is inactive, and grants you a one-time Active Player period. Leading a club needs Tier 1 or higher, or an Active Player period you already hold, so without one, or if you already co-lead another club, you will be added as a member instead.`,
+      consequencesNote:    `The old footbag.org site listed you as a contact for ${r.club_name}. Confirming makes you a co-leader of the club, brings it back to active if it is inactive, and grants you a one-time Active Player period. Leading a club needs Tier 1 or higher, or an Active Player period you already hold, so without one, or if you already co-lead three clubs, you will be added as a member instead.`,
       candidateId:         r.candidate_id,
       clubId:              r.club_id,
       clubName:            r.club_name,
@@ -1387,7 +1387,7 @@ function submitLeadershipResponse(
   // 'confirm' OR 'correct': auto-promote regardless of classification.
   // claimLeadership inserts a flat co-leader row, or falls through to
   // affiliate-only when the club is at the cap or the member already co-leads
-  // another club. Admins can later add affiliate-only members as co-leaders or
+  // three clubs. Admins can later add affiliate-only members as co-leaders or
   // reshape leadership via A_* admin powers. The promote writes, the audit row
   // and the task completion share the caller's transaction.
   const promote = clubService.claimLeadershipInTx(candidateId, memberId);
@@ -2389,7 +2389,7 @@ async function processClubAffiliationsSubmit(
   const { result, clubName } = held;
 
   if (result.branch === 'cap_hit') {
-    // At the two-current-club cap the card still resolves and the Yes is
+    // At the current-club cap the card still resolves and the Yes is
     // recorded as a former membership. The notice comes before any advance,
     // so the member learns how the answer was recorded; when this was the
     // last card the answer has already completed the step, and the club page

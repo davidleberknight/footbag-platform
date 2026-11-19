@@ -1,0 +1,7 @@
+{
+  "templateKey": "account_restricted",
+  "subjectTemplate": "Your IFPA Footbag account has been restricted",
+  "bodyTemplate": "Hi {memberName},\n\nAn IFPA administrator has restricted your IFPA Footbag account. The reason given: {note}\n\nYou are signed out and cannot sign in while the restriction stands. Your membership, your profile and your past results are unchanged. The IFPA board decides whether any further action is needed under Article X of the IFPA bylaws, which gives you notice and a chance to be heard before any suspension or expulsion.\n\nTo respond, reply to this email.",
+  "piiClassification": "restricted",
+  "isEnabled": true
+}

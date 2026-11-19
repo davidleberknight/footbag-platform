@@ -95,6 +95,18 @@ export const TEMPLATE_VARIANTS = {
   password_reset_request:          v('restricted',   ['resetUrl', 'ttlPhrase']),
   account_deletion_requested:      v('restricted',   ['memberName', 'gracePhrase']),
   account_deleted_by_admin:        v('restricted',   ['memberName', 'gracePhrase', 'note']),
+  // The restriction notices and the board's discipline decisions. Restricted,
+  // because each carries an administrator's or the board's reason about the
+  // member's conduct.
+  account_restricted:              v('restricted',   ['memberName', 'note']),
+  account_restriction_lifted:      v('restricted',   ['memberName', 'note']),
+  membership_discipline_suspended: v('restricted',   ['memberName', 'untilDate', 'note']),
+  membership_discipline_other:     v('restricted',   ['memberName', 'note']),
+  membership_discipline_no_action: v('restricted',   ['memberName']),
+  membership_expelled:             v('restricted',   ['memberName', 'note']),
+  // Sent to an address an expulsion barred when someone tries to register with
+  // it; like the account-exists notice it carries no link.
+  registration_refused_barred:     v('restricted',   []),
   password_reset_confirm:         v('internal',     []),
   password_changed:                v('internal',     []),
   // Carries nothing about the question it announces: the question itself may
@@ -133,6 +145,7 @@ export const TEMPLATE_VARIANTS = {
   club_membership_leader_leave:    v('confidential', ['leaderName', 'memberName', 'clubName']),
   club_volunteer_leadership:       v('confidential', ['leaderName', 'joinerName', 'clubName']),
   club_leaderless_contact:         v('confidential', ['memberName', 'clubName']),
+  club_quiet_contact:              v('confidential', ['memberName', 'clubName']),
   event_created_confirmation:      v('internal',     ['eventTitle', 'eventDates']),
   event_organizer_added:           v('internal',     ['actorName', 'eventTitle', 'eventDates']),
   event_sanction_requested:        v('internal',     ['eventTitle', 'eventDates']),
@@ -147,9 +160,9 @@ export const TEMPLATE_VARIANTS = {
   event_registration_canceled:     v('confidential', ['memberName', 'eventTitle', 'eventDates', 'canceledBy', 'reason', 'refundNote']),
   event_record_corrected:          v('confidential', ['organizerName', 'eventTitle', 'whatChanged', 'note']),
   contact_request_resolution:     v('confidential', ['memberName', 'displayDecision', 'note']),
-  media_moderation_decision:       v('confidential', ['memberName', 'displayDecision', 'note']),
+  media_moderation_decision:       v('confidential', ['memberName', 'itemDescription', 'displayDecision', 'note']),
   avatar_removed_member:           v('confidential', ['memberName', 'note']),
-  media_removed_member:            v('confidential', ['memberName', 'note']),
+  media_removed_member:            v('confidential', ['memberName', 'itemDescription', 'note']),
   member_record_corrected:         v('confidential', ['memberName', 'whatChanged', 'note']),
   club_record_corrected:           v('confidential', ['leaderName', 'clubName', 'whatChanged', 'note']),
   gallery_moderated_member:        v('confidential', ['memberName', 'galleryName', 'whatChanged', 'note']),
@@ -163,6 +176,7 @@ export const TEMPLATE_VARIANTS = {
   admin_queue_topic_digest:        v('internal',     ['areaLabel', 'countPhrase', 'itemLines', 'queueUrl']),
   work_queue_topic_route_disabled: v('internal',     ['areaLabel']),
   media_report_outcome_reporter:   v('confidential', ['decisionSentence']),
+  media_report_received_reporter:  v('confidential', []),
   admin_queue_stale_escalation:    v('internal',     ['taskLabel', 'kindLabel', 'agePhrase', 'itemUrl']),
 } satisfies Record<string, VariantDef>;
 
@@ -218,6 +232,40 @@ const SHAPERS = {
   account_deleted_by_admin: (p: { memberName: string; graceDays: number; note: string }): ShapedEmail => ({
     variant: 'account_deleted_by_admin',
     merge: { memberName: p.memberName, gracePhrase: dayPhrase(p.graceDays), note: p.note },
+  }),
+  // A restricted member cannot sign in to read anything, so the notice itself
+  // carries the reason and how to respond.
+  account_restricted: (p: { memberName: string; note: string }): ShapedEmail => ({
+    variant: 'account_restricted',
+    merge: { memberName: p.memberName, note: p.note },
+  }),
+  account_restriction_lifted: (p: { memberName: string; note: string }): ShapedEmail => ({
+    variant: 'account_restriction_lifted',
+    merge: { memberName: p.memberName, note: p.note },
+  }),
+  // The board's decision on a member, one variant per outcome. An expulsion has
+  // its own notice, sent in place of the ordinary deletion notice.
+  membership_discipline_decided: (
+    p: { memberName: string; outcome: 'suspended' | 'other_sanction' | 'no_action'; untilDate: string; note: string },
+  ): ShapedEmail => {
+    if (p.outcome === 'suspended') {
+      return {
+        variant: 'membership_discipline_suspended',
+        merge: { memberName: p.memberName, untilDate: p.untilDate, note: p.note },
+      };
+    }
+    if (p.outcome === 'other_sanction') {
+      return { variant: 'membership_discipline_other', merge: { memberName: p.memberName, note: p.note } };
+    }
+    return { variant: 'membership_discipline_no_action', merge: { memberName: p.memberName } };
+  },
+  membership_expelled: (p: { memberName: string; note: string }): ShapedEmail => ({
+    variant: 'membership_expelled',
+    merge: { memberName: p.memberName, note: p.note },
+  }),
+  registration_refused_barred: (_p: Empty): ShapedEmail => ({
+    variant: 'registration_refused_barred',
+    merge: {},
   }),
   password_reset_confirm: (_p: Empty): ShapedEmail => ({
     variant: 'password_reset_confirm',
@@ -413,6 +461,12 @@ const SHAPERS = {
     variant: 'club_leaderless_contact',
     merge: { memberName: p.memberName, clubName: p.clubName },
   }),
+  // Sent by an administrator to each co-leader of a club the site has seen no
+  // sign of life from for two years.
+  club_quiet_contact: (p: { memberName: string; clubName: string }): ShapedEmail => ({
+    variant: 'club_quiet_contact',
+    merge: { memberName: p.memberName, clubName: p.clubName },
+  }),
   // Sent to every organizer of a free event once it opens for registration.
   event_created_confirmation: (p: { eventTitle: string; eventDates: string }): ShapedEmail => ({
     variant: 'event_created_confirmation',
@@ -551,17 +605,27 @@ const SHAPERS = {
   // profile-picture wording additionally says where to put a new one up, so the
   // mail reads as a removal rather than a sanction.
   media_moderation_decision: (
-    p: { memberName: string; displayDecision: string; note: string; wasReported: boolean; isAvatar: boolean },
+    p: {
+      memberName: string; itemDescription: string; displayDecision: string; note: string;
+      wasReported: boolean; isAvatar: boolean;
+    },
   ): ShapedEmail => {
     if (p.wasReported) {
       return {
         variant: 'media_moderation_decision',
-        merge: { memberName: p.memberName, displayDecision: p.displayDecision, note: p.note },
+        merge: {
+          memberName: p.memberName, itemDescription: p.itemDescription,
+          displayDecision: p.displayDecision, note: p.note,
+        },
       };
     }
+    // A member has one profile picture, so its mail names it without a description.
+    if (p.isAvatar) {
+      return { variant: 'avatar_removed_member', merge: { memberName: p.memberName, note: p.note } };
+    }
     return {
-      variant: p.isAvatar ? 'avatar_removed_member' : 'media_removed_member',
-      merge: { memberName: p.memberName, note: p.note },
+      variant: 'media_removed_member',
+      merge: { memberName: p.memberName, itemDescription: p.itemDescription, note: p.note },
     };
   },
   // The identity-link category is answered by applying a link rather than by
@@ -611,6 +675,12 @@ const SHAPERS = {
   media_report_outcome_reporter: (p: { removed: boolean }): ShapedEmail => ({
     variant: 'media_report_outcome_reporter',
     merge: { decisionSentence: p.removed ? 'removed it.' : 'decided to leave it up.' },
+  }),
+  // The receipt a reporter is owed when the report is filed, so they know it
+  // reached a person. It names nothing about the item or its uploader.
+  media_report_received_reporter: (_p: Empty): ShapedEmail => ({
+    variant: 'media_report_received_reporter',
+    merge: {},
   }),
   admin_queue_stale_escalation: (p: {
     taskLabel: string;

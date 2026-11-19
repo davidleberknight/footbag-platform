@@ -16,6 +16,7 @@ import {
   insertWorkQueueItem,
   insertMemberMessage,
 } from '../../src/testkit/personaRowBuilders';
+import { insertSystemConfig } from '../fixtures/factories';
 
 // A second, deliberately empty database for the one builder branch that depends
 // on NO administrator existing yet. Declared first so the primary path is the
@@ -120,6 +121,13 @@ describe('seedPersona — composition by dimension', () => {
     expect(leader?.id).toBeDefined();
     const signal = db.prepare(`SELECT COUNT(*) c FROM club_bootstrap_leader_signals WHERE bootstrap_leader_id = ?`).get(leader!.id) as { c: number };
     expect(signal.c).toBeGreaterThan(0);
+    // Defect caught: the leader's own old account is left unclaimed, so it
+    // shows as a claimable stranger in the administrators' legacy-account search.
+    const account = db.prepare(`SELECT claimed_by_member_id FROM legacy_members WHERE legacy_member_id = ?`)
+      .get('legmem_persona_fac_leader_club') as { claimed_by_member_id: string | null };
+    expect(account).toEqual({ claimed_by_member_id: p.memberId });
+    const member = db.prepare(`SELECT legacy_member_id FROM members WHERE id = ?`).get(p.memberId) as { legacy_member_id: string | null };
+    expect(member).toEqual({ legacy_member_id: 'legmem_persona_fac_leader_club' });
   });
 
   it('onboardingTasks spec writes per-task state with completed_at only on completed', () => {
@@ -384,11 +392,49 @@ describe('seedPersona — detection markers', () => {
     ).get(p.memberId) as { c: number };
     expect(audit.c).toBe(1);
   });
+
+  // Defect caught: the seed writes an audit row about a persona still in
+  // signup, so administrators see a prospective member in the audit log, which
+  // the design forbids, and the abandoned-signup job refuses to delete it.
+  it('writes no seed audit row for a persona still in signup', () => {
+    const p = seedPersona(db, {
+      slug: 'fac_prospective', displayName: 'Fac Prospective', tier: 'tier0',
+      onboardingTasks: { personal_details: 'completed', legacy_claim: 'pending' },
+      testingUsage: 'Factory composition check.', coverageNotes: ['prospective'],
+    });
+    const audit = db.prepare(
+      `SELECT COUNT(*) c FROM audit_entries WHERE entity_id = ?`,
+    ).get(p.memberId) as { c: number };
+    expect(audit.c).toBe(0);
+  });
 });
 
 describe('persona harness — single-source containment', () => {
   it('the seed runner inherits the production import guard by importing personaSecrets', () => {
     const source = readFileSync(path.resolve(REPO_ROOT, 'src', 'testkit', 'personaSeedRunner.ts'), 'utf8');
     expect(source).toMatch(/from '\.\/personaSecrets'/);
+  });
+});
+
+describe('seedPersona — the configured deletion grace length', () => {
+  // Defect caught: the grace pair ignores the grace length this database is
+  // configured with, so after an administrator changes it the open persona can
+  // fall due for erasure, or the elapsed one stop being due.
+  it('places the open and elapsed grace personas around the configured length', () => {
+    insertSystemConfig(db, { config_key: 'member_cleanup_grace_days', value_json: '120' });
+    const daysFromNow = (iso: string) => Math.round((Date.parse(iso) - Date.now()) / 86_400_000);
+    const open = seedPersona(db, {
+      slug: 'fac_grace_open', displayName: 'Fac Graceopen', tier: 'tier0', deletionState: 'grace_open',
+      testingUsage: 'Factory composition check.', coverageNotes: ['grace open'],
+    });
+    const elapsed = seedPersona(db, {
+      slug: 'fac_grace_gone', displayName: 'Fac Gracegone', tier: 'tier0', deletionState: 'grace_elapsed',
+      testingUsage: 'Factory composition check.', coverageNotes: ['grace elapsed'],
+    });
+    const read = (id: string) => db.prepare(`SELECT deleted_at, deletion_grace_expires_at FROM members WHERE id = ?`)
+      .get(id) as { deleted_at: string; deletion_grace_expires_at: string };
+    expect(daysFromNow(read(open.memberId).deletion_grace_expires_at)).toBe(119);
+    expect(daysFromNow(read(elapsed.memberId).deletion_grace_expires_at)).toBe(-1);
+    expect(daysFromNow(read(elapsed.memberId).deleted_at)).toBe(-121);
   });
 });

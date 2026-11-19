@@ -1,0 +1,7 @@
+{
+  "templateKey": "registration_refused_barred",
+  "subjectTemplate": "Your IFPA Footbag registration",
+  "bodyTemplate": "Hi,\n\nSomeone, probably you, tried to register an IFPA Footbag account with this email address. This address belongs to a membership the IFPA board ended under Article X of the IFPA bylaws, so it cannot be used to register.\n\nIf you think this is a mistake, reply to this email.",
+  "piiClassification": "restricted",
+  "isEnabled": true
+}

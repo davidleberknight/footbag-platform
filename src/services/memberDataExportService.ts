@@ -23,9 +23,10 @@
  *     under-answer the request it exists to answer.
  *   - The document answers an access request, so it carries what other people
  *     recorded about the member as well as what the member did: grant reasons,
- *     vouches received, flags on their media, an administrator's questions and
- *     notes, work-queue items, and the audit entries where the member is the
- *     subject. What it leaves out is the other person: no actor, voucher,
+ *     vouches received, the IFPA board's discipline decisions, flags on their
+ *     media, an administrator's questions and notes, work-queue items, and the
+ *     audit entries where the member is the subject. What it leaves out is the
+ *     other person: no actor, voucher, who decided,
  *     reporter, sender or administrator is ever selected, and neither is free
  *     text that names or identifies another person.
  *   - Excluded by rule rather than by omission, each enforced at the statement:
@@ -51,7 +52,7 @@
  *     nothing, so it is safe to repeat and safe for anything that follows links.
  *
  * Persistence: reads members, member_tier_grants, active_player_grants,
- *   active_player_vouches, member_club_affiliations, club_leaders,
+ *   active_player_vouches, membership_discipline_decisions, member_club_affiliations, club_leaders,
  *   club_insight_notes, club_viability_signals, registrations,
  *   registration_discipline_selections, event_organizers, mailing_list_subscriptions, outbox_emails,
  *   member_messages, member_announcements, work_queue_items,
@@ -104,6 +105,7 @@ export interface MemberDataExport {
     tierHistory: unknown[];
     activePlayerHistory: unknown[];
     vouchesReceived: unknown[];
+    disciplineDecisions: unknown[];
   };
   emailSubscriptions: unknown[];
   mailReceived: unknown[];
@@ -209,6 +211,7 @@ export const memberDataExportService = {
         tierHistory:         capped('membership.tierHistory', memberExport.tierGrantHistory.all(memberId)),
         activePlayerHistory: capped('membership.activePlayerHistory', memberExport.activePlayerGrantHistory.all(memberId)),
         vouchesReceived:     capped('membership.vouchesReceived', memberExport.vouchesReceived.all(memberId)),
+        disciplineDecisions: capped('membership.disciplineDecisions', memberExport.disciplineDecisions.all(memberId)),
       },
       emailSubscriptions: capped('emailSubscriptions', memberExport.mailingListSubscriptions.all(memberId)),
       mailReceived:       capped('mailReceived', memberExport.mailReceived.all(memberId)),

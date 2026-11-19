@@ -141,7 +141,8 @@ describe('claim personas reach the outcomes their catalog text promises', () => 
     const dobOnly = accountCard('claim_dob_only');
     expect(dobOnly).toMatchObject({ status: 'claimable', confidence: 'medium', dob: 'identical' });
     expect(dobOnly!.hits.map((h) => h.key)).toEqual(['surname_dob']);
-    expect(accountCard('claim_dob_mismatch')).toMatchObject({ status: 'claimable', dob: 'mismatch', confidence: 'high' });
+    // The email-matched pair carries a different date of birth on its old account.
+    expect(accountCard('claim_email_pair')).toMatchObject({ status: 'claimable', dob: 'mismatch', confidence: 'high' });
   });
 
   // Defect caught: a persona meant to show an empty claim step shows a card.

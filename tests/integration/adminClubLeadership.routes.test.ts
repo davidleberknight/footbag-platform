@@ -1,12 +1,12 @@
 /**
  * Admin club-leadership contract on the per-club leadership page: assigning a
  * co-leader from the member base creates the missing affiliation, supersedes
- * provisional bootstrap rows, and audit-logs with reason; a member who already
- * co-leads another club is refused with direction; five co-leaders is a hard
- * limit; a member already holding two other clubs is refused a third; an
- * archived club takes no co-leader, while an inactive one is revived; removal
- * requires a mandatory reason, can strip the affiliation, and picks a main club
- * only for a lone survivor. The list of clubs needing a leader lives in the club
+ * provisional bootstrap rows, and audit-logs with reason; a member co-leads at
+ * most three clubs; five co-leaders is a hard limit; a member already holding
+ * three other clubs is refused a fourth; an archived club takes no co-leader,
+ * while an inactive one is revived; removal requires a mandatory reason, can
+ * strip the affiliation, and when that was the member's main club makes the
+ * surviving club they joined earliest main. The list of clubs needing a leader lives in the club
  * cleanup queue, not here. Non-admins never reach any of it.
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
@@ -151,6 +151,25 @@ function seedMember(): string {
   insertMember(db, { id, slug: `acl_mem_${_n}`, login_email: `${id}@example.com`, display_name: `ACL Member ${_n}` });
   return id;
 }
+/**
+ * An affiliation whose join time is the given instant. The factory stamps its
+ * rows from the clock, so the clock is held at that instant for the insert
+ * alone and released before any request runs.
+ */
+function insertAffiliationJoinedAt(
+  iso: string,
+  memberId: string,
+  clubId: string,
+  overrides: Parameters<typeof insertMemberClubAffiliation>[3] = {},
+): void {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  try {
+    vi.setSystemTime(new Date(iso));
+    insertMemberClubAffiliation(db, memberId, clubId, overrides);
+  } finally {
+    vi.useRealTimers();
+  }
+}
 function leaders(clubId: string): Array<Record<string, unknown>> {
   return db.prepare('SELECT * FROM club_leaders WHERE club_id = ? ORDER BY role').all(clubId) as Array<Record<string, unknown>>;
 }
@@ -254,24 +273,31 @@ describe('assign', () => {
     expect(rows.every((r) => r.role === 'co-leader')).toBe(true);
   });
 
-  it('refuses assigning a member who already co-leads another club, with direction', async () => {
-    const clubA = seedClub();
-    const clubB = seedClub();
+  // Defect caught: an admin cannot give a member co-leading two clubs a third,
+  // below the three-club co-lead limit; or can give a member co-leading three
+  // clubs a fourth.
+  it('assigns a member co-leading two clubs to a third, and refuses a fourth', async () => {
+    const [clubA, clubB, clubC, clubD] = [seedClub(), seedClub(), seedClub(), seedClub()];
     const m = seedMember();
-    await request(createApp())
-      .post(`/admin/clubs/${clubA}/leadership/assign`)
-      .set('Cookie', adminCookie())
-      .type('form')
-      .send({ member_key: m, reason: 'setup' });
+    for (const clubId of [clubA, clubB, clubC]) {
+      const res = await request(createApp())
+        .post(`/admin/clubs/${clubId}/leadership/assign`)
+        .set('Cookie', adminCookie())
+        .type('form')
+        .send({ member_key: m, reason: 'setup' });
+      expect(res.status).toBe(303);
+      expect(leaders(clubId).map((r) => r.member_id)).toEqual([m]);
+    }
 
     const res = await request(createApp())
-      .post(`/admin/clubs/${clubB}/leadership/assign`)
+      .post(`/admin/clubs/${clubD}/leadership/assign`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ member_key: m, reason: 'second club' });
+      .send({ member_key: m, reason: 'fourth club' });
     expect(res.status).toBe(422);
-    expect(res.text).toContain('step down at their club first');
-    expect(leaders(clubB)).toHaveLength(0);
+    expect(leaders(clubD)).toHaveLength(0);
+    expect(currentClubs(m).map((r) => r.club_id).sort()).toEqual([clubA, clubB, clubC].sort());
+    expect(assignAuditCount(clubD)).toBe(0);
   });
 
   // Defect caught: an admin gives a club a sixth co-leader, by an override
@@ -341,12 +367,14 @@ describe('assign', () => {
     expect(leaders(clubId)).toHaveLength(6);
   });
 
-  // Defect caught: admin assignment puts a member already in two clubs on a
-  // third club's roster, past the two-club limit every member path holds.
-  it('refuses a member who already holds two other current clubs, and accepts one who holds one', async () => {
+  // Defect caught: admin assignment puts a member already in three clubs on a
+  // fourth club's roster, past the three-club limit every member path holds;
+  // or refuses a member in two clubs who has room for a third.
+  it('refuses a member who already holds three other current clubs, and accepts one who holds two', async () => {
     const clubId = seedClub();
     const full = seedMember();
     insertMemberClubAffiliation(db, full, seedClub(), { is_primary: 1 });
+    insertMemberClubAffiliation(db, full, seedClub(), { is_primary: 0 });
     insertMemberClubAffiliation(db, full, seedClub(), { is_primary: 0 });
 
     const refused = await request(createApp())
@@ -355,27 +383,28 @@ describe('assign', () => {
       .type('form')
       .send({ member_key: full, reason: 'Leadership gap remediation.' });
     expect(refused.status).toBe(422);
-    expect(refused.text).toContain('That member already belongs to two clubs');
     expect(leaders(clubId)).toHaveLength(0);
-    expect(currentClubs(full)).toHaveLength(2);
+    expect(currentClubs(full)).toHaveLength(3);
 
-    const one = seedMember();
-    insertMemberClubAffiliation(db, one, seedClub(), { is_primary: 1 });
+    const two = seedMember();
+    insertMemberClubAffiliation(db, two, seedClub(), { is_primary: 1 });
+    insertMemberClubAffiliation(db, two, seedClub(), { is_primary: 0 });
     const accepted = await request(createApp())
       .post(`/admin/clubs/${clubId}/leadership/assign`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ member_key: one, reason: 'Leadership gap remediation.' });
+      .send({ member_key: two, reason: 'Leadership gap remediation.' });
     expect(accepted.status).toBe(303);
-    expect(currentClubs(one)).toHaveLength(2);
+    expect(currentClubs(two)).toHaveLength(3);
   });
 
-  // Defect caught: the two-club refusal also catches a member whose second
+  // Defect caught: the three-club refusal also catches a member whose third
   // club is this one, so an admin cannot make a current member its leader.
-  it('a member holding two clubs, one of them this club, can be made its co-leader', async () => {
+  it('a member holding three clubs, one of them this club, can be made its co-leader', async () => {
     const clubId = seedClub();
     const m = seedMember();
     insertMemberClubAffiliation(db, m, seedClub(), { is_primary: 1 });
+    insertMemberClubAffiliation(db, m, seedClub(), { is_primary: 0 });
     insertMemberClubAffiliation(db, m, clubId, { is_primary: 0 });
     const res = await request(createApp())
       .post(`/admin/clubs/${clubId}/leadership/assign`)
@@ -481,10 +510,10 @@ describe('demote', () => {
     expect(aff.is_current).toBe(0);
   });
 
-  // Defect caught: removal picks a main club automatically for a member left
-  // with two, a choice that is the member's own; or leaves a lone survivor
-  // designated secondary with no main club at all.
-  it('removal makes a lone surviving club main, and with two left makes neither main', async () => {
+  // Defect caught: removing a member's main club leaves them holding current
+  // clubs with no main club at all, or with the wrong one: the survivor they
+  // joined earliest is the one that becomes main.
+  it('removal makes a lone surviving club main, and with two left makes the earliest-joined main', async () => {
     const lone = seedMember();
     const loneLed = seedClub();
     const loneOther = seedClub();
@@ -501,14 +530,15 @@ describe('demote', () => {
     expect(loneRes.status).toBe(303);
     expect(currentClubs(lone)).toEqual([{ club_id: loneOther, is_primary: 1 }]);
 
-    // Seeded past the two-club limit, the only way two can survive a removal.
+    // Joined in the order led, earlier, later. The later club's affiliation id
+    // sorts first, so only the join time can make the earlier one main.
     const many = seedMember();
     const led = seedClub();
-    const a = seedClub();
-    const b = seedClub();
-    insertMemberClubAffiliation(db, many, led, { is_primary: 1 });
-    insertMemberClubAffiliation(db, many, a, { is_primary: 0 });
-    insertMemberClubAffiliation(db, many, b, { is_primary: 0 });
+    const earlier = seedClub();
+    const later = seedClub();
+    insertAffiliationJoinedAt('2026-01-01T00:00:00.000Z', many, led, { id: 'mca-acl-z-led', is_primary: 1 });
+    insertAffiliationJoinedAt('2026-02-01T00:00:00.000Z', many, earlier, { id: 'mca-acl-y-earlier' });
+    insertAffiliationJoinedAt('2026-03-01T00:00:00.000Z', many, later, { id: 'mca-acl-a-later' });
     await request(createApp())
       .post(`/admin/clubs/${led}/leadership/assign`)
       .set('Cookie', adminCookie()).type('form')
@@ -519,7 +549,8 @@ describe('demote', () => {
       .set('Cookie', adminCookie()).type('form')
       .send({ member_id: many, mode: 'remove_affiliation', reason: 'Unreachable for a year.' });
     expect(res.status).toBe(303);
-    expect(currentClubs(many).map((r) => r.is_primary)).toEqual([0, 0]);
+    const survivors = new Map(currentClubs(many).map((r) => [r.club_id, r.is_primary]));
+    expect(Object.fromEntries(survivors)).toEqual({ [earlier]: 1, [later]: 0 });
   });
 
   it('an unrecognized demote mode is rejected (422), leaving the leadership intact', async () => {

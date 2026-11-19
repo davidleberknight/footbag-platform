@@ -27,7 +27,7 @@ export const VIEWERS: readonly Viewer[] = [
   { name: 'admin', persona: 'admin_t2', seeds: ['/', '/admin', '/admin/bootstrap-claim'] },
   { name: 'registrant', persona: 'onb_unstarted', seeds: ['/register/wizard/personal_details'] },
   { name: 'registrant-claim', persona: 'onb_partial', seeds: ['/register/wizard/legacy_claim'] },
-  { name: 'registrant-club', persona: 'onb_club_unanswered', seeds: ['/register/wizard/club_affiliations'] },
+  { name: 'registrant-club', persona: 'legacy_club_wrapup', seeds: ['/register/wizard/club_affiliations'] },
   // A registrant whose own name reaches a record another member holds: the one
   // reader the already-claimed page answers. Its pages are reached by REACH only.
   { name: 'registrant-conflict', persona: 'claim_conflict_prompt', seeds: [] },

@@ -19,7 +19,7 @@ Affordances under `/dev`:
 - `/dev/login` — log in as a persona by slug.
 - `/dev/outbox` — read captured outbound email (the SES stub captures links here, e.g. the
   email-verification link).
-- `/dev/build-claim` — dev/staging build-and-sign-in as a claimed account for any real legacy record (`?as=<legacy_member_id>`).
+- `/dev/build-claim` — dev/staging build-and-sign-in as a claimed account for any real legacy record (`?as=<legacy_member_id>`). Used by the real-data tests by address; no page offers it to testers, because the claim, club joins and co-leadership it creates persist on shared staging and the persona refresh never undoes them.
 
 ## Files
 
@@ -39,6 +39,11 @@ Affordances under `/dev`:
   rehearsal issue as the finance administrator, then runs the real nightly reconciliation and
   Treasurer digest on demand, so the newest report and the digest carry the seeded money. The
   command-line helper refuses a `--db` that is not the application's own database.
+- `personaJourneys.ts` — the acts a few personas need after the seed (an account's personal data
+  erased, event registrations, open contact requests, the daily Active Player pass), run through
+  the real service entries and job registry after every persona refresh and seed, so each persona
+  holds the state a running site would. What a journey leaves is persona-owned, so the refresh
+  tears it down with the persona.
 - `runRegistryJob.ts` — runs any scheduled job on demand at the current time, through its job
   registry entry and run recorder; refuses production.
 - `seedCli.ts`, `personaSeedRunner.ts`, `personaRefreshRunner.ts` — seed/build entry points.
@@ -82,4 +87,6 @@ Persona operations are traceable: seeded tier grants carry
 `member_tier_grants.reason_code = 'dev_persona_seed.tier_grant'`, and audit rows carry
 `action_type` `testkit.persona_seed` (seed), `testkit.persona_switch` (cookie issuance), or
 `testkit.persona_login` (login), with a `dev-shortcuts/…` `created_by` marker.
+A persona still in signup gets no seed audit row, because no audit row may describe someone who
+has not finished signing up; the seed writes one audit row per persona that finished signup.
 `scripts/audit-dev-shortcuts.sh` confirms zero such rows in a production database.

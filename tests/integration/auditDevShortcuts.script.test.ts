@@ -21,7 +21,10 @@ import type BetterSqlite3 from 'better-sqlite3';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
 import { createTestDb } from '../fixtures/testDb';
-import { insertLegacyMember, insertMember, insertSystemConfig } from '../fixtures/factories';
+import {
+  insertLegacyMember, insertMember, insertSystemConfig, insertAuditEntry, insertClub, insertEvent,
+  insertHistoricalPerson,
+} from '../fixtures/factories';
 
 const SCRIPT = join(process.cwd(), 'scripts', 'audit-dev-shortcuts.sh');
 const scratch = createScratchDir('audit-dev-shortcuts');
@@ -80,6 +83,22 @@ describe('the development-residue audit', () => {
     }],
     ['legacy_members import_source test', (db: BetterSqlite3.Database) => {
       insertLegacyMember(db, { import_source: 'test', legacy_email: 'twin@example.com' });
+    }],
+    // A persona's login or refresh marker, not only its seed and switch ones.
+    ['action_type testkit.persona_*', (db: BetterSqlite3.Database) => {
+      insertAuditEntry(db, {
+        created_by: 'system', actor_type: 'system', action_type: 'testkit.persona_login',
+        entity_type: 'member', entity_id: 'memberXpersonaXlookalike',
+      });
+    }],
+    ['clubs.id club-test-persona-*', (db: BetterSqlite3.Database) => {
+      insertClub(db, { id: 'club-test-persona-alice' });
+    }],
+    ['events.id event-test-persona-*', (db: BetterSqlite3.Database) => {
+      insertEvent(db, { id: 'event-test-persona-alice' });
+    }],
+    ['historical_persons persona ids', (db: BetterSqlite3.Database) => {
+      insertHistoricalPerson(db, { person_id: 'person_persona_alice_rec', person_name: 'Alice Persona' });
     }],
     ['system_config cfg_dev_outbox_poll', (db: BetterSqlite3.Database) => {
       insertSystemConfig(db, {

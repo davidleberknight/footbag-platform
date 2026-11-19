@@ -7,19 +7,22 @@
  * (identityAccessService.attemptLogin) with the persona's seeded email and the
  * shared harness password, so the login/registration auth decision actually
  * runs. It exists so that login-blocked personas (unverified, deceased,
- * soft-deleted) are a live, testable link rather than a dead row: the route
- * crawler follows it and the real credential + account-state gates execute.
+ * soft-deleted, restricted) are a live, testable link rather than a dead row:
+ * the route crawler follows it and the real credential + account-state gates
+ * execute.
  *
  * Outcome mirrors the production login controller: a session-eligible account
  * gets a real cookie and a redirect to its profile; a login-blocked account is
- * rejected by the same query the public form uses and lands back on /login.
+ * rejected by the same query the public form uses and lands back on /login; a
+ * restricted account is refused with the restriction message at 403, as the
+ * public login page shows it once the password is right.
  * Every issuance or rejection writes an audit entry with action_type
  * 'testkit.persona_login'. Unknown slug → 404; missing ?as → 400.
  */
 import { Request, Response, NextFunction } from 'express';
 import { auth } from '../db/db';
 import { identityAccessService } from '../services/identityAccessService';
-import { RateLimitedError } from '../services/serviceErrors';
+import { ForbiddenError, RateLimitedError } from '../services/serviceErrors';
 import { createSessionJwt } from '../services/jwtService';
 import { issueSessionCookie } from '../lib/sessionCookie';
 import { memberOnboardingService } from '../services/memberOnboardingService';
@@ -57,6 +60,9 @@ export async function getDevLogin(
 
     const ip = req.ip ?? 'unknown';
     let member;
+    // A restricted account is refused with its own message once the password
+    // is right, as the public login page shows it; the tester sees the same.
+    let restrictedMessage: string | null = null;
     try {
       member = await identityAccessService.attemptLogin(
         row.login_email,
@@ -69,7 +75,9 @@ export async function getDevLogin(
         res.status(429).send(err.message);
         return;
       }
-      throw err;
+      if (!(err instanceof ForbiddenError)) throw err;
+      member = null;
+      restrictedMessage = err.message;
     }
 
     // member === null when the account-state gate rejects the persona
@@ -86,6 +94,10 @@ export async function getDevLogin(
       metadata: { slug, outcome, memberId: member ? member.id : null },
     });
 
+    if (restrictedMessage !== null) {
+      res.status(403).send(restrictedMessage);
+      return;
+    }
     if (!member) {
       res.redirect(302, '/login');
       return;

@@ -2,9 +2,14 @@
  * GET /dev/build-claim?as=<legacyMemberId> — non-prod only.
  *
  * The generic real-flow claim affordance: builds a claimed account for any real
- * migrated legacy record and signs the caller in as it, so a tester (or the
- * opt-in real-claim crawl) can verify that migrated real-world data renders and
- * behaves once claimed. If the record is not claimed yet, this runs the real
+ * migrated legacy record and signs the caller in as it, so the opt-in real-claim
+ * crawl and this route's own suite can verify that migrated real-world data
+ * renders and behaves once claimed. No page offers it: the claim, its club joins
+ * and any co-leadership it earns persist on shared staging and the persona
+ * refresh never undoes them, so a tester who wanted to see real data would
+ * change it for everyone. It is reached by address only.
+ *
+ * If the record is not claimed yet, this runs the real
  * register → verify → claim → onboarding journey to build the claimant account,
  * then mints the session cookie with the same production primitive /dev/switch
  * uses and redirects to the claimed member's profile. If the record is already

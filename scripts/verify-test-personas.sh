@@ -14,11 +14,13 @@
 #
 # Marker semantics (set by src/testkit/personaFactory.ts seedPersona):
 #   - members.id LIKE 'member_persona_%'                 one row per persona (all tiers)
-#   - audit_entries.action_type = 'testkit.persona_seed'     one row per seeded persona
+#   - audit_entries.action_type = 'testkit.persona_seed'     one row per persona that
+#                                                        finished signup (none about a
+#                                                        prospective member)
 #   - member_tier_grants.reason_code =                   one row per tier1+ persona
 #       'dev_persona_seed.tier_grant'                    (tier0 personas have no grant)
 # Re-running the seed skips existing slugs, so auditRowsSeeded equals
-# personasSeeded (no duplicate rows on replay).
+# onboardedPersonasSeeded (no duplicate rows on replay).
 #
 # Password handling: the remote query needs sudo (docker compose exec), and
 # this script must run non-interactively (the smoke suite invokes it with no
@@ -100,6 +102,14 @@ const members = db.prepare(
 const ae = db.prepare(
   "SELECT COUNT(*) c FROM audit_entries WHERE action_type='testkit.persona_seed'"
 ).get().c;
+// The seed writes its audit row only for a persona that has finished signing
+// up (all three signup steps completed): the audit log holds no row about a
+// prospective member.
+const onboarded = db.prepare(
+  "SELECT COUNT(*) c FROM members m WHERE m.id LIKE 'member_persona_%' AND (" +
+  "SELECT COUNT(*) FROM member_onboarding_tasks t WHERE t.member_id = m.id AND t.state = 'completed'" +
+  " AND t.task_type IN ('personal_details','legacy_claim','club_affiliations')) = 3"
+).get().c;
 const tg = db.prepare(
   "SELECT COUNT(*) c FROM member_tier_grants WHERE reason_code='dev_persona_seed.tier_grant'"
 ).get().c;
@@ -126,6 +136,7 @@ for (const r of members) {
 console.log(JSON.stringify({
   personasSeeded: members.length,
   personasExpectingCredentials: members.length - credentialless,
+  onboardedPersonasSeeded: onboarded,
   auditRowsSeeded: ae,
   tierGrantsSeeded: tg,
   passwordHashesArgon2: a2,

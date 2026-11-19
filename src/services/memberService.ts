@@ -182,6 +182,7 @@ import { getTierStatus, tierBadgeShort, type MemberTier, type UnderlyingTier } f
 import { getStatus as getActivePlayerStatus, applyVouch } from './activePlayerService';
 import { memberActionService, type MemberActions } from './memberActionService';
 import { mayCreateClub, isTier2Plus, hasTier1Benefits } from './tierPredicates';
+import { MAX_COLEADERS_PER_CLUB, MAX_CURRENT_CLUBS_PER_MEMBER, memberAtColeadCap } from './clubCaps';
 import { buildTierBenefitNotice } from './tierBenefitNotice';
 import { paymentService } from './paymentService';
 import { getCommunicationService } from './communicationService';
@@ -2615,18 +2616,19 @@ function buildMyClubsView(memberId: string, slug: string): MyClubsView {
   // Creating a club uses the bootstrap eligibility: Tier 1 benefits, or a Tier 0
   // member who has never held Active Player (create grants the one-time period).
   const canCreateClubBenefits = mayCreateClub(memberId);
-  const coLeadsAnyClub = clubLeaders.memberCoLeadsAnyClub.get(memberId) != null;
+  const atColeadCap = memberAtColeadCap(memberId);
 
   const clubViews: MyClubsClubView[] = rows.map((r) => {
     const leadership = clubLeaders.memberInClubLeadership.get(r.club_id, memberId) as
       | { id: string; role: 'co-leader' } | undefined;
     const coLeaderCount = (clubLeaders.countByClubId.get(r.club_id) as { c: number }).c;
-    // A member co-leads at most one club, edits content directly, and can step
-    // down at any time (the last co-leader out leaves the club leaderless).
-    const canVolunteer = leadership == null && volunteerBenefits && !coLeadsAnyClub && coLeaderCount < 5;
+    // A member co-leads at most three clubs, edits content directly, and can
+    // step down at any time (the last co-leader out leaves the club leaderless).
+    const canVolunteer = leadership == null && volunteerBenefits && !atColeadCap
+      && coLeaderCount < MAX_COLEADERS_PER_CLUB;
     // The form names the club it makes primary, so a second submit of the same
     // page asks for the state the first one made rather than flipping it back.
-    const canMakePrimary = rows.length === 2 && r.is_primary !== 1;
+    const canMakePrimary = rows.length >= 2 && r.is_primary !== 1;
 
     return {
       clubName: r.club_name,
@@ -2667,18 +2669,18 @@ function buildMyClubsView(memberId: string, slug: string): MyClubsView {
 
   return {
     clubs: clubViews,
-    canAddClub: rows.length < 2,
-    canCreateClub: canCreateClubBenefits && !coLeadsAnyClub,
+    canAddClub: rows.length < MAX_CURRENT_CLUBS_PER_MEMBER,
+    canCreateClub: canCreateClubBenefits && !atColeadCap,
     browseClubsHref: '/clubs',
-    createClubHref: canCreateClubBenefits && !coLeadsAnyClub ? '/clubs/create' : null,
+    createClubHref: canCreateClubBenefits && !atColeadCap ? '/clubs/create' : null,
     // A member ineligible to create a club (a lapsed-AP Tier 0 member) reads
     // what the benefit is and how to earn it, instead of the create path being
     // hidden with nothing said. Having a club already is no reason to withhold
     // it: wanting a second club, or a club of one's own, is not a state the
-    // benefit distinguishes. A member who already co-leads is excluded because
-    // the benefit is not what stops them, so naming it would misdescribe why
-    // the path is closed: one member co-leads at most one club.
-    createTierNotice: canCreateClubBenefits || coLeadsAnyClub
+    // benefit distinguishes. A member already at the co-lead cap is excluded
+    // because the benefit is not what stops them, so naming it would
+    // misdescribe why the path is closed: a member co-leads at most three clubs.
+    createTierNotice: canCreateClubBenefits || atColeadCap
       ? null
       : buildTierBenefitNotice(slug, 'club'),
     nearbySuggestions,

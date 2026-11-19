@@ -17,7 +17,6 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import * as path from 'node:path';
 import { runPersonaCommand } from '../fixtures/personaCommand';
-
 const PRIOR_FOOTBAG_ENV = process.env.FOOTBAG_ENV;
 process.env.FOOTBAG_ENV = process.env.FOOTBAG_ENV ?? 'development';
 
@@ -98,8 +97,7 @@ describe('persona refresh command line', () => {
 
     expect(code).toBe(0);
     expect(out).toContain(`would drop orphan (no longer in the catalog): ${RETIRED_SLUG}`);
-    expect(out).toContain('report only, nothing written.');
-    expect(personaSlugs(dbPath, BetterSqlite3)).toEqual(before);
+    expect(out).toContain('report only, nothing written.');    expect(personaSlugs(dbPath, BetterSqlite3)).toEqual(before);
   }, 60_000);
 
   it('converges the database on the catalog when applied', async () => {
@@ -122,7 +120,15 @@ describe('persona refresh command line', () => {
 
     const after = personaSlugs(dbPath, BetterSqlite3);
     expect(after).not.toContain(RETIRED_SLUG);
-    expect(after.slice().sort()).toEqual(buildable.slice().sort());
+    // The persona journeys erase an ordinary deleted account, which replaces
+    // its slug with a placeholder; an honoree keeps its slug as public record.
+    const erasedSlugs = CANONICAL_PERSONAS
+      .filter((p) => p.postSeed?.erase === 'account' && !p.honors?.hof)
+      .map((p) => p.slug);
+    expect(erasedSlugs.length).toBeGreaterThan(0);
+    expect(after.filter((s) => !s.startsWith('removed_')).sort())
+      .toEqual(buildable.filter((s) => !erasedSlugs.includes(s)).sort());
+    expect(after.filter((s) => s.startsWith('removed_'))).toHaveLength(erasedSlugs.length);
   }, 90_000);
 
   it('leaves a database holding no personas untouched, even when applied', async () => {

@@ -9,6 +9,13 @@
  *     whose latest signal was negative (admin-only authorship exposure)
  *   - `leaderless_active_club` predicate
  *   - `stale_provisional_leader` predicate
+ *   - `quiet_club` predicate: an active club with a co-leader able to act and
+ *     no sign of life for 730 days (hosted events, joins, co-leaders added,
+ *     members' own acts on the club, "active" signals, co-leader sign-ins).
+ *     Never applied by the rules; a park or dismissal holds until a newer sign
+ *   - Ask-the-co-leaders action on a quiet club: emails its current co-leaders
+ *     asking them to sign in and edit the club (audit-logged, no link); the
+ *     item shows when they were last asked
  *   - Admin club cleanup queue page shaping (with category/region filter
  *     and sort, applied in-service on the assembled queue). Opening the queue
  *     only reads: it lists the clubs the rules would demote
@@ -86,18 +93,22 @@
  *   legacy_person_club_affiliations (residue read + de-list write),
  *   club_leaders (read),
  *   member_club_affiliations (read),
+ *   events, members (read: the quiet-club signs of life),
  *   club_bootstrap_leaders (read),
  *   club_insight_notes (read),
  *   legacy_club_candidates (read + classification/lifecycle cleanup writes),
- *   audit_entries (append).
+ *   audit_entries (append; read for the quiet-club signs of life and the
+ *   last ask of the co-leaders).
  *
  * Side effects: audit_entries append; outbox_emails enqueue (the
- * contact-members action only), best-effort inside the contact's own
- * transaction with its audit row, which records how many it reached.
+ * contact-members and ask-the-co-leaders actions only), best-effort inside
+ * the contact's own transaction with its audit row, which records how many it
+ * reached.
  *
  * Service shape: singleton object (no external adapters).
  */
 import {
+  auditEntries,
   clubEvidence,
   candidateEvidence,
   clubInsightNotes,
@@ -396,6 +407,28 @@ function findStaleProvisionalLeaders(): StaleLeaderRow[] {
 // Resolution tracking
 // ---------------------------------------------------------------------------
 
+interface QuietClubRow {
+  club_id: string;
+  club_name: string;
+  city: string | null;
+  region: string | null;
+  country: string | null;
+  status: string;
+  latest_sign_at: string;
+}
+
+const CONTACT_COLEADERS_ACTION = 'admin.club_cleanup.contact_coleaders';
+
+// When any admin last asked this club's co-leaders whether it is still
+// active, so the queue item says so and a second admin does not ask again
+// unknowingly.
+function findLatestCoLeaderAsk(clubId: string): string | null {
+  const row = auditEntries.findLatestForEntity.get(
+    'club', clubId, CONTACT_COLEADERS_ACTION, CONTACT_COLEADERS_ACTION,
+  ) as { occurred_at: string } | undefined;
+  return row?.occurred_at ?? null;
+}
+
 interface ResolutionRow {
   club_id: string;
   predicate_name: string;
@@ -421,12 +454,19 @@ const PROMOTABLE_PREDICATE = 'promotable_candidate';
 const CANDIDATE_FLAG_PREDICATE = 'candidate_flags';
 
 // The club-side predicates the working queue assembles. A resolution is keyed
-// on club and predicate, and the queue only ever looks up these three names, so
+// on club and predicate, and the queue only ever looks up these four names, so
 // a row stored under any other name can never be matched again: it would sit in
 // the parked listing permanently with nothing able to reach it.
 const CLUB_PREDICATES: ReadonlySet<string> = new Set([
-  'crowdsource_viability', 'leaderless_active', 'stale_provisional',
+  'crowdsource_viability', 'leaderless_active', 'stale_provisional', 'quiet',
 ]);
+
+// A club with co-leaders is quiet once the site has seen no sign of life from
+// it for this long: the IFPA Active Player period, which is the sport's own
+// measure of a player still being active, and long enough for a club that
+// meets only in season or skips a year.
+const QUIET_CLUB_DAYS = 730;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 // Candidate-flag items can carry any unpromoted classification (the wizard
 // shows a card whenever an affiliation suggests the candidate), so the
@@ -494,7 +534,7 @@ function parkAnnotationFrom(res: CandidateResolutionRow | undefined): string | n
 // Admin cleanup queue page
 // ---------------------------------------------------------------------------
 
-export type PredicateSource = 'crowdsource_viability' | 'leaderless_active' | 'stale_provisional';
+export type PredicateSource = 'crowdsource_viability' | 'leaderless_active' | 'stale_provisional' | 'quiet';
 
 export interface CleanupQueueItem {
   clubId: string;
@@ -511,6 +551,10 @@ export interface CleanupQueueItem {
   // controls; the service decides which rows show them so the template branches
   // on a boolean rather than the predicate enum.
   showLeaderlessControls: boolean;
+  // Only a quiet-club item offers the ask-the-co-leaders control, and shows
+  // when an admin last asked them.
+  showQuietControls?: boolean;
+  coLeadersAskedOn?: string | null;
   // Opportunity items (the "Needs Leader" list) are a tolerated state, not
   // remediation work: they render as a separate low-priority section and offer
   // no demote or dismiss action, because demotion stays driven only by the
@@ -946,6 +990,43 @@ function assembleQueue(prefetched?: {
     });
   }
 
+  // A club with co-leaders the site has heard nothing from for the quiet
+  // period. Nothing applies this item: the admin asks the co-leaders, and
+  // decides. Any sign of life clears it, because the predicate is evaluated
+  // fresh on each open; a park or dismissal holds until a sign later than it,
+  // so a club that goes quiet again after one comes back.
+  const quietCutoff = new Date(Date.now() - QUIET_CLUB_DAYS * DAY_MS).toISOString();
+  const quietRows = clubCleanupPredicates.quietClubCandidates.all() as QuietClubRow[];
+  for (const row of quietRows) {
+    if (row.latest_sign_at >= quietCutoff) continue;
+    if (pendingRuleDemotion.has(row.club_id)) continue;
+    const resolution = resolutions.get(`${row.club_id}:quiet`);
+    if (resolution && resolution.created_at >= row.latest_sign_at
+      && !isStaleDemotion(resolution, row.status)) continue;
+    const asked = findLatestCoLeaderAsk(row.club_id);
+    const quietSince = new Date(Date.parse(row.latest_sign_at) + QUIET_CLUB_DAYS * DAY_MS).toISOString();
+    items.push({
+      clubId: row.club_id,
+      clubName: row.club_name,
+      clubCity: row.city,
+      clubRegion: row.region,
+      clubCountry: row.country,
+      clubStatus: row.status,
+      predicate: 'quiet',
+      predicateLabel: 'Quiet for Two Years',
+      detail: `No sign of life since ${row.latest_sign_at.slice(0, 10)}`
+        + (asked ? `; co-leaders asked on ${asked.slice(0, 10)}` : ''),
+      recommendedAction: 'Ask the co-leaders, then make inactive, park or dismiss',
+      showLeaderlessControls: false,
+      showQuietControls: true,
+      coLeadersAskedOn: asked ? asked.slice(0, 10) : null,
+      flagCount: 0,
+      openSince: quietSince,
+      claimLabel: claimLabelFrom(claims, 'club', row.club_id),
+      insightNotes: insightNotesFor(clubInsightNotes.listByClub.all(row.club_id)),
+    });
+  }
+
   // Leaderless clubs come LAST: leaderless is a tolerated state, not a defect,
   // so these render as a separate low-priority "Needs Leader" opportunity
   // section beneath the review items rather than as remediation work. Before
@@ -1186,6 +1267,7 @@ const PARKED_PREDICATE_LABELS: Record<string, string> = {
   crowdsource_viability: 'Crowdsource Viability',
   leaderless_active: 'Needs Leader',
   stale_provisional: 'Stale Provisional Leader',
+  quiet: 'Quiet for Two Years',
   promotable_candidate: 'Promotable Candidate',
   candidate_flags: 'Wizard Flags by Candidate',
 };
@@ -1198,6 +1280,7 @@ const CATEGORY_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
   { value: 'crowdsource_viability', label: 'Crowdsource Viability' },
   { value: 'leaderless_active', label: 'Needs Leader' },
   { value: 'stale_provisional', label: 'Stale Provisional Leader' },
+  { value: 'quiet', label: 'Quiet for Two Years' },
   { value: 'candidate_flag', label: 'Wizard Flags by Candidate' },
   { value: 'residue', label: 'Unconfirmed Residue' },
   { value: 'candidate', label: 'Promotable Candidates' },
@@ -1367,6 +1450,7 @@ function getCleanupQueuePage(filter?: CleanupQueueFilter): PageViewModel<Cleanup
           'An inactive club can come back. An archived club cannot.',
           'Archiving is refused while a club still has members or co-leaders. Make it inactive instead.',
           'Contacting a leaderless club\'s members emails them an invitation to co-lead, and is recorded in the audit log.',
+          'Asking a quiet club\'s co-leaders emails each of them, asking them to sign in and edit the club, and is recorded in the audit log. Their edit clears the item.',
         ],
       },
       ...(filter?.actionNotice
@@ -1628,6 +1712,58 @@ function contactMembersToVolunteer(
   });
 }
 
+// Ask-the-co-leaders action on a quiet club: emails each current co-leader
+// asking them to sign in and make any small edit to the club, which is itself
+// the sign of life that clears the item. The email carries no link, as the
+// contact-members email does not. It sends only: the item stays until a sign
+// of life arrives or the admin resolves it, and shows when the co-leaders were
+// asked. Emails and audit row commit together, the audit row last because it
+// records how many were reached; the same admin pressing again within the
+// repeat window is the same ask submitted twice and sends nothing.
+function contactCoLeadersToConfirm(
+  adminMemberId: string,
+  clubId: string,
+): { recipientCount: number } {
+  const club = clubsDb.findById.get(clubId) as
+    | { club_id: string; name: string; status: string } | undefined;
+  if (!club || club.status === 'archived') throw new NotFoundError('Club not found.');
+
+  return transaction(() => {
+    const earlier = findOwnLatestAudit(adminMemberId, CONTACT_COLEADERS_ACTION, 'club', clubId);
+    if (earlier
+      && Date.now() - Date.parse(earlier.occurred_at) < REPEAT_REQUEST_SECONDS * 1000) {
+      const recorded = JSON.parse(earlier.metadata_json) as { recipient_count?: number };
+      return { recipientCount: recorded.recipient_count ?? 0 };
+    }
+
+    const leaders = clubLeaders.listCurrentLeadersForClubPage.all(clubId) as Array<{
+      member_id: string; display_name: string;
+    }>;
+    const contactId = `contact_${randomUUID().replace(/-/g, '')}`;
+    // A co-leader who cannot be mailed is skipped by the send and not counted.
+    let recipientCount = 0;
+    for (const l of leaders) {
+      const sent = emailService.sendActNotice({
+        template: 'club_quiet_contact',
+        params: { memberName: l.display_name, clubName: club.name },
+        memberId: l.member_id,
+        actId: contactId,
+      });
+      if (sent) recipientCount++;
+    }
+    appendAuditEntry({
+      actionType: CONTACT_COLEADERS_ACTION,
+      actorType: 'admin',
+      actorMemberId: adminMemberId,
+      entityType: 'club',
+      entityId: clubId,
+      reasonText: null,
+      metadata: { contact_id: contactId, recipient_count: recipientCount, club_name: club.name },
+    });
+    return { recipientCount };
+  });
+}
+
 // Claim a queue item for review: a non-blocking coordination hint shown to
 // other admins. Always succeeds for a live item (a re-claim refreshes the
 // marker); no audit row is written because a claim is a hint, not a
@@ -1837,7 +1973,7 @@ function bulkParkGroup(
 ): { parkedCount: number } {
   reasonText = cleanReason(reasonText);
   const validGroups: ReadonlySet<string> = new Set([
-    'crowdsource_viability', 'leaderless_active', 'stale_provisional', 'candidate_flag',
+    'crowdsource_viability', 'leaderless_active', 'stale_provisional', 'quiet', 'candidate_flag',
   ]);
   if (!validGroups.has(group)) {
     throw new ValidationError(`Invalid bulk group: ${group}`);
@@ -1958,6 +2094,7 @@ export const clubCleanupService = {
   claimItem,
   resolveClub,
   contactMembersToVolunteer,
+  contactCoLeadersToConfirm,
   resolveCandidate,
   delistUnconfirmedResidue,
   bulkParkGroup,

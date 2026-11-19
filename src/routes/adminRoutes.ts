@@ -90,6 +90,12 @@ adminRouter.post('/members/:memberId/deceased/confirm',        adminMemberContro
 adminRouter.post('/members/:memberId/deceased',                adminMemberController.previewDeceased(false));
 adminRouter.post('/members/:memberId/delete',                  adminMemberController.previewDelete);
 adminRouter.post('/members/:memberId/delete/confirm',          adminMemberController.confirmDelete);
+adminRouter.post('/members/:memberId/restrict',                adminMemberController.previewRestrict);
+adminRouter.post('/members/:memberId/restrict/confirm',        adminMemberController.confirmRestrict);
+adminRouter.post('/members/:memberId/restrict/lift',           adminMemberController.previewLift);
+adminRouter.post('/members/:memberId/restrict/lift/confirm',   adminMemberController.confirmLift);
+adminRouter.post('/members/:memberId/discipline',              adminMemberController.previewDiscipline);
+adminRouter.post('/members/:memberId/discipline/confirm',      adminMemberController.confirmDiscipline);
 // The old sign-ins nobody has claimed. Read-only: this is where the account id
 // a link-help approval asks for actually comes from.
 adminRouter.get('/legacy-accounts',                                   adminLegacyAccountController.index);
@@ -243,6 +249,7 @@ adminRouter.post('/club-cleanup/bulk-resolve', adminClubCleanupController.bulkRe
 adminRouter.post('/club-cleanup/apply-rules', adminClubCleanupController.applyRules);
 adminRouter.post('/club-cleanup/:clubId/resolve', adminClubCleanupController.resolve);
 adminRouter.post('/club-cleanup/:clubId/contact-members', adminClubCleanupController.contactMembers);
+adminRouter.post('/club-cleanup/:clubId/contact-coleaders', adminClubCleanupController.contactCoLeaders);
 adminRouter.post('/club-cleanup/:clubId/delist-residue', adminClubCleanupController.delistResidue);
 // Promote and resolve key on the candidate id: an unpromoted candidate has
 // no clubs row yet, so the clubId-keyed resolve route cannot address it.

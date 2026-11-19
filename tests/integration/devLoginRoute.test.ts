@@ -37,6 +37,9 @@ beforeAll(async () => {
   seedPersona(db, { slug: 'login_ok', displayName: 'Login Okay', tier: 'tier1', testingUsage: 'Dev login route fixture.', coverageNotes: ['eligible'] }, { passwordHash });
   // Login-blocked: registered but email not verified.
   seedPersona(db, { slug: 'login_unverified', displayName: 'Login Unverified', tier: 'tier0', emailVerified: false, testingUsage: 'Dev login route fixture.', coverageNotes: ['unverified'] }, { passwordHash });
+  // Restricted by an administrator below, through the real restrict entry.
+  seedPersona(db, { slug: 'login_restricted', displayName: 'Login Restricted', tier: 'tier1', testingUsage: 'Dev login route fixture.', coverageNotes: ['restricted'] }, { passwordHash });
+  seedPersona(db, { slug: 'login_admin', displayName: 'Login Admin', tier: 'tier2', isAdmin: true, testingUsage: 'Dev login route fixture.', coverageNotes: ['admin actor'] }, { passwordHash });
   db.close();
   createApp = await importApp();
 });
@@ -70,6 +73,19 @@ describe('GET /dev/login', () => {
     const res = await request(createApp()).get('/dev/login?as=login_unverified');
     expect(res.status).toBe(302);
     expect(res.headers.location).toBe('/login');
+    expect(sessionCookie(res.headers['set-cookie'] as unknown as string[])).toBeUndefined();
+  });
+
+  // Defect caught: Log In on a restricted persona's card fails with an error
+  // page, so the tester never sees the restriction message the real login
+  // page shows a restricted member who enters the right password.
+  it('a restricted persona is refused with the restriction message and no session', async () => {
+    const { memberDisciplineService } = await import('../../src/services/memberDisciplineService');
+    const { RESTRICTED_SIGN_IN_MESSAGE } = await import('../../src/services/identityAccessService');
+    memberDisciplineService.restrict('member_persona_login_admin', 'member_persona_login_restricted', 'Restricted for the test.');
+    const res = await request(createApp()).get('/dev/login?as=login_restricted');
+    expect(res.status).toBe(403);
+    expect(res.text).toContain(RESTRICTED_SIGN_IN_MESSAGE);
     expect(sessionCookie(res.headers['set-cookie'] as unknown as string[])).toBeUndefined();
   });
 

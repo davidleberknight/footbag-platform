@@ -38,7 +38,6 @@ const CONTROLS = [
   // Handlebars escapes '=' inside an attribute, so the marker stops before it.
   'href="/dev/switch?as',
   'action="/dev/personas/refresh"',
-  'action="/dev/build-claim"',
   'class="card"',
 ];
 

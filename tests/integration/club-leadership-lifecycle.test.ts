@@ -332,7 +332,7 @@ describe('join/leave notification emails', () => {
     expect(outboxFor(leaderId)).toHaveLength(3);
   });
 
-  it('rejoining after a leave reactivates the affiliation (never the misleading two-club cap message)', () => {
+  it('rejoining after a leave reactivates the affiliation (never a current-club cap refusal)', () => {
     const clubId = seedClub('active');
     const memberId = seedMember();
 
@@ -352,17 +352,23 @@ describe('join/leave notification emails', () => {
     expect(row.source).toBe('member_self_service');
   });
 
-  it('a failed join (cap reached) enqueues nothing', () => {
-    const clubA = seedClub('active');
-    const clubB = seedClub('active');
-    const clubC = seedClub('active');
+  // Defect caught: a member in two clubs is refused a third below the
+  // three-club limit, or a member in three joins a fourth, or the refused
+  // fourth join still mails the member.
+  it('a third join succeeds, and a fourth is refused with no affiliation and no mail', () => {
+    const [clubA, clubB, clubC, clubD] = [seedClub('active'), seedClub('active'), seedClub('active'), seedClub('active')];
     const memberId = seedMember();
-    clubSvc.joinClub(memberId, clubA);
-    clubSvc.joinClub(memberId, clubB);
+    expect(clubSvc.joinClub(memberId, clubA).branch).toBe('joined_primary');
+    expect(clubSvc.joinClub(memberId, clubB).branch).toBe('joined_secondary');
+    expect(clubSvc.joinClub(memberId, clubC).branch).toBe('joined_secondary');
     const before = outboxFor(memberId).length;
-    const result = clubSvc.joinClub(memberId, clubC);
+    const result = clubSvc.joinClub(memberId, clubD);
     expect(result.branch).toBe('cap_reached');
     expect(outboxFor(memberId)).toHaveLength(before);
+    const current = db.prepare(
+      'SELECT club_id FROM member_club_affiliations WHERE member_id = ? AND is_current = 1',
+    ).all(memberId) as Array<{ club_id: string }>;
+    expect(current.map((r) => r.club_id).sort()).toEqual([clubA, clubB, clubC].sort());
   });
 });
 

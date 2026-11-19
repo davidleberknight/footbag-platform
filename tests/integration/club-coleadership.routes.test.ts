@@ -4,11 +4,11 @@
  *
  *   - volunteerToCoLeadClub is immediate for an eligible member (current member
  *     of the club, Tier 1 benefits via Tier 1+ or an active Active-Player
- *     period, not already co-leading another club, club under the 5-co-leader
+ *     period, co-leading fewer than three clubs, club under the 5-co-leader
  *     cap). It audits the add and notifies existing co-leaders.
- *   - A member with no Tier 1 benefits, a non-member, a member who already
- *     co-leads elsewhere, and a full club are each refused without writing a
- *     club_leaders row.
+ *   - A member with no Tier 1 benefits, a non-member who cannot join, a member
+ *     who already co-leads three clubs, and a full club are each refused
+ *     without writing a club_leaders row.
  *   - Co-leadership is gained only by volunteering (or admin assignment): a
  *     co-leader's club page offers no recruiting control.
  *   - Step-down removes the caller's own co-leader row while preserving their
@@ -187,8 +187,8 @@ describe('POST /clubs/:key/volunteer', () => {
   });
 
   // Defect caught: a volunteer refused for leadership reasons is still left
-  // holding the membership the same click made, or a member already in two
-  // other clubs reaches a third through the volunteer button.
+  // holding the membership the same click made, or a member already in three
+  // other clubs reaches a fourth through the volunteer button.
   it('a refused non-member volunteer is left with no join, at the co-leader cap or the club cap', async () => {
     const full = seedClub();
     for (let i = 0; i < 5; i++) {
@@ -203,25 +203,42 @@ describe('POST /clubs/:key/volunteer', () => {
     expect(auditCount('club.member_joined', 'actor_member_id = ?', m)).toBe(0);
 
     const { clubId, clubKey } = seedClub();
-    const two = tier1Actor(`v-twoclubs-${_n}`, `v_twoclubs_${_n}`);
-    insertMemberClubAffiliation(db, two, seedClub().clubId, { is_primary: 1 });
-    insertMemberClubAffiliation(db, two, seedClub().clubId, { is_primary: 0 });
-    const third = await request(createApp()).post(`/clubs/${clubKey}/volunteer`).set('Cookie', cookieFor(two));
-    expect(third.status).toBe(303);
+    const three = tier1Actor(`v-threeclubs-${_n}`, `v_threeclubs_${_n}`);
+    insertMemberClubAffiliation(db, three, seedClub().clubId, { is_primary: 1 });
+    insertMemberClubAffiliation(db, three, seedClub().clubId, { is_primary: 0 });
+    insertMemberClubAffiliation(db, three, seedClub().clubId, { is_primary: 0 });
+    const fourth = await request(createApp()).post(`/clubs/${clubKey}/volunteer`).set('Cookie', cookieFor(three));
+    expect(fourth.status).toBe(303);
     expect(leaderRows(clubId)).toHaveLength(0);
-    expect(currentAffiliations(two)).toHaveLength(2);
+    expect(currentAffiliations(three)).toHaveLength(3);
   });
 
-  it('a member who already co-leads another club cannot volunteer again', async () => {
-    const other = seedClub();
-    const { clubId, clubKey } = seedClub();
+  // Defect caught: a member co-leading two clubs is refused a third below the
+  // three-club co-lead limit; or a member co-leading three volunteers into a
+  // fourth, as leader or as member.
+  it('a member co-leading two clubs volunteers into a third, and is refused a fourth with no join', async () => {
     const m = tier1Actor(`v-multi-${_n}`, `v_multi_${_n}`);
-    insertClubLeader(db, { club_id: other.clubId, member_id: m });
-    insertMemberClubAffiliation(db, m, clubId);
+    // A co-leader is always a current member of the club they lead.
+    for (const [i, led] of [seedClub(), seedClub()].entries()) {
+      insertMemberClubAffiliation(db, m, led.clubId, { is_primary: i === 0 ? 1 : 0 });
+      insertClubLeader(db, { club_id: led.clubId, member_id: m });
+    }
 
-    const res = await request(createApp()).post(`/clubs/${clubKey}/volunteer`).set('Cookie', cookieFor(m));
-    expect(res.status).toBe(303);
-    expect(leaderRows(clubId)).toHaveLength(0);
+    const third = seedClub();
+    const ok = await request(createApp()).post(`/clubs/${third.clubKey}/volunteer`).set('Cookie', cookieFor(m));
+    expect(ok.status).toBe(303);
+    expect(leaderRows(third.clubId)).toEqual([{ member_id: m, role: 'co-leader' }]);
+    expect(currentAffiliations(m)).toHaveLength(3);
+
+    const fourth = seedClub();
+    const page = await request(createApp()).get(`/clubs/${fourth.clubKey}`).set('Cookie', cookieFor(m));
+    expect(page.status).toBe(200);
+    expect(page.text).not.toContain(`action="/clubs/${fourth.clubKey}/volunteer"`);
+    const refused = await request(createApp()).post(`/clubs/${fourth.clubKey}/volunteer`).set('Cookie', cookieFor(m));
+    expect(refused.status).toBe(303);
+    expect(leaderRows(fourth.clubId)).toHaveLength(0);
+    expect(currentAffiliations(m).map((r) => r.club_id)).not.toContain(fourth.clubId);
+    expect(currentAffiliations(m)).toHaveLength(3);
   });
 
   it('a club already at the five-co-leader cap refuses a sixth', async () => {
@@ -275,16 +292,19 @@ describe('club page leadership block', () => {
     expect(memberPage.text).toContain(`action="/clubs/${clubKey}/volunteer"`);
 
     // A member not in the club who could join it is offered the same button,
-    // which joins them as it makes them a co-leader; one already in two other
+    // which joins them as it makes them a co-leader; one already in three other
     // clubs cannot join, so is offered nothing.
     const outsider = tier1Actor(`lb-outsider-${_n}`, `lb_outsider_${_n}`);
+    insertMemberClubAffiliation(db, outsider, seedClub().clubId, { is_primary: 1 });
+    insertMemberClubAffiliation(db, outsider, seedClub().clubId, { is_primary: 0 });
     const outsiderPage = await request(createApp()).get(`/clubs/${clubKey}`).set('Cookie', cookieFor(outsider));
     expect(outsiderPage.status).toBe(200);
     expect(outsiderPage.text).toContain(`action="/clubs/${clubKey}/volunteer"`);
-    const twoClubs = tier1Actor(`lb-twoclubs-${_n}`, `lb_twoclubs_${_n}`);
-    insertMemberClubAffiliation(db, twoClubs, seedClub().clubId, { is_primary: 1 });
-    insertMemberClubAffiliation(db, twoClubs, seedClub().clubId, { is_primary: 0 });
-    const fullPage = await request(createApp()).get(`/clubs/${clubKey}`).set('Cookie', cookieFor(twoClubs));
+    const threeClubs = tier1Actor(`lb-threeclubs-${_n}`, `lb_threeclubs_${_n}`);
+    insertMemberClubAffiliation(db, threeClubs, seedClub().clubId, { is_primary: 1 });
+    insertMemberClubAffiliation(db, threeClubs, seedClub().clubId, { is_primary: 0 });
+    insertMemberClubAffiliation(db, threeClubs, seedClub().clubId, { is_primary: 0 });
+    const fullPage = await request(createApp()).get(`/clubs/${clubKey}`).set('Cookie', cookieFor(threeClubs));
     expect(fullPage.status).toBe(200);
     expect(fullPage.text).not.toContain(`action="/clubs/${clubKey}/volunteer"`);
 
@@ -371,6 +391,29 @@ describe('POST /clubs/:key/step-down', () => {
       'SELECT is_current FROM member_club_affiliations WHERE member_id = ? AND club_id = ?',
     ).get(m, clubId) as { is_current: number };
     expect(aff.is_current).toBe(1);
+  });
+
+  // Defect caught: stepping down at one club removes the member's co-leader
+  // rows at the other clubs they lead, or their memberships there.
+  it('stepping down at one of three led clubs leaves the other two co-leaderships intact', async () => {
+    const m = tier1Actor(`s-three-${_n}`, `s_three_${_n}`);
+    const led = [seedClub(), seedClub(), seedClub()];
+    for (const [i, c] of led.entries()) {
+      insertMemberClubAffiliation(db, m, c.clubId, { is_primary: i === 0 ? 1 : 0 });
+      insertClubLeader(db, { club_id: c.clubId, member_id: m });
+    }
+
+    const res = await request(createApp())
+      .post(`/clubs/${led[1].clubKey}/step-down`)
+      .set('Cookie', cookieFor(m))
+      .type('form')
+      .send({ confirmed: '1' });
+    expect(res.status).toBe(303);
+
+    expect(leaderRows(led[1].clubId)).toEqual([]);
+    expect(leaderRows(led[0].clubId)).toEqual([{ member_id: m, role: 'co-leader' }]);
+    expect(leaderRows(led[2].clubId)).toEqual([{ member_id: m, role: 'co-leader' }]);
+    expect(currentAffiliations(m)).toHaveLength(3);
   });
 
   // Defect caught: a member who stepped down, was given a seat again and then

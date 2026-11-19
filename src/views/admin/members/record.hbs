@@ -281,7 +281,7 @@
         <p class="fs-sm">The picture comes off the profile and its stored files are deleted. The account, the membership and everything else on the record are untouched, and the member is emailed the reason you give. They can upload another.</p>
         <form method="POST" action="{{content.avatarRemoveAction}}" class="form-block">
           <div class="form-field">
-            <label for="avatar_reason">Reason (required)</label>
+            <label for="avatar_reason">Reason, naming the Community Standard it broke (required)</label>
             <input type="text" id="avatar_reason" name="reason" value="{{content.reasons.avatar}}" maxlength="500" required />
             {{#if content.fieldErrors.avatar.reason}}<p class="form-field-error" role="alert">{{content.fieldErrors.avatar.reason}}</p>{{/if}}
           </div>
@@ -337,6 +337,99 @@
           <button type="submit" class="btn btn-outline">Review Deleting the Account</button>
         </form>
       </details>
+    {{/if}}
+  </section>
+
+  <section>
+    <div class="section-heading"><h2>Restriction and Board Decisions</h2></div>
+    <p class="fs-sm">A restriction stops an abusive member at once while the IFPA board decides under Article X of the bylaws. The board's decision is recorded here once it is made; the board gives the notice and the hearing.</p>
+
+    {{#if content.liftBlockedNote}}<p class="fs-sm">{{content.liftBlockedNote}}</p>{{/if}}
+
+    {{#if content.canRestrict}}
+      <details class="admin-action-disclosure" {{#if content.openForm.restrict}}open{{/if}}>
+        <summary>Restrict the Account</summary>
+        <p class="fs-sm">The member is signed out at once and cannot sign in. Their membership, tier, profile, media and results stay as they are. The member is emailed the reason you give.</p>
+        <form method="POST" action="{{content.restrictAction}}" class="form-block">
+          <div class="form-field">
+            <label for="restrict_reason">Reason (required)</label>
+            <input type="text" id="restrict_reason" name="reason" value="{{content.reasons.restrict}}" maxlength="500" required />
+            {{#if content.fieldErrors.restrict.reason}}<p class="form-field-error" role="alert">{{content.fieldErrors.restrict.reason}}</p>{{/if}}
+          </div>
+          <button type="submit" class="btn btn-outline">Review Restricting the Account</button>
+        </form>
+      </details>
+    {{/if}}
+
+    {{#if content.canLift}}
+      <details class="admin-action-disclosure" {{#if content.openForm.lift}}open{{/if}}>
+        <summary>Lift the Restriction</summary>
+        <p class="fs-sm">The member can sign in again at once, and is emailed the reason you give.</p>
+        <form method="POST" action="{{content.liftAction}}" class="form-block">
+          <div class="form-field">
+            <label for="lift_reason">Reason (required)</label>
+            <input type="text" id="lift_reason" name="reason" value="{{content.reasons.lift}}" maxlength="500" required />
+            {{#if content.fieldErrors.lift.reason}}<p class="form-field-error" role="alert">{{content.fieldErrors.lift.reason}}</p>{{/if}}
+          </div>
+          <button type="submit" class="btn btn-outline">Review Lifting the Restriction</button>
+        </form>
+      </details>
+    {{/if}}
+
+    {{#if content.canRecordDiscipline}}
+      <details class="admin-action-disclosure" {{#if content.openForm.discipline}}open{{/if}}>
+        <summary>Record the Board's Decision</summary>
+        <p class="fs-sm">Only a decision the IFPA board, or a committee or person it authorized, has already made. A suspension or expulsion needs at least 15 days between the notice and the decision, and an expulsion at least 5 days between the hearing and the decision.</p>
+        <form method="POST" action="{{content.disciplineAction}}" class="form-block">
+          <div class="form-field">
+            <label for="d_outcome">Outcome</label>
+            <select id="d_outcome" name="outcome" required>
+              <option value="">Choose the outcome</option>
+              {{#each content.disciplineForm.outcomeOptions}}
+                <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+              {{/each}}
+            </select>
+          </div>
+          <div class="form-field">
+            <label for="d_suspended_until">Suspension ends (suspensions only)</label>
+            <input type="date" id="d_suspended_until" name="suspended_until" value="{{content.disciplineForm.suspendedUntil}}" />
+          </div>
+          <div class="form-field">
+            <label for="d_decided_by">Who decided (required)</label>
+            <input type="text" id="d_decided_by" name="decided_by" value="{{content.disciplineForm.decidedBy}}" maxlength="200" required />
+          </div>
+          <div class="form-field">
+            <label for="d_notice_date">Date notice was given</label>
+            <input type="date" id="d_notice_date" name="notice_date" value="{{content.disciplineForm.noticeDate}}" required />
+          </div>
+          <div class="form-field">
+            <label for="d_hearing_date">Date of the opportunity to be heard</label>
+            <input type="date" id="d_hearing_date" name="hearing_date" value="{{content.disciplineForm.hearingDate}}" required />
+          </div>
+          <div class="form-field">
+            <label for="d_decision_date">Decision date</label>
+            <input type="date" id="d_decision_date" name="decision_date" value="{{content.disciplineForm.decisionDate}}" required />
+          </div>
+          <div class="form-field">
+            <label for="d_reason">The board's reason (required)</label>
+            <input type="text" id="d_reason" name="reason" value="{{content.reasons.discipline}}" maxlength="500" required />
+          </div>
+          <button type="submit" class="btn btn-outline">Review the Decision</button>
+        </form>
+      </details>
+    {{/if}}
+
+    {{#if content.hasDecisions}}
+      {{#each content.decisions}}
+        <h3>{{heading}}</h3>
+        <dl class="trick-structural-facts-list">
+          {{#each facts}}
+            <dt>{{label}}</dt><dd>{{value}}</dd>
+          {{/each}}
+        </dl>
+      {{/each}}
+    {{else}}
+      <p class="fs-sm">No board decision is recorded for this member.</p>
     {{/if}}
   </section>
 

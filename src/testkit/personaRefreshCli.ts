@@ -50,13 +50,13 @@ import BetterSqlite3 from 'better-sqlite3';
 import { existsSync } from 'node:fs';
 import { TEST_PERSONA_SEED_PASSWORD_LITERAL } from './personaSecrets';
 import { CANONICAL_PERSONAS } from './canonicalPersonas';
-import { refreshAllPersonas } from './personaRefreshRunner';
-import { financeDemoMemberSlugs } from './financeDemoSeed';
+import { refreshAllPersonas } from './personaRefreshRunner';import { financeDemoMemberSlugs } from './financeDemoSeed';
 import { SEEDED_PERSONA_MEMBER_ID_PREFIX } from '../lib/personaGuards';
 import { parseDbArg } from './seedCli';
 import {
   financeDemoJourneyDatabaseMatches,
   runFinanceDemoJourneyFromCli,
+  runPersonaJourneysFromCli,
   closeFinanceDemoJourneyDatabase,
 } from './financeDemoJourneyCli';
 
@@ -126,8 +126,7 @@ export async function main(): Promise<number> {
       console.log(
         '[persona-refresh] --apply DELETES persona-owned rows, including anything a' +
           ' tester built while acting as a persona.',
-      );
-      if (hasFinancePersona) {
+      );      if (hasFinancePersona) {
         console.log(
           '[persona-refresh] --apply then runs the finance persona\'s journey: the nightly' +
             ' reconciliation and the Treasurer digest, on demand, through the application database.',
@@ -146,12 +145,23 @@ export async function main(): Promise<number> {
     // the seed runner gives: the helper pulls in the application config, which
     // demands a full server environment this CLI does not have.
     const passwordHash = await argon2.hash(TEST_PERSONA_SEED_PASSWORD_LITERAL);
-    const result = refreshAllPersonas(db, { passwordHash });
+    // The barred-address hash is keyed by the session secret, which only the
+    // application environment carries; the finance journey already requires
+    // that environment, so it is loaded here the same way, at apply time.
+    const { barredEmailHash } = await import('../lib/barredEmailHash');
+    const result = refreshAllPersonas(db, { passwordHash, barredEmailHash });
 
     console.log(
       `[persona-refresh] done. deletedMembers=${result.deletedMembers}` +
-        ` reseeded=${result.reseeded} actorGrantRowsRemoved=${result.actorGrantRowsRemoved}`,
+        ` reseeded=${result.reseeded} actorGrantRowsRemoved=${result.actorGrantRowsRemoved}` +
+        ` configRowsRemoved=${result.configRowsRemoved}`,
     );
+    if (result.configRowsRemoved > 0) {
+      console.log(
+        '[persona-refresh] a persona administrator had changed system parameters; those' +
+          ' changes are gone and each setting returns to its earlier value.',
+      );
+    }
     if (result.actorGrantRowsRemoved > 0) {
       console.log(
         '[persona-refresh] a persona had granted tiers or Active Player standing to other' +
@@ -167,7 +177,10 @@ export async function main(): Promise<number> {
     db.close();
   }
   // After this command's own handle has closed, through the application's.
-  return runJourney ? runFinanceDemoJourneyFromCli('persona-refresh') : 0;
+  if (!runJourney) return 0;
+  const financeExit = await runFinanceDemoJourneyFromCli('persona-refresh');
+  const journeysExit = await runPersonaJourneysFromCli('persona-refresh');
+  return financeExit !== 0 ? financeExit : journeysExit;
 }
 
 if (require.main === module) {

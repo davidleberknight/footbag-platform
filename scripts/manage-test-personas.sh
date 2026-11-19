@@ -104,20 +104,29 @@ require_db_file() {
   fi
 }
 
+# The persona journeys run scheduled jobs whose info-level run lines carry
+# counts such as "skipped_outside_window=0", which the runners' notice grammar
+# reads as a skip. Both commands therefore log at warn, the level production
+# runs at, so a clean seed or refresh prints only its own report.
+PERSONA_LOG_LEVEL="${LOG_LEVEL:-warn}"
+
 action_seed_test_personas() {
   require_db_file
   echo "→ Seeding test personas (env=${SEED_ENV})..."
-  FOOTBAG_ENV="${SEED_ENV}" npx tsx src/testkit/personaSeedRunner.ts --db "${DB_FILE}"
+  FOOTBAG_ENV="${SEED_ENV}" LOG_LEVEL="${PERSONA_LOG_LEVEL}" \
+    npx tsx src/testkit/personaSeedRunner.ts --db "${DB_FILE}"
 }
 
 action_refresh_test_personas() {
   require_db_file
   if [[ "${APPLY}" == "yes" ]]; then
     echo "→ Refreshing test personas (env=${SEED_ENV}) — persona-owned rows will be deleted..."
-    FOOTBAG_ENV="${SEED_ENV}" npx tsx src/testkit/personaRefreshCli.ts --db "${DB_FILE}" --apply
+    FOOTBAG_ENV="${SEED_ENV}" LOG_LEVEL="${PERSONA_LOG_LEVEL}" \
+      npx tsx src/testkit/personaRefreshCli.ts --db "${DB_FILE}" --apply
   else
     echo "→ Reporting the test-persona refresh (env=${SEED_ENV}); nothing will be written..."
-    FOOTBAG_ENV="${SEED_ENV}" npx tsx src/testkit/personaRefreshCli.ts --db "${DB_FILE}"
+    FOOTBAG_ENV="${SEED_ENV}" LOG_LEVEL="${PERSONA_LOG_LEVEL}" \
+      npx tsx src/testkit/personaRefreshCli.ts --db "${DB_FILE}"
   fi
 }
 

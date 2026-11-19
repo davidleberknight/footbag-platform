@@ -122,13 +122,13 @@ describe('canonical persona catalog', () => {
     expect((flags.get('member_persona_honors_board') as { is_board: number }).is_board).toBe(1);
   });
 
-  it('claimed-legacy admin flag does not confer a live admin role', () => {
+  it('a claimable old account flagged admin on the old site leaves its claimant without a live admin role', () => {
     const member = db
       .prepare(`SELECT is_admin FROM members WHERE id = ?`)
-      .get('member_persona_legacy_admin_flag') as { is_admin: number };
+      .get('member_persona_claim_legacy_admin') as { is_admin: number };
     const legacy = db
       .prepare(`SELECT legacy_is_admin FROM legacy_members WHERE legacy_member_id = ?`)
-      .get('legmem_persona_legacy_admin_flag') as { legacy_is_admin: number };
+      .get('legmem_persona_claim_legacy_admin') as { legacy_is_admin: number };
     expect(legacy.legacy_is_admin, 'legacy row carries the admin flag').toBe(1);
     expect(member.is_admin, 'live member did NOT inherit admin').toBe(0);
   });

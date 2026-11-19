@@ -13,8 +13,8 @@
  *     Active Player expiry, administrator-loss sweep, PII purge scan, expired
  *     token cleanup, hashtag-stats rebuild, admin work-queue digest and stale
  *     escalation, payment reconciliation, its digest and the resolved-issue
- *     purge, the audit retention purge, the unfinished-account deletion, and
- *     the media-lease reclaim. When each runs is the job registry's decision,
+ *     purge, the audit retention purge, the unfinished-account deletion, the
+ *     membership-discipline pass, and the media-lease reclaim. When each runs is the job registry's decision,
  *     never the entry point's.
  *   - Unfinished-account deletion: which prospective members' accounts are idle
  *     past `unfinished_account_cleanup_days`, and their outright deletion with
@@ -32,7 +32,8 @@
  *   - When a scheduled job runs, its run-row pruning and the missed-run
  *     heartbeat (JobRegistry)
  *   - The delegated job bodies (ActivePlayerExpiryService, CommunicationService drain,
- *     MembershipTieringService administrator-loss sweep)
+ *     MembershipTieringService administrator-loss sweep, MemberDisciplineService
+ *     suspension lifts and decision retention)
  *   - Outbox row mechanics (CommunicationService)
  *   - Row-level PII erasure (MemberService primitives)
  *
@@ -110,6 +111,7 @@ import {
   type RunDailyPassResult as EventRegistrationReminderResult,
 } from './eventRegistrationReminderService';
 import { runAdminLossSweep } from './membershipTieringService';
+import { memberDisciplineService } from './memberDisciplineService';
 
 export interface PiiPurgeScanResult {
   deleted: {
@@ -635,6 +637,18 @@ export class OperationsPlatformService {
    * the row that blocked it is a defect an operator should find. The job
    * writes no audit row: the audit log holds none about a prospective member.
    */
+  /**
+   * SYS_Apply_Membership_Discipline: lift the board suspensions whose end date
+   * has come and delete the discipline decisions past the bylaws' challenge
+   * window. The work is MemberDisciplineService's; this wraps it in its run row.
+   */
+  async runMembershipDiscipline(
+    startTime?: Date,
+  ): Promise<{ lifted: number; decisionsDeleted: number }> {
+    return this.recordJobRun('SYS_Apply_Membership_Discipline', async () =>
+      memberDisciplineService.runDailyPass(startTime ?? new Date()), startTime);
+  }
+
   async runUnfinishedAccountCleanup(
     startTime?: Date,
   ): Promise<{

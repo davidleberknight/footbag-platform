@@ -122,8 +122,8 @@ beforeAll(async () => {
     status:           'provisional',
   });
 
-  // A returning leader who already holds two current clubs. A co-leader is
-  // always a current member of the club, so their claim on a third club lands
+  // A returning leader who already holds three current clubs. A co-leader is
+  // always a current member of the club, so their claim on a fourth club lands
   // neither role: it is kept as a former membership, as a membership Yes at the
   // cap is. The club is inactive and carries a still-open membership
   // suggestion about it, so the claim's effect on both is visible.
@@ -135,6 +135,7 @@ beforeAll(async () => {
   });
   insertMemberClubAffiliation(db, MEMBER_LEAD_CAPPED, insertClub(db, { name: 'Capped First Club' }), { is_primary: 1 });
   insertMemberClubAffiliation(db, MEMBER_LEAD_CAPPED, insertClub(db, { name: 'Capped Second Club' }), { is_primary: 0 });
+  insertMemberClubAffiliation(db, MEMBER_LEAD_CAPPED, insertClub(db, { name: 'Capped Third Club' }), { is_primary: 0 });
   cappedClubId = insertClub(db, { name: 'Capped Leadership Club', status: 'inactive' });
   cappedCblId = insertClubBootstrapLeader(db, {
     club_id:          cappedClubId,
@@ -168,8 +169,8 @@ beforeAll(async () => {
     status:           'provisional',
   });
 
-  // A member at two current clubs whose leadership claim is on one of those
-  // two: that club is not a third, so the claim makes them a co-leader.
+  // A member at three current clubs whose leadership claim is on one of those
+  // three: that club is not a fourth, so the claim makes them a co-leader.
   insertMember(db, { onboarding: 'none',
     id: MEMBER_LEAD_OWN,
     slug: 'wiz_clubaff_lead_own',
@@ -191,6 +192,7 @@ beforeAll(async () => {
   ownLedClubId = insertClub(db, { name: 'Own Led Club' });
   insertMemberClubAffiliation(db, MEMBER_LEAD_OWN, ownLedClubId, { is_primary: 1 });
   insertMemberClubAffiliation(db, MEMBER_LEAD_OWN, insertClub(db, { name: 'Own Other Club' }), { is_primary: 0 });
+  insertMemberClubAffiliation(db, MEMBER_LEAD_OWN, insertClub(db, { name: 'Own Third Club' }), { is_primary: 0 });
   ownLedCblId = insertClubBootstrapLeader(db, {
     club_id:          ownLedClubId,
     legacy_member_id: 'lm-wiz-lead-own',
@@ -308,8 +310,9 @@ beforeAll(async () => {
     confidence_score:         0.7,
   });
 
-  // At-cap: member already holds two current club affiliations plus a pending
-  // membership candidate for a third club. Confirming the third is a cap hit.
+  // At-cap: member already holds three current club affiliations plus a
+  // pending membership candidate for a fourth club. Confirming the fourth is a
+  // cap hit.
   insertMember(db, { onboarding: 'none',
     id: MEMBER_CAP,
     slug: 'wiz_clubaff_cap',
@@ -320,11 +323,12 @@ beforeAll(async () => {
   const capClubB = insertClub(db, { name: 'Cap Current Club B' });
   insertMemberClubAffiliation(db, MEMBER_CAP, capClubA, { is_current: 1, is_primary: 1 });
   insertMemberClubAffiliation(db, MEMBER_CAP, capClubB, { is_current: 1, is_primary: 0 });
-  const capClubC = insertClub(db, { name: 'Cap Third Club C' });
+  insertMemberClubAffiliation(db, MEMBER_CAP, insertClub(db, { name: 'Cap Current Club C' }), { is_current: 1, is_primary: 0 });
+  const capClubC = insertClub(db, { name: 'Cap Fourth Club D' });
   const capCand = insertLegacyClubCandidate(db, {
     classification: 'pre_populate',
     mapped_club_id: capClubC,
-    display_name:   'Cap Third Club C',
+    display_name:   'Cap Fourth Club D',
   });
   capAffId = insertLegacyPersonClubAffiliation(db, {
     legacy_member_id:         'lm-wiz-cap',
@@ -347,11 +351,12 @@ beforeAll(async () => {
   const capLastB = insertClub(db, { name: 'Cap Last Current B' });
   insertMemberClubAffiliation(db, MEMBER_CAP_LAST, capLastA, { is_current: 1, is_primary: 1 });
   insertMemberClubAffiliation(db, MEMBER_CAP_LAST, capLastB, { is_current: 1, is_primary: 0 });
-  const capLastC = insertClub(db, { name: 'Cap Last Third Club' });
+  insertMemberClubAffiliation(db, MEMBER_CAP_LAST, insertClub(db, { name: 'Cap Last Current C' }), { is_current: 1, is_primary: 0 });
+  const capLastC = insertClub(db, { name: 'Cap Last Fourth Club' });
   const capLastCand = insertLegacyClubCandidate(db, {
     classification: 'pre_populate',
     mapped_club_id: capLastC,
-    display_name:   'Cap Last Third Club',
+    display_name:   'Cap Last Fourth Club',
   });
   capLastAffId = insertLegacyPersonClubAffiliation(db, {
     legacy_member_id:         'lm-wiz-cap-last',
@@ -377,7 +382,7 @@ beforeAll(async () => {
     legacy_club_candidate_id: otherCand,
   });
 
-  // At-cap disambiguation: a member already at the two-current-club cap with a
+  // At-cap disambiguation: a member already at the three-current-club cap with a
   // same-city pair of pending candidates (one disambiguation card). Confirming
   // a club from it is a cap hit, so the wizard must surface the cap notice
   // rather than telling the member the club was added.
@@ -391,6 +396,7 @@ beforeAll(async () => {
   const dcCurB = insertClub(db, { name: 'DisambigCap Current B' });
   insertMemberClubAffiliation(db, MEMBER_DISAMBIG_CAP, dcCurA, { is_current: 1, is_primary: 1 });
   insertMemberClubAffiliation(db, MEMBER_DISAMBIG_CAP, dcCurB, { is_current: 1, is_primary: 0 });
+  insertMemberClubAffiliation(db, MEMBER_DISAMBIG_CAP, insertClub(db, { name: 'DisambigCap Current C' }), { is_current: 1, is_primary: 0 });
   const dcClubX = insertClub(db, { name: 'Boston X', city: 'Boston', country: 'USA' });
   const dcClubY = insertClub(db, { name: 'Boston Y', city: 'Boston', country: 'USA' });
   const dcCandX = insertLegacyClubCandidate(db, { classification: 'pre_populate', mapped_club_id: dcClubX, display_name: 'Boston X' });
@@ -666,7 +672,7 @@ describe('POST /register/wizard/club_affiliations/submit — per-card flow', () 
     expect(isActivePlayer(MEMBER_MEMBERSHIP)).toBe(1);
   });
 
-  it('membership confirm at the two-current-club cap records a former membership and resolves the card', async () => {
+  it('membership confirm at the three-current-club cap records a former membership and resolves the card', async () => {
     const res = await request(createApp())
       .post('/register/wizard/club_affiliations/submit')
       .set('Cookie', cookieFor(MEMBER_CAP))
@@ -678,7 +684,7 @@ describe('POST /register/wizard/club_affiliations/submit — per-card flow', () 
     // it is kept as a former membership and the card never blocks the step.
     expect(readAffiliationStatus(capAffId)).toBe('former_only');
     // No current affiliation is written, so the cap itself still holds.
-    expect(readCurrentAffiliationCount(MEMBER_CAP)).toBe(2);
+    expect(readCurrentAffiliationCount(MEMBER_CAP)).toBe(3);
 
     // The member carries the cap notice into the next render of the step.
     const setCookies = (res.headers['set-cookie'] ?? []) as unknown as string[];
@@ -711,8 +717,8 @@ describe('POST /register/wizard/club_affiliations/submit — per-card flow', () 
       .get('/register/wizard/club_affiliations')
       .set('Cookie', carried);
     expect(afterCard.status).toBe(200);
-    expect(afterCard.text).toContain('two current-club limit');
-    expect(afterCard.text).toContain('Cap Last Third Club');
+    expect(afterCard.text).toContain('Cap Last Fourth Club');
+    expect(readCurrentAffiliationCount(MEMBER_CAP_LAST)).toBe(3);
     // The spent controls are gone: no card to answer and no no-club exit.
     expect(afterCard.text).not.toContain('Finish Without a Club');
     expect(afterCard.text).toContain('Continue');
@@ -750,7 +756,7 @@ describe('POST /register/wizard/club_affiliations/submit — per-card flow', () 
     expect(readLeaderClubIds(MEMBER_LEADERSHIP)).toEqual([]);
   });
 
-  it('leadership confirm at the two-club cap leads nothing, keeps a former membership, and says so', async () => {
+  it('leadership confirm at the three-current-club cap leads nothing, keeps a former membership, and says so', async () => {
     const app = createApp();
     const res = await request(app)
       .post('/register/wizard/club_affiliations/submit')
@@ -760,11 +766,12 @@ describe('POST /register/wizard/club_affiliations/submit — per-card flow', () 
     expect(res.status).toBe(303);
 
     // The claim is answered, but a co-leader is always a current member, so a
-    // member already in two other clubs is neither: no co-leader row, no third
-    // club, and the open suggestion about the club is kept as former membership.
+    // member already in three other clubs is neither: no co-leader row, no
+    // fourth club, and the open suggestion about the club is kept as former
+    // membership.
     expect(readBootstrapStatus(cappedCblId)).toBe('claimed');
     expect(readLeaderClubIds(MEMBER_LEAD_CAPPED)).toEqual([]);
-    expect(readCurrentAffiliationCount(MEMBER_LEAD_CAPPED)).toBe(2);
+    expect(readCurrentAffiliationCount(MEMBER_LEAD_CAPPED)).toBe(3);
     expect(readAffiliationStatus(cappedAffId)).toBe('former_only');
     // Nobody landed in the inactive club, so the claim revives nothing.
     expect(readClubStatus(cappedClubId)).toBe('inactive');
@@ -783,7 +790,6 @@ describe('POST /register/wizard/club_affiliations/submit — per-card flow', () 
       page = await request(app).get(page.headers.location as string).set('Cookie', carried);
     }
     expect(page.status).toBe(200);
-    expect(page.text).toContain('two current-club limit');
     expect(page.text).toContain('Capped Leadership Club');
     expect(page.text).toContain('recorded as a former membership');
     expect(page.text).not.toContain('you lead');
@@ -817,7 +823,7 @@ describe('POST /register/wizard/club_affiliations/submit — per-card flow', () 
     expect(step.text).toContain('We did not find a past club affiliation for you');
   });
 
-  it('leadership confirm on one of the member’s own two clubs is not a third club', async () => {
+  it('leadership confirm on one of the member’s own three clubs is not a fourth club', async () => {
     const res = await request(createApp())
       .post('/register/wizard/club_affiliations/submit')
       .set('Cookie', cookieFor(MEMBER_LEAD_OWN))
@@ -826,9 +832,9 @@ describe('POST /register/wizard/club_affiliations/submit — per-card flow', () 
     expect(res.status).toBe(303);
 
     // The member already holds this club, so the cap is not hit: they lead it
-    // and still hold the same two clubs, with no cap notice.
+    // and still hold the same three clubs, with no cap notice.
     expect(readLeaderClubIds(MEMBER_LEAD_OWN)).toEqual([ownLedClubId]);
-    expect(readCurrentAffiliationCount(MEMBER_LEAD_OWN)).toBe(2);
+    expect(readCurrentAffiliationCount(MEMBER_LEAD_OWN)).toBe(3);
     const flashCookie = ((res.headers['set-cookie'] ?? []) as unknown as string[])
       .map((c) => c.split(';')[0])
       .find((c) => c.startsWith('footbag_flash='));
@@ -1359,6 +1365,7 @@ describe('club_affiliations answer guards and the grouped card', () => {
     expect(readTaskState(MEMBER_DISAMBIG_CAP)).toBe('completed');
     expect(readAffiliationStatus(disambigCapAffY)).toBe('rejected');
     expect(readAffiliationStatus(disambigCapAffX)).toBe('former_only');
+    expect(readCurrentAffiliationCount(MEMBER_DISAMBIG_CAP)).toBe(3);
     expect(readHeldClubAnswers(MEMBER_DISAMBIG_CAP)).toEqual([]);
   });
 

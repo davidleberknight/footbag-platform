@@ -51,6 +51,7 @@ import { SEEDED_PERSONA_MEMBER_ID_PREFIX } from '../lib/personaGuards';
 import {
   financeDemoJourneyDatabaseMatches,
   runFinanceDemoJourneyFromCli,
+  runPersonaJourneysFromCli,
   closeFinanceDemoJourneyDatabase,
 } from './financeDemoJourneyCli';
 
@@ -84,7 +85,12 @@ export async function main(): Promise<number> {
     const financeWillBeCreated = financeSpec !== undefined
       && db.prepare(`SELECT 1 FROM members WHERE id = ?`)
         .get(`${SEEDED_PERSONA_MEMBER_ID_PREFIX}${financeSpec.slug}`) === undefined;
-    if (financeWillBeCreated && !(await financeDemoJourneyDatabaseMatches(dbPath, 'persona-seed'))) {
+    // The persona journeys write through the application database too.
+    const journeyWillRun = specs.some((s) => s.postSeed && !s.blockedBy
+      && db.prepare(`SELECT 1 FROM members WHERE id = ?`)
+        .get(`${SEEDED_PERSONA_MEMBER_ID_PREFIX}${s.slug}`) === undefined);
+    if ((financeWillBeCreated || journeyWillRun)
+      && !(await financeDemoJourneyDatabaseMatches(dbPath, 'persona-seed'))) {
       return 1;
     }
     result = seedPersonas(db, specs, passwordHash);
@@ -97,15 +103,27 @@ export async function main(): Promise<number> {
   if (specs.some((s) => s.financeDemo && result.createdSlugs.includes(s.slug))) {
     journeyExit = await runFinanceDemoJourneyFromCli('persona-seed');
   }
+  // The persona journeys for the personas this run created; a kept persona
+  // already went through its journey when it was first built.
+  const createdWithJourney = specs
+    .filter((s) => s.postSeed && result.createdSlugs.includes(s.slug))
+    .map((s) => s.slug);
+  if (createdWithJourney.length > 0) {
+    const personasExit = await runPersonaJourneysFromCli('persona-seed', createdWithJourney);
+    if (journeyExit === 0) journeyExit = personasExit;
+  }
 
   const { created, healed, skipped, skippedBlocked, orphanSlugs, failedSlugs } = result;
 
   for (const slug of orphanSlugs) {
     console.log(`[persona-seed] orphan (no longer in the catalog): ${slug}`);
   }
+  // Semicolons between the counts: a count printed just before the next name
+  // ("orphaned=6 failed=0", "healed=0 skipped=3") reads to the runners'
+  // grammars as "6 failed" or "0 skipped".
   console.log(
-    `[persona-seed] done. created=${created} healed=${healed} skipped=${skipped}` +
-      ` skippedBlocked=${skippedBlocked} orphaned=${orphanSlugs.length} failed=${failedSlugs.length}`,
+    `[persona-seed] done. failed=${failedSlugs.length}; created=${created}; healed=${healed};` +
+      ` skipped=${skipped}; skippedBlocked=${skippedBlocked}; orphaned=${orphanSlugs.length}`,
   );
 
   // Say which of the two states this database reached, because the difference

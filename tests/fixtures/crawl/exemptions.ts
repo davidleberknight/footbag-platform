@@ -106,7 +106,7 @@ export const CRAWL_FINDING_EXEMPTIONS: readonly FindingExemption[] = [
   },
   {
     oracle: 'shown-but-refused', reason: 'harness-by-design',
-    url: /^\/dev\/login\?as=(?:deceased|deceased_past_revert|deceased_with_record|del_grace_elapsed|del_grace_open|unverified)$/,
+    url: /^\/dev\/login\?as=(?:deceased|deceased_past_revert|deceased_with_record|del_grace_elapsed|del_grace_hof|del_grace_open|purged_hof|purged_member|unverified)$/,
     problem: /^signed-in persona redirected to log in/,
     why: 'The persona catalog offers a login link for each persona whose login is refused, so a '
       + 'tester can see the refusal; landing on the login page is the behaviour being shown.',
@@ -173,6 +173,12 @@ export const ROUTE_EXEMPTIONS: readonly RouteExemption[] = [
     + 'rather than links; a tester opens it by address.', [
       'GET /dev/outbox',
     ]),
+  ...group('harness-by-design',
+    'Builds and claims an account for a real legacy record, a change on shared staging the persona '
+    + 'refresh never undoes, so no page offers it; the real-data leg and the build-claim route '
+    + 'suite drive it by address.', [
+      'GET /dev/build-claim',
+    ]),
   ...group('valid-submission-only',
     'The form is rendered only on the page a valid first submission returns (a confirmation step, a '
     + 'checkout, a registration acknowledgement); the empty-body probe stops at validation.', [
@@ -185,6 +191,9 @@ export const ROUTE_EXEMPTIONS: readonly RouteExemption[] = [
       'POST /admin/members/:memberId/bio/clear/confirm',
       'POST /admin/members/:memberId/deceased/confirm', 'POST /admin/members/:memberId/deceased/revert/confirm',
       'POST /admin/members/:memberId/delete/confirm',
+      'POST /admin/members/:memberId/restrict/confirm',
+      'POST /admin/members/:memberId/restrict/lift/confirm',
+      'POST /admin/members/:memberId/discipline/confirm',
       'POST /admin/historical-records/:personId/deceased/confirm',
       'POST /admin/historical-records/:personId/deceased/revert/confirm',
       'POST /admin/historical-records/:personId/correction/confirm',
@@ -209,14 +218,17 @@ export const ROUTE_EXEMPTIONS: readonly RouteExemption[] = [
     ]),
   ...group('fixture-gap',
     'The crawl fixture seeds no row or state that renders a link or form to this route (no '
-    + 'avatar, deceased record, work-queue item of this kind, payment report, flagged media, curator '
+    + 'avatar, restricted account, deceased record, work-queue item of this kind, payment report, flagged media, curator '
     + 'media, notation candidate, net team, past event, recurring donation, '
     + 'organizer task, archive configuration, claimable record, second club for the persona, '
-    + 'club the cleanup rules would demote, admin club or event search result, or bounced address).', [
+    + 'club the cleanup rules would demote, club quiet for two years, admin club or event search '
+    + 'result, or bounced address).', [
       'GET /admin/clubs/:clubId',
       'POST /members/:memberKey/email-preferences/recover',
       'POST /admin/club-cleanup/apply-rules',
+      'POST /admin/club-cleanup/:clubId/contact-coleaders',
       'POST /admin/members/:memberId/avatar/remove',
+      'POST /admin/members/:memberId/restrict/lift',
       'POST /admin/historical-records/:personId/deceased', 'POST /admin/historical-records/:personId/deceased/revert',
       'GET /admin/historical-records/:personId/correction', 'POST /admin/historical-records/:personId/correction',
       'GET /admin/events/:eventId/results', 'GET /admin/events/:eventId/results/entries/:entryId',
