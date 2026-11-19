@@ -429,3 +429,100 @@ def test_member_visible_files_land_in_the_tree_the_crawl_names(tmp_path, monkeyp
     assert _run(monkeypatch, '--archive', str(named)) == 0
     assert (named / rel).read_bytes() == b'%PDF-brochure'
     assert not (default_archive / rel).exists()
+
+
+def _held_privately(custody, rel, body):
+    path = custody / 'www.footbag.org' / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(body)
+
+
+def test_a_scoped_file_ruled_into_the_archive_moves_from_custody_to_the_archive(
+        tmp_path, monkeypatch, capsys):
+    # The maintainer opened it to members; left in custody it is never served,
+    # and a second copy left behind gives the file two homes.
+    rel = 'ifpa/groups/directors/rules v10.pdf'
+    row = _public('281', rel)
+    row[4] = '1'                                    # scoped to its group
+    archive, custody, site = _recovery_tree(
+        tmp_path, monkeypatch, [row], {}, rulings=[('281', '', 'archive', 'opened')])
+    _held_privately(custody, rel, b'%PDF-rules')
+    assert _run(monkeypatch, '--offline') == 0
+    assert (archive / rel).read_bytes() == b'%PDF-rules'
+    assert not (custody / 'www.footbag.org' / rel).exists()
+    assert site.requested == []
+    out = capsys.readouterr().out
+    assert 'released from custody by ruling       : 1' in out
+    assert 'custody copies removed by ruling      : 1' in out
+
+
+def test_a_custody_copy_that_differs_from_the_archive_copy_is_kept(tmp_path, monkeypatch):
+    # Removing the only copy of different bytes loses them; the history is the
+    # backstop for a removal the run meant, not for one it never checked.
+    rel = 'ifpa/groups/directors/plan.pdf'
+    row = _public('295', rel)
+    row[4] = '1'
+    archive, custody, _ = _recovery_tree(
+        tmp_path, monkeypatch, [row], {}, rulings=[('295', '', 'archive', 'opened')])
+    _held_privately(custody, rel, b'%PDF-custody')
+    (archive / rel).parent.mkdir(parents=True)
+    (archive / rel).write_bytes(b'%PDF-archive')
+    assert _run(monkeypatch, '--offline') == 0
+    assert (custody / 'www.footbag.org' / rel).read_bytes() == b'%PDF-custody'
+
+
+def test_a_dropped_files_custody_copy_is_removed_and_others_are_kept(tmp_path, monkeypatch):
+    # A dropped file is held nowhere; its copy left in custody is a private
+    # record nobody ruled to keep. An unruled private file beside it stays.
+    dropped, kept = 'ifpa/groups/chaos/banner.gif', 'ifpa/groups/chaos/budget.pdf'
+    rows = [_public('113', dropped), _public('283', kept)]
+    for row in rows:
+        row[4] = '1'
+    _, custody, _ = _recovery_tree(
+        tmp_path, monkeypatch, rows, {}, rulings=[('113', '', 'drop', 'private file')])
+    _held_privately(custody, dropped, b'GIF')
+    _held_privately(custody, kept, b'%PDF')
+    assert _run(monkeypatch, '--offline') == 0
+    assert not (custody / 'www.footbag.org' / dropped).exists()
+    assert (custody / 'www.footbag.org' / kept).is_file()
+
+
+def test_an_unruled_scoped_file_in_custody_stays_there(tmp_path, monkeypatch):
+    # Without the ruling the metadata decides, and it keeps the file private.
+    rel = 'ifpa/groups/directors/minutes.pdf'
+    row = _public('41', rel)
+    row[4] = '1'
+    archive, custody, _ = _recovery_tree(tmp_path, monkeypatch, [row], {})
+    _held_privately(custody, rel, b'%PDF-minutes')
+    assert _run(monkeypatch, '--offline') == 0
+    assert not (archive / rel).exists()
+
+
+def test_a_file_ruled_into_the_archive_that_reads_as_a_roster_is_held_back(
+        tmp_path, monkeypatch, capsys):
+    # A ruling made from a name and a description cannot see a phone list
+    # inside; publishing it puts members' contact details in front of everyone.
+    rel = 'ifpa/groups/SOUF/members.txt'
+    row = _public('141', rel)
+    row[4] = '1'
+    archive, custody, _ = _recovery_tree(
+        tmp_path, monkeypatch, [row], {}, rulings=[('141', '', 'archive', 'opened')])
+    _held_privately(custody, rel, ROSTER_TXT)
+    assert _run(monkeypatch, '--offline') == 1
+    assert not (archive / rel).exists()
+    assert f'HELD BACK {rel}' in capsys.readouterr().out
+
+
+def test_a_file_ruled_into_the_archive_of_a_type_it_cannot_serve_is_held_back(
+        tmp_path, monkeypatch, capsys):
+    # The capture holds only what the archive serves; a Word file copied in is
+    # stripped again on the next settle and the ruling never takes effect.
+    rel = 'ifpa/groups/directors/plan.doc'
+    row = _public('383', rel)
+    row[4] = '1'
+    archive, custody, _ = _recovery_tree(
+        tmp_path, monkeypatch, [row], {}, rulings=[('383', '', 'archive', 'opened')])
+    _held_privately(custody, rel, b'doc bytes')
+    assert _run(monkeypatch, '--offline') == 1
+    assert not (archive / rel).exists()
+    assert f'HELD BACK {rel}' in capsys.readouterr().out

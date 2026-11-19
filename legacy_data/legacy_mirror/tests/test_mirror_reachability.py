@@ -107,6 +107,47 @@ def test_listing_does_not_erase_itself_on_a_second_run(env):
     assert first == second
 
 
+_RULES_PAGE = (
+    '<html><head><title>footbag.org: Rules</title></head><body>'
+    '<div id="MainMenu"><ul><li><a href="../faq/index.html"><nobr>FAQ</nobr></a>'
+    '</ul></div>'
+    '<div id="MainWrapper"><div id="MainBody">RULES-PAGE-CONTENT</div>\n'
+    '<!-- MainWrapper --></div>'
+    '<img src="../img/logo.gif"></body></html>')
+
+
+def test_listing_wears_the_sites_own_page_with_the_menu_working(env):
+    # A listing in a bare stylesheet reads as a page from another site; one
+    # whose menu keeps the rules page's folder-relative links breaks them all.
+    _seed(env, 'faq.txt', [BASE + '/faq/show/9'])
+    _capture(BASE + '/faq/show/9', 'footbag.org: Lonely Answer')
+    rules = _www(env) / 'rules' / 'index.html'
+    rules.parent.mkdir(parents=True, exist_ok=True)
+    rules.write_text(_RULES_PAGE, encoding='utf-8')
+
+    mirror_script.generate_archive_directory()
+    listing = (_www(env) / 'archive-directory.html').read_text(encoding='utf-8')
+
+    assert 'href="faq/index.html"' in listing and 'src="img/logo.gif"' in listing
+    assert 'id="MainMenu"' in listing and 'RULES-PAGE-CONTENT' not in listing
+    body_at = listing.index('id="MainBody"')
+    assert body_at < listing.index('Lonely Answer') < listing.index('<!-- MainWrapper -->')
+    # Titled as the listing, not as the rules page it was dressed from.
+    assert 'footbag.org: Rules' not in listing
+    assert mirror_script.mirror_state.run_warnings == []
+
+
+def test_listing_without_the_rules_page_is_a_plain_page_and_says_so(env):
+    # The listing must still reach members, and the report must say it does
+    # not match the site's look.
+    _seed(env, 'faq.txt', [BASE + '/faq/show/9'])
+    _capture(BASE + '/faq/show/9', 'footbag.org: Lonely Answer')
+    mirror_script.generate_archive_directory()
+    listing = (_www(env) / 'archive-directory.html').read_text(encoding='utf-8')
+    assert 'Lonely Answer' in listing
+    assert len(mirror_script.mirror_state.run_warnings) == 1
+
+
 def test_an_area_with_nothing_unlinked_is_omitted_rather_than_empty(env):
     _seed(env, 'faq.txt', [BASE + '/faq/show/1'])
     _capture(BASE + '/faq/show/1', 'footbag.org: Alpha Answer')

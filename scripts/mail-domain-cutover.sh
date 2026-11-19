@@ -300,57 +300,11 @@ map_put() {
   '
 }
 
-# set_assignment <name> <value>: every top-level `<name> = ...` assignment, one
-# line or a list over several, replaced by `<name> = <value>`, or the line added
-# at the end when the file has none.
-set_assignment() {
-  NAME="$1" VALUE="$2" awk '
-    BEGIN { name = ENVIRON["NAME"]; value = ENVIRON["VALUE"] }
-    skipping { if ($0 ~ /]/) skipping = 0; next }
-    $0 ~ ("^[ \t]*" name "[ \t]*=") {
-      i = index($0, "=")
-      print substr($0, 1, i) " " value
-      done = 1
-      rest = substr($0, i + 1)
-      if (rest ~ /\[/ && rest !~ /]/) skipping = 1
-      next
-    }
-    { print }
-    END { if (!done) print name " = " value }
-  '
-}
+# The top-level list helpers (set_assignment, top_strings, render_list,
+# writable_strings, as_set) are shared with the apex-token script.
+# shellcheck source=lib/tfvars-list.sh
+source "${REPO_ROOT}/scripts/lib/tfvars-list.sh"
 
-# top_strings <name>: the strings of a top-level list assignment, one per line.
-top_strings() {
-  local entry
-  entry="$(NAME="$1" awk '
-    BEGIN { name = ENVIRON["NAME"] }
-    !inside && $0 ~ ("^[ \t]*" name "[ \t]*=") { inside = 1 }
-    inside { print; if ($0 ~ /]/) exit }
-  ')"
-  [[ -n "$entry" ]] || return 0
-  printf '%s\n' "$entry" | sed '1s/^[^=]*=//' \
-    | { grep -oE '"[^"]*"' || [[ $? == 1 ]]; } | sed 's/^"//; s/"$//'
-}
-
-# render_list: the strings on standard input as one HCL list.
-render_list() {
-  local out="" s
-  while IFS= read -r s; do
-    [[ -n "$s" ]] || continue
-    out="${out:+${out}, }\"${s}\""
-  done
-  printf '[%s]' "$out"
-}
-
-# A string that would break out of its quotes is never written: every string
-# here is a DNS value, and none legitimately carries a quote or a backslash.
-writable_strings() {
-  ! grep -q '["\\]' <<< "$1"
-}
-
-# One sorted set per list, so two lists compare whatever order they were written in.
-as_set() { printf '%s\n' "$1" | sed '/^$/d' | LC_ALL=C sort -u; }
 mx_set() { printf '%s\n' "$1" | sed '/^$/d' | tr '[:upper:]' '[:lower:]' | sed -E 's/\.?$/./' | LC_ALL=C sort -u; }
 ns_set() { printf '%s\n' "$1" | sed '/^$/d' | tr '[:upper:]' '[:lower:]' | sed -E 's/\.$//' | LC_ALL=C sort -u; }
 last_line() { grep -v '^[[:space:]]*$' <<< "$1" | tail -n 1 || [[ $? == 1 ]]; }

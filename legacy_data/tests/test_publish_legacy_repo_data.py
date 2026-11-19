@@ -265,6 +265,30 @@ def test_crawl_exclusions_cover_scoped_and_private_committee_content(tree):
     assert text.startswith(pub.EXCLUSIONS_HEADER)
 
 
+def test_a_scoped_file_ruled_into_the_archive_leaves_the_exclusions_alone(tree):
+    # Left on the list, the crawl sweeps the released file straight back out of
+    # the capture and the publish gate refuses it. Its detail page and its
+    # group's listing stay excluded: the ruling opens the file, nothing else.
+    private, mirror = tree
+    _csv(private / "private-custody/ifpa-group-files/PLACEMENT_RULINGS.csv",
+         ["FileID", "path", "placement", "reason"],
+         [["11", "", "custody", "an IFPA record"], ["12", "", "drop", "obsolete"],
+          ["13", "", "archive", "kept"], ["10", "", "archive", "opened"]])
+    priv, _ = pub.build(private, mirror, CUTOVER)
+    entries = [x for x in priv[private / pub.EXCLUSIONS_REL].splitlines()
+               if not x.startswith("#")]
+    assert "ifpa/groups/open/scoped.pdf" not in entries
+    assert "groups/showfile/10" in entries and "groups/listfiles/12" in entries
+    assert "ifpa/groups/open/hidden.pdf" in entries   # unruled: still private
+
+
+def test_without_the_rulings_record_the_archive_rulings_refuse(tmp_path):
+    # Read as "nothing opened", a lost record would quietly re-exclude every
+    # file the maintainer released.
+    with pytest.raises(pub.Refused):
+        pub.opened_by_ruling(tmp_path / "absent.csv")
+
+
 def test_group_file_inventory_carries_each_file_with_its_committee_visibility(tree):
     # The group-file recovery routes on these columns; a lost committee flag
     # would send a private committee's document to the member-visible archive.

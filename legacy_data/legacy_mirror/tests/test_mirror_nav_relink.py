@@ -144,6 +144,39 @@ def test_running_the_pass_twice_is_a_true_no_op_the_second_time(www):
     assert after_first == after_second
 
 
+_DEAD_GROUPS_MENU = """<html><body>
+<div id="MainMenu">
+<ul>
+<li><a href="../ifpa/index.html" title="Players' Association home page"><nobr>IFPA</nobr></a>
+<li><!--Mirror: link to a page not in the archive-->GROUPS
+<li><a href="../rules/index.html" title="Official Rules of Footbag Sports"><nobr>RULES</nobr></a>
+</ul>
+</div>
+</body></html>"""
+
+
+def test_the_groups_item_leads_to_the_captured_group_directory(www):
+    # The menu's own target answered only current IFPA members, so without this
+    # every page's GROUPS item is dead text and members cannot reach a group.
+    page = _page(www, 'faq/index.html', _DEAD_GROUPS_MENU)
+    directory = _page(www, 'groups/list/index.html', '<html><body>groups</body></html>')
+
+    assert mirror_script.relink_restored_nav_items() == 1
+
+    out = page.read_text(encoding='utf-8')
+    assert '<a href="../groups/list/index.html" title="IFPA Member Groups">' \
+        '<nobr>GROUPS</nobr></a>' in out
+    assert (page.parent / '../groups/list/index.html').resolve() == directory.resolve()
+
+
+def test_the_groups_item_stays_dead_while_the_directory_is_not_captured(www):
+    # A link to a directory the capture lacks is a broken link on every page.
+    page = _page(www, 'faq/index.html', _DEAD_GROUPS_MENU)
+    assert mirror_script.relink_restored_nav_items() == 0
+    assert 'Mirror: link to a page not in the archive-->GROUPS' in \
+        page.read_text(encoding='utf-8')
+
+
 def test_a_page_with_no_main_menu_at_all_is_skipped_without_error(www):
     _page(www, 'sites/reference/index.html', '<html><body>no menu here</body></html>')
     _rules_index(www)

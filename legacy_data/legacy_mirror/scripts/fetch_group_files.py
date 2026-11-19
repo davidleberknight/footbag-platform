@@ -16,7 +16,8 @@ again.
 
 The maintainer's per-file rulings (PLACEMENT_RULINGS.csv, beside the inventory
 in custody) win over everything above: a file ruled private goes to custody, a
-dropped file leaves the capture, and a logo pack ruled for conversion is held
+file ruled into the archive is moved there from custody whatever its scope, a
+dropped file leaves the capture and custody, and a logo pack ruled for conversion is held
 privately while its logos are served as images. The capture ends holding only
 what the archive serves. With --offline nothing is fetched and only the rulings
 are applied, which is how a settle-only run reaches the same tree.
@@ -383,7 +384,11 @@ def main():
 
     def kept_private(rel, row):
         # A ruling to hold a file privately, or to keep only its conversion,
-        # outranks metadata that would publish it; nothing here ever widens.
+        # outranks metadata that would publish it. The maintainer's ruling into
+        # the archive is the one thing that opens a group-scoped or
+        # private-group file to members; the metadata never does.
+        if ruling(row) == 'archive':
+            return False
         return (ruling(row) in ('custody', 'convert-logo')
                 or is_private(rel, row, groups, exclusions))
 
@@ -446,6 +451,57 @@ def main():
         manifest_rows.append((rel, 'file', str(len(body)),
                               hashlib.sha256(body).hexdigest(), note_for(row, groups)))
         relocated += 1
+
+    # A file held privately that the maintainer ruled into the archive is copied
+    # in from custody, and its custody copy goes below once the two match. A
+    # file that reads as a member roster, or whose type the archive
+    # does not serve, is held back and named, so a ruling made from its name and
+    # description alone never publishes a roster or an unservable file.
+    released = 0
+    for row in rows:
+        if ruling(row) != 'archive':
+            continue
+        rel = row['FileLocation'].lstrip('/')
+        source = CUSTODY / 'www.footbag.org' / rel
+        if (ARCHIVE / rel).is_file() or not source.is_file():
+            continue
+        body = source.read_bytes()
+        if looks_like_member_roster(body, rel):
+            print(f'  HELD BACK {rel}: ruled into the archive but reads as a member '
+                  'roster export; confirm the ruling')
+        elif crawler.publish_would_withhold(rel, withheld):
+            print(f'  HELD BACK {rel}: ruled into the archive but the archive does not '
+                  f'serve its type; rule it custody or drop in {RULINGS.name}')
+        elif needs_sanitization(rel) and not (ARCHIVE / (rel + '.sanitized')).is_file():
+            print(f'  HELD BACK {rel}: ruled into the archive but an image or video '
+                  'needs the crawler\'s re-encode first')
+        else:
+            print(f'  RELEASING {rel}: ruled into the archive')
+            write(ARCHIVE / rel, body, args.dry_run)
+            released += 1
+            continue
+        failed += 1
+        unresolved.append(rel)
+
+    # Every file has one home. A dropped file is held nowhere, so its custody
+    # copy goes; a file ruled into the archive is served, so its custody copy
+    # goes once the archive holds the same bytes. The private repository's
+    # history keeps every removed copy.
+    custody_removed = 0
+    archived = {row['FileLocation'].lstrip('/') for row in rows if ruling(row) == 'archive'}
+    for rel in sorted(dropped | archived):
+        copy = CUSTODY / 'www.footbag.org' / rel
+        if not copy.is_file():
+            continue
+        if rel in archived and not (
+                (ARCHIVE / rel).is_file()
+                and (ARCHIVE / rel).read_bytes() == copy.read_bytes()):
+            continue
+        reason = 'dropped by ruling' if rel in dropped else 'served from the archive'
+        print(f'  REMOVING CUSTODY COPY {rel}: {reason}')
+        if not args.dry_run:
+            copy.unlink()
+        custody_removed += 1
 
     for row in rows:
         rel = row['FileLocation'].lstrip('/')
@@ -577,6 +633,8 @@ def main():
 
     print(f'\nrelocated out of the published archive: {relocated}')
     print(f'dropped from the capture by ruling    : {removed}')
+    print(f'released from custody by ruling       : {released}')
+    print(f'custody copies removed by ruling      : {custody_removed}')
     print(f'recovered into the published archive : {fetched_public}')
     print(f'recovered into private custody       : {fetched_private}')
     print(f'copied from the earlier capture      : {copied}')

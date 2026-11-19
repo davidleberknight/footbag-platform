@@ -727,10 +727,13 @@ def approved_event_ids(export: Path) -> list[str]:
                 if r['Deleted'].strip() == '0' and r['Approved'].strip() != '0')
 
 
-def crawl_exclusions(export: Path) -> str:
+def crawl_exclusions(export: Path, opened: set[str] = frozenset()) -> str:
     """The crawler's exclusion list: every group file scoped to its group or held
     by a non-public committee, with its show page, then each such committee's
-    file listing, and for a non-public committee its list and home pages."""
+    file listing, and for a non-public committee its list and home pages. A file
+    the maintainer ruled into the archive (opened, by FileID) is left off, since
+    the list would otherwise sweep it back out of the capture; its show page and
+    its committee's pages stay excluded."""
     files = read_table(export, 'groups/ifpa_group_files.csv')
     committees = {r['CommitteeID']: r for r in read_table(export, 'groups/ifpa_committees.csv')}
     private = {cid for cid, r in committees.items() if r['CommitteePublic'] == '0'}
@@ -740,7 +743,9 @@ def crawl_exclusions(export: Path) -> str:
               or r['FileVisible'] == '0']
     lines = []
     for r in sorted(chosen, key=lambda r: int(r['FileID'])):
-        lines += [r['FileLocation'].lstrip('/'), f'groups/showfile/{r["FileID"]}']
+        if r['FileID'] not in opened:
+            lines.append(r['FileLocation'].lstrip('/'))
+        lines.append(f'groups/showfile/{r["FileID"]}')
     for cid in sorted({r['FileGroupID'] for r in chosen} | private, key=int):
         lines.append(f'groups/listfiles/{cid}')
         keyword = committees.get(cid, {}).get('CommitteeKeyword', '')
@@ -791,6 +796,20 @@ def not_for_capture(rulings_path: Path) -> set[str]:
         return {(row.get('FileID') or '').strip() for row in csv.DictReader(fh)
                 if (row.get('placement') or '').strip() in ('custody', 'drop',
                                                             'convert-logo')
+                and (row.get('FileID') or '').strip()}
+
+
+def opened_by_ruling(rulings_path: Path) -> set[str]:
+    """FileIDs the maintainer ruled into the archive, which may open a
+    group-scoped or private-group file to members. Refuses without the rulings
+    record, as not_for_capture does."""
+    if not rulings_path.is_file():
+        raise Refused(f'{rulings_path} is missing: it records where each group file '
+                      'was ruled to go. Restore it from the private repository, then '
+                      're-run.')
+    with rulings_path.open(encoding='utf-8', newline='') as fh:
+        return {(row.get('FileID') or '').strip() for row in csv.DictReader(fh)
+                if (row.get('placement') or '').strip() == 'archive'
                 and (row.get('FileID') or '').strip()}
 
 
@@ -1176,7 +1195,7 @@ def build(private: Path, mirror: Path, cutover_date: str | None) -> tuple[dict, 
     seeds['groups.txt'] = group_file_seeds(
         export, private / CUSTODY_TREE_REL, not_for_capture(private / RULINGS_REL))
     events = approved_event_ids(export)
-    exclusions = crawl_exclusions(export)
+    exclusions = crawl_exclusions(export, opened_by_ruling(private / RULINGS_REL))
     tallies_csv, reconciliation_csv, tally_stats = vote_tallies(export, private)
     publish = private / PUBLISH_DIR
     stamp = {

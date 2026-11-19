@@ -5792,6 +5792,9 @@ def print_stats():
         if 'server_directives_stripped' in run:
             print(f"Pages cleared of server-side include directives: "
                   f"{run['server_directives_stripped']:,}")
+        if 'custody_rows_removed' in run:
+            print(f"Group page rows naming a private file removed: "
+                  f"{run['custody_rows_removed']:,}")
         if 'group_pages_written' in run:
             print(f"Group file pages current: {run['group_pages_written']:,}")
             print(f"Group file pages withdrawn: {run['group_pages_withdrawn']:,}")
@@ -5917,6 +5920,7 @@ def verify_authenticated_session():
 # homepage pointing at it.
 
 ARCHIVE_DIRECTORY_FILENAME = 'archive-directory.html'
+ARCHIVE_DIRECTORY_TEMPLATE = 'rules/index.html'
 DIRECTORY_CARD_MARKER = 'mirror-archive-directory-card'
 
 # One row per indexed area: (slug, heading, seed list, sort-by-label). An area
@@ -6292,6 +6296,60 @@ def _archive_page(title, body_html, asset_prefix=''):
     )
 
 
+_REBASED_ATTRS = ('href', 'src', 'background')
+_URL_SCHEME_RE = re.compile(r'^[A-Za-z][A-Za-z0-9+.-]*:')
+
+
+def _rebase_relative_refs(soup, from_dir, to_dir):
+    # A captured page's own relative links are written for its own folder; the
+    # same markup written into another folder must point at the same files.
+    from_dir, to_dir = str(from_dir), str(to_dir)
+    if os.path.normpath(from_dir) == os.path.normpath(to_dir):
+        return
+    for element in soup.find_all(True):
+        for attr in _REBASED_ATTRS:
+            ref = element.get(attr)
+            if not isinstance(ref, str) or not ref or ref.startswith(('#', '/')) \
+                    or _URL_SCHEME_RE.match(ref):
+                continue
+            cut = min((i for i in (ref.find('?'), ref.find('#')) if i != -1),
+                      default=len(ref))
+            path, tail = ref[:cut], ref[cut:]
+            if not path:
+                continue
+            target = os.path.normpath(os.path.join(from_dir, path))
+            rebased = os.path.relpath(target, to_dir).replace(os.sep, '/')
+            if path.endswith('/') and not rebased.endswith('/'):
+                rebased += '/'
+            element[attr] = rebased + tail
+
+
+def _page_in_captured_chrome(template, page, find_content, body_html, title=None):
+    """A generated page dressed as the captured pages around it.
+
+    Takes a captured page's own markup, header, menus and footer included,
+    keeps all of it but its content region (found by find_content), and puts
+    body_html there, so a page the archive generates looks like the site it
+    sits in rather than like a bare document. The archive bands are taken off,
+    because the band pass puts current ones on every page. Returns the page's
+    text, or None when the template is missing or has no content region."""
+    try:
+        raw = Path(template).read_bytes()
+    except OSError:
+        return None
+    raw = _HEADER_BAND_RE.sub(b'', _FOOTER_BAND_RE.sub(b'', raw))
+    soup = BeautifulSoup(raw.decode('utf-8', errors='replace'), 'html.parser')
+    region = find_content(soup)
+    if region is None:
+        return None
+    _rebase_relative_refs(soup, Path(template).parent, Path(page).parent)
+    region.clear()
+    region.append(BeautifulSoup(body_html, 'html.parser'))
+    if title is not None and soup.title is not None:
+        soup.title.string = title
+    return str(soup)
+
+
 # A capture holding no markup at all. The oldest results on the site are plain
 # fixed-width text files the server handed over as-is, and the crawler stores one
 # at the path its URL gives it, which ends in a page name. Two things then go
@@ -6660,8 +6718,19 @@ def generate_archive_directory(seeds_dir=None):
     previous_mtime = None
     if os.path.isfile(listing_path):
         previous_mtime = os.stat(listing_path).st_mtime
-    _atomic_write_text(listing_path,
-                       _archive_page('Pages not linked from the old menus', body))
+    # Dressed as the site's own pages, from the rules page, which every menu
+    # links and which has the site's standard content region.
+    listing_title = 'Pages not linked from the old menus'
+    listing = _page_in_captured_chrome(
+        os.path.join(www, ARCHIVE_DIRECTORY_TEMPLATE), listing_path,
+        lambda soup: soup.find('div', id='MainBody'), body, title=listing_title)
+    if listing is None:
+        listing = _archive_page(listing_title, body)
+        message = (f"{ARCHIVE_DIRECTORY_FILENAME}: {ARCHIVE_DIRECTORY_TEMPLATE} is missing "
+                   "or has no content region, so the listing is a plain page")
+        logging.warning(message)
+        mirror_state.run_warnings.append(message)
+    _atomic_write_text(listing_path, listing)
     if previous_mtime is not None:
         os.utime(listing_path, (previous_mtime, previous_mtime))
     logging.info(
@@ -7203,6 +7272,9 @@ def insert_archive_banner():
 # covers every page that carried the item.
 _RESTORABLE_NAV_ITEMS = {
     'RULES': ('Official Rules of Footbag Sports', 'rules/index.html'),
+    # The menu's own target answered only current IFPA members, so the crawl
+    # holds the site's public directory of the same groups instead.
+    'GROUPS': ('IFPA Member Groups', 'groups/list/index.html'),
 }
 
 
@@ -8418,6 +8490,10 @@ def strip_server_directives():
 _REPO_ROOT = SCRIPT_DIR.parent.parent
 GROUP_FILES_INVENTORY = (_REPO_ROOT / 'footbag_private_repo' / 'private-custody'
                          / 'ifpa-group-files' / 'GROUP_FILES_INVENTORY.csv')
+# Beside the inventory: the tree the recovery program files private group files
+# into, and the maintainer's per-file placement rulings.
+GROUP_FILES_CUSTODY_TREE = GROUP_FILES_INVENTORY.parent / 'www.footbag.org'
+GROUP_FILES_RULINGS = GROUP_FILES_INVENTORY.parent / 'PLACEMENT_RULINGS.csv'
 FETCH_GROUP_FILES = SCRIPT_DIR / 'scripts' / 'fetch_group_files.py'
 # What the archive publish serves: its known types (the find in
 # scripts/publish-archive.sh) minus its exclusion list. A group page links a
@@ -8431,6 +8507,23 @@ GROUP_FILES_LINK_MARKER = 'mirror-group-files-link'
 # Marks a page this pass generated, so a later run can tell its own pages from
 # captured ones and withdraw one whose group no longer qualifies.
 GROUP_FILES_PAGE_MARKER = 'mirror-group-files'
+# The rebuilt list is not a page the old site ever showed, and it leaves out
+# what was private, so it says so above the files.
+GROUP_FILES_NOTE_ID = 'mirror-group-files-note'
+GROUP_FILES_NOTE = (
+    'These are the files of lasting interest that members posted to this group '
+    'on the original footbag.org. This page is not a copy of an original page: '
+    "the old site showed a group's files only to signed-in IFPA members, and "
+    'some groups and files were private to their own members or to the IFPA. '
+    'Those private files are not in this archive.')
+# A group the old site never listed publicly joins the groups directory as one
+# more entry, so its rebuilt file list is reachable; the id names the group so a
+# rerun finds its own entry and a withdrawal removes it.
+GROUP_DIRECTORY_ENTRY_MARKER = 'mirror-group-entry'
+_DIRECTORY_ENTRY_RE = re.compile(rb'<p><li><a href="[^"/]+/index\.html">[^<]*</a>', re.I)
+# The cell a captured group page holds its own content in, beside the
+# right-hand menu; every group page the site served has exactly one.
+_GROUP_PAGE_CONTENT = {'width': '90%', 'valign': re.compile(r'^top$', re.I)}
 _GROUP_LINK_RE = re.compile(
     rb'<p\b[^>]*\bid=["\']' + re.escape(GROUP_FILES_LINK_MARKER.encode())
     + rb'["\'][^>]*>.*?</p>', re.S | re.I)
@@ -8524,6 +8617,41 @@ def _unlink_group_list_pages(www, group_id):
     return changed
 
 
+def _directory_entry_re(group_id):
+    return re.compile(rb'<p id="' + re.escape(
+        f'{GROUP_DIRECTORY_ENTRY_MARKER}-{group_id}'.encode()) + rb'">.*?</p>', re.S)
+
+
+def _list_in_group_directory(www, group_id, committee):
+    """Add a group with no captured page to the groups directory, once, after
+    its last entry. Returns 'added', 'already' or 'no directory'."""
+    directory = www / 'groups' / 'list' / 'index.html'
+    if not directory.is_file():
+        return 'no directory'
+    raw = directory.read_bytes()
+    if _directory_entry_re(group_id).search(raw):
+        return 'already'
+    entries = list(_DIRECTORY_ENTRY_RE.finditer(raw))
+    if not entries:
+        return 'no directory'
+    entry = (f'<p id="{GROUP_DIRECTORY_ENTRY_MARKER}-{group_id}"><li>'
+             f'<a href="../home/{group_id}/index.html">{html.escape(committee)}</a>'
+             '</li></p>').encode('utf-8')
+    cut = entries[-1].end()
+    _write_bytes_replacing(directory, raw[:cut] + b'\n' + entry + raw[cut:])
+    return 'added'
+
+
+def _unlist_from_group_directory(www, group_id):
+    directory = www / 'groups' / 'list' / 'index.html'
+    if not directory.is_file():
+        return
+    raw = directory.read_bytes()
+    cleaned = re.compile(rb'\n?' + _directory_entry_re(group_id).pattern, re.S).sub(b'', raw)
+    if cleaned != raw:
+        _write_bytes_replacing(directory, cleaned)
+
+
 def _group_list_pages(www, group_id, keyword):
     # The site served each group's page at its number and at its keyword, and
     # other pages link both, so both copies carry the link.
@@ -8538,6 +8666,95 @@ def _group_list_pages(www, group_id, keyword):
     return pages
 
 
+def _ruled_ids(placement):
+    """FileIDs the maintainer's rulings place as given, or None when the
+    rulings record cannot be read."""
+    if not GROUP_FILES_RULINGS.is_file():
+        return None
+    with GROUP_FILES_RULINGS.open(encoding='utf-8', newline='') as fh:
+        return {(row.get('FileID') or '').strip() for row in csv.DictReader(fh)
+                if (row.get('placement') or '').strip() == placement
+                and (row.get('FileID') or '').strip()}
+
+
+def _custody_file_names(rows):
+    """Each group's file names that are held privately, by group id, or None
+    when what is private cannot be known. A file is private when the
+    maintainer ruled it into custody or the recovery program filed it there,
+    unless the maintainer ruled it into the archive."""
+    ruled = _ruled_ids('custody')
+    opened = _ruled_ids('archive')
+    if ruled is None or opened is None or not GROUP_FILES_CUSTODY_TREE.is_dir():
+        return None
+    names = {}
+    for row in rows:
+        rel = (row.get('FileLocation') or '').strip().lstrip('/')
+        if not rel or not row.get('FileGroupID') or row.get('FileID') in opened:
+            continue
+        if row.get('FileID') not in ruled and not (GROUP_FILES_CUSTODY_TREE / rel).is_file():
+            continue
+        group = names.setdefault(row['FileGroupID'], set())
+        group.add(Path(rel).name)
+        if (row.get('FileName') or '').strip():
+            group.add(row['FileName'].strip())
+    return names
+
+
+def drop_custody_file_rows(inventory_path=None):
+    """Take the rows naming privately held files off the captured group pages.
+
+    The old site listed a public group's files by name on the group's own page,
+    IFPA's minutes and finances among them. The files are held privately, and
+    so are their names: a row naming one is removed from every captured copy of
+    the group's page, and the rows naming files the archive serves stay. Fails
+    the run, changing nothing, when the inventory, the rulings or the custody
+    tree is missing, because then nothing says which names are private.
+    Returns the rows removed."""
+    path = Path(inventory_path) if inventory_path else GROUP_FILES_INVENTORY
+    rows = None
+    if path.is_file():
+        with path.open(encoding='utf-8', errors='replace', newline='') as fh:
+            rows = list(csv.DictReader(fh))
+    private = _custody_file_names(rows) if rows is not None else None
+    if private is None:
+        message = ("Captured group pages may still name private files: the group-file "
+                   f"inventory, {GROUP_FILES_RULINGS.name} or the custody tree beside it "
+                   "is missing")
+        logging.error(message)
+        mirror_state.run_errors.append(message)
+        return 0
+    keywords = {row['FileGroupID']: (row.get('CommitteeKeyword') or '').strip()
+                for row in rows if row.get('FileGroupID')}
+    www = Path(_www_root())
+    removed = 0
+    for group_id, names in sorted(private.items()):
+        for page in _group_list_pages(www, group_id, keywords.get(group_id, '')):
+            if not page.is_file():
+                continue
+            text = page.read_text(encoding='utf-8', errors='replace')
+            if not any(name in text or html.escape(name, quote=False) in text
+                       for name in names):
+                continue
+            soup = BeautifulSoup(text, 'html.parser')
+            heading = soup.find('font', string=re.compile(r'^\s*Available Files:\s*$'))
+            inner = heading.find_parent('table') if heading else None
+            files_table = inner.find_parent('table') if inner else None
+            if files_table is None:
+                continue
+            dropped = 0
+            for row in files_table.find_all('tr'):
+                cells = row.find_all('td', recursive=False)
+                if cells and cells[0].get_text(' ', strip=True) in names:
+                    row.decompose()
+                    dropped += 1
+            if dropped:
+                _atomic_write_text(str(page), str(soup))
+                removed += dropped
+    mirror_state.stats_run['custody_rows_removed'] = removed
+    logging.info(f"Group pages: {removed} row(s) naming a privately held file removed")
+    return removed
+
+
 def generate_group_file_pages(inventory_path=None):
     """Rebuild each public group's file list from the inventory.
 
@@ -8550,9 +8767,10 @@ def generate_group_file_pages(inventory_path=None):
     without a link, as the dead-link pass leaves any link it cannot honour.
 
     A scoped file, a private committee's file, or a file not in the capture is
-    never named: the page lists only what the capture holds, after the
-    exclusion sweep and the group-file fetch have filed everything private
-    away. Needs no network, so a settle-only run rebuilds it too. Returns the
+    never named, unless the maintainer ruled that file into the archive: the
+    page lists only what the capture holds, after the exclusion sweep and the
+    group-file fetch have filed everything private away. A group the old site
+    never listed publicly gets its page in the groups directory's frame. Needs no network, so a settle-only run rebuilds it too. Returns the
     pages written."""
     path = Path(inventory_path) if inventory_path else GROUP_FILES_INVENTORY
     if not path.is_file():
@@ -8574,16 +8792,20 @@ def generate_group_file_pages(inventory_path=None):
         mirror_state.run_errors.append(message)
     keywords = {row['FileGroupID']: (row.get('CommitteeKeyword') or '').strip()
                 for row in rows if row.get('FileGroupID')}
+    # The maintainer's ruling into the archive opens a scoped, hidden or
+    # private-group file to members; without the rulings record, none is opened.
+    opened = _ruled_ids('archive') or set()
     by_group = {}
     for row in rows:
         rel = (row.get('FileLocation') or '').strip().lstrip('/')
-        if not rel or (row.get('FileScope') or '0') != '0':
+        if not rel:
             continue
-        # Hidden by its uploader: the legacy group page showed it to its owner,
-        # the group's owner and administrators only.
-        if row.get('FileVisible') == '0':
-            continue
-        if row.get('CommitteePublic') != '1':
+        if row.get('FileID') not in opened and (
+                (row.get('FileScope') or '0') != '0'
+                # Hidden by its uploader: the legacy group page showed it to its
+                # owner, the group's owner and administrators only.
+                or row.get('FileVisible') == '0'
+                or row.get('CommitteePublic') != '1'):
             continue
         if is_excluded_url(f'{BASE_URL}/{quote(rel)}'):
             continue
@@ -8619,6 +8841,7 @@ def generate_group_file_pages(inventory_path=None):
         except OSError:
             pass
         _unlink_group_list_pages(www, group_id)
+        _unlist_from_group_directory(www, group_id)
         withdrawn += 1
 
     written, appended = [], 0
@@ -8638,17 +8861,42 @@ def generate_group_file_pages(inventory_path=None):
                 entry += f' &mdash; {html.escape(description)}'
             items.append(f'<li>{entry}</li>')
         body = (f'<h1>{html.escape(committee)}</h1>\n'
-                '<p>Files posted to this group on the original footbag.org.</p>\n'
+                f'<p id="{GROUP_FILES_NOTE_ID}">{html.escape(GROUP_FILES_NOTE)}</p>\n'
                 f'<ul id="{GROUP_FILES_PAGE_MARKER}">\n' + '\n'.join(items) + '\n</ul>')
         page = www / 'groups' / 'home' / group_id / 'index.html'
         page.parent.mkdir(parents=True, exist_ok=True)
-        new_page = _archive_page(committee, body, asset_prefix=prefix)
+        # Dressed as the group's own captured page: its header, breadcrumb,
+        # menu and footer, with the file list where the page's content was.
+        find_content = lambda soup: soup.find('td', attrs=_GROUP_PAGE_CONTENT)  # noqa: E731
+        new_page = _page_in_captured_chrome(
+            www / 'groups' / 'list' / group_id / 'index.html', page, find_content, body)
+        if new_page is None:
+            # A group the old site never listed publicly has no captured page of
+            # its own; the groups directory has the same frame.
+            new_page = _page_in_captured_chrome(
+                www / 'groups' / 'list' / 'index.html', page, find_content, body,
+                title=f'IFPA Member Groups: {committee}')
+        if new_page is None:
+            new_page = _archive_page(committee, body, asset_prefix=prefix)
+            message = (f"groups/home/{group_id}: neither the group's captured page nor "
+                       "the groups directory has a content cell, so its file list is a "
+                       "plain page")
+            logging.warning(message)
+            mirror_state.run_warnings.append(message)
         # Rewritten only when it changes, so a rerun leaves its bands and date alone.
         current = page.read_text(encoding='utf-8', errors='replace') if page.is_file() else ''
         if _HEADER_BAND_RE.sub(b'', _FOOTER_BAND_RE.sub(b'', current.encode())) \
                 != new_page.encode():
             _atomic_write_text(str(page), new_page)
         written.append(page)
+        if not (www / 'groups' / 'list' / group_id / 'index.html').is_file():
+            # Nothing captured links a group the old site never listed, so the
+            # directory names it, as it names every other group.
+            if _list_in_group_directory(www, group_id, committee) == 'no directory':
+                message = (f"groups/home/{group_id}: the groups directory is missing or "
+                           "lists no group, so nothing links this group's files")
+                logging.warning(message)
+                mirror_state.run_warnings.append(message)
         for list_page in _group_list_pages(www, group_id, keywords.get(group_id, '')):
             if _link_group_list_page(list_page, group_id) == 'appended':
                 appended += 1
@@ -8761,6 +9009,7 @@ def settle_for_publication(load_manifest=True):
     relink_restored_nav_items()
     neutralize_dead_script_controls()
     drop_withheld_post_entries()
+    drop_custody_file_rows()
     generate_group_file_pages()
     # No network here, so a picture from another site not yet captured is left
     # for --capture-offsite-images-only; embeds still go.
@@ -8814,6 +9063,9 @@ def generate_reachability_pages(seeds_dir=None):
     # A withheld post's listing entries go before the dead-link pass, which then
     # settles the links that remain to it, such as a neighbour's "newer post".
     drop_withheld_post_entries()
+    # The rows naming privately held files come off the captured group pages
+    # before those pages are copied into the rebuilt file lists below.
+    drop_custody_file_rows()
     # The rebuilt group file lists before the dead-link pass, which then judges
     # their links and the link added to each group's captured page like any other.
     generate_group_file_pages()

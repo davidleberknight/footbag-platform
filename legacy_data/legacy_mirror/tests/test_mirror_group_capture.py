@@ -14,6 +14,7 @@ All fixtures are local; no live-site access. Run from repo root:
 """
 import csv
 import importlib.util
+import os
 import re
 import sys
 from pathlib import Path
@@ -46,6 +47,8 @@ def state(tmp_path, monkeypatch):
     monkeypatch.setattr(mirror_script, 'PROGRESS_FILE', str(tmp_path / 'progress.json'))
     monkeypatch.setattr(mirror_script, 'RESPECT_ROBOTS_TXT', False)
     monkeypatch.setattr(mirror_script, 'CONTENT_EXCLUSIONS', set())
+    # No maintainer rulings unless a case writes its own; never the real record.
+    monkeypatch.setattr(mirror_script, 'GROUP_FILES_RULINGS', tmp_path / 'no-rulings.csv')
     return st
 
 
@@ -188,18 +191,38 @@ GROUP_ROWS = [
      'Private Group', '0', 'Roster-PRIVATE', '', 'fools'],
 ]
 
-# The captured group page's file block as the site rendered it: the heading
-# row, then either the empty-list line or the rows of files it listed.
-EMPTY_LIST_PAGE = (
-    '<html><body><table><tr><td><font color="#ffffff">Available Files:</font></td></tr>'
-    '<tr><td><font size="-1"><b>Name:</b></font></td></tr>'
-    '<tr><td><font size="-1"><i>no files in working area</i></font></td></tr>'
-    '</table></body></html>')
-LISTED_FILES_PAGE = (
-    '<html><body><table><tr><td><font color="#ffffff">Available Files:</font></td></tr>'
-    '<tr><td><font size="-1"><b>Name:</b></font></td></tr>'
-    '<tr><td><a href="../../showfile/294/index.html">Minutes</a></td></tr>'
-    '</table></body></html>')
+def _group_page(file_rows):
+    # A captured group page as the site laid it out (groups/list/14 on the real
+    # capture): a breadcrumb above, the group's own content cell holding its
+    # roster and its file block, and the site menu in the cell beside it. The
+    # file block is the heading row, the column headings, then either the
+    # empty-list line or the rows of files it listed.
+    return (
+        '<html><head><title>IFPA Member Groups: Committee</title></head><body>'
+        '<table><tr><td><a href="../../../index.html">FOOTBAG WORLDWIDE</a> : '
+        '<a href="../index.html">Public Working Groups</a></td></tr></table>'
+        '<table><tr><td bgcolor="#FFFFFF" valign="TOP" width="90%">'
+        '<p>ROSTER-OF-MEMBERS</p>'
+        '<table bgcolor="#e0e0e0"><tr><td colspan="3"><table><tr><td>'
+        '<font color="#ffffff">Available Files:</font></td></tr></table></td></tr>'
+        '<tr><td><font size="-1"><b>Name:</b></font></td><td>Owner:</td><td>Status:</td></tr>'
+        + file_rows +
+        '</table></td>'
+        '<td bgcolor="#FFFFFF" valign="TOP" width="10%">'
+        '<a href="../../../faq/index.html">FAQ</a></td></tr></table></body></html>')
+
+
+def _file_row(name, href=None):
+    # One listed file as the dead-link pass leaves it (no link) or as captured.
+    shown = f'<a href="{href}">{name}</a>' if href else \
+        f'<!--Mirror: link to a page not in the archive-->{name}'
+    return (f'<tr><td><font size="-1">{shown}</font></td>'
+            '<td><font size="-1">Owner</font></td><td>public</td></tr>')
+
+
+EMPTY_LIST_PAGE = _group_page(
+    '<tr><td><font size="-1"><i>no files in working area</i></font></td></tr>')
+LISTED_FILES_PAGE = _group_page(_file_row('Minutes', '../../showfile/294/index.html'))
 
 
 @pytest.fixture
@@ -238,8 +261,6 @@ def test_a_public_group_gets_a_page_listing_the_files_it_holds(groups):
     for href in file_links:
         target = mirror_script._resolve_local_ref(href, page.parent, _www())
         assert target is not None and Path(target).is_file(), href
-    # The page frame's assets resolve from three folders down.
-    assert '../../../global2/html/global.css' in _hrefs(text)
 
 
 def test_a_logo_pack_with_nothing_converted_offers_nothing(groups):
@@ -342,6 +363,192 @@ def test_a_missing_inventory_is_a_warning_not_a_crash(state, tmp_path):
     # the report says the group pages were not rebuilt.
     assert mirror_script.generate_group_file_pages(tmp_path / 'absent.csv') == []
     assert any('publish_legacy_repo_data.py' in w for w in state.run_warnings)
+
+
+def test_a_file_list_wears_its_groups_own_page_with_the_note_above_the_files(groups):
+    # A rebuilt list in a bare stylesheet reads as a page from another site; one
+    # whose breadcrumb still points where the group page's did leads nowhere;
+    # one keeping the captured roster shows it twice; one without the note
+    # passes itself off as a page the old site showed.
+    mirror_script.generate_group_file_pages(groups)
+    page = _www() / 'groups/home/14/index.html'
+    text = page.read_text(encoding='utf-8')
+    hrefs = _hrefs(text)
+    for href, target in (('../../list/index.html', 'groups/list/index.html'),
+                         ('../../../faq/index.html', 'faq/index.html'),
+                         ('../../../index.html', 'index.html')):
+        assert href in hrefs, href
+        assert Path(os.path.normpath(page.parent / href)) == _www() / target
+    note = f'id="{mirror_script.GROUP_FILES_NOTE_ID}"'
+    files = f'id="{mirror_script.GROUP_FILES_PAGE_MARKER}"'
+    content = _cell_holding(text, files)
+    assert note in content and files in content
+    assert content.index(note) < content.index(files)
+    assert 'ROSTER-OF-MEMBERS' not in text
+    assert '<title>IFPA Member Groups: Committee</title>' in text
+
+
+def test_a_file_list_with_no_captured_group_page_is_a_plain_page_and_says_so(
+        groups, state):
+    # With no captured page to dress it in, the list must still reach members,
+    # and the report must say it does not match the site's look.
+    (_www() / 'groups/list/14/index.html').unlink()
+    mirror_script.generate_group_file_pages(groups)
+    text = (_www() / 'groups/home/14/index.html').read_text(encoding='utf-8')
+    assert '../../../global2/html/global.css' in _hrefs(text)
+    assert f'id="{mirror_script.GROUP_FILES_NOTE_ID}"' in text
+    assert [w for w in state.run_warnings if 'groups/home/14' in w] != []
+    assert not any('groups/home/1:' in w for w in state.run_warnings)
+
+
+# --- the names of privately held files ---------------------------------------
+
+PRIVATE_ROWS = [
+    # Board (1): minutes ruled into custody, a budget the recovery filed there,
+    # and a public paper the archive serves.
+    ['41', '1', '1', '/ifpa/groups/directors/minutes 2003.doc', '0',
+     'Board of Directors', '1', 'Minutes 2003', '', 'directors'],
+    ['31', '1', '1', '/ifpa/groups/directors/2004budget.xls', '0',
+     'Board of Directors', '1', '2004budget.xls', '', 'directors'],
+    ['445', '1', '1', '/ifpa/groups/directors/Future of Footbag.pdf', '0',
+     'Board of Directors', '1', 'Future of Footbag', '', 'directors'],
+]
+
+
+@pytest.fixture
+def private_files(state, tmp_path, monkeypatch):
+    monkeypatch.setattr(mirror_script, '_pre_write_state', {})
+    rulings = tmp_path / 'PLACEMENT_RULINGS.csv'
+    rulings.write_text('FileID,path,placement,reason\n41,,custody,minutes\n'
+                       '445,,archive,public paper\n', encoding='utf-8')
+    custody = tmp_path / 'custody'
+    held = custody / 'ifpa/groups/directors/2004budget.xls'
+    held.parent.mkdir(parents=True)
+    held.write_bytes(b'x')
+    monkeypatch.setattr(mirror_script, 'GROUP_FILES_RULINGS', rulings)
+    monkeypatch.setattr(mirror_script, 'GROUP_FILES_CUSTODY_TREE', custody)
+    rows = (_file_row('Minutes 2003') + _file_row('2004budget.xls')
+            + _file_row('Future of Footbag', '../../../ifpa/groups/directors/x.pdf'))
+    for rel in ('groups/list/1/index.html', 'groups/list/directors/index.html'):
+        _page(rel, _group_page(rows))
+    return _inventory(tmp_path, PRIVATE_ROWS)
+
+
+def test_a_privately_held_files_name_leaves_every_copy_of_its_groups_page(
+        private_files, state):
+    # The minutes and finances are held privately; their names on a members'
+    # page still tell every member what the board kept private, on the page
+    # reached by number and on the one reached by keyword alike.
+    assert mirror_script.drop_custody_file_rows(private_files) == 4
+    for rel in ('groups/list/1/index.html', 'groups/list/directors/index.html'):
+        text = (_www() / rel).read_text(encoding='utf-8')
+        assert 'Minutes 2003' not in text, rel
+        assert '2004budget.xls' not in text, rel
+        assert 'Future of Footbag' in text, rel
+        assert 'Available Files:' in text and 'ROSTER-OF-MEMBERS' in text, rel
+    assert state.stats_run['custody_rows_removed'] == 4
+    assert mirror_script.drop_custody_file_rows(private_files) == 0
+
+
+@pytest.mark.parametrize('missing', ['GROUP_FILES_RULINGS', 'GROUP_FILES_CUSTODY_TREE'])
+def test_without_the_rulings_or_custody_tree_no_page_changes_and_the_run_fails(
+        private_files, state, tmp_path, monkeypatch, missing):
+    # Without them nothing says which names are private: guessing either way
+    # either keeps a private name or deletes a public file's row.
+    monkeypatch.setattr(mirror_script, missing, tmp_path / 'absent')
+    before = (_www() / 'groups/list/1/index.html').read_text(encoding='utf-8')
+    assert mirror_script.drop_custody_file_rows(private_files) == 0
+    assert (_www() / 'groups/list/1/index.html').read_text(encoding='utf-8') == before
+    assert len(state.run_errors) == 1
+
+
+def _rulings(tmp_path, monkeypatch, *rows):
+    path = tmp_path / 'PLACEMENT_RULINGS.csv'
+    path.write_text('FileID,path,placement,reason\n'
+                    + ''.join(f'{fid},,{placement},ruled\n' for fid, placement in rows),
+                    encoding='utf-8')
+    monkeypatch.setattr(mirror_script, 'GROUP_FILES_RULINGS', path)
+
+
+def test_a_scoped_file_ruled_into_the_archive_is_listed_for_members(
+        groups, tmp_path, monkeypatch):
+    # The maintainer opened it to members; a list that still hides it leaves
+    # the released file in the archive with nothing pointing at it.
+    _rulings(tmp_path, monkeypatch, ('300', 'archive'))
+    mirror_script.generate_group_file_pages(groups)
+    text = (_www() / 'groups/home/14/index.html').read_text(encoding='utf-8')
+    assert '../../../ifpa/groups/marketing/budget-SCOPED.pdf' in _hrefs(text)
+    # Only the ruled file opens: the hidden one beside it stays unnamed.
+    assert 'HIDDEN' not in text
+
+
+def test_a_private_groups_file_ruled_into_the_archive_gets_a_page_in_the_directory_frame(
+        groups, tmp_path, monkeypatch, state):
+    # The old site never listed the private group, so it has no captured page
+    # to dress the list in; a plain page would look like another site.
+    _rulings(tmp_path, monkeypatch, ('500', 'archive'))
+    directory = _page('groups/list/index.html', DIRECTORY_PAGE)
+    mirror_script.generate_group_file_pages(groups)
+    page = _www() / 'groups/home/99/index.html'
+    text = page.read_text(encoding='utf-8')
+    assert '../../../ifpa/groups/fools/roster-PRIVATE.pdf' in _hrefs(text)
+    assert '<title>IFPA Member Groups: Private Group</title>' in text
+    assert Path(os.path.normpath(page.parent / '../../list/index.html')) == directory
+    assert not any('groups/home/99' in w for w in state.run_warnings)
+
+
+DIRECTORY_PAGE = _group_page('').replace(
+    '<p>ROSTER-OF-MEMBERS</p>',
+    '<p><li><a href="1/index.html">Board of Directors</a>\n'
+    '<p><li><a href="14/index.html">Marketing Committee</a>\n')
+
+
+def test_a_group_the_old_site_never_listed_joins_the_directory_once_and_leaves_with_its_page(
+        groups, tmp_path, monkeypatch):
+    # With no captured page linking it, the released files are unreachable;
+    # listed twice after a rerun, the directory shows the group twice; left
+    # behind after the page is withdrawn, it links a missing page.
+    _rulings(tmp_path, monkeypatch, ('500', 'archive'))
+    directory = _page('groups/list/index.html', DIRECTORY_PAGE)
+    mirror_script.generate_group_file_pages(groups)
+    mirror_script.generate_group_file_pages(groups)
+    text = directory.read_text(encoding='utf-8')
+    hrefs = _hrefs(text)
+    assert hrefs.count('../home/99/index.html') == 1
+    assert hrefs.index('14/index.html') < hrefs.index('../home/99/index.html')
+    assert Path(os.path.normpath(directory.parent / '../home/99/index.html')) \
+        == _www() / 'groups/home/99/index.html'
+    # A group with a captured page is reached from it, not added again.
+    assert '../home/14/index.html' not in hrefs
+    _rulings(tmp_path, monkeypatch)
+    mirror_script.generate_group_file_pages(groups)
+    assert not (_www() / 'groups/home/99').exists()
+    assert directory.read_text(encoding='utf-8') == DIRECTORY_PAGE
+
+
+def test_a_file_ruled_into_the_archive_keeps_its_name_on_its_groups_page(
+        private_files, tmp_path, monkeypatch):
+    # The custody copy stays after release; reading that copy as "private"
+    # would strip the name of a file members can now open.
+    rulings = mirror_script.GROUP_FILES_RULINGS
+    rulings.write_text(rulings.read_text(encoding='utf-8') + '31,,archive,opened\n',
+                       encoding='utf-8')
+    assert mirror_script.drop_custody_file_rows(private_files) == 2
+    text = (_www() / 'groups/list/1/index.html').read_text(encoding='utf-8')
+    assert '2004budget.xls' in text and 'Minutes 2003' not in text
+
+
+def test_private_names_go_before_the_lists_are_built_in_both_settle_sequences():
+    # Reversed, a rebuilt list copies a group page still naming private files,
+    # and the GROUPS menu on it is still dead.
+    source = SCRIPT_PATH.read_text(encoding='utf-8')
+    for start in ('def generate_reachability_pages(', 'def settle_for_publication('):
+        at = source.index(start)
+        text = source[at:source.index('\ndef ', at + 1)]
+        assert text.index('relink_restored_nav_items()') \
+            < text.index('drop_custody_file_rows()') \
+            < text.index('generate_group_file_pages()') \
+            < text.index('neutralize_dead_internal_links()'), start
 
 
 def test_the_page_links_only_types_the_publisher_serves():
