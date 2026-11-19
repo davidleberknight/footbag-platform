@@ -70,6 +70,10 @@ export interface GetEmailPreviewOpts {
   recipientEmail?: string;
 }
 
+// Twenty passes of the default ten-message batch clears two hundred queued
+// messages, far beyond what a dev or staging host accumulates between requests.
+const MAX_DRAIN_PASSES = 20;
+
 export const simulatedEmailService = {
   async getEmailPreview(opts: GetEmailPreviewOpts = {}): Promise<SimulatedEmailPreview | null> {
     if (config.sesAdapter === 'stub') {
@@ -140,11 +144,19 @@ export const simulatedEmailService = {
    * rows sent. Does nothing unless the sender is the stub, so it never makes a
    * provider call. A drain failure is logged and swallowed: the mail stays
    * queued for the worker, and the request that queued it already succeeded.
+   *
+   * One send pass takes only the oldest batch, so mail other requests left
+   * queued would hold the new message back and the card would show nothing.
+   * Passes repeat until one sends nothing, bounded so a request never runs an
+   * unbounded queue.
    */
   async drainCapturedMail(): Promise<void> {
     if (config.sesAdapter !== 'stub') return;
     try {
-      await operationsPlatformService.runEmailWorker();
+      for (let pass = 0; pass < MAX_DRAIN_PASSES; pass++) {
+        const result = await operationsPlatformService.runEmailWorker();
+        if (result.paused || result.claimed === 0) break;
+      }
     } catch (err) {
       logger.warn(
         'simulatedEmailService.drainCapturedMail: runEmailWorker drain failed; the mail stays queued for the worker',

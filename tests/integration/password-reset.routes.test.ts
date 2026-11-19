@@ -7,7 +7,7 @@ import request from '../fixtures/supertestWithOrigin';
 import { hashTestPassword } from '../fixtures/hashTestPassword';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, createTestSessionJwt, insertSystemConfig } from '../fixtures/factories';
+import { insertMember, createTestSessionJwt, insertSystemConfig, insertOutboxEmail } from '../fixtures/factories';
 import { rowPin, snapshotIds, oneRowAddedSince, theOnlyRow } from '../fixtures/rowPinning';
 
 const { dbPath } = setTestEnv('3070');
@@ -146,6 +146,31 @@ describe('POST /password/forgot', () => {
     // the visitor submitted.
     expect(res.text).toContain('Simulated Email (Dev)');
     expect(res.text).toContain(MEMBER_EMAIL);
+    expect(res.text).toMatch(/\/password\/reset\/[A-Za-z0-9_-]+">CLICK THIS LINK</);
+  });
+
+  it('renders the reset link in the dev card even when a full send batch of older mail is still queued ahead of it', async () => {
+    // A tester on a shared dev or staging host often reaches this form with
+    // mail other people queued still waiting, and the stub sender sends the
+    // oldest first in batches. If the sent page drained only one batch, the
+    // reset mail would sit behind the backlog and the card would show no link.
+    const db = new BetterSqlite3(dbPath);
+    const { value_json: batchLimit } = db.prepare(
+      `SELECT value_json FROM system_config_current WHERE config_key = 'outbox_batch_limit'`,
+    ).get() as { value_json: string };
+    const olderThanTheReset = new Date(Date.now() - 60_000).toISOString();
+    for (let i = 0; i < Number(batchLimit); i++) {
+      insertOutboxEmail(db, {
+        recipient_email: `queued-${i}@example.com`,
+        subject: `Queued ${i}`,
+        body_text: `Queued message ${i}.`,
+        created_at: olderThanTheReset,
+      });
+    }
+    db.close();
+
+    const res = await request(createApp()).post('/password/forgot').type('form').send({ email: MEMBER_EMAIL });
+    expect(res.status).toBe(200);
     expect(res.text).toMatch(/\/password\/reset\/[A-Za-z0-9_-]+">CLICK THIS LINK</);
   });
 
