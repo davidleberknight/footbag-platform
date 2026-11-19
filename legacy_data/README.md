@@ -137,6 +137,7 @@ into the same private checkout and the published member CSV the legacy publish w
 | `inputs/bap_data_updated.csv` | committed | `build_name_variants.py` | Big-Add-Posse honor names |
 | `inputs/hof.csv`, `inputs/fbhof_data_updated.csv`, `inputs/hof_site_year_evidence.csv` | committed | `export_historical_csvs.py`, `extract_legacy_honors.py`, `26_qc_hof_coverage.py`, `build_hof_dossier.py` | Hall of Fame roster with resolved person ids and induction years, the live-roster name snapshot, and the years read from the Hall of Fame site with the sentence each came from |
 | `inputs/canonical_discipline_fixes.csv` | committed | canonical pipeline | discipline-name corrections |
+| `inputs/net_division_structure.csv` | committed | `08_load_mvfp_seed_full_to_sqlite.py` | the game, gender and class of every historical net division name; the load refuses a net name it does not list |
 | `inputs/consecutives_records.csv`, `inputs/curated/**/*.csv` | committed | workbook, canonical | curated pre-1997 sources and records |
 | `overrides/*.csv` | committed | `build_name_variants.py`, canonical pipeline | curated person and event overrides |
 

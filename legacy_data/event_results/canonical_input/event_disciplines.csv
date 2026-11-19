@@ -849,7 +849,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 1999_funtastik_summer,intermediate_freestyle,Intermediate Freestyle,freestyle,singles,3,complete,,0
 1999_funtastik_summer,intermediate_net,Intermediate Net,net,singles,4,complete,,0
 1999_funtastik_summer,ironman_greg_nelson,Ironman- Greg Nelson,freestyle,singles,5,complete,,0
-1999_funtastik_summer,novice_freeestyle,Novice Freeestyle,net,singles,6,complete,,0
+1999_funtastik_summer,novice_freeestyle,Novice Freeestyle,freestyle,singles,6,complete,,0
 1999_funtastik_summer,novice_net,Novice Net,net,singles,7,complete,,0
 1999_funtastik_summer,pro_doubles_net,Pro Doubles Net,net,doubles,8,complete,,0
 1999_funtastik_summer,pro_golf,Pro Golf,golf,singles,9,complete,,0
@@ -934,7 +934,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 1999_air_a_zona,womens_singles,Women's Singles,net,singles,8,complete,,0
 1999_california_state,doubles_net,Doubles Net,net,doubles,1,complete,,0
 1999_california_state,grand_masters_division_net,Grand Masters Division: :-) Net,net,singles,2,complete,,0
-1999_california_state,mixed_net,Mixed Net,net,singles,3,complete,,0
+1999_california_state,mixed_net,Mixed Net,net,doubles,3,complete,,0
 1999_california_state,shred_heads,Shred Heads,freestyle,singles,4,complete,,0
 1999_california_state,singles_net,Singles Net,net,singles,5,complete,,0
 1999_eurochamp_berlin,intermediate_doubles_net,Intermediate Doubles Net,net,doubles,1,complete,,0
@@ -2557,7 +2557,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2009_eurochamp_strzelin,open_doubles_freestyle,Open Doubles Freestyle,freestyle,doubles,5,complete,,0
 2009_eurochamp_strzelin,open_doubles_net,Open Doubles Net,net,doubles,6,complete,,0
 2009_eurochamp_strzelin,open_mixed_doubles_freestyle,Open Mixed Doubles Freestyle,freestyle,doubles,7,complete,,0
-2009_eurochamp_strzelin,open_mixed_doubles_net,Open Mixed Doubles Net,net,singles,8,complete,,0
+2009_eurochamp_strzelin,open_mixed_doubles_net,Open Mixed Doubles Net,net,doubles,8,complete,,0
 2009_eurochamp_strzelin,open_request_contest,Open Request Contest,freestyle,singles,9,complete,,0
 2009_eurochamp_strzelin,open_shred_30_final,Open Shred:30 Final,freestyle,singles,10,mostly_complete,,0
 2009_eurochamp_strzelin,open_sick_3_trick_final,Open Sick 3-Trick Final,freestyle,singles,11,complete,,0
@@ -2866,7 +2866,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2010_nyfa_symposium,other_circle_participants,Other Circle Participants,freestyle,singles,9,complete,,0
 2010_campeonato_suramericano_de,intermediate_doubles,Intermediate Doubles,net,doubles,1,unresolved,,0
 2010_campeonato_suramericano_de,intermediate_singles,Intermediate Singles,net,singles,2,complete,,0
-2010_campeonato_suramericano_de,mixed,Mixed,net,singles,3,complete,,0
+2010_campeonato_suramericano_de,mixed,Mixed,net,doubles,3,complete,,0
 2010_campeonato_suramericano_de,open_doubles_net,Open Doubles Net,net,doubles,4,complete,,0
 2010_campeonato_suramericano_de,open_singles,Open Singles,net,singles,5,partial,,0
 2010_footbagjam_warsaw,circle_contest,Circle Contest,freestyle,singles,1,complete,,0

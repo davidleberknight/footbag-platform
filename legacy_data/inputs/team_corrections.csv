@@ -195,3 +195,18 @@ event_key,discipline_key,placement,original_display,corrected_player_a,corrected
 2003_funtastik_summer,pro_freestyle_single,5,Calab Abraham,Caleb Abraham,,DUPLICATE_PARTICIPANT,Mirror page lists one player at 5th,1,source_verified,,HIGH
 2004_funtastik_summer,pro_freestyle_single,5,Greg Nelson,Greg Nelson,,DUPLICATE_PARTICIPANT,Mirror page lists one player at 5th,1,source_verified,,HIGH
 2012_footbagjam_helsinki,open_singles_net,5,"Tellenbach, Grischa",Grischa Tellenbach,,DUPLICATE_PARTICIPANT,Mirror page lists this contest twice with one player at 5th,1,source_verified,,HIGH
+2010_campeonato_suramericano_de,mixed,1,Yalis Iasenzaniro-Victor Lezama,Yalis Iasenzaniro,Victor Lezama,SPLIT_PARSING_ERROR,Mirror page joins the pair with an unspaced hyphen,1,source_verified,,HIGH
+2010_campeonato_suramericano_de,mixed,2,Astrid Archila-Jairo Lagos,Astrid Archila,Jairo Lagos,SPLIT_PARSING_ERROR,Mirror page joins the pair with an unspaced hyphen,1,source_verified,,HIGH
+2010_campeonato_suramericano_de,mixed,3,Andreina Peña-Reinaldo Pérez,Andreina Peña,Reinaldo Pérez,SPLIT_PARSING_ERROR,Mirror page joins the pair with an unspaced hyphen,1,source_verified,,HIGH
+2010_campeonato_suramericano_de,mixed,4,Ivaneidy Zambrano-Roberto Da Silva,Ivaneidy Zambrano Torres,Roberto Da Silva,SPLIT_PARSING_ERROR,Mirror page joins the pair with an unspaced hyphen,1,source_verified,,HIGH
+1999_california_state,mixed_net,1,Julie Symons/Alexis Deschenes,Julie Symons,Alexis Deschenes,SPLIT_PARSING_ERROR,The Yellow Belt freestyle list merged into Mixed Net by place; the page lists this pair,1,source_verified,,HIGH
+1999_california_state,mixed_net,2,Jody Welch/Brent Welch,Jody Badger Welch,Brent Welch,SPLIT_PARSING_ERROR,The Yellow Belt freestyle list merged into Mixed Net by place; the page lists this pair,1,source_verified,,HIGH
+1999_california_state,mixed_net,3,Tim Tucker/Debbie Fisher,Tim Tucker,Debbie Fisher,SPLIT_PARSING_ERROR,The Yellow Belt freestyle list merged into Mixed Net by place; the page lists this pair,1,source_verified,,HIGH
+1999_california_state,mixed_net,4,Lisa McDaniel/david Butcher,Lisa McDaniel Jones,David Butcher,SPLIT_PARSING_ERROR,The Yellow Belt freestyle list merged into Mixed Net by place; the page lists this pair,1,source_verified,,HIGH
+1999_california_state,mixed_net,5,Brian Pihl,__REMOVE__,__REMOVE__,PHANTOM_ROW,Mixed Net has four places; 5th is the Yellow Belt freestyle list's last player,1,source_verified,,HIGH
+2009_eurochamp_strzelin,open_mixed_doubles_net,1,Lisa Uebele ? Andreas Wolff,Lisa Uebele,Andreas Wolff,SPLIT_PARSING_ERROR,The partner dash reached the mirror as " ? " and was not split,1,source_verified,,HIGH
+2009_eurochamp_strzelin,open_mixed_doubles_net,2,Yulia Tikhomirova ? Hannes Daniel,Yulia Tikhomirova,Hannes Daniel,SPLIT_PARSING_ERROR,The partner dash reached the mirror as " ? " and was not split,1,source_verified,,HIGH
+2009_eurochamp_strzelin,open_mixed_doubles_net,3,Oxana Prikhodko ? Yves Kreil,Oxana Prikhodko,Yves Kreil,SPLIT_PARSING_ERROR,The partner dash reached the mirror as " ? " and was not split,1,source_verified,,HIGH
+2009_eurochamp_strzelin,open_mixed_doubles_net,4,Kerstin Anhuth ? Chris Löw,Kerstin Anhuth,Chris Löw,SPLIT_PARSING_ERROR,The partner dash reached the mirror as " ? " and was not split,1,source_verified,,HIGH
+2009_eurochamp_strzelin,open_mixed_doubles_net,5,Ninni Liukko ? Yassin Khateeb,Ninni Liukko,Yassin Khateeb,SPLIT_PARSING_ERROR,The partner dash reached the mirror as " ? " and was not split,1,source_verified,,HIGH
+2009_eurochamp_strzelin,open_mixed_doubles_net,6,Piia Tantarimäki ? Uli Haase,Piia Tantarimäki,Uli Haase,SPLIT_PARSING_ERROR,The partner dash reached the mirror as " ? " and was not split,1,source_verified,,HIGH

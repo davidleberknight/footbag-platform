@@ -65,6 +65,59 @@ def read_csv(path: Path) -> list[dict[str, str]]:
         return [{k: (v if v is not None else "") for k, v in row.items()} for row in reader]
 
 
+NET_DIVISION_STRUCTURE = Path(__file__).resolve().parents[2] / "inputs" / "net_division_structure.csv"
+_GENDERS = {"open", "women", "mixed"}
+_CLASSES = {"novice", "intermediate", "open", "masters"}
+
+
+def read_net_division_structure(path: Path) -> dict[str, dict[str, str | None]]:
+    """The structured parts of every historical net division, keyed by its name.
+
+    Historical names are far from consistent ("Open Doubles Net", "Open Double
+    Net", "Net Doubles"), so the game, gender and class each name stands for are
+    curated once, here, rather than guessed at load. A row carries exactly one of
+    a listed game, a custom game name, or the reason it is left unmapped.
+    """
+    if not path.exists():
+        raise SystemExit(
+            f"08 aborted: {path} is missing. It is a committed curated input; restore it "
+            "from git, then rerun run_pipeline.sh."
+        )
+    structure: dict[str, dict[str, str | None]] = {}
+    for lineno, row in enumerate(read_csv(path), start=2):
+        name = row["discipline_name"]
+        game, custom, reason = (row["game_id"].strip(), row["custom_game_name"].strip(),
+                                row["unmapped_reason"].strip())
+        gender, klass = row["gender_eligibility"].strip(), row["division_class"].strip()
+        problem = None
+        if name in structure:
+            problem = "the name is listed twice"
+        elif sum(bool(v) for v in (game, custom, reason)) != 1:
+            problem = "give exactly one of game_id, custom_game_name or unmapped_reason"
+        elif gender and gender not in _GENDERS:
+            problem = f"gender_eligibility {gender!r} is not one of {sorted(_GENDERS)}"
+        elif klass and klass not in _CLASSES:
+            problem = f"division_class {klass!r} is not one of {sorted(_CLASSES)}"
+        if problem:
+            raise SystemExit(f"08 aborted: {path.name} line {lineno} ({name!r}): {problem}.")
+        structure[name] = {
+            "game_id": game or None, "custom_game_name": custom or None,
+            "gender_eligibility": gender or None, "division_class": klass or None,
+        }
+    return structure
+
+
+def unmapped_net_names(seed_disciplines: list[dict[str, str]],
+                       structure: dict[str, dict[str, str | None]]) -> list[str]:
+    """Net division names the curated structure does not list: a new variant
+    the source introduced, which must be mapped before it loads."""
+    return sorted({
+        row.get("discipline_name", "").strip() for row in seed_disciplines
+        if (row.get("discipline_category") or "").strip() == "net"
+        and row.get("discipline_name", "").strip() not in structure
+    })
+
+
 def backup_db(db_path: Path) -> Path:
     backup_path = db_path.with_suffix(db_path.suffix + ".bak")
     shutil.copy2(db_path, backup_path)
@@ -412,6 +465,17 @@ def main() -> None:
     seed_results = read_csv(seed_dir / "seed_event_results.csv")
     seed_participants = read_csv(seed_dir / "seed_event_result_participants.csv")
     seed_persons = read_csv(seed_dir / "seed_persons.csv")
+
+    net_structure = read_net_division_structure(NET_DIVISION_STRUCTURE)
+    new_net_names = unmapped_net_names(seed_disciplines, net_structure)
+    if new_net_names:
+        raise SystemExit(
+            f"08 aborted: {len(new_net_names)} net division name(s) are not in "
+            f"{NET_DIVISION_STRUCTURE.name}, so their game, gender and class are unknown. "
+            "Nothing was changed. Add each to that file (a game, a custom game name, or "
+            "the reason it stays unmapped), then rerun run_pipeline.sh:\n"
+            + "\n".join(f"  {n!r}" for n in new_net_names)
+        )
 
     listed_twice = people_listed_twice_in_one_result(seed_participants)
     if listed_twice:
@@ -911,6 +975,9 @@ def main() -> None:
                     "./run_pipeline.sh full."
                 )
             team_type = normalize_team_type(row.get("team_type", ""), name)
+            parts = (net_structure[name] if discipline_category == "net"
+                     else dict.fromkeys(("game_id", "custom_game_name",
+                                         "gender_eligibility", "division_class")))
 
             sort_order_raw = (row.get("sort_order") or "").strip()
             try:
@@ -923,13 +990,16 @@ def main() -> None:
                 INSERT INTO event_disciplines (
                   id, created_at, created_by, updated_at, updated_by, version,
                   event_id, name, discipline_category, team_type, sort_order,
-                  is_aggregate_standing
-                ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)
+                  is_aggregate_standing,
+                  game_id, custom_game_name, gender_eligibility, division_class
+                ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     discipline_id, ts, system_user, ts, system_user,
                     event_id, name, discipline_category, team_type, sort_order,
                     is_aggregate,
+                    parts["game_id"], parts["custom_game_name"],
+                    parts["gender_eligibility"], parts["division_class"],
                 ),
             )
 
