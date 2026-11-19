@@ -528,11 +528,14 @@ export function createApp(): express.Express {
       // A path carrying a single-use token (an email-verify or password-reset
       // link) gets no canonical: the token would otherwise be written into the
       // page's markup.
-      if (res.statusCode < 400 && redactTokenPaths(req.path) === req.path) {
+      // Inside a router mounted under a prefix (/admin, /dev) req.path drops
+      // that prefix, so the full path is the mount point plus the rest.
+      const fullPath = req.baseUrl + req.path;
+      if (res.statusCode < 400 && redactTokenPaths(fullPath) === fullPath) {
         const options = args[1] as { seo?: { canonicalPath?: unknown } } | undefined;
         const ownPath = options?.seo?.canonicalPath;
         res.locals.canonicalUrl = canonicalBase
-          + (typeof ownPath === 'string' && ownPath.startsWith('/') ? ownPath : req.path);
+          + (typeof ownPath === 'string' && ownPath.startsWith('/') ? ownPath : fullPath);
       }
       if (res.locals.flashLoggedOut || res.locals.flashLoggedIn) {
         clearFlash(res, req);

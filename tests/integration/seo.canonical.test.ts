@@ -6,12 +6,13 @@
  * no paging or hashtag selection names its path alone.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import request from 'supertest';
 import { cachedGet } from '../fixtures/cachedGet';
 import { canonicalOf } from '../fixtures/crawl/oracles';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import {
   insertMember, insertFreeformTag, insertMediaItem, attachMediaTag, insertSystemConfig,
-  insertMemberGallery, insertGalleryCriterionTag,
+  insertMemberGallery, insertGalleryCriterionTag, createTestSessionJwt,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3197');
@@ -21,6 +22,7 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 const page = cachedGet(() => createApp());
 
 const OWNER_ID = 'member-canon-owner-001';
+const ADMIN_ID = 'member-canon-admin-001';
 // One more item, and one more gallery, than the smallest page size the media
 // pages allow, so every list here spans exactly two pages.
 const PAGE_SIZE = 12;
@@ -33,6 +35,7 @@ beforeAll(async () => {
     config_key: 'media_page_size', value_json: String(PAGE_SIZE), effective_start_at: '2020-01-01T00:00:00.000Z',
   });
   insertMember(db, { id: OWNER_ID, slug: 'canon_owner', display_name: 'Canon Owner' });
+  insertMember(db, { id: ADMIN_ID, slug: 'canon_admin', login_email: 'canon-admin@example.com', is_admin: 1 });
   const canonTag = insertFreeformTag(db, { tag_normalized: '#canon', tag_display: '#canon' });
   insertFreeformTag(db, { tag_normalized: '#other', tag_display: '#other' });
   const uploaderTag = insertFreeformTag(db, { tag_normalized: '#by_canon_owner', tag_display: '#by_canon_owner' });
@@ -159,5 +162,20 @@ describe('canonical address of pages with no paging or hashtag selection', () =>
     const r = await canonicalFor(`/media/item/${FIRST_ITEM}?tag=canon&sort=upload_desc`);
     expect(r.status).toBe(200);
     expect(r.canonical).toBe(`${ORIGIN}/media/item/${FIRST_ITEM}`);
+  });
+});
+
+describe('canonical address of a page served under a section prefix', () => {
+  // Defect caught: a page rendered by a router mounted under a prefix (every
+  // /admin page) names the address without that prefix, so the administrator's
+  // trick list declares itself to be the public trick dictionary.
+  it('an admin page keeps its /admin prefix in its canonical and og:url', async () => {
+    const res = await request(await createApp())
+      .get('/admin/freestyle/tricks')
+      .set('Cookie', `__Host-footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID, role: 'admin' })}`);
+    expect(res.status).toBe(200);
+    const og = /<meta\b[^>]*\bproperty="og:url"[^>]*\bcontent="([^"]*)"/i.exec(res.text);
+    expect(canonicalOf(res.text)).toBe(`${ORIGIN}/admin/freestyle/tricks`);
+    expect(og?.[1]).toBe(`${ORIGIN}/admin/freestyle/tricks`);
   });
 });
