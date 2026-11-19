@@ -51,3 +51,18 @@ event_key,discipline_key,fix_type,original_name,original_team_type,new_name,new_
 2003_footbagjam_copenhagen,unknown,rename_discipline,Unknown,singles,Best ranged Danish players,,confirmed,Source heading the parser did not recognise; an overall for the best all-around player (Dave),mirror event 1052775366,1,,
 2008_texas_statewide,unknown,rename_discipline,Unknown,singles,Iron Man competition,,confirmed,Source heading the parser did not recognise; an overall (Dave),mirror event 1216849705,1,,
 2014_polish,unknown,rename_discipline,Unknown,singles,Open 2-Square,,confirmed,Source heading the parser did not recognise; 2-square is a sideline game,mirror event 1406219099,1,,sideline
+2008_eurochamp_montpellier,short_technical_program,retag_team_type,Short Technical Program,singles,,singles,confirmed,A short technical program is a judged freestyle routine. Team type unchanged.,mirror event 1199106237,1,,freestyle
+2008_worlds_prague,open_short_technical_program,retag_team_type,Open Short Technical Program,singles,,singles,confirmed,A short technical program is a judged freestyle routine. Team type unchanged.,mirror event 1194517448,1,,freestyle
+2009_german,open_freetyle,retag_team_type,Open Freetyle,singles,,singles,confirmed,The source misspells Freestyle. Team type unchanged.,mirror event 1257621700,1,,freestyle
+2024_worlds_montreal,last_man_standing,retag_team_type,Last Man Standing,singles,,singles,confirmed,Last Man Standing is a freestyle contest. Team type unchanged.,mirror event 1706036811,1,,freestyle
+2025_worlds_nantes,last_man_standing,retag_team_type,Last Man Standing,singles,,singles,confirmed,Last Man Standing is a freestyle contest. Team type unchanged.,mirror event 1741024635,1,,freestyle
+2005_polish,open_big_one,retag_team_type,Open Big One,singles,,singles,confirmed,A Big One is a freestyle contest for the single biggest trick. Team type unchanged.,mirror event 1126086921,1,,freestyle
+2007_usopen_portland,intermediate_rippin_run,retag_team_type,Intermediate Rippin' Run,singles,,singles,confirmed,A Rippin' Run is a freestyle contest for the best run of tricks. Team type unchanged.,mirror event 1176318174,1,,freestyle
+2007_usopen_portland,open_rippin_run,retag_team_type,Open Rippin' Run,singles,,singles,confirmed,A Rippin' Run is a freestyle contest for the best run of tricks. Team type unchanged.,mirror event 1176318174,1,,freestyle
+2019_xix_polish_krakow,last_man_standing,retag_team_type,Last Man Standing,singles,,singles,confirmed,Last Man Standing is a freestyle contest. Team type unchanged.,mirror event 1567551985,1,,freestyle
+2023_xxiii_polish_warsaw,last_man_standing,retag_team_type,Last Man Standing,singles,,singles,confirmed,Last Man Standing is a freestyle contest. Team type unchanged.,mirror event 1694170899,1,,freestyle
+2025_polish_jaworzno,last_man_standing,retag_team_type,Last Man Standing,singles,,singles,confirmed,Last Man Standing is a freestyle contest. Team type unchanged.,mirror event 1751568193,1,,freestyle
+2025_polish_jaworzno,open_big_one,retag_team_type,Open Big One,singles,,singles,confirmed,A Big One is a freestyle contest for the single biggest trick. Team type unchanged.,mirror event 1751568193,1,,freestyle
+2006_czech,rutina_intermediate,retag_team_type,Rutina Intermediate,singles,,singles,confirmed,Rutina is a freestyle routine. Team type unchanged.,mirror event 1137937282,1,,freestyle
+2006_czech,rutina_open,retag_team_type,Rutina Open,singles,,singles,confirmed,Rutina is a freestyle routine. Team type unchanged.,mirror event 1137937282,1,,freestyle
+2012_acapulco_zocha,open_big_1,retag_team_type,Open Big 1,singles,,singles,confirmed,A Big 1 is a freestyle contest for the single biggest trick. Team type unchanged.,mirror event 1344933824,1,,freestyle

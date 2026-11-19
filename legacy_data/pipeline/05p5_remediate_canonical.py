@@ -2567,10 +2567,15 @@ _EXPLICIT_NONNET_TOKENS = frozenset([
     "overall", "team points",
 ])
 _EXPLICIT_NET_TOKENS = frozenset(["net", "volley", "side-out", "side out", "rallye"])
-# A Big 3 is a trick contest, so its name never gains "Net". It does not mark an
-# event as mixed, though: an event of trick contests alone has no net for its other
-# bare names to be, and it would turn "Big 1" and "Rippin Run" into net contests.
-_NAMED_TRICK_CONTEST_TOKENS = frozenset(["big 3", "big3"])
+# A named freestyle contest (a Big 3, a Rippin' Run, a judged style contest) is
+# never net, so its name never gains "Net". It does not mark an event as mixed,
+# though: an event of such contests alone has no net for its other bare names to be.
+_NAMED_TRICK_CONTEST_TOKENS = frozenset([
+    "big 3", "big3", "big 1", "big1", "big one", "best 3",
+    "rippin", "rippen", "judged", "technical program",
+    "last man standing", "last kicker standing", "leg over",
+    "rutina", "trojkombinace", "freetyle", "frestyle", "freeestyle",
+])
 _ALL_EXPLICIT_TOKENS = _EXPLICIT_NONNET_TOKENS | _EXPLICIT_NET_TOKENS | _NAMED_TRICK_CONTEST_TOKENS
 
 # Sentinel/placeholder names that must never be upgraded

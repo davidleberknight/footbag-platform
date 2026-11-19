@@ -1209,6 +1209,24 @@ CATEGORY_KEYWORDS = {
         "ironman",       # Freestyle endurance event
         "combo",         # "Big Combo", "Huge Combo"
         "trick",         # "Big Trick", "Sick 3-Trick"
+        # Named freestyle contests. Without these a bare "Open Rippin' Run" in an
+        # event that also ran net is taken for a net division by elimination.
+        "rippin",        # "Most Rippin' Run", "Rippinest Run"
+        "rippen",        # "Open Rippen Run"
+        "big 1",         # "Open Big 1"
+        "big1",
+        "big one",       # "Open Big One"
+        "best 3",        # "Open Best 3"
+        "judged",        # "Open Judged Style"
+        "technical program",  # "Short Technical Program"
+        "last man standing",
+        "last kicker standing",
+        "leg over",      # "Doble Leg Over", a contest named for the trick
+        "rutina",        # Spanish: "Rutina Open"
+        "trojkombinace", # Czech: "Trojkombinace Triků"
+        "freetyle",      # misspellings of "freestyle" in source headings
+        "frestyle",
+        "freeestyle",
         # French keywords
         "homme",         # French men's freestyle
         "femme",         # French women's freestyle
