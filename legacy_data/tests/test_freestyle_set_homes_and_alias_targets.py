@@ -22,7 +22,11 @@ from built_db import DB_PATH, require_loaded
 SETS_WITH_ONLY_A_SET_PAGE = ("blazing", "pogo", "shooting")
 
 # Held until a curator rules on each: their targets stay inactive.
-HELD_ALIASES_ON_INACTIVE_TRICKS = {"stepping_op_squeeze", "spyro_pickup"}
+HELD_ALIASES_ON_INACTIVE_TRICKS = {
+    "stepping_op_squeeze",
+    "spyro_pickup",
+    "flailing_ss_symposium_eggbeater",
+}
 
 
 def _connect() -> sqlite3.Connection:

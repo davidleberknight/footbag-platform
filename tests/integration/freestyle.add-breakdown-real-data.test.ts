@@ -93,9 +93,12 @@ const REVIEW_ASPECT_SAMPLES: readonly (readonly [string, string | null])[] = [
   ['tap', 'positional'],           // tapping side registration
   ['butterfly', 'notation'],       // shares its notation with the reverse whirl
   // Kept in the dictionary with an incomplete formula only because each carries
-  // a record or a tutorial, so the notice is what keeps the page honest.
+  // a world record, so the notice is what keeps the page honest.
   ['terrage', 'notation'],
-  ['pendulum', 'notation'],
+  ['terraging_legover', 'notation'],
+  // Settled by the swing-element ruling: its open "(contact)" ending is the
+  // ruled form, not a gap, so it carries no notice.
+  ['pendulum', null],
   ['whirl', null],                 // settled
 ];
 const reviewAspectSeen = new Map<string, string | null>();
@@ -105,7 +108,7 @@ const reviewAspectSeen = new Map<string, string | null>();
 // dictionary and appear in Emerging Vocabulary instead.
 const HELD_OUT_TRICKS = [
   'bill_ted_s_excellent_adventure', 'reverse_swirling_osis',
-  'reverse_swirling_paradox_torque', 'terraging_illusion', 'terraging_legover',
+  'reverse_swirling_paradox_torque', 'terraging_illusion',
   'terraging_mirage', 'terraging_opposite_clipper', 'terraging_same_clipper',
 ] as const;
 const heldOutWithPage: string[] = [];

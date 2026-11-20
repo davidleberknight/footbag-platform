@@ -33,9 +33,11 @@ from built_db import DB_PATH, require_loaded
 # The adjudicated cohort of active canonical tricks allowed to carry blank
 # operational notation, each with the reason it is pending.
 KNOWN_INCOMPLETE_NOTATION = {
-    # the bare terrage: the terraging-chain arithmetic is pending an expert
-    # ruling, so the notation is held.
+    # the bare terrage and terraging legover: the terraging-chain arithmetic is
+    # pending an expert ruling, so the notation is held. Each carries a world
+    # record, which is why it stays active without one.
     "terrage",
+    "terraging_legover",
 }
 
 
