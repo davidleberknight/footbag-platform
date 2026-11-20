@@ -44,9 +44,14 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
+const SNAP_SOURCE = 'footbag-env-db-snapshots';
+
 interface World {
   archiveOutput: string;
   destOutput: string;
+  /** The snapshot bucket and its recovery copy, as Terraform's JSON outputs. */
+  snapOutput?: string;
+  snapDestOutput?: string;
   replication: unknown | null;
   trustServices: string[];
   caller: string;
@@ -86,6 +91,12 @@ function healthy(): World {
 function run(args: string[], w: World) {
   const f = (name: string) => join(dir, name);
   writeFileSync(f('archive'), w.archiveOutput);
+  writeFileSync(f('snap'), w.snapOutput ?? 'null');
+  writeFileSync(f('snapdest'), w.snapDestOutput ?? 'null');
+  writeFileSync(f('snapreport'), JSON.stringify({ bucket: SNAP_SOURCE, prefix: 'batch-replication' }));
+  // The source buckets' own names, which head-object answers replication status for.
+  writeFileSync(f('srcnames'), [w.archiveOutput, w.snapOutput ?? '']
+    .filter((o) => o.startsWith('"')).map((o) => JSON.parse(o) as string).join('\n') + '\n');
   writeFileSync(f('dest'), w.destOutput);
   writeFileSync(f('report'), JSON.stringify({ bucket: LOGS, prefix: 'batch-replication' }));
   if (w.replication) writeFileSync(f('replication.json'), JSON.stringify(w.replication));
@@ -106,8 +117,8 @@ function run(args: string[], w: World) {
     '#!/usr/bin/env bash',
     `F=${JSON.stringify(dir)}`,
     'printf "%s\\n" "aws $*" >> "$F/calls.log"',
-    'bucket=""; key=""; query=""; prev=""',
-    'for a in "$@"; do case "$prev" in --bucket) bucket="$a" ;; --key) key="$a" ;; --query) query="$a" ;; esac; prev="$a"; done',
+    'bucket=""; key=""; query=""; prefix=""; prev=""',
+    'for a in "$@"; do case "$prev" in --bucket) bucket="$a" ;; --key) key="$a" ;; --query) query="$a" ;; --prefix) prefix="$a" ;; esac; prev="$a"; done',
     'case "$1 $2" in',
     '  "sts get-caller-identity") cat "$F/caller" ;;',
     '  "s3api get-bucket-replication") [[ -f "$F/replication.json" ]] || exit 254; cat "$F/replication.json" ;;',
@@ -119,9 +130,10 @@ function run(args: string[], w: World) {
     '    n=$(( $(cat "$F/polls" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$F/polls"',
     '    line="$(sed -n "${n}p" "$F/describe")"; [[ -n "$line" ]] || line="$(tail -n 1 "$F/describe")"',
     '    printf "%s\\n" "$line" ;;',
-    '  "s3api list-objects-v2") cat "$F/keys.json" ;;',
+    // Filtered by --prefix, as S3 does.
+    '  "s3api list-objects-v2") jq -c --arg p "$prefix" \'map(select(startswith($p)))\' "$F/keys.json" ;;',
     '  "s3api head-object")',
-    `    if [[ "$bucket" == ${JSON.stringify(SRC)} ]]; then awk -F'\\t' -v k="$key" '$1==k{print $2; found=1} END{exit !found}' "$F/status.tsv"; exit $?; fi`,
+    `    if grep -qxF -- "$bucket" "$F/srcnames"; then awk -F'\\t' -v k="$key" '$1==k{print $2; found=1} END{exit !found}' "$F/status.tsv"; exit $?; fi`,
     '    grep -qxF -- "$key" "$F/present" && echo "{}" && exit 0',
     '    exit 254 ;;',
     '  *) exit 64 ;;',
@@ -137,6 +149,9 @@ function run(args: string[], w: World) {
     '  *"-json archive_bucket_name"*) cat "$F/archive" ;;',
     '  *"-json archive_dr_bucket_name"*) cat "$F/dest" ;;',
     '  *"-json archive_batch_replication_report"*) cat "$F/report" ;;',
+    '  *"-json snapshots_bucket_name"*) cat "$F/snap" ;;',
+    '  *"-json dr_bucket_name"*) cat "$F/snapdest" ;;',
+    '  *"-json snapshots_batch_replication_report"*) cat "$F/snapreport" ;;',
     '  *) exit 1 ;;',
     'esac',
   ].join('\n'));
@@ -406,5 +421,69 @@ describe('backfilling replication', () => {
 
     const res = run(STAGING.concat('--dry-run'), healthy());
     expect(res.stderr).toContain('TEST SEAM BACKFILL_REPLICATION_AWS_BIN is set');
+  });
+});
+
+describe('backfilling the database snapshots', () => {
+  const SNAP = SNAP_SOURCE;
+  const SNAP_DR = 'footbag-env-db-snapshots-dr';
+
+  function snapshots(): World {
+    // The archive stays on beside the snapshots, so a run that read the
+    // archive's outputs would name the archive's buckets.
+    const w = healthy();
+    w.snapOutput = JSON.stringify(SNAP);
+    w.snapDestOutput = JSON.stringify(SNAP_DR);
+    w.replication = {
+      ReplicationConfiguration: {
+        Role: ROLE,
+        Rules: [
+          { ID: 'replicate-hourly', Status: 'Enabled', Destination: { Bucket: `arn:aws:s3:::${SNAP_DR}` } },
+          { ID: 'replicate-daily', Status: 'Enabled', Destination: { Bucket: `arn:aws:s3:::${SNAP_DR}` } },
+        ],
+      },
+    };
+    // routine/ never replicates, so its point is in the source and not the copy.
+    w.keys = [
+      'daily/2026/11/18/footbag-20261118T000000Z.db.gz',
+      'hourly/2026/11/18/footbag-20261118T130000Z.db.gz',
+      'routine/2026/11/18/footbag-20261118T130500Z.db.gz',
+    ];
+    w.present = w.keys.filter((k) => !k.startsWith('routine/'));
+    return w;
+  }
+
+  // Defect caught: a snapshot whose replication failed (which S3 never
+  // retries) had no scripted way back into the recovery region; or the job ran
+  // against the archive's buckets whatever source was named.
+  it('runs the job from the snapshot bucket to its recovery copy, its report kept beside them', () => {
+    const res = run(['--target', 'production', '--source', 'snapshots', '--dry-run'], snapshots());
+
+    expect(res.status, res.stderr).toBe(0);
+    expect(res.stdout).toContain(`${SNAP} -> ${SNAP_DR} (production)`);
+    expect(res.stdout).toContain(`s3://${SNAP}/batch-replication/`);
+    expect(calls()).toContain(`get-bucket-replication --bucket ${SNAP}`);
+    expect(calls()).not.toContain('footbag-env-archive');
+  });
+
+  // Defect caught: the proof samples the fine-grained routine/ stream, which
+  // never replicates by design, and fails every backfill that worked.
+  it('proves the copy by sampling only the generations that replicate', () => {
+    const w = snapshots();
+    const res = run(['--target', 'production', '--source', 'snapshots', '--status', 'job-snap-0001'], w);
+
+    expect(res.status, res.stderr).toBe(0);
+    expect(res.stdout).toContain(`2 sampled key(s) from ${SNAP} are in ${SNAP_DR}`);
+    expect(calls()).not.toMatch(/head-object --bucket \S+ --key routine\//);
+  });
+
+  // Defect caught: a backfill on staging, whose snapshot bucket replicates
+  // nowhere, reaches AWS looking for a rule that cannot exist.
+  it('refuses the snapshots on staging before calling anything', () => {
+    const res = run(['--target', 'staging', '--source', 'snapshots', '--dry-run'], snapshots());
+
+    expect(res.status).toBe(2);
+    expect(res.stderr).toContain('production only');
+    expect(calls()).toBe('');
   });
 });

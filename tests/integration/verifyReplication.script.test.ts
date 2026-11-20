@@ -63,6 +63,22 @@ const LOCKED: Record<string, string> = {
   [DAILY_KEY]: 'GOVERNANCE\t2027-01-05T00:00:00+00:00',
 };
 
+interface Versions {
+  /** Delete markers per bucket, as [Key, LastModified]. */
+  markers?: Record<string, Array<[string, string]>>;
+  /** Enabled expiry rules per bucket, as [prefix, days]. */
+  lifecycle?: Record<string, Array<[string, number]>>;
+  /** Switches for the stand-in CLI's refusals. */
+  env?: NodeJS.ProcessEnv;
+}
+
+/** The expiry rules the snapshot buckets carry: thinning by age on the primary,
+ * the 90-day lock window on the DR copy. */
+const SNAPSHOT_LIFECYCLE: Record<string, Array<[string, number]>> = {
+  'footbag-env-db-snapshots': [['routine/', 2], ['hourly/', 30], ['daily/', 400]],
+  'footbag-env-db-snapshots-dr': [['routine/', 90], ['hourly/', 90], ['daily/', 90]],
+};
+
 function run(
   target: string,
   buckets: Record<string, Bucket>,
@@ -82,7 +98,11 @@ function run(
   retention: Record<string, string> = LOCKED,
   /** What the replication-stopped alarm's StateValue reads; 'None' is no alarm. */
   alarmState = 'OK',
+  /** Delete markers and lifecycle rules of the snapshot buckets. */
+  versions: Versions = {},
 ) {
+  const markers = versions.markers ?? {};
+  const lifecycle = versions.lifecycle ?? SNAPSHOT_LIFECYCLE;
   const fixtures = join(workDir, 'fixtures');
   const lines: string[] = [
     '#!/usr/bin/env bash',
@@ -132,6 +152,24 @@ function run(
   // The stopped alarm lives in the backup region, where S3 publishes the
   // latency metric it watches; asked for anywhere else, AWS has no such alarm.
   lines.push(`  describe-alarms) [[ " $* " == *" --region us-west-2 "* ]] || { echo None; exit 0; }; echo ${JSON.stringify(alarmState)}; exit 0 ;;`);
+  // A list query with text output prints one row per element, tab-separated,
+  // and the literal None when the list is empty or absent.
+  lines.push('  get-bucket-lifecycle-configuration)');
+  lines.push('    [[ -n "${FAKE_NO_LIFECYCLE:-}" ]] && { echo "An error occurred (AccessDenied)" >&2; exit 254; }');
+  for (const [name, rules] of Object.entries(lifecycle)) {
+    const rows = rules.map(([p, d]) => `${p}\\t${d}`).join('\\n');
+    lines.push(`    [[ "$bucket" == ${JSON.stringify(name)} ]] && { printf '${rows}\\n'; exit 0; }`);
+  }
+  lines.push('    echo None; exit 0 ;;');
+  lines.push('  list-object-versions)');
+  lines.push('    [[ -n "${FAKE_NO_VERSIONS:-}" ]] && { echo "An error occurred (AccessDenied) when calling the ListObjectVersions operation" >&2; exit 254; }');
+  for (const [name, list] of Object.entries(markers)) {
+    for (const [k, m] of list) {
+      lines.push(`    [[ "$bucket" == ${JSON.stringify(name)} ]] && printf '%s\\t%s\\n' ${JSON.stringify(k)} ${JSON.stringify(m)}`);
+    }
+    lines.push(`    [[ "$bucket" == ${JSON.stringify(name)} ]] && exit 0`);
+  }
+  lines.push('    echo None; exit 0 ;;');
   lines.push('esac', 'exit 64');
   writeFileSync(fixtures, lines.join('\n'));
   chmodSync(fixtures, 0o755);
@@ -142,6 +180,7 @@ function run(
     'case "$*" in',
     '  *media_bucket_name*) echo footbag-env-media ;;',
     '  *snapshots_bucket_name*) echo footbag-env-db-snapshots ;;',
+    '  *dr_bucket_name*) echo footbag-env-db-snapshots-dr ;;',
     // Live Terraform keeps no null output in its state, so the archive off is
     // a name absent from the map, and asking for the name alone fails.
     '  *"-json archive_bucket_name"*) echo "Error: Output \\"archive_bucket_name\\" not found" >&2; exit 1 ;;',
@@ -164,6 +203,7 @@ function run(
       VERIFY_REPLICATION_AWS_BIN: fixtures,
       VERIFY_REPLICATION_TERRAFORM_BIN: tf,
       VERIFY_REPLICATION_NOW: NOW,
+      ...(versions.env ?? {}),
     },
     ...SPAWN_GUARD,
   });
@@ -438,7 +478,10 @@ describe('verifying replication', () => {
     expect(res.status, res.stderr).toBe(0);
     expect(res.stdout).toContain('present in footbag-env-media-dr');
     expect(res.stdout).toContain('present in footbag-env-archive-dr');
-    expect(calls()).not.toContain('footbag-env-db-snapshots');
+    // Staging's snapshot bucket replicates nowhere, so no replication of it is
+    // judged; only its delete markers are read.
+    expect(calls()).not.toMatch(/(get-bucket-replication|list-objects-v2) --bucket footbag-env-db-snapshots/);
+    expect(calls()).not.toContain('footbag-env-db-snapshots-dr');
   });
 
   it('refuses a missing or unknown target', () => {
@@ -446,5 +489,97 @@ describe('verifying replication', () => {
     expect(res.status).toBe(1);
     expect(res.stderr).toContain('--target must be staging or production');
     expect(calls()).toBe('');
+  });
+});
+
+describe('delete markers in the snapshot buckets', () => {
+  // Lifecycle expiry writes these every day in a versioned bucket: a routine
+  // snapshot of 1 October expired after its 2 days, and an hourly copy in the DR
+  // bucket expired after the lock window's 90.
+  const LIFECYCLE_MARKERS: Record<string, Array<[string, string]>> = {
+    'footbag-env-db-snapshots': [
+      ['routine/2026/10/01/footbag-20261001T120000Z.db.gz', '2026-10-04T00:00:00+00:00'],
+    ],
+    'footbag-env-db-snapshots-dr': [
+      ['hourly/2026/06/01/footbag-20260601T010000Z.db.gz', '2026-08-31T00:00:00+00:00'],
+    ],
+  };
+
+  function production(markers: Record<string, Array<[string, string]>>, env: NodeJS.ProcessEnv = {}) {
+    const { buckets, present } = healthyProduction();
+    return run('production', buckets, present, ARCHIVE_OUTPUT, LOCKED, 'OK', { markers, env });
+  }
+
+  // Defect caught: the check fails permanently on a healthy bucket, because
+  // every lifecycle expiry in a versioned bucket leaves a marker.
+  it('passes markers that lifecycle expiry wrote, in both buckets', () => {
+    const res = production(LIFECYCLE_MARKERS);
+
+    expect(res.status, res.stderr).toBe(0);
+    expect(calls()).toContain('list-object-versions --region us-west-2 --bucket footbag-env-db-snapshots ');
+    expect(calls()).toContain('list-object-versions --region us-west-2 --bucket footbag-env-db-snapshots-dr');
+    expect(res.stdout).toMatch(/1 delete marker\(s\) checked/);
+  });
+
+  // Defect caught: someone deletes a backup (the newest daily point, long
+  // before its 400 days), both regions read without it, and every alarm stays
+  // healthy, because nothing looked at the markers.
+  it('fails a marker that came sooner than its generation\'s expiry', () => {
+    const res = production({
+      ...LIFECYCLE_MARKERS,
+      'footbag-env-db-snapshots': [
+        ...LIFECYCLE_MARKERS['footbag-env-db-snapshots'],
+        ['daily/2026/10/01/footbag-20261001T000000Z.db.gz', '2026-10-02T00:00:00+00:00'],
+      ],
+    });
+
+    expect(res.status).toBe(1);
+    expect(res.stderr).toMatch(/FAIL: delete marker on daily\/2026\/10\/01\/footbag-20261001T000000Z\.db\.gz in footbag-env-db-snapshots .*400-day/);
+  });
+
+  // Defect caught: a deleted cutover rollback artifact, under a prefix no
+  // expiry rule covers, passes as if lifecycle had removed it.
+  it('fails a marker under a prefix no expiry rule covers', () => {
+    const res = production({
+      ...LIFECYCLE_MARKERS,
+      'footbag-env-db-snapshots-dr': [['pre-flip/abc/abc.db.gz', '2026-10-06T00:00:00+00:00']],
+    });
+
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('FAIL: delete marker on pre-flip/abc/abc.db.gz in footbag-env-db-snapshots-dr');
+    expect(res.stderr).toContain('no lifecycle expiry rule');
+  });
+
+  // Defect caught: a version listing the role cannot read reads as "no
+  // markers", so the one check that sees deleted backups passes blind.
+  it('fails when the versions cannot be listed, with the CLI\'s reason', () => {
+    const res = production(LIFECYCLE_MARKERS, { FAKE_NO_VERSIONS: '1' });
+
+    expect(res.status).toBe(1);
+    expect(res.stderr).toMatch(/FAIL: could not list the versions of footbag-env-db-snapshots.*ListObjectVersions/);
+  });
+
+  // Defect caught: unreadable lifecycle rules make every marker look
+  // unexplained, or worse, explained.
+  it('fails when the lifecycle rules cannot be read', () => {
+    const res = production(LIFECYCLE_MARKERS, { FAKE_NO_LIFECYCLE: '1' });
+
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('could not read the lifecycle rules of footbag-env-db-snapshots');
+  });
+
+  // Defect caught: staging's backups are deleted unnoticed, because only
+  // production's buckets were read.
+  it('checks staging\'s one snapshot bucket too', () => {
+    const { buckets, present } = healthyProduction();
+    const res = run('staging', {
+      'footbag-env-media': buckets['footbag-env-media'],
+      'footbag-env-archive': buckets['footbag-env-archive'],
+    }, present, ARCHIVE_OUTPUT, LOCKED, 'OK', {
+      markers: { 'footbag-env-db-snapshots': [['hourly/2026/10/06/footbag-20261006T010000Z.db.gz', '2026-10-06T02:00:00+00:00']] },
+    });
+
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('FAIL: delete marker on hourly/2026/10/06/footbag-20261006T010000Z.db.gz in footbag-env-db-snapshots');
   });
 });

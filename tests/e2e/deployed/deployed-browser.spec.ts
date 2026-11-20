@@ -7,6 +7,8 @@
  * These are the defects a status-code smoke cannot see: every URL still answers
  * 200 while a blocked script leaves a map, a video or the captcha dead.
  *
+ * It also follows each cited old footbag.org address through its redirect.
+ *
  * On staging and on production alike it loads anonymous pages only, signs in as
  * nobody and submits nothing, so it writes nothing on the deployed host. The one
  * request a browser would otherwise send on its own, the policy-violation report
@@ -17,6 +19,7 @@
  */
 import { test, expect, type Page } from '@playwright/test';
 import { watchPageProblems } from '../helpers/pageProblems';
+import { LEGACY_REDIRECT_PATHS } from '../../../src/lib/legacyRedirects';
 
 const TARGET = process.env.DEPLOYED_TARGET;
 
@@ -49,4 +52,21 @@ test('anonymous landing pages load with nothing refused, thrown or failed', asyn
   await visit(page, trickHref!);
 
   expect(problems.list, problems.list.join('\n')).toEqual([]);
+});
+
+test('each cited old footbag.org address redirects on the deployed host to a page that renders', async ({ request }) => {
+  // A deploy that dropped the redirect route, or a target that exists locally but
+  // not in the deployed data, sends a reader following an old Wikipedia or club
+  // link to the not-found page. The addresses carry no host, so this holds on the
+  // distribution's own name before the real names resolve.
+  const wrong: string[] = [];
+  for (const from of LEGACY_REDIRECT_PATHS) {
+    const hop = await request.get(from, { maxRedirects: 0 });
+    const to = hop.headers()['location'] ?? '';
+    const landed = to.startsWith('/') ? await request.get(to.split('#')[0], { maxRedirects: 0 }) : null;
+    if (hop.status() !== 301 || landed?.status() !== 200) {
+      wrong.push(`${from} -> ${hop.status()} ${to} -> ${landed?.status() ?? 'no target'}`);
+    }
+  }
+  expect(wrong, wrong.join('\n')).toEqual([]);
 });

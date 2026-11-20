@@ -9,6 +9,8 @@
  * A `needs-ruling` entry is a served surface no story owns: unintended scope
  * until the maintainer either writes its story or removes it.
  */
+import { LEGACY_REDIRECT_PATHS } from '../../../src/lib/legacyRedirects';
+
 export type NoStoryReason = 'test-harness' | 'machine-endpoint' | 'compatibility-redirect' | 'needs-ruling';
 export type RouteStory =
   | { stories: readonly string[] }
@@ -18,6 +20,7 @@ export const ROUTE_STORIES: Readonly<Record<string, RouteStory>> = {
   // Public site
   'GET /': { stories: ['V_Browse_Static_Content'] },
   'GET /archive': { stories: ['M_Browse_Legacy_Archive'] },
+  [`GET ${LEGACY_REDIRECT_PATHS.join('|')}`]: { none: 'compatibility-redirect', why: 'Old footbag.org addresses that outside pages still cite, each a permanent redirect to the public page carrying the same content; the Legacy Archive design decision allows this fixed list.' },
   'GET /forum': { none: 'needs-ruling', why: 'Short link that redirects to the off-site community forum, which no user story names or gives success criteria.' },
   'GET /clubs': { stories: ['V_Browse_Clubs'] },
   'POST /clubs/make-primary': { stories: ['M_Leave_Club'] },

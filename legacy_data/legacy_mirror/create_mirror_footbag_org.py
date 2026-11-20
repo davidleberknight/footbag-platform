@@ -218,6 +218,12 @@ OFFSITE_IMAGE_MAX_BYTES = 20 * 1024 * 1024
 # same bytes behind this many different addresses on one host is that stock
 # image, not a photograph, and archiving it would present it as the original.
 OFFSITE_PLACEHOLDER_REPEATS = 3
+# Runs on which one picture may time out or be refused before it counts as
+# gone. A host that is slow on every run never settles otherwise, and a tree
+# still loading it can never be published; the count lives beside the capture,
+# outside the published tree, so it survives between runs.
+OFFSITE_TRANSIENT_GIVE_UP_RUNS = 2
+OFFSITE_RETRIES_FILENAME = 'offsite_retries.json'
 # The pause before the single retry of a connection that never came up.
 OFFSITE_CONNECT_RETRY_PAUSE_SECONDS = 5
 
@@ -606,6 +612,17 @@ def parse_args():
             "was excluded at the time, for every page whose target a later "
             "ruling restored, then exit. Idempotent; how a restored nav target "
             "reaches every page carrying the menu without re-crawling the site."
+        ),
+    )
+    parser.add_argument(
+        "--group-files-index-only",
+        dest="group_files_index_only",
+        action="store_true",
+        help=(
+            "No crawl, no network, no credentials: rebuild the group file pages "
+            "and the one page listing every group's archived files, link it "
+            "from the groups directory, clear stray line breaks and band the "
+            "pages, then exit. Idempotent; minutes on a finished capture."
         ),
     )
     parser.add_argument(
@@ -3356,6 +3373,32 @@ def _fetch_offsite_image_bytes(url, dead_hosts):
     return ('fetched', path, real_ext, digest.hexdigest())
 
 
+def _give_up_on_repeated_timeouts(outcome):
+    """Turn a picture that has timed out on enough separate runs into a gone one.
+
+    Each run that leaves a picture to retry adds one to its count; a run that
+    settles it either way clears the count. At the limit the picture is
+    treated as unavailable, so the page keeps its caption and address as text,
+    and the run names it."""
+    path = os.path.join(MIRROR_DIR, OFFSITE_RETRIES_FILENAME)
+    try:
+        with open(path, encoding='utf-8') as fh:
+            retries = json.load(fh)
+    except FileNotFoundError:
+        retries = {}
+    for url, result in outcome.items():
+        if result != 'transient':
+            retries.pop(url, None)
+            continue
+        retries[url] = retries.get(url, 0) + 1
+        if retries[url] >= OFFSITE_TRANSIENT_GIVE_UP_RUNS:
+            logging.warning(f"Image from another site given up after {retries[url]} runs "
+                            f"that each timed out or were refused: {url}")
+            outcome[url] = 'dead'
+            retries.pop(url)
+    _atomic_write_text(path, json.dumps(retries, indent=1, sort_keys=True) + '\n')
+
+
 def capture_offsite_images(urls):
     """Fetch, screen and re-encode pictures from other sites.
 
@@ -3394,6 +3437,7 @@ def capture_offsite_images(urls):
             _remove_quietly(result)
         outcome[url] = 'dead'
 
+    _give_up_on_repeated_timeouts(outcome)
     kept = Counter(_offsite_host(u) for u, v in outcome.items() if v not in ('dead', 'transient'))
     for host, count in sorted(kept.items()):
         logging.info(f"Images from another site captured: {host}: {count}")
@@ -5792,6 +5836,12 @@ def print_stats():
         if 'server_directives_stripped' in run:
             print(f"Pages cleared of server-side include directives: "
                   f"{run['server_directives_stripped']:,}")
+        if 'group_files_index_groups' in run:
+            print(f"Groups on the archived group files page: "
+                  f"{run['group_files_index_groups']:,}")
+        if 'stray_break_closers_removed' in run:
+            print(f"Pages cleared of stray closing line-break tags: "
+                  f"{run['stray_break_closers_removed']:,}")
         if 'custody_rows_removed' in run:
             print(f"Group page rows naming a private file removed: "
                   f"{run['custody_rows_removed']:,}")
@@ -7278,6 +7328,41 @@ _RESTORABLE_NAV_ITEMS = {
 }
 
 
+_STRAY_BREAK_CLOSER_RE = re.compile(rb'</br\s*>', re.I)
+
+
+def drop_stray_break_closers():
+    """Remove every closing line-break tag, which a browser draws as one more
+    line break.
+
+    No page the site served needed one: they are what re-serializing a page
+    through the HTML parser leaves after a line break followed by more text,
+    so each one adds a break the page never had. Runs after every pass that
+    rewrites pages. Returns the pages changed."""
+    changed = 0
+    for page in Path(_www_root()).rglob('*'):
+        if page.suffix.lower() not in ('.html', '.htm'):
+            continue
+        raw = page.read_bytes()
+        if b'</br' not in raw.lower():
+            continue
+        cleaned = _STRAY_BREAK_CLOSER_RE.sub(b'', raw)
+        if cleaned != raw:
+            _write_bytes_replacing(page, cleaned)
+            changed += 1
+    mirror_state.stats_run['stray_break_closers_removed'] = changed
+    logging.info(f"Stray closing line-break tags removed from {changed} page(s)")
+    return changed
+
+
+_NAV_DEAD_MARKER = '<!--Mirror: link to a page not in the archive-->'
+# A menu item exactly as the dead-link pass leaves it: the item's opening tag,
+# the marker, and nothing but a restorable label up to the next tag.
+_NAV_DEAD_ITEM_RE = re.compile(
+    r'(<li>\s*)' + re.escape(_NAV_DEAD_MARKER) + r'('
+    + '|'.join(re.escape(label) for label in _RESTORABLE_NAV_ITEMS) + r')(?=\s*(?:<|$))')
+
+
 def relink_restored_nav_items():
     """Restore a MainMenu link the dead-link pass wrongly neutralized.
 
@@ -7290,60 +7375,39 @@ def relink_restored_nav_items():
     page with nothing to restore, or already restored (no comment left to
     find), is left untouched.
     """
+    # Rewritten in place, byte for byte: re-serializing the whole page through
+    # the HTML parser turns a self-closed line break in the menu into an
+    # opening and a closing tag, which a browser draws as an extra break.
     www_root = Path(_www_root()).resolve()
     pages = [p for p in www_root.rglob('*') if p.suffix.lower() in ('.html', '.htm')]
     relinked = touched = 0
+    targets = {label: www_root / rel for label, (_title, rel) in _RESTORABLE_NAV_ITEMS.items()}
 
     for page in pages:
-        try:
-            soup = BeautifulSoup(page.read_text(encoding='utf-8', errors='replace'),
-                                 'html.parser')
-        except Exception as e:
-            logging.warning(f"Nav-relink pass could not parse {page}: {e}")
+        text = page.read_text(encoding='utf-8', errors='replace')
+        start = text.find('id="MainMenu"')
+        if start == -1 or _NAV_DEAD_MARKER not in text:
             continue
-        menu = soup.find(id='MainMenu')
-        if menu is None:
+        end = text.find('</ul>', start)
+        if end == -1:
             continue
+        count = 0
 
-        changed = False
-        for li in menu.find_all('li'):
-            # The site never closes its <li> tags, so html.parser nests each
-            # one inside the last (closed only when </ul> closes them all at
-            # once) rather than treating them as siblings the way a browser
-            # would. li.get_text() would therefore pull in every later item's
-            # text too; only the DIRECT children belong to this one item.
-            comment = next(
-                (c for c in li.children if isinstance(c, Comment)
-                 and 'link to a page not in the archive' in str(c)), None)
-            if comment is None:
-                continue
-            direct_text = ''.join(
-                str(c) for c in li.children
-                if isinstance(c, NavigableString) and not isinstance(c, Comment))
-            label = direct_text.strip()
-            if label not in _RESTORABLE_NAV_ITEMS:
-                continue
-            title, target_rel = _RESTORABLE_NAV_ITEMS[label]
-            target = www_root / target_rel
-            if not target.is_file():
-                continue
-            href = calculate_relative_path(str(page), str(target))
-            anchor = soup.new_tag('a', href=href, title=title)
-            nobr = soup.new_tag('nobr')
-            nobr.string = label
-            anchor.append(nobr)
-            comment.replace_with(anchor)
-            # Only the direct text nodes are this item's own label; a nested
-            # <li> holding the next menu item is a real, separate item and
-            # must be left exactly as it was.
-            for child in list(li.children):
-                if isinstance(child, NavigableString) and not isinstance(child, Comment):
-                    child.extract()
-            relinked += 1
-            changed = True
+        def relink(match):
+            nonlocal count
+            label = match.group(2)
+            if not targets[label].is_file():
+                return match.group(0)
+            title = _RESTORABLE_NAV_ITEMS[label][0]
+            href = calculate_relative_path(str(page), str(targets[label]))
+            count += 1
+            return (f'{match.group(1)}<a href="{html.escape(href)}" '
+                    f'title="{html.escape(title)}"><nobr>{label}</nobr></a>')
 
-        if changed:
-            _atomic_write_text(str(page), str(soup))
+        menu = _NAV_DEAD_ITEM_RE.sub(relink, text[start:end])
+        if count:
+            _atomic_write_text(str(page), text[:start] + menu + text[end:])
+            relinked += count
             touched += 1
 
     logging.info(
@@ -8911,6 +8975,100 @@ def generate_group_file_pages(inventory_path=None):
     return written
 
 
+GROUP_FILES_INDEX_REL = 'groups/files/index.html'
+GROUP_FILES_INDEX_MARKER = 'mirror-group-files-index'
+GROUP_FILES_INDEX_LINK_MARKER = 'mirror-group-files-index-link'
+_GROUP_PAGE_TITLE_RE = re.compile(r'<h1>(.*?)</h1>', re.S)
+_GROUP_PAGE_LIST_RE = re.compile(
+    r'<ul id="' + re.escape(GROUP_FILES_PAGE_MARKER) + r'">(.*?)</ul>', re.S)
+_DIRECTORY_HEADING_RE = re.compile(rb'<b><font size="\+2">All IFPA Working Groups:', re.I)
+_GROUP_FILES_INDEX_LINK_RE = re.compile(
+    rb'<p id="' + GROUP_FILES_INDEX_LINK_MARKER.encode() + rb'">.*?</p>\n?', re.S)
+
+
+def generate_group_files_index():
+    """One page listing every group file the archive serves, by group.
+
+    Built from the rebuilt group file pages themselves, so it names exactly
+    what they name and nothing held privately or dropped. Dressed as the
+    groups directory and linked from it by one button above the list of
+    groups. With no group file page, the page and its button are withdrawn.
+    Returns the groups listed."""
+    www = Path(_www_root())
+    index = www / GROUP_FILES_INDEX_REL
+    directory = www / 'groups' / 'list' / 'index.html'
+    groups = []
+    home = www / 'groups' / 'home'
+    for page in sorted(home.glob('*/index.html')) if home.is_dir() else []:
+        text = page.read_text(encoding='utf-8', errors='replace')
+        title, files = _GROUP_PAGE_TITLE_RE.search(text), _GROUP_PAGE_LIST_RE.search(text)
+        if not (title and files):
+            continue
+        groups.append((html.unescape(title.group(1)), page.parent.name, files.group(1)))
+    groups.sort(key=lambda g: g[0].casefold())
+
+    if not groups:
+        if index.is_file():
+            index.unlink()
+        if directory.is_file():
+            raw = directory.read_bytes()
+            cleaned = re.sub(rb'<p id="' + GROUP_FILES_INDEX_LINK_MARKER.encode()
+                             + rb'">.*?</p>\n?', b'', raw, flags=re.S)
+            if cleaned != raw:
+                _write_bytes_replacing(directory, cleaned)
+        return 0
+
+    sections = []
+    for name, group_id, items in groups:
+        # The group pages sit one folder deeper than this one.
+        items = items.replace('href="../../../', 'href="../../')
+        sections.append(f'<h2><a href="../home/{quote(group_id)}/index.html">'
+                        f'{html.escape(name)}</a></h2>\n<ul>{items}</ul>')
+    body = (f'<div id="{GROUP_FILES_INDEX_MARKER}">\n<h1>Archived Group Files</h1>\n'
+            f'<p id="{GROUP_FILES_NOTE_ID}">{html.escape(GROUP_FILES_NOTE)}</p>\n'
+            + '\n'.join(sections) + '\n</div>')
+    index.parent.mkdir(parents=True, exist_ok=True)
+    new_page = _page_in_captured_chrome(
+        directory, index, lambda soup: soup.find('td', attrs=_GROUP_PAGE_CONTENT), body,
+        title='IFPA Member Groups: Archived Group Files')
+    if new_page is None:
+        new_page = _archive_page('Archived Group Files', body, asset_prefix='../../')
+        message = (f"{GROUP_FILES_INDEX_REL}: the groups directory is missing or has no "
+                   "content cell, so the group files page is a plain page")
+        logging.warning(message)
+        mirror_state.run_warnings.append(message)
+    current = index.read_text(encoding='utf-8', errors='replace') if index.is_file() else ''
+    if _HEADER_BAND_RE.sub(b'', _FOOTER_BAND_RE.sub(b'', current.encode())) \
+            != new_page.encode():
+        _atomic_write_text(str(index), new_page)
+
+    if directory.is_file():
+        raw = directory.read_bytes()
+        # Drawn like the page's other links, underlined in its link colour,
+        # only larger, so it reads as something to click.
+        link = (f'<p id="{GROUP_FILES_INDEX_LINK_MARKER}"><font size="+1"><b>'
+                '<a href="../files/index.html">Archived Group Files</a>'
+                '</b></font></p>\n').encode('utf-8')
+        existing = _GROUP_FILES_INDEX_LINK_RE.search(raw)
+        heading = _DIRECTORY_HEADING_RE.search(raw)
+        if existing:
+            # An earlier run's link in an older form is brought up to date.
+            if existing.group(0) != link:
+                _write_bytes_replacing(
+                    directory, raw[:existing.start()] + link + raw[existing.end():])
+        elif heading is None:
+            message = ("groups/list/index.html: no 'All IFPA Working Groups' heading, "
+                       "so nothing links the group files page")
+            logging.warning(message)
+            mirror_state.run_warnings.append(message)
+        else:
+            _write_bytes_replacing(
+                directory, raw[:heading.start()] + link + raw[heading.start():])
+    mirror_state.stats_run['group_files_index_groups'] = len(groups)
+    logging.info(f"Group files page: {len(groups)} group(s) listed at {GROUP_FILES_INDEX_REL}")
+    return len(groups)
+
+
 def _smoke_capped():
     # A crawl capped for a smoke run is not a capture: recovering every group
     # file into it would turn a short check into a long download.
@@ -9011,11 +9169,13 @@ def settle_for_publication(load_manifest=True):
     drop_withheld_post_entries()
     drop_custody_file_rows()
     generate_group_file_pages()
+    generate_group_files_index()
     # No network here, so a picture from another site not yet captured is left
     # for --capture-offsite-images-only; embeds still go.
     settle_offsite_resources(capture=False)
     neutralize_dead_internal_links()
     neutralize_retired_host_links()
+    drop_stray_break_closers()
     insert_archive_banner()
 
 
@@ -9069,6 +9229,8 @@ def generate_reachability_pages(seeds_dir=None):
     # The rebuilt group file lists before the dead-link pass, which then judges
     # their links and the link added to each group's captured page like any other.
     generate_group_file_pages()
+    # The one page listing every group's files, built from the pages above.
+    generate_group_files_index()
     # Resources from other websites before the dead-link pass, so a captured
     # picture is already on disk when that pass judges what is missing. A crawl
     # has the network, so pictures that still load are captured here.
@@ -9088,6 +9250,8 @@ def generate_reachability_pages(seeds_dir=None):
     # nothing if generation failed, and the pass that turns a dead link into text
     # has already run by then.
     insert_homepage_directory_card()
+    # The passes above that rewrite whole pages leave stray line breaks behind.
+    drop_stray_break_closers()
     # Last: every page gets the header and footer, generated pages included, so
     # every pass that writes a page has to be done first.
     insert_archive_banner()
@@ -10435,6 +10599,7 @@ def _run_crawler():
                 ('--settle-for-publication-only', args.settle_for_publication_only),
                 ('--capture-offsite-images-only', args.capture_offsite_images_only),
                 ('--relink-nav-items-only', args.relink_nav_items_only),
+                ('--group-files-index-only', args.group_files_index_only),
             ) if on]
         if conflicting:
             sys.exit(
@@ -10546,6 +10711,7 @@ def _run_crawler():
         # removed here leaves nothing dangling.
         settle_offsite_resources(capture=True)
         neutralize_dead_internal_links()
+        drop_stray_break_closers()
         return
 
     if args.relink_nav_items_only:
@@ -10553,6 +10719,16 @@ def _run_crawler():
         # already holds the restored target; this is how the correction
         # reaches every page carrying the menu without a re-crawl.
         relink_restored_nav_items()
+        return
+
+    if args.group_files_index_only:
+        # Offline, from what is on disk: the group file pages, the page listing
+        # them all and its button, then the cleanup and bands every page needs.
+        generate_group_file_pages()
+        generate_group_files_index()
+        drop_stray_break_closers()
+        insert_archive_banner()
+        print_stats()
         return
 
     if args.rebuild_directory_only:

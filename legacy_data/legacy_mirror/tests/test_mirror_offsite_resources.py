@@ -298,6 +298,35 @@ def test_a_temporary_failure_leaves_the_page_exactly_as_it_was(www, monkeypatch)
     assert counts['transient'] == 1
 
 
+def test_a_picture_that_times_out_on_two_runs_is_settled_as_gone(www, monkeypatch):
+    # A host slow on every run never settles otherwise, and a tree still
+    # loading its picture is refused at every publish; one slow run alone must
+    # not cost a picture a re-run would capture.
+    url = 'http://members.lycos.co.uk/someone/DSCF0004.JPG'
+    _web(monkeypatch, {url: requests.exceptions.ReadTimeout('slow')})
+    page = _page(www, 'gallery/show/2804/index.html', f'<img src="{url}" alt="Shred session"/>')
+    first = mirror_script.settle_offsite_resources(capture=True)
+    assert first['transient'] == 1 and _soup(page).find('img') is not None
+    second = mirror_script.settle_offsite_resources(capture=True)
+    assert second['transient'] == 0
+    assert _soup(page).find('img') is None
+    assert f'Shred session ({url})' in _soup(page).get_text()
+
+
+def test_a_picture_that_loads_after_a_slow_run_starts_its_count_again(www, monkeypatch):
+    # A count carried past a success would drop a picture after one later
+    # blip, when the rule promises it two separate slow runs.
+    url = 'http://example.org/pics/flaky.jpg'
+    page = _page(www, 'news/index.html', f'<img src="{url}"/>')
+    _web(monkeypatch, {url: requests.exceptions.ReadTimeout('slow')})
+    mirror_script.settle_offsite_resources(capture=True)
+    _web(monkeypatch, {url: _Response(body=JPEG)})
+    mirror_script.settle_offsite_resources(capture=True)
+    retries = Path(mirror_script.MIRROR_DIR) / mirror_script.OFFSITE_RETRIES_FILENAME
+    assert url not in retries.read_text(encoding='utf-8')
+    assert '_offsite/example.org/' in _soup(page).find('img')['src']
+
+
 def test_an_address_wrapped_across_lines_is_read_whole(www, monkeypatch):
     url = 'http://example.org/pics/wrapped.jpg'
     _web(monkeypatch, {url: _Response(body=JPEG)})

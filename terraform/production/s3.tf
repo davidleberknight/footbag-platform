@@ -297,6 +297,15 @@ resource "aws_s3_bucket_cors_configuration" "media" {
 
 # ── Snapshots (primary) ───────────────────────────────────────────────────────
 
+locals {
+  # Key prefix in the snapshot bucket where a Batch Replication job over the
+  # snapshots writes its generated manifest and completion report. No rule
+  # replicates or expires it, so reports stay until someone removes them and
+  # never age into the delete markers the replication check judges; one job
+  # follows a failed replication, which is rare, and a report is a few rows.
+  snapshots_batch_replication_prefix = "batch-replication"
+}
+
 resource "aws_s3_bucket" "snapshots" {
   bucket = "${local.prefix}-db-snapshots"
   lifecycle { prevent_destroy = true }

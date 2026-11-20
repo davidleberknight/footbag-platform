@@ -458,27 +458,28 @@ resource "aws_iam_user_policy" "cwagent_publisher_putmetric" {
 resource "aws_iam_role" "s3_replication" {
   name = "${local.prefix}-s3-replication"
 
-  # S3 Batch Operations is trusted only while the archive exists, because the
-  # archive is the one source whose existing objects a batch job copies
-  # (scripts/backfill-replication.sh). AWS requires a Batch Replication job's
-  # role to trust that service, and requires the job's role to sit in the same
+  # S3 Batch Operations is trusted because a batch job is how existing objects
+  # are copied after the fact (scripts/backfill-replication.sh): the archive's
+  # contents loaded before its rule existed, and any snapshot whose replication
+  # failed, which S3 never retries. AWS requires a Batch Replication job's role
+  # to trust that service, and requires the job's role to sit in the same
   # account as the job, so no other account can hand this role to a job.
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
-    Statement = concat(
-      [{
+    Statement = [
+      {
         Sid       = "TrustS3"
         Effect    = "Allow"
         Principal = { Service = "s3.amazonaws.com" }
         Action    = "sts:AssumeRole"
-      }],
-      var.enable_archive ? [{
+      },
+      {
         Sid       = "TrustS3BatchOperations"
         Effect    = "Allow"
         Principal = { Service = "batchoperations.s3.amazonaws.com" }
         Action    = "sts:AssumeRole"
-      }] : [],
-    )
+      },
+    ]
   })
 }
 
@@ -494,10 +495,12 @@ resource "aws_iam_role_policy" "s3_replication" {
   # on the destination; combining the pairs into one policy keeps the role
   # singular and avoids attaching a second policy by hand.
   #
-  # The last statement is what a Batch Replication job over the archive needs
-  # beyond live replication, scoped to the archive and to the one prefix of
-  # its log bucket the job writes its generated manifest and completion report
-  # under. Inventory configuration is how S3 builds the manifest.
+  # The batch statements are what a Batch Replication job needs beyond live
+  # replication, scoped to each source it may re-drive and to the one prefix the
+  # job writes its generated manifest and completion report under: for the
+  # archive a prefix of its log bucket, for the snapshots a prefix of the
+  # snapshot bucket that no rule replicates or expires. Inventory configuration
+  # is how S3 builds the manifest.
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = concat(
@@ -548,6 +551,28 @@ resource "aws_iam_role_policy" "s3_replication" {
             ],
             var.enable_archive ? ["${aws_s3_bucket.archive_dr[0].arn}/*"] : [],
           )
+        },
+        {
+          Sid      = "SnapshotsBatchReplicationInitiate"
+          Effect   = "Allow"
+          Action   = ["s3:InitiateReplication"]
+          Resource = ["${aws_s3_bucket.snapshots.arn}/*"]
+        },
+        {
+          Sid      = "SnapshotsBatchReplicationManifest"
+          Effect   = "Allow"
+          Action   = ["s3:PutInventoryConfiguration"]
+          Resource = [aws_s3_bucket.snapshots.arn]
+        },
+        {
+          Sid    = "SnapshotsBatchReplicationReport"
+          Effect = "Allow"
+          Action = [
+            "s3:PutObject",
+            "s3:GetObject",
+            "s3:GetObjectVersion"
+          ]
+          Resource = ["${aws_s3_bucket.snapshots.arn}/${local.snapshots_batch_replication_prefix}/*"]
         },
       ],
       var.enable_archive ? [

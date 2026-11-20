@@ -12,6 +12,7 @@
  * what a visitor meets, and is deleted by the change that fixes it.
  */
 import type { ExemptionReason, Finding, OracleName, RouteExemption } from './oracles';
+import { LEGACY_REDIRECT_PATHS } from '../../../src/lib/legacyRedirects';
 
 export interface FindingExemption {
   oracle: OracleName;
@@ -211,6 +212,10 @@ export const ROUTE_EXEMPTIONS: readonly RouteExemption[] = [
       'GET /payments/success', 'GET /payments/cancel', 'GET /payments/checkout/:sessionId',
       'POST /payments/checkout/:sessionId/confirm', 'POST /payments/checkout/:sessionId/cancel',
       'POST /payments/checkout/:sessionId/decline', 'GET /register/wizard/complete',
+    ]),
+  ...group('compatibility-redirect',
+    'Old footbag.org addresses that outside pages cite; no page of this site links to them.', [
+      `GET ${LEGACY_REDIRECT_PATHS.join('|')}`,
     ]),
   ...group('unlinked-page',
     'A served page that no rendered page links to, reachable only by typing its address.', [

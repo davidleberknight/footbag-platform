@@ -15,8 +15,12 @@
 # this, and the same job also re-drives objects whose replication FAILED, which
 # S3 never retries on its own.
 #
-# The archive is the one source this serves: its replication role is granted
-# the batch permissions in Terraform, and no other bucket's is.
+# Two sources: the archive, wherever its stack is on, and on production the
+# database snapshot bucket, whose hourly and daily generations replicate to the
+# recovery region. A snapshot whose replication failed raises the
+# replication-failed alarm and is never retried by S3; this is how it is copied.
+# The replication role is granted the batch permissions for these two sources in
+# Terraform, and for no other.
 #
 # What a run does, in order:
 #   1. Reads the source bucket, its DR bucket, and where the job may write its
@@ -24,8 +28,8 @@
 #   2. Proves the source's enabled replication rule names that DR bucket, and
 #      takes the job's role from the rule itself, so the job cannot run under a
 #      role the live rule does not use.
-#   3. Proves that role trusts S3 Batch Operations, which the Terraform apply
-#      that adds the archive's replica grants.
+#   3. Proves that role trusts S3 Batch Operations, which the environment's
+#      Terraform grants.
 #   4. Proves the run is the directly authenticated footbag-operator IAM user in
 #      this project's account. Creating the job hands the replication role to
 #      S3, and the dev-and-tester role holds no permission to pass a role.
@@ -58,18 +62,24 @@
 # its end whether or not anyone is watching. The run prints the job id, and
 # --status <job-id> picks the watch back up.
 #
-# The lifecycle rules on both buckets only expire noncurrent versions after
-# thirty days and remove no delete markers, so they cannot make the copy diverge
-# from the source while the job runs, which is the case AWS warns about.
+# The archive's lifecycle rules only expire noncurrent versions after thirty
+# days and remove no delete markers, so they cannot make the copy diverge from
+# the source while the job runs, which is the case AWS warns about. The snapshot
+# generations do expire current objects, after thirty days (hourly/) and four
+# hundred (daily/); a point that expires while the job runs is simply not
+# copied, and the completion report names it.
 #
 # Usage:
 #   bash scripts/backfill-replication.sh --target staging --source archive
 #   bash scripts/backfill-replication.sh --target production --source archive --dry-run
+#   bash scripts/backfill-replication.sh --target production --source snapshots
 #   bash scripts/backfill-replication.sh --target staging --source archive --status <job-id>
 #
 # Flags:
 #   --target <staging|production>   the environment; required, no default
-#   --source archive                the replicated bucket to backfill; required
+#   --source <archive|snapshots>    the replicated bucket to backfill; required.
+#                                   snapshots is production only: staging's
+#                                   snapshot bucket replicates nowhere
 #   --dry-run                       run every read and precondition, print the
 #                                   job that would be created, create nothing
 #   --status <job-id>               watch an existing job to its end and verify;
@@ -109,8 +119,12 @@ while [[ $# -gt 0 ]]; do
 done
 
 require_target "$TARGET" staging production || exit 2
-[[ "$SOURCE" == "archive" ]] \
-  || { echo "backfill-replication: --source must be 'archive' (got '${SOURCE}'); it is the one source whose replication role carries the batch permissions." >&2; exit 2; }
+[[ "$SOURCE" == "archive" || "$SOURCE" == "snapshots" ]] \
+  || { echo "backfill-replication: --source must be 'archive' or 'snapshots' (got '${SOURCE}'); they are the sources whose replication role carries the batch permissions." >&2; exit 2; }
+if [[ "$SOURCE" == "snapshots" && "$TARGET" != "production" ]]; then
+  echo "backfill-replication: --source snapshots is production only; ${TARGET}'s snapshot bucket replicates nowhere, so there is nothing to backfill." >&2
+  exit 2
+fi
 if [[ -n "$STATUS_JOB" && ! "$STATUS_JOB" =~ ^[A-Za-z0-9_-]{5,36}$ ]]; then
   echo "backfill-replication: --status takes an S3 Batch Operations job id (got '${STATUS_JOB}')." >&2
   exit 2
@@ -153,23 +167,34 @@ tf_json() {
   "$TF_BIN" -chdir="terraform/${TARGET}" output -json "$1" </dev/null 2>/dev/null
 }
 
-src_json="$(tf_json archive_bucket_name)" \
-  || die "could not read terraform/${TARGET} output archive_bucket_name"
+# The outputs naming each source, its recovery copy and its report location, and
+# the prefixes the sample reads: the whole archive, but only the snapshot
+# generations that replicate (routine/ never does).
+if [[ "$SOURCE" == "snapshots" ]]; then
+  OUT_SRC="snapshots_bucket_name"; OUT_DEST="dr_bucket_name"; OUT_REPORT="snapshots_batch_replication_report"
+  SAMPLE_PREFIXES=("hourly/" "daily/")
+else
+  OUT_SRC="archive_bucket_name"; OUT_DEST="archive_dr_bucket_name"; OUT_REPORT="archive_batch_replication_report"
+  SAMPLE_PREFIXES=("")
+fi
+
+src_json="$(tf_json "$OUT_SRC")" \
+  || die "could not read terraform/${TARGET} output ${OUT_SRC}"
 if [[ "$src_json" == "null" ]]; then
-  die "the archive stack is off in ${TARGET} (output archive_bucket_name is null), so there is no archive to backfill. Nothing done."
+  die "the ${SOURCE} stack is off in ${TARGET} (output ${OUT_SRC} is null), so there is nothing to backfill. Nothing done."
 fi
 SRC="$(jq -er 'strings' <<<"$src_json" 2>/dev/null)" \
-  || die "terraform/${TARGET} output archive_bucket_name is not a bucket name: ${src_json}"
+  || die "terraform/${TARGET} output ${OUT_SRC} is not a bucket name: ${src_json}"
 
-DEST="$(tf_json archive_dr_bucket_name | jq -er 'strings' 2>/dev/null)" \
-  || die "could not read terraform/${TARGET} output archive_dr_bucket_name; apply the archive replica first"
+DEST="$(tf_json "$OUT_DEST" | jq -er 'strings' 2>/dev/null)" \
+  || die "could not read terraform/${TARGET} output ${OUT_DEST}; apply terraform/${TARGET} first"
 
-report_json="$(tf_json archive_batch_replication_report)" \
-  || die "could not read terraform/${TARGET} output archive_batch_replication_report; apply the archive replica first"
+report_json="$(tf_json "$OUT_REPORT")" \
+  || die "could not read terraform/${TARGET} output ${OUT_REPORT}; apply terraform/${TARGET} first"
 REPORT_BUCKET="$(jq -er '.bucket | strings' <<<"$report_json" 2>/dev/null)" \
-  || die "output archive_batch_replication_report names no bucket: ${report_json}"
+  || die "output ${OUT_REPORT} names no bucket: ${report_json}"
 REPORT_PREFIX="$(jq -er '.prefix | strings' <<<"$report_json" 2>/dev/null)" \
-  || die "output archive_batch_replication_report names no prefix: ${report_json}"
+  || die "output ${OUT_REPORT} names no prefix: ${report_json}"
 
 echo "==> ${SRC} -> ${DEST} (${TARGET})"
 
@@ -197,11 +222,14 @@ fi
 # ── Verification, shared by every mode that reaches an end ─────────────────
 
 verify_sample() {
-  local listing keys=() total step i key status failed=0 checked=0
-  listing="$(aws_call s3api list-objects-v2 --bucket "$SRC" --max-items 1000 \
-    --query 'Contents[].Key' --output json 2>/dev/null)" \
-    || die "could not list ${SRC} to sample it"
-  mapfile -t keys < <(jq -r '(. // [])[]' <<<"$listing")
+  local listing keys=() part=() prefix total step i key status failed=0 checked=0
+  for prefix in "${SAMPLE_PREFIXES[@]}"; do
+    listing="$(aws_call s3api list-objects-v2 --bucket "$SRC" --prefix "$prefix" --max-items 1000 \
+      --query 'Contents[].Key' --output json 2>/dev/null)" \
+      || die "could not list ${SRC}/${prefix} to sample it"
+    mapfile -t part < <(jq -r '(. // [])[]' <<<"$listing")
+    keys+=("${part[@]}")
+  done
   total="${#keys[@]}"
   if (( total == 0 )); then
     echo "==> ${SRC} holds no objects, so there was nothing to backfill and nothing to sample."

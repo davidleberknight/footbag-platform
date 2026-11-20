@@ -1,5 +1,6 @@
 import express, { Router, type RequestHandler } from 'express';
 import { renderNotFound } from '../lib/controllerErrors';
+import { LEGACY_REDIRECT_PATHS } from '../lib/legacyRedirects';
 import { paymentController } from '../controllers/paymentController';
 import { config } from '../config/env';
 import { homeController } from '../controllers/homeController';
@@ -47,6 +48,10 @@ export const publicRouter = Router();
 // claim routes, because claiming is part of finishing onboarding. A conformance
 // test pins that split.
 
+// The fixed list of cited old footbag.org addresses. Registered first so a
+// listed address such as /rules/chapter/400 or /clubs/show/nyfa redirects
+// before a parameter route below could capture it.
+publicRouter.get([...LEGACY_REDIRECT_PATHS], homeController.legacyRedirect);
 publicRouter.get('/',      homeController.home);
 // Login-gated hop to the archive landing page, for deployments where the
 // archive edge cannot share the platform session cookie.

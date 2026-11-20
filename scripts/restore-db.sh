@@ -476,6 +476,66 @@ newest_under() {
     | sort | tail -1 | tr -s ' ' | cut -d' ' -f4)"
 }
 
+# lineage_of <key>: sets LINEAGE_AT and LINEAGE_SINCE from the lineage record the
+# backup stored with the object (the time of the newest audit row the snapshot
+# holds, and when the history it continues began), each the CLI's None where
+# the object carries none. Called directly, for the same reason as newest_under.
+LINEAGE_AT=""
+LINEAGE_SINCE=""
+lineage_of() {
+  local record=""
+  if ! record="$("$AWS_BIN" "${AWS_ARGS[@]+"${AWS_ARGS[@]}"}" s3api head-object --bucket "$BUCKET" --key "$1" \
+        --query '[Metadata."audit-newest-at", Metadata."lineage-since"]' --output text 2>"$LS_ERR")"; then
+    die "could not read the lineage record of s3://${BUCKET}/$1: $(tail -n 1 "$LS_ERR")"
+  fi
+  IFS=$'\t' read -r LINEAGE_AT LINEAGE_SINCE <<<"$record"
+  LINEAGE_AT="${LINEAGE_AT:-None}"
+  LINEAGE_SINCE="${LINEAGE_SINCE:-None}"
+}
+
+# The newest name is not always the newest data: a host rebuilt from an old disk
+# snapshot could upload its old database under a new name before the backup
+# learned to refuse that. So the pick is checked against the newest point of the
+# other two generations, by the time of the newest audit row each holds, and the
+# one holding later data wins. A point from before the pick's history began (a
+# restore that deliberately went back) belongs to the history that restore
+# abandoned and is never preferred.
+confirm_newest_by_content() {
+  local pick="$SNAPSHOT_KEY" pick_at since_compact candidate cand_ts best="$SNAPSHOT_KEY" best_at
+  lineage_of "$pick"
+  pick_at="$LINEAGE_AT"
+  if [[ "$pick_at" == None || "$pick_at" == none ]]; then
+    cr_warn "s3://${BUCKET}/${pick} carries no record of the data it holds, so it was chosen by its name alone."
+    return 0
+  fi
+  best_at="$pick_at"
+  since_compact=""
+  # Compared with the compact time in each key's name, YYYYMMDDTHHMMSSZ, so any
+  # fraction of a second is dropped first.
+  if [[ "$LINEAGE_SINCE" != None && "$LINEAGE_SINCE" != none ]]; then
+    since_compact="${LINEAGE_SINCE%%.*}"
+    since_compact="${since_compact%Z}Z"
+    since_compact="${since_compact//[-:]/}"
+  fi
+  for candidate in "$newest_routine" "$newest_hourly" "$newest_daily"; do
+    [[ -z "$candidate" || "$candidate" == "$pick" ]] && continue
+    cand_ts="${candidate##*/footbag-}"
+    cand_ts="${cand_ts%.db.gz}"
+    [[ -n "$since_compact" && "$cand_ts" < "$since_compact" ]] && continue
+    lineage_of "$candidate"
+    [[ "$LINEAGE_AT" == None || "$LINEAGE_AT" == none ]] && continue
+    if [[ "$LINEAGE_AT" > "$best_at" ]]; then
+      best="$candidate"
+      best_at="$LINEAGE_AT"
+    fi
+  done
+  if [[ "$best" != "$pick" ]]; then
+    cr_warn "the newest-named snapshot s3://${BUCKET}/${pick} holds older data (newest audit row ${pick_at}) than s3://${BUCKET}/${best} (${best_at}), so the latter is restored. The former is a stale upload; find out how it was written."
+    SNAPSHOT_KEY="$best"
+  fi
+  echo "    newest audit row in the chosen snapshot: ${best_at}"
+}
+
 if [[ -z "$SNAPSHOT_KEY" ]]; then
   echo "==> Finding the most recent snapshot in s3://${BUCKET}/ (${SEARCH_PREFIX})"
   if [[ "$PRE_FLIP" -eq 1 ]]; then
@@ -489,6 +549,7 @@ if [[ -z "$SNAPSHOT_KEY" ]]; then
     newest_under 'daily/'; newest_daily="$NEWEST"
     SNAPSHOT_KEY="$(printf '%s\n' "$newest_routine" "$newest_hourly" "$newest_daily" \
       | sed '/^$/d' | sort -t/ -k5 | tail -1)"
+    [[ -n "$SNAPSHOT_KEY" ]] && confirm_newest_by_content
   fi
   if [[ -z "$SNAPSHOT_KEY" ]]; then
     if [[ "$PRE_FLIP" -eq 1 ]]; then

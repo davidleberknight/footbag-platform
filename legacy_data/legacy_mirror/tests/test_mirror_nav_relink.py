@@ -177,6 +177,61 @@ def test_the_groups_item_stays_dead_while_the_directory_is_not_captured(www):
         page.read_text(encoding='utf-8')
 
 
+_MENU_WITH_BREAKS = """<html><body>
+<div id="MainMenu">
+<ul>
+<li><!--Mirror: link to a page not in the archive-->GROUPS
+<li><a href="../rules/index.html" title="Official Rules of Footbag Sports"><nobr>RULES</nobr></a>
+</ul>
+<br>
+<font class="tiny">*Copyright<br/>A Non-Profit Corporation</font>
+</div> <!-- MainMenu -->
+</body></html>"""
+
+
+def test_restoring_an_item_changes_nothing_else_on_the_page(www):
+    # Re-serializing the page turned the menu's self-closed line break into an
+    # opening and a closing tag, which a browser draws as an extra break on
+    # every page the restore touched.
+    page = _page(www, 'faq/index.html', _MENU_WITH_BREAKS)
+    _page(www, 'groups/list/index.html', '<html><body>groups</body></html>')
+    mirror_script.relink_restored_nav_items()
+    assert page.read_text(encoding='utf-8') == _MENU_WITH_BREAKS.replace(
+        '<!--Mirror: link to a page not in the archive-->GROUPS',
+        '<a href="../groups/list/index.html" title="IFPA Member Groups">'
+        '<nobr>GROUPS</nobr></a>')
+
+
+def test_a_stray_closing_line_break_is_removed_and_nothing_else(www, monkeypatch):
+    # A browser draws each closing line-break tag as one more break, so the
+    # page shows blank lines it never had.
+    monkeypatch.setattr(mirror_script, 'mirror_state', mirror_script.MirrorState())
+    monkeypatch.setattr(mirror_script, '_pre_write_state', {})
+    mangled = _page(www, 'faq/index.html',
+                    '<html><body><font>a<br>b</br></font><p>x</BR ></p></body></html>')
+    clean = _page(www, 'clubs/index.html', '<html><body>a<br/>b</body></html>')
+    before = clean.stat().st_mtime_ns
+    assert mirror_script.drop_stray_break_closers() == 1
+    assert mangled.read_text(encoding='utf-8') == \
+        '<html><body><font>a<br>b</font><p>x</p></body></html>'
+    assert clean.stat().st_mtime_ns == before
+
+
+def test_every_closing_sequence_clears_stray_breaks_before_banding():
+    # Left after the band pass, the cleanup would rewrite banded pages; left
+    # out of a sequence, that sequence publishes the extra breaks.
+    source = SCRIPT_PATH.read_text(encoding='utf-8')
+    for start, end in (('def generate_reachability_pages(', '\ndef '),
+                       ('def settle_for_publication(', '\ndef ')):
+        at = source.index(start)
+        text = source[at:source.index(end, at + 1)]
+        assert text.index('drop_stray_break_closers()') \
+            < text.index('insert_archive_banner()'), start
+    offsite = source[source.index('if args.capture_offsite_images_only:'):]
+    offsite = offsite[:offsite.index('return')]
+    assert 'drop_stray_break_closers()' in offsite
+
+
 def test_a_page_with_no_main_menu_at_all_is_skipped_without_error(www):
     _page(www, 'sites/reference/index.html', '<html><body>no menu here</body></html>')
     _rules_index(www)

@@ -18,6 +18,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { Express, RequestHandler } from 'express';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+import { LEGACY_REDIRECT_PATHS } from '../../src/lib/legacyRedirects';
 
 const { dbPath } = setTestEnv('4893');
 
@@ -62,6 +63,8 @@ open('the public site: pages any visitor reads, with member-only enhancements sh
   'GET /rules', 'GET /rules/:categorySlug/:ruleSlug', 'GET /ifpa', 'GET /ifpa/:docSlug',
   'GET /events', 'GET /events/year/:year', 'GET /events/:eventKey',
   'GET /history/:personId', 'GET /legal', 'GET /community-standards', 'GET /equipment');
+open('an old footbag.org address an outside page cites; it only redirects to a public page',
+  ...LEGACY_REDIRECT_PATHS.map((p) => `GET ${p}`));
 open('typeahead over public vocabulary (tags, events, clubs, tricks); no member is ever matched',
   'GET /tags/suggest', 'GET /freestyle/search/suggest');
 open('an honoree profile is public; the controller sends any other visitor to sign in, the same way for an unknown address',

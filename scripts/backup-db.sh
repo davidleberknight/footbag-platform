@@ -41,6 +41,23 @@
 # commits, so while members are writing it can run indefinitely without
 # finishing. Needs sqlite3 3.27 or newer; the host's version is the pinned one.
 #
+# Only a continuation of the stored history is uploaded. A host rebuilt from a
+# day-old disk snapshot boots with a day-old database and this timer running, and
+# its upload would otherwise become the newest snapshot, be promoted, replicate
+# into the object-locked bucket, and be what the next restore puts back. Each
+# upload records, as object metadata, the id and time of the database's newest
+# audit row; a run uploads only if the database still holds the row recorded on
+# the newest stored snapshot. Audit rows are append-only, so a continuation
+# always holds it and a stale or foreign copy never does, however many rows its
+# own worker writes after boot. A timestamp comparison would not do: a day-old
+# database's daily jobs all fall due at once and stamp fresh audit rows within
+# minutes. A database deliberately put back (a restore, a rebuild deploy) carries
+# a single-use declared-restore marker beside it, written by the script that put
+# it there; it lets one upload through, is consumed by it, and expires after six
+# hours so a disk snapshot that caught one in flight cannot revive it. The newest
+# stored snapshot is read from the bucket, not from local state, because local
+# state is exactly what a disk snapshot brings back stale.
+#
 # A run killed by a signal, including the final backup the service unit takes on
 # stop, counts as a failed run, so a backup that is killed every time raises the
 # consecutive-failure metric instead of leaving only a journal line.
@@ -79,6 +96,11 @@ FAIL_FILE="${FOOTBAG_BACKUP_FAIL_STATE:-${DB_DIR}/.backup-consecutive-failures}"
 # counts as a failed run. Matches the application's 30-second transaction cap.
 COPY_BUSY_TIMEOUT_MS="${FOOTBAG_BACKUP_BUSY_TIMEOUT_MS:-30000}"
 UPLOAD_MAX_ATTEMPTS=3
+# Written by a restore or a rebuild deploy that put this database in place on
+# purpose; lets one upload through without the lineage check.
+DECLARED_RESTORE="${DB_DIR}/.declared-restore"
+# The generations searched for the newest stored snapshot, newest-grained first.
+LINEAGE_PREFIXES=(routine/ hourly/ daily/)
 
 fail() { echo "backup-db: $*" >&2; exit 1; }
 
@@ -150,15 +172,89 @@ sqlite3 "${DB_FILE}" "PRAGMA busy_timeout=${COPY_BUSY_TIMEOUT_MS}; VACUUM INTO '
 integrity=$(sqlite3 "${SNAP}" "PRAGMA integrity_check;" 2>/dev/null || echo "unreadable")
 [[ "${integrity}" == "ok" ]] || record_failure "snapshot integrity check failed: ${integrity}"
 
+# 2. Lineage: upload only a continuation of the stored history, or a database
+#    a restore or rebuild declared it put in place on purpose.
+AWS_ERR="${WORK_DIR}/aws.err"
+TS_RE='^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z$'
+ID_RE='^[A-Za-z0-9_]+$'
+last_aws_error() { tail -n 1 "${AWS_ERR}" 2>/dev/null || true; }
+
+if ! local_wm="$(sqlite3 "${SNAP}" \
+       "SELECT id || char(9) || occurred_at FROM audit_entries ORDER BY occurred_at DESC, id DESC LIMIT 1;" 2>&1)"; then
+  record_failure "could not read the newest audit row from the snapshot: ${local_wm##*$'\n'}"
+fi
+LOCAL_ID=none
+LOCAL_AT=none
+[[ -n "${local_wm}" ]] && IFS=$'\t' read -r LOCAL_ID LOCAL_AT <<<"${local_wm}"
+[[ "${LOCAL_ID}" == none || ( "${LOCAL_ID}" =~ ${ID_RE} && "${LOCAL_AT}" =~ ${TS_RE} ) ]] \
+  || record_failure "the snapshot's newest audit row has an unexpected shape (id '${LOCAL_ID}', time '${LOCAL_AT}')"
+
+LINEAGE_SINCE=none
+declared=0
+if [[ -e "${DECLARED_RESTORE}" ]]; then
+  m_since="$(sed -n 's/^since=//p' "${DECLARED_RESTORE}" | head -n 1)"
+  m_by="$(sed -n 's/^by=//p' "${DECLARED_RESTORE}" | head -n 1)"
+  m_expires="$(sed -n 's/^expires=//p' "${DECLARED_RESTORE}" | head -n 1)"
+  if [[ "${m_since}" =~ ${TS_RE} && "${m_expires}" =~ ^[0-9]+$ ]] \
+     && (( $(date -u +%s) < m_expires )); then
+    declared=1
+    LINEAGE_SINCE="${m_since}"
+    echo "backup-db: declared restore by ${m_by:-an unnamed script} at ${m_since}; this upload starts a new lineage"
+  else
+    # Ignored rather than refused: whether this database may be uploaded is then
+    # the lineage check's to decide, exactly as if the marker were absent.
+    echo "backup-db: WARNING: ignoring the declared-restore marker ${DECLARED_RESTORE} (by '${m_by}', since '${m_since}', expires '${m_expires}'): it is expired or malformed. The lineage check decides this run." >&2
+    rm_err="$( { rm -f "${DECLARED_RESTORE}"; } 2>&1 )" \
+      || echo "backup-db: WARNING: the ignored marker was not removed: ${rm_err##*$'\n'}" >&2
+  fi
+fi
+
+if (( declared == 0 )); then
+  newest=""
+  for prefix in "${LINEAGE_PREFIXES[@]}"; do
+    listing="$(aws s3api list-objects-v2 --bucket "${BACKUP_S3_BUCKET}" --prefix "${prefix}" \
+                 --query 'Contents[].Key' --output text 2>"${AWS_ERR}")" \
+      || record_failure "could not list ${prefix} in s3://${BACKUP_S3_BUCKET}, so cannot tell whether this database continues the stored history; nothing was uploaded: $(last_aws_error)"
+    newest="$(tr '\t' '\n' <<<"${listing}" | { grep -E '\.db\.gz$' || [[ $? == 1 ]]; } | sort | tail -n 1)"
+    [[ -n "${newest}" ]] && break
+  done
+
+  if [[ -z "${newest}" ]]; then
+    echo "backup-db: no stored snapshot yet; this upload starts the history"
+  else
+    meta="$(aws s3api head-object --bucket "${BACKUP_S3_BUCKET}" --key "${newest}" \
+              --query '[Metadata."audit-newest-id", Metadata."audit-newest-at", Metadata."lineage-since"]' \
+              --output text 2>"${AWS_ERR}")" \
+      || record_failure "could not read the lineage record of s3://${BACKUP_S3_BUCKET}/${newest}; nothing was uploaded: $(last_aws_error)"
+    IFS=$'\t' read -r S_ID S_AT S_SINCE <<<"${meta}"
+    if [[ "${S_ID:-None}" == None ]]; then
+      echo "backup-db: WARNING: the newest stored snapshot ${newest} carries no lineage record, so this run cannot check that the database continues it; uploading, and every later run is checked against this one." >&2
+    else
+      [[ "${S_SINCE:-None}" == None ]] && S_SINCE=none
+      [[ ( "${S_ID}" == none || "${S_ID}" =~ ${ID_RE} ) && ( "${S_SINCE}" == none || "${S_SINCE}" =~ ${TS_RE} ) ]] \
+        || record_failure "the lineage record of s3://${BACKUP_S3_BUCKET}/${newest} has an unexpected shape (id '${S_ID}', lineage since '${S_SINCE}'); nothing was uploaded"
+      if [[ "${S_ID}" != none ]]; then
+        held="$(sqlite3 "${SNAP}" "SELECT count(*) FROM audit_entries WHERE id = '${S_ID}';" 2>&1)" \
+          || record_failure "could not look up audit row ${S_ID} in the snapshot: ${held##*$'\n'}"
+        [[ "${held}" == "1" ]] \
+          || record_failure "this database does not continue the stored history, so it was not uploaded: the newest stored snapshot s3://${BACKUP_S3_BUCKET}/${newest} records audit row ${S_ID} (${S_AT}), which this database does not hold; its own newest audit row is ${LOCAL_ID} (${LOCAL_AT}). A host rebuilt from a disk snapshot holds an old database: put the newest backup back with scripts/restore-db.sh --target ${FOOTBAG_ENV}, which declares the restore and lets backups resume."
+      fi
+      LINEAGE_SINCE="${S_SINCE}"
+    fi
+  fi
+fi
+META_JSON="$(printf '{"audit-newest-id":"%s","audit-newest-at":"%s","lineage-since":"%s"}' \
+  "${LOCAL_ID}" "${LOCAL_AT}" "${LINEAGE_SINCE}")"
+
 gzip -9 "${SNAP}" || record_failure "gzip failed"
 KEY="routine/${DAY_PREFIX}/footbag-${TS}.db.gz"
 
-# 2. Upload with bounded retry and exponential backoff (1s, 2s between tries),
+# 3. Upload with bounded retry and exponential backoff (1s, 2s between tries),
 #    each wait keeping its first half and randomising its second (equal jitter)
 #    so a retry never lines up with another caller that failed at the same time.
 uploaded=0
 for attempt in $(seq 1 "${UPLOAD_MAX_ATTEMPTS}"); do
-  if aws s3 cp --only-show-errors "${SNAP}.gz" "s3://${BACKUP_S3_BUCKET}/${KEY}"; then
+  if aws s3 cp --only-show-errors --metadata "${META_JSON}" "${SNAP}.gz" "s3://${BACKUP_S3_BUCKET}/${KEY}"; then
     uploaded=1
     break
   fi
@@ -171,7 +267,14 @@ for attempt in $(seq 1 "${UPLOAD_MAX_ATTEMPTS}"); do
 done
 [[ "${uploaded}" -eq 1 ]] || record_failure "S3 upload failed after ${UPLOAD_MAX_ATTEMPTS} attempts"
 
-# 3. Success: clear the failure counter and refresh the health timestamp.
+# The declared restore is spent: the upload just made is now the newest stored
+# snapshot, and every later run is checked against it.
+if (( declared == 1 )); then
+  rm_err="$( { rm -f "${DECLARED_RESTORE}"; } 2>&1 )" \
+    || echo "backup-db: WARNING: the declared-restore marker ${DECLARED_RESTORE} was used but not removed, so the next run may skip the lineage check too: ${rm_err##*$'\n'}" >&2
+fi
+
+# 4. Success: clear the failure counter and refresh the health timestamp.
 # A counter left standing makes the next single failure count on top of it and
 # raise the failing-backup alarm early, so a failed reset is logged with the
 # shell's reason. It does not fail the run: the snapshot is already uploaded.
@@ -192,7 +295,7 @@ fi
 echo "${NOW_EPOCH}" > "${STATE_FILE}"
 put_metric BackupAgeMinutes "${AGE_MINUTES}"
 
-# 4. Retention generations. Copy this snapshot into hourly/ and daily/ when it is the
+# 5. Retention generations. Copy this snapshot into hourly/ and daily/ when it is the
 #    first of its window. The probe asks S3 rather than keeping local state, so
 #    a host rebuild, a clock step, or a skipped run cannot leave a window
 #    permanently unfilled: the next run in that window promotes instead.

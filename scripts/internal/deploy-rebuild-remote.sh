@@ -1227,6 +1227,17 @@ mkdir -p "$(dirname "$DB_PATH")"
 # fresh main file would shadow the new data on first open.
 rm -f "$DB_PATH" "${DB_PATH}-wal" "${DB_PATH}-shm"
 install -o root -g root -m 600 "$NEW_DB" "$DB_PATH"
+# A rebuilt database continues none of the stored snapshot history, and the
+# backup uploads only a continuation, so this deploy declares the replacement:
+# the marker lets the first backup of the new database through, which spends
+# it, and expires after six hours. Without it every backup after a rebuild
+# refuses. The format is the one scripts/backup-db.sh reads.
+_declared_now="$(date -u +%s)"
+if ! printf 'since=%s\nby=%s\nexpires=%s\n' \
+     "$(date -u -d "@${_declared_now}" +%Y-%m-%dT%H:%M:%SZ)" "deploy-rebuild.sh" \
+     "$(( _declared_now + 21600 ))" > "$(dirname "$DB_PATH")/.declared-restore"; then
+  crr_error "could not write $(dirname "$DB_PATH")/.declared-restore, so the backups will refuse the rebuilt database as not continuing the stored history. Fix the cause and run the deploy again."
+fi
 chown -R root:root "$LIVE_DIR"
 
 # The release tree is root-owned so the running account cannot rewrite its own

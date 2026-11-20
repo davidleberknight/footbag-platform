@@ -298,6 +298,74 @@ plan_tree() {
   done <<<"$PLAN_OUT"
 }
 
+# Reads a saved plan as Terraform's JSON plan representation and prints one
+# line per pending change that is not the archive base stack's; nothing printed
+# means every change is. A declaration belongs to the stack when its count or
+# its arguments name the archive flag, or a declaration whose count is gated on
+# it, and its count or for_each does not name the custom-domain flag: those
+# declarations are the custom domain, which a later stage owns. An argument
+# that only switches on that flag, such as the distribution's aliases, does
+# not take a declaration out of the stack.
+# Nothing of the stack may be destroyed outright: a replacement
+# is how Terraform finishes a resource an interrupted apply left half made.
+archive_resume_problems() {
+  jq -r '
+    def refs: [.. | objects | .references? // empty | .[]];
+    (.configuration.root_module.resources // error("no configuration")) as $cfg
+    | [$cfg[] | select(.mode == "managed")
+        | select(.count_expression.references // [] | index("var.enable_archive"))
+        | .address] as $gated
+    | [$cfg[] | select(.mode == "managed")
+        | select((.count_expression.references // []) + (.for_each_expression.references // [])
+            | index("var.enable_archive_custom_domain") | not)
+        | select(.address as $a | ($gated | index($a))
+            or (refs | any(. == "var.enable_archive" or IN($gated[]))))
+        | .address] as $stack
+    | (.resource_changes // error("no resource changes"))[]
+    | select(.mode == "managed")
+    | (.change.actions | join(",")) as $x
+    | select($x != "no-op")
+    | (.address | sub("\\[[^\\]]*\\]$"; "")) as $base
+    | if $x == "delete" then "would destroy \(.address)"
+      elif ($stack | index($base)) then empty
+      else "would \($x | sub("^delete,create$|^create,delete$"; "replace")) \(.address), which is not part of the archive base stack"
+      end
+  '
+}
+
+# Plans the current values into a private saved plan and refuses the resume
+# unless every pending change is the archive base stack's. The saved plan can
+# hold secrets, so it lives in a mode-700 directory removed on every exit, and
+# only addresses and actions are read out of it.
+check_archive_resume_plan() {
+  local plan_tmp plan_file json problems p
+  plan_tmp="$(mktemp -d)"
+  chmod 700 "$plan_tmp"
+  cr_cleanup rm -rf "$plan_tmp"
+  plan_file="${plan_tmp}/archive.tfplan"
+  plan_tree -lock=false -out="$plan_file"
+  case "$PLAN_RC" in
+    2) ;;
+    0)
+      echo "The saved plan shows nothing pending after all; applying to be sure the state matches."
+      return 0
+      ;;
+    *)
+      cr_error "the read-only saved plan of ${TARGET} failed (exit ${PLAN_RC}); nothing was applied"
+      cr_unproved "the archive base stack on ${TARGET}: terraform could not tell what is pending"
+      cr_finish
+      ;;
+  esac
+  json="$("$TF_BIN" -chdir="$TF_DIR" show -json "$plan_file" 2>/dev/null)" \
+    || cr_die "terraform show -json of the pending plan failed; nothing was applied."
+  problems="$(archive_resume_problems <<<"$json" 2>/dev/null)" \
+    || cr_die "the pending plan could not be read as Terraform's JSON plan, so what is pending is unknown; nothing was applied. Read a plain plan with scripts/terraform-apply.sh --target ${TARGET}"
+  if [[ -n "$problems" ]]; then
+    while IFS= read -r p; do cr_error "pending plan: ${p}"; done <<<"$problems"
+    refuse_other_pending
+  fi
+}
+
 refuse_other_pending() {
   grep -E '^Plan: ' <<<"$PLAN_OUT" || [[ $? == 1 ]]
   cr_error "other changes are pending in the ${TARGET} tree besides the archive base stack; apply them first with scripts/terraform-apply.sh --target ${TARGET}, then re-run. The values file is unchanged and nothing was applied"
@@ -832,21 +900,14 @@ if (( VALUES_SET )); then
       NEED_APPLY=0
       ;;
     2)
-      # A plan with the archive off is clean only when the archive is the one
-      # thing the state does not yet hold: a run that stopped between the write
-      # and the apply.
+      # A run that stopped between the write and the apply, or part way through
+      # the apply. The pending plan is read rather than re-planned with the
+      # archive off: once any of the archive is in the state, that plan would
+      # have to destroy the protected bucket, and Terraform refuses it.
       grep -E '^Plan: ' <<<"$PLAN_OUT" || [[ $? == 1 ]]
-      echo "Changes are pending; planning with enable_archive = false to see whether the archive is the only one."
-      plan_tree -lock=false -var enable_archive=false
-      case "$PLAN_RC" in
-        0) echo "Only the archive base stack is pending; applying it." ;;
-        2) refuse_other_pending ;;
-        *)
-          cr_error "the read-only plan of ${TARGET} with enable_archive = false failed (exit ${PLAN_RC}); nothing was applied. Read a plain plan with scripts/terraform-apply.sh --target ${TARGET}"
-          cr_unproved "the archive base stack on ${TARGET}: terraform could not tell what is pending"
-          cr_finish
-          ;;
-      esac
+      echo "Changes are pending; reading the plan to see whether all of them are the archive base stack."
+      check_archive_resume_plan
+      echo "Only the archive base stack is pending; applying it."
       ;;
     *)
       cr_error "the read-only plan of ${TARGET} failed (exit ${PLAN_RC}); nothing was applied"

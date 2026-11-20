@@ -65,8 +65,9 @@ files, tracker status and any summary show what exists, never what is intended.
    database, production's included, is rebuilt from the pipeline and the committed curated files,
    which are the source of truth for curated content; no data migrations, compatibility redirects
    or shims, and old footbag.org addresses and retired routes of this site get the standard
-   not-found page. The only redirects give
-   one thing one address, as the stories name them. After go-live the production database is the
+   not-found page, except the short fixed list of old addresses that outside pages still cite,
+   each sent to the public page carrying the same content (the Legacy Archive decision). Every
+   other redirect gives one thing one address, as the stories name them. After go-live the production database is the
    only truth, curated content is authored in the app, a marker in the database refuses any
    destructive rebuild, and changes reach it by rehearsed migration. Every behaviour that changes
    at go-live is rehearsed on staging first. At launch this principle is rewritten.

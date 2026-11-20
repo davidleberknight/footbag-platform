@@ -536,6 +536,20 @@ describe('restoring a snapshot onto a host', () => {
     expect(res.stdout).toContain('members=1');
     expect(res.stdout).toContain('members=2');
   });
+
+  // Defect caught: an operator who restored an in-place database cannot tell how
+  // recent the data they put back is, since only the drill reported it.
+  it('reports the newest audit row of the database it put in place', () => {
+    const key = publishSnapshot(['snapshot-1'], undefined, {
+      extraSql: `INSERT INTO audit_entries (id, occurred_at) VALUES
+        ('audit_old', '2026-08-20T00:00:00.000Z'), ('audit_new', '2026-08-21T09:30:00.000Z');`,
+    });
+
+    const res = runRemote(key);
+
+    expect(res.status, res.stderr).toBe(0);
+    expect(res.stdout).toContain('Newest audit row: 2026-08-21T09:30:00.000Z');
+  });
 });
 
 describe('restoring onto a host that has no database yet', () => {
@@ -792,6 +806,70 @@ describe('finishing a pending erasure replay on the host', () => {
   });
 });
 
+describe('declaring a restore to the backups', () => {
+  const declared = (): string => join(dbDir, '.declared-restore');
+  const fields = (): Record<string, string> => Object.fromEntries(
+    readFileSync(declared(), 'utf8').trim().split('\n').map((l) => {
+      const at = l.indexOf('=');
+      return [l.slice(0, at), l.slice(at + 1)];
+    }),
+  );
+
+  // Defect caught: after a restore, every backup refuses the restored database
+  // as not continuing the stored history (the stop took one more backup after
+  // the snapshot was chosen), so the host runs with no backups until someone
+  // reads the journal; or the marker it writes cannot be read as unexpired.
+  it('leaves a marker the backup accepts once, valid for six hours, after a restore in place', () => {
+    const key = publishSnapshot(['snapshot-1']);
+    const before = Math.floor(Date.now() / 1000);
+
+    const res = runRemote(key);
+
+    expect(res.status, res.stderr).toBe(0);
+    const m = fields();
+    expect(m.since).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
+    expect(m.by).toContain(key);
+    // budget-is-the-contract: the marker's own six-hour lifetime.
+    const expires = Number(m.expires);
+    expect(expires).toBeGreaterThanOrEqual(before + 6 * 3600);
+    expect(expires).toBeLessThanOrEqual(Math.floor(Date.now() / 1000) + 6 * 3600);
+  });
+
+  // Defect caught: a restore whose replay failed declares itself anyway, so the
+  // marker outlives the pending window and later lets an unreplayed or stale
+  // database through.
+  it('writes no marker when the erasure replay fails', () => {
+    const key = publishSnapshot(['snapshot-1']);
+
+    const res = runRemote(key, undefined, { DOCKER_STUB_EXIT: '1' });
+
+    expect(res.status).toBe(PENDING_EXIT);
+    expect(existsSync(declared())).toBe(false);
+  });
+
+  // Defect caught: finishing a pending replay leaves backups refusing the
+  // restored database, because only the uninterrupted path declared it.
+  it('declares the restore when a pending replay is finished', () => {
+    writeFileSync(join(dbDir, '.erasure-replay-pending'), 'snapshot=routine/x.db.gz\nbackup_timer_paused=1\n');
+
+    const res = runRemote('', undefined, { RESUME_ERASURE_REPLAY: '1' });
+
+    expect(res.status, res.stderr).toBe(0);
+    expect(fields().expires).toMatch(/^\d+$/);
+  });
+
+  // Defect caught: a drill, which replaces nothing, declares a restore, so the
+  // live host's next backup skips the lineage check.
+  it('writes no marker on a drill', () => {
+    const key = publishSnapshot(['snapshot-1']);
+
+    const res = runRemote(key, undefined, { DRILL: '1' });
+
+    expect(res.status, res.stderr).toBe(0);
+    expect(existsSync(declared())).toBe(false);
+  });
+});
+
 describe('pruning old database copies after a restore', () => {
   /** A stand-in for the shipped helper that records when it ran and with what. */
   const recordingPrune = (): string =>
@@ -1013,6 +1091,8 @@ describe('the operator-facing restore script', () => {
       '#!/usr/bin/env bash',
       'args="$*"',
       'case "$args" in',
+      // Snapshots written before the backup recorded their contents.
+      '  *"head-object"*) printf "None\\tNone\\n"; exit 0 ;;',
       '  *"/routine/"*) echo "2026-09-01 00:00:00 100 routine/2026/09/01/footbag-20260901T000000Z.db.gz"; exit 0 ;;',
       '  *"/hourly/"*)  echo "2026-09-04 00:00:00 100 hourly/2026/09/04/footbag-20260904T000000Z.db.gz"; exit 0 ;;',
       '  *"/daily/"*)   echo "2026-09-03 00:00:00 100 daily/2026/09/03/footbag-20260903T000000Z.db.gz"; exit 0 ;;',
@@ -1029,6 +1109,67 @@ describe('the operator-facing restore script', () => {
 
     expect(res.stdout).toContain('hourly/2026/09/04/footbag-20260904T000000Z.db.gz');
     expect(res.stdout).not.toContain('snapshot: s3://footbag-staging-snapshots/routine/');
+  });
+
+  /**
+   * A stand-in CLI holding one point per generation, each with the lineage
+   * record the backup stores on it: `head-object` with a list query and text
+   * output prints the two fields tab-separated, as the real CLI does.
+   */
+  function lineageStub(points: Record<'routine' | 'hourly' | 'daily', { key: string; at: string; since: string }>): string {
+    const stubDir = join(workDir, 'lineage-bin');
+    mkdirSync(stubDir, { recursive: true });
+    const stub = join(stubDir, 'aws');
+    const lines = ['#!/usr/bin/env bash', 'args="$*"', 'case "$args" in'];
+    for (const p of Object.values(points)) {
+      lines.push(`  *"head-object"*"--key ${p.key} "*) printf "%s\\t%s\\n" "${p.at}" "${p.since}"; exit 0 ;;`);
+    }
+    for (const [tier, p] of Object.entries(points)) {
+      lines.push(`  *"/${tier}/"*) echo "2026-09-01 00:00:00 100 ${p.key}"; exit 0 ;;`);
+    }
+    lines.push('esac', 'exit 1');
+    writeFileSync(stub, lines.join('\n'));
+    chmodSync(stub, 0o755);
+    return stubDir;
+  }
+
+  // Defect caught: a stale database uploaded under a newer name (a host rebuilt
+  // from an old disk snapshot, before the backup refused such uploads) is what
+  // the restore puts back, because the choice looked at names alone.
+  it('restores the point holding the latest data when the newest name holds older data', () => {
+    const stubDir = lineageStub({
+      routine: { key: 'routine/2026/09/05/footbag-20260905T000000Z.db.gz', at: '2026-09-01T00:00:00.000Z', since: 'none' },
+      hourly: { key: 'hourly/2026/09/04/footbag-20260904T230000Z.db.gz', at: '2026-09-04T22:59:00.000Z', since: 'none' },
+      daily: { key: 'daily/2026/09/04/footbag-20260904T000000Z.db.gz', at: '2026-09-03T23:59:00.000Z', since: 'none' },
+    });
+
+    const res = runOperator(
+      ['--to-local', join(workDir, 'by-content.db'), '--source', 'staging'],
+      { ...process.env, PATH: `${stubDir}:${process.env.PATH ?? ''}` },
+    );
+
+    expect(res.stdout).toContain('snapshot: s3://footbag-staging-snapshots/hourly/2026/09/04/footbag-20260904T230000Z.db.gz');
+    expect(res.stdout).toContain('newest audit row in the chosen snapshot: 2026-09-04T22:59:00.000Z');
+    expect(res.stderr).toContain('holds older data');
+  });
+
+  // Defect caught: after a restore that deliberately went back in time, the
+  // next restore returns to the abandoned history, because a point from before
+  // the restore holds "later" data than everything written since.
+  it('never prefers a point from before the newest snapshot\'s history began', () => {
+    const stubDir = lineageStub({
+      routine: { key: 'routine/2026/09/05/footbag-20260905T120000Z.db.gz', at: '2026-09-01T00:00:00.000Z', since: '2026-09-05T10:00:00Z' },
+      hourly: { key: 'hourly/2026/09/05/footbag-20260905T090000Z.db.gz', at: '2026-09-05T08:59:00.000Z', since: 'none' },
+      daily: { key: 'daily/2026/09/05/footbag-20260905T000000Z.db.gz', at: '2026-09-04T23:59:00.000Z', since: 'none' },
+    });
+
+    const res = runOperator(
+      ['--to-local', join(workDir, 'after-rollback.db'), '--source', 'staging'],
+      { ...process.env, PATH: `${stubDir}:${process.env.PATH ?? ''}` },
+    );
+
+    expect(res.stdout).toContain('snapshot: s3://footbag-staging-snapshots/routine/2026/09/05/footbag-20260905T120000Z.db.gz');
+    expect(res.stderr).not.toContain('holds older data');
   });
 
   it('refuses without a destination rather than choosing one', () => {

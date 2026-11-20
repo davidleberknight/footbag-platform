@@ -468,6 +468,87 @@ describe('production-cutover.sh archive-base: the write and the apply', () => {
   });
 });
 
+const ARCHIVE_BUCKET = 'aws_s3_bucket.archive[0]';
+const ARCHIVE_PAGE = 'aws_s3_object.archive_not_found_page[0]';
+const ARCHIVE_CERT = 'aws_acm_certificate.archive[0]';
+const REPLICATION_POLICY = 'aws_iam_role_policy.s3_replication';
+const OTHER = 'aws_instance.web';
+
+/** The configuration half of Terraform's JSON plan representation for the
+ *  resources these cases plan: each declaration's address, the references of
+ *  its count expression, and the references inside its argument expressions,
+ *  as Terraform records them (a reference to an indexed attribute is listed
+ *  with the bare resource address beside it). The bucket and the page are gated
+ *  on the archive flag; the certificate is counted on the custom-domain flag
+ *  and its validation records keyed on it; the alias record is counted on it
+ *  and points at the distribution; the distribution is counted on the
+ *  archive flag and switches its aliases on the custom-domain flag; the
+ *  replication policy names the archive's replica bucket inline; the
+ *  notification names the archive bucket and nothing else. These mirror the
+ *  production archive declarations. */
+const ARCHIVE_CONFIG = [
+  { address: 'aws_s3_bucket.archive', count_expression: { references: ['var.enable_archive'] }, expressions: {} },
+  {
+    address: 'aws_s3_object.archive_not_found_page',
+    count_expression: { references: ['var.enable_archive'] },
+    expressions: { bucket: { references: ['aws_s3_bucket.archive[0].id', 'aws_s3_bucket.archive'] } },
+  },
+  {
+    address: 'aws_acm_certificate.archive',
+    count_expression: { references: ['var.enable_archive_custom_domain'] },
+    expressions: {},
+  },
+  {
+    address: 'aws_route53_record.archive_cert_validation',
+    for_each_expression: { references: ['var.enable_archive_custom_domain', 'aws_acm_certificate.archive[0].domain_validation_options', 'aws_acm_certificate.archive'] },
+    expressions: { zone_id: { references: ['var.route53_zone_id'] } },
+  },
+  {
+    address: 'aws_route53_record.archive_a',
+    count_expression: { references: ['var.enable_archive_custom_domain'] },
+    expressions: { alias: [{ name: { references: ['aws_cloudfront_distribution.archive[0].domain_name', 'aws_cloudfront_distribution.archive'] } }] },
+  },
+  {
+    address: 'aws_cloudfront_distribution.archive',
+    count_expression: { references: ['var.enable_archive'] },
+    expressions: { aliases: { references: ['var.enable_archive_custom_domain', 'local.archive_domain'] } },
+  },
+  {
+    address: 'aws_iam_role_policy.s3_replication',
+    expressions: { policy: { references: ['var.enable_archive', 'aws_s3_bucket.archive_dr[0].arn', 'aws_s3_bucket.archive_dr'] } },
+  },
+  {
+    address: 'aws_s3_bucket.archive_dr',
+    count_expression: { references: ['var.enable_archive'] },
+    expressions: {},
+  },
+  { address: 'aws_instance.web', expressions: { ami: { references: ['var.ami'] } } },
+  {
+    address: 'aws_s3_bucket_notification.archive_watch',
+    expressions: { bucket: { references: ['aws_s3_bucket.archive[0].id', 'aws_s3_bucket.archive'] } },
+  },
+];
+
+let planFiles = 0;
+/** Writes a plan in Terraform's documented JSON plan representation, holding
+ *  the resource changes given and the configuration above, and returns its path
+ *  for the terraform stand-in's show -json. */
+function archivePlan(changes: Array<[string, string[]]>, raw?: string): string {
+  const file = join(dir, `archive-plan-${++planFiles}.json`);
+  const json =
+    raw ??
+    JSON.stringify({
+      format_version: '1.2',
+      resource_changes: [
+        ...changes.map(([address, actions]) => ({ address, mode: 'managed', change: { actions } })),
+        { address: 'data.aws_caller_identity.current', mode: 'data', change: { actions: ['read'] } },
+      ],
+      configuration: { root_module: { resources: ARCHIVE_CONFIG.map((c) => ({ mode: 'managed', ...c })) } },
+    });
+  writeFileSync(file, json, 'utf-8');
+  return file;
+}
+
 describe('production-cutover.sh archive-base: re-runs', () => {
   // Defect caught: a second run of a finished stage would apply or store again
   // instead of only proving what is served.
@@ -484,16 +565,52 @@ describe('production-cutover.sh archive-base: re-runs', () => {
   });
 
   // Defect caught: a run interrupted between the write and the apply would be
-  // stuck, refused as "other changes pending" by its own unapplied archive.
+  // stuck, refused as "other changes pending" by its own unapplied archive,
+  // including the replication policy that names the archive buckets inline.
   it('resumes at the apply when the archive stack is the only thing pending', () => {
     haveKey();
     setValues(SET_VALUES);
-    const r = run([...PROD, '--yes'], { STUB_CURRENT_PLAN_RC: '2', STUB_VAR_PLAN_RC: '0' });
+    const r = run([...PROD, '--yes'], {
+      STUB_CURRENT_PLAN_RC: '2',
+      STUB_PLAN_JSON: archivePlan([
+        [ARCHIVE_BUCKET, ['create']],
+        [ARCHIVE_PAGE, ['create']],
+        [REPLICATION_POLICY, ['update']],
+        // Names an archive bucket but not the archive flag.
+        ['aws_s3_bucket_notification.archive_watch', ['create']],
+        // Counted on the archive flag; only its aliases name the custom domain.
+        ['aws_cloudfront_distribution.archive[0]', ['create']],
+      ]),
+    });
     expect(r.status, r.stderr).toBe(0);
     expect(values()).toBe(SET_VALUES);
-    // The test of "only the archive" is a plan with the archive off.
-    expect(callLog()).toMatch(/^terraform plan-with-vars \[enable_archive=false\]$/m);
+    expect(callLog()).toMatch(/^terraform plan-saved$/m);
+    // The saved plan can carry secrets, so it sits in a directory only the
+    // operator can read.
+    expect(callLog()).toMatch(/^plan-dir-mode 700$/m);
     expect(callLog()).toMatch(/^apply --target production$/m);
+    expect(readdirSync(join(dir, 'tmp'), { recursive: true }).map(String).filter((f) => f.endsWith('.tfplan'))).toEqual([]);
+  });
+
+  // Defect caught: an apply that stopped part way leaves the protected archive
+  // bucket in the state; a check that plans the archive off then needs that
+  // bucket destroyed, Terraform refuses the plan, and the stage can never
+  // finish its own half-done run.
+  it('finishes an apply that stopped part way, with the protected bucket already in the state', () => {
+    haveKey();
+    setValues(SET_VALUES);
+    const r = run([...PROD, '--yes'], {
+      STUB_CURRENT_PLAN_RC: '2',
+      // Terraform refuses any plan that would destroy the protected bucket.
+      STUB_VAR_PLAN_RC: '1',
+      STUB_PLAN_JSON: archivePlan([
+        [ARCHIVE_BUCKET, ['no-op']],
+        [ARCHIVE_PAGE, ['delete', 'create']],
+      ]),
+    });
+    expect(r.status, r.stderr).toBe(0);
+    expect(callLog()).toMatch(/^apply --target production$/m);
+    expect(callLog()).toMatch(/^verify --target production$/m);
   });
 
   // Defect caught: a file holding the flag on with a stale address or another
@@ -515,14 +632,57 @@ describe('production-cutover.sh archive-base: re-runs', () => {
   });
 
   // Defect caught: the resume path must not carry another change in with the
-  // archive.
-  it('refuses a re-run when something besides the archive stack is pending', () => {
+  // archive, nor destroy any part of it, nor take an unreadable plan as clean.
+  it('refuses a re-run when something besides the archive stack is pending, naming it', () => {
+    haveKey();
+    const cases: Array<[string, string, RegExp]> = [
+      ['another resource', archivePlan([[ARCHIVE_PAGE, ['create']], [OTHER, ['update']]]), /would update aws_instance\.web/],
+      ['an archive destroy', archivePlan([[ARCHIVE_PAGE, ['delete']]]), /would destroy aws_s3_object\.archive_not_found_page\[0\]/],
+      ['a custom-domain resource', archivePlan([[ARCHIVE_CERT, ['create']]]), /would create aws_acm_certificate\.archive\[0\]/],
+      ['a custom-domain record', archivePlan([['aws_route53_record.archive_cert_validation["archive.example.org"]', ['create']]]), /would create aws_route53_record\.archive_cert_validation/],
+      ['a custom-domain record naming the distribution', archivePlan([['aws_route53_record.archive_a[0]', ['create']]]), /would create aws_route53_record\.archive_a\[0\]/],
+      ['a plan with no configuration', archivePlan([], JSON.stringify({ format_version: '1.2', resource_changes: [] })), /could not be read/],
+    ];
+    for (const [label, plan, named] of cases) {
+      writeFileSync(calls, '', 'utf-8');
+      setValues(SET_VALUES);
+      const r = run([...PROD, '--yes'], { STUB_CURRENT_PLAN_RC: '2', STUB_PLAN_JSON: plan });
+      expect(r.status, label).not.toBe(0);
+      expect(r.report, label).toMatch(named);
+      expect(callLog(), label).not.toMatch(/^apply /m);
+      expect(values(), label).toBe(SET_VALUES);
+    }
+  });
+
+  // Defect caught: a pending plan that cannot be planned or read must stop the
+  // resume rather than be taken as clean, and the private copy of the saved
+  // plan, which can hold secrets, must not outlive the run.
+  it('stops when the pending plan cannot be planned or read, and leaves no saved plan behind', () => {
+    haveKey();
+    const cases: Array<[string, Record<string, string>, RegExp]> = [
+      ['the saved plan fails', { STUB_SAVED_PLAN_RC: '1', STUB_PLAN_JSON: archivePlan([[ARCHIVE_PAGE, ['create']]]) }, /saved plan of production failed \(exit 1\)/],
+      ['show -json fails', { STUB_PLAN_JSON: join(dir, 'no-such-plan.json') }, /terraform show -json of the pending plan failed/],
+    ];
+    for (const [label, env, named] of cases) {
+      writeFileSync(calls, '', 'utf-8');
+      setValues(SET_VALUES);
+      const r = run([...PROD, '--yes'], { STUB_CURRENT_PLAN_RC: '2', ...env });
+      expect(r.status, label).not.toBe(0);
+      expect(r.report, label).toMatch(named);
+      expect(callLog(), label).not.toMatch(/^apply /m);
+      expect(readdirSync(join(dir, 'tmp'), { recursive: true }).map(String).filter((f) => f.endsWith('.tfplan')), label).toEqual([]);
+    }
+  });
+
+  // Defect caught: a pending change that settled between the two plans must not
+  // stop the run, and the apply still runs so the state is proved to match.
+  it('applies when the saved plan finds nothing pending after the first plan did', () => {
     haveKey();
     setValues(SET_VALUES);
-    const r = run([...PROD, '--yes'], { STUB_CURRENT_PLAN_RC: '2', STUB_VAR_PLAN_RC: '2' });
-    expect(r.status).not.toBe(0);
-    expect(r.report).toMatch(/other changes are pending/);
-    expect(callLog()).not.toMatch(/^apply /m);
+    const r = run([...PROD, '--yes'], { STUB_CURRENT_PLAN_RC: '2', STUB_SAVED_PLAN_RC: '0' });
+    expect(r.status, r.stderr).toBe(0);
+    expect(callLog()).not.toMatch(/^terraform show /m);
+    expect(callLog()).toMatch(/^apply --target production$/m);
   });
 
   // Defect caught: on a machine without the key the file's key and the edge

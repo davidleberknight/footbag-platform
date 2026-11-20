@@ -24,6 +24,15 @@
 #                the alarm that fires when hourly snapshot replication stops
 #   staging      the media bucket and the archive bucket
 #
+# On both, the delete markers in every database snapshot bucket (production's
+# primary bucket and its DR copy, staging's one bucket). A delete marker hides
+# every version beneath it from an ordinary read, so a backup bucket could read
+# empty while every alarm stays healthy. The buckets are versioned, so each
+# lifecycle expiry writes a marker by design; a marker is explained only when its
+# key falls under one of the bucket's own enabled expiry rules and it came no
+# sooner than that rule's days after the snapshot time in the key's name. The
+# rules are read from the bucket, not assumed.
+#
 # The archive bucket exists only while the archive stack is enabled. Where its
 # Terraform output is null, which Terraform records by leaving it out of the
 # state, the archive is reported as SKIP, by name, on its own line; a skip is
@@ -39,6 +48,8 @@
 #     look at proves nothing and must not report success
 #   - a source object not reporting COMPLETED, or its key missing from the
 #     destination bucket
+#   - a snapshot bucket's versions or lifecycle rules it could not read, or any
+#     delete marker its lifecycle rules do not explain
 #
 # Usage:
 #   bash scripts/verify-replication.sh --target production
@@ -97,9 +108,12 @@ tf_output() {
 declare -a CHECKS=()
 MEDIA_BUCKET="$(tf_output media_bucket_name)" || die "could not read terraform/${TARGET} output media_bucket_name"
 CHECKS+=("${MEDIA_BUCKET}||")
+SNAP_BUCKET="$(tf_output snapshots_bucket_name)" || die "could not read terraform/${TARGET} output snapshots_bucket_name"
+declare -a MARKER_BUCKETS=("$SNAP_BUCKET")
 if [[ "$TARGET" == "production" ]]; then
-  SNAP_BUCKET="$(tf_output snapshots_bucket_name)" || die "could not read terraform/${TARGET} output snapshots_bucket_name"
   CHECKS+=("${SNAP_BUCKET}|hourly/|locked" "${SNAP_BUCKET}|daily/|locked")
+  SNAP_DR_BUCKET="$(tf_output dr_bucket_name)" || die "could not read terraform/${TARGET} output dr_bucket_name"
+  MARKER_BUCKETS+=("$SNAP_DR_BUCKET")
 fi
 # The newest database copy must stay locked at least this many days ahead. The
 # bucket's default retention is 90 days, so a fresh copy reads about 90; below
@@ -201,6 +215,74 @@ for check in "${CHECKS[@]}"; do
   else
     echo "    locked (${lock_mode}) until ${lock_until}"
   fi
+done
+
+AWS_ERR="$(mktemp)"
+trap 'rm -f "$AWS_ERR"' EXIT
+trap "trap '' HUP INT TERM; exit 130" INT
+trap "trap '' HUP INT TERM; exit 143" TERM
+aws_reason() { tail -n 1 "$AWS_ERR" 2>/dev/null || true; }
+
+# Epoch seconds of the snapshot time a key's name carries, or nothing when it
+# carries none.
+key_epoch() {
+  [[ "$1" =~ footbag-([0-9]{8})T([0-9]{2})([0-9]{2})([0-9]{2})Z ]] || return 0
+  date -u -d "${BASH_REMATCH[1]} ${BASH_REMATCH[2]}:${BASH_REMATCH[3]}:${BASH_REMATCH[4]}" +%s
+}
+
+check_delete_markers() {
+  local bucket="$1" region rules markers key modified prefix days found best_prefix best_days born died count=0
+  echo "==> delete markers in s3://${bucket}"
+  region="$("$AWS_BIN" s3api get-bucket-location --bucket "$bucket" \
+    --query LocationConstraint --output text </dev/null 2>"$AWS_ERR")" || region=""
+  [[ "$region" == "None" ]] && region="us-east-1"
+  if [[ ! "$region" =~ ^[a-z]{2}-[a-z]+-[0-9]$ ]]; then
+    fail "the region of ${bucket} could not be read, so its delete markers cannot be checked: $(aws_reason)"
+    return 0
+  fi
+  if ! rules="$("$AWS_BIN" s3api get-bucket-lifecycle-configuration --region "$region" --bucket "$bucket" \
+        --query "Rules[?Status=='Enabled' && Expiration.Days != null].[Filter.Prefix, Expiration.Days]" \
+        --output text </dev/null 2>"$AWS_ERR")"; then
+    fail "could not read the lifecycle rules of ${bucket}, so its delete markers cannot be judged: $(aws_reason)"
+    return 0
+  fi
+  if ! markers="$("$AWS_BIN" s3api list-object-versions --region "$region" --bucket "$bucket" \
+        --query 'DeleteMarkers[].[Key, LastModified]' --output text </dev/null 2>"$AWS_ERR")"; then
+    fail "could not list the versions of ${bucket}, so a delete marker hiding a backup would go unseen: $(aws_reason)"
+    return 0
+  fi
+  while IFS=$'\t' read -r key modified; do
+    [[ -z "${key:-}" || "$key" == "None" ]] && continue
+    count=$((count + 1))
+    found=0; best_prefix=""; best_days=""
+    while IFS=$'\t' read -r prefix days; do
+      [[ -z "${days:-}" ]] && continue
+      [[ "$prefix" == "None" ]] && prefix=""
+      if [[ "$key" == "$prefix"* ]] && (( found == 0 || ${#prefix} > ${#best_prefix} )); then
+        found=1; best_prefix="$prefix"; best_days="$days"
+      fi
+    done <<<"$rules"
+    if (( found == 0 )); then
+      fail "delete marker on ${key} in ${bucket} (${modified}) falls under no lifecycle expiry rule, so something deleted it"
+      continue
+    fi
+    born="$(key_epoch "$key")"
+    if [[ -z "$born" ]]; then
+      fail "delete marker on ${key} in ${bucket} (${modified}): the name carries no snapshot time, so lifecycle expiry cannot explain it"
+      continue
+    fi
+    died="$(date -u -d "$modified" +%s 2>/dev/null)" || died=""
+    if [[ -z "$died" ]]; then
+      fail "delete marker on ${key} in ${bucket} has an unreadable time '${modified}'"
+    elif (( died < born + best_days * 86400 )); then
+      fail "delete marker on ${key} in ${bucket} (${modified}) came sooner than the ${best_days}-day expiry of '${best_prefix}', so something deleted it"
+    fi
+  done <<<"$markers"
+  echo "    ${count} delete marker(s) checked against the lifecycle rules"
+}
+
+for marker_bucket in "${MARKER_BUCKETS[@]}"; do
+  check_delete_markers "$marker_bucket"
 done
 
 # The alarm that fires when hourly snapshot replication goes silent exists on

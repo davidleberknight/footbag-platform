@@ -56,11 +56,14 @@ beforeEach(() => {
   mkdirSync(join(s3Dir, BUCKET), { recursive: true });
   callLog = join(workDir, 'calls.log');
 
-  // The producer snapshots whatever database it is pointed at and never reads a
-  // row, so this needs to be a valid SQLite file and nothing more. No domain
-  // rows are seeded, which keeps the suite clear of hand-rolled inserts.
+  // The producer reads one thing from the database it copies: the newest row of
+  // the audit ledger, which is what it records as the snapshot's lineage. The
+  // ledger here carries only the two columns that read touches, created by this
+  // file so its rows are the file's own; nothing else about the schema matters
+  // to a backup.
   const db = new BetterSqlite3(join(dbDir, 'footbag.db'));
   db.exec('CREATE TABLE backup_probe (id INTEGER PRIMARY KEY);');
+  db.exec('CREATE TABLE audit_entries (id TEXT PRIMARY KEY, occurred_at TEXT NOT NULL);');
   db.close();
 
   // The bucket stands in as a directory tree, so a promotion is observable as a
@@ -74,13 +77,25 @@ beforeEach(() => {
     '#!/usr/bin/env bash',
     `LOG=${JSON.stringify(callLog)}`,
     `S3=${JSON.stringify(s3Dir)}`,
+    // Object metadata lives in a parallel tree beside the bucket, so listing the
+    // bucket still shows only snapshots.
+    `META=${JSON.stringify(`${s3Dir}.meta`)}`,
     'echo "aws $*" >> "$LOG"',
     'svc="$1"; shift',
     'if [[ "$svc" == "s3" && "$1" == "cp" ]]; then',
     '  shift',
-    '  pos=()',
-    '  for a in "$@"; do [[ "$a" == --* ]] || pos+=("$a"); done',
+    '  pos=(); metadata=""',
+    '  while (( $# )); do',
+    '    case "$1" in',
+    '      --metadata) metadata="$2"; shift 2 ;;',
+    '      --*) shift ;;',
+    '      *) pos+=("$1"); shift ;;',
+    '    esac',
+    '  done',
     '  src="${pos[0]}"; dst="${pos[1]}"',
+    '  if [[ "$dst" == s3://* && -n "$metadata" ]]; then',
+    '    m="$META/${dst#s3://}"; mkdir -p "$(dirname "$m")"; printf "%s" "$metadata" > "$m"',
+    '  fi',
     '  if [[ "$src" == s3://* && "$dst" == s3://* ]]; then',
     '    echo "copy failed: An error occurred (AccessDenied) when calling the' +
       ' GetObjectTagging operation" >&2',
@@ -121,18 +136,47 @@ beforeEach(() => {
     // that path, and if something ever does, capture the envelope rather than
     // trusting this shape.
     'if [[ "$svc" == "s3api" && "$1" == "list-objects-v2" ]]; then',
-    '  shift; bucket=""; prefix=""; hasquery=0',
+    '  shift; bucket=""; prefix=""; hasquery=0; query=""',
     '  while (( $# )); do',
     '    case "$1" in',
     '      --bucket) bucket="$2"; shift 2 ;;',
     '      --prefix) prefix="$2"; shift 2 ;;',
-    '      --query)  hasquery=1; shift 2 ;;',
+    '      --query)  hasquery=1; query="$2"; shift 2 ;;',
     '      *) shift ;;',
     '    esac',
     '  done',
+    // The lineage search asks for the keys themselves. With `--output text`
+    // the real CLI prints a list query's values tab-separated on one line, and
+    // the literal None when the prefix holds nothing.
+    '  if [[ "$query" == "Contents[].Key" ]]; then',
+    '    [[ -n "${AWS_STUB_LIST_FAILS:-}" ]] && { echo "aws-stub: list refused for this case" >&2; exit 254; }',
+    '    keys=$(find "$S3/$bucket" -type f 2>/dev/null | sed "s|^$S3/$bucket/||" | grep "^$prefix" | paste -sd "\\t" -)',
+    '    echo "${keys:-None}"',
+    '    exit 0',
+    '  fi',
     '  n=$(find "$S3/$bucket" -type f 2>/dev/null | sed "s|^$S3/$bucket/||" \\',
     '        | grep -c "^$prefix" || true)',
     '  if (( hasquery )); then echo "$n"; else echo "{\\"KeyCount\\": $n}"; fi',
+    '  exit 0',
+    'fi',
+    // A query over three metadata fields prints them tab-separated on one line,
+    // None for each the object does not carry.
+    'if [[ "$svc" == "s3api" && "$1" == "head-object" ]]; then',
+    '  [[ -n "${AWS_STUB_HEAD_FAILS:-}" ]] && { echo "aws-stub: head refused for this case" >&2; exit 254; }',
+    '  shift; bucket=""; key=""',
+    '  while (( $# )); do',
+    '    case "$1" in',
+    '      --bucket) bucket="$2"; shift 2 ;;',
+    '      --key) key="$2"; shift 2 ;;',
+    '      *) shift ;;',
+    '    esac',
+    '  done',
+    `  ${JSON.stringify(process.execPath)} -e '` +
+      'const fs = require("fs"); const f = process.argv[1];' +
+      ' const m = fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, "utf8")) : {};' +
+      ' const v = (k) => (k in m ? m[k] : "None");' +
+      ' console.log([v("audit-newest-id"), v("audit-newest-at"), v("lineage-since")].join("\\t"));' +
+      `' "$META/$bucket/$key"`,
     '  exit 0',
     'fi',
     'if [[ "$svc" == "s3api" && "$1" == "copy-object" ]]; then',
@@ -147,6 +191,10 @@ beforeEach(() => {
     '    esac',
     '  done',
     '  mkdir -p "$(dirname "$S3/$bucket/$key")"',
+    // Like S3's default copy, the metadata travels with the object.
+    '  if [[ -f "$META/$source" ]]; then',
+    '    mkdir -p "$(dirname "$META/$bucket/$key")"; cp "$META/$source" "$META/$bucket/$key"',
+    '  fi',
     '  cp "$S3/$source" "$S3/$bucket/$key"; exit $?',
     'fi',
     // A metric put the role refuses. The script relays the CLI's last line and
@@ -386,6 +434,289 @@ describe('backing up while a restore\'s erasure replay is pending', () => {
     expect(calls()).toContain('--metric-name BackupConsecutiveFailures --value 1');
     expect(readFileSync(join(dbDir, '.backup-consecutive-failures'), 'utf8').trim()).toBe('1');
     expect(res.stderr).toContain('--resume-erasure-replay');
+  });
+});
+
+/** Appends a row to the live database's audit ledger. */
+function addAuditRow(id: string, occurredAt: string): void {
+  const db = new BetterSqlite3(join(dbDir, 'footbag.db'));
+  db.prepare('INSERT INTO audit_entries (id, occurred_at) VALUES (?, ?)').run(id, occurredAt);
+  db.close();
+}
+
+interface Lineage { 'audit-newest-id'?: string; 'audit-newest-at'?: string; 'lineage-since'?: string }
+
+/** Places a snapshot in the stand-in bucket carrying the given lineage record. */
+function seedSnapshot(key: string, lineage?: Lineage): void {
+  seedObject(key);
+  if (lineage) {
+    const m = join(`${s3Dir}.meta`, BUCKET, key);
+    mkdirSync(join(m, '..'), { recursive: true });
+    writeFileSync(m, JSON.stringify(lineage));
+  }
+}
+
+/** The lineage record stored with an object, or null when it carries none. */
+function lineageOf(key: string): Lineage | null {
+  const m = join(`${s3Dir}.meta`, BUCKET, key);
+  return existsSync(m) ? JSON.parse(readFileSync(m, 'utf8')) as Lineage : null;
+}
+
+/** A routine key a full day before now, so it is never the run's own key. */
+function yesterdayRoutineKey(): string {
+  return `routine/${utcDayPrefix(-1)}/footbag-${stampInAnotherHour()}.db.gz`;
+}
+
+function failureCount(): string {
+  return readFileSync(join(dbDir, '.backup-consecutive-failures'), 'utf8').trim();
+}
+
+function writeMarker(lines: Record<string, string>): string {
+  const path = join(dbDir, '.declared-restore');
+  writeFileSync(path, Object.entries(lines).map(([k, v]) => `${k}=${v}\n`).join(''));
+  return path;
+}
+
+const nowEpoch = (): number => Math.floor(Date.now() / 1000);
+
+describe('uploading only a continuation of the stored history', () => {
+  // Defect caught: a restore cannot tell which snapshot holds the newest real
+  // data, and the next run has nothing to check the database against, because
+  // the upload, or the hourly and daily copies made from it, lost the record of
+  // the newest audit row it holds.
+  it('records the newest audit row on the upload and on both promoted copies', () => {
+    addAuditRow('audit_older', '2026-11-01T00:00:00.000Z');
+    addAuditRow('audit_newest', '2026-11-02T00:00:00.000Z');
+
+    const res = runBackup();
+
+    expect(res.status, res.stderr).toBe(0);
+    const expected = {
+      'audit-newest-id': 'audit_newest',
+      'audit-newest-at': '2026-11-02T00:00:00.000Z',
+      'lineage-since': 'none',
+    };
+    for (const generation of ['routine/', 'hourly/', 'daily/']) {
+      const [key] = keysUnder(generation);
+      expect(lineageOf(key), generation).toEqual(expected);
+    }
+  });
+
+  // Defect caught: the backup refuses the live database it has been backing up
+  // all along, stopping every backup after the first, because the check does not
+  // recognise its own continuation.
+  it('uploads a database that holds the row the newest stored snapshot records', () => {
+    addAuditRow('audit_a', '2026-11-01T00:00:00.000Z');
+    addAuditRow('audit_b', '2026-11-03T00:00:00.000Z');
+    seedSnapshot(yesterdayRoutineKey(), {
+      'audit-newest-id': 'audit_a', 'audit-newest-at': '2026-11-01T00:00:00.000Z', 'lineage-since': 'none',
+    });
+
+    const res = runBackup();
+
+    expect(res.status, res.stderr).toBe(0);
+    expect(keysUnder('routine/')).toHaveLength(2);
+  });
+
+  // Defect caught: a host rebuilt from a day-old disk snapshot uploads its old
+  // database as the newest snapshot, which is promoted, locked off-region for
+  // 90 days and put back by the next restore. Its worker has stamped a fresh
+  // audit row since boot, so a comparison of newest timestamps would let it
+  // through; the row it lacks is what gives it away.
+  it('refuses a database missing the stored row, even when its own newest row is later', () => {
+    addAuditRow('audit_from_snapshot_day', '2026-11-01T00:00:00.000Z');
+    addAuditRow('audit_worker_after_boot', '2099-01-01T00:00:00.000Z');
+    const stored = yesterdayRoutineKey();
+    seedSnapshot(stored, {
+      'audit-newest-id': 'audit_written_after_snapshot',
+      'audit-newest-at': '2026-11-02T00:00:00.000Z',
+      'lineage-since': 'none',
+    });
+
+    const res = runBackup();
+
+    expect(res.status).toBe(1);
+    expect(keysUnder('routine/')).toEqual([stored]);
+    expect(keysUnder('hourly/')).toEqual([]);
+    expect(calls()).not.toMatch(/aws s3 cp /);
+    expect(failureCount()).toBe('1');
+    expect(calls()).toContain('--metric-name BackupConsecutiveFailures --value 1');
+    expect(res.stderr).toContain('audit_written_after_snapshot');
+    expect(res.stderr).toContain('scripts/restore-db.sh');
+  });
+
+  // Defect caught: with the fine-grained stream aged out (a host down for more
+  // than two days), the check finds nothing in routine/ and waves a stale
+  // database through instead of checking it against the newest hourly point.
+  it('checks against the newest hourly point when routine/ holds nothing', () => {
+    addAuditRow('audit_stale', '2026-11-01T00:00:00.000Z');
+    seedSnapshot(`hourly/${utcDayPrefix(-3)}/footbag-${stampInAnotherHour()}.db.gz`, {
+      'audit-newest-id': 'audit_missing', 'audit-newest-at': '2026-11-04T00:00:00.000Z', 'lineage-since': 'none',
+    });
+
+    const res = runBackup();
+
+    expect(res.status).toBe(1);
+    expect(keysUnder('routine/')).toEqual([]);
+    expect(res.stderr).toContain('audit_missing');
+  });
+
+  // Defect caught: the check reads a coarse generation before the fine stream,
+  // so a day-old database, which does hold yesterday's daily point, passes as
+  // a continuation although the routine stream has moved on without it.
+  it('checks against the fine-grained stream before the coarser generations', () => {
+    addAuditRow('audit_yesterday', '2026-11-01T00:00:00.000Z');
+    seedSnapshot(`daily/${utcDayPrefix(-1)}/footbag-${stampInAnotherHour()}.db.gz`, {
+      'audit-newest-id': 'audit_yesterday', 'audit-newest-at': '2026-11-01T00:00:00.000Z', 'lineage-since': 'none',
+    });
+    seedSnapshot(yesterdayRoutineKey(), {
+      'audit-newest-id': 'audit_this_morning', 'audit-newest-at': '2026-11-02T08:00:00.000Z', 'lineage-since': 'none',
+    });
+
+    const res = runBackup();
+
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('audit_this_morning');
+  });
+
+  // Defect caught: an ordinary backup forgets when the history it continues
+  // began, so after a restore that deliberately went back, the next restore
+  // cannot tell the abandoned history from the current one.
+  it('carries the start of the history forward onto an ordinary upload', () => {
+    addAuditRow('audit_a', '2026-11-01T00:00:00.000Z');
+    seedSnapshot(yesterdayRoutineKey(), {
+      'audit-newest-id': 'audit_a', 'audit-newest-at': '2026-11-01T00:00:00.000Z',
+      'lineage-since': '2026-10-30T12:00:00Z',
+    });
+
+    const res = runBackup();
+
+    expect(res.status, res.stderr).toBe(0);
+    const uploaded = keysUnder('routine/').find((k) => k.startsWith(`routine/${utcDayPrefix()}`));
+    expect(lineageOf(uploaded as string)?.['lineage-since']).toBe('2026-10-30T12:00:00Z');
+  });
+
+  // Defect caught: a run that cannot read the bucket's listing treats it as
+  // empty and uploads whatever database the host holds.
+  it('refuses when the stored snapshots cannot be listed', () => {
+    addAuditRow('audit_a', '2026-11-01T00:00:00.000Z');
+
+    const res = runBackup({ AWS_STUB_LIST_FAILS: '1' });
+
+    expect(res.status).toBe(1);
+    expect(keysUnder('')).toEqual([]);
+    expect(failureCount()).toBe('1');
+    expect(res.stderr).toContain('aws-stub: list refused for this case');
+  });
+
+  // Defect caught: a run that cannot read the newest snapshot's lineage record
+  // treats it as one that never had one and uploads unchecked.
+  it('refuses when the newest stored snapshot\'s record cannot be read', () => {
+    addAuditRow('audit_a', '2026-11-01T00:00:00.000Z');
+    seedSnapshot(yesterdayRoutineKey(), {
+      'audit-newest-id': 'audit_a', 'audit-newest-at': '2026-11-01T00:00:00.000Z', 'lineage-since': 'none',
+    });
+
+    const res = runBackup({ AWS_STUB_HEAD_FAILS: '1' });
+
+    expect(res.status).toBe(1);
+    expect(keysUnder('routine/')).toHaveLength(1);
+    expect(res.stderr).toContain('aws-stub: head refused for this case');
+  });
+
+  // Defect caught: the first backup after this check is deployed refuses
+  // forever, because every snapshot already stored predates the record.
+  it('uploads with a warning over a newest snapshot written before the record existed', () => {
+    addAuditRow('audit_a', '2026-11-01T00:00:00.000Z');
+    seedSnapshot(yesterdayRoutineKey());
+
+    const res = runBackup();
+
+    expect(res.status, res.stderr).toBe(0);
+    expect(keysUnder('routine/')).toHaveLength(2);
+    expect(res.stderr).toContain('carries no lineage record');
+  });
+
+  // Defect caught: a stored snapshot of a database with no audit rows yet
+  // blocks every later backup, since there is no row to look for.
+  it('uploads over a newest snapshot whose database had no audit rows', () => {
+    addAuditRow('audit_first', '2026-11-01T00:00:00.000Z');
+    seedSnapshot(yesterdayRoutineKey(), {
+      'audit-newest-id': 'none', 'audit-newest-at': 'none', 'lineage-since': 'none',
+    });
+
+    const res = runBackup();
+
+    expect(res.status, res.stderr).toBe(0);
+    expect(keysUnder('routine/')).toHaveLength(2);
+  });
+});
+
+describe('a database put back on purpose', () => {
+  function staleHost(): string {
+    addAuditRow('audit_restored_point', '2026-11-01T00:00:00.000Z');
+    const stored = yesterdayRoutineKey();
+    seedSnapshot(stored, {
+      'audit-newest-id': 'audit_not_here', 'audit-newest-at': '2026-11-02T00:00:00.000Z', 'lineage-since': 'none',
+    });
+    return stored;
+  }
+
+  // Defect caught: after a restore or a rebuild deploy deliberately puts an
+  // older database in place, backups refuse forever, because nothing tells the
+  // check the break in the history was intended; or the marker is honoured
+  // more than once, so a later stale database rides through on it.
+  it('uploads once under a declared restore, records where the new lineage began, and spends the marker', () => {
+    staleHost();
+    const marker = writeMarker({
+      since: '2026-11-19T10:00:00Z', by: 'restore-db.sh', expires: String(nowEpoch() + 3600),
+    });
+
+    const res = runBackup();
+
+    expect(res.status, res.stderr).toBe(0);
+    expect(existsSync(marker)).toBe(false);
+    const uploaded = keysUnder('routine/').find((k) => k.startsWith(`routine/${utcDayPrefix()}`));
+    expect(uploaded).toBeDefined();
+    expect(lineageOf(uploaded as string)).toEqual({
+      'audit-newest-id': 'audit_restored_point',
+      'audit-newest-at': '2026-11-01T00:00:00.000Z',
+      'lineage-since': '2026-11-19T10:00:00Z',
+    });
+
+    // The next run is checked against the upload the marker let through.
+    addAuditRow('audit_after_restore', '2026-11-19T11:00:00.000Z');
+    const next = runBackup();
+    expect(next.status, next.stderr).toBe(0);
+    expect(lineageOf(uploaded as string)?.['lineage-since']).toBe('2026-11-19T10:00:00Z');
+  });
+
+  // Defect caught: a disk snapshot taken while a marker sat unspent brings it
+  // back days later, and the stale host's database uploads on it.
+  it('ignores an expired marker, removes it, and lets the lineage check refuse', () => {
+    const stored = staleHost();
+    const marker = writeMarker({
+      since: '2026-11-18T10:00:00Z', by: 'restore-db.sh', expires: String(nowEpoch() - 1),
+    });
+
+    const res = runBackup();
+
+    expect(res.status).toBe(1);
+    expect(existsSync(marker)).toBe(false);
+    expect(keysUnder('routine/')).toEqual([stored]);
+    expect(res.stderr).toContain('ignoring the declared-restore marker');
+  });
+
+  // Defect caught: a marker with no expiry, or a damaged one, is honoured as if
+  // valid and lets any database through.
+  it('ignores a marker with no expiry', () => {
+    const stored = staleHost();
+    writeMarker({ since: '2026-11-19T10:00:00Z', by: 'restore-db.sh' });
+
+    const res = runBackup();
+
+    expect(res.status).toBe(1);
+    expect(keysUnder('routine/')).toEqual([stored]);
   });
 });
 

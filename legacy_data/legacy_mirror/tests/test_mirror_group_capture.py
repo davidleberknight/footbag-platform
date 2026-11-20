@@ -538,6 +538,93 @@ def test_a_file_ruled_into_the_archive_keeps_its_name_on_its_groups_page(
     assert '2004budget.xls' in text and 'Minutes 2003' not in text
 
 
+def test_the_group_files_page_lists_every_group_page_and_nothing_private(groups):
+    # Members browsing the groups need one place to find every file the
+    # archive kept; a link left pointing three folders up from two folders
+    # down leads nowhere, and a private file named here undoes the custody.
+    _page('groups/list/index.html', DIRECTORY_PAGE)
+    mirror_script.generate_group_file_pages(groups)
+    assert mirror_script.generate_group_files_index() == 2
+    page = _www() / mirror_script.GROUP_FILES_INDEX_REL
+    text = page.read_text(encoding='utf-8')
+    hrefs = _hrefs(text)
+    for href in ('../home/1/index.html', '../home/14/index.html',
+                 '../../ifpa/groups/marketing/IFPA%20Brochure-4.pdf',
+                 '../../ifpa/groups/directors/Future%20of%20Footbag.pdf'):
+        assert href in hrefs, href
+        target = mirror_script._resolve_local_ref(href, page.parent, _www())
+        assert target is not None and Path(target).is_file(), href
+    for name in ('SCOPED', 'PRIVATE', 'HIDDEN', 'Not captured'):
+        assert name not in text, name
+    assert f'id="{mirror_script.GROUP_FILES_NOTE_ID}"' in text
+    assert '<title>IFPA Member Groups: Archived Group Files</title>' in text
+    assert 'ROSTER-OF-MEMBERS' not in text and '../../../faq/index.html' in hrefs
+
+
+def test_the_groups_directory_gets_the_button_once_above_the_list(groups):
+    # Without the button the page is unreachable; twice after a rerun, the
+    # directory shows it twice; below the list it lands among the entries
+    # the directory's own additions are placed after.
+    directory = _page('groups/list/index.html', DIRECTORY_PAGE.replace(
+        '<p><li><a href="1/', '<b><font size="+2">All IFPA Working Groups:</font></b>'
+        '<br/>\n<p><li><a href="1/', 1))
+    mirror_script.generate_group_file_pages(groups)
+    mirror_script.generate_group_files_index()
+    mirror_script.generate_group_files_index()
+    text = directory.read_text(encoding='utf-8')
+    assert _hrefs(text).count('../files/index.html') == 1
+    assert text.index('../files/index.html') < text.index('All IFPA Working Groups')
+    assert Path(os.path.normpath(directory.parent / '../files/index.html')) \
+        == _www() / mirror_script.GROUP_FILES_INDEX_REL
+
+
+def test_an_earlier_unclickable_looking_link_is_replaced_by_a_plain_link(groups):
+    # The first version drew the link as an orange box with no underline,
+    # which readers did not take for a link; a directory carrying it must be
+    # brought up to date, not left as it was because a link is already there.
+    marker = mirror_script.GROUP_FILES_INDEX_LINK_MARKER
+    old = (f'<p id="{marker}"><a href="../files/index.html" style="background:#FF9900;'
+           'text-decoration:none">Archived Group Files</a></p>\n')
+    directory = _page('groups/list/index.html', DIRECTORY_PAGE.replace(
+        '<p><li><a href="1/', old + '<b><font size="+2">All IFPA Working Groups:</font></b>'
+        '<br/>\n<p><li><a href="1/', 1))
+    mirror_script.generate_group_file_pages(groups)
+    mirror_script.generate_group_files_index()
+    text = directory.read_text(encoding='utf-8')
+    block = re.search(f'<p id="{marker}">.*?</p>', text, re.S).group(0)
+    assert 'style=' not in block and 'text-decoration' not in block
+    assert _hrefs(text).count('../files/index.html') == 1
+
+
+def test_with_no_group_file_page_the_files_page_and_button_go(groups, tmp_path):
+    # A page and button left behind after every group lost its files would
+    # offer members an empty list, or a list naming files since made private.
+    directory = _page('groups/list/index.html', DIRECTORY_PAGE.replace(
+        '<p><li><a href="1/', '<b><font size="+2">All IFPA Working Groups:</font></b>'
+        '<br/>\n<p><li><a href="1/', 1))
+    original = directory.read_text(encoding='utf-8')
+    mirror_script.generate_group_file_pages(groups)
+    mirror_script.generate_group_files_index()
+    mirror_script.generate_group_file_pages(_inventory(tmp_path, []))
+    assert mirror_script.generate_group_files_index() == 0
+    assert not (_www() / mirror_script.GROUP_FILES_INDEX_REL).exists()
+    assert directory.read_text(encoding='utf-8') == original
+
+
+def test_the_files_page_is_built_after_the_group_pages_everywhere_it_runs():
+    # Built before them, it lists the previous run's pages; left out of a
+    # sequence or the mode, that run publishes a stale or missing page.
+    source = SCRIPT_PATH.read_text(encoding='utf-8')
+    blocks = [source[source.index(s):source.index('\ndef ', source.index(s) + 1)]
+              for s in ('def generate_reachability_pages(', 'def settle_for_publication(')]
+    mode = source[source.index('if args.group_files_index_only:'):]
+    blocks.append(mode[:mode.index('return')])
+    for text in blocks:
+        assert text.index('generate_group_file_pages()') \
+            < text.index('generate_group_files_index()') \
+            < text.index('insert_archive_banner()')
+
+
 def test_private_names_go_before_the_lists_are_built_in_both_settle_sequences():
     # Reversed, a rebuilt list copies a group page still naming private files,
     # and the GROUPS menu on it is still dead.

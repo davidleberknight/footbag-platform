@@ -658,3 +658,54 @@ describe('scripts/internal/deploy-rebuild-remote.sh stops before replacing the d
     expect(r.stdout).toContain('REACHED avail=9000000');
   });
 });
+
+describe('scripts/internal/deploy-rebuild-remote.sh declares the replaced database to the backups', () => {
+  const HALF = 'scripts/internal/deploy-rebuild-remote.sh';
+
+  function driveReplace(markerDirWritable: boolean) {
+    const dir = world();
+    const dbDir = join(dir, 'db');
+    mkdirSync(dbDir);
+    writeFileSync(join(dir, 'new.db'), 'rebuilt');
+    if (!markerDirWritable) mkdirSync(join(dbDir, '.declared-restore'));
+    const r = runScript(dir, [
+      'set -euo pipefail',
+      `source ${JSON.stringify(REMOTE_REPORT_LIB)}`,
+      `NEW_DB=${JSON.stringify(join(dir, 'new.db'))}`,
+      `DB_PATH=${JSON.stringify(join(dbDir, 'footbag.db'))}`,
+      // Ownership flags need root; the copy is what the excerpt depends on.
+      'install() { cp "${@: -2:1}" "${@: -1}"; }',
+      stretch(HALF, 'install -o root -g root -m 600 "$NEW_DB" "$DB_PATH"', 'fi'),
+      'echo REACHED-AFTER-MARKER',
+      'crr_finish',
+    ]);
+    return { ...r, marker: join(dbDir, '.declared-restore') };
+  }
+
+  // Defect caught: after a rebuild deploy every backup refuses the new database
+  // as not continuing the stored history, so the host takes no backups at all;
+  // or the marker it leaves cannot be read as unexpired by the backup.
+  it('leaves a six-hour marker beside the database it installed', () => {
+    const before = Math.floor(Date.now() / 1000);
+    const r = driveReplace(true);
+
+    expect(r.status, r.stderr).toBe(0);
+    const fields = Object.fromEntries(readFileSync(r.marker, 'utf8').trim().split('\n')
+      .map((l) => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]));
+    expect(fields.since).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
+    expect(fields.by).toBe('deploy-rebuild.sh');
+    // budget-is-the-contract: the marker's own six-hour lifetime.
+    expect(Number(fields.expires)).toBeGreaterThanOrEqual(before + 6 * 3600);
+    expect(Number(fields.expires)).toBeLessThanOrEqual(Math.floor(Date.now() / 1000) + 6 * 3600);
+  });
+
+  // Defect caught: a marker that could not be written passed silently, and the
+  // first sign was the failing-backup alarm fifteen minutes later.
+  it('reports an error when the marker cannot be written', () => {
+    const r = driveReplace(false);
+
+    expect(r.stdout).toContain('REACHED-AFTER-MARKER');
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toMatch(/^---FOOTBAG-PROBLEM--- ERROR could not write .*\.declared-restore/m);
+  });
+});

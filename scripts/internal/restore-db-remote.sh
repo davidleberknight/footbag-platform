@@ -173,6 +173,29 @@ clear_replay_pending() {
   erasure_replay_pending=0
 }
 
+# A restored database is never a continuation of the stored history: the stop
+# above ran one more backup after the snapshot was chosen, so even "the newest"
+# is older than what the bucket now holds, and the backup script uploads only a
+# continuation. This marker tells it the break was intended. It lets one upload
+# through, which spends it, and expires after six hours, so a disk snapshot that
+# caught it unspent cannot bring it back. Written once the replay has
+# succeeded, since the backup refuses anyway until then. A marker that cannot be
+# written is an error, not a refusal: the restore has already happened, and the
+# backups refusing it is what the error explains.
+DECLARED_RESTORE="${DB_DIR}/.declared-restore"
+DECLARED_RESTORE_TTL_SECONDS=21600
+declare_restore() {
+  local now out
+  now="$(date -u +%s)"
+  if ! out="$( { printf 'since=%s\nby=%s\nexpires=%s\n' \
+        "$(date -u -d "@${now}" +%Y-%m-%dT%H:%M:%SZ)" "restore-db.sh (${SNAPSHOT_KEY:-resumed erasure replay})" \
+        "$(( now + DECLARED_RESTORE_TTL_SECONDS ))" > "$DECLARED_RESTORE"; } 2>&1 )"; then
+    crr_error "could not write ${DECLARED_RESTORE} (${out##*$'\n'}), so the backups will refuse this restored database as not continuing the stored history. Fix the cause and run this restore again."
+    return 1
+  fi
+  echo "    declared this restore to the backups (${DECLARED_RESTORE}, valid six hours)"
+}
+
 # Re-applies the erasures the database in place records as due, in a throwaway
 # container because the stack is stopped: --no-deps so it starts nothing else,
 # --rm so it leaves nothing behind. Compose files are absolute because this half
@@ -248,6 +271,7 @@ if [[ "${RESUME_ERASURE_REPLAY:-0}" == "1" ]]; then
     exit 1
   fi
   clear_replay_pending
+  declare_restore || true
   echo "==> Starting the service"
   start_service || exit 1
   if ! wait_until_ready; then
@@ -575,6 +599,7 @@ if ! run_erasure_replay; then
   exit 1
 fi
 clear_replay_pending
+declare_restore || true
 
 echo "==> Restarting the service"
 start_service || exit 1
@@ -603,6 +628,7 @@ echo "======================================================================"
 echo "  DATABASE RESTORED on $(hostname)"
 echo "  From:     s3://${BUCKET}/${SNAPSHOT_KEY}"
 echo "  Contents: $(counts_for "$DB_FILE")"
+echo "  Newest audit row: $(sqlite3 "$DB_FILE" 'SELECT MAX(occurred_at) FROM audit_entries;' 2>/dev/null || echo 'unreadable')"
 echo "  The database this replaced is at ${superseded}"
 echo "  It is the way back for seven days, after which the first deploy or"
 echo "  restore deletes it."

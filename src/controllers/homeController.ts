@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { homeService } from '../services/homeService';
 import { handleControllerError } from '../lib/controllerErrors';
 import { config } from '../config/env';
+import { legacyRedirectTarget } from '../lib/legacyRedirects';
 
 const FORUM_URL = 'https://modified.in/';
 
@@ -26,6 +27,19 @@ export const homeController = {
       return;
     }
     res.redirect(303, config.archiveUrl);
+  },
+
+  // An old footbag.org address that outside pages still cite answers a
+  // permanent redirect to the page carrying the same content. The target comes
+  // from the fixed list, never from request input; an address the list does not
+  // hold falls through to the standard 404.
+  legacyRedirect(req: Request, res: Response, next: NextFunction): void {
+    const target = legacyRedirectTarget(req.path);
+    if (!target) {
+      next();
+      return;
+    }
+    res.redirect(301, target);
   },
 
   // The community forum is hosted off-site; /forum is the stable short link
