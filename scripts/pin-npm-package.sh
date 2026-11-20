@@ -20,6 +20,11 @@
 #   - Refuses a version that is not exact (the version-pin gate's own rule), one
 #     the registry does not publish, a downgrade unless --allow-downgrade, and a
 #     Node other than the one .nvmrc pins, since npm's resolution depends on it.
+#   - Refuses a version published less than seven days ago, or one whose
+#     publish time the registry does not give, unless --allow-fresh: a faulty
+#     release is usually found and withdrawn within that time.
+#     --allow-fresh is only for a fix to a flaw known to be exploited on a
+#     publicly exposed system.
 #   - Refuses a package.json and lockfile that are out of step before it starts:
 #     a lock-only install of the untouched pair must change nothing.
 #   - Finds where the name is declared and changes it there. A direct dependency
@@ -53,6 +58,8 @@
 #                         --accept-collateral)
 #   --allow-downgrade     permit a version lower than the one pinned now
 #   --accept-collateral   permit other lockfile entries to move, listed first
+#   --allow-fresh         permit a version under seven days old (an exploited
+#                         flaw on a publicly exposed system only)
 #
 # Test seam (announced on stderr): FOOTBAG_NPM_BIN replaces npm.
 set -euo pipefail
@@ -68,6 +75,8 @@ ADD_OVERRIDE=0
 REMOVE_OVERRIDE=0
 ALLOW_DOWNGRADE=0
 ACCEPT_COLLATERAL=0
+ALLOW_FRESH=0
+SOAK_DAYS=7
 POSITIONAL=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -76,6 +85,7 @@ while [[ $# -gt 0 ]]; do
     --remove-override) REMOVE_OVERRIDE=1; ACCEPT_COLLATERAL=1 ;;
     --allow-downgrade) ALLOW_DOWNGRADE=1 ;;
     --accept-collateral) ACCEPT_COLLATERAL=1 ;;
+    --allow-fresh) ALLOW_FRESH=1 ;;
     -h|--help) usage; exit 0 ;;
     -*) echo "ERROR: unknown argument '$1'" >&2; exit 2 ;;
     *) POSITIONAL+=("$1") ;;
@@ -113,6 +123,19 @@ if (( REMOVE_OVERRIDE == 0 )); then
   published="$("$NPM" view "${NAME}@${VERSION}" version 2>/dev/null | tail -n 1 | tr -d '[:space:]' || true)"
   [[ "$published" == "$VERSION" ]] \
     || die "the registry does not publish ${NAME}@${VERSION} (or could not be reached)."
+  # Fail closed: a publish time the registry does not give is refused, never
+  # read as old enough.
+  published_at="$("$NPM" view "$NAME" time --json \
+    | jq -r --arg v "$VERSION" '.[$v] // empty | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601')" \
+    || die "could not read when ${NAME}@${VERSION} was published."
+  [[ "$published_at" =~ ^[0-9]+$ ]] \
+    || die "the registry gives no publish time for ${NAME}@${VERSION}, so its age cannot be checked."
+  age_days=$(( ( $(date -u +%s) - published_at ) / 86400 ))
+  if (( age_days < SOAK_DAYS )); then
+    (( ALLOW_FRESH == 1 )) \
+      || die "${NAME}@${VERSION} was published ${age_days} days ago; a version is taken only once it has been out ${SOAK_DAYS} days. Pass --allow-fresh only for a fix to a flaw known to be exploited on a publicly exposed system."
+    echo "NOTE: ${NAME}@${VERSION} is ${age_days} days old, taken early with --allow-fresh." >&2
+  fi
 fi
 
 # Where the name is declared now, and at what version.

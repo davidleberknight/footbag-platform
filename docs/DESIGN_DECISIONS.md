@@ -4922,6 +4922,8 @@ Requirements:
 
 - Dependency versions are reviewed and bumped by hand. No bot opens or merges a version bump.
 
+- A new version is taken only once it has been published for at least seven days, so a faulty release has been found and withdrawn before it reaches the project. A fix for a flaw known to be exploited on a publicly exposed system is the one exception, taken as soon as it is published and reviewed. `scripts/pin-npm-package.sh` and `scripts/bump-tool.sh` refuse a younger npm version or Amazon Linux release unless told the exception applies.
+
 - Patching happens when the maintainer decides. Repository vulnerability alerts are on and email the maintainers when a pinned package gains a critical or high advisory; Dependabot security-update pull requests are off. The advisory and staleness reports over the pinned versions run on request.
 
 - The dependency audit reports advisories at moderate severity and above, and the pull-request dependency review inspects what each change introduces. Both report as warnings and never fail CI: an advisory is published upstream on its own schedule and can land on a commit that changed nothing, so acting on it is the maintainer's patching decision, not a red build.

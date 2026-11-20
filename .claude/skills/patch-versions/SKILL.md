@@ -27,6 +27,12 @@ management section in DEVOPS_GUIDE.md (private GitHub repo); read both first, th
    - `SQLITE_VERSION` moves only with a better-sqlite3 bump, and the image pin test fails
      until they agree.
    For a major-version bump, read the release notes live for stated breaking changes first.
+   Take only a version published at least seven days ago (the Security Patching design
+   decision). `pin-npm-package.sh` and `bump-tool.sh` (for `AMAZON_LINUX_RELEASE`) refuse a
+   younger one; for every other tool, image digest and Python package, read the publisher's
+   release date live, name it beside the bump, and refuse a younger one yourself. Pass
+   `--allow-fresh` only for a flaw known to be exploited on a publicly exposed system, and only
+   when the maintainer has picked it.
 3. Prove it: `bash scripts/check-versions.sh` (full mode), then `bash scripts/check-vulnerabilities.sh`,
    showing every advisory of each moved package gone from it (one still listed means the target was
    short), then `bash scripts/test-targets.sh <changed paths>` and exactly what it prints, in the

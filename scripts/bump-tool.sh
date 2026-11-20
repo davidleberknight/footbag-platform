@@ -23,6 +23,10 @@
 #     amazonlinux:<release>.0 and the index digest the registry lists for that
 #     tag, read now. DOCKER_ENGINE_HOST is what the release serves; this does
 #     not move it, and scripts/check-versions.sh says whether it must.
+#     The release must have been out at least seven days, read from the date
+#     its name carries, so a broken release has been found and replaced before
+#     the hosts take it. --allow-fresh takes a younger one, and is only for a
+#     fix to a flaw known to be exploited on a publicly exposed system.
 #
 # What it refuses to do:
 #   - Write without --apply. A run without it shows the scan, the diff, and
@@ -34,6 +38,8 @@
 #   - Accept a download it could not fetch, two downloads that differ, an image
 #     digest it could not resolve, or a key the list does not hold.
 #   - Move PYTHON_VERSION without --python-build.
+#   - Move AMAZON_LINUX_RELEASE to a release under seven days old without
+#     --allow-fresh, or to one whose name carries no readable date.
 #   - Call a key "already" at its version while an earlier half-done bump of it
 #     left copies of the committed value behind.
 #
@@ -42,7 +48,7 @@
 # committing; that comparison is what ties the file to its publisher.
 #
 # Usage:
-#   bash scripts/bump-tool.sh <KEY> <new-version> [--apply] [--python-build <YYYYMMDD>]
+#   bash scripts/bump-tool.sh <KEY> <new-version> [--apply] [--python-build <YYYYMMDD>] [--allow-fresh]
 #
 # Test seams, each announced on stderr:
 #   FOOTBAG_TOOL_VERSIONS  the list to read and write (the reader's own seam)
@@ -60,10 +66,11 @@ source "${SCRIPT_DIR}/lib/tool-versions.sh"
 
 usage() { sed -n '/^# Usage:/,/^# Test seams/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; }
 
-KEY="" NEW="" APPLY=0 PY_BUILD=""
+KEY="" NEW="" APPLY=0 PY_BUILD="" ALLOW_FRESH=0
 while (( $# )); do
   case "$1" in
     --apply) APPLY=1; shift ;;
+    --allow-fresh) ALLOW_FRESH=1; shift ;;
     --python-build) [[ -n "${2:-}" ]] || { cr_error "--python-build needs a date (YYYYMMDD)."; exit 2; }; PY_BUILD="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     -*) cr_error "unknown flag: $1"; usage; exit 2 ;;
@@ -81,6 +88,29 @@ if [[ "$KEY" == PYTHON_VERSION ]]; then
 elif [[ -n "$PY_BUILD" ]]; then
   cr_error "--python-build is for PYTHON_VERSION only. Nothing changed."
   exit 2
+fi
+if (( ALLOW_FRESH )) && [[ "$KEY" != AMAZON_LINUX_RELEASE ]]; then
+  cr_error "--allow-fresh is for AMAZON_LINUX_RELEASE only. Nothing changed."
+  exit 2
+fi
+
+# A release is taken only once it has been out seven days: a broken or pulled
+# release is usually found and replaced within that time. The date is the one
+# the release name carries (2023.12.20261112 was released 2026-11-12).
+SOAK_DAYS=7
+if [[ "$KEY" == AMAZON_LINUX_RELEASE ]]; then
+  [[ "$NEW" =~ ^[0-9]{4}\.[0-9]+\.([0-9]{4})([0-9]{2})([0-9]{2})(\.[0-9]+)?$ ]] \
+    || cr_die "'${NEW}' carries no release date (expected a name like 2023.12.20261112), so its age cannot be checked. Nothing changed."
+  released="$(jq -rn --arg d "${BASH_REMATCH[1]}-${BASH_REMATCH[2]}-${BASH_REMATCH[3]}T00:00:00Z" '$d | fromdateiso8601')" \
+    || cr_die "'${NEW}' carries no valid release date, so its age cannot be checked. Nothing changed."
+  age_days=$(( ( $(date -u +%s) - released ) / 86400 ))
+  if (( age_days < SOAK_DAYS )); then
+    if (( ALLOW_FRESH )); then
+      cr_proved "the release is ${age_days} days old, taken early with --allow-fresh"
+    else
+      cr_die "${NEW} was released ${age_days} days ago; a release is taken only once it has been out ${SOAK_DAYS} days. Pass --allow-fresh only for a fix to a flaw known to be exploited on a publicly exposed system. Nothing changed."
+    fi
+  fi
 fi
 
 FETCH="${FOOTBAG_BUMP_FETCH:-}"

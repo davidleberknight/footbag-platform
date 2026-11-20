@@ -17,6 +17,7 @@ import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { dateOnly, DAY_MS } from '../fixtures/clock';
 
 const SCRIPT = join(process.cwd(), 'scripts/bump-tool.sh');
 const NEW_BYTES = 'jq 1.8.2 release bytes\n';
@@ -285,6 +286,55 @@ describe('the Amazon Linux release and its image', () => {
     const noDigest = bump(['AMAZON_LINUX_RELEASE', '2023.13.20261101', '--apply'], registry({ 'amazonlinux:2023.13.20261101.0': null }));
     expect(noDigest.status).toBe(1);
     expect(readFileSync(list, 'utf-8')).toBe(AL_LIST);
+  });
+
+  /** A release name dated the given number of days before today (UTC). */
+  const releaseDaysAgo = (days: number) => `2023.13.${dateOnly(Date.now() - days * DAY_MS).replaceAll('-', '')}`;
+
+  it('refuses, changing nothing, a release under seven days old', () => {
+    // Defect caught: the hosts take a release the day it ships, before a broken
+    // one has been found and replaced.
+    const fresh = releaseDaysAgo(5);
+    const r = bump(['AMAZON_LINUX_RELEASE', fresh, '--apply'], registry({ [`amazonlinux:${fresh}.0`]: NEW_DIGEST }));
+    expect(r.status, r.out).toBe(1);
+    expect(report(r.out)).toContain('only once it has been out 7 days');
+    expect(readFileSync(list, 'utf-8')).toBe(AL_LIST);
+  });
+
+  it('takes a release that has been out over seven days', () => {
+    // Defect caught: the age check refuses a soaked release, so the hosts cannot be patched.
+    const soaked = releaseDaysAgo(8);
+    const r = bump(['AMAZON_LINUX_RELEASE', soaked, '--apply'], registry({ [`amazonlinux:${soaked}.0`]: NEW_DIGEST }));
+    expect(r.status, r.out).toBe(0);
+    expect(readFileSync(list, 'utf-8')).toContain(`AMAZON_LINUX_RELEASE=${soaked}\n`);
+  });
+
+  it('takes a fresh release with --allow-fresh, saying so in the report', () => {
+    // Defect caught: a fix for an exploited flaw cannot reach the hosts until the
+    // wait runs out, or skips it without the report saying so.
+    const fresh = releaseDaysAgo(1);
+    const r = bump(['AMAZON_LINUX_RELEASE', fresh, '--apply', '--allow-fresh'], registry({ [`amazonlinux:${fresh}.0`]: NEW_DIGEST }));
+    expect(r.status, r.out).toBe(0);
+    expect(report(r.out)).toContain('taken early with --allow-fresh');
+    expect(readFileSync(list, 'utf-8')).toContain(`AMAZON_LINUX_RELEASE=${fresh}\n`);
+  });
+
+  it('refuses a release name with no readable date, and --allow-fresh on any other key', () => {
+    // Defect caught: a release whose age cannot be read is taken as old enough,
+    // or the early-take flag is silently accepted where no age is checked.
+    const cases: [string, string][] = [
+      ['2023.13.latest', 'carries no release date'],
+      ['2023.13.20261345', 'carries no valid release date'],
+    ];
+    for (const [name, reason] of cases) {
+      const r = bump(['AMAZON_LINUX_RELEASE', name, '--apply'], registry({ [`amazonlinux:${name}.0`]: NEW_DIGEST }));
+      expect(r.status, `${name}: ${r.out}`).toBe(1);
+      // The reason must be listed as an error, not merely mentioned elsewhere in the report.
+      const errorBlock = report(r.out).split(/\n(?=[A-Z][A-Za-z ]+:\n)/)[0];
+      expect(errorBlock, name).toContain(reason);
+    }
+    expect(readFileSync(list, 'utf-8')).toBe(AL_LIST);
+    expect(bump(['DOCKER_ENGINE_HOST', '25.0.17', '--allow-fresh']).status).toBe(2);
   });
 });
 

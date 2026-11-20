@@ -41,7 +41,10 @@ maintainer weighs, never a limit.
 5. Recommend one set of bumps for the real findings, most urgent first: a flaw CISA lists as known
    exploited on a publicly exposed system ahead of everything; then other known-exploited flaws;
    then by EPSS and severity. Give each package, transitive ones included, the lowest release that
-   clears every one of its open advisories (never one advisory's fix), how it moves (a direct pin,
+   clears every one of its open advisories (never one advisory's fix) and has been published at
+   least seven days, with its publish date; where the only clearing release is younger, give the
+   date it becomes eligible, or recommend `--allow-fresh` when the flaw is known exploited on a
+   publicly exposed system. Then say how it moves (a direct pin,
    an override, a lockfile refresh within its parent's range, or a parent bump), a recommended
    time to move it, the owning script that moves it, and whether it moves a host pin (which means
    a host step on staging and then production). The maintainer picks.

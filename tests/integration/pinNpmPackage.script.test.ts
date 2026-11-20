@@ -1,7 +1,8 @@
 /**
  * scripts/pin-npm-package.sh, the only way an npm version pin changes.
  *
- * Contract: a pin moves only to an exact, published version, never down unless
+ * Contract: a pin moves only to an exact, published version at least seven days
+ * old unless asked, never down unless
  * asked, only when package.json and the lockfile start in step, and only when the
  * lockfile moves no package but the named one unless the caller accepts the rest.
  * Every refusal leaves both files byte-identical. A result the version-pin gate
@@ -20,6 +21,7 @@ import { fileURLToPath } from 'node:url';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
+import { isoFromNow, DAY_MS, HOUR_MS } from '../fixtures/clock';
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const SCRIPT = join(REPO_ROOT, 'scripts', 'pin-npm-package.sh');
@@ -40,6 +42,13 @@ const STUB_NPM = [
   'if [[ "$1" == "--prefix" ]]; then dir="$2"; shift 2; fi',
   'case "$1" in',
   '  view)',
+  '    # `view <name> time --json`: every published version at STUB_PUBLISHED_AT,',
+  '    # in the registry\'s own timestamp form; "none" gives no times at all.',
+  '    if [[ "${3:-}" == "time" ]]; then',
+  '      if [[ "${STUB_PUBLISHED_AT:-}" == none ]]; then echo "{}"; exit 0; fi',
+  '      printf \'%s\\n\' ${STUB_PUBLISHED:-} | jq -R . | jq -s --arg t "${STUB_PUBLISHED_AT:-2000-01-01T00:00:00.000Z}" \'map({key: ., value: $t}) | from_entries\'',
+  '      exit 0',
+  '    fi',
   '    v="${2##*@}"',
   '    [[ " ${STUB_PUBLISHED:-} " == *" $v "* ]] && echo "$v"',
   '    exit 0 ;;',
@@ -99,6 +108,7 @@ const LOCK = {
 
 interface Opts {
   published?: string;
+  publishedAt?: string;
   collateral?: string;
   ciExit?: number;
   gateExit?: number;
@@ -128,6 +138,7 @@ function run(args: string[], o: Opts = {}) {
       FOOTBAG_NPM_BIN: join(tree, 'bin', 'npm'),
       STUB_LOG: log,
       STUB_PUBLISHED: o.published ?? '5.0.12 6.16.0 10.4.1 10.5.0 5.1.0 5.2.0 4.4.0 4.3.0',
+      STUB_PUBLISHED_AT: o.publishedAt ?? '',
       STUB_COLLATERAL: o.collateral ?? '',
       STUB_CI_EXIT: String(o.ciExit ?? 0),
     },
@@ -171,6 +182,10 @@ describe('pin-npm-package.sh: what it refuses, leaving both files untouched', ()
     ['a new lock that does not install', ['brace-expansion', '5.0.12'], { ciExit: 1 }, 'npm ci from the new lock failed'],
     ['a package.json and lock already out of step', ['brace-expansion', '5.0.12'],
       { lock: { ...LOCK, packages: { ...LOCK.packages, 'node_modules/qs': entry('6.15.0') } } }, 'out of step'],
+    ['a version published just under seven days ago', ['brace-expansion', '5.0.12'],
+      { publishedAt: isoFromNow(-(7 * DAY_MS - HOUR_MS)) }, 'only once it has been out 7 days'],
+    ['a version the registry gives no publish time for', ['brace-expansion', '5.0.12'],
+      { publishedAt: 'none' }, 'no publish time'],
   ])('refuses %s', (_label, args, opts, reason) => {
     const r = run(args, opts);
     expect(r.status, r.out).toBe(1);
@@ -212,6 +227,23 @@ describe('pin-npm-package.sh: what it changes', () => {
     expect(r.lock.packages['node_modules/zod'].version).toBe('4.6.7');
     expect(r.lock.packages['node_modules/express'].version).toBe('5.1.0');
     expect(r.calls).toMatch(/^npm ci --no-audit --no-fund$/m);
+  });
+
+  // Defect caught: a version that has been out its full seven days is refused,
+  // so a soaked fix cannot be taken.
+  it('takes a version published just over seven days ago', () => {
+    const r = run(['brace-expansion', '5.0.12'], { publishedAt: isoFromNow(-(7 * DAY_MS + HOUR_MS)) });
+    expect(r.status, r.out).toBe(0);
+    expect(r.pkg.overrides['brace-expansion']).toBe('5.0.12');
+  });
+
+  // Defect caught: a fix for an exploited flaw cannot be taken the day it ships,
+  // or is taken without the run saying it skipped the wait.
+  it('takes a fresh version with --allow-fresh, saying so', () => {
+    const r = run(['--allow-fresh', 'brace-expansion', '5.0.12'], { publishedAt: isoFromNow(-HOUR_MS) });
+    expect(r.status, r.out).toBe(0);
+    expect(r.pkg.overrides['brace-expansion']).toBe('5.0.12');
+    expect(r.out).toContain('taken early with --allow-fresh');
   });
 
   // Defect caught: a moved package the caller reviewed and accepted is refused.
