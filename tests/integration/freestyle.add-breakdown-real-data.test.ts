@@ -110,6 +110,7 @@ const HELD_OUT_TRICKS = [
 ] as const;
 const heldOutWithPage: string[] = [];
 const heldOutMissingFromEmerging: string[] = [];
+let blockedNotATrick: string[] = [];
 
 beforeAll(async () => {
   createTestDb(dbPath).close();
@@ -135,7 +136,7 @@ beforeAll(async () => {
 
   const rows = db.prepare(
     `SELECT slug, base_trick, operational_notation FROM freestyle_tricks
-      WHERE is_active = 1 AND category <> 'modifier'`,
+      WHERE is_active = 1 AND COALESCE(category, '') <> 'modifier'`,
   ).all() as { slug: string; base_trick: string | null; operational_notation: string | null }[];
   const linkRows = db.prepare(
     'SELECT trick_slug, modifier_slug FROM freestyle_trick_modifier_links',
@@ -204,6 +205,10 @@ beforeAll(async () => {
     ).all(...HELD_OUT_TRICKS) as { slug: string; canonical_name: string }[]).map(r => [r.slug, r.canonical_name]),
   );
   heldDb.close();
+  const { DOCTRINE_BLOCKED_SLUGS } = await import('../../src/services/freestyleService');
+  const activeSlugs = new Set(rows.map(r => r.slug));
+  blockedNotATrick = [...DOCTRINE_BLOCKED_SLUGS].filter(slug => !activeSlugs.has(slug));
+
   const { NotFoundError } = await import('../../src/services/serviceErrors');
   const emerging = JSON.stringify(freestyleService.getObservationalLayerPage().content);
   for (const slug of HELD_OUT_TRICKS) {
@@ -284,6 +289,15 @@ describe('a trick with an open question carries the notice the ledger sets', () 
     for (const [slug, aspect] of REVIEW_ASPECT_SAMPLES) {
       expect(reviewAspectSeen.get(slug), slug).toBe(aspect);
     }
+  });
+});
+
+describe('the first-class blocked list names real tricks', () => {
+  // Defect caught: a blocked entry spelled with hyphens, or naming a set or a
+  // retired row, matches nothing, so a trick it was meant to hold back is
+  // promoted to a first-class page while its question is still open.
+  it('names only active tricks, in their dictionary slug form', () => {
+    expect(blockedNotATrick).toEqual([]);
   });
 });
 

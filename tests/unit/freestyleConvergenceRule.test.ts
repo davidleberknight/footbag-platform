@@ -22,7 +22,7 @@
  *   - H2 / H3 / H5 / H6 guardrails fire as expected.
  */
 import { describe, it, expect } from 'vitest';
-import { assertFirstClassConvergence } from '../../src/services/freestyleService';
+import { assertFirstClassConvergence, DOCTRINE_BLOCKED_SLUGS } from '../../src/services/freestyleService';
 
 // Standard modifier-table fixture mirroring the DB shape: every modifier
 // carries equal add_bonus and add_bonus_rotational (atomic is +1 on any base).
@@ -200,25 +200,31 @@ describe('assertFirstClassConvergence — flat derivation path', () => {
 });
 
 describe('assertFirstClassConvergence — doctrine-blocked guard', () => {
-  it.each([
-    'nemesis', 'sumo', 'bullwhip', 'double-down', 'terrage', 'datw',
-    'omelette', 'fury', 'surging', 'sailing', 'shooting',
-    'jani-walker', 'reaper', 'refraction', 'blistering', 'nuclear',
-  ])('%s remains governance-blocked via DOCTRINE_BLOCKED_SLUGS', (slug) => {
+  const blockedRow = (slug: string) => ({
+    canonical_name: slug,
+    adds: 5,
+    base_trick: 'mirage',
+    notation: 'NOT EMPTY',
+  });
+
+  // Defect caught: a trick held on an open question reaches a first-class page
+  // because the guard stopped consulting the list.
+  it('blocks every trick the list names', () => {
+    expect(DOCTRINE_BLOCKED_SLUGS.size).toBeGreaterThan(0);
+    for (const slug of DOCTRINE_BLOCKED_SLUGS) {
+      const result = assertFirstClassConvergence(slug, blockedRow(slug), [], modifierTable, 2);
+      expect(result.status, slug).toBe('governance-blocked');
+      expect(result.diagnostic, slug).toBe('workbook doctrine blocker');
+    }
+  });
+
+  // Defect caught: a trick the curator promoted to first-class is demoted by a
+  // stale blocked entry naming it.
+  it('does not block a trick promoted to first-class', () => {
     const result = assertFirstClassConvergence(
-      slug,
-      {
-        canonical_name: slug,
-        adds: 5,
-        base_trick: 'mirage',
-        notation: 'NOT EMPTY',
-      },
-      [],
-      modifierTable,
-      2,
+      'double_around_the_world', blockedRow('double_around_the_world'), [], modifierTable, 2,
     );
-    expect(result.status).toBe('governance-blocked');
-    expect(result.diagnostic).toBe('workbook doctrine blocker');
+    expect(result.diagnostic).not.toBe('workbook doctrine blocker');
   });
 
   it('witchdoctor is NOT in DOCTRINE_BLOCKED_SLUGS anymore', () => {

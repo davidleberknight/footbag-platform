@@ -157,13 +157,13 @@ collapse; observational topology never masquerades as canonical ontology.
 
 ### §F5 Modifier single-authority drift
 
-`src/content/freestyleOperatorReference.ts` is the canonical source for every operator's
-ADD value, structure, and cross-axis behavior; drift between it, the modifier registry
-(`freestyle_trick_modifiers`), and any rendered surface is a bug. Compare against the
+The modifier registry (`freestyle_trick_modifiers`) is the canonical source for every
+operator's ADD value, and the `freestyle_operators` table for its structure and cross-axis
+behavior; drift between them and any rendered surface is a bug. Compare against the
 registry, not the `category = 'modifier'` rows of `freestyle_tricks`, which are link
 targets. Corollaries: no primitive-modifier row for compound concepts the doctrine defines
 as compositions (the dictionary skill names the canonical example), and operator pages
-agree with the reference.
+agree with the registry and the operators table.
 
 ### §F6 Alias and resolver invariants
 

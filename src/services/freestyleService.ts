@@ -1330,13 +1330,6 @@ export interface FreestyleTrickContent {
     totalAdd:      number;  // rev(0) is +0, so totalAdd == baseAdd
     rev0Explainer: string;  // shared rev(0) operator explainer
   } | null;
-  // Placeholder-description suppression. True
-  // when the DB `description` matches a known placeholder pattern
-  // (X-modified Y / X-and-Y modified Z / "Popular freestyle trick.").
-  // Template suppresses the literal description and renders the
-  // service-shaped decomposition pill instead. DB row is NEVER
-  // mutated — suppression is render-only.
-  descriptionIsPlaceholder: boolean;
   // True when the About section has at least one row to show; the section is
   // omitted otherwise.
   aboutHasContent: boolean;
@@ -3294,7 +3287,9 @@ export function getFirstClassTier(slug: string): 'tier-1' | 'tier-2' | null {
 // legacy_data/scripts/build_trick_reconciliation_workbook.py; this TS
 // snapshot is consumed by the convergence checker for the H7 disqualifying
 // gate. Update when workbook status changes for any of these slugs.
-const DOCTRINE_BLOCKED_SLUGS: ReadonlySet<string> = new Set([
+// Each entry is an active trick slug, in the dictionary's underscore form, so
+// the gate can actually match it.
+export const DOCTRINE_BLOCKED_SLUGS: ReadonlySet<string> = new Set([
   // derived_add_mismatch
   // furious-osis excluded: ruled a two-dex set
   // (modifier weight 1 → 2); 3+2=5 now converges.
@@ -3303,13 +3298,13 @@ const DOCTRINE_BLOCKED_SLUGS: ReadonlySet<string> = new Set([
   // via COMPOSITE_DERIVATIONS map + deriveComputedAddFromComposite.
   'nemesis', 'sumo',
   // wave2_blocked
-  'bullwhip', 'double-down', 'terrage', 'datw',
+  'bullwhip', 'terrage',
   // add_disagreement (open; not doctrine-locked)
-  'omelette', 'fury', 'surging', 'sailing', 'shooting',
+  'fury', 'surging',
   // curator_hold
   // guay released: curator resolved as pickup-pattern dex
   // primitive with inside-stall terminus; promoted to first-class.
-  'jani-walker', 'reaper', 'refraction', 'blistering', 'nuclear',
+  'jani_walker', 'reaper', 'refraction',
 ]);
 
 // Curator-published flag-component decompositions for atomic singletons.
@@ -5915,12 +5910,6 @@ export const freestyleService = {
               rev0Explainer: REV_ZERO_EXPLAINER,
             };
           })(),
-          // Suppress a structural-placeholder description (a formula-embedded
-          // backfill or a thin auto-generated restatement) in favour of the
-          // structured-decomposition pill. Computed on the effective,
-          // override-resolved description so a clean curator override always
-          // renders even when the underlying row is a formula backfill.
-          descriptionIsPlaceholder: isDescriptionStructuralPlaceholder(dictEntry?.description ?? null),
         };
         // The About section renders only when one of its rows has something to
         // show; each term mirrors one row of the About partial, so a trick with
@@ -5928,7 +5917,7 @@ export const freestyleService = {
         // notes) carries no empty heading.
         const d = shaped.dictEntry;
         const aboutHasContent = !!d && (
-          (!!d.description && !shaped.descriptionIsPlaceholder)
+          !!d.description
           || d.isModifier
           || !!shaped.buildPath
           || (!!d.baseTrick && !shaped.modifierLayering)

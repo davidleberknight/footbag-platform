@@ -127,11 +127,11 @@ Public-facing descriptions are neutral and instructional. No reviewer names ("pe
 
 ## 2. Modifier Layer
 
-**Single-authority rule (operator / modifier doctrine).** `src/content/freestyleOperatorReference.ts` is the CANONICAL source for every operator / modifier's ADD value, structure, and X-Dex behavior. All other operator/modifier-describing surfaces are SECONDARY and must stay consistent with it: `freestyleStructuralFactNotes.ts`, the DB `freestyle_trick_modifiers` registry, and the public glossary operator text. When operator doctrine changes, edit `operatorReference.ts` first, then bring the secondary surfaces into line; never let a secondary surface assert a contradicting value. Drift between them is a bug.
+**Single-authority rule (operator / modifier doctrine).** The modifier registry (`freestyle/inputs/base_dictionary/trick_modifiers.csv` before cutover, the `freestyle_trick_modifiers` table after) is the CANONICAL source for every operator / modifier's ADD value, and the `freestyle_operators` table for its structure and X-Dex behavior, as `freestyle/doctrine/README.md` sets out. Every other operator/modifier-describing surface, the public glossary operator text included, is SECONDARY and must stay consistent with them. When operator doctrine changes, change the registry or the operators table first, then bring the secondary surfaces into line; never let a secondary surface assert a contradicting value. Drift between them is a bug.
 
 Use the modifier system for structural components that alter tricks (atomic, paradox, gyro, spinning, stepping, symposium, pogo).
 
-- Some modifiers add ADDs; some do not (Pogo is a set but does not add ADD).
+- Some modifiers add ADDs; some do not. Pogo the modifier adds +1, while the standalone pogo set is 0 ADD (`freestyle/doctrine/RED_RULINGS.md`).
 - Some concepts exist both as a trick and a modifier form (Barrage is a standalone trick; barraging modifies another trick).
 - Do not enforce ADD math globally unless expert-reviewed.
 
