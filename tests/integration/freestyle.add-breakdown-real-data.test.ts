@@ -92,6 +92,10 @@ const REVIEW_ASPECT_SAMPLES: readonly (readonly [string, string | null])[] = [
   ['mind_bender', 'identity'],     // possibly Ducking Paradox Blender
   ['tap', 'positional'],           // tapping side registration
   ['butterfly', 'notation'],       // shares its notation with the reverse whirl
+  // Kept in the dictionary with an incomplete formula only because each carries
+  // a record or a tutorial, so the notice is what keeps the page honest.
+  ['terrage', 'notation'],
+  ['pendulum', 'notation'],
   ['whirl', null],                 // settled
 ];
 const reviewAspectSeen = new Map<string, string | null>();
