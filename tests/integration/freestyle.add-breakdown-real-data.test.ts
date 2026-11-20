@@ -77,6 +77,14 @@ let rendered = 0;
 let nameModifierGaps: string[] = [];
 let butterflySideFolds: string[] = [];
 
+// Tricks whose teaching prose stated one side of an open rules question as
+// settled (sumo's X-Dex, Blizzard's support foot, Reverse Magellan's direction
+// or side). The prose is cleared until the question is ruled; the page keeps
+// its notation and ADD.
+const HELD_PROSE_TRICKS = ['sumo', 'blizzard', 'reverse_magellan'] as const;
+const heldProseShown: string[] = [];
+const heldProseStructure: string[] = [];
+
 beforeAll(async () => {
   createTestDb(dbPath).close();
   for (const [name, args] of DICTIONARY_LOADERS) {
@@ -154,6 +162,17 @@ beforeAll(async () => {
     const sum = parts.reduce((total, part) => total + part, 0);
     if (sum !== Number(trick.adds)) unbalanced.push(trick.slug);
   }
+
+  for (const slug of HELD_PROSE_TRICKS) {
+    const page = await freestyleService.getTrickDetailPage(slug);
+    if (page?.content?.dictEntry?.description || page?.content?.ux2Pilot?.hasTechniqueNotes) {
+      heldProseShown.push(slug);
+    }
+    // The settled structure stays: the trick still renders its notation and ADD.
+    if (!page?.content?.operationalNotation || !page?.content?.dictEntry?.adds) {
+      heldProseStructure.push(slug);
+    }
+  }
 }, 600_000);
 
 afterAll(() => cleanupTestDb(dbPath));
@@ -200,5 +219,19 @@ describe('a butterfly compound keeps the far-side butterfly dexterity', () => {
   // states, so a visitor cannot tell it from the same-side variant.
   it('no active butterfly compound writes the either-side fold', () => {
     expect(butterflySideFolds).toEqual([]);
+  });
+});
+
+describe('a trick held on an open question shows no teaching prose', () => {
+  // Defect caught: a visitor reads an opening or Technique Notes that teach one
+  // side of an open rules question as the settled movement.
+  it('renders no opening and no Technique Notes on the held tricks', () => {
+    expect(heldProseShown).toEqual([]);
+  });
+
+  // Defect caught: clearing the prose also took the settled structure, leaving
+  // a page with nothing to read.
+  it('still renders their notation and ADD', () => {
+    expect(heldProseStructure).toEqual([]);
   });
 });

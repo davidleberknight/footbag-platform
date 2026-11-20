@@ -66,11 +66,16 @@ SOURCE_ASSERTABLE_FIELDS = {"adds", "notation", "category"}
 # Explicit SQL-NULL sentinel for corrections. A blank new_value means "no
 # correction" (skip), and an empty base_trick otherwise defaults the family to
 # the trick's own slug, so there is no way to express "no family / no base" for a
-# canonical folk compound without an explicit marker. A new_value of \N clears
-# the column to SQL NULL. Only the nullable relationship columns accept it; every
-# other field rejects it so a stray \N never lands as literal text.
+# canonical folk compound without an explicit marker. The public prose columns
+# need the same marker to withdraw a page's opening or Technique Notes while the
+# question they take a side on is open. A new_value of \N clears the column to
+# SQL NULL. Only these nullable columns accept it; every other field rejects it
+# so a stray \N never lands as literal text.
 NULL_CLEAR_SENTINEL = r"\N"
-NULLABLE_RELATIONSHIP_FIELDS = frozenset({"trick_family", "base_trick"})
+NULL_CLEARABLE_FIELDS = frozenset({
+    "trick_family", "base_trick",
+    "description", "execution_summary", "learning_notes", "prerequisite_notes",
+})
 
 
 def trick_name_to_slug(name: str) -> str:
@@ -338,11 +343,11 @@ def load_corrections(conn: sqlite3.Connection, corrections_csv: Path, loaded_at:
                 skipped.append((slug, field, "trick not found"))
                 continue
 
-            # Explicit null-clear: \N sets a nullable relationship column to SQL
+            # Explicit null-clear: \N sets a clearable nullable column to SQL
             # NULL. Rejected on any other field so the sentinel never becomes a
             # literal value; empty (skip) and ordinary slugs keep their behavior.
             if new_value == NULL_CLEAR_SENTINEL:
-                if field not in NULLABLE_RELATIONSHIP_FIELDS:
+                if field not in NULL_CLEARABLE_FIELDS:
                     skipped.append((slug, field, r"\N null-clear unsupported for this field"))
                     continue
                 conn.execute(

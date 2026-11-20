@@ -6,8 +6,10 @@ base_trick otherwise defaults the family to the trick's own slug (an orphaned
 family-of-one), and a blank correction value means "no correction", so there is
 no way to express a null relationship without an explicit marker. A correction
 whose new_value is the sentinel \\N clears the column to SQL NULL, scoped to the
-nullable relationship columns (trick_family, base_trick). Any other field rejects
-the sentinel rather than writing it as literal text.
+nullable relationship columns (trick_family, base_trick) and the nullable public
+prose columns (description and the three Technique Notes fields), so a page's
+teaching prose can be withdrawn. Any other field rejects the sentinel rather than
+writing it as literal text.
 
 Run from repo root:
     python -m pytest legacy_data/tests/test_red_additions_null_clear.py -v
@@ -95,6 +97,39 @@ def test_null_clear_parsed_and_applied(tmp_path: Path) -> None:
     # The sentinel on an unsupported field is rejected: adds keeps its real value,
     # never the literal sentinel and never NULL.
     assert got["adds"] == "2", f"adds must be unchanged (\\N rejected on non-relationship field), got {got['adds']!r}"
+
+
+def test_null_clear_withdraws_public_prose(tmp_path: Path) -> None:
+    # Defect caught: a correction meant to withdraw a page's opening and
+    # Technique Notes is skipped, so the page keeps teaching the reading it
+    # was withdrawn for.
+    db = make_db(tmp_path)
+    additions = write_csv(tmp_path / "add.csv", ADDITIONS_FIELDS, [
+        {"canonical_name": "prosetest", "adds": "3", "base_trick": "", "category": "compound",
+         "aliases": "", "modifier_links": "", "description": "An opening to withdraw.",
+         "review_status": "expert_reviewed", "is_active": "1", "review_note": ""},
+    ])
+    prose = ["execution_summary", "learning_notes", "prerequisite_notes"]
+    corrections = write_csv(tmp_path / "corr.csv", CORRECTIONS_FIELDS, [
+        *({"slug": "prosetest", "field": f, "old_value": "", "new_value": f"Notes in {f}.",
+           "source_note": "seed"} for f in prose),
+        *({"slug": "prosetest", "field": f, "old_value": "", "new_value": r"\N",
+           "source_note": "withdraw"} for f in ["description", *prose]),
+    ])
+
+    r = run_loader(db, additions, corrections)
+    assert r.returncode == 0, f"loader failed.\nstdout: {r.stdout}\nstderr: {r.stderr}"
+
+    conn = sqlite3.connect(db)
+    try:
+        got = conn.execute(
+            "SELECT description, execution_summary, learning_notes, prerequisite_notes, adds "
+            "FROM freestyle_tricks WHERE slug = 'prosetest'"
+        ).fetchone()
+    finally:
+        conn.close()
+    assert got[:4] == (None, None, None, None), f"prose must be cleared to SQL NULL, got {got[:4]!r}"
+    assert got[4] == "3", "withdrawing prose must not touch the ADD"
 
 
 def test_null_clear_idempotent_and_survives_rebuild(tmp_path: Path) -> None:
