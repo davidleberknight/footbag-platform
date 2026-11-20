@@ -891,6 +891,9 @@ export interface FreestyleTrickOverrides {
   reverse_pair_base?:           string | null;
   family_override?:             string | null;
   trick_kind?:                  string | null;
+  // The aspect of the definition under review; NULL on a settled trick, which
+  // is what the pipeline leaves on every row the corrections ledger does not name.
+  review_aspect?:               string | null;
   terminal_cohort?:             string | null;
   terminal_cohort_position?:    number | null;
   add_derivation?:              string | null;
@@ -914,11 +917,11 @@ export function insertFreestyleTrick(
        notation_evidence_basis, notation_derivation_method, notation_convention_id,
        trick_origin_producer,
        about_derivatives, about_naming_note, reverse_pair_base, family_override,
-       trick_kind, terminal_cohort, terminal_cohort_position,
+       trick_kind, review_aspect, terminal_cohort, terminal_cohort_position,
        add_derivation, formula_operator, expanded_notation,
        movement_notation_subtitle, execution_notation_subtitle)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     slug,
     o.canonical_name ?? slug.replace(/-/g, ' '),
@@ -950,6 +953,7 @@ export function insertFreestyleTrick(
     o.reverse_pair_base          ?? null,
     o.family_override            ?? null,
     o.trick_kind                 ?? null,
+    o.review_aspect              ?? null,
     o.terminal_cohort            ?? null,
     o.terminal_cohort_position   ?? null,
     o.add_derivation             ?? null,

@@ -1223,6 +1223,10 @@ export interface FreestyleTrickContent {
   // Curator naming note for a community name the alias line leaves out; null
   // when the trick's about_naming_note column is empty.
   aboutNamingNote: string | null;
+  // The "Definition under review" notice: the one aspect of the definition an
+  // open question could still change, as a line for the page; null when the
+  // definition is settled.
+  reviewNotice: { heading: string; line: string } | null;
   // Operational notation block. Renders in the
   // "Set notation (operational)" section between semantic notation and
   // editorial decomposition. Null when the row has no operational_notation
@@ -4494,6 +4498,23 @@ const FEATURED_MEDIA_EMPTY_GENERIC =
 const FEATURED_MEDIA_EMPTY_WITH_RECORD =
   "See the record-holder demonstration in the records below.";
 
+// The one place a review aspect becomes page wording. A narrow line names the
+// single open aspect, so the page never reads as if the whole trick were
+// unverified, and every settled fact around it renders unchanged. An unknown
+// value shows no notice rather than a wrong one; the schema CHECK holds the set.
+export const REVIEW_NOTICE_HEADING = 'Definition under review.';
+export const REVIEW_NOTICE_LINES: Readonly<Record<string, string>> = {
+  add:        'ADD accounting under review.',
+  identity:   'Canonical identity under review.',
+  positional: 'Positional interpretation under review.',
+  notation:   'Exact notation under review.',
+};
+
+function shapeReviewNotice(aspect: string | null): { heading: string; line: string } | null {
+  const line = aspect ? REVIEW_NOTICE_LINES[aspect] : undefined;
+  return line ? { heading: REVIEW_NOTICE_HEADING, line } : null;
+}
+
 function shapeUx2PilotFromRow(
   row: FreestyleTrickDetailRow | undefined,
   recordCount: number,
@@ -5703,6 +5724,7 @@ export const freestyleService = {
           },
           aboutDerivatives: dictRow?.about_derivatives ?? null,
           aboutNamingNote:  dictRow?.about_naming_note ?? null,
+          reviewNotice: shapeReviewNotice(dictRow?.review_aspect ?? null),
           notationDisplay: (() => {
             if (!dictRow) return null;
             // Rendering hygiene: when the Movement (JOB) string is byte-identical

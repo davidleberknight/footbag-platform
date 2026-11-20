@@ -152,6 +152,14 @@
           <small id="trick-trickKind-hint" class="form-hint">Only a trick is listed in the trick browse.</small>
         </div>
         <div class="form-field">
+          <label for="trick-reviewAspect">Under review</label>
+          <select id="trick-reviewAspect" name="reviewAspect" aria-describedby="trick-reviewAspect-hint">
+            {{#each content.reviewAspectOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
+          </select>
+          {{#if content.fieldErrors.reviewAspect}}<p class="form-field-error" role="alert">{{content.fieldErrors.reviewAspect}}</p>{{/if}}
+          <small id="trick-reviewAspect-hint" class="form-hint">The one part of this trick's definition an open question could still change. The trick page shows a "Definition under review" notice naming it. Choose Settled once the question is ruled.</small>
+        </div>
+        <div class="form-field">
           <label for="trick-terminalCohort">Lands in</label>
           <input type="text" id="trick-terminalCohort" name="terminalCohort" value="{{content.fields.terminalCohort}}" aria-describedby="trick-terminalCohort-hint" />
           {{#if content.fieldErrors.terminalCohort}}<p class="form-field-error" role="alert">{{content.fieldErrors.terminalCohort}}</p>{{/if}}

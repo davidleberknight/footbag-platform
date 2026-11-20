@@ -273,6 +273,7 @@ beforeAll(async () => {
     review_status: 'curated', is_active: 1,
     about_derivatives: 'Seed derivatives note.', about_naming_note: 'Seed naming note.',
     reverse_pair_base: 'butterfly', family_override: 'rev_whirl', trick_kind: 'operator',
+    review_aspect: 'positional',
     terminal_cohort: 'whirl', terminal_cohort_position: 4,
   });
   insertFreestyleTrick(db, {
@@ -895,7 +896,7 @@ describe('POST/GET /admin/freestyle/tricks/:slug/edit — curator page and brows
   function factsRow(slug: string) {
     return db.prepare(
       `SELECT about_derivatives, about_naming_note, reverse_pair_base, family_override,
-              trick_kind, terminal_cohort, terminal_cohort_position
+              trick_kind, review_aspect, terminal_cohort, terminal_cohort_position
        FROM freestyle_tricks WHERE slug = ?`,
     ).get(slug) as Record<string, string | number | null>;
   }
@@ -904,7 +905,7 @@ describe('POST/GET /admin/freestyle/tricks/:slug/edit — curator page and brows
   }
   const FACT_COLUMNS = [
     'about_derivatives', 'about_naming_note', 'reverse_pair_base', 'family_override',
-    'trick_kind', 'terminal_cohort', 'terminal_cohort_position',
+    'trick_kind', 'review_aspect', 'terminal_cohort', 'terminal_cohort_position',
   ];
 
   // Defect caught: a curator cannot see the stored fact, so the next save of
@@ -919,6 +920,8 @@ describe('POST/GET /admin/freestyle/tricks/:slug/edit — curator page and brows
     expect(res.text).toContain('name="terminalCohort" value="whirl"');
     expect(res.text).toContain('name="terminalCohortPosition" value="4"');
     expect(res.text).toMatch(/<option value="operator" selected>/);
+    // The stored review aspect is selected, so a save keeps the page's notice.
+    expect(res.text).toMatch(/<option value="positional" selected>/);
     // A stored kind of NULL is a trick, so the select offers the empty choice.
     expect(res.text).toContain('<option value="" >');
   });
@@ -931,12 +934,14 @@ describe('POST/GET /admin/freestyle/tricks/:slug/edit — curator page and brows
       canonicalName: 'Facts Save',
       aboutDerivatives: 'New derivatives.', aboutNamingNote: 'New naming.',
       reversePairBase: 'butterfly', familyOverride: 'rev_whirl', trickKind: 'pending-review',
+      reviewAspect: 'add',
       terminalCohort: 'whirl', terminalCohortPosition: '2',
     }));
     expect(res.status).toBe(303);
     const expected = {
       about_derivatives: 'New derivatives.', about_naming_note: 'New naming.',
       reverse_pair_base: 'butterfly', family_override: 'rev_whirl', trick_kind: 'pending-review',
+      review_aspect: 'add',
       terminal_cohort: 'whirl', terminal_cohort_position: 2,
     };
     expect(factsRow('facts_save')).toEqual(expected);
@@ -953,7 +958,7 @@ describe('POST/GET /admin/freestyle/tricks/:slug/edit — curator page and brows
     const res = await post('/admin/freestyle/tricks/facts_host/edit', admin(), validBody({
       canonicalName: 'Facts Host',
       aboutDerivatives: '', aboutNamingNote: '', reversePairBase: '', familyOverride: '',
-      trickKind: '', terminalCohort: '', terminalCohortPosition: '',
+      trickKind: '', reviewAspect: '', terminalCohort: '', terminalCohortPosition: '',
     }));
     expect(res.status).toBe(303);
     const cleared = Object.fromEntries(FACT_COLUMNS.map((c) => [c, null]));
@@ -971,6 +976,7 @@ describe('POST/GET /admin/freestyle/tricks/:slug/edit — curator page and brows
     ['a position below 1', { terminalCohort: 'whirl', terminalCohortPosition: '0' }, 'value="0"'],
     ['a family that is not on the public family list', { familyOverride: 'zz_no_such_family' }, 'zz_no_such_family'],
     ['a kind outside the set', { trickKind: 'zz_kind' }, 'name="trickKind"'],
+    ['a review aspect outside the set', { reviewAspect: 'zz_aspect' }, 'name="reviewAspect"'],
   ])('refuses %s with 422, keeps the submitted value, and writes nothing', async (_label, change, kept) => {
     const res = await post('/admin/freestyle/tricks/facts_guard/edit', admin(),
       validBody({ canonicalName: 'Facts Guard', familyOverride: 'rev_whirl', ...change }));

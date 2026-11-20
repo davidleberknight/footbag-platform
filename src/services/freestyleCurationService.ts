@@ -431,6 +431,7 @@ export interface FreestyleTrickEditFields {
   reversePairBase: string;
   familyOverride: string;
   trickKind: string;
+  reviewAspect: string;
   terminalCohort: string;
   terminalCohortPosition: string;
   addDerivation: string;
@@ -454,6 +455,7 @@ export interface FreestyleTrickEditContent {
   categoryOptions: FilterOption[];
   reviewStatusOptions: FilterOption[];
   trickKindOptions: FilterOption[];
+  reviewAspectOptions: FilterOption[];
   aliases: FreestyleTrickEditAlias[];
   sources: FreestyleTrickEditSource[];
   modifierLinks: FreestyleTrickEditModifierLink[];
@@ -564,6 +566,7 @@ export interface FreestyleTrickScalarInput {
   reversePairBase?: string;
   familyOverride?: string;
   trickKind?: string;
+  reviewAspect?: string;
   terminalCohort?: string;
   terminalCohortPosition?: string;
   addDerivation?: string;
@@ -643,6 +646,7 @@ interface CurationEditDbRow {
   reverse_pair_base: string | null;
   family_override: string | null;
   trick_kind: string | null;
+  review_aspect: string | null;
   terminal_cohort: string | null;
   terminal_cohort_position: number | null;
   add_derivation: string | null;
@@ -719,6 +723,18 @@ const TRICK_KIND_LABELS: Record<string, string> = {
   'pending-review': 'Pending review',
 };
 const TRICK_KIND_VALUES = ['modifier', 'operator', 'surface', 'pending-review'];
+
+// The aspect of a trick's definition still under review. An empty choice stores
+// NULL, a settled definition with no notice on the page. The schema CHECK holds
+// the same set; the trick page's notice wording is shaped in the page service.
+const REVIEW_ASPECT_LABELS: Record<string, string> = {
+  '':         'Settled',
+  add:        'ADD accounting',
+  identity:   'Canonical identity',
+  positional: 'Positional interpretation',
+  notation:   'Exact notation',
+};
+const REVIEW_ASPECT_VALUES = ['add', 'identity', 'positional', 'notation'];
 
 const CANONICAL_NAME_MAX = 200;
 // Upper bound on each editorial prose field, a safety cap against oversized
@@ -2232,6 +2248,7 @@ export const freestyleCurationService = {
       reversePairBase:           sub ? (sub.reversePairBase ?? '') : (row.reverse_pair_base ?? ''),
       familyOverride:            sub ? (sub.familyOverride ?? '') : (row.family_override ?? ''),
       trickKind:                 sub ? (sub.trickKind ?? '') : (row.trick_kind ?? ''),
+      reviewAspect:              sub ? (sub.reviewAspect ?? '') : (row.review_aspect ?? ''),
       terminalCohort:            sub ? (sub.terminalCohort ?? '') : (row.terminal_cohort ?? ''),
       terminalCohortPosition:    sub
         ? (sub.terminalCohortPosition ?? '')
@@ -2244,6 +2261,8 @@ export const freestyleCurationService = {
     };
     const trickKindOptions: FilterOption[] = ['', ...TRICK_KIND_VALUES]
       .map((v) => ({ value: v, label: TRICK_KIND_LABELS[v] ?? v, selected: v === fields.trickKind }));
+    const reviewAspectOptions: FilterOption[] = ['', ...REVIEW_ASPECT_VALUES]
+      .map((v) => ({ value: v, label: REVIEW_ASPECT_LABELS[v] ?? v, selected: v === fields.reviewAspect }));
 
     const categoryOptions: FilterOption[] = [
       { value: '', label: '(None)', selected: category === '' },
@@ -2277,6 +2296,7 @@ export const freestyleCurationService = {
         categoryOptions,
         reviewStatusOptions,
         trickKindOptions,
+        reviewAspectOptions,
         aliases,
         sources,
         modifierLinks,
@@ -2450,6 +2470,11 @@ export const freestyleCurationService = {
       fieldErrors.trickKind = 'Kind must be trick, modifier, operator, surface, or pending review.';
     }
 
+    const reviewAspect = emptyToNull(input.reviewAspect);
+    if (reviewAspect !== null && !REVIEW_ASPECT_VALUES.includes(reviewAspect)) {
+      fieldErrors.reviewAspect = 'Under review must be settled, ADD accounting, canonical identity, positional interpretation, or exact notation.';
+    }
+
     // The formula and the notation-heading subtitles are single lines. The
     // breakdown and the operators keep their brackets and plus signs, and the
     // expanded notation is notation, so none is cleaned as markup. Each is capped
@@ -2561,6 +2586,7 @@ export const freestyleCurationService = {
     if (reversePairBase !== (current.reverse_pair_base ?? null))   changedFields.push('reverse_pair_base');
     if (familyOverride !== (current.family_override ?? null))      changedFields.push('family_override');
     if (trickKind !== (current.trick_kind ?? null))                changedFields.push('trick_kind');
+    if (reviewAspect !== (current.review_aspect ?? null))          changedFields.push('review_aspect');
     if (terminalCohort !== (current.terminal_cohort ?? null))      changedFields.push('terminal_cohort');
     if (terminalCohortPosition !== (current.terminal_cohort_position ?? null)) changedFields.push('terminal_cohort_position');
     if (addDerivation !== comparableStored(current.add_derivation, 'notation'))       changedFields.push('add_derivation');
@@ -2588,6 +2614,7 @@ export const freestyleCurationService = {
       operational_notation_source: operationalNotationSource,
       about_derivatives: aboutDerivatives, about_naming_note: aboutNamingNote,
       reverse_pair_base: reversePairBase, family_override: familyOverride, trick_kind: trickKind,
+      review_aspect: reviewAspect,
       terminal_cohort: terminalCohort, terminal_cohort_position: terminalCohortPosition,
       add_derivation: addDerivation, formula_operator: formulaOperator,
       expanded_notation: expandedNotation,
@@ -2615,7 +2642,7 @@ export const freestyleCurationService = {
             description, shortDescription, executionSummary, learningNotes,
             prerequisiteNotes, pronunciation, operationalNotationSource,
             aboutDerivatives, aboutNamingNote, reversePairBase,
-            familyOverride, trickKind, terminalCohort, terminalCohortPosition,
+            familyOverride, trickKind, reviewAspect, terminalCohort, terminalCohortPosition,
             addDerivation, formulaOperator, expandedNotation,
             movementNotationSubtitle, executionNotationSubtitle, slug,
           );

@@ -56,6 +56,7 @@ export const TRICK_SAVE_FIELDS = [
   'reverse_pair_base',
   'family_override',
   'trick_kind',
+  'review_aspect',
   'terminal_cohort',
   'terminal_cohort_position',
   'add_derivation',

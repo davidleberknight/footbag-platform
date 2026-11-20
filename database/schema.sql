@@ -5331,6 +5331,13 @@ CREATE TABLE freestyle_tricks (
   -- NULL = a trick, listed in the browse views.
   trick_kind           TEXT
     CHECK (trick_kind IS NULL OR trick_kind IN ('modifier', 'operator', 'surface', 'pending-review')),
+  -- The one aspect of the trick's definition an open question could still
+  -- change: its ADD accounting, its canonical identity, its positional
+  -- interpretation, or its exact notation. The trick page shows a short
+  -- "Definition under review" notice naming it; every settled fact renders
+  -- unchanged. NULL = the definition is settled and no notice shows.
+  review_aspect        TEXT
+    CHECK (review_aspect IS NULL OR review_aspect IN ('add', 'identity', 'positional', 'notation')),
   -- The terminal trick whose "Tricks that land here" list names this trick, by
   -- slug, and this trick's place in that curated list. The order is authored,
   -- not derived. NULL = not in such a list.

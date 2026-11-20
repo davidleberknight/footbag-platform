@@ -15,6 +15,13 @@
 
 <div class="wrapper trick-shell">
 
+  {{!-- The notice band, first under the hero: the one aspect of the trick's
+       definition an open question could still change. Absent on a settled
+       trick; everything below renders the same either way. --}}
+  {{#if content.reviewNotice}}
+  <p class="notice-card notice-card--info" data-review-notice><strong>{{content.reviewNotice.heading}}</strong> {{content.reviewNotice.line}}</p>
+  {{/if}}
+
   {{#if content.trickTag}}
   {{> media-line id="media" display=content.trickTag galleryHref=content.referenceGalleryHref galleryLabel=content.referenceGalleryLabel}}
   {{/if}}

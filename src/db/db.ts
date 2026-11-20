@@ -2632,6 +2632,9 @@ export interface FreestyleTrickDetailRow extends FreestyleTrickRow {
   about_derivatives:           string | null;
   about_naming_note:           string | null;
   reverse_pair_base:           string | null;
+  // The aspect of the definition still under review, if any: one of 'add',
+  // 'identity', 'positional' or 'notation'.
+  review_aspect:               string | null;
   // The curator formula behind the Difficulty line, the expanded execution
   // notation, and the lines under the two notation headings.
   add_derivation:              string | null;
@@ -2756,7 +2759,7 @@ export const freestyleTricks = {
            short_description, execution_summary, learning_notes,
            prerequisite_notes, pronunciation,
            family_override, trick_kind, terminal_cohort, terminal_cohort_position,
-           about_derivatives, about_naming_note, reverse_pair_base,
+           about_derivatives, about_naming_note, reverse_pair_base, review_aspect,
            add_derivation, formula_operator, expanded_notation,
            movement_notation_subtitle, execution_notation_subtitle
     FROM freestyle_tricks
@@ -2817,7 +2820,8 @@ export const freestyleTricks = {
            description, short_description, execution_summary, learning_notes,
            prerequisite_notes, pronunciation, operational_notation_source,
            about_derivatives, about_naming_note, reverse_pair_base,
-           family_override, trick_kind, terminal_cohort, terminal_cohort_position,
+           family_override, trick_kind, review_aspect,
+           terminal_cohort, terminal_cohort_position,
            add_derivation, formula_operator, expanded_notation,
            movement_notation_subtitle, execution_notation_subtitle
     FROM freestyle_tricks
@@ -2884,7 +2888,7 @@ export const freestyleTricks = {
         execution_summary = ?, learning_notes = ?, prerequisite_notes = ?,
         pronunciation = ?, operational_notation_source = ?,
         about_derivatives = ?, about_naming_note = ?, reverse_pair_base = ?,
-        family_override = ?, trick_kind = ?,
+        family_override = ?, trick_kind = ?, review_aspect = ?,
         terminal_cohort = ?, terminal_cohort_position = ?,
         add_derivation = ?, formula_operator = ?, expanded_notation = ?,
         movement_notation_subtitle = ?, execution_notation_subtitle = ?,

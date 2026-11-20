@@ -56,7 +56,7 @@ TRICK_SAVE_FIELDS = frozenset({
     "short_description", "execution_summary", "learning_notes", "prerequisite_notes",
     "pronunciation", "operational_notation_source",
     "about_derivatives", "about_naming_note", "reverse_pair_base", "family_override",
-    "trick_kind", "terminal_cohort", "terminal_cohort_position",
+    "trick_kind", "review_aspect", "terminal_cohort", "terminal_cohort_position",
     "add_derivation", "formula_operator", "expanded_notation",
     "movement_notation_subtitle", "execution_notation_subtitle",
 })

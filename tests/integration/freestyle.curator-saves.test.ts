@@ -119,7 +119,7 @@ interface TrickRow {
   learning_notes: string | null; prerequisite_notes: string | null; pronunciation: string | null;
   operational_notation_source: string | null;
   about_derivatives: string | null; about_naming_note: string | null; reverse_pair_base: string | null;
-  family_override: string | null; trick_kind: string | null;
+  family_override: string | null; trick_kind: string | null; review_aspect: string | null;
   terminal_cohort: string | null; terminal_cohort_position: number | null;
   add_derivation: string | null; formula_operator: string | null; expanded_notation: string | null;
   movement_notation_subtitle: string | null; execution_notation_subtitle: string | null;
@@ -157,7 +157,8 @@ function formFor(row: TrickRow, changes: Record<string, string | boolean>) {
     pronunciation: row.pronunciation ?? '', operationalNotationSource: row.operational_notation_source ?? '',
     aboutDerivatives: row.about_derivatives ?? '', aboutNamingNote: row.about_naming_note ?? '',
     reversePairBase: row.reverse_pair_base ?? '', familyOverride: row.family_override ?? '',
-    trickKind: row.trick_kind ?? '', terminalCohort: row.terminal_cohort ?? '',
+    trickKind: row.trick_kind ?? '', reviewAspect: row.review_aspect ?? '',
+    terminalCohort: row.terminal_cohort ?? '',
     terminalCohortPosition: row.terminal_cohort_position === null ? '' : String(row.terminal_cohort_position),
     addDerivation: row.add_derivation ?? '', formulaOperator: row.formula_operator ?? '',
     expandedNotation: row.expanded_notation ?? '',

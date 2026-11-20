@@ -85,6 +85,17 @@ const HELD_PROSE_TRICKS = ['sumo', 'blizzard', 'reverse_magellan'] as const;
 const heldProseShown: string[] = [];
 const heldProseStructure: string[] = [];
 
+// One trick per review aspect the corrections ledger sets, plus a settled base,
+// each with the aspect its open question could change.
+const REVIEW_ASPECT_SAMPLES: readonly (readonly [string, string | null])[] = [
+  ['reactor', 'add'],              // the atomic-whirl X-Dex question
+  ['mind_bender', 'identity'],     // possibly Ducking Paradox Blender
+  ['tap', 'positional'],           // tapping side registration
+  ['butterfly', 'notation'],       // shares its notation with the reverse whirl
+  ['whirl', null],                 // settled
+];
+const reviewAspectSeen = new Map<string, string | null>();
+
 beforeAll(async () => {
   createTestDb(dbPath).close();
   for (const [name, args] of DICTIONARY_LOADERS) {
@@ -163,6 +174,14 @@ beforeAll(async () => {
     if (sum !== Number(trick.adds)) unbalanced.push(trick.slug);
   }
 
+  const { REVIEW_NOTICE_LINES } = await import('../../src/services/freestyleService');
+  const aspectOfLine = new Map(Object.entries(REVIEW_NOTICE_LINES).map(([a, l]) => [l, a]));
+  for (const [slug] of REVIEW_ASPECT_SAMPLES) {
+    const page = await freestyleService.getTrickDetailPage(slug);
+    const line = page?.content?.reviewNotice?.line ?? null;
+    reviewAspectSeen.set(slug, line === null ? null : (aspectOfLine.get(line) ?? `unknown line: ${line}`));
+  }
+
   for (const slug of HELD_PROSE_TRICKS) {
     const page = await freestyleService.getTrickDetailPage(slug);
     if (page?.content?.dictEntry?.description || page?.content?.ux2Pilot?.hasTechniqueNotes) {
@@ -219,6 +238,17 @@ describe('a butterfly compound keeps the far-side butterfly dexterity', () => {
   // states, so a visitor cannot tell it from the same-side variant.
   it('no active butterfly compound writes the either-side fold', () => {
     expect(butterflySideFolds).toEqual([]);
+  });
+});
+
+describe('a trick with an open question carries the notice the ledger sets', () => {
+  // Defect caught: the committed review aspects never reach the built
+  // dictionary, so every held trick reads as settled, or a settled one reads
+  // as under review.
+  it('renders the ledger aspect on a sample of each kind, and none on a settled trick', () => {
+    for (const [slug, aspect] of REVIEW_ASPECT_SAMPLES) {
+      expect(reviewAspectSeen.get(slug), slug).toBe(aspect);
+    }
   });
 });
 
