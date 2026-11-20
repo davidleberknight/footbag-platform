@@ -70,9 +70,10 @@ describe('test-deployed.sh', () => {
   });
 
   // Defect caught: the check against a deployed environment signs in through the
-  // persona switch, which writes an audit row on the deployed host, or registers
-  // anything beyond the anonymous page walk on either target.
-  it('registers only the anonymous page walk, on staging and on production alike', () => {
+  // persona switch, which writes an audit row on the deployed host, sends a
+  // state-changing request, or registers anything beyond the two anonymous
+  // read-only walks (the landing pages and the old-address redirects) on either target.
+  it('registers only the anonymous read-only walks, on staging and on production alike', () => {
     for (const target of ['staging', 'production']) {
       const res = spawnSync(path.join(process.cwd(), 'node_modules/.bin/playwright'), ['test', '-c', 'tests/playwright.deployed.config.ts', '--list'], {
         encoding: 'utf8',
@@ -81,11 +82,13 @@ describe('test-deployed.sh', () => {
       });
       expect(res.status, res.stderr).toBe(0);
       const listed = (res.stdout ?? '').split('\n').filter((l) => l.includes('deployed-browser.spec.ts'));
-      expect(listed.length, `${target}:\n${res.stdout}`).toBe(1);
-      expect(listed[0], target).toContain('anonymous landing pages');
+      expect(listed.length, `${target}:\n${res.stdout}`).toBe(2);
+      expect(listed.some((l) => l.includes('anonymous landing pages')), target).toBe(true);
+      expect(listed.some((l) => l.includes('old footbag.org address redirects')), target).toBe(true);
     }
     const spec = readFileSync(path.join(process.cwd(), 'tests/e2e/deployed/deployed-browser.spec.ts'), 'utf8');
     expect(spec).not.toContain('/dev/');
+    expect(spec).not.toMatch(/\.(post|put|patch|delete|fetch)\(/);
     // The local Playwright config never collects the deployed spec.
     expect(readFileSync(path.join(process.cwd(), 'tests/playwright.config.ts'), 'utf8')).toMatch(/testIgnore: \['deployed\/\*\*'[,\]]/);
   });

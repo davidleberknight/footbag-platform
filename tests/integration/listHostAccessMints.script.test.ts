@@ -20,7 +20,9 @@ import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
 import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 import { isoDaysAgo } from '../fixtures/clock';
-import { CAPTURED_PRODUCTION_EVENT, mintEvent, lookupEventsOutput } from '../fixtures/hostAccessMintEvents';
+import {
+  CAPTURED_ATTRIBUTED_EVENT, CAPTURED_PRODUCTION_EVENT, mintEvent, lookupEventsOutput,
+} from '../fixtures/hostAccessMintEvents';
 
 const SCRIPT = join(process.cwd(), 'scripts/list-host-access-mints.sh');
 // A day ago, to the second, in the form --since takes: inside the 90 days the
@@ -88,6 +90,17 @@ describe('list-host-access-mints.sh: classing each call', () => {
     expect(unattributed?.[1]).toBe('unattributed');
     expect(unattributed?.[4]).toBe('footbag-production-web');
     expect(r.stderr).toMatch(/unattributed mint at 2026-11-09T00:07:34Z by arn:aws:iam::111122223333:user\/footbag-operator from 203\.0\.113\.10/);
+  });
+
+  it('claims a captured attributed mint, whose application id sits mid-agent', () => {
+    // Defect caught: a parser that finds the app/ token only at the end of the
+    // user agent, where the captured CLI does not put it, so every real script mint
+    // lists as unattributed and the listing fails on routine work.
+    const r = run(['--since', SINCE], [CAPTURED_ATTRIBUTED_EVENT]);
+    expect(r.status, r.stderr).toBe(0);
+    expect(rowAt(r.rows, '2026-11-16T00:45:05Z')?.slice(1)).toEqual([
+      'claimed', 'arn:aws:iam::111122223333:user/footbag-operator', '203.0.113.10', 'footbag-staging-web', '-', 'footbag-install-known-hosts',
+    ]);
   });
 
   it('passes a listing of claimed calls only, and says claimed is not proved', () => {
