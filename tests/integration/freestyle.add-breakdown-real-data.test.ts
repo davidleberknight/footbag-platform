@@ -18,6 +18,8 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 
@@ -41,12 +43,39 @@ const KNOWN_UNBALANCED = new Set([
   'blurry_torque', 'blurry_whirl', 'blurry_whirling_swirl',
   'food_processor', 'genuphobia', 'mofly',
   'paratoxic', 'pixie_over_down',
-  'pixie_quantum_double_over_down_swirl', 'rage', 'spinning_miraging_symposium_torque',
+  'pixie_quantum_double_over_down_swirl', 'spinning_miraging_symposium_torque',
   'sumo', 'symposium_miraging_mirage', 'witchdoctor',
 ]);
 
+// Compounds whose name carries a registered modifier that neither the row nor
+// its base chain links, for a reason the links cannot fix yet: the modifier's
+// scoring or side is an open question (blurry, terraging, the pixie clippers),
+// the row has no base to compose on (the pogo rows), or the kick drops the
+// stall the modifier would land on. Named so the set can only shrink.
+const KNOWN_NAME_MODIFIER_GAPS = new Set([
+  'blurry_drifter', 'blurry_symposium_whirl', 'fairy_kick', 'pixie_kick',
+  'pixie_opposite_clipper', 'pixie_same_clipper', 'pogo_barfly', 'pogo_pickup',
+  'pogo_pickup_same_side', 'pogo_voodoo', 'stepping_butterfly_reverse_swirl',
+  'symposium_whirling_mirage', 'terraging_opposite_clipper', 'terraging_same_clipper',
+]);
+
+// The registered modifiers, read from the committed registry rather than from
+// the table the loaders under test write.
+const REGISTERED_MODIFIERS = new Set(
+  readFileSync(
+    path.join(__dirname, '..', '..', 'freestyle', 'inputs', 'base_dictionary', 'trick_modifiers.csv'),
+    'utf8',
+  )
+    .split('\n')
+    .slice(1)
+    .map(line => line.split(',')[0].trim())
+    .filter(Boolean),
+);
+
 let unbalanced: string[] = [];
 let rendered = 0;
+let nameModifierGaps: string[] = [];
+let butterflySideFolds: string[] = [];
 
 beforeAll(async () => {
   createTestDb(dbPath).close();
@@ -69,7 +98,47 @@ beforeAll(async () => {
         AND EXISTS (SELECT 1 FROM freestyle_trick_modifier_links l WHERE l.trick_slug = t.slug)
       ORDER BY t.slug`,
   ).all() as { slug: string; adds: string; base_adds: string }[];
+
+  const rows = db.prepare(
+    `SELECT slug, base_trick, operational_notation FROM freestyle_tricks
+      WHERE is_active = 1 AND category <> 'modifier'`,
+  ).all() as { slug: string; base_trick: string | null; operational_notation: string | null }[];
+  const linkRows = db.prepare(
+    'SELECT trick_slug, modifier_slug FROM freestyle_trick_modifier_links',
+  ).all() as { trick_slug: string; modifier_slug: string }[];
   db.close();
+
+  const linksOf = new Map<string, Set<string>>();
+  for (const l of linkRows) {
+    if (!linksOf.has(l.trick_slug)) linksOf.set(l.trick_slug, new Set());
+    linksOf.get(l.trick_slug)!.add(l.modifier_slug);
+  }
+  const baseOf = new Map(rows.map(r => [r.slug, r.base_trick]));
+  const carried = (slug: string): Set<string> => {
+    const out = new Set<string>();
+    const seen = new Set<string>();
+    let at: string | null | undefined = slug;
+    while (at && !seen.has(at)) {
+      seen.add(at);
+      for (const m of linksOf.get(at) ?? []) out.add(m);
+      const next = baseOf.get(at);
+      at = next === at ? null : next;
+    }
+    return out;
+  };
+  for (const r of rows) {
+    if (REGISTERED_MODIFIERS.has(r.slug)) continue;
+    // The last word is the base noun; the words before it are what the name claims.
+    const named = r.slug.split('_').slice(0, -1).filter(w => REGISTERED_MODIFIERS.has(w));
+    const have = carried(r.slug);
+    if (named.some(m => !have.has(m))) nameModifierGaps.push(r.slug);
+    // The butterfly default is the far side; only the same-side form asserts a
+    // near execution, and it is its own row.
+    if (r.slug.includes('butterfly') && !r.slug.includes('same_side')
+      && (r.operational_notation ?? '').includes('SAME/OP')) {
+      butterflySideFolds.push(r.slug);
+    }
+  }
 
   for (const trick of tricks) {
     const page = await freestyleService.getTrickDetailPage(trick.slug);
@@ -105,5 +174,31 @@ describe('every rendered ADD breakdown adds up', () => {
   it('lists only tricks that are still unbalanced', () => {
     const stillUnbalanced = new Set(unbalanced);
     expect([...KNOWN_UNBALANCED].filter(slug => !stillUnbalanced.has(slug))).toEqual([]);
+  });
+});
+
+describe('a compound links every scored modifier its name carries', () => {
+  // Defect caught: a trick named for a modifier, such as a pogo paradox mirage,
+  // carries no link to it, so its page drops the modifier from the breakdown
+  // and the facts block, and the by-modifier view never lists it. The check on
+  // rendered breakdowns above cannot see it, because it covers linked rows only.
+  it('finds no unlinked name modifier outside the known set', () => {
+    expect(nameModifierGaps.filter(slug => !KNOWN_NAME_MODIFIER_GAPS.has(slug))).toEqual([]);
+  });
+
+  // Defect caught: a known gap has been closed but is still listed, so a
+  // regression on it would pass unnoticed.
+  it('lists only gaps that are still open', () => {
+    const open = new Set(nameModifierGaps);
+    expect([...KNOWN_NAME_MODIFIER_GAPS].filter(slug => !open.has(slug))).toEqual([]);
+  });
+});
+
+describe('a butterfly compound keeps the far-side butterfly dexterity', () => {
+  // Defect caught: a butterfly compound's notation reads its butterfly
+  // dexterity as either side, against the far-side default the butterfly page
+  // states, so a visitor cannot tell it from the same-side variant.
+  it('no active butterfly compound writes the either-side fold', () => {
+    expect(butterflySideFolds).toEqual([]);
   });
 });
