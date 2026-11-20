@@ -4269,3 +4269,19 @@ trixie,review_aspect,,add,Open question still pending; clear once ruled.
 venom,review_aspect,,identity,Open question still pending; clear once ruled.
 voodoo,review_aspect,,identity,Open question still pending; clear once ruled.
 whirling_butterfly,review_aspect,,notation,Open question still pending; clear once ruled.
+bill_ted_s_excellent_adventure,is_active,1,0,"Held out of the main dictionary: no execution notation, and its ADD is 5 or 7 on an open question. Listed in Emerging Vocabulary until ruled."
+bill_ted_s_excellent_adventure,review_status,expert_reviewed,pending,Held out of the main dictionary until its open question is ruled.
+reverse_swirling_osis,is_active,1,0,"Held out of the main dictionary: its notation puts the reverse swirl on the opposite side, which the reverse-swirling question has not ruled. Listed in Emerging Vocabulary until ruled."
+reverse_swirling_osis,review_status,expert_reviewed,pending,Held out of the main dictionary until its open question is ruled.
+reverse_swirling_paradox_torque,is_active,1,0,"Held out of the main dictionary: its base contradicts its place in the reverse-swirling grid, which the reverse-swirling question has not ruled. Listed in Emerging Vocabulary until ruled."
+reverse_swirling_paradox_torque,review_status,expert_reviewed,pending,Held out of the main dictionary until its open question is ruled.
+terraging_illusion,is_active,1,0,"Held out of the main dictionary: no execution notation while the terraging-chain arithmetic is open. Listed in Emerging Vocabulary until ruled."
+terraging_illusion,review_status,expert_reviewed,pending,Held out of the main dictionary until its open question is ruled.
+terraging_legover,is_active,1,0,"Held out of the main dictionary: no execution notation while the terraging-chain arithmetic is open. Listed in Emerging Vocabulary until ruled."
+terraging_legover,review_status,expert_reviewed,pending,Held out of the main dictionary until its open question is ruled.
+terraging_mirage,is_active,1,0,"Held out of the main dictionary: no execution notation while the terraging-chain arithmetic is open. Listed in Emerging Vocabulary until ruled. Its folk nickname Entree (historical, not displayed) left the alias additions with it, because an alias may not name an inactive trick; restore that row when the trick returns."
+terraging_mirage,review_status,expert_reviewed,pending,Held out of the main dictionary until its open question is ruled.
+terraging_opposite_clipper,is_active,1,0,"Held out of the main dictionary: its notation scores two dexterities at 4 ADD against the registry's +3 terraging weight, which the terraging-chain question has not ruled. Listed in Emerging Vocabulary until ruled."
+terraging_opposite_clipper,review_status,expert_reviewed,pending,Held out of the main dictionary until its open question is ruled.
+terraging_same_clipper,is_active,1,0,"Held out of the main dictionary: its notation scores two dexterities at 4 ADD against the registry's +3 terraging weight, which the terraging-chain question has not ruled. Listed in Emerging Vocabulary until ruled."
+terraging_same_clipper,review_status,expert_reviewed,pending,Held out of the main dictionary until its open question is ruled.

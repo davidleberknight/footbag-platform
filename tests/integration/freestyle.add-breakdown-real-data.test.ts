@@ -49,14 +49,14 @@ const KNOWN_UNBALANCED = new Set([
 
 // Compounds whose name carries a registered modifier that neither the row nor
 // its base chain links, for a reason the links cannot fix yet: the modifier's
-// scoring or side is an open question (blurry, terraging, the pixie clippers),
-// the row has no base to compose on (the pogo rows), or the kick drops the
-// stall the modifier would land on. Named so the set can only shrink.
+// scoring or side is an open question (blurry, the pixie clippers), the row has
+// no base to compose on (the pogo rows), or the kick drops the stall the
+// modifier would land on. Named so the set can only shrink.
 const KNOWN_NAME_MODIFIER_GAPS = new Set([
   'blurry_drifter', 'blurry_symposium_whirl', 'fairy_kick', 'pixie_kick',
   'pixie_opposite_clipper', 'pixie_same_clipper', 'pogo_barfly', 'pogo_pickup',
   'pogo_pickup_same_side', 'pogo_voodoo', 'stepping_butterfly_reverse_swirl',
-  'symposium_whirling_mirage', 'terraging_opposite_clipper', 'terraging_same_clipper',
+  'symposium_whirling_mirage',
 ]);
 
 // The registered modifiers, read from the committed registry rather than from
@@ -95,6 +95,17 @@ const REVIEW_ASPECT_SAMPLES: readonly (readonly [string, string | null])[] = [
   ['whirl', null],                 // settled
 ];
 const reviewAspectSeen = new Map<string, string | null>();
+
+// Tricks held out of the main dictionary because their structure is missing
+// or contradicts itself while an open question decides it. Each must leave the
+// dictionary and appear in Emerging Vocabulary instead.
+const HELD_OUT_TRICKS = [
+  'bill_ted_s_excellent_adventure', 'reverse_swirling_osis',
+  'reverse_swirling_paradox_torque', 'terraging_illusion', 'terraging_legover',
+  'terraging_mirage', 'terraging_opposite_clipper', 'terraging_same_clipper',
+] as const;
+const heldOutWithPage: string[] = [];
+const heldOutMissingFromEmerging: string[] = [];
 
 beforeAll(async () => {
   createTestDb(dbPath).close();
@@ -182,6 +193,26 @@ beforeAll(async () => {
     reviewAspectSeen.set(slug, line === null ? null : (aspectOfLine.get(line) ?? `unknown line: ${line}`));
   }
 
+  const heldDb = new BetterSqlite3(dbPath, { readonly: true });
+  const heldNames = new Map(
+    (heldDb.prepare(
+      `SELECT slug, canonical_name FROM freestyle_tricks WHERE slug IN (${HELD_OUT_TRICKS.map(() => '?').join(',')})`,
+    ).all(...HELD_OUT_TRICKS) as { slug: string; canonical_name: string }[]).map(r => [r.slug, r.canonical_name]),
+  );
+  heldDb.close();
+  const { NotFoundError } = await import('../../src/services/serviceErrors');
+  const emerging = JSON.stringify(freestyleService.getObservationalLayerPage().content);
+  for (const slug of HELD_OUT_TRICKS) {
+    try {
+      await freestyleService.getTrickDetailPage(slug);
+      heldOutWithPage.push(slug);
+    } catch (err) {
+      if (!(err instanceof NotFoundError)) throw err;
+    }
+    const name = heldNames.get(slug);
+    if (!name || !emerging.includes(JSON.stringify(name))) heldOutMissingFromEmerging.push(slug);
+  }
+
   for (const slug of HELD_PROSE_TRICKS) {
     const page = await freestyleService.getTrickDetailPage(slug);
     if (page?.content?.dictEntry?.description || page?.content?.ux2Pilot?.hasTechniqueNotes) {
@@ -249,6 +280,20 @@ describe('a trick with an open question carries the notice the ledger sets', () 
     for (const [slug, aspect] of REVIEW_ASPECT_SAMPLES) {
       expect(reviewAspectSeen.get(slug), slug).toBe(aspect);
     }
+  });
+});
+
+describe('a trick whose structure is missing or contradictory leaves the main dictionary', () => {
+  // Defect caught: a trick with no formula, or one that contradicts itself,
+  // is served as authoritative reference data.
+  it('serves no trick page for any held-out trick', () => {
+    expect(heldOutWithPage).toEqual([]);
+  });
+
+  // Defect caught: a held-out trick disappears from the site entirely instead
+  // of waiting, visibly, in Emerging Vocabulary.
+  it('lists every held-out trick in Emerging Vocabulary', () => {
+    expect(heldOutMissingFromEmerging).toEqual([]);
   });
 });
 

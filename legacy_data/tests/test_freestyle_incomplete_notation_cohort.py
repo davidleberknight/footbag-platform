@@ -33,15 +33,9 @@ from built_db import DB_PATH, require_loaded
 # The adjudicated cohort of active canonical tricks allowed to carry blank
 # operational notation, each with the reason it is pending.
 KNOWN_INCOMPLETE_NOTATION = {
-    # terraging compounds and the bare terrage: the terraging-chain arithmetic is
-    # pending an expert ruling, so the notation is held.
+    # the bare terrage: the terraging-chain arithmetic is pending an expert
+    # ruling, so the notation is held.
     "terrage",
-    "terraging_illusion",
-    "terraging_legover",
-    "terraging_mirage",
-    # flailing's operator definition is pending an expert confirm/deny, so this
-    # compound's notation is held: doctrine-blocked, not curator-ready.
-    "bill_ted_s_excellent_adventure",
 }
 
 
