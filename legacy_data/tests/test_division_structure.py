@@ -111,16 +111,56 @@ def test_the_loader_stores_each_division_with_its_curated_parts(tmp_path):
         ("golf", "Women's Golf")])
     db, result = _load(tmp_path, seed)
     assert result.returncode == 0, result.stderr
+    # Each loads under the name generated from its parts, as a new division of
+    # that competition is named; a name with no parts keeps the name it ran under.
     assert _parts(db) == {
-        ("net", "Women's Singles Net"): ("game_footbag_net", None, "women", "open"),
+        ("net", "Open Women's Singles Net"): ("game_footbag_net", None, "women", "open"),
         ("net", "Intermediate Singles Net"): ("game_footbag_net", None, "open", "intermediate"),
-        ("net", "Advanced Singles"): ("game_footbag_net", None, "open", "open"),
-        ("net", "Mini Net"): (None, "Mini Net", "open", "open"),
+        ("net", "Open Singles Net"): ("game_footbag_net", None, "open", "open"),
+        ("net", "Open Singles Mini Net"): (None, "Mini Net", "open", "open"),
         ("net", "Unknown"): (None, None, None, None),
-        ("freestyle", "Open Freestyle"): ("game_routines", None, "open", "open"),
-        ("freestyle", "Intermediate Shred"): (None, "Shred", "open", "intermediate"),
-        ("golf", "Women's Golf"): ("game_footbag_golf", None, "women", "open"),
+        ("freestyle", "Open Singles Routines"): ("game_routines", None, "open", "open"),
+        ("freestyle", "Intermediate Singles Shred"): (None, "Shred", "open", "intermediate"),
+        ("golf", "Open Women's Singles Golf"): ("game_footbag_golf", None, "women", "open"),
     }
+
+
+def test_a_level_word_names_a_division_only_beside_the_open_one(tmp_path):
+    # Defect caught: an Advanced division the event ran beside its Open one
+    # loading under the Open division's name (the load then fails on the
+    # duplicate), or a lone Advanced division keeping a level the class list
+    # does not have.
+    seed = _seed_with_divisions(tmp_path, [("net", "Open Singles Net"),
+                                           ("net", "Advanced Singles Net")])
+    db, result = _load(tmp_path, seed)
+    assert result.returncode == 0, result.stderr
+    assert set(_parts(db)) == {("net", "Open Singles Net"), ("net", "Advanced Singles Net")}
+
+    alone = _seed_with_divisions(tmp_path / "alone", [("net", "Advanced Singles Net")])
+    db2, result2 = _load(tmp_path / "alone", alone)
+    assert result2.returncode == 0, result2.stderr
+    assert set(_parts(db2)) == {("net", "Open Singles Net")}
+
+
+def test_a_qualifier_tells_apart_two_contests_with_the_same_parts(tmp_path):
+    # Defect caught: an event's separately titled contests (the 1999 West
+    # Region novice doubles by day) collapsing into one name.
+    seed = _seed_with_divisions(tmp_path, [("net", "Novice Doubles Net (Saturday)"),
+                                           ("net", "Novice Doubles Net (Sunday)")])
+    db, result = _load(tmp_path, seed)
+    assert result.returncode == 0, result.stderr
+    assert set(_parts(db)) == {("net", "Novice Singles Net (Saturday)"),
+                               ("net", "Novice Singles Net (Sunday)")}
+
+
+def test_two_divisions_one_event_would_name_alike_stop_the_load(tmp_path):
+    # Defect caught: a duplicate of one contest loading as a second division,
+    # or the database refusing the clash partway through the load.
+    seed = _seed_with_divisions(tmp_path, [("net", "Open Singles Net"), ("net", "Singles Net")])
+    db, result = _load(tmp_path, seed)
+    assert result.returncode != 0
+    assert "'Open Singles Net' <- 'Open Singles Net', 'Singles Net'" in result.stderr + result.stdout
+    assert helpers.count(db, "event_disciplines") == 0
 
 
 def test_one_name_in_two_disciplines_takes_each_disciplines_parts(tmp_path):
@@ -130,9 +170,8 @@ def test_one_name_in_two_disciplines_takes_each_disciplines_parts(tmp_path):
     _with_second_event(seed, 1)
     db, result = _load(tmp_path, seed)
     assert result.returncode == 0, result.stderr
-    got = _parts(db)
-    assert got[("net", "Doubles")][0] == "game_footbag_net"
-    assert got[("freestyle", "Doubles")][0] == "game_routines"
+    games = {category: parts[0] for (category, _name), parts in _parts(db).items()}
+    assert games == {"net": "game_footbag_net", "freestyle": "game_routines"}
 
 
 @pytest.mark.parametrize("category,name", [

@@ -89,3 +89,15 @@ event_key,discipline_key,fix_type,original_name,original_team_type,new_name,new_
 2007_shred_idaho,unknown,rename_discipline,Unknown,singles,Rippin Run,,confirmed,The page's Rippin Run result,mirror event 1189535136,1,,freestyle
 2007_springjam,unknown,rename_discipline,Unknown,singles,Circle Contest,,confirmed,The page's open Circle contest list,mirror event 1172931308,1,,freestyle
 2018_torneo_nacional_de,doble_leg_over,rename_discipline,Doble Leg Over,singles,Big One,,confirmed,"""DOBLE LEG OVER"" is Carlos Ramirez's trick in the Big One list, read as a heading",mirror event 1537994275,1,,freestyle
+2001_3_me_de,mens_singles,retag_team_type,Men's Singles,singles,,singles,confirmed,"The page's ""SINGLE Homme"" freestyle list, filed as net. Team type unchanged.",mirror event 1001076203,1,,freestyle
+2003_french,open_single,retag_team_type,Open Single,singles,,singles,confirmed,"The page's freestyle ""Open Single"" list, filed as net. Team type unchanged.",mirror event 1064849293,1,,freestyle
+2003_eastregion,intermediate,rename_discipline,Intermediate,singles,Intermediate Freestyle,,confirmed,"The page's Intermediate Freestyle list, filed as net",mirror event 1049457912,1,,freestyle
+2005_austrian_disc,footbag_open_men,rename_discipline,Footbag Open Men,singles,Mens Open Freestyle,,confirmed,"The page's ""Footbag Open Men"" freestyle final, filed as net",mirror event 1110562712,1,,freestyle
+2020_eastregion,intermediate_singles,rename_discipline,Intermediate Singles,singles,Intermediate Singles Freestyle,,confirmed,"Listed under the page's FREESTYLE heading, filed as net",mirror event 1596587110,1,,freestyle
+2007_funtastik_summer,open,rename_discipline,Open,singles,Open Golf,,confirmed,"The page's trailing open list in its golf column, filed as net (ruled golf)",mirror event 1182542776,1,,golf
+2007_funtastik_summer,intermediate,rename_discipline,Intermediate,singles,Intermediate Golf,,confirmed,"The page's trailing intermediate list in its golf column, filed as net (ruled golf)",mirror event 1182542776,1,,golf
+1997_eastregion,singles_freestyle,rename_discipline,Singles Freestyle,singles,Intermediate Singles Freestyle,,confirmed,"Listed under the page's ""INTERMEDIATE: Singles Freestyle""",mirror event 857879540,1,,
+2008_eastregion,circle,rename_discipline,Circle,singles,Intermediate Circle,,confirmed,"The page's intermediate column, beside the open one",mirror event 1220466807,1,,
+2008_eastregion,singles_routines,rename_discipline,Singles Routines,singles,Intermediate Singles Routines,,confirmed,"The page's intermediate column, beside the open one",mirror event 1220466807,1,,
+2018_xviii_polish_krakow,footbag_freestyle,rename_discipline,Footbag Freestyle,singles,Overall Polish Freestyle,,confirmed,"The page's ""Overall Polish Freestyle (summary of all freestyle events)""",mirror event 1531284609,1,,
+1993_louisiana_state,singles_footbag_net,rename_discipline,Singles Footbag Net,singles,Singles Footbag Net (Level Not Stated),,confirmed,"A second singles net contest, beside Open, whose level the source does not print",curated fbw_1993_louisiana_state.csv,1,,

@@ -44,3 +44,5 @@ event_key,discipline_key,scope,confidence,evidence
 2016_austrian,freestyle_overall,freestyle,verified,mirror event 1473932659 heading Overall Austria (Battle + Circle)
 2023_xxiii_polish_warsaw,freestyle_overall,freestyle,inferred,mirror event 1694170899: same players as the freestyle contests only; no formula given
 2025_worlds_nantes,freestyle_overall,freestyle,inferred,mirror event 1741024635: listed after the freestyle contests; golf and 2-square separate; no formula given
+2018_worlds_sofia,request_10,freestyle,verified,"mirror event 1519215398: under ""Overall Freestyle: Circle 35%, Routine 35%, Shred30 20%, Request 10%""; the Request contest is listed separately"
+2018_xviii_polish_krakow,footbag_freestyle,freestyle,verified,"mirror event 1531284609: ""Overall Polish Freestyle (summary of all freestyle events)"""

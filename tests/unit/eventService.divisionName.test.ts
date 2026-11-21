@@ -11,8 +11,16 @@ describe('a division name', () => {
   // parts come out in an order that makes two divisions look alike, because
   // the name is the only thing a registrant reads to pick a division.
   it('reads class, then gender, then entry size, then game', () => {
-    expect(divisionName('intermediate', 'women', 'singles', 'Footbag Net')).toBe("Intermediate Women's Singles Footbag Net");
-    expect(divisionName('open', 'mixed', 'doubles', 'Footbag Net')).toBe('Open Mixed Doubles Footbag Net');
+    expect(divisionName('intermediate', 'women', 'singles', 'Footbag Net')).toBe("Intermediate Women's Singles Net");
+    expect(divisionName('open', 'mixed', 'doubles', 'Footbag Net')).toBe('Open Mixed Doubles Net');
+  });
+
+  // Defect caught: a new division named "Open Singles Footbag Net" while the
+  // historical results of that competition read "Open Singles Net", so one
+  // competition shows under two names on a player's results.
+  it('prints the game without the word Footbag', () => {
+    expect(divisionName('open', 'open', 'singles', 'Footbag Golf')).toBe('Open Singles Golf');
+    expect(divisionName('open', 'open', 'singles', '30 Second Shred')).toBe('Open Singles 30 Second Shred');
   });
 
   // Defect caught: an open division carries a stray "Open" gender word, so

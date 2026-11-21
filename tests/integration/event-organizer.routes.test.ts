@@ -258,7 +258,7 @@ describe('divisions', () => {
     const body = { game_id: 'game_footbag_net', custom_name: '', custom_discipline: '', team_type: 'doubles', gender: 'women', division_class: 'intermediate', offers_prize_money: '1' };
     expect((await post(olive, `${base}/divisions`, body)).status).toBe(303);
     expect(divisions(event.id)).toEqual([expect.objectContaining({
-      name: "Intermediate Women's Doubles Footbag Net", game_id: 'game_footbag_net', discipline_category: 'net',
+      name: "Intermediate Women's Doubles Net", game_id: 'game_footbag_net', discipline_category: 'net',
       team_type: 'doubles', gender_eligibility: 'women', division_class: 'intermediate', offers_prize_money: 1,
     })]);
     expect(auditRows(event.id, 'event.division_added')).toHaveLength(1);
@@ -291,7 +291,7 @@ describe('divisions', () => {
     await post(olive, `${base}/divisions`, { game_id: 'game_footbag_net', custom_name: '', custom_discipline: '', team_type: 'singles', gender: 'open', division_class: 'open', offers_prize_money: '0' });
     const [division] = divisions(event.id);
     await post(olive, `${base}/divisions`, { division_id: String(division.id), game_id: '', custom_name: '', custom_discipline: '', team_type: 'singles', gender: 'women', division_class: 'masters', offers_prize_money: '0' });
-    expect(divisions(event.id)).toEqual([expect.objectContaining({ id: division.id, name: "Masters Women's Singles Footbag Net" })]);
+    expect(divisions(event.id)).toEqual([expect.objectContaining({ id: division.id, name: "Masters Women's Singles Net" })]);
     expect(JSON.parse(auditRows(event.id, 'event.division_changed')[0].metadata_json).changes.division_class).toEqual({ before: 'open', after: 'masters' });
 
     const confirm = await post(olive, `${base}/divisions/${division.id}/remove`);

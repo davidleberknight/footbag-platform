@@ -1476,14 +1476,17 @@ type PartFlag = typeof TEAM_TYPES[number]['flag'] | typeof GENDERS[number]['flag
 
 /**
  * A division's display name from its parts: class, then gender (left out when
- * open), then entry size, then game, as in "Intermediate Women's Singles
- * Footbag Net". Exported for unit testing.
+ * open), then entry size, then game, as in "Intermediate Women's Singles Net".
+ * The game prints without the word "Footbag" ("Footbag Net" is "Net", "Footbag
+ * Golf" is "Golf"), so a new division carries the same name as the historical
+ * category of that competition. Exported for unit testing.
  */
 export function divisionName(divisionClass: string, gender: string, teamType: string, gameName: string): string {
   const classLabel = CLASSES.find((c) => c.value === divisionClass)?.label ?? divisionClass;
   const genderLabel = gender === 'women' ? "Women's" : gender === 'mixed' ? 'Mixed' : '';
   const sizeLabel = teamType === 'doubles' ? 'Doubles' : 'Singles';
-  return [classLabel, genderLabel, sizeLabel, gameName].filter((p) => p !== '').join(' ');
+  const gameLabel = gameName.replace(/^Footbag\s+/, '');
+  return [classLabel, genderLabel, sizeLabel, gameLabel].filter((p) => p !== '').join(' ');
 }
 
 /**

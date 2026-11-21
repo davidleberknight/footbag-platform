@@ -214,7 +214,7 @@ describe('correcting divisions an organizer can no longer change', () => {
       team_type: 'singles', gender: 'open', division_class: 'intermediate', offers_prize_money: '0', reason: 'Wrong class at creation',
     });
     expect(one<{ division_class: string; name: string }>('SELECT division_class, name FROM event_disciplines WHERE id = ?', ev.singles))
-      .toEqual({ division_class: 'intermediate', name: 'Intermediate Singles Footbag Net' });
+      .toEqual({ division_class: 'intermediate', name: 'Intermediate Singles Net' });
     expect(count('SELECT COUNT(*) c FROM registration_discipline_selections WHERE registration_id = ?', reg)).toBe(1);
   });
 

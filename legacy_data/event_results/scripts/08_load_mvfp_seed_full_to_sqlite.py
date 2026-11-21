@@ -126,6 +126,9 @@ def read_division_structure(path: Path) -> dict[DivisionKey, dict[str, str | Non
             "game_id": game or None, "custom_game_name": custom or None,
             "gender_eligibility": gender or None, "division_class": klass or None,
             "withhold": withhold == "1",
+            # Text shown in parentheses after the generated name, telling apart two
+            # different contests one event ran under the same parts.
+            "name_qualifier": (row.get("name_qualifier") or "").strip() or None,
         }
     return structure
 
@@ -141,6 +144,73 @@ def unmapped_division_names(seed_disciplines: list[dict[str, str]],
                            row.get("discipline_name", "").strip())]
         if cat in STRUCTURED_CATEGORIES and (cat, name) not in structure
     })
+
+
+_CLASS_LABELS = {"open": "Open", "intermediate": "Intermediate", "novice": "Novice",
+                 "masters": "Masters"}
+# A level word a source printed for a division the event ran beside its Open one.
+_LEVEL_WORD = re.compile(r"\b(advanced?|ultra|pro)\b", re.IGNORECASE)
+
+
+def division_display_name(division_class: str, gender: str, team_type: str, game: str) -> str:
+    """A division's name from its parts, the same rule the platform names a new
+    division by: class, then gender (left out when open), then entry size, then
+    the game without the word "Footbag", as in "Intermediate Women's Singles Net"."""
+    parts = [_CLASS_LABELS.get(division_class, division_class),
+             "Women's" if gender == "women" else "Mixed" if gender == "mixed" else "",
+             "Doubles" if team_type == "doubles" else "Singles",
+             re.sub(r"^Footbag\s+", "", game)]
+    return " ".join(p for p in parts if p)
+
+
+def generated_division_names(seed_disciplines: list[dict[str, str]],
+                             structure: dict[DivisionKey, dict[str, str | None]],
+                             game_names: dict[str, str]) -> tuple[dict[tuple[str, str], str], list[str]]:
+    """The name each historical division loads under, and the divisions one event
+    would still hold twice under one name.
+
+    A division whose structure gives a game and a class takes the generated name,
+    with its curated qualifier in parentheses when it has one; any other keeps the
+    name it was run under. Where two divisions of one event come out the same and
+    a source printed a level word for one of them (Advanced, Ultra, Pro beside the
+    event's Open division), that word stands in for the class, so the two stay
+    distinct; elsewhere the level is the open class it means. What still collides
+    is returned to be resolved at its source, never renamed by guesswork.
+    """
+    names: dict[tuple[str, str], str] = {}
+    raw: dict[tuple[str, str], str] = {}
+    for row in seed_disciplines:
+        key = (row["event_key"].strip(), row["discipline_key"].strip())
+        name = row.get("discipline_name", "").strip()
+        raw[key] = name
+        parts = structure.get(((row.get("discipline_category") or "").strip(), name))
+        game = None
+        if parts is not None and not parts["withhold"]:
+            game = game_names.get(parts["game_id"] or "") or parts["custom_game_name"]
+        if not game or not parts["division_class"]:
+            names[key] = name
+            continue
+        generated = division_display_name(parts["division_class"], parts["gender_eligibility"] or "open",
+                                          normalize_team_type(row.get("team_type", ""), name), game)
+        if parts.get("name_qualifier"):
+            generated += f" ({parts['name_qualifier']})"
+        names[key] = generated
+
+    def clashes() -> dict[tuple[str, str], list[tuple[str, str]]]:
+        groups: dict[tuple[str, str], list[tuple[str, str]]] = defaultdict(list)
+        for key, name in names.items():
+            groups[(key[0], name.casefold())].append(key)
+        return {g: keys for g, keys in groups.items() if len(keys) > 1}
+
+    for keys in clashes().values():
+        for key in keys:
+            level = _LEVEL_WORD.search(raw[key])
+            if level and names[key].startswith("Open "):
+                word = level.group(1).title()
+                names[key] = ("Advanced" if word == "Advance" else word) + names[key][len("Open"):]
+    still = [f"{g[0]}: {names[keys[0]]!r} <- " + ", ".join(repr(raw[k]) for k in keys)
+             for g, keys in sorted(clashes().items())]
+    return names, still
 
 
 def backup_db(db_path: Path) -> Path:
@@ -548,6 +618,21 @@ def main() -> None:
     #      invokes it, so those parent rows exist when the bind happens.
     conn.execute("PRAGMA foreign_keys = ON;")
     conn.row_factory = sqlite3.Row
+
+    # Every division's name, decided before anything is written: a name one event
+    # would hold twice stops the load here, with nothing changed.
+    game_names = {r[0]: r[1] for r in conn.execute("SELECT id, name FROM discipline_games")}
+    division_names, still_clashing = generated_division_names(
+        seed_disciplines, division_structure, game_names)
+    if still_clashing:
+        conn.close()
+        raise SystemExit(
+            f"08 aborted: {len(still_clashing)} event(s) would hold two divisions under one "
+            "generated name. Nothing was changed. Resolve each at its source: a duplicate is "
+            "quarantined or merged, a different contest gets a name_qualifier in "
+            f"{DIVISION_STRUCTURE.name}. Then rerun run_pipeline.sh:\n"
+            + "\n".join(f"  {c}" for c in still_clashing)
+        )
 
     # This loader is a canonical reseed scoped to the rows it owns, so it re-runs
     # safely against a populated database. It owns: events it created
@@ -1030,7 +1115,8 @@ def main() -> None:
                 """,
                 (
                     discipline_id, ts, system_user, ts, system_user,
-                    event_id, name, discipline_category, team_type, sort_order,
+                    event_id, division_names[(event_key, discipline_key)],
+                    discipline_category, team_type, sort_order,
                     is_aggregate,
                     parts["game_id"], parts["custom_game_name"],
                     parts["gender_eligibility"], parts["division_class"],
