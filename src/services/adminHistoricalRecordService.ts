@@ -3,7 +3,9 @@
  * competition record nobody holds.
  *
  * Owns the lookup (also shaped for the record picker other admin forms use to
- * choose a record) and the confirmation view-models for the two things an
+ * choose a record, and for the historical-records group of the administrator's
+ * member find), matching a name in each of its curated nickname forms, and the
+ * confirmation view-models for the two things an
  * administrator does to such a record directly:
  *   - recording that the person it names is recognized as deceased, or taking
  *     that back. DeceasedMarkingService owns the flag and writes it.
@@ -46,6 +48,7 @@ import {
   transaction,
 } from '../db/db';
 import { deceasedMarkingService } from './deceasedMarkingService';
+import { nicknameQueryVariants } from './nameVariantsService';
 import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
 import { appendAuditEntry, findStandingOwnAct } from './auditService';
 import { canonicalCountryOrThrow, parseFirstCompetitionYearOrThrow } from './memberLocationRules';
@@ -195,6 +198,59 @@ function shapeRow(row: HistoricalRecordRow): RecordResultView {
     revertAction: `/admin/historical-records/${row.person_id}/deceased/revert`,
     correctHref:  correctionHref(row.person_id),
   };
+}
+
+/**
+ * The records matching an administrator's query: by exact record id or old
+ * account id, or by part of the name in any of its nickname forms ("David"
+ * also finds a record filed as "Dave"), at most `limit`, in name order.
+ */
+function searchRecords(query: string, limit: number): { results: RecordResultView[]; hasMore: boolean } {
+  const { rows, hasMore } = searchRecordRows(query, limit);
+  return { results: rows.map(shapeRow), hasMore };
+}
+
+/** One historical record on the administrator's member find. */
+export interface MemberFindRecordView {
+  name: string;
+  /** This record on the historical-records lookup, where it is corrected or marked. */
+  recordHref: string;
+  /** The record's public page. */
+  publicHref: string;
+  facts: string[];
+  isDeceased: boolean;
+  /** The member who claimed it, or null while nobody has. */
+  holderName: string | null;
+  holderHref: string | null;
+}
+
+function shapeMemberFindRow(row: HistoricalRecordRow): MemberFindRecordView {
+  const claimed = row.claimed_by_member_id !== null;
+  const nameable = claimed && row.claimed_by_is_nameable === 1;
+  return {
+    name:       row.person_name,
+    recordHref: `/admin/historical-records?q=${encodeURIComponent(row.person_id)}`,
+    publicHref: `/history/${encodeURIComponent(row.person_id)}`,
+    facts:      [row.person_id, row.country, yearsLabel(row)].filter((f): f is string => Boolean(f)),
+    isDeceased: row.is_deceased === 1,
+    holderName: claimed ? (nameable ? row.claimed_by_display_name : row.claimed_by_member_id) : null,
+    holderHref: nameable ? `/admin/members/${row.claimed_by_member_id}` : null,
+  };
+}
+
+function searchRecordRows(query: string, limit: number): { rows: HistoricalRecordRow[]; hasMore: boolean } {
+  const seen = new Map<string, HistoricalRecordRow>();
+  for (const variant of nicknameQueryVariants(query)) {
+    const escaped = variant.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+    const rows = deceasedMarking.searchHistoricalPersons.all(
+      query, query, escaped, limit + 1,
+    ) as HistoricalRecordRow[];
+    for (const row of rows) if (!seen.has(row.person_id)) seen.set(row.person_id, row);
+  }
+  const rows = [...seen.values()].sort((a, b) =>
+    a.person_name.localeCompare(b.person_name, undefined, { sensitivity: 'base' })
+    || a.person_id.localeCompare(b.person_id));
+  return { rows: rows.slice(0, limit), hasMore: rows.length > limit };
 }
 
 function correctionHref(personId: string): string {
@@ -347,6 +403,15 @@ export const adminHistoricalRecordService = {
     return row ? { id: row.person_id, displayName: row.person_name, location: null } : null;
   },
 
+  /**
+   * The records the administrator's member find lists, matched as this
+   * lookup matches, each linking to its place on this lookup and its public page.
+   */
+  findRecordsForMemberFind(query: string, limit: number): { results: MemberFindRecordView[]; hasMore: boolean } {
+    const { rows, hasMore } = searchRecordRows(query.trim(), limit);
+    return { results: rows.map(shapeMemberFindRow), hasMore };
+  },
+
   /** The lookup, by part of the name or by the exact old footbag.org account id
    *  linked to the record. An exact record id also matches, unadvertised, so the
    *  page's own links back to one record still land on it. */
@@ -363,12 +428,7 @@ export const adminHistoricalRecordService = {
     if (query !== '' && query.length < MIN_LOOKUP_QUERY) {
       errorMessage = `Enter at least ${MIN_LOOKUP_QUERY} letters of the name, or an old account id.`;
     } else if (query !== '') {
-      const escaped = query.toLowerCase().replace(/[\\%_]/g, (ch) => `\\${ch}`);
-      const rows = deceasedMarking.searchHistoricalPersons.all(
-        query, query, escaped, LOOKUP_LIMIT + 1,
-      ) as HistoricalRecordRow[];
-      hasMore = rows.length > LOOKUP_LIMIT;
-      results = rows.slice(0, LOOKUP_LIMIT).map(shapeRow);
+      ({ results, hasMore } = searchRecords(query, LOOKUP_LIMIT));
     }
 
     const resultSummary = query === ''

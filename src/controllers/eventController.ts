@@ -382,7 +382,11 @@ export const eventController = {
       const isMember = req.isMember === true;
       const vm = eventService.getPublicEventPage(
         eventKey,
-        { isMember, memberId: isMember ? req.user?.userId : undefined },
+        {
+          isMember,
+          memberId: isMember ? req.user?.userId : undefined,
+          onboardingMemberId: isMember ? undefined : req.user?.userId,
+        },
         { notice: takeEventNotice(req, res) },
       );
       res.render('events/detail', vm);

@@ -109,7 +109,30 @@ function historyPageSql(alias: string): string {
 
 const ARCHIVE_YEAR_SQL = `CAST(substr(e.start_date, 1, 4) AS INTEGER)`;
 
-export interface PublicEventSummaryRow {
+// What decides whether a member could register for the event `e` now, beyond
+// its status and cutoff: the registration types its fees and payment setting
+// allow, and whether it has a division a competitor can enter. Every listing
+// whose badge says registration is open selects these, so the badge and the
+// register button follow one rule.
+const REGISTRATION_OFFER_COLUMNS_SQL = `
+      e.payment_enabled,
+      e.competitor_fee_cents,
+      e.attendee_fee_cents,
+      e.is_attendee_registration_open,
+      EXISTS(
+        SELECT 1 FROM event_disciplines AS ed_offer
+        WHERE ed_offer.event_id = e.id AND ed_offer.is_aggregate_standing = 0
+      ) AS has_enterable_division`;
+
+interface RegistrationOfferRow {
+  payment_enabled: number;
+  competitor_fee_cents: number | null;
+  attendee_fee_cents: number | null;
+  is_attendee_registration_open: number;
+  has_enterable_division: number;
+}
+
+export interface PublicEventSummaryRow extends RegistrationOfferRow {
   event_id: string;
   title: string;
   description: string;
@@ -142,13 +165,9 @@ export interface PublicCompletedEventCountRow {
 }
 
 export interface PublicEventDetailRow extends PublicEventSummaryRow {
-  is_attendee_registration_open: number;
   is_tshirt_size_collected: number;
   sanction_status: string;
-  payment_enabled: number;
   currency: string;
-  competitor_fee_cents: number | null;
-  attendee_fee_cents: number | null;
 }
 
 export interface PublicEventDisciplineRow {
@@ -292,7 +311,7 @@ export const publicEvents = {
       e.reg_opened_at,
       e.hashtag_tag_id,
       t.tag_normalized,
-      t.tag_display
+      t.tag_display,${REGISTRATION_OFFER_COLUMNS_SQL}
     FROM events AS e
     INNER JOIN tags AS t
       ON t.id = e.hashtag_tag_id
@@ -356,7 +375,7 @@ export const publicEvents = {
       e.reg_opened_at,
       e.hashtag_tag_id,
       t.tag_normalized,
-      t.tag_display,
+      t.tag_display,${REGISTRATION_OFFER_COLUMNS_SQL},
       EXISTS(
         SELECT 1
         FROM event_result_entries AS ere
@@ -393,19 +412,15 @@ export const publicEvents = {
       c.name AS host_club,
       e.external_url,
       e.registration_deadline,
-      e.is_attendee_registration_open,
       e.is_tshirt_size_collected,
       e.status,
       e.registration_status,
       e.reg_opened_at,
       e.sanction_status,
-      e.payment_enabled,
       e.currency,
-      e.competitor_fee_cents,
-      e.attendee_fee_cents,
       e.hashtag_tag_id,
       t.tag_normalized,
-      t.tag_display
+      t.tag_display,${REGISTRATION_OFFER_COLUMNS_SQL}
     FROM events AS e
     INNER JOIN tags AS t
       ON t.id = e.hashtag_tag_id
@@ -8736,6 +8751,29 @@ export const legacyMembers = {
     LIMIT ?
   `); },
 
+  // The administrator's find over every old account, claimed or not, matched
+  // as the unclaimed search above matches, with the member who holds it.
+  get searchAllForAdmin() { return db.prepare(`
+    SELECT lm.legacy_member_id, lm.legacy_user_id, lm.real_name, lm.display_name,
+           lm.city, lm.region, lm.country,
+           m.id AS claimed_by_member_id, m.display_name AS claimed_by_display_name,
+           ${notPendingSql('m')} AS claimed_by_is_nameable
+    FROM legacy_members AS lm
+    LEFT JOIN members AS m
+      ON m.id = lm.claimed_by_member_id
+    WHERE lm.legacy_member_id = ?
+       OR lm.legacy_user_id = ?
+       OR LOWER(COALESCE(lm.real_name, '')) LIKE '%' || ? || '%' ESCAPE '\\'
+       OR LOWER(COALESCE(lm.display_name, '')) LIKE '%' || ? || '%' ESCAPE '\\'
+       OR LOWER(COALESCE(lm.legacy_email, '')) = ?
+       OR LOWER(COALESCE(lm.legacy_email2, '')) = ?
+       OR LOWER(COALESCE(lm.legacy_email3, '')) = ?
+    -- legacy_members has no id column; legacy_member_id is its primary key and
+    -- the tiebreaker that keeps same-named accounts in a stable order.
+    ORDER BY COALESCE(lm.display_name, lm.real_name) COLLATE NOCASE, lm.legacy_member_id
+    LIMIT ?
+  `); },
+
   // The claim step's name index over old accounts: every account carrying a
   // real name, held or not, because a held account is still reported to the
   // administrator's candidate view. Unpaginated, so no tiebreaker is needed.
@@ -12047,7 +12085,7 @@ export const eventRegistrations = {
   get listUpcomingConfirmedForMember() { return db.prepare(`
     SELECT e.title, e.description, e.start_date, e.end_date, e.city, e.region, e.country,
            c.name AS host_club, e.status, e.registration_status, e.registration_deadline,
-           t.tag_normalized, t.tag_display
+           t.tag_normalized, t.tag_display,${REGISTRATION_OFFER_COLUMNS_SQL}
     FROM registrations AS r
     INNER JOIN events AS e ON e.id = r.event_id
     INNER JOIN tags AS t ON t.id = e.hashtag_tag_id

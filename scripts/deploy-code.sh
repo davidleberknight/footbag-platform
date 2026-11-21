@@ -518,13 +518,11 @@ IMAGE_IMAGE_LAYERS=$(docker image inspect --format='{{range .RootFS.Layers}}{{.}
   cr_die "docker image inspect failed for docker-image"
 }
 
-# ── Step 4: Transfer images to host via docker save | docker load ────────────
+# ── Step 4: Transfer Docker images to host (rsync of a docker save archive) ──
 # Pre-transfer optimization: if the host already has images with identical
-# RootFS DiffIDs, skip the docker save | docker load pipe entirely. The
-# pipe transfers ~250 MB even when no layers actually changed; on warm
-# cache the upstream `docker compose build` is already cheap, so this skip
-# is the dominant savings on routine code-change deploys. Cost when skipped:
-# zero. Cost when not skipped: identical to before. Operator's footbag user
+# RootFS DiffIDs, skip the transfer entirely, saving even the local archive and
+# rsync's checksum pass. When any layer differs, the shared helper sends only
+# the changed layers. Operator's footbag user
 # is in the host's docker group, so no sudo needed for `docker image inspect`.
 echo "==> Comparing local image RootFS DiffIDs against host..."
 REMOTE_WEB_LAYERS=$(ssh "${SSH_OPTS[@]}" "$REMOTE" \
@@ -540,9 +538,9 @@ if [[ -n "$WEB_IMAGE_LAYERS" && -n "$WORKER_IMAGE_LAYERS" && -n "$IMAGE_IMAGE_LA
    && "$WEB_IMAGE_LAYERS"    == "$REMOTE_WEB_LAYERS" \
    && "$WORKER_IMAGE_LAYERS" == "$REMOTE_WORKER_LAYERS" \
    && "$IMAGE_IMAGE_LAYERS"  == "$REMOTE_IMAGE_LAYERS" ]]; then
-  echo "==> Image RootFS DiffIDs match host; skipping docker save | docker load."
+  echo "==> Image RootFS DiffIDs match host; skipping the Docker image transfer."
 else
-  echo "==> Transferring images to host (docker save | docker load)..."
+  echo "==> Transferring Docker images to host (only the changed parts are sent)..."
   # Reclaim host disk before the load. Each deploy loads a fresh :latest and
   # leaves the previous image dangling; left unchecked these orphans and build
   # cache fill the disk until `docker load` fails with "no space left on device".

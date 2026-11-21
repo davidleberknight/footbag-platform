@@ -54,6 +54,21 @@ export function nicknameAlternates(firstName: string): string[] {
 }
 
 /**
+ * A search query and the same query with its first word swapped for each
+ * curated nickname form ("david leberknight" also reaches "dave leberknight"),
+ * all in the `normalizeForMatch` form, the typed query first. An administrator
+ * searching for a person by the name they go by must find the record filed
+ * under the other form.
+ */
+export function nicknameQueryVariants(query: string): string[] {
+  const normalized = normalizeForMatch(query);
+  if (!normalized) return [];
+  const [first, ...rest] = normalized.split(' ');
+  const swapped = nicknameAlternates(first).map((alt) => [alt, ...rest].join(' '));
+  return [normalized, ...swapped.filter((v) => v !== normalized)];
+}
+
+/**
  * The whole names a curated name-variant row ties to this one, in either
  * direction. Rows apply to whole names only, so the input is a full name in
  * the `normalizeForMatch` form the rows are stored in.

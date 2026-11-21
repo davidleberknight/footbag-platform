@@ -157,13 +157,13 @@ describe('the events landing page', () => {
     expect(card(paused.key)).toContain(`<a class="hashtag hashtag--media" href="/media/browse?context=${paused.key}">#${paused.key}</a>`);
   });
 
-  // Defect caught: the landing page does not default to the current year, or
-  // shows an older year's events as this year's.
-  it("lists the current year's completed events and not an earlier year's", async () => {
+  // Defect caught: a completed event is listed on the landing page as a line
+  // item, when past events are reached only through their year's button.
+  it('lists no completed event on the landing page, this year or earlier', async () => {
     const res = await request(createApp()).get('/events');
-    const thisYearList = region(res.text, 'current-year-events', '</section>');
-    expect(thisYearList).toContain(`/events/${currentYearDone.key}`);
-    expect(thisYearList).not.toContain(`/events/${pastYearDone.key}`);
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain(`/events/${currentYearDone.key}"`);
+    expect(res.text).not.toContain(`/events/${pastYearDone.key}"`);
   });
 
   // Defect caught: an archive year is missing from the year buttons, or a year

@@ -4722,7 +4722,7 @@ All containers configured with health checks (30-60s intervals, 3 retries) and r
 
 Decision:
 
-CI runs the test and security checks using GitHub Actions, and the project code lives in an open-source GitHub repository. Images are not built or published by CI: they are built on the operator workstation and shipped to the Lightsail host via `docker save | docker load`. There is no image registry.
+CI runs the test and security checks using GitHub Actions, and the project code lives in an open-source GitHub repository. Images are not built or published by CI: they are built on the operator workstation, saved with `docker save`, rsynced to the Lightsail host so only changed layers travel, and loaded there with `docker load`. There is no image registry.
 
 Rationale:
 
@@ -4767,7 +4767,7 @@ Impact:
 
 - Pushes and pull requests trigger CI pipelines that run the test and security checks.
 
-- Deployment runbooks describe building images on the operator workstation and shipping them to the host via `docker save | docker load`.
+- Deployment runbooks describe building images on the operator workstation and shipping them to the host as a `docker save` archive, rsynced so only changed layers travel, then loaded with `docker load`.
 
 ## 7.5 Local Development
 

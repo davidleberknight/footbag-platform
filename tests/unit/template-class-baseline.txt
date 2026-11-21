@@ -369,6 +369,8 @@ member-action-list
 member-action-options
 member-action-submit
 membership-badges
+membership-prompt
+membership-prompt-actions
 membership-tiers-link
 membership-upgrade-form
 membership-upgrade-price

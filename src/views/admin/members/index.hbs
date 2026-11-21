@@ -22,18 +22,65 @@
     </div>
 
     {{#if content.hasQuery}}
-      <p>{{content.resultSummary}}</p>
-      {{#if content.hasResults}}
-        <div class="search-box-results">
-          {{#each content.results}}
-            <div class="search-box-result">
-              <a href="{{recordHref}}">{{displayName}}</a>
-              {{#each facts}}<span class="text-muted">{{this}}</span>{{/each}}
-              {{#each badges}}<span class="badge badge-tier">{{this}}</span>{{/each}}
-            </div>
-          {{/each}}
-        </div>
-      {{/if}}
+      <div id="member-accounts">
+        <h3>Member Accounts</h3>
+        <p>{{content.resultSummary}}</p>
+        {{#if content.hasResults}}
+          <div class="search-box-results">
+            {{#each content.results}}
+              <div class="search-box-result">
+                <a href="{{recordHref}}">{{displayName}}</a>
+                {{#each facts}}<span class="text-muted">{{this}}</span>{{/each}}
+                {{#each badges}}<span class="badge badge-tier">{{this}}</span>{{/each}}
+              </div>
+            {{/each}}
+          </div>
+        {{/if}}
+      </div>
+
+      {{#with content.legacyAccounts}}
+      <div id="old-accounts" class="mt-6">
+        <h3>Old Footbag.org Accounts</h3>
+        <p>{{summary}}</p>
+        {{#if hasResults}}
+          <div class="search-box-results">
+            {{#each results}}
+              <div class="search-box-result">
+                <span class="fw-600">{{name}}</span>
+                {{#each facts}}<span class="text-muted">{{this}}</span>{{/each}}
+                {{#if holderName}}
+                  <span>Held by {{#if holderHref}}<a href="{{siteHref holderHref}}">{{holderName}}</a>{{else}}{{holderName}}{{/if}}</span>
+                {{else}}
+                  <span class="badge">Not claimed</span>
+                {{/if}}
+              </div>
+            {{/each}}
+          </div>
+        {{/if}}
+      </div>
+      {{/with}}
+
+      {{#with content.historicalRecords}}
+      <div id="historical-records" class="mt-6">
+        <h3>Historical Records</h3>
+        <p>{{summary}}</p>
+        {{#if hasResults}}
+          <div class="search-box-results">
+            {{#each results}}
+              <div class="search-box-result">
+                <a href="{{siteHref recordHref}}">{{name}}</a>
+                {{#each facts}}<span class="text-muted">{{this}}</span>{{/each}}
+                {{#if isDeceased}}<span class="badge">Deceased</span>{{/if}}
+                {{#if holderName}}
+                  <span>Held by {{#if holderHref}}<a href="{{siteHref holderHref}}">{{holderName}}</a>{{else}}{{holderName}}{{/if}}</span>
+                {{/if}}
+                <a href="{{siteHref publicHref}}">Public Page</a>
+              </div>
+            {{/each}}
+          </div>
+        {{/if}}
+      </div>
+      {{/with}}
     {{else}}
       <p>{{content.resultSummary}}</p>
     {{/if}}

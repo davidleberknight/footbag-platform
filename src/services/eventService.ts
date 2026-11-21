@@ -14,9 +14,14 @@
  *     their pages)
  *   - Results upload
  *   - Public event browse and detail page reads. Every list of events (the
- *     landing page's upcoming and current-year events, a year page) draws each
+ *     landing page's upcoming events, a year page) draws each
  *     event as the same dated item through eventListing, which also shapes the
  *     status badge: an open event past its cutoff or paused reads as closed.
+ *     The badge and the register button share one rule, so an event offering
+ *     no registration type a member could take reads as closed too. A
+ *     non-member on an upcoming event's page is told what registering takes:
+ *     a visitor that it needs membership, with log-in back to the form; a
+ *     registrant still onboarding, to finish it (membershipPrompt).
  *   - The deadline job's pass (SYS_Close_Event_Registration): closing
  *     registration on every open event whose cutoff has passed, as the system
  *   - The event's cover photo pointer (`events.cover_media_id`): who may set or
@@ -275,8 +280,8 @@ import { slugifyForTag } from './slugify';
 import { INVALID_TEXT_ENCODING_MESSAGE, sanitizeUserText } from '../lib/textSanitizer';
 import { canonicalCountryName, personLocation } from './countryUtils';
 import {
-  EVENT_STATUS_LABELS, eventDateRange, eventStatusBadge, isRegistrationOpen, registrationCutoff,
-  toEventDatedItem,
+  EVENT_STATUS_LABELS, eventDateRange, eventStatusBadge, isRegistrationOffered, isRegistrationOpen,
+  offeredRegistrationTypes, registrationCutoff, toEventDatedItem,
 } from './eventListing';
 import type { DatedItemView } from '../types/datedItem';
 import { CURRENT_SPORTS, sportLabel, sportOptions } from './sportCategories';
@@ -307,6 +312,9 @@ import {
   type RegistrationType,
 } from './eventRegistrationSettlement';
 import type { OutcomeNoticeView } from '../lib/outcomeNotice';
+import {
+  onboardingMembershipPrompt, visitorMembershipPrompt, type MembershipPromptView,
+} from './membershipPrompt';
 import { personHref } from './personLink';
 import { runSqliteRead } from './sqliteRetry';
 import { PageViewModel } from '../types/page';
@@ -433,9 +441,7 @@ export interface EventsLandingContent {
   featuredPromo?: FeaturedPromoCard;
   /** Upcoming public events, each drawn as every listed event is. */
   upcomingEvents: DatedItemView[];
-  /** The landing page's default year: the current year's completed events. */
-  currentYear: number;
-  currentYearEvents: DatedItemView[];
+  /** Every year with a completed public event, the current year included, each a button to its year page. */
   archiveYears: number[];
   /** Where an organizer arriving cold reads what sanctioning takes and who may apply. */
   organizerLinks: { guidelinesHref: string };
@@ -479,6 +485,12 @@ export interface EventDetailContent {
   organizers: EventOrganizerView[];
   /** Registration on an upcoming event, for a signed-in member; null otherwise. */
   registration: EventRegistrationBlock | null;
+  /**
+   * What a non-member sees where a member would register, on an upcoming
+   * event: membership is required and how to get it, or, when no one could
+   * register now, that online registration is not open. Null for a member.
+   */
+  registrationPrompt: MembershipPromptView | null;
   /** The outcome of the member's last registration action. */
   notice: OutcomeNoticeView | null;
   /** The event's cover photo at the top of the page; null when it has none. */
@@ -1725,6 +1737,8 @@ function divisionPartsStep(
 // ── Registration: shapes and rules ──────────────────────────────────────────
 
 const REGISTRATION_NOT_OPEN = 'Online registration is not open for this event.';
+const REGISTER_NEEDS_MEMBERSHIP = 'You must be an IFPA member to register for this event. Membership is free.';
+const REGISTER_NEEDS_ONBOARDING = 'Finish setting up your membership to register for this event.';
 // Stored on a registration the member withdrew themselves, which is how a second
 // submit of the withdrawal knows the first one landed.
 const WITHDRAWN_BY_MEMBER = 'Withdrawn by the member';
@@ -1880,27 +1894,10 @@ export type RegisterPageResult =
   | { branch: 'form'; page: PageViewModel<RegisterEventContent> }
   | { branch: 'already_registered' | 'not_open'; message: string };
 
-// The cutoff and the open check live with the event listing shaping, which the
-// member profile shares; re-exported here for the registration code and its tests.
-export { registrationCutoff, isRegistrationOpen };
-
-/**
- * The registration types a member can choose here: competitor always, and
- * attendee or supporter when the organizers accept it. A type carrying a fee is
- * offered only once the event's sanction approval has enabled payment, so no
- * fee is ever taken for an event IFPA has not sanctioned. Exported for unit
- * testing.
- */
-export function offeredRegistrationTypes(event: {
-  is_attendee_registration_open: number; competitor_fee_cents: number | null; attendee_fee_cents: number | null;
-  payment_enabled: number;
-}): RegistrationType[] {
-  const payable = (fee: number | null): boolean => fee === null || event.payment_enabled === 1;
-  const types: RegistrationType[] = [];
-  if (payable(event.competitor_fee_cents)) types.push('competitor');
-  if (event.is_attendee_registration_open === 1 && payable(event.attendee_fee_cents)) types.push('attendee_supporter');
-  return types;
-}
+// The cutoff, the open check and the offered types live with the event listing
+// shaping, which the member profile shares, so every badge and the register
+// button follow one rule; re-exported here for the registration code and its tests.
+export { registrationCutoff, isRegistrationOpen, offeredRegistrationTypes };
 
 type DeclaredGender = 'male' | 'female' | null;
 function declaredGender(gender: string | null): DeclaredGender {
@@ -2852,7 +2849,6 @@ export class EventService {
   }
 
   getPublicEventsLandingPage(nowIso: string): PageViewModel<EventsLandingContent> {
-    const currentYear = Number(nowIso.slice(0, 4));
     return {
       seo: { title: 'Events' },
       page: {
@@ -2864,8 +2860,6 @@ export class EventService {
       content: {
         featuredPromo: this.getFeaturedPromo(nowIso) ?? undefined,
         upcomingEvents: this.listUpcomingEventItems(nowIso),
-        currentYear,
-        currentYearEvents: this.listCompletedEventItemsByYear(currentYear),
         archiveYears: this.listPublicArchiveYears(),
         organizerLinks: { guidelinesHref: SANCTION_GUIDELINES_PATH },
       },
@@ -2901,10 +2895,12 @@ export class EventService {
   /**
    * The canonical event page. `viewer` is who is looking: a signed-in member also
    * sees each organizer's email, who is registered, and their own registration.
+   * A visitor, or a signed-in registrant still onboarding (`onboardingMemberId`),
+   * sees instead what registering takes: membership, then log-in or onboarding.
    */
   getPublicEventPage(
     eventKey: string,
-    viewer: { isMember: boolean; memberId?: string } = { isMember: false },
+    viewer: { isMember: boolean; memberId?: string; onboardingMemberId?: string } = { isMember: false },
     opts: { notice?: OutcomeNoticeView | null } = {},
   ): PageViewModel<EventDetailContent> {
     const detail = this.getPublicEventDetail(eventKey);
@@ -2921,6 +2917,9 @@ export class EventService {
     }
     const registration = isUpcoming && viewer.isMember && viewer.memberId
       ? this.registrationBlock(eventKey, viewer.memberId)
+      : null;
+    const registrationPrompt = isUpcoming && !viewer.isMember
+      ? this.registrationPromptFor(eventKey, viewer.onboardingMemberId)
       : null;
     const organizerRows = runSqliteRead('listEventPageOrganizers', () =>
       eventOrganizers.listForEventPage.all(detail.event.eventId) as Array<{
@@ -2961,10 +2960,28 @@ export class EventService {
         showResults: !isUpcoming,
         organizers,
         registration,
+        registrationPrompt,
         notice: opts.notice ?? null,
         coverPhoto: cover ? coverPhotoImage(cover, detail.event.title) : null,
       },
     };
+  }
+
+  // What a non-member sees where a member would register. The register form is
+  // member-only, so log-in returns a visitor straight to it.
+  private registrationPromptFor(eventKey: string, onboardingMemberId: string | undefined): MembershipPromptView {
+    const event = this.findEventByKey(eventKey) as EventRow;
+    const offered = isRegistrationOffered(
+      { ...event, has_enterable_division: this.hasEnterableDivision(event.id) ? 1 : 0 },
+      new Date().toISOString(),
+    );
+    if (!offered) return { text: REGISTRATION_NOT_OPEN, actions: [] };
+    if (onboardingMemberId) {
+      return onboardingMembershipPrompt(REGISTER_NEEDS_ONBOARDING, onboardingMemberId);
+    }
+    return visitorMembershipPrompt(
+      REGISTER_NEEDS_MEMBERSHIP, 'Log In to Register', `/events/${encodeURIComponent(eventKey)}/register`,
+    );
   }
 
   // The event page's registration section for a signed-in member.

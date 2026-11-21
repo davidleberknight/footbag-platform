@@ -2528,6 +2528,15 @@ main fieldset > :not(:has(~ :not([type="hidden"]))) { margin-bottom: 0; }
   margin: 0 0 var(--space-md);
 }
 
+/* What a non-member sees in place of a member-only action (the membership-prompt partial). */
+.membership-prompt { margin-top: var(--space-lg); }
+.membership-prompt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  align-items: center;
+}
+
 .form-actions {
   display: flex;
   flex-wrap: wrap;

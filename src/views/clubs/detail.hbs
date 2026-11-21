@@ -138,6 +138,10 @@
     </section>
     {{/if}}
 
+    {{#if content.club.joinPrompt}}
+      <div id="join-prompt">{{> membership-prompt content.club.joinPrompt}}</div>
+    {{/if}}
+
     {{#if isMember}}
     <div class="mt-4">
       {{#if content.club.viewerIsMember}}
@@ -212,7 +216,11 @@
     {{/if}}
     {{else}}
     <div class="card card-static club-members-gate">
-      <p><a href="/login?returnTo={{content.club.clubHref}}">Log in</a> to see club members.</p>
+      {{#if content.club.membersGateIsOnboarding}}
+        <p><a href="{{siteHref content.club.membersGateHref}}">Finish onboarding</a> to see club members.</p>
+      {{else}}
+        <p><a href="{{siteHref content.club.membersGateHref}}">Log in</a> to see club members.</p>
+      {{/if}}
     </div>
     {{/if}}
 

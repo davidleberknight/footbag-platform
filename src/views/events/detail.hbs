@@ -67,6 +67,11 @@
         </div>
       {{/if}}
 
+      {{! ── Registration: for a non-member, what registering takes ─ }}
+      {{#if content.registrationPrompt}}
+        <div id="registration-prompt">{{> membership-prompt content.registrationPrompt}}</div>
+      {{/if}}
+
       {{! ── Registration, for a signed-in member ──────────────── }}
       {{#if content.registration}}
         {{#with content.registration}}

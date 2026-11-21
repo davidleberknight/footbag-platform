@@ -53,18 +53,6 @@
     {{/if}}
   </section>
 
-  {{! ── This year's completed events ────────────────────────────── }}
-  {{#if content.currentYearEvents.length}}
-    <section id="current-year-events">
-      <div class="section-heading">
-        <h2>Completed Events From {{content.currentYear}}</h2>
-      </div>
-      <div class="event-list">
-        {{#each content.currentYearEvents}}{{> event-archive-row this}}{{/each}}
-      </div>
-    </section>
-  {{/if}}
-
   {{! ── Past events by year ─────────────────────────────────────── }}
   {{#if content.archiveYears.length}}
   <section id="past-events">

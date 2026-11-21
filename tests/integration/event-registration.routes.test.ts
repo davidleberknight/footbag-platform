@@ -70,6 +70,20 @@ function makeMember(
 
 const day = (iso: string): string => iso.slice(0, 10);
 
+/** The markup of the div with this id, through its matching close tag; fails when absent. */
+function regionOf(html: string, id: string): string {
+  const start = html.indexOf(`<div id="${id}"`);
+  expect(start, `element #${id} is on the page`).toBeGreaterThanOrEqual(0);
+  const tags = /<div\b|<\/div>/g;
+  tags.lastIndex = start;
+  let depth = 0;
+  for (let m = tags.exec(html); m; m = tags.exec(html)) {
+    depth += m[0] === '</div>' ? -1 : 1;
+    if (depth === 0) return html.slice(start, m.index + m[0].length);
+  }
+  throw new Error(`element #${id} never closes`);
+}
+
 interface SeededEvent {
   id: string;
   key: string;
@@ -320,6 +334,53 @@ describe('registering for a free event', () => {
     expect((await get(max, `/events/${ev.key}/register`)).status).toBe(404);
     expect((await post(max, `/events/${ev.key}/register`, registerBody(ev, { divisions: [ev.singles] }))).status).toBe(404);
     expect(registrationOf(ev.id, max)).toBeUndefined();
+  });
+
+  // Defect caught: a signed-out visitor on an open event sees a "Registration
+  // open" badge and no way to register, or a log-in that does not bring them
+  // back to the form, or no way to create the account membership needs.
+  it("shows a visitor a log-in back to the form and a way to join, where a member's Register button would be", async () => {
+    const ev = seedEvent();
+    const page = await get(null, `/events/${ev.key}`);
+    expect(page.status).toBe(200);
+    const prompt = regionOf(page.text, 'registration-prompt');
+    const loginHref = `/login?returnTo=${encodeURIComponent(`/events/${ev.key}/register`)}`;
+    expect(prompt).toContain(`href="${loginHref}"`);
+    expect(prompt).toContain('href="/register"');
+    expect(page.text).not.toContain(`href="/events/${ev.key}/register"`);
+    const login = await get(null, loginHref);
+    expect(login.status).toBe(200);
+    expect(login.text).toContain(`value="/events/${ev.key}/register"`);
+  });
+
+  // Defect caught: a signed-in registrant still onboarding is told to log in
+  // again, or shown nothing, instead of being sent to finish onboarding.
+  it('sends a signed-in registrant still onboarding to finish it, never to log in', async () => {
+    const ev = seedEvent();
+    const pending = makeMember('rg-still-onboarding', 'female', 'tier0', { onboarded: false });
+    const prompt = regionOf((await get(pending, `/events/${ev.key}`)).text, 'registration-prompt');
+    expect(prompt).toMatch(/href="\/register\/wizard\/[a-z_]+"/);
+    expect(prompt).not.toContain('/login');
+  });
+
+  // Defect caught: a visitor is invited to log in and register for an event
+  // nobody can register for now, or the badge still says registration is open.
+  it('tells a visitor online registration is not open, with no log-in, when no type is on offer', async () => {
+    const ev = seedEvent({ sanction_status: 'approved', competitor_fee_cents: 5000, payment_enabled: 0 });
+    const page = await get(null, `/events/${ev.key}`);
+    const prompt = regionOf(page.text, 'registration-prompt');
+    expect(prompt).not.toContain('href=');
+    expect(page.text).toContain('badge-closed');
+    expect(page.text).not.toContain('badge-reg_open');
+  });
+
+  // Defect caught: a member is shown the visitor prompt beside, or instead of,
+  // their Register button.
+  it('shows a member their Register button and no membership prompt', async () => {
+    const ev = seedEvent();
+    const page = await get(nobody, `/events/${ev.key}`);
+    expect(page.text).toContain(`href="/events/${ev.key}/register"`);
+    expect(page.text).not.toContain('id="registration-prompt"');
   });
 
   // Defect caught: a visitor who is not signed in reaches the registration form.

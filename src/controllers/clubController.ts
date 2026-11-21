@@ -194,12 +194,16 @@ export const clubController = {
     try {
       // Member-visible roster, contact, and affiliation state key off
       // membership, not bare authentication: a pending registrant reads the
-      // club page as an anonymous visitor.
+      // club page as a non-member, told to finish onboarding rather than to
+      // log in.
       const result = clubService.resolveByKey(
         req.params.key,
         req.isMember,
         req.isMember ? req.user?.userId : undefined,
-        { notice: takeActionNotice(req, res) },
+        {
+          notice: takeActionNotice(req, res),
+          onboardingMemberId: req.isMember ? undefined : req.user?.userId,
+        },
       );
       res.render(result.template, result.vm);
     } catch (err) {

@@ -1,23 +1,26 @@
 #!/usr/bin/env bash
-# Streams the built images to a deploy target over ssh.
+# Sends the built Docker images to a deploy target, uploading only what changed.
 #
-# Sourced by both deploy paths so the two cannot drift apart on the one subtlety
-# this carries: under `set -o pipefail`, `docker save | ssh docker load` reports
-# the writer's status when the writer dies, and the writer dies of SIGPIPE
-# whenever the reader finishes first. That is not a failure. `docker load`
-# deduplicates layers the host already holds, so on a host that is nearly up to
-# date it can consume the whole archive and exit while `docker save` is still
-# streaming, and the deploy then aborts with 141 having already loaded every
-# image successfully.
+# Sourced by both deploy paths so the two cannot drift apart. The Docker images
+# are saved to one archive on the workstation and rsynced onto the copy of the
+# archive the previous deploy left in the deploy account's home on the host.
+# A layer whose content has not changed is byte-identical in both archives, so
+# rsync sends only the new layers (on a routine code deploy, the app code) plus
+# its block checksums, instead of the whole archive, which on a slow uplink is
+# the difference between minutes and hours.
 #
-# The reader's status is the authority. A genuinely truncated stream makes
-# `docker load` exit non-zero (it reports an unexpected EOF), and both remote
-# halves independently verify the loaded RootFS layer DiffIDs against the local
-# ones and refuse to continue on a mismatch, so a half-transferred image cannot
-# slip through on the strength of this alone.
+# The host's Docker images are not touched until the archive has fully arrived:
+# rsync writes to a temporary file and renames it into place only when the
+# transfer completes, so a dropped connection leaves the host as it was, and
+# `--partial` lets a retry continue rather than start over. `docker load` then
+# reads the arrived archive, and both remote halves still verify the loaded
+# RootFS layer DiffIDs against the local ones and refuse to continue on a
+# mismatch.
 #
-# Reads SUDO_PASS, REMOTE and SSH_OPTS from the calling script rather than
-# taking them as arguments, so the sudo password never enters an argument list.
+# Reads SUDO_PASS, REMOTE, REMOTE_HOME and SSH_OPTS from the calling script
+# rather than taking them as arguments, so the sudo password never enters an
+# argument list. The password travels only on the stdin of the one privileged
+# session, `docker load`; rsync and the free-space read carry no secret.
 
 # shellcheck shell=bash
 
@@ -48,19 +51,70 @@ require_images_for_hosts() {
   done
 }
 
+# The archive's name in the deploy account's home on the host. It lives outside
+# the release upload directory, which every deploy empties, because it is the
+# basis the next deploy's rsync compares against.
+DEPLOY_IMAGE_ARCHIVE_NAME="footbag-docker-images.tar"
+
 send_images_to_host() {
-  local reader_status=0
+  local local_dir local_tar remote_tar size avail need status=0
 
-  # pipefail off for this pipeline only: with it on, the writer's SIGPIPE would
-  # mask the reader's success. Restored immediately afterwards so the rest of
-  # the deploy keeps the strict behaviour.
-  set +o pipefail
-  { printf '%s\n' "$SUDO_PASS"; docker save docker-web docker-worker docker-image; } \
-    | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" docker load' || reader_status=$?
-  set -o pipefail
+  if [[ -z "${REMOTE_HOME:-}" || "$REMOTE_HOME" != /* ]]; then
+    echo "ERROR: the deploy account's home on $REMOTE is not known; nothing was sent." >&2
+    return 1
+  fi
+  remote_tar="${REMOTE_HOME}/${DEPLOY_IMAGE_ARCHIVE_NAME}"
 
-  if (( reader_status != 0 )); then
-    echo "ERROR: docker load on $REMOTE failed (exit $reader_status)." >&2
-    return "$reader_status"
+  local_dir="$(mktemp -d "${TMPDIR:-/tmp}/footbag-docker-images.XXXXXX")"
+  # Registered as well as removed below, so an interrupt mid-save leaves no
+  # archive behind on the workstation.
+  if declare -F cr_cleanup >/dev/null; then cr_cleanup rm -rf -- "$local_dir"; fi
+  local_tar="${local_dir}/${DEPLOY_IMAGE_ARCHIVE_NAME}"
+
+  echo "    saving Docker images to a local archive..."
+  if ! docker save -o "$local_tar" docker-web docker-worker docker-image; then
+    echo "ERROR: docker save failed on this workstation; nothing was sent to $REMOTE." >&2
+    rm -rf -- "$local_dir"
+    return 1
+  fi
+  size="$(stat -c %s -- "$local_tar")" || size=0
+
+  # rsync builds the new archive beside the old one before renaming it into
+  # place, and `docker load` then unpacks whatever layers the host lacks, so the
+  # host needs room for roughly twice the archive. Refusing here is what keeps a
+  # full disk from failing the load after the old Docker images were already
+  # pruned. POSIX `df -P` output is a fixed format: the fourth field of the
+  # second line is the space available, in 1024-byte blocks.
+  avail="$(ssh "${SSH_OPTS[@]}" "$REMOTE" "df -Pk ${REMOTE_HOME@Q}" </dev/null \
+    | sed -n '2p' | tr -s ' ' | cut -d' ' -f4)" || avail=""
+  if [[ ! "$avail" =~ ^[0-9]+$ ]]; then
+    echo "ERROR: could not read the free disk space on $REMOTE; nothing was sent." >&2
+    rm -rf -- "$local_dir"
+    return 1
+  fi
+  need=$(( size * 2 / 1024 ))
+  if (( avail < need )); then
+    echo "ERROR: $REMOTE has $(( avail / 1024 )) MB free, but receiving and loading the" >&2
+    echo "       Docker images needs about $(( need / 1024 )) MB. Nothing was sent." >&2
+    rm -rf -- "$local_dir"
+    return 1
+  fi
+
+  echo "    sending only the parts of the Docker images $REMOTE does not already have..."
+  if ! rsync -z --partial --chmod=F600 --info=progress2,stats1 \
+      -e "ssh ${SSH_OPTS[*]}" "$local_tar" "$REMOTE:$remote_tar" </dev/null; then
+    echo "ERROR: sending the Docker images to $REMOTE failed; its running release is unchanged." >&2
+    echo "       Re-running the deploy continues the transfer where it stopped." >&2
+    rm -rf -- "$local_dir"
+    return 1
+  fi
+  rm -rf -- "$local_dir"
+
+  printf '%s\n' "$SUDO_PASS" \
+    | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" docker load -i '"${remote_tar@Q}" \
+    || status=$?
+  if (( status != 0 )); then
+    echo "ERROR: docker load on $REMOTE failed (exit $status)." >&2
+    return "$status"
   fi
 }

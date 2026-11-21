@@ -104,7 +104,7 @@
 
 **Git**: Distributed version control system tracking code changes over time. Developers use Git to collaborate, maintain history, and coordinate work. Footbag.org code lives in GitHub repository with branching strategy supporting parallel development.
 
-**GitHub Actions**: CI/CD automation platform integrated with GitHub repositories. Footbag.org uses GitHub Actions to run the CI checks (tests, type-check, lint, security scanning, Terraform validate) on every push and pull request. Images are not built in CI and there is no image registry: images are built on the operator workstation and shipped to the Lightsail host via `docker save | ssh | docker load` (the host is too small to build them itself).
+**GitHub Actions**: CI/CD automation platform integrated with GitHub repositories. Footbag.org uses GitHub Actions to run the CI checks (tests, type-check, lint, security scanning, Terraform validate) on every push and pull request. Docker images are not built in CI and there is no image registry: Docker images are built on the operator workstation, saved with `docker save`, rsynced to the Lightsail host so only changed layers travel, and loaded there with `docker load` (the host is too small to build them itself).
 
 **Gallery / Media Item / Media Collection / Archive**: A *gallery* (table `member_galleries`, route `/media/:galleryId`) is a browseable, named view of media; a *media item* (table `media_items`) is one photo or video shown within galleries and tag/browse pages. "Media collection" is an informal UI synonym for a member's own galleries. None of these is the *legacy archive*, which is the member-only read-only mirror of the old footbag.org site, a separate surface entirely.
 

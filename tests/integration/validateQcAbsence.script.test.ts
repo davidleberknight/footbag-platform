@@ -79,7 +79,7 @@ function shippedImages(): string[] {
     path.resolve(__dirname, '..', '..', 'scripts', 'lib', 'image-transfer.sh'),
     'utf-8',
   );
-  const save = /;\s*docker save ([\w\s-]+);/.exec(transfer);
+  const save = /docker save -o "\$\w+" ([\w\s-]+);/.exec(transfer);
   if (!save) throw new Error('image-transfer.sh no longer carries a docker save line');
   return save[1].trim().split(/\s+/);
 }

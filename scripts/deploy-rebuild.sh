@@ -562,8 +562,8 @@ IMAGE_IMAGE_LAYERS=$(docker image inspect --format='{{range .RootFS.Layers}}{{.}
   cr_die "docker image inspect failed for docker-image"
 }
 
-# ── Transfer images to host via docker save | docker load ──────────────────
-# Pre-transfer optimization (mirrors deploy-code.sh): skip the pipe when the
+# ── Transfer Docker images to host (rsync of a docker save archive) ────────
+# Pre-transfer optimization (mirrors deploy-code.sh): skip the transfer when the
 # host already has images with identical RootFS DiffIDs. Operator's footbag
 # user is in the host's docker group; no sudo needed for `docker image inspect`.
 echo "==> Comparing local image RootFS DiffIDs against host..."
@@ -580,9 +580,9 @@ if [[ -n "$WEB_IMAGE_LAYERS" && -n "$WORKER_IMAGE_LAYERS" && -n "$IMAGE_IMAGE_LA
    && "$WEB_IMAGE_LAYERS"    == "$REMOTE_WEB_LAYERS" \
    && "$WORKER_IMAGE_LAYERS" == "$REMOTE_WORKER_LAYERS" \
    && "$IMAGE_IMAGE_LAYERS"  == "$REMOTE_IMAGE_LAYERS" ]]; then
-  echo "==> Image RootFS DiffIDs match host; skipping docker save | docker load."
+  echo "==> Image RootFS DiffIDs match host; skipping the Docker image transfer."
 else
-  echo "==> Transferring images to host (docker save | docker load)..."
+  echo "==> Transferring Docker images to host (only the changed parts are sent)..."
   # Reclaim host disk before the load. Each deploy loads a fresh :latest and
   # leaves the previous image dangling; left unchecked these orphans and build
   # cache fill the disk until `docker load` fails with "no space left on device".

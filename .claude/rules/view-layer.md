@@ -58,7 +58,9 @@ Compose every public page from one small set: site frame (header / main / footer
 (eyebrow / title / subtitle / notice), content section, compact disclosure card grid,
 discipline tag, result section, year navigation, pager, metadata / summary rows, data table (`.data-table`,
 the one table treatment), queue row, grouped link
-index, dated item, archive row, member picker, prominent action link, back link (the `back-link` partial),
+index, dated item, archive row, member picker, membership prompt (the `membership-prompt` partial: what a
+non-member sees in place of a member-only action, one sentence and its log-in, join or finish-onboarding
+buttons), prominent action link, back link (the `back-link` partial),
 empty state, notice block, and admin instructions block. A new page
 joins the standard only if it can be expressed through these. A genuinely new reusable primitive is
 added to the standard first, then applied across the relevant pages, never invented per page.
@@ -90,7 +92,7 @@ published on a date, upcoming events and news items alike: its date, a title lin
 an optional status or label badge, an optional meta line whose parts may be links, an optional
 excerpt, and an optional small square thumbnail at the card's top right from the item's cover photo,
 drawn on the card classes; a compact form drops the excerpt and the thumbnail where two lists sit
-side by side. The thumbnail is decorative: the title stays the card's one link. Every page that lists upcoming events draws each one as a dated item; a completed event on the events landing page and the year pages is an **archive row** (the `event-archive-row` partial), a compact ruled row drawn from the same dated-item fields, with the title linking to the event and the description on the left and the date and meta line on the right. Either way the page
+side by side. The thumbnail is decorative: the title stays the card's one link. Every page that lists upcoming events draws each one as a dated item; a completed event on a year page is an **archive row** (the `event-archive-row` partial), a compact ruled row drawn from the same dated-item fields, with the title linking to the event and the description on the left and the date and meta line on the right. Either way the page
 service shapes its date as one preformatted range, its label as the registration status of an
 upcoming event (a completed event carries none), and its meta line as location, host club and its
 hashtag, drawn as the shared hashtag token that links to the event's gallery when content carries

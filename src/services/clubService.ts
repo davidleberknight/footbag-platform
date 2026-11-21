@@ -110,7 +110,10 @@
  *     absence of contact artifacts in the HTML. Leaders with a non-renderable status are
  *     filtered out in the service before rendering, not in the template. A viewer who is not a
  *     member (a signed-out visitor, or a registrant still onboarding) sees neither the leaders
- *     section nor the club member roster; a bounded login prompt renders in place of the roster.
+ *     section nor the club member roster; a bounded prompt renders in place of the roster, to log
+ *     in for a visitor and to finish onboarding for a registrant. In place of the Join control the
+ *     same viewer is told joining needs membership, with log-in back to the club page or the
+ *     onboarding wizard (membershipPrompt).
  *   - showContact fails closed for unknown or newly-introduced leader statuses: a new status maps
  *     to false unless its mapping explicitly chooses true with documented justification.
  *   - Bootstrap leader rendering (`club_bootstrap_leaders`) is read-only at the
@@ -217,6 +220,10 @@ import {
 import { validateExternalUrl } from '../lib/externalUrlValidator';
 import { sanitizeUserText, INVALID_TEXT_ENCODING_MESSAGE } from '../lib/textSanitizer';
 import type { OutcomeNoticeView } from '../lib/outcomeNotice';
+import {
+  loginReturningTo, onboardingMembershipPrompt, onboardingWizardHref, visitorMembershipPrompt,
+  type MembershipPromptView,
+} from './membershipPrompt';
 import { appendAuditEntry, findOwnLatestAudit, findStandingOwnAct } from './auditService';
 import { applyClubJoinInTx as applyActivePlayerClubJoinInTx, getStatus as getActivePlayerStatus } from './activePlayerService';
 import { getTierStatus, tierBadgeShort } from './membershipTieringService';
@@ -741,12 +748,17 @@ export interface ClubLeader {
  * that redirected here, and, when a co-leader's save was refused, what they
  * submitted and why it was refused.
  */
+const JOIN_NEEDS_MEMBERSHIP = 'You must be an IFPA member to join this club. Membership is free.';
+const JOIN_NEEDS_ONBOARDING = 'Finish setting up your membership to join this club.';
+
 export interface ClubPageOptions {
   /** The outcome of the action that redirected here, carrying its own tone:
    *  a refusal must not render in the treatment that means it worked. */
   notice?: OutcomeNoticeView | null;
   editErrors?: Record<string, string> | null;
   editValues?: Record<string, string> | null;
+  /** A signed-in registrant still onboarding, who reads the page as a non-member. */
+  onboardingMemberId?: string;
 }
 
 export interface ClubEditForm {
@@ -823,6 +835,18 @@ export interface PublicClubDetail extends PublicClubSummary {
   // Why the Join control is absent for this viewer: the club has no co-leader
   // to vet a newcomer, and the viewer lacks Tier 1 benefits.
   joinBlockedNote: ClubNoteSegment[] | null;
+  /**
+   * What a non-member sees where a member would join: membership is required
+   * and how to get it. Null for a member.
+   */
+  joinPrompt: MembershipPromptView | null;
+  /**
+   * Where the roster's sign-in card sends a non-member: log-in returning here
+   * for a visitor, the onboarding wizard for a registrant still onboarding.
+   */
+  membersGateHref: string | null;
+  /** The roster card's link reads "finish onboarding" rather than "log in". */
+  membersGateIsOnboarding: boolean;
   /** Co-leaders edit club content directly; there is no suggestion loop. */
   viewerIsLeader: boolean;
   // No live co-leader: drives the "could use a co-leader" nudge above the
@@ -1105,6 +1129,9 @@ function toPublicClubDetail(
     viewerIsMember: false,
     viewerCanJoin: false,
     joinBlockedNote: null,
+    joinPrompt: null,
+    membersGateHref: null,
+    membersGateIsOnboarding: false,
     viewerIsLeader: false,
     isLeaderless: false,
     viewerCanVolunteer: false,
@@ -1815,6 +1842,19 @@ export class ClubService {
       // preview is fetched from outside the site.
       const cover = clubCoverPhotos([row.club_id]).get(row.club_id) ?? null;
       club.coverPhoto = cover ? coverPhotoImage(cover, club.name) : null;
+
+      // A non-member is told that joining, and seeing the roster, takes
+      // membership: a visitor is sent to log in and back here, a registrant
+      // still onboarding to finish it.
+      if (!isAuthenticated) {
+        const clubHref = `/clubs/${encodeURIComponent(clubKey)}`;
+        const onboardingId = opts?.onboardingMemberId;
+        club.joinPrompt = onboardingId
+          ? onboardingMembershipPrompt(JOIN_NEEDS_ONBOARDING, onboardingId)
+          : visitorMembershipPrompt(JOIN_NEEDS_MEMBERSHIP, 'Log In to Join', clubHref);
+        club.membersGateIsOnboarding = onboardingId != null;
+        club.membersGateHref = onboardingId ? onboardingWizardHref(onboardingId) : loginReturningTo(clubHref);
+      }
 
       if (viewerMemberId) {
         const viewerAff = memberClubAffiliations.findCurrentByMemberAndClub.get(viewerMemberId, row.club_id) as

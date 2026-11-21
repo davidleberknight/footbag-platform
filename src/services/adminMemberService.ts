@@ -29,6 +29,13 @@
  * exclusion is a prospective member: they are not a member, so the
  * lookup never finds them and their record answers as an unknown id.
  *
+ * The same query also finds the old footbag.org accounts, claimed or not
+ * (through AdminLegacyAccountService), and the historical competition records
+ * (through AdminHistoricalRecordService), each in a group of its own, so an
+ * administrator reaches a person before any modern account exists and never
+ * mistakes one kind of row for another. Every group matches a name in each of
+ * its curated nickname forms.
+ *
  * Reading a record writes nothing. The corrections each write one audit row
  * through their owning service.
  */
@@ -59,6 +66,9 @@ import type { PageViewModel } from '../types/page';
 import type { OutcomeTone } from '../lib/outcomeNotice';
 import { cleanUserText } from '../lib/textSanitizer';
 import { personLocation } from './countryUtils';
+import { nicknameQueryVariants } from './nameVariantsService';
+import { adminLegacyAccountService, type AdminLegacyAccountView } from './adminLegacyAccountService';
+import { adminHistoricalRecordService, type MemberFindRecordView } from './adminHistoricalRecordService';
 
 const LOOKUP_LIMIT = 25;
 const MIN_LOOKUP_QUERY = 2;
@@ -248,15 +258,37 @@ interface LookupResultView {
   badges: string[];
 }
 
+/** One group of the find that is not member accounts: its rows and its count line. */
+interface LookupGroupView<TRow> {
+  results: TRow[];
+  hasResults: boolean;
+  summary: string;
+}
+
 export interface AdminMemberLookupContent {
   query: string;
   hasQuery: boolean;
+  /** Member accounts, the group every correction starts from. */
   results: LookupResultView[];
   hasResults: boolean;
   resultSummary: string;
   /** The result cap was reached, so the set shown is not the whole match. */
   hasMore: boolean;
+  /** Old footbag.org accounts, claimed or not, kept apart so no row is mistaken for a member account. */
+  legacyAccounts: LookupGroupView<AdminLegacyAccountView>;
+  /** Historical competition records, kept apart for the same reason. */
+  historicalRecords: LookupGroupView<MemberFindRecordView>;
   errorMessage?: string;
+}
+
+function groupSummary(count: number, hasMore: boolean, noun: { one: string; many: string; none: string }): string {
+  if (count === 0) return noun.none;
+  if (hasMore) return `More than ${LOOKUP_LIMIT} ${noun.many} match. Narrow the search to see the rest.`;
+  return count === 1 ? `One ${noun.one} matches.` : `${count} ${noun.many} match.`;
+}
+
+function emptyGroup<TRow>(): LookupGroupView<TRow> {
+  return { results: [], hasResults: false, summary: '' };
 }
 
 interface FactRow {
@@ -927,7 +959,9 @@ function decisionSummary(d: CheckedDecision): string {
 export const adminMemberService = {
   /**
    * The lookup. An administrator names a member by exact id, profile URL or
-   * login email, or by part of their display name.
+   * login email, or by part of their display name in any of its nickname forms.
+   * The same query also finds old footbag.org accounts and historical records,
+   * each listed in a group of its own so it is always clear which is which.
    */
   getMemberLookupPage(rawQuery: string): PageViewModel<AdminMemberLookupContent> {
     const query = rawQuery.trim();
@@ -935,23 +969,31 @@ export const adminMemberService = {
     let results: LookupResultView[] = [];
     let hasMore = false;
     let errorMessage: string | undefined;
+    let legacyAccounts = emptyGroup<AdminLegacyAccountView>();
+    let historicalRecords = emptyGroup<MemberFindRecordView>();
 
     if (query !== '' && query.length < MIN_LOOKUP_QUERY) {
       errorMessage = `Enter at least ${MIN_LOOKUP_QUERY} letters of the name, or a login email.`;
     } else if (query !== '') {
-      const escaped = query.toLowerCase().replace(/[\\%_]/g, (ch) => `\\${ch}`);
+      const variants = nicknameQueryVariants(query);
       // One over the cap, so a full page of results can be told apart from a
       // set that was truncated. The extra row is dropped before rendering.
       // The profile URL is stored lowercase, so the exact-key comparison is made
       // against the lowered query; otherwise an administrator who types it with
       // any capital misses the member entirely.
       const key = query.toLowerCase();
-      const ids = account.findMemberIdsForAdminSearch.all(
-        query, key, key, escaped, LOOKUP_LIMIT + 1,
-      ) as Array<{ id: string }>;
-      hasMore = ids.length > LOOKUP_LIMIT;
-      results = ids.slice(0, LOOKUP_LIMIT).map(({ id }) => {
-        const row = readMember(id);
+      const found = new Set<string>();
+      for (const variant of variants) {
+        const escaped = variant.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+        for (const { id } of account.findMemberIdsForAdminSearch.all(
+          query, key, key, escaped, LOOKUP_LIMIT + 1,
+        ) as Array<{ id: string }>) found.add(id);
+      }
+      const rows = [...found].map((id) => readMember(id)).sort((a, b) =>
+        a.display_name.localeCompare(b.display_name, undefined, { sensitivity: 'base' })
+        || a.id.localeCompare(b.id));
+      hasMore = rows.length > LOOKUP_LIMIT;
+      results = rows.slice(0, LOOKUP_LIMIT).map((row) => {
         const tier = getTierStatus(row.id);
         const location = [row.city, row.region, row.country].filter(Boolean).join(', ');
         return {
@@ -966,6 +1008,23 @@ export const adminMemberService = {
             .filter((b): b is string => Boolean(b)),
         };
       });
+
+      const legacy = adminLegacyAccountService.findAccountsForAdmin(query, variants, LOOKUP_LIMIT);
+      legacyAccounts = {
+        results: legacy.results,
+        hasResults: legacy.results.length > 0,
+        summary: groupSummary(legacy.results.length, legacy.hasMore, {
+          one: 'old account', many: 'old accounts', none: 'No old footbag.org account matches.',
+        }),
+      };
+      const records = adminHistoricalRecordService.findRecordsForMemberFind(query, LOOKUP_LIMIT);
+      historicalRecords = {
+        results: records.results,
+        hasResults: records.results.length > 0,
+        summary: groupSummary(records.results.length, records.hasMore, {
+          one: 'historical record', many: 'historical records', none: 'No historical record matches.',
+        }),
+      };
     }
 
     const resultSummary = query === ''
@@ -983,7 +1042,7 @@ export const adminMemberService = {
       page: {
         sectionKey: '', pageKey: 'admin_members', title,
         instructions: {
-          what: 'Finds any member account by part of the name or by login email.',
+          what: 'Finds anyone the platform holds: member accounts, old footbag.org accounts and historical records, by part of the name, a nickname form, a login or old email, or an id.',
           why: 'It reaches accounts that member search hides: those held back from search, those inside the deletion grace period, and those marked deceased.',
           how: 'Type at least two characters, then open a result. Every correction starts from the member\'s record.',
           headsUp: ['This page shows private details.'],
@@ -996,6 +1055,8 @@ export const adminMemberService = {
         hasResults: results.length > 0,
         resultSummary,
         hasMore,
+        legacyAccounts,
+        historicalRecords,
         errorMessage,
       },
     };

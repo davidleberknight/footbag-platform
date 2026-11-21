@@ -7,9 +7,9 @@
  *
  * Also the registration cutoff and the registration status every event surface
  * shows. An event whose status is still `reg_open` but whose cutoff has passed,
- * or whose organizer has paused registration, refuses a registration, so its
- * badge says registration is closed rather than promising what the form will
- * refuse.
+ * whose organizer has paused registration, or which offers no registration type
+ * a member could take, refuses a registration, so its badge says registration
+ * is closed rather than promising what the form will refuse.
  *
  * Pure shaping over flat rows, with no database access, so the member service
  * and the event service both use it without importing each other.
@@ -17,6 +17,7 @@
 import { formatDateRange } from '../lib/handlebarsHelpers';
 import { personLocation } from './countryUtils';
 import type { DatedItemMeta, DatedItemView } from '../types/datedItem';
+import type { RegistrationType } from './eventRegistrationSettlement';
 
 export const EVENT_STATUS_LABELS: Record<string, string> = {
   draft: 'Draft',
@@ -47,19 +48,56 @@ export function isRegistrationOpen(
     && todayIso.slice(0, 10) <= registrationCutoff(event);
 }
 
+/**
+ * The registration types a member can choose: competitor always, and attendee
+ * or supporter when the organizers accept it. A type carrying a fee is offered
+ * only once the event's sanction approval has enabled payment, so no fee is
+ * ever taken for an event IFPA has not sanctioned.
+ */
+export function offeredRegistrationTypes(event: {
+  is_attendee_registration_open: number; competitor_fee_cents: number | null; attendee_fee_cents: number | null;
+  payment_enabled: number;
+}): RegistrationType[] {
+  const payable = (fee: number | null): boolean => fee === null || event.payment_enabled === 1;
+  const types: RegistrationType[] = [];
+  if (payable(event.competitor_fee_cents)) types.push('competitor');
+  if (event.is_attendee_registration_open === 1 && payable(event.attendee_fee_cents)) types.push('attendee_supporter');
+  return types;
+}
+
 export interface EventStatusRow {
   status: string;
   registration_status: string;
   registration_deadline: string | null;
   start_date: string;
+  is_attendee_registration_open: number;
+  competitor_fee_cents: number | null;
+  attendee_fee_cents: number | null;
+  payment_enabled: number;
+  /** 1 when the event has a division a competitor can enter (not only aggregate standings). */
+  has_enterable_division: number;
 }
 
 /**
- * The status badge for an event. An open event past its cutoff or paused reads
+ * Whether a member with no registration yet could register for the event now:
+ * registration is open and before its cutoff, and at least one registration
+ * type is on offer, a competitor needing a division to enter. The badge and
+ * the event page's register button both follow this, so a badge never says
+ * registration is open while the page offers no way to register.
+ */
+export function isRegistrationOffered(row: EventStatusRow, todayIso: string): boolean {
+  if (!isRegistrationOpen(row, todayIso)) return false;
+  return offeredRegistrationTypes(row)
+    .some((t) => t !== 'competitor' || row.has_enterable_division === 1);
+}
+
+/**
+ * The status badge for an event. An open event that no one could register for
+ * now (past its cutoff, paused, or offering no type a member could take) reads
  * as closed, the same as an event an organizer or the deadline job closed.
  */
 export function eventStatusBadge(row: EventStatusRow, todayIso: string): { text: string; cssClass: string } {
-  const status = row.status === 'reg_open' && !isRegistrationOpen(row, todayIso) ? 'closed' : row.status;
+  const status = row.status === 'reg_open' && !isRegistrationOffered(row, todayIso) ? 'closed' : row.status;
   return {
     text: EVENT_STATUS_LABELS[status] ?? status,
     cssClass: EVENT_STATUS_BADGE_CLASSES[status] ?? 'badge-muted',

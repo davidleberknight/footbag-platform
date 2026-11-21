@@ -5,6 +5,7 @@ import { logger } from '../config/logger';
 import { createSessionJwt } from '../services/jwtService';
 import { issueSessionCookie } from '../lib/sessionCookie';
 import { memberOnboardingService } from '../services/memberOnboardingService';
+import { onboardingWizardHref } from '../services/membershipPrompt';
 import { isSafePath } from '../lib/safePath';
 
 /**
@@ -281,6 +282,5 @@ export function requireWizardOpen(req: Request, res: Response, next: NextFunctio
  * task were ever non-completable.
  */
 export function nextPendingWizardHref(memberId: string): string {
-  const next = memberOnboardingService.nextOutstandingTaskType(memberId);
-  return next ? `/register/wizard/${next}` : '/register/wizard/complete';
+  return onboardingWizardHref(memberId);
 }

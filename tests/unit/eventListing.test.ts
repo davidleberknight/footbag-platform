@@ -2,8 +2,9 @@
  * How an event is listed: one dated item for an upcoming or a completed event,
  * and the status badge every event surface shows.
  *
- * The contract: an open event reads as closed once its cutoff day has ended or
- * while its organizers have paused registration, because the form refuses a
+ * The contract: an open event reads as closed once its cutoff day has ended,
+ * while its organizers have paused registration, or while it offers no
+ * registration type a member could take, because the form refuses a
  * registration then; the cutoff day itself still reads as open. An upcoming
  * item carries that badge; a completed item carries none and names its
  * hashtag. The date is one range, the location the site's one location form,
@@ -26,9 +27,36 @@ const open: EventListingRow = {
   registration_deadline: '2031-05-10',
   tag_normalized: '#event_2031_mountain_open',
   tag_display: '#event_2031_mountain_open',
+  is_attendee_registration_open: 0,
+  competitor_fee_cents: null,
+  attendee_fee_cents: null,
+  payment_enabled: 0,
+  has_enterable_division: 1,
 };
 
+const before = '2031-05-01T00:00:00.000Z';
+
 describe('the registration status badge', () => {
+  // Defect caught: a card or event page says registration is open over a page
+  // that offers no way to register, because the event's only type carries a
+  // fee it cannot take, or a competitor has no division to enter.
+  it('reads closed when no registration type a member could take is on offer', () => {
+    const feeWithoutPayment = { ...open, competitor_fee_cents: 2500 };
+    expect(eventStatusBadge(feeWithoutPayment, before).cssClass).toBe('badge-closed');
+    expect(eventStatusBadge({ ...feeWithoutPayment, payment_enabled: 1 }, before).cssClass).toBe('badge-reg_open');
+    const nothingToEnter = { ...open, has_enterable_division: 0 };
+    expect(eventStatusBadge(nothingToEnter, before).cssClass).toBe('badge-closed');
+  });
+
+  // Defect caught: an event whose competitors cannot register yet whose free
+  // spectator registration is open reads as closed, turning spectators away.
+  it('reads open while a free spectator registration is on offer, even with no competitor type', () => {
+    const spectatorsOnly = { ...open, competitor_fee_cents: 2500, is_attendee_registration_open: 1 };
+    expect(eventStatusBadge(spectatorsOnly, before).cssClass).toBe('badge-reg_open');
+    expect(eventStatusBadge({ ...open, has_enterable_division: 0, is_attendee_registration_open: 1 }, before).cssClass)
+      .toBe('badge-reg_open');
+  });
+
   // Defect caught: a visitor is told registration is open when the form will
   // refuse them, or an event on its last registration day reads as closed.
   it('reads open through the cutoff day, and closed after it or while paused', () => {

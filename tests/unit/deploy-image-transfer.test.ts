@@ -1,21 +1,17 @@
 /**
- * Image transfer to a deploy target must not abort on a writer SIGPIPE.
+ * Sending the built Docker images to a deploy target, and the shell pitfalls
+ * the deploy scripts around it must avoid.
  *
- * `docker save | ssh docker load` under `set -o pipefail` reports the writer's
- * exit status when the writer dies, and the writer dies of SIGPIPE whenever the
- * reader finishes first. On a host that already holds most layers, `docker load`
- * deduplicates and exits while `docker save` is still streaming, so a deploy
- * that has in fact loaded every image aborts with 141. The reader's status is
- * the authority: a truncated stream makes `docker load` fail, and the remote
- * halves verify layer DiffIDs besides.
- *
- * The first case is the demonstrated failure: it reproduces the abort against a
- * bare `save | ssh load` pipeline under pipefail, then shows the helper
- * surviving the same conditions.
+ * The helper saves the Docker images to an archive, rsyncs it onto the copy the
+ * previous deploy left on the host so only changed layers travel, and then
+ * loads it there. The host's running Docker images must be untouched unless the
+ * archive fully arrived, the sudo password must reach only the load session's
+ * stdin, and a host without room for the archive is refused before anything is
+ * sent.
  */
 import { describe, it, expect } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, chmodSync, readFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, readFileSync, existsSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
@@ -24,24 +20,92 @@ const HELPER = path.resolve(__dirname, '../../scripts/lib/image-transfer.sh');
 const DEPLOY_CODE = path.resolve(__dirname, '../../scripts/deploy-code.sh');
 const DEPLOY_REBUILD = path.resolve(__dirname, '../../scripts/deploy-rebuild.sh');
 
+const REMOTE_HOME = '/home/footbag';
+const ARCHIVE = `${REMOTE_HOME}/footbag-docker-images.tar`;
+const PASSWORD = 'fixture-sudo-password';
+// One MiB archive. The real one is about 600 MB (the three Docker images'
+// layers per `docker history`), but the free-space check compares the host's
+// free space against twice the archive's size, so the boundary cases below pin
+// that ratio exactly at any scale.
+const ARCHIVE_BYTES = 1024 * 1024;
+const NEED_KB = (ARCHIVE_BYTES * 2) / 1024;
+
+interface TransferRun {
+  status: number;
+  stderr: string;
+  /** One line per stub call: `<tool> <argv...>`. */
+  calls: string[];
+  /** What each ssh session received on stdin, in call order. */
+  sshStdin: string[];
+  /** Files left in the workstation temp directory afterwards. */
+  leftover: string[];
+}
+
 /**
- * A stub `docker` that streams far more than a pipe buffer holds, and a stub
- * `ssh` that reads a little and exits with the given status. Together they
- * recreate the reader-finishes-first race deterministically.
+ * Stubs for docker, ssh and rsync that log their argv, and a run of the
+ * helper against them. `avail` is the free space, in 1024-byte blocks, the
+ * stub `df` on the host reports; null makes the read fail.
  */
-function stubDir(readerExit: number): string {
+function transfer(opts: {
+  avail?: number | null;
+  saveExit?: number;
+  rsyncExit?: number;
+  loadExit?: number;
+  remoteHome?: string;
+} = {}): TransferRun {
   const dir = mkdtempSync(path.join(tmpdir(), 'footbag-test-image-transfer-'));
-  writeFileSync(
-    path.join(dir, 'docker'),
-    '#!/usr/bin/env bash\n[[ "$1" == "save" ]] || exit 0\nhead -c 20000000 /dev/zero\n',
-  );
-  writeFileSync(
-    path.join(dir, 'ssh'),
-    `#!/usr/bin/env bash\nhead -c 64 >/dev/null\nexit ${readerExit}\n`,
-  );
-  chmodSync(path.join(dir, 'docker'), 0o755);
-  chmodSync(path.join(dir, 'ssh'), 0o755);
-  return dir;
+  const bin = path.join(dir, 'bin');
+  const work = path.join(dir, 'tmp');
+  const log = path.join(dir, 'calls.log');
+  const stdinDir = path.join(dir, 'stdin');
+  for (const d of [bin, work, stdinDir]) mkdirSync(d, { recursive: true });
+  const avail = opts.avail === undefined ? NEED_KB * 10 : opts.avail;
+  const stub = (name: string, body: string[]) => {
+    writeFileSync(path.join(bin, name), ['#!/usr/bin/env bash', `echo "${name} $*" >> ${JSON.stringify(log)}`, ...body, ''].join('\n'));
+    chmodSync(path.join(bin, name), 0o755);
+  };
+  stub('docker', [
+    `[[ "$1" == save && "$2" == -o ]] || exit 0`,
+    `head -c ${ARCHIVE_BYTES} /dev/zero > "$3"`,
+    `exit ${opts.saveExit ?? 0}`,
+  ]);
+  stub('ssh', [
+    `n=$(ls ${JSON.stringify(stdinDir)} | wc -l)`,
+    `cat > ${JSON.stringify(stdinDir)}/$(printf %03d "$n")`,
+    'cmd="${@: -1}"',
+    'case "$cmd" in',
+    avail === null
+      ? '  "df -Pk "*) echo "df: cannot read" >&2; exit 1 ;;'
+      : `  "df -Pk "*) printf 'Filesystem 1024-blocks Used Available Capacity Mounted on\\n/dev/root 20000000 100 ${avail} 1%% /\\n' ;;`,
+    `  *"docker load -i "*) exit ${opts.loadExit ?? 0} ;;`,
+    'esac',
+  ]);
+  // The source is the next-to-last argument; a real rsync fails on a missing
+  // one, and so does this stand-in.
+  stub('rsync', ['src="${@: -2:1}"', '[[ -s "$src" ]] || { echo "rsync: missing $src" >&2; exit 23; }', `exit ${opts.rsyncExit ?? 0}`]);
+  const script = `
+set -euo pipefail
+export PATH="${bin}:$PATH"
+export TMPDIR="${work}"
+SUDO_PASS=${PASSWORD}
+REMOTE=footbag-staging
+REMOTE_HOME=${JSON.stringify(opts.remoteHome ?? REMOTE_HOME)}
+SSH_OPTS=(-o BatchMode=yes)
+source "${HELPER}"
+send_images_to_host
+`;
+  let status = 0;
+  let stderr = '';
+  try {
+    execFileSync('bash', ['-c', script], { stdio: ['ignore', 'ignore', 'pipe'], ...SPAWN_GUARD });
+  } catch (err) {
+    const e = err as { status?: number; stderr?: Buffer };
+    status = e.status ?? -1;
+    stderr = e.stderr?.toString() ?? '';
+  }
+  const calls = existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n').filter(Boolean) : [];
+  const sshStdin = readdirSync(stdinDir).sort().map((f) => readFileSync(path.join(stdinDir, f), 'utf8'));
+  return { status, stderr, calls, sshStdin, leftover: readdirSync(work) };
 }
 
 /**
@@ -77,57 +141,120 @@ function blankSingleQuotedSpans(src: string): string {
   return out;
 }
 
-/** Run a bash snippet with the stubs on PATH, returning its exit status. */
-function runWithStubs(snippet: string, readerExit: number): number {
-  const dir = stubDir(readerExit);
-  const script = `
-set -euo pipefail
-export PATH="${dir}:$PATH"
-SUDO_PASS=unused
-REMOTE=host.invalid
-SSH_OPTS=(-o BatchMode=yes)
-${snippet}
-`;
+/** Run a bash snippet under the deploy scripts' strict mode, returning its exit status. */
+function runStrict(snippet: string): number {
   try {
-    execFileSync('bash', ['-c', script], { stdio: 'ignore', ...SPAWN_GUARD });
+    execFileSync('bash', ['-c', `set -euo pipefail\n${snippet}\n`], { stdio: 'ignore', ...SPAWN_GUARD });
     return 0;
   } catch (err) {
     return (err as { status?: number }).status ?? -1;
   }
 }
 
-const INLINE_PIPELINE = `
-{ printf '%s\\n' "$SUDO_PASS"; docker save docker-web docker-worker docker-image; } \\
-  | ssh "\${SSH_OPTS[@]}" "$REMOTE" 'docker load'
-`;
+const loads = (calls: string[]) => calls.filter((c) => c.startsWith('ssh ') && c.includes('docker load -i'));
+const rsyncs = (calls: string[]) => calls.filter((c) => c.startsWith('rsync '));
 
-const VIA_HELPER = `
-source "${HELPER}"
-send_images_to_host
-`;
-
-describe('image transfer to a deploy target', () => {
-  it('the bare pipeline aborts on a writer SIGPIPE even though the load succeeded', () => {
-    // The defect being fixed. If this stops reproducing, the case below no
-    // longer proves anything and both need revisiting.
-    expect(runWithStubs(INLINE_PIPELINE, 0)).toBe(141);
+describe('sending the Docker images to a deploy target', () => {
+  // Defect caught: the archive going somewhere the next deploy does not look,
+  // so every deploy re-sends every layer, or the host loading a different file
+  // from the one that was sent.
+  it('rsyncs the saved archive to its fixed home on the host, then loads that same file', () => {
+    const r = transfer();
+    expect(r.status, r.stderr).toBe(0);
+    expect(rsyncs(r.calls)).toHaveLength(1);
+    expect(rsyncs(r.calls)[0]).toMatch(new RegExp(` footbag-staging:${ARCHIVE}$`));
+    expect(rsyncs(r.calls)[0]).toContain('--partial');
+    // The archive sits in the deploy account's home between deploys, readable
+    // by that account only.
+    expect(rsyncs(r.calls)[0]).toContain('--chmod=F600');
+    // A Docker image left out of the archive is never updated on the host.
+    const save = r.calls.find((c) => c.startsWith('docker save -o '));
+    expect(save?.split(' ').slice(4).sort()).toEqual(['docker-image', 'docker-web', 'docker-worker']);
+    expect(loads(r.calls)).toHaveLength(1);
+    expect(loads(r.calls)[0]).toContain(`docker load -i '${ARCHIVE}'`);
+    expect(r.calls.indexOf(loads(r.calls)[0])).toBeGreaterThan(r.calls.indexOf(rsyncs(r.calls)[0]));
   });
 
-  it('the helper succeeds when the reader finishes first', () => {
-    expect(runWithStubs(VIA_HELPER, 0)).toBe(0);
+  // Defect caught: the sudo password readable by any process on either machine
+  // through an argument list, or sent to a session that is not the privileged one.
+  it('sends the sudo password only on the load session\'s stdin', () => {
+    const r = transfer();
+    expect(r.status, r.stderr).toBe(0);
+    for (const call of r.calls) expect(call).not.toContain(PASSWORD);
+    const loadIndex = r.calls.filter((c) => c.startsWith('ssh ')).findIndex((c) => c.includes('docker load -i'));
+    r.sshStdin.forEach((input, i) => {
+      if (i === loadIndex) expect(input).toBe(`${PASSWORD}\n`);
+      else expect(input).not.toContain(PASSWORD);
+    });
   });
 
-  it('the helper still fails when the reader itself fails', () => {
-    // The fix must not be a blanket suppression: a real load failure has to
-    // stop the deploy.
-    expect(runWithStubs(VIA_HELPER, 1)).toBe(1);
+  // Defect caught: a dropped connection followed by a load of a half-sent
+  // archive, replacing the host's working Docker images with broken ones.
+  it('loads nothing when the transfer fails, and says the release is unchanged', () => {
+    const r = transfer({ rsyncExit: 12 });
+    expect(r.status).not.toBe(0);
+    expect(loads(r.calls)).toEqual([]);
+    expect(r.stderr).toContain('its running release is unchanged');
   });
 
-  it('leaves pipefail on for everything after the transfer', () => {
-    const status = runWithStubs(`${VIA_HELPER}\nfalse | true\n`, 0);
-    expect(status).not.toBe(0);
+  // Defect caught: a host disk filling during the load after the old Docker
+  // images were pruned, leaving nothing to run. The boundary is exactly twice
+  // the archive: one byte-block short is refused, exactly enough goes ahead.
+  it('refuses before sending anything when the host lacks room for twice the archive', () => {
+    const short = transfer({ avail: NEED_KB - 1 });
+    expect(short.status).not.toBe(0);
+    expect(rsyncs(short.calls)).toEqual([]);
+    expect(loads(short.calls)).toEqual([]);
+    expect(short.stderr).toContain('Nothing was sent');
+    const enough = transfer({ avail: NEED_KB });
+    expect(enough.status, enough.stderr).toBe(0);
+    expect(rsyncs(enough.calls)).toHaveLength(1);
   });
 
+  // Defect caught: a failed free-space read treated as plenty of room.
+  it('refuses before sending anything when the host\'s free space cannot be read', () => {
+    const r = transfer({ avail: null });
+    expect(r.status).not.toBe(0);
+    expect(rsyncs(r.calls)).toEqual([]);
+    expect(r.stderr).toContain('could not read the free disk space');
+  });
+
+  // Defect caught: a load failure reported as success, so the deploy restarts
+  // the stack on Docker images that never arrived.
+  it('fails with the load\'s own status when docker load fails', () => {
+    expect(transfer({ loadExit: 3 }).status).toBe(3);
+  });
+
+  // Defect caught: a half-written local archive sent to the host.
+  it('contacts the host not at all when docker save fails', () => {
+    const r = transfer({ saveExit: 1 });
+    expect(r.status).not.toBe(0);
+    expect(r.calls.filter((c) => !c.startsWith('docker '))).toEqual([]);
+  });
+
+  // Defect caught: an archive path built from an unresolved or relative home,
+  // which puts the archive somewhere the next deploy cannot find.
+  it('refuses when the deploy account\'s home on the host is not an absolute path', () => {
+    const r = transfer({ remoteHome: 'home/footbag' });
+    expect(r.status).not.toBe(0);
+    expect(r.calls).toEqual([]);
+  });
+
+  // Defect caught: a 600 MB archive left in the workstation's temp directory on
+  // every deploy, whether it succeeded or failed.
+  it('leaves no local archive behind, on success or on any failure', () => {
+    const runs = {
+      success: transfer(),
+      'save failed': transfer({ saveExit: 1 }),
+      'free space unreadable': transfer({ avail: null }),
+      'too little room': transfer({ avail: 0 }),
+      'transfer failed': transfer({ rsyncExit: 12 }),
+    };
+    for (const [name, run] of Object.entries(runs)) expect(run.leftover, name).toEqual([]);
+  });
+});
+
+describe('deploy script shell pitfalls', () => {
   it('a truncating reader in the provenance pipeline does not abort the deploy', () => {
     // The deploy records up to forty dirty paths. `head -40` closes the pipe on
     // its fortieth line, which SIGPIPEs the writers; pipefail then makes the
@@ -140,8 +267,8 @@ describe('image transfer to a deploy target', () => {
     // working trees.
     const withHead = `v="$(seq 1 500000 | cut -c1- | head -40 | paste -sd, -)"`;
     const withSed = `v="$(seq 1 500000 | cut -c1- | sed -n '1,40p' | paste -sd, -)"`;
-    expect(runWithStubs(withHead, 0)).toBe(141);
-    expect(runWithStubs(withSed, 0)).toBe(0);
+    expect(runStrict(withHead)).toBe(141);
+    expect(runStrict(withSed)).toBe(0);
   });
 
   it('every compose exec in a remote half reads from /dev/null', () => {

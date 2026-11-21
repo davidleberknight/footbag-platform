@@ -1,0 +1,11 @@
+{{! What a non-member sees in place of a member-only action: one sentence, then its actions. }}
+<div class="membership-prompt">
+  <p>{{text}}</p>
+  {{#if actions.length}}
+    <div class="membership-prompt-actions">
+      {{#each actions}}
+        <a href="{{siteHref href}}" class="btn {{#if isPrimary}}btn-primary{{else}}btn-outline{{/if}}">{{label}}</a>
+      {{/each}}
+    </div>
+  {{/if}}
+</div>
