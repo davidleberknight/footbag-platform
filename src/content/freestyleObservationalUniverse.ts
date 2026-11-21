@@ -1264,9 +1264,9 @@ export const EMERGING_QUESTIONS: readonly EmergingQuestion[] =
       "id": "Q02",
       "title": "Undefined-operator definitions",
       "question": "Define the structure and weight of each recognized-but-undefined folk operator: symple, slapping, frantic, fusing, phasing, slaying, sonic, twinspinning, frootie, fyro, leaning, twisted, twisting, wonton, wrecking, snapping, zipper, arctic, neutron, slicing, and symp. Defining one operator unblocks every name that uses it.",
-      "status": "sent (addendum drafted)",
+      "status": "sent",
       "owner": "james+red",
-      "vehicle": "Scoring paper + operator addendum",
+      "vehicle": "Scoring paper; email of 2026-11-20",
       "unlockCount": 84
     },
     {
@@ -1300,9 +1300,9 @@ export const EMERGING_QUESTIONS: readonly EmergingQuestion[] =
       "id": "Q06",
       "title": "Cross-body rake base",
       "question": "What is the crossbody-rake (XBD rake) base structurally: a terminal contact posture like clipper, or a raking path? One contract; every rake compound composes defined operators onto it.",
-      "status": "drafted",
+      "status": "sent",
       "owner": "james+red",
-      "vehicle": "Notation paper",
+      "vehicle": "Notation paper; email of 2026-11-20",
       "unlockCount": 14
     },
     {
@@ -1345,36 +1345,36 @@ export const EMERGING_QUESTIONS: readonly EmergingQuestion[] =
       "id": "Q11",
       "title": "Sumo implicit-paradox X-Dex rider",
       "question": "Does sumo's provisional [XDEX] stand (the implicit-paradox hypothesis)? Decides Nuclear Ducking Mirage and its Sumo Thong twin, whose ADD is 5 without X-Dex and 6 with it.",
-      "status": "drafted",
+      "status": "sent",
       "owner": "james+red",
-      "vehicle": "Rider list",
+      "vehicle": "Rider list; email of 2026-11-20",
       "unlockCount": 1
     },
     {
       "id": "Q12",
       "title": "Pogo-clipper terminal",
       "question": "Is the pogo-clipper terminal a kick or a stall? Row-specific to Pogo Clipper and its same-side form; pogo's +1 operator contract is registry-settled.",
-      "status": "drafted",
+      "status": "sent",
       "owner": "james+red",
-      "vehicle": "Rider list",
+      "vehicle": "Rider list; email of 2026-11-20",
       "unlockCount": 2
     },
     {
       "id": "Q13",
       "title": "Jani-walker structure",
       "question": "What is the jani-walker structure? Also decides Sidewinder (= fairy gyro jani-walker).",
-      "status": "drafted",
+      "status": "sent",
       "owner": "james+red",
-      "vehicle": "Rider list",
+      "vehicle": "Rider list; email of 2026-11-20",
       "unlockCount": 1
     },
     {
       "id": "Q14",
       "title": "Twisting exemplar and spyro prefix",
       "question": "Twisting is a degenerate structure with no exemplar (Toe Spinning Toe and the What!? name hang on it); and what does a spyro prefix mean given spyro is ruled a trick, not a general modifier?",
-      "status": "drafted",
+      "status": "sent",
       "owner": "james+red",
-      "vehicle": "Rider list",
+      "vehicle": "Rider list; email of 2026-11-20",
       "unlockCount": 9
     },
     {
