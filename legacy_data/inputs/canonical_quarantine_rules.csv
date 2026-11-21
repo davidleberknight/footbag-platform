@@ -61,3 +61,4 @@ event_key,discipline_key,quarantine_scope,trigger_pattern,rationale,confidence,a
 1998_vancouver,unknown,discipline_all,,"The page title (""12th Annual Vancouver Open"") read as a 12th place with no name; not a result",confirmed,1
 1999_vancouver,unknown,discipline_all,,"The page title (""13th Annual Vancouver Open"") read as a 13th place with no name; not a result",confirmed,1
 2011_usopen_portland,unknown,discipline_all,,"Duplicate of the event's Mixed Doubles list, the same ten teams in the same order; the Mixed Doubles list is kept",confirmed,1
+2004_russian_1,unknown,discipline_all,,"The page's Open Doubles Net lists team names only (Footcraft, Team Spirit) and no players; a result must name its competitors, and team names never become persons",confirmed,1
